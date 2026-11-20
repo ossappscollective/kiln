@@ -12,7 +12,7 @@ import {
   normalizeListingValue,
   sideProblems,
   summarize,
-} from './services/listing-drift.ts';
+} from './drift.ts';
 
 const h = hashListingValue;
 

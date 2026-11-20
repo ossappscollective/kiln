@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { StoreError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { claimNext } from './jobs.ts';
+import { claimNext } from '../../jobs.ts';
 import {
   ASC_SECRET,
   bootListing,
@@ -11,11 +11,11 @@ import {
   iosSections,
   type ListingBoot,
   playListing,
-} from './listing-test-helpers.ts';
-import { createScheduler } from './scheduler.ts';
-import { APP_SYNC_QUEUE } from './services/apps.ts';
-import { createTestLimiter } from './services/credential-tests.ts';
-import { listingBackoffMs, listingDueAt } from './services/listing-drift.ts';
+} from './test-helpers.ts';
+import { createScheduler } from '../../scheduler.ts';
+import { APP_SYNC_QUEUE } from '../../services/apps.ts';
+import { createTestLimiter } from '../../services/credential-tests.ts';
+import { listingBackoffMs, listingDueAt } from './drift.ts';
 import {
   claimListingRead,
   createListingReadHandler,
@@ -26,7 +26,7 @@ import {
   listingIntervalMs,
   queueListingReads,
   runListingRead,
-} from './services/listing-schedule.ts';
+} from './schedule.ts';
 
 // Scheduled listing reads. Every pass runs on an injected clock, jitter and limiter, and every read
 // on a fake store connector: nothing waits, nothing is random, no store is contacted, and the

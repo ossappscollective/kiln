@@ -4,11 +4,11 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
-import { type AppEnv, parseBody, queryInt } from '../http.ts';
-import { memberRole } from '../services/accounts.ts';
-import { type AppsContext, getApp, syncApp } from '../services/apps.ts';
-import type { TestLimiter } from '../services/credential-tests.ts';
-import { isListingField } from '../services/listing-drift.ts';
+import { type AppEnv, parseBody, queryInt } from '../../http.ts';
+import { memberRole } from '../../services/accounts.ts';
+import { type AppsContext, getApp, syncApp } from '../../services/apps.ts';
+import type { TestLimiter } from '../../services/credential-tests.ts';
+import { isListingField } from './drift.ts';
 import {
   getDrift,
   getHistory,
@@ -16,10 +16,10 @@ import {
   HISTORY_DEFAULT_LIMIT,
   HISTORY_MAX_LIMIT,
   parseHistoryCursor,
-} from '../services/listing-live.ts';
-import { pullStoreListing } from '../services/listing-pull.ts';
-import { recordAppliedChangeSets, refreshRepoListing } from '../services/listing-repo.ts';
-import type { Failure, RepoContext } from '../services/repositories.ts';
+} from './live.ts';
+import { pullStoreListing } from './pull.ts';
+import { recordAppliedChangeSets, refreshRepoListing } from './repo.ts';
+import type { Failure, RepoContext } from '../../services/repositories.ts';
 
 export type ListingRoutesContext = {
   db: Database;

@@ -11,13 +11,13 @@ import {
 } from '@mrm/connectors';
 import type { Platform } from '@mrm/core';
 import { dbTest } from '@mrm/db/testing';
-import { BranchRepo } from './fixup-test-helpers.ts';
-import { bootRepoApp } from './repo-test-helpers.ts';
-import type { StoreConnectorFactory } from './services/apps.ts';
-import { createTestLimiter } from './services/credential-tests.ts';
-import { diffFromPrevious, planPull, textHash } from './services/listing-pull.ts';
-import { forgetInspectedChangeSets } from './services/listing-repo.ts';
-import { clearRepoSnapshots } from './services/repo-snapshot.ts';
+import { BranchRepo } from '../../fixup-test-helpers.ts';
+import { bootRepoApp } from '../../repo-test-helpers.ts';
+import type { StoreConnectorFactory } from '../../services/apps.ts';
+import { createTestLimiter } from '../../services/credential-tests.ts';
+import { diffFromPrevious, planPull, textHash } from './pull.ts';
+import { forgetInspectedChangeSets } from './repo.ts';
+import { clearRepoSnapshots } from '../../services/repo-snapshot.ts';
 
 // Recomputing a store pull: the same change set, made again from the CURRENT store snapshot and
 // the CURRENT repository. Fakes only: no store and no GitHub is contacted.

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { STAGED_LIMITS } from '@mrm/core';
 import { dbTest } from '@mrm/db/testing';
-import { iosListing, playListing } from './listing-test-helpers.ts';
+import { iosListing, playListing } from './modules/listing/test-helpers.ts';
 import { bootStaged, IPHONE_65, jpeg, png } from './staged-test-helpers.ts';
 
 /**

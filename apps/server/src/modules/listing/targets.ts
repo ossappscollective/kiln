@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { checkListingRoot, normalizeRoot } from '@mrm/connectors';
 import type { ActorType } from '@mrm/core';
 import type { Database, Row, Sql } from '@mrm/db';
-import { recordAudit } from './audit.ts';
+import { recordAudit } from '../../services/audit.ts';
 
 /**
  * Listing targets: the places a repository's store listing lives, named. A repository with several

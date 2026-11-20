@@ -1,5 +1,7 @@
 import type { Hono } from 'hono';
 import type { AppEnv, Services } from '../http.ts';
+import type { AppsContext } from '../services/apps.ts';
+import type { RepoContext } from '../services/repositories.ts';
 import type { CiContext } from './ci/service.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
 import type { TranslationContext } from '../services/translation.ts';
@@ -11,6 +13,12 @@ import type { TranslationContext } from '../services/translation.ts';
  */
 /** What `createApp` builds once and several modules use. */
 export type ModuleShared = {
+  /** The repository context of listing and media reads (clones, connector factory, timeout). */
+  repo: RepoContext;
+  /** The app sync's context: the store read of a listing pull uses it. */
+  apps: AppsContext;
+  /** Repository index reads of the Assets tab that miss the cache, per workspace (the listing module and staging share it). */
+  assetsLimiter: TestLimiter;
   /** The CI context (repositories, rate limits, build matchers): the CI and builds modules both read it. */
   ci: CiContext;
   /** The translation provider's seams (tests replace the network), also used by the reviews and the settings. */

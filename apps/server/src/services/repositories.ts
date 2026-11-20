@@ -36,13 +36,13 @@ import {
   type RepositoryListings,
   readListings,
   UnknownTargetError,
-} from './listing-sources.ts';
+} from '../modules/listing/sources.ts';
 import {
   type ListingSelection,
   type ListingTarget,
   listListingTargets,
   resolveSelection,
-} from './listing-targets.ts';
+} from '../modules/listing/targets.ts';
 import {
   LOCAL_ONLY_APPLY_MESSAGE,
   LOCAL_ONLY_MESSAGE,

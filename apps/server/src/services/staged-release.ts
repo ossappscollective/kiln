@@ -14,7 +14,7 @@ import {
 } from '@mrm/core';
 import { getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
-import { hashListingValue } from './listing-drift.ts';
+import { hashListingValue } from '../modules/listing/drift.ts';
 import { type Failure, failure } from './repositories.ts';
 import { buildStagedView, isStageableLocale, type StagedContext } from './staged-changes.ts';
 

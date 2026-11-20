@@ -27,7 +27,7 @@ import {
   listingFieldsFor,
   sideProblems,
   splitKey,
-  summarize } from './listing-drift.ts';
+  summarize } from './drift.ts';
 
 /**
  * The live store listing, its history and the three-way drift view. Read-only toward the stores:

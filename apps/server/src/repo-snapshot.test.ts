@@ -6,7 +6,7 @@ import {
   scannerMonorepo,
   weatherApp,
 } from '../../../packages/connectors/src/fastlane.fixtures.ts';
-import { readListings } from './services/listing-sources.ts';
+import { readListings } from './modules/listing/sources.ts';
 import {
   clearRepoSnapshots,
   openRepoSnapshot,

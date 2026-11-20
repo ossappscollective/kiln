@@ -3,11 +3,11 @@ import { AppleDraftConnector, appleScope, connectorFactory, type DraftApplyResul
 import { type AssetSlot, byFamily, isReleaseFieldId, LOCAL_ONLY_RELEASE_FIELDS, needsStoreAppId, type Platform, RELEASE_FIELD_SPECS, slotKey, sniffImageFormat, STAGED_LIMITS, storeFamilyOf, supports, versionCodesOf } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
-import { type AssetsContext, openAssets } from './asset-repo.ts';
+import { type AssetsContext, openAssets } from '../modules/listing/asset-repo.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
-import { normalizeListingValue } from './listing-drift.ts';
+import { normalizeListingValue } from '../modules/listing/drift.ts';
 import { type Failure, failure } from './repositories.ts';
 import { storeFor } from '../modules/reviews/sync.ts';
 import { getBlob } from './staged-asset-blobs.ts';

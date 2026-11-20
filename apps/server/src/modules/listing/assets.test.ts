@@ -19,15 +19,15 @@ import {
   SCAN_APP,
   scannerMonorepo,
   weatherApp,
-} from '../../../packages/connectors/src/fastlane.fixtures.ts';
-import { ASC_SECRET, PLAY_SECRET } from './listing-test-helpers.ts';
-import { bootRepoApp, FakeRepo, fastlaneFiles } from './repo-test-helpers.ts';
-import { operations } from './services/api-operations.ts';
-import { clearAssetIndexes } from './services/asset-repo.ts';
-import { createCloneReads } from './services/clone-reads.ts';
-import { createTestLimiter } from './services/credential-tests.ts';
-import { clearRepoSnapshots } from './services/repo-snapshot.ts';
-import type { Exchange } from './services/safe-fetch.ts';
+} from '../../../../../packages/connectors/src/fastlane.fixtures.ts';
+import { ASC_SECRET, PLAY_SECRET } from './test-helpers.ts';
+import { bootRepoApp, FakeRepo, fastlaneFiles } from '../../repo-test-helpers.ts';
+import { operations } from '../../services/api-operations.ts';
+import { clearAssetIndexes } from './asset-repo.ts';
+import { createCloneReads } from '../../services/clone-reads.ts';
+import { createTestLimiter } from '../../services/credential-tests.ts';
+import { clearRepoSnapshots } from '../../services/repo-snapshot.ts';
+import type { Exchange } from '../../services/safe-fetch.ts';
 
 /**
  * The media of a repository (Assets tab) and the app icon, end to end: real git repositories in

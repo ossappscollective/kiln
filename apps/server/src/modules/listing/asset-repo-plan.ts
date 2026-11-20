@@ -1,5 +1,5 @@
 import { type AssetKind, type AssetSlot, type Platform, PLAY_DEVICES, PLAY_GRAPHIC_FILES, supports } from '@mrm/core';
-import { screenshotFolders } from './store-assets.ts';
+import { screenshotFolders } from '../../services/store-assets.ts';
 
 /**
  * Where the files of a set go in a repository, and which files have to be written or deleted to make the repository's set

@@ -9,10 +9,10 @@ import type {
   StoreVersion,
 } from '@mrm/connectors';
 import type { Platform } from '@mrm/core';
-import { bootRepoApp } from './repo-test-helpers.ts';
-import type { StoreConnectorFactory } from './services/apps.ts';
-import { forgetInspectedChangeSets } from './services/listing-repo.ts';
-import { forgetRunningListingReads } from './services/listing-schedule.ts';
+import { bootRepoApp } from '../../repo-test-helpers.ts';
+import type { StoreConnectorFactory } from '../../services/apps.ts';
+import { forgetInspectedChangeSets } from './repo.ts';
+import { forgetRunningListingReads } from './schedule.ts';
 
 /**
  * Shared by listing-sections.test.ts and listing-schedule.test.ts. Not a test file itself.

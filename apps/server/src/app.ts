@@ -14,17 +14,15 @@ import { type AsoDeps, asoLimitsFor, asoModule } from './modules/aso/index.ts';
 import type { ModuleShared } from './modules/module.ts';
 import { type ReviewsDeps, reviewsModule } from './modules/reviews/index.ts';
 import { aiRoutes } from './routes/ai.ts';
+import { type ListingDeps, listingModule } from './modules/listing/index.ts';
 import { alertsModule } from './modules/alerts/index.ts';
 import { analyticsImportPath } from './modules/analytics/routes.ts';
 import { appRoutes } from './routes/apps.ts';
-import { type AssetSyncRoutesContext, assetSyncRoutes } from './routes/asset-sync.ts';
-import { assetRoutes } from './routes/assets.ts';
 import { authRoutes, meRoute, requireUser } from './routes/auth.ts';
 import { changeSetFixupRoutes } from './routes/change-set-fixup.ts';
 import { type CredentialTestDeps, credentialTestRoutes } from './routes/credential-tests.ts';
 import { createEventStreamHub, type EventStreamHub, eventRoutes } from './routes/events.ts';
 import { publicInvitationRoutes, workspaceInvitationRoutes } from './routes/invitations.ts';
-import { listingRoutes } from './routes/listing.ts';
 import {
   loginSecondFactorRoutes,
   type MailDeps,
@@ -50,7 +48,6 @@ import { workspaceRoutes } from './routes/workspaces.ts';
 import type { AiContext } from './services/ai-config.ts';
 import { createConcurrencyGate } from './services/ai-usage.ts';
 import { operations } from './services/api-operations.ts';
-import { createAppIcons, type IconsContext } from './services/app-icons.ts';
 import {
   DEFAULT_SYNC_TIMEOUT_MS,
   defaultStoreConnectorFactory,
@@ -201,22 +198,19 @@ export type AppDeps = {
    * The scheduled listing read (MRM_LISTING_INTERVAL_MINUTES) in milliseconds, 0 or absent for off.
    * Only used to tell the Listing tab when the next read is due; the scheduler is built in index.ts.
    */
-  listing?: { intervalMs?: number };
+  listing?: ListingDeps['listing'];
   /**
    * Media files of the repositories and app icons (docs/api/assets.md). `limiter` is the per
    * workspace limit of index reads that miss the cache (default 30 a minute); `icons` holds the
    * seams of the App Store icon lookup (`limiter`: lookups per workspace, `net`: resolver,
    * exchange and allowPrivate, for tests and development). All optional.
    */
-  assets?: { limiter?: TestLimiter; icons?: Pick<IconsContext, 'limiter' | 'net'> };
+  assets?: ListingDeps['assets'];
   /**
    * Two way sync of graphics (docs/api/assets.md): `net` is the exchange and address check of the downloads from a store's CDN
    * (fakes in tests), the limiters are per workspace (store reads, CDN fetches, uploads). All optional.
    */
-  assetSync?: Pick<
-    AssetSyncRoutesContext,
-    'net' | 'storeLimiter' | 'fetchLimiter' | 'uploadLimiter'
-  >;
+  assetSync?: ListingDeps['assetSync'];
   /** Customer reviews (docs/api/reviews.md): see `ReviewsDeps` in modules/reviews. */
   reviews?: ReviewsDeps;
   /**
@@ -421,7 +415,20 @@ export function createApp(deps: AppDeps) {
     deps.ci,
   );
   const appSyncLimiter = deps.appSync?.limiter ?? createTestLimiter({ now: services.now });
+  // The repository context of the media files and listing reads, and the budget of the Assets tab: shared by the listing module and the staged routes.
+  const assetsRepo = {
+    db: services.db,
+    masterKey: services.masterKey,
+    now: services.now,
+    connectorFactory: deps.connectorFactory ?? defaultConnectorFactory,
+    timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
+    reads: deps.reads,
+  };
+  const assetsLimiter = deps.assets?.limiter ?? createTestLimiter({ limit: 30, now: services.now });
   const shared: ModuleShared = {
+    repo: assetsRepo,
+    apps: appsContext,
+    assetsLimiter,
     ci: ciContext,
     translation: translationSeams,
     appSyncLimiter,
@@ -451,6 +458,12 @@ export function createApp(deps: AppDeps) {
     }),
   );
   alertsModule.mount(app, services, undefined, shared);
+  listingModule.mount(
+    app,
+    services,
+    { listing: deps.listing, assets: deps.assets, assetSync: deps.assetSync, draft: deps.storeDraft },
+    shared,
+  );
   ciModule.mount(app, services, undefined, shared);
   buildsModule.mount(app, services, deps.builds, shared);
   asoModule.mount(app, services, deps.aso, shared);
@@ -470,26 +483,6 @@ export function createApp(deps: AppDeps) {
   );
   // Release planning: our own checklists, notes and deadlines. No store is read or written.
   app.route('/api/workspaces', planRoutes({ db: services.db, now: services.now }));
-  // Live store listing, drift and history. Read-only: nothing here writes to a store. Only
-  // `repo-refresh` sends traffic (to GitHub), with its own per-workspace rate limit.
-  app.route(
-    '/api/workspaces',
-    listingRoutes({
-      db: services.db,
-      now: services.now,
-      repo: {
-        db: services.db,
-        masterKey: services.masterKey,
-        now: services.now,
-        connectorFactory: deps.connectorFactory ?? defaultConnectorFactory,
-        timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
-        reads: deps.reads,
-      },
-      limiter: createTestLimiter({ now: services.now }),
-      sync: { apps: appsContext, limiter: appSyncLimiter },
-      ...(deps.listing?.intervalMs ? { listingIntervalMs: deps.listing.intervalMs } : {}),
-    }),
-  );
   // Fix up the branch of a change set (one more commit on top of it) and recompute a store pull.
   // They share the context of the repository routes (clones, the local write switch) and the store
   // read of a pull (the app sync's context and per workspace budget).
@@ -511,35 +504,6 @@ export function createApp(deps: AppDeps) {
       sync: { apps: appsContext, limiter: appSyncLimiter },
     }),
   );
-  // Media files of the repositories (screenshots, graphics) and the icon of an app. Read-only:
-  // nothing is written to a repository or sent to a store. Reads of the repository use the same
-  // connector factory and clones as the listing reads; the icon lookup also asks the public
-  // iTunes Lookup API for iOS apps whose repository has no icon.
-  const assetsRepo = {
-    db: services.db,
-    masterKey: services.masterKey,
-    now: services.now,
-    connectorFactory: deps.connectorFactory ?? defaultConnectorFactory,
-    timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
-    reads: deps.reads,
-  };
-  const assetsLimiter = deps.assets?.limiter ?? createTestLimiter({ limit: 30, now: services.now });
-  app.route(
-    '/api/workspaces',
-    assetRoutes({
-      db: services.db,
-      now: services.now,
-      repo: assetsRepo,
-      limiter: assetsLimiter,
-      icons: createAppIcons({
-        db: services.db,
-        now: services.now,
-        repo: assetsRepo,
-        ...(deps.assets?.icons?.limiter ? { limiter: deps.assets.icons.limiter } : {}),
-        ...(deps.assets?.icons?.net ? { net: deps.assets.icons.net } : {}),
-      }),
-    }),
-  );
   // Staged listing text and graphics of an app, and writing them to the store as a draft. Staging touches the
   // database only (files are read through the asset index, with the budget of the Assets tab); the push is
   // off unless MRM_STORE_DRAFT_WRITE_ENABLED and never submits anything.
@@ -552,20 +516,6 @@ export function createApp(deps: AppDeps) {
       repo: assetsRepo,
       limiter: assetsLimiter,
       ...(deps.storeDraft ? { draft: deps.storeDraft } : {}),
-    }),
-  );
-  // Two way sync of graphics: the store's images and their comparison with the repository, pulling them into a change set,
-  // and uploading, replacing, removing and fixing the files of a staged set. Store reads change nothing in the store.
-  app.route(
-    '/api/workspaces',
-    assetSyncRoutes({
-      db: services.db,
-      masterKey: services.masterKey,
-      now: services.now,
-      repo: assetsRepo,
-      limiter: assetsLimiter,
-      ...(deps.storeDraft ? { draft: deps.storeDraft } : {}),
-      ...(deps.assetSync ?? {}),
     }),
   );
   // Submitting the pushed draft for store review: reads the store and writes only to its review queue; off unless

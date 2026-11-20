@@ -9,8 +9,8 @@ import {
   putAppIcon,
 } from './app-icon-store.ts';
 import type { ManagedApp } from './apps.ts';
-import type { AssetIndexView } from './asset-index.ts';
-import { openAssets } from './asset-repo.ts';
+import type { AssetIndexView } from '../modules/listing/asset-index.ts';
+import { openAssets } from '../modules/listing/asset-repo.ts';
 import { createTestLimiter, type TestLimiter } from './credential-tests.ts';
 import type { RepoContext } from './repositories.ts';
 import { type Exchange, type SafeGetResult, safeGet } from './safe-fetch.ts';

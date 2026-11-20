@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { migrate } from '@mrm/db';
 import { dbTest } from '@mrm/db/testing';
-import { fileFitsPlatform } from './asset-index.ts';
+import { fileFitsPlatform } from '../modules/listing/asset-index.ts';
 import { reviewsOwnedByOtherRecord } from '../modules/reviews/sync.ts';
 
 // The macOS rules of the server services that need no store: which assets belong to which Apple platform, and which

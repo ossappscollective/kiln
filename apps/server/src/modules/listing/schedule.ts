@@ -1,7 +1,7 @@
 import type { StoreConnector } from '@mrm/connectors';
 import { type ActorType, storeSideId } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { enqueue, type Job, type JobHandler } from '../jobs.ts';
+import { enqueue, type Job, type JobHandler } from '../../jobs.ts';
 import {
   APP_SYNC_QUEUE,
   type AppsContext,
@@ -9,10 +9,10 @@ import {
   getApp,
   type StoreConnectorInput,
   syncApp,
-} from './apps.ts';
-import { useCredentialSecret } from './credentials.ts';
-import { listingDueAt } from './listing-drift.ts';
-import { recordListingFailure, syncListing } from './listing-live.ts';
+} from '../../services/apps.ts';
+import { useCredentialSecret } from '../../services/credentials.ts';
+import { listingDueAt } from './drift.ts';
+import { recordListingFailure, syncListing } from './live.ts';
 
 /**
  * Scheduled reads of the store listing (MRM_LISTING_INTERVAL_MINUTES, off by default).

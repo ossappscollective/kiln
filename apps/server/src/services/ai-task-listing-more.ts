@@ -13,7 +13,7 @@ import {
   clip,
   type PreparedRun,
   type ReadyTask } from './ai-task-types.ts';
-import { normalizeListingValue } from './listing-drift.ts';
+import { normalizeListingValue } from '../modules/listing/drift.ts';
 
 /**
  * `listing_variants` and `listing_translate` (docs/adr/0024-ai-features.md): several alternative texts for a field, and a translation of

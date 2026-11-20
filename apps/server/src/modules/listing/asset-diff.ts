@@ -15,12 +15,12 @@ import {
   type StoreImageSet,
   storeSetKey,
 } from '@mrm/core';
-import type { ManagedApp } from './apps.ts';
+import type { ManagedApp } from '../../services/apps.ts';
 import type { AssetView } from './asset-index.ts';
 import type { AssetHandle, AssetsContext } from './asset-repo.ts';
 import { openAssets } from './asset-repo.ts';
-import type { Failure } from './repositories.ts';
-import { getStoreImages, type StoreImagesContext, storeSideOf } from './store-images.ts';
+import type { Failure } from '../../services/repositories.ts';
+import { getStoreImages, type StoreImagesContext, storeSideOf } from '../../services/store-images.ts';
 
 /**
  * The repository's graphics set against the store's (docs/adr/0012-assets-two-way-sync.md): per file, identical, probably the

@@ -15,14 +15,14 @@ import {
   listChangeSets,
 } from '../services/change-sets.ts';
 import type { CloneUpkeep } from '../services/clone-upkeep.ts';
-import { detectedSources } from '../services/listing-sources.ts';
+import { detectedSources } from '../modules/listing/sources.ts';
 import {
   createListingTarget,
   deleteListingTarget,
   type ListingSelection,
   listListingTargets,
   updateListingTarget,
-} from '../services/listing-targets.ts';
+} from '../modules/listing/targets.ts';
 import {
   attachLocalCheckout,
   checkLocalPath,

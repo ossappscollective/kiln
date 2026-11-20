@@ -12,7 +12,7 @@ import {
   type ReadyTask,
   type TaskContext,
 } from './ai-task-types.ts';
-import { getDrift } from './listing-live.ts';
+import { getDrift } from '../modules/listing/live.ts';
 
 /**
  * Task `keyword_ideas` (version 1): candidate search keywords for an app in one language and storefront, each with a

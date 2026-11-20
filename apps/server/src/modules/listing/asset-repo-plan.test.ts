@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { generatedName, layoutFor, type PlanLayout, planSet } from './services/asset-repo-plan.ts';
+import { generatedName, layoutFor, type PlanLayout, planSet } from './asset-repo-plan.ts';
 
 const layout: PlanLayout = {
   dir: 'fastlane/screenshots/en-US',

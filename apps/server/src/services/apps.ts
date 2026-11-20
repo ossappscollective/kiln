@@ -11,8 +11,8 @@ import { deleteAppReleaseSettings } from './app-release-settings.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { recordSyncEvents, releaseStatusChanges } from './events.ts';
-import { deleteListingData, syncListing } from './listing-live.ts';
-import { recordAppliedChangeSets } from './listing-repo.ts';
+import { deleteListingData, syncListing } from '../modules/listing/live.ts';
+import { recordAppliedChangeSets } from '../modules/listing/repo.ts';
 import { type Failure, failure, type Outcome } from './repositories.ts';
 import { deleteReviewData } from '../modules/reviews/service.ts';
 

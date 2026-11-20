@@ -1,20 +1,20 @@
 import { type ActorType, type FileChange, type Listing, platformMeta } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import { fieldKey, flattenListing, hashListingValue, hasStoreListing } from './listing-drift.ts';
+import { fieldKey, flattenListing, hashListingValue, hasStoreListing } from './drift.ts';
 import {
   type ListingApp,
   recordChangeSetValues,
   recordSections,
   recordStream,
   updateListingStatus,
-} from './listing-live.ts';
+} from './live.ts';
 import {
   mergedListing,
   type RepositoryListings,
   readListings,
   repositorySections,
-} from './listing-sources.ts';
-import { listListingTargets } from './listing-targets.ts';
+} from './sources.ts';
+import { listListingTargets } from './targets.ts';
 import {
   type Failure,
   failure,
@@ -24,7 +24,7 @@ import {
   openConnectorForRepository,
   type RepoContext,
   readRepositoryListing,
-} from './repositories.ts';
+} from '../../services/repositories.ts';
 
 /**
  * The adapter between an app and the repository side of its listing. It only calls the exported

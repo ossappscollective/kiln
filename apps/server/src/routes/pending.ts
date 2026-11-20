@@ -5,7 +5,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
-import type { AssetsContext } from '../services/asset-repo.ts';
+import type { AssetsContext } from '../modules/listing/asset-repo.ts';
 import { getPending, PUBLISH_STEPS, pendingSummary } from '../services/pending.ts';
 import type { Failure } from '../services/repositories.ts';
 import { requireStepUp, stepUpCovers } from '../services/step-up.ts';

@@ -10,9 +10,9 @@ import {
 } from '@mrm/connectors';
 import type { Platform } from '@mrm/core';
 import { dbTest } from '@mrm/db/testing';
-import { bootRepoApp, type FakeRepo } from './repo-test-helpers.ts';
-import type { StoreConnectorFactory } from './services/apps.ts';
-import { forgetInspectedChangeSets } from './services/listing-repo.ts';
+import { bootRepoApp, type FakeRepo } from '../../repo-test-helpers.ts';
+import type { StoreConnectorFactory } from '../../services/apps.ts';
+import { forgetInspectedChangeSets } from './repo.ts';
 
 // Everything runs against fakes: no store and no GitHub is contacted.
 

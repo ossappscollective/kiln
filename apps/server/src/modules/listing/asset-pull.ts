@@ -1,15 +1,15 @@
 import { ASSET_SYNC_LIMITS, type AssetPlatform, type AssetSlot, type FileChange, IMESSAGE_PREFIX, storeImageKey, storeSetKey, supports } from '@mrm/core';
-import type { ManagedApp } from './apps.ts';
+import type { ManagedApp } from '../../services/apps.ts';
 import { type AssetSyncContext, repoSetsOf } from './asset-diff.ts';
 import { openAssets } from './asset-repo.ts';
 import { layoutFor, planSet, type Wanted } from './asset-repo-plan.ts';
 import { stepsToChanges } from './asset-repo-write.ts';
-import { recordAudit } from './audit.ts';
-import { type ChangeSetView, createFileChangeSet } from './change-sets.ts';
-import { emitEvent } from './events.ts';
-import { type Failure, failure } from './repositories.ts';
-import { gitBlobOid } from './staged-asset-blobs.ts';
-import { getStoreImages, storeImageBytes } from './store-images.ts';
+import { recordAudit } from '../../services/audit.ts';
+import { type ChangeSetView, createFileChangeSet } from '../../services/change-sets.ts';
+import { emitEvent } from '../../services/events.ts';
+import { type Failure, failure } from '../../services/repositories.ts';
+import { gitBlobOid } from '../../services/staged-asset-blobs.ts';
+import { getStoreImages, storeImageBytes } from '../../services/store-images.ts';
 
 /**
  * Pull from the store (docs/adr/0012-assets-two-way-sync.md): the store's current images become a change set for the app's

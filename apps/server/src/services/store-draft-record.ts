@@ -6,7 +6,7 @@ import {
 } from '@mrm/connectors';
 import { type AssetKind, PLATFORMS, type Platform } from '@mrm/core';
 import { oneOf, type Sql } from '@mrm/db';
-import { hashListingValue } from './listing-drift.ts';
+import { hashListingValue } from '../modules/listing/drift.ts';
 
 /**
  * What the last successful draft pushes of an app and platform wrote to the store's draft

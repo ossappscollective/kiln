@@ -2,16 +2,16 @@ import assert from 'node:assert/strict';
 import type { StoreImageRecord } from '@mrm/connectors';
 import { ASSET_SYNC_LIMITS, readImageHeader } from '@mrm/core';
 import { dbTest } from '@mrm/db/testing';
-import { rgbaPng, rgbPng } from './png-test-helpers.ts';
-import { decodePng } from './services/png-codec.ts';
-import type { Exchange, ExchangeRequest } from './services/safe-fetch.ts';
-import { clearStoreImageCaches } from './services/store-images.ts';
+import { rgbaPng, rgbPng } from '../../png-test-helpers.ts';
+import { decodePng } from '../../services/png-codec.ts';
+import type { Exchange, ExchangeRequest } from '../../services/safe-fetch.ts';
+import { clearStoreImageCaches } from '../../services/store-images.ts';
 import {
   bootStaged,
   type StagedBoot,
   type StagedBootOptions,
   sha256,
-} from './staged-test-helpers.ts';
+} from '../../staged-test-helpers.ts';
 
 /**
  * Two way sync of graphics (docs/api/assets.md, docs/adr/0012-assets-two-way-sync.md): reading the store, the comparison, the

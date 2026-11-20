@@ -9,8 +9,8 @@ import {
   iosSections,
   type ListingBoot,
   playListing,
-} from './listing-test-helpers.ts';
-import { operations } from './services/api-operations.ts';
+} from './test-helpers.ts';
+import { operations } from '../../services/api-operations.ts';
 
 // The listing sections (categories, age rating, privacy, media, details, release notes) end to end:
 // a sync of a fake store records them, the views show them, the drift compares them with the

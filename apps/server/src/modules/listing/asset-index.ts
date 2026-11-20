@@ -7,7 +7,7 @@ import {
   discoverProjectIcons,
   discoverStoreAssets,
   expoIconPaths,
-  orderWithinSets } from './store-assets.ts';
+  orderWithinSets } from '../../services/store-assets.ts';
 
 /**
  * The index of the media of one app's listing target in its repository: which files there are, and

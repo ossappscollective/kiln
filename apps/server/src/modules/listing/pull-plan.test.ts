@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fieldKey, hashListingValue } from './services/listing-drift.ts';
+import { fieldKey, hashListingValue } from './drift.ts';
 import {
   canonicalLocale,
   equivalentLocales,
   matchRepoLocale,
   newRepoLocale,
-} from './services/listing-locales.ts';
-import { type PullHistory, type PullPlanInput, planPull } from './services/listing-pull.ts';
+} from './locales.ts';
+import { type PullHistory, type PullPlanInput, planPull } from './pull.ts';
 
 // The pure parts of the store pull: locale codes and the plan. No database, no network.
 

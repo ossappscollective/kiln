@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { ProjectDetection } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { bootRepoApp, FakeRepo, fastlaneFiles } from './repo-test-helpers.ts';
-import { detectedSources } from './services/listing-sources.ts';
+import { bootRepoApp, FakeRepo, fastlaneFiles } from '../../repo-test-helpers.ts';
+import { detectedSources } from './sources.ts';
 
 /**
  * Which source a store's listing comes from: the Expo store.config.json for the App Store when

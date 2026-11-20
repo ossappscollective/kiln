@@ -6,9 +6,9 @@ import {
   SCAN_APP,
   scannerMonorepo,
   weatherApp,
-} from '../../../packages/connectors/src/fastlane.fixtures.ts';
-import { bootRepoApp, FakeRepo } from './repo-test-helpers.ts';
-import { clearRepoSnapshots } from './services/repo-snapshot.ts';
+} from '../../../../../packages/connectors/src/fastlane.fixtures.ts';
+import { bootRepoApp, FakeRepo } from '../../repo-test-helpers.ts';
+import { clearRepoSnapshots } from '../../services/repo-snapshot.ts';
 
 /**
  * Listing targets: one repository, several apps; detected targets (one per app id) and saved,

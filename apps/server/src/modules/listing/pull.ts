@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { type ActorType, type AppStoreListing, byFamily, type Listing, type ListingProblem, listingStoreOf, type LocaleText, type Platform, platformMeta, type PlayListing, validateListing } from '@mrm/core';
 import type { Row, Sql } from '@mrm/db';
-import { getApp, type ManagedApp } from './apps.ts';
-import { recordAudit } from './audit.ts';
+import { getApp, type ManagedApp } from '../../services/apps.ts';
+import { recordAudit } from '../../services/audit.ts';
 import {
   type ChangeSetOrigin,
   type ChangeSetView,
@@ -13,21 +13,21 @@ import {
   type ListingBuilder,
   parseFiles,
   parseOrigin,
-  rowOf } from './change-sets.ts';
+  rowOf } from '../../services/change-sets.ts';
 import {
   classifyDrift,
   fieldKey,
   fieldSpec,
   listingFieldsFor,
   normalizeListingValue,
-  toListing } from './listing-drift.ts';
-import { getLiveListing, type LiveChannel } from './listing-live.ts';
-import { canonicalLocale, matchRepoLocale, newRepoLocale } from './listing-locales.ts';
-import { type ListingSourceKind, listingSources, mergedListing } from './listing-sources.ts';
+  toListing } from './drift.ts';
+import { getLiveListing, type LiveChannel } from './live.ts';
+import { canonicalLocale, matchRepoLocale, newRepoLocale } from './locales.ts';
+import { type ListingSourceKind, listingSources, mergedListing } from './sources.ts';
 import {
   type ListingSelection,
   type ListingTarget,
-  listListingTargets } from './listing-targets.ts';
+  listListingTargets } from './targets.ts';
 import {
   type Failure,
   failure,
@@ -38,7 +38,7 @@ import {
   type Outcome,
   type RepoContext,
   type Repository,
-  selectedTarget } from './repositories.ts';
+  selectedTarget } from '../../services/repositories.ts';
 
 /**
  * Pull the live store listing into the repository, as a draft change set.

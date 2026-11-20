@@ -12,7 +12,7 @@ import {
   type PreparedRun,
   type ReadyTask,
 } from './ai-task-types.ts';
-import { normalizeListingValue } from './listing-drift.ts';
+import { normalizeListingValue } from '../modules/listing/drift.ts';
 
 /**
  * Task `listing_improve` (version 1): rewrites the text of chosen listing fields of one language within the store's limits.

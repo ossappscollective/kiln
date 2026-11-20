@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { appleDisplayType, ASSET_KIND_LABELS, ASSET_KINDS, type AssetFacts, type AssetKind, type AssetProblem, type AssetSlot, assetSlotSupport, assetStoreOf, checkReleaseField, checkReleaseSet, deviceLabel, isReleaseFieldId, isStageableTextField, parseSlotKey, type Platform, PLATFORMS, playImageType, PUSHABLE_IMAGE_FORMATS, RELEASE_FIELD_SPECS, type ReleaseFieldId, type ReleaseFieldItem, releaseItemKey, slotKey, slotMaxFiles, STAGEABLE_RELEASE_FIELDS, STAGEABLE_TEXT_FIELDS, STAGED_LIMITS, type StagedAssetFileView, type StagedAssetView, type StagedChangesView, type StagedProblem, type StagedReleaseFieldView, type StagedSource, type StagedTextView, supports, validateAssets } from '@mrm/core';
 import { type Database, nullableNumber, nullableString, oneOf, type Row, type Sql } from '@mrm/db';
 import { getApp, type ManagedApp } from './apps.ts';
-import { type AssetsContext, isCommitSha, openAssets } from './asset-repo.ts';
+import { type AssetsContext, isCommitSha, openAssets } from '../modules/listing/asset-repo.ts';
 import { recordAudit } from './audit.ts';
 import {
   ABSENT_HASH,
@@ -11,8 +11,8 @@ import {
   hashListingValue,
   isListingField,
   normalizeListingValue,
-  sideProblems } from './listing-drift.ts';
-import { getDrift } from './listing-live.ts';
+  sideProblems } from '../modules/listing/drift.ts';
+import { getDrift } from '../modules/listing/live.ts';
 import { type Failure, failure } from './repositories.ts';
 import { storeFor } from '../modules/reviews/sync.ts';
 import { deleteUnreferencedBlobs } from './staged-asset-blobs.ts';

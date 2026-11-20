@@ -1,7 +1,7 @@
 import { buildCoach, byFamily, type CoachAction, type CoachKeyword, type CompetitorText, type CoverageGap, coverageGaps, defaultLocaleFor, type FitFields, type FitKeyword, type Idea, type IdeaSource, languageOf, type ListingFit, listingFit, type ListingStore, listingStoreOf, type MarketKeyword, mineIdeas, normalizeLocale, storeSideId, suggestCompetitors, type SuggestedCompetitor, supports, type TermAcrossMarkets, termsAcrossMarkets } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import type { ManagedApp } from '../../services/apps.ts';
-import { getLiveListing } from '../../services/listing-live.ts';
+import { getLiveListing } from '../listing/live.ts';
 import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
 import {
   type AsoAppState,

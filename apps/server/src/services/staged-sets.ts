@@ -20,7 +20,7 @@ import {
   validateAssets,
 } from '@mrm/core';
 import type { ManagedApp } from './apps.ts';
-import { type AssetHandle, isCommitSha, openAssets } from './asset-repo.ts';
+import { type AssetHandle, isCommitSha, openAssets } from '../modules/listing/asset-repo.ts';
 import { recordAudit } from './audit.ts';
 import { type Failure, failure } from './repositories.ts';
 import {

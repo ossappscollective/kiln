@@ -27,7 +27,7 @@ import {
   createListingReadHandler,
   DEFAULT_LISTING_TIMEOUT_MS,
   LISTING_READ_QUEUE,
-} from '../services/listing-schedule.ts';
+} from '../modules/listing/schedule.ts';
 import { DEFAULT_REPO_TIMEOUT_MS } from '../services/repositories.ts';
 import {
   createReviewSyncHandler,

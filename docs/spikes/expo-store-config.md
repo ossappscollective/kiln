@@ -126,7 +126,7 @@ const { changes, warnings } = expoStoreChangeSet(snapshot, edited); // changes: 
 
 `changes` goes into the change set like `listingChangeSet` output.
 
-**Decision (server, `apps/server/src/services/listing-sources.ts`).** When a repository has a JSON
+**Decision (server, `apps/server/src/modules/listing/sources.ts`).** When a repository has a JSON
 store config as `detectProject` reports it, that file is the App Store listing source and the
 fastlane App Store metadata is ignored (and reported as such); without one, fastlane is the App
 Store source. Google Play is always fastlane (EAS Metadata has no Play support). The two are never

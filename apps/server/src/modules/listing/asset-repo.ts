@@ -1,6 +1,6 @@
 import { isBlobReads } from '@mrm/connectors';
 import { type AssetKind, assetStoreOf } from '@mrm/core';
-import type { ManagedApp } from './apps.ts';
+import type { ManagedApp } from '../../services/apps.ts';
 import {
   type AssetIndexView,
   type AssetSourceKind,
@@ -13,10 +13,10 @@ import {
   totalsOf,
   viewOfAsset,
 } from './asset-index.ts';
-import { isCloneBacked } from './clone-reads.ts';
-import { readListings } from './listing-sources.ts';
-import { listListingTargets, resolveSelection } from './listing-targets.ts';
-import { openRepoSnapshot } from './repo-snapshot.ts';
+import { isCloneBacked } from '../../services/clone-reads.ts';
+import { readListings } from './sources.ts';
+import { listListingTargets, resolveSelection } from './targets.ts';
+import { openRepoSnapshot } from '../../services/repo-snapshot.ts';
 import {
   type Failure,
   failure,
@@ -28,7 +28,7 @@ import {
   type RepoClient,
   type RepoContext,
   withTimeout,
-} from './repositories.ts';
+} from '../../services/repositories.ts';
 
 /**
  * The asset index of an app, read from its linked repository (docs/api/assets.md), and the bytes

@@ -47,7 +47,7 @@ import {
   DEFAULT_LISTING_TIMEOUT_MS,
   LISTING_READ_QUEUE,
   listingIntervalMs,
-} from './services/listing-schedule.ts';
+} from './modules/listing/schedule.ts';
 import { gitSupportsSshSigning, sshKeyFingerprint } from './services/local-git.ts';
 import { parseSmtpEnv } from './services/mail-config.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';

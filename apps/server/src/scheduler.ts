@@ -11,7 +11,7 @@ import { type AnalyticsUpkeepSummary, analyticsUpkeep } from './modules/analytic
 import { APP_SYNC_QUEUE } from './services/apps.ts';
 import { DEFAULT_POLL_MAX_MS, enqueueCiPoll } from './modules/ci/service.ts';
 import { ACTIVE_STATUSES, purgeOrphans } from './modules/ci/runs.ts';
-import { type ListingQueueSummary, queueListingReads } from './services/listing-schedule.ts';
+import { type ListingQueueSummary, queueListingReads } from './modules/listing/schedule.ts';
 import { type ReminderSummary, sendPlanReminders } from './services/plan-reminders.ts';
 import { type ReleaseWatchSummary, sendReleaseWatch } from './services/release-watch.ts';
 import {

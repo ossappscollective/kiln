@@ -48,12 +48,12 @@ import {
 import { classifyAppleScreenshot, type Platform, type StagedChangesView } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { weatherApp } from '../../../packages/connectors/src/fastlane.fixtures.ts';
-import { ASC_SECRET, FakeStore, PLAY_SECRET } from './listing-test-helpers.ts';
+import { ASC_SECRET, FakeStore, PLAY_SECRET } from './modules/listing/test-helpers.ts';
 import { bootRepoApp, FakeRepo } from './repo-test-helpers.ts';
 import type { StoreConnectorFactory } from './services/apps.ts';
-import { clearAssetIndexes } from './services/asset-repo.ts';
-import { forgetInspectedChangeSets } from './services/listing-repo.ts';
-import { forgetRunningListingReads } from './services/listing-schedule.ts';
+import { clearAssetIndexes } from './modules/listing/asset-repo.ts';
+import { forgetInspectedChangeSets } from './modules/listing/repo.ts';
+import { forgetRunningListingReads } from './modules/listing/schedule.ts';
 import { clearRepoSnapshots } from './services/repo-snapshot.ts';
 import type { DraftConnectorFactory, DraftConnectorInput } from './services/store-draft.ts';
 import type { ReleaseConnectorFactory, ReleaseConnectorInput } from './services/store-release.ts';

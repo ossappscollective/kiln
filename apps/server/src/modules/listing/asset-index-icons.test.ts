@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { type AssetFacts, validateAssets } from '@mrm/core';
-import { validatedFacts } from './services/asset-index.ts';
+import { validatedFacts } from './asset-index.ts';
 
 const icon = (path: string, size: number | null): AssetFacts => ({
   path,
