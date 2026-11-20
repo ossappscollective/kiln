@@ -161,6 +161,16 @@ for the length of one request and never returned. Set a **spending limit with th
 The first credential of the provider's kind in the workspace is the one used. A key may be saved before AI is turned on; nothing is sent until the server switch
 (`MRM_AI_ENABLED`) and the workspace setting are both on. The connection test is `POST /ai/test` (AI settings), not the generic credential test.
 
+## Expo access token (EAS)
+
+Expo Application Services ([api/eas](api/eas.md), [ADR 0033](adr/0033-eas-integration.md)) needs an access token of the kind **Expo access
+token** (`expo`). Create it for a **robot user with the Developer role** on the Expo account that owns your projects (expo.dev, the
+account's settings, Access tokens), not for a person; the token is shown once, is stored encrypted and is never returned. The
+connection test asks Expo who the token belongs to and which accounts it can see. Expo's page does not describe an expiry for tokens
+(revoke one by deleting it); whether a lower role than Developer can read a project is **unverified** (see
+[spikes/credential-guides-unverified.md](spikes/credential-guides-unverified.md)). The tool only reads project details with it for
+now, but the token can do whatever its role can, so keep it private. Docs: https://docs.expo.dev/accounts/programmatic-access/
+
 ## Analytics (what the same credentials need)
 
 Analytics ([api/analytics](api/analytics.md)) reads numbers only. **None of this was tried against a real store; check each item with your account** ([research](research/analytics-apis.md)).
