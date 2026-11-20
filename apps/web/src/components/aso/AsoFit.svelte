@@ -26,6 +26,7 @@
   } from '../../lib/aso.ts';
   import { headerParams, withHeaderParams } from '../../lib/app-header.ts';
   import { appAddress } from '../../lib/app-scope.ts';
+  import { fitLead } from '../../lib/aso-lead.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { countOf, summaryLine } from '../../lib/section-state.ts';
@@ -36,6 +37,7 @@
   import Icon from '../ui/Icon.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Section from '../ui/Section.svelte';
+  import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import StatChip from '../ui/StatChip.svelte';
   import AsoBudget from './AsoBudget.svelte';
@@ -51,6 +53,18 @@
 
   const uid = $props.id();
   const allLocales = $derived(localesOf(keywords));
+
+  /** The locale view of one app: the chosen locale, else the most used one, else the first the listing has. */
+  const pickOf = (d: AsoFitResponse | undefined) => (d ? (d.locales.filter((l) => l.locale === (locale || allLocales[0]))[0] ?? d.locales[0]) : undefined);
+  const lead = $derived(
+    fitLead(
+      members.flatMap((m) => {
+        const f = pickOf(data[m.id])?.fit;
+        return f ? [{ keywords: f.keywords.length, missing: f.counts.missing, partial: f.counts.partial + f.counts.description_only }] : [];
+      }),
+    ),
+  );
+  const leadMissing = $derived(lead.tone === 'warn');
   /** The locale of the page header (?locale=) when this view has keywords for it, else '' (the most used). */
   const locale = $derived.by(() => {
     const wanted = headerParams(address.hash).locale;
@@ -87,7 +101,16 @@
   });
 </script>
 
-<div class="fit stack">
+<div class="fit stack roomy">
+  {#if !loading && members.some((m) => pickOf(data[m.id])?.fit)}
+    <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="fit-lead">
+      {#snippet actions()}
+        {#if leadMissing && members[0]}
+          <Button variant="primary" icon="file-text" href={appAddress(members[0].id, 'listing', address.platform)}>Edit the listing</Button>
+        {/if}
+      {/snippet}
+    </PageLead>
+  {/if}
   {#if allLocales.length > 1}
     <div class="row">
       <label for="{uid}-locale" class="muted">Locale</label>
@@ -203,6 +226,20 @@
 </div>
 
 <style>
+  .roomy {
+    font-size: 0.9375rem;
+  }
+
+  .roomy :global(table.compact th),
+  .roomy :global(table.compact td) {
+    padding-block: var(--space-3);
+    font-size: 0.9375rem;
+  }
+
+  .roomy :global(table.compact thead th) {
+    font-size: var(--text-sm);
+  }
+
   .head {
     flex-wrap: wrap;
     gap: var(--space-2) var(--space-3);
@@ -223,7 +260,7 @@
     gap: var(--space-2);
     align-items: center;
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   .term {
@@ -232,7 +269,7 @@
   }
 
   .prio {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-regular);
   }
 
