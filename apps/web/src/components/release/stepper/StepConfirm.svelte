@@ -1,8 +1,8 @@
 <!--
   StepConfirm: the last step of "Prepare release": "Review and publish all" (components/publish): one plan for the steps that wait
   (push the draft, submit for review, release; on Google Play with only release fields staged: ONE step, "Release to production", sent to
-  Google for review without a draft, with "Save as a draft only" as the other choice), reviewed once and confirmed with one typed phrase. Under a quiet "Advanced: do one
-  step" disclosure the single gated flows are still here, each unchanged: push the draft (StagedTrayApp, push part: typed app name and
+  Google for review without a draft, with "Save as a draft only" as the other choice), reviewed once and confirmed with one typed phrase. Under a quiet "Do just one step (advanced)" disclosure,
+  the single gated flows are still here, each unchanged: push the draft (StagedTrayApp, push part: typed app name and
   an acknowledgement), submit for review (SubmitReady: typed phrase), release (StoreRelease: typed phrase, and for Google Play the share
   you type) and the rollout controls. They are separate: a push does not submit and a submit does not release.
   On Google Play "Check this release" (PlayCheck) comes first: local checks and "Check with Google Play" (errors only; nothing is saved).
