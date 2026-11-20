@@ -47,7 +47,7 @@ import { type WebhookRoutesContext, webhookRoutes } from './routes/webhooks.ts';
 import { workspaceRoutes } from './routes/workspaces.ts';
 import type { AiContext } from './services/ai-config.ts';
 import { createConcurrencyGate } from './services/ai-usage.ts';
-import { operations } from './services/api-operations.ts';
+import { operations } from './operations/registry.ts';
 import {
   DEFAULT_SYNC_TIMEOUT_MS,
   defaultStoreConnectorFactory,
@@ -64,7 +64,7 @@ import {
 } from './services/clone-upkeep.ts';
 import { createTestLimiter, type TestLimiter } from './services/credential-tests.ts';
 import type { LocalWriteConfig } from './services/local-reads.ts';
-import { buildOpenApiDocument } from './services/openapi.ts';
+import { buildOpenApiDocument } from './operations/openapi.ts';
 import type { CloneReads, ConnectorFactory } from './services/repositories.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
 import { defaultReplyConnectorFactory } from './modules/reviews/replies.ts';

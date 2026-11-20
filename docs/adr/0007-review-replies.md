@@ -66,7 +66,7 @@ Replying is built as a **gated, two-person-step-free but deliberate** write. Ten
    holds ids only. A test searches the audit log, events, jobs, webhook deliveries and logs for the
    text.
 9. **The registry is default-deny.** Each new route is an operation of
-   `services/api-operations.ts` with its action; the delete of a draft is `destructive`; the send is
+   `operations/registry.ts` with its action; the delete of a draft is `destructive`; the send is
    `write` with `reviews.reply`.
 10. **Plain text only, never interpolated.** Control characters (tabs, direction overrides) and
     HTML-looking tags are refused (Google strips well formed tags, so what is published would differ

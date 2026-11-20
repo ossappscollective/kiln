@@ -22,7 +22,7 @@ import {
 } from '../../../../../packages/connectors/src/fastlane.fixtures.ts';
 import { ASC_SECRET, PLAY_SECRET } from './test-helpers.ts';
 import { bootRepoApp, FakeRepo, fastlaneFiles } from '../../repo-test-helpers.ts';
-import { operations } from '../../services/api-operations.ts';
+import { operations } from '../../operations/registry.ts';
 import { clearAssetIndexes } from './asset-repo.ts';
 import { createCloneReads } from '../../services/clone-reads.ts';
 import { createTestLimiter } from '../../services/credential-tests.ts';

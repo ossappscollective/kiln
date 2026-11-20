@@ -5,7 +5,7 @@ import {
   type Operation,
   tokenAllowedFor,
   zodToJsonSchema,
-} from '../services/openapi.ts';
+} from '../operations/openapi.ts';
 import type { TokenPrincipal } from '../services/tokens.ts';
 import { FLAG_ENV, type McpFlags } from './flags.ts';
 import { fit, newMarkerId, UNTRUSTED_NOTICE } from './shape.ts';

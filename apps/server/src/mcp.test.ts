@@ -16,10 +16,10 @@ import {
 } from './mcp/tools.ts';
 import { bootRepoApp } from './repo-test-helpers.ts';
 import { ASC_SECRET, PLAY_SECRET } from './modules/reviews/test-helpers.ts';
-import { operations } from './services/api-operations.ts';
+import { operations } from './operations/registry.ts';
 import { listAudit } from './services/audit.ts';
 import { createTestLimiter } from './services/credential-tests.ts';
-import { pathParams, tokenAllowedFor, zodToJsonSchema } from './services/openapi.ts';
+import { pathParams, tokenAllowedFor, zodToJsonSchema } from './operations/openapi.ts';
 
 type Options = NonNullable<Parameters<typeof bootRepoApp>[2]>;
 // biome-ignore lint/suspicious/noExplicitAny: JSON-RPC answers are inspected loosely

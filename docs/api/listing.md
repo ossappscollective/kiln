@@ -648,7 +648,7 @@ for example "The store did not answer in time while reading the listing."
 - **Sections and scheduled reads have not run against a real store.** Tested on SQLite with fakes and
   fixtures from the reference pages; the real response shapes (see UNVERIFIED above), the request
   volume of a large listing and Apple's and Google's rate limits under a schedule are untried.
-- The listing routes, including `pull`, are in the OpenAPI registry (`services/api-operations.ts`); `pull` needs `changesets.write` for an API token too, and its answer is described in part.
+- The listing routes, including `pull`, are in the OpenAPI registry (`operations/registry.ts`); `pull` needs `changesets.write` for an API token too, and its answer is described in part.
 - No push or submit action toward a store exists, in the API or in the web UI. `pull` only makes a draft in the repository's change sets; applying it opens a pull request on GitHub or commits to a new branch of a local clone (opt-in).
 - **`pull` has not been run against a real store, GitHub or Postgres.** It is tested on SQLite with fakes for the store and GitHub; the store snapshot it uses is the last sync (or the refresh it runs).
 - A token whose scopes include only `changesets.write` can pull, because the registry names one action per operation; the session route still checks `listing.read` too.

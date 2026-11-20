@@ -194,7 +194,7 @@ planned for Phase 3: it shows drift **before** anything is pushed, and writes no
 - [x] Connector warnings (a version in no known state, an editable version without its own app info, a
       section that could not be read) are stored on the app (`warnings` in `GET .../listing/live`, at most
       20, redacted) and shown in the Listing tab
-- [x] The listing routes are in the OpenAPI registry (`services/api-operations.ts`), so an API token can read
+- [x] The listing routes are in the OpenAPI registry (`operations/registry.ts`), so an API token can read
       them (`listing.read`) and they appear in `/api/openapi.json`; their bodies and answers are described in part
 - [ ] Verify the listing tables and routes on Postgres
 

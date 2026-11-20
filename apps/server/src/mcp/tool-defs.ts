@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { operations } from '../services/api-operations.ts';
-import type { Operation } from '../services/openapi.ts';
+import { operations } from '../operations/registry.ts';
+import type { Operation } from '../operations/openapi.ts';
 import { FLAG_ENV, type McpFlags } from './flags.ts';
 import type { Limits } from './shape.ts';
 

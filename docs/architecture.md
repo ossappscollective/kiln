@@ -31,6 +31,22 @@ Web UI · Tauri shell · CLI and webhooks
 6. **Portable data model.** Text ids, epoch-millisecond times and JSON as text, so Postgres and
    SQLite share one model.
 
+## Code layout
+
+- **Server modules.** A feature that can be added or removed (`aso`, `analytics`, `reviews`, `alerts`,
+  `ci`, `builds`, `listing`) is a folder under `apps/server/src/modules/<id>/` with `index.ts` (its
+  `Deps` type and the `ServerModule` that mounts it), routes, service, `operations.ts` and tests.
+  `app.ts` lists the modules; removing one means removing its line and its folder. The module
+  contract is in `modules/module.ts`.
+- **Operations layer.** `apps/server/src/operations/` holds the OpenAPI/token/MCP registry. Each
+  feature owns an operations array (in its module, or `operations/<name>.ts` for the rest);
+  `registry.ts` only joins them.
+- **Platforms are data.** `packages/core/src/platform.ts` has one row per platform with its facts and
+  a `capabilities` record. Code asks `supports(platform, capability)` or `byFamily`, never
+  "is it iOS"; a new platform is a new row plus a connector (ADR 0032).
+- **Same grouping elsewhere.** Web `lib/` and `components/`, `@mrm/core` and `@mrm/connectors` group
+  files by feature folder (`aso/`, `analytics/`, `listing/`, `apple/`, `google/`, ...).
+
 ## What runs where
 
 - `apps/server`: Hono API (`routes/`), services (`services/`), the job worker (`jobs.ts`), and the
@@ -94,7 +110,7 @@ How scripts, CI and assistants use the server. Details: [tokens](api/tokens.md),
   by the SHA-256 of what was presented, belongs to one workspace, and acts for its creator with a
   role ceiling (never owner), optionally some apps and some actions. Token requests carry no cookie,
   so they skip the same-origin check that guards cookie writes; they have their own rate limit.
-- **Default deny for tokens**: the operation registry (`services/api-operations.ts`) lists every
+- **Default deny for tokens**: the operation registry (`operations/registry.ts`) lists every
   documented route with its permission and risk. A token may call only listed routes whose action
   tokens may hold, never token, member, credential-value or webhook management. The registry also
   produces `GET /api/openapi.json`; tests check it against the routes the app really has.

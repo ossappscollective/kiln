@@ -723,7 +723,7 @@ dbTest(
     assert.deepEqual(Object.keys(tprops).sort(), ['reviewIds', 'target']);
     assert.equal(doc.paths[`${w}/translate/test`]?.post?.operationId, 'testTranslation');
     assert.ok(JSON.stringify(doc).includes('translation_budget'));
-    const { operations } = await import('./services/api-operations.ts');
+    const { operations } = await import('./operations/registry.ts');
     const byId = new Map(operations.map((o) => [o.id, o]));
     assert.deepEqual(byId.get('translateReviews')?.access, { action: 'reviews.translate' });
     assert.deepEqual(byId.get('translateReviews')?.appScope, { kind: 'param', name: 'id' });

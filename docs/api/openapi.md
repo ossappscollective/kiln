@@ -31,7 +31,7 @@ curl -H "Authorization: Bearer mrm_..." https://mrm.example.com/api/openapi.json
 
 ## It is the same registry that guards the API
 
-`apps/server/src/services/api-operations.ts` lists every documented operation once. The same list
+`apps/server/src/operations/registry.ts` lists every documented operation once. The same list
 decides which routes an API token may call: a route that is not in the registry is reachable with a
 session only, so a new route cannot become reachable by tokens by accident. The tests check that:
 
@@ -46,7 +46,9 @@ session only, so a new route cannot become reachable by tokens by accident. The 
 
 ## Adding an operation
 
-Add an entry to `drafts` in `api-operations.ts`:
+Add an entry to the operations file of the feature that owns the route (`modules/<module>/operations.ts`,
+or `operations/<name>.ts` for routes that are not in a module). `operations/registry.ts` only collects those
+files into `drafts`; a new feature adds its array there. The entry:
 
 ```ts
 { id: 'listThings', method: 'get', path: `${W}/things`, tags: ['things'], summary: 'List things',
@@ -63,7 +65,7 @@ every action except the ones in `tokenForbiddenActions` (`packages/core/src/role
 
 ## The generator
 
-`apps/server/src/services/openapi.ts` has no dependency: `zodToJsonSchema` converts the subset of zod
+`apps/server/src/operations/openapi.ts` has no dependency: `zodToJsonSchema` converts the subset of zod
 that the routes use (strings with their limits, numbers, enums, literals, arrays, objects, records,
 unions, nullable, optional, default, refinements) and **throws** on anything else, so a new kind of
 schema is noticed by the tests instead of being documented wrongly. `buildOpenApiDocument` assembles

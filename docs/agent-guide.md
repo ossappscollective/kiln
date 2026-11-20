@@ -30,7 +30,7 @@ Short on purpose: read this once instead of repeating it in every brief.
 ## Shared files
 
 - Edit these only with small additive edits on a fresh read: migrations and both schema files,
-  `services/api-operations.ts` (every route needs an entry; a test fails otherwise), `config.ts` +
+  `operations/registry.ts` (every route needs an entry; a test fails otherwise), `config.ts` +
   its test, `index.ts`, `app.ts`, `scheduler.ts`, `event-types.ts`, `packages/core/src/roles.ts`,
   web `lib/api.ts` and `lib/types.ts`, the nav/shell, `.env.example`, shared docs.
 - Migrations: ids are contiguous. Re-read `migrations.ts` right before appending, use the next free id,

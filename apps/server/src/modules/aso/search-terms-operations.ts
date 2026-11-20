@@ -1,7 +1,7 @@
 import { rankDownloadsNoteCodes } from '@mrm/core';
 import { z } from 'zod';
-import type { Operation } from './openapi.ts';
-import { searchTermNoteCodes } from './play-search-terms.ts';
+import type { Operation } from '../../operations/openapi.ts';
+import { searchTermNoteCodes } from '../../services/play-search-terms.ts';
 
 /**
  * The operations of Google Play search terms and of rank versus downloads (docs/api/aso.md), in their own file and added to the registry in

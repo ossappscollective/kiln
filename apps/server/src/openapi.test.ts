@@ -4,7 +4,7 @@ import { can, type roles, tokenExplicitOnlyActions } from '@mrm/core';
 import { dbTest } from '@mrm/db/testing';
 import { z } from 'zod';
 import { bootRepoApp } from './repo-test-helpers.ts';
-import { operations } from './services/api-operations.ts';
+import { operations } from './operations/registry.ts';
 import {
   buildOpenApiDocument,
   compilePath,
@@ -13,7 +13,7 @@ import {
   tokenAllowedFor,
   validateOpenApiDocument,
   zodToJsonSchema,
-} from './services/openapi.ts';
+} from './operations/openapi.ts';
 
 // ----- zod to JSON Schema ---------------------------------------------------------------------
 

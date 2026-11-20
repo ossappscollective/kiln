@@ -4,10 +4,10 @@ import { getCookie } from 'hono/cookie';
 import { type AppEnv, clientIp, type Services } from './http.ts';
 import { createLoginLimiter, type LoginLimiter } from './limiter.ts';
 import { requireUser, SESSION_COOKIE } from './routes/auth.ts';
-import { operations } from './services/api-operations.ts';
+import { operations } from './operations/registry.ts';
 import { runAsToken } from './services/audit.ts';
 import { createTestLimiter, type TestLimiter } from './services/credential-tests.ts';
-import { compilePath, tokenAllowedFor } from './services/openapi.ts';
+import { compilePath, tokenAllowedFor } from './operations/openapi.ts';
 import { authenticateToken, type TokenPrincipal, touchToken } from './services/tokens.ts';
 
 /**

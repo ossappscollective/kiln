@@ -37,4 +37,4 @@ ternary in a dozen files and the literal union of store names was written out 25
 
 ## Not decided yet
 
-The same folder layout for the web (`components/<module>` + `lib/<module>`), core and connectors; `exactOptionalPropertyTypes` (about 150 errors to fix).
+`exactOptionalPropertyTypes` for the web package (it extends the Svelte tsconfig and `svelte-check` has to be run by hand; the other packages have it on).

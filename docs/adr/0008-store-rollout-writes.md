@@ -41,7 +41,7 @@ the differences that follow from a state that someone else can change while a pe
    event, in one transaction) and `release.rollout_failed` (audit) hold the app, store, target,
    action, the before and after (status and share, or phased state), the hash and whether the outcome
    was confirmed by a re-read.
-10. **The registry is default-deny.** Four operations in `services/api-operations.ts` (tag
+10. **The registry is default-deny.** Four operations in `operations/registry.ts` (tag
     `rollout`): config (`apps.read`), state and preview (`releases.rollout`, read), apply
     (`releases.rollout`, destructive).
 

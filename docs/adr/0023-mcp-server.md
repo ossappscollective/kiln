@@ -14,7 +14,7 @@ it must not see credentials, and text written by strangers (reviews, store listi
 ## Decision
 
 1. **Tools are views of registry operations, not a second API.** Every tool names one operation of the API registry
-   (`services/api-operations.ts`) and maps its arguments onto that operation's path, query and body. A tool call becomes an HTTP request to the
+   (`operations/registry.ts`) and maps its arguments onto that operation's path, query and body. A tool call becomes an HTTP request to the
    app's own routes with the caller's own bearer token. So the token check, the operation allow-list (default deny), the role ceiling, the app
    restriction, the per-token rate limit and the audit attribution (by token id) are the routes' own. Nothing is re-implemented, so nothing can drift.
 2. **Off by default** (`MRM_MCP_ENABLED=false`): `/mcp` answers 404 like a route that does not exist. The web app shows the state and where to set it.
