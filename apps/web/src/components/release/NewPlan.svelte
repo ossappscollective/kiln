@@ -87,7 +87,7 @@
   <div class="card-header">
     <div>
       <h2 id="{uid}-title">Plan this release</h2>
-      <p>A checklist, release notes per locale, a target date and a blocked flag for version {version}. Kept in this workspace only; nothing is sent to a store.</p>
+      <p>A checklist, release notes and a target date for version {version}. Nothing is sent to a store.</p>
     </div>
   </div>
   <form class="stack" onsubmit={create}>
@@ -99,7 +99,7 @@
           <option value={choice.value === null ? 'both' : choice.value}>{choice.label}</option>
         {/each}
       </select>
-      <p class="hint">Release notes follow the limit of the platforms: a plan for both must fit the smaller one (500 characters on Google Play).</p>
+      <p class="hint">A plan for both platforms must fit the smaller notes limit (500 characters on Google Play).</p>
     </div>
     <div class="field">
       <label for="{uid}-date">Target date (optional)</label>

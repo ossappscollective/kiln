@@ -218,7 +218,7 @@
     <div>
       <h2 id="{uid}-title">Staged rollout</h2>
       <p>
-        Planning only. This does not start, change or stop a rollout in {plan.appPlatform === 'android' ? 'Google Play Console' : 'App Store Connect'}: do that in the store console. Marking a step done only records it here.
+        Planning only: this does not start, change or stop a rollout in {plan.appPlatform === 'android' ? 'Google Play Console' : 'App Store Connect'}. Marking a step done only records it here.
       </p>
     </div>
     {#if view && view.kind !== null && canWrite && !editing}
@@ -443,11 +443,12 @@
   }
 
   .headline {
+    font-size: var(--text-md);
     font-weight: var(--weight-semibold);
   }
 
   .small {
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   .compare {
@@ -493,7 +494,7 @@
   }
 
   .facts dt {
-    font-size: var(--text-xs);
+    font-size: 0.8125rem;
     color: var(--muted);
   }
 
