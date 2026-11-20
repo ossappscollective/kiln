@@ -83,7 +83,7 @@ test('verdict: every reason has a code, a severity and a plain sentence', () => 
     [{ processingState: null }, draft, 'state_unknown', false, 'blocked'],
     [{ processingState: 'SOMETHING_NEW' }, draft, 'state_unknown', false, 'blocked'],
     [{ expired: true }, draft, 'expired', false, 'blocked'],
-    [{ version: '2.0' }, draft, 'wrong_version', false, 'blocked'],
+    [{ version: '2.0' }, draft, 'wrong_version', true, 'warning'],
     [{}, null, 'no_editable_version', false, 'blocked'],
     [{ attached: true }, draft, 'already_attached', false, 'ok'],
     [{ exportCompliance: 'missing' }, draft, 'export_compliance_missing', true, 'warning'],
@@ -101,7 +101,7 @@ test('verdict: every reason has a code, a severity and a plain sentence', () => 
   }
   assert.match(
     appleBuildEligibility(facts({ version: '2.0' }), draft).message,
-    /belongs to version 2\.0, but the version being prepared is 2\.1/,
+    /was built as version 2\.0, and the version being prepared is named 2\.1/,
   );
   // Expiry wins over the processing state: an expired build is never offered.
   assert.equal(
@@ -130,7 +130,7 @@ test('verdict (Google Play): a code in a live release is blocked, one in the dra
 
 // ----- App Store builds ---------------------------------------------------------------------------------
 
-test('App Store: each build carries its verdict; a build of another version is blocked as wrong_version', async () => {
+test('App Store: each build carries its verdict; a build of another version can still be chosen, with a warning', async () => {
   const { connector } = apple((a) => {
     a.buildList.push({
       id: 'b-20',

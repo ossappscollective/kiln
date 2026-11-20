@@ -46,7 +46,7 @@ says whether it can be chosen for the draft now, `severity` is `ok`, `warning` (
 | `failed`, `invalid`         | `blocked`               | Apple could not process it / marked it invalid: upload a new build.                                             |
 | `state_unknown`             | `blocked`               | Apple did not say, or said a state this server does not know.                                                   |
 | `expired`                   | `blocked`               | The build expired. Wins over the processing state.                                                              |
-| `wrong_version`             | `blocked`               | The build belongs to another marketing version than the one being prepared.                                     |
+| `wrong_version`             | `warning`               | The build was made as another marketing version than the name of the version being prepared. It can be chosen.  |
 | `no_editable_version`       | `blocked`               | The build is processed but no version is in "Prepare for Submission".                                           |
 | `already_attached`          | `ok` (`eligible` false) | It is the build of the version already.                                                                         |
 | `export_compliance_missing` | `warning`               | Apple holds no export compliance answer for it; it can be chosen, App Store Connect may ask later.              |
@@ -279,7 +279,7 @@ halted"), `edits.tracks.get` / `update`, `edits.bundles.list`, `edits.apks.list`
   filter and any length limit are UNVERIFIED (this server cuts at 4000 characters itself); the build attribute
   `usesNonExemptEncryption` (export compliance) and whether it can be requested in `fields[builds]`; the `createdDate` attribute of
   a version (the date and order of the history; without it the order is the version string, newest first, and `at` is `null`);
-  that a build must belong to the marketing version it is attached to (`wrong_version`); that Apple lists `appStoreVersions` of
+  that a build of another marketing version can be attached to the version (`wrong_version`; a warning, reported by a person who tried it on a real app); that Apple lists `appStoreVersions` of
   every state (the history reads the newest twelve of this platform); the processing state names.
 - Eligibility, notes history (Google Play): VERIFIED on Google's page, `Track` holds `releases[]` and `edits.tracks.list` shows the
   active releases, so replaced releases are not in the history; Google gives no upload time and no release date, so `at` is `null`.

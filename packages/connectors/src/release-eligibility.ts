@@ -66,22 +66,27 @@ export function appleBuildEligibility(
       `${name} is processed, but there is no version in "Prepare for Submission" to attach it to. Create the next version in App Store Connect first.`,
     );
   }
-  if (
+  // The name of a version in App Store Connect is only a label that can no longer be changed once it
+  // is made, and App Store Connect lets a build of another marketing version be attached. So a
+  // difference is a warning to read, never a block (found by trying it on a real app).
+  const mismatch =
     build.version !== null &&
     editable.versionString !== null &&
-    build.version !== editable.versionString
-  ) {
-    return blocked(
-      'wrong_version',
-      `${name} belongs to version ${build.version}, but the version being prepared is ${editable.versionString}.`,
-    );
-  }
+    build.version !== editable.versionString;
   if (build.attached) {
     return {
       eligible: false,
       severity: 'ok',
       code: 'already_attached',
       message: `${name} is already attached to version ${editable.versionString ?? 'being prepared'}.`,
+    };
+  }
+  if (mismatch) {
+    return {
+      eligible: true,
+      severity: 'warning',
+      code: 'wrong_version',
+      message: `${name} was built as version ${build.version}, and the version being prepared is named ${editable.versionString}. App Store Connect allows this; the name is only a label, and the app itself will still report ${build.version}.`,
     };
   }
   if (build.exportCompliance === 'missing') {
