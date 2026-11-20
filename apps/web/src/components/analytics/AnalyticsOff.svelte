@@ -7,7 +7,7 @@
   Readable pass (docs/design/readability.md): one sentence, the turn-on button (the one primary), notes at 15px.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { can, type Role, supports } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
@@ -18,7 +18,7 @@
   let { api, workspaceId, app, role, onchanged }: { api: Api; workspaceId: string; app: { id: string; platform: string }; role: Role; onchanged: () => void } = $props();
 
   const canManage = $derived(can(role, 'analytics.manage'));
-  const apple = $derived(app.platform !== 'android');
+  const apple = $derived(supports(app.platform, 'appleAnalyticsReports'));
   let importOpen = $state(false);
 </script>
 

@@ -8,6 +8,7 @@
   import { type ReleaseGroup, statusInfo } from '../../lib/portfolio.ts';
   import ReleaseStatus from './ReleaseStatus.svelte';
   import Timeline from './Timeline.svelte';
+import { platformMeta } from '@mrm/core';
 
   let { group, now }: { group: ReleaseGroup; now: number } = $props();
 
@@ -39,7 +40,7 @@
       <thead>
         <tr>
           <th scope="col">Version</th>
-          <th scope="col">{group.platform === 'android' ? 'Version codes' : 'Build'}</th>
+          <th scope="col">{platformMeta(group.platform).buildLabel}</th>
           <th scope="col">Status</th>
           <th scope="col">Store state</th>
           <th scope="col">Store updated</th>

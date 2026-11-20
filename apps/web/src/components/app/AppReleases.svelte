@@ -17,7 +17,7 @@
   The platform scope for links comes from the address.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { can, type Role, supports } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
@@ -180,7 +180,7 @@
             appBuilds={builds[app.id] ?? []}
             {releases}
             {step}
-            promote={app.platform === 'android' ? promote : null}
+            promote={supports(app.platform, 'releaseTracks') ? promote : null}
             onstep={moveStep}
             onclose={closeStepper}
             showPlatform={members.length > 1}

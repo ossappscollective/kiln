@@ -15,7 +15,7 @@
   (read the tracked keywords again), now.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { can, type Role, supports } from '@mrm/core';
   import { untrack } from 'svelte';
   import { address } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
@@ -141,7 +141,7 @@
   // error just means no figures.
   $effect(() => {
     const wanted = sections
-      .filter((s) => s.app.platform === 'android' && s.locale !== null && search[`${s.app.id}|${s.locale}`] === undefined)
+      .filter((s) => supports(s.app.platform, 'unofficialSearch') && s.locale !== null && search[`${s.app.id}|${s.locale}`] === undefined)
       .map((s) => ({ id: s.app.id, locale: s.locale as string }));
     if (wanted.length === 0 || !can(role, 'aso.read')) return;
     untrack(() => {

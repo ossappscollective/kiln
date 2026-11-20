@@ -9,7 +9,7 @@
   and a button in its details: it opens Prepare release with the track and the version codes filled in (lib/play-promote.ts).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { can, type Role, supports } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import { type PlatformScope, appAddress } from '../../lib/app-scope.ts';
   import { promoteHref, promoteOption } from '../../lib/play-promote.ts';
@@ -119,13 +119,13 @@
               <ReleaseStatus status={row.status} rawState={row.release.rawState} sentForReviewAt={row.release.sentForReviewAt} />
             </td>
             <td class="num tabular">
-              {#if row.rolloutText}{row.rolloutText}{:else}<span class="muted" title={row.platform !== 'android' ? 'Apple’s phased release share is not read yet.' : 'The store reports no rollout share.'}>—</span>{/if}
+              {#if row.rolloutText}{row.rolloutText}{:else}<span class="muted" title={supports(row.platform, 'phasedRelease') ? 'Apple’s phased release share is not read yet.' : 'The store reports no rollout share.'}>—</span>{/if}
             </td>
             <td class="muted">
               {#if row.at !== null}
                 <time
                   datetime={new Date(row.at).toISOString()}
-                  title="{row.atSource === 'seen' ? 'First seen here ' : row.platform === 'android' ? '' : 'Build uploaded '}{fullTime(row.at)} ({timeAgo(row.at, now)})"
+                  title="{row.atSource === 'seen' ? 'First seen here ' : supports(row.platform, 'releaseTracks') ? '' : 'Build uploaded '}{fullTime(row.at)} ({timeAgo(row.at, now)})"
                 >{dayText(row.at)}{#if row.atSource === 'seen'}<span class="seen"> · seen</span>{/if}</time>
               {:else}
                 <span aria-label="Not reported by the store">—</span>

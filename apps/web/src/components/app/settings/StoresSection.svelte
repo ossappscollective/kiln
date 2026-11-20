@@ -8,7 +8,7 @@
   when not given), now.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { can, platformMeta, type Role } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../../lib/api.ts';
   import { credentialFacts, links, notAvailable } from '../../../lib/app-settings.ts';
@@ -100,7 +100,7 @@
         </div>
         <dl class="facts">
           <div>
-            <dt>{app.platform === 'android' ? 'Package name' : 'Bundle ID'}</dt>
+            <dt>{platformMeta(app.platform).identifierLabel}</dt>
             <dd class="row"><code>{app.identifier}</code><CopyButton value={app.identifier} iconOnly label="Copy the identifier" /></dd>
           </div>
           {#if app.storeAppId}

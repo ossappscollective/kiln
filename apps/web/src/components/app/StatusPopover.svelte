@@ -17,6 +17,7 @@
   import InfoTip from '../ui/InfoTip.svelte';
   import StoreBadge from '../ui/StoreBadge.svelte';
   import DataChips from './DataChips.svelte';
+import { platformMeta } from '@mrm/core';
 
   let {
     members,
@@ -59,7 +60,7 @@
           <div class="head">
             <StoreBadge store={storeForPlatform(m.platform).store} size="sm" />
             <code>{m.identifier}</code>
-            <CopyButton value={m.identifier} iconOnly label="Copy the {m.platform === 'android' ? 'package name' : 'bundle ID'}" />
+            <CopyButton value={m.identifier} iconOnly label="Copy the {platformMeta(m.platform).identifierNoun}" />
           </div>
           <SyncStatus app={m} {now} />
         </li>

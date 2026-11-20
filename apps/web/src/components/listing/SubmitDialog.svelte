@@ -22,6 +22,7 @@
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
   import SubmitPreviewBody from '../publish/SubmitPreviewBody.svelte';
+import { supports } from '@mrm/core';
 
   let {
     open = $bindable(false),
@@ -46,7 +47,7 @@
 
   const ready = $derived(canConfirmSubmit(preview, typed));
   const blocking = $derived(preview.checks.blocking);
-  const ios = $derived(preview.app.platform !== 'android');
+  const ios = $derived(!supports(preview.app.platform, 'releaseTracks'));
 </script>
 
 <Modal

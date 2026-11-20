@@ -14,7 +14,7 @@
   canWrite, onchanged, now.
 -->
 <script lang="ts">
-  import { type ListingRow, type Role, type TrackedRank, listingRows } from '@mrm/core';
+  import { type ListingRow, listingRows, type Role, supports, type TrackedRank } from '@mrm/core';
   import { untrack } from 'svelte';
   import { address } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
@@ -76,7 +76,7 @@
 
   const uid = $props.id();
   const multi = $derived(members.length > 1);
-  const androidInScope = $derived(members.some((m) => m.platform === 'android'));
+  const androidInScope = $derived(members.some((m) => supports(m.platform, 'searchTermsImport')));
 
   let data = $state<Record<string, AsoListingKeywordsResponse | undefined>>({});
   let errors = $state<Record<string, string | undefined>>({});
@@ -291,7 +291,7 @@
           <Button size="sm" variant="link" icon="refresh" href={appAddress(s.app.id, 'listing', address.platform)}>Re-sync in the listing</Button>
           {#if d?.error}<span class="muted">The last read failed ({d.error}); this is the earlier copy.</span>{/if}
         </div>
-        {#if s.app.platform === 'android'}<p class="muted note">{PLAY_NO_KEYWORD_FIELD}</p>{/if}
+        {#if !supports(s.app.platform, 'keywordField')}<p class="muted note">{PLAY_NO_KEYWORD_FIELD}</p>{/if}
 
         {#if errors[s.app.id]}
           <Alert tone="error">{errors[s.app.id]}</Alert>
@@ -386,7 +386,7 @@
             </table>
           </div>
           <p class="muted legend">
-            {s.app.platform === 'android'
+            {!supports(s.app.platform, 'keywordField')
               ? 'name: title, short: short description, desc: full description.'
               : 'kw: keyword field, name: name, sub: subtitle.'}
             A dashed chip is not tracked yet; a solid one is tracked and shows its rank today.

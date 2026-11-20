@@ -1,6 +1,7 @@
 import type { AssetKind, Platform } from '@mrm/core';
 import type { StoreCompare } from './assets.ts';
 import type { AssetIndex } from './types.ts';
+import { platformMeta } from '@mrm/core';
 
 /**
  * The Assets tab in three groups (docs/ux-ia.md, design R5): the icon, the Google Play graphics and the
@@ -63,7 +64,7 @@ export function groupAvailability(
   const def = groupDef(id);
   if (def.platform !== null && def.platform !== platform) {
     const where = (p: Platform) =>
-      p === 'android' ? 'Google Play' : p === 'macos' ? 'the Mac App Store' : 'the App Store';
+      platformMeta(p).storeNameWithArticle;
     return {
       available: false,
       reason: `${def.label} exist on ${where(def.platform)} only. This record is on ${where(platform)}.`,

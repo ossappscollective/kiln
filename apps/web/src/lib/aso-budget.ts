@@ -1,4 +1,4 @@
-import { type AsoPlatform, byFamily, type CoachLink, type FieldBudget, type FitField, type FitFields, type FitKeyword, type ListingBudget, type StagedChangesView, type WasteReason } from '@mrm/core';
+import { type AsoPlatform, byFamily, type CoachLink, type FieldBudget, type FitField, type FitFields, type FitKeyword, type ListingBudget, type StagedChangesView, supports, type WasteReason } from '@mrm/core';
 import { withHeaderParams } from './app-header.ts';
 import { appAddress, type PlatformScope, parseViewPath } from './app-scope.ts';
 import { type AsoKeyword, asoViewHref } from './aso.ts';
@@ -154,7 +154,7 @@ export function budgetHeadline(b: ListingBudget): string {
     parts.push(
       `${b.missing.length} tracked ${b.missing.length === 1 ? 'keyword' : 'keywords'} not in the listing`,
     );
-  if (b.platform === 'android' && b.repeated.length > 0)
+  if (!supports(b.platform, 'keywordField') && b.repeated.length > 0)
     parts.push(
       `${b.repeated.length} ${b.repeated.length === 1 ? 'term' : 'terms'} in several fields`,
     );

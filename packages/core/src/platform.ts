@@ -108,6 +108,10 @@ export const CAPABILITIES = [
   'searchResultsHaveNames',
   /** Public search is read from an unofficial source that must be switched on (Google Play). */
   'unofficialSearch',
+  /** The store's own analytics report the rating over time (Google Play). */
+  'ratingHistory',
+  /** A CI artifact can be installed from a download link or a QR code (an Android APK). */
+  'sideloadInstall',
   /** A build can be put on Google Play's internal app sharing, which gives a download link at once. */
   'internalAppSharing',
   /** An app's identifier is a bundle id (letters, digits, dots, hyphens; case-insensitive) rather than a package name (case-sensitive). */
@@ -137,6 +141,8 @@ const APPLE_CAPABILITIES: PlatformCapabilities = {
   unofficialSearch: false,
   bundleIdentifier: true,
   internalAppSharing: false,
+  ratingHistory: false,
+  sideloadInstall: false,
 };
 
 const GOOGLE_CAPABILITIES: PlatformCapabilities = {
@@ -160,6 +166,8 @@ const GOOGLE_CAPABILITIES: PlatformCapabilities = {
   unofficialSearch: true,
   bundleIdentifier: false,
   internalAppSharing: true,
+  ratingHistory: true,
+  sideloadInstall: true,
 };
 
 export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
@@ -273,6 +281,14 @@ export const isDesktop = (platform: Platform): boolean =>
 /** Whether the platform's store has the capability. */
 export const supports = (platform: Platform, capability: Capability): boolean =>
   PLATFORM_META[platform].capabilities[capability];
+/** `supports` for a platform that arrives as a string or may be missing (a row, a query): unknown means no. */
+export const platformSupports = (
+  platform: string | null | undefined,
+  capability: Capability,
+): boolean => {
+  const parsed = parsePlatform(platform);
+  return parsed !== undefined && supports(parsed, capability);
+};
 
 /** Platforms in display order (iOS, macOS, Android), without duplicates. */
 export const sortPlatforms = (platforms: readonly Platform[]): Platform[] =>

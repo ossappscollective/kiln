@@ -14,7 +14,7 @@
   Props: api, workspaceId, role, members (the app records in scope), releases (by app id), now.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { can, type Role, supports } from '@mrm/core';
   import { untrack } from 'svelte';
   import { address } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
@@ -61,7 +61,7 @@
 
   const canWrite = $derived(can(role, 'aso.write'));
 
-  const androidInScope = $derived(members.some((m) => m.platform === 'android'));
+  const androidInScope = $derived(members.some((m) => supports(m.platform, 'searchTermsImport')));
   const view = $derived(availableAsoView(asoViewFromHash(address.hash), androidInScope));
   /** The address of a keyword view: Keywords is written too, so it never falls back to the Overview of Insights. */
   const hrefFor = (next: string) => withInsightsAsoView(address.hash, next);

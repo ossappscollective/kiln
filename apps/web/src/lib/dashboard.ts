@@ -1,16 +1,4 @@
-import {
-  type Blocked,
-  DASHBOARD_BUCKETS,
-  type DashboardBucket,
-  type DueFlags,
-  dashboardBucket,
-  formatPercent,
-  type Platform,
-  type Readiness,
-  type ReleaseEvent,
-  type ReleaseState,
-  type RolloutSummary,
-} from '@mrm/core';
+import { type Blocked, DASHBOARD_BUCKETS, dashboardBucket, type DashboardBucket, type DueFlags, formatPercent, type Platform, platformMeta, type Readiness, type ReleaseEvent, type ReleaseState, type RolloutSummary, supports } from '@mrm/core';
 import {
   appHref,
   compareVersions,
@@ -167,7 +155,7 @@ export function nextAction(input: NextActionInput): NextAction {
     return { kind: 'blocked', text: `Resolve the block: ${blocked.reason}` };
   }
   if (input.planned) {
-    const where = input.platform === 'android' ? 'Google Play Console' : 'App Store Connect';
+    const where = platformMeta(input.platform).consoleName;
     const prepare = prepareText(readiness);
     return prepare ?? { kind: 'act', text: `Add the version in ${where} and choose a build` };
   }
@@ -186,7 +174,7 @@ export function nextAction(input: NextActionInput): NextAction {
   }
   const step = STEPS[input.status];
   // macOS is Apple's: the App Store Connect steps apply to it as they do to iOS.
-  return { kind: step.kind, text: step[input.platform === 'android' ? 'android' : 'ios'] };
+  return { kind: step.kind, text: step[supports(input.platform, 'releaseTracks') ? 'android' : 'ios'] };
 }
 
 function prepareText(readiness: NextActionInput['readiness']): NextAction | null {

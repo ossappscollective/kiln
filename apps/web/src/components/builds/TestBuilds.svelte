@@ -7,7 +7,7 @@
   The address may carry `?build=<number>` (from the release stepper): that build is highlighted and the filters show it.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { can, platformLabel, type Role } from '@mrm/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { address } from '../../lib/address.svelte.ts';
@@ -178,7 +178,7 @@
           <span class="muted text-sm">Platform</span>
           <select bind:value={filters.platform}>
             <option value="all">All</option>
-            {#each platforms as p (p)}<option value={p}>{p === 'ios' ? 'iOS' : p === 'macos' ? 'macOS' : 'Android'}</option>{/each}
+            {#each platforms as p (p)}<option value={p}>{platformLabel(p)}</option>{/each}
           </select>
         </label>
         <label class="inline">

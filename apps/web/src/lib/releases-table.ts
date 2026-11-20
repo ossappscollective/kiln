@@ -9,6 +9,7 @@ import {
   trackLabel,
 } from './portfolio.ts';
 import type { AppBuild, PlanSummary, ReleaseSummary } from './types.ts';
+import { isDesktop, platformMeta, supports } from '@mrm/core';
 
 /**
  * The compact releases table of an app as pure functions: the releases the store reports for the
@@ -237,7 +238,7 @@ export type VersionGroup = {
 export function buildText(
   release: Pick<ReleaseSummary, 'platform' | 'build' | 'versionCodes'>,
 ): string {
-  if (release.platform === 'android' && release.versionCodes && release.versionCodes.length > 0)
+  if (supports(release.platform, 'releaseTracks') && release.versionCodes && release.versionCodes.length > 0)
     return release.versionCodes.join(', ');
   return release.build ?? '—';
 }
@@ -268,8 +269,8 @@ export function buildReleaseTable(input: TableInput): VersionGroup[] {
       appId: release.appId,
       track: release.track,
       trackText:
-        release.track === null && release.platform === 'macos'
-          ? 'Mac App Store'
+        release.track === null && isDesktop(release.platform)
+          ? platformMeta(release.platform).storeName
           : trackLabel(release.track),
       release,
       buildText: buildText(release),

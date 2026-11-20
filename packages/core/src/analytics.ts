@@ -1,3 +1,4 @@
+import { byFamily, type Platform } from './platform.ts';
 /**
  * Analytics vocabulary shared by the server, the connectors and the web UI (docs/adr/0017-analytics-foundation.md,
  * docs/api/analytics.md, docs/research/analytics-apis.md). Pure: no I/O. Kept to ES2017 library calls because the web imports it.
@@ -195,8 +196,13 @@ export const metricsOfSource = (source: AnalyticsSource): AnalyticsMetric[] =>
   analyticsMetrics.filter((m) => metricInfo[m].source === source);
 
 /** Which sources can ever apply to an app of this platform. */
-export const sourcesForPlatform = (platform: 'ios' | 'macos' | 'android'): AnalyticsSource[] =>
-  platform === 'android' ? ['play_vitals', 'play_reports'] : ['apple_analytics', 'apple_sales'];
+export const sourcesForPlatform = (platform: Platform): AnalyticsSource[] =>
+  [
+    ...byFamily(platform, {
+      apple: ['apple_analytics', 'apple_sales'],
+      google: ['play_vitals', 'play_reports'],
+    }),
+  ];
 
 // ---------------------------------------------------------------------------------------------
 // Fixed vocabularies: error codes, setup needs, next steps. A client switches on these, never on a message.

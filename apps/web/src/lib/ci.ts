@@ -1,16 +1,4 @@
-import {
-  DEFAULT_RELEASE_PATTERNS,
-  DEFAULT_TAG_PATTERNS,
-  MAX_PATTERNS,
-  type PatternKind,
-  type Platform,
-  type PreviewRow,
-  patternListProblems,
-  platformLabel,
-  prefixProblem,
-  previewPatterns,
-  proposePattern,
-} from '@mrm/core';
+import { DEFAULT_RELEASE_PATTERNS, DEFAULT_TAG_PATTERNS, MAX_PATTERNS, type PatternKind, patternListProblems, type Platform, platformLabel, platformMeta, prefixProblem, previewPatterns, type PreviewRow, proposePattern } from '@mrm/core';
 import type { Tone } from './repositories.ts';
 import type {
   AppBuild,
@@ -305,7 +293,7 @@ export const shortSha = (sha: string): string => sha.slice(0, 7);
 
 /** The platform's word for the number: Apple platforms have builds, Android has version codes. */
 export const buildNumberLabel = (platform: Platform): string =>
-  platform === 'android' ? 'Version code' : 'Build';
+  platformMeta(platform).buildLabelSingular;
 
 /** "2.4.0 (240)" */
 export const buildName = (build: Pick<AppBuild, 'version' | 'buildNumber'>): string =>

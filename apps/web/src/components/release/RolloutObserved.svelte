@@ -8,13 +8,14 @@
   import { formatRollout } from '../../lib/portfolio.ts';
   import { rolloutView } from '../../lib/release.ts';
   import type { ReleaseSummary } from '../../lib/types.ts';
+import { byFamily } from '@mrm/core';
 
   let { release }: { release: ReleaseSummary } = $props();
 
   const uid = $props.id();
   const view = $derived(rolloutView(release));
   const percent = $derived(view.fraction === null ? null : formatRollout(view.fraction));
-  const source = $derived(release.platform === 'android' ? 'Google Play' : 'App Store Connect');
+  const source = $derived(byFamily(release.platform, { apple: 'App Store Connect', google: 'Google Play' }));
 </script>
 
 <div class="rollout">

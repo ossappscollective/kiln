@@ -7,7 +7,7 @@
   Props (from the shell): api, workspaceId, role.
 -->
 <script lang="ts">
-  import { type CoachAction, type Role, can } from '@mrm/core';
+  import { can, type CoachAction, type Role, supports } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import {
@@ -59,7 +59,7 @@
   const movers = $derived(overviewMovers(rows));
   const changed = $derived(withData.filter((r) => r.summary.competitors.changedRecently > 0));
   const hasMoves = $derived(movers.gains.length + movers.drops.length > 0);
-  const androidTracked = $derived(withData.some((r) => r.platform === 'android'));
+  const androidTracked = $derived(withData.some((r) => supports(r.platform, 'searchTermsImport')));
   /** The first next step of each app that has one, in the order of the app list: where to start. */
   const starts = $derived(
     (apps ?? [])

@@ -1,4 +1,4 @@
-import { can, type Platform, type Role } from '@mrm/core';
+import { can, type Platform, platformMeta, type Role, supports } from '@mrm/core';
 import { ApiError } from './api.ts';
 
 /**
@@ -119,16 +119,11 @@ export type SubmitResult = {
 /** Preview and submit: admin and up (`store.submit`). Not the same right as pushing a draft. */
 export const canSubmit = (role: Role): boolean => can(role, 'store.submit');
 
-export const storeLabel = (platform: Platform): string =>
-  platform === 'android'
-    ? 'Google Play review'
-    : platform === 'macos'
-      ? 'Mac App Store review'
-      : 'App Store review';
+export const storeLabel = (platform: Platform): string => `${platformMeta(platform).storeName} review`;
 
 /** What a submit never does, for the dialog and the result. */
 export const releaseStatement = (platform: Platform): string =>
-  platform !== 'android'
+  !supports(platform, 'releaseTracks')
     ? 'This hands the version to App Review. It does not release it: after approval it stays unreleased until somebody releases it in App Store Connect. This tool never publishes.'
     : 'This sends the held-back changes to Google Play review. It does not publish them and does not start, raise or complete a rollout. This tool never publishes.';
 
@@ -248,7 +243,7 @@ export function isSubmitPreview(value: unknown): value is SubmitPreview {
 export function versionLine(preview: Pick<SubmitPreview, 'app' | 'version'>): string {
   const v = preview.version;
   if (v === null)
-    return preview.app.platform === 'android'
+    return supports(preview.app.platform, 'releaseTracks')
       ? 'The changes held back in Google Play'
       : 'No editable version';
   const parts: string[] = [v.versionString ? `Version ${v.versionString}` : 'The editable version'];
@@ -509,5 +504,5 @@ export function resultText(result: SubmitResult): string {
     ? ' The answer of the store was lost, and reading it back shows the version is in review.'
     : '';
   const state = result.submission?.state ? ` Review state: ${result.submission.state}.` : '';
-  return `Sent to ${result.app.platform === 'android' ? 'Google Play review' : 'App Review'}${version}.${how}${state} Nothing was released or published.`;
+  return `Sent to ${supports(result.app.platform, 'releaseTracks') ? 'Google Play review' : 'App Review'}${version}.${how}${state} Nothing was released or published.`;
 }

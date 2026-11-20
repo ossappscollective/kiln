@@ -14,6 +14,7 @@
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
+import { needsStoreAppId, supports } from '@mrm/core';
 
   let {
     api,
@@ -26,7 +27,7 @@
 
   const uid = $props.id();
   const playOff = $derived(config !== null && !config.play.enabled);
-  const choices = $derived(members.filter((m) => m.platform !== 'android' || !playOff));
+  const choices = $derived(members.filter((m) => !supports(m.platform, 'unofficialSearch') || !playOff));
 
   let appId = $state('');
   let externalId = $state('');
@@ -36,7 +37,7 @@
   let tried = $state(false);
 
   const target = $derived(choices.find((m) => m.id === appId) ?? choices[0]);
-  const hint = $derived(target?.platform === 'android' ? 'A package name such as com.example.app, or a play.google.com link.' : 'An App Store id such as 1500000002, or an apps.apple.com link.');
+  const hint = $derived(target !== undefined && !needsStoreAppId(target.platform) ? 'A package name such as com.example.app, or a play.google.com link.' : 'An App Store id such as 1500000002, or an apps.apple.com link.');
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();

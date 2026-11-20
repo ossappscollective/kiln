@@ -32,6 +32,7 @@ import {
   storedErrorText,
 } from './analytics.ts';
 import { timeAgo } from './format.ts';
+import { platformSupports, supports } from '@mrm/core';
 
 /**
  * What the Analytics screen draws, worked out from the API's answers: the row of figures, the small-multiple chart cards
@@ -186,7 +187,7 @@ export function buildChips(
   previous: AnalyticsOverview | null,
   days: number,
 ): StatChipModel[] {
-  const specs = platform === 'android' ? googleSpecs : appleSpecs;
+  const specs = platformSupports(platform, 'playReportsBucket') ? googleSpecs : appleSpecs;
   const chips: StatChipModel[] = [];
   for (const spec of specs) {
     const now = spec.pick(current);
@@ -319,7 +320,7 @@ export function buildCards(overview: AnalyticsOverview | null): ChartCard[] {
   if (!overview) return [];
   const s = (id: string) => seriesOf(overview, id);
   const cards: (ChartCard | null)[] = [];
-  if (overview.platform === 'android') {
+  if (platformSupports(overview.platform, 'playReportsBucket')) {
     cards.push(
       card('installs', 'Installs', [
         makePanel('installs_user', 'User installs', 'columns', 'count', [
@@ -427,7 +428,8 @@ export function buildCards(overview: AnalyticsOverview | null): ChartCard[] {
 }
 
 /** Apple has no rating history; the screen says so in one quiet line instead of an empty chart. */
-export const noRatingHistory = (platform: string): boolean => platform !== 'android';
+export const noRatingHistory = (platform: string): boolean =>
+  !platformSupports(platform, 'ratingHistory');
 
 export const allSeries = (c: ChartCard): AnalyticsSeries[] => {
   const out: AnalyticsSeries[] = [];
@@ -777,7 +779,7 @@ export type Strip = { items: StripItem[]; freshness: string };
 /** Downloads, conversion and crash rate with their trend, or null when none has data (the dashboard then draws nothing). */
 export function buildStrip(overview: AnalyticsOverview | null): Strip | null {
   if (!overview) return null;
-  const android = overview.platform === 'android';
+  const android = platformSupports(overview.platform, 'playReportsBucket');
   const picks: { id: string; label: string; title: string; series: AnalyticsSeries | null }[] =
     android
       ? [

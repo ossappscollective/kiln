@@ -9,11 +9,12 @@
   import { fullTime } from '../../lib/format.ts';
   import { type SubmitPreview, buildLine, checkText, localeLine, pushedText, trackLine, versionLine } from '../../lib/store-submit.ts';
   import Alert from '../ui/Alert.svelte';
+import { supports } from '@mrm/core';
 
   let { preview }: { preview: SubmitPreview } = $props();
 
   const blocking = $derived(preview.checks.blocking);
-  const ios = $derived(preview.app.platform !== 'android');
+  const ios = $derived(!supports(preview.app.platform, 'releaseTracks'));
   const build = $derived(buildLine(preview.build));
 </script>
 

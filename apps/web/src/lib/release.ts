@@ -1,19 +1,4 @@
-import {
-  type DueFlags,
-  formatPercent,
-  isPlanLocale,
-  MAX_ROLLOUT_STEPS,
-  type PlanPlatform,
-  type Platform,
-  type RolloutComparison,
-  type RolloutStepInput,
-  type RolloutStepStatus,
-  type RolloutSummary,
-  type RolloutTemplate,
-  releaseNotesLength,
-  releaseNotesLimit,
-  validateRolloutSteps,
-} from '@mrm/core';
+import { byFamily, type DueFlags, formatPercent, isPlanLocale, MAX_ROLLOUT_STEPS, type PlanPlatform, type Platform, platformMeta, releaseNotesLength, releaseNotesLimit, type RolloutComparison, type RolloutStepInput, type RolloutStepStatus, type RolloutSummary, type RolloutTemplate, supports, validateRolloutSteps } from '@mrm/core';
 import { ApiError } from './api.ts';
 import { compareVersions, platformLabel } from './portfolio.ts';
 import type { AppSummary, ReleaseSummary, RolloutStep } from './types.ts';
@@ -127,7 +112,7 @@ export type RolloutView = {
 export function rolloutView(
   release: Pick<ReleaseSummary, 'platform' | 'status' | 'rolloutFraction'>,
 ): RolloutView {
-  const ios = release.platform !== 'android';
+  const ios = !supports(release.platform, 'releaseTracks');
   const title = ios ? 'Phased release' : 'Staged rollout';
   const fraction =
     release.rolloutFraction === null || !Number.isFinite(release.rolloutFraction)
@@ -229,9 +214,11 @@ export function noteCounter(text: string, platform: PlanPlatform): NoteCounter {
 /** Who sets the limit, in words: "Google Play allows 500 characters." */
 export function limitNote(platform: PlanPlatform): string {
   const limit = releaseNotesLimit(platform);
-  if (platform === 'ios') return `The App Store allows ${limit} characters of “What’s new”.`;
-  if (platform === 'macos') return `The Mac App Store allows ${limit} characters of “What’s new”.`;
-  if (platform === 'android') return `Google Play allows ${limit} characters of release notes.`;
+  if (platform !== null) {
+    const store = platformMeta(platform).storeNameWithArticle;
+    const what = byFamily(platform, { apple: '“What’s new”', google: 'release notes' });
+    return `${store.charAt(0).toUpperCase()}${store.slice(1)} allows ${limit} characters of ${what}.`;
+  }
   return `This plan covers every platform, so the stricter limit applies: ${limit} characters (Google Play). The App Store allows ${releaseNotesLimit('ios')}.`;
 }
 

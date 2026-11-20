@@ -71,6 +71,7 @@
   import ReleasePreviewBody from './ReleasePreviewBody.svelte';
   import RolloutPreviewBody from './RolloutPreviewBody.svelte';
   import SubmitPreviewBody from './SubmitPreviewBody.svelte';
+import { supports } from '@mrm/core';
 
   let {
     open = $bindable(false),
@@ -174,7 +175,7 @@
         const start = releaseInputDefaults(out.plan);
         track = start.track;
         // The default share of the app is read (our database) so the share starts from the staged one, else that default.
-        if (out.plan.app.platform === 'android') await releaseSettingsStore.load(api, workspaceId, out.plan.app.id);
+        if (supports(out.plan.app.platform, 'releaseTracks')) await releaseSettingsStore.load(api, workspaceId, out.plan.app.id);
         if (mine !== seq) return;
         share = releaseInputsFor({ view: releaseSettingsStore.get(out.plan.app.id), track, stagedPercent: start.sharePercent }).share;
       }
@@ -200,7 +201,7 @@
    */
   function addKnownRelease(made: PublishPlan) {
     const step = made.steps.filter((s) => s.type === 'release')[0];
-    if (made.app.platform !== 'android' || !step || step.availability !== 'needs_input' || track.trim() === '') return;
+    if (!supports(made.app.platform, 'releaseTracks') || !step || step.availability !== 'needs_input' || track.trim() === '') return;
     const fraction = offered ? parsePercent(share) : EVERYONE;
     if (fraction === null) return;
     void review(

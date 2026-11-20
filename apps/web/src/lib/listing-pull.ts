@@ -1,4 +1,4 @@
-import { can, type Platform, type Role } from '@mrm/core';
+import { can, listingStoreOf, type Platform, platformMeta, type Role } from '@mrm/core';
 import type { ApiError } from './api.ts';
 import type {
   DriftField,
@@ -130,7 +130,7 @@ export function selectionText(fields: readonly Pick<DriftField, 'locale'>[]): st
 
 /** The suggested summary of the change set, which the person may edit. */
 export function defaultPullSummary(appName: string, platform: Platform): string {
-  return `Pull the ${platform === 'android' ? 'Google Play' : platform === 'macos' ? 'Mac App Store' : 'App Store'} listing of ${appName} into the repository`.slice(
+  return `Pull the ${platformMeta(platform).storeName} listing of ${appName} into the repository`.slice(
     0,
     200,
   );
@@ -153,7 +153,7 @@ export function detectedPullSource(
   platform: Platform,
 ): { source: ListingSourceKind; path: string } | null {
   if (!detection) return null;
-  if (platform !== 'android') {
+  if (listingStoreOf(platform) === 'app_store') {
     const config = detection.expo?.storeConfigs.find((c) => !c.dynamic);
     if (config) return { source: 'expo-store-config', path: config.path };
     return detection.paths.iosMetadata

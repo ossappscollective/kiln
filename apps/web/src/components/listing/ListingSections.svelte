@@ -29,6 +29,7 @@
   import Badge from '../ui/Badge.svelte';
   import Icon from '../ui/Icon.svelte';
   import Section from '../ui/Section.svelte';
+import { listingStoreOf, supports } from '@mrm/core';
 
   let {
     sections,
@@ -62,7 +63,7 @@
       <span class="muted"> · store read <time datetime={new Date(storeReadAt).toISOString()} title={fullTime(storeReadAt)}>{timeAgo(storeReadAt, now)}</time></span>
     {/if}
   </p>
-  {#if platform === 'android'}
+  {#if listingStoreOf(platform) === 'google_play'}
     <p class="muted note"><Icon name="info" size={14} /> <span>{PLAY_LIMITS_NOTE}</span></p>
   {/if}
 
@@ -139,7 +140,7 @@
             </div>
             <p class="muted fine">
               Counts only: no image is read or kept.
-              {#if platform !== 'android'}
+              {#if supports(platform, 'screenshotsByDevice')}
                 The repository's screenshot folders do not say which device a file is for, so only the total of each locale is compared.
               {/if}
             </p>

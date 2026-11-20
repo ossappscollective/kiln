@@ -1,4 +1,5 @@
 import type { IconName } from './icons.ts';
+import { parsePlatform, type Platform } from '@mrm/core';
 
 /**
  * Which store, platform or tool something is, as a name, a label and an icon. Pure: the badge
@@ -106,13 +107,17 @@ export function storeForCredentialKind(kind: string | null | undefined): StoreIn
   }
 }
 
+/** The `storeInfo` entry of each platform's store. A new platform names its store here. */
+const STORE_KEY_OF_PLATFORM: Readonly<Record<Platform, 'app_store' | 'mac_app_store' | 'google_play'>> = {
+  ios: 'app_store',
+  macos: 'mac_app_store',
+  android: 'google_play',
+};
+
 /** The store an app is published in, from its platform. */
 export function storeForPlatform(platform: string | null | undefined): StoreInfo {
-  const p = (platform ?? '').toLowerCase();
-  if (p === 'ios') return storeInfo.app_store;
-  if (p === 'macos') return storeInfo.mac_app_store;
-  if (p === 'android') return storeInfo.google_play;
-  return storeInfo.generic;
+  const p = parsePlatform(platform);
+  return p === undefined ? storeInfo.generic : storeInfo[STORE_KEY_OF_PLATFORM[p]];
 }
 
 /** A repository host such as `github.com`. Any other host is the neutral Git host. */
@@ -156,14 +161,8 @@ export const platformInfo: Record<PlatformId, PlatformInfo> = {
 
 /** A platform string (`ios`, `android`, any case). Anything else is the neutral smartphone. */
 export function platformById(platform: string | null | undefined): PlatformInfo {
-  const p = (platform ?? '').toLowerCase();
-  return p === 'ios'
-    ? platformInfo.ios
-    : p === 'macos'
-      ? platformInfo.macos
-      : p === 'android'
-        ? platformInfo.android
-        : platformInfo.unknown;
+  const p = parsePlatform(platform);
+  return p === undefined ? platformInfo.unknown : platformInfo[p];
 }
 
 // ---------------------------------------------------------------------------------------------

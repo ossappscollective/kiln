@@ -45,6 +45,7 @@
   import Button from '../../ui/Button.svelte';
   import InfoTip from '../../ui/InfoTip.svelte';
   import StoreReleaseDialog from './StoreReleaseDialog.svelte';
+import { supports } from '@mrm/core';
 
   let {
     api,
@@ -90,7 +91,7 @@
   let direct = $state(untrack(() => stagedFields));
   let seq = 0;
 
-  const android = $derived(app.platform === 'android');
+  const android = $derived(supports(app.platform, 'releaseTracks'));
   const mayAct = $derived(canRelease(role));
   // The share starts from the default of the app (a staged share wins) and is hidden, with a reason, when Google Play offers no staged
   // rollout. Nothing is confirmed by the start: the typed phrase of the release names the share.

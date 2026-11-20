@@ -9,7 +9,7 @@
   that is not production, so "Promote to production" is offered; it opens Prepare release with its version codes).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { can, platformMeta, type Role, supports } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import { type PlatformScope, appAddress } from '../../lib/app-scope.ts';
   import { runBadge } from '../../lib/ci.ts';
@@ -103,7 +103,7 @@
       <h4>In the store <span class="muted">· {storeName(row.platform)}, read only</span></h4>
       <dl>
         <div><dt>State</dt><dd><code>{row.release.rawState}</code></dd></div>
-        <div><dt>{row.platform === 'android' ? 'Version codes' : 'Build'}</dt><dd>{row.buildText}</dd></div>
+        <div><dt>{platformMeta(row.platform).buildLabel}</dt><dd>{row.buildText}</dd></div>
         {#if row.release.track !== null}<div><dt>Track</dt><dd>{row.trackText}</dd></div>{/if}
         <div>
           <dt>Changed in the store</dt>
@@ -169,7 +169,7 @@
     {#if builds === null}
       <p class="muted">Build data is not available.</p>
     {:else if matching.length === 0}
-      <p class="muted">No build with {row.platform === 'android' ? 'these version codes' : 'this build number'} was found. A sync reads builds from the store.</p>
+      <p class="muted">No build with {supports(row.platform, 'releaseTracks') ? 'these version codes' : 'this build number'} was found. A sync reads builds from the store.</p>
     {:else}
       <div class="table-scroll">
         <table class="compact">

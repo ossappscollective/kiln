@@ -1,4 +1,4 @@
-import { can, fractionRefusalNotice, type Platform, type Role } from '@mrm/core';
+import { byFamily, can, fractionRefusalNotice, type Platform, type Role, supports } from '@mrm/core';
 import { ApiError } from './api.ts';
 import { confirmationMatches } from './store-submit.ts';
 
@@ -188,7 +188,7 @@ export function releaseLine(input: ReleaseLineInput): ReleaseLine {
   const unknown = input.state.unknownOutcome.release;
   const label = unknown
     ? 'Check the store, then preview…'
-    : input.platform === 'android'
+    : supports(input.platform, 'releaseTracks')
       ? 'Preview the release…'
       : 'Release…';
   if (input.state.inFlight.release || input.state.inFlight.push || input.state.inFlight.submit) {
@@ -199,7 +199,7 @@ export function releaseLine(input: ReleaseLineInput): ReleaseLine {
       reason: 'A release, a push or a submit for this app is running.',
     };
   }
-  if (input.platform === 'android' && input.fraction === null) {
+  if (supports(input.platform, 'releaseTracks') && input.fraction === null) {
     return {
       kind: 'ready',
       button: label,
@@ -222,7 +222,7 @@ export function releaseBody(
     direct?: boolean;
   },
 ): ReleaseBody {
-  if (platform === 'android') {
+  if (supports(platform, 'releaseTracks')) {
     return {
       ...(input.track ? { track: input.track } : {}),
       ...(input.fraction !== null ? { userFraction: input.fraction } : {}),
@@ -271,7 +271,7 @@ export function directText(preview: Pick<ReleasePreview, 'direct'>): string | nu
 }
 
 export const storeConsole = (platform: Platform): string =>
-  platform === 'android' ? 'Play Console' : 'App Store Connect';
+  byFamily(platform, { apple: 'App Store Connect', google: 'Play Console' });
 
 /** Who gets the release, in a sentence. */
 export const audienceText = (preview: Pick<ReleasePreview, 'audience'>): string =>
@@ -280,7 +280,7 @@ export const audienceText = (preview: Pick<ReleasePreview, 'audience'>): string 
 export function releaseTitle(
   preview: Pick<ReleasePreview, 'app' | 'version' | 'track' | 'audience'>,
 ): string {
-  if (preview.app.platform === 'android') {
+  if (supports(preview.app.platform, 'releaseTracks')) {
     const share = preview.audience.userFraction;
     return `${preview.track ?? 'the track'}${share !== null ? ` at ${percentText(share)}` : ''}`;
   }
@@ -467,7 +467,7 @@ export function resultText(result: ReleaseResult): string {
   const how = result.confirmedByReread
     ? ' The answer of the store was lost, and reading it back shows the release went out.'
     : '';
-  if (result.app.platform === 'android') {
+  if (supports(result.app.platform, 'releaseTracks')) {
     const share = result.audience.userFraction;
     return `Release started on ${result.track ?? 'the track'}${share !== null ? ` at ${percentText(share)} of users` : ''}.${how} ${result.note}`.trim();
   }

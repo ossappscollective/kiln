@@ -4,7 +4,7 @@
   Props: api, workspaceId, role, id (the app id from the route).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { can, platformMeta, type Role } from '@mrm/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {
@@ -234,7 +234,7 @@
             <dd><PlatformBadge platform={app.platform} /></dd>
           </div>
           <div>
-            <dt>{app.platform === 'android' ? 'Package name' : 'Bundle ID'}</dt>
+            <dt>{platformMeta(app.platform).identifierLabel}</dt>
             <dd class="row"><code>{app.identifier}</code><CopyButton value={app.identifier} iconOnly label="Copy the identifier" /></dd>
           </div>
           <div>

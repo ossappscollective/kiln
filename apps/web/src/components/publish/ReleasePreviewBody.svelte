@@ -8,11 +8,12 @@
   import { fullTime } from '../../lib/format.ts';
   import { type ReleasePreview, audienceText, directText, storeConsole } from '../../lib/store-release.ts';
   import Alert from '../ui/Alert.svelte';
+import { supports } from '@mrm/core';
 
   let { preview }: { preview: ReleasePreview } = $props();
 
   const blocking = $derived(preview.checks.blocking);
-  const android = $derived(preview.app.platform === 'android');
+  const android = $derived(supports(preview.app.platform, 'releaseTracks'));
   const console_ = $derived(storeConsole(preview.app.platform));
   const directLine = $derived(directText(preview));
 </script>

@@ -5,7 +5,7 @@
   Props: api, workspaceId, role, members (the records in scope).
 -->
 <script lang="ts">
-  import { type Role, STAGED_ROLLOUT_MODES, type StagedRolloutMode, can } from '@mrm/core';
+  import { can, type Role, STAGED_ROLLOUT_MODES, type StagedRolloutMode, supports } from '@mrm/core';
   import { untrack } from 'svelte';
   import { type Api, ApiError } from '../../../lib/api.ts';
   import { stagedRolloutHint } from '../../../lib/app-settings.ts';
@@ -20,7 +20,7 @@
   let { api, workspaceId, role, members }: { api: Api; workspaceId: string; role: Role; members: AppSummary[] } = $props();
 
   const uid = $props.id();
-  const android = $derived(members.find((m) => m.platform === 'android') ?? null);
+  const android = $derived(members.find((m) => supports(m.platform, 'releaseTracks')) ?? null);
   const mayEdit = $derived(can(role, 'apps.write'));
 
   let share = $state('');

@@ -1,4 +1,4 @@
-import { can, type Platform, type Role } from '@mrm/core';
+import { byFamily, can, type Platform, platformMeta, type Role, supports } from '@mrm/core';
 import { ApiError } from './api.ts';
 import { formatRollout, trackLabel } from './portfolio.ts';
 import type { AppSummary, ReleaseSummary } from './types.ts';
@@ -174,7 +174,7 @@ export function rolloutTargets(
   const list: ReleaseSummary[] = [];
   for (const r of releases) {
     if (r.platform !== app.platform) continue;
-    if (app.platform === 'android' && (r.track === null || (r.versionCodes ?? []).length === 0))
+    if (supports(app.platform, 'releaseTracks') && (r.track === null || (r.versionCodes ?? []).length === 0))
       continue;
     list.push(r);
   }
@@ -183,7 +183,7 @@ export function rolloutTargets(
     .sort((a, b) => inFlight(a.r) - inFlight(b.r) || a.index - b.index)
     .map((x) => x.r);
   return ordered.map((r) => {
-    if (app.platform === 'android') {
+    if (supports(app.platform, 'releaseTracks')) {
       const codes = [...(r.versionCodes ?? [])].sort();
       const share = formatRollout(r.rolloutFraction);
       return {
@@ -224,14 +224,14 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export const actionLabel = (action: string, platform: Platform): string => {
-  if (action === 'resume' && platform !== 'android') return 'Resume phased release';
+  if (action === 'resume' && supports(platform, 'phasedRelease')) return 'Resume phased release';
   return ACTION_LABELS[action] ?? action;
 };
 
 /** What the actions of an app are, in the order of the buttons; the server's `config.actions` decides which exist. */
 /** Apple's actions (`ios` in the config) apply to iOS and macOS alike. */
 export function actionsFor(config: Pick<RolloutConfig, 'actions'>, platform: Platform): string[] {
-  const list = platform === 'android' ? config.actions.android : config.actions.ios;
+  const list = byFamily(platform, { apple: config.actions.ios, google: config.actions.android });
   return [...list];
 }
 
@@ -341,7 +341,7 @@ export function describeState(state: RolloutState): string {
     line = `phased release paused${state.totalPauseDays !== null ? ` (${state.totalPauseDays} of 30 pause days used)` : ''}`;
   else if (phase === 'COMPLETE') line = 'phased release complete (released to all users)';
   else line = `phased release ${phase.toLowerCase()}`;
-  return `${state.version} on the ${state.platform === 'macos' ? 'Mac App Store' : 'App Store'}: ${line}`;
+  return `${state.version} on the ${platformMeta(state.platform).storeName}: ${line}`;
 }
 
 const STATUS_WORDS: Record<string, string> = {

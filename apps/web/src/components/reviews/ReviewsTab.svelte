@@ -16,7 +16,7 @@
   Review text is written by customers and is shown as plain text only. It never goes into a URL.
 -->
 <script lang="ts">
-  import { type Role, can, storeOf } from '@mrm/core';
+  import { can, needsStoreAppId, type Role, storeOf, supports } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
@@ -133,7 +133,7 @@
   const moreActive = $derived(popoverFilterCount(filters, sinceChoice));
   const chips = $derived(statusChips(summary?.byStatus ?? {}, filters.statuses));
   const everStored = $derived((summary?.stored.count ?? 0) > 0);
-  const needsAppSync = $derived(app.platform !== 'android' && !app.storeAppId);
+  const needsAppSync = $derived(needsStoreAppId(app.platform) && !app.storeAppId);
 
   async function loadList(reset: boolean) {
     const mine = reset ? ++listGeneration : listGeneration;
@@ -399,10 +399,10 @@
           icon="inbox"
           title={summary.sync.lastSuccessAt === null ? 'No reviews have been read yet' : 'No reviews stored'}
           description={summary.sync.lastSuccessAt === null
-            ? app.platform === 'android'
+            ? supports(app.platform, 'limitedReviewWindow')
               ? 'Read them from Google Play with this app’s credential. Google Play only returns the last 7 days, and only reviews with a comment, so read often.'
               : 'Read them from App Store Connect with this app’s credential. The first read stores what is there and raises no alerts.'
-            : app.platform === 'android'
+            : supports(app.platform, 'limitedReviewWindow')
               ? 'The last read found no review in the last 7 days. Google Play only returns reviews with a comment.'
               : 'The store returned no reviews for this app.'}
         >

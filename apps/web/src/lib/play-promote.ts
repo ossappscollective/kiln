@@ -2,6 +2,7 @@ import { parseViewPath } from './app-scope.ts';
 import { trackLabel } from './portfolio.ts';
 import { releaseStepHref } from './release-stepper.ts';
 import type { ReleaseSummary } from './types.ts';
+import { supports } from '@mrm/core';
 
 /**
  * "Promote to production" (docs/adr/0025-play-release-checks.md): a release that is in a Google Play track that is not production
@@ -52,7 +53,7 @@ export function promoteOption(
   release: ReleaseSummary,
   siblings: readonly ReleaseSummary[] = [],
 ): PromoteOption | null {
-  if (release.platform !== 'android' || release.track === null) return null;
+  if (!supports(release.platform, 'releaseTracks') || release.track === null) return null;
   if (sameTrack(release.track, PRODUCTION)) return null;
   const codes = release.versionCodes ?? [];
   if (codes.length === 0 || !isServing(release)) return null;

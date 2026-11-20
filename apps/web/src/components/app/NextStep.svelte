@@ -16,7 +16,7 @@
   Exports: observe(data) takes a RunningNow answer, so the screen's own feed is read once.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { can, type Role, supports } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import type { AttentionItem } from '../../lib/app-attention.ts';
@@ -88,7 +88,7 @@
   const promotion = $derived.by(() => {
     if (!canPrepare || !releases) return null;
     for (const m of members) {
-      if (m.platform !== 'android') continue;
+      if (!supports(m.platform, 'releaseTracks')) continue;
       const option = promoteOptions(releases[m.id] ?? [])[0];
       if (option) return option;
     }

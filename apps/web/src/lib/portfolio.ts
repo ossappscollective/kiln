@@ -548,12 +548,13 @@ export function credentialsFor<T extends { kind: string }>(
 export const identifierLabel = (platform: Platform) =>
   byFamily(platform, { apple: 'Bundle ID', google: 'Package name' });
 
-export const identifierHint = (platform: Platform) =>
-  platform === 'macos'
-    ? 'The bundle ID of the Mac app in App Store Connect, such as com.acme.app. It can be the iOS bundle ID.'
-    : platform === 'ios'
-      ? 'The bundle ID from App Store Connect, such as com.acme.app.'
-      : 'The package name from the Play Console, such as com.acme.app.';
+const IDENTIFIER_HINTS: Readonly<Record<Platform, string>> = {
+  ios: 'The bundle ID from App Store Connect, such as com.acme.app.',
+  macos: 'The bundle ID of the Mac app in App Store Connect, such as com.acme.app. It can be the iOS bundle ID.',
+  android: 'The package name from the Play Console, such as com.acme.app.',
+};
+
+export const identifierHint = (platform: Platform): string => IDENTIFIER_HINTS[platform];
 
 const BUNDLE_ID = /^[A-Za-z0-9.-]+$/;
 const PACKAGE_NAME = /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/;
@@ -586,7 +587,7 @@ export function validateDraft(
   } else if (supports(draft.platform, 'bundleIdentifier') && !BUNDLE_ID.test(identifier)) {
     problems.identifier =
       'A bundle ID has only letters, digits, dots and hyphens, such as com.acme.app.';
-  } else if (draft.platform === 'android' && !PACKAGE_NAME.test(identifier)) {
+  } else if (supports(draft.platform, 'releaseTracks') && !PACKAGE_NAME.test(identifier)) {
     problems.identifier =
       'A package name has at least two parts separated by dots, such as com.acme.app. Each part starts with a letter.';
   }

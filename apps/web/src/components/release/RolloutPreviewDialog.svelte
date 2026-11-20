@@ -23,6 +23,7 @@
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
   import Modal from '../ui/Modal.svelte';
+import { platformMeta } from '@mrm/core';
 
   let {
     open = $bindable(false),
@@ -50,7 +51,7 @@
   const ready = $derived(canConfirm(preview, typed, ack));
   /** One short warning stays on its line; two or more, or a long one, sit behind one line. */
   const warnings = $derived(foldWarnings(preview.warnings));
-  const storeName = $derived(preview.app.platform === 'android' ? 'Google Play' : preview.app.platform === 'macos' ? 'the Mac App Store' : 'the App Store');
+  const storeName = $derived(platformMeta(preview.app.platform).storeNameWithArticle);
 </script>
 
 <Modal

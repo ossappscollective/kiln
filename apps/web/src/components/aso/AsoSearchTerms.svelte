@@ -9,7 +9,7 @@
   The words and numbers are lib/search-terms.ts. Terms are shown here and kept nowhere else.
 -->
 <script lang="ts">
-  import { type Role, can, dateToDay } from '@mrm/core';
+  import { can, dateToDay, type Role, supports } from '@mrm/core';
   import type { SearchTermSort } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import { type AsoKeyword, asoErrorMessage, asoViewHref } from '../../lib/aso.ts';
@@ -64,7 +64,7 @@
   } = $props();
 
   const uid = $props.id();
-  const apps = $derived(members.filter((m) => m.platform === 'android'));
+  const apps = $derived(members.filter((m) => supports(m.platform, 'searchTermsImport')));
   const canImport = $derived(can(role, 'analytics.manage'));
   const today = $derived(dateToDay(now));
 

@@ -50,6 +50,7 @@
   import AsoBar from './AsoBar.svelte';
   import Sparkline from './Sparkline.svelte';
   import SuggestKeywords from '../ai/SuggestKeywords.svelte';
+import { supports } from '@mrm/core';
 
   let {
     api,
@@ -141,7 +142,7 @@
   });
 
   /** Google Play is left out while its reading is off: the server would answer 409 and nothing is requested. */
-  const targets = $derived(members.filter((m) => m.platform !== 'android' || !playOff));
+  const targets = $derived(members.filter((m) => !supports(m.platform, 'unofficialSearch') || !playOff));
   const nothingToCheck = $derived(keywords.length === 0 || targets.length === 0);
 
   async function check() {
@@ -315,7 +316,7 @@
                   <span class:muted={rank.muted} title={rank.title}>{rank.text}</span>
                   {#if k.error}
                     <InfoTip label="The last check failed" icon="alert-triangle" text={checkErrorText(k.error)} />
-                  {:else if k.platform === 'android' && playOff && k.state === null}
+                  {:else if supports(k.platform, 'unofficialSearch') && playOff && k.state === null}
                     <InfoTip label="Google Play reading is off" icon="info" text="Google Play reads are switched off on this server, so this keyword is kept but not checked. The operator can switch them on; see the pill above." />
                   {/if}
                 </td>

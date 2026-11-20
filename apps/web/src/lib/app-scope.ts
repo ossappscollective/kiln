@@ -1,11 +1,4 @@
-import {
-  type Action,
-  isPlatform,
-  PLATFORMS,
-  type Platform,
-  platformLabel,
-  sortPlatforms,
-} from '@mrm/core';
+import { type Action, isDesktop, isPlatform, type Platform, platformLabel, PLATFORMS, sortPlatforms } from '@mrm/core';
 import type { IconName } from './icons.ts';
 
 /**
@@ -220,8 +213,8 @@ export function resolveScope(
         ? 'This app is on one store only'
         : 'This app is not on that store',
   });
-  const hasMac = have.includes('macos');
-  const shown: Platform[] = hasMac ? have : PLATFORMS.filter((p) => p !== 'macos');
+  const hasMac = have.some(isDesktop);
+  const shown: Platform[] = hasMac ? have : PLATFORMS.filter((p) => !isDesktop(p));
   const options = shown.map((p) => option(p, platformLabel(p)));
   if (!hasMac || have.length >= 2) options.push(option('both', allScopeLabel(have.length)));
   return { scope, platforms: scope === 'both' ? have : [scope], options };

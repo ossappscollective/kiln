@@ -14,7 +14,7 @@
   components/ci/RunningNow.svelte. The run "Start release" starts shows in that same list.
 -->
 <script lang="ts">
-  import { type Role, can, platformLabel } from '@mrm/core';
+  import { can, platformLabel, platformMeta, type Role } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { address } from '../../lib/address.svelte.ts';
@@ -301,10 +301,10 @@
         <h3 class="group-head"><PlatformBadge platform={app.platform} tinted /></h3>
         <dl class="detail">
           <div>
-            <dt>{app.platform === 'android' ? 'Package name' : 'Bundle ID'}</dt>
+            <dt>{platformMeta(app.platform).identifierLabel}</dt>
             <dd class="ident">
               <code>{app.identifier}</code>
-              <CopyButton value={app.identifier} iconOnly label="Copy the {app.platform === 'android' ? 'package name' : 'bundle ID'}" />
+              <CopyButton value={app.identifier} iconOnly label="Copy the {platformMeta(app.platform).identifierNoun}" />
             </dd>
           </div>
           <div>

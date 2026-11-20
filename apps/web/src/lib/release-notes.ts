@@ -1,5 +1,6 @@
 import type { Platform, StoreId } from '@mrm/core';
 import type { TestNotes } from './release-candidates.ts';
+import { releaseNotesLimit } from '@mrm/core';
 
 /**
  * Release notes ("what is new") in the prepare-release stepper: the limits, the texts earlier releases used (and where),
@@ -9,7 +10,7 @@ import type { TestNotes } from './release-candidates.ts';
  */
 
 /** The longest "what is new": App Store 4000, Google Play 500 (a limit no official page states: only a warning). */
-export const noteLimit = (platform: Platform): number => (platform === 'android' ? 500 : 4000);
+export const noteLimit = (platform: Platform): number => releaseNotesLimit(platform);
 
 export const normalizeLocale = (locale: string): string =>
   locale.trim().toLowerCase().replace(/_/g, '-');

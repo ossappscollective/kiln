@@ -16,6 +16,7 @@
   import AppIcon from '../ui/AppIcon.svelte';
   import Icon from '../ui/Icon.svelte';
   import RolloutObserved from './RolloutObserved.svelte';
+import { platformMeta, supports } from '@mrm/core';
 
   let {
     app,
@@ -86,8 +87,8 @@
         {/if}
         <dl class="facts">
           <div>
-            <dt>{release.platform === 'android' ? 'Version codes' : 'Build'}</dt>
-            <dd>{release.platform === 'android' ? (release.versionCodes?.join(', ') ?? '—') : (release.build ?? '—')}</dd>
+            <dt>{platformMeta(release.platform).buildLabel}</dt>
+            <dd>{supports(release.platform, 'releaseTracks') ? (release.versionCodes?.join(', ') ?? '—') : (release.build ?? '—')}</dd>
           </div>
           <div>
             <dt>Store updated</dt>

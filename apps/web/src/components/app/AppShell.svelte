@@ -13,7 +13,7 @@
   edits) a slim banner says so and the listing and graphics are read-only (lockedPlatforms).
 -->
 <script lang="ts">
-  import { type Action, type Role, can } from '@mrm/core';
+  import { type Action, can, type Role, supports } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { address, appContext, replaceHash, setPlatformScope } from '../../lib/address.svelte.ts';
@@ -85,7 +85,7 @@
   const hash = $derived(canonicalAppHash(address.hash) ?? address.hash);
   /** The page the address names (an old page as the page that replaced it), or the overview when the role may not open it. */
   const section = $derived<AppSection>(open && visibleSections(allowed).some((s) => s.id === canonicalSection(open.section)) ? canonicalSection(open.section) : 'dashboard');
-  const androidInScope = $derived(scoped.some((m) => m.platform === 'android'));
+  const androidInScope = $derived(scoped.some((m) => supports(m.platform, 'searchTermsImport')));
   const views = $derived(viewsFor(section, allowed, { androidInScope }));
   const view = $derived(resolveView(section, hash, allowed, { androidInScope }));
   const anySyncing = $derived(scoped.some((m) => syncing[m.id] === true));

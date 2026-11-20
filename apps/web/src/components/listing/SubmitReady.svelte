@@ -40,6 +40,7 @@
   import InfoTip from '../ui/InfoTip.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import SubmitDialog from './SubmitDialog.svelte';
+import { byFamily } from '@mrm/core';
 
   let {
     api,
@@ -264,7 +265,7 @@
     <Alert tone="ok" title="Sent for review" ondismiss={() => (result = null)}>
       <p class="alert-text">{resultText(result)}</p>
       {#if result.note}<p class="alert-text">{result.note}</p>{/if}
-      <p class="alert-text">To release it, use {result.app.platform === 'android' ? 'Play Console' : 'App Store Connect'}; this tool does not publish.</p>
+      <p class="alert-text">To release it, use {byFamily(result.app.platform, { apple: 'App Store Connect', google: 'Play Console' })}; this tool does not publish.</p>
     </Alert>
   {/if}
 {/if}

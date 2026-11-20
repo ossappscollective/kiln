@@ -1,5 +1,6 @@
 import type { ListingStore } from './listing.ts';
 import type { ImageFormat } from './image-header.ts';
+import { isDesktop, type Platform, supports } from './platform.ts';
 
 /**
  * What the stores accept as listing graphics, as data, and a pure checker that holds a list of
@@ -212,15 +213,15 @@ export const IMESSAGE_PREFIX = 'imessage:';
  * device (not classified) fits no Apple platform here: the caller reports it separately.
  */
 export function deviceFitsPlatform(
-  platform: 'ios' | 'macos' | 'android',
+  platform: Platform,
   device: string | null,
 ): boolean {
-  if (platform === 'android') return true;
+  if (!supports(platform, 'screenshotsByDevice')) return true;
   if (device === null) return false;
   const imessage = device.startsWith(IMESSAGE_PREFIX);
   const base = DISPLAY_BY_ID.get(imessage ? device.slice(IMESSAGE_PREFIX.length) : device);
-  if (base === undefined) return platform === 'ios';
-  return platform === 'macos' ? base.family === 'mac' && !imessage : base.family !== 'mac';
+  if (base === undefined) return !isDesktop(platform);
+  return isDesktop(platform) ? base.family === 'mac' && !imessage : base.family !== 'mac';
 }
 
 /** The label of a device class id of either store, or the id itself when it is not known. */

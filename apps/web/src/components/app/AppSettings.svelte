@@ -8,7 +8,7 @@
   Props: api, workspaceId, role, members (the records in scope), all? (every record of the app), now.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { can, type Role, supports } from '@mrm/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { appSettingsPartIds as ids, appSettingsSections, deleteLine } from '../../lib/app-settings.ts';
   import { aiStore } from '../../lib/ai-store.svelte.ts';
@@ -46,7 +46,7 @@
   const aiConfig = $derived(aiStore.config(workspaceId));
   /** The AI part is drawn only when the assistant is on for this workspace (the same test as AiContextSection). */
   const aiOn = $derived(can(role, 'ai.use') && aiConfig !== null && aiConfig.state !== 'off_server' && aiConfig.state !== 'off_workspace');
-  const sections = $derived(appSettingsSections({ android: members.some((m) => m.platform === 'android'), ai: aiOn, canDelete: canWrite }));
+  const sections = $derived(appSettingsSections({ android: members.some((m) => supports(m.platform, 'releaseTracks')), ai: aiOn, canDelete: canWrite }));
 
   let target = $state<AppSummary | null>(null);
   let open = $state(false);
@@ -79,7 +79,7 @@
   <div id={ids.stores} class="part" tabindex="-1"><StoresSection {api} {workspaceId} {role} {members} {all} {now} /></div>
   <div id={ids.repository} class="part" tabindex="-1"><RepositorySection {api} {workspaceId} {role} {members} /></div>
   <div id={ids.defaults} class="part" tabindex="-1"><DefaultsSection {api} {workspaceId} {role} {members} /></div>
-  {#if members.some((m) => m.platform === 'android')}
+  {#if members.some((m) => supports(m.platform, 'releaseTracks'))}
     <div id={ids.playReleases} class="part" tabindex="-1"><ReleaseSettingsSection {api} {workspaceId} {role} {members} /></div>
     <div id={ids.playBucket} class="part" tabindex="-1"><AnalyticsSection {api} {workspaceId} {role} {members} /></div>
   {/if}

@@ -19,6 +19,7 @@
   import Modal from '../../ui/Modal.svelte';
   import ReleasePreviewBody from '../../publish/ReleasePreviewBody.svelte';
   import PlayCheck from './PlayCheck.svelte';
+import { supports } from '@mrm/core';
 
   let {
     open = $bindable(false),
@@ -47,7 +48,7 @@
 
   const ready = $derived(canConfirmRelease(preview, typed));
   const blocking = $derived(preview.checks.blocking);
-  const android = $derived(preview.app.platform === 'android');
+  const android = $derived(supports(preview.app.platform, 'releaseTracks'));
 </script>
 
 <Modal

@@ -1,4 +1,4 @@
-import { byFamily, listingStoreOf, type Platform, type StoreId, supports } from './platform.ts';
+import { byFamily, isDesktop, listingStoreOf, type Platform, type StoreId, supports } from './platform.ts';
 import type { ReleaseFieldId, StagedReleaseFieldView } from './release-fields.ts';
 import {
   type AssetKind,
@@ -210,7 +210,7 @@ export function assetSlotSupport(platform: Platform, slot: AssetSlot): SlotSuppo
       return {
         ok: false,
         reason:
-          platform === 'macos'
+          isDesktop(platform)
             ? 'A macOS version takes Mac screenshots only (the Mac display).'
             : 'The Mac display belongs to the macOS version of the app, not the iOS one.' };
     }

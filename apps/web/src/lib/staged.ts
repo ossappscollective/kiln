@@ -1,20 +1,4 @@
-import {
-  type AssetKind,
-  type AssetProblem,
-  assetSlotSupport,
-  can,
-  type Platform,
-  PUSHABLE_IMAGE_FORMATS,
-  type Role,
-  STAGEABLE_TEXT_FIELDS,
-  type STAGED_LIMITS,
-  type StagedAssetView,
-  type StagedChangesView,
-  type StagedProblem,
-  type StagedTextView,
-  slotKey,
-  slotMaxFiles,
-} from '@mrm/core';
+import { type AssetKind, type AssetProblem, assetSlotSupport, can, type Platform, platformMeta, PUSHABLE_IMAGE_FORMATS, type Role, slotKey, slotMaxFiles, STAGEABLE_TEXT_FIELDS, type STAGED_LIMITS, type StagedAssetView, type StagedChangesView, type StagedProblem, type StagedTextView, supports } from '@mrm/core';
 import { ApiError, waitPhrase } from './api.ts';
 import type { AssetItem, DriftField } from './types.ts';
 
@@ -197,12 +181,7 @@ export function pushAvailability(
   return { state: 'ready' };
 }
 
-export const storeName = (platform: Platform): string =>
-  platform === 'android'
-    ? 'Google Play'
-    : platform === 'macos'
-      ? 'the Mac App Store'
-      : 'the App Store';
+export const storeName = (platform: Platform): string => platformMeta(platform).storeNameWithArticle;
 
 // ---------------------------------------------------------------------------------------------
 // The tray
@@ -813,7 +792,7 @@ export function previewSetText(set: PreviewAssetSet): string {
 
 export function versionText(preview: Pick<DraftPreview, 'app' | 'version'>): string {
   if (preview.version === null)
-    return preview.app.platform === 'android'
+    return supports(preview.app.platform, 'releaseTracks')
       ? 'A Google Play edit, committed as changes not sent for review'
       : '';
   const name = preview.version.versionString

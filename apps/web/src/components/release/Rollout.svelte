@@ -10,14 +10,7 @@
 -->
 <script lang="ts">
   import { untrack } from 'svelte';
-  import {
-    MAX_ROLLOUT_STEPS,
-    type RolloutSummary,
-    type RolloutTemplate,
-    checkRolloutAction,
-    formatPercent,
-    rolloutTemplatesFor,
-  } from '@mrm/core';
+  import { byFamily, checkRolloutAction, formatPercent, MAX_ROLLOUT_STEPS, platformMeta, type RolloutSummary, type RolloutTemplate, rolloutTemplatesFor } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {
@@ -81,7 +74,7 @@
   const steps = $derived(view?.steps ?? []);
   const comparison = $derived(view?.comparison ?? null);
   const store = $derived(view?.store ?? null);
-  const storeSource = $derived(store?.platform === 'android' ? 'Google Play' : 'App Store Connect');
+  const storeSource = $derived(store ? byFamily(store.platform, { apple: 'App Store Connect', google: 'Google Play' }) : 'App Store Connect');
   const hasDone = $derived(steps.some((s) => s.status === 'done'));
 
   let generation = 0;
@@ -218,7 +211,7 @@
     <div>
       <h2 id="{uid}-title">Staged rollout</h2>
       <p>
-        Planning only: this does not start, change or stop a rollout in {plan.appPlatform === 'android' ? 'Google Play Console' : 'App Store Connect'}. Marking a step done only records it here.
+        Planning only: this does not start, change or stop a rollout in {platformMeta(plan.appPlatform).consoleName}. Marking a step done only records it here.
       </p>
     </div>
     {#if view && view.kind !== null && canWrite && !editing}

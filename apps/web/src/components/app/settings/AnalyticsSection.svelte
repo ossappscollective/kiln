@@ -12,10 +12,11 @@
   import PlayBucketField from '../../analytics/PlayBucketField.svelte';
   import PlatformBadge from '../../ui/PlatformBadge.svelte';
   import SettingsCard from './SettingsCard.svelte';
+import { supports } from '@mrm/core';
 
   let { api, workspaceId, role, members }: { api: Api; workspaceId: string; role: Role; members: AppSummary[] } = $props();
 
-  const android = $derived(members.filter((m) => m.platform === 'android'));
+  const android = $derived(members.filter((m) => supports(m.platform, 'playReportsBucket')));
 </script>
 
 {#if android.length > 0}
