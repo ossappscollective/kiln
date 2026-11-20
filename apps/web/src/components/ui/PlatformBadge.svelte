@@ -1,8 +1,8 @@
 <!--
   PlatformBadge: the platform of an app as a small tinted tile and its name (iOS, macOS or Android).
   Each platform has its own hue (the --platform-* tokens, light and dark), its own glyph silhouette
-  and its name in text, so no single signal carries the meaning. If the maintainer added an official
-  logo at src/assets/platforms/<platform>.svg it is drawn in place of the glyph (see lib/platform-logos.ts).
+  and its name in text, so no single signal carries the meaning. The logos in
+  src/assets/platforms/<platform>.svg (Simple Icons, CC0; see THIRD_PARTY_NOTICES.md) are drawn in place of the glyph (see lib/platform-logos.ts).
   Props: platform ('ios' | 'macos' | 'android'; anything else draws a neutral phone), showLabel = true
   (false keeps the name for assistive technology only; use it only where a name is shown beside it),
   tinted = true (false draws the neutral tile).
@@ -13,7 +13,7 @@
   import { platformBadgeText, platformById } from '../../lib/stores.ts';
   import Icon from './Icon.svelte';
 
-  // Official logos the maintainer added; empty until then, and the glyph is the fallback.
+  // Logo files in src/assets/platforms; the glyph is the fallback when one is missing.
   const logos = import.meta.glob('../../assets/platforms/*.svg', { eager: true, query: '?url', import: 'default' }) as Record<
     string,
     string
@@ -29,7 +29,7 @@
 
 <span class="platform {tint}">
   <span class="tile" aria-hidden="true">
-    {#if logo}<img src={logo} alt="" width="16" height="16" />{:else}<Icon name={info.icon} size="md" />{/if}
+    {#if logo}<span class="logo" style:--logo="url({logo})"></span>{:else}<Icon name={info.icon} size="md" />{/if}
   </span>
   <span class="name" class:visually-hidden={!showLabel}>{text.name}</span>
 </span>
@@ -77,10 +77,15 @@
     place-items: center;
   }
 
-  .tile img {
+  /* The logos are single-colour (Simple Icons, CC0), so they are drawn as a mask over the platform ink
+     and follow the tinted tile in light and dark; an <img> could not inherit the colour. */
+  .logo {
     display: block;
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
+    background: currentcolor;
+    mask: var(--logo) center / contain no-repeat;
+    -webkit-mask: var(--logo) center / contain no-repeat;
   }
 
   /* The name takes the platform ink only when tinted, so an untinted badge stays plain text. */

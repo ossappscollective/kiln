@@ -36,9 +36,21 @@ the App Store", "Get it on Google Play") are not used anywhere.
 `apps/web/src/lib/icons.ts` lists the same names in `genericBrandIcons`, and `icons.test.ts` fails if
 an entry there is missing from this table.
 
-### Why there are no real brand marks
+### Platform logos (apps/web/src/assets/platforms)
 
-Simple Icons (https://github.com/simple-icons/simple-icons, CC0-1.0 for the icon data, with its own
+`ios.svg` (the "iOS" wordmark), `macos.svg` (the Apple logo) and `android.svg` (the Android robot) are
+single-colour paths from Simple Icons (https://simpleicons.org, https://github.com/simple-icons/simple-icons),
+whose icon data is released under CC0 1.0. The path data was read from the Iconify mirror of the set
+(`simple-icons` collection, 24x24 viewBox) in November 2026 and re-wrapped in a minimal `<svg>`; each was
+rendered and compared by eye with the original mark. The commit hash of the set was not available from that
+mirror. CC0 covers the drawing only: Apple, iOS, macOS and the Apple logo are trademarks of Apple Inc., and
+Android and the Android robot are trademarks of Google LLC. They are used here only to name the platform of an
+app, small and without implying endorsement; follow Apple's and Google's trademark guidelines before using
+them anywhere larger (marketing, store listings, the website).
+
+### Why there are no other real brand marks
+
+For the generic brand icons, Simple Icons (CC0-1.0 for the icon data, with its own
 trademark caveat in the README) would be the usual source of single-colour brand glyphs. The exact
 `d` attributes could not be obtained and verified when this was written: the fetch tool available
 returns at most a short quoted excerpt of a file, and the repository's raw file host was not

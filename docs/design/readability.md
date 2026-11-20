@@ -132,22 +132,12 @@ iOS, macOS and Android are told apart by four signals, so no single one carries 
 `ui/PlatformBadge.svelte` is the one component (the old `portfolio/PlatformBadge.svelte` wraps it).
 `ScopeControl` uses it too.
 
-### Adding the official logos (maintainer)
+### Platform logos
 
-The built-in glyphs are generic shapes. They are deliberately not the Apple or Android logos: those
-are trademarked and are not drawn or approximated here. To show the real marks, download them from
-each owner and use them under their brand guidelines (Apple: Marketing Resources and Identity
-Guidelines; Android: Android brand guidelines; check the rules for macOS and for use beside the
-word "iOS"). Then drop the files in:
-
-```
-apps/web/src/assets/platforms/ios.svg
-apps/web/src/assets/platforms/macos.svg
-apps/web/src/assets/platforms/android.svg
-```
-
-`PlatformBadge` loads whichever of the three exists (`import.meta.glob`, `lib/platform-logos.ts`)
-and shows it inside the tinted tile, 16 px. A missing file falls back to the generic glyph, so
-the three can be added one at a time. Rebuild the web app (`pnpm build` in `apps/web`). Use a logo
-that reads on both the light and the dark tint, or ask for a mono variant; also list them in
-`THIRD_PARTY_NOTICES.md`.
+The tile shows single-colour logos from Simple Icons (CC0 1.0): the "iOS" wordmark, the Apple logo for
+macOS and the Android robot, in `apps/web/src/assets/platforms/{ios,macos,android}.svg`. They are drawn
+as a CSS mask over the platform ink, so they follow the tint in light and dark. The marks stay Apple's
+and Google's trademarks (see `THIRD_PARTY_NOTICES.md`). To swap one, replace the file with another
+single-colour SVG on a 24 x 24 viewBox. `PlatformBadge` loads whichever exists (`import.meta.glob`,
+`lib/platform-logos.ts`); a missing file falls back to the generic glyph. Rebuild with `pnpm build` in
+`apps/web`.
