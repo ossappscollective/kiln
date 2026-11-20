@@ -1,6 +1,7 @@
 import type { Platform } from '@mrm/core';
 import { platformSupports, supports } from '@mrm/core';
 import { appAddress } from './app-scope.ts';
+import { type EasBuildView, easBuildDetail, easBuildState, easBuildTitle } from './eas/eas-status.ts';
 
 /**
  * Builds to test (docs/api/builds.md): the rows of the "Test builds" section, their filters and the plain install guidance, as
@@ -98,8 +99,8 @@ export type DownloadLink = { path: string; expiresAt: number; filename: string }
 // ---------------------------------------------------------------------------------------------
 // Rows
 
-export type RowSource = 'ci' | 'store';
-export type RowKind = ArtifactKind | 'testflight' | 'play';
+export type RowSource = 'ci' | 'store' | 'eas';
+export type RowKind = ArtifactKind | 'testflight' | 'play' | 'eas';
 
 export type BuildRow = {
   key: string;
@@ -120,6 +121,8 @@ export type BuildRow = {
   state: { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' | 'info' };
   artifact: ArtifactItem | null;
   store: StoreBuildItem | null;
+  /** An EAS build (docs/adr/0036-eas-build-submit-status.md): the third source, next to CI artifacts and store builds. */
+  eas?: EasBuildView | undefined;
 };
 
 const runLabel = (a: ArtifactItem): string => {
@@ -192,9 +195,39 @@ export function storeRow(b: StoreBuildItem): BuildRow {
   };
 }
 
-/** Every build, newest first (a build with no date goes last). */
-export function rowsOf(list: Pick<BuildsList, 'artifacts' | 'store'>): BuildRow[] {
-  const rows = [...list.artifacts.map(artifactRow), ...list.store.map(storeRow)];
+/** An EAS build as a row. Its files are not downloadable through this server: the Expo page of the build is the way to install it. */
+export function easRow(b: EasBuildView, now: number = Date.now()): BuildRow {
+  const expired = b.status === 'finished' && b.artifactExpiresAt !== null && b.artifactExpiresAt <= now;
+  return {
+    key: `eas:${b.id}`,
+    source: 'eas',
+    platform: b.platform,
+    kind: 'eas',
+    title: easBuildTitle(b),
+    detail: easBuildDetail(b),
+    runUrl: b.expoUrl,
+    sizeBytes: null,
+    at: b.createdAt,
+    expiresAt: b.artifactExpiresAt,
+    expired,
+    state: expired ? { label: 'Expired', tone: 'bad' } : easBuildState(b),
+    artifact: null,
+    store: null,
+    eas: b,
+  };
+}
+
+/** Every build, newest first (a build with no date goes last). EAS builds are one more source; pass them when the app is linked to Expo. */
+export function rowsOf(
+  list: Pick<BuildsList, 'artifacts' | 'store'>,
+  eas: readonly EasBuildView[] = [],
+  now: number = Date.now(),
+): BuildRow[] {
+  const rows = [
+    ...list.artifacts.map(artifactRow),
+    ...list.store.map(storeRow),
+    ...eas.map((b) => easRow(b, now)),
+  ];
   return rows.sort((a, b) => (b.at ?? 0) - (a.at ?? 0) || a.key.localeCompare(b.key));
 }
 
@@ -280,6 +313,7 @@ export const kindLabel = (kind: RowKind): string =>
     other: 'Other',
     testflight: 'TestFlight',
     play: 'Play',
+    eas: 'EAS',
   })[kind];
 
 // ---------------------------------------------------------------------------------------------
@@ -301,8 +335,67 @@ export type Guide = {
 const ZIP_NOTE =
   'A workflow artifact is always a zip: unzip it first. The type shown is a guess from the artifact name.';
 
+/** Installation guidance for an EAS build: this tool holds no file, so it points at the Expo page of the build. */
+function easGuide(b: EasBuildView): Guide {
+  const link = b.expoUrl ? { label: 'Open on Expo', href: b.expoUrl } : null;
+  if (b.status !== 'finished') {
+    return {
+      title: b.status === 'errored' ? 'This EAS build failed' : 'This EAS build has not finished',
+      steps: [
+        b.status === 'errored'
+          ? 'Open the build on Expo to read its log and the reason it failed, fix the cause and build again.'
+          : 'Open the build on Expo to follow its progress. This page reads it again every few minutes while it runs.',
+      ],
+      caution: null,
+      downloads: false,
+      qr: false,
+      link,
+    };
+  }
+  if (b.simulator === true || b.distribution === 'simulator') {
+    return {
+      title: 'An iOS Simulator build',
+      steps: [
+        'A simulator build runs in the iOS Simulator on a Mac, not on a phone.',
+        'Open the build on Expo to download it, then drag it onto a running simulator.',
+      ],
+      caution: 'Mobile Release Manager does not download EAS builds; Expo does.',
+      downloads: false,
+      qr: false,
+      link,
+    };
+  }
+  if (b.internal) {
+    return {
+      title: 'Install an internal distribution build',
+      steps: [
+        'Open the build on Expo: for a build with internal distribution it has the install link for the device.',
+        b.platform === 'android'
+          ? 'On Android the link installs the build (the phone asks to allow installing from this source, once).'
+          : 'On iOS an internal build only runs on devices that are in its provisioning profile (registered by UDID, or an enterprise profile).',
+      ],
+      caution: 'Mobile Release Manager does not download EAS builds and holds no install link of its own; Expo does.',
+      downloads: false,
+      qr: false,
+      link,
+    };
+  }
+  return {
+    title: 'A build for store distribution',
+    steps: [
+      'A store distribution build is meant to be sent to the store, not installed from a link.',
+      'Submit it with EAS Submit (the submissions below show how that went), or upload it to the store yourself, then test it from TestFlight or Google Play.',
+    ],
+    caution: null,
+    downloads: false,
+    qr: false,
+    link,
+  };
+}
+
 /** Plain installation guidance for a row. Never promises more than the tool can do. */
 export function installGuide(row: BuildRow): Guide {
+  if (row.eas) return easGuide(row.eas);
   if (row.store) {
     const b = row.store;
     if (b.channel === 'testflight') {

@@ -32,8 +32,12 @@
     testflightNote,
     testflightView,
   } from '../../lib/builds.ts';
+  import { type EasStatusView, easStatusErrorText } from '../../lib/eas/eas-status.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import type { AppSummary } from '../../lib/types.ts';
+  import EasBuildExtras from '../eas/EasBuildExtras.svelte';
+  import EasStatusNote from '../eas/EasStatusNote.svelte';
+  import EasSubmissions from '../eas/EasSubmissions.svelte';
   import PlatformBadge from '../portfolio/PlatformBadge.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -65,13 +69,53 @@
   // Google Play internal app sharing: the button exists only when the server switch is on and this role may share. A failed read hides it.
   let sharing = $state<InternalSharingConfig | null>(null);
 
+  // EAS builds and submissions of the Expo project this app is linked to (docs/adr/0036-eas-build-submit-status.md): the stored status loads
+  // with the list (the server does not call Expo for it); "Read again" asks Expo again for people who may sync. Null when the app has no link.
+  let eas = $state<EasStatusView | null>(null);
+  let easProblem = $state('');
+  let easReading = $state(false);
+  const mayRefreshEas = $derived(can(role, 'apps.sync') && eas?.project != null && eas.supported);
+
   const focus = $derived(parseViewPath(address.hash).query.get('build'));
   let generation = 0;
+  let easGeneration = 0;
+
+  async function loadEas() {
+    const mine = ++easGeneration;
+    try {
+      const read = await api.easStatus(workspaceId, app.id);
+      if (mine === easGeneration) eas = read.status.project ? read.status : null;
+    } catch {
+      // The EAS part is optional: a failure leaves the other sources as they are.
+      if (mine === easGeneration) eas = null;
+    }
+  }
+
+  async function refreshEas() {
+    if (!mayRefreshEas) return;
+    const mine = ++easGeneration;
+    easReading = true;
+    easProblem = '';
+    try {
+      const read = await api.refreshEasStatus(workspaceId, app.id);
+      if (mine === easGeneration) eas = read.status;
+    } catch (e) {
+      if (mine === easGeneration) easProblem = easStatusErrorText(e);
+    } finally {
+      if (mine === easGeneration) easReading = false;
+    }
+  }
+
+  function readAgain() {
+    void load();
+    void refreshEas();
+  }
 
   async function load() {
     const mine = ++generation;
     loading = true;
     loadProblem = '';
+    void loadEas();
     try {
       const read = await api.buildArtifacts(workspaceId, app.id);
       if (mine !== generation) return;
@@ -109,7 +153,18 @@
     };
   });
 
-  const rows = $derived(data ? rowsOf(data) : []);
+  // While an EAS build or submission is running the stored status is read again every minute (the server reads Expo every few minutes).
+  $effect(() => {
+    if (!eas?.active) return;
+    const timer = setInterval(() => {
+      void loadEas().then(() => {
+        now = Date.now();
+      });
+    }, 60_000);
+    return () => clearInterval(timer);
+  });
+
+  const rows = $derived(data ? rowsOf(data, eas?.builds ?? [], now) : []);
   // A build named in the address is always shown, whatever the filters hide.
   const shown = $derived(
     applyFilters(rows, focus ? { ...filters, hideExpired: false, hideOther: false, platform: 'all', source: 'all' } : filters),
@@ -128,7 +183,7 @@
   <PageLead
     testid="test-builds-lead"
     headline={data && rows.length > 0 ? `${rows.length} ${rows.length === 1 ? 'build' : 'builds'} to try on a device` : 'Builds to try on a device'}
-    hint="What your CI built, and what the stores hold for testers."
+    hint={eas ? 'What your CI and EAS built, and what the stores hold for testers.' : 'What your CI built, and what the stores hold for testers.'}
   >
     {#snippet aside()}
       <InfoTip label="About test builds" buttonText="About test builds" width="26rem">
@@ -137,7 +192,7 @@
       </InfoTip>
     {/snippet}
     {#snippet actions()}
-      <Button icon="refresh" loading={loading} onclick={() => void load()}>Read again</Button>
+      <Button icon="refresh" loading={loading || easReading} onclick={readAgain}>Read again</Button>
     {/snippet}
   </PageLead>
 
@@ -172,6 +227,8 @@
       </div>
     {/if}
 
+    {#if eas}<EasStatusNote status={eas} problem={easProblem} {now} />{/if}
+
     {#if rows.length > 0}
       <div class="filters" role="group" aria-label="Filter builds">
         <label class="inline">
@@ -184,8 +241,9 @@
         <label class="inline">
           <span class="muted text-sm">Source</span>
           <select bind:value={filters.source}>
-            <option value="all">CI and store</option>
+            <option value="all">{eas ? 'CI, EAS and store' : 'CI and store'}</option>
             <option value="ci">CI runs</option>
+            {#if eas}<option value="eas">EAS builds</option>{/if}
             <option value="store">Store (TestFlight, Play)</option>
           </select>
         </label>
@@ -223,11 +281,11 @@
                 </div>
                 <div class="meta muted text-sm">
                   <span class="src">
-                    <Icon name={row.source === 'ci' ? 'pipeline' : 'store'} size={13} />
-                    {row.source === 'ci' ? 'CI' : 'Store'}
+                    <Icon name={row.source === 'store' ? 'store' : 'pipeline'} size={13} />
+                    {row.source === 'ci' ? 'CI' : row.source === 'eas' ? 'EAS' : 'Store'}
                   </span>
-                  {#if row.source === 'ci' && row.runUrl}
-                    <a href={row.runUrl} target="_blank" rel="noopener noreferrer">{row.detail}<Icon name="external-link" size={12} /><span class="visually-hidden"> (opens in a new tab)</span></a>
+                  {#if (row.source === 'ci' || row.source === 'eas') && row.runUrl}
+                    <a href={row.runUrl} target="_blank" rel="noopener noreferrer">{row.detail || 'Open on Expo'}<Icon name="external-link" size={12} /><span class="visually-hidden"> (opens in a new tab)</span></a>
                   {:else if row.detail}<span>{row.detail}</span>{/if}
                   {#if row.sizeBytes !== null}<span>{humanSize(row.sizeBytes)}</span>{/if}
                   {#if row.at !== null}<time datetime={new Date(row.at).toISOString()} title={fullTime(row.at)}>{timeAgo(row.at, now)}</time>{:else}<span>Age unknown</span>{/if}
@@ -235,6 +293,7 @@
                   {#if row.artifact?.guessed && row.kind !== 'other'}<span>Type guessed from the name</span>{/if}
                   {#if row.artifact && sharedNote(row.artifact) !== ''}<span class="shared" data-testid="build-shared">{sharedNote(row.artifact)}</span>{/if}
                 </div>
+                {#if row.eas}<EasBuildExtras build={row.eas} />{/if}
                 {#if row.source === 'store' && row.store}
                   {@const tf = testflightView(data, row.store)}
                   {#if tf.kind !== 'hidden'}<TestFlightLinks view={tf} />{/if}
@@ -272,6 +331,9 @@
       </Section>
       {#if data.truncated}<p class="muted text-sm">Only the newest artifacts of the repository were read.</p>{/if}
       {#if data.hiddenArtifacts > 0}<p class="muted text-sm">{data.hiddenArtifacts} other artifact{data.hiddenArtifacts === 1 ? '' : 's'} of this repository belong to other runs or platforms and are not shown.</p>{/if}
+    {/if}
+    {#if eas}
+      <EasSubmissions status={eas} {now} />
     {/if}
   {/if}
 </div>
