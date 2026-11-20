@@ -55,6 +55,9 @@ export const actions = [
   'alerts.read',
   'alerts.write',
   'alerts.manage',
+  // In-app purchases and subscriptions (docs/adr/0034-in-app-products.md): reading them needs `apps.read`, syncing `apps.sync`;
+  // editing a localized display name or description in the store needs this (owner and admin, explicit-only for tokens).
+  'monetization.write',
 ] as const;
 export type Action = (typeof actions)[number];
 
@@ -149,7 +152,8 @@ export const tokenActions: readonly Action[] = actions.filter(
  * or hand a build to Google Play's internal app sharing (`builds.share`, docs/adr/0020-play-internal-sharing.md: uploads the binary to
  * Google and returns an install link)
  * or SEND the text of a workspace's data to an AI provider and spend its token budget (`ai.use`) or change which provider
- * gets it (`ai.manage`, docs/adr/0016-ai-foundation.md). A token gets one only when its list of actions names it: a token with no list
+ * gets it (`ai.manage`, docs/adr/0016-ai-foundation.md) or change the localized display name or description of an in-app purchase
+ * or subscription in a store (`monetization.write`, docs/adr/0034-in-app-products.md). A token gets one only when its list of actions names it: a token with no list
  * ("everything the ceiling allows") never does, so widening an old token's role cannot start
  * answering customers or moving a rollout.
  */
@@ -166,6 +170,7 @@ export const tokenExplicitOnlyActions: readonly Action[] = [
   'builds.download',
   'builds.share',
   'alerts.manage',
+  'monetization.write',
 ];
 
 export function isTokenRole(value: unknown): value is TokenRole {

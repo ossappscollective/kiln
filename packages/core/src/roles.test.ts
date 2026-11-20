@@ -395,3 +395,25 @@ test('analytics.read: every role; analytics.manage: owners and admins only, expl
   );
   assert.equal(canToken('viewer', null, 'analytics.read'), true);
 });
+
+test('monetization.write: owners and admins only; explicit-only on tokens, apart from the rights of every other store write', () => {
+  assert.equal(can('owner', 'monetization.write'), true);
+  assert.equal(can('admin', 'monetization.write'), true);
+  assert.equal(can('member', 'monetization.write'), false);
+  assert.equal(can('viewer', 'monetization.write'), false);
+  // Reading products and syncing them use the app rights: a member may sync, nobody below admin may write.
+  assert.equal(can('member', 'apps.sync'), true);
+  assert.ok(tokenActions.includes('monetization.write'));
+  assert.ok(tokenExplicitOnlyActions.includes('monetization.write'));
+  assert.equal(canToken('admin', null, 'monetization.write'), false, 'no list: never');
+  for (const other of ['store.push_draft', 'store.publish', 'releases.rollout'] as const) {
+    assert.equal(canToken('admin', [other], 'monetization.write'), false, other);
+    assert.equal(canToken('admin', ['monetization.write'], other), false, other);
+  }
+  assert.equal(canToken('admin', ['monetization.write'], 'monetization.write'), true);
+  assert.equal(
+    canToken('member', ['monetization.write'], 'monetization.write'),
+    false,
+    'the ceiling still applies',
+  );
+});

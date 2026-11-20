@@ -115,6 +115,8 @@ export const CAPABILITIES = [
   'internalAppSharing',
   /** An app's identifier is a bundle id (letters, digits, dots, hyphens; case-insensitive) rather than a package name (case-sensitive). */
   'bundleIdentifier',
+  /** The store sells in-app purchases and subscriptions that can be read (and their display texts edited) through its API. */
+  'inAppPurchases',
 ] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 export type PlatformCapabilities = Readonly<Record<Capability, boolean>>;
@@ -142,6 +144,7 @@ const APPLE_CAPABILITIES: PlatformCapabilities = {
   internalAppSharing: false,
   ratingHistory: false,
   sideloadInstall: false,
+  inAppPurchases: true,
 };
 
 const GOOGLE_CAPABILITIES: PlatformCapabilities = {
@@ -167,6 +170,7 @@ const GOOGLE_CAPABILITIES: PlatformCapabilities = {
   internalAppSharing: true,
   ratingHistory: true,
   sideloadInstall: true,
+  inAppPurchases: true,
 };
 
 export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
