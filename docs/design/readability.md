@@ -88,6 +88,19 @@ Not done (candidates): the locale drawer and field editor of Store listing, `Rep
 `AppWorkflows` (already two muted sentences and the panels), the Graphics view of Store listing (`components/assets`), and the
 sub-sections of Settings (their forms keep their own copy).
 
+## Second pass: forms and dialogs
+
+| Screen | First today | Should be first | Done |
+| ------ | ----------- | --------------- | ---- |
+| Sign-in and setup (`AuthCard`, `auth-form.css`) | Product name, 20px heading, 14px inputs of 36px, labels 13px | One heading, one sentence, fields with labels, ONE primary button | The product name and one line sit over the card; the heading is 28px (24px at 360px), the sentence 16px. Inside `.readable-form` (`components/auth-form.css`, tokens only, so light and dark): 16px inputs 48px high, 15px labels, 14px hints and errors, primary buttons 48px, numeric code fields 24px in monospace with spacing, `.quiet` and `.quiet-links` for secondary lines. Headings, `aria` and test ids are unchanged. `Login`: unchanged markup (it already had labels, show/hide and one error line) |
+| `Setup`, `AcceptInvite`, `LaunchRequired` | Full-width buttons missing; "Registration closes afterwards" inside the sentence under the title | One primary full-width button; the irreversible fact beside the action | `Setup` has no steps, so there is no "Step 1 of 3". The fact that registration closes is one line above the button; the workspace name has a one-line hint. `AcceptInvite`: join / create / sign out / go to the app are the single large primary; when the account exists, "Sign in" becomes the primary and "Create account and join" the secondary. `LaunchRequired`: "Check again" is the primary |
+| `LoginSecondFactor` | Buttons stacked at equal weight | One code field, one primary | Continue is the only primary; the other ways (`otherWayLabel`: "Use a recovery code", ...), "Send again" and "Back to sign in" are quiet links in one centred line. When a second step must be set up each choice has one sentence (`enrollChoiceHint`) |
+| `TotpSetup`, `QrCode` | A long first instruction, QR and key side by side without a surface | 1-2-3 in one line each, QR, copyable key, code | Three one-line steps; the QR and the key (with Copy) sit on one tinted surface and wrap under each other at 360px; "Verify and turn on" is the large primary and Cancel a quiet link. Used by the sign-in step and by Settings, Security |
+| `StepUpDialog`, `StepUpHost` | A long paragraph, then a small Confirm | One sentence on what is confirmed, the one Confirm | The description is `confirmSentence` ("Use your passkey or your password to confirm this one action."; the title still names the action); the error sits above the form; Confirm is large and full width; the other ways are quiet links; "It works for this one action, for a few minutes." is one quiet line. Passkey, password, authenticator, email and recovery logic, focus trap and `aria` are untouched |
+| `SecretFields` | Own labels and hints | Presentation only | Not changed: its labels, hints and the file link already follow the global form styles; the credential forms around it are another screen |
+
+The pure parts are in `lib/auth-copy.ts` (`waysPhrase`, `confirmSentence`, `otherWayLabel`, `enrollChoiceHint`), tested.
+
 ## Store and platform markers
 
 iOS, macOS and Android are told apart by four signals, so no single one carries the meaning:
