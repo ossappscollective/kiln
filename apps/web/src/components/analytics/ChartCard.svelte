@@ -76,7 +76,7 @@
   .fresh,
   .caption {
     margin: 0;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     color: var(--muted);
   }
 

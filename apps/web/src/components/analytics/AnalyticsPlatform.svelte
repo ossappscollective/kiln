@@ -252,7 +252,7 @@
 
   .quiet {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
     color: var(--muted);
   }
 

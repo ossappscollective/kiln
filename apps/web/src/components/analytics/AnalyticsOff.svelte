@@ -10,6 +10,7 @@
   import type { Api } from '../../lib/api.ts';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
+  import InfoTip from '../ui/InfoTip.svelte';
   import ImportReportDialog from './ImportReportDialog.svelte';
   import TurnOnAnalytics from './TurnOnAnalytics.svelte';
 
@@ -23,14 +24,19 @@
 <section class="card off" aria-label="Analytics is off">
   <div class="stack">
     <h3><Icon name="activity" size={16} /> Analytics is off</h3>
-    <p>
-      {#if apple}
-        Analytics reads daily numbers for this app from App Store Connect: impressions, product page views, downloads, conversion, crashes and, with a vendor number, units and proceeds.
-      {:else}
-        Analytics reads daily numbers for this app from Google Play: crash and ANR rate by app version, and, with the bucket id of the Play Console reports, installs and ratings.
-      {/if}
-      It keeps them on this server and shows where each number comes from, how late it can be and what it leaves out. Nothing is requested from a store until it is turned on.
-    </p>
+    <div class="lead-line">
+      Turn it on to see this app's daily downloads, conversion and crashes.
+      <InfoTip label="What analytics reads" buttonText="What it reads" align="start" width="26rem">
+        <p>
+          {#if apple}
+            Analytics reads daily numbers for this app from App Store Connect: impressions, product page views, downloads, conversion, crashes and, with a vendor number, units and proceeds.
+          {:else}
+            Analytics reads daily numbers for this app from Google Play: crash and ANR rate by app version, and, with the bucket id of the Play Console reports, installs and ratings.
+          {/if}
+        </p>
+        <p>It keeps them on this server and shows where each number comes from, how late it can be and what it leaves out. Nothing is requested from a store until it is turned on.</p>
+      </InfoTip>
+    </div>
     <div class="row">
       {#if canManage}
         <TurnOnAnalytics {api} {workspaceId} {onchanged} />
@@ -59,7 +65,11 @@
     gap: var(--space-2);
     align-items: center;
     margin: 0;
-    font-size: var(--text-md);
+    font-size: var(--text-xl);
+  }
+
+  .lead-line {
+    font-size: 1.0625rem;
   }
 
   p {
