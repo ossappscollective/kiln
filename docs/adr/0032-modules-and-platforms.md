@@ -25,7 +25,11 @@ ternary in a dozen files and the literal union of store names was written out 25
    (`packages/connectors/src/store-registry.ts`) build every capability (read, reviews, draft, submit, rollout, release). The record
    must name every `StoreCredentialKind`, so adding a store makes the compiler list each capability that still needs a builder.
 
+7. **No `isApplePlatform` / `isGooglePlatform`.** Code asks what a platform can do: `supports(platform, capability)` over the exhaustive
+   `capabilities` record on each `PLATFORM_META` row (`releaseTracks`, `approvalHold`, `screenshotsByDevice`, `keywordField`, ...),
+   `listingStoreOf` for the listing format, or `byFamily(platform, { apple, google })` for per-family tables. A new platform answers
+   every flag in its row; the compiler flags any it forgets.
+
 ## Not decided yet
 
-The same folder layout for the web (`components/<module>` + `lib/<module>`), core and connectors; capability flags for the remaining
-Apple/Google branches (about 140); `exactOptionalPropertyTypes` (about 150 errors to fix).
+The same folder layout for the web (`components/<module>` + `lib/<module>`), core and connectors; direct `=== 'android' / 'ios' / 'macos'` checks (about 135) still to move onto capabilities; `exactOptionalPropertyTypes` (about 150 errors to fix).
