@@ -13,17 +13,19 @@
   import { appAddress } from '../../lib/app-scope.ts';
   import { appLabel, describeError, platformLabel, platformRank, portfolioHref } from '../../lib/portfolio.ts';
   import { attentionOf } from '../../lib/dashboard.ts';
-  import { dueText, findSiblings, planPlatformLabel, releaseHref, releasesOfVersion, rolloutBadge } from '../../lib/release.ts';
-  import { toneIcon } from '../../lib/status-icons.ts';
+  import { findSiblings, planPlatformLabel, releaseHref, releasesOfVersion } from '../../lib/release.ts';
+  import { releaseLead } from '../../lib/release-detail.ts';
+  import { releaseStepHref } from '../../lib/release-stepper.ts';
   import type { AppSummary, PlanDetail, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
   import AttentionStrip from '../dashboard/AttentionStrip.svelte';
   import Alert from '../ui/Alert.svelte';
   import AppIcon from '../ui/AppIcon.svelte';
-  import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Icon from '../ui/Icon.svelte';
   import PageHeader from '../ui/PageHeader.svelte';
+  import PageLead from '../ui/PageLead.svelte';
+  import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import Checklist from './Checklist.svelte';
   import NewPlan from './NewPlan.svelte';
@@ -157,12 +159,33 @@
 
   const mine = $derived(releasesOfVersion(releases, version));
   const ordered = $derived(app ? [app, ...siblings.map((s) => s.app)].sort((a, b) => platformRank(a.platform) - platformRank(b.platform)) : []);
-  const due = $derived(plan?.targetDate ? dueText(plan.due, plan.released) : null);
-  const rollout = $derived(plan ? rolloutBadge(plan.rollout) : null);
   const attention = $derived(plan ? attentionOf(plan) : null);
 
   const releasesFor = (a: AppSummary) => (a.id === appId ? mine : releasesOfVersion(siblings.find((s) => s.app.id === a.id)?.releases ?? [], version));
   const planFor = (a: AppSummary) => (a.id === appId ? plan : null);
+
+  /** Where this version is, for the lead: one sentence, one word per platform, one primary action. */
+  const lead = $derived(
+    app
+      ? releaseLead({
+          version,
+          appId,
+          releases: ordered.flatMap((a) =>
+            releasesFor(a).map((r) => ({
+              appId: a.id,
+              platform: r.platform,
+              status: r.status,
+              track: r.track,
+              rolloutFraction: r.rolloutFraction,
+              since: r.statusSince ?? r.sentForReviewAt ?? null,
+            })),
+          ),
+          planned: plan !== null,
+          blocked: plan?.blocked ?? false,
+          now,
+        })
+      : null,
+  );
 
   function setPlan(next: PlanDetail) {
     plan = next;
@@ -210,19 +233,28 @@
     <div class="release-head">
       <AppIcon name={app.name} url={app.iconUrl} platform={app.platform} seed={app.id} size="lg" />
       <div class="release-head-main">
-    <PageHeader title="{app.name} {version}" description="Where this version is on each platform, and the plan for getting it out. The store state is read only; the plan is our own.">
-      {#snippet actions()}
-        <div class="row">
-          {#if plan?.blocked}<Badge tone="bad" icon={toneIcon('bad')}>Blocked</Badge>{/if}
-          {#if due}<Badge tone={due.tone} icon={toneIcon(due.tone)}>{due.text}</Badge>{/if}
-          {#if rollout}<Badge tone={rollout.tone} icon={toneIcon(rollout.tone)}>{rollout.label}</Badge>{/if}
-        </div>
-      {/snippet}
-    </PageHeader>
+    <PageHeader title="{app.name} {version}" description="Where this version is on each platform, and the plan for getting it out." />
       </div>
     </div>
 
     <div class="stack loose">
+      {#if lead}
+        {@const l = lead}
+        <PageLead headline={l.headline} hint={l.hint} tone={l.tone} testid="release-lead">
+          {#snippet aside()}
+            <ul class="words" aria-label="Status per platform">
+              {#each l.words as w (w.platform)}
+                <li><PlatformBadge platform={w.platform} /> <span class="word">{w.word}</span></li>
+              {/each}
+            </ul>
+          {/snippet}
+          {#snippet actions()}
+            {#if l.action}
+              <Button variant="primary" size="lg" icon="arrow-right" href={releaseStepHref(l.action.appId, address.platform, l.action.step, version)}>{l.action.label}</Button>
+            {/if}
+          {/snippet}
+        </PageLead>
+      {/if}
       {#if plan?.blocked}
         <Alert tone="warn" title="Blocked">{plan.blockedReason}</Alert>
       {/if}
@@ -302,6 +334,25 @@
 
   .note {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
+  }
+
+  .words {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-5);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .words li {
+    display: inline-flex;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .word {
+    font-weight: var(--weight-semibold);
   }
 </style>
