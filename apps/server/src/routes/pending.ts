@@ -8,7 +8,7 @@ import { memberRole } from '../services/accounts.ts';
 import type { AssetsContext } from '../services/asset-repo.ts';
 import { getPending, PUBLISH_STEPS, pendingSummary } from '../services/pending.ts';
 import type { Failure } from '../services/repositories.ts';
-import { requireStepUp } from '../services/step-up.ts';
+import { requireStepUp, stepUpCovers } from '../services/step-up.ts';
 import {
   type DraftConnectorFactory,
   type DraftContext,
@@ -241,6 +241,7 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
       steps: body.data?.steps as StepRequest[] | undefined,
       rights: rightsOf(c),
       actor: actor(c),
+      stepUpCovers: await stepUpCovers({ db, now: ctx.now }, c, 'store.publish'),
     });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ plan: done.plan }) : respond(c, done);
@@ -263,6 +264,7 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
       steps: body.data.steps as StepRequest[],
       rights: rightsOf(c),
       actor: actor(c),
+      stepUpCovers: await stepUpCovers({ db, now: ctx.now }, c, 'store.publish'),
     });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ result: done.result }) : respond(c, done);

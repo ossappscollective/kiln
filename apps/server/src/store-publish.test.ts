@@ -4,6 +4,7 @@ import { StoreError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
 import { FakeRolloutStore } from './rollout-test-helpers.ts';
 import { textEntry } from './services/store-draft-record.ts';
+import { PASSWORD } from './testkit.ts';
 import type { RolloutConnectorFactory } from './services/store-rollout.ts';
 import { bootStaged, type StagedBoot } from './staged-test-helpers.ts';
 
@@ -652,6 +653,45 @@ dbTest(
     });
     assert.equal(res.status, 200, res.text.slice(0, 300));
     assert.deepEqual([res.body.result.completed, res.body.result.applied], [true, 1]);
+  },
+);
+
+dbTest(
+  'publish: with the step-up policy on, the person confirms with a passkey or password bound to the plan and types no phrase; a token still types it',
+  async (db) => {
+    const t = await boot(db);
+    const app = await stageIos(t, 'Weather');
+    const policy = await t.call(t.owner, 'PUT', '/step-up/policy', { mode: 'hard_actions' });
+    assert.equal(policy.status, 200, policy.text);
+    const p = (await t.plan(app)).body.plan;
+    assert.equal(p.confirmationRequired, false, 'no typed phrase');
+    assert.equal(p.confirmation, null);
+    assert.equal(p.irreversible, true, 'the steps are still said to be irreversible');
+    const body = { planHash: p.planHash, steps: p.publishSteps };
+    // Without a grant nothing is written.
+    const missing = await t.publish(app, body);
+    assert.equal(missing.status, 403, missing.text.slice(0, 200));
+    assert.equal(missing.body.error, 'step_up_required');
+    assert.equal(t.stores.ios.applyCalls + t.submitStores.ios.submitCalls, 0);
+    // With a grant for this plan, no phrase is asked.
+    const verified = await t.call(t.owner, 'POST', '/step-up/verify', {
+      factor: 'password',
+      action: 'store.publish',
+      target: { id: app, hash: p.planHash },
+      password: PASSWORD,
+    });
+    assert.equal(verified.status, 200, verified.text);
+    const raw = await t.app.request(`/api/workspaces/${t.workspaceId}/apps/${app}/publish`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: t.owner,
+        'x-step-up-grant': verified.body.grant,
+      },
+      body: JSON.stringify(body),
+    });
+    assert.equal(raw.status, 200, (await raw.text()).slice(0, 300));
+    assert.equal(t.submitStores.ios.submitCalls, 1);
   },
 );
 

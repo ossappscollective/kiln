@@ -460,7 +460,7 @@
       {:else}
         <label class="check">
           <input type="checkbox" bind:checked={ack} disabled={busy || stale} data-testid="plan-confirm-ack" />
-          <span>I have read the plan above. I want it written to {store} now. Nothing is submitted or released by it.</span>
+          <span>{plan.irreversible ? `I have read the plan above and want it written to ${store} now. Some steps cannot be undone from here. I confirm with my passkey or password next.` : `I have read the plan above. I want it written to ${store} now. Nothing is submitted or released by it.`}</span>
         </label>
       {/if}
 

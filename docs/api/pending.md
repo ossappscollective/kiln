@@ -186,7 +186,7 @@ needs input, so it is only included when named).
 - `deferred: true` (submit after a push; a Google Play release after a push): the step is previewed again after the earlier steps
   applied, `preview` and `confirmHash` may be null, and `summary` is a **promise** it must keep.
 - `confirmable` is true when at least one step is included and every requested step is available. `planHash` is null while it is
-  not. `confirmation.phrase` is the ONE phrase to type, present when any included step is irreversible (submit, release, rollout).
+  not. `confirmation.phrase` is the ONE phrase to type, present when any included step is irreversible (submit, release, rollout) and the caller has to type it. It is absent (`confirmationRequired: false`, `irreversible` still true) when the workspace's step-up policy covers `store.publish` and the caller is a person with a way to confirm: the step-up grant bound to `planHash` stands in for it (ADR 0019, amended 2026-11-20); the apply route then needs the grant and no `phrase`. Tokens always type it.
 - `warnings` carry combinations that are likely to fail (Google Play: submit then release).
 
 ### `POST /apps/{id}/publish`

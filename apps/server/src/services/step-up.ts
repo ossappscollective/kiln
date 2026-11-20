@@ -1046,6 +1046,23 @@ export async function requireStepUp(
 }
 
 /**
+ * Whether a person's own confirmation (a passkey or the confirmation password, bound to the plan they saw) stands in for a typed
+ * phrase on `action`: the policy covers the action, the caller is a person (an API token cannot confirm) and has a way to confirm.
+ * Only then may a screen leave out the typed phrase; `requireStepUp` still runs first on the apply route and refuses without a grant.
+ */
+export async function stepUpCovers(
+  ctx: GuardCtx,
+  c: Context<AppEnv>,
+  action: StepUpAction,
+): Promise<boolean> {
+  if (autoApproved.has(ctx.db)) return false;
+  if (c.get('token')) return false;
+  const policy = await getPolicy(ctx.db, c.req.param('workspaceId') ?? '');
+  if (policy.mode !== 'hard_actions' || !policy.actions.includes(action)) return false;
+  return isEnrolled(ctx.db, c.get('user').id);
+}
+
+/**
  * Changing factors or the policy needs a fresh confirmation whenever the person already has a way to confirm
  * (so a stolen session cannot swap in its own passkey), whatever the policy says. The first factor of someone
  * with none needs nothing. Not open to tokens (the routes are closed to them).

@@ -85,3 +85,12 @@ that the person at the keyboard is the owner right now.
 - No per-action "remember for N minutes", no attestation formats other than `none`, no
   RS256 (Windows Hello on some hardware offers only RS256: such a device cannot be enrolled, UNVERIFIED).
 - Google Play internal app sharing is guarded by the class `internal_sharing` ([ADR 0020](0020-play-internal-sharing.md)).
+
+## Amendment (2026-11-20): no typed phrase when a person confirms
+
+When the policy covers `store.publish` and the caller is a person who can confirm (a passkey or the confirmation password), "Review and
+publish all" does not ask for the typed phrase: the grant is bound to the plan hash the person saw, which is a stronger proof of intent than
+a phrase (`stepUpCovers` in `services/step-up.ts`; `confirmationRequired` is false in the plan, the dialog shows its "I have read the plan"
+box and then the confirmation dialog). The plan still says it is irreversible. With the policy off, for a token, or for a person with no way
+to confirm, the typed phrase stays. The single steps (push, submit, release, rollout) keep their own phrases: this is only the batch.
+

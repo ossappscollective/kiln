@@ -415,6 +415,8 @@ export async function buildPlan(
     actor: Actor;
     steps?: readonly StepRequest[] | undefined;
     rights: PublishRights;
+    /** A person's own confirmation (step-up) stands in for the typed phrase (see `stepUpCovers`). */
+    stepUpCovers?: boolean | undefined;
   },
 ): Promise<PublishPlan> {
   const { app, workspaceId, actor } = input;
@@ -778,7 +780,8 @@ export async function buildPlan(
   }
   const blockedRequested = explicit && steps.some((s) => s.requested && !s.included);
   const confirmable = included.length > 0 && !blockedRequested;
-  const confirmationRequired = needsPhrase(included.map((s) => s.type));
+  const irreversibleBatch = needsPhrase(included.map((s) => s.type));
+  const confirmationRequired = irreversibleBatch && input.stepUpCovers !== true;
   const phrase = publishPhrase(app, included.length);
   const planHash = confirmable
     ? sha(
@@ -804,7 +807,7 @@ export async function buildPlan(
     steps,
     publishSteps: included.map((s) => s.request as StepRequest),
     included: included.length,
-    irreversible: confirmationRequired,
+    irreversible: irreversibleBatch,
     irreversibleSteps,
     warnings,
     confirmable,
@@ -920,6 +923,7 @@ export async function previewPublish(
     steps?: readonly StepRequest[] | undefined;
     rights: PublishRights;
     actor: Actor;
+    stepUpCovers?: boolean | undefined;
   },
 ): Promise<{ ok: true; plan: PublishPlan } | Failure> {
   if (!ctx.publishEnabled) return publishDisabledFailure();
@@ -939,6 +943,7 @@ export async function previewPublish(
       actor: input.actor,
       steps,
       rights: input.rights,
+      stepUpCovers: input.stepUpCovers,
     }),
   };
 }
@@ -1232,6 +1237,7 @@ export async function applyPublish(
     steps: readonly StepRequest[];
     rights: PublishRights;
     actor: Actor;
+    stepUpCovers?: boolean | undefined;
   },
 ): Promise<{ ok: true; result: PublishResult } | Failure> {
   if (!ctx.publishEnabled) return publishDisabledFailure();
@@ -1271,7 +1277,7 @@ export async function applyPublish(
   }
   // The typed phrase needs no store read, so a wrong one is refused before anything is read.
   const phrase = publishPhrase(app, requested.length);
-  if (needsPhrase(types) && (input.phrase ?? '').trim() !== phrase) {
+  if (needsPhrase(types) && input.stepUpCovers !== true && (input.phrase ?? '').trim() !== phrase) {
     return failure(
       422,
       'confirmation_mismatch',
@@ -1290,6 +1296,7 @@ export async function applyPublish(
       actor: input.actor,
       steps: requested,
       rights: input.rights,
+      stepUpCovers: input.stepUpCovers,
     });
     if (!plan.confirmable || plan.planHash === null) {
       return failure(
