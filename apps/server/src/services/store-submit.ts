@@ -746,6 +746,11 @@ export type SubmitPreview = {
   confirmHash: string | null;
   /** What the person types to confirm (null while blocked). The apply request carries it as `confirmation`. */
   confirmation: { phrase: string; instruction: string } | null;
+  /**
+   * False when the person's own confirmation (password or passkey, see `stepUpCovers`) stands in for the typed phrase: the
+   * screen then shows no phrase field and the apply request needs none.
+   */
+  confirmationRequired: boolean;
   readAt: number;
 };
 
@@ -770,6 +775,7 @@ function previewOf(
     record: PushRecord;
     state: SubmitState;
     inFlight: InFlight;
+    stepUpCovers?: boolean | undefined;
   },
 ): SubmitPreview {
   const { app, record, state } = input;
@@ -809,6 +815,7 @@ function previewOf(
           instruction: `Type "${confirmationPhrase(app, record)}" to confirm. This cannot be undone from here.`,
         }
       : null,
+    confirmationRequired: input.stepUpCovers !== true,
     readAt: ctx.now(),
   };
 }
@@ -823,7 +830,7 @@ const noPush = (): Failure =>
 /** `POST .../store-submit/preview`: reads the store and shows what would go to review and what stands in the way. Writes nothing. */
 export async function previewSubmit(
   ctx: SubmitContext,
-  input: { workspaceId: string; appId: string; actor: Actor },
+  input: { workspaceId: string; appId: string; actor: Actor; stepUpCovers?: boolean | undefined },
 ): Promise<{ ok: true; preview: SubmitPreview } | Failure> {
   if (!ctx.submitEnabled) return submitDisabledFailure();
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
@@ -847,7 +854,14 @@ export async function previewSubmit(
   const inFlight = await inFlightOf(ctx, app);
   return {
     ok: true,
-    preview: previewOf(ctx, { workspaceId: input.workspaceId, app, record, state, inFlight }),
+    preview: previewOf(ctx, {
+      workspaceId: input.workspaceId,
+      app,
+      record,
+      state,
+      inFlight,
+      stepUpCovers: input.stepUpCovers,
+    }),
   };
 }
 
@@ -989,6 +1003,8 @@ export async function applySubmit(
     confirmHash: string;
     confirmation: string;
     actor: Actor;
+    /** A person's own confirmation stands in for the typed phrase (the route checked the grant). */
+    stepUpCovers?: boolean | undefined;
   },
 ): Promise<{ ok: true; result: SubmitResult } | Failure> {
   if (!ctx.submitEnabled) return submitDisabledFailure();
@@ -998,7 +1014,7 @@ export async function applySubmit(
   const record = await loadPush(db, app.id, app.platform);
   if (!record) return noPush();
   const phrase = confirmationPhrase(app, record);
-  if (input.confirmation.trim() !== phrase) {
+  if (input.stepUpCovers !== true && input.confirmation.trim() !== phrase) {
     return failure(
       422,
       'confirmation_mismatch',
@@ -1088,6 +1104,7 @@ export async function applySubmit(
             record,
             state: error.current,
             inFlight: { submit: null, push: null },
+            stepUpCovers: input.stepUpCovers,
           }),
         },
       );

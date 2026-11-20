@@ -382,3 +382,11 @@ test('the result always says nothing was released', () => {
       text.endsWith('Nothing was released or published.'),
   );
 });
+
+test('when the person confirms with a password or passkey, no typed phrase is needed', () => {
+  const covered = preview({ confirmationRequired: false });
+  assert.equal(canConfirmSubmit(covered, ''), true);
+  assert.equal(canConfirmSubmit(preview({ confirmationRequired: true }), ''), false);
+  // Blocked previews stay blocked either way.
+  assert.equal(canConfirmSubmit(preview({ confirmationRequired: false, confirmHash: null, confirmation: null }), ''), false);
+});

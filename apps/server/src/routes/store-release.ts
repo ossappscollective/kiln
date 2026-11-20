@@ -11,7 +11,7 @@ import { createTestLimiter } from '../services/credential-tests.ts';
 import { MAX_NOTES_HISTORY_LIMIT, notesHistory } from '../services/notes-history.ts';
 import { checkPlayReleaseOf } from '../services/play-release-check.ts';
 import { type Failure, failure } from '../services/repositories.ts';
-import { requireStepUp } from '../services/step-up.ts';
+import { requireStepUp, stepUpCovers } from '../services/step-up.ts';
 import {
   type DraftConnectorFactory,
   defaultDraftConnectorFactory,
@@ -111,7 +111,8 @@ const applyBody = z
     confirmHash: z
       .string()
       .regex(hash64, 'The confirmHash of the preview, 64 hexadecimal characters.'),
-    confirmation: z.string().min(1).max(300),
+    /** Required unless the person's own confirmation (step-up) stands in for it; the service then ignores it. */
+    confirmation: z.string().max(300).default(''),
   })
   .strict();
 
@@ -334,6 +335,7 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
       appId: param(c, 'id'),
       ...body.data,
       actor: actor(c),
+      stepUpCovers: await stepUpCovers({ db, now: ctx.now }, c, 'store.release'),
     });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ preview: done.preview }) : respond(c, done);
@@ -354,6 +356,7 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
       appId: param(c, 'id'),
       ...body.data,
       actor: actor(c),
+      stepUpCovers: await stepUpCovers({ db, now: ctx.now }, c, 'store.release'),
     });
     return done.ok ? c.json({ result: done.result }) : respond(c, done);
   });

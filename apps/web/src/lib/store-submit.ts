@@ -96,6 +96,8 @@ export type SubmitPreview = {
   /** Both null while anything blocks. */
   confirmHash: string | null;
   confirmation: { phrase: string; instruction: string } | null;
+  /** False when the person's own confirmation (password or passkey) stands in for the typed phrase. Older servers omit it: the phrase is needed. */
+  confirmationRequired?: boolean;
   readAt: number;
 };
 
@@ -308,11 +310,12 @@ export const confirmationMatches = (typed: string, phrase: string | null): boole
 
 /** What the confirm button needs: nothing blocks, the preview carries a hash and a phrase, and the phrase was typed. */
 export function canConfirmSubmit(
-  preview: Pick<SubmitPreview, 'checks' | 'confirmHash' | 'confirmation'>,
+  preview: Pick<SubmitPreview, 'checks' | 'confirmHash' | 'confirmation' | 'confirmationRequired'>,
   typed: string,
 ): boolean {
   if (preview.checks.blocking.length > 0 || !preview.checks.canSubmit) return false;
   if (preview.confirmHash === null || preview.confirmation === null) return false;
+  if (preview.confirmationRequired === false) return true;
   return confirmationMatches(typed, preview.confirmation.phrase);
 }
 

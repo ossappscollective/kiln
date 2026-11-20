@@ -196,3 +196,9 @@ test('a direct release is asked for with direct: true on Google Play only, and t
   assert.equal(directText({ direct: null }), null);
   assert.equal(directText({}), null);
 });
+
+test('when the person confirms with a password or passkey, no typed phrase is needed', () => {
+  assert.equal(canConfirmRelease(preview({ confirmationRequired: false }), ''), true);
+  assert.equal(canConfirmRelease(preview({ confirmationRequired: true }), ''), false);
+  assert.equal(canConfirmRelease(preview({ confirmationRequired: false, confirmHash: null, confirmation: null }), ''), false);
+});

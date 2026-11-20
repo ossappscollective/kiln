@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import type { Failure } from '../services/repositories.ts';
-import { requireStepUp } from '../services/step-up.ts';
+import { requireStepUp, stepUpCovers } from '../services/step-up.ts';
 import {
   applySubmit,
   defaultSubmitConnectorFactory,
@@ -53,7 +53,8 @@ const applyBody = z
     confirmHash: z
       .string()
       .regex(hash64, 'The confirmHash of the preview, 64 hexadecimal characters.'),
-    confirmation: z.string().min(1).max(300),
+    /** Required unless the person's own confirmation (step-up) stands in for it; the service then ignores it. */
+    confirmation: z.string().max(300).default(''),
   })
   .strict();
 
@@ -97,6 +98,7 @@ export function storeSubmitRoutes(ctx: SubmitRoutesContext) {
       workspaceId: ws(c),
       appId: param(c, 'id'),
       actor: actor(c),
+      stepUpCovers: await stepUpCovers({ db, now: ctx.now }, c, 'store.submit'),
     });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ preview: done.preview }) : respond(c, done);
@@ -118,6 +120,7 @@ export function storeSubmitRoutes(ctx: SubmitRoutesContext) {
       confirmHash: body.data.confirmHash,
       confirmation: body.data.confirmation,
       actor: actor(c),
+      stepUpCovers: await stepUpCovers({ db, now: ctx.now }, c, 'store.submit'),
     });
     return done.ok ? c.json({ result: done.result }) : respond(c, done);
   });

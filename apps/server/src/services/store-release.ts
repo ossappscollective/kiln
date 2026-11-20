@@ -824,6 +824,8 @@ export type ReleasePreview = {
   confirmHash: string | null;
   /** What the person types to confirm (null while blocked). The apply request carries it as `confirmation`. */
   confirmation: { phrase: string; instruction: string } | null;
+  /** False when the person's own confirmation (password or passkey, `stepUpCovers`) stands in for the typed phrase. */
+  confirmationRequired: boolean;
   readAt: number;
 };
 
@@ -920,6 +922,7 @@ function previewOf(
     state: ReleaseState;
     inFlight: InFlight;
     unpushed: { count: number; fraction: number | null };
+    stepUpCovers?: boolean | undefined;
   },
 ): ReleasePreview {
   const { app, request, state } = input;
@@ -982,6 +985,7 @@ function previewOf(
       phrase !== null
         ? { phrase, instruction: `Type "${phrase}" to confirm. This cannot be undone from here.` }
         : null,
+    confirmationRequired: input.stepUpCovers !== true,
     readAt: ctx.now(),
   };
 }
@@ -989,7 +993,12 @@ function previewOf(
 /** `POST .../store-release/preview`: reads the store and shows what would be released, to whom, and what stands in the way. Writes nothing. */
 export async function previewRelease(
   ctx: ReleaseContext,
-  input: ReleaseInput & { workspaceId: string; appId: string; actor: Actor },
+  input: ReleaseInput & {
+    workspaceId: string;
+    appId: string;
+    actor: Actor;
+    stepUpCovers?: boolean | undefined;
+  },
 ): Promise<{ ok: true; preview: ReleasePreview } | Failure> {
   if (!ctx.releaseEnabled) return releaseDisabledFailure();
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
@@ -1023,6 +1032,7 @@ export async function previewRelease(
       state,
       inFlight,
       unpushed,
+      stepUpCovers: input.stepUpCovers,
     }),
   };
 }
@@ -1246,6 +1256,8 @@ export async function applyRelease(
     confirmHash: string;
     confirmation: string;
     actor: Actor;
+    /** A person's own confirmation stands in for the typed phrase (the route checked the grant). */
+    stepUpCovers?: boolean | undefined;
   },
 ): Promise<{ ok: true; result: ReleaseResult } | Failure> {
   if (!ctx.releaseEnabled) return releaseDisabledFailure();
@@ -1259,7 +1271,7 @@ export async function applyRelease(
   const request = asked.request;
   // Google Play: the phrase needs no store read, so a wrong one is refused before anything else.
   const early = confirmationPhraseOf(app, request, undefined);
-  if (early !== null && input.confirmation.trim() !== early) {
+  if (input.stepUpCovers !== true && early !== null && input.confirmation.trim() !== early) {
     return failure(
       422,
       'confirmation_mismatch',
@@ -1323,7 +1335,7 @@ export async function applyRelease(
             return false;
           }
           const phrase = confirmationPhraseOf(app, request, current);
-          if (phrase === null || input.confirmation.trim() !== phrase) {
+          if (input.stepUpCovers !== true && (phrase === null || input.confirmation.trim() !== phrase)) {
             wrongPhrase = phrase ?? '';
             return false;
           }
@@ -1378,6 +1390,7 @@ export async function applyRelease(
             state: error.current,
             inFlight: { release: null, push: null, submit: null },
             unpushed,
+            stepUpCovers: input.stepUpCovers,
           }),
         },
       );

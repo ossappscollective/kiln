@@ -21,13 +21,15 @@ export type PendingBar = {
 export function pendingBar(
   line: PendingLine | null | undefined,
   section: AppSection,
+  /** The platform the changes wait on, when the page shows another one ("iOS"): the text says where they are. */
+  on?: string,
 ): PendingBar | null {
   if (section === 'pending') return null;
   const chip = chipFor(line);
   if (!chip || !line) return null;
   const n = line.count > 0 ? line.count : line.blocking;
   return {
-    text: `${n > 99 ? '99+' : n} ${n === 1 ? 'change' : 'changes'} waiting. Nothing is published until you review them.`,
+    text: `${n > 99 ? '99+' : n} ${n === 1 ? 'change' : 'changes'} waiting${on ? ` on ${on}` : ''}. Nothing is published until you review them.`,
     action: 'Review and publish',
     blocking: line.blocking > 0,
   };

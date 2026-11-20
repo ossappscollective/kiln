@@ -40,6 +40,7 @@
   import { appLabel, describeError, portfolioHref, syncApp, syncSummaryText } from '../../lib/portfolio.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
+  import { platformLabel } from '../../lib/portfolio.ts';
   import Alert from '../ui/Alert.svelte';
   import AppIcon from '../ui/AppIcon.svelte';
   import Button from '../ui/Button.svelte';
@@ -89,8 +90,14 @@
   const view = $derived(resolveView(section, hash, allowed, { androidInScope }));
   const anySyncing = $derived(scoped.some((m) => syncing[m.id] === true));
   /** What is pending for the app, from the workspace summary (all its records, not only those in scope); null draws no chip. */
-  const pendingLine = $derived(lineFor(pendingStore.summary(workspaceId), members.map((m) => m.id), pendingStore.viewsOf(members.map((m) => m.id))));
-  const bar = $derived(pendingBar(pendingLine, section));
+  const lineOf = (list: readonly AppSummary[]) => lineFor(pendingStore.summary(workspaceId), list.map((m) => m.id), pendingStore.viewsOf(list.map((m) => m.id)));
+  /** What is pending on the records of the page (the platform in scope). */
+  const pendingLine = $derived(lineOf(scoped));
+  /** What is pending on the other records of the app: the strip says where it is instead of showing it on a page that has none. */
+  const elsewhere = $derived(members.filter((m) => !scoped.includes(m)));
+  const elsewhereLine = $derived(lineOf(elsewhere));
+  const bar = $derived(pendingBar(pendingLine, section) ?? pendingBar(elsewhereLine, section, elsewhere.map((m) => platformLabel(m.platform)).join(' and ')));
+  const barHref = $derived(appAddress(id, 'pending', pendingBar(pendingLine, section) !== null || elsewhere.length === 0 ? address.platform : (elsewhere[0] as AppSummary).platform));
   const scopeShown = $derived(showsScope(section, members.length));
 
   // The header row of a versioned page: its pickers, from data already loaded here and by the pages.
@@ -276,7 +283,7 @@
       </div>
     </header>
 
-    <PendingBar {bar} href={appAddress(id, 'pending', address.platform)} />
+    <PendingBar {bar} href={barHref} />
 
     {#if lock.text !== ''}
       <LockedBanner text={lock.text} href={appAddress(id, 'releases', address.platform)} />

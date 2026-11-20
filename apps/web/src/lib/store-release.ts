@@ -94,6 +94,8 @@ export type ReleasePreview = {
   /** Both null while anything blocks. */
   confirmHash: string | null;
   confirmation: { phrase: string; instruction: string } | null;
+  /** False when the person's own confirmation (password or passkey) stands in for the typed phrase. Older servers omit it: the phrase is needed. */
+  confirmationRequired?: boolean;
   readAt: number;
 };
 
@@ -252,11 +254,12 @@ export function isReleasePreview(value: unknown): value is ReleasePreview {
 
 /** The confirm button needs: nothing blocks, a hash and a phrase, and the phrase typed exactly. */
 export function canConfirmRelease(
-  preview: Pick<ReleasePreview, 'checks' | 'confirmHash' | 'confirmation'>,
+  preview: Pick<ReleasePreview, 'checks' | 'confirmHash' | 'confirmation' | 'confirmationRequired'>,
   typed: string,
 ): boolean {
   if (preview.checks.blocking.length > 0 || !preview.checks.canRelease) return false;
   if (preview.confirmHash === null || preview.confirmation === null) return false;
+  if (preview.confirmationRequired === false) return true;
   return confirmationMatches(typed, preview.confirmation.phrase);
 }
 

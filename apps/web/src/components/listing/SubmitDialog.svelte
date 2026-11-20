@@ -67,12 +67,16 @@
 
     <SubmitPreviewBody {preview} />
 
-    {#if preview.confirmation !== null && blocking.length === 0}
+    {#if preview.confirmation !== null && preview.confirmationRequired !== false && blocking.length === 0}
       <div class="field">
         <label for="{uid}-typed">Type <strong class="phrase">{preview.confirmation.phrase}</strong> to confirm</label>
         {#if preview.confirmation.instruction}<p class="muted small">{preview.confirmation.instruction}</p>{/if}
         <input id="{uid}-typed" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" bind:value={typed} disabled={busy} />
       </div>
+    {/if}
+
+    {#if preview.confirmationRequired === false && preview.confirmation !== null && blocking.length === 0}
+      <p class="muted small" data-testid="confirm-by-step-up">You will be asked for your password or passkey to confirm. Nothing needs typing.</p>
     {/if}
 
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
