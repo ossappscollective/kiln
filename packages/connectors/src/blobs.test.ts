@@ -6,8 +6,8 @@ import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { isBlobReads } from './blobs.ts';
 import { GithubError } from './errors.ts';
-import { GitCloneReader } from './git-clone.ts';
-import { GithubRepoConnector } from './github.ts';
+import { GitCloneReader } from './github/git-clone.ts';
+import { GithubRepoConnector } from './github/github.ts';
 
 // Binary reads for the asset index: a real git repository in a temp folder for the clone reader, a
 // fake `fetch` for the GitHub REST reader. No network.

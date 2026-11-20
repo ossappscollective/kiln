@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AppStoreConnectConnector, isAppleParameterError } from './appstoreconnect.ts';
+import { AppStoreConnectConnector, isAppleParameterError } from './apple/appstoreconnect.ts';
 import { StoreError } from './errors.ts';
-import { GooglePlayConnector } from './googleplay.ts';
+import { GooglePlayConnector } from './google/googleplay.ts';
 import * as fx from './store.fixtures.ts';
 import * as lx from './store-listing.fixtures.ts';
 

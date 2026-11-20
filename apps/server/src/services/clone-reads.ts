@@ -17,7 +17,7 @@ import {
  * Reads from a local git clone (docs/adr/0005-local-clone-reads.md). This file is the server's
  * half of it: the mode switch, the pool of readers, the adapter that puts a `GitCloneReader` in
  * front of the API connector, and the start-up check for git. The clone itself is in
- * packages/connectors/src/git-clone.ts.
+ * packages/connectors/src/github/git-clone.ts.
  */
 
 /** `api`: the GitHub API only. `clone`: a clone, no fall back. `auto`: a clone, the API when it cannot be used. */

@@ -5,7 +5,7 @@ import {
   StoreRateLimitError,
 } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { zip } from '../../../../../packages/connectors/src/play-search-terms.fixtures.ts';
+import { zip } from '../../../../../packages/connectors/src/google/play-search-terms.fixtures.ts';
 import { bootCi } from '../ci/test-helpers.ts';
 import {
   AAB,

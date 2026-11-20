@@ -8,7 +8,7 @@ import type {
   InternalSharingKind,
 } from '@mrm/connectors';
 import type { Database } from '@mrm/db';
-import { zip } from '../../../../../packages/connectors/src/play-search-terms.fixtures.ts';
+import { zip } from '../../../../../packages/connectors/src/google/play-search-terms.fixtures.ts';
 import { bootCi, FakeCi, run } from '../ci/test-helpers.ts';
 import { PLAY_SECRET } from '../reviews/test-helpers.ts';
 import { clearBuildCaches } from './service.ts';

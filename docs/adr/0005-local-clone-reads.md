@@ -1,7 +1,7 @@
 # ADR 0005: Read repositories from a local clone
 
 Status: proposed. It stays proposed until the clone path has run against real GitHub (see "What is
-verified, and what is not"). Phase 1 is `GitCloneReader` in `packages/connectors/src/git-clone.ts`
+verified, and what is not"). Phase 1 is `GitCloneReader` in `packages/connectors/src/github/git-clone.ts`
 (41 tests, no network). Phase 2, the server integration, is implemented and tested with local git
 repositories (see "Implemented" below). Phase 3 adds **local clones**: a folder on the server read as
 a repository, attached to a GitHub repository or on its own (see "Local clones"). Nothing was

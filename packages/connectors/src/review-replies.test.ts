@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AppStoreReviewsConnector, parseAppleReplyResult } from './appstore-reviews.ts';
+import { AppStoreReviewsConnector, parseAppleReplyResult } from './apple/appstore-reviews.ts';
 import { StoreError, StoreRateLimitError } from './errors.ts';
-import { PlayReviewsConnector, parsePlayReplyResult } from './play-reviews.ts';
+import { PlayReviewsConnector, parsePlayReplyResult } from './google/play-reviews.ts';
 import {
   APPLE_REPLY_LIMIT,
   checkReplyText,

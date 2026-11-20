@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AppleDraftConnector } from './appstore-draft.ts';
+import { AppleDraftConnector } from './apple/appstore-draft.ts';
 import { StoreError } from './errors.ts';
-import { PlayDraftConnector } from './play-draft.ts';
+import { PlayDraftConnector } from './google/play-draft.ts';
 import {
   appleBuildEligibility,
   type BuildFacts,

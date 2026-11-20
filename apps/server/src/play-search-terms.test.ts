@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
 import { dbTest } from '@mrm/db/testing';
-import { zip } from '../../../packages/connectors/src/play-search-terms.fixtures.ts';
+import { zip } from '../../../packages/connectors/src/google/play-search-terms.fixtures.ts';
 import { type AnalyticsBoot, bootAnalytics } from './modules/analytics/test-helpers.ts';
 import { createTestLimiter } from './services/credential-tests.ts';
 

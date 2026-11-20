@@ -1,8 +1,8 @@
-import { parseAppStoreConnectSecret } from './apple-auth.ts';
-import { AppStoreConnectConnector } from './appstoreconnect.ts';
+import { parseAppStoreConnectSecret } from './apple/apple-auth.ts';
+import { AppStoreConnectConnector } from './apple/appstoreconnect.ts';
 import { redactSecrets, StoreError } from './errors.ts';
-import { parseServiceAccount } from './google-auth.ts';
-import { GooglePlayConnector, isPlayPackageName } from './googleplay.ts';
+import { parseServiceAccount } from './google/google-auth.ts';
+import { GooglePlayConnector, isPlayPackageName } from './google/googleplay.ts';
 import type { VerifyOptions, VerifyResult } from './verify.ts';
 
 /**

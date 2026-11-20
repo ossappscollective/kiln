@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AppleReleaseConnector } from './appstore-release.ts';
+import { AppleReleaseConnector } from './apple/appstore-release.ts';
 import { StoreError } from './errors.ts';
-import { PlayReleaseConnector } from './play-release.ts';
+import { PlayReleaseConnector } from './google/play-release.ts';
 import {
   ReleaseDriftError,
   ReleaseOutcomeUnknownError,
