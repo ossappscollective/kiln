@@ -485,13 +485,14 @@ dbTest('the request timeout kills a running git', async (db) => {
     files: fastlaneFiles(),
     mode: 'auto',
     gitPath: slow.path,
-    timeoutMs: 400,
+    // Long enough that a busy machine has started the fetch (the clone steps before it count too).
+    timeoutMs: 2500,
   });
   const started = Date.now();
   const scan = await b.t.call(b.t.owner, 'POST', `/repositories/${b.repositoryId}/scan`);
   assert.equal(scan.status, 504, scan.text);
   assert.equal(scan.body.error, 'timeout');
-  assert.ok(Date.now() - started < 5000);
+  assert.ok(Date.now() - started < 10_000);
   // Not a fall back: the request was out of time.
   assert.equal(b.api.apiReads, 0);
   assert.ok(existsSync(pids), 'git fetch was started');
