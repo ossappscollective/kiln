@@ -1,0 +1,88 @@
+/*
+  The readable form scale for the sign-in, setup and confirmation screens (docs/design/readability.md): 16px inputs
+  with a 48px height, 15px labels, 14px hints and errors, one large primary button, and a big, spaced code box for
+  numeric codes. It is scoped to `.readable-form`, so nothing else on the page changes. Tokens only: it follows the
+  light and the dark theme.
+*/
+.readable-form p {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.readable-form label {
+  margin-bottom: var(--space-2);
+  font-size: 0.9375rem;
+}
+
+.readable-form input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+  min-height: 3rem;
+  padding: 0 var(--space-4);
+  font-size: 1rem;
+}
+
+.readable-form .input-group > input {
+  padding-right: 3.25rem;
+}
+
+.readable-form .input-group > button.icon {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.readable-form .hint,
+.readable-form .field-error {
+  margin-top: var(--space-2);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.readable-form input[inputmode="numeric"] {
+  min-height: 3.5rem;
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.18em;
+  text-align: center;
+}
+
+.readable-form input[inputmode="numeric"]::placeholder {
+  letter-spacing: 0.18em;
+}
+
+.readable-form button.lg {
+  min-height: 3rem;
+  font-size: 1.0625rem;
+  font-weight: var(--weight-semibold, 600);
+}
+
+.readable-form button.link,
+.readable-form .btn.link {
+  font-size: 0.9375rem;
+}
+
+.readable-form .alert {
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+/* A recovery code is typed in capitals and read aloud letter by letter: monospace, no spell check squiggles. */
+.readable-form input[autocapitalize="characters"] {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+/* A quiet line: a secondary way, a note. 15px and muted, never competing with the one primary button. */
+.readable-form .quiet {
+  margin-bottom: 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.readable-form .quiet-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  justify-content: center;
+  margin-bottom: 0;
+}

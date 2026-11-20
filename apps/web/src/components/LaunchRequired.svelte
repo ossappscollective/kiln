@@ -14,7 +14,7 @@
       Start Mobile Release Manager from its desktop app. The app opens this page with a one-time
       key that signs you in. A browser tab or a bookmark cannot do that.
     </p>
-    <p class="muted">If you just closed the window, quit the desktop app and start it again.</p>
-    <Button icon="refresh" onclick={onretry}>Check again</Button>
+    <p class="quiet">If you just closed the window, quit the desktop app and start it again.</p>
+    <Button variant="primary" size="lg" block icon="refresh" onclick={onretry}>Check again</Button>
   </div>
 </AuthCard>

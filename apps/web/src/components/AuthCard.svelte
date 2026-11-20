@@ -3,6 +3,7 @@
   import Logo from './ui/Logo.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
   import { productName } from './ui/brand.ts';
+  import './auth-form.css';
 
   let {
     title,
@@ -17,8 +18,9 @@
     <div class="brand">
       <Logo size={40} />
       <p class="product">{productName}</p>
+      <p class="tagline muted">iOS and Android releases, from one place.</p>
     </div>
-    <div class="card panel">
+    <div class="card panel readable-form">
       <h1>{title}</h1>
       {#if subtitle}<p class="muted subtitle">{subtitle}</p>{/if}
       <div class="content">{@render children()}</div>
@@ -42,23 +44,31 @@
     flex-direction: column;
     align-items: stretch;
     width: 100%;
-    max-width: 400px;
+    max-width: 440px;
   }
 
   .brand {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-1);
     align-items: center;
     margin-bottom: var(--space-6);
     text-align: center;
   }
 
+  .brand :global(.logo) {
+    margin-bottom: var(--space-2);
+  }
+
   .product {
     margin: 0;
-    font-size: var(--text-sm);
-    font-weight: var(--weight-medium);
-    color: var(--muted);
+    font-size: 1.0625rem;
+    font-weight: var(--weight-semibold);
+  }
+
+  .tagline {
+    margin: 0;
+    font-size: 0.9375rem;
   }
 
   .panel {
@@ -67,22 +77,24 @@
   }
 
   h1 {
-    font-size: var(--text-xl);
-    line-height: 1.75rem;
+    margin: 0;
+    font-size: 1.75rem;
+    line-height: 1.2;
   }
 
   .subtitle {
-    margin-top: var(--space-2);
+    margin: var(--space-3) 0 0;
+    font-size: 1rem;
     line-height: 1.5;
   }
 
   .content {
-    margin-top: var(--space-6);
+    margin-top: var(--space-8);
   }
 
   .footer {
-    margin-top: var(--space-4);
-    font-size: var(--text-sm);
+    margin-top: var(--space-5);
+    font-size: 0.9375rem;
     text-align: center;
   }
 
@@ -99,6 +111,14 @@
 
     .panel {
       padding: var(--space-6) var(--space-5);
+    }
+
+    h1 {
+      font-size: 1.5rem;
+    }
+
+    .content {
+      margin-top: var(--space-6);
     }
   }
 </style>
