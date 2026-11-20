@@ -5,7 +5,8 @@
   the row opens), and the builds of this release with their CI run. Store data is read only; the
   plan is our own planning data.
   Props: api, workspaceId, role, row (ReleaseRow), app (the platform record), builds (the builds of
-  that app, or null when not loaded), now, scope (the platform scope for links).
+  that app, or null when not loaded), now, scope (the platform scope for links), promote? (Google Play: this release is in a track
+  that is not production, so "Promote to production" is offered; it opens Prepare release with its version codes).
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
@@ -15,6 +16,7 @@
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { describeError, storeName } from '../../lib/portfolio.ts';
   import { dueText, formatTargetDate, rolloutBadge, rolloutHeadline } from '../../lib/release.ts';
+  import { type PromoteOption, promoteHref } from '../../lib/play-promote.ts';
   import { type ReleaseRow, buildsForRelease } from '../../lib/releases-table.ts';
   import type { AppBuild, AppSummary, PlanDetail } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -33,6 +35,7 @@
     builds,
     now,
     scope,
+    promote = null,
   }: {
     api: Api;
     workspaceId: string;
@@ -42,6 +45,8 @@
     builds: readonly AppBuild[] | null;
     now: number;
     scope: PlatformScope | null;
+    /** Google Play: this release is in a track that is not production and can be promoted. */
+    promote?: PromoteOption | null;
   } = $props();
 
   const canReadPlans = $derived(can(role, 'plans.read'));
@@ -112,6 +117,12 @@
         </div>
       </dl>
       <RolloutObserved release={row.release} />
+      {#if promote}
+        <p class="promote-line">
+          <Button size="sm" variant="primary" icon="arrow-right" href={promoteHref(promote)}>{promote.label}</Button>
+          <span class="muted note">Opens Prepare release with version code{promote.codes.length === 1 ? '' : 's'} {promote.codes.join(', ')} from {promote.fromLabel}. You set the notes and the share, and confirm at the end.</span>
+        </p>
+      {/if}
     </section>
 
     <section class="part" aria-label="Plan">
@@ -256,6 +267,14 @@
   .note {
     margin: 0;
     font-size: var(--text-sm);
+  }
+
+  .promote-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+    align-items: center;
+    margin: var(--space-2) 0 0;
   }
 
   .part p {

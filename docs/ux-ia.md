@@ -34,6 +34,11 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   the other releases on their way and "Also needs attention" are inside the card, so the old "waiting for you" strip, the separate
   "Needs attention" card and the Prepare release / Open the release steps buttons are gone. Overview then shows three compact platform
   tiles (live, in flight) and a collapsed Details (bundle ids, last sync, analytics).
+  **Promote** ([ADR 0025](adr/0025-play-release-checks.md)): on an Android app a release that serves users from a track that is not production
+  gets "Promote to production" in its Releases row (platform cell), in the row's details and as one quiet line in the Next step card. It
+  opens Prepare release on the Build step with the source track, the target and the version codes selected (`&from=internal&to=production&codes=241`).
+  In the Confirm step and in the release dialog "Check this release" shows local checks and "Check with Google Play" (errors only: the result says
+  "Google found no errors. The Play Console may still show warnings", never "no warnings").
 - **Demo bar**: when `GET /demo/status` answers `demo: true` (only the `pnpm demo` server has that route), a slim, permanent bar says
   "Demo workspace — simulated stores, nothing leaves your machine" above the top bar.
 

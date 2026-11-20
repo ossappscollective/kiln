@@ -19,6 +19,8 @@ import {
   type DraftStep,
   type EditableRelease,
   type NotesHistoryRead,
+  type PlayCheckRelease,
+  type PlayCheckResult,
   type PlayReleaseState,
   type ReleaseApplyInput,
   type ReleaseCandidates,
@@ -875,6 +877,16 @@ export class FakeReleaseStore implements StoreReleaseConnector {
     this.reads++;
     if (this.readError) throw this.readError;
     return this.#state(request);
+  }
+
+  /** "Check with Google Play": what was asked, what the fake store answers, and how it can fail. */
+  checks: PlayCheckRelease[] = [];
+  checkResult: PlayCheckResult = { outcome: 'no_errors', findings: [] };
+  checkError: unknown;
+  async checkPlayRelease(input: PlayCheckRelease): Promise<PlayCheckResult> {
+    this.checks.push(structuredClone(input));
+    if (this.checkError) throw this.checkError;
+    return structuredClone(this.checkResult);
   }
 
   async release(input: ReleaseApplyInput): Promise<ReleaseResult> {

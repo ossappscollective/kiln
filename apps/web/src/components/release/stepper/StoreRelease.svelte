@@ -292,6 +292,8 @@
   {#key preview.confirmHash ?? `blocked-${preview.readAt}`}
     <StoreReleaseDialog
       bind:open={dialogOpen}
+      {api}
+      {workspaceId}
       {preview}
       busy={applying}
       problem={dialogProblem}

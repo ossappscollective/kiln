@@ -2377,6 +2377,55 @@ const editableReleaseSchema = z.union([
     others: z.array(playReleaseReadSchema).describe('The other releases of the track, read only.'),
   }),
 ]);
+const playCheckBodySchema = z.object({
+  track: z.string().min(1).max(100).describe('The track the release would be in (for example `production`).'),
+  versionCodes: z
+    .array(z.string().regex(/^[0-9]{1,10}$/))
+    .min(1)
+    .max(20)
+    .describe('The version codes of the release.'),
+  releaseName: z.string().max(100).optional().describe('The release name (only shown in Play Console).'),
+  status: z
+    .enum(['draft', 'inProgress', 'completed'])
+    .optional()
+    .describe(
+      'The state to check the release in. Default: `draft` without `userFraction`, `completed` for 1, otherwise `inProgress`.',
+    ),
+  userFraction: z
+    .number()
+    .gt(0)
+    .lte(1)
+    .optional()
+    .describe('The share of users (0.1 is 10%), at most 4 decimals. Not with `draft`; 1 is `completed`.'),
+  notes: z
+    .array(z.object({ locale: z.string().min(1).max(20), text: z.string().max(4000) }))
+    .max(80)
+    .optional()
+    .describe('The release notes per language (Google Play allows 500 characters). Empty texts are not sent.'),
+});
+const playCheckSchema = z.object({
+  store: z.literal('googleplay'),
+  track: z.string(),
+  versionCodes: z.array(z.string()),
+  status: z.enum(['draft', 'inProgress', 'completed']),
+  userFraction: z.number().nullable(),
+  outcome: z
+    .enum(['no_errors', 'errors'])
+    .describe(
+      '`no_errors`: Google Play found no error. It does NOT mean there are no warnings: the API reports errors only.',
+    ),
+  findings: z
+    .array(
+      z.object({
+        stage: z.enum(['stage', 'validate']),
+        message: z.string().describe('Google’s own words (cut, redacted). Third party text.'),
+      }),
+    )
+    .describe('What Google refused. Empty with `no_errors`.'),
+  committed: z.literal(false).describe('Always false: the edit was deleted, nothing was saved.'),
+  checkedAt: z.number().describe('Epoch milliseconds.'),
+  note: z.string().describe('A fixed sentence on what the check does and does not cover.'),
+});
 const releaseWhat = {
   version: z
     .string()
@@ -6283,6 +6332,24 @@ const drafts: Draft[] = [
         description: 'The release fields.',
         schema: z.object({ editable: editableReleaseSchema }),
       },
+    },
+  },
+  {
+    id: 'checkPlayRelease',
+    method: 'post',
+    path: `${W}/apps/{id}/release/play-check`,
+    tags: ['releases'],
+    summary:
+      'Check with Google Play: would Google refuse this release? Nothing is saved (Android only)',
+    description:
+      'READS the store with the credential of the app (audited as `credential.use`, purpose `store.release_check`) and changes nothing; not behind a switch. Opens an edit, stages the proposed release in the track (codes, name, notes per language, state and share as given), calls `edits.validate` and ALWAYS deletes the edit: it never commits. `outcome` `no_errors` means Google found no error; it does NOT mean there are no warnings: the API reports errors only, so notices of Play Console such as a missing deobfuscation file or the target API level are not covered (the `note` says so). `outcome` `errors` lists `findings` in Google’s words (`stage` `stage`: refused when the release was put in the edit; `validate`: refused by `edits.validate`). What `validate` checks is UNVERIFIED (Google’s page does not say). Android apps only (`422 not_applicable`); `422 track_required`, `422 invalid_version_codes`, `422 invalid_user_fraction`, `422 invalid_locale`. Rate limited per workspace (`429`, `Retry-After`). The release notes are never logged or audited. Needs `listing.read`.',
+    risk: 'read',
+    access: { action: 'listing.read' },
+    appScope: { kind: 'param', name: 'id' },
+    body: playCheckBodySchema,
+    rateLimited: true,
+    responses: {
+      '200': { description: 'What Google Play said.', schema: z.object({ check: playCheckSchema }) },
     },
   },
   // ----- submitting the pushed draft for store review (IRREVERSIBLE; off unless MRM_STORE_SUBMIT_ENABLED=true) ----

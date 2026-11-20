@@ -338,6 +338,47 @@ export interface StoreReleaseConnector {
   release(input: ReleaseApplyInput): Promise<ReleaseResult>;
 }
 
+// ---------------------------------------------------------------------------------------------
+// "Check with Google Play": validate a proposed release in an edit that is never committed
+
+/**
+ * A release as the person proposes it, to be staged in a throw-away edit of one Google Play track and validated
+ * (docs/adr/0025-play-release-checks.md). Nothing here is written to the store for good: the edit is deleted afterwards.
+ */
+export type PlayCheckRelease = {
+  track: string;
+  /** The release name (only shown in Play Console). Optional. */
+  name?: string;
+  versionCodes: string[];
+  /** `draft`, `inProgress` (with `userFraction`) or `completed` (everybody, no fraction). */
+  status: 'draft' | 'inProgress' | 'completed';
+  /** Only with `inProgress`: more than 0 and less than 1. */
+  userFraction?: number;
+  /** The release notes per language. Empty texts are not sent. */
+  notes: { locale: string; text: string }[];
+};
+
+/** One thing Google refused, in Google's own words (cut, redacted). `stage`: when the release was put in the edit; `validate`: `edits.validate`. */
+export type PlayCheckFinding = { stage: 'stage' | 'validate'; message: string };
+
+export type PlayCheckResult = {
+  /** `no_errors`: Google found no error. That is NOT "no warnings": the API reports errors only (UNVERIFIED, see play-release.ts). */
+  outcome: 'no_errors' | 'errors';
+  findings: PlayCheckFinding[];
+};
+
+/** Validates a proposed release against Google Play. Never commits, always deletes its edit. */
+export interface StorePlayReleaseChecker {
+  readonly store: StoreName;
+  readonly platform: Platform;
+  checkPlayRelease(input: PlayCheckRelease): Promise<PlayCheckResult>;
+}
+
+export const isStorePlayReleaseChecker = (value: unknown): value is StorePlayReleaseChecker =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as { checkPlayRelease?: unknown }).checkPlayRelease === 'function';
+
 const sha = (value: string): string => createHash('sha256').update(value, 'utf8').digest('hex');
 
 /** The App Store version states in which a version can be released. Apple: "Pending Developer Release" (VERIFIED), the API name is UNVERIFIED. */

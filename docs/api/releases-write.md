@@ -4,12 +4,13 @@ What a person needs to get a version out, from the app: pick the build or the ve
 **draft** release, preview before and after, push them as a draft, and then **release** (the one step that cannot be
 taken back). Design and the arguments: [ADR 0014](../adr/0014-release-management.md).
 
-There are three parts, each with its own gate:
+There are four parts, each with its own gate:
 
 | Part                                                              | What it does                                                                                       | Gate                                                                                                                        |
 | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | [Reads](#reads-what-a-draft-is-made-of)                           | Lists processed builds / uploaded version codes, and shows the release fields the store holds.     | `listing.read`. No switch: they change nothing.                                                                             |
 | [Staging and the draft push](#staging-and-pushing-release-fields) | Release fields are staged items; the existing draft push writes them.                              | `changesets.write` to stage; `store.push_draft` and `MRM_STORE_DRAFT_WRITE_ENABLED` to push. Never submits, never releases. |
+| [Check with Google Play](#check-with-google-play-read-only)       | Asks Google Play whether it would refuse a proposed release. Saves nothing.                         | `listing.read`. No switch: it changes nothing.                                                                              |
 | [Release](#release-irreversible)                                  | Releases an approved App Store version, or starts a Google Play draft release at a share you name. | `store.release` and `MRM_STORE_RELEASE_ENABLED`, a preview, a hash and a typed phrase.                                      |
 
 **Never run against a real store**: the connectors are tested with fakes only. Read [UNVERIFIED](#unverified-check-with-a-real-account)
@@ -164,6 +165,51 @@ A lost answer is read back, fields included (`confirmedByReread`, `502 write_fai
 `409 outcome_unknown`), as for texts. The push record for [submit](submit.md) holds texts and graphics only: release
 fields are not part of what submit checks.
 
+## Check with Google Play (read only)
+
+Asks Google Play whether it would **refuse** a release as it is proposed, before anything is pushed or released. Android only. Design:
+[ADR 0025](../adr/0025-play-release-checks.md). The same place in the web app also shows local checks (no store call) and a "Promote to
+production" entry for a release that sits in a track that is not production.
+
+### `POST /apps/{id}/release/play-check`
+
+Needs `listing.read` (a viewer may check), no switch. Body (strict):
+
+| Field          | Meaning                                                                                                                                                  |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `track`        | Required. The track the release would be in (`production`, `beta`, ...). `422 track_required`.                                                            |
+| `versionCodes` | Required, 1 to 20 whole numbers. `422 invalid_version_codes`.                                                                                             |
+| `releaseName`  | Optional, up to 100 characters. Only shown in Play Console.                                                                                               |
+| `userFraction` | Optional, more than 0 and at most 1, at most 4 decimals (`0.1` is 10%). `422 invalid_user_fraction`.                                                      |
+| `status`       | Optional: `draft`, `inProgress` or `completed`. Default: `draft` without a share, `completed` for 1, otherwise `inProgress`. A draft has no share, a rollout needs one below 1, `completed` is everybody (no share or 1). |
+| `notes`        | Optional, up to 80 `{ locale, text }` (text up to 4000 characters; Google Play allows 500). One entry per language (`422 invalid_locale`, `422 invalid_request`). Empty texts are not sent. |
+
+An iOS or macOS app is `422 not_applicable` (App Store releases have their own checks in the preview). Nothing else is read from the database
+about the release: **the caller says what is proposed**.
+
+What it does: opens an edit, puts the release in the track in that edit (the other releases of the track as read, except one with the same
+codes, and, for `completed`, the older completed one), calls `POST .../edits/{editId}:validate` (empty body) and **always deletes the edit**.
+**It never commits.** The credential of the app is used and audited as `credential.use`, purpose `store.release_check`. Nothing else is audited
+and **the notes are never logged**. Rate limit: 10 checks per workspace per minute (`429`, `Retry-After`), separate from the other store reads.
+
+Returns `{ check }`:
+
+- `store`, `track`, `versionCodes`, `status`, `userFraction` (what was checked), `checkedAt`.
+- `outcome`: `no_errors` or `errors`. **`no_errors` means Google found no error. It does not mean there are no warnings**: the API reports errors
+  only, and Play Console may still show warnings (a missing deobfuscation file, the target API level). `note` says so in a fixed sentence.
+- `findings[] { stage, message }`: what Google refused, in Google's own words (cut at 400 characters, redacted; it is text from a third party).
+  `stage` is `stage` (refused when the release was put in the edit) or `validate` (refused by `edits.validate`).
+- `committed`: always `false`.
+
+Failures are answers with a fixed sentence and never a secret: `422 store_auth`, `422 store_forbidden`, `422 store_not_found`,
+`422 store_rejected`, `422 credential_not_found`, `422 credential_unreadable`, `502 store_unavailable` (the sentence ends "Nothing was saved in
+Google Play"), `504 timeout`, `502 check_failed`. MCP: the read-only tool `check_play_release`.
+
+**Local checks** (web app, `@mrm/core` `checkPlayProposal`, no store call): release notes missing for a language that has a listing, notes over
+500 characters per language, a version code the target track already holds as live or rolling out (a problem) or a lower one (a warning), a share
+outside 0 to 100%, 100% sent as a completed release, an empty release name, and what the state means (a draft goes to nobody, a rollout reaches a
+share, completed is everybody). They are advice and never gate anything.
+
 ## Release (irreversible)
 
 Makes an approved App Store version available, or starts a Google Play draft release at a share of users you name.
@@ -262,6 +308,19 @@ versionString? | track + versionCodes, userFraction?, via, confirmedByReread, ac
 store response body.
 
 ## UNVERIFIED (check with a real account)
+
+**Check with Google Play** (read on Google's pages 2026-11-20, nothing was run). **Verified**: `edits.validate` is `POST
+https://androidpublisher.googleapis.com/androidpublisher/v3/applications/{packageName}/edits/{editId}:validate`, "Validates an app edit", "The
+request body must be empty", a success answers an `AppEdit`; the edits guide: "If you try to commit an invalid edit, the operation will throw
+an exception and have no effect" and an edit can be abandoned at any time; Play Console help ([answer 9859348](https://support.google.com/googleplay/android-developer/answer/9859348)): "Errors block publishing, while
+warnings don't" and "You can enter release notes using up to 500 Unicode characters per language" (so the 500 limit is no longer only a guess;
+it stays a warning in the staged checks and a problem in the local checks). **Not verified**: which rules `validate` applies (Google's page does
+not say; this server assumes the blocking errors of Play Console, not its warnings, so a missing deobfuscation file or a target API level
+notice is expected NOT to appear), the shape of its error answer (read as HTTP 400 with `error.message`), whether `tracks.update` already
+refuses some releases (the same 400 is then a `stage` finding), whether `validate` sees a release the way Play Console does when it is staged
+as `inProgress` or `completed` in an edit, and the release name limit (Google states none). A lower version code than the track holds is a
+warning here because Google's pages do not say it is refused.
+
 
 Read on Apple's and Google's pages on 2026-11-19.
 

@@ -5,16 +5,20 @@
   listed), and a typed phrase that must equal the preview's phrase exactly as the server gave it.
   It sends nothing itself: `onconfirm(typed)` is called once per click and the parent sends the preview's hash and
   the typed text. While anything blocks the preview has no hash and no phrase; then there is no input.
+  Google Play: "Check this release" (PlayCheck) sits under the preview, for the release the store holds at the share named in the
+  preview: local checks and "Check with Google Play" (errors only, nothing saved). It is optional and never gates the release.
   Props: open (bindable), preview, busy, problem (a sentence or ''), notice (why this preview replaced an older
-  one, or ''), onconfirm, oncancel.
+  one, or ''), onconfirm, oncancel, api and workspaceId (needed for the Google Play check; without them it is not drawn).
   Give it a {#key preview.confirmHash} so a new preview starts with an empty confirmation.
 -->
 <script lang="ts">
+  import type { Api } from '../../../lib/api.ts';
   import { type ReleasePreview, audienceText, canConfirmRelease, releaseTitle } from '../../../lib/store-release.ts';
   import Alert from '../../ui/Alert.svelte';
   import Button from '../../ui/Button.svelte';
   import Modal from '../../ui/Modal.svelte';
   import ReleasePreviewBody from '../../publish/ReleasePreviewBody.svelte';
+  import PlayCheck from './PlayCheck.svelte';
 
   let {
     open = $bindable(false),
@@ -24,6 +28,8 @@
     notice,
     onconfirm,
     oncancel,
+    api,
+    workspaceId,
   }: {
     open?: boolean;
     preview: ReleasePreview;
@@ -32,6 +38,8 @@
     notice: string;
     onconfirm: (typed: string) => void;
     oncancel: () => void;
+    api?: Api;
+    workspaceId?: string;
   } = $props();
 
   const uid = $props.id();
@@ -64,6 +72,18 @@
     </Alert>
 
     <ReleasePreviewBody {preview} />
+
+    {#if android && api && workspaceId && preview.track}
+      <PlayCheck
+        {api}
+        {workspaceId}
+        app={preview.app}
+        track={preview.track}
+        codes={preview.release ? preview.release.versionCodes : (preview.request.versionCodes ?? [])}
+        fraction={preview.audience.userFraction ?? preview.request.userFraction ?? null}
+        source="store"
+      />
+    {/if}
 
     {#if preview.confirmation !== null && blocking.length === 0}
       <div class="field">

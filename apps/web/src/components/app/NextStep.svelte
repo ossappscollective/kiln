@@ -6,7 +6,8 @@
   listed under it, so nothing is said twice. It reads the release pipeline of our own database and writes nothing:
   "Start release" only opens its dialog (StartRelease), whose confirmation is the one action.
   Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog), scope (platform scope
-  for links), attention? (items of "Needs attention"; default none), refreshKey (changes when the screen synced), onprepare? (open
+  for links), releases? (store releases by app id: with them a Google Play release in a non-production track offers "Promote to
+  production"), attention? (items of "Needs attention"; default none), refreshKey (changes when the screen synced), onprepare? (open
   the release steps in place, on Releases; without it the card links to them; with it, "Prepare without CI" is offered beside
   "Start release"), showRunning = false (draw the run "Start release" started under the card; the Overview draws its own list),
   onstarted? (the run "Start release" started).
@@ -20,10 +21,11 @@
   import type { PlatformScope } from '../../lib/app-scope.ts';
   import { chooseNextStep } from '../../lib/next-step.ts';
   import { pipelineStore } from '../../lib/pipeline-store.svelte.ts';
+  import { promoteHref, promoteOptions } from '../../lib/play-promote.ts';
   import { releaseTrains, trainInputOf } from '../../lib/release-trains.ts';
   import { releaseStepHref } from '../../lib/release-stepper.ts';
   import type { StartedRun } from '../../lib/start-release.ts';
-  import type { ActiveRuns, AppSummary } from '../../lib/types.ts';
+  import type { ActiveRuns, AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import TrainSteps from '../release/TrainSteps.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -38,6 +40,7 @@
     all,
     scope,
     attention = [],
+    releases,
     refreshKey = 0,
     showRunning = false,
     onprepare,
@@ -50,6 +53,7 @@
     all?: AppSummary[];
     scope: PlatformScope | null;
     attention?: AttentionItem[];
+    releases?: Record<string, ReleaseSummary[]>;
     refreshKey?: number;
     showRunning?: boolean;
     onprepare?: () => void;
@@ -73,6 +77,16 @@
   const canStart = $derived(can(role, 'ci.dispatch') && can(role, 'repositories.read') && members.some((m) => m.repositoryId !== null));
   const canPrepare = $derived(can(role, 'listing.read') && members.length > 0);
   const step = $derived(chooseNextStep({ trains, attention, scope, canStart, canPrepare }));
+  // A Google Play release that sits in internal, closed or open testing can be promoted: one quiet line with its own button.
+  const promotion = $derived.by(() => {
+    if (!canPrepare || !releases) return null;
+    for (const m of members) {
+      if (m.platform !== 'android') continue;
+      const option = promoteOptions(releases[m.id] ?? [])[0];
+      if (option) return option;
+    }
+    return null;
+  });
   const prepareHref = $derived(members[0] ? releaseStepHref(members[0].id, scope, 'build') : '');
   const startsHere = $derived(step.primary !== null && 'action' in step.primary && step.primary.action === 'start-release');
   const preparesHere = $derived(step.primary !== null && 'action' in step.primary && step.primary.action === 'prepare-release');
@@ -137,6 +151,13 @@
     <div class="steps"><TrainSteps steps={step.train.steps} /></div>
   {/if}
 
+  {#if promotion}
+    <p class="promote" data-testid="next-step-promote">
+      <span><strong>{promotion.version}</strong> is in {promotion.fromLabel} (version code{promotion.codes.length === 1 ? '' : 's'} {promotion.codes.join(', ')}).</span>
+      <Button size="sm" icon="arrow-right" href={promoteHref(promotion)}>{promotion.label}</Button>
+    </p>
+  {/if}
+
   {#if step.otherTrains.length > 0}
     <ul class="others" aria-label="Other releases on their way">
       {#each step.otherTrains as o (o.title)}
@@ -166,6 +187,15 @@
 
   .next[data-tone='info'] {
     border-left-color: var(--info);
+  }
+
+  .promote {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+    align-items: center;
+    margin: var(--space-3) 0 0;
+    font-size: var(--text-sm);
   }
 
   .eyebrow {

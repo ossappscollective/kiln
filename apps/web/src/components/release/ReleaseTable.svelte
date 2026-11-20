@@ -5,11 +5,14 @@
   Props: api, workspaceId, role, groups (from buildReleaseTable), apps (the platform records in scope,
   by id), builds (by app id; an app without an entry has no CI data), now, scope (the platform scope
   for links), showPlatform (true when more than one platform is in scope).
+  A Google Play release in a track that is not production, serving users, gets a "Promote to production" link in its platform cell
+  and a button in its details: it opens Prepare release with the track and the version codes filled in (lib/play-promote.ts).
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import { type Role, can } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import { type PlatformScope, appAddress } from '../../lib/app-scope.ts';
+  import { promoteHref, promoteOption } from '../../lib/play-promote.ts';
   import { dayText, fullTime, timeAgo } from '../../lib/format.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { VersionGroup } from '../../lib/releases-table.ts';
@@ -45,6 +48,7 @@
   const uid = $props.id();
   const columns = 9;
 
+  const canPrepare = $derived(can(role, 'listing.read'));
   let open = $state<Set<string>>(new Set());
 
   function toggle(key: string) {
@@ -87,6 +91,7 @@
         {#each group.rows as row (row.key)}
           {@const isOpen = open.has(row.key)}
           {@const app = apps[row.appId]}
+          {@const promote = canPrepare ? promoteOption(row.release, group.rows.map((r) => r.release)) : null}
           <tr class="item" class:open={isOpen}>
             <td class="expander">
               <button
@@ -105,6 +110,7 @@
               <span class="plat">
                 <PlatformBadge platform={row.platform} showLabel={showPlatform || row.track === null} tinted />
                 {#if row.track !== null}<span class="muted track">{row.trackText}</span>{/if}
+                {#if promote}<a class="promote" href={promoteHref(promote)} title="Open Prepare release with these version codes, to release them in {promote.to}.">{promote.label}</a>{/if}
               </span>
             </td>
             <td class="tabular">{row.buildText}</td>
@@ -140,7 +146,7 @@
           {#if isOpen && app}
             <tr class="detail-row" id="{uid}-{row.key}">
               <td colspan={columns}>
-                <ReleaseRowDetail {api} {workspaceId} {role} {row} {app} builds={builds[row.appId] ?? null} {now} {scope} />
+                <ReleaseRowDetail {api} {workspaceId} {role} {row} {app} builds={builds[row.appId] ?? null} {now} {scope} {promote} />
               </td>
             </tr>
           {/if}
@@ -216,6 +222,11 @@
 
   .track {
     font-size: var(--text-xs);
+  }
+
+  .promote {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
   }
 
   tr.open > td,

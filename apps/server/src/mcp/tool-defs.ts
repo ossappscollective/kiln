@@ -241,6 +241,42 @@ const readTools: ToolDef[] = [
     untrusted: ['text', 'releaseNotes', 'whatsNew'],
   },
   {
+    name: 'check_play_release',
+    title: 'Check a Google Play release with Google',
+    kind: 'read',
+    op: 'checkPlayRelease',
+    params: { id: 'appId' },
+    input: strict({
+      appId,
+      track: z.string().min(1).max(60).describe('The Google Play track, for example production.'),
+      versionCodes: z
+        .array(z.string().regex(/^[0-9]{1,10}$/, 'A version code is a whole number.'))
+        .min(1)
+        .max(20),
+      releaseName: z.string().max(100).optional(),
+      userFraction: z
+        .number()
+        .gt(0)
+        .lte(1)
+        .optional()
+        .describe('The share of users, 0.1 is 10%. Leave out to check it as a draft; 1 is everybody.'),
+      notes: z
+        .array(z.object({ locale, text: z.string().max(4000) }).strict())
+        .max(80)
+        .optional(),
+    }),
+    description:
+      'Ask Google Play whether it would refuse a release as proposed (Android only). Nothing is saved or released: the check opens an edit, validates it and deletes it. "no_errors" does NOT mean there are no warnings: Google reports errors only, and Play Console may still show warnings (a missing deobfuscation file, the target API level). Findings are Google text.',
+    body: (a) => ({
+      track: a.track,
+      versionCodes: a.versionCodes,
+      releaseName: a.releaseName,
+      userFraction: a.userFraction,
+      notes: a.notes,
+    }),
+    untrusted: ['message'],
+  },
+  {
     name: 'get_release_notes_history',
     title: 'Earlier release notes',
     kind: 'read',

@@ -8,6 +8,7 @@ import { memberRole } from '../services/accounts.ts';
 import { getApp } from '../services/apps.ts';
 import { createTestLimiter } from '../services/credential-tests.ts';
 import { MAX_NOTES_HISTORY_LIMIT, notesHistory } from '../services/notes-history.ts';
+import { checkPlayReleaseOf } from '../services/play-release-check.ts';
 import { type Failure, failure } from '../services/repositories.ts';
 import { requireStepUp } from '../services/step-up.ts';
 import {
@@ -55,6 +56,8 @@ export type ReleaseRoutesContext = {
   };
   /** Store reads per workspace per minute (the reads of builds and version codes). */
   readLimit?: number;
+  /** "Check with Google Play" per workspace per minute (each check opens, validates and deletes an edit: four store calls). */
+  checkLimit?: number;
 };
 
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
@@ -78,6 +81,22 @@ const what = {
   userFraction: z.number().gt(0).lte(1).optional(),
 };
 const previewBody = z.object(what).strict();
+const playCheckBody = z
+  .object({
+    track: z.string().min(1).max(100),
+    versionCodes: z
+      .array(z.string().regex(/^[0-9]{1,10}$/, 'A version code is a whole number.'))
+      .min(1)
+      .max(20),
+    releaseName: z.string().max(100).optional(),
+    status: z.enum(['draft', 'inProgress', 'completed']).optional(),
+    userFraction: z.number().gt(0).lte(1).optional(),
+    notes: z
+      .array(z.object({ locale: z.string().min(1).max(20), text: z.string().max(4000) }).strict())
+      .max(80)
+      .optional(),
+  })
+  .strict();
 const applyBody = z
   .object({
     ...what,
@@ -108,6 +127,7 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
     ...(ctx.draft?.timeoutMs !== undefined ? { draftTimeoutMs: ctx.draft.timeoutMs } : {}),
   };
   const limiter = createTestLimiter({ limit: ctx.readLimit ?? 30, now: ctx.now });
+  const checkLimiter = createTestLimiter({ limit: ctx.checkLimit ?? 10, now: ctx.now });
 
   /** Not a member and no such workspace look the same (404). A member without the right gets 403. */
   const needs = (action: Action) => async (c: Context<AppEnv>, next: Next) => {
@@ -224,6 +244,29 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
     });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ editable: done.read }) : respond(c, done);
+  });
+
+  // "Check with Google Play": stages the proposed release in a throw-away edit, validates it and deletes the edit. Never commits,
+  // so it is a read of this server's rules: `listing.read`, no switch, its own purpose in the credential audit, its own limit.
+  routes.post('/:workspaceId/apps/:id/release/play-check', needs('listing.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return c.json({ error: 'not_found' }, 404);
+    const body = await parseBody(c, playCheckBody);
+    if (!body.ok) return body.response;
+    const wait = checkLimiter.take(ws(c));
+    if (wait > 0)
+      return respond(c, {
+        ...failure(429, 'rate_limited', `Too many checks. Try again in ${wait} seconds.`),
+        headers: { 'Retry-After': String(wait) },
+      });
+    const done = await checkPlayReleaseOf(release, {
+      workspaceId: ws(c),
+      app,
+      actor: actor(c),
+      body: body.data,
+    });
+    c.header('Cache-Control', 'no-store');
+    return done.ok ? c.json({ check: done.check }) : respond(c, done);
   });
 
   // ----- the irreversible step

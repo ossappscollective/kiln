@@ -1075,6 +1075,12 @@ export class FakePlayDraftApi {
   apks: { versionCode: number; binary: { sha256: string } }[] = [];
   /** How the commit is answered. */
   commitAnswer: 'ok' | 'in_review' | 'not_sent_refused' | 'server_error' | 'cut' = 'ok';
+  /** How `edits.validate` is answered: fine, Google refuses the edit (400), or fails (503). */
+  validateAnswer: 'ok' | 'invalid' | 'server_error' = 'ok';
+  /** Google refuses `tracks.update` with a 400 (a release it will not stage) with this message. */
+  trackUpdateRefusal: string | undefined;
+  /** How often `edits.validate` was called. */
+  validations = 0;
   /** Make an upload store different bytes than were sent (a bad answer from the store). */
   corruptUploads = false;
   hook: Hook | undefined;
@@ -1172,6 +1178,10 @@ export class FakePlayDraftApi {
           : json(404, { error: { code: 404, message: 'Track not found' } });
       }
       if (method === 'PUT') {
+        if (this.trackUpdateRefusal !== undefined)
+          return json(400, {
+            error: { code: 400, status: 'INVALID_ARGUMENT', message: this.trackUpdateRefusal },
+          });
         const body = s.body as FakePlayDraftApi['tracks'][number];
         const at = edit.tracks.findIndex((t) => t.track === name);
         if (at === -1) edit.tracks.push(body);
@@ -1199,6 +1209,20 @@ export class FakePlayDraftApi {
         edit.images.set(key, [...(edit.images.get(key) ?? []), image]);
         return json(200, { image });
       }
+    }
+    if (method === 'POST' && path === `${id}:validate`) {
+      this.validations++;
+      if (this.validateAnswer === 'invalid')
+        return json(400, {
+          error: {
+            code: 400,
+            status: 'INVALID_ARGUMENT',
+            message: 'Version code 241 has been used in a release that is already live.',
+          },
+        });
+      if (this.validateAnswer === 'server_error')
+        return json(503, { error: { code: 503, message: 'Backend error' } });
+      return json(200, fx.googleEdit);
     }
     if (method === 'POST' && path === `${id}:commit`) {
       this.commits.push({ query: s.query });

@@ -7,7 +7,8 @@
   Choosing only STAGES the field in our own database (docs/api/releases-write.md). Nothing reaches a store here.
   Props: api, workspaceId, role, app, view (the staged changes), editable + editableState (the read of the editable
   release), candidates + candidatesState (the read of the builds or codes), appBuilds (our CI builds, for the run of each
-  build), track (bindable; Google Play target), source (bindable; Google Play source track), onread (read again),
+  build), track (bindable; Google Play target), source (bindable; Google Play source track), promote? (Google Play: the codes
+  of a release being promoted, selected once), onread (read again),
   onreadtracks (Google Play: read the tracks the person named).
 -->
 <script lang="ts">
@@ -28,6 +29,7 @@
     noCodeSentence,
   } from '../../../lib/release-candidates.ts';
   import { type EditableState, stagedField } from '../../../lib/release-stepper.ts';
+  import { type Promote, promoteNote } from '../../../lib/play-promote.ts';
   import { parsePercent, percentFromFraction, percentText } from '../../../lib/store-release.ts';
   import { canStage, stagingError } from '../../../lib/staged.ts';
   import { stagedStore } from '../../../lib/staged-store.svelte.ts';
@@ -53,6 +55,7 @@
     appBuilds,
     track = $bindable('production'),
     source = $bindable('beta'),
+    promote = null,
     onread,
     onreadtracks,
   }: {
@@ -69,6 +72,7 @@
     appBuilds: AppBuild[];
     track?: string;
     source?: string;
+    promote?: Promote | null;
     onread: () => void;
     onreadtracks: () => void;
   } = $props();
@@ -103,6 +107,14 @@
   const trackOk = $derived(isTrackName(track));
   const sourceOk = $derived(source.trim() === '' || isTrackName(source));
 
+  let promoted = false;
+  $effect(() => {
+    // "Promote to production": the codes of the release being promoted are selected once, ahead of what was staged before.
+    if (promote !== null && !promoted) {
+      promoted = true;
+      pickedCodes = [...promote.codes];
+    }
+  });
   $effect(() => {
     // Start from what is staged, so coming back shows the person's choice.
     if (stagedBuild !== null && picked === '') picked = stagedBuild.value;
@@ -219,6 +231,7 @@
       </div>
     {/if}
   {:else}
+    {#if promote !== null}<Alert tone="info" title="Promote to {promote.to}">{promoteNote(promote)}</Alert>{/if}
     <p class="lead">
       Promote what is in one track to another. Choose the track to read from, the track to release in, and the version codes.
       {#if stagedCodes !== null}<Badge tone="info">Staged</Badge>{:else if draft !== null && draft.versionCodes.length > 0}<Badge tone="ok" icon="check">In the store draft</Badge>{/if}

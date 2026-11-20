@@ -23,6 +23,8 @@ The server, the API, the database schema (migrations), permissions, previews, co
 - `POST /demo/fail {"connector": "appstoreconnect", "kind": "rate_limit", "count": 1}`: make the next calls fail. Connectors: appstoreconnect, googleplay, stores, github, translation, ai, analytics, aso. Kinds: rate_limit, auth, forbidden, server, unknown, unknown_applied. `DELETE /demo/fail` clears them.
 - `GET /demo/status`, `POST /demo/reset`. The web app reads `GET /demo/status` once at start: when it answers `demo: true` the shell shows a slim, permanent "Demo workspace" bar (any other server has no such route, so no bar).
 
+The Android demo apps also have a release in the internal track ("Promote to production"), and "Check with Google Play" answers without Google: a release to everybody (100%) while another release rolls out gets one clearly labelled example error, anything else finds no errors.
+
 A walk through: fix the alpha screenshot on Demo Notes (iOS), push the draft, submit, advance 30 hours with approve, release, advance 2 hours, pause the rollout.
 
 ## Safety

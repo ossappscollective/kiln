@@ -83,6 +83,7 @@ test('the release calls use the app routes and send the request once', async () 
   await api.releasePipeline('w1', 'a1');
   await api.releasePipelineSummary('w1');
   await api.previewStoreRelease('w1', 'a1', { track: 'production', userFraction: 0.1 });
+  await api.checkPlayRelease('w1', 'a1', { track: 'production', versionCodes: ['241'], status: 'draft' });
   assert.deepEqual(
     calls.map((c) => [c.method, c.path.replace(`${base.replace('/repositories/r1', '')}`, '')]),
     [
@@ -94,10 +95,12 @@ test('the release calls use the app routes and send the request once', async () 
       ['GET', '/apps/a1/release/pipeline'],
       ['GET', '/release/pipeline/summary'],
       ['POST', '/apps/a1/store-release/preview'],
+      ['POST', '/apps/a1/release/play-check'],
     ],
   );
   assert.deepEqual(calls[4]?.body, { field: 'track', value: 'production' });
   assert.deepEqual(calls[7]?.body, { track: 'production', userFraction: 0.1 });
+  assert.deepEqual(calls[8]?.body, { track: 'production', versionCodes: ['241'], status: 'draft' });
 });
 
 test('the build calls use the app routes', async () => {

@@ -7,7 +7,8 @@
   allow is not shown, and one sentence says why.
   The step is kept in the address (`&step=notes`), so a link, a reload and the "Release left unfinished" item land on it.
   Props: api, workspaceId, role, app, scope (the platform scope of the address), appBuilds (our CI builds, for the run of each
-  build), releases (the store releases by app id, for the rollout controls), step (the step the address asks for), onstep,
+  build), releases (the store releases by app id, for the rollout controls), step (the step the address asks for), promote?
+  (Google Play: "Promote to production" from the address: the source track, the target and the version codes to select), onstep,
   onclose, showPlatform.
 -->
 <script lang="ts">
@@ -18,6 +19,7 @@
   import type { PlatformScope } from '../../../lib/app-scope.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
   import { type EditableRelease, type ReleaseCandidates, type PlayCandidates, type BuildCandidate } from '../../../lib/release-candidates.ts';
+  import { type Promote } from '../../../lib/play-promote.ts';
   import { noteRows, unsavedLocales } from '../../../lib/release-notes.ts';
   import { type AppPipeline } from '../../../lib/release-pipeline.ts';
   import {
@@ -60,6 +62,7 @@
     appBuilds,
     releases,
     step,
+    promote = null,
     onstep,
     onclose,
     showPlatform = false,
@@ -72,6 +75,7 @@
     appBuilds: AppBuild[];
     releases: Record<string, ReleaseSummary[]>;
     step: StepId | null;
+    promote?: Promote | null;
     onstep: (next: StepId) => void;
     onclose: () => void;
     showPlatform?: boolean;
@@ -259,6 +263,11 @@
       void stagedStore.load(api, workspaceId, app.id).then(() => {
         const t = stagedField(stagedStore.view(app.id), 'track');
         if (t !== null) track = t.value;
+        // "Promote to production": the source track and the target come from the address and win over an earlier staged track.
+        if (promote !== null && !apple) {
+          source = promote.from;
+          track = promote.to;
+        }
         void loadEditable();
         void loadCandidates();
         void loadSource();
@@ -315,6 +324,7 @@
         {appBuilds}
         bind:track
         bind:source
+        {promote}
         onread={readBuilds}
         onreadtracks={readTracks}
       />

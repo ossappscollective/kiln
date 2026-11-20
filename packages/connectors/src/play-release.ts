@@ -2,6 +2,9 @@ import { StoreError, StoreRateLimitError } from './errors.ts';
 import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
 import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
 import {
+  type PlayCheckFinding,
+  type PlayCheckRelease,
+  type PlayCheckResult,
   type PlayReleaseState,
   type ReleaseApplyInput,
   ReleaseDriftError,
@@ -9,6 +12,7 @@ import {
   type ReleaseRequest,
   type ReleaseResult,
   type ReleaseState,
+  type StorePlayReleaseChecker,
   type StoreReleaseConnector,
 } from './release-types.ts';
 import {
@@ -43,6 +47,20 @@ import {
  * A release that is already `inProgress` in the track is not touched: the preview shows it and the server blocks (starting a
  * second rollout beside a running one is a decision for Play Console). The commit is never retried. A lost answer or a 5xx
  * is `ReleaseOutcomeUnknownError` and the caller reads the track back. No message carries the key or a token.
+ *
+ * `checkPlayRelease` ("Check with Google Play", docs/adr/0025-play-release-checks.md) is a READ-style call: it opens an edit,
+ * stages the proposed release in the track, calls `POST .../edits/{editId}:validate` and ALWAYS deletes the edit. It NEVER commits.
+ * VERIFIED on Google's pages (read 2026-11-20): `edits.validate` is `POST /androidpublisher/v3/applications/{packageName}/edits/{editId}:validate`,
+ * "Validates an app edit", the request body "must be empty", a success answers an `AppEdit`; the edits guide says "If you try to commit
+ * an invalid edit, the operation will throw an exception and have no effect" and that an edit can be abandoned at any time. Play
+ * Console help (answer 9859348, 2026-11-20): "Errors block publishing, while warnings don't" and release notes are "up to 500
+ * Unicode characters per language".
+ * UNVERIFIED (Google's page states neither): WHICH rules `validate` applies (this code assumes the errors Play Console shows as
+ * blocking, not its warnings: a missing deobfuscation file or a target API level warning are NOT expected here), the exact shape of
+ * its error answer (read as `error.message`, HTTP 400), whether `tracks.update` already refuses some releases (the same 400 is then
+ * reported as a `stage` finding), and whether a rule about "a completed release replaces the older completed one" is applied (older
+ * completed releases of the track are left out of the staged track when the proposal is `completed`, so no false error is made).
+ * So `no_errors` means "Google found no error in this edit", never "no warnings".
  */
 
 export type PlayReleaseConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
@@ -53,13 +71,22 @@ export type PlayReleaseConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
 
 const DEFAULT_BASE = 'https://androidpublisher.googleapis.com';
 
+/** Google's own sentence from an error answer (`error.message`), or a fixed one when it said nothing readable. */
+const googleMessage = (json: unknown): string => {
+  const error = isRecord(json) && isRecord(json.error) ? json.error : {};
+  return (
+    text(error.message)?.replace(/\s+/g, ' ').trim() ||
+    'Google Play refused the release and did not say why.'
+  );
+};
+
 const sameCodes = (a: readonly string[], b: readonly string[]): boolean => {
   const x = [...a].sort();
   const y = [...b].sort();
   return x.length === y.length && x.every((value, i) => value === y[i]);
 };
 
-export class PlayReleaseConnector implements StoreReleaseConnector {
+export class PlayReleaseConnector implements StoreReleaseConnector, StorePlayReleaseChecker {
   readonly store = 'googleplay' as const;
   readonly platform = 'android' as const;
   readonly packageName: string;
@@ -171,6 +198,136 @@ export class PlayReleaseConnector implements StoreReleaseConnector {
         if (!settled) await this.#deleteEdit(http, editId);
       }
     });
+  }
+
+  /**
+   * Stages the proposed release in a throw-away edit, validates the edit and deletes it. Never commits, never retries a refusal.
+   * A refusal Google gives about the RELEASE (HTTP 400) is a finding; anything else (no access, 5xx, a dead network) is an error.
+   */
+  async checkPlayRelease(input: PlayCheckRelease): Promise<PlayCheckResult> {
+    const track = PlayReleaseConnector.#trackOf({ track: input.track });
+    const codes = input.versionCodes.map(String);
+    if (codes.length === 0 || codes.length > 20 || codes.some((c) => !/^[0-9]{1,10}$/.test(c))) {
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        'Name the version codes of the release (whole numbers, at most 20).',
+      );
+    }
+    const fraction = input.userFraction;
+    if (input.status === 'inProgress') {
+      if (typeof fraction !== 'number' || !(fraction > 0 && fraction < 1)) {
+        throw new StoreError(
+          'googleplay',
+          'invalid_input',
+          'A release that is rolling out needs a share of users above 0 and below 1. Use completed for everybody.',
+        );
+      }
+    } else if (fraction !== undefined) {
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        'Google Play keeps a share of users only on a release that is rolling out.',
+      );
+    }
+    return serializedPlayEdits(this.#account.clientEmail, async () => {
+      for (let attempt = 0; ; attempt++) {
+        const editId = await this.#insertEdit(this.#http);
+        try {
+          return await this.#validateInEdit(editId, track, { ...input, versionCodes: codes });
+        } catch (error) {
+          if (error instanceof StoreError && error.kind === 'edit_invalid' && attempt === 0)
+            continue;
+          throw error;
+        } finally {
+          // Always, and never a commit: the edit only existed to be validated.
+          await this.#deleteEdit(this.#http, editId);
+        }
+      }
+    });
+  }
+
+  async #validateInEdit(
+    editId: string,
+    track: string,
+    input: PlayCheckRelease,
+  ): Promise<PlayCheckResult> {
+    const http = this.#http;
+    let existing: Json[] = [];
+    try {
+      const reply = await this.#call(
+        http,
+        'GET',
+        this.#url(`/${enc(editId)}/tracks/${enc(track)}`),
+        `reading the ${track} track`,
+      );
+      existing = records(isRecord(reply.json) ? reply.json.releases : undefined);
+    } catch (error) {
+      if (!(error instanceof StoreError) || error.kind !== 'not_found') throw error;
+    }
+    const release: Json = {
+      status: input.status,
+      versionCodes: input.versionCodes,
+    };
+    const name = input.name?.trim();
+    if (name) release.name = name;
+    if (input.status === 'inProgress') release.userFraction = input.userFraction;
+    const notes = input.notes
+      .filter((n) => n.text.trim() !== '')
+      .map((n) => ({ language: n.locale, text: n.text }));
+    if (notes.length > 0) release.releaseNotes = notes;
+    // The proposal replaces a release with the same codes; a completed proposal also replaces the older completed release.
+    const kept = existing.filter((r) => {
+      const codes = Array.isArray(r.versionCodes) ? r.versionCodes.map(String) : [];
+      if (sameCodes(codes, input.versionCodes)) return false;
+      return !(input.status === 'completed' && text(r.status) === 'completed');
+    });
+    const staged = await this.#tryCall(
+      http,
+      'PUT',
+      this.#url(`/${enc(editId)}/tracks/${enc(track)}`),
+      `staging the release in the ${track} track`,
+      { track, releases: [...kept, release] },
+    );
+    if (staged.kind === 'finding') return { outcome: 'errors', findings: [staged.finding('stage')] };
+    const validated = await this.#tryCall(
+      http,
+      'POST',
+      `${this.#url(`/${enc(editId)}`)}:validate`,
+      'validating the edit',
+    );
+    if (validated.kind === 'finding')
+      return { outcome: 'errors', findings: [validated.finding('validate')] };
+    return { outcome: 'no_errors', findings: [] };
+  }
+
+  /** Like `#call`, but a 400 about the release is answered as a finding (Google's words, cut and redacted), not thrown. */
+  async #tryCall(
+    http: StoreHttp,
+    method: string,
+    url: string,
+    what: string,
+    json?: unknown,
+  ): Promise<
+    { kind: 'ok' } | { kind: 'finding'; finding: (stage: PlayCheckFinding['stage']) => PlayCheckFinding }
+  > {
+    for (let attempt = 0; ; attempt++) {
+      const token = await this.#tokens.token();
+      const reply = await http.send(method, url, {
+        headers: { authorization: `Bearer ${token}` },
+        ...(json !== undefined ? { json } : {}),
+      });
+      if (reply.status === 401 && attempt === 0) {
+        this.#tokens.invalidate();
+        continue;
+      }
+      if (reply.status >= 200 && reply.status < 300) return { kind: 'ok' };
+      if (reply.status === 400) {
+        const message = http.redact(googleMessage(reply.json)).slice(0, 400);
+        return { kind: 'finding', finding: (stage) => ({ stage, message }) };
+      }
+      throw this.#refusal(reply, what);
+    }
   }
 
   // -------------------------------------------------------------------------------------------

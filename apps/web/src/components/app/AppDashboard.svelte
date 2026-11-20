@@ -217,6 +217,7 @@
     {all}
     scope={address.platform}
     attention={items}
+    {releases}
     refreshKey={syncRuns}
     onstarted={(s) => (startedRun = s)}
   />

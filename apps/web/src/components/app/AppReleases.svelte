@@ -21,6 +21,7 @@
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
+  import { promoteFromHash, withoutPromote } from '../../lib/play-promote.ts';
   import { type StepId, stepFromHash, withStep } from '../../lib/release-stepper.ts';
   import {
     buildReleaseTable,
@@ -147,14 +148,16 @@
   const uid = $props.id();
   let stepperPlatform = $state('');
   const stepperTab = $derived(members.find((m) => m.platform === stepperPlatform)?.platform ?? members[0]?.platform ?? '');
-  const openStepper = () => replaceHash(withStep(location.hash, 'build'));
-  const closeStepper = () => replaceHash(withStep(location.hash, null));
+  // "Promote to production" opens the first step with the track, the codes and the target in the address.
+  const promote = $derived(canPrepare && step !== null ? promoteFromHash(address.hash) : null);
+  const openStepper = () => replaceHash(withStep(withoutPromote(location.hash), 'build'));
+  const closeStepper = () => replaceHash(withStep(withoutPromote(location.hash), null));
   const moveStep = (next: StepId) => replaceHash(withStep(location.hash, next));
 </script>
 
 <div class="stack loose">
   {#if step === null}
-    <NextStep {api} {workspaceId} {role} {members} {all} {scope} refreshKey={syncRuns} onprepare={canPrepare ? openStepper : undefined} showRunning />
+    <NextStep {api} {workspaceId} {role} {members} {all} {scope} {releases} refreshKey={syncRuns} onprepare={canPrepare ? openStepper : undefined} showRunning />
   {/if}
 
   {#if step !== null}
@@ -176,6 +179,7 @@
             appBuilds={builds[app.id] ?? []}
             {releases}
             {step}
+            promote={app.platform === 'android' ? promote : null}
             onstep={moveStep}
             onclose={closeStepper}
             showPlatform={members.length > 1}

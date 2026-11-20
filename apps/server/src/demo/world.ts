@@ -2,6 +2,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import {
   type EditableRelease,
   mapAppStoreState,
+  type PlayCheckRelease,
+  type PlayCheckResult,
   type PlayReleaseState,
   type ReleaseApplyInput,
   type ReleaseCandidates,
@@ -92,6 +94,31 @@ export class DemoSubmitStore extends FakeSubmitStore {
 
 export class DemoReleaseStore extends FakeReleaseStore {
   side!: Side;
+  /**
+   * "Check with Google Play" in the demo. No Google is asked. A release to everybody at once while another release of the track is
+   * rolling out (or halted) gets one EXAMPLE error, so the demo shows what an error looks like; everything else finds no error.
+   * The message says it is an example: it is not a rule of Google Play.
+   */
+  override async checkPlayRelease(input: PlayCheckRelease): Promise<PlayCheckResult> {
+    await super.checkPlayRelease(input);
+    const running = this.releases.some(
+      (r) =>
+        (r.status === 'inProgress' || r.status === 'halted') &&
+        !r.versionCodes.some((c) => input.versionCodes.includes(c)),
+    );
+    if (input.status === 'completed' && running)
+      return {
+        outcome: 'errors',
+        findings: [
+          {
+            stage: 'validate',
+            message:
+              'Demo example of an error from Google Play: a release cannot go to everybody while another release of this track is rolling out or halted. This message is made up by the demo.',
+          },
+        ],
+      };
+    return { outcome: 'no_errors', findings: [] };
+  }
   override async release(input: ReleaseApplyInput): Promise<ReleaseResult> {
     const result = await super.release(input);
     this.side.afterRelease(input);
@@ -203,7 +230,7 @@ export class Side {
         ...this.#lifecycle(v),
       }));
     }
-    return this.release.releases.map((r) => {
+    const production: StoreVersion[] = this.release.releases.map((r) => {
       const state =
         r.status === 'draft'
           ? 'draft'
@@ -226,6 +253,22 @@ export class Side {
         ...(r.userFraction !== null ? { rolloutFraction: r.userFraction } : {}),
       };
     });
+    // A workflow put the newest build in the internal track: the demo shows "Promote to production" for it.
+    const draft = this.release.releases.find((r) => r.status === 'draft');
+    if (!draft) return production;
+    return [
+      ...production,
+      {
+        storeId: `internal:${draft.name ?? draft.versionCodes.join(',')}`,
+        appStoreId: this.storeId,
+        platform: 'android' as const,
+        versionString: draft.name ?? draft.versionCodes.join(','),
+        rawState: 'completed',
+        lifecycleState: 'live' as const,
+        track: 'internal',
+        versionCodes: [...draft.versionCodes],
+      },
+    ];
   }
 
   #lifecycle(v: Version): Partial<StoreVersion> {

@@ -63,7 +63,7 @@ server's.
 ## What an assistant can do
 
 **Read tools** (all on for the read-only token): `list_apps`, `get_app`, `list_releases`, `get_app_status` (where the release is and the next step),
-`get_release_overview`, `list_release_candidates`, `get_editable_release`, `get_release_notes_history`, `get_pending_changes`, `get_pending_overview`,
+`get_release_overview`, `list_release_candidates`, `get_editable_release`, `check_play_release` (asks Google Play whether it would refuse a release; saves nothing; "no errors" is not "no warnings"), `get_release_notes_history`, `get_pending_changes`, `get_pending_overview`,
 `get_listing` (texts per locale), `get_listing_drift`, `get_staged_changes`, `list_reviews`, `list_workspace_reviews`, `get_review`,
 `get_reviews_summary`, `get_reviews_overview`, `get_aso_summary`, `list_aso_keywords`, `get_aso_keyword_history`, `list_aso_competitors`, `get_aso_coach`,
 `get_aso_gaps`, `get_analytics_overview`, `get_analytics_status`, `list_build_artifacts` (links only), `list_builds`, `list_internal_shares`,

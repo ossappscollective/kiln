@@ -4,6 +4,7 @@
   step" disclosure the single gated flows are still here, each unchanged: push the draft (StagedTrayApp, push part: typed app name and
   an acknowledgement), submit for review (SubmitReady: typed phrase), release (StoreRelease: typed phrase, and for Google Play the share
   you type) and the rollout controls. They are separate: a push does not submit and a submit does not release.
+  On Google Play "Check this release" (PlayCheck) comes first: local checks and "Check with Google Play" (errors only; nothing is saved).
   Props: api, workspaceId, role, app, releases (store releases by app id, for the rollout controls), apple, version (App Store
   marketing version or null), track (Google Play), codes (staged version codes), stagedShare (staged intended share or ''),
   onreleased (called after a successful release).
@@ -11,6 +12,7 @@
 <script lang="ts">
   import type { Role } from '@mrm/core';
   import type { Api } from '../../../lib/api.ts';
+  import { fractionOf } from '../../../lib/play-check.ts';
   import { canRelease, percentFromFraction } from '../../../lib/store-release.ts';
   import { canSubmit } from '../../../lib/store-submit.ts';
   import type { AppSummary, ReleaseSummary } from '../../../lib/types.ts';
@@ -19,6 +21,7 @@
   import PendingChanges from '../../publish/PendingChanges.svelte';
   import Disclosure from '../../ui/Disclosure.svelte';
   import RolloutControls from '../RolloutControls.svelte';
+  import PlayCheck from './PlayCheck.svelte';
   import StoreRelease from './StoreRelease.svelte';
 
   let {
@@ -52,6 +55,9 @@
   <p class="lead">
     Publish what is pending in one go. You see the plan first, step by step, and confirm it once. Nothing reaches a store before that.
   </p>
+  {#if !apple}
+    <PlayCheck {api} {workspaceId} {app} {track} {codes} fraction={fractionOf(stagedShare)} source="staged" />
+  {/if}
   <PendingChanges {api} {workspaceId} {role} members={[app]} compact list={false} onpublished={onreleased} />
   <Disclosure summary="Advanced: do one step" stateKey="stepper-advanced-{app.id}">
     <div class="stack loose">

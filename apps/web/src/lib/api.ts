@@ -91,6 +91,7 @@ import type {
   PublishResult,
   StepRequest,
 } from './pending.ts';
+import type { PlayCheckAnswer, PlayCheckBody } from './play-check.ts';
 import type { RankVsDownloadsResponse } from './rank-downloads.ts';
 import type { EditableRelease, ReleaseCandidates } from './release-candidates.ts';
 import type { NotesHistory } from './release-notes.ts';
@@ -1545,6 +1546,13 @@ export function createApi(options: ApiOptions = {}) {
       request<{ editable: EditableRelease }>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/editable${track ? `?track=${encodeURIComponent(track)}` : ''}`,
+      ),
+    // "Check with Google Play": asks Google whether a proposed release would be refused. Saves nothing (the server deletes its edit).
+    checkPlayRelease: (workspaceId: string, appId: string, body: PlayCheckBody) =>
+      request<{ check: PlayCheckAnswer }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/play-check`,
+        body,
       ),
     releaseNotesHistory: (
       workspaceId: string,
