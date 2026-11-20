@@ -13,6 +13,7 @@
 -->
 <script lang="ts">
   import { type Role, can, isApplePlatform } from '@mrm/core';
+  import { untrack } from 'svelte';
   import type { Api } from '../../../lib/api.ts';
   import { buildNumberOfTitle, testBuildsHref } from '../../../lib/builds.ts';
   import {
@@ -30,6 +31,8 @@
   } from '../../../lib/release-candidates.ts';
   import { type EditableState, stagedField } from '../../../lib/release-stepper.ts';
   import { type Promote, promoteNote } from '../../../lib/play-promote.ts';
+  import { releaseInputsFor } from '../../../lib/release-settings.ts';
+  import { releaseSettingsStore } from '../../../lib/release-settings-store.svelte.ts';
   import { parsePercent, percentFromFraction, percentText } from '../../../lib/store-release.ts';
   import { canStage, stagingError } from '../../../lib/staged.ts';
   import { stagedStore } from '../../../lib/staged-store.svelte.ts';
@@ -103,7 +106,11 @@
   const stagedTrack = $derived(stagedField(view, 'track'));
   const stagedShare = $derived(stagedField(view, 'user_fraction'));
   const draft = $derived(editable && editable.store === 'googleplay' ? editable.draft : null);
-  const fraction = $derived(parsePercent(shareText));
+  // The intended share starts from the staged one, else the default of the app; it is not asked when Google Play offers no staged
+  // rollout (the first release in production, or the app setting says never). The person can change it; nothing is confirmed here.
+  const inputs = $derived(releaseInputsFor({ view: releaseSettingsStore.get(app.id), track, stagedPercent: stagedShare ? percentFromFraction(stagedShare.value) : '' }));
+  const offered = $derived(inputs.offer.offered);
+  const fraction = $derived(offered ? parsePercent(shareText) : null);
   const trackOk = $derived(isTrackName(track));
   const sourceOk = $derived(source.trim() === '' || isTrackName(source));
 
@@ -118,6 +125,13 @@
   $effect(() => {
     // Start from what is staged, so coming back shows the person's choice.
     if (stagedBuild !== null && picked === '') picked = stagedBuild.value;
+  });
+  $effect(() => {
+    if (!apple) void releaseSettingsStore.load(api, workspaceId, app.id);
+  });
+  $effect(() => {
+    const start = inputs.share;
+    if (!apple && inputs.offer.offered && start !== '' && untrack(() => shareText) === '') shareText = start;
   });
   $effect(() => {
     if (stagedCodes !== null && pickedCodes.length === 0) pickedCodes = stagedCodes.value.split(',').filter((c) => c !== '');
@@ -295,6 +309,9 @@
         </fieldset>
       {/if}
 
+      {#if !offered}
+        <p class="muted small" data-testid="no-staged-rollout">{inputs.offer.message}</p>
+      {:else}
       <div class="field share">
         <label for="{uid}-share">
           Intended share of users (%)
@@ -303,10 +320,11 @@
         <input id="{uid}-share" type="text" inputmode="decimal" autocomplete="off" placeholder="Optional, for example 10" bind:value={shareText} disabled={!mayEdit || staging} />
         {#if shareText.trim() !== '' && fraction === null}<p class="small bad">Type a number from 0.01 to 100.</p>{/if}
       </div>
+      {/if}
 
       <div class="row step-actions">
         {#if mayEdit}
-          <Button variant="primary" loading={staging} disabled={pickedCodes.length === 0 || !trackOk || staging || (shareText.trim() !== '' && fraction === null)} onclick={stageCodes}>
+          <Button variant="primary" loading={staging} disabled={pickedCodes.length === 0 || !trackOk || staging || (offered && shareText.trim() !== '' && fraction === null)} onclick={stageCodes}>
             Use these version codes
           </Button>
         {:else}

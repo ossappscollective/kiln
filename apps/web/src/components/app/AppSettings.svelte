@@ -16,6 +16,7 @@
   import AnalyticsSection from './settings/AnalyticsSection.svelte';
   import DefaultsSection from './settings/DefaultsSection.svelte';
   import NotificationsSection from './settings/NotificationsSection.svelte';
+  import ReleaseSettingsSection from './settings/ReleaseSettingsSection.svelte';
   import RepositorySection from './settings/RepositorySection.svelte';
   import SettingsCard from './settings/SettingsCard.svelte';
   import StoresSection from './settings/StoresSection.svelte';
@@ -63,6 +64,7 @@
   <StoresSection {api} {workspaceId} {role} {members} {all} {now} />
   <RepositorySection {api} {workspaceId} {role} {members} />
   <DefaultsSection {api} {workspaceId} {role} {members} />
+  <ReleaseSettingsSection {api} {workspaceId} {role} {members} />
   <AnalyticsSection {api} {workspaceId} {role} {members} />
   <NotificationsSection {api} {workspaceId} {role} />
   <AiContextSection {api} {workspaceId} {role} {members} />

@@ -38,6 +38,7 @@
     previewBody,
     promiseText,
     publishBody,
+    askedFractionOf,
     releaseInputDefaults,
     releaseStepRequest,
     requestsFor,
@@ -47,6 +48,8 @@
     warningsOf,
   } from '../../lib/pending.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
+  import { EVERYONE, releaseInputsFor } from '../../lib/release-settings.ts';
+  import { releaseSettingsStore } from '../../lib/release-settings-store.svelte.ts';
   import { storeName } from '../../lib/staged.ts';
   import { parsePercent } from '../../lib/store-release.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -103,7 +106,10 @@
 
   const busy = $derived(phase === 'previewing' || phase === 'publishing');
   const rows = $derived(plan ? stepRows(plan) : []);
-  const summary = $derived(result ? resultSummary(result) : null);
+  const summary = $derived(result ? resultSummary(result, askedFractionOf(plan)) : null);
+  // Google Play offers a staged rollout for updates only: no share is asked for the first release in production, or when the app setting says never.
+  const inputs = $derived(releaseInputsFor({ view: app ? releaseSettingsStore.get(app.id) : null, track, stagedPercent: '' }));
+  const offered = $derived(inputs.offer.offered);
   const stepOf = (type: PublishStepType): PlanStep | undefined => plan?.steps.filter((s) => s.type === type)[0];
   const ready = $derived(phase === 'ready' && !stale && canPublish(plan, wanted, typed, ack));
   const store = $derived(app ? storeName(app.platform) : 'the store');
@@ -143,7 +149,10 @@
       if (plan === null) {
         const start = releaseInputDefaults(out.plan);
         track = start.track;
-        share = start.sharePercent;
+        // The default share of the app is read (our database) so the share starts from the staged one, else that default.
+        if (out.plan.app.platform === 'android') await releaseSettingsStore.load(api, workspaceId, out.plan.app.id);
+        if (mine !== seq) return;
+        share = releaseInputsFor({ view: releaseSettingsStore.get(out.plan.app.id), track, stagedPercent: start.sharePercent }).share;
       }
       plan = out.plan;
       direct = isDirectPlan(out.plan);
@@ -169,7 +178,7 @@
 
   function addRelease() {
     if (!plan || busy) return;
-    const fraction = parsePercent(share);
+    const fraction = offered ? parsePercent(share) : EVERYONE;
     if (track.trim() === '') {
       shareError = 'Name the track.';
       return;
@@ -365,7 +374,7 @@
                 {#if direct}
                   <p class="small" data-testid="direct-explainer">
                     This makes the release from what you staged (version codes, notes) and sends it to Google Play in one step. No draft is saved first.
-                    Google reviews it before users get it, and it cannot be undone from here. You name the share of users.
+                    Google reviews it before users get it, and it cannot be undone from here.{offered ? ' You name the share of users.' : ' It goes to everyone.'}
                   </p>
                 {/if}
                 <div class="inputs">
@@ -373,10 +382,14 @@
                     <label for="{uid}-track">Track</label>
                     <input id="{uid}-track" type="text" autocomplete="off" spellcheck="false" bind:value={track} disabled={busy || stale} />
                   </div>
-                  <div class="field">
-                    <label for="{uid}-share">Share of users (%)</label>
-                    <input id="{uid}-share" type="text" inputmode="decimal" autocomplete="off" placeholder="10" bind:value={share} disabled={busy || stale} aria-invalid={shareError !== '' ? 'true' : undefined} />
-                  </div>
+                  {#if offered}
+                    <div class="field">
+                      <label for="{uid}-share">Share of users (%)</label>
+                      <input id="{uid}-share" type="text" inputmode="decimal" autocomplete="off" placeholder="10" bind:value={share} disabled={busy || stale} aria-invalid={shareError !== '' ? 'true' : undefined} />
+                    </div>
+                  {:else}
+                    <p class="small muted" data-testid="no-staged-rollout">{inputs.offer.message}</p>
+                  {/if}
                   <Button size="sm" disabled={busy || stale} onclick={addRelease}>Add the release step</Button>
                   {#if shareError}<p class="field-error">{shareError}</p>{/if}
                 </div>

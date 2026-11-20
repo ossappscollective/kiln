@@ -1,3 +1,5 @@
+import type { StagedRolloutMode } from '@mrm/core';
+import type { ReleaseSettingsView } from './release-settings.ts';
 import type {
   AiSuggestionStatus,
   AiSuggestionView,
@@ -1950,6 +1952,15 @@ export function createApi(options: ApiOptions = {}) {
         'DELETE',
         `${workspace(workspaceId)}/reviews/reply-templates/${encodeURIComponent(id)}`,
       ),
+    // Per-app release settings of Google Play (docs/api/releases-write.md): default share, staged rollout mode. Stored values, no store call.
+    appReleaseSettings: (workspaceId: string, appId: string) =>
+      request<ReleaseSettingsView>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release-settings`),
+    updateAppReleaseSettings: (
+      workspaceId: string,
+      appId: string,
+      changes: { defaultSharePercent?: number | null; stagedRollout?: StagedRolloutMode },
+    ) =>
+      request<{ settings: ReleaseSettingsView['settings']; changed: boolean }>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release-settings`, changes),
     // AI assistance (docs/api/ai.md, docs/adr/0016-ai-foundation.md). A run makes a SUGGESTION and changes nothing; accepting calls an
     // existing service (keywords, a staged text, a reply draft). Nothing here pushes, submits, publishes or sends. No key is ever returned.
     aiConfig: (workspaceId: string) =>

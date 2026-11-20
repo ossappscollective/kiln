@@ -16,6 +16,7 @@ export * from './listing-sections.ts';
 export * from './members.ts';
 export * from './platform.ts';
 export * from './play-release-checks.ts';
+export * from './play-rollout-offer.ts';
 export * from './play-search-terms.ts';
 export * from './release-fields.ts';
 export * from './release-pipeline.ts';

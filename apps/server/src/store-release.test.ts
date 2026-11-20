@@ -930,3 +930,67 @@ dbTest('direct: with the release switch off nothing is read and no connector is 
   assert.equal(res.body.error, 'store_release_disabled');
   noReleaseIo(off);
 });
+
+// ----- per-app Google Play release settings (default share, staged rollout) ---------------------------------
+
+dbTest(
+  'release settings: defaults, a partial update with validation and an audit of old and new values, the right of an admin, Google Play only, removed with the app',
+  async (db) => {
+    const t = await bootStaged(db);
+    const app = await t.addApp('android');
+    const path = `/apps/${app}/release-settings`;
+    const first = await t.call(t.owner, 'GET', path);
+    assert.equal(first.status, 200, first.text);
+    assert.deepEqual(first.body.settings, { defaultSharePercent: null, stagedRollout: 'auto' });
+    assert.equal(first.body.earlierProductionRelease, false, 'a first release in production: no staged rollout in auto');
+    const row = (id: string, track: string, status: string) =>
+      db.execute(
+        "INSERT INTO app_releases (id, app_id, workspace_id, platform, version, track, status, raw_state, details_json, status_since, synced_at) VALUES (?, ?, ?, 'android', ?, ?, ?, 'x', '{}', 5, 5)",
+        [id, app, t.workspaceId, `v-${id}`, track, status],
+      );
+    await row('r-1', 'production', 'draft');
+    await row('r-2', 'internal', 'live');
+    assert.equal((await t.call(t.owner, 'GET', path)).body.earlierProductionRelease, false);
+    await row('r-3', 'production', 'live');
+    assert.equal((await t.call(t.owner, 'GET', path)).body.earlierProductionRelease, true);
+
+    const set = await t.call(t.owner, 'PUT', path, { defaultSharePercent: 10, stagedRollout: 'never' });
+    assert.equal(set.status, 200, set.text);
+    assert.deepEqual(set.body.settings, { defaultSharePercent: 10, stagedRollout: 'never' });
+    assert.deepEqual(set.body.changed.sort(), ['defaultSharePercent', 'stagedRollout']);
+    assert.deepEqual((await t.call(t.owner, 'GET', path)).body.settings, { defaultSharePercent: 10, stagedRollout: 'never' });
+    const audit = (await t.audit('app.release_settings_update'))[0];
+    assert.deepEqual(audit?.detail.changes, [
+      { key: 'defaultSharePercent', from: null, to: 10 },
+      { key: 'stagedRollout', from: 'auto', to: 'never' },
+    ]);
+
+    // Partial: only what is sent changes; null removes the default; nothing changed writes no audit.
+    const part = await t.call(t.owner, 'PUT', path, { defaultSharePercent: null });
+    assert.deepEqual(part.body.settings, { defaultSharePercent: null, stagedRollout: 'never' });
+    const same = await t.call(t.owner, 'PUT', path, { defaultSharePercent: null });
+    assert.deepEqual(same.body.changed, []);
+    assert.equal((await t.audit('app.release_settings_update')).length, 2);
+
+    for (const body of [{ defaultSharePercent: 0 }, { defaultSharePercent: 101 }, { defaultSharePercent: 2.555 }, { stagedRollout: 'sometimes' }, { other: 1 }]) {
+      const bad = await t.call(t.owner, 'PUT', path, body);
+      assert.ok([400, 422].includes(bad.status), `${JSON.stringify(body)} -> ${bad.status}`);
+    }
+    assert.deepEqual((await t.call(t.owner, 'GET', path)).body.settings, { defaultSharePercent: null, stagedRollout: 'never' });
+
+    const member = await t.addMember('member');
+    assert.equal((await t.call(member, 'GET', path)).status, 200);
+    assert.equal((await t.call(member, 'PUT', path, { defaultSharePercent: 5 })).status, 403);
+
+    const ios = await t.addApp('ios', 'Other');
+    const refused = await t.call(t.owner, 'PUT', `/apps/${ios}/release-settings`, { defaultSharePercent: 5 });
+    assert.equal(refused.status, 422);
+    assert.equal(refused.body.error, 'not_applicable');
+    assert.equal((await t.call(t.owner, 'GET', '/apps/nope/release-settings')).status, 404);
+
+    const del = await t.call(t.owner, 'DELETE', `/apps/${app}`);
+    assert.ok(del.status === 200 || del.status === 204, del.text);
+    const left = await db.query("SELECT key FROM workspace_settings WHERE key LIKE 'app.%'");
+    assert.equal(left.length, 0);
+  },
+);

@@ -24,6 +24,7 @@ import { enqueue, type JobHandler } from '../jobs.ts';
 import { deleteAiData } from './ai-suggestions.ts';
 import { deleteAnalyticsData } from './analytics-store.ts';
 import { deleteAppIcon } from './app-icon-store.ts';
+import { deleteAppReleaseSettings } from './app-release-settings.ts';
 import { deleteAsoData } from './aso-data.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
@@ -414,6 +415,7 @@ export async function deleteApp(
       input.id,
       input.workspaceId,
     ]);
+    await deleteAppReleaseSettings(tx, input.workspaceId, input.id);
     // The release pipeline's own rows: the builds seen, the stall reminder, and the app's share of CI runs.
     await tx.execute('DELETE FROM app_builds WHERE app_id = ? AND workspace_id = ?', [
       input.id,

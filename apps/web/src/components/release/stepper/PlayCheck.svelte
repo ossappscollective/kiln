@@ -186,6 +186,7 @@
             {#each outcome.findings as finding, i (i)}<li>{finding}</li>{/each}
           </ul>
         {/if}
+        {#if outcome.rolloutNotice}<p class="para" data-testid="rollout-refused"><strong>{outcome.rolloutNotice}</strong></p>{/if}
         {#each outcome.lines as line (line)}<p class="para">{line}</p>{/each}
         {#if stale}<p class="para"><strong>The release changed after this check.</strong> Check again.</p>{/if}
       </Alert>

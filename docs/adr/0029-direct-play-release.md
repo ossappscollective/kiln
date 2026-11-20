@@ -43,7 +43,24 @@ For Google Play there is no separate submit. A commit **without** `changesNotSen
    `production` (or any track when the app pushed something). A push that held only release fields no longer shows a "submit" item
    or a submit step: Google Play has nothing to submit for them. Releasing removes the item. The banner, the chips and the detail
    follow the newer of the summary and the view, and the detail reads again when the summary is newer and says something else.
-6. **MCP.** The MCP server has no release write tool (store writes are API only), so there is nothing to keep consistent there;
+6. **Default share per app.** The settings of an Android app hold "Default share for Google Play releases" (a whole percent 1 to 100,
+   empty means ask). It is stored in `workspace_settings` under `app.<appId>.release` (the `ai-config.ts` precedent, no migration),
+   read and changed by `GET/PUT /apps/{id}/release-settings` (read `apps.read`, change `apps.write`, audit
+   `app.release_settings_update` with old and new values), and removed with the app. The Release step (Advanced > Release), the
+   direct "Release to production" step in the plan dialog, and the share in the Build step (the promote flow) start from it. It only
+   pre-fills: the person can change it, a staged `user_fraction` wins over it, and a pre-filled share is not a confirmed share (the
+   typed phrase `release <identifier> <track> <percent>%` still names it).
+7. **Staged rollout only when possible.** `rolloutOffer` in `@mrm/core` (pure, tested) decides whether the share is asked:
+   - No earlier production release in the stored releases (none `live`, `rolling_out` or `halted` in `production`, as of the last
+     sync; `earlierProductionRelease` in the settings answer): no staged rollout is possible, the share input is hidden, the release
+     is made at 100% (`completed`, no `userFraction`), and the screen says "This is the first release in production: Google Play does
+     not offer a staged rollout for it." Only the production track follows this rule.
+   - Per-app "Staged rollout on Google Play": `auto` (default; offered when an earlier production release exists), `always_ask`
+     (always offered, for what the stored releases cannot show), `never` (always 100%).
+   - If Google refuses the share at "Check with Google Play" or at the release (the words mention a fraction or a rollout, and a
+     share below 100% was asked), the screen says "Google Play did not accept a staged rollout for this app: release to everyone
+     instead or change the setting." Nothing is retried by itself, and an unknown outcome is never worded as "not accepted".
+8. **MCP.** The MCP server has no release write tool (store writes are API only), so there is nothing to keep consistent there;
    `check_play_release` is unchanged and stays valid for this path.
 
 ## Not verified (UNVERIFIED against real Google)
@@ -52,4 +69,6 @@ For Google Play there is no separate submit. A commit **without** `changesNotSen
   when managed publishing is off. Inferred from the `edits.commit` flag and from `play-submit`.
 - That `tracks.update` accepts an `inProgress` or `completed` release with no draft first, and what it does to a completed release
   beside an older one (sent as the check stages it: the older completed release left out).
-- Which error Google gives for a share it does not accept (see the next section: shown, never retried).
+- Which error Google gives for a share it does not accept (see "Staged rollout only when possible": shown, never retried), and which
+  apps Google offers a staged rollout for. Google documents a rollout for updates, not for the first publication; it does not
+  document, and the API does not tell, that small apps get no rollout option (reported by a person).

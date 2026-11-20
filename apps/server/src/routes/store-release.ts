@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { getApp } from '../services/apps.ts';
+import { getAppReleaseSettings, updateAppReleaseSettings } from '../services/app-release-settings.ts';
 import { createTestLimiter } from '../services/credential-tests.ts';
 import { MAX_NOTES_HISTORY_LIMIT, notesHistory } from '../services/notes-history.ts';
 import { checkPlayReleaseOf } from '../services/play-release-check.ts';
@@ -96,6 +97,12 @@ const playCheckBody = z
       .array(z.object({ locale: z.string().min(1).max(20), text: z.string().max(4000) }).strict())
       .max(80)
       .optional(),
+  })
+  .strict();
+const releaseSettingsBody = z
+  .object({
+    defaultSharePercent: z.number().min(1).max(100).nullable().optional(),
+    stagedRollout: z.enum(['auto', 'always_ask', 'never']).optional(),
   })
   .strict();
 const applyBody = z
@@ -283,6 +290,27 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
     });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ check: done.check }) : respond(c, done);
+  });
+
+  // ----- the per-app settings of a Google Play release (a default share to pre-fill, whether a staged rollout is offered)
+
+  routes.get('/:workspaceId/apps/:id/release-settings', needs('apps.read'), async (c) => {
+    const done = await getAppReleaseSettings(db, { workspaceId: ws(c), appId: param(c, 'id') });
+    c.header('Cache-Control', 'no-store');
+    return done.ok
+      ? c.json({ settings: done.settings, earlierProductionRelease: done.earlierProductionRelease })
+      : respond(c, done);
+  });
+
+  routes.put('/:workspaceId/apps/:id/release-settings', needs('apps.write'), async (c) => {
+    const body = await parseBody(c, releaseSettingsBody);
+    if (!body.ok) return body.response;
+    const done = await updateAppReleaseSettings(
+      db,
+      { workspaceId: ws(c), appId: param(c, 'id'), changes: body.data, actor: actor(c) },
+      ctx.now(),
+    );
+    return done.ok ? c.json({ settings: done.settings, changed: done.changed }) : respond(c, done);
   });
 
   // ----- the irreversible step

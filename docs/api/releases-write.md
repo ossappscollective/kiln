@@ -361,6 +361,17 @@ confirmedByReread, hash`), `store.release_failed` (`code`, `outcome`: `refused`,
 versionString? | track + versionCodes, userFraction?, via, confirmedByReread, actor`). Never a text, a credential, a token or a
 store response body.
 
+## Release settings of a Google Play app
+
+`GET /api/v1/workspaces/{workspaceId}/apps/{id}/release-settings` (right `apps.read`) answers
+`{ settings: { defaultSharePercent, stagedRollout }, earlierProductionRelease }`. `PUT` (right `apps.write`) changes one or both
+(`defaultSharePercent`: a whole number 1 to 100 or `null` to ask every time; `stagedRollout`: `auto`, `always_ask` or `never`) and
+answers `{ settings, changed }`. Both are stored values: no store is contacted. `earlierProductionRelease` is true when the stored
+releases (as of the last sync) show a production release that is live, rolling out or halted. Android records only (`not_applicable`
+for iOS, `invalid_setting` for a bad value). A change is audited (`app.release_settings_update`, old and new values). The settings
+only pre-fill and hide the share input of the screens; this API still takes the typed share of each release, so nothing about the
+write gates changes. See `docs/adr/0029-direct-play-release.md`.
+
 ## UNVERIFIED (check with a real account)
 
 **Direct release** (nothing was run; [ADR 0029](../adr/0029-direct-play-release.md)). **Not verified**: that a commit without

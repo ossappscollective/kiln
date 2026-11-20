@@ -1,4 +1,4 @@
-import { can, type Platform, type Role } from '@mrm/core';
+import { can, fractionRefusalNotice, type Platform, type Role } from '@mrm/core';
 import { ApiError } from './api.ts';
 import { confirmationMatches } from './store-submit.ts';
 
@@ -315,6 +315,25 @@ export const UNKNOWN_RELEASE_HINT =
 export function classifyReleaseFailure(
   error: unknown,
   phase: 'preview' | 'release' = 'release',
+  askedFraction: number | null = null,
+): ReleaseFailure {
+  const failure = classifyReleaseFailureBase(error, phase);
+  // A refusal of the share itself (a staged rollout Google does not accept for this app): plain words, never retried by itself.
+  // Only where the store said it did not apply the release; an unknown outcome keeps its own warning.
+  if (
+    error instanceof ApiError &&
+    (failure.kind === 'other' || failure.kind === 'not_applied') &&
+    (error.code === 'store_rejected' || error.code === 'write_failed')
+  ) {
+    const notice = fractionRefusalNotice(bodyMessage(error), askedFraction);
+    if (notice !== null) return { ...failure, message: notice };
+  }
+  return failure;
+}
+
+function classifyReleaseFailureBase(
+  error: unknown,
+  phase: 'preview' | 'release',
 ): ReleaseFailure {
   if (!(error instanceof ApiError))
     return {

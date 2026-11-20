@@ -5,8 +5,9 @@
   A release is a SEPARATE, IRREVERSIBLE store write: the preview (a store read) comes first; the release is sent once
   with the preview's hash and the typed phrase and is NEVER retried by this app. `state_changed` brings a new preview
   that must be confirmed again; `outcome_unknown` makes the person look at the store console and preview again.
-  Google Play: the share of users is typed by the person here, every time, and is never filled in. The staged intended
-  share (`user_fraction`) is shown only as a reminder.
+  Google Play: the share of users starts from the staged `user_fraction`, else the default share of the app (settings), and the
+  person can change it; the typed phrase of the release confirms it. When no staged rollout is offered (the first release in
+  production, or the app setting says never) there is no share input and the release goes to everyone.
   Props: api, workspaceId, role, app ({ id, name, platform }), version (App Store: the marketing version, or null for
   "the one waiting"), track (Google Play), versionCodes (Google Play, optional), stagedShare (the staged intended share
   as text, or ''), stagedFields (Google Play: a track and version codes are staged; the release can then be made from them in one step,
@@ -34,6 +35,8 @@
     resultText,
     shouldReloadState,
   } from '../../../lib/store-release.ts';
+  import { EVERYONE, releaseInputsFor } from '../../../lib/release-settings.ts';
+  import { releaseSettingsStore } from '../../../lib/release-settings-store.svelte.ts';
   import { releaseStore } from '../../../lib/store-release-store.svelte.ts';
   import { toast } from '../../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../../lib/types.ts';
@@ -88,7 +91,11 @@
 
   const android = $derived(app.platform === 'android');
   const mayAct = $derived(canRelease(role));
-  const fraction = $derived(android ? parsePercent(shareText) : null);
+  // The share starts from the default of the app (a staged share wins) and is hidden, with a reason, when Google Play offers no staged
+  // rollout. Nothing is confirmed by the start: the typed phrase of the release names the share.
+  const inputs = $derived(releaseInputsFor({ view: releaseSettingsStore.get(app.id), track, stagedPercent: percentFromFraction(stagedShare) }));
+  const offered = $derived(!android || inputs.offer.offered);
+  const fraction = $derived(android ? (offered ? parsePercent(shareText) : EVERYONE) : null);
   const line = $derived(
     releaseLine({
       role,
@@ -105,6 +112,15 @@
   const body = $derived(releaseBody(app.platform, { version: version ?? undefined, track: track || undefined, fraction, versionCodes, direct: android && direct && stagedFields }));
   const needsTrack = $derived(android && track.trim() === '');
 
+  let lastStart = $state('');
+  $effect(() => {
+    const start = inputs.share;
+    untrack(() => {
+      if (shareText.trim() === '' || shareText === lastStart) shareText = start;
+      lastStart = start;
+    });
+  });
+
   let shownFor = '';
   $effect(() => {
     const key = `${workspaceId}/${app.id}/${mayAct}`;
@@ -117,6 +133,8 @@
         notice = null;
         result = null;
         shareText = '';
+        lastStart = '';
+        if (android) void releaseSettingsStore.load(api, workspaceId, app.id);
         if (mayAct) {
           void releaseStore.load(api, workspaceId, app.id);
           void releaseStore.loadConfig(api, workspaceId);
@@ -147,7 +165,7 @@
       void releaseStore.load(api, workspaceId, app.id);
     } catch (e) {
       if (mine !== seq) return;
-      const failure = classifyReleaseFailure(e, 'preview');
+      const failure = classifyReleaseFailure(e, 'preview', fraction);
       if (failure.kind === 'disabled') releaseStore.markDisabled(workspaceId);
       notice = { tone: failure.kind === 'disabled' ? 'warn' : 'error', title: 'No preview was made', text: failure.message };
       if (shouldReloadState(failure)) void releaseStore.load(api, workspaceId, app.id);
@@ -185,7 +203,7 @@
       onreleased?.();
     } catch (e) {
       if (mine !== seq) return;
-      handleFailure(classifyReleaseFailure(e, 'release'));
+      handleFailure(classifyReleaseFailure(e, 'release', sent.request.userFraction ?? null));
     } finally {
       if (mine === seq) applying = false;
     }
@@ -248,7 +266,9 @@
             <span>Make the release from what is staged and send it to Google for review in one step (no draft needed)</span>
           </label>
         {/if}
-        {#if android}
+        {#if android && !offered}
+          <p class="muted small" data-testid="no-staged-rollout">{inputs.offer.message}</p>
+        {:else if android}
           <div class="share">
             <label for="{uid}-share">Share of users to release to (%)</label>
             <input
@@ -266,8 +286,10 @@
                 That is {percentText(fraction)} of users on {track || 'the track'}.
               {:else if shareText.trim() !== ''}
                 Type a number from 0.01 to 100.
-              {:else if reminder !== ''}
-                You staged {reminder}% earlier. Type it again if it is still right.
+              {:else if reminder !== '' && shareText.trim() === reminder}
+                You staged {reminder}%. Check that it is still right.
+              {:else if shareText.trim() !== '' && shareText.trim() === lastStart}
+                Starts from the default of this app. Change it if needed; you confirm the share in the phrase.
               {:else}
                 You always name the share yourself. 100 is everyone.
               {/if}

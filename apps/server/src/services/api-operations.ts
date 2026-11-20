@@ -2469,6 +2469,23 @@ const releaseWhat = {
       'Google Play, DIRECT release (docs/adr/0029-direct-play-release.md): release the STAGED release fields in one step. With no draft release holding the version codes the release is made from the staged version codes (when `versionCodes` names none), release name and notes, in the same edit, started at `userFraction` (`completed` for 1) and committed without the hold-back, so Google reviews it. A draft with those codes that exists is released as it is. `track` defaults to the staged track. `422 version_codes_required` when none are staged or named; `422 not_applicable` for the App Store.',
     ),
 };
+const appReleaseSettingsSchema = z.object({
+  defaultSharePercent: z
+    .number()
+    .nullable()
+    .describe(
+      'A percent from 1 to 100 that the release steps start the share from (a pre-fill: the typed phrase still names the share). Null: none, the person is asked. A staged `user_fraction` wins.',
+    ),
+  stagedRollout: z
+    .enum(['auto', 'always_ask', 'never'])
+    .describe(
+      '`auto` (default): a staged rollout is offered when an earlier production release exists in the stored releases (the first release in production is always 100%: Google Play offers no staged rollout for a first publication). `always_ask`: always offered. `never`: always 100%.',
+    ),
+});
+const appReleaseSettingsBody = z.object({
+  defaultSharePercent: appReleaseSettingsSchema.shape.defaultSharePercent.optional(),
+  stagedRollout: appReleaseSettingsSchema.shape.stagedRollout.optional(),
+});
 const releaseConfigSchema = z.object({
   enabled: z
     .boolean()
@@ -6451,6 +6468,50 @@ const drafts: Draft[] = [
     rateLimited: true,
     responses: {
       '200': { description: 'What Google Play said.', schema: z.object({ check: playCheckSchema }) },
+    },
+  },
+  {
+    id: 'getAppReleaseSettings',
+    method: 'get',
+    path: `${W}/apps/{id}/release-settings`,
+    tags: ['releases'],
+    summary: 'The Google Play release settings of an app: a default share and whether a staged rollout is offered',
+    description:
+      'Needs `apps.read`. Reads the database only. The defaults (`defaultSharePercent: null`, `stagedRollout: auto`) apply to an app that never changed them. Not a secret, never written to a store (docs/adr/0029-direct-play-release.md).',
+    risk: 'read',
+    access: { action: 'apps.read' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: {
+      '200': {
+        description: 'The settings, and whether the stored releases show an earlier production release.',
+        schema: z.object({
+          settings: appReleaseSettingsSchema,
+          earlierProductionRelease: z
+            .boolean()
+            .describe(
+              'A production release that is live, rolling out or halted, as of the last store sync. `auto` offers a staged rollout only when this is true (production track).',
+            ),
+        }),
+      },
+    },
+  },
+  {
+    id: 'updateAppReleaseSettings',
+    method: 'put',
+    path: `${W}/apps/{id}/release-settings`,
+    tags: ['releases'],
+    summary: 'Change the Google Play release settings of an app (a partial update)',
+    description:
+      'Needs `apps.write` (admin and up). A partial update: send only what changes; `defaultSharePercent: null` removes the default. All or nothing (`422 invalid_setting` with `issues`). Google Play apps only (`422 not_applicable`). Writes nothing to a store: a default share only pre-fills the release steps, and the typed phrase of a release still names the share. Audited as `app.release_settings_update` (the app id and the old and new values).',
+    risk: 'write',
+    access: { action: 'apps.write' },
+    appScope: { kind: 'param', name: 'id' },
+    body: appReleaseSettingsBody,
+    responses: {
+      '200': {
+        description: 'The settings after the change, and the keys that changed.',
+        schema: z.object({ settings: appReleaseSettingsSchema, changed: z.array(z.string()) }),
+      },
     },
   },
   // ----- submitting the pushed draft for store review (IRREVERSIBLE; off unless MRM_STORE_SUBMIT_ENABLED=true) ----

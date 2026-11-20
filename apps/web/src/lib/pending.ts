@@ -1,4 +1,4 @@
-import { can, type Platform, type Role } from '@mrm/core';
+import { can, fractionRefusalNotice, type Platform, type Role } from '@mrm/core';
 import { ApiError } from './api.ts';
 import { type AppSection, appAddress, type PlatformScope } from './app-scope.ts';
 import { releaseStepHref } from './release-stepper.ts';
@@ -931,7 +931,13 @@ export function storeSaid(step: { error: string; message?: string | undefined })
   return `The store said: ${cut}`;
 }
 
-export function resultRow(step: StepResult): ResultRow {
+/** The share (a fraction) the plan's release step asks for, or null when there is no release step or it has none. */
+export const askedFractionOf = (plan: PublishPlan | null): number | null => {
+  const r = plan?.steps.find((s) => s.type === 'release' && s.included)?.request ?? null;
+  return r && typeof r.userFraction === 'number' ? r.userFraction : null;
+};
+
+export function resultRow(step: StepResult, askedFraction: number | null = null): ResultRow {
   const label = STEP_NAME[step.type];
   if (step.status === 'applied') {
     return {
@@ -954,6 +960,20 @@ export function resultRow(step: StepResult): ResultRow {
       text: SKIPPED_TEXT[step.reason] ?? 'Not run.',
       review: step.reason !== 'previous_step_not_applied',
     };
+  }
+  // A refusal that is about a staged rollout (a share below 100%) gets one plain message. Never retried by itself.
+  if (step.type === 'release' && step.outcome !== 'unknown' && step.outcome !== 'partial') {
+    const notice = fractionRefusalNotice(step.message ?? '', askedFraction);
+    if (notice !== null && SAYS_STORE.indexOf(step.error) >= 0)
+      return {
+        type: step.type,
+        label,
+        status: 'failed',
+        word: 'Failed',
+        tone: 'bad',
+        text: `${notice} ${OUTCOME_TEXT[step.outcome] ?? ''}`.trim(),
+        review: true,
+      };
   }
   const known = FAILED_TEXT[step.error];
   const said = storeSaid(step);
@@ -980,8 +1000,8 @@ export type ResultSummary = {
   stoppedAt: string | null;
 };
 
-export function resultSummary(result: PublishResult): ResultSummary {
-  const rows = result.steps.map(resultRow);
+export function resultSummary(result: PublishResult, askedFraction: number | null = null): ResultSummary {
+  const rows = result.steps.map((s) => resultRow(s, askedFraction));
   const stoppedAt = result.stoppedAt === null ? null : STEP_NAME[result.stoppedAt];
   if (result.completed) {
     return {

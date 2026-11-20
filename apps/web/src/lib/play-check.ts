@@ -1,5 +1,6 @@
 import {
   checkPlayProposal,
+  fractionRefusalNotice,
   type PlayCheckContext,
   type PlayLocalCheck,
   type PlayProposal,
@@ -159,6 +160,8 @@ export type OutcomeView = {
   /** Plain sentences under the title. */
   lines: string[];
   findings: string[];
+  /** Set when a finding is about the staged rollout (a share below 100%): what to do instead. Nothing is retried by itself. */
+  rolloutNotice: string | null;
 };
 
 export function outcomeView(answer: PlayCheckAnswer): OutcomeView {
@@ -168,6 +171,7 @@ export function outcomeView(answer: PlayCheckAnswer): OutcomeView {
       title: 'Google found no errors',
       lines: [NO_ERRORS_SENTENCE.replace(/^Google found no errors\. /, ''), NOTHING_SAVED],
       findings: [],
+      rolloutNotice: null,
     };
   }
   const n = answer.findings.length;
@@ -176,6 +180,8 @@ export function outcomeView(answer: PlayCheckAnswer): OutcomeView {
     title: n === 1 ? 'Google reported an error' : `Google reported ${n} errors`,
     lines: ['Fix this before you release. Google Play would refuse the release as it is.', NOTHING_SAVED],
     findings: answer.findings.map((f) => f.message),
+    rolloutNotice:
+      answer.findings.map((f) => fractionRefusalNotice(f.message, answer.userFraction ?? null)).find((n) => n !== null) ?? null,
   };
 }
 
