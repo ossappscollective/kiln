@@ -3,7 +3,7 @@
   release that waits for you, the one in store review, or "Start release" when nothing is going on. "Needs attention" is part of that
   card (new reviews, a failed CI build, listing drift, staged changes not pushed, a pushed draft ready to be submitted, an overdue
   or blocked plan, a failed sync), so nothing is said twice. Under it, three compact platform tiles (what is live, what is in
-  flight) and a collapsed "Details" (one group per platform: bundle id, latest release, last sync; then analytics). The signals are reads of our own database that the other
+  flight) and a collapsed "Details" (one group per platform: bundle id, latest release). The last sync sits in each platform card and the analytics line under the cards, always visible. The signals are reads of our own database that the other
   pages make too (reviews summary, builds, listing drift, staged changes, plans); a read that fails or is not allowed is left out.
   Nothing here reads a store or writes anything by itself. Sync lives in the app header's Status button, not here.
   Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog), releases (by app id),
@@ -277,10 +277,16 @@
               <dd class="muted">Nothing</dd>
             {/if}
           </div>
+          <div>
+            <dt>Last synced</dt>
+            <dd><SyncStatus {app} {now} /></dd>
+          </div>
         </dl>
       </section>
     {/each}
   </div>
+
+  <AnalyticsStrip {api} {workspaceId} {members} {now} refreshKey={syncRuns} />
 
   {#if rest.length > 0}
     <AttentionList title="Also worth a look" items={rest} {api} {workspaceId} {role} {members} />
@@ -313,14 +319,9 @@
               {/if}
             </dd>
           </div>
-          <div>
-            <dt>Last synced</dt>
-            <dd><SyncStatus {app} {now} /></dd>
-          </div>
         </dl>
         </section>
       {/each}
-      <AnalyticsStrip {api} {workspaceId} {members} {now} refreshKey={syncRuns} />
     </div>
   </Section>
 </div>
