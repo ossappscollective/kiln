@@ -8,6 +8,8 @@
   An imported number never replaces one the store API read, and the same file again stores nothing new.
   Props: open (bindable), api, workspaceId, appId, onimported (called after values were stored or the file was a repeat).
   The steps are lib/analytics-import.ts (importStep).
+  Readable pass (docs/design/readability.md): one sentence on what to drop and that nothing leaves this server, the details behind "About this
+  import", 15px text, 13px captions.
 -->
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
@@ -30,6 +32,7 @@
   import Disclosure from '../ui/Disclosure.svelte';
   import Icon from '../ui/Icon.svelte';
   import Modal from '../ui/Modal.svelte';
+  import '../readable-card.css';
 
   let {
     open = $bindable(false),
@@ -109,20 +112,27 @@
   description={android ? 'For installs and ratings when the reports bucket is not set up: a statistics file you downloaded from Play Console.' : 'For when the API key cannot create report requests, or you exported a report by hand.'}
   dismissible={!busy}
 >
-  <div class="stack">
+  <div class="stack readable-card">
     {#if flow.phase === 'done'}
       <Alert tone="ok" title="Done">{importedText(flow.result)}</Alert>
     {:else}
-      <p class="muted small">
+      <p class="muted">
         {#if android}
-          In Play Console open Download reports, then Statistics, download the installs (or ratings) CSV for this app and drop it here. Rows of other apps in the
-          file are left out. The file is sent to this server only, never to Google. Numbers read from your reports bucket are never replaced, and the same file
-          twice stores nothing new.
+          Drop the installs or ratings CSV of this app from Play Console here. It is read on this server and nothing is sent to Google.
         {:else}
-          Download an Analytics Report or a Sales and Trends summary from App Store Connect and drop it here. The file is sent to this server only, never to
-          Apple or Google. Numbers the store API already read are never replaced, and the same file twice stores nothing new.
+          Drop an Analytics Report or a Sales and Trends summary from App Store Connect here. It is read on this server and nothing is sent to a store.
         {/if}
       </p>
+      <Disclosure summary="About this import">
+        <p class="muted">
+          {#if android}
+            In Play Console open Download reports, then Statistics, and download the file for this app. Rows of other apps in the file are left out. Numbers
+            read from your reports bucket are never replaced, and the same file twice stores nothing new.
+          {:else}
+            Numbers the store API already read are never replaced, and the same file twice stores nothing new.
+          {/if}
+        </p>
+      </Disclosure>
 
       {#if flow.phase === 'idle' || flow.phase === 'error' || flow.phase === 'checking'}
         <label class="drop" class:over={dragging} ondragover={(e) => { e.preventDefault(); dragging = true; }} ondragleave={() => (dragging = false)} {ondrop} for="{uid}-file">
@@ -241,7 +251,7 @@
   }
 
   .facts dt {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
     color: var(--muted);
   }
@@ -261,7 +271,7 @@
   .notes {
     padding-left: var(--space-5);
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   .will {

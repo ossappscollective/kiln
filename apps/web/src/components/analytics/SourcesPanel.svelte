@@ -6,6 +6,8 @@
   "Sync analytics now". A file import is always offered (an Apple report, or for Android a Play Console statistics CSV). The last manual sync lists what each source did.
   Props: api, workspaceId, app (id and platform), status, role, now, onchanged (called after something changed, so the screen reads again).
   Nothing here changes a store; "Enable Apple analytics" and "Import a report file" open their own dialogs with a preview and a confirmation.
+  Readable pass (docs/design/readability.md): 15px text and roomier rows; a source is its name, ONE state word and its next action; where the
+  reports come from sits behind a disclosure.
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
@@ -18,6 +20,7 @@
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
   import EnableAppleDialog from './EnableAppleDialog.svelte';
   import ImportReportDialog from './ImportReportDialog.svelte';
   import TurnOnAnalytics from './TurnOnAnalytics.svelte';
@@ -89,7 +92,6 @@
     <span class="muted text">
       {last === null ? 'Not read yet.' : `Last read ${timeAgo(last, now)}.`}
       {scheduleText(status)}
-      {modeText}
     </span>
     <span class="spacer"></span>
     {#if canManage && status.enabled}
@@ -109,6 +111,12 @@
     </ul>
   {/if}
 
+  {#if modeText}
+    <Disclosure summary="Where the reports come from">
+      <p class="message">{modeText}</p>
+    </Disclosure>
+  {/if}
+
   <ul class="sources">
     {#each rows as row, ri (row.source)}
       <li>
@@ -125,17 +133,17 @@
               {#if action.kind === 'turn_on'}
                 {#if !canManage}<span class="muted text">Ask an owner or an admin to turn analytics on.</span>{:else if ri === firstTurnOn}<TurnOnAnalytics {api} {workspaceId} {onchanged} variant={i === 0 ? 'primary' : 'secondary'} />{/if}
               {:else if action.kind === 'link'}
-                <Button size="sm" variant="secondary" href={action.target === 'settings' ? '#/settings?view=analytics' : '#/credentials'}>{action.label}</Button>
+                <Button variant="secondary" href={action.target === 'settings' ? '#/settings?view=analytics' : '#/credentials'}>{action.label}</Button>
               {:else if action.kind === 'bucket'}
                 {#if canManage}
-                  <Button size="sm" variant="secondary" href={appAddress(app.id, 'settings', 'android')}>Set the bucket for this app</Button>
+                  <Button variant="secondary" href={appAddress(app.id, 'settings', 'android')}>Set the bucket for this app</Button>
                 {:else}
                   <span class="muted text">Needs an owner or an admin: set the reports bucket of this app.</span>
                 {/if}
               {:else if action.kind === 'text'}
                 <span class="muted text">Next step: {action.label}.</span>
               {:else if stepAvailable(action, canManage)}
-                <Button size="sm" variant={i === 0 ? 'primary' : 'secondary'} icon={action.kind === 'import' ? 'upload' : action.kind === 'sync' ? 'refresh' : undefined} onclick={() => run(action)}>{action.label}</Button>
+                <Button variant={i === 0 ? 'primary' : 'secondary'} icon={action.kind === 'import' ? 'upload' : action.kind === 'sync' ? 'refresh' : undefined} onclick={() => run(action)}>{action.label}</Button>
               {:else}
                 <span class="muted text">Needs an owner or an admin: {action.label.toLowerCase()}.</span>
               {/if}
@@ -161,13 +169,13 @@
   }
 
   .text {
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   .sync {
     padding-left: var(--space-5);
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   .sources {
@@ -182,7 +190,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-    padding: var(--space-3) 0;
+    padding: var(--space-4) 0;
     border-top: 1px solid var(--line);
   }
 
@@ -196,7 +204,8 @@
   .message,
   .error-line {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
+    line-height: 1.45;
   }
 
   .actions {

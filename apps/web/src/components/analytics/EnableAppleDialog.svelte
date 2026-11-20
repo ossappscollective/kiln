@@ -6,6 +6,8 @@
      preview. If what Apple has changed meanwhile (plan_changed), nothing was sent: the new plan is shown and must be confirmed again.
   When the key's role may not create report requests the dialog says so and offers "Import a report file" instead.
   Props: open (bindable), api, workspaceId, appId, onenabled (called after the request exists), onimport (open the file import).
+  Readable pass (docs/design/readability.md): 15px text; both sections stay visible (this is a write to Apple), the plan's notes fold
+  behind one line, the acknowledgement is the one warning beside the action. Preview, hash, phrase and send are unchanged.
 -->
 <script lang="ts">
   import { untrack } from 'svelte';
@@ -16,6 +18,8 @@
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
+  import '../readable-card.css';
   import Modal from '../ui/Modal.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
 
@@ -121,14 +125,14 @@
 </script>
 
 <Modal bind:open size="lg" title="Enable Apple analytics" description="Apple makes analytics reports only after a report request exists for the app." dismissible={!sending}>
-  <div class="stack">
+  <div class="stack readable-card">
     {#if loading && !preview}
       <div role="status" aria-label="Reading what exists at Apple"><Skeleton width="70%" height="16px" /><Skeleton width="50%" height="16px" /></div>
     {:else if loadError}
       <Alert tone="error">{loadError}</Alert>
       <div class="row"><Button onclick={load}>Try again</Button></div>
     {:else if preview && decision}
-      <p class="muted read">This preview read your App Store Connect account. It changed nothing.</p>
+      <p class="muted read">This preview read your App Store Connect account and changed nothing.</p>
 
       {#if changed}
         <Alert tone="warn" title="The plan changed">What exists at Apple changed since you opened this. Nothing was sent. Read the plan below and confirm again.</Alert>
@@ -163,9 +167,11 @@
       </section>
 
       {#if preview.plan.notes.length > 0}
-        <ul class="notes muted">
-          {#each preview.plan.notes as note (note)}<li>{note}</li>{/each}
-        </ul>
+        <Disclosure summary={preview.plan.notes.length === 1 ? 'A note about this plan' : `${preview.plan.notes.length} notes about this plan`}>
+          <ul class="notes muted">
+            {#each preview.plan.notes as note (note)}<li>{note}</li>{/each}
+          </ul>
+        </Disclosure>
       {/if}
 
       {#if decision.kind === 'confirm'}
@@ -199,12 +205,11 @@
 <style>
   .read {
     margin: 0;
-    font-size: var(--text-sm);
   }
 
   .h {
     margin: 0 0 var(--space-2);
-    font-size: var(--text-sm);
+    font-size: 1rem;
     font-weight: var(--weight-semibold);
   }
 
@@ -217,11 +222,13 @@
 
   .send li {
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: 0.875rem;
   }
 
-  .notes {
-    font-size: var(--text-sm);
+  .steps li + li,
+  .send li + li,
+  .notes li + li {
+    margin-top: var(--space-1);
   }
 
   .phrase {
