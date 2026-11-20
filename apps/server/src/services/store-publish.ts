@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { isApplePlatform, isGooglePlatform, type Platform } from '@mrm/core';
+import { isApplePlatform, isGooglePlatform, type Platform, versionCodesOf } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
@@ -30,6 +30,7 @@ import {
   type ReleaseContext,
   type ReleaseInput,
   requestOfInput,
+  resolveDirect,
 } from './store-release.ts';
 import {
   applyRollout,
@@ -134,12 +135,14 @@ export type StepRequest = {
   versionCodes?: string[] | undefined;
   /** Google Play release (required, never implied) and rollout `set_fraction`. */
   userFraction?: number | undefined;
+  /** Google Play release: release the staged fields in ONE step, no draft first (docs/adr/0029-direct-play-release.md). */
+  direct?: boolean | undefined;
 };
 
 const FIELDS: Record<PublishStep, readonly (keyof StepRequest)[]> = {
   push_draft: [],
   submit: [],
-  release: ['version', 'track', 'versionCodes', 'userFraction'],
+  release: ['version', 'track', 'versionCodes', 'userFraction', 'direct'],
   rollout: ['action', 'version', 'track', 'versionCodes', 'userFraction'],
 };
 
@@ -254,6 +257,13 @@ export type PublishPlan = {
   confirmationRequired: boolean;
   /** The one phrase to type (null when none is required or the plan is not confirmable). */
   confirmation: { phrase: string; instruction: string } | null;
+  /**
+   * Google Play: what the staged release fields name (track, version codes, the share staged as an intention), when a release can
+   * be made from them in one step. Null: nothing like that is staged, or not Google Play. Never a note.
+   */
+  direct: { track: string; versionCodes: string[]; stagedFraction: number | null } | null;
+  /** The plan was made as ONE direct release step because only release fields are staged (push draft and submit are left out). */
+  defaultedToDirect: boolean;
   readAt: number;
 };
 
@@ -349,6 +359,46 @@ async function recordAfterPush(
   };
 }
 
+/**
+ * Google Play: the staged release fields of the app, for the direct release. `unpushed` counts what a draft push would still write
+ * (texts, graphics, release fields). The intended share (`user_fraction`) is local only and not counted.
+ */
+async function stagedForDirect(
+  sql: Sql,
+  app: ManagedApp,
+): Promise<{
+  texts: number;
+  assets: number;
+  fields: number;
+  track: string | null;
+  codes: string[];
+  fraction: number | null;
+}> {
+  const rows = await sql.query(
+    'SELECT kind, target, value_text, value_hash, pushed_hash FROM staged_changes WHERE app_id = ?',
+    [app.id],
+  );
+  const out = { texts: 0, assets: 0, fields: 0, track: null as string | null, codes: [] as string[], fraction: null as number | null };
+  for (const r of rows) {
+    const kind = String(r.kind);
+    const target = String(r.target);
+    const unpushed = r.pushed_hash === null || r.pushed_hash === undefined || String(r.pushed_hash) !== String(r.value_hash);
+    if (kind === 'release_field') {
+      if (target === 'track') out.track = String(r.value_text);
+      else if (target === 'version_codes') out.codes = versionCodesOf(String(r.value_text));
+      else if (target === 'user_fraction') {
+        const n = Number(r.value_text);
+        out.fraction = Number.isFinite(n) ? n : null;
+      }
+      if (target !== 'user_fraction' && unpushed) out.fields++;
+    } else if (unpushed) {
+      if (kind === 'listing_text') out.texts++;
+      else out.assets++;
+    }
+  }
+  return out;
+}
+
 const RELEASE_DEFERRABLE = ['no_draft_release', 'version_codes_not_uploaded'];
 
 type Done = Partial<Record<PublishStep, PlanStep>>;
@@ -368,14 +418,33 @@ export async function buildPlan(
   },
 ): Promise<PublishPlan> {
   const { app, workspaceId, actor } = input;
-  const explicit = input.steps !== undefined;
-  const requests = new Map<PublishStep, StepRequest>((input.steps ?? []).map((s) => [s.type, s]));
   const enabled: Record<PublishStep, boolean> = {
     push_draft: ctx.draft.draftEnabled,
     submit: ctx.submit.submitEnabled,
     release: ctx.release.releaseEnabled,
     rollout: ctx.rollout.rolloutEnabled,
   };
+  // Google Play, release fields only: the default plan is ONE direct release (docs/adr/0029-direct-play-release.md), not a push, a
+  // submit and a release. A person who wants only the draft asks for the push alone ("Save as a draft only"): that is explicit.
+  const staged = isGooglePlatform(app.platform) ? await stagedForDirect(ctx.db, app) : null;
+  const directHint =
+    staged !== null && staged.track !== null && staged.codes.length > 0
+      ? { track: staged.track, versionCodes: staged.codes, stagedFraction: staged.fraction }
+      : null;
+  const defaultedToDirect =
+    input.steps === undefined &&
+    staged !== null &&
+    directHint !== null &&
+    staged.texts === 0 &&
+    staged.assets === 0 &&
+    staged.fields > 0 &&
+    enabled.release &&
+    input.rights.release;
+  const askedSteps: readonly StepRequest[] | undefined = defaultedToDirect
+    ? [{ type: 'release', direct: true, track: directHint?.track ?? '', versionCodes: directHint?.versionCodes ?? [] }]
+    : input.steps;
+  const explicit = askedSteps !== undefined;
+  const requests = new Map<PublishStep, StepRequest>((askedSteps ?? []).map((s) => [s.type, s]));
   const facts = await loadPendingFacts(ctx.db, { workspaceId, appId: app.id, now: ctx.now() });
   const approvedStored = (facts.releases.get(app.id) ?? []).some((r) => r.status === 'approved');
   const dueStored = (facts.steps.get(app.id) ?? []).length > 0;
@@ -500,8 +569,16 @@ export async function buildPlan(
       track: request?.track,
       versionCodes: request?.versionCodes,
       userFraction: request?.userFraction,
+      direct: request?.direct,
     };
-    const asked = requestOfInput(app, what);
+    const resolved = await resolveDirect(ctx.db, app, what);
+    if (!resolved.ok) return unavailable('blocked', messageOf(resolved), problemOfFailure(resolved));
+    const asked = requestOfInput(app, resolved.input);
+    if (request?.direct === true && done.push_draft?.included) {
+      const message =
+        'A direct release makes the release from the staged fields itself. Leave out the draft push in the same plan, or untick the direct release.';
+      return unavailable('blocked', message, [{ code: 'direct_with_push', severity: 'error', message }]);
+    }
     if (!asked.ok) {
       const code = asked.body.error;
       const message = messageOf(asked);
@@ -668,7 +745,9 @@ export async function buildPlan(
       label:
         type === 'release'
           ? isGooglePlatform(app.platform)
-            ? 'Start the Google Play draft release'
+            ? request?.direct === true
+              ? `Release to ${request.track ?? 'the track'} (sent to Google for review)`
+              : 'Start the Google Play draft release'
             : 'Release the approved version'
           : STEP_LABEL[type],
       requested,
@@ -732,6 +811,8 @@ export async function buildPlan(
     planHash,
     confirmationRequired,
     confirmation: confirmable && confirmationRequired ? { phrase, instruction } : null,
+    direct: directHint,
+    defaultedToDirect,
     readAt: ctx.now(),
   };
 }
@@ -740,6 +821,7 @@ export async function buildPlan(
 function releaseSummary(
   app: Pick<ManagedApp, 'platform'>,
   pre: {
+    direct?: { creates: boolean; versionCodes: string[]; notesLanguages: string[] } | null;
     version: { versionString: string | null } | null;
     track: string | null;
     release: { versionCodes: string[] } | null;
@@ -749,7 +831,19 @@ function releaseSummary(
 ): Record<string, unknown> {
   return isApplePlatform(app.platform)
     ? { version: pre.version?.versionString ?? null, audience: pre.audience.kind }
-    : { track: pre.track, userFraction: userFraction ?? null, audience: pre.audience.kind };
+    : {
+        track: pre.track,
+        userFraction: userFraction ?? null,
+        audience: pre.audience.kind,
+        ...(pre.direct
+          ? {
+              direct: true,
+              creates: pre.direct.creates,
+              versionCodes: pre.direct.versionCodes,
+              notesLanguages: pre.direct.notesLanguages,
+            }
+          : {}),
+      };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1056,6 +1150,7 @@ async function runStep(
       track: reqOf.track,
       versionCodes: reqOf.versionCodes,
       userFraction: reqOf.userFraction,
+      direct: reqOf.direct,
     };
     let confirmHash = step.confirmHash ?? '';
     let phrase = step.stepPhrase ?? '';

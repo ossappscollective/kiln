@@ -115,9 +115,17 @@ after the rights check; no store is reached.
 
 ### `POST /apps/{id}/publish/preview`
 
+Google Play: without `steps`, when **only release fields are staged** (track, version codes, name, notes; no listing text or graphics),
+the plan is ONE `release` step with `direct: true` (`plan.defaultedToDirect: true`, `plan.direct` names the staged track, codes and
+intended share; the other steps are `not_requested`); the share is still never implied (`needs_input`). Send `steps:
+[{ "type": "push_draft" }]` to save only as a draft. When the push held only release fields, the `submit` step is `nothing_to_do`:
+Google Play has nothing to submit for them, the release step sends them to Google.
+
 Body (optional): `{ "steps": [ { "type": "push_draft" }, { "type": "submit" }, { "type": "release", "track": "production", "userFraction": 0.1 },
 { "type": "rollout", "action": "set_fraction", "track": "production", "versionCodes": ["240"], "userFraction": 0.5 } ] }`.
-`release` takes `version` (App Store), or `track`, `userFraction` and optional `versionCodes` (Google Play); `rollout` takes `action`
+`release` takes `version` (App Store), or `track`, `userFraction`, optional `versionCodes` and `direct` (Google Play; `direct: true` releases
+the staged release fields in one step, see [releases-write](releases-write.md#request-fields-preview-and-release); it cannot share a plan
+with a `push_draft` step); `rollout` takes `action`
 and the same target fields as [rollout](rollout.md). One step of each type at most; a field a step does not take is `400`
 (`422 invalid_steps` for a duplicate). Without `steps`, every step that is available and has work is included (a release or a rollout
 needs input, so it is only included when named).

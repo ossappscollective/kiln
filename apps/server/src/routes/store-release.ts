@@ -79,6 +79,7 @@ const what = {
     .max(20)
     .optional(),
   userFraction: z.number().gt(0).lte(1).optional(),
+  direct: z.boolean().optional(),
 };
 const previewBody = z.object(what).strict();
 const playCheckBody = z

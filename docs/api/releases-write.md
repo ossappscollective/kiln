@@ -278,6 +278,21 @@ built; the config and state routes still work.
 - **Google Play**: `track` (required, `422 track_required`), `userFraction` (required and **never implied**, more than 0 and at
   most 1, at most 4 decimals: `422 user_fraction_required`, `422 invalid_user_fraction`), `versionCodes` (optional: picks the
   draft release when the track holds several). `version` is `422 not_applicable`. A share of `1` completes the release (100%).
+- **Google Play, direct release**: `direct: true` ([ADR 0029](../adr/0029-direct-play-release.md)) releases the **staged** release fields
+  in ONE step, with no draft first. In one edit the server reads the track and, when it holds **no draft release with the version
+  codes**, makes the release itself: the codes (`versionCodes`, else the staged `version_codes`; `422 version_codes_required` when
+  neither exists), the staged release name and the staged notes per language, status `inProgress` with the typed `userFraction` (or
+  `completed` for 1), every other release of the track sent back as read (a completed release replaces the older completed one, as
+  "Check with Google Play" stages it), and commits it **without** `changesNotSentForReview`, so Google reviews it and publishes after
+  the review. A draft with these codes that exists is released as it is (its name and notes are not changed; check `draft_used_as_is`).
+  `track` defaults to the staged track. The phrase is the usual `release <identifier> <track> <percent>%`, and the `confirmHash` also
+  binds hashes of the staged name and notes, so a note changed after the preview needs a new preview (`409 state_changed`). The
+  preview carries `direct` (`creates`, `versionCodes`, `name`, `notesLanguages`, and a `summary` in plain words that says Google
+  reviews it and it cannot be undone from here); no note text is ever returned or audited. Extra checks: `direct_release` (warning),
+  `draft_used_as_is` (warning), `codes_already_in_track` (blocking: a release of the track already holds these codes). Not for the
+  App Store (`422 not_applicable`). The gates are exactly those of the release above: `MRM_STORE_RELEASE_ENABLED`, `store.release`,
+  preview, hash, typed phrase, re-read and drift refusal, one write in flight, never retried, audit `store.released` with
+  `direct: true, created` (ids and counts only).
 
 ### `GET /store-release/config`
 
@@ -347,6 +362,14 @@ versionString? | track + versionCodes, userFraction?, via, confirmedByReread, ac
 store response body.
 
 ## UNVERIFIED (check with a real account)
+
+**Direct release** (nothing was run; [ADR 0029](../adr/0029-direct-play-release.md)). **Not verified**: that a commit without
+`changesNotSentForReview` sends the edit to Google's review and that Google publishes it after the review when managed publishing is off
+(Google's `edits.commit` page describes the flag; what happens to a track release with no flag is inferred from `play-submit`), whether
+`tracks.update` accepts a release made with status `inProgress` or `completed` with no draft first, whether a completed release must
+replace the older completed one (this server drops it from the staged track, like the check does), and whether Google accepts a
+`userFraction` for an app that has never had a release in production or is too small (see ADR 0029; Google refuses with an error
+that is shown and never retried).
 
 **Check with Google Play** (read on Google's pages 2026-11-20, nothing was run). **Verified**: `edits.validate` is `POST
 https://androidpublisher.googleapis.com/androidpublisher/v3/applications/{packageName}/edits/{editId}:validate`, "Validates an app edit", "The

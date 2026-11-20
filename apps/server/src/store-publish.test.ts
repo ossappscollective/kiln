@@ -1071,6 +1071,107 @@ dbTest(
 );
 
 dbTest(
+  'Google Play, release fields only: the default plan is ONE direct release step (no push, no submit); "a draft only" is the push alone; a push and a direct release cannot share a plan',
+  async (db) => {
+    const t = await boot(db);
+    const app = await t.addApp('android', 'Weather');
+    t.releaseStores.android.releases = t.releaseStores.android.releases.filter((r) => r.status !== 'draft');
+    for (const body of [
+      { field: 'track', value: 'production' },
+      { field: 'version_codes', value: '241' },
+      { field: 'release_notes', locale: 'en-US', value: 'Bug fixes' },
+      { field: 'user_fraction', value: '10%' },
+    ])
+      assert.equal((await t.stageField(app, body)).status, 200);
+
+    const plan = await t.plan(app);
+    assert.equal(plan.status, 200, plan.text.slice(0, 300));
+    assert.equal(plan.body.plan.defaultedToDirect, true);
+    assert.deepEqual(plan.body.plan.direct, { track: 'production', versionCodes: ['241'], stagedFraction: 0.1 });
+    assert.deepEqual(
+      plan.body.plan.steps.map((s: any) => [s.type, s.availability]),
+      [['push_draft', 'not_requested'], ['submit', 'not_requested'], ['release', 'needs_input'], ['rollout', 'not_requested']],
+      'the share is never implied: it needs the person',
+    );
+    assert.equal(plan.body.plan.confirmable, false);
+
+    const direct = { type: 'release', direct: true, track: 'production', userFraction: 0.1 };
+    const typed = await t.plan(app, [direct]);
+    const step = stepOf(typed.body, 'release');
+    assert.equal(step.included, true, JSON.stringify(step.problems));
+    assert.equal(step.deferred, false, 'nothing is pushed first, so nothing is deferred');
+    assert.match(step.label, /^Release to production/);
+    assert.equal(step.stepPhrase, 'release com.acme.app production 10%');
+    assert.deepEqual(step.summary, {
+      track: 'production',
+      userFraction: 0.1,
+      audience: 'percent',
+      direct: true,
+      creates: true,
+      versionCodes: ['241'],
+      notesLanguages: ['en-US'],
+    });
+    assert.equal(typed.body.plan.confirmation.phrase, 'publish Weather 1 step');
+
+    // A push and a direct release in one plan: refused, with the reason.
+    const both = await t.plan(app, [{ type: 'push_draft' }, direct]);
+    assert.equal(stepOf(both.body, 'release').availability, 'blocked');
+    assert.equal(both.body.plan.confirmable, false);
+
+    // "Save as a draft only": the push alone, nothing sent for review.
+    const draft = await t.planAndPublish(app, [{ type: 'push_draft' }]);
+    assert.equal(draft.publish.status, 200, draft.publish.text.slice(0, 300));
+    assert.equal(t.releaseStores.android.releaseCalls, 0);
+    assert.equal(t.stores.android.applyCalls, 1);
+  },
+);
+
+dbTest(
+  'Google Play, direct release in a plan: one write to the store, the release is made from the staged fields, the plan and the single step keep the same gates',
+  async (db) => {
+    const t = await boot(db);
+    const app = await t.addApp('android', 'Weather');
+    t.releaseStores.android.releases = t.releaseStores.android.releases.filter((r) => r.status !== 'draft');
+    for (const body of [
+      { field: 'track', value: 'production' },
+      { field: 'version_codes', value: '241' },
+      { field: 'release_notes', locale: 'en-US', value: 'Bug fixes' },
+    ])
+      assert.equal((await t.stageField(app, body)).status, 200);
+    const direct = { type: 'release', direct: true, track: 'production', userFraction: 0.25 };
+    const { publish } = await t.planAndPublish(app, [direct]);
+    assert.equal(publish.status, 200, publish.text.slice(0, 400));
+    assert.deepEqual([publish.body.result.completed, publish.body.result.applied], [true, 1]);
+    assert.deepEqual(t.releaseStores.android.released, ['production:241:0.25']);
+    assert.equal(t.releaseStores.android.builds.length, 1);
+    assert.equal(t.stores.android.applyCalls, 0, 'no draft was written');
+    assert.equal((await t.audit('store.released'))[0]?.detail.direct, true);
+  },
+);
+
+dbTest(
+  'Google Play, direct release: with the release switch off the plan is the usual one and the release step is unavailable (feature_disabled); a viewer cannot plan',
+  async (db) => {
+    const t = await boot(db, { release: false });
+    const app = await t.addApp('android', 'Weather');
+    for (const body of [
+      { field: 'track', value: 'production' },
+      { field: 'version_codes', value: '241' },
+    ])
+      assert.equal((await t.stageField(app, body)).status, 200);
+    const plan = await t.plan(app);
+    assert.equal(plan.body.plan.defaultedToDirect, false);
+    assert.equal(stepOf(plan.body, 'release').availability, 'feature_disabled');
+    const direct = await t.plan(app, [{ type: 'release', direct: true, track: 'production', userFraction: 0.1 }]);
+    assert.equal(stepOf(direct.body, 'release').availability, 'feature_disabled');
+    assert.equal(direct.body.plan.confirmable, false);
+    assert.equal(t.releaseStores.android.reads + t.releaseStores.android.releaseCalls, 0);
+    const viewer = await t.addMember('viewer');
+    assert.equal((await t.plan(app, undefined, viewer)).status, 403);
+  },
+);
+
+dbTest(
   'rollout: a rollout step runs through its own service with its own right; it cannot share a batch with a release',
   async (db) => {
     const t = await boot(db);

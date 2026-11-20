@@ -5,6 +5,7 @@ import {
   type PlayCheckFinding,
   type PlayCheckRelease,
   type PlayCheckResult,
+  type PlayReleaseBuild,
   type PlayReleaseState,
   type ReleaseApplyInput,
   ReleaseDriftError,
@@ -160,22 +161,45 @@ export class PlayReleaseConnector implements StoreReleaseConnector, StorePlayRel
           target,
         } = await this.#state(http, editId, track, input.request);
         if (!input.guard(before)) throw new ReleaseDriftError(before);
-        if (
-          before.store !== 'googleplay' ||
-          before.release === null ||
-          target === undefined ||
-          before.release.status !== 'draft'
-        ) {
-          throw new StoreError(
-            'googleplay',
-            'invalid_input',
-            `The ${track} track has no draft release to start, so nothing was released.`,
-          );
+        const build = input.request.build;
+        let all: Json[];
+        if (before.store === 'googleplay' && before.creates && build !== undefined) {
+          // DIRECT: no draft with these codes. Build the release of the staged fields in this edit, every other release as read
+          // (a completed release replaces the older completed one, as `checkPlayRelease` stages it), and send it with the commit.
+          const codes = (input.request.versionCodes ?? []).map(String);
+          if (
+            codes.length === 0 ||
+            before.release === null ||
+            before.missingCodes.length > 0 ||
+            releases.some((r) => sameCodes(PlayReleaseConnector.#read(r).versionCodes, codes))
+          ) {
+            throw new StoreError(
+              'googleplay',
+              'invalid_input',
+              `The ${track} track cannot take a new release with these version codes, so nothing was released.`,
+            );
+          }
+          const made = PlayReleaseConnector.#built(codes, build, fraction);
+          const kept = releases.filter((r) => !(fraction === 1 && text(r.status) === 'completed'));
+          all = [...kept, made];
+        } else {
+          if (
+            before.store !== 'googleplay' ||
+            before.release === null ||
+            target === undefined ||
+            before.release.status !== 'draft'
+          ) {
+            throw new StoreError(
+              'googleplay',
+              'invalid_input',
+              `The ${track} track has no draft release to start, so nothing was released.`,
+            );
+          }
+          const started: Json = { ...target, status: fraction === 1 ? 'completed' : 'inProgress' };
+          if (fraction === 1) delete started.userFraction;
+          else started.userFraction = fraction;
+          all = releases.map((r) => (r === target ? started : r));
         }
-        const started: Json = { ...target, status: fraction === 1 ? 'completed' : 'inProgress' };
-        if (fraction === 1) delete started.userFraction;
-        else started.userFraction = fraction;
-        const all = releases.map((r) => (r === target ? started : r));
         // Staging the new state of the track in the edit is not yet a release: nothing is live until the commit.
         await this.#call(
           http,
@@ -332,6 +356,19 @@ export class PlayReleaseConnector implements StoreReleaseConnector, StorePlayRel
 
   // -------------------------------------------------------------------------------------------
 
+  /** The release a direct release makes: the staged fields, started (`inProgress` with the share, or `completed` for everybody). */
+  static #built(codes: string[], build: PlayReleaseBuild, fraction: number): Json {
+    const made: Json = { status: fraction === 1 ? 'completed' : 'inProgress', versionCodes: codes };
+    if (fraction !== 1) made.userFraction = fraction;
+    const name = build.name?.trim();
+    if (name) made.name = name;
+    const notes = build.notes
+      .filter((n) => n.text.trim() !== '')
+      .map((n) => ({ language: n.locale, text: n.text }));
+    if (notes.length > 0) made.releaseNotes = notes;
+    return made;
+  }
+
   static #trackOf(request: ReleaseRequest): string {
     const track = request.track;
     if (track === undefined || !/^[A-Za-z0-9_.:-]{1,64}$/.test(track)) {
@@ -380,6 +417,12 @@ export class PlayReleaseConnector implements StoreReleaseConnector, StorePlayRel
         : drafts;
     const target = matching.length === 1 ? matching[0] : undefined;
     const ambiguous = matching.length > 1;
+    // DIRECT: no draft with these codes (and none in the track that could be meant): the release would be built from the request.
+    const creates =
+      request.build !== undefined &&
+      wanted !== undefined &&
+      wanted.length > 0 &&
+      matching.length === 0;
     const uploaded = new Set<string>();
     const bundles = await this.#call(
       http,
@@ -405,7 +448,17 @@ export class PlayReleaseConnector implements StoreReleaseConnector, StorePlayRel
     } catch (error) {
       if (!(error instanceof StoreError) || error.kind !== 'not_found') throw error;
     }
-    const release = target ? PlayReleaseConnector.#read(target) : null;
+    const release = target
+      ? PlayReleaseConnector.#read(target)
+      : creates && request.build && wanted
+        ? {
+            name: request.build.name?.trim() || null,
+            status: 'draft',
+            userFraction: null,
+            versionCodes: [...wanted],
+            notes: request.build.notes.filter((n) => n.text.trim() !== '').length,
+          }
+        : null;
     const state: ReleaseState = {
       store: 'googleplay',
       platform: 'android',
@@ -414,6 +467,7 @@ export class PlayReleaseConnector implements StoreReleaseConnector, StorePlayRel
       ambiguous,
       others: releases.filter((r) => r !== target).map((r) => PlayReleaseConnector.#read(r)),
       missingCodes: release ? release.versionCodes.filter((code) => !uploaded.has(code)) : [],
+      creates,
     };
     return { state, releases, target };
   }

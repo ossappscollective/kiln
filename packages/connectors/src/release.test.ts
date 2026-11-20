@@ -458,3 +458,127 @@ test('Google Play: a rejected track update commits nothing', async () => {
   );
   assert.equal(api.commits.length, 0);
 });
+
+// ----- Google Play: the DIRECT release (docs/adr/0029-direct-play-release.md) ---------------------------------
+
+const BUILD = {
+  name: '2.1 (241)',
+  notes: [
+    { locale: 'en-US', text: 'Bug fixes' },
+    { locale: 'de-DE', text: '   ' },
+  ],
+};
+const direct = (userFraction: number, versionCodes = ['241']) => ({
+  track: 'production',
+  versionCodes,
+  userFraction,
+  build: BUILD,
+});
+
+test('Google Play, direct: with no draft the release is built from the staged fields, started at the share and committed once without the hold-back', async () => {
+  const { api, connector } = play();
+  const state = await connector.readReleaseState(direct(0.1));
+  assert.equal(state.store, 'googleplay');
+  if (state.store !== 'googleplay') return;
+  assert.equal(state.creates, true);
+  assert.deepEqual(state.release, {
+    name: '2.1 (241)',
+    status: 'draft',
+    userFraction: null,
+    versionCodes: ['241'],
+    notes: 1,
+  });
+  assert.deepEqual(state.missingCodes, []);
+  assert.equal(api.commits.length, 0, 'reading writes nothing');
+
+  const result = await connector.release({ request: direct(0.1), guard: accept });
+  assert.equal(result.via, 'edit_commit');
+  assert.equal(api.commits.length, 1);
+  assert.doesNotMatch(api.commits[0]?.query ?? '', /changesNotSentForReview/);
+  assert.match(api.commits[0]?.query ?? '', /changesInReviewBehavior=ERROR_IF_IN_REVIEW/);
+  const releases = api.tracks.find((t) => t.track === 'production')?.releases ?? [];
+  assert.deepEqual(
+    releases.find((r) => r.name === '2.0'),
+    { name: '2.0', status: 'completed', versionCodes: ['200'] },
+    'the other release is sent back as read',
+  );
+  assert.deepEqual(releases.find((r) => r.name === '2.1 (241)'), {
+    name: '2.1 (241)',
+    status: 'inProgress',
+    userFraction: 0.1,
+    versionCodes: ['241'],
+    releaseNotes: [{ language: 'en-US', text: 'Bug fixes' }],
+  });
+  assert.equal(api.seen.filter((s) => s.method === 'PUT').length, 1, 'one track update: no draft first');
+});
+
+test('Google Play, direct: 100% is a completed release with no share, and it replaces the older completed release', async () => {
+  const { api, connector } = play();
+  await connector.release({ request: direct(1), guard: accept });
+  const releases = api.tracks.find((t) => t.track === 'production')?.releases ?? [];
+  assert.equal(releases.length, 1);
+  assert.deepEqual(releases[0], {
+    name: '2.1 (241)',
+    status: 'completed',
+    versionCodes: ['241'],
+    releaseNotes: [{ language: 'en-US', text: 'Bug fixes' }],
+  });
+});
+
+test('Google Play, direct: a draft with these codes that exists is released as it is, and the staged notes are not used', async () => {
+  const { api, connector } = play((a) => draftTrack(a));
+  const state = await connector.readReleaseState(direct(0.2));
+  if (state.store !== 'googleplay') throw new Error('store');
+  assert.equal(state.creates, false);
+  assert.equal(state.release?.name, '2.1');
+  await connector.release({ request: direct(0.2), guard: accept });
+  const started = api.tracks[0]?.releases.find((r) => r.name === '2.1');
+  assert.equal(started?.status, 'inProgress');
+  assert.equal(started?.userFraction, 0.2);
+  assert.deepEqual(started?.releaseNotes, [{ language: 'en-US', text: 'Fixes' }]);
+  assert.equal(api.tracks[0]?.releases.length, 2);
+});
+
+test('Google Play, direct: a guard that says no, codes Play does not list, or codes that a release already holds write nothing', async () => {
+  const a = play();
+  await assert.rejects(
+    a.connector.release({ request: direct(0.1), guard: () => false }),
+    (error) => error instanceof ReleaseDriftError,
+  );
+  const b = play();
+  const missing = await b.connector.readReleaseState(direct(0.1, ['999']));
+  if (missing.store === 'googleplay') assert.deepEqual(missing.missingCodes, ['999']);
+  await assert.rejects(
+    b.connector.release({ request: direct(0.1, ['999']), guard: accept }),
+    (error) => error instanceof StoreError && error.kind === 'invalid_input',
+  );
+  // 200 is already completed in the track: a direct release of the same codes is refused, not stacked.
+  const c = play();
+  await assert.rejects(
+    c.connector.release({ request: direct(0.1, ['200']), guard: accept }),
+    (error) => error instanceof StoreError && error.kind === 'invalid_input',
+  );
+  for (const x of [a, b, c]) {
+    assert.equal(x.api.commits.length, 0);
+    assert.ok(!x.api.seen.some((s) => s.method === 'PUT'));
+  }
+});
+
+test('Google Play, direct: a refused commit changes nothing, a lost answer is an unknown outcome and is never committed again', async () => {
+  const refused = play((a) => {
+    a.commitAnswer = 'in_review';
+  });
+  await assert.rejects(
+    refused.connector.release({ request: direct(0.1), guard: accept }),
+    (error) => error instanceof StoreError && error.kind === 'changes_in_review',
+  );
+  assert.equal(refused.api.tracks[0]?.releases.length, 1, 'the track is unchanged');
+  const lost = play((a) => {
+    a.commitAnswer = 'cut';
+  });
+  await assert.rejects(
+    lost.connector.release({ request: direct(0.1), guard: accept }),
+    (error) => error instanceof ReleaseOutcomeUnknownError,
+  );
+  assert.equal(lost.api.commits.length, 1);
+});

@@ -239,6 +239,21 @@ export type ReleaseRequest = {
   versionCodes?: string[];
   /** Google Play: the share of users, `0 < x <= 1`. `1` completes the release (100%). Always explicit. */
   userFraction?: number;
+  /**
+   * Google Play, DIRECT release (docs/adr/0029-direct-play-release.md): what to build the release from when the track holds no
+   * draft with these `versionCodes`. The connector then makes the release itself in the same edit (`inProgress` with the share,
+   * or `completed`), exactly like the draft push does (every other release of the track as read) and commits it without the
+   * hold-back, so Google reviews it. A draft with these codes that exists is released as it is and `build` is not used.
+   */
+  build?: PlayReleaseBuild;
+};
+
+/** The staged fields a direct release is built from. Notes are text for Google only: never logged, never audited. */
+export type PlayReleaseBuild = {
+  /** The release name (Play Console only), or null. */
+  name: string | null;
+  /** Release notes per language; an empty text is not sent. */
+  notes: { locale: string; text: string }[];
 };
 
 export type PlayReleaseState = {
@@ -288,6 +303,11 @@ export type ReleaseState =
       others: PlayReleaseState[];
       /** The version codes of the release that Play does not list as uploaded (empty: all are). */
       missingCodes: string[];
+      /**
+       * DIRECT release: the track holds no draft with the codes, so `release` is the one the connector would BUILD from
+       * `request.build` (status `draft` here only means "not started"; `notes` counts the languages). False for a draft that exists.
+       */
+      creates: boolean;
     };
 
 export type ReleaseApplyInput = {
@@ -434,6 +454,7 @@ export function releaseKey(state: ReleaseState): Record<string, unknown> {
       .map(one)
       .sort((a, b) => (JSON.stringify(a) < JSON.stringify(b) ? -1 : 1)),
     missing: [...state.missingCodes].sort(),
+    creates: state.creates,
   };
 }
 

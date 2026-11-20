@@ -106,6 +106,8 @@ const releaseFields = {
     .max(50)
     .optional(),
   userFraction: z.number().finite().optional(),
+  /** Google Play release: release the staged fields in one step (docs/adr/0029-direct-play-release.md). */
+  direct: z.boolean().optional(),
 };
 /** One step of a batch. Which fields apply is checked per step; a field a step does not take is `422 invalid_steps`. */
 export const stepSchema = z.discriminatedUnion('type', [

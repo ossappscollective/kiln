@@ -2462,6 +2462,12 @@ const releaseWhat = {
     .describe(
       'Google Play (required, never implied): the share of users, more than 0 and at most 1. 1 completes the release.',
     ),
+  direct: z
+    .boolean()
+    .optional()
+    .describe(
+      'Google Play, DIRECT release (docs/adr/0029-direct-play-release.md): release the STAGED release fields in one step. With no draft release holding the version codes the release is made from the staged version codes (when `versionCodes` names none), release name and notes, in the same edit, started at `userFraction` (`completed` for 1) and committed without the hold-back, so Google reviews it. A draft with those codes that exists is released as it is. `track` defaults to the staged track. `422 version_codes_required` when none are staged or named; `422 not_applicable` for the App Store.',
+    ),
 };
 const releaseConfigSchema = z.object({
   enabled: z
@@ -2492,7 +2498,7 @@ const releaseCheckSchema = z.object({
   code: z
     .string()
     .describe(
-      'For example `not_releasable`, `ambiguous_version`, `no_draft_release`, `ambiguous_release`, `not_a_draft`, `version_codes_not_uploaded`, `rollout_in_progress`, `push_in_progress`, `submit_in_progress`, `unpushed_release_fields`, `full_rollout`, `fraction_differs_from_staged`, `play_review_state_unknown`.',
+      'For example `not_releasable`, `ambiguous_version`, `no_draft_release`, `ambiguous_release`, `not_a_draft`, `version_codes_not_uploaded`, `rollout_in_progress`, `push_in_progress`, `submit_in_progress`, `unpushed_release_fields`, `full_rollout`, `fraction_differs_from_staged`, `play_review_state_unknown`, and for a direct release `direct_release`, `draft_used_as_is`, `codes_already_in_track`.',
     ),
   severity: z.enum(['blocking', 'warning']),
   message: z.string(),
@@ -2504,6 +2510,20 @@ const releaseRequestSchema = z.object({
   versionCodes: z.array(z.string()).optional(),
   userFraction: z.number().optional(),
 });
+const releaseDirectSchema = z
+  .object({
+    creates: z
+      .boolean()
+      .describe('False: a draft with these version codes exists in the track and is released as it is.'),
+    versionCodes: z.array(z.string()),
+    name: z.string().nullable(),
+    notesLanguages: z.array(z.string()).describe('The languages that have release notes. Never a note.'),
+    summary: z
+      .string()
+      .describe('Plain words: what is sent, to whom, and that Google reviews it and it cannot be undone from here.'),
+  })
+  .nullable()
+  .describe('Google Play, direct release only (`direct: true`); null otherwise.');
 const releaseAudienceSchema = z.object({
   kind: z.enum(['all', 'phased', 'percent']),
   userFraction: z.number().nullable(),
@@ -2560,6 +2580,7 @@ const releasePreviewSchema = z.object({
     )
     .describe('Google Play: the other releases of the track, read only.'),
   audience: releaseAudienceSchema,
+  direct: releaseDirectSchema,
   irreversible: z
     .array(z.string())
     .describe('What cannot be undone from this server, in words, for the confirmation dialog.'),
@@ -2777,6 +2798,21 @@ const publishPlanSchema = z.object({
     .object({ phrase: z.string(), instruction: z.string() })
     .nullable()
     .describe('The ONE phrase to type for the whole batch.'),
+  direct: z
+    .object({
+      track: z.string(),
+      versionCodes: z.array(z.string()),
+      stagedFraction: z.number().nullable(),
+    })
+    .nullable()
+    .describe(
+      'Google Play: the track and version codes the staged release fields name (and the staged intended share), so a release can be made from them in one step. Never a note.',
+    ),
+  defaultedToDirect: z
+    .boolean()
+    .describe(
+      'Google Play: no `steps` were sent and only release fields are staged, so the plan is ONE direct release step (the share still needs input) instead of push, submit and release. Send `steps: [{ "type": "push_draft" }]` to save only as a draft.',
+    ),
   readAt: timestamp,
 });
 const publishStepResultSchema = z.object({

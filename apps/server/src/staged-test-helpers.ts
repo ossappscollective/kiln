@@ -784,6 +784,8 @@ export class FakeReleaseStore implements StoreReleaseConnector {
   releaseCalls = 0;
   /** What was released: version ids (App Store) or `track:codes:fraction` (Google Play). */
   released: string[] = [];
+  /** The builds the direct releases were made from (Google Play). */
+  builds: { name: string | null; notes: { locale: string; text: string }[] }[] = [];
   gate: Promise<void> | undefined;
 
   constructor(platform: Platform) {
@@ -830,16 +832,31 @@ export class FakeReleaseStore implements StoreReleaseConnector {
       const matching =
         codes && codes.length > 0 ? drafts.filter((r) => same(r.versionCodes, codes)) : drafts;
       const target = matching.length === 1 ? matching[0] : undefined;
+      // A direct release (request.build): no draft with the codes means the release is made from the build.
+      const creates =
+        request.build !== undefined && codes !== undefined && codes.length > 0 && matching.length === 0;
+      const made: PlayReleaseState | null =
+        creates && request.build
+          ? {
+              name: request.build.name,
+              status: 'draft',
+              userFraction: null,
+              versionCodes: [...(codes ?? [])],
+              notes: request.build.notes.filter((n) => n.text.trim() !== '').length,
+            }
+          : null;
+      const release = target ? { ...target, versionCodes: [...target.versionCodes] } : made;
       return {
         store: 'googleplay',
         platform: 'android',
         track: request.track ?? this.track,
-        release: target ? { ...target, versionCodes: [...target.versionCodes] } : null,
+        release,
         ambiguous: matching.length > 1,
+        creates,
         others: this.releases
           .filter((r) => r !== target)
           .map((r) => ({ ...r, versionCodes: [...r.versionCodes] })),
-        missingCodes: target ? target.versionCodes.filter((c) => !this.uploaded.has(c)) : [],
+        missingCodes: release ? release.versionCodes.filter((c) => !this.uploaded.has(c)) : [],
       };
     }
     const named = request.version;
@@ -925,7 +942,16 @@ export class FakeReleaseStore implements StoreReleaseConnector {
         r.versionCodes.join(',') === before.release.versionCodes.join(','),
     );
     const fraction = request.userFraction ?? 0;
-    if (target) {
+    if (before.creates && before.release && request.build) {
+      this.builds.push(structuredClone(request.build));
+      this.releases.push({
+        name: request.build.name,
+        status: fraction === 1 ? 'completed' : 'inProgress',
+        userFraction: fraction === 1 ? null : fraction,
+        versionCodes: [...before.release.versionCodes],
+        notes: before.release.notes,
+      });
+    } else if (target) {
       target.status = fraction === 1 ? 'completed' : 'inProgress';
       target.userFraction = fraction === 1 ? null : fraction;
     }

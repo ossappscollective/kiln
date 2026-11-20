@@ -5,6 +5,7 @@ import {
   PlayReleaseConnector,
   ReleaseDriftError,
   ReleaseOutcomeUnknownError,
+  type PlayReleaseBuild,
   type ReleaseRequest,
   type ReleaseState,
   releaseKey,
@@ -310,6 +311,13 @@ export type ReleaseInput = {
   versionCodes?: string[] | undefined;
   /** Google Play: the share of users, more than 0 and at most 1. Required there and always explicit. */
   userFraction?: number | undefined;
+  /**
+   * Google Play, DIRECT release (docs/adr/0029-direct-play-release.md): release the staged fields (version codes, release name,
+   * notes) in ONE edit, building the release when the track holds no draft with the codes. Not for the App Store.
+   */
+  direct?: boolean | undefined;
+  /** What the direct release is built from: read from the staged release fields by `resolveDirect`, never taken from a caller. */
+  build?: PlayReleaseBuild | undefined;
 };
 
 const TRACK = /^[A-Za-z0-9][A-Za-z0-9_:.-]{0,99}$/;
@@ -325,11 +333,12 @@ export function requestOfInput(
     if (
       input.track !== undefined ||
       input.versionCodes !== undefined ||
-      input.userFraction !== undefined
+      input.userFraction !== undefined ||
+      input.direct !== undefined
     ) {
       return invalid(
         'not_applicable',
-        'track, versionCodes and userFraction are for Google Play. An App Store release has only an optional version.',
+        'track, versionCodes, userFraction and direct are for Google Play. An App Store release has only an optional version.',
         { field: 'track' },
       );
     }
@@ -379,12 +388,56 @@ export function requestOfInput(
         field: 'versionCodes',
       });
   }
+  if (input.build !== undefined && codes === undefined)
+    return invalid(
+      'version_codes_required',
+      'A direct release needs the version codes: stage them, or name them.',
+      { field: 'versionCodes' },
+    );
   return {
     ok: true,
     request: {
       track: input.track,
       userFraction: fraction,
       ...(codes ? { versionCodes: codes } : {}),
+      ...(input.build !== undefined ? { build: input.build } : {}),
+    },
+  };
+}
+
+/**
+ * Google Play, direct release: what the release is built from, read from the STAGED release fields of the app (the version codes
+ * and the track when the caller named none, the release name, the notes per language). Staged values are the person's own and are
+ * never taken from the request. Not a direct release: the input as it was.
+ */
+export async function resolveDirect(
+  sql: Sql,
+  app: Pick<ManagedApp, 'id' | 'platform'>,
+  input: ReleaseInput,
+): Promise<{ ok: true; input: ReleaseInput } | Failure> {
+  if (input.direct !== true) return { ok: true, input: { ...input, build: undefined } };
+  if (!isGooglePlatform(app.platform))
+    return invalid('not_applicable', 'direct is for Google Play.', { field: 'direct' });
+  const rows = await sql.query(
+    "SELECT target, locale, value_text FROM staged_changes WHERE app_id = ? AND kind = 'release_field' AND target IN ('track', 'version_codes', 'release_name', 'release_notes')",
+    [app.id],
+  );
+  const staged = (field: string) => rows.find((r) => String(r.target) === field);
+  const stagedCodes = staged('version_codes');
+  const codes = input.versionCodes ?? (stagedCodes ? versionCodesOf(String(stagedCodes.value_text)) : []);
+  const track = input.track ?? (staged('track') ? String(staged('track')?.value_text) : undefined);
+  const name = staged('release_name') ? String(staged('release_name')?.value_text).trim() : '';
+  const notes = rows
+    .filter((r) => String(r.target) === 'release_notes' && String(r.value_text ?? '').trim() !== '')
+    .map((r) => ({ locale: String(r.locale), text: String(r.value_text) }))
+    .sort((a, b) => (a.locale < b.locale ? -1 : 1));
+  return {
+    ok: true,
+    input: {
+      ...input,
+      track,
+      ...(codes.length > 0 ? { versionCodes: codes } : {}),
+      build: { name: name === '' ? null : name, notes },
     },
   };
 }
@@ -548,6 +601,28 @@ export function evaluateReleaseChecks(input: {
         message: 'The draft release has no release notes.',
       });
   }
+  if (state.creates) {
+    add({
+      code: 'direct_release',
+      severity: 'warning',
+      message: `The ${state.track} track holds no draft release with these version codes. The release is made from the staged fields and sent to Google in this one step, with no draft first. Google reviews it before users get it.`,
+    });
+    const wanted = [...(request.versionCodes ?? [])].sort().join(',');
+    const holding = state.others.filter((r) => [...r.versionCodes].sort().join(',') === wanted);
+    if (holding.length > 0)
+      add({
+        code: 'codes_already_in_track',
+        severity: 'blocking',
+        message: `A release of the ${state.track} track (${holding.map((r) => r.status).join(', ')}) already holds these version codes, so a new release is not made from them.`,
+      });
+  } else if (request.build !== undefined) {
+    add({
+      code: 'draft_used_as_is',
+      severity: 'warning',
+      message:
+        'A draft release with these version codes already exists in the track. It is released as it is: its name and notes are not changed by this step.',
+    });
+  }
   const rolling = state.others.filter((r) => r.status === 'inProgress');
   if (rolling.length > 0) {
     add({
@@ -587,6 +662,14 @@ export function evaluateReleaseChecks(input: {
 
 const sha = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
 
+/** The staged fields a direct release is built from, as hashes (so the confirmation binds them and no text is kept). */
+const buildDigest = (b: PlayReleaseBuild): unknown => [
+  b.name === null ? null : sha(b.name),
+  [...b.notes]
+    .sort((x, y) => (x.locale < y.locale ? -1 : 1))
+    .map((n) => [n.locale, sha(n.text)]),
+];
+
 /** What the person confirms: this app, what is asked (including the share), and the store exactly as it was read. */
 export function releaseConfirmHash(input: {
   workspaceId: string;
@@ -606,6 +689,7 @@ export function releaseConfirmHash(input: {
         track: r.track ?? null,
         codes: r.versionCodes ? [...r.versionCodes].sort() : null,
         userFraction: r.userFraction ?? null,
+        build: r.build ? buildDigest(r.build) : null,
       },
       store: releaseKey(input.state),
     }),
@@ -721,6 +805,16 @@ export type ReleasePreview = {
     userFraction: number | null;
     description: string;
   };
+  /** Google Play, DIRECT release: what is made and sent in one step (never a note, only the languages). Null: not a direct release. */
+  direct: {
+    /** False: a draft with these codes exists in the track and is released as it is. */
+    creates: boolean;
+    versionCodes: string[];
+    name: string | null;
+    notesLanguages: string[];
+    /** Plain words: what happens, to whom, and that Google reviews it. */
+    summary: string;
+  } | null;
   /** What cannot be undone from this server. */
   irreversible: string[];
   /** Always true. */
@@ -732,6 +826,27 @@ export type ReleasePreview = {
   confirmation: { phrase: string; instruction: string } | null;
   readAt: number;
 };
+
+/** The request as an answer shows it: what the direct release is built from is not repeated (notes are texts). */
+const publicRequest = (request: ReleaseRequest): ReleaseRequest => {
+  const { build: _build, ...rest } = request;
+  return rest;
+};
+
+/** Plain words for a direct release. */
+export function directSummaryOf(
+  request: ReleaseRequest,
+  state: Extract<ReleaseState, { store: 'googleplay' }>,
+): string {
+  const codes = request.versionCodes ?? state.release?.versionCodes ?? [];
+  const share =
+    request.userFraction === 1
+      ? 'everybody (100%)'
+      : `${percentOf(request.userFraction ?? 0)}% of users`;
+  const langs = [...new Set((request.build?.notes ?? []).filter((n) => n.text.trim() !== '').map((n) => n.locale))];
+  const notes = langs.length > 0 ? `release notes in ${langs.join(', ')}` : 'no release notes';
+  return `${state.creates ? 'Makes and sends' : 'Sends the existing draft of'} the release with version code${codes.length === 1 ? '' : 's'} ${codes.join(', ')} to the ${state.track} track for ${share}, with ${notes}. Google reviews this release before users get it; it cannot be undone from here.`;
+}
 
 const irreversibleOf = (state: ReleaseState, request: ReleaseRequest): string[] =>
   state.store === 'appstoreconnect'
@@ -746,7 +861,9 @@ const irreversibleOf = (state: ReleaseState, request: ReleaseRequest): string[] 
         request.userFraction === 1
           ? 'The release is completed: every user of the track can get it. This server cannot undo that.'
           : `The release starts at ${percentOf(request.userFraction ?? 0)}% of users. This server can neither halt it nor raise it afterwards: do that in Play Console or with the rollout controls (docs/api/rollout.md).`,
-        'The release is sent to Google with the commit; whether it waits for review first is not shown by Google’s API.',
+        request.build !== undefined
+          ? 'The release is sent to Google for review with the commit: Google reviews it before users get it, and this server cannot take it back. Whether and when Google publishes it is not shown by its API.'
+          : 'The release is sent to Google with the commit; whether it waits for review first is not shown by Google’s API.',
       ];
 
 const audienceOf = (state: ReleaseState, request: ReleaseRequest): ReleasePreview['audience'] => {
@@ -768,6 +885,8 @@ const audienceOf = (state: ReleaseState, request: ReleaseRequest): ReleasePrevie
 async function unpushedFieldsOf(
   sql: Sql,
   app: ManagedApp,
+  /** A direct release uses the staged fields itself: none of them is "not written to the draft". */
+  direct = false,
 ): Promise<{ count: number; fraction: number | null }> {
   const rows = await sql.query(
     "SELECT target, value_text, value_hash, pushed_hash FROM staged_changes WHERE app_id = ? AND kind = 'release_field'",
@@ -781,6 +900,7 @@ async function unpushedFieldsOf(
       fraction = Number.isFinite(n) ? n : null;
       continue;
     }
+    if (direct) continue;
     if (
       r.pushed_hash === null ||
       r.pushed_hash === undefined ||
@@ -816,7 +936,7 @@ function previewOf(
   const apple = state.store === 'appstoreconnect';
   return {
     app: { id: app.id, name: app.name, platform: app.platform, store: storeFor(app.platform) },
-    request,
+    request: publicRequest(request),
     version: apple ? state.version : null,
     build: apple ? state.build : null,
     phasedRelease: apple ? state.phasedRelease : null,
@@ -839,6 +959,18 @@ function previewOf(
           versionCodes: o.versionCodes,
         })),
     audience: audienceOf(state, request),
+    direct:
+      apple || request.build === undefined
+        ? null
+        : {
+            creates: state.creates,
+            versionCodes: request.versionCodes ?? state.release?.versionCodes ?? [],
+            name: request.build.name,
+            notesLanguages: [
+              ...new Set(request.build.notes.filter((n) => n.text.trim() !== '').map((n) => n.locale)),
+            ],
+            summary: directSummaryOf(request, state),
+          },
     irreversible: irreversibleOf(state, request),
     releases: true,
     checks,
@@ -862,7 +994,9 @@ export async function previewRelease(
   if (!ctx.releaseEnabled) return releaseDisabledFailure();
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  const asked = requestOfInput(app, input);
+  const resolved = await resolveDirect(ctx.db, app, input);
+  if (!resolved.ok) return resolved;
+  const asked = requestOfInput(app, resolved.input);
   if (!asked.ok) return asked;
   const connected = await connect(ctx, input.workspaceId, app, input.actor);
   if (!connected.ok) return connected;
@@ -879,7 +1013,7 @@ export async function previewRelease(
   }
   await clearUnknown(ctx.db, app);
   const inFlight = await inFlightOf(ctx, app);
-  const unpushed = await unpushedFieldsOf(ctx.db, app);
+  const unpushed = await unpushedFieldsOf(ctx.db, app, asked.request.build !== undefined);
   return {
     ok: true,
     preview: previewOf(ctx, {
@@ -1018,6 +1152,9 @@ async function succeed(
         ...(track ? { track, versionCodes: codes } : {}),
         ...(s.request.userFraction !== undefined ? { userFraction: s.request.userFraction } : {}),
         ...(s.releaseRequestId ? { releaseRequestId: s.releaseRequestId } : {}),
+        ...(s.request.build !== undefined
+          ? { direct: true, created: s.before.store === 'googleplay' && s.before.creates }
+          : {}),
         via: s.via,
         confirmedByReread: s.reread,
         hash: input.confirmHash,
@@ -1048,7 +1185,7 @@ async function succeed(
     ok: true,
     result: {
       app: { id: s.app.id, name: s.app.name, platform: s.app.platform, store },
-      request: s.request,
+      request: publicRequest(s.request),
       version,
       track,
       releaseRequestId: s.releaseRequestId,
@@ -1108,7 +1245,9 @@ export async function applyRelease(
   const { db } = ctx;
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  const asked = requestOfInput(app, input);
+  const resolved = await resolveDirect(db, app, input);
+  if (!resolved.ok) return resolved;
+  const asked = requestOfInput(app, resolved.input);
   if (!asked.ok) return asked;
   const request = asked.request;
   // Google Play: the phrase needs no store read, so a wrong one is refused before anything else.
@@ -1151,7 +1290,7 @@ export async function applyRelease(
   const connected = await connect(ctx, input.workspaceId, app, input.actor);
   if (!connected.ok) return stop(connected);
   const { connection } = connected;
-  const unpushed = await unpushedFieldsOf(db, app);
+  const unpushed = await unpushedFieldsOf(db, app, request.build !== undefined);
 
   let accepted: ReleaseState | undefined;
   let blocked: ReleaseChecks | undefined;
