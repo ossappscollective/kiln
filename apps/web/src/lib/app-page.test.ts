@@ -61,3 +61,12 @@ test('announcePublished sends one window event with the app id, and is false wit
   assert.deepEqual(seen, [{ type: 'mrm:published', appId: 'app-1' }]);
   assert.equal(announcePublished('app-1', null), false);
 });
+
+test('the bar names the platform the changes wait on when the page shows another one', () => {
+  const line = { count: 1, blocking: 0, waiting: 0 };
+  assert.equal(
+    pendingBar(line, 'releases', 'iOS')?.text,
+    '1 change waiting on iOS. Nothing is published until you review them.',
+  );
+  assert.equal(pendingBar(null, 'releases', 'iOS'), null);
+});
