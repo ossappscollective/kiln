@@ -153,6 +153,7 @@
   async function review(steps: PublishPlan['publishSteps'] | null, why = '') {
     if (!app || phase === 'publishing') return;
     const mine = ++seq;
+    const first = plan === null;
     phase = 'previewing';
     problem = '';
     notice = why;
@@ -176,6 +177,7 @@
       typed = '';
       ack = false;
       phase = 'ready';
+      if (first) addKnownRelease(out.plan);
     } catch (e) {
       if (mine !== seq) return;
       failWith(classifyPublishFailure(e, pendingStore.config(workspaceId)));
@@ -183,11 +185,31 @@
     }
   }
 
+  /**
+   * The first plan of a Google Play release that only waits for its track and share: when both are already known (the staged ones,
+   * the default share of the app settings, or no staged rollout is possible so it is everyone) the release step is added for the person.
+   * Nothing is written by this; the plan is confirmed as before. Untick the step to type another share.
+   */
+  function addKnownRelease(made: PublishPlan) {
+    const step = made.steps.filter((s) => s.type === 'release')[0];
+    if (made.app.platform !== 'android' || !step || step.availability !== 'needs_input' || track.trim() === '') return;
+    const fraction = offered ? parsePercent(share) : EVERYONE;
+    if (fraction === null) return;
+    void review(
+      requestsFor(made, toggled(includedTypes(made), 'release', true), { release: releaseStepRequest({ track, fraction, direct: isDirectPlan(made) }) }),
+      `The release step was added for you: ${track.trim()}, ${fraction === EVERYONE ? 'everyone' : `${Math.round(fraction * 10000) / 100}% of users`}. Untick it to choose another share.`,
+    );
+  }
+
   function toggle(type: PublishStepType, on: boolean) {
     if (!plan || busy) return;
     const next = toggled(wanted, type, on);
     wanted = next;
-    if (next.length === 0) return;
+    if (next.length === 0) {
+      // The release was the only step: unticking it asks for the track and the share again (nothing is added for the person this time).
+      if (type === 'release') void review(null, 'Choose the track and the share of users, then add the release step.');
+      return;
+    }
     void review(requestsFor(plan, next), 'The plan was made again for the steps you chose.');
   }
 
