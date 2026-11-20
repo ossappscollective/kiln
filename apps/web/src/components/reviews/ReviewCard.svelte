@@ -360,13 +360,16 @@
 
   .title {
     margin: 0;
-    font-size: var(--text-base);
+    font-size: 1.0625rem;
+    font-weight: var(--weight-semibold);
     overflow-wrap: anywhere;
   }
 
   /* Customer text: plain, wrapped, line breaks kept. */
   .body {
     margin: 0;
+    font-size: 0.9375rem;
+    line-height: 1.5;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }

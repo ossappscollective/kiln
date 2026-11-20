@@ -630,7 +630,8 @@
   .searchbox input {
     flex: 1;
     min-width: 0;
-    min-height: var(--control-sm);
+    min-height: var(--control-md);
+    font-size: 0.9375rem;
   }
 
   .chips {

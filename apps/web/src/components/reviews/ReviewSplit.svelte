@@ -514,7 +514,7 @@
   }
 
   .sub {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     color: var(--muted);
   }
 
@@ -538,7 +538,7 @@
 
   .when {
     flex: none;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     color: var(--muted);
     font-variant-numeric: tabular-nums;
   }
