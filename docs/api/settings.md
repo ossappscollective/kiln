@@ -34,6 +34,8 @@ a secret). A `PUT` that changes nothing writes no entry.
 | `translation.libretranslate.url`  | text                                         | `""`        | The LibreTranslate server, `https://host[/path]`. Empty: none.                                                                                                                                                                   |
 | `release.stalledAfterHours`       | integer 0 to 720                             | `6`         | A release that has stood still for longer than this many hours is **stalled** ([release pipeline](release-pipeline.md)); it raises `release.stalled`. `0` turns the signal off for the workspace (the pipeline is still shown).  |
 | `release.stalledRepeatHours`      | integer 0 to 720                             | `24`        | The same stall is reminded again after this many hours. `0`: once per stall, never again.                                                                                                                                        |
+| `sync.enabled`                    | boolean                                      | `true`      | The scheduled refresh of the stores for this workspace ([scheduled sync](ci.md#scheduled-sync)). On by default; it only reads. No effect when the server has `MRM_SYNC_INTERVAL_MINUTES=0`. |
+| `sync.intervalMinutes`            | integer 5 to 10080                           | `30`        | Minutes between two scheduled refreshes of one app (the screen offers 15, 30, 60, 360, 1440). Never set: the server's interval applies, and `values` shows that. |
 | `reviews.unansweredReminderHours` | integer 0 to 720                             | `0`         | `review.unanswered`: one digest at most every this many hours, when a review rated at or below `reviews.unansweredMaxRating` has waited that long without an answer. `0` (the default) is off.                                   |
 | `reviews.unansweredMaxRating`     | integer 1 to 5                               | `5`         | The highest rating the digest counts (`2` means only 1 and 2 stars).                                                                                                                                                             |
 | `analytics.enabled`               | boolean                                      | `false`     | While `false`, no analytics sync, scheduled job or Apple enable action reaches a store. Reading stored numbers and importing a file still work ([analytics](analytics.md)). Written with `analytics.manage` (admins and owners). |
@@ -58,6 +60,13 @@ Any member (`settings.read`). Answer:
   "overridden": ["translation.enabled"],
   "writable": ["reviews.lowRatingThreshold", "..."],
   "docs": { "reviews.lowRatingThreshold": "A review with this rating or lower ..." },
+  "sync": {
+    "serverMinutes": 30,
+    "enabled": true,
+    "intervalMinutes": 30,
+    "running": true,
+    "lastScheduledAt": 1781092800000
+  },
   "translation": {
     "provider": "google",
     "credentialRequired": true,
@@ -70,6 +79,13 @@ Any member (`settings.read`). Answer:
 
 `writable` is empty for a member and lists every key for an admin. `credential` (id and label) is
 only present for those who may read credentials. `usage` is today's count (UTC) against the budget.
+
+`sync` is how the scheduled refresh stands for this workspace: `serverMinutes` is `MRM_SYNC_INTERVAL_MINUTES` (`0`: off for every
+workspace), `enabled` and `intervalMinutes` are what applies (`values["sync.intervalMinutes"]` is the same number: the workspace's choice,
+else the server's interval), `running` is whether a scheduled refresh runs for the workspace at all, `off` is `server_off` or
+`workspace_off` when it does not, and `lastScheduledAt` is the time (epoch milliseconds, or `null`) of the last scheduled sync of any of its
+apps, read from the `app.sync` audit events whose `requestedBy` is `scheduler`. Google Play reports no review state, so for Android the
+alerts a refresh enables cover track, rollout and halted. `PUT` answers with the same `sync` block.
 
 ## `PUT /settings`
 

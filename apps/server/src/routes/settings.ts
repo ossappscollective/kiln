@@ -1,9 +1,10 @@
-import { type Action, can, translationProviderInfo } from '@mrm/core';
+import { type Action, can, type Role, translationProviderInfo } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import type { AppEnv } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
+import { effectiveSync, lastScheduledSyncAt, loadSyncPrefs } from '../services/sync-schedule.ts';
 import { requireStepUp } from '../services/step-up.ts';
 import { translationCredentialId, translationUsageToday } from '../services/translation.ts';
 import {
@@ -11,11 +12,14 @@ import {
   getSettings,
   type SettingsContext,
   updateSettings,
+  type WorkspaceSettings,
 } from '../services/workspace-settings.ts';
 
 export type SettingsRoutesContext = SettingsContext & {
   db: Database;
   now: () => number;
+  /** MRM_SYNC_INTERVAL_MINUTES: 0 is off for every workspace. Default 30. */
+  syncIntervalMinutes?: number;
 };
 
 /** The settings that switch a feature on. Turning one on is a hard action when step-up is on. */
@@ -41,6 +45,28 @@ export function settingsRoutes(ctx: SettingsRoutesContext) {
     return next();
   };
 
+  /** The scheduled refresh of this workspace as the screen needs it: what applies, why not, when it last ran. */
+  async function syncInfo(workspaceId: string, settings: WorkspaceSettings) {
+    const serverMinutes = ctx.syncIntervalMinutes ?? 30;
+    const prefs = (await loadSyncPrefs(db)).get(workspaceId);
+    const mine = effectiveSync(serverMinutes, prefs);
+    return {
+      serverMinutes,
+      enabled: settings.values['sync.enabled'] === true,
+      /** What applies: the workspace's choice, else the server's interval. */
+      intervalMinutes: prefs?.intervalMinutes ?? (serverMinutes > 0 ? serverMinutes : Number(settings.values['sync.intervalMinutes'])),
+      running: mine.enabled,
+      ...(mine.reason ? { off: mine.reason } : {}),
+      lastScheduledAt: await lastScheduledSyncAt(db, workspaceId),
+    };
+  }
+
+  /** `values['sync.intervalMinutes']` shows what applies: the server's interval until the workspace chooses its own. */
+  const shown = (settings: WorkspaceSettings, role: Role, info: { intervalMinutes: number }) => {
+    const described = describeSettings(settings, role);
+    return { ...described, values: { ...described.values, 'sync.intervalMinutes': info.intervalMinutes } };
+  };
+
   routes.get('/:workspaceId/settings', needs('settings.read'), async (c) => {
     const role = c.get('role');
     const settings = await getSettings(db, ws(c));
@@ -57,8 +83,10 @@ export function settingsRoutes(ctx: SettingsRoutesContext) {
       );
       if (row) credential = { id: credentialId, label: String(row.label) };
     }
+    const sync = await syncInfo(ws(c), settings);
     return c.json({
-      ...describeSettings(settings, role),
+      ...shown(settings, role, sync),
+      sync,
       translation: {
         provider,
         credentialRequired: translationProviderInfo[provider].credentialRequired,
@@ -105,9 +133,11 @@ export function settingsRoutes(ctx: SettingsRoutesContext) {
       },
     );
     if (!done.ok) return c.json(done.body, done.status);
+    const sync = await syncInfo(ws(c), done.settings);
     return c.json({
       changed: done.changes.map((x) => x.key),
-      ...describeSettings(done.settings, c.get('role')),
+      ...shown(done.settings, c.get('role'), sync),
+      sync,
     });
   });
 

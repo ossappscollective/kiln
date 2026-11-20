@@ -20,6 +20,11 @@ import {
   type ReviewUpkeepSummary,
   reviewUpkeep,
 } from './services/review-schedule.ts';
+import {
+  loadSyncPrefs,
+  MAX_SYNC_INTERVAL_MINUTES,
+  MIN_SYNC_INTERVAL_MINUTES,
+} from './services/sync-schedule.ts';
 
 /**
  * A lightweight scheduler on top of the job queue: no cron, no extra process. Each tick it
@@ -41,8 +46,7 @@ import {
  * injected, so tests drive `tick()` by hand.
  */
 
-export const MIN_SYNC_INTERVAL_MINUTES = 5;
-export const MAX_SYNC_INTERVAL_MINUTES = 7 * 24 * 60;
+export { MAX_SYNC_INTERVAL_MINUTES, MIN_SYNC_INTERVAL_MINUTES };
 /** Syncs the scheduler queues for one workspace in one tick: the rest wait for the next. */
 export const DEFAULT_PER_WORKSPACE_PER_TICK = 5;
 export const DEFAULT_MAX_PER_TICK = 100;
@@ -144,7 +148,14 @@ export type SchedulerOptions = {
 export type TickSummary = {
   syncsQueued: number;
   /** Apps not queued, by reason. */
-  skipped: { recent: number; alreadyQueued: number; rateLimited: number; capped: number };
+  skipped: {
+    recent: number;
+    alreadyQueued: number;
+    rateLimited: number;
+    capped: number;
+    /** Apps of a workspace that turned its scheduled refresh off (`sync.enabled`). */
+    disabled: number;
+  };
   pollsQueued: number;
   purged: number;
   /** What the reminder run sent; null when none ran this tick (off, or not yet due). */
@@ -228,7 +239,9 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
   const now = options.now ?? Date.now;
   const interval = options.syncIntervalMs ?? 0;
   const tickMs = options.tickMs ?? MINUTE;
-  const maxJitter = options.maxJitterMs ?? Math.min(5 * MINUTE, Math.floor(interval / 10));
+  /** A tenth of the interval of the workspace, at most 5 minutes, unless the options fix it. */
+  const maxJitterFor = (intervalMs: number) =>
+    options.maxJitterMs ?? Math.min(5 * MINUTE, Math.floor(intervalMs / 10));
   const jitter =
     options.jitter ?? ((_key: string, max: number) => Math.floor(Math.random() * (max + 1)));
   const perWorkspace = options.perWorkspacePerTick ?? DEFAULT_PER_WORKSPACE_PER_TICK;
@@ -272,13 +285,21 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
         ORDER BY COALESCE(last_sync_attempt_at, 0), created_at, id`,
     );
     const inQueue = await appsInQueue();
+    // Each workspace may have turned its refresh off or chosen its own interval (settings `sync.enabled`, `sync.intervalMinutes`).
+    const prefs = await loadSyncPrefs(db);
     const taken = new Map<string, number>();
     const limited = new Set<string>();
     for (const app of apps) {
       const id = String(app.id);
       const workspaceId = String(app.workspace_id);
+      const mine = prefs.get(workspaceId);
+      if (mine?.enabled === false) {
+        summary.skipped.disabled++;
+        continue;
+      }
+      const wanted = mine?.intervalMinutes !== undefined ? mine.intervalMinutes * MINUTE : interval;
       const last = Math.max(Number(app.last_sync_attempt_at ?? 0), Number(app.last_synced_at ?? 0));
-      if (last > 0 && at - last < interval) {
+      if (last > 0 && at - last < wanted) {
         summary.skipped.recent++;
         continue;
       }
@@ -295,6 +316,7 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
         summary.skipped.rateLimited++;
         continue;
       }
+      const maxJitter = maxJitterFor(wanted);
       const delay = Math.min(Math.max(Math.trunc(jitter(id, maxJitter)), 0), maxJitter);
       await enqueue(
         db,
@@ -337,7 +359,7 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
     const at = now();
     const summary: TickSummary = {
       syncsQueued: 0,
-      skipped: { recent: 0, alreadyQueued: 0, rateLimited: 0, capped: 0 },
+      skipped: { recent: 0, alreadyQueued: 0, rateLimited: 0, capped: 0, disabled: 0 },
       pollsQueued: 0,
       purged: 0,
       reminders: null,

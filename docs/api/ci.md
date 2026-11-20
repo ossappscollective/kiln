@@ -611,6 +611,11 @@ handlers, so a sync keeps its audit trail and retries.
   app follow a release in review: a change of state raises the usual events and alerts. Google Play
   reports no review state, so for Android the alerts are about what Play does report (track,
   rollout, halted).
+- **Per workspace** ([ADR 0030](../adr/0030-workspace-sync-setting.md), [settings](settings.md)): the workspace settings `sync.enabled` (on
+  by default) and `sync.intervalMinutes` (5 to 10080; Settings offers 15 minutes, 30 minutes, 1 hour, 6 hours, daily) are read every tick. A
+  workspace that turned the refresh off is skipped (`skipped.disabled`); one that chose an interval uses it instead of the server's;
+  `MRM_SYNC_INTERVAL_MINUTES=0` stays off for everyone. `GET /settings` reports when the last scheduled sync ran
+  (`sync.lastScheduledAt`, from the audit events whose `requestedBy` is `scheduler`).
 - The scheduler ticks every minute (first tick 10 seconds after start). Each queued job gets a
   **random delay** of up to a tenth of the interval (at most 5 minutes), so a workspace does not
   sync all its apps in the same second. An app with a sync job already waiting or running is

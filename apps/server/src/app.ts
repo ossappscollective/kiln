@@ -178,7 +178,13 @@ export type AppDeps = {
    * connector from a stored credential (overridable for tests), `timeoutMs` is the longest one
    * sync may run (default 60 seconds), `limiter` defaults to 10 syncs per workspace per minute.
    */
-  appSync?: { connectorFactory?: StoreConnectorFactory; timeoutMs?: number; limiter?: TestLimiter };
+  appSync?: {
+    connectorFactory?: StoreConnectorFactory;
+    timeoutMs?: number;
+    limiter?: TestLimiter;
+    /** MRM_SYNC_INTERVAL_MINUTES (the scheduler is built in index.ts): only told to the Settings screen. 0 is off; default 30. */
+    intervalMinutes?: number;
+  };
   /** API token requests: the per-token rate limit (default 300 a minute) and the bad-token limit. Overridable for tests. */
   tokens?: BearerOptions;
   /**
@@ -468,6 +474,9 @@ export function createApp(deps: AppDeps) {
     settingsRoutes({
       db: services.db,
       now: services.now,
+      ...(deps.appSync?.intervalMinutes !== undefined
+        ? { syncIntervalMinutes: deps.appSync.intervalMinutes }
+        : {}),
       ...(translationSeams.allowPrivateUrls ? { allowPrivateUrls: true } : {}),
       ...(translationSeams.resolve ? { resolve: translationSeams.resolve } : {}),
     }),

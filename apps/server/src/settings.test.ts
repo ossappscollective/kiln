@@ -31,6 +31,8 @@ dbTest('settings: defaults, who may read and write, 404 for outsiders', async (d
     'translation.libretranslate.url': '',
     'release.stalledAfterHours': 6,
     'release.stalledRepeatHours': 24,
+    'sync.enabled': true,
+    'sync.intervalMinutes': 30,
     'reviews.unansweredReminderHours': 0,
     'reviews.unansweredMaxRating': 5,
     'analytics.enabled': false,
@@ -40,7 +42,7 @@ dbTest('settings: defaults, who may read and write, 404 for outsiders', async (d
   assert.deepEqual(read.body.defaults, read.body.values);
   assert.deepEqual(read.body.overridden, []);
   assert.deepEqual(read.body.writable, []);
-  assert.equal((await t.call(admin, 'GET', '/settings')).body.writable.length, 15);
+  assert.equal((await t.call(admin, 'GET', '/settings')).body.writable.length, 17);
   assert.equal(read.body.translation.credentialConfigured, false);
   assert.equal(
     read.body.translation.credential,

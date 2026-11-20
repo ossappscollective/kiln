@@ -17,6 +17,12 @@ import {
 } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
+import {
+  DEFAULT_SYNC_INTERVAL_MINUTES,
+  isSyncIntervalMinutes,
+  MAX_SYNC_INTERVAL_MINUTES,
+  MIN_SYNC_INTERVAL_MINUTES,
+} from './sync-schedule.ts';
 import { checkTranslateUrl } from './translate-net.ts';
 import { checkWebhookUrl, type Resolver, resolveAllowed } from './webhook-transport.ts';
 
@@ -84,6 +90,22 @@ export const settingDefinitions = {
     default: 24,
     writeAction: 'settings.write',
     parse: integerIn(0, 720),
+  } satisfies Definition<number>,
+  'sync.enabled': {
+    doc: 'Scheduled refresh of the stores: while on, the server reads the stores of every app of this workspace on its own (read only, with the stored credentials) so alerts can tell you when a release goes into review, is approved, rejected or halted. On by default. It has no effect when the server turned scheduled syncs off (MRM_SYNC_INTERVAL_MINUTES=0). Google Play reports no review state, so for Android alerts cover what Play reports (track, rollout, halted).',
+    default: true,
+    writeAction: 'settings.write',
+    parse: (raw: unknown): Parsed<boolean> =>
+      typeof raw === 'boolean' ? ok(raw) : bad('Use true or false.'),
+  } satisfies Definition<boolean>,
+  'sync.intervalMinutes': {
+    doc: `Minutes between two scheduled refreshes of one app (${MIN_SYNC_INTERVAL_MINUTES} to ${MAX_SYNC_INTERVAL_MINUTES}; the Settings screen offers 15, 30, 60, 360 and 1440). Not set: the server's interval (MRM_SYNC_INTERVAL_MINUTES, 30 by default).`,
+    default: DEFAULT_SYNC_INTERVAL_MINUTES,
+    writeAction: 'settings.write',
+    parse: (raw: unknown): Parsed<number> =>
+      isSyncIntervalMinutes(raw)
+        ? ok(raw)
+        : bad(`Use a whole number of minutes from ${MIN_SYNC_INTERVAL_MINUTES} to ${MAX_SYNC_INTERVAL_MINUTES}.`),
   } satisfies Definition<number>,
   'reviews.unansweredReminderHours': {
     doc: 'Opt-in digest of unanswered reviews: when reviews without a developer response (not ignored) are older than this many hours, `review.unanswered` is sent with the counts, and again after the same number of hours while some remain (0 to 720). 0 turns it off.',

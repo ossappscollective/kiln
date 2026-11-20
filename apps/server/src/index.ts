@@ -171,7 +171,7 @@ const app = createApp({
   db: database,
   eventStreams,
   webhooks: { allowPrivate: config.webhooksAllowPrivate },
-  appSync: { limiter: syncLimiter },
+  appSync: { limiter: syncLimiter, intervalMinutes: config.syncIntervalMinutes },
   listing: { intervalMs: listingIntervalMs(config.listingIntervalMinutes) },
   reviews: {
     limiter: syncLimiter,
