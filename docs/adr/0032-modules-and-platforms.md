@@ -1,6 +1,6 @@
 # ADR 0032: Feature modules and platform metadata
 
-Status: started. ASO is the first server module; the rest follow one at a time.
+Status: started. ASO, analytics and reviews are server modules; the rest follow one at a time.
 
 ## Context
 
@@ -21,7 +21,11 @@ ternary in a dozen files and the literal union of store names was written out 25
 4. **Rows are read through `@mrm/db/row.ts`** (`nullableString`, `nullableNumber`, `oneOf`, ...), not cast.
 5. **`assertNever`** closes every `switch` over a union.
 
+6. **Store connectors come from one registry.** `StoreConnectorInput` and `connectorFactory({ app_store_connect, google_play })`
+   (`packages/connectors/src/store-registry.ts`) build every capability (read, reviews, draft, submit, rollout, release). The record
+   must name every `StoreCredentialKind`, so adding a store makes the compiler list each capability that still needs a builder.
+
 ## Not decided yet
 
 The same folder layout for the web (`components/<module>` + `lib/<module>`), core and connectors; capability flags for the remaining
-Apple/Google branches (about 140); a connector registry keyed by `StoreId`; `exactOptionalPropertyTypes` (about 150 errors to fix).
+Apple/Google branches (about 140); `exactOptionalPropertyTypes` (about 150 errors to fix).
