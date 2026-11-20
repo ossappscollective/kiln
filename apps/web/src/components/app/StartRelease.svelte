@@ -221,6 +221,7 @@
       {#if button !== 'none'}
         <Button
           variant={started || button === 'secondary' ? 'secondary' : 'primary'}
+          size={started || button === 'secondary' ? 'md' : 'lg'}
           icon="rocket"
           loading={preparing}
           disabled={linked.length === 0}
@@ -229,7 +230,7 @@
         >Start release</Button>
       {/if}
       {#if build && showPrepare}
-        <Button variant="primary" icon="arrow-right" href={prepareReleaseHref(build.appId, build.build, scopeIsBoth)}>Prepare release</Button>
+        <Button variant="primary" size="lg" icon="arrow-right" href={prepareReleaseHref(build.appId, build.build, scopeIsBoth)}>Prepare release</Button>
       {/if}
       {#if line}<p class="line" role="status">{line}</p>{/if}
     </div>

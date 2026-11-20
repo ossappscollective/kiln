@@ -10,6 +10,8 @@ export type PendingBar = {
   text: string;
   /** The one button. */
   action: string;
+  /** The same fact as one short line with its action, for the Next step card: "3 changes waiting. Review and publish". */
+  link: string;
   /** An error blocks one of the changes (warning tone with an icon); otherwise a quiet strip. */
   blocking: boolean;
 };
@@ -28,11 +30,26 @@ export function pendingBar(
   const chip = chipFor(line);
   if (!chip || !line) return null;
   const n = line.count > 0 ? line.count : line.blocking;
+  const waiting = `${n > 99 ? '99+' : n} ${n === 1 ? 'change' : 'changes'} waiting${on ? ` on ${on}` : ''}`;
   return {
-    text: `${n > 99 ? '99+' : n} ${n === 1 ? 'change' : 'changes'} waiting${on ? ` on ${on}` : ''}. Nothing is published until you review them.`,
+    text: `${waiting}. Nothing is published until you review them.`,
     action: 'Review and publish',
+    link: `${waiting}. Review and publish`,
     blocking: line.blocking > 0,
   };
+}
+
+/**
+ * Where the pending changes are told. On the Overview the changes are one link inside the Next step card (a separate banner on every
+ * page buried it); a blocking error stays a visible bar everywhere, and every other page keeps the slim bar so nothing is hidden.
+ */
+export function pendingPlacement(
+  bar: PendingBar | null,
+  section: AppSection,
+): { bar: PendingBar | null; link: string | null } {
+  if (bar === null) return { bar: null, link: null };
+  if (section === 'dashboard' && !bar.blocking) return { bar: null, link: bar.link };
+  return { bar, link: null };
 }
 
 export type StatusDot = 'warn' | 'ok' | 'neutral';

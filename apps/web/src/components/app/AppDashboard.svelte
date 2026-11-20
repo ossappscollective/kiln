@@ -7,7 +7,9 @@
   pages make too (reviews summary, builds, listing drift, staged changes, plans); a read that fails or is not allowed is left out.
   Nothing here reads a store or writes anything by itself. Sync lives in the app header's Status button, not here.
   Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog), releases (by app id),
-  now, syncRuns (changes when a sync finished, so the reads run again).
+  now, syncRuns (changes when a sync finished, so the reads run again), pending? (the changes waiting as one link for the Next step card).
+  Layout (docs/design/mockups/app-overview.dc.html): "Your next step" card, the platform cards side by side (their tint, what is on the store,
+  the version in flight with its status), then "Also worth a look" (the rest of the attention list, at most three lines and "Show N more").
   "Running now" lists the GitHub Actions runs of the app's repository that are going (it draws nothing when none is); see
   components/ci/RunningNow.svelte. The run "Start release" starts shows in that same list.
 -->
@@ -16,7 +18,7 @@
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { address } from '../../lib/address.svelte.ts';
-  import { attentionItems, stagedUnpushedCount } from '../../lib/app-attention.ts';
+  import { type AttentionItem, attentionItems, stagedUnpushedCount } from '../../lib/app-attention.ts';
   import { pipelineStore } from '../../lib/pipeline-store.svelte.ts';
   import type { SummaryStall } from '../../lib/release-pipeline.ts';
   import { appAddress } from '../../lib/app-scope.ts';
@@ -36,6 +38,7 @@
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import RunningNow from '../ci/RunningNow.svelte';
   import AnalyticsStrip from '../analytics/AnalyticsStrip.svelte';
+  import AttentionList from './AttentionList.svelte';
   import NextStep from './NextStep.svelte';
 
   let {
@@ -47,6 +50,7 @@
     releases,
     now,
     syncRuns,
+    pending = null,
   }: {
     api: Api;
     workspaceId: string;
@@ -56,6 +60,7 @@
     releases: Record<string, ReleaseSummary[]>;
     now: number;
     syncRuns: number;
+    pending?: { text: string; href: string } | null;
   } = $props();
 
   let newReviews = $state<Record<string, number | undefined>>({});
@@ -69,6 +74,8 @@
   // and its answers go back to the Next step card so it can look for the build.
   let nextStep = $state<{ observe: (data: ActiveRuns) => void }>();
   let startedRun = $state<StartedRun | null>(null);
+  /** What is left of "Needs attention" after the Next step card took its one thing: drawn as "Also worth a look". */
+  let rest = $state<AttentionItem[]>([]);
 
   // Running now: the runs of the repositories of this app. They are tied to the app when started for it
   // or when they are its release workflow (the build conventions); otherwise the repository's are shown.
@@ -220,6 +227,8 @@
     {releases}
     refreshKey={syncRuns}
     onstarted={(s) => (startedRun = s)}
+    {pending}
+    onitems={(list) => (rest = list)}
   />
 
   {#if showRunning}
@@ -248,31 +257,34 @@
       {@const latest = latestRelease(list, app.platform)}
       {@const live = liveRelease(list, app.platform)}
       {@const inFlight = latest && (!live || latest.version !== live.version || latest.status !== 'live') ? latest : null}
-      <section class="card tile" aria-label="{platformLabel(app.platform)} summary">
-        <PlatformBadge platform={app.platform} tinted />
+      <section class="card tile {app.platform}" aria-label="{platformLabel(app.platform)} summary">
+        <div class="tile-head">
+          <PlatformBadge platform={app.platform} tinted />
+          <span class="spacer"></span>
+          <a href={appAddress(app.id, 'releases', null, inFlight?.version ?? null)}>Open releases<span class="visually-hidden"> for {platformLabel(app.platform)}</span></a>
+        </div>
         <dl class="facts">
           <div>
-            <dt>Live</dt>
-            <dd>{#if live}<strong>{live.version}</strong>{:else}<span class="muted">{app.lastSyncedAt === null ? 'Not synced yet' : 'None reported'}</span>{/if}</dd>
+            <dt>On the store</dt>
+            <dd class="big">{#if live}{live.version}{:else}<span class="muted">{app.lastSyncedAt === null ? 'Not synced yet' : 'None reported'}</span>{/if}</dd>
           </div>
           <div>
-            <dt>In flight</dt>
-            <dd>
-              {#if inFlight}
-                <span class="latest">
-                  <strong>{inFlight.version}</strong>
-                  <ReleaseStatus status={inFlight.status} rawState={inFlight.rawState} rolloutFraction={inFlight.rolloutFraction} sentForReviewAt={inFlight.sentForReviewAt} />
-                  <a href={appAddress(app.id, 'releases', null, inFlight.version)}>Open<span class="visually-hidden"> version {inFlight.version}</span></a>
-                </span>
-              {:else}
-                <span class="muted">Nothing</span>
-              {/if}
-            </dd>
+            {#if inFlight}
+              <dt>Version {inFlight.version}</dt>
+              <dd><ReleaseStatus status={inFlight.status} rawState={inFlight.rawState} rolloutFraction={inFlight.rolloutFraction} sentForReviewAt={inFlight.sentForReviewAt} /></dd>
+            {:else}
+              <dt>In flight</dt>
+              <dd class="muted">Nothing</dd>
+            {/if}
           </div>
         </dl>
       </section>
     {/each}
   </div>
+
+  {#if rest.length > 0}
+    <AttentionList title="Also worth a look" items={rest} {api} {workspaceId} {role} {members} />
+  {/if}
 
   <Section title="Details" key="details" defaultOpen={false} summary={members.map((m) => m.identifier).join(' · ')}>
     <div class="stack">
@@ -316,31 +328,62 @@
 <style>
   .tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-    gap: var(--space-3);
-    align-items: start;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: var(--space-4);
+    align-items: stretch;
   }
 
+  /* Each platform card carries its tint on the left edge, as in the mockup; the name and the glyph carry the meaning too. */
   .tile {
+    --tint: var(--line-strong);
+
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
-    align-items: flex-start;
-    padding: var(--space-3) var(--space-4);
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border-left: 6px solid var(--tint);
+    border-radius: var(--radius-xl);
+  }
+
+  .tile.ios {
+    --tint: color-mix(in srgb, var(--platform-ios-ink) 55%, var(--platform-ios-bg));
+  }
+
+  .tile.macos {
+    --tint: color-mix(in srgb, var(--platform-macos-ink) 55%, var(--platform-macos-bg));
+  }
+
+  .tile.android {
+    --tint: color-mix(in srgb, var(--platform-android-ink) 55%, var(--platform-android-bg));
+  }
+
+  .tile-head {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+  }
+
+  .spacer {
+    flex: 1;
   }
 
   .facts {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-2) var(--space-4);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-8);
     width: 100%;
     margin: 0;
+  }
+
+  .big {
+    font-size: var(--text-xl);
+    font-weight: var(--weight-semibold);
   }
 
   .facts dt,
   .detail dt {
     margin-bottom: 2px;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
     color: var(--muted);
   }

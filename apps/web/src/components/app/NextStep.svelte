@@ -1,5 +1,5 @@
 <!--
-  NextStep: the one card at the top of the Overview and of Releases. It says what to do next and offers ONE primary button for it,
+  NextStep: the one card at the top of the Overview and of Releases ("Your next step"; docs/design/mockups/app-overview.dc.html). It says what to do next and offers ONE primary button for it,
   chosen from the state (lib/next-step.ts): the release that waits for you (rejected, approved, a build to attach, unfinished), the
   release that waits for the store, or, with nothing on its way, "Start release". The five steps of the release on its way sit in the
   card; the other releases on their way are one quiet line each; with `attention` (the Overview) the rest of "Needs attention" is
@@ -11,6 +11,8 @@
   the release steps in place, on Releases; without it the card links to them; with it, "Prepare without CI" is offered beside
   "Start release"), showRunning = false (draw the run "Start release" started under the card; the Overview draws its own list),
   onstarted? (the run "Start release" started).
+  `pending` (the Overview) is the changes waiting as one quiet link under the button ("2 changes waiting. Review and publish"); `onitems`
+  hands the rest of "Needs attention" to the screen, which draws it as its own "Also worth a look" card (without it the list sits in this card).
   Exports: observe(data) takes a RunningNow answer, so the screen's own feed is read once.
 -->
 <script lang="ts">
@@ -45,6 +47,8 @@
     showRunning = false,
     onprepare,
     onstarted,
+    pending = null,
+    onitems,
   }: {
     api: Api;
     workspaceId: string;
@@ -58,6 +62,8 @@
     showRunning?: boolean;
     onprepare?: () => void;
     onstarted?: (started: StartedRun | null) => void;
+    pending?: { text: string; href: string } | null;
+    onitems?: (items: AttentionItem[]) => void;
   } = $props();
 
   const uid = $props.id();
@@ -92,6 +98,11 @@
   const preparesHere = $derived(step.primary !== null && 'action' in step.primary && step.primary.action === 'prepare-release');
   const startButton = $derived<'primary' | 'secondary' | 'none'>(startsHere ? 'primary' : step.offerStart ? 'secondary' : 'none');
 
+  $effect(() => {
+    const rest = step.items;
+    if (onitems) untrack(() => onitems(rest));
+  });
+
   let loadedKey = '';
   let lastRefresh = 0;
   $effect(() => {
@@ -109,7 +120,7 @@
 </script>
 
 <section class="card next" data-tone={step.tone} data-testid="next-step" aria-labelledby="{uid}-title">
-  <p class="eyebrow">Next step</p>
+  <p class="eyebrow">Your next step</p>
   <div class="main">
     <div class="text">
       <h2 id="{uid}-title">
@@ -120,12 +131,12 @@
     </div>
     <div class="actions">
       {#if step.primary && 'href' in step.primary}
-        <Button variant="primary" icon="arrow-right" href={step.primary.href}>{step.primary.label}</Button>
+        <Button variant="primary" size="lg" icon="arrow-right" href={step.primary.href}>{step.primary.label}</Button>
       {:else if preparesHere && step.primary}
         {#if onprepare}
-          <Button variant="primary" icon="play" onclick={onprepare}>{step.primary.label}</Button>
+          <Button variant="primary" size="lg" icon="play" onclick={onprepare}>{step.primary.label}</Button>
         {:else}
-          <Button variant="primary" icon="play" href={prepareHref}>{step.primary.label}</Button>
+          <Button variant="primary" size="lg" icon="play" href={prepareHref}>{step.primary.label}</Button>
         {/if}
       {/if}
       <StartRelease
@@ -143,6 +154,9 @@
       />
       {#if onprepare && step.kind === 'start'}
         <Button variant="ghost" onclick={onprepare} title="Choose a build the store already has, write the notes and send it, without running CI.">Prepare without CI</Button>
+      {/if}
+      {#if pending}
+        <a class="pending-link" href={pending.href} data-testid="next-step-pending">{pending.text}</a>
       {/if}
     </div>
   </div>
@@ -166,15 +180,16 @@
     </ul>
   {/if}
 
-  {#if step.items.length > 0}
+  {#if step.items.length > 0 && !onitems}
     <div class="more"><AttentionList bare items={step.items} {api} {workspaceId} {role} {members} /></div>
   {/if}
 </section>
 
 <style>
   .next {
-    padding: var(--space-4);
-    border-left: 3px solid var(--line-strong);
+    padding: var(--space-6) var(--space-8);
+    border-left: 4px solid var(--line-strong);
+    border-radius: var(--radius-xl);
   }
 
   .next[data-tone='bad'] {
@@ -194,18 +209,20 @@
     flex-wrap: wrap;
     gap: var(--space-2) var(--space-3);
     align-items: center;
-    margin: var(--space-3) 0 0;
-    font-size: var(--text-sm);
+    margin: var(--space-4) 0 0;
+    font-size: var(--text-base);
   }
 
   .eyebrow {
     margin: 0 0 var(--space-1);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
   }
 
   .main {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-3) var(--space-4);
+    gap: var(--space-4) var(--space-8);
     align-items: center;
     justify-content: space-between;
   }
@@ -218,27 +235,49 @@
   h2 {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2);
+    gap: var(--space-2) var(--space-3);
     align-items: center;
     margin: 0;
-    font-size: var(--text-lg);
+    font-size: var(--text-3xl);
+    line-height: 1.15;
   }
 
   .text p {
-    margin: var(--space-1) 0 0;
-    font-size: var(--text-sm);
+    max-width: 60ch;
+    margin: var(--space-2) 0 0;
+    font-size: 1.0625rem;
+    line-height: 1.4;
   }
 
+  /* One big primary button, the quieter ones and the pending link under it, in one column. */
   .actions {
     display: flex;
-    flex-wrap: wrap;
+    flex: 0 0 15.5rem;
+    flex-direction: column;
     gap: var(--space-2);
-    align-items: center;
+    align-items: stretch;
+    min-width: min(100%, 15.5rem);
+  }
+
+  .actions :global(.btn.lg),
+  .actions :global(button.lg),
+  .actions :global(a.lg) {
+    justify-content: center;
+  }
+
+  .pending-link {
+    font-size: var(--text-base);
+    text-align: center;
   }
 
   /* The follow-up of a started run (and its problem line) goes on its own line under the buttons. */
   .actions :global(.start) {
     display: contents;
+  }
+
+  .actions :global(.start > .head) {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .actions :global(.start > :not(.head)) {
@@ -250,8 +289,8 @@
     flex-wrap: wrap;
     gap: var(--space-1) var(--space-3);
     align-items: center;
-    margin-top: var(--space-3);
-    font-size: var(--text-sm);
+    margin-top: var(--space-4);
+    font-size: var(--text-base);
   }
 
   .others {
@@ -259,13 +298,27 @@
     flex-direction: column;
     gap: var(--space-1);
     padding: 0;
-    margin: var(--space-3) 0 0;
-    font-size: var(--text-sm);
+    margin: var(--space-4) 0 0;
+    font-size: var(--text-base);
     list-style: none;
   }
 
   .more {
     margin-top: var(--space-3);
     border-top: 1px solid var(--line);
+  }
+
+  @media (max-width: 640px) {
+    .next {
+      padding: var(--space-4);
+    }
+
+    h2 {
+      font-size: var(--text-2xl);
+    }
+
+    .actions {
+      flex-basis: 100%;
+    }
   }
 </style>

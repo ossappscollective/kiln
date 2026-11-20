@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { pendingBar, statusDot } from './app-page.ts';
+import { pendingBar, pendingPlacement, statusDot } from './app-page.ts';
 
 test('the pending bar says how many changes wait and offers one button', () => {
   const bar = pendingBar({ count: 3, blocking: 0, waiting: 0 }, 'dashboard');
@@ -69,4 +69,26 @@ test('the bar names the platform the changes wait on when the page shows another
     '1 change waiting on iOS. Nothing is published until you review them.',
   );
   assert.equal(pendingBar(null, 'releases', 'iOS'), null);
+});
+
+test('the pending bar has a one-line link for the Next step card', () => {
+  assert.equal(
+    pendingBar({ count: 2, blocking: 0, waiting: 0 }, 'dashboard')?.link,
+    '2 changes waiting. Review and publish',
+  );
+  assert.equal(
+    pendingBar({ count: 1, blocking: 0, waiting: 0 }, 'dashboard', 'iOS')?.link,
+    '1 change waiting on iOS. Review and publish',
+  );
+});
+
+test('on the Overview the changes are a link in the Next step card; a blocking error and every other page keep the bar', () => {
+  const calm = pendingBar({ count: 2, blocking: 0, waiting: 0 }, 'dashboard');
+  assert.deepEqual(pendingPlacement(calm, 'dashboard'), { bar: null, link: '2 changes waiting. Review and publish' });
+  assert.equal(pendingPlacement(calm, 'releases').bar, calm);
+  assert.equal(pendingPlacement(calm, 'releases').link, null);
+  const blocked = pendingBar({ count: 2, blocking: 1, waiting: 0 }, 'dashboard');
+  assert.equal(pendingPlacement(blocked, 'dashboard').bar, blocked);
+  assert.equal(pendingPlacement(blocked, 'dashboard').link, null);
+  assert.deepEqual(pendingPlacement(null, 'dashboard'), { bar: null, link: null });
 });

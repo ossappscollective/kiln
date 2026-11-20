@@ -4,8 +4,9 @@
   An item with `submitAppId` ("Draft pushed — ready to submit?") shows the submit control of that app
   (SubmitReady, bare) instead of a link; it is only built for admin and up.
   Only the first three lines are shown (and every urgent one, whatever its place); the rest is one "Show N more" button, so
-  the Next step card stays short. Props: items (from attentionItems in lib/app-attention.ts), api, workspaceId, role, members (the app records
-  in scope, for the submit control), bare = false (drawn inside the Next step card: no card of its own and a quieter
+  the Next step card stays short. On the Overview it is its own card, "Also worth a look" (title), with the platform of each line when the
+  app has several. Props: items (from attentionItems in lib/app-attention.ts), api, workspaceId, role, members (the app records
+  in scope, for the submit control), title?, bare = false (drawn inside the Next step card: no card of its own and a quieter
   "Also needs attention" heading).
 -->
 <script lang="ts">
@@ -17,6 +18,7 @@
   import SubmitReady from '../listing/SubmitReady.svelte';
   import Badge from '../ui/Badge.svelte';
   import Icon from '../ui/Icon.svelte';
+  import PlatformBadge from '../ui/PlatformBadge.svelte';
 
   let {
     items,
@@ -25,7 +27,12 @@
     role,
     members,
     bare = false,
-  }: { items: AttentionItem[]; api: Api; workspaceId: string; role: Role; members: AppSummary[]; bare?: boolean } = $props();
+    title,
+  }: { items: AttentionItem[]; api: Api; workspaceId: string; role: Role; members: AppSummary[]; bare?: boolean; title?: string } = $props();
+
+  /** The platform an item is about (its id starts with the app record's id), only when the app has more than one. */
+  const platformOf = (item: AttentionItem) =>
+    members.length > 1 ? members.find((m) => item.id.startsWith(`${m.id}:`))?.platform ?? null : null;
 
   const LIMIT = 3;
   let all = $state(false);
@@ -35,7 +42,7 @@
 
 <section class="attention" class:card={!bare} class:bare aria-labelledby="attention-title">
   <div class="head">
-    <h2 id="attention-title">{bare ? 'Also needs attention' : 'Needs attention'}</h2>
+    <h2 id="attention-title">{title ?? (bare ? 'Also needs attention' : 'Needs attention')}</h2>
     <Badge tone={items.some((i) => i.tone === 'bad') ? 'bad' : 'warn'}>{items.length}</Badge>
   </div>
   <ul>
@@ -43,7 +50,10 @@
       <li class={item.tone}>
         <span class="mark"><Icon name={item.icon} size={16} /></span>
         <div class="text">
-          <p class="line">{item.text}</p>
+          <p class="line">
+            {#if platformOf(item)}<span class="on"><PlatformBadge platform={platformOf(item) as string} /></span>{/if}
+            {item.text}
+          </p>
           {#if item.detail}<p class="detail muted">{item.detail}</p>{/if}
         </div>
         {#if item.href}<a class="go" href={item.href}>{item.action}</a>{/if}
@@ -63,7 +73,8 @@
 
 <style>
   .attention:not(.bare) {
-    padding: var(--space-4);
+    padding: var(--space-5) var(--space-6);
+    border-radius: var(--radius-xl);
   }
 
   .bare {
@@ -83,7 +94,7 @@
 
   h2 {
     margin: 0;
-    font-size: var(--text-md);
+    font-size: var(--text-lg);
   }
 
   ul {
@@ -96,10 +107,10 @@
 
   li {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     gap: var(--space-1) var(--space-3);
     align-items: start;
-    padding: var(--space-2) 0;
+    padding: var(--space-3) 0;
     border-top: 1px solid var(--line);
   }
 
@@ -126,25 +137,38 @@
 
   .line {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
     font-weight: var(--weight-medium);
+  }
+
+  .on {
+    margin-right: var(--space-2);
+    font-size: var(--text-sm);
+    vertical-align: middle;
   }
 
   .detail {
     margin: 0;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     overflow-wrap: anywhere;
   }
 
   .go {
-    grid-column: 2;
-    font-size: var(--text-xs);
+    grid-column: 3;
+    font-size: var(--text-base);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 640px) {
+    .go {
+      grid-column: 2;
+    }
   }
 
   .more-toggle {
     padding: var(--space-2) 0 0;
     font: inherit;
-    font-size: var(--text-sm);
+    font-size: var(--text-base);
     color: var(--accent);
     cursor: pointer;
     background: none;

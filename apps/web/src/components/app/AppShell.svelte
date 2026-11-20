@@ -31,7 +31,7 @@
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { dataChips } from '../../lib/app-chips.ts';
   import { canonicalAppHash, canonicalSection, pageTitle, resolveView, showsScope, viewsFor } from '../../lib/app-nav.ts';
-  import { PUBLISHED_EVENT, pendingBar } from '../../lib/app-page.ts';
+  import { PUBLISHED_EVENT, pendingBar, pendingPlacement } from '../../lib/app-page.ts';
   import { lineFor } from '../../lib/pending.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
@@ -98,6 +98,9 @@
   const elsewhereLine = $derived(lineOf(elsewhere));
   const bar = $derived(pendingBar(pendingLine, section) ?? pendingBar(elsewhereLine, section, elsewhere.map((m) => platformLabel(m.platform)).join(' and ')));
   const barHref = $derived(appAddress(id, 'pending', pendingBar(pendingLine, section) !== null || elsewhere.length === 0 ? address.platform : (elsewhere[0] as AppSummary).platform));
+  /** On the Overview the pending changes are a link in the Next step card; a blocking error and the other pages keep the slim bar. */
+  const placed = $derived(pendingPlacement(bar, section));
+  const pendingLink = $derived(placed.link !== null ? { text: placed.link, href: barHref } : null);
   const scopeShown = $derived(showsScope(section, members.length));
 
   // The header row of a versioned page: its pickers, from data already loaded here and by the pages.
@@ -149,6 +152,14 @@
       if (mine === generation) loading = false;
     }
   }
+
+  // The left panel shows the status of each platform from the releases loaded here.
+  $effect(() => {
+    const space = workspaceId;
+    for (const [appId, list] of Object.entries(releases)) {
+      if (list) untrack(() => navSignals.setReleases(space, appId, list));
+    }
+  });
 
   // Load when the app changes. Moving to the other platform record of the same app keeps what is shown.
   $effect(() => {
@@ -252,10 +263,15 @@
           url={members.map((m) => m.iconUrl ?? null).find((u) => u) ?? null}
           platform={members.length === 1 ? members[0]?.platform : undefined}
           seed={group.key}
-          size="sm"
+          size="md"
         />
-        <h1 class="page-title">{pageTitle(section)}</h1>
-        <span class="appname" title={group.name}>{group.name}</span>
+        <div class="titles">
+          <h1 class="page-title">{pageTitle(section)}</h1>
+          <p class="appname" title={group.name}>
+            <span class="name">{group.name}</span>
+            <span class="ident" aria-hidden="true">{members.map((m) => m.identifier).filter((v, i, all) => all.indexOf(v) === i).join(' · ')}</span>
+          </p>
+        </div>
       </div>
       <div class="tools">
         {#if picker}
@@ -286,7 +302,7 @@
       </div>
     </header>
 
-    <PendingBar {bar} href={barHref} />
+    <PendingBar bar={placed.bar} href={barHref} />
 
     {#if lock.text !== ''}
       <LockedBanner text={lock.text} href={appAddress(id, 'releases', address.platform)} />
@@ -310,6 +326,7 @@
         {syncing}
         lockedPlatforms={lock.locked}
         locale={params.locale}
+        pending={pendingLink}
       />
     </div>
   {/if}
@@ -329,7 +346,7 @@
     gap: var(--space-2) var(--space-4);
     align-items: center;
     justify-content: space-between;
-    margin-bottom: var(--space-4);
+    margin-bottom: var(--space-5);
   }
 
   .id {
@@ -340,16 +357,37 @@
     min-width: 12rem;
   }
 
+  .titles {
+    min-width: 0;
+  }
+
   .page-title {
     margin: 0;
-    font-size: var(--text-xl);
+    font-size: var(--text-2xl);
     line-height: 1.2;
   }
 
   .appname {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-3);
+    min-width: 0;
+    margin: 2px 0 0;
+    color: var(--muted);
+  }
+
+  .appname .name {
     min-width: 0;
     overflow: hidden;
-    color: var(--muted);
+    font-weight: var(--weight-medium);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .appname .ident {
+    min-width: 0;
+    overflow: hidden;
+    font-size: var(--text-sm);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
