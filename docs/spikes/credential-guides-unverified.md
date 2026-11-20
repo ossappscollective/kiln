@@ -68,6 +68,19 @@ remove the item here.
   /repos/{owner}/{repo}/pulls was seen with write access, and the section heading was not.
   https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps
 
+## Expo (checked 2026-11-20)
+
+- Whether tokens expire. The Programmatic access page describes creating and revoking tokens and never mentions an expiry, so the
+  guide says Expo "does not describe an expiry date" instead of saying they never expire.
+  https://docs.expo.dev/accounts/programmatic-access/
+- Which role may create a robot user. The page says Admins can manage programmatic access; the guide asks for an Admin or Owner.
+- Whether the Developer role is the lowest that works for what this tool does. Expo describes Developer as able to create projects,
+  make builds, release updates and manage credentials; no page names the least role that can read a project.
+  https://docs.expo.dev/accounts/account-types/
+- Whether a robot user can be created on a personal (non organization) account. The pages speak of accounts in general.
+- The exact name of the Access tokens page of an organization (`expo.dev/accounts/<account>/settings/access-tokens`) is as the
+  Programmatic access page gives it; the on-screen wording was not seen.
+
 ## Links
 
 - Google Cloud docs links use cloud.google.com, which currently redirects to

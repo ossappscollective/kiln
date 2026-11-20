@@ -1024,6 +1024,77 @@ const aiOpenaiCompatible: CredentialGuide = {
   checkedOn: CHECKED_ON,
 };
 
+const expo: CredentialGuide = {
+  summary:
+    'Lets the tool read your Expo Application Services (EAS) projects with an access token. A robot user keeps the token apart from any one person.',
+  prerequisites: [
+    'An Expo account (personal or organization) that owns the EAS project. Expo lets Admins manage programmatic access, so use an Admin or Owner to create the token.',
+    'A secure place for the token, because Expo shows it only once.',
+  ],
+  steps: [
+    {
+      title: 'Open the Expo dashboard',
+      body: 'Sign in at expo.dev with an account that is an Admin or Owner of the Expo account that owns your project.',
+      link: { label: 'Expo: Programmatic access', url: 'https://docs.expo.dev/accounts/programmatic-access/' },
+    },
+    {
+      title: 'Open Access tokens',
+      body: 'Open the settings of that account and select Access tokens. For an organization the page is expo.dev/accounts/ followed by the account name, then settings/access-tokens.',
+    },
+    {
+      title: 'Create a robot user',
+      body: 'Create a robot user and name it after this tool. A robot cannot sign in or own projects, and it authenticates only with access tokens.',
+    },
+    {
+      title: 'Choose the role',
+      body: 'Give the robot the Developer role. You can change it later with Edit robot.',
+      link: { label: 'Expo: Account types and roles', url: 'https://docs.expo.dev/accounts/account-types/' },
+    },
+    {
+      title: 'Create the token',
+      body: 'Create a token for the robot and copy it right away. Expo does not show it again.',
+    },
+    {
+      title: 'Enter the token here',
+      body: 'Paste the token into the form, then use Test connection. It asks Expo who the token belongs to and which accounts it can see.',
+    },
+  ],
+  permissions: [
+    'Use a robot user with the Developer role. Expo describes Developer as able to create projects, make builds, release updates and manage credentials, so the token can do all of that on your account.',
+    'The tool reads project details with the token. Treat the token as able to do everything its role can.',
+    'A personal access token also works, but it acts as you and can reach every account you belong to unless you limit it.',
+    'Expo documents how to revoke a token (delete it on the Access tokens page) and does not describe an expiry date. Rotate the token when someone who knew it leaves.',
+  ],
+  troubleshooting: [
+    {
+      problem: 'The test says Expo did not accept the token.',
+      fix: 'The token was copied incompletely, or it was deleted. Create a new token for the robot and enter it again.',
+    },
+    {
+      problem: 'The test says the token may not do this.',
+      fix: 'Check the robot role and that the robot belongs to the account that owns the project. Edit the robot in Access tokens to change its role.',
+    },
+    {
+      problem: 'Linking a project says Expo has no such project.',
+      fix: 'The project belongs to another account, or the token cannot see it. Use a token from the owning account, and check the name as account and slug or the project id in app.json.',
+    },
+    {
+      problem: 'The test shows no accounts, or fewer than you expect.',
+      fix: 'A personal token may be limited to some accounts. Create a new token without the limit, or use a robot user on the right account.',
+    },
+    {
+      problem: 'The test says Expo could not be reached.',
+      fix: 'Check that this server can reach api.expo.dev over https, and that a proxy, if you use one, allows it.',
+    },
+  ],
+  links: [
+    { label: 'Expo: Programmatic access', url: 'https://docs.expo.dev/accounts/programmatic-access/' },
+    { label: 'Expo: Account types and roles', url: 'https://docs.expo.dev/accounts/account-types/' },
+    { label: 'Expo: Access tokens page', url: 'https://expo.dev/settings/access-tokens' },
+  ],
+  checkedOn: '2026-11-20',
+};
+
 export const credentialGuides: Record<CredentialKind, CredentialGuide> = {
   app_store_connect: appStoreConnect,
   google_play: googlePlay,
@@ -1036,6 +1107,7 @@ export const credentialGuides: Record<CredentialKind, CredentialGuide> = {
   ai_anthropic: aiAnthropic,
   ai_openai: aiOpenai,
   ai_openai_compatible: aiOpenaiCompatible,
+  expo,
 };
 
 export function guideFor(kind: CredentialKind): CredentialGuide {

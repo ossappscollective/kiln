@@ -110,3 +110,15 @@ test('translation kinds: one API key (Azure also a region), trimmed, no spaces',
   );
   assert.equal(isCredentialKind('translate_deepl'), true);
 });
+
+test('expo: one access token, stored as the plain string, trimmed, no spaces, masked in the form', () => {
+  const secret = buildSecret('expo', { token: '  expo_tok_abc123  ' });
+  assert.equal(secret, 'expo_tok_abc123');
+  assert.equal(checkSecret('expo', secret), undefined);
+  assert.match(checkSecret('expo', buildSecret('expo', { token: '  ' })) ?? '', /Enter the token/);
+  assert.match(checkSecret('expo', 'abc def') ?? '', /no spaces/);
+  assert.match(checkSecret('expo', 'abc\ndef') ?? '', /no spaces/);
+  assert.equal(isCredentialKind('expo'), true);
+  assert.ok(credentialKindInfo.expo.fields.every((f) => f.secret === true));
+  assert.match(credentialKindInfo.expo.description, /robot user/);
+});

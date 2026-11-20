@@ -33,6 +33,8 @@ const verifierNames: Record<CredentialKind, string> = {
   ai_anthropic: 'verifyAiAnthropicCredential',
   ai_openai: 'verifyAiOpenaiCredential',
   ai_openai_compatible: 'verifyAiOpenaiCompatibleCredential',
+  // The token is checked by asking Expo who it belongs to (`meActor`, a read): packages/connectors/src/expo/verify-expo.ts.
+  expo: 'verifyExpoCredential',
 };
 
 /**

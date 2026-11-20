@@ -16,6 +16,7 @@ export const credentialKinds = [
   'ai_anthropic',
   'ai_openai',
   'ai_openai_compatible',
+  'expo',
 ] as const;
 export type CredentialKind = (typeof credentialKinds)[number];
 
@@ -145,6 +146,19 @@ export const credentialKindInfo: Record<CredentialKind, CredentialKindInfo> = {
       'The API key of an OpenAI compatible server (Ollama, LM Studio, vLLM, a gateway) that requires one. The server address is set under AI settings. A local server without a key needs no credential.',
     fields: [{ name: 'apiKey', label: 'API key', secret: true }],
   },
+  expo: {
+    label: 'Expo access token',
+    description:
+      'An access token for Expo Application Services (EAS), used to read EAS projects and later builds and updates. Create it for a robot user with the Developer role (expo.dev, your account, Access tokens), not for a person.',
+    fields: [
+      {
+        name: 'token',
+        label: 'Access token',
+        secret: true,
+        hint: 'In expo.dev open your account, then Access tokens, and create a robot user with the Developer role. A token is shown once.',
+      },
+    ],
+  },
 };
 
 const clean = (value: string | undefined) => (value ?? '').trim();
@@ -167,6 +181,7 @@ export function buildSecret(kind: CredentialKind, values: Record<string, string>
     case 'google_play':
       return clean(values.serviceAccount);
     case 'github_token':
+    case 'expo':
       return clean(values.token);
     case 'translate_google':
     case 'translate_deepl':
@@ -199,7 +214,7 @@ const missing = (object: Record<string, unknown>, names: string[]) =>
 
 /** A message for a person when the secret cannot be right, or undefined when it looks usable. */
 export function checkSecret(kind: CredentialKind, secret: string): string | undefined {
-  if (kind === 'github_token') {
+  if (kind === 'github_token' || kind === 'expo') {
     if (!secret.trim()) return 'Enter the token.';
     if (/\s/.test(secret.trim())) return 'A token has no spaces or line breaks.';
     return undefined;

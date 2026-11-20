@@ -23,6 +23,8 @@ const allowedHosts = new Set([
   'docs.ollama.com',
   'lmstudio.ai',
   'docs.vllm.ai',
+  'docs.expo.dev',
+  'expo.dev',
 ]);
 
 const verbs = new Set([
