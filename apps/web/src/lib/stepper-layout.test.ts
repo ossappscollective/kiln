@@ -121,6 +121,11 @@ test('each step has one heading and one sentence', () => {
     'Publish 1 step to Google Play',
   );
   assert.equal(stepIntro('confirm', facts({ confirm: [] })).title, 'Nothing waits to be published');
+  const waiting = stepIntro('confirm', facts({ confirm: [], inReview: true }));
+  assert.match(waiting.title, /in store review$/);
+  assert.match(waiting.sentence, /Waiting on the store/);
+  // With something staged the version in review changes nothing: the steps still lead.
+  assert.match(stepIntro('confirm', facts({ confirm: [{}], inReview: true })).title, /^Publish /);
 });
 
 const row = (id: string, selectable: boolean, tone: 'ok' | 'warn' | 'bad' | 'neutral' = 'ok') => ({

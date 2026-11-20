@@ -150,6 +150,8 @@ export type IntroFacts = {
   staged: StagedFacts;
   /** The steps the Confirm list holds (null: not read yet). */
   confirm: readonly ConfirmStep[] | null;
+  /** The version is in store review: nothing to publish, the store has the next move. */
+  inReview?: boolean;
 };
 
 export function stepIntro(step: StepId, f: IntroFacts): { title: string; sentence: string } {
@@ -200,6 +202,11 @@ export function stepIntro(step: StepId, f: IntroFacts): { title: string; sentenc
   }
   const n = f.confirm === null ? null : f.confirm.length;
   if (n === null) return { title: 'Publish', sentence: 'Reading what waits to be published.' };
+  if (n === 0 && f.inReview === true)
+    return {
+      title: `${f.version !== null ? `Version ${f.version} is` : 'This version is'} in store review`,
+      sentence: 'Waiting on the store. Nothing is waiting to be published, and nobody here can speed up the review.',
+    };
   if (n === 0)
     return {
       title: 'Nothing waits to be published',

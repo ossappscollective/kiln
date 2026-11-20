@@ -360,6 +360,7 @@
           notes: { withText: rows.filter((r) => r.draft.trim() !== '').length },
           staged: stagedFacts(view),
           confirm: confirmList,
+          inReview: pipeline?.pipeline.state === 'in_review',
         }),
   );
   const footer = $derived(current === null ? null : footerFor(current, visible));
@@ -445,6 +446,7 @@
             track={releaseTrack}
             codes={stagedCodes === null ? [] : stagedCodes.value.split(',').filter((c) => c !== '')}
             stagedShare={stagedShare ? stagedShare.value : ''}
+            inReview={pipeline?.pipeline.state === 'in_review'}
             onreleased={() => void loadPipeline()}
           />
         {:else}

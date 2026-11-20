@@ -42,6 +42,7 @@
     track,
     codes,
     stagedShare,
+    inReview = false,
     onreleased,
   }: {
     api: Api;
@@ -55,8 +56,12 @@
     track: string;
     codes: string[];
     stagedShare: string;
+    /** The version is in store review. With nothing staged the checks for a release to come are left out: they would judge the one in review. */
+    inReview?: boolean;
     onreleased: () => void;
   } = $props();
+
+  const waitingOnStore = $derived(inReview && (steps === null || steps.length === 0));
 
   let pending = $state<ReturnType<typeof PendingChanges> | undefined>();
 
@@ -72,7 +77,7 @@
 </script>
 
 <div class="stack loose">
-  {#if !apple}
+  {#if !apple && !waitingOnStore}
     <PlayCheck {api} {workspaceId} {app} {track} {codes} fraction={fractionOf(stagedShare)} source="staged" />
   {/if}
 
