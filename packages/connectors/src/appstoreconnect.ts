@@ -91,6 +91,9 @@ const DEFAULT_BASE = 'https://api.appstoreconnect.apple.com';
 const SKEW_TOLERANCE_SECONDS = 30;
 /** The documented maximum of `limit` on the list endpoints this connector calls. */
 const MAX_PAGE_SIZE = 200;
+/** Versions that are not live whose build is asked for one by one, when the list gave no build link. */
+const MAX_BUILD_LINK_LOOKUPS = 5;
+
 /** The documented maximum of `limit[builds]` (included builds per pre-release version). */
 const MAX_INCLUDED_BUILDS = 50;
 /** Groups whose builds are read for the public links (one request each). */
@@ -609,22 +612,45 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
    * Which build each version uses, as Apple links them: `GET /v1/apps/{id}/appStoreVersions?include=build` fills the
    * `build` relationship of each version. The link is the truth; the build's own pre-release version string is not,
    * because a version can be created under another name than the build's (build 170 of 3.02.0 attached to 3.1.1).
-   * UNVERIFIED against the live API: an answer Apple rejects gives an empty map, never an error.
+   * No sparse `fields[appStoreVersions]`: a field list would also hide the `build` relationship. UNVERIFIED against the
+   * live API: an answer Apple rejects gives an empty map, never an error.
    */
   async listVersionBuilds(appStoreId: string): Promise<Map<string, string>> {
     const links = new Map<string, string>();
+    const unlinked: string[] = [];
     try {
-      const path = `/v1/apps/${enc(appStoreId)}/appStoreVersions?include=build&fields[appStoreVersions]=versionString&limit=${this.#pageSize}`;
+      const path = `/v1/apps/${enc(appStoreId)}/appStoreVersions?include=build&limit=${this.#pageSize}`;
       for await (const item of this.#pages(path, `reading the builds of the versions of app ${appStoreId}`)) {
         const id = text(item.id);
         const relationships = isRecord(item.relationships) ? item.relationships : {};
         const link = isRecord(relationships.build) ? relationships.build : {};
         const data = isRecord(link.data) ? link.data : undefined;
         const buildId = data ? text(data.id) : undefined;
-        if (id && buildId) links.set(id, buildId);
+        if (id && buildId) {
+          links.set(id, buildId);
+          continue;
+        }
+        // A version that is not live yet (in review, in preparation) is the one whose build matters; ask for it on its own.
+        const attributes = isRecord(item.attributes) ? item.attributes : {};
+        const state = mapAppStoreState(text(attributes.appVersionState)) ?? mapAppStoreState(text(attributes.appStoreState));
+        if (id && state !== 'live') unlinked.push(id);
       }
     } catch (error) {
       if (!(error instanceof StoreError)) throw error;
+    }
+    // `GET /v1/appStoreVersions/{id}/build` is the documented single link; a few versions at most, and a failure skips one.
+    for (const id of unlinked.slice(0, MAX_BUILD_LINK_LOOKUPS)) {
+      try {
+        const reply = await this.#get(
+          `/v1/appStoreVersions/${enc(id)}/build`,
+          `reading the build of version ${id}`,
+        );
+        const data = isRecord(reply) && isRecord(reply.data) ? reply.data : undefined;
+        const buildId = data ? text(data.id) : undefined;
+        if (buildId) links.set(id, buildId);
+      } catch (error) {
+        if (!(error instanceof StoreError)) throw error;
+      }
     }
     return links;
   }
