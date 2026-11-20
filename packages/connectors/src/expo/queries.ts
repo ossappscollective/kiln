@@ -330,13 +330,14 @@ export const STORE_BUILDS_QUERY = `query MrmStoreBuildRuntimes($appId: String!, 
   }
 }`;
 
-function buildOf(value: unknown): ExpoStoreBuild | null {
+function buildOf(value: unknown, wanted: string): ExpoStoreBuild | null {
   if (!isRecord(value)) return null;
   const id = text(value.id);
   const platform = text(value.platform);
   if (!id || !platform) return null;
-  // The filter asks for these two; a build that is not both is dropped in case the filter was not applied.
+  // The filter asks for these three; a build that is not all of them is dropped in case the filter was not applied.
   if (value.status !== 'FINISHED' || value.distribution !== 'STORE') return null;
+  if (platform.toLowerCase() !== wanted) return null;
   return {
     id,
     platform: platform.toLowerCase(),
@@ -372,7 +373,9 @@ export async function expoStoreBuilds(
   if (!isRecord(data.app)) throw unreadable();
   if (data.app.byId === null) throw new ExpoError('not_found');
   if (!isRecord(data.app.byId) || !Array.isArray(data.app.byId.builds)) throw unreadable();
-  return data.app.byId.builds.map(buildOf).filter((b): b is ExpoStoreBuild => b !== null);
+  return data.app.byId.builds
+    .map((b: unknown) => buildOf(b, options.platform))
+    .filter((b: ExpoStoreBuild | null): b is ExpoStoreBuild => b !== null);
 }
 
 export const UPDATE_INSIGHTS_QUERY = `query MrmUpdateGroupInsights($groupId: ID!, $timespan: InsightsTimespan!) {
@@ -395,7 +398,7 @@ export const UPDATE_INSIGHTS_QUERY = `query MrmUpdateGroupInsights($groupId: ID!
   }
 }`;
 
-/** An update group id is a UUID; anything else is refused before it is sent. */
+/** An update group id (and an update id) is a UUID; anything else is refused before it is sent. The UUID shape is assumed from eas-cli's use of `ID`: UNVERIFIED. */
 export const EXPO_UPDATE_GROUP_ID = EXPO_PROJECT_ID;
 
 function insightsOf(value: unknown): ExpoUpdateInsights | null {

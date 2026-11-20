@@ -14,6 +14,11 @@ export type EasDeps = {
   fetch?: typeof fetch | undefined;
   /** The GraphQL and REST origin of Expo, default https://api.expo.dev. Tests and self-hosted proxies set it. */
   apiOrigin?: string | undefined;
+  /**
+   * Raising the rollout of an EAS Update (docs/adr/0037-eas-update.md), the one write of the update view: OFF unless `enabled`
+   * (MRM_EAS_UPDATE_ROLLOUT_ENABLED).
+   */
+  updateRollout?: { enabled?: boolean | undefined } | undefined;
 };
 
 export const easModule: ServerModule<EasDeps> = {

@@ -4,6 +4,7 @@ import type { ModuleShared } from '../module.ts';
 import { easConfigPart } from './config-routes.ts';
 import type { EasDeps } from './index.ts';
 import { easLinkRoutes } from './link-routes.ts';
+import { easUpdatePart } from './update-routes.ts';
 
 /** One piece of the EAS module: it mounts its routes. Each feature adds one entry to `easParts` and one array to `easOperations`. */
 export type EasPart = (
@@ -21,4 +22,6 @@ export const easParts: EasPart[] = [
   },
   // The read of eas.json and the app config of an app (config.ts): GET /apps/:appId/eas-config.
   easConfigPart,
+  // EAS Update of the linked project (update.ts): channels, branches, updates, insights and the gated rollout change.
+  easUpdatePart,
 ];

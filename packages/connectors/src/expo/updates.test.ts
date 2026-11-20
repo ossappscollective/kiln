@@ -374,3 +374,9 @@ test('runtime check: the newest update across all branches of the channel is the
   assert.equal(r?.status, 'mismatch');
   assert.equal(r?.latestUpdate?.branch, 'next');
 });
+
+test('store builds of another platform than asked are dropped even when Expo ignores the filter', async () => {
+  const f = fake(buildsBody([build({ platform: 'ANDROID' }), build({ id: 'dd000000-0000-4000-8000-000000000005' })]));
+  const builds = await expoStoreBuilds(f.client, PROJECT_ID, { platform: 'ios' });
+  assert.deepEqual(builds.map((b) => b.id), ['dd000000-0000-4000-8000-000000000005']);
+});
