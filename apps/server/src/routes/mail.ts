@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody, type Services } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
+import { mailBar, mailButton, mailFooter, mailLink, mailShell } from '../services/mail-template.ts';
 import { recordAudit } from '../services/audit.ts';
 import {
   clearSmtp,
@@ -178,7 +179,7 @@ export function mailRoutes(ctx: MailRoutesContext) {
       to,
       subject: 'Test message from Mobile Release Manager',
       text: 'This is a test message. If you can read it, this server can send email.\n\nNo action is needed.',
-      html: '<p>This is a test message. If you can read it, this server can send email.</p><p>No action is needed.</p>',
+      html: testMessageHtml(),
     });
     await recordAudit(db, {
       workspaceId: ws(c),
@@ -198,4 +199,19 @@ export function mailRoutes(ctx: MailRoutesContext) {
   });
 
   return routes;
+}
+
+/** The HTML of the test message: a plain confirmation with a way back to the mail settings. */
+function testMessageHtml(): string {
+  const back = { label: 'Back to the mail settings', href: mailLink('#/settings?view=security'), where: 'Settings, Security, Mail server' };
+  return mailShell(
+    `${mailBar('#1f9d55')}
+<tr><td style="padding:24px 28px 0;">
+<h1 style="margin:0 0 8px;font-size:20px;line-height:1.3;">Email works</h1>
+<p style="margin:0;font-size:15px;line-height:1.55;color:#323f4b;">This is a test message. If you can read it, this server can send email, so alerts and sign-in codes will reach you. No action is needed.</p>
+</td></tr>
+<tr><td style="padding:20px 28px 24px;">${mailButton(back, '#1f9d55')}</td></tr>
+${mailFooter('You sent this test yourself from the mail settings.')}`,
+    'This server can send email',
+  );
 }

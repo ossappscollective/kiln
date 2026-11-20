@@ -16,6 +16,7 @@ import {
   resolveParams,
   severityRank,
 } from './catalog.ts';
+import { renderAlertEmail } from './email.ts';
 import {
   defaultUserSettings,
   isMuted,
@@ -26,7 +27,6 @@ import {
   toUserSettings,
   type UserSettings,
 } from './prefs.ts';
-import { renderAlertEmail } from './email.ts';
 import { inQuietHours, quietEndsAt } from './time.ts';
 
 /**

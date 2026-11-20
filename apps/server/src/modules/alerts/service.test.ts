@@ -20,8 +20,14 @@ dbTest('the alert email carries an HTML part with a button to the app', async (d
   assert.equal(await t.runMail(), 1);
   const mail = t.mail.sent[0];
   assert.match(String(mail?.html), /<html/);
-  assert.match(String(mail?.html), /href="https:\/\/mrm\.example\.com\/#\/portfolio\/app1\/releases"/);
-  assert.match(String(mail?.text), /See the rejection: https:\/\/mrm\.example\.com\/#\/portfolio\/app1\/releases/);
+  assert.match(
+    String(mail?.html),
+    /href="https:\/\/mrm\.example\.com\/#\/portfolio\/app1\/releases"/,
+  );
+  assert.match(
+    String(mail?.text),
+    /See the rejection: https:\/\/mrm\.example\.com\/#\/portfolio\/app1\/releases/,
+  );
   assert.doesNotMatch(String(mail?.html), /undefined/);
 });
 

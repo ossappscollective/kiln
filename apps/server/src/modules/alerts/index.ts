@@ -1,5 +1,4 @@
 import type { ServerModule } from '../module.ts';
-import { setAlertLinkOrigin } from './email.ts';
 import { alertRoutes } from './routes.ts';
 
 /**
@@ -7,15 +6,9 @@ import { alertRoutes } from './routes.ts';
  * to replace; other features raise alerts through `./service.ts` (`raiseAlert`, `observeEventForAlerts`), and the worker sends
  * the email.
  */
-export type AlertsDeps = {
-  /** MRM_PUBLIC_ORIGIN: the address the links in alert emails open. Without it the emails say where to go but have no links. */
-  publicOrigin?: string | undefined;
-};
-
-export const alertsModule: ServerModule<AlertsDeps> = {
+export const alertsModule: ServerModule<undefined> = {
   id: 'alerts',
-  mount(app, services, deps) {
-    setAlertLinkOrigin(deps?.publicOrigin);
+  mount(app, services) {
     app.route('/api/workspaces', alertRoutes({ db: services.db, now: services.now }));
   },
 };

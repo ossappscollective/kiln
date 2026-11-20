@@ -1,3 +1,12 @@
+import {
+  escapeHtml,
+  mailBar,
+  mailButton,
+  mailFooter,
+  mailLink,
+  mailShell,
+  setMailLinkOrigin,
+} from '../../services/mail-template.ts';
 import type { AlertData, AlertDef, AlertSeverity } from './catalog-core.ts';
 
 /**
@@ -8,12 +17,8 @@ import type { AlertData, AlertDef, AlertSeverity } from './catalog-core.ts';
  * names and numbers only (see `redactAlertData`).
  */
 
-let linkOrigin: string | undefined;
-
-/** Installs the origin links are built on (for example https://mrm.example.com), or undefined for no links. */
-export function setAlertLinkOrigin(origin: string | undefined): void {
-  linkOrigin = origin ? origin.replace(/\/+$/, '') : undefined;
-}
+/** Installs the origin links are built on (the one of every email, see services/mail-template.ts). */
+export const setAlertLinkOrigin = setMailLinkOrigin;
 
 /** A screen to go to: `path` is the address inside the app (`#/credentials`), `where` says it in words for an email without links. */
 export type AlertAction = { label: string; path: string; where: string };
@@ -116,11 +121,19 @@ const guides: Record<string, (d: AlertData) => AlertGuide> = {
   'ai.suggestion_ready': (d) => ({ primary: openApp(d, undefined, 'See the suggestion') }),
   'security.stepup_failed': () => ({
     hint: 'If this was not you, change your password and review the sign-in methods.',
-    primary: { label: 'Open the settings', path: '#/settings?view=security', where: 'Settings, Security' },
+    primary: {
+      label: 'Open the settings',
+      path: '#/settings?view=security',
+      where: 'Settings, Security',
+    },
   }),
   'security.recovery_used': () => ({
     hint: 'A recovery code was used. If this was not you, change your password and make new codes.',
-    primary: { label: 'Open the settings', path: '#/settings?view=security', where: 'Settings, Security' },
+    primary: {
+      label: 'Open the settings',
+      path: '#/settings?view=security',
+      where: 'Settings, Security',
+    },
   }),
   'security.token_created': () => ({
     hint: 'If you do not know this token, revoke it.',
@@ -148,15 +161,7 @@ const alertsSettings: AlertAction = {
   where: 'Alerts',
 };
 
-const linkTo = (a: AlertAction): string | undefined =>
-  linkOrigin ? `${linkOrigin}/${a.path}` : undefined;
-
-const escapeHtml = (s: string) =>
-  s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+const linkTo = (a: AlertAction): string | undefined => mailLink(a.path);
 
 const toneOf: Record<AlertSeverity, { bar: string; chip: string; label: string }> = {
   critical: { bar: '#c0392b', chip: '#fdecea', label: 'Critical' },
@@ -166,30 +171,15 @@ const toneOf: Record<AlertSeverity, { bar: string; chip: string; label: string }
 
 export type RenderedEmail = { subject: string; text: string; html: string };
 
-const shell = (inner: string, preheader: string): string => `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
-<body style="margin:0;padding:0;background:#f3f4f6;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(preheader)}</div>
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:24px 12px;"><tr><td align="center">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:10px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1f2933;">
-${inner}
-</table>
-<p style="max-width:560px;margin:14px 0 0;font:12px/1.5 -apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#7b8794;">Mobile Release Manager</p>
-</td></tr></table></body></html>`;
-
-const button = (a: AlertAction, bar: string): string => {
-  const href = linkTo(a);
-  return href
-    ? `<a href="${escapeHtml(href)}" style="display:inline-block;background:${bar};color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:11px 20px;border-radius:8px;">${escapeHtml(a.label)}</a>`
-    : `<span style="font-size:14px;color:#52606d;">Open Mobile Release Manager and go to <strong>${escapeHtml(a.where)}</strong>.</span>`;
-};
+const button = (a: AlertAction, bar: string): string =>
+  mailButton({ label: a.label, href: linkTo(a), where: a.where }, bar);
 
 const footerLinks = (): string => {
   const href = linkTo(alertsSettings);
   const settings = href
     ? `<a href="${escapeHtml(href)}" style="color:#52606d;">${escapeHtml(alertsSettings.label)}</a>`
     : 'Change your choices in Alerts.';
-  return `<tr><td style="padding:16px 28px 22px;border-top:1px solid #e4e7eb;font-size:12px;line-height:1.5;color:#7b8794;">You get this email because of your alert settings. ${settings}</td></tr>`;
+  return mailFooter(`You get this email because of your alert settings. ${settings}`);
 };
 
 /** One alert as an email. `count` is how many times it happened when it is shown again. */
@@ -217,7 +207,10 @@ export function renderAlertEmail(
   );
   for (const a of actions) {
     const href = linkTo(a);
-    textLines.push('', href ? `${a.label}: ${href}` : `${a.label}: open Mobile Release Manager, ${a.where}.`);
+    textLines.push(
+      '',
+      href ? `${a.label}: ${href}` : `${a.label}: open Mobile Release Manager, ${a.where}.`,
+    );
   }
   const settingsHref = linkTo(alertsSettings);
   textLines.push(
@@ -237,7 +230,7 @@ export function renderAlertEmail(
         : '';
     })
     .filter((s) => s !== '');
-  const inner = `<tr><td style="height:5px;background:${tone.bar};font-size:0;line-height:0;">&nbsp;</td></tr>
+  const inner = `${mailBar(tone.bar)}
 <tr><td style="padding:24px 28px 4px;">
 <span style="display:inline-block;background:${tone.chip};color:${tone.bar};font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:999px;">${tone.label}</span>
 <h1 style="margin:12px 0 8px;font-size:20px;line-height:1.3;">${escapeHtml(title)}</h1>
@@ -253,7 +246,7 @@ ${secondary.length > 0 ? `<tr><td style="padding:14px 28px 0;font-size:14px;">Al
 <tr><td style="height:24px;font-size:0;line-height:0;">&nbsp;</td></tr>
 ${footerLinks()}`;
 
-  return { subject, text: textLines.join('\n'), html: shell(inner, title) };
+  return { subject, text: textLines.join('\n'), html: mailShell(inner, title) };
 }
 
 /** The digest: one line per alert, each with where to go, in the same frame. */
@@ -286,9 +279,9 @@ export function renderDigestEmail(
 ${href && i.action ? `<br><a href="${escapeHtml(href)}" style="color:${tone.bar};font-weight:600;font-size:13px;">${escapeHtml(i.action.label)}</a>` : ''}</td></tr>`;
     })
     .join('\n');
-  const inner = `<tr><td style="height:5px;background:#2e6bd3;font-size:0;line-height:0;">&nbsp;</td></tr>
+  const inner = `${mailBar('#2e6bd3')}
 <tr><td style="padding:24px 28px 16px;"><h1 style="margin:0;font-size:20px;line-height:1.3;">${n} alert${n === 1 ? '' : 's'} since your last digest</h1></td></tr>
 ${rows}
 ${footerLinks()}`;
-  return { subject, text, html: shell(inner, subject) };
+  return { subject, text, html: mailShell(inner, subject) };
 }

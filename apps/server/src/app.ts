@@ -60,6 +60,7 @@ import type { CloneReads, ConnectorFactory } from './services/repositories.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
 import { enableStepUpAutoApprove } from './services/step-up.ts';
 import type { TranslationContext } from './services/translation.ts';
+import { setMailLinkOrigin } from './services/mail-template.ts';
 import { createLaunchGate, hostGuard } from './single-user.ts';
 
 /** Largest request body of any API route. Listings are text; the biggest legitimate one is far below. */
@@ -271,6 +272,8 @@ export type AppDeps = {
 
 export function createApp(deps: AppDeps) {
   const app = new Hono<AppEnv>();
+  // The address the buttons in emails open (MRM_PUBLIC_ORIGIN); without it emails name the screen and have no link.
+  setMailLinkOrigin(deps.publicOrigin);
   const services: Services = {
     db: deps.db,
     masterKey: deps.masterKey,
@@ -440,7 +443,7 @@ export function createApp(deps: AppDeps) {
       ...(translationSeams.resolve ? { resolve: translationSeams.resolve } : {}),
     }),
   );
-  alertsModule.mount(app, services, { publicOrigin: deps.publicOrigin }, shared);
+  alertsModule.mount(app, services, undefined, shared);
   listingModule.mount(
     app,
     services,

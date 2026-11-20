@@ -23,7 +23,10 @@ test('a failing sync says how to fix it and links to the app and to the credenti
   });
   assert.equal(mail.subject, '[warning] Syncing Lyynk with the store is failing');
   assert.match(mail.text, /What to do: .*Credentials screen/);
-  assert.match(mail.text, /See why the sync fails: https:\/\/mrm\.example\.com\/#\/portfolio\/app%201/);
+  assert.match(
+    mail.text,
+    /See why the sync fails: https:\/\/mrm\.example\.com\/#\/portfolio\/app%201/,
+  );
   assert.match(mail.text, /Check the credentials: https:\/\/mrm\.example\.com\/#\/credentials/);
   assert.match(mail.html, /href="https:\/\/mrm\.example\.com\/#\/portfolio\/app%201"/);
   assert.match(mail.html, /href="https:\/\/mrm\.example\.com\/#\/credentials"/);
@@ -84,11 +87,19 @@ test('a repeated alert says how many times, and the digest links each alert', ()
   });
   assert.match(mail.text, /This happened 4 times\./);
   const digest = renderDigestEmail([
-    { title: 'One', severity: 'warning', count: 1, action: alertGuide(d.id, { appId: 'a1' }).primary },
+    {
+      title: 'One',
+      severity: 'warning',
+      count: 1,
+      action: alertGuide(d.id, { appId: 'a1' }).primary,
+    },
     { title: 'Two', severity: 'info', count: 2, action: undefined },
   ]);
   assert.equal(digest.subject, 'Alert digest: 2 alerts');
-  assert.match(digest.text, /- \[warning\] One\n {2}See why the sync fails: https:\/\/mrm\.example\.com\/#\/portfolio\/a1/);
+  assert.match(
+    digest.text,
+    /- \[warning\] One\n {2}See why the sync fails: https:\/\/mrm\.example\.com\/#\/portfolio\/a1/,
+  );
   assert.match(digest.text, /- \[info\] Two \(2 times\)/);
   assert.match(digest.html, /href="https:\/\/mrm\.example\.com\/#\/portfolio\/a1"/);
 });
