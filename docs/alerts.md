@@ -52,6 +52,7 @@ thresholds. Channels are the workspace defaults. The webhook is only on where li
 | `plan.deadline_due_soon` | A release plan target day is close          | info     | app       | `plan.deadline_due_soon`                                | inbox                          | 3d            |                                                                                      |
 | `plan.rollout_step_due`  | A planned rollout step is due               | info     | app       | `plan.rollout_step_due`                                 | inbox, desktop                 | 3d            |                                                                                      |
 | `review.low_rating`      | A new low-star review                       | warning  | app       | `review.new_low_rating`                                 | inbox, desktop                 | 30d           |                                                                                      |
+| `review.new`             | A new customer review                       | info     | app       | `review.new`                                            | inbox                          | 30d           |                                                                                      |
 | `review.sync_failed`     | Reading reviews keeps failing               | warning  | app       | `review.sync_failed`                                    | inbox                          | 24h           |                                                                                      |
 | `review.unanswered`      | Reviews are waiting for an answer           | info     | workspace | `review.unanswered`                                     | inbox                          | 24h           |                                                                                      |
 | `rating.dropped`         | The average rating dropped                  | warning  | app       | state, every 5 minutes                                  | inbox, email                   | 7d            | Drop that counts: 20 hundredths of a star (5 to 200); compared with 7 days (1 to 60) |
@@ -77,6 +78,16 @@ Who is told, by type: the `release.*`, `store.sync_failed` and `pending.stale` t
 `changeset.failed` to repositories; `analytics.sync_failing` to analytics; `aso.*` to ASO; `ai.suggestion_ready` to AI use; the
 `security.*` and `system.*` types to people who can change workspace settings, except `security.member_added` (people who manage
 members). The exact action of each type is `audience` in `GET /alerts/catalog`.
+
+### A new review, and how a first read stays quiet
+
+`review.new` tells people about every review that is new in a read, whatever its rating (`review.low_rating` stays the one for low
+stars; a low-star review raises both). It is **inbox only by default** and meant to be opted into per person or per app (the matrix
+in Settings, Alerts lists it with the other types), or switched off by an admin rule. To keep a big read from flooding the inbox, the
+review read sends **one grouped event** (`grouped: true`, `count`) instead of one per review when it is the **first read of an app**
+or **more than 10 reviews** are new in one read; the alert then says "12 new reviews for App". Up to 10 new reviews are one alert each
+("New 4-star review for App"), once per store review. The alert and its event carry ids, the store, the platform, the rating and
+counts only: not the review text, not the title, not the name ([ADR 0027](adr/0027-review-feed-and-new-review-alert.md)).
 
 ### Events that never alert
 

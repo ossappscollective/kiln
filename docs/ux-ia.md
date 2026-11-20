@@ -54,6 +54,10 @@ Same principles as phase 1: quiet by default, the important thing first, one pri
   New / Triaged / Replied / Ignored with counts (the inbox counts only New), and a Filters popover (rating, low ratings only, sort,
   developer response, language, country, version, written; the inbox adds store, assignee, apps; the translation toggle lives
   there). The list and the detail view start right under the toolbar. Triage behaviour (`reviews.ts`, `review-split.ts`) is unchanged.
+  The inbox is the **combined reviews feed** for "follow the reviews of iOS and Android in one place": every app and both stores,
+  newest first, with the app name and a store badge on each review, "Load more" paging and an "Open app" link to the app's own Reviews
+  page (where the reply dialog lives). It is the "Inbox" entry at the All apps level, not an item of the six-item app rail. A new
+  review can also raise the alert `review.new` (inbox only by default; [alerts](alerts.md)).
 - **Insights** has three views. Overview: the figures and ONE chart (downloads, or installs on Google Play; the others behind "More
   charts"), then the ranked ASO next steps (two per platform, "Show all") and any open AI suggestions, then the sources. Keywords:
   a switch of Keywords and Rank and downloads, and a "More" menu with the rest. Search terms: Google Play apps only.

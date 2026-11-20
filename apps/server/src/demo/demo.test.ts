@@ -415,6 +415,7 @@ test('the Alerts inbox is not empty: a mix of read and unread alerts, a delivery
   for (const t of [
     'release.rejected',
     'review.low_rating',
+    'review.new',
     'release.halted',
     'store.sync_failed',
     'analytics.sync_failing',

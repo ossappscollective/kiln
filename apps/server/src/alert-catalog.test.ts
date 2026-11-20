@@ -49,6 +49,7 @@ test('the catalog covers the conditions the task names, with severity and scope'
     'ci.run_failed',
     'analytics.sync_failing',
     'review.low_rating',
+    'review.new',
     'rating.dropped',
     'aso.rank_dropped',
     'listing.drift',

@@ -31,6 +31,45 @@ export const moreDefs = [
     }),
   }),
   def({
+    id: 'review.new',
+    group: 'reviews',
+    label: 'A new customer review',
+    description:
+      'A customer review was stored for an app, whatever its rating. The first read of an app, or more than 10 new reviews in one read, raise one grouped alert ("N new reviews") instead of one each.',
+    severity: 'info',
+    scope: 'app',
+    defaultChannels: ['in_app'],
+    allowedChannels: everyone,
+    audience: 'reviews.read',
+    source: { kind: 'event', events: ['review.new'] },
+    dedupe: 'review.new:{reviewId|appId:batch:time}',
+    dedupeKey: (d) => `review.new:${d.reviewId ?? `${d.appId}:batch:${d.batch}`}`,
+    dedupeWindowMs: 30 * DAY,
+    maxPerHour: 30,
+    params: {},
+    title: (d) =>
+      d.grouped === true
+        ? `${d.count ?? 'Several'} new reviews for ${app(d)}`
+        : `New ${d.rating ?? '?'}-star review for ${app(d)}`,
+    body: (d) =>
+      d.grouped === true
+        ? `${d.count ?? 'Several'} customer reviews of ${app(d)} on ${String(d.store ?? 'the store')} were read${d.baseline === true ? ' (the first read of this app)' : ''}. Open the reviews inbox to read them; the texts are not sent here.`
+        : `A ${d.rating ?? '?'}-star review arrived for ${app(d)} on ${String(d.store ?? 'the store')}. Open the reviews inbox to read it; the text is not sent here.`,
+    fromEvent: (e) => {
+      const grouped = e.payload.grouped === true;
+      return {
+        appId: e.subject.appId ?? null,
+        store: str(e.payload.store),
+        platform: str(e.payload.platform),
+        ...(grouped
+          ? { grouped: true, count: num(e.payload.count), baseline: e.payload.baseline === true }
+          : { reviewId: str(e.payload.reviewId), rating: num(e.payload.rating) }),
+        // One batch per read: the time of the event keeps two reads from collapsing into one alert.
+        batch: e.createdAt,
+      };
+    },
+  }),
+  def({
     id: 'review.sync_failed',
     group: 'reviews',
     label: 'Reading reviews keeps failing',

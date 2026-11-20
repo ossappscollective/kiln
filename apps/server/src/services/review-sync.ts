@@ -48,6 +48,9 @@ import { lowRatingThresholdFor } from './workspace-settings.ts';
  * - A failure is remembered (`review_sync_state`: error, streak, backoff) and returned; nothing
  *   thrown here reaches the scheduler or the job worker.
  *
+ * - `review.new`: every review that is new in a read, as one event each (up to MAX_NEW_REVIEW_EVENTS_PER_SYNC), or one
+ *   grouped event with the count for the first read of an app and for a bigger read. It feeds the alert `review.new`.
+ *
  * Events carry ids and the rating only, never review text or a display name.
  */
 
@@ -65,6 +68,11 @@ export const DEFAULT_REVIEW_TIMEOUT_MS = 90_000;
 export const LOW_RATING_THRESHOLD = 2;
 /** Most low-rating events one read emits; the rest are recorded as notified without an event. */
 export const MAX_LOW_RATING_EVENTS_PER_SYNC = 50;
+/**
+ * `review.new` (docs/api/events.md): up to this many new reviews in one read are one event each; more than
+ * this, or the first read of an app, are ONE grouped event with the count, so a first sync never floods.
+ */
+export const MAX_NEW_REVIEW_EVENTS_PER_SYNC = 10;
 /** Most reviews one read takes; an App Store backlog continues from the cursor next time. */
 export const MAX_REVIEWS_PER_SYNC = 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -619,6 +627,7 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
     let events = 0;
     let lowSeen = 0;
     const addedIds: string[] = [];
+    const addedRatings: { id: string; storeReviewId: string; rating: number }[] = [];
     const untouched: string[] = [];
     const notify = async (
       id: string,
@@ -684,6 +693,7 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
         );
         added++;
         addedIds.push(id);
+        addedRatings.push({ id, storeReviewId: review.storeReviewId, rating: review.rating });
         continue;
       }
       const edited =
@@ -751,6 +761,35 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
           app.id,
         ],
       );
+    }
+    // `review.new`: ids, store, platform and rating only (never a title, a text or a name). The first read of
+    // an app and a big read are one grouped event; otherwise one per review.
+    if (added > 0) {
+      const common = { appId: app.id, store, platform: app.platform };
+      if (baseline || added > MAX_NEW_REVIEW_EVENTS_PER_SYNC) {
+        await emitEvent(tx, {
+          workspaceId,
+          type: 'review.new',
+          subject: { appId: app.id },
+          payload: { ...common, grouped: true, count: added, baseline },
+          at,
+        });
+      } else {
+        for (const r of addedRatings) {
+          await emitEvent(tx, {
+            workspaceId,
+            type: 'review.new',
+            subject: { appId: app.id },
+            payload: {
+              ...common,
+              reviewId: r.id,
+              storeReviewId: r.storeReviewId,
+              rating: r.rating,
+            },
+            at,
+          });
+        }
+      }
     }
     for (let i = 0; i < untouched.length; i += 200) {
       const chunk = untouched.slice(i, i + 200);

@@ -129,6 +129,7 @@ export function templatesSummary(list: readonly ChecklistTemplate[]): string {
 export const appEventTypes: readonly string[] = [
   'app.synced',
   'app.release.status_changed',
+  'review.new',
   'review.new_low_rating',
   'review.sync_failed',
   'review.reply_sent',

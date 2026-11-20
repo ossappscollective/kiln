@@ -20,6 +20,11 @@ export const webhookEventChoices: { type: string; label: string }[] = [
   { type: 'plan.deadline_overdue', label: 'A release plan’s deadline has passed' },
   { type: 'plan.rollout_step_due', label: 'A planned rollout step’s time has passed' },
   {
+    type: 'review.new',
+    label:
+      'A new customer review was stored, or a batch of them (ids, store and rating only; never the text)',
+  },
+  {
     type: 'review.new_low_rating',
     label: 'A low-rated customer review arrived (ids and rating only)',
   },

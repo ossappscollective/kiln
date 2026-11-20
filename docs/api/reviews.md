@@ -161,6 +161,12 @@ is audited as `review.triage` with the fields that changed and the old and new s
 
 ## The workspace-wide inbox
 
+This is also the **combined reviews feed** of the web app (`#/reviews`, "Inbox" at the bottom of the left panel at the All apps
+level; App Store and Google Play together, "Load more" paging, filters for store, rating, unanswered and apps, and a link to each
+app's own Reviews page where the reply dialog lives) and of the MCP tool `list_workspace_reviews` (review text marked as untrusted
+data). It reads only reviews already stored here and never calls a store. [ADR 0027](../adr/0027-review-feed-and-new-review-alert.md)
+records why no second feed was built.
+
 ### `GET /api/workspaces/{ws}/reviews`
 
 The stored reviews of **every app** of the workspace in one list, newest first by default. Needs
@@ -305,10 +311,12 @@ sends nothing; the result is a suggestion that goes through the same checks when
 
 ## Events
 
-`review.new_low_rating`, `review.sync_failed`, `review.reply_sent` and `review.unanswered`, in the [event log](events.md), the live stream and
+`review.new`, `review.new_low_rating`, `review.sync_failed`, `review.reply_sent` and `review.unanswered`, in the [event log](events.md), the live stream and
 [webhooks](webhooks.md). They carry ids, the store and the rating only: **no review text and no
 display name**, because a webhook receiver is another system. A receiver reads the review with this
-API. `review.new_low_rating` is sent once per store review (also when a review is later edited down
+API. `review.new` is sent for every review that is new in a read: one event each up to 10 per read, and ONE grouped event
+(`grouped: true`, `count`) for the first read of an app or a read with more than 10 new reviews. It feeds the alert
+`review.new` ([alerts](../alerts.md)). `review.new_low_rating` is sent once per store review (also when a review is later edited down
 to the threshold, 2 or less), not for the first read of an app, and at most 50 per read.
 `review.sync_failed` is sent once per failure streak. `review.reply_sent` is sent when a reply was
 published (ids, store and the actor only, no text). `review.unanswered` is an opt-in digest (workspace

@@ -115,6 +115,13 @@ export async function seedAlerts(input: {
       read: false,
       data: { reviewId: 'demo-review-low-1', rating: 1, store: 'App Store' },
     },
+    {
+      type: 'review.new',
+      app: app('weather:android'),
+      hoursAgo: 3,
+      read: false,
+      data: { grouped: true, count: 4, store: 'Google Play', platform: 'android', batch: 1 },
+    },
   ];
 
   const raised: { id: string; read: boolean }[] = [];

@@ -16,6 +16,7 @@ export const eventTypes = [
   'plan.deadline_due_soon',
   'plan.deadline_overdue',
   'plan.rollout_step_due',
+  'review.new',
   'review.new_low_rating',
   'review.sync_failed',
   'review.reply_sent',
@@ -62,6 +63,8 @@ export const eventReadAction: Record<EventType, Action> = {
   'plan.deadline_due_soon': 'plans.read',
   'plan.deadline_overdue': 'plans.read',
   'plan.rollout_step_due': 'plans.read',
+  // Ids, store, platform and rating only (or a count for a grouped event); never a title, a text or a name.
+  'review.new': 'reviews.read',
   'review.new_low_rating': 'reviews.read',
   'review.sync_failed': 'reviews.read',
   'review.reply_sent': 'reviews.read',
