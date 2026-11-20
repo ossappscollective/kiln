@@ -176,7 +176,7 @@ async function remember(
   db: Database,
   workspaceId: string,
   appId: string,
-  at: number,
+  _at: number,
   failed: Failure,
 ): Promise<Failure> {
   try {

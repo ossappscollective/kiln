@@ -10,7 +10,6 @@ import {
   PLAY_SECRET,
   PLAY_TARGET,
   playState,
-  type RolloutBoot,
 } from './rollout-test-helpers.ts';
 import { rolloutConfirmHash } from './services/store-rollout.ts';
 

@@ -204,7 +204,7 @@ export function useTestFlightNotes(drafts: Drafts, notes: TestNotes | undefined)
   const next: Drafts = { ...drafts };
   const filled: string[] = [];
   const skipped: string[] = [];
-  if (!notes || !notes.read) return { drafts, filled, skipped };
+  if (!notes?.read) return { drafts, filled, skipped };
   const keys = Object.keys(drafts);
   for (const n of notes.locales) {
     const key = keys.filter((k) => normalizeLocale(k) === normalizeLocale(n.locale))[0];

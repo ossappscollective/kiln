@@ -218,7 +218,7 @@ const toProblem = (p: {
   ...(p.unit !== undefined ? { unit: p.unit } : {}),
 });
 
-const setLabel = (platform: Platform, locale: string, slot: AssetSlot): string => {
+const setLabel = (platform: Platform, _locale: string, slot: AssetSlot): string => {
   const kind = ASSET_KIND_LABELS[slot.kind];
   return slot.device === null
     ? kind

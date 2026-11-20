@@ -73,7 +73,7 @@ function inFlightOf(
   const out: ReleaseSummary[] = [];
   for (const app of group.members) {
     const load = releases[app.id];
-    if (!load || load.state !== 'ready') continue;
+    if (load?.state !== 'ready') continue;
     const best = load.releases
       .filter(
         (r) => r.platform === app.platform && r.status !== null && FLIGHT_STATES.includes(r.status),

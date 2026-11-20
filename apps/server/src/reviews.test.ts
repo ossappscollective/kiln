@@ -774,7 +774,7 @@ dbTest(
     await t.call(t.owner, 'POST', path(id, '/sync'));
     const rid = (await t.call(t.owner, 'GET', path(id))).body.reviews[0].id as string;
     const member = await t.addMember('member');
-    const memberId = 'user-member-' + t.workspaceId;
+    const memberId = `user-member-${t.workspaceId}`;
 
     const done = await t.call(member, 'PATCH', path(id, `/${rid}`), {
       status: 'replied_in_console',

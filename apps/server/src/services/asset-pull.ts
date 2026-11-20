@@ -340,7 +340,7 @@ export async function pullStoreImages(
     // From steps to file changes. The bytes of the new files are what was fetched.
     const newBytes = (index: number): Uint8Array | undefined => {
       const w = wanted[index];
-      if (!w || w.kind !== 'new') return undefined;
+      if (w?.kind !== 'new') return undefined;
       for (const f of fetched.values()) if (f.oid === w.oid) return f.bytes;
       return undefined;
     };

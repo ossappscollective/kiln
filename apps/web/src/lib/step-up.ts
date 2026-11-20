@@ -334,7 +334,7 @@ export function webauthnSupported(env: {
 }): boolean {
   if (env.isSecureContext === false) return false;
   if (typeof env.PublicKeyCredential !== 'function') return false;
-  const credentials = env.navigator && env.navigator.credentials;
+  const credentials = env.navigator?.credentials;
   return (
     !!credentials &&
     typeof credentials.get === 'function' &&

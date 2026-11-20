@@ -8,7 +8,6 @@ import {
 } from '@mrm/connectors';
 import {
   type Action,
-  type ActorType,
   type AiErrorKind,
   type AiProvider,
   aiLimits,

@@ -9,7 +9,6 @@ import {
   downloadsTsv,
   mdy,
   SEGMENT_SECRET,
-  STORE_APP_ID,
   salesTsv,
 } from './analytics-test-helpers.ts';
 

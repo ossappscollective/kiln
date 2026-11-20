@@ -106,7 +106,7 @@ export function createDemoRoutes(deps: DemoRoutesDeps) {
     c.header('Cache-Control', 'no-store');
     if (c.req.query('json') !== undefined)
       return c.json({ ok: true, user: { key: user.key, role: user.role, email: user.email } });
-    return c.redirect(next && next.startsWith('/') && !next.startsWith('//') ? next : '/', 302);
+    return c.redirect(next?.startsWith('/') && !next.startsWith('//') ? next : '/', 302);
   });
 
   app.post('/reset', async (c) => {

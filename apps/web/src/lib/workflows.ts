@@ -350,7 +350,7 @@ export const isStatusFilter = (value: string): value is StatusFilter =>
 export function matchesStatus(last: WorkflowRun | null, filter: StatusFilter): boolean {
   switch (filter) {
     case 'running':
-      return last !== null && last.active;
+      return last?.active === true;
     case 'failed':
       return last !== null && isFailedRun(last);
     case 'succeeded':

@@ -176,7 +176,7 @@ test('the sparkline puts rank 1 at the top, "not ranked" at the bottom and one c
 
 test('pasted keywords split on lines, commas and semicolons and drop repeats and bad ones', () => {
   const p = parsePastedTerms(
-    'Water  Reminder\nwater-reminder, habit tracker;;  \n!!!\n' + 'x'.repeat(100),
+    `Water  Reminder\nwater-reminder, habit tracker;;  \n!!!\n${'x'.repeat(100)}`,
   );
   assert.deepEqual(
     p.terms.map((t) => t.term),

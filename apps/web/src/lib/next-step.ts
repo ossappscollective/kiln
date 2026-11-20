@@ -154,7 +154,7 @@ export function chooseNextStep(input: NextStepInput): NextStep {
   const lone =
     unfinished.find((i) => i.href !== null) ??
     items.find((i) => i.tone === 'bad' && i.href !== null && !i.submitAppId);
-  if (lone && lone.href) {
+  if (lone?.href) {
     return {
       ...base,
       kind: 'attention',

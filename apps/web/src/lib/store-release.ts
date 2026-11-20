@@ -135,7 +135,7 @@ export const percentText = (fraction: number): string => `${Math.round(fraction 
 export function percentFromFraction(value: string | null | undefined): string {
   if (value === null || value === undefined) return '';
   const n = Number(value);
-  if (!isFinite(n) || n <= 0 || n > 1) return '';
+  if (!Number.isFinite(n) || n <= 0 || n > 1) return '';
   return String(Math.round(n * 10000) / 100);
 }
 

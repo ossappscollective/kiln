@@ -553,9 +553,7 @@ export function publishAvailability(input: {
   if (input.totals === null) return { state: 'loading', message: 'Reading what is pending.' };
   if (input.totals.actionable === 0)
     return { state: 'nothing', message: 'Nothing is waiting to be published.' };
-  const off = input.nextSteps.filter(
-    (s) => config.steps && config.steps[s] && config.steps[s].enabled === false,
-  );
+  const off = input.nextSteps.filter((s) => config.steps?.[s] && config.steps[s].enabled === false);
   if (input.nextSteps.length > 0 && off.length === input.nextSteps.length) {
     return {
       state: 'steps_off',
@@ -693,7 +691,7 @@ export function requestsFor(
     if (wanted.indexOf(type) < 0) continue;
     const given = extra[type];
     const step = plan.steps.filter((s) => s.type === type)[0];
-    out.push(given ?? (step && step.included && step.request ? step.request : { type }));
+    out.push(given ?? (step?.included && step.request ? step.request : { type }));
   }
   return out;
 }

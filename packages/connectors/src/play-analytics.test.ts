@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as ax from './analytics.fixtures.ts';
 import { AnalyticsError } from './analytics-types.ts';
-import { parseTable } from './delimited.ts';
 import { StoreError, StoreRateLimitError } from './errors.ts';
 import {
   ANDROID_PUBLISHER_SCOPE,
@@ -11,12 +10,7 @@ import {
   PLAY_DEVELOPER_REPORTING_SCOPE,
   parseServiceAccount,
 } from './google-auth.ts';
-import {
-  mapPlayTable,
-  PlayReportsConnector,
-  PlayVitalsConnector,
-  parseVitalsRows,
-} from './play-analytics.ts';
+import { PlayVitalsConnector, parseVitalsRows } from './play-analytics.ts';
 import * as fx from './store.fixtures.ts';
 import { StoreHttp } from './store-http.ts';
 

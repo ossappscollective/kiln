@@ -190,7 +190,7 @@ const setQuery = (hash: string, change: (params: URLSearchParams) => void): stri
 /** The same address on another view of the page. The first view is the default and is not written; other query parts stay. */
 export function withView(hash: string, section: AppSection, view: string): string {
   const list = sectionViews[section];
-  if (!list || !list.some((v) => v.id === view)) return hash;
+  if (!list?.some((v) => v.id === view)) return hash;
   const first = (list[0] as SectionView).id;
   return setQuery(hash, (params) => {
     if (view === first) params.delete('view');

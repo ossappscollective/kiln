@@ -2,7 +2,6 @@ import {
   type AiAcceptedRef,
   type AiAppContext,
   type AiFlag,
-  type AiInsightProposal,
   type AiProposal,
   type AiProposalKind,
   type AiProvider,

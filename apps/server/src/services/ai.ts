@@ -32,7 +32,6 @@ import {
   failureForAiError,
   guardReason,
   newId,
-  readAiConfig,
   unavailableFailure,
   withGuardHint,
 } from './ai-config.ts';

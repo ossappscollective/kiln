@@ -263,7 +263,7 @@ dbTest(
     const none = await t.post(undefined, body);
     assert.equal(none.status, 401);
     assert.match(none.headers.get('www-authenticate') ?? '', /Bearer/);
-    assert.equal((await t.post('mrm_' + 'a'.repeat(40), body)).status, 401);
+    assert.equal((await t.post(`mrm_${'a'.repeat(40)}`, body)).status, 401);
     assert.equal(
       (await t.post(undefined, body, { cookie: t.owner })).status,
       401,

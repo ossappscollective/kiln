@@ -54,7 +54,6 @@ import { type Failure, failure } from './repositories.ts';
 import { storeFor } from './review-sync.ts';
 import { getBlob } from './staged-asset-blobs.ts';
 import {
-  type AssetSet,
   assetSetsOf,
   buildStagedView,
   loadStagedRows,

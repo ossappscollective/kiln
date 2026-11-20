@@ -243,12 +243,10 @@ export function draftKey(state: DraftState): Record<string, unknown> {
     store: state.store,
     version: state.version === null ? null : { id: state.version.id, state: state.version.state },
     text: [...state.text]
-      .sort((a, b) => (a.locale + '\u0000' + a.field).localeCompare(b.locale + '\u0000' + b.field))
+      .sort((a, b) => `${a.locale}\u0000${a.field}`.localeCompare(`${b.locale}\u0000${b.field}`))
       .map((t) => [t.locale, t.field, t.localeExists, t.value]),
     assets: [...state.assets]
-      .sort((a, b) =>
-        (a.locale + '\u0000' + a.target).localeCompare(b.locale + '\u0000' + b.target),
-      )
+      .sort((a, b) => `${a.locale}\u0000${a.target}`.localeCompare(`${b.locale}\u0000${b.target}`))
       .map((a) => [
         a.locale,
         a.target,
@@ -259,7 +257,7 @@ export function draftKey(state: DraftState): Record<string, unknown> {
       ? {
           fields: [...state.fields]
             .sort((a, b) =>
-              (a.field + '\u0000' + a.locale).localeCompare(b.field + '\u0000' + b.locale),
+              `${a.field}\u0000${a.locale}`.localeCompare(`${b.field}\u0000${b.locale}`),
             )
             .map((f) => [
               f.field,

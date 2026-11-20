@@ -440,7 +440,7 @@ test('every edit is idempotent: applying the same listing to the result changes 
   const en = apple(after).locales['en-US'];
   assert.ok(en);
   en.name = 'Trail Notes 2';
-  apple(after).locales['ja'] = { name: 'トレイル', privacy_url: 'https://example.com/ja' };
+  apple(after).locales.ja = { name: 'トレイル', privacy_url: 'https://example.com/ja' };
   const { text } = apply(snapshot, after);
   const again = read(text);
   assert.deepEqual(expoStoreChangeSet(again, after).changes, []);

@@ -59,7 +59,6 @@ import {
   pruneRuns,
   REFRESH_PAGE_SIZE,
   recordDispatch,
-  type StoreResult,
   storeRuns,
   type WorkflowRunView,
 } from './ci-runs.ts';

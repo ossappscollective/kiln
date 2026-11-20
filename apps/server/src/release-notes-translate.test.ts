@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { AiError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { type AiBoot, bootAi } from './ai-test-helpers.ts';
+import { bootAi } from './ai-test-helpers.ts';
 import {
   cleanModelText,
   isNoteLocale,

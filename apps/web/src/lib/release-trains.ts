@@ -154,8 +154,7 @@ const names = (items: readonly TrainInput[], several: boolean): string =>
 
 /** The version a build with no version of its own could go to: the only version on its way in the same app, else none. */
 function carrierOf(item: TrainInput, versions: readonly string[]): string | null {
-  if (item.build && item.build.version && versions.indexOf(item.build.version) >= 0)
-    return item.build.version;
+  if (item.build?.version && versions.indexOf(item.build.version) >= 0) return item.build.version;
   return versions.length === 1 ? (versions[0] as string) : null;
 }
 
@@ -240,7 +239,7 @@ function describe(t: {
     const unattached = [
       ...t.spare,
       ...t.items.filter((i) => i.state === 'draft' || i.state === 'build_ready'),
-    ].filter((s) => s.build && s.build.processed && !s.build.attached);
+    ].filter((s) => s.build?.processed && !s.build.attached);
     const own = t.items.filter(
       (i) => i.state === 'draft' || i.state === 'build_ready' || i.state === 'build_processing',
     );

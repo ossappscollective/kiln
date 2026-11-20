@@ -956,7 +956,7 @@ test('openai compatible: a server that refuses strict schemas is asked again wit
   const f = fakeFetch(
     refuse,
     refuse,
-    chatOk('<think>hmm</think>```json\n' + JSON.stringify(GOOD) + '\n```'),
+    chatOk(`<think>hmm</think>\`\`\`json\n${JSON.stringify(GOOD)}\n\`\`\``),
   );
   const out = await createAiClient({
     provider: 'openai_compatible',
@@ -1050,7 +1050,7 @@ test('openai compatible: temperature 0 is sent and top_p is left alone; a rambli
 test('openai compatible: when both tries fail the second error is reported with the tokens of both and a sample of the second answer; no more than two calls', async () => {
   const f = fakeFetch(
     chatOk('first ramble', { usage: { prompt_tokens: 100, completion_tokens: 500 } }, 'length'),
-    chatOk('\u0007Here\nis\tmy  answer: <b>{"ideas": ' + 'x'.repeat(400), {
+    chatOk(`\u0007Here\nis\tmy  answer: <b>{"ideas": ${'x'.repeat(400)}`, {
       usage: { prompt_tokens: 30, completion_tokens: 1000 },
     }),
   );

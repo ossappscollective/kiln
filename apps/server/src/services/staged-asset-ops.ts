@@ -25,7 +25,6 @@ import {
   inspectImage,
   loadEffectiveSet,
   replaceAssetSet,
-  type SetEntry,
   slotOf,
 } from './staged-sets.ts';
 

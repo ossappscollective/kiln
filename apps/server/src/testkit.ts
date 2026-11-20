@@ -91,7 +91,7 @@ export async function seedWorkspace(db: Database, name: string, ownerEmail: stri
   await db.execute('INSERT INTO users (id, email, display_name, created_at) VALUES (?, ?, ?, ?)', [
     userId,
     ownerEmail,
-    'Owner of ' + name,
+    `Owner of ${name}`,
     now,
   ]);
   await db.execute('INSERT INTO workspaces (id, name, created_at) VALUES (?, ?, ?)', [

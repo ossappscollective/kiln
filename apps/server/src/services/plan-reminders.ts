@@ -209,7 +209,7 @@ async function send(db: Database, c: Candidate, at: number): Promise<boolean> {
         'SELECT status, planned_at FROM plan_rollout_steps WHERE id = ? AND plan_id = ? AND workspace_id = ?',
         [c.itemId, c.planId, c.workspaceId],
       );
-      if (!step || step.status !== 'planned' || String(step.planned_at) !== c.dueKey) return false;
+      if (step?.status !== 'planned' || String(step.planned_at) !== c.dueKey) return false;
     } else {
       const [plan] = await tx.query(
         'SELECT target_date FROM release_plans WHERE id = ? AND workspace_id = ?',

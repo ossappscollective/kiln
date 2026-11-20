@@ -246,7 +246,7 @@ export function normalizeReleaseValue(field: ReleaseFieldId, raw: ReleaseValueIn
   const text = Array.isArray(raw) ? (raw as readonly string[]).join(',') : String(raw);
   if (field === 'user_fraction') {
     const n = Number(text.trim().replace(/%$/, ''));
-    if (text.trim() === '' || !isFinite(n)) return text.trim();
+    if (text.trim() === '' || !Number.isFinite(n)) return text.trim();
     return String(text.trim().endsWith('%') ? Math.round(n * 100) / 10000 : n);
   }
   if (field === 'earliest_release_date') {
@@ -254,7 +254,7 @@ export function normalizeReleaseValue(field: ReleaseFieldId, raw: ReleaseValueIn
     const ms = Date.parse(t);
     if (
       t === '' ||
-      isNaN(ms) ||
+      Number.isNaN(ms) ||
       !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/.test(t)
     )
       return t;
@@ -372,7 +372,7 @@ export function checkReleaseField(
       break;
     case 'earliest_release_date': {
       const ms = Date.parse(value);
-      if (isNaN(ms) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value))
+      if (Number.isNaN(ms) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value))
         out.push(
           problem(
             'error',
@@ -446,7 +446,7 @@ export function checkReleaseField(
     }
     case 'user_fraction': {
       const n = Number(value);
-      if (value === '' || !isFinite(n) || n <= 0 || n > 1)
+      if (value === '' || !Number.isFinite(n) || n <= 0 || n > 1)
         out.push(
           problem(
             'error',

@@ -53,7 +53,7 @@ export type PlayCheckAnswer = {
 export function fractionOf(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === '') return null;
   const n = typeof value === 'number' ? value : Number(value);
-  return isFinite(n) ? n : null;
+  return Number.isFinite(n) ? n : null;
 }
 
 /**

@@ -112,7 +112,7 @@ export function pickRepositoryIcon(
       a.path.localeCompare(b.path),
   );
   const best = candidates[0];
-  return best && best.oid ? { path: best.path, oid: best.oid } : undefined;
+  return best?.oid ? { path: best.path, oid: best.oid } : undefined;
 }
 
 export type CheckedImage = { mediaType: IconMediaType; width: number; height: number };

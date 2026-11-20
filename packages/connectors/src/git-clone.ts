@@ -1726,12 +1726,12 @@ export async function listClones(
       if (!own.isDirectory()) continue;
       const markerPath = join(dir, MARKER);
       const marker = await lstat(markerPath).catch(() => undefined);
-      if (!marker || !marker.isFile()) {
+      if (!marker?.isFile()) {
         refused++;
         continue;
       }
       const real = await realpath(dir).catch(() => undefined);
-      if (!real || !real.startsWith(realBase + sep) || real === realBase) {
+      if (!real?.startsWith(realBase + sep) || real === realBase) {
         refused++;
         continue;
       }

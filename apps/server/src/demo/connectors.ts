@@ -8,7 +8,6 @@ import type {
   InternalSharingConnector,
   InternalSharingKind,
   InternalSharingUpload,
-  ListReviewsResult,
   PlayReportsPort,
   PlayVitalsPort,
   ReadStoreListingOptions,
@@ -21,7 +20,7 @@ import type {
   TestFlightGroup,
   TestFlightLinksConnector,
 } from '@mrm/connectors';
-import { createFakeAiClient, StoreError } from '@mrm/connectors';
+import { createFakeAiClient } from '@mrm/connectors';
 import type { AnalyticsConnectorFactory } from '../services/analytics-sync.ts';
 import type {
   AsoSources,
@@ -34,15 +33,7 @@ import type { Exchange } from '../services/safe-fetch.ts';
 import type { AiAnswerLike } from './ai-answers.ts';
 import { aiAnswer } from './ai-answers.ts';
 import { sha256Hex } from './artifacts.ts';
-import {
-  COMPETITORS,
-  DEMO_APPS,
-  KEYWORDS,
-  LANGS,
-  langOf,
-  type Platform,
-  REVIEW_LINES,
-} from './content.ts';
+import { COMPETITORS, DEMO_APPS, KEYWORDS, LANGS, type Platform, REVIEW_LINES } from './content.ts';
 import { dailySeries, rng } from './data.ts';
 import { failing } from './failures.ts';
 import { iconPng } from './images.ts';

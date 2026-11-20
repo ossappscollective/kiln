@@ -299,7 +299,7 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
       previewFacts.push({
         ...factsOf(c, undefined),
         oid: item?.oid ?? null,
-        bytes: item && item.ok ? item.size : null,
+        bytes: item?.ok ? item.size : null,
         format: 'video',
         read: 'not_read',
       });

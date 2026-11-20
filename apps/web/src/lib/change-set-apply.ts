@@ -341,7 +341,7 @@ export function outcomeSignature(
   outcome: Pick<LocalOutcome, 'signature'> | null,
 ): { label: string; tip: string } | null {
   const signature = outcome?.signature;
-  if (!signature || signature.status !== 'signed') return null;
+  if (signature?.status !== 'signed') return null;
   const key =
     signature.format === 'gpg'
       ? 'public GPG key'

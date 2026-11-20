@@ -34,7 +34,6 @@ import {
   type StoreImageReader,
   type StoreImageRecord,
   type StoreImagesRead,
-  type StoreNotesHistoryReader,
   type StoreReleaseConnector,
   type StoreReleaseReader,
   type StoreSubmitConnector,

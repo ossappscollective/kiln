@@ -725,7 +725,7 @@ export function canOfferShare(
   row: Pick<BuildRow, 'source' | 'platform' | 'artifact'>,
   config: Pick<InternalSharingConfig, 'enabled' | 'canShare'> | null,
 ): boolean {
-  if (!config || !config.enabled || !config.canShare) return false;
+  if (!config?.enabled || !config.canShare) return false;
   if (row.source !== 'ci' || row.platform !== 'android' || !row.artifact) return false;
   return !row.artifact.expired && !row.artifact.tooLarge;
 }

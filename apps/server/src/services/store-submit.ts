@@ -518,7 +518,7 @@ export function evaluateChecks(input: {
               { required: boolean; label: string; unverified: string[]; source: string }
             >
           )[field];
-      if (!spec || !spec.required) continue;
+      if (!spec?.required) continue;
       const verified = !spec.unverified.includes('required');
       add({
         code: 'missing_text',

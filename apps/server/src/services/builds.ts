@@ -897,7 +897,7 @@ export async function findArtifact(
   if (!/^[0-9]{1,20}$/.test(input.artifactId))
     return fail(400, 'invalid_request', 'An artifact id is a number.');
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
-  if (!app || !app.repositoryId) return fail(404, 'not_found');
+  if (!app?.repositoryId) return fail(404, 'not_found');
   const repository = await getRepository(ctx.db, input.workspaceId, app.repositoryId);
   if (!repository || repository.localOnly) return fail(404, 'not_found');
   const read = await readRepoArtifacts(ctx, input.workspaceId, repository, actor);

@@ -14,7 +14,7 @@ import {
   MAIL_USER_PER_HOUR,
   MAIL_WORKSPACE_PER_HOUR,
 } from './services/two-factor.ts';
-import { cheap, PASSWORD } from './testkit.ts';
+import { cheap } from './testkit.ts';
 import { boot, START, STEP } from './two-factor-test-helpers.ts';
 
 // Two-factor authentication (docs/adr/0021-two-factor-and-smtp.md): an authenticator app and emailed codes as step-up factors and,

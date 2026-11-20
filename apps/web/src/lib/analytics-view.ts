@@ -307,7 +307,7 @@ export function splitHeadline(cards: readonly ChartCard[]): {
 } {
   if (cards.length === 0) return { headline: null, rest: [] };
   const found = cards.findIndex((c) => c.id === 'downloads' || c.id === 'installs');
-  const at = found < 0 ? 0 : found;
+  const at = Math.max(found, 0);
   return { headline: cards[at] ?? null, rest: cards.filter((_, i) => i !== at) };
 }
 

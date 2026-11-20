@@ -290,7 +290,7 @@ test('the preview says which report, which dates, how many rows were read, left 
 
 test('the sample table keeps rows of the expected shape, labels them, and shows at most six', () => {
   const rows = Array.from({ length: 9 }, (_, i) => ({
-    date: '2026-10-0' + (i + 1),
+    date: `2026-10-0${i + 1}`,
     metric: 'impressions',
     value: 1000 + i,
   }));

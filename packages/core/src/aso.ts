@@ -610,7 +610,7 @@ export const STOPWORD_LANGUAGES: readonly string[] = Object.keys(STOP);
 
 export function isStopWord(language: string, word: string): boolean {
   const set = stopSets[language];
-  return set !== undefined && set.has(word);
+  return set?.has(word) === true;
 }
 
 export type IdeaSource = {
@@ -716,7 +716,7 @@ export function mineIdeas(sources: readonly IdeaSource[], options: MineOptions =
         (l) =>
           l.words.length > e.words.length &&
           l.occurrences >= e.occurrences &&
-          (' ' + l.key + ' ').indexOf(' ' + e.key + ' ') !== -1,
+          ` ${l.key} `.indexOf(` ${e.key} `) !== -1,
       ),
   );
   result.sort(

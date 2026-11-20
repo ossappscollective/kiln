@@ -5470,8 +5470,7 @@ const drafts: Draft[] = [
     path: `${W}/apps/{id}/aso/summary`,
     tags: ['aso'],
     summary: 'ASO overview of an app: keyword counts, biggest moves, competitors, refresh state',
-    description:
-      asoNote + 'The state says when the app was last refreshed and why a refresh failed.',
+    description: `${asoNote}The state says when the app was last refreshed and why a refresh failed.`,
     risk: 'read',
     access: { action: 'aso.read' },
     appScope: { kind: 'param', name: 'id' },

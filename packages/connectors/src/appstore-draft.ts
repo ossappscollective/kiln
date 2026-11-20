@@ -1779,7 +1779,7 @@ export class AppleDraftConnector
       throw new StoreError(
         'appstoreconnect',
         'invalid_input',
-        `App Store Connect matched ${file.name} to a specification that the ${group} placement group does not take (${specId === undefined ? 'none' : 'spec ' + specId}). Check the size of the file.`,
+        `App Store Connect matched ${file.name} to a specification that the ${group} placement group does not take (${specId === undefined ? 'none' : `spec ${specId}`}). Check the size of the file.`,
       );
     }
     return id;
@@ -1811,7 +1811,7 @@ export class AppleDraftConnector
     } catch {
       target = undefined;
     }
-    if (!target || target.protocol !== 'https:' || !UPLOAD_HOST.test(target.hostname)) {
+    if (target?.protocol !== 'https:' || !UPLOAD_HOST.test(target.hostname)) {
       throw new StoreError(
         'appstoreconnect',
         'unexpected',

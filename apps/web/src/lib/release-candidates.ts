@@ -210,7 +210,7 @@ export function sourceRunOf(
 export function uploadedText(iso: string | null): string {
   if (iso === null) return 'date unknown';
   const ms = Date.parse(iso);
-  if (isNaN(ms)) return 'date unknown';
+  if (Number.isNaN(ms)) return 'date unknown';
   return `${new Date(ms).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
 }
 

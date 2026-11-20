@@ -7,7 +7,7 @@ import {
   type PlayBucketTestCode,
   playBucketTestMessages,
 } from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+import type { Database } from '@mrm/db';
 import { resolvePlayBucket } from './analytics-store.ts';
 import { type AnalyticsContext, classifyAnalyticsError } from './analytics-sync.ts';
 import type { ManagedApp } from './apps.ts';

@@ -229,7 +229,7 @@ dbTest(
       outcome: string;
     }[];
     assert.ok(mine.length > 0);
-    assert.ok(mine.every((d) => d.userId === 'user-member-' + t.workspaceId));
+    assert.ok(mine.every((d) => d.userId === `user-member-${t.workspaceId}`));
     assert.equal((await t.call(member, 'GET', '/alerts/deliveries?scope=workspace')).status, 403);
     const all = (await t.call(t.owner, 'GET', '/alerts/deliveries?scope=workspace&limit=100')).body
       .deliveries as { userId: string | null; channel: string }[];
@@ -266,7 +266,7 @@ dbTest(
       ),
     );
     assert.equal(await t.runMail(), 1);
-    assert.equal(t.mail.sent.at(-1)?.to, 'user-member-' + t.workspaceId + '@x.io');
+    assert.equal(t.mail.sent.at(-1)?.to, `user-member-${t.workspaceId}@x.io`);
     assert.equal(
       (await t.call(member, 'POST', '/alerts/test', { channel: 'webhook' })).status,
       403,

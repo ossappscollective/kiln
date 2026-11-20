@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
 import { StoreError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
 import { FakeRolloutStore } from './rollout-test-helpers.ts';

@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { AnalyticsError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
 import {
   type AnalyticsBoot,

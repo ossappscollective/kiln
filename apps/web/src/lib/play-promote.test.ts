@@ -92,7 +92,7 @@ test('an address that is not a promotion is ignored', () => {
   assert.equal(promoteFromHash('#/x?from=internal&codes=1,x'), null);
   assert.equal(
     promoteFromHash(
-      '#/x?from=internal&codes=' + Array.from({ length: 21 }, (_, i) => i + 1).join(','),
+      `#/x?from=internal&codes=${Array.from({ length: 21 }, (_, i) => i + 1).join(',')}`,
     ),
     null,
   );
