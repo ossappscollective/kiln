@@ -18,6 +18,7 @@
     localesOf,
   } from '../../lib/aso.ts';
   import { address } from '../../lib/address.svelte.ts';
+  import { gapsLead } from '../../lib/aso-lead.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { countOf, summaryLine } from '../../lib/section-state.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -27,6 +28,7 @@
   import Button from '../ui/Button.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Section from '../ui/Section.svelte';
+  import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
 
   let {
@@ -94,6 +96,11 @@
     return shown.join(', ') + (ids.length > 2 ? ` +${ids.length - 2}` : '');
   }
 
+  const lead = $derived(
+    gapsLead(members.flatMap((m) => { const d = data[m.id]; return d ? [{ gaps: d.gaps.length, competitors: d.competitors }] : []; })),
+  );
+  const noCompetitors = $derived(members.every((m) => (data[m.id]?.competitors ?? 0) === 0));
+
   async function track(app: AppSummary, d: AsoGapsResponse, term: string) {
     busy = `${app.id}|${term}`;
     try {
@@ -112,7 +119,16 @@
   }
 </script>
 
-<div class="gaps stack">
+<div class="gaps stack roomy">
+  {#if !loading && members.some((m) => data[m.id])}
+    <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="gaps-lead">
+      {#snippet actions()}
+        {#if noCompetitors && members[0]}
+          <Button variant="primary" icon="plus" href={asoViewHref(members[0].id, 'competitors', address.platform)}>Follow a competitor</Button>
+        {/if}
+      {/snippet}
+    </PageLead>
+  {/if}
   {#if locales.length > 1}
     <div class="row">
       <label for="{uid}-locale" class="muted">Locale</label>
@@ -194,6 +210,20 @@
 </div>
 
 <style>
+  .roomy {
+    font-size: 0.9375rem;
+  }
+
+  .roomy :global(table.compact th),
+  .roomy :global(table.compact td) {
+    padding-block: var(--space-3);
+    font-size: 0.9375rem;
+  }
+
+  .roomy :global(table.compact thead th) {
+    font-size: var(--text-sm);
+  }
+
   .head {
     flex-wrap: wrap;
     gap: var(--space-2) var(--space-3);
