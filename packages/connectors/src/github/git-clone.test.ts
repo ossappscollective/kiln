@@ -662,7 +662,7 @@ posixTest('a tree with a .git entry is refused by the fsck of the fetch', async 
 // -----------------------------------------------------------------------------------------------
 // Authentication: a stub GitHub over http on 127.0.0.1
 
-type Seen = { url: string; authorization?: string };
+type Seen = { url: string; authorization?: string | undefined };
 const TOKEN = 'plainsecret-9f8e7d6c5b4a39281706';
 const B64 = Buffer.from(`x-access-token:${TOKEN}`).toString('base64');
 

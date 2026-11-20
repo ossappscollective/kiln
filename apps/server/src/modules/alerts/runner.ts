@@ -13,8 +13,8 @@ export const ALERT_PASS_INTERVAL_MS = 5 * 60_000;
 
 export function createAlertRunner(options: {
   db: Database;
-  now?: () => number;
-  onError?: (message: string, error: unknown) => void;
+  now?: (() => number) | undefined;
+  onError?: ((message: string, error: unknown) => void) | undefined;
 }) {
   const now = options.now ?? Date.now;
   let lastPrune = 0;

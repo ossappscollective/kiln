@@ -103,10 +103,10 @@ export async function listRuleViews(sql: Sql, workspaceId: string): Promise<Rule
 }
 
 export type RuleInput = {
-  enabled?: boolean;
-  channels?: readonly string[];
-  maxPerHour?: number | null;
-  params?: Record<string, number>;
+  enabled?: boolean | undefined;
+  channels?: readonly string[] | undefined;
+  maxPerHour?: number | null | undefined;
+  params?: Record<string, number> | undefined;
 };
 
 export async function setRule(

@@ -39,14 +39,14 @@ export type StoreConfigFile = {
 
 export type ExpoDetails = {
   /** `app.json`, or the first dynamic `app.config.*`. */
-  configPath?: string;
+  configPath?: string | undefined;
   /** The config is code, so name, platforms and identifiers could not be read. */
   dynamicConfig: boolean;
-  name?: string;
-  slug?: string;
-  version?: string;
-  iosBundleIdentifier?: string;
-  androidPackage?: string;
+  name?: string | undefined;
+  slug?: string | undefined;
+  version?: string | undefined;
+  iosBundleIdentifier?: string | undefined;
+  androidPackage?: string | undefined;
   buildProfiles: string[];
   submitProfiles: string[];
   storeConfigs: StoreConfigFile[];
@@ -63,7 +63,7 @@ export type DetectedPaths = {
   /** The Play metadata folder, when locales hold an `images` folder. */
   androidImages?: string;
   appJson?: string;
-  appConfig?: string;
+  appConfig?: string | undefined;
   easJson?: string;
   packageJson?: string;
 };

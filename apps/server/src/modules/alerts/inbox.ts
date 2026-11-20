@@ -97,8 +97,8 @@ export async function markRead(
   input: {
     workspaceId: string;
     userId: string;
-    ids?: readonly string[];
-    all?: boolean;
+    ids?: readonly string[] | undefined;
+    all?: boolean | undefined;
     at: number;
   },
 ): Promise<number> {

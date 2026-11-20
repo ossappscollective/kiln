@@ -15,15 +15,15 @@ export type PlaceInput = {
   /** The natural size of the popover (its width as styled, its full content height). */
   size: { width: number; height: number };
   /** Which edge of the anchor the popover lines up with, or `center` (a tooltip over its trigger). */
-  align?: 'start' | 'end' | 'center';
+  align?: 'start' | 'end' | 'center' | undefined;
   /** Go above the anchor when the content fits there (a tooltip); the default is below. */
-  prefer?: 'below' | 'above';
+  prefer?: 'below' | 'above' | undefined;
   /** Space between the anchor and the popover. */
-  gap?: number;
+  gap?: number | undefined;
   /** The least space kept free at the window edges. */
-  margin?: number;
+  margin?: number | undefined;
   /** Use at least the anchor's width (a dropdown of a field). */
-  matchAnchorWidth?: boolean;
+  matchAnchorWidth?: boolean | undefined;
 };
 
 export type Placement = {

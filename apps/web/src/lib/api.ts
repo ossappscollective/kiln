@@ -513,10 +513,13 @@ export function createApi(options: ApiOptions = {}) {
   ): Promise<T> {
     let response: Response;
     try {
+      const headers = requestHeaders(raw, body, extraHeaders);
       response = await send(path, {
         method,
-        headers: requestHeaders(raw, body, extraHeaders),
-        body: raw ?? (body === undefined ? undefined : JSON.stringify(body)),
+        ...(headers ? { headers } : {}),
+        ...(raw !== undefined || body !== undefined
+          ? { body: raw ?? JSON.stringify(body) }
+          : {}),
       });
     } catch {
       throw new ApiError(0, 'network', 'Cannot reach the server. Check that it is running.');

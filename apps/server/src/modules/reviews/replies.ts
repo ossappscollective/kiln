@@ -73,7 +73,7 @@ export type TranslateDraft = (input: {
   workspaceId: string;
   text: string;
   target: string;
-  source?: string;
+  source?: string | undefined;
 }) => Promise<{ ok: true; text: string } | { ok: false; code: string; message: string }>;
 
 export type ReviewReplyConnectorFactory = (
@@ -681,7 +681,7 @@ export async function deleteReplyDraft(
 /** Translates a draft with the injected seam. `translation_unavailable` when nothing is injected. */
 export async function translateReplyDraft(
   ctx: ReviewReplyContext,
-  input: { workspaceId: string; text: string; target: string; source?: string },
+  input: { workspaceId: string; text: string; target: string; source?: string | undefined },
 ): Promise<{ ok: true; text: string } | Failure> {
   if (!ctx.replyEnabled) return disabled();
   if (!ctx.translateDraft) {

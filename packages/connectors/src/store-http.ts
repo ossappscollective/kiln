@@ -279,7 +279,7 @@ export class StoreHttp {
         method,
         headers,
         ...(body !== undefined
-          ? { body: body as unknown as ConstructorParameters<typeof Response>[0] }
+          ? { body: body as unknown as NonNullable<ConstructorParameters<typeof Response>[0]> }
           : {}),
         signal: AbortSignal.timeout(this.#timeoutMs),
       });

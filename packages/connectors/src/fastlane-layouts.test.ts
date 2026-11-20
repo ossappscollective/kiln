@@ -188,7 +188,7 @@ test('an empty custom root means the store is not read, and nothing is written f
   assert.equal(snap.found.appStore, false);
   assert.equal(snap.diagnostics.appStore.state, 'not_used');
   const edited = structuredClone(readListing(repo).listing);
-  assert.deepEqual(listingChangeSet(snap, { appStore: edited.appStore }), []);
+  assert.deepEqual(listingChangeSet(snap, edited.appStore ? { appStore: edited.appStore } : {}), []);
 });
 
 test('a custom folder with no listing files says so, and what is there instead', () => {

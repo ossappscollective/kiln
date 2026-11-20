@@ -91,12 +91,12 @@ export type WebhookContext = {
   masterKey: Buffer;
   now: () => number;
   /** MRM_WEBHOOKS_ALLOW_PRIVATE=1: loopback and private addresses (and http to localhost) allowed. */
-  allowPrivate?: boolean;
+  allowPrivate?: boolean | undefined;
   /** Overridable for tests. */
-  resolve?: Resolver;
-  send?: typeof sendPinned;
-  timeoutMs?: number;
-  maxAttempts?: number;
+  resolve?: Resolver | undefined;
+  send?: typeof sendPinned | undefined;
+  timeoutMs?: number | undefined;
+  maxAttempts?: number | undefined;
 };
 
 export const webhookAad = (workspaceId: string, id: string) => `webhook:${workspaceId}:${id}`;

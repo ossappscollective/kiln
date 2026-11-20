@@ -222,7 +222,7 @@ export async function setConfirmationPassword(
   userId: string,
   password: string,
   now: number,
-  cost?: ScryptCost,
+  cost?: ScryptCost | undefined,
 ): Promise<void> {
   const hash = await hashPassword(password, cost);
   await db.execute(
@@ -365,7 +365,11 @@ export type RpInfo = {
  */
 export function relyingParty(
   c: Context,
-  opts: { publicOrigin?: string; trustProxy?: boolean; trustedOrigins?: string[] },
+  opts: {
+    publicOrigin?: string | undefined;
+    trustProxy?: boolean | undefined;
+    trustedOrigins?: string[] | undefined;
+  },
 ): RpInfo {
   let origin: string;
   if (opts.publicOrigin) {
@@ -673,7 +677,7 @@ async function checkAssertion(
 // ---------------------------------------------------------------------------------------------
 // Verification: a factor in, a grant out
 
-export type Target = { id?: string; hash?: string };
+export type Target = { id?: string | undefined; hash?: string | undefined };
 export type VerifyInput = {
   workspaceId: string;
   userId: string;
@@ -681,7 +685,7 @@ export type VerifyInput = {
   action: GrantAction;
   target: Target;
   rp: RpInfo;
-  cost?: ScryptCost;
+  cost?: ScryptCost | undefined;
 } & (
   | { factor: 'password'; password: string }
   | { factor: 'passkey'; challengeId: string; assertion: AssertionInput }

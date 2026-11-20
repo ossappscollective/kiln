@@ -40,8 +40,8 @@ import {
 export type StepUpRoutesContext = {
   services: Services;
   /** MRM_PUBLIC_ORIGIN: the origin passkeys are bound to. Default: the origin of the request. */
-  publicOrigin?: string;
-  trustedOrigins?: string[];
+  publicOrigin?: string | undefined;
+  trustedOrigins?: string[] | undefined;
 };
 
 const ws = (c: Context<AppEnv>) => c.req.param('workspaceId') ?? '';

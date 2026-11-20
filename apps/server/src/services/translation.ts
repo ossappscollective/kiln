@@ -955,7 +955,7 @@ export function createTranslateDraft(ctx: TranslationContext) {
     workspaceId: string;
     text: string;
     target: string;
-    source?: string;
+    source?: string | undefined;
   }): Promise<{ ok: true; text: string } | { ok: false; code: string; message: string }> => {
     const res = await translateText(ctx, input.workspaceId, {
       texts: [input.text],

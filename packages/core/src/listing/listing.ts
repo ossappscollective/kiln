@@ -47,8 +47,8 @@ export type PlayListing = {
 };
 
 export type Listing = {
-  appStore?: AppStoreListing;
-  googlePlay?: PlayListing;
+  appStore?: AppStoreListing | undefined;
+  googlePlay?: PlayListing | undefined;
 };
 
 export type ListingFieldKind = 'text' | 'multiline' | 'keywords' | 'url';

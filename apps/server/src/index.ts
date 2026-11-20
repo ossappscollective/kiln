@@ -405,7 +405,7 @@ if (config.worker === 'inline') {
   }
 }
 
-const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {
+const server = serve({ fetch: app.fetch, port: config.port, ...(config.host ? { hostname: config.host } : {}) }, (info) => {
   const where = config.host ?? 'localhost';
   console.log(
     `Mobile Release Manager ${VERSION} on http://${where}:${info.port} (${database.dialect}, ${config.mode})`,

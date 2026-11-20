@@ -78,9 +78,9 @@ export async function getListingTarget(
 
 export type TargetInput = {
   name: string;
-  appId?: string | null;
-  appStoreRoot?: string | null;
-  googlePlayRoot?: string | null;
+  appId?: string | null | undefined;
+  appStoreRoot?: string | null | undefined;
+  googlePlayRoot?: string | null | undefined;
 };
 
 export type TargetProblem = {
@@ -103,10 +103,18 @@ function cleanRoot(
   return normalizeRoot(value);
 }
 
+/** A target's values after cleaning: every field is there, the folders and the app are null when unset. */
+export type TargetValue = {
+  name: string;
+  appId: string | null;
+  appStoreRoot: string | null;
+  googlePlayRoot: string | null;
+};
+
 /** The cleaned values of a target, or what is wrong with them. */
 export function validateTarget(
   input: TargetInput,
-): { ok: true; value: Required<TargetInput> } | { ok: false; problems: TargetProblem[] } {
+): { ok: true; value: TargetValue } | { ok: false; problems: TargetProblem[] } {
   const problems: TargetProblem[] = [];
   const name = input.name.trim();
   if (name === '') problems.push({ field: 'name', message: 'Give the target a name.' });
@@ -255,7 +263,7 @@ export async function updateListingTarget(
     repositoryId: string;
     id: string;
     /** Only the keys that are present are changed. */
-    changes: Partial<TargetInput>;
+    changes: { [K in keyof TargetInput]?: TargetInput[K] | undefined };
     now: number;
   },
   actor: Actor,
@@ -361,8 +369,8 @@ export async function deleteListingTarget(
 /** What a request says about where to read: a target, and/or folders. Folders win over a target. */
 export type ListingSelection = {
   /** A saved target's id, or `auto:<key>` for a detected one (see `DetectedTarget.key`). */
-  target?: string;
-  roots?: { appStore?: string; googlePlay?: string };
+  target?: string | undefined;
+  roots?: { appStore?: string | undefined; googlePlay?: string | undefined } | undefined;
 };
 
 export type ResolvedSelection =

@@ -344,9 +344,9 @@ export type FitKeyword = {
   id: string;
   term: string;
   /** 1 low, 2 normal, 3 high. Default 2. */
-  priority?: number;
+  priority?: number | undefined;
   /** The latest rank of this keyword (null: not ranked), when known. Used only to order the gaps. */
-  rank?: number | null;
+  rank?: number | null | undefined;
 };
 
 export type KeywordFit = {

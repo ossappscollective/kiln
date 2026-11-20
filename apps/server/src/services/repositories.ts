@@ -91,12 +91,12 @@ export type RepoContext = {
    * Local clones for scan and listing reads (docs/adr/0005-local-clone-reads.md). Omitted, or
    * inactive (`MRM_READS=api`): every read goes through the connector as before.
    */
-  reads?: CloneReads;
+  reads?: CloneReads | undefined;
   /**
    * Writing to local clones: a commit on a new branch, and its push (MRM_LOCAL_REPO_WRITE,
    * docs/adr/0005-local-clone-reads.md). Omitted: off.
    */
-  localWrite?: LocalWriteConfig;
+  localWrite?: LocalWriteConfig | undefined;
 };
 
 export const DEFAULT_REPO_TIMEOUT_MS = 90_000;

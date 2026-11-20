@@ -5,7 +5,7 @@ import { GithubRepoConnector } from './github.ts';
 
 // Fixtures are hand-written from the GitHub REST documentation, never recorded from live GitHub.
 
-type Call = { method: string; path: string; query: URLSearchParams; signal?: AbortSignal | null };
+type Call = { method: string; path: string; query: URLSearchParams; signal?: AbortSignal | null | undefined };
 
 function fakeGithub(
   routes: Record<string, (query: URLSearchParams) => { status?: number; json?: unknown }>,

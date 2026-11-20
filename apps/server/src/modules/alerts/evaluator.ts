@@ -297,7 +297,7 @@ async function reconcile(
 export async function runAlertEvaluator(
   db: Database,
   at: number,
-  options: { onError?: (message: string, error: unknown) => void } = {},
+  options: { onError?: ((message: string, error: unknown) => void) | undefined } = {},
 ): Promise<EvaluatorSummary> {
   const summary: EvaluatorSummary = { checked: 0, raised: 0, resolved: 0 };
   const workspaces = await db.query('SELECT id FROM workspaces');

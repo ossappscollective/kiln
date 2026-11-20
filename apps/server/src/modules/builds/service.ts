@@ -385,7 +385,7 @@ async function readRepoArtifacts(
   return work;
 }
 
-export type OwnerCandidate = { id: string; name: string; identifier: string; prefix?: string };
+export type OwnerCandidate = { id: string; name: string; identifier: string; prefix?: string | undefined };
 
 const squash = (v: string): string => v.toLowerCase().replace(/[^a-z0-9]/g, '');
 

@@ -234,7 +234,7 @@ test('resolveAllowed: a DNS failure or an empty answer is transient; a literal n
 
 // ----- sending, against a local server --------------------------------------------------------
 
-type Seen = { method?: string; url?: string; headers: IncomingMessage['headers']; body: string };
+type Seen = { method?: string | undefined; url?: string | undefined; headers: IncomingMessage['headers']; body: string };
 
 async function withServer(
   handler: (req: IncomingMessage, res: ServerResponse, seen: Seen) => void,

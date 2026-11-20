@@ -50,7 +50,7 @@ function push(kind: ToastKind, message: string, options: ToastOptions = {}): num
       id,
       kind,
       message,
-      title: options.title,
+      ...(options.title !== undefined ? { title: options.title } : {}),
       ...(options.action ? { action: options.action } : {}),
     },
   ].slice(-MAX_VISIBLE);

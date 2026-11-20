@@ -73,7 +73,7 @@ export type GitCloneReaderOptions = {
    */
   token?: string | (() => string | Promise<string>);
   /** Branch to read when no ref is given. Default: asked from the remote (`ls-remote --symref`). */
-  defaultBranch?: string;
+  defaultBranch?: string | undefined;
   /**
    * How long a fetched branch or tag tip is reused before the next read fetches again.
    * Default 60000. `Infinity`: never fetch on read when a copy exists, only `refresh()` does.
@@ -445,7 +445,7 @@ type Where = { label: string; ref?: string };
 type GitCall = {
   network?: boolean;
   input?: string;
-  signal?: AbortSignal;
+  signal?: AbortSignal | undefined;
   maxStdout?: number;
   truncate?: boolean;
   init?: boolean;
@@ -639,7 +639,7 @@ export class GitCloneReader implements RepoReader {
   readonly #children = new Set<ChildProcess>();
   #abort = new AbortController();
   #verified = false;
-  #discovered?: { name: string; at: number };
+  #discovered: { name: string; at: number } | undefined;
   readonly #tips = new Map<string, { commit: string; fetchedAt: number }>();
   readonly #refreshing = new Map<string, Promise<CloneRefreshResult>>();
   readonly #trees = new Map<string, Promise<Tree>>();
@@ -647,7 +647,7 @@ export class GitCloneReader implements RepoReader {
   readonly #sharedRefresh = new Map<string, SharedRefresh>();
   #lastTouch = 0;
   #queue = new Map<string, Waiter[]>();
-  #flushTimer?: ReturnType<typeof setImmediate>;
+  #flushTimer: ReturnType<typeof setImmediate> | undefined;
 
   constructor(options: GitCloneReaderOptions) {
     if (!options.baseDir.trim()) {

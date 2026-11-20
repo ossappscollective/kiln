@@ -28,7 +28,7 @@ export async function countUsers(sql: Sql): Promise<number> {
 export async function registerFirstUser(
   db: Database,
   input: { email: string; displayName: string; password: string; workspaceName: string },
-  options: { now: number; cost?: ScryptCost },
+  options: { now: number; cost?: ScryptCost | undefined },
 ): Promise<{ user: User; workspaceId: string } | 'already_set_up'> {
   // Cheap check first: a closed instance must not spend a password hash on every request. The
   // check inside the transaction below stays, because two first-run requests can both pass this one.

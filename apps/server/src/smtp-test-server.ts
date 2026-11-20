@@ -63,7 +63,7 @@ export type Received = {
 };
 
 export type FakeSmtpOptions = {
-  cert?: TestCert;
+  cert?: TestCert | undefined;
   /** TLS from the first byte. */
   implicitTls?: boolean;
   /** Offer STARTTLS (needs `cert`). */

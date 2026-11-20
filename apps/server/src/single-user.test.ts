@@ -35,7 +35,7 @@ async function boot(
     singleUser:
       options.single === false
         ? undefined
-        : { launchSecret: secret, port: PORT, extraHosts: options.extraHosts },
+        : { launchSecret: secret, port: PORT, ...(options.extraHosts ? { extraHosts: options.extraHosts } : {}) },
   });
   const request = (path: string, init: RequestInit = {}) =>
     app.request(path, {

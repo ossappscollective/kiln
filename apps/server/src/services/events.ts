@@ -169,11 +169,11 @@ export const DEFAULT_EVENTS_LIMIT = 50;
 
 export type EventFilter = {
   /** Only events with an id above this. Without it: the newest `limit` events. */
-  since?: number;
-  limit?: number;
-  types?: readonly string[];
+  since?: number | undefined;
+  limit?: number | undefined;
+  types?: readonly string[] | undefined;
   /** Only events about these apps (an app scoped token). Events about no app are left out. */
-  appIds?: readonly string[];
+  appIds?: readonly string[] | undefined;
 };
 
 export async function listEvents(

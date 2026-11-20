@@ -163,8 +163,8 @@ export class GithubRepoConnector implements RepoConnector {
   readonly #runDetails: boolean;
   readonly #key?: KeyObject;
   readonly #secrets = new Set<string>();
-  #token?: { value: string; expiresAt: number };
-  #tokenRequest?: Promise<string>;
+  #token: { value: string; expiresAt: number } | undefined;
+  #tokenRequest: Promise<string> | undefined;
   #defaultBranch?: string;
   /** Blob listings of the last few commits (see `listBlobEntries`). */
   readonly #blobTrees = new Map<string, Promise<BlobEntry[]>>();
@@ -292,10 +292,10 @@ export class GithubRepoConnector implements RepoConnector {
     options: {
       bearer: string;
       body?: unknown;
-      query?: Record<string, string | undefined>;
-      signal?: AbortSignal;
+      query?: Record<string, string | undefined> | undefined;
+      signal?: AbortSignal | undefined;
       /** A conditional read: GitHub answers 304 (not counted against the rate limit) when nothing changed. */
-      ifNoneMatch?: string;
+      ifNoneMatch?: string | undefined;
       /** Do not follow redirects: the caller reads `Location` itself (artifact downloads). */
       manual?: boolean;
     },
@@ -343,10 +343,10 @@ export class GithubRepoConnector implements RepoConnector {
     path: string,
     options: {
       body?: unknown;
-      query?: Record<string, string | undefined>;
-      allow?: number[];
-      signal?: AbortSignal;
-      ifNoneMatch?: string;
+      query?: Record<string, string | undefined> | undefined;
+      allow?: number[] | undefined;
+      signal?: AbortSignal | undefined;
+      ifNoneMatch?: string | undefined;
     } = {},
   ): Promise<Reply> {
     for (let attempt = 0; ; attempt++) {
@@ -1227,7 +1227,7 @@ export class GithubRepoConnector implements RepoConnector {
    * with no runs. Without an `etag` it is a plain read, and the answer's `etag` is kept for next time.
    */
   async listCiRunsPage(
-    options: ListWorkflowRunsOptions & { signal?: AbortSignal; etag?: string | undefined } = {},
+    options: ListWorkflowRunsOptions & { signal?: AbortSignal | undefined; etag?: string | undefined } = {},
   ): Promise<CiRunPage> {
     const path = options.workflow
       ? this.#repoPath(`/actions/workflows/${enc(options.workflow)}/runs`)
@@ -1263,7 +1263,7 @@ export class GithubRepoConnector implements RepoConnector {
    */
   async listRunJobs(
     runId: string,
-    options: { signal?: AbortSignal; etag?: string | undefined } = {},
+    options: { signal?: AbortSignal | undefined; etag?: string | undefined } = {},
   ): Promise<CiJobList> {
     if (!/^[0-9]{1,20}$/.test(runId)) {
       throw new GithubError('invalid_input', `Not a workflow run id: ${JSON.stringify(runId)}.`);
@@ -1299,7 +1299,7 @@ export class GithubRepoConnector implements RepoConnector {
     options: {
       runId?: string;
       maxPages?: number;
-      signal?: AbortSignal;
+      signal?: AbortSignal | undefined;
       etag?: string | undefined;
     } = {},
   ): Promise<CiArtifactList> {
@@ -1349,7 +1349,7 @@ export class GithubRepoConnector implements RepoConnector {
    */
   async openArtifactDownload(
     artifactId: string,
-    options: { signal?: AbortSignal; allowHttp?: boolean } = {},
+    options: { signal?: AbortSignal | undefined; allowHttp?: boolean } = {},
   ): Promise<CiArtifactDownload> {
     if (!/^[0-9]{1,20}$/.test(artifactId)) {
       throw new GithubError('invalid_input', `Not an artifact id: ${JSON.stringify(artifactId)}.`);

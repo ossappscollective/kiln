@@ -93,7 +93,7 @@ export class AppStoreConnectTokenProvider {
   readonly issuerId: string;
   readonly #key: KeyObject;
   readonly #now: () => number;
-  #cached?: { token: string; expiresAt: number };
+  #cached: { token: string; expiresAt: number } | undefined;
 
   constructor(credential: AppStoreConnectKey, now: () => number = Date.now) {
     this.keyId = credential.keyId;

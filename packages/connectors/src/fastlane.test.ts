@@ -245,7 +245,7 @@ test('removing a value or a locale deletes its files, and nothing else', () => {
 
 test('a store that is absent from the new listing is left alone', () => {
   const snap = readListing(repoFiles());
-  assert.deepEqual(listingChangeSet(snap, { appStore: snap.listing.appStore }), []);
+  assert.deepEqual(listingChangeSet(snap, snap.listing.appStore ? { appStore: snap.listing.appStore } : {}), []);
   assert.deepEqual(listingChangeSet(snap, {}), []);
 });
 

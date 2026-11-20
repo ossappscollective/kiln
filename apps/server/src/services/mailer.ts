@@ -104,7 +104,7 @@ export type FakeMailer = Mailer & {
   /** Everything accepted so far, oldest first. */
   sent: SentMail[];
   /** While set, every send fails with this code (and is not recorded). */
-  failWith?: MailErrorCode;
+  failWith?: MailErrorCode | undefined;
   /** While false, `configured()` is false and sends answer `smtp_not_configured`. */
   isConfigured: boolean;
   last(): SentMail | undefined;

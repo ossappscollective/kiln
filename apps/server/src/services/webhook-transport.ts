@@ -139,7 +139,7 @@ function isLoopbackLiteral(host: string): boolean {
 }
 
 /** Checks a webhook URL without touching the network. */
-export function checkWebhookUrl(raw: string, options: { allowPrivate?: boolean } = {}): UrlCheck {
+export function checkWebhookUrl(raw: string, options: { allowPrivate?: boolean | undefined } = {}): UrlCheck {
   if (raw.length > MAX_URL_LENGTH) return { ok: false, message: 'The URL is too long.' };
   let url: URL;
   try {
@@ -199,7 +199,7 @@ export type Resolved =
  */
 export async function resolveAllowed(
   check: Extract<UrlCheck, { ok: true }>,
-  options: { allowPrivate?: boolean; resolve?: Resolver } = {},
+  options: { allowPrivate?: boolean | undefined; resolve?: Resolver | undefined } = {},
 ): Promise<Resolved> {
   let answers: { address: string; family: number }[];
   if (check.literal) {
@@ -246,9 +246,9 @@ export const MAX_RESPONSE_BYTES = 64 * 1024;
 export const KEPT_RESPONSE_CHARS = 1000;
 
 export type SendOptions = {
-  allowPrivate?: boolean;
-  resolve?: Resolver;
-  timeoutMs?: number;
+  allowPrivate?: boolean | undefined;
+  resolve?: Resolver | undefined;
+  timeoutMs?: number | undefined;
 };
 
 export type SendResult =

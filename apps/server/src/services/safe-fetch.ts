@@ -52,16 +52,16 @@ export type SafeGetOptions = {
   /** Called with the lower-case host name of every URL, the first and each redirect target. */
   allowHost: (host: string) => boolean;
   maxBytes: number;
-  timeoutMs?: number;
-  maxRedirects?: number;
-  accept?: string;
+  timeoutMs?: number | undefined;
+  maxRedirects?: number | undefined;
+  accept?: string | undefined;
   /** The User-Agent to send. Default `mobile-release-manager`. */
-  userAgent?: string;
+  userAgent?: string | undefined;
   /** Development only (MRM_WEBHOOKS_ALLOW_PRIVATE): accept loopback and private addresses. */
-  allowPrivate?: boolean;
-  resolve?: Resolver;
-  exchange?: Exchange;
-  signal?: AbortSignal;
+  allowPrivate?: boolean | undefined;
+  resolve?: Resolver | undefined;
+  exchange?: Exchange | undefined;
+  signal?: AbortSignal | undefined;
 };
 
 export type SafeGetResult =

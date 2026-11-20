@@ -38,7 +38,7 @@ credential is used, nothing is ever written to a store, nothing is scraped behin
 | Per market view        | The same term in several countries and locales as one row.                                                                                                               | core `termsAcrossMarkets`                     |
 | Caching                | A search or lookup is reused for `MRM_ASO_CACHE_MINUTES` and a call in flight is shared.                                                                                 | `services/aso-net.ts`                         |
 
-Pure logic lives in `packages/core/src/aso.ts` (ES2017-safe so the web can share it), the two sources in
+Pure logic lives in `packages/core/src/aso/aso.ts` (ES2017-safe so the web can share it), the two sources in
 `packages/connectors` (`apple-search.ts`, `play-public.ts`), the services and routes in `apps/server`.
 
 ### 2. Apple: the documented API, and what is not documented

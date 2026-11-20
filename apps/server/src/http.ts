@@ -25,10 +25,10 @@ export type Services = {
   /** Bad attempts per invitation link. Its own instance: unknown tokens must not push out login lockouts. */
   inviteLimiter: import('./limiter.ts').LoginLimiter;
   /** Believe X-Forwarded-For (MRM_TRUST_PROXY=1). Only safe behind a proxy that sets it. */
-  trustProxy?: boolean;
-  cost?: import('./passwords.ts').ScryptCost;
+  trustProxy?: boolean | undefined;
+  cost?: import('./passwords.ts').ScryptCost | undefined;
   /** Present only in single-user mode. Its absence is what keeps multi-user mode unchanged. */
-  singleUser?: { gate: import('./single-user.ts').LaunchGate };
+  singleUser?: { gate: import('./single-user.ts').LaunchGate } | undefined;
 };
 
 export type Parsed<T> = { ok: true; data: T } | { ok: false; response: Response };

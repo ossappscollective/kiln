@@ -37,7 +37,7 @@ export const send = (
     ...(cookie ? { cookie } : {}),
     ...extra,
   },
-  body: body === undefined ? undefined : JSON.stringify(body),
+  ...(body === undefined ? {} : { body: JSON.stringify(body) }),
 });
 
 export async function registerOwner(app: App, email = 'ada@example.com') {

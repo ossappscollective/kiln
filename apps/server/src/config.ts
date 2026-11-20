@@ -571,12 +571,12 @@ export type Config = {
   worker: 'inline' | 'off';
   trustedOrigins: string[];
   /** MRM_PUBLIC_ORIGIN, or undefined: passkeys are bound to the origin of the request. */
-  publicOrigin?: string;
+  publicOrigin?: string | undefined;
   mode: 'multi' | 'single_user';
   /** Single-user mode only. Treat as a password: never log it. */
-  launchSecret?: string;
+  launchSecret?: string | undefined;
   /** Interface to listen on. Single-user mode is loopback only; undefined means the default. */
-  host?: string;
+  host?: string | undefined;
   /** Single-user mode only: extra accepted Host values besides this server's own. */
   allowedHosts: string[];
   /** Believe X-Forwarded-For for the client address. See MRM_TRUST_PROXY. */
@@ -658,10 +658,10 @@ export type Config = {
   /** Commits on a new branch of a local clone, and their push, are allowed (MRM_LOCAL_REPO_WRITE). */
   localRepoWrite: boolean;
   /** MRM_GIT_AUTHOR_NAME and MRM_GIT_AUTHOR_EMAIL, when set. */
-  gitAuthorName?: string;
-  gitAuthorEmail?: string;
+  gitAuthorName?: string | undefined;
+  gitAuthorEmail?: string | undefined;
   /** Signing of local commits (MRM_GIT_SIGN). Absent: commits are not signed. Holds a key path: never log or return it. */
-  gitSigning?: GitSigning;
+  gitSigning?: GitSigning | undefined;
 };
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {

@@ -31,7 +31,7 @@ function fakeGithub(routes: Record<string, Answer | (() => never)>) {
     const a = (answer ?? { status: 404, json: { message: 'Not Found' } }) as Answer;
     return new Response(JSON.stringify(a.json ?? {}), {
       status: a.status ?? 200,
-      headers: a.headers,
+      ...(a.headers ? { headers: a.headers } : {}),
     });
   };
   return { fetch: fetchFn, calls };

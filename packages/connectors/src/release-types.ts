@@ -375,7 +375,7 @@ export type PlayCheckRelease = {
   /** `draft`, `inProgress` (with `userFraction`) or `completed` (everybody, no fraction). */
   status: 'draft' | 'inProgress' | 'completed';
   /** Only with `inProgress`: more than 0 and less than 1. */
-  userFraction?: number;
+  userFraction?: number | undefined;
   /** The release notes per language. Empty texts are not sent. */
   notes: { locale: string; text: string }[];
 };

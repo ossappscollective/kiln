@@ -49,7 +49,7 @@ export class FakeRepo implements RepoClient {
   /** The abort signal of every propose call, in order. */
   proposeSignals: (AbortSignal | undefined)[] = [];
   /** What propose returns instead of a real result. */
-  proposeResult?: Partial<ProposalResult>;
+  proposeResult?: { [K in keyof ProposalResult]?: ProposalResult[K] | undefined };
   /** Pull requests opened for a branch that was pushed from a local clone, in order. */
   pullRequests: OpenPullRequestOptions[] = [];
   /** Errors thrown by the next openPullRequest calls, in order. */
@@ -92,7 +92,7 @@ export class FakeRepo implements RepoClient {
       url: `https://github.com/acme/app/pull/${number}`,
       number,
       commitSha: 'a'.repeat(40),
-      ...this.proposeResult,
+      ...(this.proposeResult as Partial<ProposalResult>),
     };
   }
   async openPullRequest(options: OpenPullRequestOptions): Promise<OpenPullRequestResult> {

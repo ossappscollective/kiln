@@ -110,53 +110,53 @@ export type AppDeps = {
   masterKey: Buffer;
   version: string;
   /** Origins besides this server that may send state-changing requests, e.g. a dev server. */
-  trustedOrigins?: string[];
+  trustedOrigins?: string[] | undefined;
   /** MRM_PUBLIC_ORIGIN: the origin passkeys are bound to (step-up confirmation). Default: the origin of the request. */
-  publicOrigin?: string;
+  publicOrigin?: string | undefined;
   /** Demo mode only: hard actions pass the step-up check, because nobody is there to confirm them. */
-  stepUpAutoApprove?: boolean;
+  stepUpAutoApprove?: boolean | undefined;
   /** Email (SMTP) and two-factor codes (docs/api/mail.md). `env` is MRM_SMTP_*; tests pass `mailer`. All optional. */
-  mail?: MailDeps;
+  mail?: MailDeps | undefined;
   /** Overridable for tests. */
-  now?: () => number;
-  cost?: Services['cost'];
-  limiter?: Services['limiter'];
+  now?: (() => number) | undefined;
+  cost?: Services['cost'] | undefined;
+  limiter?: Services['limiter'] | undefined;
   /** Failed logins per client address. Default: 30 per 15 minutes, looser than the per-email limit. */
-  ipLimiter?: Services['ipLimiter'];
+  ipLimiter?: Services['ipLimiter'] | undefined;
   /** Bad attempts per invitation link. Its own instance, never the login limiter. */
-  inviteLimiter?: Services['inviteLimiter'];
+  inviteLimiter?: Services['inviteLimiter'] | undefined;
   /** Believe X-Forwarded-For for the client address (MRM_TRUST_PROXY=1). Default: no. */
-  trustProxy?: boolean;
+  trustProxy?: boolean | undefined;
   /** Folder with the built web UI, relative to the working directory. Omit to serve the API only. */
-  webDist?: string;
+  webDist?: string | undefined;
   /**
    * Turns on single-user mode (desktop). `port` is the port the server listens on, for the Host
    * check. `extraHosts` are further exact Host values (loopback with a port), for a dev server.
    * Omit `singleUser` for the normal multi-user server.
    */
-  singleUser?: { launchSecret: string; port: number; extraHosts?: string[] };
+  singleUser?: { launchSecret: string; port: number; extraHosts?: string[] } | undefined;
   /** Overridable for tests: the verifiers, their fetch, the timeout and the rate limit of "test connection". */
-  credentialTests?: CredentialTestDeps;
+  credentialTests?: CredentialTestDeps | undefined;
   /**
    * Builds the repository connector from a stored credential: `(kind, secret, { owner, repo })`.
    * Overridable for tests; the default is the real GitHub connector.
    */
-  connectorFactory?: ConnectorFactory;
+  connectorFactory?: ConnectorFactory | undefined;
   /** Longest a synchronous repository job (scan, listing, apply) may run. Default 90 seconds. */
-  repositoryTimeoutMs?: number;
+  repositoryTimeoutMs?: number | undefined;
   /**
    * Local clones for scan and listing reads (MRM_READS, docs/adr/0005-local-clone-reads.md).
    * Built at start by `setUpReads`. Omitted: reads go through the GitHub API.
    */
-  reads?: CloneReads;
+  reads?: CloneReads | undefined;
   /**
    * Upkeep of the clone folder (limits, pruning, the clones route): built in index.ts, which also
    * hands it to the scheduler's sweep. Omitted: one with the defaults (2 GiB, 30 days) is made when
    * `reads` is set, so the routes work; it sweeps nothing until something calls `sweep`.
    */
-  cloneUpkeep?: CloneUpkeep;
+  cloneUpkeep?: CloneUpkeep | undefined;
   /** Writing to local clones: MRM_LOCAL_REPO_WRITE, the commit author, and (tests) where a push goes. Omitted: off. */
-  localWrite?: LocalWriteConfig;
+  localWrite?: LocalWriteConfig | undefined;
   /**
    * Store sync of apps. `connectorFactory` builds the read-only App Store Connect / Google Play
    * connector from a stored credential (overridable for tests), `timeoutMs` is the longest one
@@ -170,89 +170,89 @@ export type AppDeps = {
     intervalMinutes?: number;
   };
   /** API token requests: the per-token rate limit (default 300 a minute) and the bad-token limit. Overridable for tests. */
-  tokens?: BearerOptions;
+  tokens?: BearerOptions | undefined;
   /**
    * The open event streams. index.ts makes one so it can end them at shutdown (`closeAll`); omitted,
    * the app has a private one. Streams are capped per person.
    */
-  eventStreams?: EventStreamHub;
+  eventStreams?: EventStreamHub | undefined;
   /**
    * Outbound webhooks. `allowPrivate` is MRM_WEBHOOKS_ALLOW_PRIVATE=1 (loopback and private
    * addresses, and http to localhost); `resolve` and `send` are for tests. The delivery job itself
    * is registered in index.ts with the same options.
    */
-  webhooks?: Pick<WebhookRoutesContext, 'allowPrivate' | 'resolve' | 'send' | 'limiter'>;
+  webhooks?: Pick<WebhookRoutesContext, 'allowPrivate' | 'resolve' | 'send' | 'limiter'> | undefined;
   /**
    * CI runs and build linking (docs/api/ci.md). Uses `connectorFactory` and `repositoryTimeoutMs`.
    * `limiter` is the per workspace limit of dispatches (default 10 per minute), `matchers` the
    * build number conventions, `pollMaxMs` how long `ci.poll` follows a run. All optional.
    */
-  ci?: Partial<Pick<CiContext, 'limiter' | 'activeLimiter' | 'matchers' | 'pollMaxMs'>>;
+  ci?: Partial<Pick<CiContext, 'limiter' | 'activeLimiter' | 'matchers' | 'pollMaxMs'>> | undefined;
   /**
    * Builds to test (docs/api/builds.md): listing CI artifacts always works; downloading them, and the links that hand one to a phone,
    * answer `409 builds_download_disabled` unless `downloadEnabled` (MRM_BUILDS_DOWNLOAD_ENABLED, default false). Uploading an Android build
    * to Google Play internal app sharing (docs/api/internal-sharing.md) is off unless `internalSharingEnabled` (MRM_PLAY_INTERNAL_SHARING_ENABLED).
    */
-  builds?: BuildsDeps;
+  builds?: BuildsDeps | undefined;
   /**
    * The scheduled listing read (MRM_LISTING_INTERVAL_MINUTES) in milliseconds, 0 or absent for off.
    * Only used to tell the Listing tab when the next read is due; the scheduler is built in index.ts.
    */
-  listing?: ListingDeps['listing'];
+  listing?: ListingDeps['listing'] | undefined;
   /**
    * Media files of the repositories and app icons (docs/api/assets.md). `limiter` is the per
    * workspace limit of index reads that miss the cache (default 30 a minute); `icons` holds the
    * seams of the App Store icon lookup (`limiter`: lookups per workspace, `net`: resolver,
    * exchange and allowPrivate, for tests and development). All optional.
    */
-  assets?: ListingDeps['assets'];
+  assets?: ListingDeps['assets'] | undefined;
   /**
    * Two way sync of graphics (docs/api/assets.md): `net` is the exchange and address check of the downloads from a store's CDN
    * (fakes in tests), the limiters are per workspace (store reads, CDN fetches, uploads). All optional.
    */
-  assetSync?: ListingDeps['assetSync'];
+  assetSync?: ListingDeps['assetSync'] | undefined;
   /** Customer reviews (docs/api/reviews.md): see `ReviewsDeps` in modules/reviews. */
-  reviews?: ReviewsDeps;
+  reviews?: ReviewsDeps | undefined;
   /**
    * Changing a live rollout in a store (docs/api/rollout.md), a store write that is OFF unless `enabled`
    * (MRM_STORE_ROLLOUT_ENABLED). `connectorFactory` builds the connector that can read and change a
    * rollout (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
-  rollout?: RolloutRoutesContext['rollout'];
+  rollout?: RolloutRoutesContext['rollout'] | undefined;
   /**
    * Staged listing text and graphics, and writing them to the store as a DRAFT (docs/api/staged-changes.md):
    * a store write that is OFF unless `enabled` (MRM_STORE_DRAFT_WRITE_ENABLED). `connectorFactory` builds the
    * connector that can read and write a draft (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
-  storeDraft?: StagedRoutesContext['draft'];
+  storeDraft?: StagedRoutesContext['draft'] | undefined;
   /**
    * Submitting the store's draft for review (docs/api/submit.md, docs/adr/0010-store-submit.md): a store write that
    * is OFF unless `enabled` (MRM_STORE_SUBMIT_ENABLED). `connectorFactory` builds the connector that can read and
    * submit (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
-  storeSubmit?: SubmitRoutesContext['submit'];
+  storeSubmit?: SubmitRoutesContext['submit'] | undefined;
   /**
    * Releasing (docs/api/releases-write.md, docs/adr/0014-release-management.md): releasing an approved App Store version or
    * starting a Google Play draft release is a store write that is OFF unless `enabled` (MRM_STORE_RELEASE_ENABLED).
    * `connectorFactory` builds the connector that can read and release (fakes in tests); `timeoutMs` and `claimTtlMs` are for
    * tests. The reads of builds and version codes use the draft connector (`storeDraft.connectorFactory`) and no switch.
    */
-  storeRelease?: ReleaseRoutesContext['release'];
+  storeRelease?: ReleaseRoutesContext['release'] | undefined;
   /**
    * Creating the next App Store version (docs/api/store-version.md): a reversible store write behind the SAME switch as the draft
    * push (`storeDraft.enabled`, MRM_STORE_DRAFT_WRITE_ENABLED) and its timeouts. Only `connectorFactory` (fakes in tests) is set here.
    */
-  storeVersion?: Pick<NonNullable<VersionRoutesContext['version']>, 'connectorFactory'>;
+  storeVersion?: Pick<NonNullable<VersionRoutesContext['version']>, 'connectorFactory'> | undefined;
   /**
    * Publishing everything an app has pending in one go (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md): a store write
    * that is OFF unless `enabled` (MRM_STORE_PUBLISH_BATCH_ENABLED). It turns no step on: the steps keep the switches, the fakes and the
    * timeouts of `storeDraft`, `storeSubmit`, `storeRelease` and `rollout`. `claimTtlMs` is for tests.
    */
-  storePublish?: PendingRoutesContext['publish'];
+  storePublish?: PendingRoutesContext['publish'] | undefined;
   /** ASO (docs/api/aso.md): see `AsoDeps` in modules/aso. */
-  aso?: AsoDeps;
+  aso?: AsoDeps | undefined;
   /** Analytics (docs/api/analytics.md): see `AnalyticsDeps` in modules/analytics. */
-  analytics?: AnalyticsDeps;
+  analytics?: AnalyticsDeps | undefined;
   /**
    * Translation of reviews and the workspace settings (docs/api/settings.md, docs/api/reviews.md).
    * `allowPrivateUrls` is MRM_TRANSLATE_ALLOW_PRIVATE_URLS (a private or loopback LibreTranslate
@@ -283,7 +283,7 @@ export type AppDeps = {
     limiter?: TestLimiter;
   };
   /** The MCP endpoint for AI assistants (docs/mcp.md). `enabled` is MRM_MCP_ENABLED (default false: POST /mcp answers 404). */
-  mcp?: McpDeps;
+  mcp?: McpDeps | undefined;
 };
 
 export function createApp(deps: AppDeps) {

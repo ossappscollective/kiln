@@ -180,8 +180,8 @@ export class GoogleTokenProvider {
   readonly scope: string;
   readonly #key: KeyObject;
   readonly #http: StoreHttp;
-  #cached?: { token: string; expiresAt: number };
-  #pending?: Promise<string>;
+  #cached: { token: string; expiresAt: number } | undefined;
+  #pending: Promise<string> | undefined;
 
   constructor(account: ServiceAccount, http: StoreHttp, scope: string = ANDROID_PUBLISHER_SCOPE) {
     this.account = account;

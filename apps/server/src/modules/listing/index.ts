@@ -18,10 +18,10 @@ import { listingRoutes } from './routes.ts';
  * `draft` is the store draft's connector, which the graphics sync reads.
  */
 export type ListingDeps = {
-  listing?: { intervalMs?: number };
-  assets?: { limiter?: TestLimiter; icons?: Pick<IconsContext, 'limiter' | 'net'> };
-  assetSync?: Pick<AssetSyncRoutesContext, 'net' | 'storeLimiter' | 'fetchLimiter' | 'uploadLimiter'>;
-  draft?: AssetSyncRoutesContext['draft'];
+  listing?: { intervalMs?: number | undefined } | undefined;
+  assets?: { limiter?: TestLimiter | undefined; icons?: Pick<IconsContext, 'limiter' | 'net'> | undefined } | undefined;
+  assetSync?: Pick<AssetSyncRoutesContext, 'net' | 'storeLimiter' | 'fetchLimiter' | 'uploadLimiter'> | undefined;
+  draft?: AssetSyncRoutesContext['draft'] | undefined;
 };
 
 export const listingModule: ServerModule<ListingDeps> = {

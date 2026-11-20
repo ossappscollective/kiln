@@ -153,11 +153,11 @@ export interface TestFlightLinksConnector {
 export type ProposalResult = {
   branch: string;
   /** Pull request address, when the connector opened one. */
-  url?: string;
+  url?: string | undefined;
   /** Pull request number, when the connector opened one. */
-  number?: number;
+  number?: number | undefined;
   /** The commit the branch points to. */
-  commitSha?: string;
+  commitSha?: string | undefined;
 };
 
 export type ProposeOptions = {
@@ -235,7 +235,7 @@ export type WorkflowRun = {
   /** GitHub's own status (`queued`, `in_progress`, `completed`, ...), kept verbatim. */
   status: string;
   /** Set once the run has completed (`success`, `failure`, `cancelled`, ...). */
-  conclusion?: string;
+  conclusion?: string | undefined;
   url: string;
   branch?: string;
   headSha?: string;

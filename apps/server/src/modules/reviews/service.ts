@@ -105,18 +105,18 @@ export const MAX_REVIEWS_PAGE = 100;
 export const MAX_SEARCH_LENGTH = 100;
 
 export type ReviewFilter = {
-  ratings?: number[];
-  territory?: string;
-  language?: string;
-  version?: string;
-  statuses?: ReviewStatus[];
-  hasResponse?: boolean;
+  ratings?: number[] | undefined;
+  territory?: string | undefined;
+  language?: string | undefined;
+  version?: string | undefined;
+  statuses?: ReviewStatus[] | undefined;
+  hasResponse?: boolean | undefined;
   /** Text search in the title and the body. */
-  q?: string;
+  q?: string | undefined;
   /** Epoch milliseconds; reviews created at or after it. */
-  since?: number;
+  since?: number | undefined;
   /** Epoch milliseconds; reviews created before it. */
-  until?: number;
+  until?: number | undefined;
 };
 
 /** The extra filters of the workspace-wide inbox. */
@@ -395,9 +395,9 @@ export async function getReview(
 export const MAX_NOTE_LENGTH = 2000;
 
 export type TriageInput = {
-  status?: ReviewStatus;
-  assigneeUserId?: string | null;
-  internalNote?: string | null;
+  status?: ReviewStatus | undefined;
+  assigneeUserId?: string | null | undefined;
+  internalNote?: string | null | undefined;
 };
 
 export type TriageResult =
