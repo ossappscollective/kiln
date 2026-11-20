@@ -20,7 +20,11 @@
 <div class="rollout">
   <p class="head">
     <span class="title" id="{uid}-title">{view.title}</span>
-    <span class="muted small">Observed from {source}, read only</span>
+    {#if view.fraction !== null}
+      <span class="value"><strong>{percent}</strong> <span class="muted">of eligible users</span></span>
+    {:else}
+      <span class="text muted">{view.text}</span>
+    {/if}
   </p>
   {#if view.fraction !== null}
     <div
@@ -34,10 +38,8 @@
     >
       <div class="fill" style:width="{view.fraction * 100}%"></div>
     </div>
-    <p class="value"><strong>{percent}</strong> <span class="muted">of eligible users</span></p>
-  {:else}
-    <p class="text muted">{view.text}</p>
   {/if}
+  <p class="source muted">Observed from {source}, read only</p>
 </div>
 
 <style>
@@ -59,8 +61,9 @@
     font-weight: var(--weight-semibold);
   }
 
-  .small {
-    font-size: var(--text-xs);
+  .source {
+    margin: 0;
+    font-size: 0.8125rem;
   }
 
   .bar {
@@ -79,6 +82,6 @@
   .value,
   .text {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 </style>

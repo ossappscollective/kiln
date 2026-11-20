@@ -55,7 +55,7 @@
   <p class="observed muted small">
     <Icon name="eye" size={14} />
     {#if app.lastSyncedAt !== null}
-      Read from {store} <time datetime={new Date(app.lastSyncedAt).toISOString()} title={fullTime(app.lastSyncedAt)}>{timeAgo(app.lastSyncedAt, now)}</time>. This page cannot change it.
+      Read from {store} <time datetime={new Date(app.lastSyncedAt).toISOString()} title={fullTime(app.lastSyncedAt)}>{timeAgo(app.lastSyncedAt, now)}</time>. Read only: this page cannot change it.
     {:else}
       Not read from {store} yet. Sync the app to see its state. This page cannot change it.
     {/if}
@@ -99,7 +99,7 @@
           </div>
         </dl>
         <RolloutObserved {release} />
-        <p class="next"><span class="eyebrow">Next</span> {next.text}</p>
+        <p class="next"><span class="eyebrow">Next</span> <span class="next-text">{next.text}</span></p>
       </div>
     {/each}
   {/if}
@@ -134,7 +134,7 @@
 
   .small {
     margin: var(--space-1) 0 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   .observed {
@@ -164,6 +164,7 @@
 
   .line {
     display: flex;
+    font-size: 0.9375rem;
     flex-wrap: wrap;
     gap: var(--space-2) var(--space-3);
     align-items: center;
@@ -177,7 +178,7 @@
   }
 
   .facts dt {
-    font-size: var(--text-xs);
+    font-size: 0.8125rem;
     font-weight: var(--weight-semibold);
     color: var(--muted);
   }
@@ -192,6 +193,10 @@
     flex-direction: column;
     gap: 2px;
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
+  }
+
+  .next-text {
+    font-weight: var(--weight-semibold);
   }
 </style>
