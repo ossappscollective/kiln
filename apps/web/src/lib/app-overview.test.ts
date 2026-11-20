@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dataChips } from './app-chips.ts';
 import { groupApps } from './app-groups.ts';
-import { buildOverviewRows, overviewStats, rowStatus } from './app-overview.ts';
+import { buildOverviewRows, overviewStats, rowNextAction, rowStatus } from './app-overview.ts';
 import { attentionCount } from './nav-badges.ts';
 import type { ReleaseLoad } from './portfolio.ts';
 import type { PipelineSummaryApp } from './release-pipeline.ts';

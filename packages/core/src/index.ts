@@ -24,4 +24,5 @@ export * from './release-plan.ts';
 export * from './roles.ts';
 export * from './staged-changes.ts';
 export * from './store-asset-specs.ts';
+export * from './store-version.ts';
 export * from './translation.ts';

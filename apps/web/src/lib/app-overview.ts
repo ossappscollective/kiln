@@ -1,6 +1,7 @@
 import { platformLabel, type ReleaseState } from '@mrm/core';
 import type { AppGroup } from './app-groups.ts';
-import { lineFor, type PendingLine, type PendingSummary } from './pending.ts';
+import { appAddress } from './app-scope.ts';
+import { chipFor, lineFor, type PendingLine, type PendingSummary } from './pending.ts';
 import { latestRelease, type ReleaseLoad } from './portfolio.ts';
 import { type PipelineSummaryApp, unfinishedItem } from './release-pipeline.ts';
 import type { SummaryApp } from './reviews.ts';
@@ -246,4 +247,66 @@ export function rowStatus(row: OverviewRow, loading: boolean): RowStatus {
   const lead = primary.kind === 'release' ? primary.release : null;
   const more = row.inFlight.filter((r) => r.id !== lead?.id && r.platform !== lead?.platform);
   return { primary, more, unfinished, pending: row.pending ?? null };
+}
+
+// ---------------------------------------------------------------------------------------------
+// The ONE next action of a row
+
+export type RowNextAction = {
+  label: string;
+  href: string;
+  tone: 'bad' | 'warn' | 'accent';
+  /** The longer sentence for the link's title, when there is one. */
+  title?: string;
+};
+
+/**
+ * The one thing to do for the app, most urgent first: a rejection, a halted rollout, a failed sync, a release left unfinished,
+ * an approved release, pending changes, new reviews. Null when nothing waits for the person (the status says the rest), so a row
+ * never offers two actions and never repeats the status in a second badge.
+ */
+export function rowNextAction(row: OverviewRow, status: RowStatus): RowNextAction | null {
+  const key = row.group.key;
+  const release = status.primary.kind === 'release' ? status.primary.release : null;
+  if (release?.status === 'rejected')
+    return {
+      label: 'Fix the rejection',
+      href: appAddress(key, 'releases', release.platform, release.version),
+      tone: 'bad',
+    };
+  if (release?.status === 'halted')
+    return {
+      label: 'Review the halted rollout',
+      href: appAddress(key, 'releases', release.platform, release.version),
+      tone: 'bad',
+    };
+  if (status.primary.kind === 'sync-failed')
+    return { label: 'Check the sync error', href: appAddress(key), tone: 'bad' };
+  if (status.unfinished)
+    return {
+      label: status.unfinished.count === 1 ? 'Finish the release' : 'Finish the releases',
+      href: status.unfinished.href ?? appAddress(key, 'releases'),
+      tone: 'warn',
+      title: status.unfinished.title,
+    };
+  if (release?.status === 'approved')
+    return {
+      label: 'Release it',
+      href: appAddress(key, 'releases', release.platform, release.version),
+      tone: 'accent',
+    };
+  const chip = chipFor(status.pending);
+  if (chip)
+    return {
+      label: `Review ${chip.text}`,
+      href: appAddress(key, 'pending'),
+      tone: chip.tone === 'warn' ? 'warn' : 'accent',
+    };
+  if (row.newReviews !== null && row.newReviews > 0)
+    return {
+      label: `Read ${row.newReviews} new ${row.newReviews === 1 ? 'review' : 'reviews'}`,
+      href: appAddress(key, 'reviews'),
+      tone: 'accent',
+    };
+  return null;
 }

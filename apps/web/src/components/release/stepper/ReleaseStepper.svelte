@@ -350,7 +350,7 @@
     <span class="spacer"></span>
     <Button size="sm" variant="ghost" icon="x" onclick={onclose}>Close</Button>
   </header>
-  <p class="muted note">Each step stages changes in this tool. Nothing is sent to the store until the last step, and you confirm it there.</p>
+  <p class="muted note">Nothing is sent to the store until the last step.</p>
 
   <ol class="steps" aria-label="Steps">
     {#each statuses as s, i (s.id)}

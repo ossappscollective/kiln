@@ -3,7 +3,8 @@
   serious first, each with a link to where it is handled. Drawn only when there is something to show.
   An item with `submitAppId` ("Draft pushed — ready to submit?") shows the submit control of that app
   (SubmitReady, bare) instead of a link; it is only built for admin and up.
-  Props: items (from attentionItems in lib/app-attention.ts), api, workspaceId, role, members (the app records
+  Only the first three lines are shown (and every urgent one, whatever its place); the rest is one "Show N more" button, so
+  the Next step card stays short. Props: items (from attentionItems in lib/app-attention.ts), api, workspaceId, role, members (the app records
   in scope, for the submit control), bare = false (drawn inside the Next step card: no card of its own and a quieter
   "Also needs attention" heading).
 -->
@@ -11,6 +12,7 @@
   import type { Role } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import type { AttentionItem } from '../../lib/app-attention.ts';
+  import { capItems } from '../../lib/readability.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import SubmitReady from '../listing/SubmitReady.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -24,6 +26,11 @@
     members,
     bare = false,
   }: { items: AttentionItem[]; api: Api; workspaceId: string; role: Role; members: AppSummary[]; bare?: boolean } = $props();
+
+  const LIMIT = 3;
+  let all = $state(false);
+  const capped = $derived(capItems(items, LIMIT));
+  const listed = $derived(all ? items : capped.shown);
 </script>
 
 <section class="attention" class:card={!bare} class:bare aria-labelledby="attention-title">
@@ -32,7 +39,7 @@
     <Badge tone={items.some((i) => i.tone === 'bad') ? 'bad' : 'warn'}>{items.length}</Badge>
   </div>
   <ul>
-    {#each items as item (item.id)}
+    {#each listed as item (item.id)}
       <li class={item.tone}>
         <span class="mark"><Icon name={item.icon} size={16} /></span>
         <div class="text">
@@ -47,6 +54,11 @@
       </li>
     {/each}
   </ul>
+  {#if capped.hidden.length > 0}
+    <button type="button" class="more-toggle" aria-expanded={all} onclick={() => (all = !all)}>
+      {all ? 'Show fewer' : `Show ${capped.hidden.length} more`}
+    </button>
+  {/if}
 </section>
 
 <style>
@@ -127,5 +139,19 @@
   .go {
     grid-column: 2;
     font-size: var(--text-xs);
+  }
+
+  .more-toggle {
+    padding: var(--space-2) 0 0;
+    font: inherit;
+    font-size: var(--text-sm);
+    color: var(--accent);
+    cursor: pointer;
+    background: none;
+    border: 0;
+  }
+
+  .more-toggle:hover {
+    text-decoration: underline;
   }
 </style>
