@@ -6,7 +6,8 @@
  *
  * Usage: `<section use:fitToViewport={{ margin: 16, min: 360 }}>`.
  */
-export type FitParams = { margin?: number; min?: number };
+/** `fill`: the panel takes all the room (a fixed height) instead of only being limited, so a footer stays at the same place on every page of a multi-step panel. */
+export type FitParams = { margin?: number; min?: number; fill?: boolean };
 
 export function fitToViewport(node: HTMLElement, params: FitParams = {}) {
   let current = params;
@@ -19,7 +20,9 @@ export function fitToViewport(node: HTMLElement, params: FitParams = {}) {
     const min = current.min ?? 360;
     const top = node.getBoundingClientRect().top;
     const room = Math.floor(window.innerHeight - Math.max(top, 0) - margin);
-    node.style.maxHeight = `${Math.max(min, room)}px`;
+    const height = `${Math.max(min, room)}px`;
+    node.style.maxHeight = height;
+    if (current.fill) node.style.height = height;
   }
 
   function schedule() {

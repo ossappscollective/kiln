@@ -343,7 +343,7 @@
   const back = $derived(current === null ? null : neighbour(current, visible, -1));
 </script>
 
-<section class="stepper" aria-label="Prepare release, {platformLabel(app.platform)}" data-testid="release-stepper" use:fitToViewport={{ margin: 16, min: 420 }}>
+<section class="stepper" aria-label="Prepare release, {platformLabel(app.platform)}" data-testid="release-stepper" use:fitToViewport={{ margin: 16, min: 420, fill: true }}>
   <header class="head">
     <h3>Prepare release{showPlatform ? `: ${platformLabel(app.platform)}` : ''}</h3>
     {#if releaseVersion}<span class="muted">version {releaseVersion}</span>{/if}
