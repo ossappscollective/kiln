@@ -5,6 +5,8 @@
   notes" fills the editors from the notes of a build, when they were read; it says plainly when they were not read or the
   build has none. Every button only changes the text in the editors. "Stage the notes" saves them in our own database
   (docs/api/staged-changes.md and releases-write.md); nothing reaches a store from here.
+  "Promote to production" (docs/adr/0025-play-release-checks.md): the notes of the release being promoted are put in the editors when the
+  step is opened (ReleaseStepper reads them; never over text the person wrote or staged) and one sentence says where they came from.
   Props: api, workspaceId, role, app, view (the staged changes), editable (the read of the editable release), candidates
   (the builds, for their TestFlight notes), chosenBuildId, track (Google Play target track), locales (every language
   shown), drafts (bindable: the text of each language in the editors), extra (bindable: languages the person added).
@@ -13,8 +15,12 @@
   import { type Role, type StagedChangesView, isApplePlatform } from '@mrm/core';
   import type { Api } from '../../../lib/api.ts';
   import { type BuildCandidate, type EditableRelease, type ReleaseCandidates, hasTestNotes } from '../../../lib/release-candidates.ts';
+  import { type Promote } from '../../../lib/play-promote.ts';
+  import { trackLabel } from '../../../lib/portfolio.ts';
   import {
     type NotesHistory,
+    type PromoteNotesState,
+    promoteNotesLine,
     copyToLocales,
     historyStoreLine,
     isNoteLocale,
@@ -47,6 +53,8 @@
     chosenBuildId,
     track,
     locales,
+    promote = null,
+    promoteNotes = null,
     drafts = $bindable({}),
     extra = $bindable([]),
   }: {
@@ -60,6 +68,8 @@
     chosenBuildId: string | null;
     track: string;
     locales: string[];
+    promote?: Promote | null;
+    promoteNotes?: PromoteNotesState | null;
     drafts?: Record<string, string>;
     extra?: string[];
   } = $props();
@@ -193,6 +203,11 @@
     What is new, per language. Staging saves the text in this tool; it reaches the store when you push the draft in the last step.
     <InfoTip label="About the notes" text="Apple allows 4000 characters, Google Play 500. An empty text cannot be staged here; this tool does not clear a store field." />
   </p>
+
+  {#if !apple && promote !== null && promoteNotes !== null}
+    {@const line = promoteNotesLine(promoteNotes, trackLabel(promote.from).toLowerCase(), promote.codes)}
+    <Alert tone={line.tone}>{line.text}</Alert>
+  {/if}
 
   {#if apple}
     <section class="tf" aria-label="TestFlight notes">

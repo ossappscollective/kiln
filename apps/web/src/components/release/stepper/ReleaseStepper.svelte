@@ -21,7 +21,7 @@
   import { platformLabel } from '../../../lib/portfolio.ts';
   import { type EditableRelease, type ReleaseCandidates, type PlayCandidates, type BuildCandidate } from '../../../lib/release-candidates.ts';
   import { type Promote } from '../../../lib/play-promote.ts';
-  import { noteRows, unsavedLocales } from '../../../lib/release-notes.ts';
+  import { type PromoteNotesState, noteRows, promoteNotesFill, unsavedLocales } from '../../../lib/release-notes.ts';
   import { type AppPipeline } from '../../../lib/release-pipeline.ts';
   import {
     type EditableState,
@@ -96,6 +96,8 @@
   let source = $state('beta');
   let drafts = $state<Record<string, string>>({});
   let extra = $state<string[]>([]);
+  /** "Promote to production": what reading the notes of the source release did (null: not a promotion). */
+  let promoteNotes = $state<PromoteNotesState | null>(null);
   let seq = 0;
 
   const view = $derived(stagedStore.view(app.id));
@@ -170,6 +172,33 @@
       if (mine !== seq) return;
       editable = null;
       editableState = e instanceof ApiError && e.code === 'no_editable_version' ? { state: 'none' } : { state: 'error', message: stagingError(e) };
+    }
+  }
+
+  /**
+   * "Promote to production": the notes of the release in the source track (found by its version codes) go into the editors, per
+   * language, unless the person wrote or staged text there already. Read only; nothing is staged.
+   */
+  async function loadPromoteNotes(p: Promote) {
+    const mine = seq;
+    promoteNotes = { status: 'loading' };
+    try {
+      const out = await api.releaseNotesHistory(workspaceId, app.id, { platform: app.platform, track: p.from, codes: p.codes, limit: 100 });
+      if (mine !== seq) return;
+      const fill = promoteNotesFill({
+        history: out.history,
+        drafts,
+        staged: stagedNotes(stagedStore.view(app.id), app.platform),
+        locales,
+        platform: app.platform,
+      });
+      drafts = fill.drafts;
+      const more = fill.addLocales.filter((l) => extra.indexOf(l) < 0);
+      if (more.length > 0) extra = [...extra, ...more];
+      promoteNotes = fill.state;
+    } catch (e) {
+      if (mine !== seq) return;
+      promoteNotes = { status: 'error', message: stagingError(e) };
     }
   }
 
@@ -261,6 +290,7 @@
       pipeline = null;
       drafts = {};
       extra = [];
+      promoteNotes = null;
       void stagedStore.load(api, workspaceId, app.id).then(() => {
         const t = stagedField(stagedStore.view(app.id), 'track');
         if (t !== null) track = t.value;
@@ -268,6 +298,7 @@
         if (promote !== null && !apple) {
           source = promote.from;
           track = promote.to;
+          void loadPromoteNotes(promote);
         }
         void loadEditable();
         void loadCandidates();
@@ -330,7 +361,7 @@
         onreadtracks={readTracks}
       />
     {:else if current === 'notes'}
-      <StepNotes {api} {workspaceId} {role} {app} {view} {editable} {candidates} {chosenBuildId} track={releaseTrack} {locales} bind:drafts bind:extra />
+      <StepNotes {api} {workspaceId} {role} {app} {view} {editable} {candidates} {chosenBuildId} track={releaseTrack} {locales} {promote} {promoteNotes} bind:drafts bind:extra />
     {:else if current === 'assets'}
       <StepAssets {api} {workspaceId} {app} {view} {scope} />
     {:else if current === 'review'}

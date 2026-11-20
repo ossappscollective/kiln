@@ -75,11 +75,14 @@ Needs `listing.read`. Returns `{ editable }`:
 - **Google Play**: `track` required. `draft { name, status, userFraction, versionCodes[], notes[] { locale, text } } | null` and
   `others[]` (the other releases of the track, read only).
 
-### `GET /apps/{id}/release/notes-history?platform=&locale=&limit=`
+### `GET /apps/{id}/release/notes-history?platform=&locale=&limit=&track=&codes=`
 
 Needs `listing.read`. The "what is new" texts earlier releases used, to reuse in the next one. `platform` (optional) must be
 the platform of the app (`422 platform_mismatch`); `locale` narrows to one language (`en-US`; `de_DE` works too); `limit` is 1 to
-100 (default 30). Returns `{ history: { app, locale, notes[], truncated, limit, store, generatedAt } }`:
+100 (default 30). Google Play: `track` (for example `internal`) narrows the answer to the release(s) of that track and leaves out the
+plans' notes, and `codes` (up to 20 version codes, comma separated, only with `track`) to the release that holds one of them; the
+screen "Promote to production" reads the notes of the release it promotes this way, and each use then has `versionCodes`.
+Returns `{ history: { app, locale, notes[], truncated, limit, store, generatedAt } }`:
 
 - `notes[]` is **deduplicated by text** (line ends and surrounding space do not count): `{ text, truncated, locales[],
   lastUsedAt, uses[] }`, newest first by `lastUsedAt`; a text with no date follows the dated ones in the store's order. `uses[]`

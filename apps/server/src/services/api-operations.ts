@@ -2295,6 +2295,10 @@ const notesHistorySchema = z.object({
                   'The marketing version, the Google Play release name, or the version of the plan.',
                 ),
               track: z.string().nullable(),
+              versionCodes: z
+                .array(z.string())
+                .optional()
+                .describe('Google Play: the version codes of the release.'),
               state: z
                 .string()
                 .nullable()
@@ -6309,6 +6313,20 @@ const drafts: Draft[] = [
         .optional()
         .describe('One language, for example `en-US`. Default: all.'),
       limit: z.number().int().min(1).max(100).optional().describe('Default 30.'),
+      track: z
+        .string()
+        .max(100)
+        .optional()
+        .describe(
+          'Google Play: only the release(s) of this track (for example `internal`); the notes of the release plans are left out.',
+        ),
+      codes: z
+        .string()
+        .max(250)
+        .optional()
+        .describe(
+          'With `track`: only the release that holds one of these version codes, separated by commas (up to 20). This is how the notes of the release being promoted are read.',
+        ),
     }),
     responses: {
       '200': { description: 'The history.', schema: z.object({ history: notesHistorySchema }) },

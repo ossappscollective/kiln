@@ -1557,12 +1557,14 @@ export function createApi(options: ApiOptions = {}) {
     releaseNotesHistory: (
       workspaceId: string,
       appId: string,
-      query: { platform?: string; locale?: string; limit?: number } = {},
+      query: { platform?: string; locale?: string; limit?: number; track?: string; codes?: string[] } = {},
     ) => {
       const q = new URLSearchParams();
       if (query.platform) q.set('platform', query.platform);
       if (query.locale) q.set('locale', query.locale);
       if (query.limit) q.set('limit', String(query.limit));
+      if (query.track) q.set('track', query.track);
+      if (query.codes && query.codes.length > 0) q.set('codes', query.codes.join(','));
       const text = q.toString();
       return request<{ history: NotesHistory }>(
         'GET',

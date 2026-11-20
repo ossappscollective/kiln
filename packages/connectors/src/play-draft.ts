@@ -698,6 +698,7 @@ export class PlayDraftConnector
               truncated,
               version: read.name,
               track,
+              versionCodes: [...read.versionCodes],
               state: read.status,
               at: null,
             });

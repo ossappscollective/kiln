@@ -25,6 +25,8 @@ export type NoteUse = {
   version: string | null;
   /** Google Play: the track. */
   track: string | null;
+  /** Google Play: the version codes of the release (present when the store read gave them). */
+  versionCodes?: string[];
   /** The store's state of the version or release; null for a plan. */
   state: string | null;
   /** When the place was created or last changed (epoch ms); null when the store does not say (Google Play). */
@@ -76,6 +78,12 @@ export async function notesHistory(
     actor: { type: 'user' | 'token' | 'system'; id: string };
     locale?: string | undefined;
     limit?: number | undefined;
+    /**
+     * Google Play: only the release(s) of this track, and when `codes` is given only those that hold one of these version codes
+     * ("the notes of the release being promoted"). The notes of the release plans are left out then.
+     */
+    track?: string | undefined;
+    codes?: readonly string[] | undefined;
     /** Called before a store read that the cache could not answer; a refusal (rate limit) is returned as the store error. */
     beforeStoreRead?: () => { error: string } | undefined;
   },
@@ -89,6 +97,10 @@ export async function notesHistory(
   const store = app.platform === 'android' ? ('googleplay' as const) : ('appstoreconnect' as const);
   const wantedLocale =
     input.locale === undefined || input.locale === '' ? undefined : norm(input.locale);
+
+  const wantedTrack =
+    input.track === undefined || input.track === '' ? undefined : input.track.toLowerCase();
+  const wantedCodes = input.codes !== undefined && input.codes.length > 0 ? input.codes : undefined;
 
   const cacheKey = `${input.workspaceId}\u0000${app.id}\u0000${wantedLocale ?? ''}`;
   let read = cache.get(cacheKey, at);
@@ -139,16 +151,23 @@ export async function notesHistory(
   for (const e of read?.entries ?? []) {
     // The connector narrows by language already; a store that did not is narrowed here too.
     if (wantedLocale !== undefined && norm(e.locale) !== wantedLocale) continue;
+    if (wantedTrack !== undefined) {
+      if ((e.track ?? '').toLowerCase() !== wantedTrack) continue;
+      if (wantedCodes !== undefined && !(e.versionCodes ?? []).some((c) => wantedCodes.includes(c)))
+        continue;
+    }
     add(e.text, e.truncated, {
       source: e.source,
       locale: e.locale,
       version: e.version,
       track: e.track,
+      ...(e.versionCodes ? { versionCodes: [...e.versionCodes] } : {}),
       state: e.state,
       at: e.at,
     });
   }
-  for (const p of await planNotes(ctx.db, input.workspaceId, app.id, wantedLocale)) {
+  const plans = wantedTrack !== undefined ? [] : await planNotes(ctx.db, input.workspaceId, app.id, wantedLocale);
+  for (const p of plans) {
     add(p.text, false, {
       source: 'plan',
       locale: p.locale,

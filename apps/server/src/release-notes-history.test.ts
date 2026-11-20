@@ -375,3 +375,52 @@ dbTest(
     assert.ok(!JSON.stringify(await t.events()).includes('SECRET-TEST-NOTE'));
   },
 );
+
+dbTest(
+  'notes history: a track and version codes narrow it to the release being promoted (the plans are left out)',
+  async (db) => {
+    clearNotesHistoryCache();
+    const t = await bootStaged(db);
+    const app = await t.addApp('android');
+    const play = (version: string, track: string, codes: string[], locale: string, text: string) =>
+      entry(version, locale, text, null, {
+        source: 'googleplay',
+        track,
+        versionCodes: codes,
+        state: 'completed',
+      });
+    t.stores.android.notesHistory = {
+      entries: [
+        play('2.1', 'internal', ['241'], 'en-US', 'Same text'),
+        play('2.1', 'internal', ['241'], 'de-DE', 'Same text'),
+        play('2.1', 'internal', ['241'], 'fr-FR', 'Même texte'),
+        play('2.0', 'internal', ['200'], 'en-US', 'Older internal'),
+        play('2.0', 'production', ['200'], 'en-US', 'Production text'),
+      ],
+      truncated: false,
+      versionsRead: 3,
+      failed: 0,
+    };
+    const plan = await t.call(t.owner, 'POST', `/apps/${app}/plans`, { version: '2.2' });
+    await t.call(t.owner, 'PUT', `/apps/${app}/plans/${plan.body.plan.id}/notes/en-US`, {
+      text: 'From the plan',
+    });
+    const res = await history(t, app, '?track=Internal&codes=241,242&limit=100');
+    assert.equal(res.status, 200, res.text);
+    const h = res.body.history as Json;
+    assert.deepEqual(
+      h.notes.map((n: Json) => [n.text, [...n.locales].sort()]),
+      [
+        ['Same text', ['de-DE', 'en-US']],
+        ['Même texte', ['fr-FR']],
+      ],
+    );
+    assert.deepEqual(h.notes[0].uses[0].versionCodes, ['241']);
+    // Without codes: the whole track. Codes without a track, or odd ones, are refused.
+    const whole = (await history(t, app, '?track=internal')).body.history as Json;
+    assert.equal(whole.notes.length, 3);
+    assert.equal((await history(t, app, '?codes=241')).status, 400);
+    assert.equal((await history(t, app, '?track=internal&codes=24x')).status, 400);
+    assert.equal((await history(t, app, '?track=in%20ternal')).status, 400);
+  },
+);

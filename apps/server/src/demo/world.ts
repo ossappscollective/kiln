@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import {
   type EditableRelease,
   mapAppStoreState,
+  type NotesHistoryRead,
   type PlayCheckRelease,
   type PlayCheckResult,
   type PlayReleaseState,
@@ -80,6 +81,35 @@ export class DemoDraftStore extends FakeDraftStore {
     this.releaseReads++;
     if (this.releaseReadError) throw this.releaseReadError;
     return this.side.editable(input);
+  }
+  /**
+   * The release the demo calls "in internal testing" (the one "Promote to production" offers) has notes in three languages, so
+   * the step "What is new" shows them filled in. The Apple records answer as the fake does (nothing).
+   */
+  override async readNotesHistory(
+    input: { locale?: string; maxVersions?: number } = {},
+  ): Promise<NotesHistoryRead> {
+    if (this.side.apple) return super.readNotesHistory(input);
+    const draft = this.side.release.releases.find((r) => r.status === 'draft');
+    const want = input.locale?.toLowerCase().replace(/_/g, '-');
+    const entries = !draft
+      ? []
+      : this.side
+          .locales()
+          .slice(0, 3)
+          .filter((locale) => want === undefined || locale.toLowerCase() === want)
+          .map((locale) => ({
+            source: 'googleplay' as const,
+            locale,
+            text: appleOrPlayNotes(this.side.app, locale),
+            truncated: false,
+            version: draft.name,
+            track: 'internal',
+            versionCodes: [...draft.versionCodes],
+            state: 'completed',
+            at: null,
+          }));
+    return { entries, truncated: false, versionsRead: draft ? 1 : 0, failed: 0 };
   }
 }
 

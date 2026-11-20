@@ -200,6 +200,19 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
         message: `A whole number from 1 to ${MAX_NOTES_HISTORY_LIMIT}.`,
       });
     }
+    // Google Play: the notes of one release of a track (the source of a promotion), found by its version codes.
+    const track = c.req.query('track');
+    if (track !== undefined && track !== '' && !/^[A-Za-z0-9][A-Za-z0-9_:.-]{0,99}$/.test(track)) {
+      issues.push({ path: 'track', message: 'A track name, for example internal.' });
+    }
+    const codesRaw = c.req.query('codes');
+    const codes = codesRaw === undefined || codesRaw === '' ? [] : codesRaw.split(',');
+    if (codes.length > 20 || codes.some((x) => !/^[0-9]{1,10}$/.test(x))) {
+      issues.push({ path: 'codes', message: 'Up to 20 version codes, separated by commas.' });
+    }
+    if (codes.length > 0 && (track === undefined || track === '')) {
+      issues.push({ path: 'track', message: 'Name the track the version codes are in.' });
+    }
     if (issues.length > 0) return c.json({ error: 'invalid_request', issues }, 400);
     if (platform !== undefined && platform !== '' && platform !== app.platform) {
       return respond(
@@ -218,6 +231,8 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
       actor: actor(c),
       locale: locale || undefined,
       limit,
+      track: track || undefined,
+      codes,
       // Only a read that goes to the store counts against the limit: a cached answer costs the store nothing.
       beforeStoreRead: () => {
         const wait = limiter.take(ws(c));

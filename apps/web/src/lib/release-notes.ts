@@ -22,6 +22,8 @@ export type NoteUse = {
   locale: string;
   version: string | null;
   track: string | null;
+  /** Google Play: the version codes of the release. */
+  versionCodes?: string[];
   state: string | null;
   at: number | null;
 };
@@ -140,19 +142,21 @@ export function reuseOptions(
   return out;
 }
 
+/** Why the store could not be read, in words ("the store is limiting requests"). */
+export const storeErrorWhy = (error: string | null): string =>
+  error === 'rate_limited'
+    ? 'the store is limiting requests'
+    : error === 'store_forbidden' || error === 'credential_unreadable'
+      ? 'the credential of this app cannot read them'
+      : error === 'timeout'
+        ? 'the store did not answer in time'
+        : 'the store could not be read';
+
 /** One sentence when the store history could not be read in full (the plan notes are still listed). */
 export function historyStoreLine(store: NotesHistory['store'] | undefined): string | null {
   if (!store) return null;
   if (!store.read) {
-    const why =
-      store.error === 'rate_limited'
-        ? 'the store is limiting requests'
-        : store.error === 'store_forbidden' || store.error === 'credential_unreadable'
-          ? 'the credential of this app cannot read them'
-          : store.error === 'timeout'
-            ? 'the store did not answer in time'
-            : 'the store could not be read';
-    return `Earlier notes from the store were not read (${why}). Only the notes of your release plans are listed.`;
+    return `Earlier notes from the store were not read (${storeErrorWhy(store.error)}). Only the notes of your release plans are listed.`;
   }
   const parts: string[] = [];
   if (store.truncated) parts.push('Only the newest versions were read.');
@@ -224,6 +228,139 @@ export function testFlightLine(notes: TestNotes | undefined, buildLabel: string)
   }
   if (notes.locales.length === 0) return `${buildLabel}: read, and it has no TestFlight notes.`;
   return `${buildLabel}: TestFlight notes in ${notes.locales.length} ${notes.locales.length === 1 ? 'language' : 'languages'}.`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// "Promote to production": the notes of the release being promoted fill the editors
+
+export type PromoteNotesState =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | {
+      status: 'done';
+      /** Languages whose editor got the text of the source release. */
+      filled: string[];
+      /** Languages the source release has text for, where the person had typed or staged text already (left alone). */
+      kept: string[];
+      /** Filled languages whose text is over the limit of the store. */
+      tooLong: string[];
+      /** The release was read and has no notes in any language. */
+      none: boolean;
+      /** The store could not be read (`null`: it was). */
+      storeError: string | null;
+      storeRead: boolean;
+    };
+
+export type PromoteNotesFill = {
+  drafts: Drafts;
+  /** Languages of the source release that are not shown yet (the editors must show them). */
+  addLocales: string[];
+  state: Extract<PromoteNotesState, { status: 'done' }>;
+};
+
+/**
+ * Puts the notes of the source release (the history read for its track and version codes) into the drafts, per language. Never
+ * overwrites: a language the person already has a draft for (even an empty one: they cleared it) or has staged text for is kept
+ * as it is. `locales` are the languages shown; a language of the source that matches one of them (ignoring case and `_`/`-`) uses
+ * its spelling, any other is reported in `addLocales`. Nothing is staged by this.
+ */
+export function promoteNotesFill(input: {
+  history: Pick<NotesHistory, 'notes' | 'store'>;
+  drafts: Drafts;
+  staged: Readonly<Record<string, string>>;
+  locales: readonly string[];
+  platform: Platform;
+}): PromoteNotesFill {
+  const known = (list: readonly string[], locale: string): string | undefined =>
+    list.filter((l) => normalizeLocale(l) === normalizeLocale(locale))[0];
+  const found = new Map<string, { locale: string; text: string }>();
+  for (const note of input.history.notes) {
+    const text = clean(note.text);
+    if (text === '') continue;
+    for (const locale of note.locales) {
+      const key = normalizeLocale(locale);
+      if (!found.has(key)) found.set(key, { locale, text });
+    }
+  }
+  const drafts: Drafts = { ...input.drafts };
+  const filled: string[] = [];
+  const kept: string[] = [];
+  const tooLong: string[] = [];
+  const addLocales: string[] = [];
+  const limit = noteLimit(input.platform);
+  found.forEach(({ locale, text }) => {
+    const shown = known(input.locales, locale) ?? known(Object.keys(input.drafts), locale);
+    const key = shown ?? locale;
+    const typed = known(Object.keys(input.drafts), key) !== undefined;
+    const stagedKey = known(Object.keys(input.staged), key);
+    const hasStaged = stagedKey !== undefined && clean(input.staged[stagedKey] as string) !== '';
+    if (typed || hasStaged) {
+      kept.push(key);
+      return;
+    }
+    drafts[key] = text;
+    filled.push(key);
+    if (text.length > limit) tooLong.push(key);
+    if (shown === undefined && isNoteLocale(key)) addLocales.push(key);
+  });
+  return {
+    drafts,
+    addLocales,
+    state: {
+      status: 'done',
+      filled,
+      kept,
+      tooLong,
+      none: found.size === 0,
+      storeError: input.history.store.error,
+      storeRead: input.history.store.read,
+    },
+  };
+}
+
+const list = (items: readonly string[]): string => items.join(', ');
+
+/**
+ * The sentence under the title of the step "What is new" when the person came from a promotion: where the text came from and that
+ * nothing is staged yet, or plainly that the source release has no notes (or could not be read).
+ */
+export function promoteNotesLine(
+  state: PromoteNotesState,
+  fromLabel: string,
+  codes: readonly string[],
+): { tone: 'info' | 'ok' | 'warn'; text: string } {
+  const release = `the ${fromLabel} release`;
+  if (state.status === 'loading')
+    return { tone: 'info', text: `Reading the notes of ${release}.` };
+  if (state.status === 'error')
+    return {
+      tone: 'warn',
+      text: `The notes of ${release} could not be read (${state.message}). Write them or reuse earlier ones.`,
+    };
+  if (!state.storeRead)
+    return {
+      tone: 'warn',
+      text: `The notes of ${release} were not read (${storeErrorWhy(state.storeError)}). Write them or reuse earlier ones.`,
+    };
+  if (state.none)
+    return {
+      tone: 'warn',
+      text: `The ${fromLabel} release has no notes; write them or reuse earlier ones.`,
+    };
+  const code = codes.length > 0 ? ` (version code${codes.length === 1 ? '' : 's'} ${list(codes)})` : '';
+  if (state.filled.length === 0)
+    return {
+      tone: 'info',
+      text: `The ${fromLabel} release${code} has notes in ${list(state.kept)}, but text is already written or staged there, so nothing was replaced.`,
+    };
+  const parts = [
+    `Put in the editors from ${release}${code}: ${list(state.filled)}. Nothing is staged yet.`,
+  ];
+  if (state.kept.length > 0)
+    parts.push(`Not replaced, because you already wrote or staged text: ${list(state.kept)}.`);
+  if (state.tooLong.length > 0)
+    parts.push(`Too long for the store (shorten it before staging): ${list(state.tooLong)}.`);
+  return { tone: 'ok', text: parts.join(' ') };
 }
 
 // ---------------------------------------------------------------------------------------------

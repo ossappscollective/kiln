@@ -457,6 +457,11 @@ test('notes history (Google Play): the notes of the releases the tracks hold, hi
   );
   assert.equal(read.versionsRead, 3);
   assert.deepEqual(
+    read.entries.map((e) => e.versionCodes),
+    [['241', '240'], ['200'], ['200']],
+    'the version codes of the release tell two releases of one track apart',
+  );
+  assert.deepEqual(
     (await connector.readNotesHistory({ locale: 'de-DE' })).entries.map((e) => e.text),
     ['Zwei'],
   );

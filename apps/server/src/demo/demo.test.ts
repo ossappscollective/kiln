@@ -636,3 +636,20 @@ test('Test builds: Share to device works end to end in the demo (no passkey, not
     await rt.close();
   }
 });
+
+test('an Android release in internal testing has notes in three languages, for the "Promote to production" step to fill in', async () => {
+  const rt = await seeded();
+  const { call } = await session(rt);
+  const apps = ((await call('GET', '/apps')).body.apps ?? []) as Json[];
+  const found: Json[] = [];
+  for (const a of apps.filter((x) => x.platform === 'android')) {
+    const res = await call('GET', `/apps/${a.id}/release/notes-history?track=internal&limit=100`);
+    assert.equal(res.status, 200);
+    const history = res.body.history as Json;
+    if (history.notes.length > 0) found.push(history);
+  }
+  assert.ok(found.length >= 1, 'an Android app has a release in internal testing with notes');
+  const locales = new Set<string>();
+  for (const n of found[0]?.notes ?? []) for (const l of n.locales) locales.add(l);
+  assert.equal(locales.size, 3);
+});

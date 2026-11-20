@@ -7,8 +7,12 @@ import {
   isNoteLocale,
   type NoteUse,
   noteLimit,
+  type NotesHistory,
   noteRows,
   overwriteCount,
+  type PromoteNotesState,
+  promoteNotesFill,
+  promoteNotesLine,
   previewOf,
   reuseOptions,
   stateLabel,
@@ -229,4 +233,90 @@ test('locale codes follow the server rule', () => {
   assert.equal(isNoteLocale('pt_BR'), true);
   assert.equal(isNoteLocale('english'), false);
   assert.equal(isNoteLocale(''), false);
+});
+
+const hist = (notes: { text: string; locales: string[] }[], store: Partial<NotesHistory['store']> = {}) => ({
+  notes: notes.map((n) => ({ ...n, truncated: false, lastUsedAt: null, uses: [] as NoteUse[] })),
+  store: { read: true, error: null, cached: false, versionsRead: 1, failed: 0, truncated: false, ...store },
+});
+
+test('promote: the notes of the source release fill the editors of every language that has text, and add the languages not shown', () => {
+  const out = promoteNotesFill({
+    history: hist([
+      { text: 'Same\r\ntext ', locales: ['en-US', 'de_DE'] },
+      { text: 'Texte', locales: ['fr-FR'] },
+    ]),
+    drafts: {},
+    staged: {},
+    locales: ['en-US', 'de-DE'],
+    platform: 'android',
+  });
+  assert.deepEqual(out.drafts, { 'en-US': 'Same\ntext', 'de-DE': 'Same\ntext', 'fr-FR': 'Texte' });
+  assert.deepEqual(out.state.filled, ['en-US', 'de-DE', 'fr-FR']);
+  assert.deepEqual(out.addLocales, ['fr-FR']);
+  assert.deepEqual(out.state.kept, []);
+  assert.equal(out.state.none, false);
+});
+
+test('promote: a typed or staged text is never replaced', () => {
+  const out = promoteNotesFill({
+    history: hist([{ text: 'From internal', locales: ['en-US', 'de-DE', 'fr-FR'] }]),
+    drafts: { 'en-us': 'I typed this', 'fr-FR': '' },
+    staged: { 'de-DE': 'Staged already' },
+    locales: ['en-US', 'de-DE', 'fr-FR'],
+    platform: 'android',
+  });
+  assert.deepEqual(out.drafts, { 'en-us': 'I typed this', 'fr-FR': '' });
+  assert.deepEqual(out.state.filled, []);
+  assert.deepEqual(out.state.kept, ['en-US', 'de-DE', 'fr-FR']);
+  // A staged text that is only blank does not protect the language.
+  const blank = promoteNotesFill({
+    history: hist([{ text: 'x', locales: ['de-DE'] }]),
+    drafts: {},
+    staged: { 'de-DE': '  ' },
+    locales: ['de-DE'],
+    platform: 'android',
+  });
+  assert.deepEqual(blank.drafts, { 'de-DE': 'x' });
+});
+
+test('promote: a text over the Google Play limit is flagged, an empty history says there are no notes', () => {
+  const long = promoteNotesFill({
+    history: hist([{ text: 'y'.repeat(501), locales: ['en-US'] }]),
+    drafts: {},
+    staged: {},
+    locales: ['en-US'],
+    platform: 'android',
+  });
+  assert.deepEqual(long.state.tooLong, ['en-US']);
+  const none = promoteNotesFill({ history: hist([]), drafts: { a: 'b' }, staged: {}, locales: [], platform: 'android' });
+  assert.equal(none.state.none, true);
+  assert.deepEqual(none.drafts, { a: 'b' });
+});
+
+test('promote: the sentence says where the text came from, that nothing is staged, and plainly when there are no notes', () => {
+  const done = (over: Partial<Extract<PromoteNotesState, { status: 'done' }>>): PromoteNotesState => ({
+    status: 'done',
+    filled: [],
+    kept: [],
+    tooLong: [],
+    none: false,
+    storeError: null,
+    storeRead: true,
+    ...over,
+  });
+  assert.equal(
+    promoteNotesLine(done({ none: true }), 'internal testing', ['241']).text,
+    'The internal testing release has no notes; write them or reuse earlier ones.',
+  );
+  assert.equal(
+    promoteNotesLine(done({ filled: ['en-US', 'de-DE'], kept: ['fr-FR'] }), 'internal testing', ['241', '240']).text,
+    'Put in the editors from the internal testing release (version codes 241, 240): en-US, de-DE. Nothing is staged yet. Not replaced, because you already wrote or staged text: fr-FR.',
+  );
+  assert.match(promoteNotesLine(done({ kept: ['en-US'] }), 'internal testing', ['241']).text, /nothing was replaced/);
+  const unread = promoteNotesLine(done({ storeRead: false, storeError: 'timeout' }), 'internal testing', []);
+  assert.equal(unread.tone, 'warn');
+  assert.match(unread.text, /did not answer in time\)\. Write them or reuse earlier ones\.$/);
+  assert.match(promoteNotesLine({ status: 'loading' }, 'internal testing', []).text, /^Reading the notes/);
+  assert.match(promoteNotesLine({ status: 'error', message: 'Not allowed.' }, 'beta', []).text, /could not be read \(Not allowed\.\)/);
 });

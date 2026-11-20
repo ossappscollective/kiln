@@ -195,6 +195,8 @@ export type NotesHistoryEntry = {
   version: string | null;
   /** Google Play: the track. App Store: null. */
   track: string | null;
+  /** Google Play: the version codes of the release the text belongs to (so a release of a track can be told from another one). */
+  versionCodes?: string[];
   /** The store's state of the version or release (`READY_FOR_DISTRIBUTION`, `completed`, ...). */
   state: string | null;
   /** When the version was created in the store (epoch ms), or null when the store does not say (Google Play never does). */
