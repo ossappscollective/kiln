@@ -8,7 +8,7 @@ import {
   type AsoUpkeepSummary,
   asoUpkeep,
   queueAsoRefreshes,
-} from './services/aso-schedule.ts';
+} from './modules/aso/schedule.ts';
 import { DEFAULT_POLL_MAX_MS, enqueueCiPoll } from './services/ci.ts';
 import { ACTIVE_STATUSES, purgeOrphans } from './services/ci-runs.ts';
 import { type ListingQueueSummary, queueListingReads } from './services/listing-schedule.ts';

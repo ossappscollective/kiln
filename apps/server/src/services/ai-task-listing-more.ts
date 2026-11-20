@@ -26,7 +26,7 @@ import {
   type PreparedRun,
   type ReadyTask,
 } from './ai-task-types.ts';
-import { listKeywords } from './aso.ts';
+import { listKeywords } from '../modules/aso/service.ts';
 import { normalizeListingValue } from './listing-drift.ts';
 
 /**

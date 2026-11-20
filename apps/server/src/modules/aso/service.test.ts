@@ -8,8 +8,8 @@ import {
   publicApp,
   slowDown,
   unavailable,
-} from './aso-test-helpers.ts';
-import { createAsoRefreshHandler } from './services/aso.ts';
+} from './test-helpers.ts';
+import { createAsoRefreshHandler } from './service.ts';
 
 /**
  * Keyword tracking, rank checks, competitors and the refresh (docs/api/aso.md). The store is a fake: no

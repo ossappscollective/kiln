@@ -60,8 +60,8 @@ import {
   usageWarning,
 } from './ai-usage.ts';
 import { getApp } from './apps.ts';
-import { type AsoContext, type AsoLimits, addKeywords } from './aso.ts';
-import type { AsoSources } from './aso-net.ts';
+import { type AsoContext, type AsoLimits, addKeywords } from '../modules/aso/service.ts';
+import type { AsoSources } from '../modules/aso/net.ts';
 import type { AssetsContext } from './asset-repo.ts';
 import { recordAudit } from './audit.ts';
 import { emitEvent } from './events.ts';

@@ -28,13 +28,13 @@ import {
   type Row,
   type Sql,
 } from '@mrm/db';
-import { enqueue, type JobHandler } from '../jobs.ts';
-import { getApp, type ManagedApp } from './apps.ts';
-import type { AsoSources, PublicApp } from './aso-net.ts';
-import { recordAudit } from './audit.ts';
-import { emitEvent } from './events.ts';
-import { type Failure, failure } from './repositories.ts';
-import { rankMoveThresholdFor } from './workspace-settings.ts';
+import { enqueue, type JobHandler } from '../../jobs.ts';
+import { getApp, type ManagedApp } from '../../services/apps.ts';
+import type { AsoSources, PublicApp } from './net.ts';
+import { recordAudit } from '../../services/audit.ts';
+import { emitEvent } from '../../services/events.ts';
+import { type Failure, failure } from '../../services/repositories.ts';
+import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
 
 /**
  * ASO data and its refresh: tracked keywords and their rank checks, followed competitors and their

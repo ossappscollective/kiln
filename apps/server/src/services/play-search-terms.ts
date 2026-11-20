@@ -26,8 +26,8 @@ import {
 import { type Database, nullableNumber, type Param, type Sql } from '@mrm/db';
 import type { ManagedApp } from './apps.ts';
 import { getApp } from './apps.ts';
-import { listKeywords } from './aso.ts';
-import { defaultLocale, ownFields } from './aso-insights.ts';
+import { listKeywords } from '../modules/aso/service.ts';
+import { defaultLocale, ownFields } from '../modules/aso/insights.ts';
 import { recordAudit } from './audit.ts';
 import { type Failure, failure } from './repositories.ts';
 

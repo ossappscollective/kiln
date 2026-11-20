@@ -36,8 +36,8 @@ import {
   type ReadyTask,
 } from './ai-task-types.ts';
 import { overview } from './analytics-query.ts';
-import { listCompetitors, listKeywords } from './aso.ts';
-import { coachFor, summaryFor } from './aso-insights.ts';
+import { listCompetitors, listKeywords } from '../modules/aso/service.ts';
+import { coachFor, summaryFor } from '../modules/aso/insights.ts';
 
 /**
  * The ASO insight tasks (docs/adr/0024-ai-features.md): `listing_audit`, `aso_health` and `keyword_ideas_reviews`.

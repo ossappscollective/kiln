@@ -1,17 +1,17 @@
 import { randomBytes } from 'node:crypto';
 import { AsoError } from '@mrm/connectors';
 import type { Database } from '@mrm/db';
-import { bootRepoApp } from './repo-test-helpers.ts';
-import { ASC_SECRET, PLAY_SECRET } from './review-test-helpers.ts';
-import { type AsoContext, type AsoLimits, DEFAULT_ASO_LIMITS } from './services/aso.ts';
+import { bootRepoApp } from '../../repo-test-helpers.ts';
+import { ASC_SECRET, PLAY_SECRET } from '../../review-test-helpers.ts';
+import { type AsoContext, type AsoLimits, DEFAULT_ASO_LIMITS } from './service.ts';
 import type {
   AsoSources,
   LookupInput,
   PublicApp,
   SearchInput,
   SearchOutcome,
-} from './services/aso-net.ts';
-import { createTestLimiter } from './services/credential-tests.ts';
+} from './net.ts';
+import { createTestLimiter } from '../../services/credential-tests.ts';
 
 /** Shared by the ASO tests. Everything runs against a fake store: nothing is ever contacted. */
 
@@ -94,7 +94,7 @@ export const slowDown = (retryAfterSeconds = 60, withStatus = true) =>
     retryAfterSeconds,
   });
 
-type Deps = Partial<Parameters<typeof import('./app.ts').createApp>[0]>;
+type Deps = Partial<Parameters<typeof import('../../app.ts').createApp>[0]>;
 
 export async function bootAso(
   db: Database,

@@ -14,10 +14,10 @@ import {
   rankDownloadsLimits,
 } from '@mrm/core';
 import type { Sql } from '@mrm/db';
-import { readDaily } from './analytics-store.ts';
-import type { ManagedApp } from './apps.ts';
-import { type AsoKeyword, listKeywords } from './aso.ts';
-import { getSettings } from './workspace-settings.ts';
+import { readDaily } from '../../services/analytics-store.ts';
+import type { ManagedApp } from '../../services/apps.ts';
+import { type AsoKeyword, listKeywords } from './service.ts';
+import { getSettings } from '../../services/workspace-settings.ts';
 
 /**
  * Rank versus downloads (docs/api/aso.md): the rank history of chosen tracked keywords of one storefront laid on the same days as the

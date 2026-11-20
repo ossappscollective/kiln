@@ -13,7 +13,7 @@ import { aiRoutes } from './routes/ai.ts';
 import { alertRoutes } from './routes/alerts.ts';
 import { analyticsImportPath, analyticsRoutes } from './routes/analytics.ts';
 import { appRoutes } from './routes/apps.ts';
-import { asoRoutes } from './routes/aso.ts';
+import { type AsoDeps, asoLimitsFor, asoModule } from './modules/aso/index.ts';
 import { type AssetSyncRoutesContext, assetSyncRoutes } from './routes/asset-sync.ts';
 import { assetRoutes } from './routes/assets.ts';
 import { authRoutes, meRoute, requireUser } from './routes/auth.ts';
@@ -63,8 +63,6 @@ import {
   defaultStoreConnectorFactory,
   type StoreConnectorFactory,
 } from './services/apps.ts';
-import { type AsoLimits, DEFAULT_ASO_LIMITS } from './services/aso.ts';
-import { type AsoSources, createAsoSources } from './services/aso-net.ts';
 import { type BuildsSettings, createBuildsContext } from './services/builds.ts';
 import { type CiContext, createCiContext } from './services/ci.ts';
 import {
@@ -288,17 +286,8 @@ export type AppDeps = {
    * timeouts of `storeDraft`, `storeSubmit`, `storeRelease` and `rollout`. `claimTtlMs` is for tests.
    */
   storePublish?: PendingRoutesContext['publish'];
-  /**
-   * ASO, keyword ranks and competitors from public store data (docs/api/aso.md). `sources` reads the stores (a fake in
-   * tests; index.ts builds one and shares it with the worker, so the cache and the rate limits are shared);
-   * `limits` are the MRM_ASO_* values; `limiter` is the per workspace budget of refreshes and lookups (default 10 a minute).
-   */
-  aso?: {
-    sources?: AsoSources;
-    limits?: Partial<AsoLimits>;
-    limiter?: TestLimiter;
-    maxRunMs?: number;
-  };
+  /** ASO (docs/api/aso.md): see `AsoDeps` in modules/aso. */
+  aso?: AsoDeps;
   /**
    * Analytics (docs/api/analytics.md): daily metrics read from the stores into a normalised store. `connectors` builds the Apple
    * Analytics Reports / Sales and Trends and Google Play vitals / reports readers from a stored credential (fakes in tests),
@@ -497,27 +486,7 @@ export function createApp(deps: AppDeps) {
       limiter: deps.translation?.limiter ?? createTestLimiter({ now: services.now, limit: 20 }),
     }),
   );
-  // ASO: keyword ranks and competitors from public store data. Google Play only when MRM_ASO_PLAY_UNOFFICIAL_ENABLED.
-  const asoLimits: AsoLimits = { ...DEFAULT_ASO_LIMITS, ...(deps.aso?.limits ?? {}) };
-  app.route(
-    '/api/workspaces',
-    asoRoutes({
-      db: services.db,
-      now: services.now,
-      sources:
-        deps.aso?.sources ??
-        createAsoSources({
-          playEnabled: false,
-          now: services.now,
-          cacheMs: 60 * 60_000,
-          appleCallsPerMinute: 10,
-          playCallsPerMinute: 4,
-        }),
-      limits: asoLimits,
-      ...(deps.aso?.maxRunMs !== undefined ? { maxRunMs: deps.aso.maxRunMs } : {}),
-      limiter: deps.aso?.limiter ?? createTestLimiter({ now: services.now }),
-    }),
-  );
+  asoModule.mount(app, services, deps.aso);
   // Analytics: daily metrics from the stores. Reading what is stored is open to every role; syncing, importing and enabling Apple
   // analytics need analytics.manage. A workspace must turn on analytics.enabled before anything is requested from a store.
   app.route(
@@ -769,7 +738,7 @@ export function createApp(deps: AppDeps) {
       ...(deps.ai?.exchange ? { exchange: deps.ai.exchange } : {}),
       ...(deps.ai?.timeoutMs !== undefined ? { timeoutMs: deps.ai.timeoutMs } : {}),
       ...(deps.ai?.clientFactory ? { clientFactory: deps.ai.clientFactory } : {}),
-      asoLimits,
+      asoLimits: asoLimitsFor(deps.aso),
       assets: { repo: assetsRepo },
       reply: {
         db: services.db,

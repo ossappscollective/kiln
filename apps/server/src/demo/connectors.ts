@@ -28,7 +28,7 @@ import type {
   PublicApp,
   SearchInput,
   SearchOutcome,
-} from '../services/aso-net.ts';
+} from '../modules/aso/net.ts';
 import type { Exchange } from '../services/safe-fetch.ts';
 import type { AiAnswerLike } from './ai-answers.ts';
 import { aiAnswer } from './ai-answers.ts';

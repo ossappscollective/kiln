@@ -7,7 +7,7 @@ import {
   translationProviders,
 } from '@mrm/core';
 import { z } from 'zod';
-import { addCompetitorBody, addKeywordsBody, updateKeywordBody } from '../routes/aso.ts';
+import { addCompetitorBody, addKeywordsBody, updateKeywordBody } from '../modules/aso/routes.ts';
 import { publishApplyBody, publishPreviewBody } from '../routes/pending.ts';
 import { translateNotesBody } from '../routes/release-notes-translate.ts';
 import { aiOperations } from './api-operations-ai.ts';

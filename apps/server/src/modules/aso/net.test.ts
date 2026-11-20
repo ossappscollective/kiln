@@ -6,8 +6,8 @@ import {
   ASO_HOSTS,
   createAsoFetch,
   createAsoSources,
-} from './services/aso-net.ts';
-import type { Exchange, ExchangeResponse } from './services/safe-fetch.ts';
+} from './net.ts';
+import type { Exchange, ExchangeResponse } from '../../services/safe-fetch.ts';
 
 /** The only network ASO has: two fixed hosts, the connectors' User-Agent, caps, a cache and local rate limits. No real request is made. */
 

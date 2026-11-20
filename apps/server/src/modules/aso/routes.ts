@@ -11,9 +11,9 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
-import { type AppEnv, parseBody, queryInt } from '../http.ts';
-import { memberRole } from '../services/accounts.ts';
-import { getApp } from '../services/apps.ts';
+import { type AppEnv, parseBody, queryInt } from '../../http.ts';
+import { memberRole } from '../../services/accounts.ts';
+import { getApp } from '../../services/apps.ts';
 import {
   type AsoContext,
   addCompetitor,
@@ -31,7 +31,7 @@ import {
   refreshApp,
   removeCompetitor,
   updateKeyword,
-} from '../services/aso.ts';
+} from './service.ts';
 import {
   checkLocale,
   coachFor,
@@ -43,14 +43,14 @@ import {
   marketsFor,
   suggestionsFor,
   summaryFor,
-} from '../services/aso-insights.ts';
-import { checkRankDownloadsQuery, rankVsDownloadsFor } from '../services/aso-rank-downloads.ts';
-import { queueAsoRefreshAll } from '../services/aso-schedule.ts';
-import { recordAudit } from '../services/audit.ts';
-import type { TestLimiter } from '../services/credential-tests.ts';
-import { checkSearchTermsQuery, searchTermsFor } from '../services/play-search-terms.ts';
-import type { Failure } from '../services/repositories.ts';
-import { rankMoveThresholdFor } from '../services/workspace-settings.ts';
+} from './insights.ts';
+import { checkRankDownloadsQuery, rankVsDownloadsFor } from './rank-downloads.ts';
+import { queueAsoRefreshAll } from './schedule.ts';
+import { recordAudit } from '../../services/audit.ts';
+import type { TestLimiter } from '../../services/credential-tests.ts';
+import { checkSearchTermsQuery, searchTermsFor } from '../../services/play-search-terms.ts';
+import type { Failure } from '../../services/repositories.ts';
+import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
 
 export type AsoRoutesContext = AsoContext & {
   /** Store lookups and refreshes per workspace per minute (default 10, built in createApp). */

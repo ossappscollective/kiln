@@ -18,7 +18,7 @@ import { deleteAiData } from './ai-suggestions.ts';
 import { deleteAnalyticsData } from './analytics-store.ts';
 import { deleteAppIcon } from './app-icon-store.ts';
 import { deleteAppReleaseSettings } from './app-release-settings.ts';
-import { deleteAsoData } from './aso-data.ts';
+import { deleteAsoData } from '../modules/aso/data.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { recordSyncEvents, releaseStatusChanges } from './events.ts';

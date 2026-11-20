@@ -1,6 +1,6 @@
 import type { Database } from '@mrm/db';
-import { enqueue } from '../jobs.ts';
-import { ASO_CLAIM_TTL_MS, ASO_REFRESH_QUEUE, type AsoRefreshPayload } from './aso.ts';
+import { enqueue } from '../../jobs.ts';
+import { ASO_CLAIM_TTL_MS, ASO_REFRESH_QUEUE, type AsoRefreshPayload } from './service.ts';
 
 /**
  * Scheduled ASO refreshes (MRM_ASO_INTERVAL_MINUTES, off by default) and the data protection upkeep

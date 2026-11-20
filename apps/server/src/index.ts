@@ -30,9 +30,9 @@ import {
   DEFAULT_SYNC_TIMEOUT_MS,
   defaultStoreConnectorFactory,
 } from './services/apps.ts';
-import { ASO_REFRESH_QUEUE, type AsoLimits, createAsoRefreshHandler } from './services/aso.ts';
-import { createAsoSources } from './services/aso-net.ts';
-import { asoIntervalMs } from './services/aso-schedule.ts';
+import { ASO_REFRESH_QUEUE, type AsoLimits, createAsoRefreshHandler } from './modules/aso/service.ts';
+import { createAsoSources } from './modules/aso/net.ts';
+import { asoIntervalMs } from './modules/aso/schedule.ts';
 import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from './services/ci.ts';
 import { checkGit, setUpReads } from './services/clone-reads.ts';
 import { createCloneUpkeep } from './services/clone-upkeep.ts';
