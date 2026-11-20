@@ -90,9 +90,10 @@ Same principles as phase 1: quiet by default, the important thing first, one pri
   missing fields", with "Show them"), then the toolbar: locale filters, search, "Legend and sources" (legend, where each side was
   read) and a "More" menu (Read repository, Pull differences). The matrix header and the locale column are sticky inside the grid.
   There is no second Sync button: the page says "Open Status to sync" and opens the Status popover (`openStatusPopover`).
-- **All apps**: five columns. Latest version of every platform in one column, the bundle id as a wrapping mono chip, ONE status pill
-  (a release status, else "Sync failed", else a quiet sentence) plus "N pending", and one badge for releases left unfinished that
-  counts them and lists the platforms in its tooltip. Rating and new reviews share a column.
+- **All apps**: App (name, bundle id, rating), Platforms (every platform with its name and latest version), Status (the status pill,
+  one per platform in flight, each named), Next (ONE action, `rowNextAction`: fix the rejection, check the sync, finish the release,
+  release it, review pending, read new reviews, or a dash) and Last synced with its button. Pending, unfinished and new reviews are
+  not separate badges any more. See `docs/design/readability.md`.
 - **Overview** details are one group per platform. `PipelineStrip` is gone (the Next step card replaced it). The ASO and test build
   addresses used by the app (`asoViewHref`, `testBuildsHref`) point at the new places, so they do not redirect.
 - **Popovers** (InfoTip, the app switcher, the version picker, menus, the account menu) are drawn by the `floating` action
