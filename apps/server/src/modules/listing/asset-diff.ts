@@ -21,7 +21,7 @@ import {
   getStoreImages,
   type StoreImagesContext,
   storeSideOf,
-} from '../../services/store-images.ts';
+} from './store-images.ts';
 import type { AssetView } from './asset-index.ts';
 import type { AssetHandle, AssetsContext } from './asset-repo.ts';
 import { openAssets } from './asset-repo.ts';

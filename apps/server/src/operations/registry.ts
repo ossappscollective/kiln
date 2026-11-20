@@ -5,20 +5,16 @@ import { searchTermsOperations } from '../modules/aso/search-terms-operations.ts
 import { buildsOperations } from '../modules/builds/operations.ts';
 import { ciOperations } from '../modules/ci/operations.ts';
 import { listingOperations } from '../modules/listing/operations.ts';
+import { publishOperations } from '../modules/publish/operations.ts';
 import { reviewsOperations } from '../modules/reviews/operations.ts';
 import { aiOperations } from './ai.ts';
 import { mcpOperations } from './mcp.ts';
 import type { Operation } from './openapi.ts';
-import { pendingOperations } from './pending.ts';
 import { plansOperations } from './plans.ts';
 import { releasesOperations } from './releases.ts';
 import { repositoriesOperations } from './repositories.ts';
-import { rolloutOperations } from './rollout.ts';
 import type { Draft } from './shared.ts';
-import { stagedChangesOperations } from './staged-changes.ts';
 import { stepUpOperations } from './step-up.ts';
-import { storeVersionOperations } from './store-version.ts';
-import { submitOperations } from './submit.ts';
 import { twoFactorOperations } from './two-factor.ts';
 import { workspaceOperations } from './workspace.ts';
 
@@ -43,12 +39,8 @@ const drafts: Draft[] = [
   ...asoOperations,
   ...searchTermsOperations,
   ...listingOperations,
-  ...stagedChangesOperations,
-  ...submitOperations,
-  ...rolloutOperations,
+  ...publishOperations,
   ...releasesOperations,
-  ...pendingOperations,
-  ...storeVersionOperations,
   ...buildsOperations,
   ...aiOperations,
   ...analyticsOperations,

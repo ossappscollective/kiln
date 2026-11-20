@@ -12,7 +12,7 @@ import type { Database } from '@mrm/db';
 import { credentialKindFor, type ManagedApp } from './apps.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { type Failure, failure } from './repositories.ts';
-import type { ReleaseConnectorFactory, ReleaseConnectorInput } from './store-release.ts';
+import type { ReleaseConnectorFactory, ReleaseConnectorInput } from '../modules/publish/store-release.ts';
 
 /**
  * "Check with Google Play" (docs/api/releases-write.md, docs/adr/0025-play-release-checks.md): asks Google Play whether a release as

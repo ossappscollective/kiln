@@ -6,7 +6,7 @@ import {
   type Platform,
   supports,
 } from '@mrm/core';
-import { screenshotFolders } from '../../services/store-assets.ts';
+import { screenshotFolders } from './store-assets.ts';
 
 /**
  * Where the files of a set go in a repository, and which files have to be written or deleted to make the repository's set

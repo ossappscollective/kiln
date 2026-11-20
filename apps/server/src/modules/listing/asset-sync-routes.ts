@@ -18,22 +18,22 @@ import { getApp } from '../../services/apps.ts';
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import { parseHexColour } from '../../services/image-fix.ts';
 import { type Failure, failure, type RepoContext } from '../../services/repositories.ts';
-import { getBlob } from '../../services/staged-asset-blobs.ts';
+import { getBlob } from '../publish/staged-asset-blobs.ts';
 import {
   fixFile,
   inspectForSlot,
   removeFromSet,
   stagedSetsToRepo,
   stageUpload,
-} from '../../services/staged-asset-ops.ts';
-import type { StagedContext } from '../../services/staged-changes.ts';
+} from '../publish/staged-asset-ops.ts';
+import type { StagedContext } from '../publish/staged-changes.ts';
 import {
   type DraftConnectorFactory,
   type DraftContext,
   defaultDraftConnectorFactory,
-} from '../../services/store-draft.ts';
-import type { StoreImageNet } from '../../services/store-image-net.ts';
-import { getStoreImages, storeThumbnail, thumbSizeOf } from '../../services/store-images.ts';
+} from '../publish/store-draft.ts';
+import type { StoreImageNet } from './store-image-net.ts';
+import { getStoreImages, storeThumbnail, thumbSizeOf } from './store-images.ts';
 import { buildAssetDiff } from './asset-diff.ts';
 import { pullStoreImages } from './asset-pull.ts';
 import { IMAGE_TYPES, matchesEtag, safeImageHeaders } from './asset-routes.ts';

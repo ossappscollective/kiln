@@ -18,6 +18,7 @@ import { ciModule } from './modules/ci/index.ts';
 import { type CiContext, createCiContext } from './modules/ci/service.ts';
 import { type ListingDeps, listingModule } from './modules/listing/index.ts';
 import type { ModuleShared } from './modules/module.ts';
+import { type PublishDeps, publishModule } from './modules/publish/index.ts';
 import { type ReviewsDeps, reviewsModule } from './modules/reviews/index.ts';
 import { defaultReplyConnectorFactory } from './modules/reviews/replies.ts';
 import { buildOpenApiDocument } from './operations/openapi.ts';
@@ -36,18 +37,12 @@ import {
   setUpMail,
 } from './routes/mail-mount.ts';
 import { memberRoutes } from './routes/members.ts';
-import { type PendingRoutesContext, pendingRoutes } from './routes/pending.ts';
 import { planRoutes } from './routes/plans.ts';
 import { releaseNotesTranslateRoutes } from './routes/release-notes-translate.ts';
 import { releasePipelineRoutes } from './routes/release-pipeline.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
-import { type RolloutRoutesContext, rolloutRoutes } from './routes/rollout.ts';
 import { settingsRoutes } from './routes/settings.ts';
-import { type StagedRoutesContext, stagedRoutes } from './routes/staged-changes.ts';
 import { stepUpRoutes } from './routes/step-up.ts';
-import { type ReleaseRoutesContext, storeReleaseRoutes } from './routes/store-release.ts';
-import { type SubmitRoutesContext, storeSubmitRoutes } from './routes/store-submit.ts';
-import { storeVersionRoutes, type VersionRoutesContext } from './routes/store-version.ts';
 import { tokenRoutes } from './routes/tokens.ts';
 import { type WebhookRoutesContext, webhookRoutes } from './routes/webhooks.ts';
 import { workspaceRoutes } from './routes/workspaces.ts';
@@ -220,37 +215,37 @@ export type AppDeps = {
    * (MRM_STORE_ROLLOUT_ENABLED). `connectorFactory` builds the connector that can read and change a
    * rollout (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
-  rollout?: RolloutRoutesContext['rollout'] | undefined;
+  rollout?: PublishDeps['rollout'] | undefined;
   /**
    * Staged listing text and graphics, and writing them to the store as a DRAFT (docs/api/staged-changes.md):
    * a store write that is OFF unless `enabled` (MRM_STORE_DRAFT_WRITE_ENABLED). `connectorFactory` builds the
    * connector that can read and write a draft (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
-  storeDraft?: StagedRoutesContext['draft'] | undefined;
+  storeDraft?: PublishDeps['draft'] | undefined;
   /**
    * Submitting the store's draft for review (docs/api/submit.md, docs/adr/0010-store-submit.md): a store write that
    * is OFF unless `enabled` (MRM_STORE_SUBMIT_ENABLED). `connectorFactory` builds the connector that can read and
    * submit (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
-  storeSubmit?: SubmitRoutesContext['submit'] | undefined;
+  storeSubmit?: PublishDeps['submit'] | undefined;
   /**
    * Releasing (docs/api/releases-write.md, docs/adr/0014-release-management.md): releasing an approved App Store version or
    * starting a Google Play draft release is a store write that is OFF unless `enabled` (MRM_STORE_RELEASE_ENABLED).
    * `connectorFactory` builds the connector that can read and release (fakes in tests); `timeoutMs` and `claimTtlMs` are for
    * tests. The reads of builds and version codes use the draft connector (`storeDraft.connectorFactory`) and no switch.
    */
-  storeRelease?: ReleaseRoutesContext['release'] | undefined;
+  storeRelease?: PublishDeps['release'] | undefined;
   /**
    * Creating the next App Store version (docs/api/store-version.md): a reversible store write behind the SAME switch as the draft
    * push (`storeDraft.enabled`, MRM_STORE_DRAFT_WRITE_ENABLED) and its timeouts. Only `connectorFactory` (fakes in tests) is set here.
    */
-  storeVersion?: Pick<NonNullable<VersionRoutesContext['version']>, 'connectorFactory'> | undefined;
+  storeVersion?: PublishDeps['version'] | undefined;
   /**
    * Publishing everything an app has pending in one go (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md): a store write
    * that is OFF unless `enabled` (MRM_STORE_PUBLISH_BATCH_ENABLED). It turns no step on: the steps keep the switches, the fakes and the
    * timeouts of `storeDraft`, `storeSubmit`, `storeRelease` and `rollout`. `claimTtlMs` is for tests.
    */
-  storePublish?: PendingRoutesContext['publish'] | undefined;
+  storePublish?: PublishDeps['publish'] | undefined;
   /** ASO (docs/api/aso.md): see `AsoDeps` in modules/aso. */
   aso?: AsoDeps | undefined;
   /** Analytics (docs/api/analytics.md): see `AnalyticsDeps` in modules/analytics. */
@@ -478,15 +473,18 @@ export function createApp(deps: AppDeps) {
   reviewsModule.mount(app, services, deps.reviews, shared);
   // Where a release is between CI and live, and whether it is stalled: read-only, from stored data.
   app.route('/api/workspaces', releasePipelineRoutes({ db: services.db, now: services.now }));
-  // Changing a live rollout in a store: off unless MRM_STORE_ROLLOUT_ENABLED. Gated like review replies.
-  app.route(
-    '/api/workspaces',
-    rolloutRoutes({
-      db: services.db,
-      masterKey: services.masterKey,
-      now: services.now,
-      ...(deps.rollout ? { rollout: deps.rollout } : {}),
-    }),
+  publishModule.mount(
+    app,
+    services,
+    {
+      rollout: deps.rollout,
+      draft: deps.storeDraft,
+      submit: deps.storeSubmit,
+      release: deps.storeRelease,
+      version: deps.storeVersion,
+      publish: deps.storePublish,
+    },
+    shared,
   );
   // Release planning: our own checklists, notes and deadlines. No store is read or written.
   app.route('/api/workspaces', planRoutes({ db: services.db, now: services.now }));
@@ -509,90 +507,6 @@ export function createApp(deps: AppDeps) {
       },
       limiter: createTestLimiter({ now: services.now }),
       sync: { apps: appsContext, limiter: appSyncLimiter },
-    }),
-  );
-  // Staged listing text and graphics of an app, and writing them to the store as a draft. Staging touches the
-  // database only (files are read through the asset index, with the budget of the Assets tab); the push is
-  // off unless MRM_STORE_DRAFT_WRITE_ENABLED and never submits anything.
-  app.route(
-    '/api/workspaces',
-    stagedRoutes({
-      db: services.db,
-      masterKey: services.masterKey,
-      now: services.now,
-      repo: assetsRepo,
-      limiter: assetsLimiter,
-      ...(deps.storeDraft ? { draft: deps.storeDraft } : {}),
-    }),
-  );
-  // Submitting the pushed draft for store review: reads the store and writes only to its review queue; off unless
-  // MRM_STORE_SUBMIT_ENABLED. Never releases and never changes a rollout.
-  app.route(
-    '/api/workspaces',
-    storeSubmitRoutes({
-      db: services.db,
-      masterKey: services.masterKey,
-      now: services.now,
-      ...(deps.storeSubmit ? { submit: deps.storeSubmit } : {}),
-    }),
-  );
-  // Creating the next App Store version: a reversible draft write, behind the draft-write switch.
-  app.route(
-    '/api/workspaces',
-    storeVersionRoutes({
-      db: services.db,
-      masterKey: services.masterKey,
-      now: services.now,
-      version: {
-        ...(deps.storeDraft?.enabled !== undefined ? { enabled: deps.storeDraft.enabled } : {}),
-        ...(deps.storeDraft?.timeoutMs !== undefined
-          ? { timeoutMs: deps.storeDraft.timeoutMs }
-          : {}),
-        ...(deps.storeDraft?.claimTtlMs !== undefined
-          ? { claimTtlMs: deps.storeDraft.claimTtlMs }
-          : {}),
-        ...(deps.storeVersion?.connectorFactory
-          ? { connectorFactory: deps.storeVersion.connectorFactory }
-          : {}),
-      },
-    }),
-  );
-  // Releasing: reads of builds and version codes (no switch), and the irreversible step (off unless MRM_STORE_RELEASE_ENABLED).
-  app.route(
-    '/api/workspaces',
-    storeReleaseRoutes({
-      db: services.db,
-      masterKey: services.masterKey,
-      now: services.now,
-      ...(deps.storeDraft
-        ? {
-            draft: {
-              ...(deps.storeDraft.connectorFactory
-                ? { connectorFactory: deps.storeDraft.connectorFactory }
-                : {}),
-              ...(deps.storeDraft.timeoutMs !== undefined
-                ? { timeoutMs: deps.storeDraft.timeoutMs }
-                : {}),
-            },
-          }
-        : {}),
-      ...(deps.storeRelease ? { release: deps.storeRelease } : {}),
-    }),
-  );
-  // What an app has pending (stored state only) and publishing it in one go: off unless MRM_STORE_PUBLISH_BATCH_ENABLED. Each step
-  // keeps its own switch, right, seams and gates: the seams are the ones the individual routes above were given.
-  app.route(
-    '/api/workspaces',
-    pendingRoutes({
-      db: services.db,
-      masterKey: services.masterKey,
-      now: services.now,
-      repo: assetsRepo,
-      ...(deps.storePublish ? { publish: deps.storePublish } : {}),
-      ...(deps.storeDraft ? { draft: deps.storeDraft } : {}),
-      ...(deps.storeSubmit ? { submit: deps.storeSubmit } : {}),
-      ...(deps.storeRelease ? { release: deps.storeRelease } : {}),
-      ...(deps.rollout ? { rollout: deps.rollout } : {}),
     }),
   );
   const aiGate = createConcurrencyGate(aiLimits.maxConcurrentPerWorkspace);

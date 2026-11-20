@@ -19,8 +19,8 @@ import {
   type SubmitResult,
 } from '@mrm/connectors';
 import { FakeReplyStore } from '../modules/reviews/test-helpers.ts';
-import { appleState, FakeRolloutStore, playState } from '../rollout-test-helpers.ts';
-import { FakeDraftStore, FakeReleaseStore, FakeSubmitStore } from '../staged-test-helpers.ts';
+import { appleState, FakeRolloutStore, playState } from '../modules/publish/rollout-test-helpers.ts';
+import { FakeDraftStore, FakeReleaseStore, FakeSubmitStore } from '../modules/publish/test-helpers.ts';
 import {
   APPLE_LOCALES,
   appleTexts,

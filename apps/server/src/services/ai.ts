@@ -71,7 +71,7 @@ import {
 import { getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { emitEvent } from './events.ts';
-import { type StagedContext, stageText } from './staged-changes.ts';
+import { type StagedContext, stageText } from '../modules/publish/staged-changes.ts';
 
 /**
  * Running AI tasks, and accepting or dismissing what they proposed (docs/adr/0016-ai-foundation.md, docs/api/ai.md).

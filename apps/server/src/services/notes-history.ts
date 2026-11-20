@@ -3,7 +3,7 @@ import type { StoreId } from '@mrm/core';
 import { storeOf } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import type { ManagedApp } from './apps.ts';
-import { readNotesHistoryOf, type StoreConnectContext } from './store-draft.ts';
+import { readNotesHistoryOf, type StoreConnectContext } from '../modules/publish/store-draft.ts';
 import { timedCache } from './timed-cache.ts';
 
 /**

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { StoreError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { bootStaged } from './staged-test-helpers.ts';
+import { bootStaged } from './modules/publish/test-helpers.ts';
 
 /**
  * "Check with Google Play" (docs/api/releases-write.md, docs/adr/0025-play-release-checks.md): a read-style route that asks Google

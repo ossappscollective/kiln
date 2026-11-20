@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { StoreError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
 import { clearNotesHistoryCache } from './services/notes-history.ts';
-import { bootStaged } from './staged-test-helpers.ts';
+import { bootStaged } from './modules/publish/test-helpers.ts';
 
 /**
  * The notes history of an app (docs/api/releases-write.md, "Notes history") and the verdict and TestFlight notes that the

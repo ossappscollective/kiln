@@ -28,7 +28,7 @@ import {
   discoverStoreAssets,
   expoIconPaths,
   orderWithinSets,
-} from '../../services/store-assets.ts';
+} from './store-assets.ts';
 
 /**
  * The index of the media of one app's listing target in its repository: which files there are, and
