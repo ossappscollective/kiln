@@ -7,12 +7,14 @@
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
   import { type AsoMarketsResponse, asoErrorMessage, marketCell, marketColumns } from '../../lib/aso.ts';
+  import { marketsLead } from '../../lib/aso-lead.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { countOf, summaryLine } from '../../lib/section-state.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Section from '../ui/Section.svelte';
+  import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
 
   let { api, workspaceId, members, version }: { api: Api; workspaceId: string; members: AppSummary[]; version: number } = $props();
@@ -21,6 +23,12 @@
   let errors = $state<Record<string, string | undefined>>({});
   let loading = $state(true);
   let generation = 0;
+
+  const lead = $derived.by(() => {
+    const all = members.flatMap((m) => data[m.id]?.terms ?? []);
+    const countries = marketColumns(all);
+    return marketsLead({ terms: all.length, countries: countries.length, unranked: all.filter((t) => t.bestRank === null).length });
+  });
 
   $effect(() => {
     void version;
@@ -46,7 +54,10 @@
   });
 </script>
 
-<div class="markets stack">
+<div class="markets stack roomy">
+  {#if !loading && members.some((m) => data[m.id])}
+    <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="markets-lead" />
+  {/if}
   {#if loading}
     <Skeleton width="100%" height="120px" />
   {:else}
@@ -100,6 +111,20 @@
 </div>
 
 <style>
+  .roomy {
+    font-size: 0.9375rem;
+  }
+
+  .roomy :global(table.compact th),
+  .roomy :global(table.compact td) {
+    padding-block: var(--space-3);
+    font-size: 0.9375rem;
+  }
+
+  .roomy :global(table.compact thead th) {
+    font-size: var(--text-sm);
+  }
+
   .head {
     flex-wrap: wrap;
     gap: var(--space-2) var(--space-3);
@@ -124,6 +149,6 @@
   }
 
   .cell.muted {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
   }
 </style>
