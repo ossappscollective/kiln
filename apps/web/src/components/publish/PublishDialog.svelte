@@ -50,6 +50,7 @@
   } from '../../lib/pending.ts';
   import { announcePublished } from '../../lib/app-page.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
+  import { foldWarnings, planHeadline, shownStatusWord, stepGist } from '../../lib/readability.ts';
   import { EVERYONE, releaseInputsFor } from '../../lib/release-settings.ts';
   import { releaseSettingsStore } from '../../lib/release-settings-store.svelte.ts';
   import { storeName } from '../../lib/staged.ts';
@@ -59,6 +60,7 @@
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
+  import Icon from '../ui/Icon.svelte';
   import Modal from '../ui/Modal.svelte';
   import SegmentTabs from '../ui/SegmentTabs.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
@@ -371,31 +373,18 @@
     {:else if phase === 'error' && !plan}
       <Alert tone="error" title="No plan was made">{problem}</Alert>
     {:else if plan}
-      {#if notice}<Alert tone="info">{notice}</Alert>{/if}
-
-      <Alert tone="warn" title="This writes to {store}. The steps below run in order.">
-        Each step keeps its own switch, role right and checks. The publish stops at the first step that does not finish, and nothing is retried
-        by itself. It is recorded in the audit log.
-      </Alert>
-
-      {#if plan.irreversible}
-        <Alert tone="error" title="Some of these steps cannot be undone from here">
-          {plan.irreversibleSteps.map((t) => STEP_NAME[t]).join(', ')}. A review is cancelled, or a released version pulled, only in the store's own console.
-        </Alert>
-      {/if}
-
-      {#if plan.warnings.length > 0}
-        <Alert tone="warn" title="Read before you confirm">
-          <ul class="plain">
-            {#each plan.warnings as w (w)}<li>{w}</li>{/each}
-          </ul>
-        </Alert>
-      {/if}
+      {@const head = planHeadline(plan, store)}
+      <div class="headline" data-testid="plan-headline">
+        <p class="headline-title"><strong>{head.title}</strong></p>
+        {#if head.sequence}<p class="muted small">In this order: {head.sequence}.</p>{/if}
+      </div>
+      {#if notice}<p class="notice muted small" role="status"><Icon name="info" size={14} /> {notice}</p>{/if}
 
       <ol class="steps" aria-label="Steps, in the order they run" aria-busy={phase === 'previewing'}>
         {#each rows as row (row.type)}
           {@const step = stepOf(row.type)}
           {#if step}
+            {@const stepWarnings = foldWarnings(warningsOf(step).map((p) => p.message))}
             <li class="step" class:off={!wanted.includes(row.type)} data-testid="plan-step-{row.type}">
               <div class="step-head">
                 <label class="check">
@@ -407,17 +396,17 @@
                   />
                   <span><strong>{row.order}. {row.label}</strong></span>
                 </label>
-                <Badge tone={row.tone}>{row.word}</Badge>
+                {#if shownStatusWord(row)}<Badge tone={row.tone}>{shownStatusWord(row)}</Badge>{/if}
                 {#if row.irreversible}<Badge tone="warn" icon="alert-triangle">Cannot be undone</Badge>{/if}
-                {#if row.deferred}<Badge tone="info" icon="clock">Checked again after the earlier steps</Badge>{/if}
+                {#if row.deferred}<Badge tone="info" icon="clock">Checked later</Badge>{/if}
               </div>
+              {#if step.included && !step.deferred && stepGist(step)}<p class="gist" data-testid="plan-step-gist-{row.type}">{stepGist(step)}</p>{/if}
               {#if row.reason}<p class="reason muted">{row.reason}</p>{/if}
 
               {#if row.needsInput}
                 {#if direct}
                   <p class="small" data-testid="direct-explainer">
-                    This makes the release from what you staged (version codes, notes) and sends it to Google Play in one step. No draft is saved first.
-                    Google reviews it before users get it, and it cannot be undone from here.{offered ? ' You name the share of users.' : ' It goes to everyone.'}
+                    Sends what you staged to Google Play in one step, with no draft first. Google reviews it before users get it.{offered ? ' Name the share of users below.' : ' It goes to everyone.'}
                   </p>
                 {/if}
                 <div class="inputs">
@@ -439,17 +428,28 @@
               {/if}
 
               {#each errorsOf(step) as p (p.code + p.message + (p.item ?? ''))}<p class="problem bad">{p.message}</p>{/each}
-              {#each warningsOf(step) as p (p.code + p.message + (p.item ?? ''))}<p class="problem warn">{p.message}</p>{/each}
+              {#each stepWarnings.inline as w (w)}<p class="problem warn">{w}</p>{/each}
+              {#if stepWarnings.folded.length > 0}
+                <Disclosure summary={stepWarnings.label}>
+                  <ul class="plain problem warn">
+                    {#each stepWarnings.folded as w (w)}<li>{w}</li>{/each}
+                  </ul>
+                </Disclosure>
+              {/if}
 
               {#if step.included && step.deferred}
                 <p class="small">{promiseText(step)}</p>
               {/if}
-              {#if step.included && step.irreversible && step.stepPhrase}
-                <p class="small muted">Its own confirmation would be “{step.stepPhrase}”. The phrase you type below confirms it as part of this plan.</p>
-              {/if}
 
               {#if step.included && !step.deferred}
-                <div class="detail">{@render details(step)}</div>
+                <Disclosure summary="Details of this step" open={stepGist(step) === ''}>
+                  <div class="detail">
+                    {@render details(step)}
+                    {#if step.irreversible && step.stepPhrase}
+                      <p class="small muted">Its own confirmation would be “{step.stepPhrase}”. The phrase you type below confirms it as part of this plan.</p>
+                    {/if}
+                  </div>
+                </Disclosure>
               {:else if !step.included && step.preview}
                 <Disclosure summary="Details of what the store says">
                   <div class="detail">{@render details(step)}</div>
@@ -461,6 +461,18 @@
       </ol>
       {#if visible.left.length > 0}
         <p class="muted small" data-testid="plan-left-out">Not needed for this plan, so not shown: {visible.left.join('; ')}.</p>
+      {/if}
+
+      {@const planWarnings = foldWarnings(plan.warnings)}
+      {#each planWarnings.inline as w (w)}
+        <p class="warnline"><Icon name="alert-triangle" size={14} /> {w}</p>
+      {/each}
+      {#if planWarnings.folded.length > 0}
+        <Disclosure summary={planWarnings.label}>
+          <ul class="plain tint-warn">
+            {#each planWarnings.folded as w (w)}<li>{w}</li>{/each}
+          </ul>
+        </Disclosure>
       {/if}
 
       {#if canDraftOnly}
@@ -480,12 +492,19 @@
           {wanted.length === 0 ? 'Tick at least one step.' : 'A step you chose cannot run. Untick it, or fix what blocks it, then review again.'}
         </Alert>
       {:else if plan.confirmationRequired && plan.confirmation}
+        <p class="muted small">The steps run in order and stop at the first one that does not finish. Nothing is retried. It is recorded in the audit log.</p>
+        {#if plan.irreversible}
+          <p class="irrev small" data-testid="plan-irreversible">
+            <Icon name="alert-triangle" size={14} /> Cannot be undone from here: {plan.irreversibleSteps.map((t) => STEP_NAME[t]).join(', ')}. Only the store's own console can cancel it.
+          </p>
+        {/if}
         <div class="field">
           <label for={phraseId}>Type <strong class="phrase">{plan.confirmation.phrase}</strong> to confirm</label>
           <p class="muted small">{plan.confirmation.instruction}</p>
           <input id={phraseId} type="text" autocomplete="off" autocapitalize="off" spellcheck="false" bind:value={typed} disabled={busy || stale} />
         </div>
       {:else}
+        <p class="muted small">The steps run in order and stop at the first one that does not finish. Nothing is retried. It is recorded in the audit log.</p>
         <label class="check">
           <input type="checkbox" bind:checked={ack} disabled={busy || stale} data-testid="plan-confirm-ack" />
           <span>{plan.irreversible ? `I have read the plan above and want it written to ${store} now. Some steps cannot be undone from here. I confirm with my passkey or password next.` : `I have read the plan above. I want it written to ${store} now. Nothing is submitted or released by it.`}</span>
@@ -495,9 +514,7 @@
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}
       {#if phase === 'publishing'}
         <div role="status" class="running">
-          <Alert tone="info" title="Publishing">
-            The steps are running in order. This can take a few minutes. Keep this window open. Nothing is retried by itself.
-          </Alert>
+          <Alert tone="info" title="Publishing">Running the steps in order. This can take a few minutes. Keep this window open.</Alert>
         </div>
       {/if}
     {/if}
@@ -573,6 +590,39 @@
     gap: var(--space-2);
     align-items: center;
     margin: 0;
+  }
+
+  .headline-title {
+    margin: 0;
+    font-size: var(--text-md);
+  }
+
+  .headline p {
+    margin: 0;
+  }
+
+  .notice,
+  .warnline,
+  .irrev {
+    display: flex;
+    gap: var(--space-2);
+    align-items: baseline;
+    margin: 0;
+  }
+
+  .warnline,
+  .tint-warn {
+    color: var(--warn-ink);
+  }
+
+  .irrev {
+    color: var(--bad-ink);
+  }
+
+  .gist {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--ink);
   }
 
   .reason,
