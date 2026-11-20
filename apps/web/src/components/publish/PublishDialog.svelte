@@ -117,6 +117,19 @@
   const store = $derived(app ? storeName(app.platform) : 'the store');
   const phraseId = `${uid}-phrase`;
 
+  /** Scrolls to the confirmation under the plan and puts the cursor in it (the Publish button stays off until it is done). */
+  function focusConfirm() {
+    const el = document.getElementById(phraseId);
+    if (el) {
+      el.scrollIntoView({ block: 'center' });
+      el.focus();
+      return;
+    }
+    const box = document.querySelector<HTMLElement>('[data-testid="plan-confirm-ack"]');
+    box?.scrollIntoView({ block: 'center' });
+    box?.focus();
+  }
+
   function reset() {
     seq++;
     plan = null;
@@ -419,7 +432,7 @@
         {/each}
       </ol>
       {#if visible.left.length > 0}
-        <p class="muted small" data-testid="plan-left-out">Nothing to do now, so not shown: {visible.left.join('; ')}.</p>
+        <p class="muted small" data-testid="plan-left-out">Not needed for this plan, so not shown: {visible.left.join('; ')}.</p>
       {/if}
 
       {#if canDraftOnly}
@@ -446,7 +459,7 @@
         </div>
       {:else}
         <label class="check">
-          <input type="checkbox" bind:checked={ack} disabled={busy || stale} />
+          <input type="checkbox" bind:checked={ack} disabled={busy || stale} data-testid="plan-confirm-ack" />
           <span>I have read the plan above. I want it written to {store} now. Nothing is submitted or released by it.</span>
         </label>
       {/if}
@@ -467,6 +480,11 @@
       {#if summary?.review}<Button icon="refresh" onclick={() => review(null)}>Review again</Button>{/if}
       <Button variant="primary" onclick={close}>Close</Button>
     {:else}
+      {#if plan && phase === 'ready' && !stale && !ready && plan.confirmable}
+        <button type="button" class="why-disabled" onclick={focusConfirm} data-testid="why-publish-disabled">
+          {plan.confirmationRequired && plan.confirmation ? `Type "${plan.confirmation.phrase}" to publish` : 'Tick the box under the plan to publish'}
+        </button>
+      {/if}
       <Button disabled={phase === 'publishing'} onclick={close}>Cancel</Button>
       {#if stale || (phase === 'error' && !plan)}
         <Button icon="refresh" disabled={busy} onclick={() => review(null)}>Review again</Button>
@@ -481,6 +499,19 @@
 </Modal>
 
 <style>
+  .why-disabled {
+    margin-inline-end: auto;
+    padding: 0;
+    font: inherit;
+    font-size: var(--text-sm);
+    color: var(--accent);
+    text-align: start;
+    text-decoration: underline;
+    cursor: pointer;
+    background: none;
+    border: 0;
+  }
+
   .tabs {
     justify-content: flex-start;
   }

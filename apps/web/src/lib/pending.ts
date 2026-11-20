@@ -656,7 +656,10 @@ export function stepRow(step: PlanStep, platform: Platform): StepRow {
     irreversible: step.irreversible,
     deferred: step.deferred,
     needsInput,
-    idle: step.availability === 'nothing_to_do',
+    // Google Play has no review step of its own: the release is what Google reviews, so "submit" is not offered next to it.
+    idle:
+      step.availability === 'nothing_to_do' ||
+      (platform === 'android' && step.type === 'submit' && step.availability === 'not_requested'),
   };
 }
 
