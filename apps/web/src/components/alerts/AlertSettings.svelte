@@ -122,6 +122,22 @@
     void notificationState().then((s) => (notify = s));
   });
 
+  /** What this window did with the test alert (the server's log only says it was queued for the app). */
+  function desktopOutcomeText(outcome: typeof alertStore.notifyOutcome): string {
+    switch (outcome) {
+      case 'shown':
+        return 'This window handed the notification to your browser or system. If you see nothing, check the system notification settings for this browser or app (macOS: System Settings, Notifications) and that Focus or Do Not Disturb is off.';
+      case 'refused':
+        return 'This window tried to show it and the browser or app refused. Allow notifications for this site in the browser settings, then try again.';
+      case 'device_off':
+        return 'The switch for this device is off, so nothing was shown. Turn it on in “Desktop notifications” above.';
+      case 'nothing_new':
+        return 'No new alert was marked for a desktop notification, so nothing was shown. Check that “Desktop notification” is ticked for the alert type in the table below.';
+      default:
+        return '';
+    }
+  }
+
   async function askDesktop() {
     notify = await requestNotificationPermission();
   }
@@ -321,6 +337,9 @@
             <li>Nothing was sent: {channelLabels[testResult.channel].toLowerCase()} is not on for you.</li>
           {/each}
         </ul>
+        {#if testResult.channel === 'desktop'}
+          <p class="muted" data-testid="desktop-test-outcome">{desktopOutcomeText(alertStore.notifyOutcome)}</p>
+        {/if}
       {/if}
     </div>
   </Section>

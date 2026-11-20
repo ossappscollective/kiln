@@ -129,6 +129,7 @@ import {
   type StepUpTarget,
   stepUpMessage,
 } from './step-up.ts';
+import type { VersionPreview, VersionResult } from './store-version.ts';
 import type {
   ReleaseBody,
   ReleasePreview,
@@ -1624,6 +1625,27 @@ export function createApi(options: ApiOptions = {}) {
       request<{ result: ReleaseResult }>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release`,
+        body,
+        undefined,
+        grantHeader(grant),
+      ),
+    // Creating the next App Store version (docs/api/store-version.md): a reversible draft write behind the draft-write switch.
+    // `createStoreVersion` is sent once with the preview's hash and never retried by this app.
+    previewStoreVersion: (workspaceId: string, appId: string, body: { versionString: string }) =>
+      request<{ preview: VersionPreview }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-version/preview`,
+        body,
+      ),
+    createStoreVersion: (
+      workspaceId: string,
+      appId: string,
+      body: { versionString: string; confirmHash: string },
+      grant?: string,
+    ) =>
+      request<{ result: VersionResult }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-version`,
         body,
         undefined,
         grantHeader(grant),

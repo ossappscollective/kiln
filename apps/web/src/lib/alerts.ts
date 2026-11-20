@@ -129,7 +129,8 @@ export type AlertTestResult = { alertId: string; deliveries: Delivery[] };
 /** One sentence per outcome code of the server's fixed vocabulary (a test keeps the two lists equal). */
 export const outcomeLabels: Record<string, string> = {
   ok: 'Delivered.',
-  queued_for_client: 'Waiting for the app to show it as a desktop notification.',
+  queued_for_client:
+    'Handed to the app on your computer. Whether it appears is up to your browser and system notification settings.',
   queued_for_endpoints:
     'Sent to your webhook endpoints; each has its own delivery log under Webhooks.',
   in_digest: 'Held for your digest.',

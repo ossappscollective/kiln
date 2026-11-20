@@ -44,18 +44,29 @@ const writeSeen = (ids: string[]) => {
   }
 };
 
+/** What the last read did about desktop notifications: said on the Alerts settings page after "Try it", so a silent failure is not a mystery. */
+export type NotifyOutcome =
+  | 'shown' // handed to the browser or the desktop shell (the system may still hide it: Focus, notification settings)
+  | 'refused' // the browser or shell would not show it (permission, unsupported)
+  | 'device_off' // this device's switch is off (or permission not granted)
+  | 'nothing_new'; // no new unread alert flagged for a desktop notification
+
+let lastOutcome = $state<NotifyOutcome | null>(null);
+
 async function notifyNew(alerts: InboxAlert[]): Promise<void> {
   const seen = readSeen();
   const choice = readDeviceChoice(typeof localStorage === 'undefined' ? undefined : localStorage);
-  const plan = planNotifications({
-    alerts,
-    seen,
-    startedAt,
-    deviceOn: deviceEnabled(choice, await notificationState()),
-  });
-  if (plan.mark.length === 0) return;
+  const permission = await notificationState();
+  const deviceOn = deviceEnabled(choice, permission);
+  const plan = planNotifications({ alerts, seen, startedAt, deviceOn });
+  if (plan.mark.length === 0) {
+    lastOutcome = 'nothing_new';
+    return;
+  }
   // An alert is marked even when its notification could not be shown (blocked, unsupported): it is not retried every minute.
-  for (const a of plan.show) await showNotification(notificationTitle(a));
+  let shown = 0;
+  for (const a of plan.show) if (await showNotification(notificationTitle(a))) shown++;
+  lastOutcome = !deviceOn ? 'device_off' : shown > 0 ? 'shown' : 'refused';
   writeSeen(remember(seen, plan.mark));
 }
 
@@ -68,6 +79,10 @@ export const alertStore = {
   },
   get loaded() {
     return loaded;
+  },
+  /** What the last read did about desktop notifications (null before the first read). */
+  get notifyOutcome() {
+    return lastOutcome;
   },
 
   /** Reads the newest alerts and the count. Never throws. */
