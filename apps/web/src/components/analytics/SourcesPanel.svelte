@@ -10,7 +10,7 @@
   reports come from sits behind a disclosure.
 -->
 <script lang="ts">
-  import { can, type Role, supports } from '@mrm/core';
+  import { can, platformSupports, type Role } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import { type AnalyticsStatus, type StepAction, analyticsErrorText, stateInfo, stepAvailable } from '../../lib/analytics/analytics.ts';
   import { type SyncLine, lastReadAt, overallState, scheduleText, sourceRows, syncLines } from '../../lib/analytics/view.ts';
@@ -36,7 +36,7 @@
   }: { api: Api; workspaceId: string; app: { id: string; platform: string }; status: AnalyticsStatus; role: Role; now: number; onchanged: () => void } = $props();
 
   const canManage = $derived(can(role, 'analytics.manage'));
-  const apple = $derived(supports(app.platform, 'appleAnalyticsReports'));
+  const apple = $derived(platformSupports(app.platform, 'appleAnalyticsReports'));
   const rows = $derived(sourceRows(status, now));
   /** One "Turn on analytics" button for the whole list, on the first source that asks for it. */
   const firstTurnOn = $derived(rows.findIndex((r) => r.action?.kind === 'turn_on'));
