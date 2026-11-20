@@ -784,6 +784,64 @@ test('MRM_STORE_ROLLOUT_ENABLED is off by default; only true and false are accep
   }
 });
 
+test('MRM_STORE_PRODUCT_WRITE_ENABLED is off by default; only true and false are accepted; blank means off; independent of the other store switches', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).storeProductWriteEnabled, false);
+  assert.equal(
+    loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_PRODUCT_WRITE_ENABLED: '' })
+      .storeProductWriteEnabled,
+    false,
+  );
+  assert.equal(
+    loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_PRODUCT_WRITE_ENABLED: 'false' })
+      .storeProductWriteEnabled,
+    false,
+  );
+  const on = loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_PRODUCT_WRITE_ENABLED: 'true' });
+  assert.equal(on.storeProductWriteEnabled, true);
+  assert.equal(on.storeRolloutEnabled, false);
+  assert.equal(on.storeDraftWriteEnabled, false);
+  assert.equal(
+    loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_ROLLOUT_ENABLED: 'true' }).storeProductWriteEnabled,
+    false,
+    'the rollout switch does not turn product writes on',
+  );
+  for (const bad of ['1', 'yes', 'TRUE', 'on']) {
+    assert.throws(
+      () => loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_PRODUCT_WRITE_ENABLED: bad }),
+      /MRM_STORE_PRODUCT_WRITE_ENABLED/,
+      bad,
+    );
+  }
+});
+
+test('MRM_EAS_UPDATE_ROLLOUT_ENABLED is off by default; only true and false are accepted; blank means off; independent of the store switches', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).easUpdateRolloutEnabled, false);
+  assert.equal(
+    loadConfig({ MRM_MASTER_KEY: key, MRM_EAS_UPDATE_ROLLOUT_ENABLED: '' }).easUpdateRolloutEnabled,
+    false,
+  );
+  assert.equal(
+    loadConfig({ MRM_MASTER_KEY: key, MRM_EAS_UPDATE_ROLLOUT_ENABLED: 'false' })
+      .easUpdateRolloutEnabled,
+    false,
+  );
+  const on = loadConfig({ MRM_MASTER_KEY: key, MRM_EAS_UPDATE_ROLLOUT_ENABLED: 'true' });
+  assert.equal(on.easUpdateRolloutEnabled, true);
+  assert.equal(on.storeRolloutEnabled, false);
+  assert.equal(
+    loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_ROLLOUT_ENABLED: 'true' }).easUpdateRolloutEnabled,
+    false,
+    'the store rollout switch does not turn the Expo rollout on',
+  );
+  for (const bad of ['1', 'yes', 'TRUE', 'on']) {
+    assert.throws(
+      () => loadConfig({ MRM_MASTER_KEY: key, MRM_EAS_UPDATE_ROLLOUT_ENABLED: bad }),
+      /MRM_EAS_UPDATE_ROLLOUT_ENABLED/,
+      bad,
+    );
+  }
+});
+
 test('MRM_STORE_DRAFT_WRITE_ENABLED is off by default; only true and false are accepted; blank means off', () => {
   assert.equal(loadConfig({ MRM_MASTER_KEY: key }).storeDraftWriteEnabled, false);
   assert.equal(

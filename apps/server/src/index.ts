@@ -24,6 +24,7 @@ import {
   createAsoRefreshHandler,
 } from './modules/aso/service.ts';
 import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from './modules/ci/service.ts';
+import { EAS_POLL_QUEUE, createEasPollHandler } from './modules/eas/workflows.ts';
 import {
   createListingReadHandler,
   DEFAULT_LISTING_TIMEOUT_MS,
@@ -185,6 +186,8 @@ const app = createApp({
   aso: { sources: asoSources, limits: asoLimits },
   analytics: { intervalMinutes: config.analyticsIntervalMinutes },
   rollout: { enabled: config.storeRolloutEnabled },
+  eas: { updateRollout: { enabled: config.easUpdateRolloutEnabled } },
+  monetization: { write: { enabled: config.storeProductWriteEnabled } },
   storeDraft: { enabled: config.storeDraftWriteEnabled },
   storeSubmit: { enabled: config.storeSubmitEnabled },
   storeRelease: { enabled: config.storeReleaseEnabled },
@@ -270,6 +273,13 @@ const worker = createWorker({
     }),
     // Alert emails (docs/alerts.md): one job per delivery row; the mailer is services/mailer.ts.
     [ALERT_QUEUE]: createAlertDeliveryHandler({ db: database, now: Date.now }),
+    // Follows the EAS Workflows runs started here until they finish (modules/eas/workflows.ts).
+    [EAS_POLL_QUEUE]: createEasPollHandler({
+      db: database,
+      masterKey: config.masterKey,
+      now: Date.now,
+      deps: undefined,
+    }),
     [CI_POLL_QUEUE]: createCiPollHandler(
       createCiContext({
         db: database,
@@ -358,6 +368,16 @@ if (config.worker === 'inline') {
   if (config.reviewReplyEnabled) {
     console.log(
       'Replying to customer reviews is ON (MRM_REVIEW_REPLY_ENABLED): owners and admins can publish replies in the stores',
+    );
+  }
+  if (config.storeProductWriteEnabled) {
+    console.log(
+      'Changing in-app product texts is ON (MRM_STORE_PRODUCT_WRITE_ENABLED): owners and admins can change the display name and description of an in-app purchase or subscription in the stores (never prices)',
+    );
+  }
+  if (config.easUpdateRolloutEnabled) {
+    console.log(
+      'Raising EAS Update rollouts is ON (MRM_EAS_UPDATE_ROLLOUT_ENABLED): owners and admins can raise the rollout percentage of an update at Expo (never lower it)',
     );
   }
   if (config.storeRolloutEnabled) {

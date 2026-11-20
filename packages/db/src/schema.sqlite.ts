@@ -426,6 +426,8 @@ export const workflowRuns = sqliteTable(
     title: text('title'),
     /** GitHub's own status and conclusion, verbatim; `pending` for a placeholder. */
     status: text('status').notNull(),
+    /** Migration 46: `github` or `eas-workflows` (packages/core/src/ci-providers.ts). */
+    provider: text('provider').notNull().default('github'),
     conclusion: text('conclusion'),
     headSha: text('head_sha'),
     commitMessage: text('commit_message'),
@@ -2131,4 +2133,224 @@ export const appExpoLinks = sqliteTable(
     index('app_expo_links_project_idx').on(t.projectId),
     index('app_expo_links_credential_idx').on(t.credentialId),
   ],
+);
+
+/**
+ * In-app purchases and subscriptions read from the stores (migration 45, docs/adr/0034-in-app-products.md): one row per product of an app
+ * record. No foreign key to apps: deleteApp removes the rows.
+ */
+export const storeProducts = sqliteTable(
+  'store_products',
+  {
+    appId: text('app_id').notNull(),
+    productId: text('product_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** Apple's resource id; null for Google Play. */
+    storeRef: text('store_ref'),
+    /** consumable, non_consumable or subscription. */
+    kind: text('kind').notNull(),
+    referenceName: text('reference_name').notNull(),
+    /** The normalized state (draft, in_review, action_needed, active, inactive, removed, unknown). */
+    state: text('state').notNull(),
+    rawState: text('raw_state'),
+    groupName: text('group_name'),
+    period: text('period'),
+    baseTerritory: text('base_territory'),
+    /** JSON: { territories, availableInNewTerritories }, or null when the store gave none. */
+    availabilityJson: text('availability_json'),
+    /** JSON: the plans and offers. */
+    detailJson: text('detail_json').notNull().default('{}'),
+    rawHash: text('raw_hash').notNull(),
+    syncedAt: integer('synced_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.productId] }),
+    index('store_products_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** The display name and description of a product per locale (migration 45). */
+export const storeProductLocalizations = sqliteTable(
+  'store_product_localizations',
+  {
+    appId: text('app_id').notNull(),
+    productId: text('product_id').notNull(),
+    locale: text('locale').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    /** Apple's id of the localization; null for Google Play. */
+    storeRef: text('store_ref'),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.productId, t.locale] }),
+    index('store_product_localizations_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** The price of a product per territory in minor units, as a string (migration 45). `planId` is '' when there is no plan. */
+export const storeProductPrices = sqliteTable(
+  'store_product_prices',
+  {
+    appId: text('app_id').notNull(),
+    productId: text('product_id').notNull(),
+    planId: text('plan_id').notNull().default(''),
+    territory: text('territory').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    currency: text('currency').notNull(),
+    amount: text('amount').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.productId, t.planId, t.territory] }),
+    index('store_product_prices_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** The state of the last product sync of an app (migration 45). A failed sync keeps the last good snapshot. */
+export const storeProductSync = sqliteTable(
+  'store_product_sync',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    lastAttemptAt: integer('last_attempt_at'),
+    lastSyncedAt: integer('last_synced_at'),
+    lastError: text('last_error'),
+    failures: integer('failures').notNull().default(0),
+    productCount: integer('product_count').notNull().default(0),
+    complete: integer('complete').notNull().default(1),
+    warningsJson: text('warnings_json').notNull().default('[]'),
+  },
+  (t) => [index('store_product_sync_workspace_idx').on(t.workspaceId)],
+);
+
+/** One localization write in flight per app (migration 45). `unknown`: the outcome of the last write is not known. */
+export const storeProductClaims = sqliteTable(
+  'store_product_claims',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    productId: text('product_id').notNull(),
+    status: text('status').notNull().default('writing'),
+    claimedBy: text('claimed_by').notNull(),
+    claimAt: integer('claim_at').notNull(),
+  },
+  (t) => [index('store_product_claims_workspace_idx').on(t.workspaceId)],
+);
+
+/**
+ * The cached status of the EAS builds of an app record's Expo project (migration 47, docs/adr/0036-eas-build-submit-status.md). Read
+ * from Expo by the status sync, never written back. No foreign key to apps: deleteApp removes the rows. The address of a build file is
+ * deliberately not stored.
+ */
+export const easBuilds = sqliteTable(
+  'eas_builds',
+  {
+    appId: text('app_id').notNull(),
+    buildId: text('build_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** Expo's platform: ios or android. */
+    platform: text('platform').notNull(),
+    /** new, in_queue, in_progress, pending_cancel, finished, errored, canceled or unknown. */
+    status: text('status').notNull(),
+    /** Expo's own status, verbatim. */
+    rawStatus: text('raw_status'),
+    buildProfile: text('build_profile'),
+    channel: text('channel'),
+    appVersion: text('app_version'),
+    appBuildVersion: text('app_build_version'),
+    sdkVersion: text('sdk_version'),
+    runtimeVersion: text('runtime_version'),
+    /** store, internal, simulator or unknown. */
+    distribution: text('distribution'),
+    /** 0 or 1; null when Expo did not say. */
+    simulator: integer('simulator'),
+    appIdentifier: text('app_identifier'),
+    gitCommitHash: text('git_commit_hash'),
+    /** The first line, at most 200 characters. */
+    gitCommitMessage: text('git_commit_message'),
+    errorCode: text('error_code'),
+    /** Expo's text, at most 500 characters. */
+    errorMessage: text('error_message'),
+    /** 0 or 1: Expo holds a build file. */
+    hasArtifact: integer('has_artifact').notNull().default(0),
+    createdAt: integer('created_at'),
+    updatedAt: integer('updated_at'),
+    completedAt: integer('completed_at'),
+    /** When Expo deletes the build file. */
+    expiresAt: integer('expires_at'),
+    fetchedAt: integer('fetched_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.buildId] }),
+    index('eas_builds_app_idx').on(t.appId, t.createdAt),
+    index('eas_builds_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** The cached EAS submissions of an app record's Expo project (migration 47). */
+export const easSubmissions = sqliteTable(
+  'eas_submissions',
+  {
+    appId: text('app_id').notNull(),
+    submissionId: text('submission_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    platform: text('platform').notNull(),
+    /** awaiting_build, in_queue, in_progress, finished, errored, canceled or unknown. */
+    status: text('status').notNull(),
+    rawStatus: text('raw_status'),
+    /** The EAS build that was submitted. */
+    buildId: text('build_id'),
+    /** The bundle id or package name Expo reports for the submission. */
+    targetIdentifier: text('target_identifier'),
+    /** Google Play's track, from the submission config. */
+    track: text('track'),
+    releaseStatus: text('release_status'),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    createdAt: integer('created_at'),
+    completedAt: integer('completed_at'),
+    fetchedAt: integer('fetched_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.submissionId] }),
+    index('eas_submissions_app_idx').on(t.appId, t.createdAt),
+    index('eas_submissions_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** The state of the status sync of one app record (migration 47): attempts, the failure streak and the backoff. */
+export const easStatusSync = sqliteTable(
+  'eas_status_sync',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** The project and credential the snapshot was read with: a changed link starts again. */
+    projectId: text('project_id'),
+    credentialId: text('credential_id'),
+    lastAttemptAt: integer('last_attempt_at'),
+    lastSuccessAt: integer('last_success_at'),
+    /** A short code (never Expo's text). */
+    lastError: text('last_error'),
+    consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+    backoffUntil: integer('backoff_until'),
+    buildsTruncated: integer('builds_truncated').notNull().default(0),
+    submissionsTruncated: integer('submissions_truncated').notNull().default(0),
+  },
+  (t) => [index('eas_status_sync_workspace_idx').on(t.workspaceId)],
 );

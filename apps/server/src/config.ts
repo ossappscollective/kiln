@@ -240,6 +240,15 @@ const schema = z.object({
   // rollout route answers 409 rollout_disabled until this is 'true'. Planning data (rollout steps)
   // does not depend on it.
   MRM_STORE_ROLLOUT_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  // Kill switch for the ONE write of EAS Update (docs/adr/0037-eas-update.md): raising the rollout percentage of an update at Expo
+  // (what `eas update:edit` does). It changes what clients receive and cannot be lowered from here, so it is off by default: the rollout
+  // preview and apply routes answer 409 eas_update_write_disabled until this is 'true'. Reading channels, updates and insights does not
+  // depend on it. It is separate from the store switches.
+  MRM_EAS_UPDATE_ROLLOUT_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  // Kill switch for the ONE write of in-app products (docs/adr/0034-in-app-products.md): changing the localized display name and description of an
+  // in-app purchase or subscription in the store. Prices, availability and the products themselves are never written. Reading and syncing the
+  // products does not depend on it. Off by default: the localization route answers 409 store_product_write_disabled until this is 'true'.
+  MRM_STORE_PRODUCT_WRITE_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Kill switch for writing staged listing text and graphics into a store as a DRAFT (docs/adr/0009-staged-store-drafts.md):
   // the App Store version localizations and screenshots of the editable version, and a Google Play edit
   // committed with changesNotSentForReview. It never submits, sends for review or publishes. Off by
@@ -633,6 +642,10 @@ export type Config = {
   reviewReplyEnabled: boolean;
   /** Changing a live rollout in the stores is allowed (MRM_STORE_ROLLOUT_ENABLED). Default false. */
   storeRolloutEnabled: boolean;
+  /** Raising the rollout of an EAS Update at Expo is allowed (MRM_EAS_UPDATE_ROLLOUT_ENABLED). Default false. */
+  easUpdateRolloutEnabled: boolean;
+  /** Changing the display name and description of an in-app product in the stores is allowed (MRM_STORE_PRODUCT_WRITE_ENABLED). Default false. */
+  storeProductWriteEnabled: boolean;
   /** Writing staged listing text and graphics into a store as a draft is allowed (MRM_STORE_DRAFT_WRITE_ENABLED). Default false. */
   storeDraftWriteEnabled: boolean;
   /** Submitting the store's draft for review is allowed (MRM_STORE_SUBMIT_ENABLED). Default false. */
@@ -728,6 +741,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     asoHeartbeatMs: data.MRM_ASO_HEARTBEAT_DAYS * 24 * 60 * 60_000,
     reviewReplyEnabled: data.MRM_REVIEW_REPLY_ENABLED === 'true',
     storeRolloutEnabled: data.MRM_STORE_ROLLOUT_ENABLED === 'true',
+    easUpdateRolloutEnabled: data.MRM_EAS_UPDATE_ROLLOUT_ENABLED === 'true',
+    storeProductWriteEnabled: data.MRM_STORE_PRODUCT_WRITE_ENABLED === 'true',
     storeDraftWriteEnabled: data.MRM_STORE_DRAFT_WRITE_ENABLED === 'true',
     storeSubmitEnabled: data.MRM_STORE_SUBMIT_ENABLED === 'true',
     storeReleaseEnabled: data.MRM_STORE_RELEASE_ENABLED === 'true',

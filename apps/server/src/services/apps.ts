@@ -496,6 +496,19 @@ export async function deleteApp(
       input.id,
       input.workspaceId,
     ]);
+    // In-app products read from the stores and the write claim (modules/monetization).
+    for (const table of [
+      'store_product_prices',
+      'store_product_localizations',
+      'store_products',
+      'store_product_sync',
+      'store_product_claims',
+    ]) {
+      await tx.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
+        input.id,
+        input.workspaceId,
+      ]);
+    }
     await tx.execute('DELETE FROM apps WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,
