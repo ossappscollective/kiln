@@ -19,6 +19,7 @@
   import { address } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import { appAddress } from '../../lib/app-scope.ts';
+  import { listingLead } from '../../lib/aso-lead.ts';
   import { type AsoConfig, type AsoKeyword, type AsoListingKeywordsResponse, addSummaryText, asoErrorMessage, chunk, sumAddSummary } from '../../lib/aso.ts';
   import {
     PLAY_NO_KEYWORD_FIELD,
@@ -49,7 +50,7 @@
   import Icon from '../ui/Icon.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
-  import AsoBar from './AsoBar.svelte';
+  import PageLead from '../ui/PageLead.svelte';
 
   let {
     api,
@@ -125,6 +126,9 @@
     }),
   );
   const everything = $derived(buildPlan(sections.map((s) => ({ appId: s.app.id, platform: s.app.platform, rows: s.rows }))));
+  const lead = $derived(
+    listingLead({ loaded: !loading, localeRows: sections.reduce((n, s) => n + s.rows.length, 0), untracked: everything.total }),
+  );
   const depth = $derived(config?.limits.rankDepth ?? 50);
 
   // ----- Track what is not tracked
@@ -196,33 +200,39 @@
   const storefrontTitle = (country: string): string => territoryName(country);
 </script>
 
-<div class="listing stack">
-  <AsoBar label="Listing keyword actions">
-    <span class="muted intro">What your synced store listing already sets, per locale.</span>
-    <InfoTip label="About this view" align="start" width="30rem">
-      <div class="tip stack tight">
-        <p>
-          Read from the listing text the last sync stored on this server. Nothing here contacts a store, and nothing is written to one. A term is tracked when a tracked keyword
-          has the same words (accents and English plurals ignored) in the same locale and storefront; the number is its rank today.
-        </p>
-        <p>
-          The storefront is the one rank tracking already uses for the locale (the one with most tracked keywords), else the usual one for its language. Which fields each
-          store searches is unverified.
-        </p>
-        <p>
-          <strong>wasted</strong>: the keyword field repeats a word the name or subtitle already holds. <strong>repeated</strong>: the field has the same words, or a plural, twice.
-          <strong>twice</strong>: the word is in more than one searched field.
-        </p>
-      </div>
-    </InfoTip>
-    {#if androidInScope}
-      <label class="check"><input type="checkbox" bind:checked={includeDescription} /> Include frequent words of the Google Play description</label>
-    {/if}
-    <span class="spacer"></span>
-    {#if canWrite && everything.total > 0}
-      <Button variant="primary" icon="plus" onclick={() => openPlan()}>Track all untracked ({everything.total})</Button>
-    {/if}
-  </AsoBar>
+<div class="listing stack roomy">
+  <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="listing-lead">
+    {#snippet aside()}
+      <span class="row wrap about">
+        <InfoTip label="About this view" buttonText="About this view" align="start" width="30rem">
+          <div class="tip stack tight">
+            <p>
+              Read from the listing text the last sync stored on this server. Nothing here contacts a store, and nothing is written to one. A term is tracked when a tracked keyword
+              has the same words (accents and English plurals ignored) in the same locale and storefront; the number is its rank today.
+            </p>
+            <p>
+              The storefront is the one rank tracking already uses for the locale (the one with most tracked keywords), else the usual one for its language. Which fields each
+              store searches is unverified.
+            </p>
+            <p>
+              <strong>wasted</strong>: the keyword field repeats a word the name or subtitle already holds. <strong>repeated</strong>: the field has the same words, or a plural, twice.
+              <strong>twice</strong>: the word is in more than one searched field.
+            </p>
+          </div>
+        </InfoTip>
+        {#if androidInScope}
+          <label class="check"><input type="checkbox" bind:checked={includeDescription} /> Include frequent words of the Google Play description</label>
+        {/if}
+      </span>
+    {/snippet}
+    {#snippet actions()}
+      {#if canWrite && everything.total > 0}
+        <div class="acts" role="toolbar" aria-label="Listing keyword actions">
+          <Button variant="primary" icon="plus" onclick={() => openPlan()}>Track all untracked ({everything.total})</Button>
+        </div>
+      {/if}
+    {/snippet}
+  </PageLead>
 
   {#if plan}
     <section class="card plan stack" aria-label="Keywords that will be added">
@@ -389,8 +399,30 @@
 </div>
 
 <style>
-  .intro {
+  .roomy {
+    font-size: 0.9375rem;
+  }
+
+  .roomy :global(table.compact th),
+  .roomy :global(table.compact td) {
+    padding-block: var(--space-3);
+    font-size: 0.9375rem;
+  }
+
+  .roomy :global(table.compact thead th) {
     font-size: var(--text-sm);
+  }
+
+  .about {
+    gap: var(--space-2) var(--space-4);
+    align-items: center;
+  }
+
+  .acts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
   }
 
   .head {
@@ -399,7 +431,11 @@
   }
 
   .fresh,
-  .note,
+  .note {
+    margin: 0;
+    font-size: 0.9375rem;
+  }
+
   .legend {
     margin: 0;
     font-size: var(--text-sm);
@@ -459,7 +495,7 @@
   }
 
   .store {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-regular);
   }
 
@@ -469,7 +505,7 @@
 
   .flag {
     margin: 0 0 var(--space-1);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
   }
 
   .chips {
@@ -482,8 +518,8 @@
     display: inline-flex;
     gap: var(--space-1);
     align-items: center;
-    padding: var(--space-1) var(--space-2);
-    font-size: var(--text-sm);
+    padding: var(--space-1) var(--space-3);
+    font-size: 0.9375rem;
     background: var(--surface);
     border: 1px dashed var(--line-strong);
     border-radius: var(--radius-full);
@@ -504,12 +540,12 @@
   .src {
     display: inline-flex;
     gap: var(--space-1);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     color: var(--muted);
   }
 
   .mark {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-medium);
   }
 
@@ -525,7 +561,7 @@
     display: inline-flex;
     gap: 2px;
     align-items: center;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-medium);
     color: var(--ok-ink);
     font-variant-numeric: tabular-nums;
@@ -557,7 +593,7 @@
   }
 
   .kf {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-variant-numeric: tabular-nums;
   }
 
