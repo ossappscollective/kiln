@@ -39,7 +39,7 @@
     storeNotes,
     visibleSteps,
   } from '../../../lib/release-stepper.ts';
-  import { stagingError } from '../../../lib/staged.ts';
+  import { canStage, stagingError } from '../../../lib/staged.ts';
   import { stagedStore } from '../../../lib/staged-store.svelte.ts';
   import { canSubmit } from '../../../lib/store-submit.ts';
   import { submitStore } from '../../../lib/store-submit-store.svelte.ts';
@@ -179,6 +179,32 @@
    * "Promote to production": the notes of the release in the source track (found by its version codes) go into the editors, per
    * language, unless the person wrote or staged text there already. Read only; nothing is staged.
    */
+  let promoteStageProblem = $state('');
+
+  /**
+   * "Promote to production": the track and the version codes of the release being promoted are staged when the steps open (a
+   * save in this tool only; nothing is sent to Google Play). Without them the publish has no draft release to start, and the
+   * person had to find "Use these version codes" in the first step. What is staged already is not staged again.
+   */
+  async function stagePromotion(p: Promote) {
+    promoteStageProblem = '';
+    if (!canStage(role)) return;
+    const wanted = [...p.codes].sort((a, b) => Number(a) - Number(b)).join(',');
+    const view = stagedStore.view(app.id);
+    const codes = stagedField(view, 'version_codes');
+    const staged = stagedField(view, 'track');
+    const have = codes === null ? '' : codes.value.split(',').filter((c) => c !== '').sort((a, b) => Number(a) - Number(b)).join(',');
+    if (have === wanted && staged !== null && staged.value === p.to) return;
+    try {
+      let out = await api.stageReleaseField(workspaceId, app.id, { field: 'track', value: p.to });
+      out = await api.stageReleaseField(workspaceId, app.id, { field: 'version_codes', value: wanted });
+      stagedStore.set(out.staged);
+    } catch (e) {
+      promoteStageProblem = `The version codes could not be staged: ${stagingError(e)} Choose them in the first step.`;
+      void stagedStore.load(api, workspaceId, app.id);
+    }
+  }
+
   async function loadPromoteNotes(p: Promote) {
     const mine = seq;
     promoteNotes = { status: 'loading' };
@@ -299,6 +325,7 @@
           source = promote.from;
           track = promote.to;
           void loadPromoteNotes(promote);
+          void stagePromotion(promote);
         }
         void loadEditable();
         void loadCandidates();
@@ -339,6 +366,8 @@
     {/each}
   </ol>
   {#if hidden}<p class="muted note">{hidden}</p>{/if}
+
+  {#if promoteStageProblem}<Alert tone="error" ondismiss={() => (promoteStageProblem = '')}>{promoteStageProblem}</Alert>{/if}
 
   <div class="body" id="{uid}-body">
     {#if current === 'build'}
