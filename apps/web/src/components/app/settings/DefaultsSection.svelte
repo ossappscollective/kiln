@@ -61,7 +61,7 @@
 <SettingsCard
   title="Release defaults"
   icon="rocket"
-  description="How builds of this app are matched to tags and CI runs, and the checklists a release plan can start from."
+  description="How builds are matched to tags and CI runs, and the checklists a release plan starts from."
   unavailable={notAvailable.releaseDefaults}
 >
   <div class="stack">
@@ -89,7 +89,7 @@
     {:else if templates === null}
       <p class="muted note">Reading…</p>
     {:else}
-      <p class="note">{templatesSummary(templates)}. Choose one when you add checklist items to a release plan.</p>
+      <p class="note">{templatesSummary(templates)}. Pick one when you add checklist items to a plan.</p>
     {/if}
   </div>
   <div class="row wrap">
@@ -102,11 +102,12 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+    font-size: 0.9375rem;
   }
 
   .label {
     margin: 0;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
     color: var(--muted);
   }
@@ -119,6 +120,6 @@
 
   .note {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 </style>

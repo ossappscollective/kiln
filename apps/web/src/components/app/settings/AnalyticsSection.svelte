@@ -22,7 +22,7 @@
   <SettingsCard
     title="Play reports bucket"
     icon="trending-up"
-    description="Where installs and ratings are read from on Google Play. Each Play account has one bucket for all its apps; this app uses the workspace default until you set its own."
+    description="Where installs and ratings are read from on Google Play; this app uses the workspace default until you set its own."
   >
     {#each android as app (app.id)}
       <section class="stack tight" aria-label="{platformLabel(app.platform)} reports bucket">

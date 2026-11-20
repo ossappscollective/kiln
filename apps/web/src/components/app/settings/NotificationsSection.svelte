@@ -56,7 +56,7 @@
 <SettingsCard
   title="Notifications"
   icon="bell"
-  description="How your team hears about this app. Both settings below belong to the whole workspace."
+  description="How your team hears about this app; both settings belong to the whole workspace."
   unavailable={notAvailable.appNotifications}
 >
   <div class="stack tight">
@@ -86,13 +86,13 @@
 <style>
   .label {
     margin: 0;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
     color: var(--muted);
   }
 
   .note {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 </style>

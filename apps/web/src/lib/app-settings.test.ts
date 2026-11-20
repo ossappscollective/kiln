@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   appEventTypes,
+  appSettingsSections,
+  deleteLine,
+  saveBarText,
+  stagedRolloutHint,
   conventionLines,
   credentialFacts,
   listensToApp,
@@ -112,4 +116,33 @@ test('low rating text', () => {
   assert.ok(lowRatingText(2).includes('2 stars or less'));
   assert.ok(lowRatingText(1).includes('1 star or less'));
   assert.equal(lowRatingText(0), 'Low-rating alerts are off.');
+});
+
+test('the Jump to row lists only the parts that are drawn', () => {
+  const labels = (input: Parameters<typeof appSettingsSections>[0]) => appSettingsSections(input).map((s) => s.label);
+  assert.deepEqual(labels({ android: false, ai: false, canDelete: false }), ['Stores', 'Repository', 'Release defaults', 'Notifications']);
+  assert.deepEqual(labels({ android: true, ai: true, canDelete: true }), [
+    'Stores',
+    'Repository',
+    'Release defaults',
+    'Google Play releases',
+    'Reports bucket',
+    'Notifications',
+    'AI assistant',
+    'Danger zone',
+  ]);
+  const ids = appSettingsSections({ android: true, ai: true, canDelete: true }).map((s) => s.id);
+  assert.equal(new Set(ids).size, ids.length);
+});
+
+test('the save bar says whether there is something to save', () => {
+  assert.equal(saveBarText(false, false), 'All changes are saved.');
+  assert.equal(saveBarText(true, false), 'You have unsaved changes.');
+  assert.equal(saveBarText(false, true), 'You have unsaved changes.');
+});
+
+test('one-line hints and the Danger zone line', () => {
+  assert.match(stagedRolloutHint(true), /has an earlier production release\.$/);
+  assert.match(stagedRolloutHint(false), /no earlier production release/);
+  assert.match(deleteLine('the App Store'), /Nothing in the App Store is changed/);
 });

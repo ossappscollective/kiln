@@ -1,6 +1,7 @@
 import { type CredentialKind, credentialKindInfo, isCredentialKind } from '@mrm/core';
 import { appAddress } from './app-scope.ts';
 import { testStatus } from './credentials.ts';
+import type { SettingsSection } from './settings-views.ts';
 import type {
   BuildConventionsView,
   ChecklistTemplate,
@@ -174,4 +175,62 @@ export function webhookSummary(list: readonly WebhookEndpoint[]): WebhookSummary
 export function lowRatingText(threshold: number): string {
   if (threshold <= 0) return 'Low-rating alerts are off.';
   return `A review of ${threshold} ${threshold === 1 ? 'star' : 'stars'} or less counts as low and raises an alert.`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The page as a whole: the "Jump to" row, the save bar, the one-line hints, the Danger zone
+
+/** The element ids of the parts of App settings (the wrappers in AppSettings.svelte), in the order they are drawn. */
+export const appSettingsPartIds = {
+  stores: 'app-settings-stores',
+  repository: 'app-settings-repository',
+  defaults: 'app-settings-defaults',
+  playReleases: 'app-settings-play-releases',
+  playBucket: 'app-settings-play-bucket',
+  notifications: 'app-settings-notifications',
+  ai: 'app-settings-ai',
+  danger: 'app-settings-danger',
+} as const;
+
+/**
+ * The parts of App settings the person can jump to. The Google Play parts exist only for an Android record, the AI part only when
+ * the assistant is on for this workspace (`ai`), and the Danger zone only for a role that can delete (`canDelete`).
+ */
+export function appSettingsSections(input: {
+  android: boolean;
+  ai: boolean;
+  canDelete: boolean;
+}): SettingsSection[] {
+  const ids = appSettingsPartIds;
+  return [
+    { id: ids.stores, label: 'Stores' },
+    { id: ids.repository, label: 'Repository' },
+    { id: ids.defaults, label: 'Release defaults' },
+    ...(input.android
+      ? [
+          { id: ids.playReleases, label: 'Google Play releases' },
+          { id: ids.playBucket, label: 'Reports bucket' },
+        ]
+      : []),
+    { id: ids.notifications, label: 'Notifications' },
+    ...(input.ai ? [{ id: ids.ai, label: 'AI assistant' }] : []),
+    ...(input.canDelete ? [{ id: ids.danger, label: 'Danger zone' }] : []),
+  ];
+}
+
+/** What the save bar of a form says. `saving` reads as a pending save, so the words do not flip while the request runs. */
+export function saveBarText(dirty: boolean, saving: boolean): string {
+  return dirty || saving ? 'You have unsaved changes.' : 'All changes are saved.';
+}
+
+/** The hint under the Google Play staged rollout choice: one sentence, with what is known about earlier releases. */
+export function stagedRolloutHint(earlierProductionRelease: boolean): string {
+  return earlierProductionRelease
+    ? 'Google Play offers it for updates only, and this app has an earlier production release.'
+    : 'Google Play offers it for updates only, and this app has no earlier production release stored yet.';
+}
+
+/** The one visible line of the Danger zone for a record: what deleting does and what it does not touch. */
+export function deleteLine(store: string): string {
+  return `Removes its stored releases, reviews and plans from this workspace. Nothing in ${store} is changed, and you can add it again.`;
 }

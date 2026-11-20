@@ -8,12 +8,13 @@
   import { type Role, STAGED_ROLLOUT_MODES, type StagedRolloutMode, can } from '@mrm/core';
   import { untrack } from 'svelte';
   import { type Api, ApiError } from '../../../lib/api.ts';
+  import { stagedRolloutHint } from '../../../lib/app-settings.ts';
   import { STAGED_ROLLOUT_LABEL, parseDefaultShare } from '../../../lib/release-settings.ts';
   import { releaseSettingsStore } from '../../../lib/release-settings-store.svelte.ts';
   import { toast } from '../../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';
-  import Button from '../../ui/Button.svelte';
+  import SaveBar from './SaveBar.svelte';
   import SettingsCard from './SettingsCard.svelte';
 
   let { api, workspaceId, role, members }: { api: Api; workspaceId: string; role: Role; members: AppSummary[] } = $props();
@@ -60,6 +61,14 @@
         mode !== view.settings.stagedRollout),
   );
 
+  function discard() {
+    if (!view) return;
+    share = view.settings.defaultSharePercent === null ? '' : String(view.settings.defaultSharePercent);
+    mode = view.settings.stagedRollout;
+    shareError = '';
+    problem = '';
+  }
+
   async function save() {
     if (!android || !view || saving) return;
     const parsed = parseDefaultShare(share);
@@ -85,11 +94,13 @@
   }
 </script>
 
+{#snippet readOnlyNote()}Changing this needs a role that can edit apps.{/snippet}
+
 {#if android}
   <SettingsCard
     title="Google Play releases"
     icon="rocket"
-    description="What a release to Google Play starts from. You still type and confirm the share of every release."
+    description="What a release to Google Play starts from; you still type and confirm the share of every release."
   >
     {#if view === null}
       <p class="muted note">Reading…</p>
@@ -107,24 +118,18 @@
             disabled={!mayEdit || saving}
             aria-invalid={shareError !== '' ? 'true' : undefined}
           />
-          <p class="muted note">1 to 100. It is put in the share field of a release as a start. A share you staged wins. It is never confirmed for you.</p>
-          {#if shareError}<p class="note bad">{shareError}</p>{/if}
+          <p class="hint">1 to 100, put in each release as a start. A share you staged wins, and you still confirm it.</p>
+          {#if shareError}<p class="hint bad">{shareError}</p>{/if}
         </div>
         <div class="field">
           <label for="{uid}-mode">Staged rollout on Google Play</label>
           <select id="{uid}-mode" bind:value={mode} disabled={!mayEdit || saving}>
             {#each STAGED_ROLLOUT_MODES as m (m)}<option value={m}>{STAGED_ROLLOUT_LABEL[m]}</option>{/each}
           </select>
-          <p class="muted note">
-            Google Play offers a staged rollout for updates, not for the first release in production.
-            {#if view.earlierProductionRelease}An earlier production release exists for this app.{:else}No earlier production release is stored for this app yet.{/if}
-          </p>
+          <p class="hint">{stagedRolloutHint(view.earlierProductionRelease)}</p>
         </div>
         {#if problem}<Alert tone="error" title="Not saved">{problem}</Alert>{/if}
-        <div class="row">
-          <Button size="sm" variant="primary" loading={saving} disabled={!mayEdit || !dirty || saving} onclick={save}>Save</Button>
-          {#if !mayEdit}<span class="muted note">Changing this needs a role that can edit apps.</span>{/if}
-        </div>
+        <SaveBar {dirty} {saving} disabled={!mayEdit} onsave={save} ondiscard={discard} note={mayEdit ? undefined : readOnlyNote} />
       </div>
     {/if}
   </SettingsCard>
@@ -135,11 +140,23 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
-    max-width: 28rem;
+    max-width: 32rem;
   }
 
+  .field label {
+    font-size: 0.9375rem;
+    font-weight: var(--weight-semibold);
+  }
+
+  .hint,
   .note {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
+    line-height: 1.4;
+    color: var(--muted);
+  }
+
+  .hint.bad {
+    color: var(--bad-ink);
   }
 </style>

@@ -84,7 +84,7 @@
 <SettingsCard
   title="Stores and credentials"
   icon="key"
-  description="Which store each record of this app is in, and the credential it reads the store with. Secrets are never shown."
+  description="Which store each record of this app is in and the credential it reads it with. Secrets are never shown."
   unavailable={notAvailable.changeCredential}
   summary={countOf(records.length, 'store record')}
 >
@@ -169,11 +169,12 @@
   .record {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-4);
+    font-size: 0.9375rem;
   }
 
   .record + .record {
-    padding-top: var(--space-4);
+    padding-top: var(--space-5);
     border-top: 1px solid var(--line);
   }
 
@@ -186,7 +187,7 @@
 
   .facts dt {
     margin-bottom: var(--space-1);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
     color: var(--muted);
   }
@@ -199,6 +200,6 @@
 
   .note {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 </style>

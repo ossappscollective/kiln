@@ -66,7 +66,7 @@
 <SettingsCard
   title="Repository"
   icon="git-branch"
-  description="Where the files of this app live: fastlane metadata, screenshots and the build tags. The store listing and the assets are read from here."
+  description="Where the files of this app live: the store listing, the screenshots and the build tags are read from here."
   unavailable={notAvailable.changeRepository}
   summary={countOf(repositories.length, 'repository', 'repositories')}
 >
@@ -80,7 +80,7 @@
           {#if app.repositoryId === null}<Badge tone="neutral">Not linked</Badge>{:else}<Badge tone="ok">Linked</Badge>{/if}
         </div>
         {#if app.repositoryId === null}
-          <p class="muted note">This {platformLabel(app.platform)} record has no repository. Without one, the store listing cannot be compared with files and the assets tab has nothing to read.</p>
+          <p class="muted note">This {platformLabel(app.platform)} record has no repository. Without one, the listing cannot be compared with files.</p>
         {:else if !canRead}
           <p class="muted note">Seeing the repository needs a role that can read repositories.</p>
         {:else if repo}
@@ -129,11 +129,12 @@
   .record {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-4);
+    font-size: 0.9375rem;
   }
 
   .record + .record {
-    padding-top: var(--space-4);
+    padding-top: var(--space-5);
     border-top: 1px solid var(--line);
   }
 
@@ -147,7 +148,7 @@
   .facts dt,
   .label {
     margin: 0 0 var(--space-1);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
     color: var(--muted);
   }
@@ -166,6 +167,6 @@
 
   .note {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 </style>

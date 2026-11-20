@@ -1,6 +1,7 @@
 <!--
   SettingsCard: one section of the app Settings tab: a heading with an icon, one sentence on what the
-  section is, the content, and (when there is no API for something) a muted "not available yet" line.
+  section is (15px, one sentence), the content, and (when there is no API for something) one "Not available yet" line that opens to the
+  reason.
   Collapsible (ui/Section.svelte): the title is the toggle, remembered per page; `summary` says what is set while it is collapsed.
   Props: title, icon, description, unavailable? (a sentence, shown muted at the end), summary? (one line while collapsed), key? (defaults
   to the title), defaultOpen? = true, children.
@@ -8,6 +9,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import type { IconName } from '../../../lib/icons.ts';
+  import Disclosure from '../../ui/Disclosure.svelte';
   import Icon from '../../ui/Icon.svelte';
   import Section from '../../ui/Section.svelte';
 
@@ -36,7 +38,11 @@
   <div class="stack">
     <p class="muted desc"><Icon name={icon} size={14} /> {description}</p>
     {@render children()}
-    {#if unavailable}<p class="muted na"><Icon name="clock" size={14} /> {unavailable}</p>{/if}
+    {#if unavailable}
+      <Disclosure summary="Not available yet">
+        <p class="muted na">{unavailable}</p>
+      </Disclosure>
+    {/if}
   </div>
 </Section>
 
@@ -48,9 +54,7 @@
     line-height: 1.45;
   }
 
-  .na {
-    display: flex;
-    gap: var(--space-2);
-    align-items: flex-start;
+  .desc {
+    max-width: 68ch;
   }
 </style>

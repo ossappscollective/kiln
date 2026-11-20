@@ -25,8 +25,8 @@
   import { toast } from '../../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';
-  import Button from '../../ui/Button.svelte';
   import Skeleton from '../../ui/Skeleton.svelte';
+  import SaveBar from './SaveBar.svelte';
   import SettingsCard from './SettingsCard.svelte';
   import type { AiAppContextView } from '../../../lib/ai.ts';
 
@@ -108,7 +108,7 @@
     icon="sparkles"
     key="ai-context"
     defaultOpen={false}
-    description="Tell the assistant about this app once: what it is, how it sounds, which words to avoid. Every AI suggestion for this app receives it. It guides the model; you still read and accept every suggestion."
+    description="What the assistant should know about this app; it guides the model, and you still read and accept every suggestion."
   >
     {#if loadFailed && members.every((m) => saved[m.id] === undefined)}
       <Alert tone="error">Could not read this. Try again later.</Alert>
@@ -122,69 +122,76 @@
         <Skeleton height="120px" />
       {:else}
         {@const editable = view.canEdit}
-        <form class="stack" onsubmit={(e) => void save(app, e)} novalidate>
+        <form class="stack loose" onsubmit={(e) => void save(app, e)} novalidate>
           {#if !editable}<p class="hint">Only an admin can change this. What is saved is used for every suggestion.</p>{/if}
 
-          <div class="field">
-            <label for={field('about', app.id)}>What the app is</label>
-            <textarea id={field('about', app.id)} rows="3" bind:value={form.about} readonly={!editable} maxlength={contextLimits.aboutChars + 200} aria-invalid={err.about ? 'true' : undefined}></textarea>
-            <p class="hint">A few sentences. Up to {contextLimits.aboutChars} characters ({form.about.length} now).</p>
-            {#if err.about}<p class="field-error" role="alert">{err.about}</p>{/if}
-          </div>
-
-          <div class="field">
-            <label for={field('audience', app.id)}>Who it is for</label>
-            <input id={field('audience', app.id)} bind:value={form.audience} readonly={!editable} autocomplete="off" aria-invalid={err.audience ? 'true' : undefined} />
-            {#if err.audience}<p class="field-error" role="alert">{err.audience}</p>{/if}
-          </div>
-
-          <div class="field">
-            <label for={field('tone', app.id)}>Tone, in a few words</label>
-            <input id={field('tone', app.id)} bind:value={form.tone} readonly={!editable} placeholder="warm, plain, no exclamation marks" autocomplete="off" aria-invalid={err.tone ? 'true' : undefined} />
-            {#if err.tone}<p class="field-error" role="alert">{err.tone}</p>{/if}
-          </div>
-
-          <div class="field">
-            <label for={field('voice', app.id)}>How you sound</label>
-            <textarea id={field('voice', app.id)} rows="3" bind:value={form.brandVoice} readonly={!editable} maxlength={contextLimits.brandVoiceChars + 200} aria-invalid={err.brandVoice ? 'true' : undefined}></textarea>
-            <p class="hint">Replies and rewritten texts follow it. Up to {contextLimits.brandVoiceChars} characters ({form.brandVoice.length} now).</p>
-            {#if err.brandVoice}<p class="field-error" role="alert">{err.brandVoice}</p>{/if}
-          </div>
-
-          <div class="grid">
+          <fieldset class="group">
+            <legend>About the app</legend>
+            <p class="sub">What the assistant needs to know before it writes anything.</p>
             <div class="field">
-              <label for={field('banned', app.id)}>Words never to use</label>
-              <textarea id={field('banned', app.id)} rows="3" bind:value={form.bannedWords} readonly={!editable} aria-invalid={err.bannedWords ? 'true' : undefined}></textarea>
-              <p class="hint">One per line, or separated by commas. A suggestion that uses one is marked and cannot be accepted.</p>
-              {#if err.bannedWords}<p class="field-error" role="alert">{err.bannedWords}</p>{/if}
+              <label for={field('about', app.id)}>What the app is</label>
+              <textarea id={field('about', app.id)} rows="3" bind:value={form.about} readonly={!editable} maxlength={contextLimits.aboutChars + 200} aria-invalid={err.about ? 'true' : undefined}></textarea>
+              <p class="hint">A few sentences, up to {contextLimits.aboutChars} characters ({form.about.length} now).</p>
+              {#if err.about}<p class="field-error" role="alert">{err.about}</p>{/if}
             </div>
             <div class="field">
-              <label for={field('brand', app.id)}>Names to keep exactly as written</label>
-              <textarea id={field('brand', app.id)} rows="3" bind:value={form.brandTerms} readonly={!editable} aria-invalid={err.brandTerms ? 'true' : undefined}></textarea>
-              <p class="hint">The product name, feature names. One per line.</p>
-              {#if err.brandTerms}<p class="field-error" role="alert">{err.brandTerms}</p>{/if}
+              <label for={field('audience', app.id)}>Who it is for</label>
+              <input id={field('audience', app.id)} bind:value={form.audience} readonly={!editable} autocomplete="off" aria-invalid={err.audience ? 'true' : undefined} />
+              {#if err.audience}<p class="field-error" role="alert">{err.audience}</p>{/if}
             </div>
-            <div class="field">
-              <label for={field('do', app.id)}>Always</label>
-              <textarea id={field('do', app.id)} rows="3" bind:value={form.doList} readonly={!editable} aria-invalid={err.doList ? 'true' : undefined}></textarea>
-              <p class="hint">Rules, one per line. Up to {contextLimits.ruleItems}.</p>
-              {#if err.doList}<p class="field-error" role="alert">{err.doList}</p>{/if}
-            </div>
-            <div class="field">
-              <label for={field('dont', app.id)}>Never</label>
-              <textarea id={field('dont', app.id)} rows="3" bind:value={form.dontList} readonly={!editable} aria-invalid={err.dontList ? 'true' : undefined}></textarea>
-              <p class="hint">Rules, one per line. Up to {contextLimits.ruleItems}.</p>
-              {#if err.dontList}<p class="field-error" role="alert">{err.dontList}</p>{/if}
-            </div>
-          </div>
+          </fieldset>
 
-          <p class="hint">Do not put secrets or customer data here: this text is sent to your AI provider with every suggestion for this app.</p>
+          <fieldset class="group">
+            <legend>How it sounds</legend>
+            <p class="sub">Replies and rewritten texts follow this.</p>
+            <div class="field">
+              <label for={field('tone', app.id)}>Tone, in a few words</label>
+              <input id={field('tone', app.id)} bind:value={form.tone} readonly={!editable} placeholder="warm, plain, no exclamation marks" autocomplete="off" aria-invalid={err.tone ? 'true' : undefined} />
+              {#if err.tone}<p class="field-error" role="alert">{err.tone}</p>{/if}
+            </div>
+            <div class="field">
+              <label for={field('voice', app.id)}>How you sound</label>
+              <textarea id={field('voice', app.id)} rows="3" bind:value={form.brandVoice} readonly={!editable} maxlength={contextLimits.brandVoiceChars + 200} aria-invalid={err.brandVoice ? 'true' : undefined}></textarea>
+              <p class="hint">Up to {contextLimits.brandVoiceChars} characters ({form.brandVoice.length} now).</p>
+              {#if err.brandVoice}<p class="field-error" role="alert">{err.brandVoice}</p>{/if}
+            </div>
+          </fieldset>
+
+          <fieldset class="group">
+            <legend>Words and rules</legend>
+            <p class="sub">What must never appear, and what must stay as written.</p>
+            <div class="grid">
+              <div class="field">
+                <label for={field('banned', app.id)}>Words never to use</label>
+                <textarea id={field('banned', app.id)} rows="3" bind:value={form.bannedWords} readonly={!editable} aria-invalid={err.bannedWords ? 'true' : undefined}></textarea>
+                <p class="hint">One per line. A suggestion that uses one cannot be accepted.</p>
+                {#if err.bannedWords}<p class="field-error" role="alert">{err.bannedWords}</p>{/if}
+              </div>
+              <div class="field">
+                <label for={field('brand', app.id)}>Names to keep exactly as written</label>
+                <textarea id={field('brand', app.id)} rows="3" bind:value={form.brandTerms} readonly={!editable} aria-invalid={err.brandTerms ? 'true' : undefined}></textarea>
+                <p class="hint">The product name and feature names, one per line.</p>
+                {#if err.brandTerms}<p class="field-error" role="alert">{err.brandTerms}</p>{/if}
+              </div>
+              <div class="field">
+                <label for={field('do', app.id)}>Always</label>
+                <textarea id={field('do', app.id)} rows="3" bind:value={form.doList} readonly={!editable} aria-invalid={err.doList ? 'true' : undefined}></textarea>
+                <p class="hint">Rules, one per line, up to {contextLimits.ruleItems}.</p>
+                {#if err.doList}<p class="field-error" role="alert">{err.doList}</p>{/if}
+              </div>
+              <div class="field">
+                <label for={field('dont', app.id)}>Never</label>
+                <textarea id={field('dont', app.id)} rows="3" bind:value={form.dontList} readonly={!editable} aria-invalid={err.dontList ? 'true' : undefined}></textarea>
+                <p class="hint">Rules, one per line, up to {contextLimits.ruleItems}.</p>
+                {#if err.dontList}<p class="field-error" role="alert">{err.dontList}</p>{/if}
+              </div>
+            </div>
+          </fieldset>
+
+          <p class="hint warning">Do not put secrets or customer data here: this text is sent to your AI provider with every suggestion for this app.</p>
           {#if problems[app.id]}<Alert tone="error">{problems[app.id]}</Alert>{/if}
           {#if editable}
-            <div class="row wrap">
-              <Button type="submit" variant="primary" loading={saving[app.id] === true} disabled={!isContextDirty(view.context, form)}>Save</Button>
-              <Button disabled={!isContextDirty(view.context, form) || saving[app.id] === true} onclick={() => revert(app)}>Discard changes</Button>
-            </div>
+            <SaveBar type="submit" dirty={isContextDirty(view.context, form)} saving={saving[app.id] === true} ondiscard={() => revert(app)} />
           {/if}
         </form>
       {/if}
@@ -195,12 +202,51 @@
 <style>
   .plat {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
+  }
+
+  .group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: 0;
+    margin: 0;
+    border: 0;
+  }
+
+  .group legend {
+    padding: 0;
+    margin-bottom: var(--space-1);
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+  }
+
+  .sub,
+  .hint {
+    margin: 0;
+    font-size: 0.9375rem;
+    line-height: 1.4;
+    color: var(--muted);
+  }
+
+  .hint.warning {
+    color: var(--ink);
+  }
+
+  .group .field,
+  .grid .field {
+    margin-bottom: 0;
+  }
+
+  .field label {
+    font-size: 0.9375rem;
+    font-weight: var(--weight-semibold);
   }
 
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-    gap: var(--space-3);
+    gap: var(--space-4);
   }
 </style>
