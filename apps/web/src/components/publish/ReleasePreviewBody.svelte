@@ -43,12 +43,12 @@
 
   {#if preview.others.length > 0}
     <section class="stack tight" aria-label="Other releases of the track">
-      <h3>Other releases of the track (read only)</h3>
+      <h3>Other releases of the track</h3>
       <ul class="plain">
         {#each preview.others as other (`${other.name}/${other.status}/${other.versionCodes.join(',')}`)}
           <li>
             {other.name ?? 'Unnamed'}: {other.status}{other.userFraction !== null ? ` at ${Math.round(other.userFraction * 10000) / 100}%` : ''}, codes
-            {other.versionCodes.join(', ') || 'none'}
+            {other.versionCodes.join(', ') || 'none'}{android && preview.audience.kind === 'all' && other.status === 'completed' ? ' (replaced: Google Play allows only one completed release, so this one leaves the track)' : ''}
           </li>
         {/each}
       </ul>

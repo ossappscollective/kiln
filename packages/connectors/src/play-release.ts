@@ -198,7 +198,11 @@ export class PlayReleaseConnector implements StoreReleaseConnector, StorePlayRel
           const started: Json = { ...target, status: fraction === 1 ? 'completed' : 'inProgress' };
           if (fraction === 1) delete started.userFraction;
           else started.userFraction = fraction;
-          all = releases.map((r) => (r === target ? started : r));
+          // A completed release replaces the older completed one (Google: "Only one completed release is allowed"), so for
+          // everybody the older completed release of the track is left out; a staged rollout keeps it (it serves the rest).
+          all = releases
+            .filter((r) => r === target || !(fraction === 1 && text(r.status) === 'completed'))
+            .map((r) => (r === target ? started : r));
         }
         // Staging the new state of the track in the edit is not yet a release: nothing is live until the commit.
         await this.#call(

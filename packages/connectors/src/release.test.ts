@@ -319,6 +319,9 @@ test('Google Play: a share of 1 completes the release and carries no userFractio
     ?.releases.find((r) => r.name === '2.1');
   assert.equal(started?.status, 'completed');
   assert.equal(started?.userFraction, undefined);
+  // Google: "Only one completed release is allowed": the older completed release is left out when the new one is for everybody.
+  const left = api.tracks.find((t) => t.track === 'production')?.releases ?? [];
+  assert.deepEqual(left.map((r) => r.name), ['2.1']);
 });
 
 test('Google Play: a missing or out of range share is refused before any edit is opened', async () => {
