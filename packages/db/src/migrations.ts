@@ -1,6 +1,7 @@
 import type { Dialect } from './dialect.ts';
 import { aiFeatureMigrations } from './migrations-ai-features.ts';
 import { alertMigrations } from './migrations-alerts.ts';
+import { alertEmailMigrations } from './migrations-alert-email.ts';
 import { analyticsBucketMigrations } from './migrations-analytics-bucket.ts';
 
 /**
@@ -1816,4 +1817,5 @@ export const migrations: Migration[] = [
   },
   ...aiFeatureMigrations,
   ...analyticsBucketMigrations,
+  ...alertEmailMigrations,
 ];

@@ -440,7 +440,7 @@ export function createApp(deps: AppDeps) {
       ...(translationSeams.resolve ? { resolve: translationSeams.resolve } : {}),
     }),
   );
-  alertsModule.mount(app, services, undefined, shared);
+  alertsModule.mount(app, services, { publicOrigin: deps.publicOrigin }, shared);
   listingModule.mount(
     app,
     services,

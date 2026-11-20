@@ -122,6 +122,7 @@ dbTest(
       'created_at',
       'delivered_at',
       'event_id',
+      'html',
       'id',
       'kind',
       'outcome',

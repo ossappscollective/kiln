@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@mrm/db';
+import { isSeverity } from './catalog-core.ts';
+import { alertGuide, renderDigestEmail } from './email.ts';
 import { toUserSettings } from './prefs.ts';
 import { queueEmailJob } from './service.ts';
 import { digestDue } from './time.ts';
@@ -12,24 +14,6 @@ import { digestDue } from './time.ts';
 
 export type DigestSummary = { due: number; sent: number };
 const MAX_ITEMS = 100;
-
-export function renderDigest(
-  items: readonly { title: string; severity: string; count: number }[],
-): { subject: string; text: string } {
-  const lines = items.map(
-    (i) => `- [${i.severity}] ${i.title}${i.count > 1 ? ` (${i.count} times)` : ''}`,
-  );
-  return {
-    subject: `Alert digest: ${items.length} alert${items.length === 1 ? '' : 's'}`,
-    text: [
-      `${items.length} alert${items.length === 1 ? '' : 's'} since your last digest:`,
-      '',
-      ...lines,
-      '',
-      'You get this digest because of your alert settings in Mobile Release Manager. Change them in Alerts, Settings.',
-    ].join('\n'),
-  };
-}
 
 export async function sendDueDigests(db: Database, at: number): Promise<DigestSummary> {
   const summary: DigestSummary = { due: 0, sent: 0 };
@@ -51,25 +35,35 @@ export async function sendDueDigests(db: Database, at: number): Promise<DigestSu
     const userId = String(row.user_id);
     await db.transaction(async (tx) => {
       const pending = await tx.query(
-        `SELECT d.id, a.title, a.severity, a.count FROM alert_deliveries d JOIN alerts a ON a.id = d.alert_id
+        `SELECT d.id, a.title, a.severity, a.count, a.type, a.data FROM alert_deliveries d JOIN alerts a ON a.id = d.alert_id
           WHERE d.workspace_id = ? AND d.user_id = ? AND d.channel = 'email' AND d.status = 'deferred' AND d.outcome = 'in_digest'
           ORDER BY a.first_at, a.id LIMIT ?`,
         [workspaceId, userId, MAX_ITEMS],
       );
       if (pending.length > 0) {
-        const mail = renderDigest(
-          pending.map((p) => ({
-            title: String(p.title),
-            severity: String(p.severity),
-            count: Number(p.count),
-          })),
+        const mail = renderDigestEmail(
+          pending.map((p) => {
+            let data: Record<string, string | number | boolean | null> = {};
+            try {
+              data = JSON.parse(String(p.data ?? '{}')) as typeof data;
+            } catch {
+              // A broken row only loses its link.
+            }
+            const severity = String(p.severity);
+            return {
+              title: String(p.title),
+              severity: isSeverity(severity) ? severity : 'info',
+              count: Number(p.count),
+              action: alertGuide(String(p.type), data).primary,
+            };
+          }),
         );
         const id = randomUUID();
         await tx.execute(
           `INSERT INTO alert_deliveries
-             (id, workspace_id, alert_id, user_id, channel, kind, status, outcome, attempts, subject, body, event_id, created_at, updated_at, delivered_at)
-           VALUES (?, ?, NULL, ?, 'email', 'digest', 'queued', 'ok', 0, ?, ?, NULL, ?, ?, NULL)`,
-          [id, workspaceId, userId, mail.subject, mail.text, at, at],
+             (id, workspace_id, alert_id, user_id, channel, kind, status, outcome, attempts, subject, body, html, event_id, created_at, updated_at, delivered_at)
+           VALUES (?, ?, NULL, ?, 'email', 'digest', 'queued', 'ok', 0, ?, ?, ?, NULL, ?, ?, NULL)`,
+          [id, workspaceId, userId, mail.subject, mail.text, mail.html, at, at],
         );
         const marks = pending.map(() => '?').join(', ');
         await tx.execute(

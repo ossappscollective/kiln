@@ -33,7 +33,7 @@ export function createAlertDeliveryHandler(ctx: AlertDeliveryContext): JobHandle
     const deliveryId = (payload as { deliveryId?: unknown } | null)?.deliveryId;
     if (typeof deliveryId !== 'string') return;
     const [row] = await ctx.db.query(
-      `SELECT d.id, d.workspace_id, d.user_id, d.channel, d.status, d.subject, d.body
+      `SELECT d.id, d.workspace_id, d.user_id, d.channel, d.status, d.subject, d.body, d.html
          FROM alert_deliveries d WHERE d.id = ?`,
       [deliveryId],
     );
@@ -72,6 +72,7 @@ export function createAlertDeliveryHandler(ctx: AlertDeliveryContext): JobHandle
       to,
       subject: String(row.subject ?? 'Alert'),
       text: String(row.body ?? ''),
+      ...(typeof row.html === 'string' && row.html !== '' ? { html: row.html } : {}),
     });
     if (result.ok) {
       await record('sent', 'ok');

@@ -2082,6 +2082,7 @@ export const alertDeliveries = pgTable(
     attempts: integer('attempts').notNull().default(0),
     subject: text('subject'),
     body: text('body'),
+    html: text('html'),
     eventId: epochMs('event_id'),
     createdAt: epochMs('created_at').notNull(),
     updatedAt: epochMs('updated_at').notNull(),

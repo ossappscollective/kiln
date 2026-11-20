@@ -13,6 +13,18 @@ const settings = (
   body: Record<string, unknown>,
 ) => t.call(cookie, 'PUT', '/alerts/settings', body);
 
+dbTest('the alert email carries an HTML part with a button to the app', async (db) => {
+  const t = await bootAlerts(db, { publicOrigin: 'https://mrm.example.com' });
+  const app = await t.addApp();
+  await t.rejected(app, '2.0', T0);
+  assert.equal(await t.runMail(), 1);
+  const mail = t.mail.sent[0];
+  assert.match(String(mail?.html), /<html/);
+  assert.match(String(mail?.html), /href="https:\/\/mrm\.example\.com\/#\/portfolio\/app1\/releases"/);
+  assert.match(String(mail?.text), /See the rejection: https:\/\/mrm\.example\.com\/#\/portfolio\/app1\/releases/);
+  assert.doesNotMatch(String(mail?.html), /undefined/);
+});
+
 dbTest(
   'an event raises an alert: an inbox row, a queued email, and the log says what happened on each channel',
   async (db) => {

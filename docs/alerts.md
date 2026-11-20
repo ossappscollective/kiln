@@ -32,6 +32,13 @@ store: conditions that need a look at the store are read from what the app alrea
      message. Critical alerts are still sent at once.
    - **Email limit:** at most 20 alert emails per person per hour; the rest are only logged (`user_rate_limited`).
 
+An alert email has an HTML part and a plain text twin. It says what happened, gives one sentence on how to fix it ("Test the credential.
+If the test fails, add a new one") and a button that opens the screen that does it: the app, its releases, reviews or listing, the
+Credentials screen, the repositories, the security settings. The digest links each alert the same way. The table of where each type
+leads is `guides` in `apps/server/src/modules/alerts/email.ts`. The links are built on `MRM_PUBLIC_ORIGIN` (for example
+`https://mrm.example.com`): a background job cannot know the address you reach the server at. Without it the email still names the
+screen ("open Mobile Release Manager, Credentials") but has no link, so set it when you run the server for a team.
+
 The webhook channel is a workspace choice, not a personal one: when it is on for a type and an enabled webhook listens for `alert.raised` (or for everything), the event is
 written once and delivered. With no listening webhook nothing is written to the event log and the delivery log says `no_endpoint`.
 

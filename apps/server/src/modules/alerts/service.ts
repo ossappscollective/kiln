@@ -26,6 +26,7 @@ import {
   toUserSettings,
   type UserSettings,
 } from './prefs.ts';
+import { renderAlertEmail } from './email.ts';
 import { inQuietHours, quietEndsAt } from './time.ts';
 
 /**
@@ -140,28 +141,6 @@ export function effectiveChannels(
   return base.includes('desktop') && !base.includes('in_app') ? ['in_app', ...base] : [...base];
 }
 
-export function renderEmail(
-  def: AlertDef,
-  title: string,
-  body: string,
-  severity: AlertSeverity,
-  count: number,
-): { subject: string; text: string } {
-  const subject = `[${severity}] ${title}`.slice(0, 200);
-  const text = [
-    title,
-    '',
-    body,
-    count > 1 ? `\nThis happened ${count} times.` : '',
-    '',
-    `Alert type: ${def.id}. Severity: ${severity}.`,
-    'You get this email because of your alert settings in Mobile Release Manager. Change them in Alerts, Settings.',
-  ]
-    .filter((line, i, all) => !(line === '' && all[i - 1] === ''))
-    .join('\n');
-  return { subject, text };
-}
-
 async function logDelivery(
   sql: Sql,
   input: {
@@ -174,6 +153,7 @@ async function logDelivery(
     outcome: DeliveryOutcome;
     subject?: string;
     body?: string;
+    html?: string;
     eventId?: number | null;
     at: number;
   },
@@ -181,8 +161,8 @@ async function logDelivery(
   const id = newId();
   await sql.execute(
     `INSERT INTO alert_deliveries
-       (id, workspace_id, alert_id, user_id, channel, kind, status, outcome, attempts, subject, body, event_id, created_at, updated_at, delivered_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+       (id, workspace_id, alert_id, user_id, channel, kind, status, outcome, attempts, subject, body, html, event_id, created_at, updated_at, delivered_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       input.workspaceId,
@@ -194,6 +174,7 @@ async function logDelivery(
       input.outcome,
       input.subject ?? null,
       input.body ?? null,
+      input.html ?? null,
       input.eventId ?? null,
       input.at,
       input.at,
@@ -364,6 +345,7 @@ export async function raiseAlert(sql: Sql, input: RaiseInput): Promise<RaiseResu
         at,
         title,
         body,
+        data,
         severity: def.severity,
         recipient: r,
         prefs,
@@ -458,6 +440,7 @@ async function deliverToPerson(
     at: number;
     title: string;
     body: string;
+    data: AlertData;
     severity: AlertSeverity;
     recipient: Recipient;
     prefs: readonly { appId: string | null; channels: readonly AlertChannel[] }[];
@@ -475,7 +458,7 @@ async function deliverToPerson(
     channel: AlertChannel,
     status: DeliveryStatus,
     outcome: DeliveryOutcome,
-    extra: { subject?: string; body?: string } = {},
+    extra: { subject?: string; body?: string; html?: string } = {},
   ) =>
     logDelivery(sql, {
       workspaceId: c.workspaceId,
@@ -522,8 +505,13 @@ async function deliverToPerson(
     }
   }
   if (wanted.includes('email')) {
-    const rendered = renderEmail(def, c.title, c.body, c.severity, 1);
-    const mail = { subject: rendered.subject, body: rendered.text };
+    const rendered = renderAlertEmail(def, {
+      title: c.title,
+      body: c.body,
+      severity: c.severity,
+      data: c.data,
+    });
+    const mail = { subject: rendered.subject, body: rendered.text, html: rendered.html };
     if (!c.test && r.settings.digest !== 'off' && c.severity !== 'critical') {
       await log('email', 'deferred', 'in_digest', mail);
     } else if (quiet) {

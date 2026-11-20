@@ -2070,6 +2070,7 @@ export const alertDeliveries = sqliteTable(
     attempts: integer('attempts').notNull().default(0),
     subject: text('subject'),
     body: text('body'),
+    html: text('html'),
     eventId: integer('event_id'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
