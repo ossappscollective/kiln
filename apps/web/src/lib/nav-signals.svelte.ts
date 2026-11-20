@@ -1,7 +1,7 @@
 import { untrack } from 'svelte';
 import type { Api } from './api.ts';
 import { mergeLocales } from './app-header.ts';
-import type { AppSummary } from './types.ts';
+import type { AppSummary, ReleaseSummary } from './types.ts';
 
 /**
  * What the shell shows beside the navigation, taken from what the screens already loaded and kept for
@@ -20,6 +20,7 @@ let attention = $state<number | null>(null);
 let unanswered = $state<number | null>(null);
 let unansweredByApp = $state<Record<string, number | undefined>>({});
 let localesByApp = $state<Record<string, string[]>>({});
+let releasesByApp = $state<Record<string, ReleaseSummary[] | undefined>>({});
 let chordPending = $state(false);
 let loadedAt = 0;
 let inflight: { workspaceId: string; promise: Promise<void> } | null = null;
@@ -32,6 +33,7 @@ function scope(workspaceId: string): void {
   unanswered = null;
   unansweredByApp = {};
   localesByApp = {};
+  releasesByApp = {};
   loadedAt = 0;
   inflight = null;
 }
@@ -107,6 +109,15 @@ export const navSignals = {
   localesOf(workspaceId: string, appIds: readonly string[]): string[] {
     if (workspaceId !== workspace) return [];
     return mergeLocales(appIds.map((id) => localesByApp[id] ?? []));
+  },
+
+  /** The releases of the open app's records as the app screen last loaded them (for the status lines at the top of the left panel). */
+  setReleases(workspaceId: string, appId: string, releases: readonly ReleaseSummary[]): void {
+    scope(workspaceId);
+    releasesByApp = { ...releasesByApp, [appId]: [...releases] };
+  },
+  releasesOf(workspaceId: string): Record<string, ReleaseSummary[] | undefined> {
+    return workspaceId === workspace ? releasesByApp : {};
   },
 
   get chordPending(): boolean {

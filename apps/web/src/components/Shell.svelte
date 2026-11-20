@@ -12,6 +12,7 @@
   import { breadcrumbItems, charsFor, fitCrumbs } from '../lib/breadcrumb.ts';
   import { DEMO_BANNER_TEXT } from '../lib/demo.ts';
   import { alertStore } from '../lib/alert-store.svelte.ts';
+  import { platformStatusLines } from '../lib/app-status.ts';
   import { appNavCounts, badgeLabel, badgeText } from '../lib/nav-badges.ts';
   import { lineFor } from '../lib/pending.ts';
   import { pendingStore } from '../lib/pending-store.svelte.ts';
@@ -98,6 +99,13 @@
       pending: line && line.count > 0 ? line.count : null,
       pendingBlocking: (line?.blocking ?? 0) > 0,
     };
+  });
+  /** One status line per platform of the open app (from the releases its screen loaded). */
+  const appStatus = $derived.by(() => {
+    if (!appAddr || !canApps) return [];
+    const apps = navSignals.appsOf(workspaceId);
+    const group = apps ? groupApps(apps).filter((g) => g.members.some((m) => m.id === appAddr.id))[0] : undefined;
+    return group ? platformStatusLines(group.members, navSignals.releasesOf(workspaceId)) : [];
   });
   const switcherList = $derived.by(() => {
     const apps = canApps ? navSignals.appsOf(workspaceId) : null;
@@ -381,7 +389,7 @@
 
     <div bind:this={navEl} class="nav-wrap" class:chord={navSignals.chordPending}>
       {#if appAddr && workspace}
-        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} {unanswered} workspaceItems={visibleViews} counts={appCounts} switcher={switcherList} mod={modKey} onopenswitcher={() => void navSignals.ensureApps(api, workspaceId)} onpickapp={pickApp} />
+        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} {unanswered} workspaceItems={visibleViews} counts={appCounts} status={appStatus} switcher={switcherList} mod={modKey} onopenswitcher={() => void navSignals.ensureApps(api, workspaceId)} onpickapp={pickApp} />
       {:else}
         <nav aria-label="Sections">
           <ul>
@@ -703,8 +711,9 @@
     display: flex;
     gap: var(--space-3);
     align-items: center;
-    min-height: var(--control-md);
+    min-height: 2.5rem;
     padding: 0 var(--space-3);
+    font-size: 0.9375rem;
     font-weight: var(--weight-medium);
     color: var(--muted);
     text-decoration: none;
@@ -720,8 +729,10 @@
   }
 
   .sidebar nav a[aria-current='page'] {
+    font-weight: var(--weight-semibold);
     color: var(--ink);
     background: var(--accent-bg);
+    box-shadow: inset 3px 0 0 var(--accent);
   }
 
   .sidebar nav a[aria-current='page'] :global(.icon) {

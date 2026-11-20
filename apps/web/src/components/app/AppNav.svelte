@@ -1,6 +1,8 @@
 <!--
   AppNav: the left panel while an app is open. It replaces the workspace navigation, so the whole UI is scoped to the app.
-  Top: the app switcher (icon and name; click, focus or Cmd or Ctrl + K opens the searchable list). Then exactly six entries:
+  Top: the app switcher (icon and name; click, focus or Cmd or Ctrl + K opens the searchable list) with the status of the app under
+  it: one line per platform with its tint and name and its state ("iOS In review 2.9.0", "Android Live 2.8.1"; lib/app-status.ts).
+  Then the group "This app" with exactly six entries:
   Overview, Releases, Store listing, Reviews, Insights, Builds (lib/app-nav.ts; the old pages are views inside them and their old
   addresses redirect). Pending changes is not an entry: it is the pending bar under the page header. At the bottom the workspace:
   All apps, Inbox and Settings, and a collapsed "More" group with the other workspace pages the role may open (Repositories,
@@ -10,7 +12,9 @@
   Props: address (the open app: id, section, platform), allowed (does the role have this action), attention? (the number of apps that
   need attention, on All apps), unanswered? (the unanswered reviews of the workspace, on Inbox), workspaceItems (the workspace views
   the role may open: id, label, icon), counts? (the badges of this app: `reviews` the unanswered reviews, `releases` the releases left
-  unfinished; null draws nothing), switcher?, mod, onopenswitcher, onpickapp.
+  unfinished, `pending` the changes waiting to publish (on Store listing, with `pendingBlocking` for an error that stops one); null
+  draws nothing), status? (the platform lines), switcher?, mod, onopenswitcher, onpickapp.
+  Groups are labelled ("This app", "Workspace"); a count says what needs the person, and the current page is marked by colour, weight and a bar.
 -->
 <script lang="ts">
   import type { Action } from '@mrm/core';
@@ -22,7 +26,9 @@
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { chordHint } from '../../lib/shortcuts.ts';
   import type { SwitcherItem } from '../../lib/app-switcher.ts';
+  import type { PlatformStatusLine } from '../../lib/app-status.ts';
   import Icon from '../ui/Icon.svelte';
+  import PlatformBadge from '../ui/PlatformBadge.svelte';
   import { isIconName } from '../ui/icons.ts';
   import AppSwitcherField from './AppSwitcherField.svelte';
 
@@ -33,6 +39,7 @@
     unanswered = null,
     workspaceItems = [],
     counts = { reviews: null, releases: null },
+    status = [],
     switcher = null,
     mod = 'Ctrl',
     onopenswitcher,
@@ -48,7 +55,9 @@
     mod?: string;
     onopenswitcher?: () => void;
     onpickapp?: (item: SwitcherItem) => void;
-    counts?: { reviews: number | null; releases: number | null };
+    counts?: { reviews: number | null; releases: number | null; pending?: number | null; pendingBlocking?: boolean };
+    /** One line per platform of the app (lib/app-status.ts); empty draws no summary. */
+    status?: PlatformStatusLine[];
   } = $props();
 
   const badgeFor = (id: string): { count: number | null; one: string; many: string; tone: 'warn' | 'accent' } | null =>
@@ -56,7 +65,9 @@
       ? { count: counts.reviews, one: 'unanswered review', many: 'unanswered reviews', tone: 'warn' }
       : id === 'releases'
         ? { count: counts.releases, one: 'release left unfinished', many: 'releases left unfinished', tone: 'warn' }
-        : null;
+        : id === 'listing'
+          ? { count: counts.pending ?? null, one: 'change waiting to publish', many: 'changes waiting to publish', tone: counts.pendingBlocking ? 'warn' : 'accent' }
+          : null;
 
   const entries = $derived(visibleNav(allowed));
   const here = $derived(navEntryOf(address.section));
@@ -65,10 +76,23 @@
 </script>
 
 <div class="app-nav" class:chord={navSignals.chordPending}>
-  {#if onpickapp}
-    <AppSwitcherField items={switcher} appId={address.id} fallbackName={appContext.name} {mod} onopen={onopenswitcher} onpick={onpickapp} />
-  {:else if appContext.name}<p class="name" title={appContext.name}>{appContext.name}</p>{/if}
+  <div class="app-card">
+    {#if onpickapp}
+      <AppSwitcherField items={switcher} appId={address.id} fallbackName={appContext.name} {mod} onopen={onopenswitcher} onpick={onpickapp} />
+    {:else if appContext.name}<p class="name" title={appContext.name}>{appContext.name}</p>{/if}
+    {#if status.length > 0}
+      <ul class="status" aria-label="Status per platform" data-testid="app-status">
+        {#each status as line (line.platform)}
+          <li class="tone-{line.tone}" data-platform={line.platform}>
+            <PlatformBadge platform={line.platform} />
+            <span class="state"><strong>{line.label}</strong>{#if line.version} <span class="version">{line.version}</span>{/if}</span>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </div>
   <nav aria-label="This app">
+    <p class="group-label" aria-hidden="true">This app</p>
     <ul>
       {#each entries as s (s.id)}
         {@const hint = chordHint('app', s.id)}
@@ -89,6 +113,7 @@
 
   {#if rail.main.length > 0 || rail.more.length > 0}
     <nav class="workspace" aria-label="Workspace">
+      <p class="group-label" aria-hidden="true">Workspace</p>
       {#if rail.main.length > 0}
         <ul>
           {#each rail.main as v (v.id)}
@@ -130,7 +155,18 @@
   .app-nav {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-3);
+  }
+
+  /* The app and what is going on with it, in one soft card. */
+  .app-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
   }
 
   .name {
@@ -140,6 +176,64 @@
     font-weight: var(--weight-semibold);
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .status {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: 0 var(--space-1);
+    margin: 0;
+    list-style: none;
+  }
+
+  .status li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-3);
+    align-items: center;
+    justify-content: space-between;
+    font-size: var(--text-base);
+  }
+
+  .state {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .state strong {
+    font-weight: var(--weight-semibold);
+    color: var(--ink);
+  }
+
+  .tone-ok .state strong {
+    color: var(--ok-ink);
+  }
+
+  .tone-bad .state strong {
+    color: var(--bad-ink);
+  }
+
+  .tone-warn .state strong {
+    color: var(--warn-ink);
+  }
+
+  .tone-neutral .state strong {
+    font-weight: var(--weight-medium);
+    color: var(--muted);
+  }
+
+  .group-label {
+    padding: 0 var(--space-3);
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
   ul {
@@ -152,17 +246,21 @@
   }
 
   .workspace {
-    padding-top: var(--space-3);
+    padding-top: var(--space-4);
     margin-top: var(--space-2);
     border-top: 1px solid var(--line);
+  }
+
+  .more {
+    margin-top: var(--space-1);
   }
 
   .more summary {
     display: flex;
     align-items: center;
-    min-height: var(--control-sm);
+    min-height: var(--control-md);
     padding: 0 var(--space-3);
-    font-size: var(--text-sm);
+    font-size: var(--text-base);
     color: var(--muted);
     cursor: pointer;
   }
@@ -175,8 +273,9 @@
     display: flex;
     gap: var(--space-3);
     align-items: center;
-    min-height: var(--control-md);
+    min-height: 2.5rem;
     padding: 0 var(--space-3);
+    font-size: 0.9375rem;
     font-weight: var(--weight-medium);
     color: var(--muted);
     text-decoration: none;
@@ -190,9 +289,12 @@
     background: var(--surface-hover);
   }
 
+  /* The page you are on: colour, weight and a bar, so it never rests on colour alone. */
   nav a[aria-current='page'] {
+    font-weight: var(--weight-semibold);
     color: var(--ink);
     background: var(--accent-bg);
+    box-shadow: inset 3px 0 0 var(--accent);
   }
 
   nav a[aria-current='page'] :global(.icon) {
