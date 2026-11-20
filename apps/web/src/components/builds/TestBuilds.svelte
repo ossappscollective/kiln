@@ -42,6 +42,7 @@
   import EmptyState from '../ui/EmptyState.svelte';
   import Icon from '../ui/Icon.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
+  import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import DownloadDialog from './DownloadDialog.svelte';
   import InstallGuide from './InstallGuide.svelte';
@@ -124,16 +125,21 @@
 </script>
 
 <div class="stack">
-  <div class="toolbar">
-    <p class="muted text-sm">
-      Builds to try on a device before you publish: what your CI built, and what the stores hold for testers.
-      <InfoTip label="About test builds" width="26rem">
+  <PageLead
+    testid="test-builds-lead"
+    headline={data && rows.length > 0 ? `${rows.length} ${rows.length === 1 ? 'build' : 'builds'} to try on a device` : 'Builds to try on a device'}
+    hint="What your CI built, and what the stores hold for testers."
+  >
+    {#snippet aside()}
+      <InfoTip label="About test builds" buttonText="About test builds" width="26rem">
         <p>CI builds are the zips your workflows upload as artifacts. GitHub keeps them for a limited time (90 days unless your workflow or repository says otherwise).</p>
         <p>The type of a CI build (IPA, APK, AAB) is a guess from the artifact name. Store builds come from the last sync of the app.</p>
       </InfoTip>
-    </p>
-    <Button size="sm" icon="refresh" loading={loading} onclick={() => void load()}>Read again</Button>
-  </div>
+    {/snippet}
+    {#snippet actions()}
+      <Button icon="refresh" loading={loading} onclick={() => void load()}>Read again</Button>
+    {/snippet}
+  </PageLead>
 
   {#if !mayRead}
     <Alert tone="info" title="Test builds need the member role">Viewers can see the app and its releases. Ask an admin for the member role to list and download builds.</Alert>
@@ -281,18 +287,6 @@
 {/if}
 
 <style>
-  .toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .toolbar p {
-    margin: 0;
-  }
-
   .filters {
     display: flex;
     flex-wrap: wrap;

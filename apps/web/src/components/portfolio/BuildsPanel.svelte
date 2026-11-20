@@ -28,6 +28,7 @@
     tagFoundText,
   } from '../../lib/ci.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { buildsLead } from '../../lib/page-lead.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppBuild, AppBuilds, AppSummary, BuildLink } from '../../lib/types.ts';
   import RunStatus from '../ci/RunStatus.svelte';
@@ -42,6 +43,7 @@
   import BuildsPanelConventions from './BuildsPanelConventions.svelte';
   import BuildsPanelLink from './BuildsPanelLink.svelte';
   import PlatformBadge from './PlatformBadge.svelte';
+  import PageLead from '../ui/PageLead.svelte';
   import Section from '../ui/Section.svelte';
   import ReleaseStatus from './ReleaseStatus.svelte';
 
@@ -131,6 +133,7 @@
   }
 
   const unlinkedCount = $derived(data?.builds.filter((b) => b.linkState === 'unlinked').length ?? 0);
+  const lead = $derived(buildsLead(data?.builds.length ?? 0, unlinkedCount));
   const tagOnlyCount = $derived(data?.builds.filter((b) => b.linkState === 'tag').length ?? 0);
   /** The newest build without a run: what the conventions dialog takes its example number from. */
   const exampleBuild = $derived(
@@ -208,12 +211,6 @@
       <div><Button icon="refresh" onclick={load}>Try again</Button></div>
     </div>
   {:else if data}
-    {#if !data.repository}
-      <Alert tone="info" title="No repository is linked to this app">
-        Builds can only be matched to CI runs once the app is linked to a connected repository. The builds below come from the last store sync.
-      </Alert>
-    {/if}
-
     {#if data.builds.length === 0}
       <div class="card">
         <EmptyState
@@ -223,20 +220,25 @@
         />
       </div>
     {:else}
-      {#if data.repository}
-        <div class="toolbar">
-          <p class="muted text-sm">
-            {#if data.diagnostics?.scannedAt}Tags and releases were last searched
-              <time datetime={new Date(data.diagnostics.scannedAt).toISOString()} title={fullTime(data.diagnostics.scannedAt)}>{timeAgo(data.diagnostics.scannedAt, now)}</time>.{:else}Tags and releases have not been searched yet.{/if}
-          </p>
-          <div class="buttons">
+      <PageLead
+        testid="builds-lead"
+        tone={lead.tone}
+        headline={lead.headline}
+        hint={data.repository
+          ? data.diagnostics?.scannedAt
+            ? `Tags and releases were last searched ${timeAgo(data.diagnostics.scannedAt, now)}.`
+            : 'Tags and releases have not been searched yet.'
+          : 'No repository is linked, so builds cannot be matched to CI runs. These come from the last store sync.'}
+      >
+        {#snippet actions()}
+          {#if data?.repository}
             {#if canMatch}
-              <Button size="sm" icon="refresh" loading={rematching} onclick={() => rematch()}>Re-run matching</Button>
+              <Button icon="refresh" loading={rematching} onclick={() => rematch()}>Re-run matching</Button>
             {/if}
-            <Button size="sm" icon="settings" onclick={() => (conventionsOpen = true)}>Build number conventions</Button>
-          </div>
-        </div>
-      {/if}
+            <Button variant="ghost" icon="settings" onclick={() => (conventionsOpen = true)}>Build number conventions</Button>
+          {/if}
+        {/snippet}
+      </PageLead>
 
       <Section title="Builds" key="builds" count={data.builds.length} flush>
       <div class="table-wrap">
@@ -382,7 +384,7 @@
       </div>
       </Section>
 
-      <details class="how" open={unlinkedCount > 0 && data.diagnostics !== null}>
+      <details class="how">
         <summary>How builds are matched to runs</summary>
         <p class="muted">
           A build is matched to a run by its number, never by guessing. {#if unlinkedCount > 0}{unlinkedCount} of {data.builds.length}
@@ -480,18 +482,6 @@
     background: var(--surface-sunken);
   }
 
-  .toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .toolbar p {
-    margin: 0;
-  }
-
   .evidence {
     font-size: var(--text-sm);
   }
@@ -506,8 +496,16 @@
     font-weight: var(--weight-semibold);
   }
 
+  table {
+    font-size: 0.9375rem;
+  }
+
+  .cell .text-sm {
+    font-size: var(--text-base);
+  }
+
   .how {
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   .how summary {
