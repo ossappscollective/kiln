@@ -30,6 +30,11 @@ ternary in a dozen files and the literal union of store names was written out 25
    `listingStoreOf` for the listing format, or `byFamily(platform, { apple, google })` for per-family tables. A new platform answers
    every flag in its row; the compiler flags any it forgets.
 
+8. **Direct comparisons with a platform name are the exception.** Labels (identifier, build, store and console names) and the form factor are
+   facts on the `PLATFORM_META` row; behaviour is a capability. What still names `ios`, `macos` or `android` is code that is inside one
+   store by design: the App Store Connect and iTunes connectors, the iOS/macOS universal-purchase handling in reviews and analytics sync,
+   and the parsers that read a platform name from text. Test fixtures and the demo world also name platforms.
+
 ## Not decided yet
 
-The same folder layout for the web (`components/<module>` + `lib/<module>`), core and connectors; direct `=== 'android' / 'ios' / 'macos'` checks (about 135) still to move onto capabilities; `exactOptionalPropertyTypes` (about 150 errors to fix).
+The same folder layout for the web (`components/<module>` + `lib/<module>`), core and connectors; `exactOptionalPropertyTypes` (about 150 errors to fix).
