@@ -16,6 +16,7 @@ import { type AsoDeps, asoLimitsFor, asoModule } from './modules/aso/index.ts';
 import { type BuildsDeps, buildsModule } from './modules/builds/index.ts';
 import { ciModule } from './modules/ci/index.ts';
 import { type CiContext, createCiContext } from './modules/ci/service.ts';
+import { type EasDeps, easModule } from './modules/eas/index.ts';
 import { type ListingDeps, listingModule } from './modules/listing/index.ts';
 import type { ModuleShared } from './modules/module.ts';
 import { planningModule } from './modules/planning/index.ts';
@@ -206,6 +207,8 @@ export type AppDeps = {
   assetSync?: ListingDeps['assetSync'] | undefined;
   /** Customer reviews (docs/api/reviews.md): see `ReviewsDeps` in modules/reviews. */
   reviews?: ReviewsDeps | undefined;
+  /** Expo Application Services (docs/adr/0033-eas-integration.md): see `EasDeps` in modules/eas. */
+  eas?: EasDeps | undefined;
   /**
    * Changing a live rollout in a store (docs/api/rollout.md), a store write that is OFF unless `enabled`
    * (MRM_STORE_ROLLOUT_ENABLED). `connectorFactory` builds the connector that can read and change a
@@ -460,6 +463,7 @@ export function createApp(deps: AppDeps) {
   asoModule.mount(app, services, deps.aso, shared);
   analyticsModule.mount(app, services, deps.analytics, shared);
   reviewsModule.mount(app, services, deps.reviews, shared);
+  easModule.mount(app, services, deps.eas, shared);
   publishModule.mount(
     app,
     services,

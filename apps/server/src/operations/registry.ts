@@ -5,6 +5,7 @@ import { asoOperations } from '../modules/aso/operations.ts';
 import { searchTermsOperations } from '../modules/aso/search-terms-operations.ts';
 import { buildsOperations } from '../modules/builds/operations.ts';
 import { ciOperations } from '../modules/ci/operations.ts';
+import { easOperations } from '../modules/eas/operations.ts';
 import { listingOperations } from '../modules/listing/operations.ts';
 import { planningOperations } from '../modules/planning/operations.ts';
 import { publishOperations } from '../modules/publish/operations.ts';
@@ -39,6 +40,7 @@ const drafts: Draft[] = [
   ...asoOperations,
   ...searchTermsOperations,
   ...listingOperations,
+  ...easOperations,
   ...publishOperations,
   ...releasesOperations,
   ...buildsOperations,
