@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildsLead, keywordsLead, needsAnswerText, reviewsLead } from './page-lead.ts';
+import { buildsLead, keywordsLead, needsAnswerText, reviewsLead, settingsLead } from './page-lead.ts';
 
 test('needsAnswerText says what the person has to do', () => {
   assert.equal(needsAnswerText('5 unanswered, oldest 3 d'), '5 reviews need an answer, oldest 3 d');
@@ -36,4 +36,28 @@ test('keywordsLead counts the top 10 and points at unchecked words', () => {
   const done = keywordsLead([{ state: 'ranked', rank: 1 }]);
   assert.equal(done.headline, '1 keyword tracked, 1 in the top 10');
   assert.equal(done.tone, 'neutral');
+});
+
+test('settingsLead: a failing sync first, then a record never synced, then all connected', () => {
+  const ok = { lastSyncError: null, lastSyncedAt: 1 };
+  assert.equal(settingsLead([{ platform: 'ios', ...ok }]).tone, 'ok');
+  const failing = settingsLead([
+    { platform: 'ios', lastSyncError: 'bad key', lastSyncedAt: 1 },
+    { platform: 'android', lastSyncError: null, lastSyncedAt: null },
+  ]);
+  assert.equal(failing.headline, 'The last sync failed for iOS');
+  assert.equal(failing.tone, 'warn');
+  const never = settingsLead([
+    { platform: 'ios', ...ok },
+    { platform: 'android', lastSyncError: null, lastSyncedAt: null },
+  ]);
+  assert.deepEqual([never.headline, never.tone], ['Android has not synced yet', 'info']);
+  assert.equal(
+    settingsLead([
+      { platform: 'ios', lastSyncError: 'x', lastSyncedAt: 1 },
+      { platform: 'macos', lastSyncError: 'x', lastSyncedAt: 1 },
+      { platform: 'android', lastSyncError: 'x', lastSyncedAt: 1 },
+    ]).headline,
+    'The last sync failed for iOS, macOS and Android',
+  );
 });

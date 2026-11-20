@@ -63,3 +63,35 @@ export function keywordsLead(
     tone: unchecked > 0 ? 'info' : 'neutral',
   };
 }
+
+const PLATFORM_NAMES: Record<string, string> = { ios: 'iOS', macos: 'macOS', android: 'Android' };
+
+function joinNames(names: string[]): string {
+  return names.length < 3 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+}
+
+/** The top of the app Settings: a failing sync first (with where to look), a record never synced second, otherwise that all is connected. */
+export function settingsLead(
+  records: readonly { platform: string; lastSyncError: string | null; lastSyncedAt: number | null }[],
+): { headline: string; hint: string; tone: LeadTone } {
+  const name = (r: { platform: string }) => PLATFORM_NAMES[r.platform] ?? r.platform;
+  const failed = records.filter((r) => r.lastSyncError !== null && r.lastSyncError !== '');
+  if (failed.length > 0)
+    return {
+      headline: `The last sync failed for ${joinNames(failed.map(name))}`,
+      hint: 'Check the credential under Stores and credentials, then sync again from Status.',
+      tone: 'warn',
+    };
+  const never = records.filter((r) => r.lastSyncedAt === null);
+  if (never.length > 0)
+    return {
+      headline: `${joinNames(never.map(name))} ${never.length === 1 ? 'has' : 'have'} not synced yet`,
+      hint: 'Test the credential under Stores and credentials, then sync from Status.',
+      tone: 'info',
+    };
+  return {
+    headline: 'Stores are connected',
+    hint: 'Change the repository, defaults and alerts of this app below.',
+    tone: 'ok',
+  };
+}

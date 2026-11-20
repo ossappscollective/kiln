@@ -22,6 +22,8 @@
   import StoresSection from './settings/StoresSection.svelte';
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
+  import PageLead from '../ui/PageLead.svelte';
+  import { settingsLead } from '../../lib/page-lead.ts';
   import SectionsToggle from '../ui/SectionsToggle.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
 
@@ -35,6 +37,7 @@
   }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; all?: AppSummary[]; now: number } = $props();
 
   const canWrite = $derived(can(role, 'apps.write'));
+  const lead = $derived(settingsLead(members));
 
   let target = $state<AppSummary | null>(null);
   let open = $state(false);
@@ -60,7 +63,9 @@
 </script>
 
 <div class="stack loose">
-  <div class="row bar"><SectionsToggle /></div>
+  <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="settings-lead">
+    {#snippet actions()}<SectionsToggle />{/snippet}
+  </PageLead>
   <StoresSection {api} {workspaceId} {role} {members} {all} {now} />
   <RepositorySection {api} {workspaceId} {role} {members} />
   <DefaultsSection {api} {workspaceId} {role} {members} />
@@ -120,10 +125,6 @@
 {/if}
 
 <style>
-  .bar {
-    justify-content: flex-end;
-  }
-
   .note {
     margin: 0;
     font-size: var(--text-sm);
