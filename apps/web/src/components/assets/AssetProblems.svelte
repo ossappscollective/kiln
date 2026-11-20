@@ -77,7 +77,7 @@
     overflow-wrap: anywhere;
   }
   .message {
-    font-size: var(--text-base);
+    font-size: 0.9375rem;
     overflow-wrap: anywhere;
   }
   .meta {
