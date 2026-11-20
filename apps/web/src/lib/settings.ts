@@ -9,6 +9,7 @@ import {
   translationProviders,
 } from '@mrm/core';
 import { ApiError } from './api.ts';
+import { timeAgo } from './format.ts';
 
 /** Workspace settings (docs/api/settings.md): the shapes of the API and the logic of the Settings screen. */
 
@@ -23,6 +24,8 @@ export type SettingsResponse = {
   /** The keys the caller may change. */
   writable: string[];
   docs: Record<string, string>;
+  /** The scheduled refresh of the stores, as this workspace stands (absent on an older server). */
+  sync?: SyncStatus;
   translation: {
     provider: TranslationProvider;
     credentialRequired: boolean;
@@ -34,6 +37,20 @@ export type SettingsResponse = {
 };
 
 export type SettingsUpdateResponse = Omit<SettingsResponse, 'translation'> & { changed: string[] };
+
+/** `sync` of `GET /settings` (docs/api/settings.md). */
+export type SyncStatus = {
+  /** MRM_SYNC_INTERVAL_MINUTES: 0 turns scheduled refreshes off for every workspace. */
+  serverMinutes: number;
+  enabled: boolean;
+  /** What applies: the workspace's choice, else the server's interval. */
+  intervalMinutes: number;
+  /** Whether a scheduled refresh runs for this workspace at all. */
+  running: boolean;
+  off?: 'server_off' | 'workspace_off';
+  /** Epoch milliseconds of the last scheduled sync of any app, or null. */
+  lastScheduledAt: number | null;
+};
 
 export type TranslationTestOutcome = {
   ok: boolean;
@@ -65,6 +82,10 @@ export type SettingsForm = {
   analyticsVendorNumber: string;
   /** The Cloud Storage bucket of the Play Console reports (`pubsite_prod_rev_` and digits); empty means none. */
   analyticsBucketId: string;
+  /** The scheduled refresh of the stores is on (default). */
+  syncEnabled: boolean;
+  /** Minutes between two refreshes of one app, as text (a choice of the list, or the server's own value). */
+  syncIntervalMinutes: string;
 };
 
 export const KEYS = {
@@ -82,7 +103,48 @@ export const KEYS = {
   analyticsEnabled: 'analytics.enabled',
   analyticsVendorNumber: 'analytics.appleVendorNumber',
   analyticsBucketId: 'analytics.playBucketId',
+  syncEnabled: 'sync.enabled',
+  syncIntervalMinutes: 'sync.intervalMinutes',
 } as const;
+
+/** The intervals Settings offers, in minutes (the API accepts 5 to 10080). */
+export const SYNC_INTERVAL_CHOICES = [15, 30, 60, 360, 1440] as const;
+export const MIN_SYNC_MINUTES = 5;
+export const MAX_SYNC_MINUTES = 10_080;
+
+/** "15 minutes", "1 hour", "6 hours", "Daily"; any other number is said in the largest whole unit. */
+export function syncIntervalLabel(minutes: number): string {
+  if (minutes === 1440) return 'Daily';
+  if (minutes % 1440 === 0) return `${minutes / 1440} days`;
+  if (minutes === 60) return '1 hour';
+  if (minutes % 60 === 0) return `${minutes / 60} hours`;
+  return `${minutes} minutes`;
+}
+
+/** The choices for the picker: the standard ones, plus the current value when it is none of them (a server interval of 45 minutes). */
+export function syncIntervalOptions(current: number): { value: number; label: string }[] {
+  const all: number[] = [...SYNC_INTERVAL_CHOICES];
+  if (Number.isInteger(current) && current >= MIN_SYNC_MINUTES && current <= MAX_SYNC_MINUTES && all.indexOf(current) < 0) {
+    all.push(current);
+    all.sort((a, b) => a - b);
+  }
+  return all.map((value) => ({ value, label: syncIntervalLabel(value) }));
+}
+
+/** What the card says about the last scheduled refresh: when it ran, or that none ran yet. */
+export function lastRefreshText(sync: SyncStatus | undefined, now: number = Date.now()): string {
+  if (!sync) return '';
+  if (sync.lastScheduledAt === null) return 'No scheduled refresh has run yet.';
+  return `The last scheduled refresh ran ${timeAgo(sync.lastScheduledAt, now)}.`;
+}
+
+/** Why no refresh runs, or '' when one does. */
+export function syncOffText(sync: SyncStatus | undefined): string {
+  if (!sync || sync.running) return '';
+  if (sync.off === 'server_off')
+    return 'Scheduled refresh is turned off for the whole server (MRM_SYNC_INTERVAL_MINUTES is 0), so the settings below have no effect until the person who runs the server changes it.';
+  return 'Scheduled refresh is off for this workspace. Alerts only change when someone syncs an app by hand.';
+}
 
 /** The most hours a release or reminder setting takes (docs/api/settings.md). */
 export const MAX_HOURS = 720;
@@ -111,6 +173,8 @@ export function formFromSettings(values: Record<string, SettingValue>): Settings
     analyticsEnabled: values[KEYS.analyticsEnabled] === true,
     analyticsVendorNumber: String(values[KEYS.analyticsVendorNumber] ?? ''),
     analyticsBucketId: String(values[KEYS.analyticsBucketId] ?? ''),
+    syncEnabled: values[KEYS.syncEnabled] !== false,
+    syncIntervalMinutes: String(values[KEYS.syncIntervalMinutes] ?? 30),
   };
 }
 
@@ -173,6 +237,9 @@ export function validateForm(form: SettingsForm): FormErrors {
     errors.analyticsBucketId =
       'Use a bucket id such as pubsite_prod_rev_01234567890123456789 (or the gs:// address).';
   }
+  const every = form.syncIntervalMinutes.trim();
+  if (!WHOLE.test(every) || Number(every) < MIN_SYNC_MINUTES || Number(every) > MAX_SYNC_MINUTES)
+    errors.syncIntervalMinutes = `A whole number of minutes from ${MIN_SYNC_MINUTES} to ${MAX_SYNC_MINUTES}.`;
   const url = checkLibreUrl(form.libreUrl);
   if (url) errors.libreUrl = url;
   if (form.provider === 'libretranslate' && form.enabled && form.libreUrl.trim() === '') {
@@ -204,6 +271,8 @@ export function settingsChanges(
       normalizeVendorNumber(form.analyticsVendorNumber) ?? form.analyticsVendorNumber.trim(),
     [KEYS.analyticsBucketId]:
       normalizeBucketId(form.analyticsBucketId) ?? form.analyticsBucketId.trim(),
+    [KEYS.syncEnabled]: form.syncEnabled,
+    [KEYS.syncIntervalMinutes]: Number(form.syncIntervalMinutes),
   };
   const out: Record<string, SettingValue> = {};
   for (const key of Object.keys(next)) {

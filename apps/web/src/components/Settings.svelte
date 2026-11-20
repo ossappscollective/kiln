@@ -1,7 +1,7 @@
 <!--
   Settings: workspace settings (docs/api/settings.md). Any member sees them; owners and admins change them.
   Four views behind a segmented control, kept in the address as `?view=` (lib/settings-views.ts; `#/settings` is General):
-  General (Reviews: the low rating threshold and the unanswered reminder; Releases: when a release counts as left unfinished;
+  General (Reviews: the low rating threshold and the unanswered reminder; Store refresh: the scheduled read of the stores; Releases: when a release counts as left unfinished;
   Translation: provider, credential, target language, mode, daily budget, a test), Analytics (the opt-in, the Apple vendor number and
   the Play bucket id), Security (confirm hard actions, recovery codes, authenticator app and email, mail) and AI (the AI assistant:
   provider, model, key, monthly limit, a test, its own save; and "Connect an AI assistant").
@@ -31,6 +31,7 @@
   import CredentialForm from './credentials/CredentialForm.svelte';
   import AnalyticsSettings from './settings/AnalyticsSettings.svelte';
   import ReleaseSettings from './settings/ReleaseSettings.svelte';
+  import SyncSettings from './settings/SyncSettings.svelte';
   import AiSettings from './settings/AiSettings.svelte';
   import McpSettings from './settings/McpSettings.svelte';
   import SecuritySettings from './settings/SecuritySettings.svelte';
@@ -186,6 +187,7 @@
           {errors}
           writable={editable ? data.writable : []}
         />
+        <SyncSettings bind:form {editable} {errors} writable={data.writable} sync={data.sync} />
         <ReleaseSettings bind:form {editable} {errors} writable={data.writable} />
         <TranslationSettings
           bind:form

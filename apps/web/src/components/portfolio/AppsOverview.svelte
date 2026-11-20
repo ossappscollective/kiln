@@ -121,6 +121,10 @@
               {:else}
                 <span class="muted">{status.primary.text}</span>
               {/if}
+              {#each status.more as other (other.id)}
+                <PlatformBadge platform={other.platform} showLabel={false} />
+                <ReleaseStatus status={other.status} rawState={other.rawState} rolloutFraction={other.rolloutFraction} sentForReviewAt={other.sentForReviewAt} />
+              {/each}
               <PendingChip line={status.pending} href={appAddress(g.key, 'pending')} />
               {#if status.unfinished}
                 <a class="unfinished" href={status.unfinished.href ?? undefined} title={status.unfinished.title}>

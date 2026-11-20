@@ -825,8 +825,8 @@ export const asRolloutPreview = (v: unknown): RolloutPreview | null =>
     ? (v as unknown as RolloutPreview)
     : null;
 
-/** The promise of a step that is checked again after the earlier ones ran, in words. Numbers and names only. */
-export function promiseText(step: Pick<PlanStep, 'type' | 'summary'>): string {
+/** What a step is about to do, in numbers and names only ("3 text changes, 1 graphics set"); empty when the plan carries none. */
+export function summaryParts(step: Pick<PlanStep, 'type' | 'summary'>): string[] {
   const s = step.summary ?? {};
   const num = (key: string): number | null =>
     typeof s[key] === 'number' ? (s[key] as number) : null;
@@ -864,6 +864,12 @@ export function promiseText(step: Pick<PlanStep, 'type' | 'summary'>): string {
             : 'a share of users',
       );
   }
+  return parts;
+}
+
+/** The promise of a step that is checked again after the earlier ones ran, in words. Numbers and names only. */
+export function promiseText(step: Pick<PlanStep, 'type' | 'summary'>): string {
+  const parts = summaryParts(step);
   return parts.length === 0
     ? 'The details are checked again when this step runs.'
     : `Promised: ${parts.join(', ')}.`;

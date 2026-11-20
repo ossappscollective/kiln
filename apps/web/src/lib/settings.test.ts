@@ -19,6 +19,10 @@ import {
   usageFraction,
   usageText,
   validateForm,
+  lastRefreshText,
+  syncIntervalLabel,
+  syncIntervalOptions,
+  syncOffText,
 } from './settings.ts';
 
 const defaults = {
@@ -48,6 +52,8 @@ test('formFromSettings fills the form from the values and falls back to the defa
     analyticsEnabled: false,
     analyticsVendorNumber: '',
     analyticsBucketId: '',
+    syncEnabled: true,
+    syncIntervalMinutes: '30',
   });
   const odd = formFromSettings({ 'translation.provider': 'nope', 'translation.mode': 'nope' });
   assert.equal(odd.provider, 'google');
@@ -286,4 +292,41 @@ test('the release and reminder settings: defaults, limits and the keys they are 
     'reviews.unansweredMaxRating': 2,
   });
   assert.equal(KEYS.stalledRepeatHours, 'release.stalledRepeatHours');
+});
+
+test('the store refresh settings: form, limits, changes and the sentences on the card', () => {
+  const saved = { ...defaults, 'sync.enabled': true, 'sync.intervalMinutes': 30 };
+  const form = formFromSettings(saved);
+  assert.equal(form.syncEnabled, true);
+  assert.equal(form.syncIntervalMinutes, '30');
+  assert.equal(formFromSettings({ 'sync.enabled': false }).syncEnabled, false);
+  assert.deepEqual(validateForm(form), {});
+  for (const bad of ['', '4', '10081', '1.5', 'daily', '-15']) {
+    assert.ok(validateForm({ ...form, syncIntervalMinutes: bad }).syncIntervalMinutes, bad);
+  }
+  assert.equal(KEYS.syncEnabled, 'sync.enabled');
+  assert.equal(KEYS.syncIntervalMinutes, 'sync.intervalMinutes');
+  // Only what changed is sent, and only keys the caller may write.
+  const all = [...ALL, 'sync.enabled', 'sync.intervalMinutes'];
+  assert.deepEqual(settingsChanges(saved, { ...form, syncEnabled: false, syncIntervalMinutes: '360' }, all), {
+    'sync.enabled': false,
+    'sync.intervalMinutes': 360,
+  });
+  assert.deepEqual(settingsChanges(saved, { ...form, syncEnabled: false }, ['sync.intervalMinutes']), {});
+
+  assert.deepEqual(
+    [15, 30, 60, 360, 1440, 45, 2880].map(syncIntervalLabel),
+    ['15 minutes', '30 minutes', '1 hour', '6 hours', 'Daily', '45 minutes', '2 days'],
+  );
+  assert.deepEqual(syncIntervalOptions(30).map((o) => o.value), [15, 30, 60, 360, 1440]);
+  assert.deepEqual(syncIntervalOptions(45).map((o) => o.value), [15, 30, 45, 60, 360, 1440], 'the server\'s own value stays selectable');
+
+  const now = 1_800_000_000_000;
+  const sync = { serverMinutes: 30, enabled: true, intervalMinutes: 30, running: true, lastScheduledAt: now - 5 * 60_000 };
+  assert.equal(lastRefreshText(sync, now), 'The last scheduled refresh ran 5 minutes ago.');
+  assert.equal(lastRefreshText({ ...sync, lastScheduledAt: null }, now), 'No scheduled refresh has run yet.');
+  assert.equal(lastRefreshText(undefined, now), '');
+  assert.equal(syncOffText(sync), '');
+  assert.match(syncOffText({ ...sync, running: false, off: 'server_off' }), /whole server/);
+  assert.match(syncOffText({ ...sync, running: false, off: 'workspace_off' }), /off for this workspace/);
 });

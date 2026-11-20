@@ -20,6 +20,8 @@ export type OverviewRow = {
   android: PlatformCell | null;
   /** The release whose state needs the most attention across the platforms, or null. */
   attention: ReleaseSummary | null;
+  /** Per platform, the release that is in review, rolling out, halted or rejected, most urgent first (one platform's can differ from its newest release). */
+  inFlight: ReleaseSummary[];
   /** A sync of one of the records failed last time. */
   syncFailed: boolean;
   /** The oldest successful sync of the records; null when one never synced. */
@@ -53,6 +55,26 @@ const rank = (r: ReleaseSummary) => {
   return i < 0 ? urgency.length : i;
 };
 
+/** The states worth a pill of their own on a row (a released version is the quiet default). */
+const FLIGHT_STATES: ReleaseState[] = ['rejected', 'halted', 'in_review', 'propagating', 'rolling_out'];
+
+/** For each platform of the app, its most urgent release among FLIGHT_STATES (the newest release may be another track's). */
+function inFlightOf(
+  group: AppGroup,
+  releases: Record<string, ReleaseLoad | undefined>,
+): ReleaseSummary[] {
+  const out: ReleaseSummary[] = [];
+  for (const app of group.members) {
+    const load = releases[app.id];
+    if (!load || load.state !== 'ready') continue;
+    const best = load.releases
+      .filter((r) => r.platform === app.platform && r.status !== null && FLIGHT_STATES.includes(r.status))
+      .sort((a, b) => rank(a) - rank(b))[0];
+    if (best) out.push(best);
+  }
+  return out.sort((a, b) => rank(a) - rank(b));
+}
+
 const cell = (
   app: AppSummary | null,
   releases: Record<string, ReleaseLoad | undefined>,
@@ -78,7 +100,8 @@ export function buildOverviewRows(
     const latests: ReleaseSummary[] = [];
     for (const c of [ios, macos, android])
       if (c && c.state === 'ready' && c.latest) latests.push(c.latest);
-    const attention = [...latests].sort((a, b) => rank(a) - rank(b))[0] ?? null;
+    const inFlight = inFlightOf(group, releases);
+    const attention = [...latests, ...inFlight].sort((a, b) => rank(a) - rank(b))[0] ?? null;
     const synced = group.members.map((m) => m.lastSyncedAt);
     const mine = reviewApps
       ? reviewApps.filter((r) => group.members.some((m) => m.id === r.app.id))
@@ -91,6 +114,7 @@ export function buildOverviewRows(
       macos,
       android,
       attention,
+      inFlight,
       syncFailed: group.members.some((m) => (m.lastSyncError ?? '').trim() !== ''),
       syncedAt: synced.some((s) => s === null) ? null : Math.min(...(synced as number[])),
       rating:
@@ -123,10 +147,12 @@ export type OverviewStats = {
 };
 
 export function overviewStats(rows: readonly OverviewRow[]): OverviewStats {
+  // An app counts once for a state when any of its platforms is in it.
   const count = (states: ReleaseState[]) =>
-    rows.filter(
-      (r) =>
-        r.attention !== null && r.attention.status !== null && states.includes(r.attention.status),
+    rows.filter((r) =>
+      [r.attention, ...r.inFlight].some(
+        (x) => x !== null && x.status !== null && states.includes(x.status),
+      ),
     ).length;
   const known = rows.filter((r) => r.newReviews !== null);
   return {
@@ -154,6 +180,8 @@ export type RowStatus = {
     | { kind: 'sync-failed' }
     | { kind: 'loading' }
     | { kind: 'none'; text: string };
+  /** The other platforms' releases that are in review, rolling out, halted or rejected: one pill each beside the first. */
+  more: ReleaseSummary[];
   /**
    * Releases left unfinished, collapsed to ONE badge: its text names the count, the `title` lists each platform with the server's
    * sentence. Null when there are none.
@@ -215,5 +243,7 @@ export function rowStatus(row: OverviewRow, loading: boolean): RowStatus {
             href: first.item?.href ?? null,
           };
   }
-  return { primary, unfinished, pending: row.pending ?? null };
+  const lead = primary.kind === 'release' ? primary.release : null;
+  const more = row.inFlight.filter((r) => r.id !== lead?.id && r.platform !== lead?.platform);
+  return { primary, more, unfinished, pending: row.pending ?? null };
 }
