@@ -76,10 +76,11 @@ or writes anything.
 
 ### Checks
 
+A version set to release **automatically after approval** (or by a schedule) can be submitted: that is the person's own setting in App Store Connect. The preview carries the warnings `releases_after_approval` / `releases_by_itself` (the version goes live once Apple approves it, with no further step here). This server still releases nothing itself, and `releases` stays `false`.
+
 Blocking (nothing can be submitted until fixed): `draft_differs` (the store's draft no longer holds what was
 pushed: text or screenshots; `locale`, `item`), `version_changed` (the editable version is not the one pushed
-to), `no_version`, `already_submitted`, `release_not_manual` (App Store only: the version would release by itself
-or its release type could not be read), `no_build`, `build_expired`, `build_not_valid`, `no_locales`,
+to), `no_version`, `already_submitted`, `release_not_manual` (App Store only: the release type of the version could not be read), `no_build`, `build_expired`, `build_not_valid`, `no_locales`,
 `no_screenshots`, `missing_text` (a field the listing specs mark as required and verified is empty),
 `image_not_ready` (an image that is not processed), `asset_spec` (a documented spec is broken: sizes and counts
 as the store lists them, `rule` and `source` are those of the spec; only a _verified_ rule blocks),

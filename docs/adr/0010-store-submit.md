@@ -69,3 +69,8 @@ changed after it was pushed). It is therefore a separate, gated step and not a f
 - Whether the Apple request bodies and the Play behaviours hold is UNVERIFIED (see the API page); the connectors fail closed:
   an unexpected answer is an error or `outcome_unknown`, never an assumed success.
 - "A second person must approve" and "submit at a time of day" are not built.
+
+
+## Amendment (2026-11-20): automatic release is a warning, not a block
+
+Decision 6 blocked a version whose release type is not `MANUAL`. In use this stopped a person who deliberately releases automatically after approval, from a tool whose submit step is already behind a switch, a role, a preview, a hash and a typed phrase. Now `AFTER_APPROVAL` and `SCHEDULED` are **warnings** (`releases_after_approval`, `releases_by_itself`) that say the version goes live once Apple approves it. An unreadable release type still blocks, because then it is not known what an approval does. The submit still carries the version only, the server never changes the release type, and `releases` stays `false`: Apple releases, not this server.

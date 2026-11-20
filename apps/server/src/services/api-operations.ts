@@ -1903,7 +1903,7 @@ const submitCheckSchema = z.object({
   code: z
     .string()
     .describe(
-      'For example `draft_differs`, `no_build`, `release_not_manual`, `already_submitted`, `no_locales`, `no_screenshots`, `locale_without_screenshots`, `missing_text`, `image_not_ready`, `asset_spec`, `version_changed`, `push_in_progress`, `play_review_state_unknown`.',
+      'For example `draft_differs`, `no_build`, `release_not_manual`, `already_submitted`, `no_locales`, `no_screenshots`, `locale_without_screenshots`, `missing_text`, `image_not_ready`, `asset_spec`, `version_changed`, `push_in_progress`, `play_review_state_unknown`, and as warnings `releases_after_approval`, `releases_by_itself`.',
     ),
   severity: z.enum(['blocking', 'warning']),
   message: z.string(),

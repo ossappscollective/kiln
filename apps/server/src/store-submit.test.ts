@@ -427,16 +427,6 @@ type Break = {
 };
 const breaks: Break[] = [
   {
-    name: 'a version that would release by itself',
-    code: 'release_not_manual',
-    arrange: (t) => void (t.submitStores.ios.releaseType = 'AFTER_APPROVAL'),
-  },
-  {
-    name: 'a scheduled release',
-    code: 'release_not_manual',
-    arrange: (t) => void (t.submitStores.ios.releaseType = 'SCHEDULED'),
-  },
-  {
     name: 'a release type that could not be read',
     code: 'release_not_manual',
     arrange: (t) => void (t.submitStores.ios.releaseType = null),
@@ -520,6 +510,26 @@ const breaks: Break[] = [
     arrange: (t, app) => insertDraftClaim(t, app, 'unknown'),
   },
 ];
+
+for (const [type, code] of [
+  ['AFTER_APPROVAL', 'releases_after_approval'],
+  ['SCHEDULED', 'releases_by_itself'],
+] as const) {
+  dbTest(
+    `a version set to release ${type} can be submitted: a warning says it goes live by itself, nothing else changes`,
+    async (db) => {
+      const t = await bootStaged(db);
+      const app = await pushedIos(t);
+      t.submitStores.ios.releaseType = type;
+      const done = await t.previewAndSubmit(app);
+      assert.deepEqual(codes(done.preview.body.preview.checks.blocking), []);
+      assert.ok(codes(done.preview.body.preview.checks.warnings).includes(code));
+      assert.equal(done.preview.body.preview.releases, false, 'this server still releases nothing');
+      assert.equal(done.submit.status, 200, done.submit.text.slice(0, 300));
+      assert.equal(t.submitStores.ios.submitCalls, 1);
+    },
+  );
+}
 
 for (const item of breaks) {
   dbTest(

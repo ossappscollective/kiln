@@ -384,14 +384,27 @@ export function evaluateChecks(input: {
 
   if (ios && state.version) {
     const type = state.version.releaseType;
-    if (type !== 'MANUAL') {
+    if (type === null) {
       add({
         code: 'release_not_manual',
         severity: 'blocking',
         message:
-          type === null
-            ? 'The release type of the version could not be read. This server submits only a version that is set to be released manually, because an approval must not release anything by itself.'
-            : `The version is set to release ${type === 'AFTER_APPROVAL' ? 'automatically after approval' : `by itself (${type})`}. This server submits only a version that is set to be released manually, because an approval must not release anything by itself. Change it in App Store Connect.`,
+          'The release type of the version could not be read, so it is not known whether an approval would release it. Sync the app and read the preview again.',
+      });
+    } else if (type === 'AFTER_APPROVAL') {
+      // The person's own setting in App Store Connect is respected: approval is the release, and the
+      // typed confirmation of this submit is the last step they take here.
+      add({
+        code: 'releases_after_approval',
+        severity: 'warning',
+        message:
+          'This version is set to release automatically after approval. When Apple approves it, it goes live without another step here. Change the release type in App Store Connect first if you want to release it yourself.',
+      });
+    } else if (type !== 'MANUAL') {
+      add({
+        code: 'releases_by_itself',
+        severity: 'warning',
+        message: `This version is set to release by itself (${type}). It goes live as that setting says once Apple approves it. Change the release type in App Store Connect first if you want to release it yourself.`,
       });
     }
     if (state.build === null)
