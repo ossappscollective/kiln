@@ -280,10 +280,7 @@
             <input id="alert-tz" type="text" bind:value={timezone} placeholder={browserTimeZone()} autocomplete="off" spellcheck="false" />
           </div>
         </div>
-        <p class="hint">
-          Emails wait until quiet hours end and desktop notifications are not shown. Critical alerts still come through. Leave both times
-          empty for no quiet hours.
-        </p>
+        <p class="hint">Emails wait and desktop notifications stay quiet. Critical alerts still come through. Both empty: no quiet hours.</p>
       </fieldset>
 
       <div class="field">
@@ -303,7 +300,7 @@
             </label>
           {/if}
         </div>
-        <p class="hint">With a digest, emails for alerts below critical are collected into one message. Critical alerts are still sent at once.</p>
+        <p class="hint">A digest collects emails below critical into one message.</p>
       </div>
 
       {#if saveError}<Alert tone="error">{saveError}</Alert>{/if}
@@ -312,9 +309,9 @@
     </form>
   </Section>
 
-  <Section title="Try it" key="alerts-test" summary="Send a test alert to yourself">
+  <Section title="Try it" key="alerts-test" defaultOpen={false} summary="Send a test alert to yourself">
     <div class="stack">
-      <p class="muted">A test alert goes through the same path as a real one, so you see what would happen: delivered, held back, or why not.</p>
+      <p class="muted">A test goes through the same path as a real alert and shows what happened.</p>
       <div class="row wrap">
         {#each personalChannels as c (c)}
           <Button loading={testing === c} onclick={() => test(c)}>Send a test {channelLabels[c].toLowerCase()}</Button>
@@ -406,7 +403,7 @@
     </div>
   </Section>
 
-  <Section title="Muted and snoozed" key="alerts-mutes" count={page.mutes.length}>
+  <Section title="Muted and snoozed" key="alerts-mutes" count={page.mutes.length} defaultOpen={page.mutes.length > 0}>
     <div class="stack">
       {#if page.mutes.length === 0}
         <p class="muted">Nothing is muted.</p>

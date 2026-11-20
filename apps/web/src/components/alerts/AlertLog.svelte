@@ -54,7 +54,7 @@
   {#if rows === null && !error}
     <p class="muted" role="status">Loading the delivery log.</p>
   {:else if rows !== null && rows.length === 0}
-    <EmptyState icon="bell" title="Nothing delivered yet" description="Each email, inbox entry, desktop notification and webhook hand-off is listed here with its result." />
+    <EmptyState icon="bell" title="Nothing delivered yet" description="Every email, desktop notification and webhook is listed here with its result." />
   {:else if rows !== null}
     <div class="table-wrap">
       <table>
@@ -85,3 +85,10 @@
     </div>
   {/if}
 </div>
+
+<style>
+  td,
+  th {
+    font-size: 0.9375rem;
+  }
+</style>

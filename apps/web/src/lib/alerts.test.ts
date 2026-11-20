@@ -5,6 +5,7 @@ import {
   badgeCount,
   type CatalogEntry,
   describeOutcome,
+  inboxHeadline,
   effectiveChannels,
   groupInbox,
   type InboxAlert,
@@ -152,4 +153,14 @@ test('badgeCount is empty for none and stops at 99+', () => {
   assert.equal(badgeCount(0), '');
   assert.equal(badgeCount(7), '7');
   assert.equal(badgeCount(100), '99+');
+});
+
+test('inboxHeadline says what needs attention first, then how many are unread', () => {
+  const a = (severity: 'info' | 'warning', resolvedAt: number | null = null) =>
+    ({ id: String(Math.random()), severity, resolvedAt }) as never;
+  const groups = groupInbox([a('warning'), a('warning'), a('info'), a('warning', 5)]);
+  assert.equal(inboxHeadline(groups, 3), '2 need attention, 3 unread');
+  assert.equal(inboxHeadline(groupInbox([a('warning')]), 0), '1 needs attention');
+  assert.equal(inboxHeadline(groupInbox([a('info')]), 1), 'Nothing needs attention, 1 unread');
+  assert.equal(inboxHeadline([], 0), 'Nothing needs attention');
 });

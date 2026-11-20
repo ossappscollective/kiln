@@ -85,8 +85,7 @@
         Show desktop notifications on this device ({shell ? 'desktop app' : 'this browser'})
       </label>
       <p class="hint" id="{uid}-device-hint" role="status">
-        {notifyStateText[notify]} Turning this on asks your system for permission. A notification shows the alert's title only, appears while this
-        app is open, and follows your quiet hours. Nothing is sent anywhere.
+        {notifyStateText[notify]} Shows the alert's title only, while this app is open, and follows your quiet hours.
       </p>
     </div>
     {#if error}<Alert tone="error">{error}</Alert>{/if}
@@ -106,8 +105,7 @@
           </label>
         {/each}
         <p class="hint">
-          These are your choices for all apps; the table under “What I receive” has every kind and a choice per app. Google Play reports no review
-          state, so Android apps give “halted” and rollout changes but no “in review” or “rejected”.
+          For all apps. “What I receive” below has every kind and a choice per app.
         </p>
       </fieldset>
     {/if}

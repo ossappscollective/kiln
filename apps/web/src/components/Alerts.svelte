@@ -13,6 +13,7 @@
   import Alert from './ui/Alert.svelte';
   import PageHeader from './ui/PageHeader.svelte';
   import Tabs from './ui/Tabs.svelte';
+  import { alertStore } from '../lib/alert-store.svelte.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -26,7 +27,7 @@
   let tab = $state('inbox');
 
   const tabs = $derived(
-    [{ id: 'inbox', label: 'Inbox' }]
+    ([{ id: 'inbox', label: 'Inbox', ...(alertStore.unread > 0 ? { count: alertStore.unread } : {}) }] as { id: string; label: string; count?: number }[])
       .concat(canWrite ? [{ id: 'mine', label: 'My alerts' }] : [])
       .concat(isAdmin ? [{ id: 'rules', label: 'Workspace rules' }] : [])
       .concat([{ id: 'log', label: 'Delivery log' }]),
@@ -69,7 +70,7 @@
 </script>
 
 <section>
-  <PageHeader title="Alerts" description="What needs attention, and how you hear about it: the inbox, email, desktop notifications and webhooks." />
+  <PageHeader title="Alerts" description="What needs you first, then how you hear about it: email, desktop notifications and webhooks." />
   {#if error}<Alert tone="error">{error}</Alert>{/if}
   <Tabs {tabs} bind:value={tab} label="Alerts">
     {#snippet panel(id)}

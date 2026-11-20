@@ -242,6 +242,16 @@ export function groupInbox(alerts: InboxAlert[]): InboxGroup[] {
   return out.filter((g) => g.alerts.length > 0);
 }
 
+/**
+ * The one line at the top of the inbox: what needs the person first ("2 need attention, 3 unread"). Open warnings and criticals are
+ * "need attention"; when there are none it says so, so an empty "Needs attention" group is never a mystery.
+ */
+export function inboxHeadline(groups: readonly InboxGroup[], unread: number): string {
+  const need = groups.find((g) => g.id === 'attention')?.alerts.length ?? 0;
+  const first = need === 0 ? 'Nothing needs attention' : `${need} ${need === 1 ? 'needs' : 'need'} attention`;
+  return unread > 0 ? `${first}, ${unread} unread` : first;
+}
+
 export const badgeCount = (n: number): string => (n <= 0 ? '' : n > 99 ? '99+' : String(n));
 
 // ----- quiet hours and the digest, as a person types them ---------------------------------------------------------

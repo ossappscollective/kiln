@@ -6,7 +6,7 @@
 <script lang="ts">
   import { ApiError, type Api } from '../../lib/api.ts';
   import { alertStore } from '../../lib/alert-store.svelte.ts';
-  import { type InboxAlert, groupInbox, severityLabels, severityTone, snoozeChoices } from '../../lib/alerts.ts';
+  import { type InboxAlert, groupInbox, inboxHeadline, severityLabels, severityTone, snoozeChoices } from '../../lib/alerts.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -31,6 +31,8 @@
 
   const groups = $derived(groupInbox(alerts ?? []));
   const unread = $derived((alerts ?? []).filter((a) => !a.read).length);
+  const headline = $derived(inboxHeadline(groups, alertStore.unread));
+  const hasAttention = $derived(groups.some((g) => g.id === 'attention'));
   const appName = (id: string | null) => (id === null ? '' : (apps.find((a) => a.id === id)?.name ?? 'An app'));
 
   async function load(more: boolean) {
@@ -100,14 +102,17 @@
 </script>
 
 <div class="stack">
-  <div class="row between wrap">
-    <label class="check">
-      <input type="checkbox" bind:checked={unreadOnly} />
-      Unread only
-    </label>
-    <Button icon="check" disabled={unread === 0 && alertStore.unread === 0} loading={busy === 'all'} onclick={() => markRead('all')}>
-      Mark all read
-    </Button>
+  <div class="row between wrap bar">
+    <p class="headline" role="status" data-testid="inbox-headline">{alerts === null ? 'Loading alerts' : headline}</p>
+    <div class="row wrap">
+      <label class="check">
+        <input type="checkbox" bind:checked={unreadOnly} />
+        Unread only
+      </label>
+      {#if unread > 0 || alertStore.unread > 0}
+        <Button icon="check" loading={busy === 'all'} onclick={() => markRead('all')}>Mark all read</Button>
+      {/if}
+    </div>
   </div>
 
   {#if error}<Alert tone="error">{error}</Alert>{/if}
@@ -119,11 +124,11 @@
     <EmptyState
       icon="bell"
       title={unreadOnly ? 'Nothing unread' : 'No alerts yet'}
-      description={unreadOnly ? 'Every alert has been read.' : 'When something needs your attention it appears here, and in your email or as a desktop notification if you asked for that.'}
+      description={unreadOnly ? 'Every alert has been read.' : 'Alerts that need you appear here.'}
     />
   {:else}
     {#each groups as group (group.id)}
-      <Section title={group.title} key={`alerts-${group.id}`} count={group.alerts.length} defaultOpen={group.id !== 'resolved'}>
+      <Section title={group.title} key={`alerts-${group.id}`} count={group.alerts.length} defaultOpen={group.id === 'attention' || (group.id === 'info' && !hasAttention)}>
         <ul class="list">
           {#each group.alerts as a (a.id)}
             <li class:unread={!a.read}>
@@ -170,6 +175,14 @@
 </div>
 
 <style>
+  .bar {
+    align-items: center;
+  }
+  .headline {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+  }
   .list {
     list-style: none;
     margin: 0;
@@ -194,6 +207,7 @@
     margin: 0;
   }
   .title {
+    font-size: 1rem;
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
@@ -203,12 +217,13 @@
     font-weight: var(--weight-semibold);
   }
   .body {
+    font-size: 0.9375rem;
     margin-top: var(--space-1);
     overflow-wrap: anywhere;
   }
   .meta {
     margin-top: var(--space-1);
-    font-size: var(--text-sm);
+    font-size: 0.875rem;
   }
   .side {
     display: flex;
