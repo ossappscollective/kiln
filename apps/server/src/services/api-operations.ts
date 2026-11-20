@@ -9,6 +9,7 @@ import {
 import { z } from 'zod';
 import { addCompetitorBody, addKeywordsBody, updateKeywordBody } from '../routes/aso.ts';
 import { publishApplyBody, publishPreviewBody } from '../routes/pending.ts';
+import { translateNotesBody } from '../routes/release-notes-translate.ts';
 import { aiOperations } from './api-operations-ai.ts';
 import { alertOperations } from './api-operations-alerts.ts';
 import { analyticsOperations } from './api-operations-analytics.ts';
@@ -6330,6 +6331,51 @@ const drafts: Draft[] = [
     }),
     responses: {
       '200': { description: 'The history.', schema: z.object({ history: notesHistorySchema }) },
+    },
+  },
+  {
+    id: 'translateReleaseNotes',
+    method: 'post',
+    path: `${W}/apps/{id}/release-notes/translate`,
+    tags: ['releases'],
+    summary: 'Translate the "what is new" text of a release into other languages (machine or AI)',
+    description:
+      'Sends ONE text (up to 4000 characters) in `sourceLocale` to the workspace\u2019s provider and returns the text for each of up to 40 `targetLocales`, so a person can put it in the editors of the step "What is new". It RETURNS TEXT: nothing is stored, no suggestion is created, nothing is staged and nothing reaches a store. `engine` `machine` is the translation provider of the workspace settings (`translation.enabled`, the daily character budget; needs `reviews.translate`). `engine` `ai` is the AI provider (`ai.enabled`, the monthly token budget and cost cap; needs `ai.use`, which a token holds only when its `actions` name it); it is told the store limit (500 characters on Google Play, 4000 on the App Store), to keep line breaks, bullets, version numbers and the names of the app\u2019s AI context, and to write plain text. A language that failed is in `failed` with a fixed sentence and does not void the others; a text longer than the store limit is returned anyway and listed in `over`; `warnings` lists codes a person should check (`version_missing`, `brand_term_missing`). When nothing could be translated the answer is the failure itself: `422 translation_not_configured`, `translation_auth`, `translation_quota`, `429 translation_budget`, `translation_rate_limited`, `502`/`504 translation_unavailable`, or for `ai` `409 ai_not_enabled`, `422 ai_not_configured`, `ai_auth`, `ai_input_too_large`, `429 ai_budget_exhausted`, `ai_cost_cap_reached`, `ai_busy`, `ai_rate_limited`, `502`/`504 ai_unavailable`, `502 ai_invalid_output`. Rate limited per workspace (`429 rate_limited`). Needs `changesets.write` (a member can use it). The text is sent to the provider you chose; it is never logged and never audited (the audit entry `release_notes.translate` has ids, the engine, the provider, counts and a code).',
+    risk: 'write',
+    access: { action: 'changesets.write' },
+    appScope: { kind: 'param', name: 'id' },
+    rateLimited: true,
+    body: translateNotesBody,
+    responses: {
+      '200': {
+        description: 'The translated texts, and what failed.',
+        schema: z.object({
+          engine: z.enum(['machine', 'ai']),
+          provider: z.string().describe('The translation or AI provider that answered.'),
+          model: z.string().nullable().describe('The model that answered (`ai`).'),
+          texts: z.record(z.string(), z.string()).describe('The text by language. Shown to the caller only.'),
+          failed: z.record(z.string(), z.string()).describe('A fixed sentence by language that was not translated.'),
+          over: z
+            .record(z.string(), z.number())
+            .describe('Languages whose text is longer than the limit: how long it is.'),
+          warnings: z.record(z.string(), z.array(z.string())),
+          limit: z.number().describe('The limit of the store, in characters.'),
+          usage: z.object({
+            chars: z.number().describe('Characters sent to the translation provider (`machine`).'),
+            inputTokens: z.number(),
+            outputTokens: z.number(),
+          }),
+          warning: z
+            .object({
+              kind: z.enum(['tokens', 'cost']),
+              level: z.enum(['soft', 'limit']),
+              percent: z.number(),
+              message: z.string(),
+            })
+            .nullable()
+            .describe('`ai`: this month is near a limit.'),
+        }),
+      },
     },
   },
   {

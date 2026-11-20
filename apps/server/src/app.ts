@@ -36,6 +36,7 @@ import { type PendingRoutesContext, pendingRoutes } from './routes/pending.ts';
 import { planRoutes } from './routes/plans.ts';
 import { releasePipelineRoutes } from './routes/release-pipeline.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
+import { releaseNotesTranslateRoutes } from './routes/release-notes-translate.ts';
 import { reviewTranslationRoutes } from './routes/review-translation.ts';
 import { type ReviewRoutesContext, reviewRoutes } from './routes/reviews.ts';
 import { type RolloutRoutesContext, rolloutRoutes } from './routes/rollout.ts';
@@ -309,6 +310,8 @@ export type AppDeps = {
     'allowPrivateUrls' | 'fetch' | 'resolve' | 'exchange' | 'timeoutMs'
   > & {
     limiter?: TestLimiter;
+    /** Requests of "translate the release notes" per workspace per minute (default 10). It uses the translation seams above and `ai`. */
+    notesLimiter?: TestLimiter;
   };
   /**
    * AI assistance (docs/api/ai.md). `enabled` is MRM_AI_ENABLED (default false: no provider is ever contacted), `allowPrivateUrls` is
@@ -713,6 +716,7 @@ export function createApp(deps: AppDeps) {
       ...(deps.rollout ? { rollout: deps.rollout } : {}),
     }),
   );
+  const aiGate = createConcurrencyGate(aiLimits.maxConcurrentPerWorkspace);
   // AI assistance: suggestions for keywords, listing text and review replies. OFF unless MRM_AI_ENABLED and the workspace turns it on.
   // It only PROPOSES: accepting calls the keyword, staged text and reply draft services; nothing here can push, submit, publish,
   // release or send. Mounted after the services it hands accepted proposals to are configured.
@@ -739,9 +743,33 @@ export function createApp(deps: AppDeps) {
         replyConnectorFactory:
           deps.reviews?.reply?.connectorFactory ?? defaultReplyConnectorFactory,
       },
-      gate: createConcurrencyGate(aiLimits.maxConcurrentPerWorkspace),
+      gate: aiGate,
       limiter:
         deps.ai?.limiter ?? createTestLimiter({ now: services.now, limit: aiLimits.runsPerMinute }),
+    }),
+  );
+  // Translating the "what is new" text of a release (machine or AI): returns text for the editors, stores and stages nothing.
+  // The AI engine shares the concurrency gate, the usage rows, the budget and the cost cap of the AI tasks.
+  app.route(
+    '/api/workspaces',
+    releaseNotesTranslateRoutes({
+      db: services.db,
+      now: services.now,
+      translation: { db: services.db, masterKey: services.masterKey, now: services.now, ...translationSeams },
+      ai: {
+        db: services.db,
+        masterKey: services.masterKey,
+        now: services.now,
+        enabled: deps.ai?.enabled ?? false,
+        ...(deps.ai?.allowPrivateUrls ? { allowPrivateUrls: true } : {}),
+        ...(deps.ai?.fetch ? { fetch: deps.ai.fetch } : {}),
+        ...(deps.ai?.resolve ? { resolve: deps.ai.resolve } : {}),
+        ...(deps.ai?.exchange ? { exchange: deps.ai.exchange } : {}),
+        ...(deps.ai?.timeoutMs !== undefined ? { timeoutMs: deps.ai.timeoutMs } : {}),
+        ...(deps.ai?.clientFactory ? { clientFactory: deps.ai.clientFactory } : {}),
+      },
+      gate: aiGate,
+      limiter: deps.translation?.notesLimiter ?? createTestLimiter({ now: services.now, limit: 10 }),
     }),
   );
   // CI: workflows, dispatch and runs of a repository, and the builds of an app linked to them.

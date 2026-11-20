@@ -99,6 +99,42 @@ Returns `{ history: { app, locale, notes[], truncated, limit, store, generatedAt
   `rate_limited`, the last with a `Retry-After` header). Responses are `Cache-Control: no-store`.
 - Texts are cut at 4000 characters. **They are never logged, never audited and never in an event.**
 
+## Translate the "what is new" text
+
+### `POST /apps/{id}/release-notes/translate`
+
+Needs `changesets.write` (a member can use it), plus `reviews.translate` for `engine: "machine"` or `ai.use` for `engine: "ai"`
+(`ai.use` is held by a token only when its `actions` name it). Rate limited per workspace (10 a minute, `429 rate_limited` with
+`Retry-After`). Body `{ engine, sourceLocale, text, targetLocales[] }`: `engine` is `machine` (the workspace's translation provider,
+Settings > Translation, the one review translation uses) or `ai` (the workspace's AI provider, Settings > AI); `text` is 1 to 4000
+characters; `targetLocales` are 1 to 40 note languages (`en-US`, `de`, `pt_BR`). The source language and duplicates are dropped; a
+list with nothing else left is `400`.
+
+It **returns text and nothing else**: nothing is stored (no cache, no suggestion in the AI tray), nothing is staged, nothing reaches a
+store. The screen puts the texts in the editors; a person edits them and stages them like any other note. Returns
+`{ engine, provider, model, texts, failed, over, warnings, limit, usage, warning }`:
+
+- `texts` is the text by language that was translated; `failed` a fixed sentence by language that was not (one language failing
+  does not void the others; a provider failure that would hit every language, such as a budget that ran out, stops the rest);
+  `over` the languages whose text is longer than the store's limit (`limit`: 500 characters on Google Play, 4000 on the App Store)
+  and how long it is (the text is returned anyway so a person can shorten it); `warnings` codes to check by eye: `version_missing`
+  (a version number of the source is not in the translation) and `brand_term_missing` (a name from the app's AI context).
+- `machine` counts the characters sent against the daily character budget of the translation settings (`usage.chars`) and fails
+  with the codes of [review translation](reviews.md#translation) (`422 translation_not_configured`, `translation_auth`,
+  `translation_quota`, `429 translation_budget`, `translation_rate_limited`, `502`/`504 translation_unavailable`). A machine translation
+  does not know the limit of the store and may change a bullet or a line break: look at `over` and at the text.
+- `ai` is told the store, the limit, to keep line breaks, bullet characters, numbers and names (the app's AI context names to keep),
+  and to write plain text. It works like an AI task for switches, budgets and failures (`409 ai_not_enabled`, `422 ai_not_configured`,
+  `ai_input_too_large`, `429 ai_budget_exhausted`, `ai_cost_cap_reached`, `ai_busy`, `502 ai_invalid_output`, ...), and is counted in the
+  month's AI usage under the task `release_notes_translate`; `warning` is the soft warning when the month is near a limit. Up to ten
+  languages are asked in one call.
+- If nothing could be translated, the answer is the failure that explains it, not an empty list.
+
+**What is sent to the provider:** the text, the language tags, and for `ai` the store, the limit and the app's AI context (only the
+filled parts). Not reviews, not the listing, not credentials. **The text is never logged and never audited**; the audit entry
+`release_notes.translate` has ids, the engine, the provider, the model, the languages and counts, and a code on failure.
+See [ADR 0028](../adr/0028-release-notes-translation.md). There is no MCP tool for it.
+
 ## Staging and pushing release fields
 
 Release fields are staged like a listing text: nothing reaches a store by staging. They are a third kind of staged item
