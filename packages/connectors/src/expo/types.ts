@@ -144,3 +144,97 @@ export type ExpoUpdateRolloutResult = {
   group: string | null;
   rolloutPercentage: number | null;
 };
+
+// ---------------------------------------------------------------------------------------------
+// EAS Build and Submit status (docs/adr/0036-eas-build-submit-status.md). Field names are the ones eas-cli selects (BuildFragment in
+// graphql/types/Build.ts, GetProjectStatusSubmissions in graphql/queries/SubmissionQuery.ts); see queries.ts for what was verified.
+
+/** Expo's `AppPlatform` (`IOS`, `ANDROID`) in lower case. EAS builds and submits for these two only. */
+export type ExpoPlatformKey = 'ios' | 'android';
+
+/** Expo's `BuildStatus`; `unknown` for a value this reader does not know (the raw text is kept in `rawStatus`). */
+export type ExpoBuildStatus =
+  | 'new'
+  | 'in_queue'
+  | 'in_progress'
+  | 'pending_cancel'
+  | 'finished'
+  | 'errored'
+  | 'canceled'
+  | 'unknown';
+
+/** Expo's `SubmissionStatus`; `unknown` for a value this reader does not know. */
+export type ExpoSubmissionStatus =
+  | 'awaiting_build'
+  | 'in_queue'
+  | 'in_progress'
+  | 'finished'
+  | 'errored'
+  | 'canceled'
+  | 'unknown';
+
+/** Expo's `DistributionType` (`STORE`, `INTERNAL`, `SIMULATOR`) in lower case; `unknown` for anything else. */
+export type ExpoBuildDistribution = 'store' | 'internal' | 'simulator' | 'unknown';
+
+export type ExpoErrorDetail = {
+  /** Expo's error code (`errorCode`), when it sent one that looks like a code. */
+  code: string | null;
+  /** Expo's text, at most 500 characters. Shown to people; never logged. */
+  message: string | null;
+};
+
+/** One EAS build, as much of it as a status view needs. The address of the build file is read only to say whether one exists. */
+export type ExpoBuildSummary = {
+  id: string;
+  status: ExpoBuildStatus;
+  rawStatus: string;
+  /** Null when the platform is not iOS or Android (this reader knows only those two). */
+  platform: ExpoPlatformKey | null;
+  buildProfile: string | null;
+  /** The update channel baked into the binary (`updateChannel.name`). */
+  channel: string | null;
+  /** The marketing version (`appVersion`). */
+  appVersion: string | null;
+  /** The build number on iOS and the version code on Android (`appBuildVersion`: UNVERIFIED which of them Expo puts there per platform). */
+  appBuildVersion: string | null;
+  sdkVersion: string | null;
+  /** `runtime.version`. */
+  runtimeVersion: string | null;
+  distribution: ExpoBuildDistribution;
+  /** `isForIosSimulator`. */
+  simulator: boolean | null;
+  appIdentifier: string | null;
+  gitCommitHash: string | null;
+  /** The first line of the commit message, at most 200 characters. */
+  gitCommitMessage: string | null;
+  error: ExpoErrorDetail | null;
+  /** Expo holds a build file for it (`artifacts.buildUrl` or `applicationArchiveUrl` is set). The address itself is not kept. */
+  hasArtifact: boolean;
+  /** Epoch ms. */
+  createdAt: number | null;
+  updatedAt: number | null;
+  completedAt: number | null;
+  /** When Expo deletes the build file (`expirationDate`). */
+  expiresAt: number | null;
+};
+
+/** One EAS submission: a build sent to App Store Connect or Google Play. */
+export type ExpoSubmissionSummary = {
+  id: string;
+  status: ExpoSubmissionStatus;
+  rawStatus: string;
+  platform: ExpoPlatformKey | null;
+  /** The EAS build that was submitted (`submittedBuild.id`); null when Expo names none. */
+  buildId: string | null;
+  /** `androidConfig.applicationIdentifier` or `iosConfig.ascAppIdentifier`, as Expo reports it. */
+  targetIdentifier: string | null;
+  /** Google Play: `androidConfig.track` and `releaseStatus`, as sent. */
+  track: string | null;
+  releaseStatus: string | null;
+  error: ExpoErrorDetail | null;
+  createdAt: number | null;
+  completedAt: number | null;
+};
+
+/** A page of a list read at Expo: `full` means the page was full, so older items may exist. */
+export type ExpoPage<T> = { items: T[]; full: boolean };

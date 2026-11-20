@@ -1,6 +1,16 @@
 import type { ExpoGraphql } from './client.ts';
 import { ExpoError } from './errors.ts';
 import type { ExpoAccountRef, ExpoActorKind, ExpoProject, ExpoViewer } from './types.ts';
+import type {
+  ExpoBuildDistribution,
+  ExpoBuildStatus,
+  ExpoBuildSummary,
+  ExpoErrorDetail,
+  ExpoPage,
+  ExpoPlatformKey,
+  ExpoSubmissionStatus,
+  ExpoSubmissionSummary,
+} from './types.ts';
 import { parseBranchMapping } from './updates.ts';
 import type {
   ExpoStoreBuild,
@@ -482,4 +492,220 @@ export async function expoSetUpdateRolloutPercentage(
   const id = text(done.id);
   if (!id) throw unreadable();
   return { updateId: id, group: text(done.group) ?? null, rolloutPercentage: asNumber(done.rolloutPercentage) };
+}
+
+// ---------------------------------------------------------------------------------------------
+// EAS Build and Submit status (docs/adr/0036-eas-build-submit-status.md)
+//
+// Verified in eas-cli (packages/eas-cli/src/graphql and src/build/utils/url.ts, checked 2026-11-20):
+// - queries/BuildQuery.ts `viewBuildsOnAppAsync`: `app { byId(appId: String!) { id builds(offset: Int!, limit: Int!, filter: BuildFilter) { ...BuildFragment } } }`.
+// - types/Build.ts BuildFragment fields used here: id status platform error { errorCode message } artifacts { buildUrl applicationArchiveUrl }
+//   updateChannel { name } distribution buildProfile appIdentifier sdkVersion appVersion appBuildVersion runtime { version } gitCommitHash
+//   gitCommitMessage createdAt updatedAt completedAt expirationDate isForIosSimulator.
+// - commands/build/list.ts: the keys of BuildFilter (platform, status, distribution, channel, appVersion, appBuildVersion, sdkVersion,
+//   runtimeVersion, appIdentifier, buildProfile, gitCommitHash, fingerprintHash, simulator); only `platform` is used here.
+// - queries/SubmissionQuery.ts `GetProjectStatusSubmissions` / `GetAllSubmissionsForApp`: `app { byId(appId) { id submissions(filter: {platform: $platform},
+//   offset, limit) { id status platform createdAt completedAt submittedBuild { id } androidConfig { applicationIdentifier track releaseStatus }
+//   iosConfig { ascAppIdentifier } error { errorCode message } } } }` with `$platform: AppPlatform`.
+// - The enums, read from the generated client of the published eas-cli package: BuildStatus NEW IN_QUEUE IN_PROGRESS PENDING_CANCEL
+//   FINISHED ERRORED CANCELED; SubmissionStatus AWAITING_BUILD IN_QUEUE IN_PROGRESS FINISHED ERRORED CANCELED; AppPlatform IOS ANDROID;
+//   DistributionType STORE INTERNAL SIMULATOR.
+// - src/build/utils/url.ts (web pages): builds `/accounts/{account}/projects/{slug}/builds/{id}`, submissions `/accounts/{account}/projects/
+//   {slug}/submissions/{id}`; for an internal-distribution Android build the install link is `artifacts.buildUrl`, for iOS it is an
+//   `itms-services://` link to the API manifest (neither is stored here).
+// NOT verified, so labelled where it is used: the largest `limit` Expo accepts (30 is used, below the 50 that `eas build:list` documents as
+// its own maximum); the serialisation of DateTime fields (ISO 8601 strings are assumed; anything else becomes null); whether
+// `appBuildVersion` holds the Android version code as well as the iOS build number (it is read as one field and shown as is); whether Expo orders `builds` and `submissions` newest first (this reader sorts by `createdAt` itself); the exact
+// wording and codes of errors (shown, never interpreted); the rate limits of the API; whether `submissions` accepts a missing filter.
+
+export const EXPO_STATUS_PAGE_LIMIT = 30;
+
+/** Expo's `AppPlatform` wire values (verified in the generated client of eas-cli). */
+const EXPO_PLATFORM_WIRE: Record<ExpoPlatformKey, string> = { ios: 'IOS', android: 'ANDROID' };
+const EXPO_PLATFORM_FROM_WIRE: Record<string, ExpoPlatformKey> = { IOS: 'ios', ANDROID: 'android' };
+
+const EXPO_BUILD_STATUS_FROM_WIRE: Record<string, ExpoBuildStatus> = {
+  NEW: 'new',
+  IN_QUEUE: 'in_queue',
+  IN_PROGRESS: 'in_progress',
+  PENDING_CANCEL: 'pending_cancel',
+  FINISHED: 'finished',
+  ERRORED: 'errored',
+  CANCELED: 'canceled',
+};
+const EXPO_SUBMISSION_STATUS_FROM_WIRE: Record<string, ExpoSubmissionStatus> = {
+  AWAITING_BUILD: 'awaiting_build',
+  IN_QUEUE: 'in_queue',
+  IN_PROGRESS: 'in_progress',
+  FINISHED: 'finished',
+  ERRORED: 'errored',
+  CANCELED: 'canceled',
+};
+const EXPO_DISTRIBUTION_FROM_WIRE: Record<string, ExpoBuildDistribution> = {
+  STORE: 'store',
+  INTERNAL: 'internal',
+  SIMULATOR: 'simulator',
+};
+
+const easTime = (value: unknown): number | null => {
+  if (typeof value !== 'string') return null;
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? null : ms;
+};
+
+/** A string cut to `max` characters, or null when it is empty or not a string. */
+const easText = (value: unknown, max: number): string | null => {
+  const found = text(value);
+  return found === undefined ? null : found.length > max ? `${found.slice(0, max - 1)}…` : found;
+};
+
+const easErrorOf = (value: unknown): ExpoErrorDetail | null => {
+  if (!isRecord(value)) return null;
+  const rawCode = text(value.errorCode);
+  const code = rawCode !== undefined && /^[A-Za-z][A-Za-z0-9_]{1,63}$/.test(rawCode) ? rawCode : null;
+  const message = easText(value.message, 500);
+  return code === null && message === null ? null : { code, message };
+};
+
+/** The key a status is kept under: Expo's own upper case wording, so a lower case or mixed case spelling still reads. */
+const wire = (value: unknown): string => (typeof value === 'string' ? value.trim().toUpperCase() : '');
+
+const BUILD_FIELDS = `id status platform error { errorCode message } artifacts { buildUrl applicationArchiveUrl }
+        updateChannel { name } distribution buildProfile appIdentifier sdkVersion appVersion appBuildVersion runtime { version }
+        gitCommitHash gitCommitMessage createdAt updatedAt completedAt expirationDate isForIosSimulator`;
+
+export const EAS_BUILDS_QUERY = `query MrmEasBuilds($appId: String!, $offset: Int!, $limit: Int!, $filter: BuildFilter) {
+  app {
+    byId(appId: $appId) {
+      id
+      builds(offset: $offset, limit: $limit, filter: $filter) {
+        ${BUILD_FIELDS}
+      }
+    }
+  }
+}`;
+
+function easBuildOf(value: unknown): ExpoBuildSummary | null {
+  if (!isRecord(value)) return null;
+  const id = text(value.id);
+  if (!id) return null;
+  const rawStatus = text(value.status) ?? '';
+  const artifacts = isRecord(value.artifacts) ? value.artifacts : {};
+  const firstLine = easText(typeof value.gitCommitMessage === 'string' ? value.gitCommitMessage.split('\n')[0]?.trim() : null, 200);
+  return {
+    id,
+    status: EXPO_BUILD_STATUS_FROM_WIRE[wire(value.status)] ?? 'unknown',
+    rawStatus,
+    platform: EXPO_PLATFORM_FROM_WIRE[wire(value.platform)] ?? null,
+    buildProfile: easText(value.buildProfile, 100),
+    channel: isRecord(value.updateChannel) ? easText(value.updateChannel.name, 100) : null,
+    appVersion: easText(value.appVersion, 100),
+    appBuildVersion: easText(value.appBuildVersion, 100),
+    sdkVersion: easText(value.sdkVersion, 50),
+    runtimeVersion: isRecord(value.runtime) ? easText(value.runtime.version, 100) : null,
+    distribution: EXPO_DISTRIBUTION_FROM_WIRE[wire(value.distribution)] ?? 'unknown',
+    simulator: typeof value.isForIosSimulator === 'boolean' ? value.isForIosSimulator : null,
+    appIdentifier: easText(value.appIdentifier, 200),
+    gitCommitHash: easText(value.gitCommitHash, 64),
+    gitCommitMessage: firstLine,
+    error: easErrorOf(value.error),
+    hasArtifact: text(artifacts.buildUrl) !== undefined || text(artifacts.applicationArchiveUrl) !== undefined,
+    createdAt: easTime(value.createdAt),
+    updatedAt: easTime(value.updatedAt),
+    completedAt: easTime(value.completedAt),
+    expiresAt: easTime(value.expirationDate),
+  };
+}
+
+const newestFirst = <T extends { createdAt: number | null; id: string }>(items: T[]): T[] =>
+  items.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0) || a.id.localeCompare(b.id));
+
+/**
+ * The newest builds of a project for one platform (a page of `limit`, default 30; no paging: older builds are not read). `full` says the
+ * page was full, so older builds may exist. An entry Expo sent without an id is dropped. `not_found` when the token cannot see the project.
+ */
+export async function expoBuilds(
+  client: ExpoGraphql,
+  projectId: string,
+  options: { platform: ExpoPlatformKey; limit?: number },
+): Promise<ExpoPage<ExpoBuildSummary>> {
+  if (!isExpoProjectId(projectId)) throw new ExpoError('invalid_input');
+  const limit = options.limit ?? EXPO_STATUS_PAGE_LIMIT;
+  const data = await client.graphql<{ app?: unknown }>({
+    query: EAS_BUILDS_QUERY,
+    variables: {
+      appId: projectId.toLowerCase(),
+      offset: 0,
+      limit,
+      filter: { platform: EXPO_PLATFORM_WIRE[options.platform] },
+    },
+    operationName: 'MrmEasBuilds',
+  });
+  if (!isRecord(data.app)) throw unreadable();
+  if (data.app.byId === null) throw new ExpoError('not_found');
+  if (!isRecord(data.app.byId) || !Array.isArray(data.app.byId.builds)) throw unreadable();
+  const raw = data.app.byId.builds;
+  const items = newestFirst(raw.flatMap((entry) => easBuildOf(entry) ?? []));
+  return { items, full: raw.length >= limit };
+}
+
+const SUBMISSION_FIELDS = `id status platform createdAt completedAt submittedBuild { id }
+        androidConfig { applicationIdentifier track releaseStatus } iosConfig { ascAppIdentifier } error { errorCode message }`;
+
+export const EAS_SUBMISSIONS_QUERY = `query MrmEasSubmissions($appId: String!, $offset: Int!, $limit: Int!, $platform: AppPlatform) {
+  app {
+    byId(appId: $appId) {
+      id
+      submissions(filter: { platform: $platform }, offset: $offset, limit: $limit) {
+        ${SUBMISSION_FIELDS}
+      }
+    }
+  }
+}`;
+
+function easSubmissionOf(value: unknown): ExpoSubmissionSummary | null {
+  if (!isRecord(value)) return null;
+  const id = text(value.id);
+  if (!id) return null;
+  const android = isRecord(value.androidConfig) ? value.androidConfig : {};
+  const ios = isRecord(value.iosConfig) ? value.iosConfig : {};
+  return {
+    id,
+    status: EXPO_SUBMISSION_STATUS_FROM_WIRE[wire(value.status)] ?? 'unknown',
+    rawStatus: text(value.status) ?? '',
+    platform: EXPO_PLATFORM_FROM_WIRE[wire(value.platform)] ?? null,
+    buildId: isRecord(value.submittedBuild) ? (text(value.submittedBuild.id) ?? null) : null,
+    targetIdentifier: easText(android.applicationIdentifier, 200) ?? easText(ios.ascAppIdentifier, 200),
+    track: easText(android.track, 100),
+    releaseStatus: easText(android.releaseStatus, 100),
+    error: easErrorOf(value.error),
+    createdAt: easTime(value.createdAt),
+    completedAt: easTime(value.completedAt),
+  };
+}
+
+/** The newest submissions of a project for one platform; same rules as `expoBuilds`. */
+export async function expoSubmissions(
+  client: ExpoGraphql,
+  projectId: string,
+  options: { platform: ExpoPlatformKey; limit?: number },
+): Promise<ExpoPage<ExpoSubmissionSummary>> {
+  if (!isExpoProjectId(projectId)) throw new ExpoError('invalid_input');
+  const limit = options.limit ?? EXPO_STATUS_PAGE_LIMIT;
+  const data = await client.graphql<{ app?: unknown }>({
+    query: EAS_SUBMISSIONS_QUERY,
+    variables: {
+      appId: projectId.toLowerCase(),
+      offset: 0,
+      limit,
+      platform: EXPO_PLATFORM_WIRE[options.platform],
+    },
+    operationName: 'MrmEasSubmissions',
+  });
+  if (!isRecord(data.app)) throw unreadable();
+  if (data.app.byId === null) throw new ExpoError('not_found');
+  if (!isRecord(data.app.byId) || !Array.isArray(data.app.byId.submissions)) throw unreadable();
+  const raw = data.app.byId.submissions;
+  const items = newestFirst(raw.flatMap((entry) => easSubmissionOf(entry) ?? []));
+  return { items, full: raw.length >= limit };
 }
