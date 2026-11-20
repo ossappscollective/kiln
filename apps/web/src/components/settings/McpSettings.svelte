@@ -7,6 +7,8 @@
   - the tools the server offers, by kind: read, change the workspace's own data, and preview only. Nothing here applies a store action:
     those are previewed by the assistant and confirmed by a person in this app.
   The token is held in memory only. Props: api, workspaceId, role.
+  Readable pass (docs/design/readability.md): one sentence under the title, the state as one word, the one warning about what an assistant can
+  read stays visible, ONE primary (create the token), and the stdio details sit behind a disclosure.
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
@@ -20,6 +22,8 @@
   import Button from '../ui/Button.svelte';
   import Card from '../ui/Card.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
+  import '../readable-card.css';
   import Skeleton from '../ui/Skeleton.svelte';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
@@ -68,14 +72,14 @@
     title="Connect an AI assistant"
     collapseKey="mcp"
     defaultOpen={false}
-    description="Let Claude, Cursor or another MCP assistant read this workspace: releases, listings, reviews, keyword ranks and analytics. It can preview store actions, never apply them."
+    description="Let an MCP assistant such as Claude or Cursor read this workspace. It can preview store actions, never apply them."
   >
     {#if loadError}
       <Alert tone="error">{loadError}</Alert>
     {:else if !status || !view}
       <Skeleton />
     {:else}
-      <div class="stack">
+      <div class="stack readable-card">
         <p class="row">
           <Badge tone={view.tone} dot>{view.label}</Badge>
           <span class="muted">{view.detail}</span>
@@ -95,17 +99,21 @@
           {:else}
             <div class="row">
               <Button variant="primary" loading={creating} onclick={createToken}>Create an “{status.preset.name}” token</Button>
-              <span class="muted">A viewer token limited to the read tools. Create a wider one under API tokens if you want triage or previews.</span>
+              <span class="muted">A viewer token for the read tools; a wider one is made under API tokens.</span>
             </div>
             {#if createError}<Alert tone="error">{createError}</Alert>{/if}
           {/if}
 
           <h3 class="h">Configuration</h3>
           <p class="muted">
-            HTTP needs the address {location.origin}{status.endpoint}. The stdio form starts a small local command
-            (<code>apps/server/src/mcp/stdio.ts</code>, Node 22.18 or newer): replace the path with where this repository is on your computer.
-            {#if !created}The token below is a placeholder until you create one.{/if}
+            Paste one into your assistant. The HTTP address is {location.origin}{status.endpoint}.
+            {#if !created}The token is a placeholder until you create one.{/if}
           </p>
+          <Disclosure summary="About the stdio form">
+            <p class="muted">
+              It starts a small local command (<code>apps/server/src/mcp/stdio.ts</code>, Node 22.18 or newer): replace the path with where this repository is on your computer.
+            </p>
+          </Disclosure>
           {#each configs as config (config.title)}
             <details class="snippet">
               <summary>{config.title}</summary>
@@ -153,7 +161,7 @@
 
   .muted {
     color: var(--text-muted, inherit);
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
   }
 
   .h {
@@ -164,7 +172,7 @@
   .snippet {
     border: 1px solid var(--border, currentColor);
     border-radius: var(--radius-2, 6px);
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-3);
   }
 
   .snippet pre {
