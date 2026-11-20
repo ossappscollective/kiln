@@ -16,6 +16,7 @@ import {
   isDiscardable,
   itemAnchor,
   lineFor,
+  lineOfView,
   needsReview,
   nextStepText,
   type PendingItem,
@@ -35,6 +36,7 @@ import {
   requestsFor,
   resultRow,
   resultSummary,
+  staleViewIds,
   stateBadge,
   stepRows,
   toggled,
@@ -697,4 +699,59 @@ test('failures of preview and publish are worded from fixed text, and drift asks
     );
   }
   assert.match(classifyPublishFailure(apiError(502, 'weird')).message, /Nothing was retried/);
+});
+
+// ----- the banner and the detail agree: one rule, the newer read wins -----------------------------------
+
+const viewOf = (id: string, items: PendingItem[], generatedAt: number): PendingView => ({
+  app: { id, name: 'n', platform: 'android', store: 'googleplay' },
+  platforms: [{ platform: 'android', store: 'googleplay', items, totals: platformTotals({ items }) }],
+  totals: { ...platformTotals({ items }), platforms: items.length > 0 ? ['android'] : [], nextSteps: [] },
+  lastSyncedAt: null,
+  generatedAt,
+});
+const draftRelease = item({
+  kind: 'draft_release',
+  platform: 'android',
+  id: 'draft_release:production:197',
+  label: 'Draft release in production with 1 version code 197, not released yet',
+  state: 'pushed',
+  nextStep: 'release',
+  refs: [],
+});
+
+test('a view gives the same line as the server summary of the same data', () => {
+  const view = viewOf('a0', [draftRelease, item({ kind: 'in_review', nextStep: null, state: 'in_review' })], 5);
+  assert.deepEqual(lineOfView(view), { count: 1, blocking: 0, waiting: 1 });
+  assert.equal(lineOfView(viewOf('a0', [], 5)), null);
+  assert.equal(lineOfView(null), null);
+  const withError = viewOf('a0', [item({ problems: [{ code: 'x', severity: 'error', message: 'm' }] })], 5);
+  assert.deepEqual(lineOfView(withError), { count: 1, blocking: 1, waiting: 0 });
+});
+
+test('the banner follows the newer read: a summary read after a push beats an older empty view, and a newer view beats an older summary', () => {
+  const newSummary = { ...summary([{ count: 1 }]), generatedAt: 10 };
+  const oldEmpty = viewOf('a0', [], 4);
+  assert.deepEqual(lineFor(newSummary, ['a0'], { a0: oldEmpty }), { count: 1, blocking: 0, waiting: 0 });
+  assert.deepEqual(staleViewIds(newSummary, ['a0'], { a0: oldEmpty }), ['a0'], 'the detail must read again');
+  const oldSummary = { ...summary([{ count: 1 }]), generatedAt: 3 };
+  assert.equal(lineFor(oldSummary, ['a0'], { a0: oldEmpty }), null, 'the detail was read later and says nothing is pending');
+  assert.deepEqual(staleViewIds(oldSummary, ['a0'], { a0: oldEmpty }), []);
+  // The same moment, the same data: nothing is stale and both give one line.
+  const fresh = viewOf('a0', [draftRelease], 10);
+  assert.deepEqual(staleViewIds(newSummary, ['a0'], { a0: fresh }), []);
+  assert.deepEqual(lineFor(newSummary, ['a0'], { a0: fresh }), lineOfView(fresh));
+  // A record with no view yet keeps using the summary; a missing summary uses the views.
+  assert.deepEqual(lineFor(newSummary, ['a0'], {}), { count: 1, blocking: 0, waiting: 0 });
+  assert.deepEqual(lineFor(null, ['a0'], { a0: fresh }), { count: 1, blocking: 0, waiting: 0 });
+});
+
+test('a pushed Google Play draft release is a pending item that waits for the release step', () => {
+  assert.equal(nextStepText(draftRelease), 'Next: release the draft to users. You name the share of users and confirm it first.');
+  const groups = groupItems([item({ kind: 'in_review', nextStep: null, state: 'in_review' }), draftRelease]);
+  assert.deepEqual(groups.map((g) => g.kind), ['draft_release', 'in_review']);
+  assert.equal(groups[0]?.label, 'Draft releases, not released yet');
+  // The button is available when only a draft release waits and the release step is switched on.
+  const ok = publishAvailability({ role: 'admin', config: config(), configFailed: false, totals: { items: 1, actionable: 1, blocking: 0 }, nextSteps: ['release'] });
+  assert.equal(ok.state, 'ready');
 });

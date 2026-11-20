@@ -254,6 +254,82 @@ dbTest(
   },
 );
 
+dbTest(
+  'pending, Google Play: a pushed draft release is an item that waits for the release step; the summary and the view agree; releasing it clears it',
+  async (db) => {
+    const t = await boot(db);
+    const app = await t.addApp('android', 'Weather');
+    for (const body of [
+      { field: 'track', value: 'production' },
+      { field: 'version_codes', value: '241' },
+      { field: 'release_notes', locale: 'en-US', value: 'Bug fixes' },
+    ])
+      assert.equal((await t.stageField(app, body)).status, 200);
+    const line = async () => (await t.call(t.owner, 'GET', '/pending/summary')).body.apps[0];
+    const items = async () =>
+      (await t.call(t.owner, 'GET', `/apps/${app}/pending`)).body.pending.platforms[0]?.items ?? [];
+    assert.deepEqual(
+      (await items()).map((i: any) => i.kind),
+      ['release_field', 'release_field', 'release_field'],
+    );
+    assert.equal((await t.previewAndPush(app)).push.status, 200);
+
+    const view = (await t.call(t.owner, 'GET', `/apps/${app}/pending`)).body.pending;
+    assert.deepEqual(
+      (view.platforms[0].items as any[]).map((i) => [i.kind, i.nextStep, i.id]),
+      [['draft_release', 'release', 'draft_release:production:241']],
+      'no "submit" item for a push that held only release fields',
+    );
+    assert.match(view.platforms[0].items[0].label, /Draft release in production with 1 version code 241, not released yet/);
+    assert.deepEqual(view.totals.nextSteps, ['release']);
+    const summary = await line();
+    assert.deepEqual(
+      [summary.count, summary.waiting, summary.blocking, summary.kinds, summary.nextSteps],
+      [view.totals.actionable, view.totals.items - view.totals.actionable, view.totals.blocking, ['draft_release'], ['release']],
+      'the banner and the detail count the same',
+    );
+
+    // The plan: nothing to push, nothing to submit (Google Play has nothing to submit for release fields), the release needs its share.
+    const plan = await t.plan(app);
+    assert.equal(stepOf(plan.body, 'push_draft').availability, 'nothing_to_do');
+    assert.equal(stepOf(plan.body, 'submit').availability, 'nothing_to_do');
+    assert.equal(stepOf(plan.body, 'release').availability, 'needs_input');
+
+    // Only the release step, with the track and the share typed: it releases the draft the push wrote.
+    const release = { type: 'release', track: 'production', userFraction: 0.1 };
+    const { publish } = await t.planAndPublish(app, [release]);
+    assert.equal(publish.status, 200, publish.text.slice(0, 400));
+    assert.deepEqual(t.releaseStores.android.released, ['production:241:0.1']);
+    assert.deepEqual(await items(), [], 'released: nothing pending any more');
+    assert.equal(await line(), undefined);
+  },
+);
+
+dbTest(
+  'pending, Google Play: a draft release the last sync saw in production is pending; one in a test track is not, unless this app pushed',
+  async (db) => {
+    const t = await boot(db);
+    const app = await t.addApp('android', 'Weather');
+    const insert = (id: string, track: string, status: string, codes: string[]) =>
+      db.execute(
+        "INSERT INTO app_releases (id, app_id, workspace_id, platform, version, track, status, raw_state, details_json, status_since, synced_at) VALUES (?, ?, ?, 'android', ?, ?, ?, 'draft', ?, 5, 5)",
+        [id, app, t.workspaceId, `v-${id}`, track, status, JSON.stringify({ versionCodes: codes })],
+      );
+    await insert('d-1', 'internal', 'draft', ['300']);
+    assert.deepEqual((await t.call(t.owner, 'GET', `/apps/${app}/pending`)).body.pending.totals.items, 0);
+    await insert('d-2', 'production', 'draft', ['198', '197']);
+    await insert('d-3', 'production', 'live', ['190']);
+    const view = (await t.call(t.owner, 'GET', `/apps/${app}/pending`)).body.pending;
+    assert.deepEqual(
+      (view.platforms[0].items as any[]).map((i) => [i.kind, i.id, i.nextStep, i.counts.versionCodes]),
+      [['draft_release', 'draft_release:production:197,198', 'release', 2]],
+    );
+    assert.match(view.platforms[0].items[0].label, /with 2 version codes 197, 198, not released yet/);
+    const line = (await t.call(t.owner, 'GET', '/pending/summary')).body.apps[0];
+    assert.deepEqual([line.count, line.kinds, line.nextSteps], [1, ['draft_release'], ['release']]);
+  },
+);
+
 // ----- the switches ----------------------------------------------------------------------------------------
 
 dbTest(

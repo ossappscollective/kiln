@@ -26,6 +26,7 @@ export type PendingKind =
   | 'asset_set'
   | 'release_field'
   | 'pushed_draft'
+  | 'draft_release'
   | 'in_review'
   | 'approved'
   | 'rollout_step';
@@ -208,6 +209,7 @@ export const KIND_ORDER: readonly PendingKind[] = [
   'asset_set',
   'release_field',
   'pushed_draft',
+  'draft_release',
   'approved',
   'rollout_step',
   'in_review',
@@ -218,6 +220,7 @@ export const KIND_LABEL: Readonly<Record<PendingKind, string>> = {
   asset_set: 'Screenshots and graphics',
   release_field: 'Release (build, notes, release type)',
   pushed_draft: 'Drafts pushed, not yet submitted',
+  draft_release: 'Draft releases, not released yet',
   approved: 'Approved, waiting for release',
   rollout_step: 'Rollout',
   in_review: 'In review',
@@ -259,7 +262,9 @@ export function nextStepText(item: Pick<PendingItem, 'kind' | 'nextStep' | 'stat
     case 'submit':
       return 'Next: submit the draft for the store review.';
     case 'release':
-      return 'Next: release the approved version to users.';
+      return item.kind === 'draft_release'
+        ? 'Next: release the draft to users. You name the share of users and confirm it first.'
+        : 'Next: release the approved version to users.';
     default:
       return 'Next: make the rollout change that is due.';
   }
@@ -397,22 +402,84 @@ export function combineTotals(groups: readonly { totals: PendingTotals }[]): Pen
 
 export type PendingLine = { count: number; blocking: number; waiting: number };
 
-/** The summary line of an app made of these records (several platforms add up); null when it is not known or nothing is pending. */
+/** What the screens know about the app records, by id: the last read of the pending view of each. */
+export type ViewsById = Readonly<Record<string, PendingView | null | undefined>>;
+
+/**
+ * The line of ONE pending view, by the rule the server's summary uses (`count` = items that wait for a step, `waiting` = the rest,
+ * `blocking` = items with an error), so a view and a summary of the same data give the same line.
+ */
+export function lineOfView(view: PendingView | null | undefined): PendingLine | null {
+  if (!view) return null;
+  let count = 0;
+  let waiting = 0;
+  let blocking = 0;
+  for (const p of view.platforms) {
+    const t = platformTotals(p);
+    count += t.actionable;
+    waiting += t.items - t.actionable;
+    blocking += t.blocking;
+  }
+  return count + blocking + waiting === 0 ? null : { count, blocking, waiting };
+}
+
+/**
+ * The summary line of an app made of these records (several platforms add up); null when it is not known or nothing is pending.
+ * ONE rule for the banner, the chips and the detail: for each record the NEWER of the two reads wins (the summary and the record's own
+ * pending view carry `generatedAt`), so a page that just read the detail never disagrees with the banner, and a view that was read
+ * before a push never hides what the summary read after it.
+ */
 export function lineFor(
   summary: PendingSummary | null | undefined,
   appIds: readonly string[],
+  views: ViewsById = {},
 ): PendingLine | null {
-  if (!summary || !Array.isArray(summary.apps)) return null;
+  const known = summary && Array.isArray(summary.apps) ? summary : null;
   let count = 0;
   let blocking = 0;
   let waiting = 0;
-  for (const a of summary.apps) {
-    if (appIds.indexOf(a.appId ?? a.id) < 0) continue;
-    count += Number(a.count) || 0;
-    blocking += Number(a.blocking) || 0;
-    waiting += Number(a.waiting) || 0;
+  const add = (line: PendingLine | null) => {
+    if (!line) return;
+    count += line.count;
+    blocking += line.blocking;
+    waiting += line.waiting;
+  };
+  for (const id of appIds) {
+    const view = views[id];
+    if (view && (known === null || Number(view.generatedAt) >= Number(known.generatedAt))) {
+      add(lineOfView(view));
+      continue;
+    }
+    if (known === null) continue;
+    const a = known.apps.find((x) => (x.appId ?? x.id) === id);
+    if (a)
+      add({
+        count: Number(a.count) || 0,
+        blocking: Number(a.blocking) || 0,
+        waiting: Number(a.waiting) || 0,
+      });
   }
   return count + blocking + waiting === 0 ? null : { count, blocking, waiting };
+}
+
+/**
+ * The records whose pending view is OLDER than the summary and says something else about them: the detail has to read again before it
+ * says "Nothing pending" while the banner counts changes. Compares only the number of items (the one fact both reads carry).
+ */
+export function staleViewIds(
+  summary: PendingSummary | null | undefined,
+  appIds: readonly string[],
+  views: ViewsById,
+): string[] {
+  if (!summary || !Array.isArray(summary.apps)) return [];
+  return appIds.filter((id) => {
+    const view = views[id];
+    if (!view || Number(view.generatedAt) >= Number(summary.generatedAt)) return false;
+    const a = summary.apps.find((x) => (x.appId ?? x.id) === id);
+    const inSummary = a ? (Number(a.count) || 0) + (Number(a.waiting) || 0) : 0;
+    const inView = view.platforms.reduce((n, p) => n + p.items.length, 0);
+    return inSummary !== inView;
+  });
 }
 
 export type Chip = { text: string; tone: 'warn' | 'accent'; label: string };

@@ -425,10 +425,15 @@ export async function buildPlan(
     };
   };
 
+  const ONLY_RELEASE_FIELDS =
+    'Only release fields were written, no listing text or graphic. Google Play has nothing to submit for them: the release step sends them to Google.';
+
   const evalSubmit = async (): Promise<Evaluation> => {
     if (done.push_draft?.included && pushPreview) {
       // The record of the push does not exist yet (or will change): the submit is previewed after the push applied.
       const after = await recordAfterPush(ctx.db, app, pushPreview);
+      if (isGooglePlatform(app.platform) && after.texts + after.assetSets === 0)
+        return unavailable('nothing_to_do', ONLY_RELEASE_FIELDS);
       return {
         availability: 'available',
         reason: null,
@@ -450,6 +455,11 @@ export async function buildPlan(
           },
         ],
       };
+    }
+    if (isGooglePlatform(app.platform)) {
+      const record = await loadPush(ctx.db, app.id, app.platform);
+      if (record && record.manifest.text.length + record.manifest.assets.length === 0)
+        return unavailable('nothing_to_do', ONLY_RELEASE_FIELDS);
     }
     const p = await previewSubmit(ctx.submit, { workspaceId, appId: app.id, actor });
     if (!p.ok) {

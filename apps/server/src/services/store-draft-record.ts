@@ -32,7 +32,15 @@ export type PushedSet = {
   height: number | null;
   files: { md5: string; sha256: string }[];
 };
-export type PushedManifest = { v: 1; text: PushedText[]; assets: PushedSet[] };
+/** Google Play: the draft release a push wrote (track and version codes, never a note). It waits for the release step. */
+export type PushedRelease = { track: string; codes: string[] };
+export type PushedManifest = {
+  v: 1;
+  text: PushedText[];
+  assets: PushedSet[];
+  /** Google Play only; absent for a push that wrote no draft release. No migration: the manifest is JSON. */
+  release?: PushedRelease;
+};
 
 export type PushRecord = {
   appId: string;
@@ -70,10 +78,12 @@ export function mergeManifest(base: PushedManifest, add: PushedManifest): Pushed
     `${a.locale}\u0000${a.field}` < `${b.locale}\u0000${b.field}` ? -1 : 1;
   const sortSet = (a: PushedSet, b: PushedSet) =>
     `${a.locale}\u0000${a.key}` < `${b.locale}\u0000${b.key}` ? -1 : 1;
+  const release = add.release ?? base.release;
   return {
     v: 1,
     text: [...text.values()].sort(sortText),
     assets: [...assets.values()].sort(sortSet),
+    ...(release ? { release } : {}),
   };
 }
 
@@ -170,6 +180,35 @@ export async function recordPush(
       input.platform,
     ],
   );
+}
+
+/**
+ * Forgets the draft release of a record once it was released (or is known to be gone). A record that then holds nothing is deleted,
+ * so a release-only push leaves no "waiting to be submitted" line behind. Another release of the record is not touched.
+ */
+export async function clearPushedRelease(
+  sql: Sql,
+  appId: string,
+  platform: Platform,
+  track: string,
+  codes: readonly string[],
+): Promise<void> {
+  const record = await loadPush(sql, appId, platform);
+  if (!record?.manifest.release) return;
+  const same =
+    record.manifest.release.track === track &&
+    [...record.manifest.release.codes].sort().join(',') === [...codes].sort().join(',');
+  if (!same) return;
+  const { release: _gone, ...rest } = record.manifest;
+  if (rest.text.length === 0 && rest.assets.length === 0) {
+    await deletePush(sql, appId, platform);
+    return;
+  }
+  await sql.execute('UPDATE store_draft_pushes SET items = ? WHERE app_id = ? AND platform = ?', [
+    JSON.stringify(rest),
+    appId,
+    platform,
+  ]);
 }
 
 export const deletePush = (sql: Sql, appId: string, platform: Platform) =>

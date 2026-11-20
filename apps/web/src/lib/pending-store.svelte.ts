@@ -39,6 +39,10 @@ export const pendingStore = {
   view(appId: string): PendingView | null {
     return views[appId] ?? null;
   },
+  /** The last read view of each of these app records (null: not read), for `lineFor`: the newer of the two reads wins. */
+  viewsOf(appIds: readonly string[]): Record<string, PendingView | null> {
+    return Object.fromEntries(appIds.map((id) => [id, views[id] ?? null]));
+  },
   /** Reads the pending view of one app record. Returns '' when it worked, else a sentence. */
   async loadView(api: Api, workspaceId: string, appId: string): Promise<string> {
     const mine = (viewGeneration[appId] = (viewGeneration[appId] ?? 0) + 1);

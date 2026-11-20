@@ -88,7 +88,7 @@
   const view = $derived(resolveView(section, hash, allowed, { androidInScope }));
   const anySyncing = $derived(scoped.some((m) => syncing[m.id] === true));
   /** What is pending for the app, from the workspace summary (all its records, not only those in scope); null draws no chip. */
-  const pendingLine = $derived(lineFor(pendingStore.summary(workspaceId), members.map((m) => m.id)));
+  const pendingLine = $derived(lineFor(pendingStore.summary(workspaceId), members.map((m) => m.id), pendingStore.viewsOf(members.map((m) => m.id))));
   const bar = $derived(pendingBar(pendingLine, section));
   const scopeShown = $derived(showsScope(section, members.length));
 

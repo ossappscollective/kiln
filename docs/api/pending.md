@@ -60,11 +60,19 @@ there is no ETag (no summary in this API has one).
 
 - `kind`: `listing_text` (all staged text changes of the app, one item), `asset_set` (one per staged set), `release_field`
   (notes, release type, build choice and the other release fields; the local-only Play share is not listed),
-  `pushed_draft` (a draft pushed and not yet submitted), `in_review` (a version in review: informational), `approved` (an approved
+  `pushed_draft` (a draft pushed and not yet submitted; for Google Play only when the push held listing texts or graphics),
+  `draft_release` (Google Play: a draft release in a track that waits for the release step, for example "Draft release in production
+  with 1 version code 197, not released yet"; it comes from the push record of this app, so it shows at once, and from the draft
+  releases of the last sync: in `production`, or in any track when this app pushed something; `nextStep` is `release`, which needs the
+  track and the share typed; releasing it removes it), `in_review` (a version in review: informational), `approved` (an approved
   version waiting for release), `rollout_step` (a due step of a release plan).
 - `state`: `staged`, `invalid` (an error blocks the push), `pushed`, `in_review`, `approved`, `due`.
 - `nextStep`: `push_draft`, `submit`, `release`, `rollout`, or `null` (informational). `totals.actionable` counts the items with a
   next step; `totals.blocking` the items with an `error` problem. `refs` hold ids (at most 200, `truncated` says more exist).
+- The summary (`GET /pending/summary`) and this view are built from the same items by the same rule, so `count`, `waiting` and `blocking`
+  of an app's summary line equal `totals.actionable`, `totals.items - totals.actionable` and `totals.blocking` of its view at the same
+  moment. The web app shows the banner and the chips from the newer of the two reads and reads the view again when the summary is
+  newer and says something else.
 - What is said about versions is as of the last store sync (`lastSyncedAt`). Never a staged text, a build or a credential.
 - `404 not_found` for an app that does not exist or is not visible (a token limited to other apps).
 

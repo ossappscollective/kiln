@@ -1,4 +1,4 @@
-import type { Platform, StagedProblem } from '@mrm/core';
+import { isGooglePlatform, type Platform, type StagedProblem } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { getApp, listApps, type ManagedApp } from './apps.ts';
 import { type Failure, failure } from './repositories.ts';
@@ -8,8 +8,9 @@ import { loadPush, type PushRecord } from './store-draft-record.ts';
 
 /**
  * Everything of an app that is waiting for somebody, in ONE place (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md):
- * staged listing texts, staged graphics, staged release fields, drafts that were pushed to the store and not submitted yet, versions
- * in review (nothing to do), versions approved and waiting for release, and rollout steps of a release plan that are due.
+ * staged listing texts, staged graphics, staged release fields, drafts that were pushed to the store and not submitted yet, Google
+ * Play draft releases that wait to be released, versions in review (nothing to do), versions approved and waiting for release, and
+ * rollout steps of a release plan that are due.
  *
  * STORED STATE ONLY: this reads this server's own tables (`staged_changes`, `store_draft_pushes`, `app_releases` as of the last
  * store sync, `plan_rollout_steps`). It never contacts a store and never builds a connector, so it is cheap and works with every
@@ -21,6 +22,7 @@ export const PENDING_KINDS = [
   'asset_set',
   'release_field',
   'pushed_draft',
+  'draft_release',
   'in_review',
   'approved',
   'rollout_step',
@@ -110,6 +112,8 @@ type ReleaseFact = {
   status: string;
   since: number | null;
 };
+/** A Google Play release in `draft` status on a track, as of the last sync. */
+type DraftReleaseFact = { id: string; track: string; codes: string[]; since: number | null };
 type StepFact = { id: string; planVersion: string; percent: number; plannedAt: number };
 
 export type PendingFacts = {
@@ -117,6 +121,8 @@ export type PendingFacts = {
   unpushed: Set<string>;
   pushes: Map<string, PushRecord>;
   releases: Map<string, ReleaseFact[]>;
+  /** Google Play draft releases of the last sync, by app id. */
+  drafts: Map<string, DraftReleaseFact[]>;
   steps: Map<string, StepFact[]>;
 };
 
@@ -166,6 +172,27 @@ export async function loadPendingFacts(
     });
   }
 
+  const drafts = new Map<string, DraftReleaseFact[]>();
+  for (const r of await sql.query(
+    `SELECT id, app_id, track, details_json, status_since, synced_at FROM app_releases
+      WHERE workspace_id = ?${only} AND platform = 'android' AND status = 'draft' AND track <> '' ORDER BY track, id`,
+    args(workspaceId),
+  )) {
+    let codes: string[] = [];
+    try {
+      const d = JSON.parse(String(r.details_json ?? '{}')) as { versionCodes?: unknown };
+      if (Array.isArray(d.versionCodes)) codes = d.versionCodes.map((c) => String(c));
+    } catch {
+      // not JSON: a draft with no known codes
+    }
+    append(drafts, String(r.app_id), {
+      id: String(r.id),
+      track: String(r.track),
+      codes,
+      since: num(r.status_since) ?? num(r.synced_at),
+    });
+  }
+
   // Only the next step of a plan counts, and only when its planned time has passed.
   const steps = new Map<string, StepFact[]>();
   for (const r of await sql.query(
@@ -185,7 +212,7 @@ export async function loadPendingFacts(
       plannedAt: Number(r.planned_at),
     });
   }
-  return { unpushed, pushes, releases, steps };
+  return { unpushed, pushes, releases, drafts, steps };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -260,18 +287,38 @@ function itemsOf(
   if (record) {
     const texts = record.manifest.text.length;
     const sets = record.manifest.assets.length;
+    // A Google Play push that wrote only the release fields has nothing to submit: its draft release is the item below.
+    if (!(isGooglePlatform(platform) && texts + sets === 0)) {
+      out.push({
+        kind: 'pushed_draft',
+        platform,
+        id: 'pushed_draft',
+        label: `Draft in the store, not submitted yet: ${plural(texts, 'text', 'texts')}, ${plural(sets, 'graphics set', 'graphics sets')}${record.versionString ? ` (version ${record.versionString})` : ''}`,
+        state: 'pushed',
+        problems: [],
+        nextStep: 'submit',
+        counts: { texts, assetSets: sets },
+        refs: [],
+        truncated: false,
+        since: record.pushedAt,
+      });
+    }
+  }
+
+  // Google Play: a draft release in a track waits for the release step. Two sources, one rule (`draftReleasesOf`).
+  for (const d of draftReleasesOf(app, facts)) {
     out.push({
-      kind: 'pushed_draft',
+      kind: 'draft_release',
       platform,
-      id: 'pushed_draft',
-      label: `Draft in the store, not submitted yet: ${plural(texts, 'text', 'texts')}, ${plural(sets, 'graphics set', 'graphics sets')}${record.versionString ? ` (version ${record.versionString})` : ''}`,
+      id: d.id,
+      label: `Draft release in ${d.track} with ${plural(d.codes.length, 'version code', 'version codes')}${d.codes.length > 0 ? ` ${d.codes.join(', ')}` : ''}, not released yet`,
       state: 'pushed',
       problems: [],
-      nextStep: 'submit',
-      counts: { texts, assetSets: sets },
+      nextStep: 'release',
+      counts: { versionCodes: d.codes.length },
       refs: [],
       truncated: false,
-      since: record.pushedAt,
+      since: d.since,
     });
   }
 
@@ -321,6 +368,42 @@ function itemsOf(
       refs: [],
       truncated: false,
       since: s.plannedAt,
+    });
+  }
+  return out;
+}
+
+const codesKey = (codes: readonly string[]) => [...codes].sort().join(',');
+
+/**
+ * The Google Play draft releases that wait to be released, for the pending view: (1) the one a push of this app wrote (its record
+ * names track and codes, so it shows at once, before any sync), and (2) the draft releases the last store sync saw: in `production`,
+ * or in any track when this app pushed something (a draft nobody pushed to a test track is not "pending"). A release that appears in
+ * both is one item. A release that was released here is removed from the record and from the stored rows (store-release.ts).
+ */
+export function draftReleasesOf(
+  app: Pick<ManagedApp, 'id' | 'platform'>,
+  facts: Pick<PendingFacts, 'pushes' | 'drafts'>,
+): { id: string; track: string; codes: string[]; since: number | null }[] {
+  if (!isGooglePlatform(app.platform)) return [];
+  const out: { id: string; track: string; codes: string[]; since: number | null }[] = [];
+  const record = facts.pushes.get(app.id);
+  const pushed = record?.manifest.release;
+  if (pushed)
+    out.push({
+      id: `draft_release:${pushed.track}:${codesKey(pushed.codes)}`,
+      track: pushed.track,
+      codes: [...pushed.codes].sort((a, b) => Number(a) - Number(b)),
+      since: record?.pushedAt ?? null,
+    });
+  for (const d of facts.drafts.get(app.id) ?? []) {
+    if (record === undefined && d.track !== 'production') continue;
+    if (pushed && pushed.track === d.track && codesKey(pushed.codes) === codesKey(d.codes)) continue;
+    out.push({
+      id: `draft_release:${d.track}:${codesKey(d.codes)}`,
+      track: d.track,
+      codes: [...d.codes].sort((a, b) => Number(a) - Number(b)),
+      since: d.since,
     });
   }
   return out;

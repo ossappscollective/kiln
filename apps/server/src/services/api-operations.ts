@@ -2631,6 +2631,7 @@ const pendingItemSchema = z.object({
     'asset_set',
     'release_field',
     'pushed_draft',
+    'draft_release',
     'in_review',
     'approved',
     'rollout_step',

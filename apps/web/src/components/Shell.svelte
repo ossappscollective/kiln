@@ -88,7 +88,7 @@
     const apps = navSignals.appsOf(workspaceId);
     const group = apps ? groupApps(apps).filter((g) => g.members.some((m) => m.id === appAddr.id))[0] : undefined;
     const ids = group ? group.members.map((m) => m.id) : [appAddr.id];
-    const line = lineFor(pendingStore.summary(workspaceId), ids);
+    const line = lineFor(pendingStore.summary(workspaceId), ids, pendingStore.viewsOf(ids));
     return {
       ...appNavCounts({
         memberIds: ids,
@@ -105,7 +105,7 @@
     const groups = groupApps(apps);
     const summary = pendingStore.summary(workspaceId);
     // The pending chip of each app (null when the summary is not known: no chip).
-    return switcherItems(groups).map((item, i) => ({ ...item, pending: lineFor(summary, (groups[i]?.members ?? []).map((m) => m.id)) }));
+    return switcherItems(groups).map((item, i) => ({ ...item, pending: lineFor(summary, (groups[i]?.members ?? []).map((m) => m.id), pendingStore.viewsOf((groups[i]?.members ?? []).map((m) => m.id))) }));
   });
 
   // The pending summary behind the chips: read when the workspace changes and when an app is opened or left (so the numbers are fresh).

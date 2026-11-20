@@ -41,6 +41,7 @@ import {
   STAGED_LIMITS,
   slotKey,
   sniffImageFormat,
+  versionCodesOf,
 } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
@@ -825,8 +826,18 @@ const sizeOf = (s: PreparedSet): { width: number | null; height: number | null }
 });
 
 /** The record of what a push wrote (hashes and ids only), for the submit step (docs/adr/0010-store-submit.md). */
+/** Google Play: the draft release this push wrote, when it named the track and the version codes. */
+const pushedReleaseOf = (p: Prepared): Pick<PushedManifest, 'release'> => {
+  const track = p.fields.find((f) => f.field === 'track')?.value;
+  const codes = p.fields.find((f) => f.field === 'version_codes')?.value;
+  if (!track || !codes) return {};
+  const list = versionCodesOf(codes);
+  return list.length > 0 ? { release: { track, codes: list } } : {};
+};
+
 export const manifestOfPrepared = (p: Prepared): PushedManifest => ({
   v: 1,
+  ...pushedReleaseOf(p),
   text: p.texts.map((t) => textEntry(t.locale, t.field, t.value)),
   assets: p.sets.map((s) => ({
     locale: s.locale,

@@ -22,6 +22,7 @@ import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
+import { clearPushedRelease } from './store-draft-record.ts';
 import { type Failure, failure } from './repositories.ts';
 import { storeFor } from './review-sync.ts';
 import { mapStoreError } from './store-draft.ts';
@@ -943,6 +944,40 @@ async function auditFailed(
   });
 }
 
+/**
+ * Google Play: the draft release that was just released is no longer pending. Forgets it in the push record and moves the stored
+ * row (as of the last sync) to what the commit made it, so the pending view does not keep a ghost until the next sync. The next
+ * sync is still the truth: it overwrites the row.
+ */
+async function markReleasedHere(
+  sql: Sql,
+  app: ManagedApp,
+  track: string,
+  codes: readonly string[],
+  completed: boolean,
+): Promise<void> {
+  await clearPushedRelease(sql, app.id, app.platform, track, codes);
+  const wanted = [...codes].sort().join(',');
+  for (const r of await sql.query(
+    "SELECT id, details_json FROM app_releases WHERE app_id = ? AND platform = 'android' AND track = ? AND status = 'draft'",
+    [app.id, track],
+  )) {
+    let have: string[] = [];
+    try {
+      const d = JSON.parse(String(r.details_json ?? '{}')) as { versionCodes?: unknown };
+      if (Array.isArray(d.versionCodes)) have = d.versionCodes.map((c) => String(c));
+    } catch {
+      continue;
+    }
+    if ([...have].sort().join(',') !== wanted) continue;
+    await sql.execute('UPDATE app_releases SET status = ?, raw_state = ? WHERE id = ?', [
+      completed ? 'live' : 'rolling_out',
+      completed ? 'completed' : 'inProgress',
+      String(r.id),
+    ]);
+  }
+}
+
 async function succeed(
   ctx: ReleaseContext,
   input: { workspaceId: string; actor: Actor; confirmHash: string },
@@ -968,6 +1003,8 @@ async function succeed(
   const codes =
     s.before.store === 'googleplay' && s.before.release ? s.before.release.versionCodes : [];
   await ctx.db.transaction(async (tx) => {
+    if (track && codes.length > 0)
+      await markReleasedHere(tx, s.app, track, codes, s.request.userFraction === 1);
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor: input.actor,

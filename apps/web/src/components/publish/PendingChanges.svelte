@@ -30,6 +30,7 @@
     nextStepText,
     platformGroups,
     publishAvailability,
+    staleViewIds,
     stateBadge,
     totalsLine,
     warningsOf,
@@ -145,6 +146,18 @@
     loading = false;
     now = Date.now();
   }
+
+  /** The banner and the chips read the summary; when it is newer than this detail and says something else, read the detail again. */
+  let healedFor = '';
+  $effect(() => {
+    const summary = pendingStore.summary(workspaceId);
+    const stale = staleViewIds(summary, ids, pendingStore.viewsOf(ids));
+    if (stale.length === 0 || summary === null || loading) return;
+    const key = `${summary.generatedAt}/${stale.join(',')}`;
+    if (key === healedFor) return;
+    healedFor = key;
+    untrack(() => void Promise.all(stale.map((id) => pendingStore.loadView(api, workspaceId, id))));
+  });
 
   let shownFor = '';
   $effect(() => {
