@@ -136,6 +136,11 @@
 </Modal>
 
 <style>
+  td,
+  th {
+    font-size: 0.9375rem;
+  }
+
   .role {
     width: auto;
     min-width: 120px;

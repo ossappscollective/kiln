@@ -155,10 +155,7 @@
       <TokenTable {tokens} {canManage} {busyId} onrevoke={revoke} />
     {/if}
 
-    <p class="hint footer">
-      Tokens cannot manage tokens, people, webhooks or credentials, and never have the owner role. Every
-      call a token makes is recorded in the audit log under the token's name.
-    </p>
+    <p class="hint footer">Tokens cannot manage people, webhooks, credentials or other tokens. Every call is in the audit log under the token's name.</p>
   {/if}
 </section>
 

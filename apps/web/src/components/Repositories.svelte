@@ -131,7 +131,7 @@
 <section>
   <PageHeader
     title="Repositories"
-    description="Repositories with your fastlane or Expo project, from GitHub or from a clone on the server. Listing text is read from them, and changes go back as pull requests, or as commits on a new branch of a local clone, that a person approves."
+    description="The fastlane or Expo projects your listing text is read from. Changes go back as pull requests that a person approves."
   >
     {#snippet actions()}
       {#if canRead && canConnect && !selected && items !== null}
@@ -166,7 +166,7 @@
         icon="git-branch"
         title="No repositories connected"
         description={canConnect
-          ? 'Connect the GitHub repository of your app, or a clone of it on the server. The tool reads its fastlane or Expo files and never writes to it without an approved change set.'
+          ? 'Connect your app’s GitHub repository or a clone on the server. Nothing is written without an approved change set.'
           : 'An admin or owner connects repositories. Once one is connected it appears here.'}
       >
         {#snippet actions()}

@@ -5,6 +5,10 @@
   import type { CredentialSummary, LastTest } from '../lib/types.ts';
   import CredentialForm from './credentials/CredentialForm.svelte';
   import CredentialTable from './credentials/CredentialTable.svelte';
+  import Alert from './ui/Alert.svelte';
+  import Button from './ui/Button.svelte';
+  import EmptyState from './ui/EmptyState.svelte';
+  import PageHeader from './ui/PageHeader.svelte';
   import Section from './ui/Section.svelte';
   import StoreBadge from './ui/StoreBadge.svelte';
 
@@ -19,7 +23,6 @@
   /** A short confirmation after saving, replacing or deleting. Focus moves to it. */
   let notice = $state('');
   let noticeEl = $state<HTMLElement>();
-  let addButton = $state<HTMLButtonElement>();
 
   async function load() {
     loadError = '';
@@ -59,7 +62,7 @@
   async function cancelAdd() {
     adding = false;
     await tick();
-    addButton?.focus();
+    document.getElementById('add-credential')?.focus();
   }
 
   function tested(id: string, lastTest: LastTest) {
@@ -68,27 +71,24 @@
 </script>
 
 <section>
-  <header>
-    <div>
-      <h2>Credentials</h2>
-      <p class="muted">
-        Store and repository keys, encrypted at rest. Secrets are never shown again after saving.
-      </p>
-    </div>
-    {#if canWrite && !adding}
-      <button
-        class="primary"
-        bind:this={addButton}
-        onclick={() => {
-          adding = true;
-          notice = '';
-        }}>Add credential</button
-      >
-    {/if}
-  </header>
+  <PageHeader title="Credentials" description="The store and repository keys this workspace uses. They are encrypted, and a secret is never shown again after saving.">
+    {#snippet actions()}
+      {#if canWrite && !adding}
+        <Button
+          variant="primary"
+          icon="plus"
+          id="add-credential"
+          onclick={() => {
+            adding = true;
+            notice = '';
+          }}>Add credential</Button
+        >
+      {/if}
+    {/snippet}
+  </PageHeader>
 
   {#if !canRead}
-    <p class="alert info">Your role does not include viewing credentials.</p>
+    <Alert tone="info">Your role does not include viewing credentials.</Alert>
   {:else}
     <p class="notice" class:shown={notice} bind:this={noticeEl} role="status" tabindex="-1">{notice}</p>
 
@@ -96,19 +96,22 @@
       <CredentialForm {api} {workspaceId} onSaved={saved} onCancel={cancelAdd} />
     {/if}
 
-    {#if loadError}<p class="alert error" role="alert">{loadError}</p>{/if}
+    {#if loadError}<Alert tone="error">{loadError}</Alert>{/if}
 
     {#if items === null && !loadError}
       <p class="muted">Loading…</p>
     {:else if items && items.length === 0 && !adding}
       <div class="card empty">
-        <p><strong>No credentials yet.</strong></p>
-        <p class="muted">
-          Add an App Store Connect key, a Google Play service account and a GitHub App to connect your
-          stores and repositories. Each type comes with a step-by-step guide, and you can test a
-          credential before you save it.
-        </p>
-        <p class="row">
+        <EmptyState
+          icon="key"
+          title="No credentials yet"
+          description={canWrite ? 'Add the key that connects your App Store Connect, Google Play or GitHub account. Each type has a step-by-step guide.' : 'An admin or owner adds the keys that connect the stores and repositories.'}
+        >
+          {#snippet actions()}
+            {#if canWrite}<Button variant="primary" icon="plus" onclick={() => (adding = true)}>Add credential</Button>{/if}
+          {/snippet}
+        </EmptyState>
+        <p class="row stores">
           <StoreBadge store="app_store" variant="full" />
           <StoreBadge store="google_play" variant="full" />
           <StoreBadge store="github" variant="full" />
@@ -131,20 +134,13 @@
 </section>
 
 <style>
-  header {
-    display: flex;
-    gap: 16px;
-    align-items: flex-start;
-    justify-content: space-between;
-    margin-bottom: 20px;
-  }
-
-  header p {
-    margin: 4px 0 0;
-  }
-
   .empty {
     margin-bottom: 20px;
+  }
+
+  .stores {
+    justify-content: center;
+    margin: 0;
   }
 
   .notice {

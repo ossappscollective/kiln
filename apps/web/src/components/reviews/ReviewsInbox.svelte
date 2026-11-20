@@ -318,7 +318,7 @@
 
 <PageHeader
   title="Reviews"
-  description="What customers wrote about every app, kept on this server for your team to triage and answer. Reading and triage change nothing in a store."
+  description="What customers wrote about every app, for your team to triage and answer. Triage changes nothing in a store."
 />
 
 <section class="inbox stack loose" aria-busy={loading}>
@@ -374,7 +374,7 @@
         title={noApps ? 'No apps yet' : 'No reviews have been read yet'}
         description={noApps
           ? 'Add an app in the Portfolio. Its reviews then appear here.'
-          : 'Open an app and read its reviews from the store on its Reviews tab. Reviews are kept here after that and appear in this inbox.'}
+          : 'Read an app’s reviews from the store on its Reviews tab. They are kept and listed here after that.'}
       >
         {#snippet actions()}<Button variant="primary" href="#/portfolio">Go to the portfolio</Button>{/snippet}
       </EmptyState>

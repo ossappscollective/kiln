@@ -53,3 +53,10 @@
     </tbody>
   </table>
 </div>
+
+<style>
+  td,
+  th {
+    font-size: 0.9375rem;
+  }
+</style>

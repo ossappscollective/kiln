@@ -110,7 +110,7 @@
 <section>
   <PageHeader
     title="Webhooks"
-    description="Send a signed message to your own server when something happens here, such as a change set being applied or a release changing status."
+    description="Send a signed message to your own server when something happens here, such as a release changing status."
   >
     {#snippet actions()}
       {#if canManage && !adding && !editing}
@@ -208,8 +208,7 @@
     {/if}
 
     <p class="hint footer">
-      Messages go to https addresses on the public internet only. A message that fails is tried again a few
-      times, then marked failed; you can send it again from its deliveries.
+      https addresses on the public internet only. A failed message is retried a few times, then marked failed; send it again from its deliveries.
     </p>
   {/if}
 </section>

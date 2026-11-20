@@ -110,6 +110,11 @@
 </Modal>
 
 <style>
+  td,
+  th {
+    font-size: 0.9375rem;
+  }
+
   .inactive td {
     opacity: 0.75;
   }

@@ -60,6 +60,12 @@ stepper), then the shell and the overview (this section), then the other pages a
 | Overview (`AppDashboard`, `NextStep`) | "Your next step" card (30px title, 17px sentence, one large primary button, the five release steps), platform cards side by side with tint and status, "Also worth a look" (three lines, "Show N more"), Details collapsed |
 | All apps (`Portfolio`, `AppsOverview`) | The same page header as the other workspace pages (title, one sentence, primary "Add app" at the right); the next action of a row is a visible pill |
 | Page headers (`PageHeader`, `app.css`) | 24px title, 15px one-line explanation, the primary action at the right. Inbox and Settings already used it |
+| Settings (`Settings`, `settings/*`) | One-sentence header. General opens with Store refresh (it is what makes alerts work), then Reviews, Releases, Translation; a "Jump to" row (`JumpTo`, `settingsSectionsFor`) scrolls to a part (buttons, not hash links, because the address is a route). Security keeps confirmation, recovery codes, the second factor and mail together, each with a jump target. Hints are one sentence; the long explanation of the refresh sits behind "How the refresh works". The save bar is sticky and says "You have unsaved changes" or "All changes are saved" |
+| Alerts (`Alerts`, `alerts/*`) | The inbox starts with one line (`inboxHeadline`: "2 need attention, 3 unread") and Mark all read only when something is unread; "Needs attention" is open first, "For your information" opens only when nothing needs attention, "Resolved" is folded. The unread count is on the tab. In My alerts, the Desktop notifications card stays first; "Try it" and an empty mute list are folded; hints are one sentence |
+| Reviews inbox | Shorter header sentence and empty state; summary strip and filters were already one line and one disclosure |
+| Credentials | Uses `PageHeader` with "Add credential" as the one primary; the empty state is one line plus the action; Delete is a danger link, not equal to Test and Replace secret; 15px table text |
+| Members, API tokens, Webhooks, Repositories | One-sentence headers; Members gets "Invite someone" as the header action (it focuses the invite form below); one-line footers; 15px table text. Revoke, Remove and Delete stay `danger` and secondary to the safe actions |
+| Workflows, Audit log | Already had `PageHeader`, one primary and filters on one line; unchanged |
 
 ## Store and platform markers
 

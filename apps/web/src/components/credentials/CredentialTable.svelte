@@ -169,7 +169,7 @@
                     confirmingDelete = null;
                   }}>Replace secret</button
                 >
-                <button id="delete-btn-{item.id}" class="link" onclick={() => askDelete(item.id)}>Delete</button>
+                <button id="delete-btn-{item.id}" class="link danger" onclick={() => askDelete(item.id)}>Delete</button>
               {/if}
             </td>
           {/if}
@@ -203,6 +203,11 @@
     overflow-x: auto;
   }
 
+  td,
+  th {
+    font-size: 0.9375rem;
+  }
+
   .status {
     min-width: 150px;
   }
@@ -215,13 +220,13 @@
 
   .when {
     margin-left: 6px;
-    font-size: 12px;
+    font-size: 0.8125rem;
   }
 
   p.failure,
   p.note {
     margin: 4px 0 0;
-    font-size: 12px;
+    font-size: 0.875rem;
     overflow-wrap: anywhere;
   }
 

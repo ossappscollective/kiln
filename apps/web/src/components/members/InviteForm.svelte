@@ -45,10 +45,7 @@
   <div class="card-header">
     <div>
       <h3>Invite someone</h3>
-      <p>
-        You get a link to send them yourself; this server does not send email. The invitation only
-        works for the address you enter.
-      </p>
+      <p>You get a link to send them; this server sends no email. It works only for the address you enter.</p>
     </div>
   </div>
   <div class="grid">

@@ -9,6 +9,7 @@
   import MemberTable from './members/MemberTable.svelte';
   import { roleLabel } from './members/roles.ts';
   import Alert from './ui/Alert.svelte';
+  import Button from './ui/Button.svelte';
   import PageHeader from './ui/PageHeader.svelte';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
@@ -127,7 +128,13 @@
   <PageHeader
     title="Members"
     description="Who can use this workspace. People join by invitation link; there is no open sign-up."
-  />
+  >
+    {#snippet actions()}
+      {#if canManage && !invitesOff}
+        <Button variant="primary" icon="plus" onclick={() => document.getElementById('invite-email')?.focus()}>Invite someone</Button>
+      {/if}
+    {/snippet}
+  </PageHeader>
 
   {#if !canRead}
     <Alert tone="info">Your role does not include the member list.</Alert>
