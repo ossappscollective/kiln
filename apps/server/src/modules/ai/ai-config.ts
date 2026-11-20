@@ -26,7 +26,11 @@ import {
   type GuardedFetch,
   type PostExchange,
 } from '../../services/translate-net.ts';
-import { checkWebhookUrl, type Resolver, resolveAllowed } from '../../services/webhook-transport.ts';
+import {
+  checkWebhookUrl,
+  type Resolver,
+  resolveAllowed,
+} from '../../services/webhook-transport.ts';
 
 /**
  * The AI configuration of a workspace and the failure vocabulary of the AI routes (docs/api/ai.md,

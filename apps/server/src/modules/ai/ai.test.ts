@@ -4,9 +4,9 @@ import { test } from 'node:test';
 import { AiError, isStrictCompatible } from '@mrm/connectors';
 import { aiTaskIds } from '@mrm/core';
 import { dbTest } from '@mrm/db/testing';
-import { type AiBoot, API_KEY, bootAi, keywordAnswer } from './test-helpers.ts';
 import { wrapReviewText } from './ai-task-reply.ts';
 import { aiTasks } from './ai-tasks.ts';
+import { type AiBoot, API_KEY, bootAi, keywordAnswer } from './test-helpers.ts';
 
 /**
  * AI assistance (docs/api/ai.md, docs/adr/0016-ai-foundation.md). The model is a scripted fake and the stores are fakes: nothing
@@ -1867,7 +1867,10 @@ test('structure: the AI modules import only the services they may and never name
     const source = readFileSync(url, 'utf8');
     assert.doesNotMatch(source, /from '\.\/service\.ts'/, `${name} imports the run service`);
     for (const m of source.matchAll(/from '\.{1,2}\/(?:[a-z0-9-]+\/)*([a-z0-9-]+)\.ts'/g))
-      assert.ok(allowed.has(m[1] as string) || outside.has(m[1] as string), `${name} imports ${m[1]}.ts`);
+      assert.ok(
+        allowed.has(m[1] as string) || outside.has(m[1] as string),
+        `${name} imports ${m[1]}.ts`,
+      );
     assert.doesNotMatch(source, forbidden, `${name} names something that can act outside the tool`);
   }
   for (const m of routes.matchAll(/from '\.{1,2}\/(?:[a-z0-9-]+\/)*([a-z0-9-]+)\.ts'/g))

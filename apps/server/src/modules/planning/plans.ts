@@ -25,13 +25,13 @@ import {
 import { type Database, mapOrNull, oneOf, type Param, type Row, type Sql } from '@mrm/db';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
+import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
 import {
   loadRolloutSteps,
   loadRolloutStepsByPlan,
   purgeRolloutOfPlan,
   rolloutSummaryOf,
 } from './plan-rollout.ts';
-import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
 
 /**
  * Release planning: checklists, release notes per locale, a target date and a blocked flag for

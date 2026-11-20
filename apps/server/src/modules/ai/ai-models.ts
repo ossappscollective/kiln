@@ -8,6 +8,9 @@ import {
   LIST_ONLY_MODEL,
 } from '@mrm/connectors';
 import { type AiProvider, aiProviderInfo } from '@mrm/core';
+import { recordAudit } from '../../services/audit.ts';
+import { useCredentialSecret } from '../../services/credentials.ts';
+import { checkTranslateUrl, createGuardedFetch } from '../../services/translate-net.ts';
 import {
   type AiActor,
   type AiContext,
@@ -21,9 +24,6 @@ import {
   guardReason,
   readAiConfig,
 } from './ai-config.ts';
-import { recordAudit } from '../../services/audit.ts';
-import { useCredentialSecret } from '../../services/credentials.ts';
-import { checkTranslateUrl, createGuardedFetch } from '../../services/translate-net.ts';
 
 /**
  * Model discovery for the AI settings (docs/api/ai.md, `POST /ai/models`): the models a provider says it serves, so a person picks one

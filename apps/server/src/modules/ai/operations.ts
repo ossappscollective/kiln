@@ -8,6 +8,7 @@ import {
   aiTaskIds,
 } from '@mrm/core';
 import { z } from 'zod';
+import type { Operation } from '../../operations/openapi.ts';
 import {
   acceptBody,
   appContextBody,
@@ -15,7 +16,6 @@ import {
   runTaskBody,
   updateConfigBody,
 } from './routes.ts';
-import type { Operation } from '../../operations/openapi.ts';
 
 /**
  * The operations of AI assistance (docs/api/ai.md), kept in their own file and added to the registry in api-operations.ts. Every

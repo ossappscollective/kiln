@@ -1,3 +1,4 @@
+import { aiOperations } from '../modules/ai/operations.ts';
 import { alertOperations } from '../modules/alerts/operations.ts';
 import { analyticsOperations } from '../modules/analytics/operations.ts';
 import { asoOperations } from '../modules/aso/operations.ts';
@@ -8,7 +9,6 @@ import { listingOperations } from '../modules/listing/operations.ts';
 import { planningOperations } from '../modules/planning/operations.ts';
 import { publishOperations } from '../modules/publish/operations.ts';
 import { reviewsOperations } from '../modules/reviews/operations.ts';
-import { aiOperations } from '../modules/ai/operations.ts';
 import { mcpOperations } from './mcp.ts';
 import type { Operation } from './openapi.ts';
 import { releasesOperations } from './releases.ts';

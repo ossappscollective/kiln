@@ -8,8 +8,8 @@ import {
   DEFAULT_REMINDER_INTERVAL_MINUTES,
   reminderIntervalMs,
 } from '../../scheduler.ts';
-import { REMINDER_ACTOR, sendPlanReminders } from './plan-reminders.ts';
 import { addMember, auditActions, boot, registerOwner, seedWorkspace } from '../../testkit.ts';
+import { REMINDER_ACTOR, sendPlanReminders } from './plan-reminders.ts';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;

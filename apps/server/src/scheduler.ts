@@ -11,6 +11,8 @@ import {
 import { ACTIVE_STATUSES, purgeOrphans } from './modules/ci/runs.ts';
 import { DEFAULT_POLL_MAX_MS, enqueueCiPoll } from './modules/ci/service.ts';
 import { type ListingQueueSummary, queueListingReads } from './modules/listing/schedule.ts';
+import { type ReminderSummary, sendPlanReminders } from './modules/planning/plan-reminders.ts';
+import { type ReleaseWatchSummary, sendReleaseWatch } from './modules/planning/release-watch.ts';
 import {
   queueReviewSyncs,
   type ReviewQueueSummary,
@@ -18,8 +20,6 @@ import {
   reviewUpkeep,
 } from './modules/reviews/schedule.ts';
 import { APP_SYNC_QUEUE } from './services/apps.ts';
-import { type ReminderSummary, sendPlanReminders } from './modules/planning/plan-reminders.ts';
-import { type ReleaseWatchSummary, sendReleaseWatch } from './modules/planning/release-watch.ts';
 import {
   loadSyncPrefs,
   MAX_SYNC_INTERVAL_MINUTES,

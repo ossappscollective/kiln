@@ -8,8 +8,8 @@ import {
   DEFAULT_RELEASE_WATCH_INTERVAL_MINUTES,
   releaseWatchIntervalMs,
 } from '../../scheduler.ts';
-import { RELEASE_WATCH_ACTOR, sendReleaseWatch } from './release-watch.ts';
 import { auditActions, boot, registerOwner } from '../../testkit.ts';
+import { RELEASE_WATCH_ACTOR, sendReleaseWatch } from './release-watch.ts';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
