@@ -29,7 +29,7 @@ Needs `listing.read`. Returns `{ candidates }`:
 - **App Store (iOS and macOS)**: `{ store: "appstoreconnect", platform, version, builds[], attachedBuildId, truncatedAt }`.
   `version` is the editable version a build would be attached to (or `null`). Each build: `id`, `buildNumber`, `version`
   (marketing version), `uploadedDate`, `processingState`, `expired`, `selectable` (processed and not expired), `reason`
-  (why not), `attached`. A macOS app lists the macOS builds only. `?version=2.4.0` narrows the list. The `id` is what you
+  (why not), `attached`. A macOS app lists the macOS builds only. Only the newest ten builds are read (one small request; `truncatedAt` is 10 when Apple has more). `?version=` no longer narrows the list: a build of another marketing version can be attached too. The `id` is what you
   stage as the `build` field. Also, per build: `eligibility`, `exportCompliance` and `testNotes` (below).
 - **Google Play**: `track` is required (`422 track_required`). `{ store: "googleplay", platform: "android", track, codes[] }`;
   each code: `versionCode`, `source` (`bundle` or `apk`), `sha256`, `inTrack[] { name, status }` (the releases of that track
