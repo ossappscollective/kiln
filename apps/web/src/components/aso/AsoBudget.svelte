@@ -183,7 +183,7 @@
 
   .headline {
     margin: 0;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
   }
 
   .tip h4 {

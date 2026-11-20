@@ -106,7 +106,7 @@
   }
 
   .small {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
   }
 
   .pick {

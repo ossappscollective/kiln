@@ -342,7 +342,7 @@
   .picks legend {
     padding: 0;
     margin-bottom: var(--space-1);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
   }
 
   .pick {
@@ -381,7 +381,7 @@
     gap: var(--space-1) var(--space-4);
     padding: 0;
     margin: 0;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     color: var(--muted);
     list-style: none;
   }
@@ -437,7 +437,7 @@
 
   .ytick,
   .xtick {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     fill: var(--faint);
     font-variant-numeric: tabular-nums;
   }
@@ -478,7 +478,7 @@
     border: 1px solid var(--line-strong);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-md);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
   }
 
   .tip-date {
@@ -513,7 +513,7 @@
   }
 
   .label {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
   }
 
   .quiet {

@@ -265,7 +265,7 @@
   }
 
   .facts dt {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
     color: var(--muted);
   }
