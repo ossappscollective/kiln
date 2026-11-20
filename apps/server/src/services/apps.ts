@@ -253,7 +253,11 @@ export async function listAppReleases(
     const at = sent
       .filter((s) => s.track === release.track && s.codes.some((c) => codes.indexOf(c) >= 0))
       .reduce<number | null>((latest, s) => (latest === null || s.at > latest ? s.at : latest), null);
-    return at === null ? release : { ...release, sentForReviewAt: at };
+    if (at === null) return release;
+    // Google Play reports a release in review as live (or rolling out). One this server sent in the last days reads "in review"
+    // everywhere (overview, all apps, tables) until the window ends or a newer release replaces it; `rawState` stays Google's.
+    const inReview = release.status === 'live' || release.status === 'rolling_out';
+    return { ...release, ...(inReview ? { status: 'in_review' as const } : {}), sentForReviewAt: at };
   });
 }
 

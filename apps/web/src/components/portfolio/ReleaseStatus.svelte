@@ -24,16 +24,15 @@
     sentForReviewAt?: number | null | undefined;
   } = $props();
 
+  const playReviewNote = (at: number) =>
+    `Sent to Google Play from here ${new Date(at).toLocaleString()}. Google Play does not report the review state: the release may already be live. Check Play Console.`;
   const info = $derived(statusInfo(status, rawState));
   const rollout = $derived(formatRollout(rolloutFraction));
 </script>
 
-<span class="status" title={info.description}>
+<span class="status" title={sentForReviewAt ? playReviewNote(sentForReviewAt) : info.description}>
   <Badge tone={info.tone} icon={statusIcon(status)}>{info.label}</Badge>
   {#if rollout}<span class="rollout muted"><span class="visually-hidden">Rollout </span>{rollout}</span>{/if}
-  {#if sentForReviewAt && status !== 'in_review'}
-    <span title="Sent to Google Play from here {new Date(sentForReviewAt).toLocaleString()}. Google Play does not report the review state: the release may still be waiting for review. Check Play Console."><Badge tone="info" icon="clock">In review</Badge></span>
-  {/if}
 </span>
 
 <style>

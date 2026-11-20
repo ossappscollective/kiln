@@ -882,6 +882,8 @@ dbTest(
     const list = await listAppReleases(db, t.workspaceId, app);
     assert.equal(typeof list.find((r) => r.version === '2.1')?.sentForReviewAt, 'number', 'the release sent from here says so');
     assert.equal(list.find((r) => r.version === '2.0')?.sentForReviewAt, undefined, 'an older release does not');
+    assert.equal(list.find((r) => r.version === '2.1')?.status, 'in_review', 'Google calls it live; here it reads in review');
+    assert.equal(list.find((r) => r.version === '2.0')?.status, 'live', 'an older release stays as Google says');
   },
 );
 
