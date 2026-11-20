@@ -5,6 +5,8 @@
   uses the SAVED settings), testing, outcome (the last test), ontest, onaddcredential.
   Review text is sent to the provider chosen here: each choice says who receives it. Keys are never
   shown here; they live under Credentials.
+  Readable pass (docs/design/readability.md): the card is title, one sentence, then fields as label, control and one hint. A credential and
+  a test are ONE word (lib/readable-forms.ts) with a quiet action beside it; the long note about the address sits behind a disclosure.
 -->
 <script lang="ts">
   import { type TranslationMode, translationModes } from '@mrm/core';
@@ -24,7 +26,10 @@
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Card from '../ui/Card.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
   import TextField from '../ui/TextField.svelte';
+  import '../readable-card.css';
+  import { credentialWord, testWord } from '../../lib/readable-forms.ts';
 
   let {
     form = $bindable(),
@@ -57,6 +62,15 @@
   const savedProvider = $derived(data.translation.provider);
   const providerChanged = $derived(savedProvider !== form.provider);
   const modes: TranslationMode[] = [...translationModes];
+  const credWord = $derived(
+    credentialWord({
+      configured: data.translation.credentialConfigured,
+      required: data.translation.credentialRequired,
+      changed: providerChanged,
+      optionalLabel: 'Optional',
+    }),
+  );
+  const testState = $derived(testWord({ testing, ok: outcome === null ? null : outcome.ok }));
 </script>
 
 <Card title="Translation" collapseKey="translation" description="Translate customer reviews with a service you choose.">
@@ -64,7 +78,7 @@
     <Alert tone="info">Only owners and admins can change these settings. You can see what is set.</Alert>
   {/if}
 
-  <div class="stack">
+  <div class="stack readable-card">
     <div class="field">
       <label class="check">
         <input type="checkbox" bind:checked={form.enabled} disabled={!editable} />
@@ -89,25 +103,25 @@
 
     <div class="field">
       <p class="label-like">Credential</p>
-      {#if providerChanged}
-        <p class="hint">Save to see the credential of {choice?.label}.</p>
-      {:else if data.translation.credentialConfigured}
-        <p>
-          <Badge tone="ok" icon="check">Added</Badge>
-          {#if data.translation.credential}{data.translation.credential.label}{:else}A credential of this kind is in use.{/if}
-        </p>
-        <p class="hint">The oldest credential of this kind is used. Keys are kept in the vault and are never shown here.</p>
-      {:else if data.translation.credentialRequired}
-        <p><Badge tone="warn">Missing</Badge> {choice?.label} needs an API key.</p>
-      {:else}
-        <p class="hint">Optional. Add a key only if your LibreTranslate server asks for one.</p>
-      {/if}
-      {#if canManageCredentials}
-        <p>
-          <Button size="sm" icon="plus" onclick={onaddcredential}>Add a credential</Button>
+      <p class="connection">
+        <Badge tone={credWord.tone} icon={credWord.tone === 'ok' ? 'check' : undefined}>{credWord.label}</Badge>
+        {#if providerChanged}
+          <span>Save to see the credential of {choice?.label}.</span>
+        {:else if data.translation.credentialConfigured}
+          <span>{#if data.translation.credential}{data.translation.credential.label}{:else}A credential of this kind is in use.{/if}</span>
+        {:else if data.translation.credentialRequired}
+          <span>{choice?.label} needs an API key.</span>
+        {:else}
+          <span>Add a key only if your LibreTranslate server asks for one.</span>
+        {/if}
+        {#if canManageCredentials}
+          <Button size="sm" variant="ghost" icon="plus" onclick={onaddcredential}>Add a credential</Button>
           <a class="link sm" href="#/credentials">Manage credentials</a>
-        </p>
-      {:else if !data.translation.credentialConfigured && data.translation.credentialRequired}
+        {/if}
+      </p>
+      {#if data.translation.credentialConfigured && !providerChanged}
+        <p class="hint">Keys are kept in the vault and are never shown here.</p>
+      {:else if !canManageCredentials && !data.translation.credentialConfigured && data.translation.credentialRequired}
         <p class="hint">An admin can add it under Credentials.</p>
       {/if}
     </div>
@@ -117,12 +131,15 @@
         label="LibreTranslate address"
         bind:value={form.libreUrl}
         placeholder="https://translate.example.com"
-        hint="Starts with https://. No user name, password or key in the address. A server on a private network needs MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true on this server."
+        hint="Starts with https://, with no user name, password or key in it."
         error={errors.libreUrl}
         disabled={!editable}
         autocomplete="off"
         spellcheck="false"
       />
+      <Disclosure summary="About a server on a private network">
+        <p class="hint">A server on a private network needs MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true on this server.</p>
+      </Disclosure>
     {/if}
 
     <div class="field">
@@ -131,7 +148,7 @@
       <datalist id="{uid}-languages">
         {#each languageChoices as l (l.tag)}<option value={l.tag}>{l.label}</option>{/each}
       </datalist>
-      <p class="hint" id="{uid}-target-hint">A language code, for example en, de or pt-BR. Reviews already in this language are not sent.</p>
+      <p class="hint" id="{uid}-target-hint">A language code such as en, de or pt-BR. Reviews already in it are not sent.</p>
       {#if errors.targetLanguage}<p class="field-error" role="alert">{errors.targetLanguage}</p>{/if}
     </div>
 
@@ -151,7 +168,7 @@
     <div class="field">
       <label for="{uid}-budget">Daily limit (characters)</label>
       <input id="{uid}-budget" inputmode="numeric" bind:value={form.dailyCharBudget} disabled={!editable} autocomplete="off" aria-invalid={errors.dailyCharBudget ? 'true' : undefined} aria-describedby="{uid}-budget-hint" />
-      <p class="hint" id="{uid}-budget-hint">The most this workspace sends per day (UTC). 0 means no limit here; your provider may still have one.</p>
+      <p class="hint" id="{uid}-budget-hint">The most this workspace sends per day (UTC). 0 means no limit here.</p>
       {#if errors.dailyCharBudget}<p class="field-error" role="alert">{errors.dailyCharBudget}</p>{/if}
       <p class="usage">
         {#if fraction !== null}<progress value={fraction} max="1" aria-label="Translation budget used today"></progress>{/if}
@@ -161,11 +178,11 @@
 
     {#if editable}
       <div class="field">
-        <div class="row">
-          <Button icon="refresh" loading={testing} disabled={dirty || testing} onclick={ontest}>Test the provider</Button>
-          {#if dirty}<span class="hint">Save first: the test uses the saved settings.</span>{/if}
-        </div>
-        <p class="hint">Translates one fixed word, not review text. It uses no budget.</p>
+        <p class="connection">
+          <Badge tone={testState.tone}>{testState.label}</Badge>
+          <Button size="sm" variant="ghost" icon="refresh" loading={testing} disabled={dirty || testing} onclick={ontest}>Test the provider</Button>
+        </p>
+        <p class="hint">{dirty ? 'Save first: the test uses the saved settings.' : 'Translates one fixed word, not review text, and uses no budget.'}</p>
         {#if outcome}
           <Alert tone={outcome.ok ? 'ok' : 'error'}>{testOutcomeText(outcome)}</Alert>
         {/if}

@@ -1,0 +1,67 @@
+/*
+  The readable scale for the forms of the workspace Settings (Translation, AI, "Connect an AI assistant") and of the Analytics forms
+  (docs/design/readability.md, "Second pass"): 15px labels and hints (the global `.hint` is 12px), 15px inputs of 40px, roomier
+  fields, and the one quiet status line of a connection. It is scoped to `.readable-card`, so nothing else on the page changes.
+  Tokens only: it follows the light and the dark theme.
+*/
+.readable-card {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.readable-card p {
+  line-height: 1.5;
+}
+
+.readable-card label {
+  margin-bottom: var(--space-1);
+  font-size: 0.9375rem;
+}
+
+.readable-card input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.readable-card select {
+  min-height: 2.5rem;
+  font-size: 0.9375rem;
+}
+
+.readable-card .hint,
+.readable-card .field-error {
+  margin-top: var(--space-2);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+.readable-card .muted {
+  font-size: 0.9375rem;
+}
+
+.readable-card .field + .field {
+  margin-top: var(--space-1);
+}
+
+/* A connection or a test: one word, then a quiet action, on one line. */
+.readable-card .connection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  margin: 0;
+}
+
+.readable-card .connection .word {
+  font-weight: var(--weight-medium, 500);
+}
+
+/* A hint that sits in a line with other things (a usage meter, a word) has no top margin of its own. */
+.readable-card .usage .hint,
+.readable-card .connection .hint {
+  margin: 0;
+}
+
+/* The one visible line of a cost, a write or an external call. */
+.readable-card .warn-line {
+  margin: var(--space-2) 0 0;
+  font-size: 0.9375rem;
+  font-weight: var(--weight-medium, 500);
+  color: var(--warn-ink, var(--ink));
+}
