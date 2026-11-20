@@ -11,7 +11,7 @@
     description,
     actions,
     level = 1,
-  }: { title: string; description?: string; actions?: Snippet; level?: 1 | 2 } = $props();
+  }: { title: string; description?: string | undefined; actions?: Snippet | undefined; level?: 1 | 2 | undefined } = $props();
 </script>
 
 <header class="page-header">

@@ -35,12 +35,12 @@
     workspaceId: string;
     role: Role;
     app: AppSummary;
-    platform?: PlatformScope | null;
-    showPlatform?: boolean;
-    kind?: AiProposalKind | null;
-    exceptKind?: AiProposalKind | null;
-    tasks?: string[] | null;
-    onaccepted?: (result: AiAcceptedRef) => void | Promise<void>;
+    platform?: PlatformScope | null | undefined;
+    showPlatform?: boolean | undefined;
+    kind?: AiProposalKind | null | undefined;
+    exceptKind?: AiProposalKind | null | undefined;
+    tasks?: string[] | null | undefined;
+    onaccepted?: ((result: AiAcceptedRef) => void | Promise<void>) | undefined;
   } = $props();
 
   const canUse = $derived(can(role, 'ai.use'));

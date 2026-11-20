@@ -22,14 +22,14 @@
     note,
   }: {
     dirty: boolean;
-    saving?: boolean;
-    disabled?: boolean;
-    type?: 'button' | 'submit';
-    saveLabel?: string;
-    discardLabel?: string;
-    onsave?: () => void;
+    saving?: boolean | undefined;
+    disabled?: boolean | undefined;
+    type?: 'button' | 'submit' | undefined;
+    saveLabel?: string | undefined;
+    discardLabel?: string | undefined;
+    onsave?: (() => void) | undefined;
     ondiscard: () => void;
-    note?: Snippet;
+    note?: Snippet | undefined;
   } = $props();
 </script>
 

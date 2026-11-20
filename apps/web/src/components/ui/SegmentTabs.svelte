@@ -22,7 +22,7 @@
     value = $bindable(),
     label,
     idPrefix,
-  }: { tabs: Tab[]; value?: string; label: string; idPrefix: string } = $props();
+  }: { tabs: Tab[]; value?: string | undefined; label: string; idPrefix: string } = $props();
 
   const active = $derived(tabs.find((t) => t.id === value)?.id ?? tabs[0]?.id ?? '');
   let buttons = $state<Record<string, HTMLButtonElement | undefined>>({});

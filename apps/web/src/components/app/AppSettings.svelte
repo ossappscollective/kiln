@@ -39,7 +39,7 @@
     members,
     all,
     now,
-  }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; all?: AppSummary[]; now: number } = $props();
+  }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; all?: AppSummary[] | undefined; now: number } = $props();
 
   const canWrite = $derived(can(role, 'apps.write'));
   const lead = $derived(settingsLead(members));

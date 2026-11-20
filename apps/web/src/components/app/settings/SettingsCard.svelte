@@ -27,9 +27,9 @@
     icon: IconName;
     description: string;
     unavailable?: string | undefined;
-    summary?: string;
-    key?: string;
-    defaultOpen?: boolean;
+    summary?: string | undefined;
+    key?: string | undefined;
+    defaultOpen?: boolean | undefined;
     children: Snippet;
   } = $props();
 </script>

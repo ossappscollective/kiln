@@ -8,7 +8,7 @@
   import Button from './ui/Button.svelte';
   import TextField from './ui/TextField.svelte';
 
-  let { api, notice, ondone }: { api: Api; notice?: string; ondone: () => void } = $props();
+  let { api, notice, ondone }: { api: Api; notice?: string | undefined; ondone: () => void } = $props();
 
   let email = $state('');
   let password = $state('');

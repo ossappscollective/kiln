@@ -7,7 +7,7 @@
   import { settleStepUp, stepUpPrompt } from '../lib/step-up-prompt.svelte.ts';
   import StepUpDialog from './StepUpDialog.svelte';
 
-  let { api, workspaceId, email }: { api: Api; workspaceId: string; email?: string } = $props();
+  let { api, workspaceId, email }: { api: Api; workspaceId: string; email?: string | undefined } = $props();
 </script>
 
 {#if stepUpPrompt.current}

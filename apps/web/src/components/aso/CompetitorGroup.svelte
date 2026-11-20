@@ -49,7 +49,7 @@
     version: number;
     onchanged: () => void;
     /** Tells the view above what this group holds, so one lead can say it for every app in scope. */
-    onsummary?: (appId: string, facts: { competitors: AsoCompetitor[]; suggestions: number }) => void;
+    onsummary?: ((appId: string, facts: { competitors: AsoCompetitor[]; suggestions: number }) => void) | undefined;
   } = $props();
 
   let competitors = $state<AsoCompetitor[]>([]);

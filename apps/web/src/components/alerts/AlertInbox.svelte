@@ -19,7 +19,7 @@
     workspaceId,
     apps,
     onchange,
-  }: { api: Api; workspaceId: string; apps: { id: string; name: string }[]; onchange?: () => void } = $props();
+  }: { api: Api; workspaceId: string; apps: { id: string; name: string }[]; onchange?: (() => void) | undefined } = $props();
 
   const PAGE = 50;
   let alerts = $state<InboxAlert[] | null>(null);

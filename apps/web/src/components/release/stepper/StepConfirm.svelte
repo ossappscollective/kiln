@@ -57,7 +57,7 @@
     codes: string[];
     stagedShare: string;
     /** The version is in store review. With nothing staged the checks for a release to come are left out: they would judge the one in review. */
-    inReview?: boolean;
+    inReview?: boolean | undefined;
     onreleased: () => void;
   } = $props();
 

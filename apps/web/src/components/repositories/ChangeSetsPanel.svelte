@@ -36,8 +36,8 @@
     role: Role;
     myId: string;
     names: Record<string, string>;
-    openId?: string | null;
-    localConfig?: LocalConfig | null;
+    openId?: string | null | undefined;
+    localConfig?: LocalConfig | null | undefined;
     ongotolisting: () => void;
   } = $props();
 

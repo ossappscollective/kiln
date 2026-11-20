@@ -21,7 +21,7 @@
   import Skeleton from '../ui/Skeleton.svelte';
   import StatusPill from '../ui/StatusPill.svelte';
 
-  let { api, workspaceId, role, members, all }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; all?: AppSummary[] } = $props();
+  let { api, workspaceId, role, members, all }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; all?: AppSummary[] | undefined } = $props();
 
   const records = $derived(all ?? members);
   const canRead = $derived(can(role, 'repositories.read'));

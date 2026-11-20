@@ -26,7 +26,7 @@
   import AddAppModal from '../../portfolio/AddAppModal.svelte';
   import SettingsCard from './SettingsCard.svelte';
 
-  let { api, workspaceId, role, members, all, now }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; all?: AppSummary[]; now: number } = $props();
+  let { api, workspaceId, role, members, all, now }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; all?: AppSummary[] | undefined; now: number } = $props();
 
   const records = $derived(all ?? members);
   const iosRecord = $derived(records.find((r) => r.platform === 'ios') ?? null);

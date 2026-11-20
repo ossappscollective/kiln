@@ -41,7 +41,7 @@
     workspaceId: string;
     changeSet: ChangeSetView | null;
     role: Role;
-    open?: boolean;
+    open?: boolean | undefined;
     onrecomputed: (result: RecomputeResult) => void;
     ondiscard: () => void;
   } = $props();

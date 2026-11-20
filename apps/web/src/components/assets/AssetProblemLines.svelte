@@ -9,7 +9,7 @@
   import { problemAction } from '../../lib/assets/lead.ts';
   import Badge from '../ui/Badge.svelte';
 
-  let { problems, onopenpath }: { problems: AssetProblem[]; onopenpath?: (path: string) => void } = $props();
+  let { problems, onopenpath }: { problems: AssetProblem[]; onopenpath?: ((path: string) => void) | undefined } = $props();
 
   const safeSource = (url: string) => (url.startsWith('https://') ? url : null);
 </script>

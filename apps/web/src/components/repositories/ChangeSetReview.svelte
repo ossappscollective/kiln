@@ -78,10 +78,10 @@
     names: Record<string, string>;
     onback: () => void;
     onchanged: () => void;
-    localOnly?: boolean;
-    hasLocalClone?: boolean;
-    write?: WriteConfig;
-    signing?: LocalSigningConfig | null;
+    localOnly?: boolean | undefined;
+    hasLocalClone?: boolean | undefined;
+    write?: WriteConfig | undefined;
+    signing?: LocalSigningConfig | null | undefined;
   } = $props();
 
   let changeSet = $state<ChangeSetView | null>(null);

@@ -13,7 +13,7 @@
     title,
     description,
     actions,
-  }: { icon?: IconName; title: string; description?: string; actions?: Snippet } = $props();
+  }: { icon?: IconName | undefined; title: string; description?: string | undefined; actions?: Snippet | undefined } = $props();
 </script>
 
 <div class="empty-state">

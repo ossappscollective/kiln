@@ -14,9 +14,9 @@
     ondismiss,
     children,
   }: {
-    tone?: 'info' | 'error' | 'warn' | 'ok';
-    title?: string;
-    ondismiss?: () => void;
+    tone?: 'info' | 'error' | 'warn' | 'ok' | undefined;
+    title?: string | undefined;
+    ondismiss?: (() => void) | undefined;
     children: Snippet;
   } = $props();
 </script>

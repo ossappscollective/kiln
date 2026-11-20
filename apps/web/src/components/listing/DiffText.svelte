@@ -16,7 +16,7 @@
     side,
     fromName = 'the other side',
     toName = 'this side',
-  }: { from: string; to: string; side: 'from' | 'to'; fromName?: string; toName?: string } = $props();
+  }: { from: string; to: string; side: 'from' | 'to'; fromName?: string | undefined; toName?: string | undefined } = $props();
 
   const parts = $derived(diffWords(from, to));
   const shown = $derived(parts.filter((p) => p.kind === 'same' || p.kind === (side === 'from' ? 'del' : 'ins')));

@@ -31,13 +31,13 @@
     initialSets = null,
     onpulled,
   }: {
-    open?: boolean;
+    open?: boolean | undefined;
     api: Api;
     workspaceId: string;
     role: Role;
     app: AppSummary;
-    initialSets?: string[] | null;
-    onpulled?: (report: PullReport) => void;
+    initialSets?: string[] | null | undefined;
+    onpulled?: ((report: PullReport) => void) | undefined;
   } = $props();
 
   const uid = $props.id();

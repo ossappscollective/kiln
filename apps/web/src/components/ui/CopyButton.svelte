@@ -20,13 +20,13 @@
     onerror,
   }: {
     value: string;
-    label?: string;
-    copiedLabel?: string;
-    iconOnly?: boolean;
-    size?: 'sm' | 'md';
-    variant?: 'ghost' | 'secondary';
-    oncopy?: () => void;
-    onerror?: () => void;
+    label?: string | undefined;
+    copiedLabel?: string | undefined;
+    iconOnly?: boolean | undefined;
+    size?: 'sm' | 'md' | undefined;
+    variant?: 'ghost' | 'secondary' | undefined;
+    oncopy?: (() => void) | undefined;
+    onerror?: (() => void) | undefined;
   } = $props();
 
   let state = $state<'idle' | 'copied' | 'failed'>('idle');

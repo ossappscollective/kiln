@@ -69,9 +69,9 @@
     credentials: CredentialSummary[];
     repositories: RepositorySummary[];
     canSync: boolean;
-    onchanged?: () => void;
+    onchanged?: (() => void) | undefined;
     onclose: () => void;
-    busy?: boolean;
+    busy?: boolean | undefined;
   } = $props();
 
   const uid = $props.id();

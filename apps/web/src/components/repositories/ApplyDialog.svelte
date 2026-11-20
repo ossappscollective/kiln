@@ -40,10 +40,10 @@
     busy = false,
     onconfirm,
   }: {
-    open?: boolean;
+    open?: boolean | undefined;
     changeSet: Pick<ChangeSetView, 'id' | 'summary' | 'filesChanged'> | null;
     context: ApplyContext;
-    busy?: boolean;
+    busy?: boolean | undefined;
     onconfirm: (body: ApplyBody | undefined) => void;
   } = $props();
 

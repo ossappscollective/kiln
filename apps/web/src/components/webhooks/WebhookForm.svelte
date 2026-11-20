@@ -25,9 +25,9 @@
     api: Api;
     workspaceId: string;
     /** Set to edit this webhook; leave out to make a new one. */
-    endpoint?: WebhookEndpoint;
-    oncreated?: (created: CreatedWebhook) => void;
-    onsaved?: (endpoint: WebhookEndpoint) => void;
+    endpoint?: WebhookEndpoint | undefined;
+    oncreated?: ((created: CreatedWebhook) => void) | undefined;
+    onsaved?: ((endpoint: WebhookEndpoint) => void) | undefined;
     oncancel: () => void;
   } = $props();
 

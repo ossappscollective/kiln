@@ -28,7 +28,7 @@
     version = 0,
     showPlatform = false,
     visible = 4,
-  }: { api: Api; workspaceId: string; app: AppSummary; version?: number; showPlatform?: boolean; visible?: number } = $props();
+  }: { api: Api; workspaceId: string; app: AppSummary; version?: number | undefined; showPlatform?: boolean | undefined; visible?: number | undefined } = $props();
 
   let data = $state<AsoCoachResponse | null>(null);
   let failed = $state('');

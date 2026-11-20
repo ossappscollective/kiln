@@ -44,14 +44,14 @@
     onpulled,
     ondiff,
   }: {
-    open?: boolean;
+    open?: boolean | undefined;
     api: Api;
     workspaceId: string;
     role: Role;
     app: AppSummary;
-    focus?: { locale: string; kind: AssetKind; device: string | null } | null;
-    onpulled?: (report: PullReport) => void;
-    ondiff?: (diff: AssetDiffView) => void;
+    focus?: { locale: string; kind: AssetKind; device: string | null } | null | undefined;
+    onpulled?: ((report: PullReport) => void) | undefined;
+    ondiff?: ((diff: AssetDiffView) => void) | undefined;
   } = $props();
 
   let phase = $state<'loading' | 'error' | 'ready'>('loading');

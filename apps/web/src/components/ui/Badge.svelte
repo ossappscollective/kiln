@@ -15,9 +15,9 @@
     icon,
     children,
   }: {
-    tone?: 'neutral' | 'ok' | 'bad' | 'warn' | 'info' | 'accent';
-    dot?: boolean;
-    icon?: IconName;
+    tone?: 'neutral' | 'ok' | 'bad' | 'warn' | 'info' | 'accent' | undefined;
+    dot?: boolean | undefined;
+    icon?: IconName | undefined;
     children: Snippet;
   } = $props();
 </script>

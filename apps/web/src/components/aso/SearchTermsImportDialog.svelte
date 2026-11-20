@@ -41,7 +41,7 @@
     appId,
     today,
     onimported,
-  }: { open?: boolean; api: Api; workspaceId: string; appId: string; today: string; onimported: () => void } = $props();
+  }: { open?: boolean | undefined; api: Api; workspaceId: string; appId: string; today: string; onimported: () => void } = $props();
 
   const uid = $props.id();
   let flow = $state<SearchTermsFlow>(idleFlow);

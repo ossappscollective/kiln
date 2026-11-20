@@ -21,9 +21,9 @@
     tone = 'neutral',
   }: {
     store: string;
-    variant?: BadgeVariant;
-    size?: 'sm' | 'md';
-    tone?: 'neutral' | 'tinted';
+    variant?: BadgeVariant | undefined;
+    size?: 'sm' | 'md' | undefined;
+    tone?: 'neutral' | 'tinted' | undefined;
   } = $props();
 
   const info = $derived(storeById(store));

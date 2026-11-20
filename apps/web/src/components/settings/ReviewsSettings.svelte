@@ -14,7 +14,7 @@
     error,
     errors = {},
     writable = [],
-  }: { form: SettingsForm; editable: boolean; error?: string | undefined; errors?: FormErrors; writable?: readonly string[] } = $props();
+  }: { form: SettingsForm; editable: boolean; error?: string | undefined; errors?: FormErrors | undefined; writable?: readonly string[] | undefined } = $props();
 
   const uid = $props.id();
   /** The reminder keys follow the right to change settings and the server's list of writable keys. */

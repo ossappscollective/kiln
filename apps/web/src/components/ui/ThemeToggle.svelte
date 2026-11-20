@@ -8,7 +8,7 @@
   import Icon from './Icon.svelte';
   import type { IconName } from './icons.ts';
 
-  let { compact = false, block = false }: { compact?: boolean; block?: boolean } = $props();
+  let { compact = false, block = false }: { compact?: boolean | undefined; block?: boolean | undefined } = $props();
 
   let pref = $state<ThemePref>(getThemePref());
   onMount(() => {

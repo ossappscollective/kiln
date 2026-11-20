@@ -65,21 +65,21 @@
     role: Role;
     section: AppSection;
     /** The open view of a page with views ('' for a page without). */
-    view?: string;
+    view?: string | undefined;
     /** The views the person may open on this page (empty: nothing to switch). */
-    views?: readonly SectionView[];
+    views?: readonly SectionView[] | undefined;
     members: AppSummary[];
-    all?: AppSummary[];
+    all?: AppSummary[] | undefined;
     openId: string;
     version: string | null;
     releases: Record<string, ReleaseSummary[]>;
     now: number;
     syncRuns: number;
     syncing: Record<string, boolean | undefined>;
-    lockedPlatforms?: Platform[];
-    locale?: string | null;
+    lockedPlatforms?: Platform[] | undefined;
+    locale?: string | null | undefined;
     /** The pending changes as one link (the Overview puts it in the Next step card), or null. */
-    pending?: { text: string; href: string } | null;
+    pending?: { text: string; href: string } | null | undefined;
   } = $props();
 
   const uid = $props.id();

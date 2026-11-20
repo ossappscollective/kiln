@@ -23,12 +23,12 @@
     controls,
     children,
   }: {
-    tone?: 'warn' | 'bad' | 'info' | 'ok' | 'neutral';
+    tone?: 'warn' | 'bad' | 'info' | 'ok' | 'neutral' | undefined;
     label: string;
-    open?: boolean;
-    stateKey?: string;
-    controls?: string;
-    children?: Snippet;
+    open?: boolean | undefined;
+    stateKey?: string | undefined;
+    controls?: string | undefined;
+    children?: Snippet | undefined;
   } = $props();
 
   const uid = $props.id();

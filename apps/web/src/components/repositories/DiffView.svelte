@@ -7,7 +7,7 @@
 <script lang="ts">
   import { collapseDiff, diffLines, differsOnlyInLineEnds } from '../../lib/repositories.ts';
 
-  let { before, after, path }: { before?: string; after?: string; path: string } = $props();
+  let { before, after, path }: { before?: string | undefined; after?: string | undefined; path: string } = $props();
 
   const rows = $derived(diffLines(before, after));
   const blocks = $derived(collapseDiff(rows));

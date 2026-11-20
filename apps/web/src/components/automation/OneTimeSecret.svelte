@@ -17,7 +17,7 @@
     warning,
     ondismiss,
     children,
-  }: { title: string; label: string; value: string; warning: string; ondismiss: () => void; children?: Snippet } = $props();
+  }: { title: string; label: string; value: string; warning: string; ondismiss: () => void; children?: Snippet | undefined } = $props();
 
   const uid = $props.id();
   let heading = $state<HTMLElement>();

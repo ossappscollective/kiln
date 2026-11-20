@@ -13,17 +13,17 @@
   import type { IconName } from './icons.ts';
 
   type Props = Omit<HTMLButtonAttributes, 'class' | 'children'> & {
-    variant?: 'secondary' | 'primary' | 'danger' | 'danger-solid' | 'ghost' | 'link';
-    size?: 'sm' | 'md' | 'lg';
-    icon?: IconName;
-    iconOnly?: boolean;
-    label?: string;
-    loading?: boolean;
-    block?: boolean;
-    href?: string;
-    target?: string;
-    class?: string;
-    children?: Snippet;
+    variant?: 'secondary' | 'primary' | 'danger' | 'danger-solid' | 'ghost' | 'link' | undefined;
+    size?: 'sm' | 'md' | 'lg' | undefined;
+    icon?: IconName | undefined;
+    iconOnly?: boolean | undefined;
+    label?: string | undefined;
+    loading?: boolean | undefined;
+    block?: boolean | undefined;
+    href?: string | undefined;
+    target?: string | undefined;
+    class?: string | undefined;
+    children?: Snippet | undefined;
   };
 
   let {

@@ -16,7 +16,7 @@
   }: {
     kind: CredentialKind;
     /** Wrap the whole guide in a disclosure that starts closed. */
-    collapsible?: boolean;
+    collapsible?: boolean | undefined;
   } = $props();
 
   const uid = `guide-${++counter}`;

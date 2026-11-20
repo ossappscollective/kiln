@@ -61,11 +61,11 @@
     workspaceId: string;
     role: Role;
     suggestion: AiSuggestionView;
-    platform?: PlatformScope | null;
-    appPlatform?: Platform | null;
-    compact?: boolean;
-    current?: Record<string, string>;
-    onaccepted?: (result: AiAcceptedRef) => void | Promise<void>;
+    platform?: PlatformScope | null | undefined;
+    appPlatform?: Platform | null | undefined;
+    compact?: boolean | undefined;
+    current?: Record<string, string> | undefined;
+    onaccepted?: ((result: AiAcceptedRef) => void | Promise<void>) | undefined;
   } = $props();
 
   const uid = $props.id();

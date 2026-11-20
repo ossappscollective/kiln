@@ -28,7 +28,7 @@
     members,
     bare = false,
     title,
-  }: { items: AttentionItem[]; api: Api; workspaceId: string; role: Role; members: AppSummary[]; bare?: boolean; title?: string } = $props();
+  }: { items: AttentionItem[]; api: Api; workspaceId: string; role: Role; members: AppSummary[]; bare?: boolean | undefined; title?: string | undefined } = $props();
 
   /** The platform an item is about (its id starts with the app record's id), only when the app has more than one. */
   const platformOf = (item: AttentionItem) =>

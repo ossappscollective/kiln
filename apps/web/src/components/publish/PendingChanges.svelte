@@ -69,10 +69,10 @@
     workspaceId: string;
     role: Role;
     members: AppSummary[];
-    compact?: boolean;
-    list?: boolean;
-    headless?: boolean;
-    onpublished?: () => void;
+    compact?: boolean | undefined;
+    list?: boolean | undefined;
+    headless?: boolean | undefined;
+    onpublished?: (() => void) | undefined;
   } = $props();
 
   const uid = $props.id();

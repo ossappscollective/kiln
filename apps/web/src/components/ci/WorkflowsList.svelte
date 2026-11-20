@@ -29,7 +29,7 @@
     rows: WorkflowRow[];
     now: number;
     canDispatch: boolean;
-    showRepository?: boolean;
+    showRepository?: boolean | undefined;
     actors?: Record<string, string | null | undefined>;
     onrun: (row: WorkflowRow) => void;
     onfollow: (run: WorkflowRun, row: WorkflowRow) => void;

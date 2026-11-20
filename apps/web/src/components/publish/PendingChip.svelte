@@ -9,7 +9,7 @@
   import { type PendingLine, chipFor } from '../../lib/pending.ts';
   import Icon from '../ui/Icon.svelte';
 
-  let { line, href }: { line: PendingLine | null | undefined; href?: string } = $props();
+  let { line, href }: { line: PendingLine | null | undefined; href?: string | undefined } = $props();
 
   const chip = $derived(chipFor(line));
   /** What a screen reader hears beyond the visible words, for example ", 1 with an error". */

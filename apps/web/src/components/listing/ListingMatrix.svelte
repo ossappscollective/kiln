@@ -101,9 +101,9 @@
     now: number;
     syncing: Record<string, boolean | undefined>;
     refreshKey: number;
-    lockedPlatforms?: Platform[];
-    locale?: string | null;
-    onlocale?: (locale: string) => void;
+    lockedPlatforms?: Platform[] | undefined;
+    locale?: string | null | undefined;
+    onlocale?: ((locale: string) => void) | undefined;
   } = $props();
 
   const canSync = $derived(can(role, 'apps.sync'));

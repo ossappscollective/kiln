@@ -28,7 +28,7 @@
   }: {
     api: Api;
     workspaceId: string;
-    open?: boolean;
+    open?: boolean | undefined;
     onconnected: (repository: RepositorySummary) => void;
     onlocal: (done: { kind: 'attached' | 'local_only'; repository: RepositorySummary }) => void;
   } = $props();

@@ -33,7 +33,7 @@ import { supports } from '@mrm/core';
     onconfirm,
     oncancel,
   }: {
-    open?: boolean;
+    open?: boolean | undefined;
     preview: SubmitPreview;
     busy: boolean;
     problem: string;

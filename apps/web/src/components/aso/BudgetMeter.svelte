@@ -27,7 +27,7 @@
     remaining: number;
     over: boolean;
     percent: number;
-    suffix?: string;
+    suffix?: string | undefined;
   } = $props();
 
   const f = $derived({ used, limit, unit, remaining, over });

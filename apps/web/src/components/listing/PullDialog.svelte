@@ -41,7 +41,7 @@
     channel,
     onpulled,
   }: {
-    open?: boolean;
+    open?: boolean | undefined;
     api: Api;
     workspaceId: string;
     role: Role;

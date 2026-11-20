@@ -60,10 +60,10 @@
     workspaceId: string;
     app: { id: string; platform: Platform };
     now: number;
-    version?: number;
-    heading?: boolean;
-    analyticsHref?: string;
-    keywordsHref?: string;
+    version?: number | undefined;
+    heading?: boolean | undefined;
+    analyticsHref?: string | undefined;
+    keywordsHref?: string | undefined;
   } = $props();
 
   const uid = $props.id();

@@ -31,15 +31,15 @@
     scope: PlatformScope;
     onscope: (scope: PlatformScope) => void;
     /** False for an app on one platform: there is nothing to choose. */
-    showScope?: boolean;
+    showScope?: boolean | undefined;
     versions: VersionOption[];
     version: string | null;
     onversion: (version: string) => void;
-    showVersion?: boolean;
+    showVersion?: boolean | undefined;
     locales: string[];
     locale: string | null;
     onlocale: (locale: string | null) => void;
-    showLocale?: boolean;
+    showLocale?: boolean | undefined;
   } = $props();
 
   const uid = $props.id();

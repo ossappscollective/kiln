@@ -40,8 +40,8 @@
     workspaceId: string;
     repository: RepositorySummary;
     targets: ListingTargetView[];
-    open?: boolean;
-    prefill?: Partial<TargetForm>;
+    open?: boolean | undefined;
+    prefill?: Partial<TargetForm> | undefined;
     onchanged: (info: { selectId?: string; deletedId?: string }) => void;
   } = $props();
 

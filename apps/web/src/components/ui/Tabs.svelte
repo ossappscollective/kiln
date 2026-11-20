@@ -14,7 +14,7 @@
     value = $bindable(),
     label,
     panel,
-  }: { tabs: Tab[]; value?: string; label: string; panel: Snippet<[string]> } = $props();
+  }: { tabs: Tab[]; value?: string | undefined; label: string; panel: Snippet<[string]> } = $props();
 
   const uid = $props.id();
   const active = $derived(tabs.find((t) => t.id === value)?.id ?? tabs[0]?.id ?? '');

@@ -24,8 +24,8 @@
     diagnostic: StoreDiagnostic;
     label: string;
     store: ListingStore;
-    canChoose?: boolean;
-    canSave?: boolean;
+    canChoose?: boolean | undefined;
+    canSave?: boolean | undefined;
     onuse: (path: string) => void;
     onsave: (path: string) => void;
   } = $props();

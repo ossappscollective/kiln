@@ -84,9 +84,9 @@
     repository: RepositorySummary;
     role: Role;
     canEdit: boolean;
-    data?: RepositoryListing | null;
-    edited?: Listing | null;
-    selection?: ListingSelection;
+    data?: RepositoryListing | null | undefined;
+    edited?: Listing | null | undefined;
+    selection?: ListingSelection | undefined;
     oncreated: (changeSet: ChangeSetView) => void;
   } = $props();
 

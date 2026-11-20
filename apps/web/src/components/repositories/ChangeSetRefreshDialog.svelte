@@ -42,7 +42,7 @@
     api: Api;
     workspaceId: string;
     changeSet: ChangeSetView | null;
-    open?: boolean;
+    open?: boolean | undefined;
     onrefreshed: (result: RefreshResult) => void;
     ondiscard: () => void;
   } = $props();

@@ -19,7 +19,7 @@
     string
   >;
 
-  let { platform, showLabel = true, tinted = true }: { platform: string; showLabel?: boolean; tinted?: boolean } = $props();
+  let { platform, showLabel = true, tinted = true }: { platform: string; showLabel?: boolean | undefined; tinted?: boolean | undefined } = $props();
 
   const info = $derived(platformById(platform));
   const text = $derived(platformBadgeText(info, showLabel));

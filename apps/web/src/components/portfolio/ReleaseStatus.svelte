@@ -19,8 +19,8 @@
     sentForReviewAt = null,
   }: {
     status: ReleaseState | null;
-    rawState?: string;
-    rolloutFraction?: number | null;
+    rawState?: string | undefined;
+    rolloutFraction?: number | null | undefined;
     sentForReviewAt?: number | null | undefined;
   } = $props();
 

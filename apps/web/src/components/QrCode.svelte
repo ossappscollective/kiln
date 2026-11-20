@@ -6,7 +6,7 @@
 <script lang="ts">
   import { qrMatrix, qrPath } from '../lib/qr.ts';
 
-  let { text, label, size = '12rem' }: { text: string; label: string; size?: string } = $props();
+  let { text, label, size = '12rem' }: { text: string; label: string; size?: string | undefined } = $props();
 
   const code = $derived.by(() => {
     const matrix = qrMatrix(text);

@@ -22,7 +22,7 @@
     today,
     hover = $bindable(null),
     height = 168,
-  }: { panel: ChartPanel; cardTitle: string; dates: string[]; today: string; hover?: number | null; height?: number } = $props();
+  }: { panel: ChartPanel; cardTitle: string; dates: string[]; today: string; hover?: number | null | undefined; height?: number | undefined } = $props();
 
   const uid = $props.id();
   let width = $state(640);

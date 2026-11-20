@@ -51,12 +51,12 @@
   }: {
     api: Api;
     workspaceId: string;
-    repositoryIds?: readonly string[];
-    scope?: (runs: readonly ActiveRun[]) => ScopedRuns;
-    apps?: readonly AppSummary[];
-    heading?: string;
-    stateKey?: string;
-    ondata?: (data: ActiveRuns) => void;
+    repositoryIds?: readonly string[] | undefined;
+    scope?: ((runs: readonly ActiveRun[]) => ScopedRuns) | undefined;
+    apps?: readonly AppSummary[] | undefined;
+    heading?: string | undefined;
+    stateKey?: string | undefined;
+    ondata?: ((data: ActiveRuns) => void) | undefined;
   } = $props();
 
   let data = $state<ActiveRuns | null>(null);

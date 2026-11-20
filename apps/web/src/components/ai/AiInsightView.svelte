@@ -29,7 +29,7 @@
   import { appReviewHref } from '../../lib/reviews/split.ts';
   import Badge from '../ui/Badge.svelte';
 
-  let { proposal, appId, platform = null }: { proposal: AiInsightProposal; appId: string; platform?: Platform | null } = $props();
+  let { proposal, appId, platform = null }: { proposal: AiInsightProposal; appId: string; platform?: Platform | null | undefined } = $props();
 
   const notes = $derived(reportNotes(proposal));
   const shares = $derived(proposal.insight === 'review_summary' ? sentimentShares(proposal.sentiment) : null);

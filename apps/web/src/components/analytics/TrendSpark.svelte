@@ -7,7 +7,7 @@
 <script lang="ts">
   import { presentRuns } from '../../lib/analytics/analytics.ts';
 
-  let { points, label, width = 96, height = 28 }: { points: (number | null)[]; label: string; width?: number; height?: number } = $props();
+  let { points, label, width = 96, height = 28 }: { points: (number | null)[]; label: string; width?: number | undefined; height?: number | undefined } = $props();
 
   const pad = 5;
   const values = $derived(points.filter((v): v is number => v !== null));

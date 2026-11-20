@@ -47,7 +47,7 @@
     now: number;
     scope: PlatformScope | null;
     /** Google Play: this release is in a track that is not production and can be promoted. */
-    promote?: PromoteOption | null;
+    promote?: PromoteOption | null | undefined;
   } = $props();
 
   const canReadPlans = $derived(PLANS_ENABLED && can(role, 'plans.read'));

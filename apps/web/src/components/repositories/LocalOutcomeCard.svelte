@@ -27,7 +27,7 @@
   }: {
     changeSet: ChangeSetView;
     options: RetryOption[];
-    busy?: string;
+    busy?: string | undefined;
     onretry: (option: RetryOption) => void;
     onfixup?: (() => void) | undefined;
   } = $props();

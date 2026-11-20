@@ -12,10 +12,10 @@
 
   type Props = Omit<HTMLInputAttributes, 'value' | 'class' | 'children'> & {
     label: string;
-    value?: string;
-    hint?: string;
-    error?: string;
-    reveal?: boolean;
+    value?: string | undefined;
+    hint?: string | undefined;
+    error?: string | undefined;
+    reveal?: boolean | undefined;
   };
 
   let {

@@ -15,7 +15,7 @@
     size = 'md',
     title,
     class: className = '',
-  }: { name: IconName; size?: IconSize; title?: string; class?: string } = $props();
+  }: { name: IconName; size?: IconSize | undefined; title?: string | undefined; class?: string | undefined } = $props();
 
   const def = $derived(iconDef(name));
   const px = $derived(iconPixels(size));

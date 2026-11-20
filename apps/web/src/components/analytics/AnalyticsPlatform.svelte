@@ -51,12 +51,12 @@
     app: { id: string; platform: Platform };
     range: ResolvedRange;
     now: number;
-    showData?: boolean;
-    heading?: boolean;
+    showData?: boolean | undefined;
+    heading?: boolean | undefined;
     /** Told whether something is stored for this app, so the section can leave out the date range and the table switch when nothing could use them. */
-    onstored?: (appId: string, stored: boolean) => void;
+    onstored?: ((appId: string, stored: boolean) => void) | undefined;
     /** Drawn under the figures and the chart (or under the first-run content when nothing is stored): the next steps of the app. */
-    extras?: Snippet;
+    extras?: Snippet | undefined;
   } = $props();
 
   let status = $state<AnalyticsStatus | null>(null);

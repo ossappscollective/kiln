@@ -14,7 +14,7 @@
   import Chart from './Chart.svelte';
   import DataTable from './DataTable.svelte';
 
-  let { card, today, showData = false }: { card: ChartCard; today: string; showData?: boolean } = $props();
+  let { card, today, showData = false }: { card: ChartCard; today: string; showData?: boolean | undefined } = $props();
 
   let hover = $state<number | null>(null);
 

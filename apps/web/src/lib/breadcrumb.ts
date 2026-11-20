@@ -11,13 +11,13 @@ export type Crumb = {
  * ("Insights"). The app is a link to its overview while a page follows it. Empty labels are dropped so the bar never shows a lone separator.
  */
 export function breadcrumbItems(input: {
-  workspace?: string | null;
-  section?: { label: string; href: string } | null;
-  appName?: string | null;
+  workspace?: string | null | undefined;
+  section?: { label: string; href: string } | null | undefined;
+  appName?: string | null | undefined;
   appOpen: boolean;
   /** The page of the open app (its slim header title) and the address of the app's overview. */
-  page?: string | null;
-  appHref?: string | null;
+  page?: string | null | undefined;
+  appHref?: string | null | undefined;
 }): Crumb[] {
   const items: Crumb[] = [];
   const workspace = (input.workspace ?? '').trim();

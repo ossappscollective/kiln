@@ -17,12 +17,12 @@
   }: {
     label: string;
     value: number | string;
-    tone?: 'neutral' | 'ok' | 'bad' | 'warn' | 'info';
-    hideZero?: boolean;
-    dim?: boolean;
-    href?: string;
-    onclick?: () => void;
-    pressed?: boolean;
+    tone?: 'neutral' | 'ok' | 'bad' | 'warn' | 'info' | undefined;
+    hideZero?: boolean | undefined;
+    dim?: boolean | undefined;
+    href?: string | undefined;
+    onclick?: (() => void) | undefined;
+    pressed?: boolean | undefined;
   } = $props();
 
   const zero = $derived(dim || value === 0 || value === '0');

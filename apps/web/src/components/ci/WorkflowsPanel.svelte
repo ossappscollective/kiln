@@ -71,7 +71,7 @@
     platforms: Platform[];
     scopeLabel: string;
     configured: string[];
-    showTitle?: boolean;
+    showTitle?: boolean | undefined;
     /** Drawn right under the lead (the runs going now), so the headline stays first. */
     afterLead?: Snippet | undefined;
   } = $props();

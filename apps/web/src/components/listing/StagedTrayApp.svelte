@@ -63,8 +63,8 @@
     workspaceId: string;
     role: Role;
     app: AppSummary;
-    showPlatform?: boolean;
-    part?: 'all' | 'items' | 'push';
+    showPlatform?: boolean | undefined;
+    part?: 'all' | 'items' | 'push' | undefined;
   } = $props();
 
   const showItems = $derived(part !== 'push');

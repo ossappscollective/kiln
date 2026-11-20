@@ -30,9 +30,9 @@ import { platformMeta, supports } from '@mrm/core';
     releases: ReleaseSummary[];
     version: string;
     now: number;
-    plan?: PlanSummary | null;
+    plan?: PlanSummary | null | undefined;
     /** The app the page was opened for; the other platform is marked as a neighbour. */
-    primary?: boolean;
+    primary?: boolean | undefined;
   } = $props();
 
   const uid = $props.id();

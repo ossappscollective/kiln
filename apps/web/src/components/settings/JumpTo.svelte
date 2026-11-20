@@ -7,7 +7,7 @@
 <script lang="ts">
   import type { SettingsSection } from '../../lib/settings-views.ts';
 
-  let { sections, label = 'Jump to a section' }: { sections: readonly SettingsSection[]; label?: string } = $props();
+  let { sections, label = 'Jump to a section' }: { sections: readonly SettingsSection[]; label?: string | undefined } = $props();
 
   function go(id: string) {
     const target = document.getElementById(id);

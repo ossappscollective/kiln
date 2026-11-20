@@ -45,13 +45,13 @@
     onGranted,
     oncancel,
   }: {
-    open?: boolean;
+    open?: boolean | undefined;
     api: Api;
     workspaceId: string;
     /** The signed-in person: a password manager needs a username next to a password field to offer the right entry. */
-    email?: string;
+    email?: string | undefined;
     action: string;
-    target?: StepUpTarget;
+    target?: StepUpTarget | undefined;
     factors: readonly StepUpFactor[];
     onGranted: (grant: string) => void;
     oncancel: () => void;

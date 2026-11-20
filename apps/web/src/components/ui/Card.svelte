@@ -22,15 +22,15 @@
     defaultOpen = true,
     children,
   }: {
-    title?: string;
-    description?: string;
-    actions?: Snippet;
-    flush?: boolean;
-    raised?: boolean;
-    collapseKey?: string;
-    summary?: string;
-    count?: number | string;
-    defaultOpen?: boolean;
+    title?: string | undefined;
+    description?: string | undefined;
+    actions?: Snippet | undefined;
+    flush?: boolean | undefined;
+    raised?: boolean | undefined;
+    collapseKey?: string | undefined;
+    summary?: string | undefined;
+    count?: number | string | undefined;
+    defaultOpen?: boolean | undefined;
     children: Snippet;
   } = $props();
 </script>

@@ -28,7 +28,7 @@
     appId,
     target,
     now,
-  }: { open?: boolean; api: Api; workspaceId: string; appId: string; target: Target | null; now: number } = $props();
+  }: { open?: boolean | undefined; api: Api; workspaceId: string; appId: string; target: Target | null; now: number } = $props();
 
   const PAGE = 25;
   const uid = $props.id();

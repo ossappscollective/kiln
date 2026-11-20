@@ -54,8 +54,8 @@ import { byFamily } from '@mrm/core';
     workspaceId: string;
     role: Role;
     app: Pick<AppSummary, 'id' | 'name' | 'platform'>;
-    bare?: boolean;
-    showPlatform?: boolean;
+    bare?: boolean | undefined;
+    showPlatform?: boolean | undefined;
   } = $props();
 
   type Notice = { tone: 'info' | 'warn' | 'error' | 'ok'; title: string; text: string };

@@ -74,11 +74,11 @@
     canTriage: boolean;
     lowThreshold: number;
     now: number;
-    replyConfig?: ReplyConfig | null;
+    replyConfig?: ReplyConfig | null | undefined;
     translation?: ReviewTranslationResult | undefined;
     ontranslate?: ((t: ReviewTranslationResult) => void) | undefined;
-    showTranslations?: boolean;
-    full?: boolean;
+    showTranslations?: boolean | undefined;
+    full?: boolean | undefined;
     onchange: (updated: Review) => void;
   } = $props();
 

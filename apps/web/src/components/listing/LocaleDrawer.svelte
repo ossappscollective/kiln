@@ -64,7 +64,7 @@
     workspaceId,
     onedit,
   }: {
-    open?: boolean;
+    open?: boolean | undefined;
     row: MatrixRow | null;
     members: AppSummary[];
     channels: Partial<Record<Platform, 'live' | 'editable' | null>>;
@@ -77,13 +77,13 @@
     role: Role;
     onstage: (app: AppSummary, field: DriftField) => void;
     onunstage: (app: AppSummary, id: string, field: DriftField) => void;
-    stagingKey?: string;
-    locked?: Platform[];
-    asoKeywords?: Record<string, AsoKeyword[] | undefined>;
-    allLocales?: string[];
-    api?: Api;
-    workspaceId?: string;
-    onedit?: (app: AppSummary, field: DriftField) => void;
+    stagingKey?: string | undefined;
+    locked?: Platform[] | undefined;
+    asoKeywords?: Record<string, AsoKeyword[] | undefined> | undefined;
+    allLocales?: string[] | undefined;
+    api?: Api | undefined;
+    workspaceId?: string | undefined;
+    onedit?: ((app: AppSummary, field: DriftField) => void) | undefined;
   } = $props();
 
   const uid = $props.id();

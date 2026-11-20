@@ -22,7 +22,7 @@
     onchanged,
     label = 'Turn on analytics',
     variant = 'primary',
-  }: { api: Api; workspaceId: string; onchanged: () => void; label?: string; variant?: 'primary' | 'secondary' } = $props();
+  }: { api: Api; workspaceId: string; onchanged: () => void; label?: string | undefined; variant?: 'primary' | 'secondary' | undefined } = $props();
 
   let open = $state(false);
   let busy = $state(false);

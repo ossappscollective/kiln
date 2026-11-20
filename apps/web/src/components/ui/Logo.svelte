@@ -10,7 +10,7 @@
     size = 32,
     wordmark = false,
     title,
-  }: { size?: number; wordmark?: boolean; title?: string } = $props();
+  }: { size?: number | undefined; wordmark?: boolean | undefined; title?: string | undefined } = $props();
 </script>
 
 <span class="logo">

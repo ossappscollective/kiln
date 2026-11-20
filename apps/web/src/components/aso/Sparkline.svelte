@@ -7,7 +7,7 @@
 <script lang="ts">
   import { type AsoCheck, sparkline } from '../../lib/aso/aso.ts';
 
-  let { checks, label, width = 72, height = 20 }: { checks: Pick<AsoCheck, 'rank' | 'total'>[]; label: string; width?: number; height?: number } = $props();
+  let { checks, label, width = 72, height = 20 }: { checks: Pick<AsoCheck, 'rank' | 'total'>[]; label: string; width?: number | undefined; height?: number | undefined } = $props();
 
   const spark = $derived(sparkline(checks, width, height));
 </script>

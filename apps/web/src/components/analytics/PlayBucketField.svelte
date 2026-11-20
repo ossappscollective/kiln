@@ -29,7 +29,7 @@
     app,
     onchanged,
     heading = true,
-  }: { api: Api; workspaceId: string; role: Role; app: { id: string; platform: string }; onchanged?: () => void; heading?: boolean } = $props();
+  }: { api: Api; workspaceId: string; role: Role; app: { id: string; platform: string }; onchanged?: (() => void) | undefined; heading?: boolean | undefined } = $props();
 
   const uid = $props.id();
   const canManage = $derived(can(role, 'analytics.manage'));

@@ -164,9 +164,9 @@ export function usedKeywords(input: {
   locales: readonly { locale: string; fields: FitFields }[];
   tracked: readonly TrackedRank[];
   /** Imported search terms of the app (Google Play), if any. Matched by the words of the term. */
-  searchTerms?: readonly { term: string; visitors: number | null; installs: number | null }[];
-  countries?: Readonly<Record<string, string | undefined>>;
-  depth?: number;
+  searchTerms?: readonly { term: string; visitors: number | null; installs: number | null }[] | undefined;
+  countries?: Readonly<Record<string, string | undefined>> | undefined;
+  depth?: number | undefined;
 }): UsedLocale[] {
   const apple = supports(input.platform, 'keywordField');
   const rows: ListingRow[] = listingRows({

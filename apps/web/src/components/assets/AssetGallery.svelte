@@ -59,15 +59,15 @@
     problemMap: Record<string, AssetProblem[]>;
     storeSide: AssetStoreSide | null;
     onopen: (asset: AssetItem) => void;
-    stageFor?: (locale: string, set: DeviceGroup) => SetStaging;
-    onstage?: (locale: string, set: DeviceGroup) => void;
-    onunstage?: (id: string, locale: string, set: DeviceGroup) => void;
-    stagingId?: string;
-    diff?: AssetDiffView | null;
-    selected?: string[];
-    ontoggle?: (locale: string, set: DeviceGroup) => void;
-    onedit?: (locale: string, set: DeviceGroup) => void;
-    oncompare?: (locale: string, set: DeviceGroup) => void;
+    stageFor?: ((locale: string, set: DeviceGroup) => SetStaging) | undefined;
+    onstage?: ((locale: string, set: DeviceGroup) => void) | undefined;
+    onunstage?: ((id: string, locale: string, set: DeviceGroup) => void) | undefined;
+    stagingId?: string | undefined;
+    diff?: AssetDiffView | null | undefined;
+    selected?: string[] | undefined;
+    ontoggle?: ((locale: string, set: DeviceGroup) => void) | undefined;
+    onedit?: ((locale: string, set: DeviceGroup) => void) | undefined;
+    oncompare?: ((locale: string, set: DeviceGroup) => void) | undefined;
   } = $props();
 </script>
 

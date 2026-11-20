@@ -7,7 +7,7 @@
   import type { Platform } from '@mrm/core';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
 
-  let { platform, showLabel = true }: { platform: Platform; showLabel?: boolean } = $props();
+  let { platform, showLabel = true }: { platform: Platform; showLabel?: boolean | undefined } = $props();
 </script>
 
 <PlatformBadge {platform} {showLabel} />

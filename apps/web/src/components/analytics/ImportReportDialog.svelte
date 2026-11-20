@@ -41,7 +41,7 @@
     appId,
     onimported,
     android = false,
-  }: { open?: boolean; api: Api; workspaceId: string; appId: string; onimported: () => void; android?: boolean } = $props();
+  }: { open?: boolean | undefined; api: Api; workspaceId: string; appId: string; onimported: () => void; android?: boolean | undefined } = $props();
 
   const uid = $props.id();
   let flow = $state<ImportState>(idleImport);

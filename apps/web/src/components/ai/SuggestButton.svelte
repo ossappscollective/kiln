@@ -41,11 +41,11 @@
     kind: AiProposalKind;
     taskId: string;
     label: string;
-    hiddenLabel?: string;
+    hiddenLabel?: string | undefined;
     onrun: () => Promise<void>;
-    disabledReason?: string | null;
-    align?: 'start' | 'end';
-    preview?: AiRunBody | null;
+    disabledReason?: string | null | undefined;
+    align?: 'start' | 'end' | undefined;
+    preview?: AiRunBody | null | undefined;
   } = $props();
 
   const uid = $props.id();

@@ -18,7 +18,7 @@
   import TrendSpark from './TrendSpark.svelte';
   import VizScope from './VizScope.svelte';
 
-  let { api, workspaceId, members, now, refreshKey = 0 }: { api: Api; workspaceId: string; members: AppSummary[]; now: number; refreshKey?: number } = $props();
+  let { api, workspaceId, members, now, refreshKey = 0 }: { api: Api; workspaceId: string; members: AppSummary[]; now: number; refreshKey?: number | undefined } = $props();
 
   let strips = $state<Record<string, Strip | null | undefined>>({});
   let generation = 0;

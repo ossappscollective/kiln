@@ -46,11 +46,11 @@
   }: {
     api: Api;
     workspaceId: string;
-    open?: boolean;
+    open?: boolean | undefined;
     onadded: (app: AppSummary) => void;
-    canSync?: boolean;
-    onchanged?: () => void;
-    prefill?: Partial<{ platform: Platform; identifier: string; name: string; credentialId: string; repositoryId: string }>;
+    canSync?: boolean | undefined;
+    onchanged?: (() => void) | undefined;
+    prefill?: Partial<{ platform: Platform; identifier: string; name: string; credentialId: string; repositoryId: string }> | undefined;
   } = $props();
 
   const formId = $props.id();

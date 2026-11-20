@@ -8,9 +8,9 @@
     idPrefix = 'secret',
   }: {
     kind: CredentialKind;
-    values?: Record<string, string>;
-    disabled?: boolean;
-    idPrefix?: string;
+    values?: Record<string, string> | undefined;
+    disabled?: boolean | undefined;
+    idPrefix?: string | undefined;
   } = $props();
 
   const MAX_FILE = 64 * 1024;

@@ -30,15 +30,15 @@
   }: {
     title: string;
     key: string;
-    level?: 2 | 3 | 4;
-    count?: number | string;
-    summary?: string | Snippet;
-    defaultOpen?: boolean;
-    variant?: 'card' | 'plain';
-    flush?: boolean;
-    keepMounted?: boolean;
-    actions?: Snippet;
-    onchange?: (open: boolean) => void;
+    level?: 2 | 3 | 4 | undefined;
+    count?: number | string | undefined;
+    summary?: string | Snippet | undefined;
+    defaultOpen?: boolean | undefined;
+    variant?: 'card' | 'plain' | undefined;
+    flush?: boolean | undefined;
+    keepMounted?: boolean | undefined;
+    actions?: Snippet | undefined;
+    onchange?: ((open: boolean) => void) | undefined;
     children: Snippet;
   } = $props();
 

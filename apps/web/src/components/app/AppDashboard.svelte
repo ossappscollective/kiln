@@ -57,11 +57,11 @@
     workspaceId: string;
     role: Role;
     members: AppSummary[];
-    all?: AppSummary[];
+    all?: AppSummary[] | undefined;
     releases: Record<string, ReleaseSummary[]>;
     now: number;
     syncRuns: number;
-    pending?: { text: string; href: string } | null;
+    pending?: { text: string; href: string } | null | undefined;
   } = $props();
 
   let newReviews = $state<Record<string, number | undefined>>({});

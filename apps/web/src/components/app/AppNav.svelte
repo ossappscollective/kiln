@@ -47,17 +47,17 @@
   }: {
     address: AppAddress;
     allowed: (action: Action) => boolean;
-    attention?: number | null;
-    unanswered?: number | null;
-    workspaceItems?: RailItem[];
+    attention?: number | null | undefined;
+    unanswered?: number | null | undefined;
+    workspaceItems?: RailItem[] | undefined;
     /** The apps for the switcher field (null while being read); with `onpickapp` the app name is a switcher. */
-    switcher?: SwitcherItem[] | null;
-    mod?: string;
-    onopenswitcher?: () => void;
-    onpickapp?: (item: SwitcherItem) => void;
-    counts?: { reviews: number | null; releases: number | null; pending?: number | null; pendingBlocking?: boolean };
+    switcher?: SwitcherItem[] | null | undefined;
+    mod?: string | undefined;
+    onopenswitcher?: (() => void) | undefined;
+    onpickapp?: ((item: SwitcherItem) => void) | undefined;
+    counts?: { reviews: number | null; releases: number | null; pending?: number | null; pendingBlocking?: boolean } | undefined;
     /** One line per platform of the app (lib/app-status.ts); empty draws no summary. */
-    status?: PlatformStatusLine[];
+    status?: PlatformStatusLine[] | undefined;
   } = $props();
 
   const badgeFor = (id: string): { count: number | null; one: string; many: string; tone: 'warn' | 'accent' } | null =>

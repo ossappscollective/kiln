@@ -32,13 +32,13 @@
     now: nowProp,
     actor = null,
   }: {
-    open?: boolean;
+    open?: boolean | undefined;
     api: Api;
     workspaceId: string;
     run: WorkflowRun;
     repository: { owner: string | null; repo: string | null };
     now: number;
-    actor?: string | null;
+    actor?: string | null | undefined;
   } = $props();
 
   const JOBS_POLL_MS = 10_000;

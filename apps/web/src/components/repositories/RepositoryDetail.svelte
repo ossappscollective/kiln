@@ -53,7 +53,7 @@
     myId: string;
     names: Record<string, string>;
     initial: RepositorySummary;
-    initialChangeSetId?: string | null;
+    initialChangeSetId?: string | null | undefined;
     onback: () => void;
     onupdated: (repository: RepositorySummary) => void;
   } = $props();

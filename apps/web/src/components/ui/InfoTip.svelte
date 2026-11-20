@@ -25,13 +25,13 @@
     width = '22rem',
   }: {
     label: string;
-    buttonText?: string;
-    icon?: IconName;
-    align?: 'start' | 'end';
-    text?: string;
-    children?: Snippet;
-    open?: boolean;
-    width?: string;
+    buttonText?: string | undefined;
+    icon?: IconName | undefined;
+    align?: 'start' | 'end' | undefined;
+    text?: string | undefined;
+    children?: Snippet | undefined;
+    open?: boolean | undefined;
+    width?: string | undefined;
   } = $props();
 
   const uid = $props.id();

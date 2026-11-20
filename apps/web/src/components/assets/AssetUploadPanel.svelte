@@ -46,10 +46,10 @@
     appId: string;
     slot: { locale: string; kind: string; device: string | null };
     mode: 'add' | 'replace';
-    position?: number;
-    disabledReason?: string;
+    position?: number | undefined;
+    disabledReason?: string | undefined;
     onstaged: (view: StagedChangesView) => void;
-    ondone?: () => void;
+    ondone?: (() => void) | undefined;
   } = $props();
 
   const uid = $props.id();

@@ -46,19 +46,19 @@
     extra,
   }: {
     field: DriftField;
-    storeLabel?: string;
+    storeLabel?: string | undefined;
     now: number;
     onhistory: (field: DriftField) => void;
-    pullable?: boolean;
-    pullDisabled?: string | null;
-    selected?: boolean;
-    onselect?: (field: DriftField, selected: boolean) => void;
-    onpull?: (field: DriftField) => void;
-    stage?: FieldStage;
-    stageBusy?: boolean;
-    onstage?: (field: DriftField) => void;
-    onunstage?: (id: string, field: DriftField) => void;
-    extra?: Snippet;
+    pullable?: boolean | undefined;
+    pullDisabled?: string | null | undefined;
+    selected?: boolean | undefined;
+    onselect?: ((field: DriftField, selected: boolean) => void) | undefined;
+    onpull?: ((field: DriftField) => void) | undefined;
+    stage?: FieldStage | undefined;
+    stageBusy?: boolean | undefined;
+    onstage?: ((field: DriftField) => void) | undefined;
+    onunstage?: ((id: string, field: DriftField) => void) | undefined;
+    extra?: Snippet | undefined;
   } = $props();
 
   const uid = $props.id();

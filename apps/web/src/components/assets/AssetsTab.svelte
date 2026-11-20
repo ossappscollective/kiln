@@ -97,9 +97,9 @@
     app: AppSummary;
     now: number;
     refreshKey: number;
-    storeSide?: AssetStoreSide | null;
-    locked?: boolean;
-    locale?: string | null;
+    storeSide?: AssetStoreSide | null | undefined;
+    locked?: boolean | undefined;
+    locale?: string | null | undefined;
   } = $props();
 
   const allowed = $derived(can(role, 'listing.read'));

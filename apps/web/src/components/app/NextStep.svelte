@@ -55,16 +55,16 @@
     workspaceId: string;
     role: Role;
     members: AppSummary[];
-    all?: AppSummary[];
+    all?: AppSummary[] | undefined;
     scope: PlatformScope | null;
-    attention?: AttentionItem[];
-    releases?: Record<string, ReleaseSummary[]>;
-    refreshKey?: number;
-    showRunning?: boolean;
-    onprepare?: () => void;
-    onstarted?: (started: StartedRun | null) => void;
-    pending?: { text: string; href: string } | null;
-    onitems?: (items: AttentionItem[]) => void;
+    attention?: AttentionItem[] | undefined;
+    releases?: Record<string, ReleaseSummary[]> | undefined;
+    refreshKey?: number | undefined;
+    showRunning?: boolean | undefined;
+    onprepare?: (() => void) | undefined;
+    onstarted?: ((started: StartedRun | null) => void) | undefined;
+    pending?: { text: string; href: string } | null | undefined;
+    onitems?: ((items: AttentionItem[]) => void) | undefined;
   } = $props();
 
   const uid = $props.id();

@@ -222,11 +222,11 @@ export function releaseLine(input: ReleaseLineInput): ReleaseLine {
 export function releaseBody(
   platform: Platform,
   input: {
-    version?: string;
-    track?: string;
+    version?: string | undefined;
+    track?: string | undefined;
     fraction: number | null;
-    versionCodes?: string[];
-    direct?: boolean;
+    versionCodes?: string[] | undefined;
+    direct?: boolean | undefined;
   },
 ): ReleaseBody {
   if (supports(platform, 'releaseTracks')) {

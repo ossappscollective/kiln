@@ -39,7 +39,7 @@
     review: { id: string; title: string | null; body: string; language: string | null };
     stored?: ReviewTranslation | undefined;
     onstore?: ((t: ReviewTranslation) => void) | undefined;
-    showAll?: boolean;
+    showAll?: boolean | undefined;
   } = $props();
 
   let config = $state<TranslationConfig | null>(null);

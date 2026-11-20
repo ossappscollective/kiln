@@ -29,7 +29,7 @@
     comparing: boolean;
     ontoggle: () => void;
     onremove: () => void;
-    busy?: boolean;
+    busy?: boolean | undefined;
   } = $props();
 
   const uid = $props.id();

@@ -5,7 +5,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
-  let { children, label = 'Actions' }: { children: Snippet; label?: string } = $props();
+  let { children, label = 'Actions' }: { children: Snippet; label?: string | undefined } = $props();
 </script>
 
 <div class="asobar" role="toolbar" aria-label={label}>{@render children()}</div>

@@ -10,7 +10,7 @@
     subtitle,
     children,
     footer,
-  }: { title: string; subtitle?: string; children: Snippet; footer?: Snippet } = $props();
+  }: { title: string; subtitle?: string | undefined; children: Snippet; footer?: Snippet | undefined } = $props();
 </script>
 
 <main class="page">

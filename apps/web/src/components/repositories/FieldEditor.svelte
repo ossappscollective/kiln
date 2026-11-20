@@ -27,9 +27,9 @@
     id: string;
     value: string;
     original: string | undefined;
-    readonly?: boolean;
-    problems?: ListingProblem[];
-    label?: string;
+    readonly?: boolean | undefined;
+    problems?: ListingProblem[] | undefined;
+    label?: string | undefined;
     onchange: (value: string) => void;
   } = $props();
 

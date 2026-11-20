@@ -44,7 +44,7 @@
     workspaceId: string;
     changeSet: ChangeSetView;
     role: Role;
-    applyCode?: string | null;
+    applyCode?: string | null | undefined;
     onrefreshed: (result: RefreshResult) => void;
     onrecomputed?: ((result: RecomputeResult) => void) | undefined;
     ondiscard: () => void;

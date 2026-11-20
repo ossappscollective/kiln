@@ -40,7 +40,7 @@
     preview: PreviewState;
     note: string;
     problems: AssetProblem[];
-    store?: StoreStatus;
+    store?: StoreStatus | undefined;
     onopen: () => void;
   } = $props();
 

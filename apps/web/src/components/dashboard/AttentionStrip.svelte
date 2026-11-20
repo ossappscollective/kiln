@@ -12,7 +12,7 @@
   import PlatformBadge from '../portfolio/PlatformBadge.svelte';
   import Badge from '../ui/Badge.svelte';
 
-  let { items, compact = false }: { items: Attention[]; compact?: boolean } = $props();
+  let { items, compact = false }: { items: Attention[]; compact?: boolean | undefined } = $props();
 
   const uid = $props.id();
   const KIND: Record<AttentionKind, { label: string; tone: 'bad' | 'warn' }> = {

@@ -22,9 +22,9 @@
   }: {
     items: SwitcherItem[];
     current: number;
-    selectedKey?: string | null;
+    selectedKey?: string | null | undefined;
     id: string;
-    mod?: string;
+    mod?: string | undefined;
     onhover: (index: number) => void;
     onpick: (item: SwitcherItem) => void;
   } = $props();

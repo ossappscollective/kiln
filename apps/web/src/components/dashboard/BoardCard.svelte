@@ -21,7 +21,7 @@
   import Icon from '../ui/Icon.svelte';
   import PendingChip from '../publish/PendingChip.svelte';
 
-  let { card, now, pending = null }: { card: BoardCard; now: number; pending?: PendingLine | null } = $props();
+  let { card, now, pending = null }: { card: BoardCard; now: number; pending?: PendingLine | null | undefined } = $props();
 
   const uid = $props.id();
   const due = $derived(card.due ? dueText(card.due) : null);

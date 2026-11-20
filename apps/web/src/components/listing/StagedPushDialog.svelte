@@ -31,7 +31,7 @@ import { platformMeta } from '@mrm/core';
     onconfirm,
     oncancel,
   }: {
-    open?: boolean;
+    open?: boolean | undefined;
     preview: DraftPreview;
     busy: boolean;
     problem: string;

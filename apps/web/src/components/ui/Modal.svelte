@@ -21,14 +21,14 @@
     children,
     footer,
   }: {
-    open?: boolean;
+    open?: boolean | undefined;
     title: string;
-    description?: string;
-    size?: 'sm' | 'md' | 'lg';
-    dismissible?: boolean;
-    onclose?: () => void;
+    description?: string | undefined;
+    size?: 'sm' | 'md' | 'lg' | undefined;
+    dismissible?: boolean | undefined;
+    onclose?: (() => void) | undefined;
     children: Snippet;
-    footer?: Snippet;
+    footer?: Snippet | undefined;
   } = $props();
 
   const uid = $props.id();

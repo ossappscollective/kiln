@@ -19,7 +19,7 @@
     items,
     mod = 'Ctrl',
     onpick,
-  }: { open?: boolean; items: SwitcherItem[] | null; mod?: string; onpick: (item: SwitcherItem) => void } = $props();
+  }: { open?: boolean | undefined; items: SwitcherItem[] | null; mod?: string | undefined; onpick: (item: SwitcherItem) => void } = $props();
 
   const uid = $props.id();
   let query = $state('');

@@ -35,6 +35,12 @@ ternary in a dozen files and the literal union of store names was written out 25
    store by design: the App Store Connect and iTunes connectors, the iOS/macOS universal-purchase handling in reviews and analytics sync,
    and the parsers that read a platform name from text. Test fixtures and the demo world also name platforms.
 
+## Typing
+
+`exactOptionalPropertyTypes` is on in every package, the web included. An optional property holds a value or is absent; to accept
+`undefined` too, a type says so (`title?: string | undefined`). The props of the Svelte components are written that way, so a call
+site can pass `x={maybe}` without an `undefined` branch.
+
 ## Not decided yet
 
-`exactOptionalPropertyTypes` for the web package (it extends the Svelte tsconfig and `svelte-check` has to be run by hand; the other packages have it on).
+Nothing open from this refactor.

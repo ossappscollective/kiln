@@ -18,10 +18,10 @@
   }: {
     headline: string;
     hint?: string | undefined;
-    tone?: 'neutral' | 'ok' | 'warn' | 'bad' | 'info';
-    actions?: Snippet;
-    aside?: Snippet;
-    testid?: string;
+    tone?: 'neutral' | 'ok' | 'warn' | 'bad' | 'info' | undefined;
+    actions?: Snippet | undefined;
+    aside?: Snippet | undefined;
+    testid?: string | undefined;
   } = $props();
 </script>
 

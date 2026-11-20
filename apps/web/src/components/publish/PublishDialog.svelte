@@ -80,7 +80,7 @@ import { supports } from '@mrm/core';
     targets,
     onchanged,
   }: {
-    open?: boolean;
+    open?: boolean | undefined;
     api: Api;
     workspaceId: string;
     targets: AppSummary[];

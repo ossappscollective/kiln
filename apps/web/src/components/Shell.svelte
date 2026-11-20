@@ -42,7 +42,7 @@
     me,
     onsignout,
     canSignOut = true,
-  }: { api: Api; me: Me; onsignout: () => void; canSignOut?: boolean } = $props();
+  }: { api: Api; me: Me; onsignout: () => void; canSignOut?: boolean | undefined } = $props();
 
   // The demo workspace (`pnpm demo`) says so in a slim bar; any other server has no /demo/status and the bar never shows.
   let demo = $state(false);

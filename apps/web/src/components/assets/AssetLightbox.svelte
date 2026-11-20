@@ -35,9 +35,9 @@
     stateFor,
     noteFor,
   }: {
-    open?: boolean;
+    open?: boolean | undefined;
     assets: AssetItem[];
-    index?: number;
+    index?: number | undefined;
     urlFor: (asset: AssetItem) => string | null;
     problemsFor: (asset: AssetItem) => AssetProblem[];
     stateFor: (asset: AssetItem) => PreviewState;

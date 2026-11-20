@@ -19,7 +19,7 @@ export type TwoFactorStatus = {
   mailConfigured: boolean;
   /** Single-user mode has no account email: the person types the address the codes go to. */
   emailAddressEditable: boolean;
-  recovery?: { remaining: number; total: number; generatedAt: number | null };
+  recovery?: { remaining: number; total: number; generatedAt: number | null } | undefined;
   login: { supported: boolean; mode: LoginMode; membersWithoutSecondFactor?: number };
 };
 
@@ -42,10 +42,10 @@ export type SmtpSettings = {
 };
 export type SmtpInput = {
   host: string;
-  port?: number;
+  port?: number | undefined;
   secure: SmtpSecure;
-  user?: string;
-  password?: string;
+  user?: string | undefined;
+  password?: string | undefined;
   from: string;
 };
 export type MailTestResult =
@@ -217,9 +217,9 @@ export function twoFactorProblem(error: unknown): string {
   const e = error as ErrorLike | null;
   if (!e || typeof e !== 'object') return 'Something went wrong. Try again.';
   const body = (e.body && typeof e.body === 'object' ? e.body : {}) as {
-    code?: unknown;
-    hint?: unknown;
-    message?: unknown;
+    code?: unknown | undefined;
+    hint?: unknown | undefined;
+    message?: unknown | undefined;
   };
   if (e.code === 'mail_failed' && typeof body.code === 'string') {
     const hint = typeof body.hint === 'string' ? mailHintMessage(body.hint) : undefined;

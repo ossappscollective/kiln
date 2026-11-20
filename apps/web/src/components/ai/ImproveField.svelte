@@ -34,9 +34,9 @@
     role: Role;
     app: Pick<AppSummary, 'id' | 'platform'>;
     field: Pick<DriftField, 'locale' | 'field' | 'label'>;
-    current?: string | null;
-    buttonLabel?: string;
-    onaccepted?: (result: AiAcceptedRef) => void | Promise<void>;
+    current?: string | null | undefined;
+    buttonLabel?: string | undefined;
+    onaccepted?: ((result: AiAcceptedRef) => void | Promise<void>) | undefined;
   } = $props();
 
   let suggestionId = $state<string | null>(null);

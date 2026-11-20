@@ -63,13 +63,13 @@ import { supports } from '@mrm/core';
     workspaceId: string;
     role: Role;
     app: Pick<AppSummary, 'id' | 'name' | 'platform'>;
-    version?: string | null;
-    track?: string;
-    versionCodes?: string[];
-    stagedShare?: string;
+    version?: string | null | undefined;
+    track?: string | undefined;
+    versionCodes?: string[] | undefined;
+    stagedShare?: string | undefined;
     /** Google Play: a track and version codes are staged, so the release can be made from them in one step. */
-    stagedFields?: boolean;
-    onreleased?: () => void;
+    stagedFields?: boolean | undefined;
+    onreleased?: (() => void) | undefined;
   } = $props();
 
   const uid = $props.id();

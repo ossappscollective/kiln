@@ -22,9 +22,9 @@
   }: {
     items: SwitcherItem[] | null;
     appId: string;
-    fallbackName?: string;
-    mod?: string;
-    onopen?: () => void;
+    fallbackName?: string | undefined;
+    mod?: string | undefined;
+    onopen?: (() => void) | undefined;
     onpick: (item: SwitcherItem) => void;
   } = $props();
 

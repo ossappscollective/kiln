@@ -20,10 +20,10 @@
     children,
   }: {
     summary: string | Snippet;
-    meta?: Snippet;
-    open?: boolean;
-    stateKey?: string;
-    variant?: 'plain' | 'boxed';
+    meta?: Snippet | undefined;
+    open?: boolean | undefined;
+    stateKey?: string | undefined;
+    variant?: 'plain' | 'boxed' | undefined;
     children: Snippet;
   } = $props();
 

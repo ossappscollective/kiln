@@ -40,9 +40,9 @@
     workspaceId: string;
     config: LocalConfig | null;
     repositories: RepositorySummary[];
-    fixedRepository?: RepositorySummary;
+    fixedRepository?: RepositorySummary | undefined;
     ondone: (done: { kind: 'attached' | 'local_only'; repository: RepositorySummary }) => void;
-    oncancel?: () => void;
+    oncancel?: (() => void) | undefined;
   } = $props();
 
   const uid = $props.id();

@@ -56,12 +56,12 @@
     workspaceId: string;
     role: Role;
     members: AppSummary[];
-    all?: AppSummary[];
-    scopeIsBoth?: boolean;
-    showRunning?: boolean;
-    button?: 'primary' | 'secondary' | 'none';
-    showPrepare?: boolean;
-    onstarted?: (started: StartedRun | null) => void;
+    all?: AppSummary[] | undefined;
+    scopeIsBoth?: boolean | undefined;
+    showRunning?: boolean | undefined;
+    button?: 'primary' | 'secondary' | 'none' | undefined;
+    showPrepare?: boolean | undefined;
+    onstarted?: ((started: StartedRun | null) => void) | undefined;
   } = $props();
 
   const RETRY_MS = 30_000;

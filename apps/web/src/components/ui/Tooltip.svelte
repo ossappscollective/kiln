@@ -21,7 +21,7 @@
     children,
   }: {
     text: string;
-    placement?: 'top' | 'bottom';
+    placement?: 'top' | 'bottom' | undefined;
     children: Snippet<[{ 'aria-describedby': string }]>;
   } = $props();
 

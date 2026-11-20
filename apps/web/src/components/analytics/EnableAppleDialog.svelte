@@ -30,7 +30,7 @@
     appId,
     onenabled,
     onimport,
-  }: { open?: boolean; api: Api; workspaceId: string; appId: string; onenabled: () => void; onimport?: () => void } = $props();
+  }: { open?: boolean | undefined; api: Api; workspaceId: string; appId: string; onenabled: () => void; onimport?: (() => void) | undefined } = $props();
 
   const uid = $props.id();
   let preview = $state<EnablePreview | null>(null);

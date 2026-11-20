@@ -26,12 +26,12 @@
     class: className = '',
   }: {
     name: string;
-    url?: string | null;
-    platform?: string | null;
-    seed?: string;
-    size?: AppIconSize | number;
-    labelled?: boolean;
-    class?: string;
+    url?: string | null | undefined;
+    platform?: string | null | undefined;
+    seed?: string | undefined;
+    size?: AppIconSize | number | undefined;
+    labelled?: boolean | undefined;
+    class?: string | undefined;
   } = $props();
 
   const px = $derived(appIconPixels(size));

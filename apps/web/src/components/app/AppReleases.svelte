@@ -57,7 +57,7 @@
     workspaceId: string;
     role: Role;
     members: AppSummary[];
-    all?: AppSummary[];
+    all?: AppSummary[] | undefined;
     releases: Record<string, ReleaseSummary[]>;
     now: number;
     syncRuns: number;

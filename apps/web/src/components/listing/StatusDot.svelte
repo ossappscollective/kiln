@@ -7,7 +7,7 @@
   import { type CellStatus, cellInfo } from '../../lib/listing/matrix.ts';
   import Icon from '../ui/Icon.svelte';
 
-  let { status, label }: { status: CellStatus; label?: string } = $props();
+  let { status, label }: { status: CellStatus; label?: string | undefined } = $props();
 
   const info = $derived(cellInfo(status));
   const name = $derived(label ?? info.label);

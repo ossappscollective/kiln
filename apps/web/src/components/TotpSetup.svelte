@@ -19,7 +19,7 @@
     problem = '',
     onconfirm,
     oncancel,
-  }: { begin: TotpBegin; busy?: boolean; problem?: string; onconfirm: (code: string) => void; oncancel: () => void } = $props();
+  }: { begin: TotpBegin; busy?: boolean | undefined; problem?: string | undefined; onconfirm: (code: string) => void; oncancel: () => void } = $props();
 
   let code = $state('');
 

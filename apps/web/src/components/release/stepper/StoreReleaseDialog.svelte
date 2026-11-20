@@ -32,15 +32,15 @@ import { supports } from '@mrm/core';
     api,
     workspaceId,
   }: {
-    open?: boolean;
+    open?: boolean | undefined;
     preview: ReleasePreview;
     busy: boolean;
     problem: string;
     notice: string;
     onconfirm: (typed: string) => void;
     oncancel: () => void;
-    api?: Api;
-    workspaceId?: string;
+    api?: Api | undefined;
+    workspaceId?: string | undefined;
   } = $props();
 
   const uid = $props.id();

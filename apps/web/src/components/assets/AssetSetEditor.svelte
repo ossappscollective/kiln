@@ -51,13 +51,13 @@
     set,
     oncompare,
   }: {
-    open?: boolean;
+    open?: boolean | undefined;
     api: Api;
     workspaceId: string;
     role: Role;
     app: AppSummary;
     set: EditorSet | null;
-    oncompare?: () => void;
+    oncompare?: (() => void) | undefined;
   } = $props();
 
   let working = $state('');

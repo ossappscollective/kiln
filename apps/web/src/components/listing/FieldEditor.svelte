@@ -59,10 +59,10 @@
     platform: Platform;
     locale: string;
     field: string;
-    open?: boolean;
-    current?: string | null;
-    seed?: { text: string; note: string } | null;
-    onstaged?: () => void | Promise<void>;
+    open?: boolean | undefined;
+    current?: string | null | undefined;
+    seed?: { text: string; note: string } | null | undefined;
+    onstaged?: (() => void | Promise<void>) | undefined;
   } = $props();
 
   const uid = $props.id();

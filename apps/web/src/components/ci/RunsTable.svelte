@@ -25,7 +25,7 @@
     runs: WorkflowRun[];
     now: number;
     repository: { owner: string | null; repo: string | null };
-    onfollow?: (run: WorkflowRun) => void;
+    onfollow?: ((run: WorkflowRun) => void) | undefined;
   } = $props();
 
   const uid = $props.id();

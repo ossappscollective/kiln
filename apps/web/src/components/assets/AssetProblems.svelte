@@ -16,7 +16,7 @@
     problems,
     showPath = true,
     onopenpath,
-  }: { problems: AssetProblem[]; showPath?: boolean; onopenpath?: (path: string) => void } = $props();
+  }: { problems: AssetProblem[]; showPath?: boolean | undefined; onopenpath?: ((path: string) => void) | undefined } = $props();
 
   const safeSource = (url: string) => (url.startsWith('https://') ? url : null);
 </script>

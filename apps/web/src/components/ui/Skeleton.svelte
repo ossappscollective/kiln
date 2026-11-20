@@ -9,7 +9,7 @@
     height = '1em',
     circle = false,
     class: className = '',
-  }: { width?: string; height?: string; circle?: boolean; class?: string } = $props();
+  }: { width?: string | undefined; height?: string | undefined; circle?: boolean | undefined; class?: string | undefined } = $props();
 </script>
 
 <span class="skeleton {className}" class:circle style:width style:height aria-hidden="true"></span>
