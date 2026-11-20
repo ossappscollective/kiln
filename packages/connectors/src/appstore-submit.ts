@@ -269,6 +269,46 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
     }
   }
 
+  /** The id of an unsubmitted review submission of this platform that holds no item (left by an earlier failed try), else null. */
+  async #emptySubmission(): Promise<string | null> {
+    try {
+      const body = (
+        await this.#get(
+          `${this.#base}/v1/apps/${enc(this.#appId)}/reviewSubmissions?filter[state]=READY_FOR_REVIEW&filter[platform]=${this.#apple}&limit=20`,
+          'looking for unsubmitted review submissions',
+        )
+      ).json;
+      for (const r of records(body.data)) {
+        const id = text(r.id);
+        if (!id) continue;
+        const items = (
+          await this.#get(
+            `${this.#base}/v1/reviewSubmissions/${enc(id)}/items?limit=1`,
+            'looking at the items of a review submission',
+          )
+        ).json;
+        if (records(items.data).length === 0) return id;
+      }
+    } catch {
+      // Not found out: a new one is created, as before.
+    }
+    return null;
+  }
+
+  /** Cancels a review submission this call created and could not fill. Never throws: the original failure is what the person needs. */
+  async #cancelEmpty(id: string): Promise<void> {
+    try {
+      await this.#write(
+        'PATCH',
+        `/v1/reviewSubmissions/${enc(id)}`,
+        'cancelling the empty review submission',
+        { data: { type: 'reviewSubmissions', id, attributes: { canceled: true } } },
+      );
+    } catch {
+      // The submission stays as an empty draft in App Store Connect; the next try reuses it.
+    }
+  }
+
   // -------------------------------------------------------------------------------------------
   // Submitting
 
@@ -284,28 +324,37 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
       );
     }
 
-    let submissionId: string;
+    let submissionId = '';
+    // A submission this call created (an empty one is left behind when adding the version fails, so it is cancelled then),
+    // as opposed to an empty one found waiting, which is the person's and is only reused.
+    let createdHere = false;
     try {
-      const created = await this.#write(
-        'POST',
-        '/v1/reviewSubmissions',
-        'creating the review submission',
-        {
-          data: {
-            type: 'reviewSubmissions',
-            relationships: { app: { data: { type: 'apps', id: this.#appId } } },
+      const reusable = await this.#emptySubmission();
+      if (reusable !== null) {
+        submissionId = reusable;
+      } else {
+        const created = await this.#write(
+          'POST',
+          '/v1/reviewSubmissions',
+          'creating the review submission',
+          {
+            data: {
+              type: 'reviewSubmissions',
+              relationships: { app: { data: { type: 'apps', id: this.#appId } } },
+            },
           },
-        },
-      );
-      const id = idOf(created);
-      if (!id)
-        throw new StoreError(
-          'appstoreconnect',
-          'unexpected',
-          'App Store Connect created a review submission but sent no id.',
-          created.status,
         );
-      submissionId = id;
+        const id = idOf(created);
+        if (!id)
+          throw new StoreError(
+            'appstoreconnect',
+            'unexpected',
+            'App Store Connect created a review submission but sent no id.',
+            created.status,
+          );
+        submissionId = id;
+        createdHere = true;
+      }
       await this.#write(
         'POST',
         '/v1/reviewSubmissionItems',
@@ -321,7 +370,9 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
         },
       );
     } catch (error) {
-      // Nothing was handed to review yet; a lost answer here is not the irreversible case.
+      // Nothing was handed to review yet; a lost answer here is not the irreversible case. A submission created by this call
+      // and left empty would pile up in App Store Connect with every retry, so it is cancelled (best effort).
+      if (createdHere && submissionId !== '') await this.#cancelEmpty(submissionId);
       if (error instanceof DraftOutcomeUnknownError || error instanceof SubmitOutcomeUnknownError) {
         throw new StoreError(
           'appstoreconnect',

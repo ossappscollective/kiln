@@ -244,11 +244,38 @@ test('a refusal before the last request says nothing was submitted and is no unk
       assertNoSecrets(e);
       return true;
     });
+    // The request that hands the version to review (`submitted`) is never sent.
     assert.ok(
-      !api.writes().some((w) => w.startsWith('PATCH')),
+      !api.seen.some(
+        (s) =>
+          s.method === 'PATCH' &&
+          JSON.stringify(s.body).includes('"submitted"'),
+      ),
       `${label}: never reached the last request`,
     );
+    // A submission this call created and could not fill is cancelled, so empty drafts do not pile up in App Store Connect.
+    const cancelled = api.seen.filter(
+      (s) => s.method === 'PATCH' && JSON.stringify(s.body).includes('"canceled":true'),
+    );
+    assert.equal(cancelled.length, label === 'item' ? 1 : 0, label);
   }
+});
+
+test('a failed cancel of the empty review submission never hides the real failure', async () => {
+  const { api, connector } = setup((a) => {
+    a.hook = (s) =>
+      s.method === 'POST' && s.path === '/v1/reviewSubmissionItems'
+        ? reply(409, { errors: [{ status: '409', code: 'STATE_ERROR', title: 'Not allowed' }] })
+        : s.method === 'PATCH'
+          ? reply(500)
+          : undefined;
+  });
+  await assert.rejects(connector.submit({ request: REQUEST, guard: accept }), (e: unknown) => {
+    assert.ok(e instanceof StoreError);
+    assert.match(e.message, /Nothing was submitted for review/);
+    return true;
+  });
+  assert.ok(api.seen.some((s) => s.method === 'PATCH'), 'the cancel was tried');
 });
 
 test('a lost answer before the last request is a plain failure that mentions the unsubmitted submission', async () => {
