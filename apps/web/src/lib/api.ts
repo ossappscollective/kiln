@@ -80,6 +80,7 @@ import type {
 } from './assets/sync.ts';
 import type { ExpoDetection, ExpoLinkView, SetExpoLinkBody } from './eas/eas.ts';
 import type { EasStatusView } from './eas/eas-status.ts';
+import type { EasWorkflowDispatchBody, EasWorkflowRunRead } from './eas/eas-workflows.ts';
 import type {
   EasRolloutPreview,
   EasRolloutRequest,
@@ -2343,13 +2344,31 @@ export function createApi(options: ApiOptions = {}) {
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo/detect`,
       ),
+    // EAS Workflows as a CI provider (docs/api/eas-workflows.md). Starting needs `ci.dispatch`; the runs are read with `apps.read`;
+    // `refresh` asks Expo and needs `apps.sync`.
+    easWorkflowRuns: (workspaceId: string, appId: string) =>
+      request<{ runs: WorkflowRun[] }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo/workflows/runs`,
+      ),
+    easWorkflowRun: (workspaceId: string, appId: string, runId: string, refresh = false) =>
+      request<EasWorkflowRunRead>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo/workflows/runs/${encodeURIComponent(runId)}${refresh ? '?refresh=true' : ''}`,
+      ),
+    dispatchEasWorkflow: (workspaceId: string, appId: string, body: EasWorkflowDispatchBody) =>
+      request<{ dispatched: boolean; run: WorkflowRun }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo/workflows/dispatches`,
+        body,
+      ),
     /** `eas.json` and the JSON app config of the app's repository, read-only (docs/api/eas-config.md). Needs `repositories.scan`. */
     easConfig: (workspaceId: string, appId: string) =>
       request<EasConfigView>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/eas-config`,
       ),
-    // EAS Build and Submit status of the linked Expo project (docs/api/eas.md). The status is the stored snapshot (needs `builds.read`, no
+    // EAS Build and Submit status of the linked Expo project (docs/api/eas-builds.md). The status is the stored snapshot (needs `builds.read`, no
     // call to Expo); the refresh reads Expo again with the credential of the link (needs `apps.sync`). Neither changes anything at Expo.
     easStatus: (workspaceId: string, appId: string) =>
       request<{ status: EasStatusView }>(

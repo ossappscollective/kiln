@@ -8,7 +8,7 @@
   onrun (called with the row), onfollow (called with the run and its repository).
 -->
 <script lang="ts">
-  import { isPending, runTitle } from '../../lib/ci/ci.ts';
+  import { isPending, runProvider, runTitle } from '../../lib/ci/ci.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { type WorkflowRow, relevanceLabel, runBlockedReason } from '../../lib/ci/workflows.ts';
   import type { WorkflowRun } from '../../lib/types.ts';
@@ -81,16 +81,18 @@
                   <time datetime={new Date(last.startedAt).toISOString()} title={fullTime(last.startedAt)}>{timeAgo(last.startedAt, now)}</time>
                 </span>
                 {#if last.url}
-                  <a class="icon-link" href={last.url} target="_blank" rel="noopener noreferrer" title="Open {runTitle(last)} on GitHub">
-                    <Icon name="external-link" size={14} /><span class="visually-hidden">Open the last run of {workflow.name} on GitHub (opens in a new tab)</span>
+                  <a class="icon-link" href={last.url} target="_blank" rel="noopener noreferrer" title="Open {runTitle(last)} on {runProvider(last).host}">
+                    <Icon name="external-link" size={14} /><span class="visually-hidden">Open the last run of {workflow.name} on {runProvider(last).host} (opens in a new tab)</span>
                   </a>
                 {/if}
-                {#if !isPending(last)}
-                  <Button size="sm" variant="ghost" label="{last.active ? 'Follow' : 'Jobs of'} the last run of {workflow.name}" onclick={() => onfollow(last, row)}
-                    >{last.active ? 'Follow' : 'Jobs'}</Button
-                  >
-                {:else}
-                  <span class="muted when">Waiting for GitHub to name the run</span>
+                {#if runProvider(last).readsJobs}
+                  {#if !isPending(last)}
+                    <Button size="sm" variant="ghost" label="{last.active ? 'Follow' : 'Jobs of'} the last run of {workflow.name}" onclick={() => onfollow(last, row)}
+                      >{last.active ? 'Follow' : 'Jobs'}</Button
+                    >
+                  {:else}
+                    <span class="muted when">Waiting for GitHub to name the run</span>
+                  {/if}
                 {/if}
               </div>
             {:else}

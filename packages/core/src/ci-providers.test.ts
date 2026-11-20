@@ -19,4 +19,8 @@ test('an unknown or missing provider reads as GitHub, so old rows and old server
   assert.equal(isCiProvider('x'), false);
   assert.equal(ciProviderMeta('eas-workflows').host, 'Expo');
   assert.equal(ciProviderMeta(undefined).label, 'GitHub Actions');
+  // What a screen may offer depends on the provider, not on its name.
+  assert.equal(ciProviderMeta('github').readsJobs, true);
+  assert.equal(ciProviderMeta('eas-workflows').readsJobs, false);
+  assert.equal(ciProviderMeta('eas-workflows').listsWorkflows, false);
 });

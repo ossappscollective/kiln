@@ -288,3 +288,16 @@ test('readProblemLabel says whether the connection or GitHub is the problem', ()
   assert.equal(readProblemLabel(undefined, 403), 'You cannot read workflows here');
   assert.equal(readProblemLabel('x'), 'Workflows could not be read');
 });
+
+test('workflowsFromRuns leaves out the runs of a provider whose workflows are not listed from the repository', () => {
+  const found = workflowsFromRuns([
+    { workflow: 'ios.yml', workflowPath: '.github/workflows/ios.yml' },
+    { workflow: 'build.yml', workflowPath: '.eas/workflows/build.yml', provider: 'eas-workflows' },
+    { workflow: 'old.yml', workflowPath: null, provider: 'something-newer' },
+  ]);
+  assert.deepEqual(
+    found.map((w) => w.path),
+    ['.github/workflows/ios.yml', 'old.yml'],
+    'a provider a newer server sent reads as GitHub, like a run with none',
+  );
+});

@@ -7,7 +7,7 @@
   A run that GitHub has not named yet (we just started it) has no link; it says so.
 -->
 <script lang="ts">
-  import { isPending, runDuration, runTitle, shortSha } from '../../lib/ci/ci.ts';
+  import { isPending, runDuration, runProvider, runTitle, shortSha } from '../../lib/ci/ci.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { githubUrl } from '../../lib/repositories.ts';
   import type { WorkflowRun } from '../../lib/types.ts';
@@ -69,7 +69,7 @@
           </td>
           <td class="muted">{took ?? (run.active ? 'running' : '-')}</td>
           <td class="acts">
-            {#if onfollow && !isPending(run)}
+            {#if onfollow && !isPending(run) && runProvider(run).readsJobs}
               <Button size="sm" variant="ghost" label="{run.active ? 'Follow' : 'Jobs of'} {runTitle(run)}" onclick={() => onfollow(run)}
                 >{run.active ? 'Follow' : 'Jobs'}</Button
               >

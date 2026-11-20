@@ -1,4 +1,4 @@
-import type { Platform } from '@mrm/core';
+import { type Platform, ciProviderMeta } from '@mrm/core';
 import { isFailedRun, runAppIds } from '../running.ts';
 import type { CiWorkflow, WorkflowRun } from '../types.ts';
 import { canDispatchWorkflow } from './ci.ts';
@@ -283,10 +283,12 @@ export function lastRuns(
 
 /** Workflows known only from their runs, for a role that cannot ask GitHub for the list. They cannot be started. */
 export function workflowsFromRuns(
-  runs: readonly Pick<WorkflowRun, 'workflow' | 'workflowPath'>[],
+  runs: readonly Pick<WorkflowRun, 'workflow' | 'workflowPath' | 'provider'>[],
 ): CiWorkflow[] {
   const seen: Record<string, CiWorkflow> = {};
   for (const r of runs) {
+    // A provider whose workflows are not listed from the repository (EAS Workflows) is not a row here.
+    if (!ciProviderMeta(r.provider).listsWorkflows) continue;
     const path = r.workflowPath ?? r.workflow;
     const key = fileOf(path);
     if (!(key in seen)) seen[key] = { id: `run:${key}`, name: r.workflow, path, state: 'unknown' };

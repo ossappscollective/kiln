@@ -15,7 +15,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { runTitle } from '../../lib/ci/ci.ts';
+  import { runProvider, runTitle } from '../../lib/ci/ci.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {
     type ScopedRuns,
@@ -179,10 +179,12 @@
                 </span>
                 <span class="num elapsed" title="Started {fullTime(run.startedAt)}">{elapsedText(runElapsedMs(run, now))}</span>
                 <span class="actions">
-                  <Button size="sm" variant="ghost" onclick={() => follow(run)} label="Follow {run.workflow}">Follow</Button>
+                  {#if runProvider(run).readsJobs}
+                    <Button size="sm" variant="ghost" onclick={() => follow(run)} label="Follow {run.workflow}">Follow</Button>
+                  {/if}
                   {#if run.url}
-                    <a class="icon-link" href={run.url} target="_blank" rel="noopener noreferrer" title="Open on GitHub">
-                      <Icon name="external-link" size={14} /><span class="visually-hidden">Open {run.workflow} on GitHub (opens in a new tab)</span>
+                    <a class="icon-link" href={run.url} target="_blank" rel="noopener noreferrer" title="Open on {runProvider(run).host}">
+                      <Icon name="external-link" size={14} /><span class="visually-hidden">Open {run.workflow} on {runProvider(run).host} (opens in a new tab)</span>
                     </a>
                   {/if}
                 </span>
@@ -219,7 +221,13 @@
                 <span class="muted text-sm"> {run.repository.owner}/{run.repository.repo}{#if run.branch} · {run.branch}{/if}</span>
               </span>
               <span class="muted text-sm"><time datetime={new Date(run.updatedAt).toISOString()} title={fullTime(run.updatedAt)}>{timeAgo(run.updatedAt, now)}</time></span>
-              <Button size="sm" variant="ghost" onclick={() => follow(run)} label="Details of {run.workflow}">Details</Button>
+              {#if runProvider(run).readsJobs}
+                <Button size="sm" variant="ghost" onclick={() => follow(run)} label="Details of {run.workflow}">Details</Button>
+              {:else if run.url}
+                <a class="icon-link" href={run.url} target="_blank" rel="noopener noreferrer" title="Open on {runProvider(run).host}">
+                  <Icon name="external-link" size={14} /><span class="visually-hidden">Open {run.workflow} on {runProvider(run).host} (opens in a new tab)</span>
+                </a>
+              {/if}
             </li>
           {/each}
         </ul>

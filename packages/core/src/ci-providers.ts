@@ -16,11 +16,29 @@ export type CiProviderMeta = {
   host: string;
   /** What it calls a workflow definition in a sentence: "workflow". */
   workflowNoun: string;
+  /** The jobs of a run can be read through `GET .../runs/:runId/jobs` (GitHub's jobs and steps), so a screen may offer to follow it. */
+  readsJobs: boolean;
+  /** Its workflows are listed from the repository connection and started from the repository's CI routes (not from the app's Expo routes). */
+  listsWorkflows: boolean;
 };
 
 export const CI_PROVIDER_META: Record<CiProviderId, CiProviderMeta> = {
-  github: { id: 'github', label: 'GitHub Actions', host: 'GitHub', workflowNoun: 'workflow' },
-  'eas-workflows': { id: 'eas-workflows', label: 'EAS Workflows', host: 'Expo', workflowNoun: 'workflow' },
+  github: {
+    id: 'github',
+    label: 'GitHub Actions',
+    host: 'GitHub',
+    workflowNoun: 'workflow',
+    readsJobs: true,
+    listsWorkflows: true,
+  },
+  'eas-workflows': {
+    id: 'eas-workflows',
+    label: 'EAS Workflows',
+    host: 'Expo',
+    workflowNoun: 'workflow',
+    readsJobs: false,
+    listsWorkflows: false,
+  },
 };
 
 export const isCiProvider = (value: unknown): value is CiProviderId =>

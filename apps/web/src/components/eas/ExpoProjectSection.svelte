@@ -12,6 +12,7 @@
   import type { AppSummary, CredentialSummary, RepositorySummary } from '../../lib/types.ts';
   import SettingsCard from '../app/settings/SettingsCard.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
+  import EasWorkflowsCard from './EasWorkflowsCard.svelte';
   import ExpoProjectField from './ExpoProjectField.svelte';
 
   let { api, workspaceId, role, members, now }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; now: number } = $props();
@@ -100,6 +101,9 @@
           {now}
           onchanged={(next) => (links = { ...links, [app.id]: next })}
         />
+        {#if linkOf(app)}
+          <EasWorkflowsCard {api} {workspaceId} {role} {app} link={linkOf(app) as ExpoLinkView} {now} />
+        {/if}
       </section>
     {/each}
   </SettingsCard>

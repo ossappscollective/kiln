@@ -5,6 +5,7 @@ import {
   type PatternKind,
   type Platform,
   type PreviewRow,
+  ciProviderMeta,
   patternListProblems,
   platformLabel,
   platformMeta,
@@ -73,7 +74,10 @@ export function runBadge(run: Pick<WorkflowRun, 'status' | 'conclusion'>): RunBa
 export const hasActiveRun = (runs: readonly Pick<WorkflowRun, 'active'>[]): boolean =>
   runs.some((r) => r.active);
 
-/** Where GitHub lists the run, when it is known. A pending run has no page yet. */
+/** The words and abilities of the CI provider a run lives in (an older server sends none: GitHub). */
+export const runProvider = (run: Pick<WorkflowRun, 'provider'>) => ciProviderMeta(run.provider);
+
+/** Where the provider lists the run, when it is known. A pending run has no page yet. */
 export const runHref = (run: Pick<WorkflowRun, 'url'>): string | null => run.url;
 
 export const isPending = (run: Pick<WorkflowRun, 'id'>): boolean => run.id.startsWith('pending-');
