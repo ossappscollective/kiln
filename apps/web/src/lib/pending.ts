@@ -927,7 +927,7 @@ export function storeSaid(step: { error: string; message?: string | undefined })
   if (SAYS_STORE.indexOf(step.error) < 0) return '';
   const raw = (step.message ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
   if (raw === '' || raw === step.error) return '';
-  const cut = raw.length > 500 ? `${raw.slice(0, 497)}...` : raw;
+  const cut = raw.length > 1200 ? `${raw.slice(0, 1197)}...` : raw;
   return `The store said: ${cut}`;
 }
 

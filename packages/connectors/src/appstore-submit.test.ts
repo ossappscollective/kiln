@@ -396,3 +396,33 @@ test('a bad App Store id is refused when the connector is built', () => {
     /not a number/,
   );
 });
+
+test('Apple associatedErrors of a 409 on a version are kept: the kind of resource and Apple\'s sentence, without ids', async () => {
+  const { appleErrorDetails } = await import('./appstoreconnect.ts');
+  const details = appleErrorDetails({
+    errors: [
+      {
+        code: 'STATE_ERROR.ENTITY_STATE_INVALID',
+        title: 'The version is not in a valid state.',
+        detail: "appStoreVersions with id 'abc' is not in valid state.",
+        meta: {
+          associatedErrors: {
+            '/v1/ageRatingDeclarations/1234-aaaa': [
+              {
+                code: 'ENTITY_ERROR.ATTRIBUTE.REQUIRED',
+                detail: "You must provide a value for the attribute 'gambling' with this request",
+                source: { pointer: '/data/attributes/gambling' },
+              },
+            ],
+            '/v1/appScreenshotSets/9': [{ code: 'X', title: 'Screenshots are missing' }],
+          },
+        },
+      },
+    ],
+  });
+  assert.equal(details.length, 3);
+  assert.equal(details[1]?.detail, "ageRatingDeclarations: You must provide a value for the attribute 'gambling' with this request");
+  assert.equal(details[1]?.pointer, '/data/attributes/gambling');
+  assert.equal(details[2]?.detail, 'appScreenshotSets: Screenshots are missing');
+  assert.ok(!JSON.stringify(details).includes('1234-aaaa'));
+});

@@ -98,6 +98,7 @@ const MAX_LINK_GROUPS = 20;
 /** `limit[appStoreVersions]` of the apps read that asks which platforms each app has (UNVERIFIED maximum; 50 is the builds one). */
 const MAX_INCLUDED_VERSIONS = 50;
 const MAX_ERROR_DETAILS = 5;
+const MAX_ASSOCIATED_ERRORS = 8;
 /**
  * Most locales whose screenshot and preview sets are read per channel (two requests each). Apple
  * allows about forty; the rest are left out and the media section says `truncated`.
@@ -267,6 +268,28 @@ export function appleErrorDetails(json: unknown): StoreErrorDetail[] {
       ...(pointer !== undefined ? { pointer } : {}),
     };
     if (Object.keys(one).length > 0) found.push(one);
+    // A 409 STATE_ERROR on a version says "check associated errors": the reasons are in `meta.associatedErrors`, keyed by the
+    // resource path (`/v1/ageRatingDeclarations/<id>`). They are what the person has to fix, so they are kept (the kind of resource
+    // and Apple's own sentence; the ids are dropped).
+    const associated = isRecord(entry.meta) && isRecord(entry.meta.associatedErrors) ? entry.meta.associatedErrors : {};
+    let more = 0;
+    for (const [path, list] of Object.entries(associated)) {
+      const kind = clip(path.split('/').filter((x) => /^[A-Za-z]+$/.test(x) && x !== 'v1').pop(), 60) ?? 'resource';
+      for (const e of records(list)) {
+        if (more >= MAX_ASSOCIATED_ERRORS) break;
+        const src = isRecord(e.source) ? e.source : {};
+        const sentence = clip(text(e.detail) ?? text(e.title), 300);
+        const aCode = clip(text(e.code), 100);
+        const aPointer = clip(text(src.pointer), 200);
+        if (sentence === undefined && aCode === undefined) continue;
+        more++;
+        found.push({
+          ...(aCode !== undefined ? { code: aCode } : {}),
+          detail: `${kind}: ${sentence ?? ''}`.trim(),
+          ...(aPointer !== undefined ? { pointer: aPointer } : {}),
+        });
+      }
+    }
   }
   return found;
 }
@@ -386,7 +409,7 @@ export function appleError(reply: StoreReply, nowMs: number, what: string): Stor
   return new StoreError(
     'appstoreconnect',
     'unexpected',
-    `App Store Connect answered ${what} with HTTP ${status}${fully || summary ? ` (${(fully || summary).slice(0, 600)})` : ''}.`,
+    `App Store Connect answered ${what} with HTTP ${status}${fully || summary ? ` (${(fully || summary).slice(0, 1500)})` : ''}.`,
     status,
     details,
   );

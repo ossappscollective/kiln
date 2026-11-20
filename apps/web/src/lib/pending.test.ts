@@ -635,7 +635,7 @@ test('results use fixed words; a refusal by the store adds what the store said, 
   });
   assert.match(failed.text, /The store rejected this step\. The store said: Apple says <b>bad<\/b> token abc123 Nothing was changed\./);
   const long = resultRow({ type: 'submit', status: 'failed', error: 'store_rejected', httpStatus: 422, outcome: 'refused', message: `x${'y'.repeat(900)}\n\u0000z` });
-  assert.ok(long.text.length < 700);
+  assert.ok(long.text.length < 1400);
   assert.ok(!/[\u0000-\u001f]/.test(long.text));
   const plain = resultRow({ type: 'submit', status: 'failed', error: 'store_unavailable', httpStatus: 502, outcome: 'unknown', message: 'secret-ish text' });
   assert.ok(!plain.text.includes('secret-ish'));
