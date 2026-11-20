@@ -547,6 +547,15 @@ otherwise 60 to 10080). The scheduler only queues `aso.refresh` jobs, a few per 
   lookup (https, a fixed host list, public addresses only, size cap, timeout).
 - **Nothing here was run against the real services** (see the UNVERIFIED lists in [ADR 0011](adr/0011-aso-keywords-competitors.md#unverified)): start with a few keywords and a long interval.
 
+## EAS builds and submissions (read-only, only for linked apps)
+
+An app linked to an Expo project ([api/eas](api/eas.md)) shows that project's EAS builds and submissions in "Builds to test" ([api/eas-builds](api/eas-builds.md), [ADR 0036](adr/0036-eas-build-submit-status.md)). Nothing is created, cancelled or resubmitted at Expo, and a workspace without an Expo credential costs nothing.
+
+- `MRM_EAS_STATUS_INTERVAL_MINUTES` (default 30; `0` turns the scheduled read off; otherwise 5 to 10080): how often the scheduler queues one read per linked app record. A record with a build or a submission still running is read again every three minutes. Reads are spaced out, bounded and backed off after a failure; a manual read is `POST .../eas/status/refresh`.
+- **Upgrade:** migration 47 adds three tables (`eas_builds`, `eas_submissions`, `eas_status_sync`). Nothing is read until an app is linked.
+- **What is stored:** per build and submission: ids, status, profile, channel, versions, runtime, distribution, the first line of the commit message and, for a failure, Expo's error text (at most 500 characters). **The address of a build file is not stored.** Rows are deleted when the link is removed or changed and with the app.
+- **Not checked against a live Expo account:** see the UNVERIFIED list in the ADR (page size limit, rate limits, how Expo words errors).
+
 ## Analytics (off by default)
 
 Analytics ([api/analytics](api/analytics.md), [ADR 0017](adr/0017-analytics-foundation.md)) reads daily numbers of your apps from App Store Connect (analytics reports, sales) and Google Play (vitals, monthly reports) into the database. A workspace admin turns it on with the setting `analytics.enabled` (default `false`); until then nothing is requested from a store. Reading stored numbers and importing an Apple report file always work.

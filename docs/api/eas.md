@@ -89,4 +89,6 @@ and the slug. A rate limit or a timeout of the repository is a `429` or `504` as
 gives a client for one credential (and audits the use under your `purpose`); `getExpoLink` and `listExpoLinks` in `link.ts` read the
 links; `expoFailure` turns an Expo error into the response codes above.
 
+The status of the project's EAS builds and submissions (read from Expo, kept as a snapshot) is in [eas-builds.md](eas-builds.md).
+
 The configuration of the app's EAS builds and submissions, read from `eas.json` in its repository (no Expo credential, no call to Expo), is in [eas-config.md](eas-config.md).
