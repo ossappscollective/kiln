@@ -1048,7 +1048,6 @@ export async function openArtifactDownload(
 // signed. What it opens (workspace, app, artifact, the person) is kept here in memory under that id, never in the token and
 // never a GitHub address. A restart forgets the links, which is fine for something that lives ten minutes.
 
-type LinkClaim = { w: string; a: string; i: string; u: string; e: number; used: boolean };
 export type LinkPayload = { w: string; a: string; i: string; u: string; e: number; n: string };
 const MAX_LINKS = 1_000;
 

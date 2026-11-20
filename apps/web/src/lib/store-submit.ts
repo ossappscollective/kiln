@@ -349,8 +349,6 @@ export type SubmitFailure =
   | { kind: 'forbidden'; message: string }
   | { kind: 'other'; message: string; code: string };
 
-const _isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
-
 const bodyMessage = (error: ApiError): string =>
   typeof error.body.message === 'string' && error.body.message !== ''
     ? error.body.message

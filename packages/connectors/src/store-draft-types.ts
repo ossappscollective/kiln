@@ -209,7 +209,7 @@ export class DraftOutcomeUnknownError extends StoreError {
 export class DraftPartialError extends StoreError {
   readonly completed: DraftStep[];
   readonly failed: { type: DraftStep['type']; locale: string; target: string };
-  readonly cause: StoreError;
+  override readonly cause: StoreError;
   constructor(
     cause: StoreError,
     completed: DraftStep[],

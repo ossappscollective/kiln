@@ -21,7 +21,6 @@ import { listAudit } from './services/audit.ts';
 import { createTestLimiter } from './services/credential-tests.ts';
 import { pathParams, tokenAllowedFor, zodToJsonSchema } from './services/openapi.ts';
 
-type Boot = Awaited<ReturnType<typeof bootRepoApp>>;
 type Options = NonNullable<Parameters<typeof bootRepoApp>[2]>;
 // biome-ignore lint/suspicious/noExplicitAny: JSON-RPC answers are inspected loosely
 type Any = any;

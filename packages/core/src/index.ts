@@ -9,6 +9,7 @@ export * from './build-patterns.ts';
 export * from './changeset.ts';
 export * from './credential-guides.ts';
 export * from './credentials.ts';
+export * from './exhaustive.ts';
 export * from './image-header.ts';
 export * from './lifecycle.ts';
 export * from './listing.ts';

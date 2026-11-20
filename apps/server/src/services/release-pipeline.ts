@@ -31,7 +31,6 @@ export const PIPELINE_RUN_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_RUNS_READ = 2000;
 const STATES = new Set<string>(RELEASE_STATES);
 
-type Row = Record<string, unknown>;
 type AppRow = {
   id: string;
   name: string;

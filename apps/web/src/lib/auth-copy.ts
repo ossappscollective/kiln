@@ -22,8 +22,9 @@ export function waysPhrase(factors: readonly StepUpFactor[], passkeySupported: b
     (way) => factors.indexOf(way) >= 0 && (way !== 'passkey' || passkeySupported),
   ).map((way) => WAY_LABELS[way]);
   if (usable.length === 0) return '';
-  if (usable.length === 1) return usable[0];
-  return `${usable.slice(0, -1).join(', ')} or ${usable[usable.length - 1]}`;
+  const last = usable[usable.length - 1] ?? '';
+  if (usable.length === 1) return last;
+  return `${usable.slice(0, -1).join(', ')} or ${last}`;
 }
 
 /** What the step-up dialog is for, in one sentence (the title already names the action). */

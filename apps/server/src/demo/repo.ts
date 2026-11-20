@@ -491,11 +491,11 @@ export class DemoRepo extends BlobRepo {
 
   // ---- the connector ---------------------------------------------------------------------------------------------------
 
-  async defaultBranch(): Promise<string> {
+  override async defaultBranch(): Promise<string> {
     return 'main';
   }
 
-  async dispatchWorkflow(
+  override async dispatchWorkflow(
     workflow: string,
     _ref: string,
     inputs: Record<string, string> = {},
@@ -584,7 +584,7 @@ export class DemoRepo extends BlobRepo {
     if (!run) return { jobs: [], notModified: false, truncated: false, missing: true };
     return { jobs: this.#jobs(run, this.world.now()), notModified: false, truncated: false };
   }
-  async listWorkflowRuns(): Promise<never> {
+  override async listWorkflowRuns(): Promise<never> {
     throw new Error('not used: the CI code uses listCiRuns');
   }
   // ---- workflow artifacts ------------------------------------------------------------------------------------------------

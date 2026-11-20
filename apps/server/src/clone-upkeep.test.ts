@@ -148,7 +148,6 @@ async function setup(db: Database, config: Partial<CloneUpkeepConfig> = {}) {
       .map((a) => ({ ...a, detail: JSON.parse(a.detail) }));
   return { t, reads, cloneDir, wrap, logs, source, upkeep, clone, age, exists, prunes };
 }
-type Setup = Awaited<ReturnType<typeof setup>>;
 
 // ---------------------------------------------------------------------------------------------
 // Idle pruning

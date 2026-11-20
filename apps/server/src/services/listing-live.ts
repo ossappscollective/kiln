@@ -60,7 +60,6 @@ import {
  */
 
 type Actor = { type: ActorType; id: string };
-type Row = Record<string, unknown>;
 
 const MAX_ERROR_LENGTH = 500;
 const ID_CHUNK = 300;
