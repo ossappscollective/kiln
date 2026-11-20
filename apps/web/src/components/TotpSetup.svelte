@@ -11,6 +11,7 @@
   import CopyButton from './ui/CopyButton.svelte';
   import TextField from './ui/TextField.svelte';
   import QrCode from './QrCode.svelte';
+  import './auth-form.css';
 
   let {
     begin,
@@ -29,18 +30,20 @@
   }
 </script>
 
-<div class="stack">
+<div class="stack readable-form">
   <ol class="steps">
-    <li>Open your authenticator app (1Password, Authy, Google Authenticator, Microsoft Authenticator, Apple Passwords or similar) and add an account.</li>
+    <li>Open your authenticator app and add an account.</li>
     <li>Scan this code, or type the key below.</li>
     <li>Enter the six digits the app shows.</li>
   </ol>
   <div class="setup">
     <QrCode text={begin.uri} label="QR code to add this account to an authenticator app" />
-    <div class="stack key">
-      <span class="muted small">Key for typing it in ({begin.account})</span>
-      <code class="secret">{groupSecret(begin.secret)}</code>
-      <CopyButton value={begin.secret} label="Copy the key" />
+    <div class="key">
+      <span class="quiet">Key for typing it in ({begin.account})</span>
+      <div class="keyline">
+        <code class="secret">{groupSecret(begin.secret)}</code>
+        <CopyButton value={begin.secret} label="Copy the key" />
+      </div>
     </div>
   </div>
   <form class="stack" onsubmit={submit}>
@@ -57,42 +60,57 @@
       disabled={busy}
     />
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
-    <div class="row">
-      <Button type="submit" variant="primary" loading={busy} disabled={busy || !codeComplete(code)}>Verify and turn on</Button>
-      <Button disabled={busy} onclick={oncancel}>Cancel</Button>
-    </div>
+    <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || !codeComplete(code)}>Verify and turn on</Button>
+    <p class="quiet-links"><Button variant="link" disabled={busy} onclick={oncancel}>Cancel</Button></p>
   </form>
 </div>
 
 <style>
   .steps {
-    margin: 0;
-    padding-left: var(--space-5);
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
+    gap: var(--space-2);
+    padding-left: var(--space-6);
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .steps li::marker {
+    font-weight: var(--weight-semibold);
+    color: var(--accent);
   }
 
   .setup {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-5);
-    align-items: flex-start;
+    align-items: center;
+    padding: var(--space-4);
+    background: var(--surface-sunken);
+    border-radius: var(--radius-lg);
   }
 
   .key {
-    min-width: 12rem;
-    max-width: 22rem;
+    display: flex;
+    flex: 1 1 12rem;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .keyline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
   }
 
   .secret {
-    font-size: var(--text-md);
+    font-size: 1rem;
+    font-weight: var(--weight-semibold);
     letter-spacing: 0.05em;
     word-break: break-all;
     user-select: all;
-  }
-
-  .small {
-    font-size: var(--text-sm);
   }
 </style>
