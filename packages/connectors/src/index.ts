@@ -48,3 +48,4 @@ export * from './verify.ts';
 export * from './verify-github.ts';
 export * from './verify-store.ts';
 export * from './zip.ts';
+export * from './store-registry.ts';

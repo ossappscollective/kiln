@@ -60,7 +60,7 @@ export const DEFAULT_VERSION_CLAIM_TTL_MS = 300_000;
 export type VersionConnector = Pick<AppleVersionConnector, 'readVersions' | 'createVersion'>;
 export type VersionConnectorInput = {
   secret: string;
-  storeAppId: string | null;
+  storeAppId?: string | null;
   platform?: Platform | undefined;
   /** Aborted when the call times out. Pass it to the connector as its `fetch`. */
   fetch: typeof fetch;

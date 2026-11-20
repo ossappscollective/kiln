@@ -1,19 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import {
-  APPLE_REPLY_LIMIT,
-  AppStoreReviewsConnector,
-  checkReplyText,
-  normalizeReplyText,
-  PLAY_REPLY_LIMIT,
-  PlayReviewsConnector,
-  ReplyOutcomeUnknownError,
-  redactSecrets,
-  StoreError,
-  StoreRateLimitError,
-  type StoreReview,
-  type StoreReviewReplyConnector,
-  secretStrings,
-} from '@mrm/connectors';
+import { APPLE_REPLY_LIMIT, AppStoreReviewsConnector, checkReplyText, connectorFactory, normalizeReplyText, PLAY_REPLY_LIMIT, PlayReviewsConnector, redactSecrets, ReplyOutcomeUnknownError, secretStrings, StoreError, StoreRateLimitError, type StoreReview, type StoreReviewReplyConnector } from '@mrm/connectors';
 import { type ActorType, isApplePlatform } from '@mrm/core';
 import {
   type Database,
@@ -94,17 +80,19 @@ export type ReviewReplyConnectorFactory = (
   input: ReviewConnectorInput,
 ) => StoreReviewReplyConnector;
 
-export const defaultReplyConnectorFactory: ReviewReplyConnectorFactory = (input) =>
-  input.kind === 'app_store_connect'
-    ? AppStoreReviewsConnector.fromSecret(input.secret, {
-        appStoreId: input.storeAppId ?? '',
-        fetch: input.fetch,
-      })
-    : new PlayReviewsConnector({
-        serviceAccount: input.secret,
-        packageName: input.identifier,
-        fetch: input.fetch,
-      });
+export const defaultReplyConnectorFactory: ReviewReplyConnectorFactory = connectorFactory<StoreReviewReplyConnector>({
+  app_store_connect: (input) =>
+    AppStoreReviewsConnector.fromSecret(input.secret, {
+          appStoreId: input.storeAppId ?? '',
+          fetch: input.fetch,
+        }),
+  google_play: (input) =>
+    new PlayReviewsConnector({
+          serviceAccount: input.secret,
+          packageName: input.identifier,
+          fetch: input.fetch,
+        }),
+});
 
 export type ReviewReplyContext = {
   db: Database;

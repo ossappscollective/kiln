@@ -1,25 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import {
-  AppStoreConnectConnector,
-  GooglePlayConnector,
-  isPlayPackageName,
-  redactSecrets,
-  type StoreBuild,
-  type StoreConnector,
-  StoreError,
-  StoreRateLimitError,
-  type StoreVersion,
-  secretStrings,
-} from '@mrm/connectors';
-import {
-  type ActorType,
-  isApplePlatform,
-  isGooglePlatform,
-  PLATFORMS,
-  type Platform,
-  platformLabel,
-  type ReleaseState,
-} from '@mrm/core';
+import { appleScope, AppStoreConnectConnector, connectorFactory, GooglePlayConnector, isPlayPackageName, redactSecrets, secretStrings, type StoreBuild, type StoreConnector, type StoreConnectorInput, StoreError, StoreRateLimitError, type StoreVersion } from '@mrm/connectors';
+import { type ActorType, isApplePlatform, isGooglePlatform, type Platform, PLATFORM_META, platformLabel, PLATFORMS, type ReleaseState, type StoreCredentialKind } from '@mrm/core';
 import { type Database, mapOrNull, oneOf, type Row, type Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
 import { deleteAsoData } from '../modules/aso/data.ts';
@@ -41,42 +22,34 @@ export const APP_SYNC_QUEUE = 'app.sync';
 export const DEFAULT_SYNC_TIMEOUT_MS = 60_000;
 const MAX_ERROR_LENGTH = 500;
 
-/** The credential kind each platform needs. */
-export const credentialKindFor = {
-  ios: 'app_store_connect',
-  macos: 'app_store_connect',
-  android: 'google_play',
-} as const satisfies Record<Platform, string>;
+/** The credential kind each platform needs (from the platform table in @mrm/core). */
+export const credentialKindFor: Readonly<Record<Platform, StoreCredentialKind>> = {
+  ios: PLATFORM_META.ios.credentialKind,
+  macos: PLATFORM_META.macos.credentialKind,
+  android: PLATFORM_META.android.credentialKind,
+};
 
 // ---------------------------------------------------------------------------------------------
 // Connectors
 
-export type StoreConnectorInput = {
-  kind: 'app_store_connect' | 'google_play';
-  /** The decrypted credential. Never log it or put it in a message. */
-  secret: string;
-  /** The bundle id or package name. */
-  identifier: string;
-  /** The platform of the app record: macOS reads the macOS versions and builds of the App Store Connect app. */
-  platform?: Platform;
-  /** Aborted when the sync times out. Pass it to the connector as its `fetch`. */
-  fetch: typeof fetch;
-};
+export type { StoreConnectorInput };
 
 /** Builds the read-only store connector for one app. Replaced by a fake in tests. */
 export type StoreConnectorFactory = (input: StoreConnectorInput) => StoreConnector;
 
-export const defaultStoreConnectorFactory: StoreConnectorFactory = (input) =>
-  input.kind === 'app_store_connect'
-    ? AppStoreConnectConnector.fromSecret(input.secret, {
-        fetch: input.fetch,
-        platform: input.platform === 'macos' ? 'macos' : 'ios',
-      })
-    : new GooglePlayConnector({
-        serviceAccount: input.secret,
-        packages: [input.identifier],
-        fetch: input.fetch,
-      });
+export const defaultStoreConnectorFactory: StoreConnectorFactory = connectorFactory<StoreConnector>({
+  app_store_connect: (input) =>
+    AppStoreConnectConnector.fromSecret(input.secret, {
+          fetch: input.fetch,
+          platform: appleScope(input),
+        }),
+  google_play: (input) =>
+    new GooglePlayConnector({
+          serviceAccount: input.secret,
+          packages: [input.identifier],
+          fetch: input.fetch,
+        }),
+});
 
 /** What the sync services need. Built once in createApp (and in index.ts for the worker). */
 export type AppsContext = {

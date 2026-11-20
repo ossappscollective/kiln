@@ -1,14 +1,5 @@
 import { createHash } from 'node:crypto';
-import {
-  AppleSubmitConnector,
-  DRAFT_IMAGE_READY_STATES,
-  PlaySubmitConnector,
-  type StoreSubmitConnector,
-  SubmitDriftError,
-  SubmitOutcomeUnknownError,
-  type SubmitState,
-  submitKey,
-} from '@mrm/connectors';
+import { appleScope, AppleSubmitConnector, connectorFactory, DRAFT_IMAGE_READY_STATES, PlaySubmitConnector, type StoreConnectorInput, type StoreSubmitConnector, SubmitDriftError, submitKey, SubmitOutcomeUnknownError, type SubmitState } from '@mrm/connectors';
 import {
   APP_STORE_FIELD_SPECS,
   type AssetFacts,
@@ -73,31 +64,23 @@ const DRAFT_CLAIM_TTL_MS = 300_000;
 // ---------------------------------------------------------------------------------------------
 // Context
 
-export type SubmitConnectorInput = {
-  kind: 'app_store_connect' | 'google_play';
-  /** The decrypted credential. Never log it or put it in a message. */
-  secret: string;
-  identifier: string;
-  storeAppId: string | null;
-  /** The platform of the app record (macOS submits the macOS version). */
-  platform?: Platform;
-  /** Aborted when the call times out. Pass it to the connector as its `fetch`. */
-  fetch: typeof fetch;
-};
+export type SubmitConnectorInput = StoreConnectorInput;
 export type SubmitConnectorFactory = (input: SubmitConnectorInput) => StoreSubmitConnector;
 
-export const defaultSubmitConnectorFactory: SubmitConnectorFactory = (input) =>
-  input.kind === 'app_store_connect'
-    ? AppleSubmitConnector.fromSecret(input.secret, {
-        appStoreId: input.storeAppId ?? '',
-        platform: input.platform === 'macos' ? 'macos' : 'ios',
-        fetch: input.fetch,
-      })
-    : new PlaySubmitConnector({
-        serviceAccount: input.secret,
-        packageName: input.identifier,
-        fetch: input.fetch,
-      });
+export const defaultSubmitConnectorFactory: SubmitConnectorFactory = connectorFactory<StoreSubmitConnector>({
+  app_store_connect: (input) =>
+    AppleSubmitConnector.fromSecret(input.secret, {
+          appStoreId: input.storeAppId ?? '',
+          platform: appleScope(input),
+          fetch: input.fetch,
+        }),
+  google_play: (input) =>
+    new PlaySubmitConnector({
+          serviceAccount: input.secret,
+          packageName: input.identifier,
+          fetch: input.fetch,
+        }),
+});
 
 export type SubmitContext = {
   db: Database;

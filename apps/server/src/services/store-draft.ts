@@ -1,35 +1,5 @@
 import { createHash } from 'node:crypto';
-import {
-  AppleDraftConnector,
-  type DraftApplyResult,
-  type DraftAssetWrite,
-  DraftDriftError,
-  type DraftFieldState,
-  type DraftFieldWrite,
-  type DraftFile,
-  DraftOutcomeUnknownError,
-  DraftPartialError,
-  type DraftReadRequest,
-  type DraftState,
-  type DraftStep,
-  type DraftTextWrite,
-  draftKey,
-  type EditableRelease,
-  isStoreImageReader,
-  isStoreNotesHistoryReader,
-  isStoreReleaseReader,
-  type NotesHistoryRead,
-  PlayDraftConnector,
-  type ReleaseCandidates,
-  redactSecrets,
-  type StoreDraftConnector,
-  StoreError,
-  type StoreImagesRead,
-  StoreRateLimitError,
-  sameDraftState,
-  secretStrings,
-  setMatches,
-} from '@mrm/connectors';
+import { AppleDraftConnector, appleScope, connectorFactory, type DraftApplyResult, type DraftAssetWrite, DraftDriftError, type DraftFieldState, type DraftFieldWrite, type DraftFile, draftKey, DraftOutcomeUnknownError, DraftPartialError, type DraftReadRequest, type DraftState, type DraftStep, type DraftTextWrite, type EditableRelease, isStoreImageReader, isStoreNotesHistoryReader, isStoreReleaseReader, type NotesHistoryRead, PlayDraftConnector, redactSecrets, type ReleaseCandidates, sameDraftState, secretStrings, setMatches, type StoreConnectorInput, type StoreDraftConnector, StoreError, type StoreImagesRead, StoreRateLimitError } from '@mrm/connectors';
 import {
   type AssetSlot,
   isApplePlatform,
@@ -120,32 +90,23 @@ const DRAFT_NOTE =
 // ---------------------------------------------------------------------------------------------
 // Context
 
-export type DraftConnectorInput = {
-  kind: 'app_store_connect' | 'google_play';
-  /** The decrypted credential. Never log it or put it in a message. */
-  secret: string;
-  identifier: string;
-  /** Apple's numeric app id; null until the app's first sync. */
-  storeAppId: string | null;
-  /** The platform of the app record (macOS reads and writes the macOS version of the same App Store Connect app). */
-  platform?: Platform;
-  /** Aborted when the call times out. Pass it to the connector as its `fetch`. */
-  fetch: typeof fetch;
-};
+export type DraftConnectorInput = StoreConnectorInput;
 export type DraftConnectorFactory = (input: DraftConnectorInput) => StoreDraftConnector;
 
-export const defaultDraftConnectorFactory: DraftConnectorFactory = (input) =>
-  input.kind === 'app_store_connect'
-    ? AppleDraftConnector.fromSecret(input.secret, {
-        appStoreId: input.storeAppId ?? '',
-        platform: input.platform === 'macos' ? 'macos' : 'ios',
-        fetch: input.fetch,
-      })
-    : new PlayDraftConnector({
-        serviceAccount: input.secret,
-        packageName: input.identifier,
-        fetch: input.fetch,
-      });
+export const defaultDraftConnectorFactory: DraftConnectorFactory = connectorFactory<StoreDraftConnector>({
+  app_store_connect: (input) =>
+    AppleDraftConnector.fromSecret(input.secret, {
+          appStoreId: input.storeAppId ?? '',
+          platform: appleScope(input),
+          fetch: input.fetch,
+        }),
+  google_play: (input) =>
+    new PlayDraftConnector({
+          serviceAccount: input.secret,
+          packageName: input.identifier,
+          fetch: input.fetch,
+        }),
+});
 
 export type DraftContext = {
   db: Database;

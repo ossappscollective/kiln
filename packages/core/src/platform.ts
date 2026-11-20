@@ -19,6 +19,9 @@ export type StoreFamily = 'apple' | 'google';
 export const STORE_IDS = ['appstoreconnect', 'googleplay'] as const;
 export type StoreId = (typeof STORE_IDS)[number];
 
+/** The kind of stored credential a store needs (see `credentialKinds` in credentials.ts). */
+export type StoreCredentialKind = 'app_store_connect' | 'google_play';
+
 export type PlatformMeta = {
   id: Platform;
   /** The name in a chip or a control: "iOS", "macOS", "Android". */
@@ -35,7 +38,7 @@ export type PlatformMeta = {
   /** Apple's `platform` value in App Store Connect API queries, when the family is Apple. */
   applePlatform?: 'IOS' | 'MAC_OS';
   /** What the credential of the platform's store is. */
-  credentialKind: 'app_store_connect' | 'google_play';
+  credentialKind: StoreCredentialKind;
   /** Order in a scope control and in merged rows. */
   order: number;
 };

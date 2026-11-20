@@ -1,33 +1,5 @@
 import { createHash } from 'node:crypto';
-import {
-  APPLE_ROLLOUT_ACTIONS,
-  AppleRolloutConnector,
-  type AppleRolloutState,
-  type AppleRolloutTarget,
-  isMarketingVersion,
-  isPlayTrackName,
-  isVersionCode,
-  normalizeFraction,
-  PLAY_ROLLOUT_ACTIONS,
-  PlayRolloutConnector,
-  type PlayRolloutState,
-  type PlayRolloutTarget,
-  planAppleRollout,
-  planPlayRollout,
-  type RolloutChange,
-  RolloutDriftError,
-  RolloutOutcomeUnknownError,
-  type RolloutPlan,
-  type RolloutState,
-  type RolloutTarget,
-  redactSecrets,
-  rolloutKey,
-  StoreError,
-  StoreRateLimitError,
-  type StoreRolloutConnector,
-  sameRolloutState,
-  secretStrings,
-} from '@mrm/connectors';
+import { APPLE_ROLLOUT_ACTIONS, AppleRolloutConnector, type AppleRolloutState, type AppleRolloutTarget, appleScope, connectorFactory, isMarketingVersion, isPlayTrackName, isVersionCode, normalizeFraction, planAppleRollout, planPlayRollout, PLAY_ROLLOUT_ACTIONS, PlayRolloutConnector, type PlayRolloutState, type PlayRolloutTarget, redactSecrets, type RolloutChange, RolloutDriftError, rolloutKey, RolloutOutcomeUnknownError, type RolloutPlan, type RolloutState, type RolloutTarget, sameRolloutState, secretStrings, type StoreConnectorInput, StoreError, StoreRateLimitError, type StoreRolloutConnector } from '@mrm/connectors';
 import { type ActorType, isApplePlatform, type Platform } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
@@ -75,34 +47,24 @@ export const DEFAULT_ROLLOUT_CLAIM_TTL_MS = 180_000;
 // ---------------------------------------------------------------------------------------------
 // Context
 
-export type RolloutConnectorInput = {
-  kind: 'app_store_connect' | 'google_play';
-  /** The decrypted credential. Never log it or put it in a message. */
-  secret: string;
-  /** The bundle id or package name. */
-  identifier: string;
-  /** Apple's numeric app id; null until the app's first sync. */
-  storeAppId: string | null;
-  /** The platform of the app record (macOS: the macOS version and its phased release). */
-  platform?: Platform;
-  /** Aborted when the call times out. Pass it to the connector as its `fetch`. */
-  fetch: typeof fetch;
-};
+export type RolloutConnectorInput = StoreConnectorInput;
 
 export type RolloutConnectorFactory = (input: RolloutConnectorInput) => StoreRolloutConnector;
 
-export const defaultRolloutConnectorFactory: RolloutConnectorFactory = (input) =>
-  input.kind === 'app_store_connect'
-    ? AppleRolloutConnector.fromSecret(input.secret, {
-        appStoreId: input.storeAppId ?? '',
-        platform: input.platform === 'macos' ? 'macos' : 'ios',
-        fetch: input.fetch,
-      })
-    : new PlayRolloutConnector({
-        serviceAccount: input.secret,
-        packageName: input.identifier,
-        fetch: input.fetch,
-      });
+export const defaultRolloutConnectorFactory: RolloutConnectorFactory = connectorFactory<StoreRolloutConnector>({
+  app_store_connect: (input) =>
+    AppleRolloutConnector.fromSecret(input.secret, {
+          appStoreId: input.storeAppId ?? '',
+          platform: appleScope(input),
+          fetch: input.fetch,
+        }),
+  google_play: (input) =>
+    new PlayRolloutConnector({
+          serviceAccount: input.secret,
+          packageName: input.identifier,
+          fetch: input.fetch,
+        }),
+});
 
 export type RolloutContext = {
   db: Database;

@@ -1,18 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import {
-  AppStoreReviewsConnector,
-  fetchRatingSummary,
-  type ListReviewsResult,
-  PLAY_REVIEW_WINDOW_MS,
-  PlayReviewsConnector,
-  type RatingSummary,
-  redactSecrets,
-  StoreError,
-  StoreRateLimitError,
-  type StoreReview,
-  type StoreReviewConnector,
-  secretStrings,
-} from '@mrm/connectors';
+import { AppStoreReviewsConnector, connectorFactory, fetchRatingSummary, type ListReviewsResult, PLAY_REVIEW_WINDOW_MS, PlayReviewsConnector, type RatingSummary, redactSecrets, secretStrings, type StoreConnectorInput, StoreError, StoreRateLimitError, type StoreReview, type StoreReviewConnector } from '@mrm/connectors';
 import {
   type ActorType,
   isApplePlatform,
@@ -98,31 +85,23 @@ export const storeFor = (platform: Platform): StoreKey => storeOf(platform);
 // ---------------------------------------------------------------------------------------------
 // Connectors
 
-export type ReviewConnectorInput = {
-  kind: 'app_store_connect' | 'google_play';
-  /** The decrypted credential. Never log it or put it in a message. */
-  secret: string;
-  /** The bundle id or package name. */
-  identifier: string;
-  /** Apple's numeric app id; null until the app's first sync. */
-  storeAppId: string | null;
-  /** Aborted when the sync times out. Pass it to the connector as its `fetch`. */
-  fetch: typeof fetch;
-};
+export type ReviewConnectorInput = StoreConnectorInput;
 
 export type ReviewConnectorFactory = (input: ReviewConnectorInput) => StoreReviewConnector;
 
-export const defaultReviewConnectorFactory: ReviewConnectorFactory = (input) =>
-  input.kind === 'app_store_connect'
-    ? AppStoreReviewsConnector.fromSecret(input.secret, {
-        appStoreId: input.storeAppId ?? '',
-        fetch: input.fetch,
-      })
-    : new PlayReviewsConnector({
-        serviceAccount: input.secret,
-        packageName: input.identifier,
-        fetch: input.fetch,
-      });
+export const defaultReviewConnectorFactory: ReviewConnectorFactory = connectorFactory<StoreReviewConnector>({
+  app_store_connect: (input) =>
+    AppStoreReviewsConnector.fromSecret(input.secret, {
+          appStoreId: input.storeAppId ?? '',
+          fetch: input.fetch,
+        }),
+  google_play: (input) =>
+    new PlayReviewsConnector({
+          serviceAccount: input.secret,
+          packageName: input.identifier,
+          fetch: input.fetch,
+        }),
+});
 
 /** The optional store-wide rating (public iTunes lookup). Replaced by a fake in tests. */
 export type RatingFetcher = (input: {

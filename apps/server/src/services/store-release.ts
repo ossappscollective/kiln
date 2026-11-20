@@ -1,16 +1,5 @@
 import { createHash } from 'node:crypto';
-import {
-  APPLE_RELEASABLE_STATE,
-  AppleReleaseConnector,
-  type PlayReleaseBuild,
-  PlayReleaseConnector,
-  ReleaseDriftError,
-  ReleaseOutcomeUnknownError,
-  type ReleaseRequest,
-  type ReleaseState,
-  releaseKey,
-  type StoreReleaseConnector,
-} from '@mrm/connectors';
+import { APPLE_RELEASABLE_STATE, AppleReleaseConnector, appleScope, connectorFactory, type PlayReleaseBuild, PlayReleaseConnector, ReleaseDriftError, releaseKey, ReleaseOutcomeUnknownError, type ReleaseRequest, type ReleaseState, type StoreConnectorInput, type StoreReleaseConnector } from '@mrm/connectors';
 import {
   isApplePlatform,
   isGooglePlatform,
@@ -65,31 +54,23 @@ const OTHER_CLAIM_TTL_MS = 300_000;
 // ---------------------------------------------------------------------------------------------
 // Context
 
-export type ReleaseConnectorInput = {
-  kind: 'app_store_connect' | 'google_play';
-  /** The decrypted credential. Never log it or put it in a message. */
-  secret: string;
-  identifier: string;
-  storeAppId: string | null;
-  /** The platform of the app record (macOS releases the macOS version). */
-  platform?: Platform;
-  /** Aborted when the call times out. Pass it to the connector as its `fetch`. */
-  fetch: typeof fetch;
-};
+export type ReleaseConnectorInput = StoreConnectorInput;
 export type ReleaseConnectorFactory = (input: ReleaseConnectorInput) => StoreReleaseConnector;
 
-export const defaultReleaseConnectorFactory: ReleaseConnectorFactory = (input) =>
-  input.kind === 'app_store_connect'
-    ? AppleReleaseConnector.fromSecret(input.secret, {
-        appStoreId: input.storeAppId ?? '',
-        platform: input.platform === 'macos' ? 'macos' : 'ios',
-        fetch: input.fetch,
-      })
-    : new PlayReleaseConnector({
-        serviceAccount: input.secret,
-        packageName: input.identifier,
-        fetch: input.fetch,
-      });
+export const defaultReleaseConnectorFactory: ReleaseConnectorFactory = connectorFactory<StoreReleaseConnector>({
+  app_store_connect: (input) =>
+    AppleReleaseConnector.fromSecret(input.secret, {
+          appStoreId: input.storeAppId ?? '',
+          platform: appleScope(input),
+          fetch: input.fetch,
+        }),
+  google_play: (input) =>
+    new PlayReleaseConnector({
+          serviceAccount: input.secret,
+          packageName: input.identifier,
+          fetch: input.fetch,
+        }),
+});
 
 export type ReleaseContext = {
   db: Database;
