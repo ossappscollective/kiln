@@ -13,7 +13,7 @@
  * phone numbers. Media is metadata only: display types, counts, file names, asset states and ids.
  */
 
-import { isGooglePlatform, type Platform } from './platform.ts';
+import { type Platform, supports } from './platform.ts';
 
 export const LISTING_SECTIONS = [
   'categories',
@@ -267,8 +267,7 @@ export function cleanSection<N extends ListingSectionName>(
             }
             const entry: ListingReleaseNotes['tracks'][string] = {
               versionCodes: strings(t.versionCodes, 50) ?? [],
-              notes,
-            };
+              notes };
             const tname = text(t.name);
             const status = text(t.status);
             if (tname !== undefined) entry.name = tname;
@@ -330,8 +329,7 @@ export type SectionCompare = {
 
 const done = (status: SectionStatus, details: string[] = []): SectionCompare => ({
   status,
-  details,
-});
+  details });
 
 /**
  * What two category texts are compared as: upper case, `&` as AND, everything but letters and
@@ -395,8 +393,7 @@ export function compareCategories(
 export const LEGACY_AGE_ANSWER: Record<string, string> = {
   '0': 'NONE',
   '1': 'INFREQUENT_OR_MILD',
-  '2': 'FREQUENT_OR_INTENSE',
-};
+  '2': 'FREQUENT_OR_INTENSE' };
 
 /**
  * Age rating answers are compared key by key, only for the keys the repository states under the
@@ -518,7 +515,7 @@ export function compareMedia(
       'The repository has not been read, or its source cannot hold screenshots.',
     ]);
   }
-  const perType = isGooglePlatform(platform);
+  const perType = !supports(platform, 'screenshotsByDevice');
   const merge = (m: ListingMedia) => {
     const all = new Map(countsByLocale(m.screenshots, perType));
     if (perType) for (const [k, v] of countsByLocale(m.graphics, true)) all.set(k, v);

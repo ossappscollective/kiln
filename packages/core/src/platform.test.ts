@@ -3,12 +3,11 @@ import { test } from 'node:test';
 import { ASSET_PLATFORMS, requiredSizes, storeSetKey } from './asset-sync.ts';
 import { allowedEvents, transition } from './lifecycle.ts';
 import {
-  isApplePlatform,
-  isGooglePlatform,
   listingStoreOf,
   needsStoreAppId,
   storeShortName,
   storeSideId,
+  supports,
   PLATFORM_META,
   PLATFORMS,
   parsePlatform,
@@ -37,8 +36,8 @@ test('the platforms, their labels, stores and families come from one table', () 
   assert.equal(PLATFORM_META.macos.applePlatform, 'MAC_OS');
   assert.equal(PLATFORM_META.macos.credentialKind, 'app_store_connect');
   assert.equal(storeFamilyOf('macos'), 'apple');
-  assert.ok(isApplePlatform('ios') && isApplePlatform('macos') && !isApplePlatform('android'));
-  assert.ok(isGooglePlatform('android') && !isGooglePlatform('macos'));
+  assert.ok(supports('ios', 'approvalHold') && supports('macos', 'approvalHold'));
+  assert.ok(!supports('android', 'approvalHold') && supports('android', 'releaseTracks'));
   assert.deepEqual(platformsOfFamily('apple'), ['ios', 'macos']);
   assert.equal(parsePlatform(' MacOS '), 'macos');
   assert.equal(parsePlatform('tvos'), undefined);

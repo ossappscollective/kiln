@@ -1,10 +1,4 @@
-import {
-  isGooglePlatform,
-  PLATFORMS,
-  type Platform,
-  type StagedProblem,
-  type StoreId,
-} from '@mrm/core';
+import { type Platform, PLATFORMS, type StagedProblem, type StoreId, supports } from '@mrm/core';
 import { type Database, nullableNumber, oneOf, type Sql } from '@mrm/db';
 import { getApp, listApps, type ManagedApp } from './apps.ts';
 import { type Failure, failure } from './repositories.ts';
@@ -102,8 +96,7 @@ const problemsOf = (problems: readonly StagedProblem[], item?: string): PendingP
       code: p.code,
       severity: p.severity as 'error' | 'warning',
       message: p.message,
-      ...(item !== undefined ? { item } : {}),
-    }));
+      ...(item !== undefined ? { item } : {}) }));
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
@@ -173,8 +166,7 @@ export async function loadPendingFacts(
       version: String(r.version),
       track: String(r.track ?? ''),
       status: String(r.status),
-      since: nullableNumber(r.status_since) ?? nullableNumber(r.synced_at),
-    });
+      since: nullableNumber(r.status_since) ?? nullableNumber(r.synced_at) });
   }
 
   const drafts = new Map<string, DraftReleaseFact[]>();
@@ -194,8 +186,7 @@ export async function loadPendingFacts(
       id: String(r.id),
       track: String(r.track),
       codes,
-      since: nullableNumber(r.status_since) ?? nullableNumber(r.synced_at),
-    });
+      since: nullableNumber(r.status_since) ?? nullableNumber(r.synced_at) });
   }
 
   // Only the next step of a plan counts, and only when its planned time has passed.
@@ -214,8 +205,7 @@ export async function loadPendingFacts(
       id: String(r.id),
       planVersion: String(r.version),
       percent: Number(r.percent),
-      plannedAt: Number(r.planned_at),
-    });
+      plannedAt: Number(r.planned_at) });
   }
   return { unpushed, pushes, releases, drafts, steps };
 }
@@ -248,12 +238,10 @@ function itemsOf(
         counts: {
           changes: texts.length,
           locales: locales.size,
-          invalid: texts.filter((t) => t.status === 'invalid').length,
-        },
+          invalid: texts.filter((t) => t.status === 'invalid').length },
         refs: texts.slice(0, MAX_REFS).map((t) => ({ id: t.id, locale: t.locale, field: t.field })),
         truncated: texts.length > MAX_REFS,
-        since: Math.min(...texts.map((t) => t.createdAt)),
-      });
+        since: Math.min(...texts.map((t) => t.createdAt)) });
     }
     for (const a of staged.assets.filter((x) => !x.pushed)) {
       out.push({
@@ -267,8 +255,7 @@ function itemsOf(
         counts: { files: a.files.length },
         refs: [{ id: a.id, locale: a.locale }],
         truncated: false,
-        since: a.createdAt,
-      });
+        since: a.createdAt });
     }
     // The intended Google Play share is kept here only and never written: it is not a pending change.
     for (const r of (staged.release ?? []).filter((x) => !x.pushed && !x.localOnly)) {
@@ -283,8 +270,7 @@ function itemsOf(
         counts: {},
         refs: [{ id: r.id, ...(r.locale ? { locale: r.locale } : {}), field: r.field }],
         truncated: false,
-        since: r.createdAt,
-      });
+        since: r.createdAt });
     }
   }
 
@@ -293,7 +279,7 @@ function itemsOf(
     const texts = record.manifest.text.length;
     const sets = record.manifest.assets.length;
     // A Google Play push that wrote only the release fields has nothing to submit: its draft release is the item below.
-    if (!(isGooglePlatform(platform) && texts + sets === 0)) {
+    if (!(supports(platform, 'releaseTracks') && texts + sets === 0)) {
       out.push({
         kind: 'pushed_draft',
         platform,
@@ -305,8 +291,7 @@ function itemsOf(
         counts: { texts, assetSets: sets },
         refs: [],
         truncated: false,
-        since: record.pushedAt,
-      });
+        since: record.pushedAt });
     }
   }
 
@@ -323,8 +308,7 @@ function itemsOf(
       counts: { versionCodes: d.codes.length },
       refs: [],
       truncated: false,
-      since: d.since,
-    });
+      since: d.since });
   }
 
   for (const r of facts.releases.get(app.id) ?? []) {
@@ -341,8 +325,7 @@ function itemsOf(
         counts: {},
         refs: [],
         truncated: false,
-        since: r.since,
-      });
+        since: r.since });
     } else {
       out.push({
         kind: 'approved',
@@ -355,8 +338,7 @@ function itemsOf(
         counts: {},
         refs: [],
         truncated: false,
-        since: r.since,
-      });
+        since: r.since });
     }
   }
 
@@ -372,8 +354,7 @@ function itemsOf(
       counts: { percent: s.percent },
       refs: [],
       truncated: false,
-      since: s.plannedAt,
-    });
+      since: s.plannedAt });
   }
   return out;
 }
@@ -390,7 +371,7 @@ export function draftReleasesOf(
   app: Pick<ManagedApp, 'id' | 'platform'>,
   facts: Pick<PendingFacts, 'pushes' | 'drafts'>,
 ): { id: string; track: string; codes: string[]; since: number | null }[] {
-  if (!isGooglePlatform(app.platform)) return [];
+  if (!supports(app.platform, 'releaseTracks')) return [];
   const out: { id: string; track: string; codes: string[]; since: number | null }[] = [];
   const record = facts.pushes.get(app.id);
   const pushed = record?.manifest.release;
@@ -399,8 +380,7 @@ export function draftReleasesOf(
       id: `draft_release:${pushed.track}:${codesKey(pushed.codes)}`,
       track: pushed.track,
       codes: [...pushed.codes].sort((a, b) => Number(a) - Number(b)),
-      since: record?.pushedAt ?? null,
-    });
+      since: record?.pushedAt ?? null });
   for (const d of facts.drafts.get(app.id) ?? []) {
     if (record === undefined && d.track !== 'production') continue;
     if (pushed && pushed.track === d.track && codesKey(pushed.codes) === codesKey(d.codes))
@@ -409,8 +389,7 @@ export function draftReleasesOf(
       id: `draft_release:${d.track}:${codesKey(d.codes)}`,
       track: d.track,
       codes: [...d.codes].sort((a, b) => Number(a) - Number(b)),
-      since: d.since,
-    });
+      since: d.since });
   }
   return out;
 }
@@ -419,8 +398,7 @@ export function totalsOf(items: readonly PendingItem[]): PendingTotals {
   return {
     items: items.length,
     actionable: items.filter((i) => i.nextStep !== null).length,
-    blocking: items.filter((i) => i.problems.some((p) => p.severity === 'error')).length,
-  };
+    blocking: items.filter((i) => i.problems.some((p) => p.severity === 'error')).length };
 }
 
 const nextStepsOf = (items: readonly PendingItem[]): PublishStep[] =>
@@ -445,8 +423,7 @@ export async function pendingItemsOf(
   const facts = await loadPendingFacts(db, {
     workspaceId: input.workspaceId,
     appId: input.app.id,
-    now: input.now,
-  });
+    now: input.now });
   return itemsOf(
     input.app,
     facts,
@@ -471,12 +448,9 @@ export async function getPending(
       totals: {
         ...totals,
         platforms: items.length > 0 ? [app.platform] : [],
-        nextSteps: nextStepsOf(items),
-      },
+        nextSteps: nextStepsOf(items) },
       lastSyncedAt: app.lastSyncedAt,
-      generatedAt: input.now,
-    },
-  };
+      generatedAt: input.now } };
 }
 
 export type PendingSummaryApp = {
@@ -529,8 +503,7 @@ export async function pendingSummary(
       blocking: totals.blocking,
       waiting: totals.items - totals.actionable,
       kinds: PENDING_KINDS.filter((k) => actionable.some((i) => i.kind === k)),
-      nextSteps: nextStepsOf(items),
-    });
+      nextSteps: nextStepsOf(items) });
   }
   lines.sort(
     (a, b) =>
@@ -544,8 +517,6 @@ export async function pendingSummary(
     totals: {
       apps: lines.filter((l) => l.count > 0).length,
       count: lines.reduce((n, l) => n + l.count, 0),
-      blocking: lines.reduce((n, l) => n + l.blocking, 0),
-    },
-    generatedAt: input.now,
-  };
+      blocking: lines.reduce((n, l) => n + l.blocking, 0) },
+    generatedAt: input.now };
 }

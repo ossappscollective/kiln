@@ -1,5 +1,5 @@
 import type { JsonSchema } from '@mrm/connectors';
-import { type AiProvider, isApplePlatform, sameLanguage, storeShortName } from '@mrm/core';
+import { type AiProvider, byFamily, sameLanguage, storeShortName } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { getAppContext, withAppContext } from './ai-app-context.ts';
 import {
@@ -38,7 +38,7 @@ export const isNoteLocale = (value: string): boolean =>
 
 /** The longest "what is new" of the store of this platform. */
 export const noteLimitOf = (platform: ManagedApp['platform']): number =>
-  isApplePlatform(platform) ? 4000 : 500;
+  byFamily(platform, { apple: 4000, google: 500 });
 
 export type NotesEngine = 'machine' | 'ai';
 

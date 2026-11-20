@@ -1,5 +1,5 @@
 import type { JsonSchema } from '@mrm/connectors';
-import { type AiFlag, aiLimits, type AiListingField, type AiListingProposal, APP_STORE_FIELD_SPECS, countBytes, countCharacters, isApplePlatform, isStageableTextField, listingStoreOf, normalizeLocale, type Platform, PLAY_FIELD_SPECS, STAGEABLE_TEXT_FIELDS } from '@mrm/core';
+import { type AiFlag, aiLimits, type AiListingField, type AiListingProposal, APP_STORE_FIELD_SPECS, byFamily, countBytes, countCharacters, isStageableTextField, listingStoreOf, normalizeLocale, type Platform, PLAY_FIELD_SPECS, STAGEABLE_TEXT_FIELDS, type StoreFamily, storeFamilyOf } from '@mrm/core';
 import { listKeywords } from '../modules/aso/service.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { loadLocaleTexts } from './ai-task-keywords.ts';
@@ -30,9 +30,9 @@ import { normalizeListingValue } from './listing-drift.ts';
 export const LISTING_IMPROVE_VERSION = 2;
 
 /** The stageable fields that are plain listing copy (not URLs, not release notes), per platform. */
-const IMPROVABLE: Record<'apple' | 'play', readonly string[]> = {
+const IMPROVABLE: Record<StoreFamily, readonly string[]> = {
   apple: ['description', 'keywords', 'promotional_text'],
-  play: ['title', 'short_description', 'full_description'],
+  google: ['title', 'short_description', 'full_description'],
 };
 /** Fields that are one line: a line break in them is white space. */
 export const SINGLE_LINE: readonly string[] = [
@@ -42,13 +42,13 @@ export const SINGLE_LINE: readonly string[] = [
   'name',
   'subtitle',
 ];
-const CONTEXT_FIELDS: Record<'apple' | 'play', readonly string[]> = {
+const CONTEXT_FIELDS: Record<StoreFamily, readonly string[]> = {
   apple: ['name', 'subtitle'],
-  play: [],
+  google: [],
 };
 
 export const improvableFields = (platform: Platform): readonly string[] =>
-  IMPROVABLE[isApplePlatform(platform) ? 'apple' : 'play'];
+  IMPROVABLE[storeFamilyOf(platform)];
 
 const SYSTEM = `You help an app developer improve the text of their own store listing.
 
@@ -207,7 +207,7 @@ export const listingImproveTask: ReadyTask = {
       );
     }
     const specs = (
-      isApplePlatform(ctx.app.platform) ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS
+      byFamily(ctx.app.platform, { apple: APP_STORE_FIELD_SPECS, google: PLAY_FIELD_SPECS })
     ) as Record<
       string,
       { label: string; maxLength?: number; unit: 'characters' | 'bytes' } | undefined
@@ -219,7 +219,7 @@ export const listingImproveTask: ReadyTask = {
       current: texts.values.get(field) ?? null,
     }));
     const context: Record<string, string> = {};
-    for (const field of CONTEXT_FIELDS[isApplePlatform(ctx.app.platform) ? 'apple' : 'play']) {
+    for (const field of CONTEXT_FIELDS[storeFamilyOf(ctx.app.platform)]) {
       const value = texts.values.get(field);
       if (value !== undefined) context[field] = clip(value, 200);
     }

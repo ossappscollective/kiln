@@ -1,5 +1,5 @@
 import type { JsonSchema } from '@mrm/connectors';
-import { type AiFixItem, type AiFixNextInsight, type AiFlag, type AiReviewClassifyInsight, type AiReviewSummaryInsight, type AiReviewTags, type AiReviewTheme, aiReviewTopics, type AiSentiment, aiSentiments, aiSeverities, type AiSeverity, type AiThemeKind, aiThemeKinds, APP_STORE_FIELD_SPECS, isApplePlatform, listingStoreOf } from '@mrm/core';
+import { type AiFixItem, type AiFixNextInsight, type AiFlag, type AiReviewClassifyInsight, type AiReviewSummaryInsight, type AiReviewTags, type AiReviewTheme, aiReviewTopics, type AiSentiment, aiSentiments, aiSeverities, type AiSeverity, type AiThemeKind, aiThemeKinds, APP_STORE_FIELD_SPECS, listingStoreOf } from '@mrm/core';
 import { looksLikePromise } from './ai-app-context.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { getReviewTags, reviewTextHash, saveReviewTags } from './ai-review-classes.ts';
@@ -33,8 +33,7 @@ const DATA_RULE =
 const clamp = (value: unknown, min: number, max: number, fallback: number): number =>
   int(value, min, max, fallback);
 
-const storeOf = (platform: Parameters<typeof isApplePlatform>[0]) =>
-  listingStoreOf(platform);
+const storeOf = listingStoreOf;
 
 const sentimentFromRating = (rating: number): AiSentiment =>
   rating >= 4 ? 'positive' : rating === 3 ? 'neutral' : 'negative';
@@ -666,7 +665,7 @@ export const fixNextTask: ReadyTask = {
         ...(r.version ? { version: r.version } : {}),
       })),
     };
-    const limitChars = isApplePlatform(ctx.app.platform)
+    const limitChars = listingStoreOf(ctx.app.platform) === 'app_store'
       ? (APP_STORE_FIELD_SPECS.release_notes.maxLength ?? 4000)
       : PLAY_WHATS_NEW_LIMIT;
     const facts: FixFacts = { loaded, stats, limit: limitChars };

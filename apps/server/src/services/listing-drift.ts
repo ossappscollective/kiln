@@ -1,18 +1,5 @@
 import { createHash } from 'node:crypto';
-import {
-  APP_STORE_FIELD_SPECS,
-  APP_STORE_FIELDS,
-  DEFAULT_LOCALE,
-  isApplePlatform,
-  type Listing,
-  type ListingFieldSpec,
-  type ListingProblem,
-  type LocaleText,
-  PLAY_FIELD_SPECS,
-  PLAY_FIELDS,
-  type Platform,
-  validateListing,
-} from '@mrm/core';
+import { APP_STORE_FIELD_SPECS, APP_STORE_FIELDS, byFamily, DEFAULT_LOCALE, type Listing, type ListingFieldSpec, type ListingProblem, listingStoreOf, type LocaleText, type Platform, PLAY_FIELD_SPECS, PLAY_FIELDS, validateListing } from '@mrm/core';
 
 /**
  * The pure part of the listing history and drift view: which fields an app has, how a value is
@@ -25,13 +12,13 @@ export type ListingSource = (typeof LISTING_SOURCES)[number];
 
 /** The fields of the store listing that belongs to a platform, in display order. */
 export const listingFieldsFor = (platform: Platform): readonly string[] =>
-  isApplePlatform(platform) ? APP_STORE_FIELDS : PLAY_FIELDS;
+  byFamily(platform, { apple: APP_STORE_FIELDS, google: PLAY_FIELDS });
 
 export const isListingField = (platform: Platform, field: string): boolean =>
   listingFieldsFor(platform).includes(field);
 
 export function fieldSpec(platform: Platform, field: string): ListingFieldSpec | undefined {
-  const specs: Record<string, ListingFieldSpec> = isApplePlatform(platform)
+  const specs: Record<string, ListingFieldSpec> = listingStoreOf(platform) === 'app_store'
     ? APP_STORE_FIELD_SPECS
     : PLAY_FIELD_SPECS;
   return specs[field];
@@ -63,7 +50,7 @@ export const splitKey = (key: string): { locale: string; field: string } => {
 
 /** The listing of the app's own store as flat field values. A field that is not set is left out. */
 export function flattenListing(listing: Listing, platform: Platform): FieldValue[] {
-  const locales: Record<string, LocaleText<string>> | undefined = isApplePlatform(platform)
+  const locales: Record<string, LocaleText<string>> | undefined = listingStoreOf(platform) === 'app_store'
     ? listing.appStore?.locales
     : listing.googlePlay?.locales;
   const out: FieldValue[] = [];
@@ -80,7 +67,7 @@ export function flattenListing(listing: Listing, platform: Platform): FieldValue
 
 /** True when the listing has the store of this platform at all. */
 export const hasStoreListing = (listing: Listing, platform: Platform): boolean =>
-  isApplePlatform(platform) ? listing.appStore !== undefined : listing.googlePlay !== undefined;
+  listingStoreOf(platform) === 'app_store' ? listing.appStore !== undefined : listing.googlePlay !== undefined;
 
 // ---------------------------------------------------------------------------------------------
 // The three-way view
@@ -154,8 +141,7 @@ export const emptySide = (): DriftSide => ({
   value: null,
   observedAt: null,
   sourceRef: null,
-  source: null,
-});
+  source: null });
 
 export type SideProblem = Pick<
   ListingProblem,
@@ -188,7 +174,7 @@ export function toListing(platform: Platform, values: ReadonlyMap<string, string
     const { locale, field } = splitKey(key);
     (locales[locale] ??= {})[field] = value;
   }
-  return isApplePlatform(platform)
+  return listingStoreOf(platform) === 'app_store'
     ? { appStore: { locales: locales as Record<string, LocaleText<never>> } as Listing['appStore'] }
     : { googlePlay: { locales, changelogs: {} } as unknown as Listing['googlePlay'] };
 }
@@ -214,8 +200,7 @@ export function sideProblems(
       message: p.message,
       ...(p.limit !== undefined ? { limit: p.limit } : {}),
       ...(p.actual !== undefined ? { actual: p.actual } : {}),
-      ...(p.unit !== undefined ? { unit: p.unit } : {}),
-    });
+      ...(p.unit !== undefined ? { unit: p.unit } : {}) });
     found.set(key, list);
   }
   return found;
@@ -262,8 +247,7 @@ export function summarize(locales: readonly DriftLocale[]): DriftSummary {
     'repo-ahead': 0,
     'store-ahead': 0,
     diverged: 0,
-    'missing-in-one': 0,
-  };
+    'missing-in-one': 0 };
   for (const l of locales) for (const f of l.fields) summary[f.status]++;
   return summary;
 }

@@ -1,10 +1,4 @@
-import {
-  isApplePlatform,
-  type Platform,
-  platformLabel,
-  type ReleaseState,
-  sortPlatforms,
-} from '@mrm/core';
+import { byFamily, type Platform, platformLabel, type ReleaseState, sortPlatforms, supports } from '@mrm/core';
 import { parseViewPath } from './app-scope.ts';
 import { compareReleases, compareVersions } from './portfolio.ts';
 import type { ReleaseSummary } from './types.ts';
@@ -71,9 +65,8 @@ export function versionState(status: ReleaseState | null, platform: Platform): V
     case 'draft':
     case 'build_chosen':
       return {
-        label: isApplePlatform(platform) ? 'Prepare for submission' : 'Draft',
-        tone: 'neutral',
-      };
+        label: byFamily(platform, { apple: 'Prepare for submission', google: 'Draft' }),
+        tone: 'neutral' };
     case 'ready':
       return { label: 'Ready to submit', tone: 'info' };
     case 'in_review':
@@ -173,8 +166,7 @@ export function buildVersionOptions(
             .join(' · ')
         : '',
       platforms: mine,
-      releases: chosen,
-    };
+      releases: chosen };
   });
 }
 
@@ -201,7 +193,7 @@ const APPLE_FROZEN: ReleaseState[] = ['in_review', 'approved'];
 
 export const isLockedState = (status: ReleaseState | null, platform: Platform): boolean =>
   status !== null &&
-  isApplePlatform(platform) &&
+  !supports(platform, 'transactionalEdits') &&
   (RELEASED.includes(status) || APPLE_FROZEN.includes(status));
 
 const lockWord = (status: ReleaseState): string =>

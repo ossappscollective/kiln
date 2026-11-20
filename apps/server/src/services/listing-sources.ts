@@ -13,15 +13,8 @@ import {
   type ProjectDetection,
   type RepoSections,
   readFastlaneSections,
-  staticStoreConfigs,
-} from '@mrm/connectors';
-import {
-  type FileChange,
-  isApplePlatform,
-  type Listing,
-  type ListingSections,
-  type Platform,
-} from '@mrm/core';
+  staticStoreConfigs } from '@mrm/connectors';
+import { byFamily, type FileChange, type Listing, type ListingSections, listingStoreOf, type Platform } from '@mrm/core';
 
 /**
  * Where each store's listing comes from. The rule (a product decision):
@@ -132,8 +125,7 @@ export async function readListings(
     roots = {
       appStore: target.roots.appStore ?? '',
       googlePlay: target.roots.googlePlay ?? '',
-      ...options.roots,
-    };
+      ...options.roots };
   }
 
   const notes: string[] = [];
@@ -163,8 +155,7 @@ export async function readListings(
   const fastlane = await loadListing(files, cached, {
     ...(roots ? { roots } : {}),
     ...(detection.listing ? { hints: detection.listing.hints } : {}),
-    ...(options.maxChangelogs === undefined ? {} : { maxChangelogs: options.maxChangelogs }),
-  });
+    ...(options.maxChangelogs === undefined ? {} : { maxChangelogs: options.maxChangelogs }) });
   const dynamicStoreConfigs =
     options.ignoreExpoConfig === true
       ? []
@@ -183,8 +174,7 @@ export async function readListings(
   const sections: RepositorySections = {
     appStore: expo && expo.error === undefined ? expoSections(expo.text) : fromFastlane.appStore,
     googlePlay: fromFastlane.googlePlay,
-    warnings: fromFastlane.warnings,
-  };
+    warnings: fromFastlane.warnings };
   return { fastlane, ...(expo ? { expo } : {}), dynamicStoreConfigs, notes, detection, sections };
 }
 
@@ -197,14 +187,13 @@ export function repositorySections(
   merged: Listing,
   platform: Platform,
 ): ListingSections {
-  const found = isApplePlatform(platform) ? merged.appStore : merged.googlePlay;
+  const found = byFamily(platform, { apple: merged.appStore, google: merged.googlePlay });
   if (!found) return {};
   const sections: ListingSections = {
-    ...(isApplePlatform(platform)
+    ...(listingStoreOf(platform) === 'app_store'
       ? (listings.sections?.appStore ?? {})
-      : (listings.sections?.googlePlay ?? {})),
-  };
-  if (isApplePlatform(platform)) {
+      : (listings.sections?.googlePlay ?? {})) };
+  if (listingStoreOf(platform) === 'app_store') {
     const copyright = merged.appStore?.copyright;
     sections.details = copyright !== undefined ? { copyright } : {};
   }
@@ -231,16 +220,14 @@ export function listingSources(listings: RepositoryListings): ListingSources {
         ...(expo.error === undefined ? {} : { error: expo.error }),
         warnings: expo.warnings,
         uncovered: expo.uncovered,
-        unknown: expo.unknown,
-      }
+        unknown: expo.unknown }
     : {
         source: 'fastlane',
         path: fastlane.roots.appStore,
         found: fastlane.found.appStore,
         warnings: [],
         uncovered: [],
-        unknown: [],
-      };
+        unknown: [] };
   return {
     appStore,
     googlePlay: {
@@ -249,9 +236,7 @@ export function listingSources(listings: RepositoryListings): ListingSources {
       found: fastlane.found.googlePlay,
       warnings: [],
       uncovered: [],
-      unknown: [],
-    },
-  };
+      unknown: [] } };
 }
 
 /** Repository-level warnings: the fastlane ones, plus what the source rule left out. */
@@ -323,8 +308,7 @@ export function listingChanges(listings: RepositoryListings, desired: Listing): 
       ok: false,
       path: outside.path,
       error: `${outside.path} is outside the folders of the selected listing target.`,
-      code: 'outside_target',
-    };
+      code: 'outside_target' };
   }
   return { ok: true, files, warnings };
 }
@@ -351,6 +335,5 @@ export function detectedSources(detection: ProjectDetection): DetectedSources {
       : iosMetadata
         ? { source: 'fastlane', path: iosMetadata }
         : null,
-    googlePlay: androidMetadata ? { source: 'fastlane', path: androidMetadata } : null,
-  };
+    googlePlay: androidMetadata ? { source: 'fastlane', path: androidMetadata } : null };
 }

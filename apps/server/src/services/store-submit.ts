@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { appleScope, AppleSubmitConnector, connectorFactory, DRAFT_IMAGE_READY_STATES, PlaySubmitConnector, type StoreConnectorInput, type StoreSubmitConnector, SubmitDriftError, submitKey, SubmitOutcomeUnknownError, type SubmitState } from '@mrm/connectors';
-import { APP_STORE_FIELD_SPECS, type AssetFacts, isApplePlatform, isGooglePlatform, needsStoreAppId, type Platform, PLAY_FIELD_SPECS, validateAssets } from '@mrm/core';
+import { APP_STORE_FIELD_SPECS, type AssetFacts, byFamily, needsStoreAppId, type Platform, PLAY_FIELD_SPECS, supports, validateAssets } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
@@ -14,8 +14,7 @@ import {
   loadPush,
   manifestMismatches,
   type PushRecord,
-  requestOfManifest,
-} from './store-draft-record.ts';
+  requestOfManifest } from './store-draft-record.ts';
 
 /**
  * Submitting the store's DRAFT for review: the most consequential STORE WRITE of this server, and one it cannot take
@@ -64,15 +63,12 @@ export const defaultSubmitConnectorFactory: SubmitConnectorFactory = connectorFa
     AppleSubmitConnector.fromSecret(input.secret, {
           appStoreId: input.storeAppId ?? '',
           platform: appleScope(input),
-          fetch: input.fetch,
-        }),
+          fetch: input.fetch }),
   google_play: (input) =>
     new PlaySubmitConnector({
           serviceAccount: input.secret,
           packageName: input.identifier,
-          fetch: input.fetch,
-        }),
-});
+          fetch: input.fetch }) });
 
 export type SubmitContext = {
   db: Database;
@@ -94,8 +90,7 @@ export const submitDisabledFailure = (): Failure =>
     'store_submit_disabled',
     `Submitting drafts for store review is switched off on this server. Set ${SUBMIT_ENV}=true to turn it on (see docs/deployment.md).`,
     {
-      envName: SUBMIT_ENV,
-    },
+      envName: SUBMIT_ENV },
   );
 
 class SubmitTimeout extends Error {}
@@ -111,8 +106,7 @@ async function withConnector<T>(
   const guardedFetch: typeof fetch = (target, init) =>
     baseFetch(target, {
       ...init,
-      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
-    });
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -280,10 +274,7 @@ async function connect(
         secret,
         identifier: app.identifier,
         storeAppId: app.storeAppId,
-        platform: app.platform,
-      },
-    },
-  };
+        platform: app.platform } } };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -318,43 +309,38 @@ export function evaluateChecks(input: {
   const { app, record, state } = input;
   const out: SubmitCheck[] = [];
   const add = (check: SubmitCheck) => out.push(check);
-  const ios = isApplePlatform(app.platform);
+  const ios = !supports(app.platform, 'transactionalEdits');
 
   if (input.inFlight.push === 'writing')
     add({
       code: 'push_in_progress',
       severity: 'blocking',
-      message: 'A draft push for this app is in progress. Wait for it to finish.',
-    });
+      message: 'A draft push for this app is in progress. Wait for it to finish.' });
   if (input.inFlight.push === 'unknown') {
     add({
       code: 'push_outcome_unknown',
       severity: 'blocking',
       message:
-        'It is not known whether the last draft push reached the store. Preview the push again first (staged changes), then submit.',
-    });
+        'It is not known whether the last draft push reached the store. Preview the push again first (staged changes), then submit.' });
   }
 
   if (state.alreadySubmitted) {
     add({
       code: 'already_submitted',
       severity: 'blocking',
-      message: `The App Store version is already in review or past it (${state.version?.state ?? 'unknown state'}). It cannot be submitted again.`,
-    });
+      message: `The App Store version is already in review or past it (${state.version?.state ?? 'unknown state'}). It cannot be submitted again.` });
     return out;
   }
   if (ios && state.version === null)
     add({
       code: 'no_version',
       severity: 'blocking',
-      message: 'There is no App Store version to submit.',
-    });
+      message: 'There is no App Store version to submit.' });
   if (ios && state.version && record.versionId !== null && record.versionId !== state.version.id) {
     add({
       code: 'version_changed',
       severity: 'blocking',
-      message: `The draft was pushed to version ${record.versionString ?? record.versionId}, but the version that would be submitted is ${state.version.versionString ?? state.version.id}. Push the draft again.`,
-    });
+      message: `The draft was pushed to version ${record.versionString ?? record.versionId}, but the version that would be submitted is ${state.version.versionString ?? state.version.id}. Push the draft again.` });
   }
 
   if (ios && state.version) {
@@ -364,8 +350,7 @@ export function evaluateChecks(input: {
         code: 'release_not_manual',
         severity: 'blocking',
         message:
-          'The release type of the version could not be read, so it is not known whether an approval would release it. Sync the app and read the preview again.',
-      });
+          'The release type of the version could not be read, so it is not known whether an approval would release it. Sync the app and read the preview again.' });
     } else if (type === 'AFTER_APPROVAL') {
       // The person's own setting in App Store Connect is respected: approval is the release, and the
       // typed confirmation of this submit is the last step they take here.
@@ -373,41 +358,35 @@ export function evaluateChecks(input: {
         code: 'releases_after_approval',
         severity: 'warning',
         message:
-          'This version is set to release automatically after approval. When Apple approves it, it goes live without another step here. Change the release type in App Store Connect first if you want to release it yourself.',
-      });
+          'This version is set to release automatically after approval. When Apple approves it, it goes live without another step here. Change the release type in App Store Connect first if you want to release it yourself.' });
     } else if (type !== 'MANUAL') {
       add({
         code: 'releases_by_itself',
         severity: 'warning',
-        message: `This version is set to release by itself (${type}). It goes live as that setting says once Apple approves it. Change the release type in App Store Connect first if you want to release it yourself.`,
-      });
+        message: `This version is set to release by itself (${type}). It goes live as that setting says once Apple approves it. Change the release type in App Store Connect first if you want to release it yourself.` });
     }
     if (state.build === null)
       add({
         code: 'no_build',
         severity: 'blocking',
         message:
-          'No build is attached to the version. Attach a processed build in App Store Connect.',
-      });
+          'No build is attached to the version. Attach a processed build in App Store Connect.' });
     else if (state.build.expired === true)
       add({
         code: 'build_expired',
         severity: 'blocking',
-        message: `Build ${state.build.version ?? state.build.id} has expired. Attach another build in App Store Connect.`,
-      });
+        message: `Build ${state.build.version ?? state.build.id} has expired. Attach another build in App Store Connect.` });
     else if (state.build.processingState !== null && state.build.processingState !== 'VALID') {
       add({
         code: 'build_not_valid',
         severity: 'blocking',
-        message: `Build ${state.build.version ?? state.build.id} is not ready (${state.build.processingState}).`,
-      });
+        message: `Build ${state.build.version ?? state.build.id} is not ready (${state.build.processingState}).` });
     }
     if (state.openReviewSubmissions !== null && state.openReviewSubmissions > 0) {
       add({
         code: 'open_review_submission',
         severity: 'warning',
-        message: `${state.openReviewSubmissions} review submission(s) of this app are open but not submitted. This server creates its own and leaves those alone.`,
-      });
+        message: `${state.openReviewSubmissions} review submission(s) of this app are open but not submitted. This server creates its own and leaves those alone.` });
     }
   }
 
@@ -416,14 +395,12 @@ export function evaluateChecks(input: {
       code: 'play_review_state_unknown',
       severity: 'warning',
       message:
-        'Google Play does not show the review state through its API: this server cannot tell whether changes are already in review (Google refuses a second send while they are) and cannot confirm the send afterwards.',
-    });
+        'Google Play does not show the review state through its API: this server cannot tell whether changes are already in review (Google refuses a second send while they are) and cannot confirm the send afterwards.' });
     add({
       code: 'play_pending_changes',
       severity: 'warning',
       message:
-        'Everything held back for this app goes to review, not only what this server pushed: changes made in Play Console go with it. Google does not list them through the API.',
-    });
+        'Everything held back for this app goes to review, not only what this server pushed: changes made in Play Console go with it. Google does not list them through the API.' });
     const rolling = state.tracks.flatMap((t) =>
       t.releases.filter((r) => r.status === 'inProgress').map(() => t.track),
     );
@@ -431,8 +408,7 @@ export function evaluateChecks(input: {
       add({
         code: 'play_rollout_in_progress',
         severity: 'warning',
-        message: `A staged rollout is in progress on ${[...new Set(rolling)].join(', ')}. Submitting does not change it.`,
-      });
+        message: `A staged rollout is in progress on ${[...new Set(rolling)].join(', ')}. Submitting does not change it.` });
     }
   }
 
@@ -441,8 +417,7 @@ export function evaluateChecks(input: {
     add({
       code: 'draft_unreadable',
       severity: 'blocking',
-      message: 'The store’s draft could not be read.',
-    });
+      message: 'The store’s draft could not be read.' });
   } else {
     const differs = manifestMismatches(record.manifest, state.draft);
     for (const m of differs.slice(0, 30)) {
@@ -451,15 +426,13 @@ export function evaluateChecks(input: {
         severity: 'blocking',
         message: `${m.type === 'text' ? 'The text' : 'The screenshots'} ${m.item} (${m.locale}) in the store no longer match what was pushed. Push the draft again.`,
         locale: m.locale,
-        item: m.item,
-      });
+        item: m.item });
     }
     if (differs.length > 30)
       add({
         code: 'draft_differs',
         severity: 'blocking',
-        message: `${differs.length - 30} more pushed items differ.`,
-      });
+        message: `${differs.length - 30} more pushed items differ.` });
   }
 
   // The listing as the store holds it.
@@ -476,8 +449,7 @@ export function evaluateChecks(input: {
         code: 'locale_without_screenshots',
         severity: 'warning',
         message: `${locale.locale} has no screenshots.`,
-        locale: locale.locale,
-      });
+        locale: locale.locale });
     for (const [field, value] of Object.entries(locale.text)) {
       if (!isBlank(value)) continue;
       const spec = ios
@@ -502,8 +474,7 @@ export function evaluateChecks(input: {
         locale: locale.locale,
         item: field,
         source: spec.source,
-        verified,
-      });
+        verified });
     }
     for (const set of locale.assets) {
       for (const image of set.images) {
@@ -513,8 +484,7 @@ export function evaluateChecks(input: {
             severity: 'blocking',
             message: `A ${set.target} image in ${locale.locale} is ${image.state}, not processed.`,
             locale: locale.locale,
-            item: set.target,
-          });
+            item: set.target });
         }
       }
     }
@@ -523,8 +493,7 @@ export function evaluateChecks(input: {
     add({
       code: 'no_screenshots',
       severity: 'blocking',
-      message: 'The listing has no screenshots in any locale.',
-    });
+      message: 'The listing has no screenshots in any locale.' });
 
   // The documented specs, held against what the store lists (sizes and counts; the bytes are not read).
   const facts: AssetFacts[] = [];
@@ -544,8 +513,7 @@ export function evaluateChecks(input: {
           format: null,
           extension: 'png',
           hasAlpha: null,
-          read: image.width !== null && image.height !== null ? 'read' : 'not_read',
-        });
+          read: image.width !== null && image.height !== null ? 'read' : 'not_read' });
       });
     }
   }
@@ -559,8 +527,7 @@ export function evaluateChecks(input: {
       item: p.path ?? p.rule,
       rule: p.rule,
       source: p.source,
-      verified: p.verified,
-    });
+      verified: p.verified });
   }
   return out;
 }
@@ -570,8 +537,7 @@ const split = (items: SubmitCheck[]): SubmitChecks => {
   return {
     blocking,
     warnings: items.filter((i) => i.severity === 'warning'),
-    canSubmit: blocking.length === 0,
-  };
+    canSubmit: blocking.length === 0 };
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -594,10 +560,8 @@ export function submitConfirmHash(input: {
     pushed: {
       confirmHash: input.record.confirmHash,
       versionId: input.record.versionId,
-      items: sha(JSON.stringify(input.record.manifest)),
-    },
-    store: submitKey(input.state),
-  });
+      items: sha(JSON.stringify(input.record.manifest)) },
+    store: submitKey(input.state) });
   return sha(body);
 }
 
@@ -630,8 +594,7 @@ export const submitConfig = (ctx: Pick<SubmitContext, 'submitEnabled'>): SubmitC
   minimumRole: 'admin',
   irreversible: true,
   releases: false,
-  note: 'Submitting hands the pushed draft to the store’s review. It cannot be recalled from here and never releases a version or changes a rollout (docs/api/submit.md).',
-});
+  note: 'Submitting hands the pushed draft to the store’s review. It cannot be recalled from here and never releases a version or changes a rollout (docs/api/submit.md).' });
 
 export type SubmitStateView = {
   enabled: boolean;
@@ -669,13 +632,10 @@ export async function getSubmitState(
             pushedBy: record.pushedBy,
             versionString: record.versionString,
             texts: record.manifest.text.length,
-            assetSets: record.manifest.assets.length,
-          }
+            assetSets: record.manifest.assets.length }
         : null,
       inFlight: { submit: inFlight.submit === 'writing', push: inFlight.push === 'writing' },
-      unknownOutcome: { submit: inFlight.submit === 'unknown', push: inFlight.push === 'unknown' },
-    },
-  };
+      unknownOutcome: { submit: inFlight.submit === 'unknown', push: inFlight.push === 'unknown' } } };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -730,7 +690,7 @@ export type SubmitPreview = {
 };
 
 const irreversibleOf = (platform: Platform, record: PushRecord): string[] =>
-  isApplePlatform(platform)
+  !supports(platform, 'transactionalEdits')
     ? [
         `${record.versionString ? `Version ${record.versionString}` : 'The version'} is handed to App Review. This server cannot withdraw it: only App Store Connect can.`,
         'Once submitted the version and its listing can no longer be edited here.',
@@ -766,16 +726,13 @@ function previewOf(
         textFields: Object.values(l.text).filter((v) => !isBlank(v)).length,
         screenshotSets: l.assets
           .filter((a) => a.kind === 'screenshot')
-          .map((a) => ({ target: a.target, device: a.device, images: a.images.length })),
-      })),
+          .map((a) => ({ target: a.target, device: a.device, images: a.images.length })) })),
       pushed: {
         pushedAt: record.pushedAt,
         pushedBy: record.pushedBy,
         texts: record.manifest.text.length,
-        assetSets: record.manifest.assets.length,
-      },
-      includesChangesNotPushedHere: isGooglePlatform(app.platform),
-    },
+        assetSets: record.manifest.assets.length },
+      includesChangesNotPushedHere: supports(app.platform, 'transactionalEdits') },
     tracks: state.tracks,
     irreversible: irreversibleOf(app.platform, record),
     submits: true,
@@ -787,12 +744,10 @@ function previewOf(
     confirmation: ready
       ? {
           phrase: confirmationPhrase(app, record),
-          instruction: `Type "${confirmationPhrase(app, record)}" to confirm. This cannot be undone from here.`,
-        }
+          instruction: `Type "${confirmationPhrase(app, record)}" to confirm. This cannot be undone from here.` }
       : null,
     confirmationRequired: input.stepUpCovers !== true,
-    readAt: ctx.now(),
-  };
+    readAt: ctx.now() };
 }
 
 const noPush = (): Failure =>
@@ -835,9 +790,7 @@ export async function previewSubmit(
       record,
       state,
       inFlight,
-      stepUpCovers: input.stepUpCovers,
-    }),
-  };
+      stepUpCovers: input.stepUpCovers }) };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -883,10 +836,8 @@ async function auditFailed(
       platform: app.platform,
       ...(state?.version ? { versionId: state.version.id } : {}),
       hash: input.confirmHash,
-      ...extra,
-    },
-    at: ctx.now(),
-  });
+      ...extra },
+    at: ctx.now() });
 }
 
 async function succeed(
@@ -927,10 +878,8 @@ async function succeed(
         via: s.via,
         confirmedByReread: s.reread,
         hash: input.confirmHash,
-        ...(s.cause ? { cause: s.cause } : {}),
-      },
-      at,
-    });
+        ...(s.cause ? { cause: s.cause } : {}) },
+      at });
     await emitEvent(tx, {
       workspaceId: input.workspaceId,
       type: 'listing.submitted',
@@ -944,10 +893,8 @@ async function succeed(
         via: s.via,
         released: false,
         confirmedByReread: s.reread,
-        actor: { type: input.actor.type, id: input.actor.id },
-      },
-      at,
-    });
+        actor: { type: input.actor.type, id: input.actor.id } },
+      at });
   });
   await releaseClaim(ctx.db, s.claim);
   return {
@@ -961,9 +908,7 @@ async function succeed(
       released: false,
       confirmedByReread: s.reread,
       submittedAt: at,
-      note: isApplePlatform(s.app.platform) ? NOTE_IOS : NOTE_PLAY,
-    },
-  };
+      note: byFamily(s.app.platform, { apple: NOTE_IOS, google: NOTE_PLAY }) } };
 }
 
 /**
@@ -1044,8 +989,7 @@ export async function applySubmit(
             input.confirmHash;
           if (same) accepted = current;
           return same;
-        },
-      }),
+        } }),
     );
   } catch (error) {
     if (error instanceof SubmitDriftError) {
@@ -1053,8 +997,7 @@ export async function applySubmit(
         await auditFailed(ctx, input, app, error.current, {
           code: 'blocked',
           outcome: 'refused',
-          blocking: blocked.blocking.map((b) => b.code).slice(0, 20),
-        });
+          blocking: blocked.blocking.map((b) => b.code).slice(0, 20) });
         await releaseClaim(db, claim);
         return failure(
           409,
@@ -1065,8 +1008,7 @@ export async function applySubmit(
       }
       await auditFailed(ctx, input, app, error.current, {
         code: 'state_changed',
-        outcome: 'refused',
-      });
+        outcome: 'refused' });
       await releaseClaim(db, claim);
       return failure(
         409,
@@ -1079,9 +1021,7 @@ export async function applySubmit(
             record,
             state: error.current,
             inFlight: { submit: null, push: null },
-            stepUpCovers: input.stepUpCovers,
-          }),
-        },
+            stepUpCovers: input.stepUpCovers }) },
       );
     }
     if (error instanceof SubmitOutcomeUnknownError || error instanceof SubmitTimeout) {
@@ -1102,13 +1042,12 @@ export async function applySubmit(
       submissionId: done.submissionId,
       submissionState: done.submissionState,
       via: done.via,
-      reread: false,
-    });
+      reread: false });
   }
 
   // ----- an unknown outcome is checked, not sent again
   const cause = unknown?.cause ?? 'unknown';
-  if (isGooglePlatform(app.platform)) {
+  if (supports(app.platform, 'transactionalEdits')) {
     // Google Play shows no review state: reading cannot settle it.
     await markUnknown(db, claim);
     await auditFailed(ctx, input, app, accepted, { code: cause, outcome: 'unknown' });
@@ -1131,8 +1070,7 @@ export async function applySubmit(
     await auditFailed(ctx, input, app, accepted, {
       code: cause,
       outcome: 'unknown',
-      readBack: 'failed',
-    });
+      readBack: 'failed' });
     return failure(
       409,
       'outcome_unknown',
@@ -1148,8 +1086,7 @@ export async function applySubmit(
       submissionState: null,
       via: 'review_submission',
       reread: true,
-      cause,
-    });
+      cause });
   }
   await auditFailed(ctx, input, app, accepted, { code: 'not_applied', outcome: 'failed', cause });
   await releaseClaim(db, claim);

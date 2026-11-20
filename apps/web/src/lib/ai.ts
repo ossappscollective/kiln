@@ -1,19 +1,4 @@
-import {
-  type AiAcceptedRef,
-  type AiAppContext,
-  type AiFlag,
-  type AiProposal,
-  type AiProposalKind,
-  type AiProvider,
-  type AiSuggestionView,
-  aiAcceptAction,
-  buildSecret,
-  can,
-  checkSecret,
-  isApplePlatform,
-  type Platform,
-  type Role,
-} from '@mrm/core';
+import { aiAcceptAction, type AiAcceptedRef, type AiAppContext, type AiFlag, type AiProposal, type AiProposalKind, type AiProvider, type AiSuggestionView, buildSecret, byFamily, can, checkSecret, type Platform, type Role, type StoreFamily, storeFamilyOf } from '@mrm/core';
 import { centsFromText, centsInput, insightTitle } from './ai-insights.ts';
 import { placementLine, stageInLabel } from './ai-placement.ts';
 import { ApiError } from './api.ts';
@@ -256,8 +241,7 @@ const NOT_CONFIGURED_ADMIN: Record<AiReason, string> = {
   no_credential: 'Add the API key of the provider to finish the set-up.',
   no_url: 'Enter the address of the model server to finish the set-up.',
   credential_unreadable: 'The saved key could not be read. Enter it again.',
-  bad_url: 'This server does not allow that address. Change it, or ask whoever runs this server.',
-};
+  bad_url: 'This server does not allow that address. Change it, or ask whoever runs this server.' };
 
 /** The one sentence that says where AI assistance stands. `canManage` decides whether it says what to do or who can. */
 export function aiStateInfo(
@@ -270,16 +254,14 @@ export function aiStateInfo(
       return {
         tone: 'info',
         label: 'Off on this server',
-        message: OFF_SERVER_TEXT,
-      };
+        message: OFF_SERVER_TEXT };
     case 'off_workspace':
       return {
         tone: 'info',
         label: 'Off',
         message: config.canManage
           ? 'AI assistance is off for this workspace. Turn it on below.'
-          : 'AI assistance is off for this workspace. An admin can turn it on in Settings.',
-      };
+          : 'AI assistance is off for this workspace. An admin can turn it on in Settings.' };
     case 'not_configured': {
       const reason = config.reason ?? 'no_model';
       return {
@@ -287,8 +269,7 @@ export function aiStateInfo(
         label: 'Not set up',
         message: config.canManage
           ? NOT_CONFIGURED_ADMIN[reason]
-          : 'AI assistance is not set up yet. An admin can finish it in Settings.',
-      };
+          : 'AI assistance is not set up yet. An admin can finish it in Settings.' };
     }
     default: {
       const label = config.providers?.find((p) => p.id === config.settings.provider)?.label;
@@ -378,8 +359,7 @@ export function suggestAvailability(input: {
     return {
       visible: true,
       enabled: false,
-      reason: `The monthly limit is used up. It starts again on ${resetText(config.usage.resetsAt)}.`,
-    };
+      reason: `The monthly limit is used up. It starts again on ${resetText(config.usage.resetsAt)}.` };
   }
   return { visible: true, enabled: true, reason: null };
 }
@@ -447,8 +427,7 @@ export function createDisclosureGate(storage: () => DisclosureStorage | null): D
     },
     reset() {
       session.clear();
-    },
-  };
+    } };
 }
 
 function browserStorage(): DisclosureStorage | null {
@@ -473,49 +452,41 @@ export const flagTexts: Record<AiFlag, { text: string; tone: FlagTone; blocks: s
   invalid_term: {
     text: 'Not a usable keyword',
     tone: 'bad',
-    blocks: 'It is not a usable keyword.',
-  },
+    blocks: 'It is not a usable keyword.' },
   field_not_for_store: { text: 'Field not in this store', tone: 'info', blocks: null },
   over_limit: {
     text: 'Over the limit',
     tone: 'bad',
-    blocks: 'It is longer than the store allows. Shorten it by hand.',
-  },
+    blocks: 'It is longer than the store allows. Shorten it by hand.' },
   trimmed: { text: 'Trimmed to fit', tone: 'warn', blocks: null },
   unchanged: { text: 'Same as now', tone: 'info', blocks: 'It is the same as the current text.' },
   not_stageable: {
     text: 'Cannot be staged',
     tone: 'bad',
-    blocks: 'A draft push cannot write this field.',
-  },
+    blocks: 'A draft push cannot write this field.' },
   empty: { text: 'Empty', tone: 'bad', blocks: 'It is empty.' },
   cleaned: { text: 'Odd characters removed', tone: 'warn', blocks: null },
   markup: {
     text: 'Looks like HTML',
     tone: 'bad',
-    blocks: 'Replies are plain text, and this looks like HTML.',
-  },
+    blocks: 'Replies are plain text, and this looks like HTML.' },
   banned_term: {
     text: 'Uses a word you ruled out',
     tone: 'bad',
-    blocks: 'It uses a word the AI context of this app rules out. Edit it by hand.',
-  },
+    blocks: 'It uses a word the AI context of this app rules out. Edit it by hand.' },
   personal_data: {
     text: 'May hold personal data',
     tone: 'bad',
-    blocks: 'It seems to hold an email address, a link or a number. Write it by hand.',
-  },
+    blocks: 'It seems to hold an email address, a link or a number. Write it by hand.' },
   risky_promise: { text: 'Makes a promise', tone: 'warn', blocks: null },
   unverified_number: { text: 'Number not in the data', tone: 'warn', blocks: null },
-  brand_term_missing: { text: 'A brand name is missing', tone: 'warn', blocks: null },
-};
+  brand_term_missing: { text: 'A brand name is missing', tone: 'warn', blocks: null } };
 
 export const flagInfos = (flags: readonly AiFlag[]): FlagInfo[] =>
   flags.map((flag) => ({
     flag,
     text: flagTexts[flag]?.text ?? flag,
-    tone: flagTexts[flag]?.tone ?? 'info',
-  }));
+    tone: flagTexts[flag]?.tone ?? 'info' }));
 
 /** Why an item cannot be accepted, from its flags. */
 export function blockedReason(flags: readonly AiFlag[]): string {
@@ -534,17 +505,15 @@ const LISTING_LABELS: Record<string, string> = {
   promotional_text: 'Promotional text',
   title: 'Title',
   short_description: 'Short description',
-  full_description: 'Full description',
-};
+  full_description: 'Full description' };
 export const listingFieldLabel = (field: string): string => LISTING_LABELS[field] ?? field;
 
 /** The fields the "listing_improve" task offers (the ones a draft push can write), per platform. */
-const IMPROVABLE: Record<'apple' | 'play', readonly string[]> = {
+const IMPROVABLE: Record<StoreFamily, readonly string[]> = {
   apple: ['description', 'keywords', 'promotional_text'],
-  play: ['title', 'short_description', 'full_description'],
-};
+  google: ['title', 'short_description', 'full_description'] };
 export const canImproveField = (platform: Platform, field: string): boolean =>
-  IMPROVABLE[isApplePlatform(platform) ? 'apple' : 'play'].indexOf(field) !== -1;
+  IMPROVABLE[storeFamilyOf(platform)].indexOf(field) !== -1;
 
 export type RowMeter = {
   used: number;
@@ -564,8 +533,7 @@ export function meterFor(used: number, limit: number, unit: 'characters' | 'byte
     remaining,
     over: remaining < 0,
     unit,
-    percent: limit > 0 ? Math.max(0, Math.min(100, (used / limit) * 100)) : 0,
-  };
+    percent: limit > 0 ? Math.max(0, Math.min(100, (used / limit) * 100)) : 0 };
 }
 
 export type ProposalRow = {
@@ -610,8 +578,7 @@ export function proposalRows(proposal: AiProposal): ProposalRow[] {
         meter: null,
         group: null,
         variant: null,
-        placement: item.field,
-      }));
+        placement: item.field }));
     case 'listing_text':
       return proposal.fields.map((f, index) => ({
         index,
@@ -626,8 +593,7 @@ export function proposalRows(proposal: AiProposal): ProposalRow[] {
         meter: f.limit === null ? null : meterFor(f.length, f.limit, f.unit),
         group: null,
         variant: null,
-        placement: null,
-      }));
+        placement: null }));
     case 'listing_variants': {
       const out: ProposalRow[] = [];
       for (const f of proposal.fields) {
@@ -645,8 +611,7 @@ export function proposalRows(proposal: AiProposal): ProposalRow[] {
             meter: f.limit === null ? null : meterFor(v.length, f.limit, f.unit),
             group: f.field,
             variant: n,
-            placement: null,
-          });
+            placement: null });
         });
       }
       return out;
@@ -669,8 +634,7 @@ export function proposalRows(proposal: AiProposal): ProposalRow[] {
           meter: meterFor(proposal.length, proposal.limit, 'characters'),
           group: null,
           variant: null,
-          placement: null,
-        },
+          placement: null },
       ];
   }
 }
@@ -807,23 +771,20 @@ export function acceptedNote(
       return {
         text,
         href: asoViewHref(appId, 'keywords', appPlatform ?? platform),
-        linkLabel: 'Show them',
-      };
+        linkLabel: 'Show them' };
     }
     case 'listing_text': {
       const names = result.stagedFields.map(listingFieldLabel).join(', ');
       return {
         text: `Staged ${plural(result.stagedFields.length, 'text', 'texts')} for ${result.locale}${names ? ` (${names})` : ''}. Nothing is sent to a store until you push it from Pending changes.`,
         href: appAddress(appId, 'pending', platform),
-        linkLabel: 'Open Pending changes',
-      };
+        linkLabel: 'Open Pending changes' };
     }
     case 'reply_draft':
       return {
         text: 'Saved as a reply draft. Nothing is sent.',
         href: appReviewsHref(appId, platform),
-        linkLabel: 'Open the reviews',
-      };
+        linkLabel: 'Open the reviews' };
     case 'insight':
       return { text: 'Marked as reviewed. Nothing was changed.', href: null, linkLabel: null };
   }
@@ -874,8 +835,7 @@ export const ADDRESS_ENV = 'MRM_AI_ALLOW_PRIVATE_URLS';
 
 export const ADDRESS_TEXTS: Record<AddressHintCode, string> = {
   private_address_blocked: `This server only talks to public addresses. To use a model on your own machine or network, the person who runs this server sets ${ADDRESS_ENV}=true and restarts it. In Docker, localhost is the container itself, and plain http is accepted only for localhost, so a model on the host machine needs an https address this server can reach (or the server run outside Docker).`,
-  plain_http_not_allowed: `Plain http is accepted only for localhost, and only when the person who runs this server has set ${ADDRESS_ENV}=true. For any other address use https.`,
-};
+  plain_http_not_allowed: `Plain http is accepted only for localhost, and only when the person who runs this server has set ${ADDRESS_ENV}=true. For any other address use https.` };
 
 const NOT_FOUND_TEXT =
   'The provider answered "not found". Check the model name and, for your own server, the address (it usually ends in /v1).';
@@ -1112,8 +1072,7 @@ const TEST_FAILURES: Record<string, string> = {
   rate_limited: 'The provider is limiting requests. Try again in a moment.',
   too_large: 'The provider refused the small test request as too large.',
   invalid_output:
-    'The provider answered, but not in the form this tool needs. Check that the model can return structured answers.',
-};
+    'The provider answered, but not in the form this tool needs. Check that the model can return structured answers.' };
 
 /** The sentence for a finished test, chosen from fixed codes (never the provider's own text). */
 export function aiTestText(
@@ -1138,15 +1097,13 @@ export function aiTestText(
     if (hint)
       return {
         ok: false,
-        text: `The provider answered, but not in the form this tool needs. ${hint}`,
-      };
+        text: `The provider answered, but not in the form this tool needs. ${hint}` };
   }
   return {
     ok: false,
     text:
       TEST_FAILURES[outcome.kind ?? ''] ??
-      'The test did not work. Check the settings and try again.',
-  };
+      'The test did not work. Check the settings and try again.' };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1192,8 +1149,7 @@ export function formFromConfig(config: Pick<AiConfig, 'settings'>): AiForm {
     softWarn: String(s.softWarnPercent ?? DEFAULT_SOFT_WARN),
     priceIn: centsInput(s.priceInputCentsPerMTok ?? 0),
     priceOut: centsInput(s.priceOutputCentsPerMTok ?? 0),
-    costCap: centsInput(s.monthlyCostCapCents ?? 0),
-  };
+    costCap: centsInput(s.monthlyCostCapCents ?? 0) };
 }
 
 const MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$/;

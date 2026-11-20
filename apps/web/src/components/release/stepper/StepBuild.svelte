@@ -15,7 +15,7 @@
   onreadtracks (Google Play: read the tracks the person named).
 -->
 <script lang="ts">
-  import { type Role, can, isApplePlatform } from '@mrm/core';
+  import { can, type Role, supports } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../../lib/api.ts';
   import { buildNumberOfTitle, testBuildsHref } from '../../../lib/builds.ts';
@@ -30,8 +30,7 @@
     codesInTrack,
     isTrackName,
     noBuildSentence,
-    noCodeSentence,
-  } from '../../../lib/release-candidates.ts';
+    noCodeSentence } from '../../../lib/release-candidates.ts';
   import { type EditableState, stagedField } from '../../../lib/release-stepper.ts';
   import { type Promote, promoteNote } from '../../../lib/play-promote.ts';
   import { buildChip, buildHasProblem, orderBuilds, visibleBuilds } from '../../../lib/stepper-layout.ts';
@@ -66,8 +65,7 @@
     source = $bindable('beta'),
     promote = null,
     onread,
-    onreadtracks,
-  }: {
+    onreadtracks }: {
     api: Api;
     workspaceId: string;
     role: Role;
@@ -87,7 +85,7 @@
   } = $props();
 
   const uid = $props.id();
-  const apple = $derived(isApplePlatform(app.platform));
+  const apple = $derived(!supports(app.platform, 'releaseTracks'));
   const mayEdit = $derived(canStage(role));
   const canTest = $derived(can(role, 'builds.read'));
 

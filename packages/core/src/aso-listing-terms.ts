@@ -20,8 +20,7 @@ import {
   languageOf,
   normalizeLocale,
   stem,
-  words,
-} from './aso.ts';
+  words } from './aso.ts';
 import {
   keywordFieldEntries,
   keywordFieldWaste,
@@ -30,10 +29,9 @@ import {
   storefrontFor,
   type TrackedRef,
   termKeyOf,
-  type WasteReason,
-} from './aso-coach.ts';
+  type WasteReason } from './aso-coach.ts';
 import { countBytes } from './listing.ts';
-import { isApplePlatform } from './platform.ts';
+import { supports } from './platform.ts';
 
 export type TermSource = 'keywords' | 'title' | 'subtitle' | 'shortDescription' | 'description';
 
@@ -124,7 +122,7 @@ export function listingTerms(input: {
   const { platform, locale, fields } = input;
   const options = input.options ?? {};
   const language = languageOf(locale);
-  const apple = isApplePlatform(platform);
+  const apple = supports(platform, 'keywordField');
   const byKey = new Map<string, ListingTerm>();
   const order: ListingTerm[] = [];
   const touch = (term: string, key: string, source: TermSource, set: boolean): ListingTerm => {
@@ -138,8 +136,7 @@ export function listingTerms(input: {
         waste: null,
         duplicate: false,
         entries: 0,
-        occurrences: 0,
-      };
+        occurrences: 0 };
       byKey.set(key, t);
       order.push(t);
     }
@@ -154,8 +151,7 @@ export function listingTerms(input: {
     const waste = keywordFieldWaste(value, {
       ...(fields.title !== undefined ? { title: fields.title } : {}),
       ...(fields.subtitle !== undefined ? { subtitle: fields.subtitle } : {}),
-      language,
-    });
+      language });
     const entries = keywordFieldEntries(value, locale);
     for (const e of entries) touch(e.term, e.key, 'keywords', true);
     // Every entry counts toward `entries`, a repeat or a plural variant too; the first reason a key was dropped is its mark.
@@ -177,8 +173,7 @@ export function listingTerms(input: {
       remaining: APP_STORE_KEYWORD_BYTES - bytes,
       over: bytes > APP_STORE_KEYWORD_BYTES,
       entries: entries.length,
-      wastedBytes: waste.totalBytes,
-    };
+      wastedBytes: waste.totalBytes };
   }
 
   const textFields: { field: TermSource; text: string | undefined }[] = apple
@@ -268,8 +263,7 @@ export function trackingOf(
       tracked: true,
       keywordId: t.id ?? null,
       state: t.state ?? null,
-      rank: t.state === 'ranked' ? (t.rank ?? null) : null,
-    };
+      rank: t.state === 'ranked' ? (t.rank ?? null) : null };
   }
   return { tracked: false, keywordId: null, state: null, rank: null };
 }
@@ -308,12 +302,10 @@ export function listingRows(input: {
       platform: input.platform,
       locale: l.locale,
       fields: l.fields,
-      ...(input.options ? { options: input.options } : {}),
-    });
+      ...(input.options ? { options: input.options } : {}) });
     const rows: ListingRowTerm[] = terms.terms.map((t) => ({
       ...t,
-      ...trackingOf(t, l.locale, country, input.tracked),
-    }));
+      ...trackingOf(t, l.locale, country, input.tracked) }));
     return {
       locale: l.locale,
       country,
@@ -321,7 +313,6 @@ export function listingRows(input: {
       trackable: normalizeLocale(l.locale) !== undefined,
       terms,
       rows,
-      untracked: rows.filter((t) => !t.tracked && checkTerm(t.term).ok),
-    };
+      untracked: rows.filter((t) => !t.tracked && checkTerm(t.term).ok) };
   });
 }

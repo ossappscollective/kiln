@@ -1,11 +1,4 @@
-import {
-  type AssetKind,
-  type AssetSlot,
-  isApplePlatform,
-  PLAY_DEVICES,
-  PLAY_GRAPHIC_FILES,
-  type Platform,
-} from '@mrm/core';
+import { type AssetKind, type AssetSlot, type Platform, PLAY_DEVICES, PLAY_GRAPHIC_FILES, supports } from '@mrm/core';
 import { screenshotFolders } from './store-assets.ts';
 
 /**
@@ -54,12 +47,11 @@ export function layoutFor(
 ): { ok: true; layout: PlanLayout } | { ok: false; message: string } {
   const { platform, locale, slot } = input;
   const stem = slot.device ?? slot.kind;
-  if (isApplePlatform(platform)) {
+  if (supports(platform, 'screenshotsByDevice')) {
     if (slot.kind !== 'screenshot')
       return {
         ok: false,
-        message: 'Only App Store screenshots are put in a repository from here.',
-      };
+        message: 'Only App Store screenshots are put in a repository from here.' };
     const mine = input.existing.find(
       (a) => a.locale === locale && a.kind === slot.kind && a.device === slot.device,
     );
@@ -74,30 +66,25 @@ export function layoutFor(
     if (input.roots.appStore === null)
       return {
         ok: false,
-        message: 'This repository has no App Store listing folder to put screenshots in.',
-      };
+        message: 'This repository has no App Store listing folder to put screenshots in.' };
     return {
       ok: true,
       layout: {
         dir: join(defaultScreenshotFolder(input.roots.appStore), locale),
         fixedStem: null,
-        stem,
-      },
-    };
+        stem } };
   }
   const root = input.roots.googlePlay;
   if (root === null)
     return {
       ok: false,
-      message: 'This repository has no Google Play listing folder to put images in.',
-    };
+      message: 'This repository has no Google Play listing folder to put images in.' };
   if (slot.kind === 'screenshot') {
     const device = PLAY_DEVICES.find((d) => d.id === slot.device);
     if (!device) return { ok: false, message: 'Not a Google Play screenshot type.' };
     return {
       ok: true,
-      layout: { dir: join(root, locale, 'images', device.dir), fixedStem: null, stem },
-    };
+      layout: { dir: join(root, locale, 'images', device.dir), fixedStem: null, stem } };
   }
   const name = Object.keys(PLAY_GRAPHIC_FILES).find((n) => PLAY_GRAPHIC_FILES[n] === slot.kind);
   if (name === undefined) return { ok: false, message: 'Not a Google Play graphic.' };
@@ -214,8 +201,7 @@ export function planSet(input: {
         path,
         oid: w.oid,
         from: { kind: 'repo', path: w.path },
-        replacesOid: now,
-      });
+        replacesOid: now });
       return;
     }
     if (now !== null && now === w.oid) {
@@ -227,8 +213,7 @@ export function planSet(input: {
       path,
       oid: w.oid,
       from: { kind: 'new', index: i },
-      replacesOid: now,
-    });
+      replacesOid: now });
   });
   const left: string[] = [];
   for (const c of current) {

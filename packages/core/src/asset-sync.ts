@@ -1,12 +1,11 @@
-import { isApplePlatform, isGooglePlatform, PLATFORMS, type Platform } from './platform.ts';
+import { type Platform, PLATFORMS, supports } from './platform.ts';
 import { type AssetSlot, assetStoreOf, slotKey } from './staged-changes.ts';
 import {
   APPLE_DISPLAYS,
   type AssetKind,
   type AssetStore,
   deviceLabel,
-  PLAY_DEVICES,
-} from './store-asset-specs.ts';
+  PLAY_DEVICES } from './store-asset-specs.ts';
 
 /**
  * Two way sync of store images (docs/adr/0012-assets-two-way-sync.md, docs/api/assets.md): the shapes the
@@ -54,8 +53,7 @@ export const ASSET_SYNC_LIMITS = {
   maxStagedUploadBytes: 64 * 1024 * 1024,
   maxStagedUploadFiles: 100,
   /** Seconds one answer of the store listing is reused. */
-  storeCacheSeconds: 60,
-} as const;
+  storeCacheSeconds: 60 } as const;
 
 /** Formats that may be uploaded (what a push writes). */
 export const UPLOAD_FORMATS: readonly string[] = ['png', 'jpeg'];
@@ -138,8 +136,7 @@ export const COMPARE_LABELS: Readonly<Record<AssetCompareStatus, string>> = {
   likely_same: 'Probably the same',
   differs: 'Differs',
   only_repo: 'Only in the repository',
-  only_store: 'Only in the store',
-};
+  only_store: 'Only in the store' };
 
 export type AssetCompareRow = {
   position: number;
@@ -181,8 +178,7 @@ export function compareFile(
   ) {
     return {
       status: 'differs',
-      reason: `The size differs: ${repo.width} x ${repo.height} in the repository, ${store.width} x ${store.height} in the store.`,
-    };
+      reason: `The size differs: ${repo.width} x ${repo.height} in the repository, ${store.width} x ${store.height} in the store.` };
   }
   if (repo.bytes !== null && store.bytes !== null && repo.bytes !== store.bytes) {
     return { status: 'differs', reason: 'The file sizes differ.' };
@@ -191,8 +187,7 @@ export function compareFile(
   return known
     ? {
         status: 'likely_same',
-        reason: 'The store gives no checksum, so the files are only compared by size.',
-      }
+        reason: 'The store gives no checksum, so the files are only compared by size.' }
     : { status: 'likely_same', reason: 'Too little is known about one side to say more.' };
 }
 
@@ -220,8 +215,7 @@ export function compareTotals(rows: readonly { status: AssetCompareStatus }[]): 
     likely_same: 0,
     differs: 0,
     only_repo: 0,
-    only_store: 0,
-  };
+    only_store: 0 };
   for (const r of rows) out[r.status] += 1;
   return out;
 }
@@ -287,7 +281,7 @@ export type Size = { width: number; height: number };
 
 /** The exact pixel sizes a store takes for a slot, or [] when it states ranges only. */
 export function requiredSizes(platform: Platform, slot: AssetSlot): Size[] {
-  if (isApplePlatform(platform)) {
+  if (supports(platform, 'screenshotsByDevice')) {
     if (slot.kind !== 'screenshot' || slot.device === null) return [];
     const base = slot.device.startsWith('imessage:')
       ? slot.device.slice('imessage:'.length)
@@ -307,7 +301,7 @@ export const sizeText = (s: Size): string => `${s.width} x ${s.height}`;
 export function requiredSizesText(platform: Platform, slot: AssetSlot): string {
   const sizes = requiredSizes(platform, slot);
   if (sizes.length === 0) {
-    if (isGooglePlatform(platform) && slot.kind === 'screenshot')
+    if (!supports(platform, 'screenshotsByDevice') && slot.kind === 'screenshot')
       return 'Google Play takes 320 to 3840 px on each side, the longer side at most twice the shorter';
     return 'The store states no exact size for this graphic';
   }
@@ -369,8 +363,7 @@ const EXTENSION_FOR: Readonly<Record<string, string>> = {
   png: 'png',
   jpeg: 'jpg',
   webp: 'webp',
-  gif: 'gif',
-};
+  gif: 'gif' };
 export const extensionForFormat = (format: string): string | undefined => EXTENSION_FOR[format];
 
 /**
@@ -394,8 +387,7 @@ export function fixAdvice(
         kind: 'remove_alpha',
         label: 'Remove the alpha channel',
         detail:
-          'Flattens the transparency onto a background colour (white by default) and writes a PNG without alpha.',
-      });
+          'Flattens the transparency onto a background colour (white by default) and writes a PNG without alpha.' });
     } else {
       manual.push(
         `The alpha channel can only be removed from a PNG, and this is ${facts.format ? facts.format.toUpperCase() : 'not a PNG'}. Export it again without transparency.`,
@@ -408,13 +400,12 @@ export function fixAdvice(
       options.push({
         kind: 'rename_extension',
         label: `Rename to .${right}`,
-        detail: `The content is ${facts.format.toUpperCase()}; the name says .${facts.extension}. The bytes do not change.`,
-      });
+        detail: `The content is ${facts.format.toUpperCase()}; the name says .${facts.extension}. The bytes do not change.` });
     }
   }
   const sizeRule =
     REQUIRED_SIZE_RULES.some((r) => has(r)) ||
-    (isApplePlatform(platform) && facts.kind === 'screenshot' && facts.device === null);
+    (supports(platform, 'screenshotsByDevice') && facts.kind === 'screenshot' && facts.device === null);
   if (sizeRule) {
     const need = requiredSizesText(platform, slot);
     if (
@@ -426,8 +417,7 @@ export function fixAdvice(
       options.push({
         kind: 'resize',
         label: 'Resize to the required size',
-        detail: `Scales to the nearest required size (${need}). Only PNG files are resized; a different aspect ratio is cropped to fill.`,
-      });
+        detail: `Scales to the nearest required size (${need}). Only PNG files are resized; a different aspect ratio is cropped to fill.` });
     } else {
       manual.push(
         `The size is wrong${facts.width !== null && facts.height !== null ? ` (${facts.width} x ${facts.height})` : ''}. Required: ${need}.${facts.format === 'png' ? '' : ' Only PNG files can be resized here.'}`,
@@ -435,7 +425,7 @@ export function fixAdvice(
     }
   }
   if (
-    isApplePlatform(platform) &&
+    supports(platform, 'screenshotsByDevice') &&
     facts.format !== null &&
     facts.format !== 'png' &&
     facts.format !== 'jpeg'

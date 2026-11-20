@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { APPLE_ROLLOUT_ACTIONS, AppleRolloutConnector, type AppleRolloutState, type AppleRolloutTarget, appleScope, connectorFactory, isMarketingVersion, isPlayTrackName, isVersionCode, normalizeFraction, planAppleRollout, planPlayRollout, PLAY_ROLLOUT_ACTIONS, PlayRolloutConnector, type PlayRolloutState, type PlayRolloutTarget, redactSecrets, type RolloutChange, RolloutDriftError, rolloutKey, RolloutOutcomeUnknownError, type RolloutPlan, type RolloutState, type RolloutTarget, sameRolloutState, secretStrings, type StoreConnectorInput, StoreError, StoreRateLimitError, type StoreRolloutConnector } from '@mrm/connectors';
-import { type ActorType, isApplePlatform, needsStoreAppId, type Platform } from '@mrm/core';
+import { type ActorType, needsStoreAppId, type Platform, supports } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
@@ -56,15 +56,12 @@ export const defaultRolloutConnectorFactory: RolloutConnectorFactory = connector
     AppleRolloutConnector.fromSecret(input.secret, {
           appStoreId: input.storeAppId ?? '',
           platform: appleScope(input),
-          fetch: input.fetch,
-        }),
+          fetch: input.fetch }),
   google_play: (input) =>
     new PlayRolloutConnector({
           serviceAccount: input.secret,
           packageName: input.identifier,
-          fetch: input.fetch,
-        }),
-});
+          fetch: input.fetch }) });
 
 export type RolloutContext = {
   db: Database;
@@ -128,8 +125,7 @@ export function parseRolloutTarget(
     }
     const target: PlayRolloutTarget = {
       track: input.track,
-      versionCodes: [...new Set(codes)].sort(),
-    };
+      versionCodes: [...new Set(codes)].sort() };
     return { ok: true, target };
   }
   if (input.track !== undefined || input.versionCodes !== undefined) {
@@ -214,8 +210,7 @@ export function rolloutConfirmHash(input: {
     platform: input.app.platform,
     target: input.target,
     change: input.change,
-    current: rolloutKey(input.current),
-  });
+    current: rolloutKey(input.current) });
   return createHash('sha256').update(body, 'utf8').digest('hex');
 }
 
@@ -263,9 +258,7 @@ function mapStoreError(error: unknown, secret: string): Mapped {
     code,
     failure: {
       ...failure(status, code, clean(message, secret), extra),
-      ...(headers ? { headers } : {}),
-    },
-  });
+      ...(headers ? { headers } : {}) } });
   if (error instanceof StoreRateLimitError) {
     const wait = error.retryAfterSeconds;
     return make(
@@ -324,8 +317,7 @@ async function withConnector<T>(
   const guardedFetch: typeof fetch = (target, init) =>
     baseFetch(target, {
       ...init,
-      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
-    });
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -492,10 +484,7 @@ async function connect(
         secret,
         identifier: app.identifier,
         storeAppId: app.storeAppId,
-        platform: app.platform,
-      },
-    },
-  };
+        platform: app.platform } } };
 }
 
 /** Reads the state of the target from the store. A failure is the answer to give. Changes nothing. */
@@ -533,8 +522,7 @@ export const rolloutConfig = (ctx: Pick<RolloutContext, 'rolloutEnabled'>): Roll
   envName: ROLLOUT_ENV,
   actions: { android: PLAY_ROLLOUT_ACTIONS, ios: APPLE_ROLLOUT_ACTIONS },
   irreversible: ['complete', 'release_to_all'],
-  fraction: { exclusiveMin: 0, exclusiveMax: 1 },
-});
+  fraction: { exclusiveMin: 0, exclusiveMax: 1 } });
 
 // ---------------------------------------------------------------------------------------------
 // State and preview
@@ -569,8 +557,7 @@ function allowedActionsOf(state: RolloutState): AllowedAction[] {
       ? [
           {
             action: 'set_fraction',
-            userFraction: normalizeFraction(((state.userFraction ?? 0) + 1) / 2) ?? 0.5,
-          },
+            userFraction: normalizeFraction(((state.userFraction ?? 0) + 1) / 2) ?? 0.5 },
           { action: 'halt' },
           { action: 'resume' },
           { action: 'complete' },
@@ -628,9 +615,7 @@ export async function readRolloutState(
       current: read.state,
       allowedActions: allowedActionsOf(read.state),
       minUserFraction: read.state.store === 'googleplay' ? read.state.userFraction : null,
-      readAt: ctx.now(),
-    },
-  };
+      readAt: ctx.now() } };
 }
 
 export type RolloutPreview = {
@@ -686,8 +671,7 @@ export async function previewRollout(
       {
         reason: plan.code,
         current: read.state,
-        allowedActions: allowedActionsOf(read.state),
-      },
+        allowedActions: allowedActionsOf(read.state) },
     );
   }
   return {
@@ -705,12 +689,9 @@ export async function previewRollout(
         app,
         target: parsed.target,
         change: parsed.change,
-        current: read.state,
-      }),
+        current: read.state }),
       warnings: warningsFor(read.state),
-      readAt: ctx.now(),
-    },
-  };
+      readAt: ctx.now() } };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -757,15 +738,13 @@ export async function applyRollout(
     id: app.id,
     name: app.name,
     platform: app.platform,
-    store: storeFor(app.platform),
-  };
+    store: storeFor(app.platform) };
 
   const taken = await takeClaim(ctx, {
     workspaceId: input.workspaceId,
     app,
     action: change.action,
-    actor: input.actor,
-  });
+    actor: input.actor });
   if (!taken.ok) return taken;
   const claim = taken.claim;
   // Anything that returns before the write is attempted gives the claim back.
@@ -793,8 +772,7 @@ export async function applyRollout(
           const same = hashOf(current) === input.confirmHash;
           if (same) before = current;
           return same;
-        },
-      }),
+        } }),
     );
   } catch (error) {
     if (error instanceof RolloutDriftError) {
@@ -820,14 +798,11 @@ export async function applyRollout(
                 proposed: plan.proposed,
                 summary: plan.summary,
                 irreversible: plan.irreversible,
-                confirmHash: hashOf(error.current),
-              }
+                confirmHash: hashOf(error.current) }
             : {
                 reason: plan.code,
                 problem: plan.message,
-                allowedActions: allowedActionsOf(error.current),
-              }),
-        },
+                allowedActions: allowedActionsOf(error.current) }) },
       );
     }
     if (error instanceof RolloutOutcomeUnknownError || error instanceof RolloutTimeout) {
@@ -856,8 +831,7 @@ export async function applyRollout(
       claim,
       before: outcome.before,
       after: outcome.after,
-      via: 'store',
-    });
+      via: 'store' });
   }
 
   // ----- an unknown outcome is checked, not sent again
@@ -874,8 +848,7 @@ export async function applyRollout(
       {
         code: unknown ?? 'unknown',
         outcome: 'unknown',
-        ...(readBack.ok ? {} : { readBack: 'failed' }),
-      },
+        ...(readBack.ok ? {} : { readBack: 'failed' }) },
       'failed',
     );
     return failure(
@@ -895,11 +868,10 @@ export async function applyRollout(
       before: accepted,
       after: current,
       via: 'reread',
-      cause: unknown ?? 'unknown',
-    });
+      cause: unknown ?? 'unknown' });
   }
   if (sameRolloutState(current, accepted)) {
-    if (isApplePlatform(app.platform)) {
+    if (!supports(app.platform, 'transactionalEdits')) {
       // Apple changes the state synchronously: the old state means the change was not applied.
       await audit(
         ctx,
@@ -981,10 +953,8 @@ async function audit(
         : {}),
       ...(state ? { ...targetDetail(state), from: summary(state) } : {}),
       hash: input.confirmHash,
-      ...extra,
-    },
-    at: ctx.now(),
-  });
+      ...extra },
+    at: ctx.now() });
 }
 
 async function succeed(
@@ -1019,10 +989,8 @@ async function succeed(
         irreversible,
         hash: input.confirmHash,
         via: s.via,
-        ...(s.cause ? { cause: s.cause } : {}),
-      },
-      at,
-    });
+        ...(s.cause ? { cause: s.cause } : {}) },
+      at });
     // Ids and values only: never a credential, a token or a store response.
     await emitEvent(tx, {
       workspaceId: input.workspaceId,
@@ -1038,10 +1006,8 @@ async function succeed(
         to: summary(s.after),
         irreversible,
         confirmedByReread: s.via === 'reread',
-        actor: { type: input.actor.type, id: input.actor.id },
-      },
-      at,
-    });
+        actor: { type: input.actor.type, id: input.actor.id } },
+      at });
   });
   await releaseClaim(ctx.db, s.claim);
   return {
@@ -1054,7 +1020,5 @@ async function succeed(
       irreversible,
       confirmedByReread: s.via === 'reread',
       appliedAt: at,
-      note: NOTE,
-    },
-  };
+      note: NOTE } };
 }

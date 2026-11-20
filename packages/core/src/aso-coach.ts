@@ -27,10 +27,9 @@ import {
   matchWords,
   type RankChange,
   stem,
-  words,
-} from './aso.ts';
+  words } from './aso.ts';
 import { APP_STORE_FIELD_SPECS, countBytes, countCharacters, PLAY_FIELD_SPECS } from './listing.ts';
-import { isApplePlatform } from './platform.ts';
+import { supports } from './platform.ts';
 
 // ---------------------------------------------------------------------------------------------
 // Locale helpers
@@ -76,14 +75,12 @@ const APPLE_BUDGETS: readonly BudgetSpec[] = [
     field: 'subtitle',
     label: 'Subtitle',
     limit: limitOf(appleSpecs.subtitle),
-    unit: appleSpecs.subtitle.unit,
-  },
+    unit: appleSpecs.subtitle.unit },
   {
     field: 'keywords',
     label: 'Keyword field',
     limit: limitOf(appleSpecs.keywords),
-    unit: appleSpecs.keywords.unit,
-  },
+    unit: appleSpecs.keywords.unit },
 ];
 
 /**
@@ -100,16 +97,13 @@ export const BUDGET_SPECS: Record<AsoPlatform, readonly BudgetSpec[]> = {
       field: 'shortDescription',
       label: 'Short description',
       limit: limitOf(playSpecs.short_description),
-      unit: playSpecs.short_description.unit,
-    },
+      unit: playSpecs.short_description.unit },
     {
       field: 'description',
       label: 'Full description',
       limit: limitOf(playSpecs.full_description),
-      unit: playSpecs.full_description.unit,
-    },
-  ],
-};
+      unit: playSpecs.full_description.unit },
+  ] };
 
 export const BUDGET_ASSUMPTIONS: Record<'apple' | 'google', readonly string[]> = {
   apple: [
@@ -120,8 +114,7 @@ export const BUDGET_ASSUMPTIONS: Record<'apple' | 'google', readonly string[]> =
   google: [
     'Google Play limits used here: title 30, short description 80, full description 4000 characters.',
     'UNVERIFIED: how Google Play weights a term that is repeated across title, short and full description. Repeats are listed for information; no waste is counted.',
-  ],
-};
+  ] };
 
 export type FieldBudget = {
   field: FitField;
@@ -207,8 +200,7 @@ const tokensOf = (text: string | undefined, language: string): Token[] =>
         key: stem(foldWord(w), language),
         display: w,
         // A stop word or a one or two character word is no keyword by itself (Apple asks for entries longer than two characters).
-        ignore: isStopWord(language, w) || Array.from(w).length < 3,
-      }))
+        ignore: isStopWord(language, w) || Array.from(w).length < 3 }))
     : [];
 
 /** The keyword field without its waste, entry by entry. Pure; the order of the checks is the order of the reasons. */
@@ -266,8 +258,7 @@ export function keywordFieldWaste(
     totalBytes: Math.max(0, countBytes(value) - compactedBytes),
     items,
     compacted,
-    compactedBytes,
-  };
+    compactedBytes };
 }
 
 const fieldValue = (fields: FitFields, field: FitField): string => fields[field] ?? '';
@@ -285,7 +276,7 @@ export function listingBudget(input: {
 }): ListingBudget {
   const { platform, locale, fields } = input;
   const language = languageOf(locale);
-  const isApple = isApplePlatform(platform);
+  const isApple = supports(platform, 'keywordField');
   const specs = BUDGET_SPECS[platform];
   const tracked = input.keywords
     .map((k) => ({ k, words: Array.from(new Set(matchWords(k.term, language))) }))
@@ -298,8 +289,7 @@ export function listingBudget(input: {
       ? keywordFieldWaste(fields.keywords, {
           ...(fields.title !== undefined ? { title: fields.title } : {}),
           ...(fields.subtitle !== undefined ? { subtitle: fields.subtitle } : {}),
-          language,
-        })
+          language })
       : null;
 
   const budgets: FieldBudget[] = specs.map((spec) => {
@@ -318,8 +308,7 @@ export function listingBudget(input: {
       empty: text.trim() === '',
       keywords: tracked
         .filter((t) => t.words.every((w) => set.has(w)))
-        .map((t) => ({ id: t.k.id, term: t.k.term })),
-    };
+        .map((t) => ({ id: t.k.id, term: t.k.term })) };
   });
 
   // Repeats across fields. The keyword field is read without what `waste` already takes out, so an
@@ -355,8 +344,7 @@ export function listingBudget(input: {
       fields: entry.fields,
       tracked: trackedWords.has(key),
       severity: isApple ? 'waste' : 'info',
-      wastedCharacters: isApple ? entry.cost : 0,
-    });
+      wastedCharacters: isApple ? entry.cost : 0 });
   });
   repeated.sort((a, b) => b.wastedCharacters - a.wastedCharacters || a.word.localeCompare(b.word));
 
@@ -420,8 +408,7 @@ export function listingBudget(input: {
     missing,
     partial,
     wastedTotal,
-    assumptions: isApple ? BUDGET_ASSUMPTIONS.apple : BUDGET_ASSUMPTIONS.google,
-  };
+    assumptions: isApple ? BUDGET_ASSUMPTIONS.apple : BUDGET_ASSUMPTIONS.google };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -439,8 +426,7 @@ export const REPORTED_EXTRA_LOCALES: Record<string, readonly string[]> = {
   be: ['nl-NL', 'fr-FR'],
   ch: ['en-GB', 'fr-FR', 'it'],
   jp: ['en-US'],
-  mx: ['en-GB'],
-};
+  mx: ['en-GB'] };
 
 export const STOREFRONT_NOTE =
   'UNVERIFIED: tools report that some storefronts also read the keywords of other locales of the same listing. Apple does not state this on the pages checked here. Treat it as a hint and check it yourself.';
@@ -542,7 +528,7 @@ export function untrackedSetKeywords(input: {
   listingLocales: readonly { locale: string; fields: FitFields }[];
   tracked: readonly TrackedRef[];
 }): UntrackedSetKeywords[] {
-  if (!isApplePlatform(input.platform)) return [];
+  if (!supports(input.platform, 'keywordField')) return [];
   const out: UntrackedSetKeywords[] = [];
   for (const l of input.listingLocales) {
     const value = l.fields.keywords;
@@ -578,7 +564,7 @@ export function untappedLocales(input: {
   listingLocales: readonly { locale: string; fields: FitFields }[];
   tracked: readonly { country: string; locale: string }[];
 }): UntappedLocale[] {
-  const isApple = isApplePlatform(input.platform);
+  const isApple = supports(input.platform, 'keywordField');
   const wanted = new Map<string, { locale: string; countries: string[]; keywords: number }>();
   for (const t of input.tracked) {
     const tag = tagOf(t.locale);
@@ -604,8 +590,7 @@ export function untappedLocales(input: {
         locale: entry.locale,
         kind: 'no_locale',
         countries: entry.countries,
-        keywords: entry.keywords,
-      });
+        keywords: entry.keywords });
       return;
     }
     if (isEmpty(listing.fields)) {
@@ -614,8 +599,7 @@ export function untappedLocales(input: {
         locale: listing.locale,
         kind: emptyKind,
         countries: entry.countries,
-        keywords: entry.keywords,
-      });
+        keywords: entry.keywords });
     }
   });
   for (const l of input.listingLocales) {
@@ -748,7 +732,7 @@ function dropText(change: RankChange | null): string {
 /** Up to `limit` (default 8) next actions in a fixed order of importance, from what the tool already holds; fewer, or none, when little applies. */
 export function buildCoach(input: CoachInput): CoachAction[] {
   const { platform, keywords } = input;
-  const isApple = isApplePlatform(platform);
+  const isApple = supports(platform, 'keywordField');
   const drafts: Draft[] = [];
   const stale = input.staleAfterMs ?? 7 * DAY_MS;
 
@@ -761,8 +745,7 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       detail:
         'A keyword is a word or phrase people might search for. Tracking one records where the app appears in the store results for it.',
       all: [],
-      link: { to: 'keywords_add', label: 'Add keywords' },
-    });
+      link: { to: 'keywords_add', label: 'Add keywords' } });
   }
 
   // 2. No rank check lately.
@@ -775,8 +758,7 @@ export function buildCoach(input: CoachInput): CoachAction[] {
         title: 'Check the ranks for the first time',
         detail: `${count(unchecked, 'tracked keyword has', 'tracked keywords have')} not been checked yet. A check reads the public store; nothing is changed there.`,
         all: [],
-        link: { to: 'keywords', label: 'Open keywords' },
-      });
+        link: { to: 'keywords', label: 'Open keywords' } });
     } else if (input.now - input.lastCheckAt >= stale) {
       const days = Math.floor((input.now - input.lastCheckAt) / DAY_MS);
       drafts.push({
@@ -785,8 +767,7 @@ export function buildCoach(input: CoachInput): CoachAction[] {
         title: `Ranks were last checked ${days === 1 ? '1 day' : `${days} days`} ago`,
         detail: 'Ranks only change when a check runs. Run one to see where things stand now.',
         all: [],
-        link: { to: 'keywords', label: 'Open keywords' },
-      });
+        link: { to: 'keywords', label: 'Open keywords' } });
     }
   }
 
@@ -806,8 +787,7 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       title: `${count(drops.length, 'keyword', 'keywords')} dropped in rank`,
       detail: `Down at least ${count(input.rankMoveThreshold, 'place', 'places')}, or out of the top 10, between the last two checks.`,
       all: drops.map((k) => `${k.term} (${k.country.toUpperCase()}): ${dropText(k.change)}`),
-      link: { to: 'keywords', label: 'Open keywords' },
-    });
+      link: { to: 'keywords', label: 'Open keywords' } });
   }
 
   // Per locale analysis of the listing, shared by the next actions.
@@ -822,8 +802,7 @@ export function buildCoach(input: CoachInput): CoachAction[] {
     list.map((k) => ({
       id: k.id,
       term: k.term,
-      ...(k.priority !== undefined ? { priority: k.priority } : {}),
-    }));
+      ...(k.priority !== undefined ? { priority: k.priority } : {}) }));
 
   // 4. Tracked keywords that are not in the listing.
   const missingLines: { line: string; locale: string; priority: number }[] = [];
@@ -834,14 +813,12 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       platform,
       locale: entry.locale,
       fields: listing.fields,
-      keywords: asFit(entry.list),
-    });
+      keywords: asFit(entry.list) });
     for (const m of budget.missing)
       missingLines.push({
         line: `${m.term} (${entry.locale})`,
         locale: listing.locale,
-        priority: m.priority,
-      });
+        priority: m.priority });
   });
   if (missingLines.length > 0) {
     missingLines.sort((a, b) => b.priority - a.priority || a.line.localeCompare(b.line));
@@ -853,16 +830,14 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       title: `${count(missingLines.length, 'tracked keyword is', 'tracked keywords are')} not in the listing`,
       detail: `None of their words appear in the ${where}, so the store has little reason to show the app for them.`,
       all: missingLines.map((m) => m.line),
-      link: { to: 'listing', locale: first.locale, label: `Open ${first.locale} in the listing` },
-    });
+      link: { to: 'listing', locale: first.locale, label: `Open ${first.locale} in the listing` } });
   }
 
   // 4b. Keywords set in the App Store keyword field that are not tracked.
   const untrackedSet = untrackedSetKeywords({
     platform,
     listingLocales: input.listingLocales,
-    tracked: keywords,
-  });
+    tracked: keywords });
   if (untrackedSet.length > 0) {
     const total = untrackedSet.reduce((n, u) => n + u.terms.length, 0);
     const first = untrackedSet[0] as UntrackedSetKeywords;
@@ -876,8 +851,7 @@ export function buildCoach(input: CoachInput): CoachAction[] {
         (u) =>
           `${u.locale} (${u.country.toUpperCase()}): ${u.terms.slice(0, 4).join(', ')}${u.terms.length > 4 ? ` and ${u.terms.length - 4} more` : ''}`,
       ),
-      link: { to: 'listing_keywords', locale: first.locale, label: 'See them in the listing' },
-    });
+      link: { to: 'listing_keywords', locale: first.locale, label: 'See them in the listing' } });
   }
 
   // 5. A followed competitor ranks above.
@@ -906,8 +880,7 @@ export function buildCoach(input: CoachInput): CoachAction[] {
           ({ a, k }) =>
             `${a.competitorName} is ${a.competitorRank} for ${k.term}; ${k.state === 'ranked' && k.rank !== null ? `you are ${k.rank}` : 'you are not in the results'}`,
         ),
-        link: { to: 'competitors', label: 'Open competitors' },
-      });
+        link: { to: 'competitors', label: 'Open competitors' } });
     }
   }
 
@@ -917,9 +890,7 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       platform,
       locale: l.locale,
       fields: l.fields,
-      keywords: asFit(byLocale.get(tagOf(l.locale))?.list ?? []),
-    }),
-  }));
+      keywords: asFit(byLocale.get(tagOf(l.locale))?.list ?? []) }) }));
 
   // 6. Keyword field waste (App Store).
   if (isApple) {
@@ -939,16 +910,14 @@ export function buildCoach(input: CoachInput): CoachAction[] {
         detail:
           'Spaces after commas, empty or repeated entries, and entries the name or subtitle already hold take room from words that could be added. UNVERIFIED that the store ignores repeats across fields.',
         all: wasteful.map((b) => `${b.l.locale}: ${count(bytesOf(b), 'byte', 'bytes')}`),
-        link: { to: 'listing', locale: first, label: `Open ${first} in the listing` },
-      });
+        link: { to: 'listing', locale: first, label: `Open ${first} in the listing` } });
     }
   }
 
   const untapped = untappedLocales({
     platform,
     listingLocales: input.listingLocales,
-    tracked: keywords.map((k) => ({ country: k.country, locale: k.locale })),
-  });
+    tracked: keywords.map((k) => ({ country: k.country, locale: k.locale })) });
   const emptyKeywordLocales = new Set(
     untapped.filter((u) => u.kind !== 'no_locale').map((u) => tagOf(u.locale)),
   );
@@ -963,8 +932,7 @@ export function buildCoach(input: CoachInput): CoachAction[] {
         room.push({
           line: `${l.locale} ${f.label.toLowerCase()}: ${f.used} of ${f.limit} ${f.unit} used`,
           locale: l.locale,
-          remaining: f.remaining,
-        });
+          remaining: f.remaining });
       }
     }
   }
@@ -978,8 +946,7 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       detail:
         'Characters not used are words the store cannot match. Fill them only with words that describe the app.',
       all: room.map((r) => r.line),
-      link: { to: 'listing', locale: first, label: `Open ${first} in the listing` },
-    });
+      link: { to: 'listing', locale: first, label: `Open ${first} in the listing` } });
   }
 
   // 8. Untapped locales.
@@ -1003,8 +970,7 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       link:
         first.kind === 'no_locale'
           ? { to: 'listing', label: 'Open the listing' }
-          : { to: 'listing', locale: first.locale, label: `Open ${first.locale} in the listing` },
-    });
+          : { to: 'listing', locale: first.locale, label: `Open ${first.locale} in the listing` } });
   }
 
   // 9. Follow a competitor.
@@ -1016,8 +982,7 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       detail:
         'Seeing what a similar app puts in its name and subtitle shows words you may be missing. Apps that show up for several of your keywords can be suggested.',
       all: [],
-      link: { to: 'competitors', label: 'Open competitors' },
-    });
+      link: { to: 'competitors', label: 'Open competitors' } });
   }
 
   drafts.sort((a, b) => COACH_ORDER.indexOf(a.kind) - COACH_ORDER.indexOf(b.kind));
@@ -1025,6 +990,5 @@ export function buildCoach(input: CoachInput): CoachAction[] {
     ...rest,
     position: i + 1,
     items: all.slice(0, MAX_ITEMS),
-    more: Math.max(0, all.length - MAX_ITEMS),
-  }));
+    more: Math.max(0, all.length - MAX_ITEMS) }));
 }

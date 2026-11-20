@@ -1,13 +1,5 @@
 import { isLocaleDir } from '@mrm/connectors';
-import {
-  type AssetKind,
-  type AssetStore,
-  classifyApplePreviewName,
-  isApplePlatform,
-  PLAY_DEVICES,
-  PLAY_GRAPHIC_FILES,
-  type Platform,
-} from '@mrm/core';
+import { type AssetKind, type AssetStore, classifyApplePreviewName, type Platform, PLAY_DEVICES, PLAY_GRAPHIC_FILES, supports } from '@mrm/core';
 
 /**
  * Which files of a repository are store media, and what each one is. Pure: a list of paths in, a
@@ -158,8 +150,7 @@ export function discoverStoreAssets(
           imessage: false,
           extension: extensionOf(path),
           origin: 'store',
-          priority: priorityOf(kind),
-        });
+          priority: priorityOf(kind) });
       } else if (rest.length === 0) {
         const device = devices.get(first);
         if (!device) continue;
@@ -177,8 +168,7 @@ export function discoverStoreAssets(
           imessage: false,
           extension: extensionOf(path),
           origin: 'store',
-          priority: priorityOf('screenshot'),
-        });
+          priority: priorityOf('screenshot') });
       }
     }
   }
@@ -213,8 +203,7 @@ export function discoverStoreAssets(
           imessage,
           extension: extensionOf(path),
           origin: 'store',
-          priority: priorityOf('screenshot'),
-        });
+          priority: priorityOf('screenshot') });
       }
       for (const folder of folders.previews) {
         if (!under(path, folder)) continue;
@@ -231,8 +220,7 @@ export function discoverStoreAssets(
           imessage: false,
           extension: extensionOf(path),
           origin: 'store',
-          priority: priorityOf('preview'),
-        });
+          priority: priorityOf('preview') });
       }
     }
     // The device of a preview that names none cannot be told, and a preview never goes through the size check.
@@ -352,8 +340,7 @@ export function discoverProjectIcons(
     kind: 'app_icon' as const,
     device: null,
     imessage: false,
-    origin: 'project' as const,
-  };
+    origin: 'project' as const };
   const push = (path: string, priority: number) =>
     candidates.push({ ...base, path, extension: extensionOf(path), priority });
   for (const path of input.expoPaths) if (fileSet.has(path)) push(path, 0);
@@ -371,7 +358,7 @@ export function discoverProjectIcons(
     return [];
   };
 
-  if (isApplePlatform(input.platform)) {
+  if (supports(input.platform, 'screenshotsByDevice')) {
     const sets = new Map<string, string[]>();
     for (const path of files) {
       if (IGNORED_PATHS.test(path)) continue;

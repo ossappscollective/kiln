@@ -1,18 +1,16 @@
 import { createHash } from 'node:crypto';
 import { AnalyticsError, type AppleAccessType, type AppleAnalyticsPort } from '@mrm/connectors';
-import { type ActorType, analyticsErrorMessages, isApplePlatform } from '@mrm/core';
+import { type ActorType, analyticsErrorMessages, supports } from '@mrm/core';
 import {
   listReportRequests,
   saveReportRequest,
   saveSourceState,
-  setAppleMode,
-} from './store.ts';
+  setAppleMode } from './store.ts';
 import {
   ANALYTICS_SYNC_QUEUE,
   type AnalyticsContext,
   classifyAnalyticsError,
-  withDeadline,
-} from './sync.ts';
+  withDeadline } from './sync.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
@@ -65,8 +63,7 @@ const planHash = (
         appleAppId,
         backfill,
         roleCheck: plan.roleCheck,
-        steps: plan.steps,
-      }),
+        steps: plan.steps }),
     )
     .digest('hex');
 
@@ -90,7 +87,7 @@ async function prepare(
 ): Promise<Prepared> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  if (!isApplePlatform(app.platform)) {
+  if (!supports(app.platform, 'appleAnalyticsReports')) {
     return failure(
       422,
       'not_apple_app',
@@ -128,8 +125,7 @@ async function prepare(
     known = (await port.listRequests(app.storeAppId)).map((r) => ({
       id: r.id,
       accessType: r.accessType,
-      stopped: r.stoppedDueToInactivity,
-    }));
+      stopped: r.stoppedDueToInactivity }));
   } catch (error) {
     if (error instanceof AnalyticsError && error.code === 'analytics_role_required')
       roleCheck = 'role_required';
@@ -152,8 +148,7 @@ async function prepare(
   );
   steps.push({
     accessType: 'ONGOING',
-    action: ongoing ? (ongoingLocal ? 'exists' : 'adopt') : 'create',
-  });
+    action: ongoing ? (ongoingLocal ? 'exists' : 'adopt') : 'create' });
   if (input.backfill) {
     const snapshot = known.find((k) => k.accessType === 'ONE_TIME_SNAPSHOT');
     const recent = local.find(
@@ -164,8 +159,7 @@ async function prepare(
     );
     steps.push({
       accessType: 'ONE_TIME_SNAPSHOT',
-      action: recent || snapshotLocal ? 'exists' : snapshot ? 'adopt' : 'create',
-    });
+      action: recent || snapshotLocal ? 'exists' : snapshot ? 'adopt' : 'create' });
   }
   const notes = [
     'Apple keeps each daily report for 35 days and then deletes it, so this server stores the numbers it reads.',
@@ -191,8 +185,7 @@ async function prepare(
         (s) =>
           `Create an analytics report request (${s.accessType}) for this app at App Store Connect.`,
       ),
-    notes,
-  };
+    notes };
   return {
     ok: true,
     app,
@@ -201,9 +194,7 @@ async function prepare(
     preview: {
       plan,
       confirmHash: planHash(input.workspaceId, app.storeAppId, input.backfill, plan),
-      canCreate: roleCheck === 'ok',
-    },
-  };
+      canCreate: roleCheck === 'ok' } };
 }
 
 /** Reads what Apple has and answers what enabling would do. Sends nothing that changes anything. */
@@ -249,9 +240,7 @@ export async function applyEnable(
           error: 'plan_changed',
           message: 'What Apple has changed since the preview. Review the new plan and confirm it.',
           plan: preview.plan,
-          confirmHash: preview.confirmHash,
-        },
-      };
+          confirmHash: preview.confirmHash } };
     }
     const startedBy = actor.id;
     if (preview.plan.roleCheck === 'role_required') {
@@ -262,16 +251,13 @@ export async function applyEnable(
         source: 'apple_analytics',
         now: ctx.now(),
         ok: false,
-        errorCode: 'analytics_role_required',
-      });
+        errorCode: 'analytics_role_required' });
       return {
         ...failure(422, 'analytics_role_required', analyticsErrorMessages.analytics_role_required),
         body: {
           error: 'analytics_role_required',
           message: analyticsErrorMessages.analytics_role_required,
-          nextStep: 'import_apple_report',
-        },
-      };
+          nextStep: 'import_apple_report' } };
     }
     const done: (EnableStep & { appleRequestId: string })[] = [];
     let problem: Failure | undefined;
@@ -296,8 +282,7 @@ export async function applyEnable(
             appleRequestId,
             accessType: step.accessType,
             createdBy: startedBy,
-            now: ctx.now(),
-          });
+            now: ctx.now() });
         }
         done.push({ ...step, appleRequestId });
       } catch (error) {
@@ -309,8 +294,7 @@ export async function applyEnable(
           source: 'apple_analytics',
           now: ctx.now(),
           ok: false,
-          errorCode: c.code,
-        });
+          errorCode: c.code });
         problem = {
           ...failure(
             c.status === 504 ? 504 : c.status === 429 ? 429 : c.status === 502 ? 502 : 422,
@@ -320,9 +304,7 @@ export async function applyEnable(
           body: {
             error: c.code,
             message: analyticsErrorMessages[c.code],
-            ...(c.code === 'analytics_role_required' ? { nextStep: 'import_apple_report' } : {}),
-          },
-        };
+            ...(c.code === 'analytics_role_required' ? { nextStep: 'import_apple_report' } : {}) } };
         break;
       }
     }
@@ -333,8 +315,7 @@ export async function applyEnable(
         appId: app.id,
         mode: 'ongoing',
         by: startedBy,
-        now: at,
-      });
+        now: at });
       await saveSourceState(ctx.db, {
         workspaceId: input.workspaceId,
         appId: app.id,
@@ -342,8 +323,7 @@ export async function applyEnable(
         source: 'apple_analytics',
         now: at,
         ok: true,
-        attempted: false,
-      });
+        attempted: false });
     }
     // Ids only: the app, the kind of each request and the id Apple gave it.
     await recordAudit(ctx.db, {
@@ -356,13 +336,10 @@ export async function applyEnable(
         steps: done.map((d) => ({
           accessType: d.accessType,
           action: d.action,
-          appleRequestId: d.appleRequestId,
-        })),
+          appleRequestId: d.appleRequestId })),
         backfill: input.backfill,
-        ...(problem ? { code: problem.body.error } : {}),
-      },
-      at,
-    });
+        ...(problem ? { code: problem.body.error } : {}) },
+      at });
     if (problem) return problem;
     return { ok: true, steps: done, appleMode: 'ongoing' };
   }).catch((error): Failure => {

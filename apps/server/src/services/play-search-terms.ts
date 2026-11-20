@@ -3,26 +3,8 @@ import {
   AnalyticsError,
   checkPeriod,
   readSearchTermsFile,
-  type SearchTermsFile,
-} from '@mrm/connectors';
-import {
-  type ActorType,
-  addDays,
-  analyticsErrorMessages,
-  daysBetween,
-  type FitFields,
-  isGooglePlatform,
-  isIsoDate,
-  isSearchTermSort,
-  normalizeCountry,
-  type SearchTermInsight,
-  type SearchTermPoint,
-  type SearchTermSort,
-  type SearchTermsSummary,
-  searchTermInsights,
-  searchTermLimits,
-  summariseSearchTerms,
-} from '@mrm/core';
+  type SearchTermsFile } from '@mrm/connectors';
+import { type ActorType, addDays, analyticsErrorMessages, daysBetween, type FitFields, isIsoDate, isSearchTermSort, normalizeCountry, type SearchTermInsight, searchTermInsights, searchTermLimits, type SearchTermPoint, type SearchTermSort, type SearchTermsSummary, summariseSearchTerms, supports } from '@mrm/core';
 import { type Database, nullableNumber, type Param, type Sql } from '@mrm/db';
 import { defaultLocale, ownFields } from '../modules/aso/insights.ts';
 import { listKeywords } from '../modules/aso/service.ts';
@@ -143,7 +125,7 @@ async function overlaps(
 export async function parseSearchTermsImport(db: Database, input: Input): Promise<Parsed> {
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  if (!isGooglePlatform(app.platform)) {
+  if (!supports(app.platform, 'searchTermsImport')) {
     return failure(
       422,
       'import_not_supported',
@@ -156,8 +138,7 @@ export async function parseSearchTermsImport(db: Database, input: Input): Promis
   try {
     const file = await readSearchTermsFile(input.bytes, {
       ...(input.from ? { from: input.from } : {}),
-      ...(input.to ? { to: input.to } : {}),
-    });
+      ...(input.to ? { to: input.to } : {}) });
     const period = checkPeriod(input.from, input.to) ?? null;
     const from = file.dateFrom as string;
     const to = file.dateTo as string;
@@ -188,11 +169,9 @@ export async function parseSearchTermsImport(db: Database, input: Input): Promis
         term: t.term,
         visitors: t.visitors,
         installs: t.installs,
-        conversion: t.conversion,
-      })),
+        conversion: t.conversion })),
       overlapsStored,
-      notes,
-    };
+      notes };
     return { ok: true, plan, points: file.points, confirmHash: hashOf(app.id, file.points), app };
   } catch (error) {
     if (error instanceof AnalyticsError) return failure(422, error.code, error.message);
@@ -275,8 +254,7 @@ export async function applySearchTermsImport(
     const message = 'The file is not the one that was previewed. Preview it again and confirm.';
     return {
       ...failure(409, 'confirm_mismatch', message),
-      body: { error: 'confirm_mismatch', message },
-    };
+      body: { error: 'confirm_mismatch', message } };
   }
   const app = parsed.app;
   const at = now();
@@ -306,18 +284,15 @@ export async function applySearchTermsImport(
         countries: parsed.plan.countries.length,
         files: parsed.plan.files,
         dateFrom: parsed.plan.dateFrom,
-        dateTo: parsed.plan.dateTo,
-      },
-      at,
-    });
+        dateTo: parsed.plan.dateTo },
+      at });
     return {
       ok: true,
       rows: result.offered,
       written: result.written,
       unchanged: result.offered - result.written,
       dateFrom: parsed.plan.dateFrom,
-      dateTo: parsed.plan.dateTo,
-    };
+      dateTo: parsed.plan.dateTo };
   });
 }
 
@@ -347,8 +322,7 @@ export const searchTermNoteMessages: Record<SearchTermNoteCode, string> = {
     'Rows of a file without dates were left out for a country that also has daily rows, so a day is not counted twice.',
   rows_capped: 'The period holds more rows than are read at once. Choose a shorter period.',
   no_listing_text:
-    'No Google Play listing text is stored for this language, so "in your listing" is unknown. Sync the app first.',
-};
+    'No Google Play listing text is stored for this language, so "in your listing" is unknown. Sync the app first.' };
 const note = (code: SearchTermNoteCode) => ({ code, message: searchTermNoteMessages[code] });
 
 export type SearchTermsQuery = {
@@ -427,8 +401,7 @@ export function checkSearchTermsQuery(query: SearchTermsQuery):
     limit: Math.min(
       Math.max(query.limit ?? searchTermLimits.defaultLimit, 1),
       searchTermLimits.maxLimit,
-    ),
-  };
+    ) };
 }
 
 /** The top terms of a period for a Google Play app, with tracked and in-the-listing marks. Reads the database only. */
@@ -457,8 +430,7 @@ export async function searchTermsFor(
         periodFrom:
           importedRow.last_period_from === null ? null : String(importedRow.last_period_from),
         periodTo: importedRow.last_period_to === null ? null : String(importedRow.last_period_to),
-        imports: Number(importedRow.imports),
-      }
+        imports: Number(importedRow.imports) }
     : null;
   const cover = (
     await sql.query(
@@ -474,8 +446,7 @@ export async function searchTermsFor(
     country: query.country ?? null,
     sort: query.sort,
     locale,
-    imported,
-  };
+    imported };
   if (rowsStored === 0 || !cover || cover.first_day === null || cover.last_day === null) {
     return {
       ...base,
@@ -488,8 +459,7 @@ export async function searchTermsFor(
       termCount: 0,
       other: null,
       totals: { visitors: null, installs: null },
-      notes: [note('not_search_volume')],
-    };
+      notes: [note('not_search_volume')] };
   }
   const countryRows = await sql.query(
     'SELECT DISTINCT country FROM play_search_terms WHERE app_id = ? AND workspace_id = ? AND country <> ? ORDER BY country LIMIT 300',
@@ -499,8 +469,7 @@ export async function searchTermsFor(
     from: String(cover.first_day),
     to: String(cover.last_day),
     countries: countryRows.map((r) => String(r.country)),
-    rows: rowsStored,
-  };
+    rows: rowsStored };
   // Default: everything stored (at most the newest 400 days).
   const to = query.to ?? stored.to;
   const earliest = addDays(to, -(searchTermLimits.maxPeriodDays - 1));
@@ -525,29 +494,25 @@ export async function searchTermsFor(
     term: String(r.term),
     visitors: nullableNumber(r.visitors),
     installs: nullableNumber(r.installs),
-    conversion: r.conversion_micro === null ? null : Number(r.conversion_micro) / 1_000_000,
-  }));
+    conversion: r.conversion_micro === null ? null : Number(r.conversion_micro) / 1_000_000 }));
   const summary = summariseSearchTerms(points, {
     from,
     to,
     ...(query.country ? { country: query.country } : {}),
     sort: query.sort,
-    limit: query.limit,
-  });
+    limit: query.limit });
 
   const tracked = (await listKeywords(sql, workspaceId, app.id)).map((k) => ({
     id: k.id,
     key: k.key,
-    country: k.country,
-  }));
+    country: k.country }));
   const own = await ownFields(sql, workspaceId, app, locale);
   const fields: FitFields | null = own.found ? own.found.fields : null;
   const terms = searchTermInsights(summary.terms, {
     locale,
     fields,
     tracked,
-    ...(query.country ? { country: query.country } : {}),
-  });
+    ...(query.country ? { country: query.country } : {}) });
 
   const notes = [note('not_search_volume'), note('legacy_metrics_unverified')];
   if (summary.other !== null) notes.push(note('other_grouped'));
@@ -566,6 +531,5 @@ export async function searchTermsFor(
     termCount: summary.termCount,
     other: summary.other,
     totals: summary.totals,
-    notes,
-  };
+    notes };
 }

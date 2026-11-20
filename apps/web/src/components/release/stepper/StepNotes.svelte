@@ -15,7 +15,7 @@
   shown), drafts (bindable: the text of each language in the editors), extra (bindable: languages the person added).
 -->
 <script lang="ts">
-  import { type Role, type StagedChangesView, can, isApplePlatform } from '@mrm/core';
+  import { can, type Role, type StagedChangesView, supports } from '@mrm/core';
   import type { Api } from '../../../lib/api.ts';
   import { type BuildCandidate, type EditableRelease, type ReleaseCandidates, hasTestNotes } from '../../../lib/release-candidates.ts';
   import { type Promote } from '../../../lib/play-promote.ts';
@@ -33,8 +33,7 @@
     stateLabel,
     testFlightLine,
     unsavedLocales,
-    useTestFlightNotes,
-  } from '../../../lib/release-notes.ts';
+    useTestFlightNotes } from '../../../lib/release-notes.ts';
   import {
     type ChunkAnswer,
     type EngineState,
@@ -48,8 +47,7 @@
     replaceText,
     translateErrorMessage,
     translateLines,
-    translatePlan,
-  } from '../../../lib/release-notes-translate.ts';
+    translatePlan } from '../../../lib/release-notes-translate.ts';
   import { aiStore } from '../../../lib/ai-store.svelte.ts';
   import { loadTranslationConfig, type TranslationConfig } from '../../../lib/settings.ts';
   import { stagedField, stagedNotes, storeNotes } from '../../../lib/release-stepper.ts';
@@ -78,8 +76,7 @@
     promote = null,
     promoteNotes = null,
     drafts = $bindable({}),
-    extra = $bindable([]),
-  }: {
+    extra = $bindable([]) }: {
     api: Api;
     workspaceId: string;
     role: Role;
@@ -97,7 +94,7 @@
   } = $props();
 
   const uid = $props.id();
-  const apple = $derived(isApplePlatform(app.platform));
+  const apple = $derived(!supports(app.platform, 'releaseTracks'));
   const mayEdit = $derived(canStage(role));
 
   let history = $state<NotesHistory | null>(null);

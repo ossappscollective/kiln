@@ -1,14 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { AsoError, isPlayPackageName } from '@mrm/connectors';
-import { type ActorType, type AsoPlatform, checkTerm, type CompetitorChange, type CompetitorState, decideSnapshot, DEFAULT_EDGE_TOP, defaultLocaleFor, isApplePlatform, isBigMove, isGooglePlatform, type ListingStore, listingStoreOf, MAX_NOTES_CHARACTERS, MAX_TAG_CHARACTERS, normalizeCountry, normalizeLocale, type RankChange, rankChange, rankTrend, storeSideId } from '@mrm/core';
+import { type ActorType, type AsoPlatform, byFamily, checkTerm, type CompetitorChange, type CompetitorState, decideSnapshot, DEFAULT_EDGE_TOP, defaultLocaleFor, isBigMove, type ListingStore, listingStoreOf, MAX_NOTES_CHARACTERS, MAX_TAG_CHARACTERS, normalizeCountry, normalizeLocale, rankChange, type RankChange, rankTrend, storeSideId, supports } from '@mrm/core';
 import {
   type Database,
   nullableNumber,
   nullableString,
   type Param,
   type Row,
-  type Sql,
-} from '@mrm/db';
+  type Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../../jobs.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
@@ -72,8 +71,7 @@ export const DEFAULT_ASO_LIMITS: AsoLimits = {
   rankDepth: 50,
   heartbeatMs: 7 * DAY,
   retentionDays: 365,
-  intervalMs: 0,
-};
+  intervalMs: 0 };
 
 export type AsoContext = {
   db: Database;
@@ -100,15 +98,13 @@ export function asoFailure(error: unknown): Failure {
         const wait = error.retryAfterSeconds ?? 60;
         return {
           ...failure(429, 'rate_limited', error.message, { retryAfterSeconds: wait }),
-          headers: { 'Retry-After': String(wait) },
-        };
+          headers: { 'Retry-After': String(wait) } };
       }
       case 'unavailable':
         return error.reason === 'disabled'
           ? playDisabledFailure()
           : failure(502, 'source_unavailable', error.message, {
-              reason: error.reason ?? 'unknown',
-            });
+              reason: error.reason ?? 'unknown' });
       case 'timeout':
         return failure(504, 'source_timeout', error.message);
       case 'invalid_input':
@@ -206,8 +202,7 @@ export function toKeyword(r: Row): AsoKeyword {
     total: state ? total : null,
     previous,
     change,
-    error: nullableString(r.last_error),
-  };
+    error: nullableString(r.last_error) };
 }
 
 export async function listKeywords(
@@ -309,8 +304,7 @@ export async function addKeywords(
         results.push({
           index,
           status: 'invalid',
-          message: 'The country is two letters, such as us or de.',
-        });
+          message: 'The country is two letters, such as us or de.' });
         continue;
       }
       const locale =
@@ -319,8 +313,7 @@ export async function addKeywords(
         results.push({
           index,
           status: 'invalid',
-          message: 'The locale is a language tag such as en-US or pt-BR.',
-        });
+          message: 'The locale is a language tag such as en-US or pt-BR.' });
         continue;
       }
       const priority = item.priority ?? 2;
@@ -328,8 +321,7 @@ export async function addKeywords(
         results.push({
           index,
           status: 'invalid',
-          message: 'The priority is 1 (low), 2 (normal) or 3 (high).',
-        });
+          message: 'The priority is 1 (low), 2 (normal) or 3 (high).' });
         continue;
       }
       const tag = cleanFreeText(item.tag, MAX_TAG_CHARACTERS, false);
@@ -340,8 +332,7 @@ export async function addKeywords(
           status: 'invalid',
           message: !tag.ok
             ? `Tag: ${tag.message}`
-            : `Notes: ${(notes as { message: string }).message}`,
-        });
+            : `Notes: ${(notes as { message: string }).message}` });
         continue;
       }
       const [existing] = await tx.query(
@@ -356,8 +347,7 @@ export async function addKeywords(
         results.push({
           index,
           status: 'limit',
-          message: `An app tracks at most ${ctx.limits.maxKeywordsPerApp} keywords (MRM_ASO_MAX_KEYWORDS_PER_APP).`,
-        });
+          message: `An app tracks at most ${ctx.limits.maxKeywordsPerApp} keywords (MRM_ASO_MAX_KEYWORDS_PER_APP).` });
         continue;
       }
       const id = randomUUID();
@@ -397,8 +387,7 @@ export async function addKeywords(
         target: { type: 'app', id: app.id },
         // Ids and a count: the terms are not in the audit log.
         detail: { count: created.length, keywordIds: created.slice(0, 50) },
-        at,
-      });
+        at });
     }
     return results;
   });
@@ -456,13 +445,11 @@ export async function updateKeyword(
       action: 'aso.keyword_update',
       target: { type: 'aso_keyword', id: input.id },
       detail: { appId: input.appId, changed },
-      at,
-    });
+      at });
   });
   return {
     ok: true,
-    keyword: (await getKeyword(ctx.db, input.workspaceId, input.appId, input.id)) as AsoKeyword,
-  };
+    keyword: (await getKeyword(ctx.db, input.workspaceId, input.appId, input.id)) as AsoKeyword };
 }
 
 export async function deleteKeyword(
@@ -486,8 +473,7 @@ export async function deleteKeyword(
       action: 'aso.keyword_delete',
       target: { type: 'aso_keyword', id: input.id },
       detail: { appId: input.appId, country: existing.country, locale: existing.locale },
-      at: ctx.now(),
-    });
+      at: ctx.now() });
     return true;
   });
 }
@@ -521,8 +507,7 @@ export async function keywordHistory(
       checkedAt: Number(r.checked_at),
       rank: nullableNumber(r.rank_pos),
       total: Number(r.total),
-      source: String(r.source),
-    }))
+      source: String(r.source) }))
     .reverse();
   return { checks, trend: rankTrend(checks.map((c) => ({ rank: c.rank, total: c.total }))) };
 }
@@ -590,8 +575,7 @@ export function toSnapshot(r: Row): CompetitorSnapshotView {
     subtitle: nullableString(r.subtitle),
     descriptionExcerpt: nullableString(r.description_excerpt),
     screenshotCount: nullableNumber(r.screenshot_count),
-    changes: parseChanges(r.changes),
-  };
+    changes: parseChanges(r.changes) };
 }
 
 const stateOfSnapshot = (r: Row): CompetitorState & { checkedAt: number } => ({
@@ -605,8 +589,7 @@ const stateOfSnapshot = (r: Row): CompetitorState & { checkedAt: number } => ({
   textHash: String(r.text_hash),
   descriptionHash: nullableString(r.description_hash),
   screenshotCount: nullableNumber(r.screenshot_count),
-  mediaHash: nullableString(r.media_hash),
-});
+  mediaHash: nullableString(r.media_hash) });
 
 async function latestSnapshotRow(sql: Sql, competitorId: string): Promise<Row | undefined> {
   const [row] = await sql.query(
@@ -634,8 +617,7 @@ async function toCompetitor(sql: Sql, r: Row): Promise<AsoCompetitor> {
     lastCheckedAt: nullableNumber(r.last_checked_at),
     state,
     error: nullableString(r.last_error),
-    latest: latest ? toSnapshot(latest) : null,
-  };
+    latest: latest ? toSnapshot(latest) : null };
 }
 
 const COMPETITOR_COLUMNS =
@@ -671,7 +653,7 @@ export async function getCompetitor(
 /** The numeric App Store id (also from `id123` or an apps.apple.com address), or the Android package name (also from a play.google.com address). */
 export function normalizeExternalId(platform: AsoPlatform, raw: string): string | undefined {
   const text = raw.trim();
-  if (isApplePlatform(platform)) {
+  if (listingStoreOf(platform) === 'app_store') {
     const match = /^(?:id)?([0-9]{1,15})$/i.exec(text) ?? /\/id([0-9]{1,15})(?:[/?#]|$)/.exec(text);
     return match?.[1];
   }
@@ -699,10 +681,8 @@ export function competitorStateOf(app: PublicApp): {
       textHash: sha(`${title ?? ''}\n\n${description}`),
       descriptionHash: description === '' ? null : sha(description),
       screenshotCount: app.screenshotCount ?? null,
-      mediaHash: media.trim() === '' ? null : sha(media),
-    },
-    excerpt: description === '' ? null : description.slice(0, MAX_EXCERPT),
-  };
+      mediaHash: media.trim() === '' ? null : sha(media) },
+    excerpt: description === '' ? null : description.slice(0, MAX_EXCERPT) };
 }
 
 async function insertSnapshot(
@@ -764,7 +744,7 @@ export async function addCompetitor(
     return failure(
       422,
       'invalid_external_id',
-      isApplePlatform(app.platform)
+      listingStoreOf(app.platform) === 'app_store'
         ? 'Use the numeric App Store id (a number, id123 or an apps.apple.com address).'
         : 'Use the Android package name (such as com.example.app) or its play.google.com address.',
     );
@@ -799,8 +779,7 @@ export async function addCompetitor(
       platform: app.platform,
       id: externalId,
       country,
-      locale: defaultLocaleFor(country),
-    });
+      locale: defaultLocaleFor(country) });
   } catch (error) {
     return asoFailure(error);
   }
@@ -832,16 +811,14 @@ export async function addCompetitor(
         at,
         kind: 'first',
         app: found as PublicApp,
-        changes: [],
-      });
+        changes: [] });
       await recordAudit(tx, {
         workspaceId,
         actor: input.actor,
         action: 'aso.competitor_add',
         target: { type: 'aso_competitor', id },
         detail: { appId: app.id, store, country },
-        at,
-      });
+        at });
     });
   } catch {
     // The unique index: somebody added it a moment ago.
@@ -849,8 +826,7 @@ export async function addCompetitor(
   }
   return {
     ok: true,
-    competitor: (await getCompetitor(ctx.db, workspaceId, app.id, id)) as AsoCompetitor,
-  };
+    competitor: (await getCompetitor(ctx.db, workspaceId, app.id, id)) as AsoCompetitor };
 }
 
 export async function removeCompetitor(
@@ -874,8 +850,7 @@ export async function removeCompetitor(
       action: 'aso.competitor_remove',
       target: { type: 'aso_competitor', id: input.id },
       detail: { appId: input.appId, store: existing.store, country: existing.country },
-      at: ctx.now(),
-    });
+      at: ctx.now() });
     return true;
   });
 }
@@ -902,8 +877,7 @@ export async function competitorHistory(
           from: snapshots[index + 1]?.id ?? null,
           to: (snapshots[index] as CompetitorSnapshotView).id,
           at: (snapshots[index] as CompetitorSnapshotView).checkedAt,
-          changes: (snapshots[index] as CompetitorSnapshotView).changes as CompetitorChange[],
-        }
+          changes: (snapshots[index] as CompetitorSnapshotView).changes as CompetitorChange[] }
       : null;
   return { snapshots, diff };
 }
@@ -964,8 +938,7 @@ export async function getAsoState(
     lastError: nullableString(row?.last_error),
     consecutiveFailures: Number(row?.consecutive_failures ?? 0),
     backoffUntil: nullableNumber(row?.backoff_until),
-    lastResult,
-  };
+    lastResult };
 }
 
 export const asoBackoffMs = (failures: number): number =>
@@ -1010,7 +983,7 @@ export async function refreshApp(
 ): Promise<{ ok: true; result: AsoRefreshResult; state: AsoAppState } | AsoRefreshFailure> {
   const app = await getApp(ctx.db, input.workspaceId, input.id);
   if (!app) return { ...failure(404, 'not_found'), transient: false };
-  if (isGooglePlatform(app.platform) && !ctx.sources.playEnabled)
+  if (supports(app.platform, 'unofficialSearch') && !ctx.sources.playEnabled)
     return { ...playDisabledFailure(), transient: false };
   if (
     running.has(app.id) ||
@@ -1018,8 +991,7 @@ export async function refreshApp(
   ) {
     return {
       ...failure(409, 'refresh_in_progress', 'This app is being refreshed right now.'),
-      transient: true,
-    };
+      transient: true };
   }
   running.add(app.id);
   try {
@@ -1033,8 +1005,7 @@ export async function refreshApp(
         'refresh_failed',
         'The ASO refresh could not be completed. Try again in a moment.',
       ),
-      transient: true,
-    };
+      transient: true };
   } finally {
     running.delete(app.id);
   }
@@ -1079,8 +1050,7 @@ async function run(
     competitors: { due: 0, checked: 0, changed: 0, notFound: 0, failed: 0 },
     deferred: false,
     errors: [],
-    warnings: [],
-  };
+    warnings: [] };
   const addError = (code: string) => {
     if (!result.errors.includes(code)) result.errors.push(code);
   };
@@ -1125,17 +1095,15 @@ async function run(
           term: keyword.term,
           country: keyword.country,
           locale: keyword.locale,
-          limit: ctx.limits.rankDepth,
-        });
+          limit: ctx.limits.rankDepth });
         const index = outcome.hits.findIndex((h) => h.id === ownId);
         const rank = index === -1 ? null : index + 1;
         const moved = await recordRank(ctx, workspaceId, app, keyword, {
           rank,
           total: outcome.total,
-          source: isApplePlatform(app.platform) ? 'apple_search' : 'play_public',
+          source: byFamily(app.platform, { apple: 'apple_search', google: 'play_public' }),
           top: outcome.hits.slice(0, MAX_TOP_RESULTS),
-          threshold,
-        });
+          threshold });
         result.keywords.checked += 1;
         if (outcome.cached) result.keywords.cached += 1;
         if (rank === null) result.keywords.notRanked += 1;
@@ -1194,8 +1162,7 @@ async function run(
           platform: app.platform,
           id: String(row.external_id),
           country: String(row.country),
-          locale: defaultLocaleFor(String(row.country)),
-        });
+          locale: defaultLocaleFor(String(row.country)) });
         const outcome = await recordCompetitorCheck(ctx, workspaceId, app, row, found);
         result.competitors.checked += 1;
         if (!found) result.competitors.notFound += 1;
@@ -1285,10 +1252,8 @@ async function run(
         competitorsChanged: result.competitors.changed,
         deferred: result.deferred,
         ...(stop ? { stoppedBecause: stop } : {}),
-        ...trigger,
-      },
-      at,
-    });
+        ...trigger },
+      at });
   });
   if (failed) {
     const failure502 = failure(
@@ -1380,10 +1345,8 @@ async function recordRank(
           to: change.to,
           ...(change.delta !== undefined ? { delta: change.delta } : {}),
           change: change.kind,
-          threshold: check.threshold,
-        },
-        at,
-      });
+          threshold: check.threshold },
+        at });
     }
   });
   return big;
@@ -1422,8 +1385,7 @@ async function recordCompetitorCheck(
         at,
         kind: decision.kind,
         app: found,
-        changes: decision.changes,
-      });
+        changes: decision.changes });
     }
     await tx.execute(
       "UPDATE aso_competitors SET last_checked_at = ?, last_state = 'ok', last_error = NULL, name = ? WHERE id = ?",
@@ -1440,10 +1402,8 @@ async function recordCompetitorCheck(
           competitorId,
           store: platformStore(app.platform),
           country: String(row.country),
-          fields: decision.changes.map((c) => c.field),
-        },
-        at,
-      });
+          fields: decision.changes.map((c) => c.field) },
+        at });
     }
   });
   return { changed: decision.kind === 'change' };
@@ -1467,8 +1427,7 @@ export function enqueueAsoRefresh(
 ): Promise<string> {
   return enqueue(ctx.db, ASO_REFRESH_QUEUE, payload, {
     now: ctx.now(),
-    ...(options.runAt !== undefined ? { runAt: options.runAt } : {}),
-  });
+    ...(options.runAt !== undefined ? { runAt: options.runAt } : {}) });
 }
 
 const isPayload = (value: unknown): value is AsoRefreshPayload =>
@@ -1489,8 +1448,7 @@ export function createAsoRefreshHandler(ctx: AsoContext): JobHandler {
       { trigger: 'job', requestedBy: payload.requestedBy },
       {
         ...(payload.force ? { force: true } : {}),
-        ...(payload.scope ? { scope: payload.scope } : {}),
-      },
+        ...(payload.scope ? { scope: payload.scope } : {}) },
     ).catch(() => undefined);
   };
 }

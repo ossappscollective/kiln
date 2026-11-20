@@ -14,7 +14,7 @@
   onclose, showPlatform.
 -->
 <script lang="ts">
-  import { type Role, isApplePlatform } from '@mrm/core';
+  import { type Role, supports } from '@mrm/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../../lib/api.ts';
   import { fitToViewport } from '../../../lib/fit-viewport.ts';
@@ -38,8 +38,7 @@
     stagedNotes,
     stepStatuses,
     storeNotes,
-    visibleSteps,
-  } from '../../../lib/release-stepper.ts';
+    visibleSteps } from '../../../lib/release-stepper.ts';
   import { canStage, stagingError } from '../../../lib/staged.ts';
   import { pendingStore } from '../../../lib/pending-store.svelte.ts';
   import { confirmSteps, footerFor, railMark, stepIntro } from '../../../lib/stepper-layout.ts';
@@ -71,8 +70,7 @@
     promote = null,
     onstep,
     onclose,
-    showPlatform = false,
-  }: {
+    showPlatform = false }: {
     api: Api;
     workspaceId: string;
     role: Role;
@@ -88,7 +86,7 @@
   } = $props();
 
   const uid = $props.id();
-  const apple = $derived(isApplePlatform(app.platform));
+  const apple = $derived(!supports(app.platform, 'releaseTracks'));
 
   let editable = $state<EditableRelease | null>(null);
   let editableState = $state<EditableState>({ state: 'loading' });
@@ -110,8 +108,7 @@
   const switches = $derived({
     draft: stagedStore.config(workspaceId)?.enabled ?? null,
     submit: canSubmit(role) ? (submitStore.config(workspaceId)?.enabled ?? null) : null,
-    release: canRelease(role) ? (releaseStore.config(workspaceId)?.enabled ?? null) : null,
-  });
+    release: canRelease(role) ? (releaseStore.config(workspaceId)?.enabled ?? null) : null });
   const visible = $derived(visibleSteps(role, switches));
   const current = $derived(resolveStep(step, visible));
   const hidden = $derived(confirmHiddenReason(role, switches));
@@ -143,8 +140,7 @@
         choices,
         notes: { withText: rows.filter((r) => r.draft.trim() !== '').length, unsaved: unsavedLocales(rows).length, over: rows.filter((r) => r.over).length },
         staged: stagedFacts(view),
-        pipeline: pipeline ? { state: pipeline.pipeline.state, waitingOn: pipeline.pipeline.waitingOn } : null,
-      },
+        pipeline: pipeline ? { state: pipeline.pipeline.state, waitingOn: pipeline.pipeline.waitingOn } : null },
       visible,
     ),
   );
@@ -168,8 +164,7 @@
         group: 'store',
         key: `editable/${app.id}/${apple ? '' : track.trim()}`,
         force,
-        load: () => api.releaseEditable(workspaceId, app.id, apple ? undefined : track.trim()),
-      });
+        load: () => api.releaseEditable(workspaceId, app.id, apple ? undefined : track.trim()) });
       if (mine !== seq) return;
       editable = out.editable;
       editableState = { state: 'ready' };
@@ -221,8 +216,7 @@
         drafts,
         staged: stagedNotes(stagedStore.view(app.id), app.platform),
         locales,
-        platform: app.platform,
-      });
+        platform: app.platform });
       drafts = fill.drafts;
       const more = fill.addLocales.filter((l) => extra.indexOf(l) < 0);
       if (more.length > 0) extra = [...extra, ...more];
@@ -242,8 +236,7 @@
         group: 'store',
         key: `candidates/${app.id}/${apple ? '' : track.trim()}`,
         force,
-        load: () => api.releaseCandidates(workspaceId, app.id, apple ? {} : { track: track.trim() }),
-      });
+        load: () => api.releaseCandidates(workspaceId, app.id, apple ? {} : { track: track.trim() }) });
       if (mine !== seq) return;
       candidates = out.candidates;
       candidatesState = { state: 'ready' };
@@ -266,8 +259,7 @@
         group: 'store',
         key: `candidates/${app.id}/${source.trim()}`,
         force,
-        load: () => api.releaseCandidates(workspaceId, app.id, { track: source.trim() }),
-      });
+        load: () => api.releaseCandidates(workspaceId, app.id, { track: source.trim() }) });
       if (mine === seq && out.candidates.store === 'googleplay') sourceCandidates = out.candidates;
     } catch {
       if (mine === seq) sourceCandidates = null;
@@ -360,8 +352,7 @@
           notes: { withText: rows.filter((r) => r.draft.trim() !== '').length },
           staged: stagedFacts(view),
           confirm: confirmList,
-          inReview: pipeline?.pipeline.state === 'in_review',
-        }),
+          inReview: pipeline?.pipeline.state === 'in_review' }),
   );
   const footer = $derived(current === null ? null : footerFor(current, visible));
   let confirmStep = $state<ReturnType<typeof StepConfirm> | undefined>();

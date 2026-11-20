@@ -1,4 +1,4 @@
-import { type AsoPlatform, isApplePlatform, type ListingRow, type ListingRowTerm, normalizeLocale, storeShortName, type TermSource } from '@mrm/core';
+import { type AsoPlatform, byFamily, type ListingRow, type ListingRowTerm, normalizeLocale, storeShortName, type TermSource } from '@mrm/core';
 import type { AsoKeywordInput } from './aso.ts';
 import { timeAgo } from './format.ts';
 
@@ -16,7 +16,7 @@ export const storeName = (platform: AsoPlatform): string =>
 
 /** "Read from the App Store 3 hours ago", or that nothing was read yet. */
 export function freshnessText(platform: AsoPlatform, readAt: number | null, now: number): string {
-  const store = isApplePlatform(platform) ? 'the App Store' : 'Google Play';
+  const store = byFamily(platform, { apple: 'the App Store', google: 'Google Play' });
   return readAt === null
     ? `Not read from ${store} yet`
     : `Read from ${store} ${timeAgo(readAt, now)}`;
@@ -32,7 +32,7 @@ export function sourceLabel(platform: AsoPlatform, source: TermSource): string {
     case 'keywords':
       return 'keyword field';
     case 'title':
-      return isApplePlatform(platform) ? 'name' : 'title';
+      return byFamily(platform, { apple: 'name', google: 'title' });
     case 'subtitle':
       return 'subtitle';
     case 'shortDescription':
@@ -73,15 +73,13 @@ export function termMark(
       text: 'wasted',
       tone: 'warn',
       title:
-        'Already in the name or subtitle, which the store searches anyway (unverified), so the keyword field spends room on it.',
-    };
+        'Already in the name or subtitle, which the store searches anyway (unverified), so the keyword field spends room on it.' };
   }
   if (t.waste === 'repeated_entry' || t.waste === 'plural_variant') {
     return {
       text: 'repeated',
       tone: 'warn',
-      title: `${t.entries} entries of the keyword field have these words (a repeat or a plural), so room is spent twice.`,
-    };
+      title: `${t.entries} entries of the keyword field have these words (a repeat or a plural), so room is spent twice.` };
   }
   if (t.duplicate)
     return { text: 'twice', tone: 'info', title: 'The word is in more than one searched field.' };
@@ -152,8 +150,7 @@ export function buildPlan(
         platform: s.platform,
         locale: row.locale,
         country: row.country,
-        items: row.untracked.map((t) => ({ key: t.key, term: t.term, sources: t.sources })),
-      });
+        items: row.untracked.map((t) => ({ key: t.key, term: t.term, sources: t.sources })) });
     }
   }
   return { groups, total: groups.reduce((n, g) => n + g.items.length, 0) };
@@ -178,8 +175,7 @@ export const termKeywordItem = (
   term: term.term,
   country: row.country,
   locale: normalizeLocale(row.locale) ?? row.locale,
-  tag: LISTING_TAG,
-});
+  tag: LISTING_TAG });
 
 /** "Room for 12 more of 50" for an app, or '' when the limit is not known. */
 export function roomText(limit: number | undefined, tracked: number, adding: number): string {

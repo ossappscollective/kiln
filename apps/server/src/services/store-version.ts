@@ -8,16 +8,8 @@ import {
   type VersionCreateRequest,
   VersionDriftError,
   type VersionListState,
-  VersionOutcomeUnknownError,
-} from '@mrm/connectors';
-import {
-  compareDottedVersions,
-  isApplePlatform,
-  isDottedVersion,
-  newestDottedVersion,
-  nextVersion,
-  type Platform,
-} from '@mrm/core';
+  VersionOutcomeUnknownError } from '@mrm/connectors';
+import { compareDottedVersions, isDottedVersion, newestDottedVersion, nextVersion, type Platform, supports } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
@@ -71,8 +63,7 @@ export const defaultVersionConnectorFactory: VersionConnectorFactory = (input) =
   AppleVersionConnector.fromSecret(input.secret, {
     appStoreId: input.storeAppId ?? '',
     platform: input.platform === 'macos' ? 'macos' : 'ios',
-    fetch: input.fetch,
-  });
+    fetch: input.fetch });
 
 export type VersionContext = {
   db: Database;
@@ -105,8 +96,7 @@ async function withConnector<T>(
   const guardedFetch: typeof fetch = (target, init) =>
     baseFetch(target, {
       ...init,
-      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
-    });
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -232,15 +222,13 @@ export function evaluateChecks(request: VersionInput, state: VersionListState): 
     blocking.push({
       code: 'invalid_version',
       message:
-        'A version is one to three numbers separated by periods, for example 3.1.2. Letters, a leading "v" and suffixes are not allowed.',
-    });
+        'A version is one to three numbers separated by periods, for example 3.1.2. Letters, a leading "v" and suffixes are not allowed.' });
   }
   const editable = state.versions.filter((v) => v.editable);
   if (editable.length > 0) {
     blocking.push({
       code: 'editable_version_exists',
-      message: `Version ${label(editable[0] as StoreVersionRow)} can still be edited, so there is no need for another. Attach the build to it.`,
-    });
+      message: `Version ${label(editable[0] as StoreVersionRow)} can still be edited, so there is no need for another. Attach the build to it.` });
   }
   if (isDottedVersion(wanted)) {
     const same = state.versions.filter(
@@ -249,15 +237,13 @@ export function evaluateChecks(request: VersionInput, state: VersionListState): 
     if (same.length > 0) {
       blocking.push({
         code: 'version_exists',
-        message: `Version ${label(same[0] as StoreVersionRow)} already exists in App Store Connect.`,
-      });
+        message: `Version ${label(same[0] as StoreVersionRow)} already exists in App Store Connect.` });
     } else {
       const live = liveVersionOf(state.versions);
       if (live !== null && compareDottedVersions(wanted, live) <= 0) {
         blocking.push({
           code: 'not_higher',
-          message: `The new version must be higher than ${live}, the newest version in App Store Connect that cannot be edited.`,
-        });
+          message: `The new version must be higher than ${live}, the newest version in App Store Connect that cannot be edited.` });
       }
     }
   }
@@ -265,8 +251,7 @@ export function evaluateChecks(request: VersionInput, state: VersionListState): 
   if (going.length > 0 && editable.length === 0) {
     warnings.push({
       code: 'version_in_progress',
-      message: `Version ${label(going[0] as StoreVersionRow)} is in review or waiting to be released. Apple may refuse a new version until it is done.`,
-    });
+      message: `Version ${label(going[0] as StoreVersionRow)} is in review or waiting to be released. Apple may refuse a new version until it is done.` });
   }
   return { blocking, warnings, canCreate: blocking.length === 0 };
 }
@@ -290,18 +275,16 @@ export function versionConfirmHash(input: {
       releaseType: input.request.releaseType ?? null,
       versions: input.state.versions
         .map((v) => `${v.id}|${v.versionString ?? ''}|${v.state}`)
-        .sort(),
-    }),
+        .sort() }),
   );
 }
 
 const requestOf = (input: VersionInput): VersionCreateRequest => ({
   versionString: input.versionString.trim(),
-  ...(input.releaseType !== undefined ? { releaseType: input.releaseType } : {}),
-});
+  ...(input.releaseType !== undefined ? { releaseType: input.releaseType } : {}) });
 
 function ready(app: ManagedApp): Failure | null {
-  if (!isApplePlatform(app.platform))
+  if (!supports(app.platform, 'versionCreation'))
     return failure(
       422,
       'not_supported',
@@ -348,13 +331,11 @@ function previewOf(
     versions: state.versions.map((v) => ({
       versionString: v.versionString,
       state: v.state,
-      editable: v.editable,
-    })),
+      editable: v.editable })),
     checks,
     confirmHash: checks.canCreate ? versionConfirmHash({ workspaceId, app, request, state }) : null,
     reversible: true,
-    note: NOTE,
-  };
+    note: NOTE };
 }
 
 /** A store failure as an answer, with the reasons Apple gave (they say what to fix). */
@@ -426,10 +407,8 @@ async function audit(
       store: storeFor(app.platform),
       platform: app.platform,
       hash: input.confirmHash,
-      ...detail,
-    },
-    at: ctx.now(),
-  });
+      ...detail },
+    at: ctx.now() });
 }
 
 /**
@@ -466,8 +445,7 @@ export async function applyVersion(
     id: app.id,
     name: app.name,
     platform: app.platform,
-    store: storeFor(app.platform),
-  };
+    store: storeFor(app.platform) };
 
   let accepted: VersionListState | undefined;
   let blocked: VersionChecks | undefined;
@@ -491,8 +469,7 @@ export async function applyVersion(
           versionString: request.versionString,
           ...(request.releaseType ? { releaseType: request.releaseType } : {}),
           confirmedByReread: reread,
-          ...(cause ? { cause } : {}),
-        },
+          ...(cause ? { cause } : {}) },
         tx,
       );
     });
@@ -506,9 +483,7 @@ export async function applyVersion(
         confirmedByReread: reread,
         warnings: evaluateChecks(request, before).warnings,
         createdAt: at,
-        note: 'The version was created as an editable draft. Sync this app, then attach a build to it. Nothing was submitted.',
-      },
-    };
+        note: 'The version was created as an editable draft. Sync this app, then attach a build to it. Nothing was submitted.' } };
   };
 
   try {
@@ -526,8 +501,7 @@ export async function applyVersion(
             input.confirmHash;
           if (same) accepted = current;
           return same;
-        },
-      }),
+        } }),
     );
   } catch (error) {
     if (error instanceof VersionDriftError) {
@@ -535,8 +509,7 @@ export async function applyVersion(
         await audit(ctx, input, app, 'store.version_create_failed', {
           code: 'blocked',
           outcome: 'refused',
-          blocking: blocked.blocking.map((b) => b.code).slice(0, 10),
-        });
+          blocking: blocked.blocking.map((b) => b.code).slice(0, 10) });
         await releaseClaim(db, claim);
         return failure(
           409,
@@ -547,8 +520,7 @@ export async function applyVersion(
       }
       await audit(ctx, input, app, 'store.version_create_failed', {
         code: 'state_changed',
-        outcome: 'refused',
-      });
+        outcome: 'refused' });
       await releaseClaim(db, claim);
       return failure(
         409,
@@ -563,8 +535,7 @@ export async function applyVersion(
       const m = mapped(error, connection.secret);
       await audit(ctx, input, app, 'store.version_create_failed', {
         code: m.code,
-        outcome: 'failed',
-      });
+        outcome: 'failed' });
       await releaseClaim(db, claim);
       return m.failure;
     }
@@ -576,8 +547,7 @@ export async function applyVersion(
       {
         id: created.version?.id ?? null,
         versionString: created.version?.versionString ?? request.versionString,
-        state: created.version?.state || 'PREPARE_FOR_SUBMISSION',
-      },
+        state: created.version?.state || 'PREPARE_FOR_SUBMISSION' },
       false,
     );
   }
@@ -611,8 +581,7 @@ export async function applyVersion(
   await audit(ctx, input, app, 'store.version_create_failed', {
     code: cause,
     outcome: 'unknown',
-    readBack: current === undefined ? 'failed' : 'not_shown',
-  });
+    readBack: current === undefined ? 'failed' : 'not_shown' });
   return failure(
     409,
     'outcome_unknown',

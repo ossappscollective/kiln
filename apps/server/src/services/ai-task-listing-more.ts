@@ -1,5 +1,5 @@
 import type { JsonSchema } from '@mrm/connectors';
-import { type AiFlag, aiLimits, type AiListingProposal, type AiVariant, type AiVariantField, type AiVariantsProposal, APP_STORE_FIELD_SPECS, isApplePlatform, isStageableTextField, listingStoreOf, normalizeLocale, type Platform, PLAY_FIELD_SPECS } from '@mrm/core';
+import { type AiFlag, aiLimits, type AiListingProposal, type AiVariant, type AiVariantField, type AiVariantsProposal, APP_STORE_FIELD_SPECS, byFamily, isStageableTextField, listingStoreOf, normalizeLocale, type Platform, PLAY_FIELD_SPECS, type StoreFamily, storeFamilyOf } from '@mrm/core';
 import { listKeywords } from '../modules/aso/service.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { loadLocaleTexts } from './ai-task-keywords.ts';
@@ -12,8 +12,7 @@ import {
   cleanText,
   clip,
   type PreparedRun,
-  type ReadyTask,
-} from './ai-task-types.ts';
+  type ReadyTask } from './ai-task-types.ts';
 import { normalizeListingValue } from './listing-drift.ts';
 
 /**
@@ -31,19 +30,18 @@ type Specs = Record<
   { label: string; maxLength?: number; unit: 'characters' | 'bytes' } | undefined
 >;
 const specsFor = (platform: Platform): Specs =>
-  (isApplePlatform(platform) ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS) as unknown as Specs;
+  (byFamily(platform, { apple: APP_STORE_FIELD_SPECS, google: PLAY_FIELD_SPECS })) as unknown as Specs;
 const storeOf = (platform: Platform) => (listingStoreOf(platform));
 
 // ---------------------------------------------------------------------------------------------
 // listing_variants
 
 export const LISTING_VARIANTS_VERSION = 1;
-const VARIANT_FIELDS: Record<'apple' | 'play', readonly string[]> = {
+const VARIANT_FIELDS: Record<StoreFamily, readonly string[]> = {
   apple: ['subtitle', 'promotional_text', 'release_notes'],
-  play: ['title', 'short_description'],
-};
+  google: ['title', 'short_description'] };
 export const variantFields = (platform: Platform): readonly string[] =>
-  VARIANT_FIELDS[isApplePlatform(platform) ? 'apple' : 'play'];
+  VARIANT_FIELDS[storeFamilyOf(platform)];
 
 const VARIANTS_SYSTEM = `You write alternative versions of short store listing text for the developer of an app.
 
@@ -75,21 +73,13 @@ const variantsSchema = (fields: readonly string[]): JsonSchema => ({
               type: 'object',
               properties: {
                 text: { type: 'string', maxLength: 5000 },
-                reason: { type: 'string', maxLength: 300 },
-              },
+                reason: { type: 'string', maxLength: 300 } },
               required: ['text', 'reason'],
-              additionalProperties: false,
-            },
-          },
-        },
+              additionalProperties: false } } },
         required: ['field', 'variants'],
-        additionalProperties: false,
-      },
-    },
-  },
+        additionalProperties: false } } },
   required: ['fields'],
-  additionalProperties: false,
-});
+  additionalProperties: false });
 
 type VariantFacts = {
   platform: Platform;
@@ -125,26 +115,22 @@ export const listingVariantsTask: ReadyTask = {
       'Competitor data.',
       'Listing text of other languages, or of other apps.',
       'People in your workspace.',
-    ],
-  },
+    ] },
   scope: [
     {
       name: 'locale',
       required: true,
-      description: 'The language of the listing text, such as en-US.',
-    },
+      description: 'The language of the listing text, such as en-US.' },
     {
       name: 'fields',
       required: false,
       description:
-        'The fields to write. Default: App Store subtitle, promotional_text and release_notes; Google Play title and short_description.',
-    },
+        'The fields to write. Default: App Store subtitle, promotional_text and release_notes; Google Play title and short_description.' },
     { name: 'count', required: false, description: 'Variants per field, 2 to 5. Default 3.' },
     {
       name: 'goal',
       required: false,
-      description: `What the text should say or do, in your own words, at most ${aiLimits.maxGoalChars} characters.`,
-    },
+      description: `What the text should say or do, in your own words, at most ${aiLimits.maxGoalChars} characters.` },
   ],
   system: VARIANTS_SYSTEM,
   schema: variantsSchema(VARIANT_FIELDS.apple),
@@ -157,8 +143,7 @@ export const listingVariantsTask: ReadyTask = {
     const locale = normalizeLocale(scope.locale);
     if (!locale)
       return aiFail(400, 'invalid_request', 'The language is a tag such as en-US.', {
-        issues: [{ path: 'locale', message: 'A language tag such as en-US.' }],
-      });
+        issues: [{ path: 'locale', message: 'A language tag such as en-US.' }] });
     const allowed = variantFields(ctx.app.platform);
     let chosen: string[] = [...allowed];
     if (scope.fields !== undefined) {
@@ -168,8 +153,7 @@ export const listingVariantsTask: ReadyTask = {
         scope.fields.some((f) => typeof f !== 'string')
       ) {
         return aiFail(400, 'invalid_request', 'Name the fields as a list of text.', {
-          issues: [{ path: 'fields', message: 'A list of field names.' }],
-        });
+          issues: [{ path: 'fields', message: 'A list of field names.' }] });
       }
       const named = [...new Set(scope.fields as string[])];
       const unknown = named.filter((f) => !allowed.includes(f));
@@ -177,9 +161,7 @@ export const listingVariantsTask: ReadyTask = {
         return aiFail(400, 'invalid_request', 'A field has no variants here.', {
           issues: unknown.map((path) => ({
             path: `fields.${path}`,
-            message: `Not a field this task writes. Allowed: ${allowed.join(', ')}.`,
-          })),
-        });
+            message: `Not a field this task writes. Allowed: ${allowed.join(', ')}.` })) });
       }
       chosen = allowed.filter((f) => named.includes(f));
     }
@@ -206,10 +188,9 @@ export const listingVariantsTask: ReadyTask = {
       field,
       limit: specs[field]?.maxLength ?? null,
       unit: specs[field]?.unit ?? ('characters' as const),
-      current: texts.values.get(field) ?? null,
-    }));
+      current: texts.values.get(field) ?? null }));
     const context: Record<string, string> = {};
-    if (isApplePlatform(ctx.app.platform)) {
+    if (listingStoreOf(ctx.app.platform) === 'app_store') {
       const name = texts.values.get('name');
       if (name !== undefined) context.name = clip(name, 100);
     }
@@ -227,25 +208,21 @@ export const listingVariantsTask: ReadyTask = {
         label: specs[f.field]?.label ?? f.field,
         current: f.current === null ? null : clip(f.current, 4000),
         limit: f.limit,
-        unit: f.unit,
-      })),
+        unit: f.unit })),
       readOnlyContext: context,
       trackedKeywords: [...new Set(tracked.map((k) => k.term))],
-      ...(goal ? { developerGoal: goal } : {}),
-    };
+      ...(goal ? { developerGoal: goal } : {}) };
     const facts: VariantFacts = {
       platform: ctx.app.platform,
       locale: texts.locale,
       count,
       brandTerms: ctx.context.brandTerms,
-      fields,
-    };
+      fields };
     return {
       input,
       scope: { locale: texts.locale, fields: chosen, count, ...(goal ? { goal: true } : {}) },
       schema: variantsSchema(chosen),
-      facts,
-    };
+      facts };
   },
 
   propose(output, run): AiVariantsProposal {
@@ -301,21 +278,18 @@ export const listingVariantsTask: ReadyTask = {
         field: spec.field,
         limit: spec.limit,
         unit: spec.unit,
-        variants: variants.slice(0, facts.count),
-      });
+        variants: variants.slice(0, facts.count) });
     }
     return { kind: 'listing_variants', locale: facts.locale, fields };
-  },
-};
+  } };
 
 // ---------------------------------------------------------------------------------------------
 // listing_translate
 
 export const LISTING_TRANSLATE_VERSION = 1;
-const TRANSLATE_FIELDS: Record<'apple' | 'play', readonly string[]> = {
+const TRANSLATE_FIELDS: Record<StoreFamily, readonly string[]> = {
   apple: ['name', 'subtitle', 'description', 'keywords', 'promotional_text'],
-  play: ['title', 'short_description', 'full_description'],
-};
+  google: ['title', 'short_description', 'full_description'] };
 
 const TRANSLATE_SYSTEM = `You translate the store listing text of an app for its developer.
 
@@ -341,16 +315,11 @@ const translateSchema = (fields: readonly string[]): JsonSchema => ({
         properties: {
           field: { type: 'string', description: `One of ${fields.join(', ')}.` },
           text: { type: 'string', maxLength: 8000 },
-          reason: { type: 'string', maxLength: 400 },
-        },
+          reason: { type: 'string', maxLength: 400 } },
         required: ['field', 'text', 'reason'],
-        additionalProperties: false,
-      },
-    },
-  },
+        additionalProperties: false } } },
   required: ['fields'],
-  additionalProperties: false,
-});
+  additionalProperties: false });
 
 type TranslateFacts = {
   platform: Platform;
@@ -386,26 +355,22 @@ export const listingTranslateTask: ReadyTask = {
       'Competitor data.',
       'Listing text of other languages, or of other apps.',
       'People in your workspace.',
-    ],
-  },
+    ] },
   scope: [
     {
       name: 'sourceLocale',
       required: true,
       description:
-        'The language to translate from, such as en-US. Its listing text must be stored.',
-    },
+        'The language to translate from, such as en-US. Its listing text must be stored.' },
     {
       name: 'locale',
       required: true,
-      description: 'The language to translate into, such as de-DE.',
-    },
+      description: 'The language to translate into, such as de-DE.' },
     {
       name: 'fields',
       required: false,
       description:
-        'The fields to translate. Default: all of name, subtitle, description, keywords and promotional_text (Google Play: title, short_description, full_description).',
-    },
+        'The fields to translate. Default: all of name, subtitle, description, keywords and promotional_text (Google Play: title, short_description, full_description).' },
   ],
   system: TRANSLATE_SYSTEM,
   schema: translateSchema(TRANSLATE_FIELDS.apple),
@@ -421,15 +386,13 @@ export const listingTranslateTask: ReadyTask = {
       return aiFail(400, 'invalid_request', 'Languages are tags such as en-US.', {
         issues: [
           { path: !source ? 'sourceLocale' : 'locale', message: 'A language tag such as en-US.' },
-        ],
-      });
+        ] });
     }
     if (target.toLowerCase() === source.toLowerCase()) {
       return aiFail(400, 'invalid_request', 'The target language is the source language.', {
-        issues: [{ path: 'locale', message: 'Choose another language.' }],
-      });
+        issues: [{ path: 'locale', message: 'Choose another language.' }] });
     }
-    const allowed = TRANSLATE_FIELDS[isApplePlatform(ctx.app.platform) ? 'apple' : 'play'];
+    const allowed = TRANSLATE_FIELDS[storeFamilyOf(ctx.app.platform)];
     let chosen: string[] = [...allowed];
     if (scope.fields !== undefined) {
       if (
@@ -438,8 +401,7 @@ export const listingTranslateTask: ReadyTask = {
         scope.fields.some((f) => typeof f !== 'string')
       ) {
         return aiFail(400, 'invalid_request', 'Name the fields as a list of text.', {
-          issues: [{ path: 'fields', message: 'A list of field names.' }],
-        });
+          issues: [{ path: 'fields', message: 'A list of field names.' }] });
       }
       const named = [...new Set(scope.fields as string[])];
       const unknown = named.filter((f) => !allowed.includes(f));
@@ -447,9 +409,7 @@ export const listingTranslateTask: ReadyTask = {
         return aiFail(400, 'invalid_request', 'A field cannot be translated here.', {
           issues: unknown.map((path) => ({
             path: `fields.${path}`,
-            message: `Not a field this task translates. Allowed: ${allowed.join(', ')}.`,
-          })),
-        });
+            message: `Not a field this task translates. Allowed: ${allowed.join(', ')}.` })) });
       }
       chosen = allowed.filter((f) => named.includes(f));
     }
@@ -475,8 +435,7 @@ export const listingTranslateTask: ReadyTask = {
       field,
       limit: specs[field]?.maxLength ?? null,
       unit: specs[field]?.unit ?? ('characters' as const),
-      current: into?.values.get(field) ?? null,
-    }));
+      current: into?.values.get(field) ?? null }));
     const sources: Record<string, string> = {};
     for (const f of have) sources[f] = from.values.get(f) ?? '';
     const tracked = (
@@ -493,23 +452,19 @@ export const listingTranslateTask: ReadyTask = {
         label: specs[f]?.label ?? f,
         text: clip(sources[f] ?? '', f === 'description' || f === 'full_description' ? 4000 : 500),
         targetLimit: specs[f]?.maxLength ?? null,
-        unit: specs[f]?.unit ?? 'characters',
-      })),
-      trackedKeywordsInTarget: [...new Set(tracked.map((k) => k.term))],
-    };
+        unit: specs[f]?.unit ?? 'characters' })),
+      trackedKeywordsInTarget: [...new Set(tracked.map((k) => k.term))] };
     const facts: TranslateFacts = {
       platform: ctx.app.platform,
       locale: into?.locale ?? target,
       fields,
       sources,
-      brandTerms: ctx.context.brandTerms,
-    };
+      brandTerms: ctx.context.brandTerms };
     return {
       input,
       scope: { sourceLocale: from.locale, locale: into?.locale ?? target, fields: have },
       schema: translateSchema(have),
-      facts,
-    };
+      facts };
   },
 
   propose(output, run): AiListingProposal {
@@ -517,8 +472,7 @@ export const listingTranslateTask: ReadyTask = {
     // The same checks as an improved text: limits in the store's unit, keyword field trimmed from the end, flags, stageable or not.
     const proposal = listingImproveTask.propose(output, {
       ...run,
-      facts: { platform: facts.platform, locale: facts.locale, fields: facts.fields },
-    });
+      facts: { platform: facts.platform, locale: facts.locale, fields: facts.fields } });
     if (proposal.kind !== 'listing_text') return proposal as unknown as AiListingProposal;
     for (const f of proposal.fields) {
       const source = (facts.sources[f.field] ?? '').toLowerCase();
@@ -530,5 +484,4 @@ export const listingTranslateTask: ReadyTask = {
       if (missing && !f.flags.includes('brand_term_missing')) f.flags.push('brand_term_missing');
     }
     return proposal;
-  },
-};
+  } };

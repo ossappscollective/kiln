@@ -5,7 +5,7 @@
  */
 
 import { APP_STORE_FIELD_SPECS, countCharacters, PLAY_CHANGELOG_SPEC } from './listing.ts';
-import { isApplePlatform, isGooglePlatform, type Platform } from './platform.ts';
+import { byFamily, type Platform } from './platform.ts';
 
 /** `null` means the plan covers both platforms. */
 export type PlanPlatform = Platform | null;
@@ -34,8 +34,10 @@ export const PLAY_RELEASE_NOTES_LIMIT: number = PLAY_CHANGELOG_SPEC.maxLength ??
  * stricter store, so it gets the smaller limit. Taken from the listing rules in `listing.ts`.
  */
 export function releaseNotesLimit(platform: PlanPlatform): number {
-  if (platform !== null && isApplePlatform(platform)) return APP_STORE_RELEASE_NOTES_LIMIT;
-  if (platform !== null && isGooglePlatform(platform)) return PLAY_RELEASE_NOTES_LIMIT;
+  if (platform !== null)
+    return byFamily(platform, {
+      apple: APP_STORE_RELEASE_NOTES_LIMIT,
+      google: PLAY_RELEASE_NOTES_LIMIT });
   return Math.min(APP_STORE_RELEASE_NOTES_LIMIT, PLAY_RELEASE_NOTES_LIMIT);
 }
 
@@ -160,10 +162,8 @@ export function computeReadiness(input: {
       filled: input.notes.length - missing.length,
       missing,
       tooLong,
-      complete,
-    },
-    reasons,
-  };
+      complete },
+    reasons };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -208,8 +208,7 @@ export const DEFAULT_CHECKLIST_TEMPLATES: readonly DefaultChecklistTemplate[] = 
       req('What’s new text is reviewed by a second person'),
       opt('Support URL and marketing URL open'),
       opt('Build tested on a real device from TestFlight'),
-    ],
-  },
+    ] },
   {
     id: 'builtin:first-android',
     name: 'First Android release',
@@ -225,8 +224,7 @@ export const DEFAULT_CHECKLIST_TEMPLATES: readonly DefaultChecklistTemplate[] = 
       req('What’s new text is reviewed by a second person'),
       opt('Tested on the internal testing track'),
       opt('Staged rollout steps are agreed'),
-    ],
-  },
+    ] },
   {
     id: 'builtin:routine-update',
     name: 'Routine update',
@@ -237,8 +235,7 @@ export const DEFAULT_CHECKLIST_TEMPLATES: readonly DefaultChecklistTemplate[] = 
       req('Build is tested and chosen'),
       opt('Screenshots still match the app'),
       opt('Support team knows what changed'),
-    ],
-  },
+    ] },
 ];
 
 export function defaultTemplate(id: string): DefaultChecklistTemplate | undefined {

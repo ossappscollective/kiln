@@ -1,12 +1,5 @@
 import { APPLE_DOCUMENTED_CALLS_PER_MINUTE, PLAY_UNOFFICIAL_NOTICE } from '@mrm/connectors';
-import {
-  type Action,
-  can,
-  FIT_ASSUMPTIONS,
-  INDEXED_FIELDS,
-  isGooglePlatform,
-  normalizeCountry,
-} from '@mrm/core';
+import { type Action, can, FIT_ASSUMPTIONS, INDEXED_FIELDS, normalizeCountry, supports } from '@mrm/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -29,8 +22,7 @@ import {
   listingLocalesFor,
   marketsFor,
   suggestionsFor,
-  summaryFor,
-} from './insights.ts';
+  summaryFor } from './insights.ts';
 import { checkRankDownloadsQuery, rankVsDownloadsFor } from './rank-downloads.ts';
 import { queueAsoRefreshAll } from './schedule.ts';
 import {
@@ -49,8 +41,7 @@ import {
   playDisabledFailure,
   refreshApp,
   removeCompetitor,
-  updateKeyword,
-} from './service.ts';
+  updateKeyword } from './service.ts';
 
 export type AsoRoutesContext = AsoContext & {
   /** Store lookups and refreshes per workspace per minute (default 10, built in createApp). */
@@ -76,8 +67,7 @@ const keywordItem = z
     locale: z.string().max(20).optional(),
     tag: z.string().max(200).nullable().optional(),
     notes: z.string().max(2000).nullable().optional(),
-    priority: z.number().int().min(1).max(3).optional(),
-  })
+    priority: z.number().int().min(1).max(3).optional() })
   .strict();
 export const addKeywordsBody = z
   .object({ keywords: z.array(keywordItem).min(1).max(MAX_KEYWORDS_PER_REQUEST) })
@@ -86,8 +76,7 @@ export const updateKeywordBody = z
   .object({
     tag: z.string().max(200).nullable().optional(),
     notes: z.string().max(2000).nullable().optional(),
-    priority: z.number().int().min(1).max(3).optional(),
-  })
+    priority: z.number().int().min(1).max(3).optional() })
   .strict()
   .refine((v) => Object.keys(v).length > 0, 'Send at least one of tag, notes and priority.');
 export const addCompetitorBody = z
@@ -122,8 +111,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       {
         error: 'rate_limited',
         message: `Too many store lookups. Try again in ${wait} seconds.`,
-        retryAfterSeconds: wait,
-      },
+        retryAfterSeconds: wait },
       429,
     );
   };
@@ -148,15 +136,13 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       apple: {
         enabled: true,
         source: 'iTunes Search API',
-        documentedCallsPerMinute: APPLE_DOCUMENTED_CALLS_PER_MINUTE,
-      },
+        documentedCallsPerMinute: APPLE_DOCUMENTED_CALLS_PER_MINUTE },
       play: {
         enabled: ctx.sources.playEnabled,
         unofficial: true,
         // The Terms of Service warning, in the same words the docs use.
         notice: PLAY_UNOFFICIAL_NOTICE,
-        howToEnable: 'The operator sets MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true on the server.',
-      },
+        howToEnable: 'The operator sets MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true on the server.' },
       schedule: { intervalMinutes: Math.round(ctx.limits.intervalMs / 60_000) },
       retentionDays: ctx.limits.retentionDays,
       limits: {
@@ -164,10 +150,8 @@ export function asoRoutes(ctx: AsoRoutesContext) {
         maxCompetitorsPerApp: ctx.limits.maxCompetitorsPerApp,
         maxChecksPerRun: ctx.limits.maxChecksPerRun,
         rankDepth: ctx.limits.rankDepth,
-        maxKeywordsPerRequest: MAX_KEYWORDS_PER_REQUEST,
-      },
-      rankMoveThreshold: await rankMoveThresholdFor(db, ws(c)),
-    }),
+        maxKeywordsPerRequest: MAX_KEYWORDS_PER_REQUEST },
+      rankMoveThreshold: await rankMoveThresholdFor(db, ws(c)) }),
   );
 
   // ----- the overview of one app ----------------------------------------------------------------------
@@ -188,12 +172,11 @@ export function asoRoutes(ctx: AsoRoutesContext) {
   routes.get('/:workspaceId/apps/:id/aso/search-terms', needs('aso.read'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
-    if (!isGooglePlatform(app.platform)) {
+    if (!supports(app.platform, 'searchTermsImport')) {
       return c.json(
         {
           error: 'not_google_play_app',
-          message: 'Search terms are a Google Play report. This app is an iOS or macOS app.',
-        },
+          message: 'Search terms are a Google Play report. This app is an iOS or macOS app.' },
         422,
       );
     }
@@ -206,8 +189,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       ...(q('country') !== undefined ? { country: q('country') as string } : {}),
       ...(q('sort') !== undefined ? { sort: q('sort') as string } : {}),
       ...(locale.ok && locale.locale ? { locale: locale.locale } : {}),
-      ...(limit !== undefined ? { limit } : {}),
-    });
+      ...(limit !== undefined ? { limit } : {}) });
     const issues: Issue[] = checked.ok ? [] : checked.issues;
     if (limit === undefined)
       issues.push({ path: 'limit', message: 'A whole number from 1 to 200.' });
@@ -228,8 +210,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
         ...(q('country') !== undefined ? { country: q('country') as string } : {}),
         ...(q('keywords') !== undefined ? { keywords: q('keywords') as string } : {}),
         ...(q('from') !== undefined ? { from: q('from') as string } : {}),
-        ...(q('to') !== undefined ? { to: q('to') as string } : {}),
-      },
+        ...(q('to') !== undefined ? { to: q('to') as string } : {}) },
       ctx.now(),
     );
     if (!checked.ok) return bad(c, checked.issues);
@@ -261,8 +242,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     if (issues.length > 0) return bad(c, issues);
     return c.json({
       keywords: await listKeywords(db, ws(c), app.id, filter),
-      limits: { maxKeywordsPerApp: ctx.limits.maxKeywordsPerApp },
-    });
+      limits: { maxKeywordsPerApp: ctx.limits.maxKeywordsPerApp } });
   });
 
   routes.post(
@@ -280,8 +260,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
         ...(k.locale !== undefined ? { locale: k.locale } : {}),
         ...(k.tag !== undefined ? { tag: k.tag } : {}),
         ...(k.notes !== undefined ? { notes: k.notes } : {}),
-        ...(k.priority !== undefined ? { priority: k.priority } : {}),
-      }));
+        ...(k.priority !== undefined ? { priority: k.priority } : {}) }));
       const results = await addKeywords(ctx, { workspaceId: ws(c), app, actor: actor(c), items });
       const summary = { created: 0, exists: 0, invalid: 0, limit: 0 };
       for (const r of results) summary[r.status] += 1;
@@ -301,8 +280,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       actor: actor(c),
       ...(body.data.tag !== undefined ? { tag: body.data.tag } : {}),
       ...(body.data.notes !== undefined ? { notes: body.data.notes } : {}),
-      ...(body.data.priority !== undefined ? { priority: body.data.priority } : {}),
-    });
+      ...(body.data.priority !== undefined ? { priority: body.data.priority } : {}) });
     return done.ok ? c.json({ keyword: done.keyword }) : respond(c, done);
   });
 
@@ -313,8 +291,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       workspaceId: ws(c),
       appId: app.id,
       id: param(c, 'keywordId'),
-      actor: actor(c),
-    });
+      actor: actor(c) });
     return done ? c.body(null, 204) : notFound(c);
   });
 
@@ -339,8 +316,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
         appId: app.id,
         keywordId: keyword.id,
         limit,
-        ...(sinceRaw ? { since: Number(sinceRaw) } : {}),
-      });
+        ...(sinceRaw ? { since: Number(sinceRaw) } : {}) });
       return c.json({ keyword, ...history });
     },
   );
@@ -351,8 +327,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     if (!app) return notFound(c);
     return c.json({
       competitors: await listCompetitors(db, ws(c), app.id),
-      limits: { maxCompetitorsPerApp: ctx.limits.maxCompetitorsPerApp },
-    });
+      limits: { maxCompetitorsPerApp: ctx.limits.maxCompetitorsPerApp } });
   });
 
   routes.post('/:workspaceId/apps/:id/aso/competitors', needs('aso.write'), async (c) => {
@@ -370,8 +345,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       app,
       actor: actor(c),
       externalId: body.data.externalId,
-      ...(body.data.country !== undefined ? { country: body.data.country } : {}),
-    });
+      ...(body.data.country !== undefined ? { country: body.data.country } : {}) });
     return done.ok ? c.json({ competitor: done.competitor }, 201) : respond(c, done);
   });
 
@@ -385,8 +359,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
         workspaceId: ws(c),
         appId: app.id,
         id: param(c, 'competitorId'),
-        actor: actor(c),
-      });
+        actor: actor(c) });
       return done ? c.body(null, 204) : notFound(c);
     },
   );
@@ -406,8 +379,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
         workspaceId: ws(c),
         appId: app.id,
         competitorId: competitor.id,
-        limit,
-      });
+        limit });
       return c.json({ competitor, ...history });
     },
   );
@@ -424,8 +396,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       ...fit,
       listingLocales: stored.locales.map((l) => l.locale),
       indexedFields: INDEXED_FIELDS[app.platform],
-      assumptions: FIT_ASSUMPTIONS,
-    });
+      assumptions: FIT_ASSUMPTIONS });
   });
 
   // The terms the listing sets, per locale: the stored text of every locale of the listing (the web works the terms out).
@@ -434,8 +405,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     if (!app) return notFound(c);
     return c.json({
       ...(await listingKeywordsFor(db, ws(c), app)),
-      indexedFields: INDEXED_FIELDS[app.platform],
-    });
+      indexedFields: INDEXED_FIELDS[app.platform] });
   });
 
   routes.get('/:workspaceId/apps/:id/aso/ideas', needs('aso.read'), async (c) => {
@@ -451,8 +421,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     return c.json(
       await ideasFor(db, ws(c), app, {
         ...(locale.locale ? { locale: locale.locale } : {}),
-        limit,
-      }),
+        limit }),
     );
   });
 
@@ -511,8 +480,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
         appId: id,
         requestedBy: c.get('user').id,
         force: true,
-        scope,
-      });
+        scope });
       return c.json({ jobId }, 202);
     }
     const done = await refreshApp(
@@ -534,15 +502,13 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       workspaceId: ws(c),
       now: ctx.now(),
       playEnabled: ctx.sources.playEnabled,
-      requestedBy: c.get('user').id,
-    });
+      requestedBy: c.get('user').id });
     await recordAudit(db, {
       workspaceId: ws(c),
       actor: actor(c),
       action: 'aso.refresh_all',
       detail: { queued: summary.queued, skipped: summary.skipped },
-      at: ctx.now(),
-    });
+      at: ctx.now() });
     return c.json({ queued: summary.queued, skipped: summary.skipped }, 202);
   });
 

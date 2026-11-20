@@ -1,13 +1,4 @@
-import {
-  type ActorType,
-  DEFAULT_PLAY_RELEASE_SETTINGS,
-  hasEarlierProductionRelease,
-  isGooglePlatform,
-  isStagedRolloutMode,
-  type PlayReleaseSettings,
-  STAGED_ROLLOUT_MODES,
-  type StagedRolloutMode,
-} from '@mrm/core';
+import { type ActorType, DEFAULT_PLAY_RELEASE_SETTINGS, hasEarlierProductionRelease, isStagedRolloutMode, type PlayReleaseSettings, STAGED_ROLLOUT_MODES, type StagedRolloutMode, supports } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
@@ -41,8 +32,7 @@ export function parseSharePercent(raw: unknown): Parsed<number | null> {
   )
     return {
       ok: false,
-      message: 'Use a percent from 1 to 100 (at most 2 decimals), or null for none.',
-    };
+      message: 'Use a percent from 1 to 100 (at most 2 decimals), or null for none.' };
   return { ok: true, value: raw };
 }
 
@@ -109,10 +99,8 @@ export async function getAppReleaseSettings(
     earlierProductionRelease: hasEarlierProductionRelease(
       rows.map((r) => ({
         track: r.track === null || r.track === undefined ? null : String(r.track),
-        status: r.status === null || r.status === undefined ? null : String(r.status),
-      })),
-    ),
-  };
+        status: r.status === null || r.status === undefined ? null : String(r.status) })),
+    ) };
 }
 
 /**
@@ -132,7 +120,7 @@ export async function updateAppReleaseSettings(
 ): Promise<{ ok: true; settings: AppReleaseSettings; changed: string[] } | Failure> {
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  if (!isGooglePlatform(app.platform))
+  if (!supports(app.platform, 'releaseTracks'))
     return failure(
       422,
       'not_applicable',
@@ -174,10 +162,8 @@ export async function updateAppReleaseSettings(
       target: { type: 'app', id: input.appId },
       detail: {
         appId: input.appId,
-        changes: changed.map((k) => ({ key: k, from: before[k], to: after[k] })),
-      },
-      at: now,
-    });
+        changes: changed.map((k) => ({ key: k, from: before[k], to: after[k] })) },
+      at: now });
     return { ok: true as const, settings: after, changed };
   });
 }

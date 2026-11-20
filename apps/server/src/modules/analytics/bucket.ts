@@ -1,12 +1,5 @@
 import { AnalyticsError } from '@mrm/connectors';
-import {
-  type ActorType,
-  isApplePlatform,
-  normalizeBucketId,
-  type PlayBucketSource,
-  type PlayBucketTestCode,
-  playBucketTestMessages,
-} from '@mrm/core';
+import { type ActorType, normalizeBucketId, type PlayBucketSource, type PlayBucketTestCode, playBucketTestMessages, supports } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { resolvePlayBucket } from './store.ts';
 import { type AnalyticsContext, classifyAnalyticsError } from './sync.ts';
@@ -78,7 +71,7 @@ export async function setPlayBucket(
 ): Promise<{ ok: true; view: PlayBucketView } | Failure> {
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  if (isApplePlatform(app.platform)) return notAndroid();
+  if (!supports(app.platform, 'playReportsBucket')) return notAndroid();
   const id = input.bucket === null ? null : normalizeBucketId(input.bucket);
   if (input.bucket !== null && id === undefined)
     return failure(422, 'bucket_invalid', playBucketTestMessages.bucket_invalid);
@@ -107,10 +100,8 @@ export async function setPlayBucket(
         appId: app.id,
         credentialId: app.credentialId,
         scope: input.scope,
-        cleared: id === null,
-      },
-      at,
-    });
+        cleared: id === null },
+      at });
   });
   return { ok: true, view: await getPlayBucket(db, input.workspaceId, app) };
 }
@@ -132,8 +123,7 @@ const done = (code: PlayBucketTestCode, months: string[] = []): BucketTestResult
   ok: code === 'ok' || code === 'no_reports_yet',
   code,
   message: playBucketTestMessages[code],
-  months,
-});
+  months });
 
 /**
  * "Test the bucket": reads the file LIST of the current and the previous month for this app, once (no file is stored). The answer is a
@@ -146,7 +136,7 @@ export async function testPlayBucket(
 ): Promise<{ ok: true; result: BucketTestResult } | Failure> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  if (isApplePlatform(app.platform)) return notAndroid();
+  if (!supports(app.platform, 'playReportsBucket')) return notAndroid();
   let bucketId: string | null;
   if (input.bucket !== undefined) {
     bucketId = normalizeBucketId(input.bucket) ?? null;
@@ -174,8 +164,7 @@ export async function testPlayBucket(
       secret,
       packageName: app.identifier,
       bucketId,
-      fetch: globalThis.fetch,
-    });
+      fetch: globalThis.fetch });
     let found = 0;
     for (const month of months) {
       try {

@@ -1,19 +1,4 @@
-import {
-  isApplePlatform,
-  LEGACY_AGE_ANSWER,
-  type ListingAgeRating,
-  type ListingCategories,
-  type ListingDetails,
-  type ListingMedia,
-  type ListingPrivacy,
-  type ListingReleaseNotes,
-  type ListingSectionName,
-  type ListingSections,
-  type MediaSet,
-  normalizeCategory,
-  type Platform,
-  type SectionStatus,
-} from '@mrm/core';
+import { LEGACY_AGE_ANSWER, type ListingAgeRating, type ListingCategories, type ListingDetails, type ListingMedia, type ListingPrivacy, type ListingReleaseNotes, type ListingSectionName, type ListingSections, type MediaSet, normalizeCategory, type Platform, type SectionStatus, supports } from '@mrm/core';
 import { timeAgo } from './format.ts';
 import type { BadgeTone } from './portfolio.ts';
 import type { ListingSchedule, SectionDrift } from './types.ts';
@@ -41,35 +26,28 @@ const STATUS: Record<SectionStatus, StatusInfo> = {
   identical: {
     label: 'Identical',
     tone: 'ok',
-    explain: 'The repository and the store say the same.',
-  },
+    explain: 'The repository and the store say the same.' },
   differs: {
     label: 'Differs',
     tone: 'warn',
-    explain: 'The repository and the store disagree. See the rows marked as different.',
-  },
+    explain: 'The repository and the store disagree. See the rows marked as different.' },
   'missing-in-repo': {
     label: 'Not in the repository',
     tone: 'neutral',
-    explain: 'The store has a value and the repository files say nothing about it.',
-  },
+    explain: 'The store has a value and the repository files say nothing about it.' },
   'missing-in-store': {
     label: 'Not in the store',
     tone: 'neutral',
-    explain: 'The repository has a value and the store has nothing.',
-  },
+    explain: 'The repository has a value and the store has nothing.' },
   'not-comparable': {
     label: 'Not comparable',
     tone: 'neutral',
     explain:
-      'The repository cannot say this faithfully (or has not been read), so the store value is shown without a comparison.',
-  },
+      'The repository cannot say this faithfully (or has not been read), so the store value is shown without a comparison.' },
   'not-read': {
     label: 'Not read yet',
     tone: 'neutral',
-    explain: 'This has not been read from the store yet.',
-  },
-};
+    explain: 'This has not been read from the store yet.' } };
 
 export const sectionStatusLabel = (status: SectionStatus): string =>
   STATUS[status]?.label ?? status;
@@ -84,8 +62,7 @@ export const SECTION_TITLES: Record<ListingSectionName, string> = {
   privacy: 'Privacy choices URL',
   details: 'App details',
   media: 'Screenshots and previews',
-  releaseNotes: 'Release notes',
-};
+  releaseNotes: 'Release notes' };
 
 export const sectionTitle = (name: ListingSectionName): string => SECTION_TITLES[name] ?? name;
 
@@ -128,8 +105,7 @@ const AGE_LABELS: Record<string, string> = {
   NINE_PLUS: '9+',
   TWELVE_PLUS: '12+',
   SEVENTEEN_PLUS: '17+',
-  EIGHTEEN_PLUS: '18+',
-};
+  EIGHTEEN_PLUS: '18+' };
 
 /** The age rating label of the store ("4+"); a value this client does not know is humanized. */
 export function ageRatingLabel(rating: string | undefined): string | null {
@@ -167,8 +143,7 @@ export function deviceLabel(type: string): string {
     featureGraphic: 'Feature graphic',
     tvBanner: 'TV banner',
     promoGraphic: 'Promo graphic',
-    all: 'All device types',
-  };
+    all: 'All device types' };
   if (type === 'APP_DESKTOP') return 'Mac';
   if (play[type]) return play[type] as string;
   return humanize(type.replace(/^APP_/, ''));
@@ -200,8 +175,7 @@ const row = (
   store,
   repo,
   differs,
-  ...(raw === undefined ? {} : { raw }),
-});
+  ...(raw === undefined ? {} : { raw }) });
 
 const sameCategory = (a: string | undefined, b: string | undefined): boolean =>
   (a === undefined ? '' : normalizeCategory(a)) === (b === undefined ? '' : normalizeCategory(b));
@@ -372,12 +346,12 @@ export function mediaRows(
   // difference: a count is only marked as different when both sides have some media.
   const everything = (m: ListingMedia | undefined) =>
     Object.values(m?.screenshots ?? {}).reduce((n, sets) => n + total(sets), 0) +
-    (!isApplePlatform(platform)
+    (!supports(platform, 'screenshotsByDevice')
       ? Object.values(m?.graphics ?? {}).reduce((n, sets) => n + total(sets), 0)
       : 0);
   const bothHave = everything(store) > 0 && everything(repo) > 0;
   for (const locale of locales) {
-    if (isApplePlatform(platform)) {
+    if (supports(platform, 'screenshotsByDevice')) {
       for (const set of setsOf(store?.screenshots, locale)) {
         rows.push({
           locale,
@@ -387,8 +361,7 @@ export function mediaRows(
           store: set.count,
           repo: null,
           compared: false,
-          differs: false,
-        });
+          differs: false });
       }
       const s = total(setsOf(store?.screenshots, locale));
       const r = repoKnown ? total(setsOf(repo?.screenshots, locale)) : null;
@@ -402,8 +375,7 @@ export function mediaRows(
           store: storeHas ? s : null,
           repo: r,
           compared: r !== null && storeHas,
-          differs: r !== null && storeHas && bothHave && r !== s,
-        });
+          differs: r !== null && storeHas && bothHave && r !== s });
       }
       for (const set of setsOf(store?.previews, locale)) {
         rows.push({
@@ -414,8 +386,7 @@ export function mediaRows(
           store: set.count,
           repo: null,
           compared: false,
-          differs: false,
-        });
+          differs: false });
       }
     } else {
       const types = new Map<
@@ -430,8 +401,7 @@ export function mediaRows(
         const cur = types.get(`S:${set.type}`) ?? {
           kind: 'Screenshots' as const,
           s: store === undefined ? null : 0,
-          r: 0,
-        };
+          r: 0 };
         cur.r = set.count;
         types.set(`S:${set.type}`, cur);
       }
@@ -439,8 +409,7 @@ export function mediaRows(
         const cur = types.get(`G:${set.type}`) ?? {
           kind: 'Graphics' as const,
           s: store === undefined ? null : 0,
-          r: 0,
-        };
+          r: 0 };
         cur.r = set.count;
         types.set(`G:${set.type}`, cur);
       }
@@ -454,8 +423,7 @@ export function mediaRows(
           store: v.s,
           repo: v.r,
           compared: v.s !== null && v.r !== null,
-          differs: bothHave && v.s !== null && v.r !== null && v.s !== v.r,
-        });
+          differs: bothHave && v.s !== null && v.r !== null && v.s !== v.r });
       }
     }
   }
@@ -548,16 +516,14 @@ export function scheduleView(schedule: ListingSchedule | undefined, now: number)
     return {
       state: 'unknown',
       headline: 'Scheduled reads: unknown',
-      detail: 'This server does not report whether the listing is read on a schedule.',
-    };
+      detail: 'This server does not report whether the listing is read on a schedule.' };
   }
   if (!schedule.enabled) {
     return {
       state: 'off',
       headline: 'Scheduled reads are off',
       detail:
-        'The listing is read when the app is synced or refreshed from the store. The server owner can turn scheduled reads on (MRM_LISTING_INTERVAL_MINUTES).',
-    };
+        'The listing is read when the app is synced or refreshed from the store. The server owner can turn scheduled reads on (MRM_LISTING_INTERVAL_MINUTES).' };
   }
   const every = `Read automatically every ${intervalText(schedule.intervalMinutes)}`;
   const next =
@@ -570,8 +536,7 @@ export function scheduleView(schedule: ListingSchedule | undefined, now: number)
     return {
       state: 'backing-off',
       headline: every,
-      detail: `The last ${schedule.failures === 1 ? 'attempt' : `${schedule.failures} attempts`} failed, so the next one waits: ${next}.`,
-    };
+      detail: `The last ${schedule.failures === 1 ? 'attempt' : `${schedule.failures} attempts`} failed, so the next one waits: ${next}.` };
   }
   return { state: 'on', headline: every, detail: `Next read: ${next}.` };
 }

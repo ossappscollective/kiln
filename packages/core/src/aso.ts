@@ -14,7 +14,7 @@
  * UNVERIFIED in comments and in the ADR; the fit result carries them as `assumptions`.
  */
 
-import { isApplePlatform, type Platform } from './platform.ts';
+import { type Platform, supports } from './platform.ts';
 
 // ---------------------------------------------------------------------------------------------
 // Terms
@@ -158,8 +158,7 @@ const COUNTRY_LOCALE: Record<string, string> = {
   vn: 'vi-VN',
   id: 'id-ID',
   my: 'ms-MY',
-  ph: 'en-PH',
-};
+  ph: 'en-PH' };
 
 /** The listing locale a storefront most likely uses, for a keyword added without one. `en` for a country not in the list. */
 export function defaultLocaleFor(country: string): string {
@@ -266,8 +265,7 @@ export function rankTrend(points: readonly RankPoint[]): RankTrend {
     best: ranked.length > 0 ? Math.min(...ranked) : null,
     worst: ranked.length > 0 ? Math.max(...ranked) : null,
     samples: points.length,
-    ranked: ranked.length,
-  };
+    ranked: ranked.length };
   if (points.length < 2 || !last) return { direction: 'unknown', delta: null, ...base };
   const out = Math.max(...points.map((p) => p.total), ...ranked) + 1;
   const first = points[0] as RankPoint;
@@ -302,21 +300,18 @@ export type FitFields = {
 export const INDEXED_FIELDS: Record<AsoPlatform, readonly FitField[]> = {
   ios: ['title', 'subtitle', 'keywords'],
   macos: ['title', 'subtitle', 'keywords'],
-  android: ['title', 'shortDescription', 'description'],
-};
+  android: ['title', 'shortDescription', 'description'] };
 
 /** The fields where a phrase counts as "strong" (a high weight in the store's ranking: UNVERIFIED). */
 const STRONG_FIELDS: Record<AsoPlatform, readonly FitField[]> = {
   ios: ['title', 'subtitle'],
   macos: ['title', 'subtitle'],
-  android: ['title', 'shortDescription'],
-};
+  android: ['title', 'shortDescription'] };
 
 const FIELD_ORDER: Record<AsoPlatform, readonly FitField[]> = {
   ios: ['title', 'subtitle', 'keywords', 'description'],
   macos: ['title', 'subtitle', 'keywords', 'description'],
-  android: ['title', 'shortDescription', 'description'],
-};
+  android: ['title', 'shortDescription', 'description'] };
 
 export const FIT_ASSUMPTIONS: readonly string[] = [
   'UNVERIFIED: which fields each store searches (iOS: name, subtitle, keyword field; Android: title, short and full description).',
@@ -460,8 +455,7 @@ export function fitKeyword(
     priority: keyword.priority ?? 2,
     status,
     where,
-    missingWords: unique.filter((w) => !inIndexed.has(w)),
-  };
+    missingWords: unique.filter((w) => !inIndexed.has(w)) };
 }
 
 const STATUS_ORDER: Record<FitStatus, number> = {
@@ -469,8 +463,7 @@ const STATUS_ORDER: Record<FitStatus, number> = {
   description_only: 1,
   partial: 2,
   covered: 3,
-  strong: 4,
-};
+  strong: 4 };
 
 export type ListingFit = {
   platform: AsoPlatform;
@@ -533,8 +526,7 @@ export function analyzeKeywordField(
     separatorBytes,
     compacted,
     compactedBytes,
-    savedBytes: Math.max(0, bytes - compactedBytes),
-  };
+    savedBytes: Math.max(0, bytes - compactedBytes) };
 }
 
 /** The fit of every keyword against one locale of the listing. */
@@ -551,8 +543,7 @@ export function listingFit(input: {
     covered: 0,
     partial: 0,
     description_only: 0,
-    missing: 0,
-  };
+    missing: 0 };
   for (const k of keywords) counts[k.status] += 1;
   const rankOf = new Map<string, number | null | undefined>();
   for (const k of input.keywords) rankOf.set(k.id, k.rank);
@@ -575,17 +566,14 @@ export function listingFit(input: {
     keywords,
     counts,
     gaps,
-    ...(isApplePlatform(platform) && fields.keywords !== undefined
+    ...(supports(platform, 'keywordField') && fields.keywords !== undefined
       ? {
           keywordField: analyzeKeywordField(fields.keywords, {
             ...(fields.title !== undefined ? { title: fields.title } : {}),
             ...(fields.subtitle !== undefined ? { subtitle: fields.subtitle } : {}),
-            language: languageOf(locale),
-          }),
-        }
+            language: languageOf(locale) }) }
       : {}),
-    assumptions: FIT_ASSUMPTIONS,
-  };
+    assumptions: FIT_ASSUMPTIONS };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -598,8 +586,7 @@ const STOP: Record<string, string> = {
   es: 'a al algo con como cual de del el ella ellos en es esta este esto la las lo los más mi mis muy no nos o para pero por que se si sin su sus te tu tus un una uno y yo app apps gratis',
   it: 'a ad al alla alle anche che chi ci come con cui da dal dei del della delle di e è gli ha il in io la le lo ma mi nel nella non o per più se si sono su tra tu un una uno vi app apps gratis',
   pt: 'a ao aos as com como da das de do dos e é ela ele em esta este eu isso mais mas me meu na nas no nos não o os ou para pela pelo por que se sem seu sua um uma você app apps grátis',
-  nl: 'aan al als ben bij dan dat de der deze die dit door een en er had heb het hij hun ik in is je kan maar me mee met mijn naar niet nog nu of om ons ook op over te tot uit van voor was we wel wij ze zijn zo app apps gratis',
-};
+  nl: 'aan al als ben bij dan dat de der deze die dit door een en er had heb het hij hun ik in is je kan maar me mee met mijn naar niet nog nu of om ons ook op over te tot uit van voor was we wel wij ze zijn zo app apps gratis' };
 
 const stopSets: Record<string, Set<string>> = {};
 for (const language of Object.keys(STOP))
@@ -691,8 +678,7 @@ export function mineIdeas(sources: readonly IdeaSource[], options: MineOptions =
             display: tokens.slice(i, i + n).join(' '),
             occurrences: 0,
             score: 0,
-            sources: new Set(),
-          };
+            sources: new Set() };
           entries.set(key, entry);
         }
         entry.occurrences += 1;
@@ -731,8 +717,7 @@ export function mineIdeas(sources: readonly IdeaSource[], options: MineOptions =
     words: e.words.length,
     occurrences: e.occurrences,
     sources: e.sources.size,
-    localScore: Math.round(e.score * 100) / 100,
-  }));
+    localScore: Math.round(e.score * 100) / 100 }));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -821,8 +806,7 @@ export function diffCompetitor(
     changes.push({
       field: 'screenshots',
       from: previous.screenshotCount ?? null,
-      to: next.screenshotCount ?? null,
-    });
+      to: next.screenshotCount ?? null });
     notable = true;
   }
   if (previous.ratingMilli != null && next.ratingMilli != null) {
@@ -831,8 +815,7 @@ export function diffCompetitor(
       changes.push({
         field: 'rating',
         from: previous.ratingMilli / 1000,
-        to: next.ratingMilli / 1000,
-      });
+        to: next.ratingMilli / 1000 });
       if (d >= RATING_NOTABLE_MILLI) notable = true;
     }
   }
@@ -923,8 +906,7 @@ export function suggestCompetitors(
       keywordCount: entry.ranks.length,
       bestRank: Math.min(...entry.ranks),
       averageRank: Math.round((sum / entry.ranks.length) * 10) / 10,
-      keywordIds: entry.keywordIds,
-    });
+      keywordIds: entry.keywordIds });
   });
   out.sort(
     (a, b) =>
@@ -978,15 +960,13 @@ export function coverageGaps(input: {
   const headings: IdeaSource[] = input.competitors.map((c) => ({
     id: c.id,
     text: [c.title, c.subtitle].filter((x): x is string => typeof x === 'string').join('. '),
-    weight: 2,
-  }));
+    weight: 2 }));
   for (const idea of mineIdeas(headings, {
     language,
     minOccurrences: 1,
     minSources: 2,
     maxWords: 2,
-    limit: 40,
-  })) {
+    limit: 40 })) {
     const check = checkTerm(idea.term);
     if (check.ok && !candidates.has(check.key))
       candidates.set(check.key, { term: idea.term, origin: 'idea' });
@@ -1064,8 +1044,7 @@ export function termsAcrossMarkets(items: readonly MarketKeyword[]): TermAcrossM
       id: item.id,
       rank: item.rank,
       state: item.state,
-      checkedAt: item.checkedAt,
-    });
+      checkedAt: item.checkedAt });
     if (item.rank !== null && (row.bestRank === null || item.rank < row.bestRank))
       row.bestRank = item.rank;
   }

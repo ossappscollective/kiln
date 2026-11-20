@@ -1,4 +1,4 @@
-import { isApplePlatform, type Platform } from './platform.ts';
+import { byFamily, type Platform, supports } from './platform.ts';
 import type { StagedProblem } from './staged-changes.ts';
 
 /**
@@ -73,8 +73,7 @@ export const RELEASE_FIELD_SPECS: Readonly<Record<ReleaseFieldId, ReleaseFieldSp
     perLocale: false,
     maxLength: 100,
     limitUnverified: false,
-    help: 'The id of a processed build of this app (from the builds list). It is attached to the editable version.',
-  },
+    help: 'The id of a processed build of this app (from the builds list). It is attached to the editable version.' },
   version_string: {
     id: 'version_string',
     label: 'Version',
@@ -82,8 +81,7 @@ export const RELEASE_FIELD_SPECS: Readonly<Record<ReleaseFieldId, ReleaseFieldSp
     perLocale: false,
     maxLength: 18,
     limitUnverified: true,
-    help: 'The marketing version, for example 2.4.0: digits separated by dots.',
-  },
+    help: 'The marketing version, for example 2.4.0: digits separated by dots.' },
   release_type: {
     id: 'release_type',
     label: 'Release',
@@ -91,8 +89,7 @@ export const RELEASE_FIELD_SPECS: Readonly<Record<ReleaseFieldId, ReleaseFieldSp
     perLocale: false,
     maxLength: null,
     limitUnverified: false,
-    help: 'MANUAL (you release it after approval), AFTER_APPROVAL (released automatically) or SCHEDULED (needs an earliest release date).',
-  },
+    help: 'MANUAL (you release it after approval), AFTER_APPROVAL (released automatically) or SCHEDULED (needs an earliest release date).' },
   earliest_release_date: {
     id: 'earliest_release_date',
     label: 'Earliest release date',
@@ -100,8 +97,7 @@ export const RELEASE_FIELD_SPECS: Readonly<Record<ReleaseFieldId, ReleaseFieldSp
     perLocale: false,
     maxLength: null,
     limitUnverified: false,
-    help: 'A date and time in the future (ISO 8601, UTC). It applies to a SCHEDULED release.',
-  },
+    help: 'A date and time in the future (ISO 8601, UTC). It applies to a SCHEDULED release.' },
   copyright: {
     id: 'copyright',
     label: 'Copyright',
@@ -109,8 +105,7 @@ export const RELEASE_FIELD_SPECS: Readonly<Record<ReleaseFieldId, ReleaseFieldSp
     perLocale: false,
     maxLength: 200,
     limitUnverified: true,
-    help: 'For example "2026 Acme Inc.".',
-  },
+    help: 'For example "2026 Acme Inc.".' },
   phased_release: {
     id: 'phased_release',
     label: 'Phased release',
@@ -118,8 +113,7 @@ export const RELEASE_FIELD_SPECS: Readonly<Record<ReleaseFieldId, ReleaseFieldSp
     perLocale: false,
     maxLength: null,
     limitUnverified: false,
-    help: 'on: release to automatic updates over seven days. off: release to everyone at once.',
-  },
+    help: 'on: release to automatic updates over seven days. off: release to everyone at once.' },
   track: {
     id: 'track',
     label: 'Track',
@@ -127,8 +121,7 @@ export const RELEASE_FIELD_SPECS: Readonly<Record<ReleaseFieldId, ReleaseFieldSp
     perLocale: false,
     maxLength: 100,
     limitUnverified: false,
-    help: 'The track the draft release belongs to, for example production, beta or internal.',
-  },
+    help: 'The track the draft release belongs to, for example production, beta or internal.' },
   release_name: {
     id: 'release_name',
     label: 'Release name',
@@ -136,8 +129,7 @@ export const RELEASE_FIELD_SPECS: Readonly<Record<ReleaseFieldId, ReleaseFieldSp
     perLocale: false,
     maxLength: 50,
     limitUnverified: true,
-    help: 'A name only you see (Play Console shows it next to the release).',
-  },
+    help: 'A name only you see (Play Console shows it next to the release).' },
   version_codes: {
     id: 'version_codes',
     label: 'Version codes',
@@ -145,8 +137,7 @@ export const RELEASE_FIELD_SPECS: Readonly<Record<ReleaseFieldId, ReleaseFieldSp
     perLocale: false,
     maxLength: null,
     limitUnverified: false,
-    help: 'The uploaded version codes of the release (comma separated), including codes you keep from earlier releases.',
-  },
+    help: 'The uploaded version codes of the release (comma separated), including codes you keep from earlier releases.' },
   user_fraction: {
     id: 'user_fraction',
     label: 'Intended rollout share',
@@ -154,8 +145,7 @@ export const RELEASE_FIELD_SPECS: Readonly<Record<ReleaseFieldId, ReleaseFieldSp
     perLocale: false,
     maxLength: null,
     limitUnverified: false,
-    help: 'The share of users you plan to start with (more than 0, at most 1). Google cannot hold it in a draft: it is only a suggestion for the release step.',
-  },
+    help: 'The share of users you plan to start with (more than 0, at most 1). Google cannot hold it in a draft: it is only a suggestion for the release step.' },
   release_notes: {
     id: 'release_notes',
     label: 'Release notes',
@@ -163,9 +153,7 @@ export const RELEASE_FIELD_SPECS: Readonly<Record<ReleaseFieldId, ReleaseFieldSp
     perLocale: true,
     maxLength: 500,
     limitUnverified: true,
-    help: 'What is new, per language (Play Console shows 500 characters a language).',
-  },
-};
+    help: 'What is new, per language (Play Console shows 500 characters a language).' } };
 
 /** The fields each platform can stage. The App Store "what's new" is the listing field `release_notes` (staged as text). */
 export const STAGEABLE_RELEASE_FIELDS: Readonly<Record<Platform, readonly ReleaseFieldId[]>> = {
@@ -185,8 +173,7 @@ export const STAGEABLE_RELEASE_FIELDS: Readonly<Record<Platform, readonly Releas
     'copyright',
     'phased_release',
   ],
-  android: ['track', 'release_name', 'version_codes', 'user_fraction', 'release_notes'],
-};
+  android: ['track', 'release_name', 'version_codes', 'user_fraction', 'release_notes'] };
 
 export const isStageableReleaseField = (platform: Platform, field: string): boolean =>
   (STAGEABLE_RELEASE_FIELDS[platform] as readonly string[]).indexOf(field) !== -1;
@@ -200,8 +187,7 @@ export const RELEASE_LIMITS = {
   /** Languages of release notes in one release. */
   maxNoteLanguages: 80,
   /** A version code: Google caps it at 2100000000. */
-  maxVersionCode: 2100000000,
-} as const;
+  maxVersionCode: 2100000000 } as const;
 
 // ---------------------------------------------------------------------------------------------
 // Normalizing
@@ -311,7 +297,7 @@ export function checkReleaseField(
       problem(
         'error',
         'field_not_stageable',
-        `${spec.label} cannot be staged for ${isApplePlatform(platform) ? 'an App Store' : 'a Google Play'} app.`,
+        `${spec.label} cannot be staged for ${byFamily(platform, { apple: 'an App Store', google: 'a Google Play' })} app.`,
       ),
     );
     return out;
@@ -491,7 +477,7 @@ export function checkReleaseSet(
       if ((items[i] as ReleaseFieldItem).field === field) return items[i];
     return undefined;
   };
-  if (isApplePlatform(platform)) {
+  if (supports(platform, 'approvalHold')) {
     const type = find('release_type');
     const date = find('earliest_release_date');
     if (type && type.value === 'SCHEDULED' && !date) {

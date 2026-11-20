@@ -8,17 +8,8 @@ import {
   mapAppleTable,
   mapPlayConsoleFile,
   type ParseStats,
-  readTable,
-} from '@mrm/connectors';
-import {
-  type ActorType,
-  type AnalyticsSource,
-  analyticsErrorMessages,
-  analyticsLimits,
-  isApplePlatform,
-  metricInfo,
-  toMicro,
-} from '@mrm/core';
+  readTable } from '@mrm/connectors';
+import { type ActorType, analyticsErrorMessages, analyticsLimits, type AnalyticsSource, metricInfo, supports, toMicro } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import {
   getAppConfig,
@@ -26,8 +17,7 @@ import {
   recordRun,
   saveSourceState,
   setAppleMode,
-  upsertPoints,
-} from './store.ts';
+  upsertPoints } from './store.ts';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { emitEvent } from '../../services/events.ts';
@@ -106,19 +96,17 @@ export async function parseImport(
 ): Promise<Parsed> {
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  const android = !isApplePlatform(app.platform);
+  const android = supports(app.platform, 'playReportsBucket');
   const platform = app.platform === 'macos' ? ('macos' as const) : ('ios' as const);
   const playLabels = {
     installs: 'Play Console installs',
     ratings: 'Play Console ratings',
-    store_performance: 'Play Console store listing performance',
-  } as const;
+    store_performance: 'Play Console store listing performance' } as const;
   try {
     const table = await readTable(input.bytes, {
       maxFileBytes: analyticsLimits.maxFileBytes,
       maxTextBytes: analyticsLimits.maxTextBytes,
-      maxRows: analyticsLimits.maxRows,
-    });
+      maxRows: analyticsLimits.maxRows });
     const cols = columnIndex(table.header);
     let source: AnalyticsSource;
     let kind: string;
@@ -164,8 +152,7 @@ export async function parseImport(
     } else {
       const parsed = mapAppleTable(table, {
         ...(input.fileName ? { reportName: input.fileName } : {}),
-        platform,
-      });
+        platform });
       source = 'apple_analytics';
       kind = parsed.kind;
       label = appleReportLabels[parsed.kind];
@@ -195,8 +182,7 @@ export async function parseImport(
         label: (metricInfo as Record<string, { label: string }>)[metric]?.label ?? metric,
         days: m.days.size,
         total:
-          metricInfo[metric as keyof typeof metricInfo]?.aggregation === 'mean' ? null : m.total,
-      })),
+          metricInfo[metric as keyof typeof metricInfo]?.aggregation === 'mean' ? null : m.total })),
       sample: [...points]
         .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.metric < b.metric ? -1 : 1))
         .slice(0, 10)
@@ -206,10 +192,8 @@ export async function parseImport(
           value: p.value,
           ...(p.dimension
             ? { dimension: { type: p.dimension.type, value: p.dimension.value } }
-            : {}),
-        })),
-      notes,
-    };
+            : {}) })),
+      notes };
     return { ok: true, plan, points, confirmHash: hashOf(app.id, app.platform, source, points) };
   } catch (error) {
     if (error instanceof AnalyticsError) return failure(422, error.code, error.message);
@@ -261,9 +245,7 @@ export async function applyImport(
       ),
       body: {
         error: 'confirm_mismatch',
-        message: 'The file is not the one that was previewed. Preview it again and confirm.',
-      },
-    };
+        message: 'The file is not the one that was previewed. Preview it again and confirm.' } };
   }
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
@@ -279,8 +261,7 @@ export async function applyImport(
         source: parsed.plan.source,
         processingDate: '',
         origin: 'import',
-        now: startedAt,
-      },
+        now: startedAt },
       parsed.points,
     );
     const at = now();
@@ -297,8 +278,7 @@ export async function applyImport(
       dayFrom: parsed.plan.dateFrom,
       dayTo: parsed.plan.dateTo,
       startedAt,
-      finishedAt: at,
-    });
+      finishedAt: at });
     await saveSourceState(tx, {
       workspaceId: input.workspaceId,
       appId: app.id,
@@ -307,8 +287,7 @@ export async function applyImport(
       now: at,
       ok: true,
       dayFrom: parsed.plan.dateFrom,
-      dayTo: parsed.plan.dateTo,
-    });
+      dayTo: parsed.plan.dateTo });
     // An app with no report request works from imported files.
     const config = await getAppConfig(tx, input.workspaceId, app.id);
     if (
@@ -321,8 +300,7 @@ export async function applyImport(
         appId: app.id,
         mode: 'import',
         by: actor.id,
-        now: at,
-      });
+        now: at });
     }
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
@@ -336,10 +314,8 @@ export async function applyImport(
         points: written.offered,
         written: written.written,
         dateFrom: parsed.plan.dateFrom,
-        dateTo: parsed.plan.dateTo,
-      },
-      at,
-    });
+        dateTo: parsed.plan.dateTo },
+      at });
     if (written.written > 0) {
       await emitEvent(tx, {
         workspaceId: input.workspaceId,
@@ -350,10 +326,8 @@ export async function applyImport(
           platform: app.platform,
           trigger: 'import',
           pointsWritten: written.written,
-          sources: [{ source: parsed.plan.source, status: 'ok', points: written.written }],
-        },
-        at,
-      });
+          sources: [{ source: parsed.plan.source, status: 'ok', points: written.written }] },
+        at });
     }
     return {
       ok: true,
@@ -362,7 +336,6 @@ export async function applyImport(
       written: written.written,
       unchanged: written.offered - written.written,
       dateFrom: parsed.plan.dateFrom,
-      dateTo: parsed.plan.dateTo,
-    };
+      dateTo: parsed.plan.dateTo };
   });
 }

@@ -6,9 +6,8 @@ import {
   PLAY_MAX_SEARCH_LIMIT,
   type PlayApp,
   PlayPublicConnector,
-  searchApple,
-} from '@mrm/connectors';
-import { type AsoPlatform, isApplePlatform, isGooglePlatform } from '@mrm/core';
+  searchApple } from '@mrm/connectors';
+import { type AsoPlatform, byFamily, listingStoreOf } from '@mrm/core';
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import { type Exchange, safeGet } from '../../services/safe-fetch.ts';
 import { timedCache } from '../../services/timed-cache.ts';
@@ -58,21 +57,18 @@ export function createAsoFetch(net: AsoNet = {}): typeof fetch {
       ...(net.resolve ? { resolve: net.resolve } : {}),
       ...(net.exchange ? { exchange: net.exchange } : {}),
       ...(net.timeoutMs ? { timeoutMs: net.timeoutMs } : {}),
-      ...(init?.signal ? { signal: init.signal } : {}),
-    });
+      ...(init?.signal ? { signal: init.signal } : {}) });
     if (result.ok) {
       return new Response(result.body, {
         status: 200,
-        headers: result.contentType ? { 'content-type': result.contentType } : {},
-      });
+        headers: result.contentType ? { 'content-type': result.contentType } : {} });
     }
     switch (result.kind) {
       case 'status':
         return new Response(null, {
           status:
             result.status && result.status >= 200 && result.status <= 599 ? result.status : 502,
-          ...(result.retryAfter ? { headers: { 'retry-after': result.retryAfter } } : {}),
-        });
+          ...(result.retryAfter ? { headers: { 'retry-after': result.retryAfter } } : {}) });
       case 'redirect':
         return new Response(null, { status: 302 });
       case 'too_large':
@@ -146,8 +142,7 @@ const fromApple = (a: AppleApp): PublicApp => ({
   ...(a.description ? { description: a.description } : {}),
   ...(a.iconUrl ? { iconUrl: a.iconUrl } : {}),
   screenshotCount: a.screenshotUrls.length,
-  screenshotUrls: a.screenshotUrls,
-});
+  screenshotUrls: a.screenshotUrls });
 
 const fromPlay = (a: PlayApp): PublicApp => ({
   id: a.packageName,
@@ -159,16 +154,14 @@ const fromPlay = (a: PlayApp): PublicApp => ({
   ...(a.ratingCount !== undefined ? { ratingCount: a.ratingCount } : {}),
   ...(a.description ? { description: a.description } : {}),
   ...(a.iconUrl ? { iconUrl: a.iconUrl } : {}),
-  ...(a.screenshotCount !== undefined ? { screenshotCount: a.screenshotCount } : {}),
-});
+  ...(a.screenshotCount !== undefined ? { screenshotCount: a.screenshotCount } : {}) });
 
 export function createAsoSources(options: AsoSourceOptions): AsoSources {
   const doFetch = options.fetch ?? createAsoFetch(options.net);
   const play = new PlayPublicConnector({ enabled: options.playEnabled, fetch: doFetch });
   const limiters: Record<'apple' | 'play', TestLimiter> = {
     apple: createTestLimiter({ limit: options.appleCallsPerMinute, now: options.now }),
-    play: createTestLimiter({ limit: options.playCallsPerMinute, now: options.now }),
-  };
+    play: createTestLimiter({ limit: options.playCallsPerMinute, now: options.now }) };
   const cooldown: Record<'apple' | 'play', number> = { apple: 0, play: 0 };
   const searches = timedCache<SearchOutcome>(options.cacheMs, 500);
   const lookups = timedCache<PublicApp | null>(options.cacheMs, 500);
@@ -183,8 +176,7 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
         'rate_limited',
         'Paused after the store asked to slow down.',
         {
-          retryAfterSeconds: Math.max(1, Math.ceil((cooldown[source] - now) / 1000)),
-        },
+          retryAfterSeconds: Math.max(1, Math.ceil((cooldown[source] - now) / 1000)) },
       );
     }
     const wait = limiters[source].take('process');
@@ -194,8 +186,7 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
         'rate_limited',
         'The local rate limit for this source is used up.',
         {
-          retryAfterSeconds: wait,
-        },
+          retryAfterSeconds: wait },
       );
     }
     try {
@@ -235,25 +226,23 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
     async search(input) {
       const limit = Math.min(
         input.limit,
-        isApplePlatform(input.platform) ? APPLE_SEARCH_MAX_LIMIT : PLAY_MAX_SEARCH_LIMIT,
+        byFamily(input.platform, { apple: APPLE_SEARCH_MAX_LIMIT, google: PLAY_MAX_SEARCH_LIMIT }),
       );
-      const key = `s|${input.platform}|${input.country}|${isGooglePlatform(input.platform) ? input.locale : ''}|${input.term.toLowerCase()}|${limit}`;
+      const key = `s|${input.platform}|${input.country}|${byFamily(input.platform, { apple: '', google: input.locale })}|${input.term.toLowerCase()}|${limit}`;
       const { value, cached } = await shared(key, searches, async () => {
-        if (isApplePlatform(input.platform)) {
+        if (listingStoreOf(input.platform) === 'app_store') {
           const r = await outbound('apple', () =>
             searchApple({
               term: input.term,
               country: input.country,
               limit,
               ...(input.platform === 'macos' ? { macos: true } : {}),
-              fetch: doFetch,
-            }),
+              fetch: doFetch }),
           );
           return {
             hits: r.apps.map((a) => ({ id: a.trackId, name: a.name })),
             total: r.total,
-            cached: false,
-          };
+            cached: false };
         }
         if (!options.playEnabled) {
           throw new AsoError(
@@ -271,16 +260,15 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
       return { ...value, cached };
     },
     async lookup(input) {
-      const key = `l|${input.platform}|${input.country}|${isGooglePlatform(input.platform) ? input.locale : ''}|${input.id}`;
+      const key = `l|${input.platform}|${input.country}|${byFamily(input.platform, { apple: '', google: input.locale })}|${input.id}`;
       const { value } = await shared(key, lookups, async () => {
-        if (isApplePlatform(input.platform)) {
+        if (listingStoreOf(input.platform) === 'app_store') {
           const app = await outbound('apple', () =>
             lookupApple({
               id: input.id,
               country: input.country,
               ...(input.platform === 'macos' ? { macos: true } : {}),
-              fetch: doFetch,
-            }),
+              fetch: doFetch }),
           );
           return app ? fromApple(app) : null;
         }
@@ -298,6 +286,5 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
         return app ? fromPlay(app) : null;
       });
       return value ?? undefined;
-    },
-  };
+    } };
 }

@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { DraftFieldState, DraftFieldWrite } from '@mrm/connectors';
-import type { StagedChangesView } from '@mrm/core';
+import { byFamily, type StagedChangesView } from '@mrm/core';
 import {
   checkReleaseField,
-  isApplePlatform,
   isReleaseFieldId,
   isStageableReleaseField,
   normalizeReleaseValue,
@@ -55,7 +54,7 @@ export async function stageReleaseField(
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   if (!isReleaseFieldId(input.field) || !isStageableReleaseField(app.platform, input.field)) {
-    const store = isApplePlatform(app.platform) ? 'an App Store' : 'a Google Play';
+    const store = byFamily(app.platform, { apple: 'an App Store', google: 'a Google Play' });
     return invalid(
       'field_not_stageable',
       isReleaseFieldId(input.field)

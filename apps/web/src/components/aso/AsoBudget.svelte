@@ -13,7 +13,7 @@
   keywords), title? (the heading, default "Keyword budget").
 -->
 <script lang="ts">
-  import { type AsoPlatform, type FitField, type FitFields, type FitKeyword, isApplePlatform, listingBudget, storefrontCombos } from '@mrm/core';
+  import { type AsoPlatform, type FitField, type FitFields, type FitKeyword, listingBudget, storefrontCombos, supports } from '@mrm/core';
   import { budgetHeadline, fieldWord, wasteReasonText } from '../../lib/aso-budget.ts';
   import CopyButton from '../ui/CopyButton.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
@@ -28,8 +28,7 @@
     listingLocales = [],
     countries = [],
     addHref,
-    title = 'Keyword budget',
-  }: {
+    title = 'Keyword budget' }: {
     platform: AsoPlatform;
     locale: string;
     fields: FitFields;
@@ -43,7 +42,7 @@
 
   const budget = $derived(listingBudget({ platform, locale, fields, keywords }));
   const headline = $derived(budgetHeadline(budget));
-  const apple = $derived(isApplePlatform(platform));
+  const apple = $derived(supports(platform, 'keywordField'));
   const labelOf = (field: FitField): string => budget.fields.find((f) => f.field === field)?.label ?? fieldWord(field);
   const combos = $derived(apple ? countries.map((c) => storefrontCombos(c, listingLocales)).filter((c) => c.locales.length > 1) : []);
   const uid = $props.id();

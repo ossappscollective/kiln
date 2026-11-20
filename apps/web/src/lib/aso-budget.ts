@@ -1,15 +1,4 @@
-import {
-  type AsoPlatform,
-  type CoachLink,
-  type FieldBudget,
-  type FitField,
-  type FitFields,
-  type FitKeyword,
-  isApplePlatform,
-  type ListingBudget,
-  type StagedChangesView,
-  type WasteReason,
-} from '@mrm/core';
+import { type AsoPlatform, byFamily, type CoachLink, type FieldBudget, type FitField, type FitFields, type FitKeyword, type ListingBudget, type StagedChangesView, type WasteReason } from '@mrm/core';
 import { withHeaderParams } from './app-header.ts';
 import { appAddress, type PlatformScope, parseViewPath } from './app-scope.ts';
 import { type AsoKeyword, asoViewHref } from './aso.ts';
@@ -29,17 +18,15 @@ const APPLE_FIELDS: Record<string, FitField> = {
   name: 'title',
   subtitle: 'subtitle',
   keywords: 'keywords',
-  description: 'description',
-};
+  description: 'description' };
 const PLAY_FIELDS: Record<string, FitField> = {
   title: 'title',
   short_description: 'shortDescription',
-  full_description: 'description',
-};
+  full_description: 'description' };
 
 /** The fit field a store field id is, or null for a field the budgets do not look at. */
 export function fitFieldOf(platform: AsoPlatform, fieldId: string): FitField | null {
-  const map = isApplePlatform(platform) ? APPLE_FIELDS : PLAY_FIELDS;
+  const map = byFamily(platform, { apple: APPLE_FIELDS, google: PLAY_FIELDS });
   return map[fieldId] ?? null;
 }
 
@@ -143,8 +130,7 @@ export const wasteReasonText: Record<WasteReason, string> = {
   empty_entry: 'empty entry',
   repeated_entry: 'repeated entry',
   plural_variant: 'plural of an earlier entry',
-  in_title_or_subtitle: 'already in the name or subtitle',
-};
+  in_title_or_subtitle: 'already in the name or subtitle' };
 
 /** "name", "keyword field": the label of a field in a sentence. */
 export const fieldWord = (f: FitField): string =>
@@ -212,7 +198,6 @@ export function coachHref(
       return asoViewHref(appId, link.to, platform);
     default:
       return withHeaderParams(appAddress(appId, 'listing', platform), {
-        locale: link.locale ?? null,
-      });
+        locale: link.locale ?? null });
   }
 }

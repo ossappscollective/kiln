@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { appleScope, AppStoreConnectConnector, connectorFactory, GooglePlayConnector, isPlayPackageName, redactSecrets, secretStrings, type StoreBuild, type StoreConnector, type StoreConnectorInput, StoreError, StoreRateLimitError, type StoreVersion } from '@mrm/connectors';
-import { type ActorType, isApplePlatform, isGooglePlatform, type Platform, PLATFORM_META, platformLabel, PLATFORMS, type ReleaseState, type StoreCredentialKind } from '@mrm/core';
+import { type ActorType, byFamily, needsStoreAppId, type Platform, PLATFORM_META, platformLabel, PLATFORMS, type ReleaseState, type StoreCredentialKind, supports } from '@mrm/core';
 import { type Database, mapOrNull, oneOf, type Row, type Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
 import { deleteAsoData } from '../modules/aso/data.ts';
@@ -26,8 +26,7 @@ const MAX_ERROR_LENGTH = 500;
 export const credentialKindFor: Readonly<Record<Platform, StoreCredentialKind>> = {
   ios: PLATFORM_META.ios.credentialKind,
   macos: PLATFORM_META.macos.credentialKind,
-  android: PLATFORM_META.android.credentialKind,
-};
+  android: PLATFORM_META.android.credentialKind };
 
 // ---------------------------------------------------------------------------------------------
 // Connectors
@@ -41,15 +40,12 @@ export const defaultStoreConnectorFactory: StoreConnectorFactory = connectorFact
   app_store_connect: (input) =>
     AppStoreConnectConnector.fromSecret(input.secret, {
           fetch: input.fetch,
-          platform: appleScope(input),
-        }),
+          platform: appleScope(input) }),
   google_play: (input) =>
     new GooglePlayConnector({
           serviceAccount: input.secret,
           packages: [input.identifier],
-          fetch: input.fetch,
-        }),
-});
+          fetch: input.fetch }) });
 
 /** What the sync services need. Built once in createApp (and in index.ts for the worker). */
 export type AppsContext = {
@@ -123,8 +119,7 @@ const toApp = (r: Row): ManagedApp => ({
   lastSyncedAt: mapOrNull(r.last_synced_at, Number),
   lastSyncAttemptAt: mapOrNull(r.last_sync_attempt_at, Number),
   lastSyncError: mapOrNull(r.last_sync_error, String),
-  ...iconHint(r),
-});
+  ...iconHint(r) });
 
 /** The icon hint of an app row joined with its app_icons row (the columns of APP_COLUMNS). */
 function iconHint(r: Row): { hasIcon: boolean; iconUrl: string | null } {
@@ -132,16 +127,14 @@ function iconHint(r: Row): { hasIcon: boolean; iconUrl: string | null } {
   if (r.icon_has !== null && r.icon_has !== undefined && Number(r.icon_has) === 1) {
     return {
       hasIcon: true,
-      iconUrl: r.icon_etag ? `${base}?v=${encodeURIComponent(String(r.icon_etag))}` : base,
-    };
+      iconUrl: r.icon_etag ? `${base}?v=${encodeURIComponent(String(r.icon_etag))}` : base };
   }
   // No row: a look has not happened yet. A row without an image: look again only when its backoff is over.
   const waiting =
     r.icon_backoff !== null && r.icon_backoff !== undefined && Number(r.icon_backoff) > Date.now();
   return {
     hasIcon: false,
-    iconUrl: r.icon_checked === null || r.icon_checked === undefined || !waiting ? base : null,
-  };
+    iconUrl: r.icon_checked === null || r.icon_checked === undefined || !waiting ? base : null };
 }
 
 type Details = { versionCodes?: string[]; rolloutFraction?: number };
@@ -171,8 +164,7 @@ const toRelease = (r: Row): AppRelease => {
     versionCodes: Array.isArray(details.versionCodes) ? details.versionCodes.map(String) : null,
     storeUpdatedAt: mapOrNull(r.store_updated_at, Number),
     statusSince: mapOrNull(r.status_since, Number),
-    syncedAt: Number(r.synced_at),
-  };
+    syncedAt: Number(r.synced_at) };
 };
 
 // The repository id reads null when that repository has been disconnected since.
@@ -228,8 +220,7 @@ export async function listAppReleases(
     return {
       ...release,
       ...(inReview ? { status: 'in_review' as const } : {}),
-      sentForReviewAt: at,
-    };
+      sentForReviewAt: at };
   });
 }
 
@@ -290,7 +281,7 @@ export type RegisterInput = {
 
 /** Rules for the identifier, shared with the route. Returns a message, or undefined when fine. */
 export function checkIdentifier(platform: Platform, identifier: string): string | undefined {
-  if (isGooglePlatform(platform)) {
+  if (!supports(platform, 'bundleIdentifier')) {
     return isPlayPackageName(identifier)
       ? undefined
       : 'Not an Android package name. Use the application id, for example com.acme.app.';
@@ -322,7 +313,7 @@ export async function registerApp(
     return failure(
       422,
       'credential_kind',
-      isApplePlatform(input.platform)
+      supports(input.platform, 'bundleIdentifier')
         ? `${platformLabel(input.platform)} apps need an App Store Connect API key credential.`
         : 'An Android app needs a Google Play service account credential.',
     );
@@ -343,7 +334,7 @@ export async function registerApp(
 
   // Apple bundle ids are not case sensitive; Play package names are.
   const taken = async () => {
-    const rows = isApplePlatform(input.platform)
+    const rows = supports(input.platform, 'bundleIdentifier')
       ? await db.query(
           'SELECT id FROM apps WHERE workspace_id = ? AND platform = ? AND lower(identifier) = ?',
           [input.workspaceId, input.platform, input.identifier.toLowerCase()],
@@ -386,10 +377,8 @@ export async function registerApp(
         detail: {
           platform: input.platform,
           identifier: input.identifier,
-          credentialId: input.credentialId,
-        },
-        at: now,
-      });
+          credentialId: input.credentialId },
+        at: now });
     });
   } catch (error) {
     // Two requests at once: the unique index decides.
@@ -473,8 +462,7 @@ export async function deleteApp(
       action: 'app.delete',
       target: { type: 'app', id: input.id },
       detail: { platform: app.platform, identifier: app.identifier },
-      at: ctx.now(),
-    });
+      at: ctx.now() });
     return true;
   });
 }
@@ -504,11 +492,9 @@ function classify(error: unknown, secret: string): Classified {
         ok: false,
         status,
         body: { error: code, message: safe, ...extra },
-        ...(headers ? { headers } : {}),
-      },
+        ...(headers ? { headers } : {}) },
       message: safe,
-      transient,
-    };
+      transient };
   };
   if (error instanceof SyncTimeout) {
     return make(504, 'timeout', 'The store did not answer in time. Try again.', true);
@@ -522,8 +508,7 @@ function classify(error: unknown, secret: string): Classified {
       true,
       { retryAfterSeconds: wait },
       {
-        'Retry-After': String(wait),
-      },
+        'Retry-After': String(wait) },
     );
   }
   if (error instanceof StoreError) {
@@ -582,8 +567,7 @@ function seenFromAppleBuilds(builds: readonly StoreBuild[]): BuildSeen[] {
       state: b.processing,
       rawState: b.rawProcessingState ?? null,
       expired: b.expired ?? null,
-      uploadedAt: b.uploadedAt ?? null,
-    }));
+      uploadedAt: b.uploadedAt ?? null }));
 }
 
 function seenFromPlayVersions(versions: readonly StoreVersion[]): BuildSeen[] {
@@ -599,8 +583,7 @@ function seenFromPlayVersions(versions: readonly StoreVersion[]): BuildSeen[] {
           state: 'processed',
           rawState: v.rawState,
           expired: null,
-          uploadedAt: null,
-        });
+          uploadedAt: null });
       }
     }
   }
@@ -640,7 +623,7 @@ function pickBuild(version: StoreVersion, builds: StoreBuild[]): StoreBuild | un
 }
 
 async function readStore(connector: StoreConnector, app: ManagedApp): Promise<Read> {
-  if (isApplePlatform(app.platform)) {
+  if (needsStoreAppId(app.platform)) {
     let appStoreId = app.storeAppId;
     if (!appStoreId) {
       const apps = await connector.listApps();
@@ -680,10 +663,8 @@ async function readStore(connector: StoreConnector, app: ManagedApp): Promise<Re
           status: v.lifecycleState ?? null,
           rawState: v.rawState,
           details: {},
-          storeUpdatedAt: build?.uploadedAt ?? null,
-        };
-      }),
-    };
+          storeUpdatedAt: build?.uploadedAt ?? null };
+      }) };
   }
   const versions = await connector.listVersions(app.identifier);
   return {
@@ -699,12 +680,9 @@ async function readStore(connector: StoreConnector, app: ManagedApp): Promise<Re
         rawState: v.rawState,
         details: {
           versionCodes: codes,
-          ...(v.rolloutFraction !== undefined ? { rolloutFraction: v.rolloutFraction } : {}),
-        },
-        storeUpdatedAt: null,
-      };
-    }),
-  };
+          ...(v.rolloutFraction !== undefined ? { rolloutFraction: v.rolloutFraction } : {}) },
+        storeUpdatedAt: null };
+    }) };
 }
 
 /** Replaces the builds of an app with what the store showed; a build seen before keeps its `first_seen_at`. */
@@ -793,8 +771,7 @@ async function recordSyncFailure(
       action: 'app.sync',
       target: { type: 'app', id: app.id },
       detail: { ok: false, code: String(c.failure.body.error), ...trigger },
-      at,
-    });
+      at });
   });
 }
 
@@ -825,8 +802,7 @@ export async function syncApp(
   if (running.has(app.id)) {
     return {
       ...failure(409, 'sync_in_progress', 'A sync of this app is already running.'),
-      transient: false,
-    };
+      transient: false };
   }
   running.add(app.id);
   try {
@@ -896,8 +872,7 @@ async function runSync(
   const guardedFetch: typeof fetch = (input, init) =>
     baseFetch(input, {
       ...init,
-      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
-    });
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -913,8 +888,7 @@ async function runSync(
       secret,
       identifier: app.identifier,
       platform: app.platform,
-      fetch: guardedFetch,
-    });
+      fetch: guardedFetch });
     const work = readStore(connector, app);
     // The race may lose to the timeout; the abandoned read must not become an unhandled rejection.
     work.catch(() => undefined);
@@ -1020,8 +994,7 @@ async function runSync(
       workspaceId,
       platform: app.platform,
       builds: read.builds,
-      at,
-    });
+      at });
     await tx.execute(
       `UPDATE apps SET store_app_id = ?, last_synced_at = ?, last_sync_attempt_at = ?,
               last_sync_error = NULL
@@ -1036,8 +1009,7 @@ async function runSync(
       action: 'app.sync',
       target: { type: 'app', id: app.id },
       detail: { ok: true, found: sync.found, added, updated, removed, unmapped, ...trigger },
-      at,
-    });
+      at });
     // `app.release.status_changed` per release whose status moved, then `app.synced`. The first
     // sync of an app is a quiet baseline (see releaseStatusChanges).
     await recordSyncEvents(tx, {
@@ -1046,8 +1018,7 @@ async function runSync(
       at,
       summary: sync,
       changes: releaseStatusChanges(existing, wanted, app.lastSyncedAt !== null),
-      trigger: trigger.trigger,
-    });
+      trigger: trigger.trigger });
     return sync;
   });
   if (!outcome) return { ...failure(404, 'not_found'), transient: false } as SyncFailure;
@@ -1061,16 +1032,14 @@ async function runSync(
       connector,
       abort: () => controller.abort(),
       secret,
-      actor,
-    });
+      actor });
   }
   await recordAppliedChangeSets(db, workspaceId, app, ctx.now()).catch(() => 0);
   return {
     ok: true as const,
     app: (await getApp(db, workspaceId, app.id)) as ManagedApp,
     releases: await listAppReleases(db, workspaceId, app.id),
-    sync: outcome,
-  };
+    sync: outcome };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1123,8 +1092,7 @@ const MAX_CANDIDATES = 1_000;
 /** The platforms a credential kind can have apps on. An App Store Connect app can have an iOS and a macOS version. */
 const DISCOVERABLE = {
   app_store_connect: ['ios', 'macos'],
-  google_play: ['android'],
-} as const satisfies Record<string, readonly Platform[]>;
+  google_play: ['android'] } as const satisfies Record<string, readonly Platform[]>;
 
 type DiscoverKind = keyof typeof DISCOVERABLE;
 
@@ -1237,10 +1205,8 @@ export async function discoverApps(
   if (wait > 0) {
     return {
       ...failure(429, 'rate_limited', `Too many store reads. Try again in ${wait} seconds.`, {
-        retryAfterSeconds: wait,
-      }),
-      headers: { 'Retry-After': String(wait) },
-    };
+        retryAfterSeconds: wait }),
+      headers: { 'Retry-After': String(wait) } };
   }
 
   let secret: string | undefined;
@@ -1269,8 +1235,7 @@ export async function discoverApps(
   const guardedFetch: typeof fetch = (url, init) =>
     baseFetch(url, {
       ...init,
-      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
-    });
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -1284,8 +1249,7 @@ export async function discoverApps(
       kind,
       secret: secret as string,
       identifier,
-      fetch: guardedFetch,
-    });
+      fetch: guardedFetch });
     const work = connector.listApps(kind === 'app_store_connect' ? { withPlatforms: true } : {});
     // The race may lose to the timeout; the abandoned read must not become an unhandled rejection.
     work.catch(() => undefined);
@@ -1299,8 +1263,7 @@ export async function discoverApps(
       return {
         c,
         code: 'discover_failed',
-        message: 'The apps could not be read. Try again in a moment.',
-      };
+        message: 'The apps could not be read. Try again in a moment.' };
     }
     return { c, code: c.failure.body.error, message: c.message };
   };
@@ -1316,8 +1279,7 @@ export async function discoverApps(
       identifier,
       name: cleanName(name, identifier),
       alreadyAdded: appId !== undefined,
-      ...(appId !== undefined ? { appId } : {}),
-    });
+      ...(appId !== undefined ? { appId } : {}) });
   };
 
   try {
@@ -1361,8 +1323,7 @@ export async function discoverApps(
             failures.push({
               identifier: name,
               error: 'store_not_found',
-              message: `Google Play returned no app named ${name}.`,
-            });
+              message: `Google Play returned no app named ${name}.` });
             continue;
           }
           add('android', hit.storeId, name, hit.name);
@@ -1448,10 +1409,9 @@ export async function importApps(
             ...base,
             status: 'failed',
             error: 'credential_kind',
-            message: isApplePlatform(item.platform)
+            message: supports(item.platform, 'bundleIdentifier')
               ? `${platformLabel(item.platform)} apps need an App Store Connect API key credential.`
-              : 'An Android app needs a Google Play service account credential.',
-          });
+              : 'An Android app needs a Google Play service account credential.' });
           continue;
         }
         if (item.repositoryId !== undefined && !knownRepositories.has(item.repositoryId)) {
@@ -1459,8 +1419,7 @@ export async function importApps(
             ...base,
             status: 'failed',
             error: 'repository_not_found',
-            message: 'That repository is not connected in this workspace.',
-          });
+            message: 'That repository is not connected in this workspace.' });
           continue;
         }
         const existingId = taken.get(key);
@@ -1471,8 +1430,7 @@ export async function importApps(
             status: 'skipped',
             error: 'already_exists',
             message: `${item.identifier} is already added for ${item.platform}.`,
-            ...(app ? { app } : {}),
-          });
+            ...(app ? { app } : {}) });
           continue;
         }
         const id = randomUUID();
@@ -1488,7 +1446,7 @@ export async function importApps(
             cleanName(item.name ?? '', item.identifier),
             item.platform,
             item.identifier,
-            item.storeAppId ?? (isGooglePlatform(item.platform) ? item.identifier : null),
+            item.storeAppId ?? (byFamily(item.platform, { apple: null, google: item.identifier })),
             input.credentialId,
             item.repositoryId ?? null,
             now,
@@ -1503,16 +1461,13 @@ export async function importApps(
             platform: item.platform,
             identifier: item.identifier,
             credentialId: input.credentialId,
-            source: 'import',
-          },
-          at: now,
-        });
+            source: 'import' },
+          at: now });
         taken.set(key, id);
         results.push({
           ...base,
           status: 'created',
-          app: (await getApp(tx, workspaceId, id)) as ManagedApp,
-        });
+          app: (await getApp(tx, workspaceId, id)) as ManagedApp });
       }
       return results;
     });
@@ -1530,6 +1485,5 @@ export async function importApps(
   return {
     ok: true,
     results,
-    summary: { created: count('created'), skipped: count('skipped'), failed: count('failed') },
-  };
+    summary: { created: count('created'), skipped: count('skipped'), failed: count('failed') } };
 }

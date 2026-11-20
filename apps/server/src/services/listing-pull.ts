@@ -1,16 +1,5 @@
 import { createHash } from 'node:crypto';
-import {
-  type ActorType,
-  type AppStoreListing,
-  isApplePlatform,
-  type Listing,
-  type ListingProblem,
-  type LocaleText,
-  type Platform,
-  type PlayListing,
-  platformMeta,
-  validateListing,
-} from '@mrm/core';
+import { type ActorType, type AppStoreListing, byFamily, type Listing, type ListingProblem, listingStoreOf, type LocaleText, type Platform, platformMeta, type PlayListing, validateListing } from '@mrm/core';
 import type { Row, Sql } from '@mrm/db';
 import { getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
@@ -24,24 +13,21 @@ import {
   type ListingBuilder,
   parseFiles,
   parseOrigin,
-  rowOf,
-} from './change-sets.ts';
+  rowOf } from './change-sets.ts';
 import {
   classifyDrift,
   fieldKey,
   fieldSpec,
   listingFieldsFor,
   normalizeListingValue,
-  toListing,
-} from './listing-drift.ts';
+  toListing } from './listing-drift.ts';
 import { getLiveListing, type LiveChannel } from './listing-live.ts';
 import { canonicalLocale, matchRepoLocale, newRepoLocale } from './listing-locales.ts';
 import { type ListingSourceKind, listingSources, mergedListing } from './listing-sources.ts';
 import {
   type ListingSelection,
   type ListingTarget,
-  listListingTargets,
-} from './listing-targets.ts';
+  listListingTargets } from './listing-targets.ts';
 import {
   type Failure,
   failure,
@@ -52,8 +38,7 @@ import {
   type Outcome,
   type RepoContext,
   type Repository,
-  selectedTarget,
-} from './repositories.ts';
+  selectedTarget } from './repositories.ts';
 
 /**
  * Pull the live store listing into the repository, as a draft change set.
@@ -235,14 +220,12 @@ export function planPull(input: PullPlanInput): PullPlan {
       skipped.push({
         locale,
         reason: 'locale_ambiguous',
-        message: `${locale} matches several folders of the repository (${match.candidates.join(', ')}). Rename the ones that are not used, or pull this locale by hand.`,
-      });
+        message: `${locale} matches several folders of the repository (${match.candidates.join(', ')}). Rename the ones that are not used, or pull this locale by hand.` });
     } else if (!selection.addLocales) {
       skipped.push({
         locale,
         reason: 'locale_not_in_repo',
-        message: `${locale} has no folder in the repository. Choose "add locales" to create it.`,
-      });
+        message: `${locale} has no folder in the repository. Choose "add locales" to create it.` });
     } else {
       const created = newRepoLocale(platform, locale, input.source);
       if (!created.ok) {
@@ -251,13 +234,11 @@ export function planPull(input: PullPlanInput): PullPlan {
             ? {
                 locale,
                 reason: 'locale_unsupported',
-                message: `${locale} is not a locale the EAS Metadata store config supports, so it cannot be added there.`,
-              }
+                message: `${locale} is not a locale the EAS Metadata store config supports, so it cannot be added there.` }
             : {
                 locale,
                 reason: 'locale_invalid',
-                message: `${locale} is not written as a locale folder name (such as en-US), so it was not added.`,
-              },
+                message: `${locale} is not written as a locale folder name (such as en-US), so it was not added.` },
         );
       } else {
         const same = repoLocales.find((r) => r === created.repoLocale);
@@ -279,8 +260,7 @@ export function planPull(input: PullPlanInput): PullPlan {
         locale: r.locale,
         repoLocale: r.repoLocale,
         reason: 'locale_conflict',
-        message: `${r.locale} and ${owner} both map to the folder ${r.repoLocale}; only ${owner} was pulled.`,
-      });
+        message: `${r.locale} and ${owner} both map to the folder ${r.repoLocale}; only ${owner} was pulled.` });
       continue;
     }
     claimed.set(r.repoLocale, r.locale);
@@ -305,8 +285,7 @@ export function planPull(input: PullPlanInput): PullPlan {
           skipped.push({
             ...at,
             reason: 'missing_in_store',
-            message: `${label}: the store has no value, so the repository's value was left as it is.`,
-          });
+            message: `${label}: the store has no value, so the repository's value was left as it is.` });
         }
         continue;
       }
@@ -320,15 +299,13 @@ export function planPull(input: PullPlanInput): PullPlan {
           repo: repoValue,
           live: after,
           repoHistory: input.history.repo.get(fieldKey(historyLocale, field)) ?? [],
-          liveHistory: input.history.store.get(fieldKey(locale, field)) ?? new Set<string>(),
-        }).status;
+          liveHistory: input.history.store.get(fieldKey(locale, field)) ?? new Set<string>() }).status;
         if (verdict === 'identical') {
           if (explicit) {
             skipped.push({
               ...at,
               reason: 'identical',
-              message: `${label} is already the same in the repository.`,
-            });
+              message: `${label} is already the same in the repository.` });
           }
           continue;
         }
@@ -336,8 +313,7 @@ export function planPull(input: PullPlanInput): PullPlan {
           skipped.push({
             ...at,
             reason: 'repo_ahead',
-            message: `${label}: the repository changed after it matched the store and the store has not caught up. Pulling would undo that change.`,
-          });
+            message: `${label}: the repository changed after it matched the store and the store has not caught up. Pulling would undo that change.` });
           continue;
         }
         status = verdict === 'store-ahead' ? 'store-ahead' : 'diverged';
@@ -353,8 +329,7 @@ export function planPull(input: PullPlanInput): PullPlan {
         skipped.push({
           ...at,
           reason: 'over_limit',
-          message: `${tooLong.message} It was not pulled and was not shortened.`,
-        });
+          message: `${tooLong.message} It was not pulled and was not shortened.` });
         continue;
       }
       changes.push({
@@ -365,29 +340,24 @@ export function planPull(input: PullPlanInput): PullPlan {
         status,
         before: repoValue ?? null,
         after,
-        newLocale: created,
-      });
+        newLocale: created });
     }
   }
 
   const locales: Texts = {};
   for (const [locale, text] of Object.entries(repoLocaleTexts)) locales[locale] = { ...text };
   for (const c of changes) (locales[c.repoLocale] ??= {})[c.field] = c.after;
-  const desired: Listing = isApplePlatform(platform)
+  const desired: Listing = listingStoreOf(platform) === 'app_store'
     ? {
         appStore: {
           locales: locales as Record<string, LocaleText<never>>,
           ...((input.repo as AppStoreListing | undefined)?.copyright === undefined
             ? {}
-            : { copyright: (input.repo as AppStoreListing).copyright as string }),
-        } as AppStoreListing,
-      }
+            : { copyright: (input.repo as AppStoreListing).copyright as string }) } as AppStoreListing }
     : {
         googlePlay: {
           locales: locales as PlayListing['locales'],
-          changelogs: (input.repo as PlayListing | undefined)?.changelogs ?? {},
-        },
-      };
+          changelogs: (input.repo as PlayListing | undefined)?.changelogs ?? {} } };
   return { changes, skipped, problems, locales: mappings, desired };
 }
 
@@ -494,8 +464,7 @@ const savedView = (t: ListingTarget): ListingTargetView => ({
   origin: 'custom',
   label: t.name,
   app: t.appId,
-  roots: { appStore: t.appStoreRoot, googlePlay: t.googlePlayRoot },
-});
+  roots: { appStore: t.appStoreRoot, googlePlay: t.googlePlayRoot } });
 
 const targetRequired = (candidates: readonly ListingTargetView[]) =>
   failure(
@@ -608,7 +577,7 @@ async function preparePull(
   const chosen = await chooseSelection(ctx.repo, workspaceId, repository.id, app, input.selection);
   if (!chosen.ok) return chosen;
 
-  const slot = isApplePlatform(app.platform) ? 'appStore' : 'googlePlay';
+  const slot = byFamily(app.platform, { apple: 'appStore', google: 'googlePlay' });
   const history = await loadPullHistory(db, workspaceId, app.id, channel, input.excludeChangeSet);
   return {
     ok: true,
@@ -620,9 +589,7 @@ async function preparePull(
       selection: chosen.selection,
       slot,
       history,
-      refreshed,
-    },
-  };
+      refreshed } };
 }
 
 /** The listing builder of a pull: plans the pull against the listings that `createChangeSet` just read. */
@@ -640,8 +607,7 @@ function pullBuilder(prepared: Prepared, input: PullInput, state: PullState): Li
       branch: repository.defaultBranch,
       source: source.source,
       path: source.path,
-      selected: selectedTarget(views, listings.fastlane, selection, custom),
-    };
+      selected: selectedTarget(views, listings.fastlane, selection, custom) };
     // Several places the listing could be, and nothing chose one: ask instead of guessing.
     const usesExpo = slot === 'appStore' && listings.expo !== undefined;
     const relevant = views.filter((v) => v.roots[slot] !== null);
@@ -671,9 +637,7 @@ function pullBuilder(prepared: Prepared, input: PullInput, state: PullState): Li
         locales: input.locales,
         fields: input.fields,
         items: input.items,
-        addLocales: input.addLocales === true,
-      },
-    });
+        addLocales: input.addLocales === true } });
     // Nothing to write: an empty listing leaves every file as it is (and ends as `no_changes`).
     return state.plan.changes.length === 0 ? {} : state.plan.desired;
   };
@@ -727,16 +691,13 @@ function originOf(
         ? { items: input.items.map((i) => ({ locale: i.locale, field: i.field })) }
         : {}),
       addLocales: input.addLocales === true,
-      ...(prepared.selection ? { selection: prepared.selection } : {}),
-    },
+      ...(prepared.selection ? { selection: prepared.selection } : {}) },
     fields: (plan?.changes ?? []).map((c) => ({
       locale: c.locale,
       repoLocale: c.repoLocale,
       field: c.field,
-      hash: textHash(c.after),
-    })),
-    storeReadAt: prepared.live.readAt,
-  };
+      hash: textHash(c.after) })),
+    storeReadAt: prepared.live.readAt };
 }
 
 const isStorePullOrigin = (origin: ChangeSetOrigin | null): origin is StorePullOrigin =>
@@ -768,8 +729,7 @@ export async function pullStoreListing(
       listing: build,
       ...(selection ? { selection } : {}),
       auditDetail: { source: 'store_pull', appId: app.id, channel, refreshed },
-      origin: () => originOf(prepared.prepared, input, state.plan),
-    },
+      origin: () => originOf(prepared.prepared, input, state.plan) },
     actor,
   );
 
@@ -789,8 +749,7 @@ export async function pullStoreListing(
           target,
           skipped: plan.skipped,
           problems: plan.problems,
-          locales: plan.locales,
-        }
+          locales: plan.locales }
       : undefined;
 
   if (!done.ok) {
@@ -810,9 +769,7 @@ export async function pullStoreListing(
         warnings,
         explanation: lost
           ? 'The values to pull are the same as the repository files once formatting is ignored, so there is nothing to change.'
-          : `Nothing to pull: no field of the ${storeName(app.platform)} listing differs from the repository in a way that can be pulled.${plan.skipped.length > 0 ? ' See the skipped fields for why some were left out.' : ''}`,
-      },
-    };
+          : `Nothing to pull: no field of the ${storeName(app.platform)} listing differs from the repository in a way that can be pulled.${plan.skipped.length > 0 ? ' See the skipped fields for why some were left out.' : ''}` } };
   }
   const base = common();
   if (!base || !plan) return failure(422, 'no_changes', 'Nothing to pull.');
@@ -822,9 +779,7 @@ export async function pullStoreListing(
       ...base,
       changeSet: done.changeSet,
       changes: plan.changes,
-      warnings: [...baseWarnings, ...done.warnings],
-    },
-  };
+      warnings: [...baseWarnings, ...done.warnings] } };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -868,8 +823,7 @@ export function diffFromPrevious(
           ? 'added'
           : old.hash === textHash(change.after)
             ? 'unchanged'
-            : 'store_changed',
-    });
+            : 'store_changed' });
   }
   for (const old of previous) {
     const key = fieldId(old.repoLocale, old.field);
@@ -884,8 +838,7 @@ export function diffFromPrevious(
       repoLocale: old.repoLocale,
       field: old.field,
       change: 'dropped',
-      reason: skip?.reason ?? 'identical',
-    });
+      reason: skip?.reason ?? 'identical' });
   }
   return out;
 }
@@ -951,8 +904,7 @@ export async function planRecompute(
     addLocales: request.addLocales === true,
     ...(request.selection ? { selection: request.selection } : {}),
     ...(input.refresh ? { refresh: input.refresh } : {}),
-    excludeChangeSet: String(row.id),
-  };
+    excludeChangeSet: String(row.id) };
   const prepared = await preparePull(ctx, pull);
   if (!prepared.ok) return prepared;
   const state: PullState = {};
@@ -963,8 +915,7 @@ export async function planRecompute(
       repositoryId: String(row.repository_id),
       listing: pullBuilder(prepared.prepared, pull, state),
       ...(prepared.prepared.selection ? { selection: prepared.prepared.selection } : {}),
-      purpose: 'changeset.recompute',
-    },
+      purpose: 'changeset.recompute' },
     actor,
   );
   if (!computed.ok) return computed;
@@ -992,10 +943,7 @@ export async function planRecompute(
         skipped: plan.skipped,
         problems: plan.problems,
         locales: plan.locales,
-        warnings,
-      },
-    },
-  };
+        warnings } } };
 }
 
 export type RecomputeResult = Omit<PullResult, 'changeSet'> & {
@@ -1102,10 +1050,8 @@ export async function recomputeStorePull(
         added: plan.diffFromPrevious.filter((d) => d.change === 'added').length,
         dropped: plan.diffFromPrevious.filter((d) => d.change === 'dropped').length,
         approvalCleared,
-        nothingLeft,
-      },
-      at,
-    });
+        nothingLeft },
+      at });
     return undefined;
   });
   if (written) return written;
