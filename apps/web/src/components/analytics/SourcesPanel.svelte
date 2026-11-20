@@ -12,8 +12,8 @@
 <script lang="ts">
   import { can, type Role, supports } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
-  import { type AnalyticsStatus, type StepAction, analyticsErrorText, stateInfo, stepAvailable } from '../../lib/analytics.ts';
-  import { type SyncLine, lastReadAt, overallState, scheduleText, sourceRows, syncLines } from '../../lib/analytics-view.ts';
+  import { type AnalyticsStatus, type StepAction, analyticsErrorText, stateInfo, stepAvailable } from '../../lib/analytics/analytics.ts';
+  import { type SyncLine, lastReadAt, overallState, scheduleText, sourceRows, syncLines } from '../../lib/analytics/view.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { toast } from '../../lib/toast.svelte.ts';

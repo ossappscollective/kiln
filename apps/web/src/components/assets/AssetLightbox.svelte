@@ -18,7 +18,7 @@
     kindLabel,
     localeLabel,
     shortCommit,
-  } from '../../lib/assets.ts';
+  } from '../../lib/assets/assets.ts';
   import type { AssetItem } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
   import CopyButton from '../ui/CopyButton.svelte';

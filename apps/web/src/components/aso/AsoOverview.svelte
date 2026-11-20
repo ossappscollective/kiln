@@ -21,8 +21,8 @@
     overviewMovers,
     overviewStats,
     parseThreshold,
-  } from '../../lib/aso.ts';
-  import { coachHref } from '../../lib/aso-budget.ts';
+  } from '../../lib/aso/aso.ts';
+  import { coachHref } from '../../lib/aso/budget.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { appLabel, platformLabel, portfolioHref, runLimited } from '../../lib/portfolio.ts';
   import { toast } from '../../lib/toast.svelte.ts';

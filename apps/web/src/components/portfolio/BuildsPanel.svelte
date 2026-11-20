@@ -26,7 +26,7 @@
     shortSha,
     shouldAutoRematch,
     tagFoundText,
-  } from '../../lib/ci.ts';
+  } from '../../lib/ci/ci.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { buildsLead } from '../../lib/page-lead.ts';
   import { toast } from '../../lib/toast.svelte.ts';

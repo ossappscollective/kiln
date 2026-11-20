@@ -10,7 +10,7 @@
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
-  import { actorText, describeSource, historySteps, usage, usageText } from '../../lib/listing-drift.ts';
+  import { actorText, describeSource, historySteps, usage, usageText } from '../../lib/listing/drift.ts';
   import type { ListingHistoryEntry } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';

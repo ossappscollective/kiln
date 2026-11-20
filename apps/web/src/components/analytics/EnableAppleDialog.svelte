@@ -13,8 +13,8 @@
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
-  import { type EnablePreview, analyticsErrorText } from '../../lib/analytics.ts';
-  import { ENABLE_PHRASE, canConfirmEnable, classifyEnableError, describeStep, enableDecision } from '../../lib/analytics-import.ts';
+  import { type EnablePreview, analyticsErrorText } from '../../lib/analytics/analytics.ts';
+  import { ENABLE_PHRASE, canConfirmEnable, classifyEnableError, describeStep, enableDecision } from '../../lib/analytics/import.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';

@@ -22,7 +22,7 @@ import type {
   AiSettingsChanges,
   AiTasksResponse,
   AiTestOutcome,
-} from './ai.ts';
+} from './ai/ai.ts';
 import type {
   AlertChannel,
   AlertInboxPage,
@@ -34,7 +34,7 @@ import type {
   RuleView,
   SettingsPage,
   UserSettings,
-} from './alerts.ts';
+} from './alerts/alerts.ts';
 import type {
   ImportResult as AnalyticsImportResult,
   AnalyticsOverview,
@@ -45,7 +45,7 @@ import type {
   ImportPreview,
   PlayBucketTestResult,
   PlayBucketView,
-} from './analytics.ts';
+} from './analytics/analytics.ts';
 import type {
   AsoAddResult,
   AsoCoachResponse,
@@ -63,14 +63,14 @@ import type {
   AsoRefreshOutcome,
   AsoSuggestionsResponse,
   AsoSummary,
-} from './aso.ts';
+} from './aso/aso.ts';
 import type {
   InspectedFile,
   PullReport,
   PullSelection,
   ToRepoResult,
   UploadQuery,
-} from './assets-sync.ts';
+} from './assets/sync.ts';
 import type {
   BuildsList,
   DownloadLink,
@@ -93,14 +93,14 @@ import type {
   StepRequest,
 } from './pending.ts';
 import type { PlayCheckAnswer, PlayCheckBody } from './play-check.ts';
-import type { RankVsDownloadsResponse } from './rank-downloads.ts';
+import type { RankVsDownloadsResponse } from './aso/rank-downloads.ts';
 import type { EditableRelease, ReleaseCandidates } from './release-candidates.ts';
 import type { NotesHistory } from './release-notes.ts';
 import type { TranslateNotesBody, TranslateNotesResult } from './release-notes-translate.ts';
 import type { AppPipeline, PipelineSummary } from './release-pipeline.ts';
 import type { ReleaseSettingsView } from './release-settings.ts';
-import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './review-reply.ts';
-import type { TranslateReviewsResult } from './review-translation.ts';
+import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './reviews/reply.ts';
+import type { TranslateReviewsResult } from './reviews/translation.ts';
 import type {
   InboxPage,
   Review,
@@ -109,13 +109,13 @@ import type {
   ReviewsSummary,
   TriageBody,
   WorkspaceReviewsSummary,
-} from './reviews.ts';
+} from './reviews/reviews.ts';
 import type {
   SearchTermsImportResult,
   SearchTermsPreview,
   SearchTermsQuery,
   SearchTermsResponse,
-} from './search-terms.ts';
+} from './aso/search-terms.ts';
 import type {
   SettingsResponse,
   SettingsUpdateResponse,

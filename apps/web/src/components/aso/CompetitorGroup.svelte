@@ -15,7 +15,7 @@
     type OurFacts,
     asoErrorMessage,
     compareRows,
-  } from '../../lib/aso.ts';
+  } from '../../lib/aso/aso.ts';
   import { liveRelease, platformLabel, runLimited } from '../../lib/portfolio.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';

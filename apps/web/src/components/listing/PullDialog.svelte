@@ -20,8 +20,8 @@
     pullErrorMessage,
     selectionText,
     sourceKindLabel,
-  } from '../../lib/listing-pull.ts';
-  import { usage, usageText } from '../../lib/listing-drift.ts';
+  } from '../../lib/listing/pull.ts';
+  import { usage, usageText } from '../../lib/listing/drift.ts';
   import { storeName } from '../../lib/portfolio.ts';
   import type { AppSummary, DriftField, ProjectDetection, PullCandidate, PullResult, RepositorySummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';

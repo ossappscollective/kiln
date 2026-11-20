@@ -16,10 +16,10 @@
     trendGeometry,
     weekLabel,
     type ReviewsSummary,
-  } from '../../lib/reviews.ts';
+  } from '../../lib/reviews/reviews.ts';
   import Icon from '../ui/Icon.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
-  import { statsLine } from '../../lib/reviews-toolbar.ts';
+  import { statsLine } from '../../lib/reviews/toolbar.ts';
 
   let { summary }: { summary: ReviewsSummary } = $props();
 

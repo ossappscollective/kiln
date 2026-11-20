@@ -25,7 +25,7 @@
   import { unansweredCount } from '../../lib/nav-badges.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { appLabel } from '../../lib/portfolio.ts';
-  import { REPLY_OFF_TEXT, type ReplyConfig } from '../../lib/review-reply.ts';
+  import { REPLY_OFF_TEXT, type ReplyConfig } from '../../lib/reviews/reply.ts';
   import {
     appendInboxPage,
     averageText,
@@ -57,9 +57,9 @@
     type Review,
     type ReviewSort,
     type WorkspaceReviewsSummary,
-  } from '../../lib/reviews.ts';
-  import { isReviewsAddress, reviewFromHash, withReview } from '../../lib/review-split.ts';
-  import { filtersButtonText, inboxPopoverFilterCount, statusChips, statusesAfterChip } from '../../lib/reviews-toolbar.ts';
+  } from '../../lib/reviews/reviews.ts';
+  import { isReviewsAddress, reviewFromHash, withReview } from '../../lib/reviews/split.ts';
+  import { filtersButtonText, inboxPopoverFilterCount, statusChips, statusesAfterChip } from '../../lib/reviews/toolbar.ts';
   import { splitView } from '../../lib/split-view.svelte.ts';
   import type { AppSummary, Member } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';

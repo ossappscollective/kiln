@@ -21,15 +21,15 @@
 -->
 <script lang="ts">
   import { type Platform, type Role, platformLabel } from '@mrm/core';
-  import { coachHref, countriesForLocale, fieldsFromDrift, keywordsForLocale } from '../../lib/aso-budget.ts';
+  import { coachHref, countriesForLocale, fieldsFromDrift, keywordsForLocale } from '../../lib/aso/budget.ts';
   import type { Api } from '../../lib/api.ts';
-  import type { AsoKeyword } from '../../lib/aso.ts';
-  import { localeSummary } from '../../lib/listing-drift.ts';
-  import type { MatrixRow } from '../../lib/listing-matrix.ts';
-  import { canPullField, pullKey, pullableInLocale } from '../../lib/listing-pull.ts';
-  import { type LeadActionInput, leadAction, localeLead, splitFields } from '../../lib/locale-drawer.ts';
+  import type { AsoKeyword } from '../../lib/aso/aso.ts';
+  import { localeSummary } from '../../lib/listing/drift.ts';
+  import type { MatrixRow } from '../../lib/listing/matrix.ts';
+  import { canPullField, pullKey, pullableInLocale } from '../../lib/listing/pull.ts';
+  import { type LeadActionInput, leadAction, localeLead, splitFields } from '../../lib/listing/locale-drawer.ts';
   import { storeName } from '../../lib/portfolio.ts';
-  import { fieldInfo } from '../../lib/listing-edit.ts';
+  import { fieldInfo } from '../../lib/listing/edit.ts';
   import { fieldStage } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import type { AppSummary, DriftField } from '../../lib/types.ts';

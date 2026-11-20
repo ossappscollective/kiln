@@ -8,7 +8,7 @@
 -->
 <script lang="ts">
   import type { AiFlag, AiInsightProposal, Platform } from '@mrm/core';
-  import { flagInfos } from '../../lib/ai.ts';
+  import { flagInfos } from '../../lib/ai/ai.ts';
   import {
     auditFieldText,
     basedOnText,
@@ -25,8 +25,8 @@
     themeKindLabel,
     themeKindTone,
     topicLabel,
-  } from '../../lib/ai-insights.ts';
-  import { appReviewHref } from '../../lib/review-split.ts';
+  } from '../../lib/ai/insights.ts';
+  import { appReviewHref } from '../../lib/reviews/split.ts';
   import Badge from '../ui/Badge.svelte';
 
   let { proposal, appId, platform = null }: { proposal: AiInsightProposal; appId: string; platform?: Platform | null } = $props();

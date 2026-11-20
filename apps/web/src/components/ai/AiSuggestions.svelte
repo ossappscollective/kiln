@@ -10,8 +10,8 @@
 <script lang="ts">
   import { type AiAcceptedRef, type AiProposalKind, type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
-  import { openLine } from '../../lib/ai.ts';
-  import { aiStore } from '../../lib/ai-store.svelte.ts';
+  import { openLine } from '../../lib/ai/ai.ts';
+  import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import type { PlatformScope } from '../../lib/app-scope.ts';
   import { platformLabel } from '../../lib/portfolio.ts';

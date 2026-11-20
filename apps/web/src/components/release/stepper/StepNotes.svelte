@@ -48,7 +48,7 @@
     translateErrorMessage,
     translateLines,
     translatePlan } from '../../../lib/release-notes-translate.ts';
-  import { aiStore } from '../../../lib/ai-store.svelte.ts';
+  import { aiStore } from '../../../lib/ai/store.svelte.ts';
   import { loadTranslationConfig, type TranslationConfig } from '../../../lib/settings.ts';
   import { stagedField, stagedNotes, storeNotes } from '../../../lib/release-stepper.ts';
   import { canStage, stagingError } from '../../../lib/staged.ts';

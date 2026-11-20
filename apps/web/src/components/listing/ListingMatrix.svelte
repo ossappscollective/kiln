@@ -25,11 +25,11 @@
   import { type Platform, type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
-  import type { AsoKeyword } from '../../lib/aso.ts';
+  import type { AsoKeyword } from '../../lib/aso/aso.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { openStatusPopover } from '../../lib/app-page.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
-  import { shortRef } from '../../lib/listing-drift.ts';
+  import { shortRef } from '../../lib/listing/drift.ts';
   import {
     LEGEND_ORDER,
     MODE_LABELS,
@@ -50,10 +50,10 @@
     matrixSummary,
     modeCounts,
     type MatrixCell,
-  } from '../../lib/listing-matrix.ts';
-  import { fieldInfo } from '../../lib/listing-edit.ts';
-  import { pullDisabledReason, pullableFields, summarizePull } from '../../lib/listing-pull.ts';
-  import { warningCountOf, warningGroups } from '../../lib/listing-warnings.ts';
+  } from '../../lib/listing/matrix.ts';
+  import { fieldInfo } from '../../lib/listing/edit.ts';
+  import { pullDisabledReason, pullableFields, summarizePull } from '../../lib/listing/pull.ts';
+  import { warningCountOf, warningGroups } from '../../lib/listing/warnings.ts';
   import { describeError, platformLabel, storeName } from '../../lib/portfolio.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { cellStagedText, stagingError as stagingMessage } from '../../lib/staged.ts';

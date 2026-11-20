@@ -10,8 +10,8 @@
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { appAddress } from '../../lib/app-scope.ts';
-  import { loadStrip } from '../../lib/analytics-load.ts';
-  import type { Strip } from '../../lib/analytics-view.ts';
+  import { loadStrip } from '../../lib/analytics/load.ts';
+  import type { Strip } from '../../lib/analytics/view.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Icon from '../ui/Icon.svelte';

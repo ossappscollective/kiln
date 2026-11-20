@@ -1,4 +1,4 @@
-import { COMPACT_QUERY, SPLIT_QUERY } from './review-split.ts';
+import { COMPACT_QUERY, SPLIT_QUERY } from './reviews/split.ts';
 
 /**
  * Whether the window is wide enough for the list and detail view of reviews (see review-split.ts): `wide` from 1100 px (list and detail

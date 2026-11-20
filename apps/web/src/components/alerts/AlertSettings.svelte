@@ -6,8 +6,8 @@
 -->
 <script lang="ts">
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { alertStore } from '../../lib/alert-store.svelte.ts';
-  import { type NotifyState, inDesktopShell, notificationState, notifyStateText, requestNotificationPermission } from '../../lib/alert-notify.ts';
+  import { alertStore } from '../../lib/alerts/store.svelte.ts';
+  import { type NotifyState, inDesktopShell, notificationState, notifyStateText, requestNotificationPermission } from '../../lib/alerts/notify.ts';
   import {
     type AlertChannel,
     type AlertSeverity,
@@ -33,7 +33,7 @@
     statusTone,
     timeToMinutes,
     toggleChannel,
-  } from '../../lib/alerts.ts';
+  } from '../../lib/alerts/alerts.ts';
   import { fullTime } from '../../lib/format.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';

@@ -23,8 +23,8 @@
     storeKeyOf,
     storeThumbUrl,
     summarizePull,
-  } from '../../lib/assets-sync.ts';
-  import { assetFileUrl, fileName, localeLabel } from '../../lib/assets.ts';
+  } from '../../lib/assets/sync.ts';
+  import { assetFileUrl, fileName, localeLabel } from '../../lib/assets/assets.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { stagingError } from '../../lib/staged.ts';
   import type { AppSummary } from '../../lib/types.ts';

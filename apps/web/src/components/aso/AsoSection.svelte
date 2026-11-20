@@ -18,7 +18,7 @@
   import { untrack } from 'svelte';
   import { address } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
-  import { type AsoConfig, type AsoKeyword, asoErrorMessage, asoViewFromHash, asoViewHref, availableAsoView, keywordMainViews, keywordMoreViews, localesOf } from '../../lib/aso.ts';
+  import { type AsoConfig, type AsoKeyword, asoErrorMessage, asoViewFromHash, asoViewHref, availableAsoView, keywordMainViews, keywordMoreViews, localesOf } from '../../lib/aso/aso.ts';
   import { withInsightsAsoView } from '../../lib/app-nav.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';

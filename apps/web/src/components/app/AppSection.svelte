@@ -21,7 +21,7 @@
   import type { AppSection } from '../../lib/app-scope.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
-  import { reviewsOwner } from '../../lib/reviews.ts';
+  import { reviewsOwner } from '../../lib/reviews/reviews.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import AssetsTab from '../assets/AssetsTab.svelte';

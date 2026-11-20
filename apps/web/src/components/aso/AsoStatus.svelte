@@ -4,7 +4,7 @@
   Props: config (from GET /aso/config, or null), androidInScope.
 -->
 <script lang="ts">
-  import { type AsoConfig, configStates } from '../../lib/aso.ts';
+  import { type AsoConfig, configStates } from '../../lib/aso/aso.ts';
   import StatusPill from '../ui/StatusPill.svelte';
 
   let { config, androidInScope }: { config: AsoConfig | null; androidInScope: boolean } = $props();

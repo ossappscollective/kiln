@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { groupAvailability } from './assets-groups.ts';
-import { buildNumberLabel } from './ci.ts';
+import { groupAvailability } from './assets/groups.ts';
+import { buildNumberLabel } from './ci/ci.ts';
 import { nextAction } from './dashboard.ts';
-import { limitText } from './listing-matrix.ts';
-import { defaultPullSummary } from './listing-pull.ts';
-import { deviceLabel } from './listing-sections.ts';
+import { limitText } from './listing/matrix.ts';
+import { defaultPullSummary } from './listing/pull.ts';
+import { deviceLabel } from './listing/sections.ts';
 import {
   candidateKey,
   credentialKindFor,

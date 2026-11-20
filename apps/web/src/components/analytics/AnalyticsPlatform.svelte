@@ -15,10 +15,10 @@
   import { type Platform, type Role, can, dateToDay } from '@mrm/core';
   import { type Snippet, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { type AnalyticsStatus, type ResolvedRange, analyticsErrorText, needsPlayBucket, stateInfo } from '../../lib/analytics.ts';
-  import { type Loaded, loadOverviews } from '../../lib/analytics-load.ts';
-  import { buildCards, buildChips, hasStoredData, lastReadAt, noRatingHistory, overallState, pageNotes, platformNotes, splitHeadline } from '../../lib/analytics-view.ts';
-  import { asoViewHref } from '../../lib/aso.ts';
+  import { type AnalyticsStatus, type ResolvedRange, analyticsErrorText, needsPlayBucket, stateInfo } from '../../lib/analytics/analytics.ts';
+  import { type Loaded, loadOverviews } from '../../lib/analytics/load.ts';
+  import { buildCards, buildChips, hasStoredData, lastReadAt, noRatingHistory, overallState, pageNotes, platformNotes, splitHeadline } from '../../lib/analytics/view.ts';
+  import { asoViewHref } from '../../lib/aso/aso.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import Alert from '../ui/Alert.svelte';

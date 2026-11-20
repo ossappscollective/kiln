@@ -11,8 +11,8 @@
 -->
 <script lang="ts">
   import type { Role } from '@mrm/core';
-  import { canImproveField } from '../../lib/ai.ts';
-  import { aiStore } from '../../lib/ai-store.svelte.ts';
+  import { canImproveField } from '../../lib/ai/ai.ts';
+  import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import type { AppSummary, DriftField } from '../../lib/types.ts';
   import type { AiAcceptedRef } from '@mrm/core';

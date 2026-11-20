@@ -7,7 +7,7 @@
 -->
 <script lang="ts">
   import { dateToDay } from '@mrm/core';
-  import { PRESET_DAYS, type RangeChoice, type ResolvedRange, customRangeProblem, formatDay, rangeText } from '../../lib/analytics.ts';
+  import { PRESET_DAYS, type RangeChoice, type ResolvedRange, customRangeProblem, formatDay, rangeText } from '../../lib/analytics/analytics.ts';
   import Button from '../ui/Button.svelte';
 
   let { choice, range, now, onchange }: { choice: RangeChoice; range: ResolvedRange; now: number; onchange: (next: RangeChoice) => void } = $props();

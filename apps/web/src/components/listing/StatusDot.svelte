@@ -4,7 +4,7 @@
   Props: status (CellStatus), label? (overrides the accessible name and the tooltip).
 -->
 <script lang="ts">
-  import { type CellStatus, cellInfo } from '../../lib/listing-matrix.ts';
+  import { type CellStatus, cellInfo } from '../../lib/listing/matrix.ts';
   import Icon from '../ui/Icon.svelte';
 
   let { status, label }: { status: CellStatus; label?: string } = $props();

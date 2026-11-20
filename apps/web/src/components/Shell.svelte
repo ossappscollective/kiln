@@ -11,7 +11,7 @@
   import { appSwitchHash, jumpTarget, switcherItems, type SwitcherItem } from '../lib/app-switcher.ts';
   import { breadcrumbItems, charsFor, fitCrumbs } from '../lib/breadcrumb.ts';
   import { DEMO_BANNER_TEXT } from '../lib/demo.ts';
-  import { alertStore } from '../lib/alert-store.svelte.ts';
+  import { alertStore } from '../lib/alerts/store.svelte.ts';
   import { platformStatusLines } from '../lib/app-status.ts';
   import { appNavCounts, badgeLabel, badgeText } from '../lib/nav-badges.ts';
   import { lineFor } from '../lib/pending.ts';

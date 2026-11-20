@@ -42,7 +42,7 @@
     problemsByPath,
     sanitizeFilter,
     summaryText,
-  } from '../../lib/assets.ts';
+  } from '../../lib/assets/assets.ts';
   import {
     type AssetGroupId,
     asGroupId,
@@ -52,14 +52,14 @@
     groupOfKind,
     groupSummaries,
     sliceIndex,
-  } from '../../lib/assets-groups.ts';
-  import { SYNC_ROLE_REASON, type EditorSet, canChangeAssets, setIdOf, storeKeyOf } from '../../lib/assets-sync.ts';
-  import { assetsLead, otherCountsText, splitProblems } from '../../lib/assets-lead.ts';
+  } from '../../lib/assets/groups.ts';
+  import { SYNC_ROLE_REASON, type EditorSet, canChangeAssets, setIdOf, storeKeyOf } from '../../lib/assets/sync.ts';
+  import { assetsLead, otherCountsText, splitProblems } from '../../lib/assets/lead.ts';
   import { describeError } from '../../lib/portfolio.ts';
   import { REVERSE_IMAGE_SYNC_NOTE, STAGE_ROLE_REASON, canStage, setStaging, stageAssetsBody, stagingError } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
-  import type { DeviceGroup } from '../../lib/assets.ts';
+  import type { DeviceGroup } from '../../lib/assets/assets.ts';
   import type { AppSummary, AssetIndex, AssetItem, AssetStoreSide } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';

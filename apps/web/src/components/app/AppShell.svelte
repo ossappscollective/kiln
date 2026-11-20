@@ -27,7 +27,7 @@
     resolveVersion,
     withHeaderParams,
   } from '../../lib/app-header.ts';
-  import { asoViewFromHash } from '../../lib/aso.ts';
+  import { asoViewFromHash } from '../../lib/aso/aso.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { dataChips } from '../../lib/app-chips.ts';
   import { canonicalAppHash, canonicalSection, pageTitle, resolveView, showsScope, viewsFor } from '../../lib/app-nav.ts';

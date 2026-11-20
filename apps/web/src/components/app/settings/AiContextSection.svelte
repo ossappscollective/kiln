@@ -10,7 +10,7 @@
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
-  import { aiErrorMessage } from '../../../lib/ai.ts';
+  import { aiErrorMessage } from '../../../lib/ai/ai.ts';
   import {
     type AiContextErrors,
     type AiContextForm,
@@ -18,8 +18,8 @@
     contextToForm,
     isContextDirty,
     validateContextForm,
-  } from '../../../lib/ai-insights.ts';
-  import { aiStore } from '../../../lib/ai-store.svelte.ts';
+  } from '../../../lib/ai/insights.ts';
+  import { aiStore } from '../../../lib/ai/store.svelte.ts';
   import type { Api } from '../../../lib/api.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
   import { toast } from '../../../lib/toast.svelte.ts';
@@ -28,7 +28,7 @@
   import Skeleton from '../../ui/Skeleton.svelte';
   import SaveBar from './SaveBar.svelte';
   import SettingsCard from './SettingsCard.svelte';
-  import type { AiAppContextView } from '../../../lib/ai.ts';
+  import type { AiAppContextView } from '../../../lib/ai/ai.ts';
 
   let { api, workspaceId, role, members }: { api: Api; workspaceId: string; role: Role; members: AppSummary[] } = $props();
 

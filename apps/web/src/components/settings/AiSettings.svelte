@@ -51,9 +51,9 @@
     usageFraction,
     usageText,
     validateAiForm,
-  } from '../../lib/ai.ts';
-  import { centsText, costLine } from '../../lib/ai-insights.ts';
-  import { aiStore } from '../../lib/ai-store.svelte.ts';
+  } from '../../lib/ai/ai.ts';
+  import { centsText, costLine } from '../../lib/ai/insights.ts';
+  import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';

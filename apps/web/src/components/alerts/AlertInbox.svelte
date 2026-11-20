@@ -5,8 +5,8 @@
 -->
 <script lang="ts">
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { alertStore } from '../../lib/alert-store.svelte.ts';
-  import { type InboxAlert, groupInbox, inboxHeadline, severityLabels, severityTone, snoozeChoices } from '../../lib/alerts.ts';
+  import { alertStore } from '../../lib/alerts/store.svelte.ts';
+  import { type InboxAlert, groupInbox, inboxHeadline, severityLabels, severityTone, snoozeChoices } from '../../lib/alerts/alerts.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';

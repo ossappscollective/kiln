@@ -7,11 +7,11 @@
   A run that GitHub has not named yet (we just started it) has no link; it says so.
 -->
 <script lang="ts">
-  import { isPending, runDuration, runTitle, shortSha } from '../../lib/ci.ts';
+  import { isPending, runDuration, runTitle, shortSha } from '../../lib/ci/ci.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { githubUrl } from '../../lib/repositories.ts';
   import type { WorkflowRun } from '../../lib/types.ts';
-  import { orderRuns } from '../../lib/workflow-lead.ts';
+  import { orderRuns } from '../../lib/ci/lead.ts';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
   import RunStatus from './RunStatus.svelte';

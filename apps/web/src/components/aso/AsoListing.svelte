@@ -19,8 +19,8 @@
   import { address } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import { appAddress } from '../../lib/app-scope.ts';
-  import { listingLead } from '../../lib/aso-lead.ts';
-  import { type AsoConfig, type AsoKeyword, type AsoListingKeywordsResponse, addSummaryText, asoErrorMessage, chunk, sumAddSummary } from '../../lib/aso.ts';
+  import { listingLead } from '../../lib/aso/lead.ts';
+  import { type AsoConfig, type AsoKeyword, type AsoListingKeywordsResponse, addSummaryText, asoErrorMessage, chunk, sumAddSummary } from '../../lib/aso/aso.ts';
   import {
     PLAY_NO_KEYWORD_FIELD,
     type PlanGroup,
@@ -38,9 +38,9 @@
     storeName,
     termKeywordItem,
     termMark,
-  } from '../../lib/aso-listing.ts';
+  } from '../../lib/aso/listing.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
-  import { territoryName } from '../../lib/reviews.ts';
+  import { territoryName } from '../../lib/reviews/reviews.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import ListingAi from './ListingAi.svelte';

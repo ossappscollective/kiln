@@ -28,8 +28,8 @@
     stagedSetOf,
     summarizeToRepo,
     type ToRepoResult,
-  } from '../../lib/assets-sync.ts';
-  import { assetFileUrl, fileName } from '../../lib/assets.ts';
+  } from '../../lib/assets/sync.ts';
+  import { assetFileUrl, fileName } from '../../lib/assets/assets.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { stagingError } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';

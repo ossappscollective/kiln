@@ -5,7 +5,7 @@
   (called before the link to the change set is followed), ondismiss.
 -->
 <script lang="ts">
-  import { groupSkipped, skipSubject, summarizePull, targetText } from '../../lib/listing-pull.ts';
+  import { groupSkipped, skipSubject, summarizePull, targetText } from '../../lib/listing/pull.ts';
   import { reviewHref } from '../../lib/repository-intent.ts';
   import type { PullResult } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';

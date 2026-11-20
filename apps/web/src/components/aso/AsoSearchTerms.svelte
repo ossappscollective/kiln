@@ -12,9 +12,9 @@
   import { can, dateToDay, type Role, supports } from '@mrm/core';
   import type { SearchTermSort } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
-  import { type AsoKeyword, asoErrorMessage, asoViewHref } from '../../lib/aso.ts';
+  import { type AsoKeyword, asoErrorMessage, asoViewHref } from '../../lib/aso/aso.ts';
   import { address } from '../../lib/address.svelte.ts';
-  import { searchTermsLead } from '../../lib/aso-lead.ts';
+  import { searchTermsLead } from '../../lib/aso/lead.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { countOf, summaryLine } from '../../lib/section-state.ts';
@@ -28,7 +28,7 @@
     termRows,
     totalsLine,
     trackTarget,
-  } from '../../lib/search-terms.ts';
+  } from '../../lib/aso/search-terms.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';

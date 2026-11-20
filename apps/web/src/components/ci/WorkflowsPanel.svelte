@@ -20,7 +20,7 @@
   import { type Platform, type Role, can } from '@mrm/core';
   import { type Snippet, onMount, untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { POLL_MAX_MS, POLL_MS, hasActiveRun } from '../../lib/ci.ts';
+  import { POLL_MAX_MS, POLL_MS, hasActiveRun } from '../../lib/ci/ci.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { createPoller } from '../../lib/poll.ts';
   import { repositoryName } from '../../lib/repositories.ts';
@@ -35,14 +35,14 @@
     scopeNote,
     splitRelevant,
     workflowsFromRuns,
-  } from '../../lib/workflows.ts';
+  } from '../../lib/ci/workflows.ts';
   import Button from '../ui/Button.svelte';
   import Card from '../ui/Card.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import StatusPill from '../ui/StatusPill.svelte';
-  import { dispatchTarget } from '../../lib/dispatch-target.ts';
-  import { workflowsLead } from '../../lib/workflow-lead.ts';
+  import { dispatchTarget } from '../../lib/ci/dispatch-target.ts';
+  import { workflowsLead } from '../../lib/ci/lead.ts';
   import PageLead from '../ui/PageLead.svelte';
   import DispatchDialog from './DispatchDialog.svelte';
   import RunDrawer from './RunDrawer.svelte';

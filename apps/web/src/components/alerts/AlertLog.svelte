@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { type Delivery, channelLabels, describeOutcome, statusLabels, statusTone } from '../../lib/alerts.ts';
+  import { type Delivery, channelLabels, describeOutcome, statusLabels, statusTone } from '../../lib/alerts/alerts.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';

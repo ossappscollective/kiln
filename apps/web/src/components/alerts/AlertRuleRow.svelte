@@ -13,7 +13,7 @@
     ruleBody,
     severityLabels,
     severityTone,
-  } from '../../lib/alerts.ts';
+  } from '../../lib/alerts/alerts.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';

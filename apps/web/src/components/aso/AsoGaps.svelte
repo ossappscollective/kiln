@@ -16,9 +16,9 @@
     countryForLocale,
     fitStatusInfo,
     localesOf,
-  } from '../../lib/aso.ts';
+  } from '../../lib/aso/aso.ts';
   import { address } from '../../lib/address.svelte.ts';
-  import { gapsLead } from '../../lib/aso-lead.ts';
+  import { gapsLead } from '../../lib/aso/lead.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { countOf, summaryLine } from '../../lib/section-state.ts';
   import { toast } from '../../lib/toast.svelte.ts';

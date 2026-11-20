@@ -8,7 +8,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { floating } from '../../lib/floating.ts';
-  import type { MenuItem } from '../../lib/assets-sync.ts';
+  import type { MenuItem } from '../../lib/assets/sync.ts';
   import Icon from '../ui/Icon.svelte';
 
   let { label, items, onselect }: { label: string; items: MenuItem[]; onselect: (id: string) => void } = $props();

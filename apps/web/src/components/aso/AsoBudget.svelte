@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { type AsoPlatform, type FitField, type FitFields, type FitKeyword, listingBudget, storefrontCombos, supports } from '@mrm/core';
-  import { budgetHeadline, fieldWord, wasteReasonText } from '../../lib/aso-budget.ts';
+  import { budgetHeadline, fieldWord, wasteReasonText } from '../../lib/aso/budget.ts';
   import CopyButton from '../ui/CopyButton.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import BudgetMeter from './BudgetMeter.svelte';

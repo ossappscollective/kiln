@@ -8,7 +8,7 @@
 -->
 <script lang="ts">
   import type { AssetProblem } from '@mrm/core';
-  import { fileName, severityLabel, severityTone } from '../../lib/assets.ts';
+  import { fileName, severityLabel, severityTone } from '../../lib/assets/assets.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import Badge from '../ui/Badge.svelte';
 

@@ -26,8 +26,8 @@
 <script lang="ts">
   import type { Role } from '@mrm/core';
   import { untrack } from 'svelte';
-  import { type FlagInfo, aiErrorMessage, flagInfos } from '../../lib/ai.ts';
-  import { aiStore } from '../../lib/ai-store.svelte.ts';
+  import { type FlagInfo, aiErrorMessage, flagInfos } from '../../lib/ai/ai.ts';
+  import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import {
     type ReplyConfig,
@@ -49,9 +49,9 @@
     replyStatusLabel,
     replyStatusTone,
     statusExplanation,
-  } from '../../lib/review-reply.ts';
-  import { REPLACING_NOTE, replyHint, reviewByline } from '../../lib/reply-dialog.ts';
-  import { collapseText, ratingText, storeLabel, type Review } from '../../lib/reviews.ts';
+  } from '../../lib/reviews/reply.ts';
+  import { REPLACING_NOTE, replyHint, reviewByline } from '../../lib/reviews/reply-dialog.ts';
+  import { collapseText, ratingText, storeLabel, type Review } from '../../lib/reviews/reviews.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';

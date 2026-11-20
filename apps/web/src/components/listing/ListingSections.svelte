@@ -23,7 +23,7 @@
     sectionTitle,
     sectionsSummary,
     valueRows,
-  } from '../../lib/listing-sections.ts';
+  } from '../../lib/listing/sections.ts';
   import type { ListingMedia, ListingReleaseNotes, Platform } from '@mrm/core';
   import type { SectionDrift } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';

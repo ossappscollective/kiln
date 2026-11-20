@@ -20,9 +20,9 @@
     localeForCountry,
     parsePastedTerms,
     sumAddSummary,
-  } from '../../lib/aso.ts';
+  } from '../../lib/aso/aso.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
-  import { territoryName } from '../../lib/reviews.ts';
+  import { territoryName } from '../../lib/reviews/reviews.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';

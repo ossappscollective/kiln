@@ -5,8 +5,8 @@
 -->
 <script lang="ts">
   import type { AssetProblem } from '@mrm/core';
-  import { fileName } from '../../lib/assets.ts';
-  import { problemAction } from '../../lib/assets-lead.ts';
+  import { fileName } from '../../lib/assets/assets.ts';
+  import { problemAction } from '../../lib/assets/lead.ts';
   import Badge from '../ui/Badge.svelte';
 
   let { problems, onopenpath }: { problems: AssetProblem[]; onopenpath?: (path: string) => void } = $props();

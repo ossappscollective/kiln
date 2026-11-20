@@ -6,8 +6,8 @@
 -->
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
-  import { type AsoMarketsResponse, asoErrorMessage, marketCell, marketColumns } from '../../lib/aso.ts';
-  import { marketsLead } from '../../lib/aso-lead.ts';
+  import { type AsoMarketsResponse, asoErrorMessage, marketCell, marketColumns } from '../../lib/aso/aso.ts';
+  import { marketsLead } from '../../lib/aso/lead.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { countOf, summaryLine } from '../../lib/section-state.ts';
   import type { AppSummary } from '../../lib/types.ts';

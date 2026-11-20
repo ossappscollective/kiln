@@ -14,8 +14,8 @@
   import { type Role } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { fileName } from '../../lib/assets.ts';
-  import { usage, usageText } from '../../lib/listing-drift.ts';
+  import { fileName } from '../../lib/assets/assets.ts';
+  import { usage, usageText } from '../../lib/listing/drift.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import {
     type DraftPreview,

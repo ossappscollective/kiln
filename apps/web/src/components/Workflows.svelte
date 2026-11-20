@@ -26,9 +26,9 @@
     sortRows,
     statusFilters,
     workflowsFromRuns,
-  } from '../lib/workflows.ts';
-  import type { WorkflowRow } from '../lib/workflows.ts';
-  import { dispatchTarget } from '../lib/dispatch-target.ts';
+  } from '../lib/ci/workflows.ts';
+  import type { WorkflowRow } from '../lib/ci/workflows.ts';
+  import { dispatchTarget } from '../lib/ci/dispatch-target.ts';
   import DispatchDialog from './ci/DispatchDialog.svelte';
   import RunDrawer from './ci/RunDrawer.svelte';
   import RunningNow from './ci/RunningNow.svelte';

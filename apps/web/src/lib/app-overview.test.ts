@@ -6,7 +6,7 @@ import { buildOverviewRows, overviewStats, rowNextAction, rowStatus } from './ap
 import { attentionCount } from './nav-badges.ts';
 import type { ReleaseLoad } from './portfolio.ts';
 import type { PipelineSummaryApp } from './release-pipeline.ts';
-import type { SummaryApp } from './reviews.ts';
+import type { SummaryApp } from './reviews/reviews.ts';
 import type { AppSummary, ReleaseSummary } from './types.ts';
 
 const app = (

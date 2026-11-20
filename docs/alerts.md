@@ -128,7 +128,7 @@ final and say so. Every delivery is a row in the **delivery log** with a status 
 | `smtp_connection_failed` / `smtp_timeout`                | The mail server could not be reached / did not answer. Retried.      |
 | `smtp_auth_failed` / `smtp_tls_failed` / `smtp_rejected` | Login refused / no secure connection / message refused. Not retried. |
 
-The web app's test (`apps/web/src/lib/alerts.test.ts`) reads the server's list and fails if a code has no sentence.
+The web app's test (`apps/web/src/lib/alerts/alerts.test.ts`) reads the server's list and fails if a code has no sentence.
 
 When email keeps failing, `system.smtp_failing` raises a critical alert (inbox, desktop and webhook only: it never tries email).
 
@@ -153,7 +153,7 @@ Where to turn it on: **Alerts, Settings, "Desktop notifications"**.
 3. **Once per alert.** The ids of notified alerts are remembered in this browser (the newest 200); an alert that is raised again with a larger
    count does not notify again. At most three are shown for one read; the rest are marked so they never arrive as a burst.
 
-The rules are pure functions in `apps/web/src/lib/alert-desktop.ts` (tested in `alert-desktop.test.ts`). Google Play reports no review
+The rules are pure functions in `apps/web/src/lib/alerts/desktop.ts` (tested in `desktop.test.ts`). Google Play reports no review
 state, so Android apps give "halted" and rollout alerts but no "in review" or "rejected".
 
 - **Browser:** the Notification API.

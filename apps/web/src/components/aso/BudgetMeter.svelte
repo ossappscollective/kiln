@@ -6,7 +6,7 @@
   suffix? (small text after the label, for example " (staged)").
 -->
 <script lang="ts">
-  import { meterNumber, meterTitle, meterTone } from '../../lib/aso-budget.ts';
+  import { meterNumber, meterTitle, meterTone } from '../../lib/aso/budget.ts';
 
   let {
     id,

@@ -7,8 +7,8 @@
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
-  import type { AsoCompetitor, AsoConfig } from '../../lib/aso.ts';
-  import { competitorCounts, competitorsLead } from '../../lib/aso-lead.ts';
+  import type { AsoCompetitor, AsoConfig } from '../../lib/aso/aso.ts';
+  import { competitorCounts, competitorsLead } from '../../lib/aso/lead.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
   import AddCompetitor from './AddCompetitor.svelte';

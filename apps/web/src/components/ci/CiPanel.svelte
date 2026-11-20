@@ -9,7 +9,7 @@
   import { type Role, can } from '@mrm/core';
   import { onMount, untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { POLL_MAX_MS, POLL_MS, canDispatchWorkflow, hasActiveRun } from '../../lib/ci.ts';
+  import { POLL_MAX_MS, POLL_MS, canDispatchWorkflow, hasActiveRun } from '../../lib/ci/ci.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { createPoller } from '../../lib/poll.ts';
   import type { CiWorkflow, RepositorySummary, WorkflowRun } from '../../lib/types.ts';
@@ -19,7 +19,7 @@
   import Card from '../ui/Card.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
-  import { dispatchTarget } from '../../lib/dispatch-target.ts';
+  import { dispatchTarget } from '../../lib/ci/dispatch-target.ts';
   import DispatchDialog from './DispatchDialog.svelte';
   import RunDrawer from './RunDrawer.svelte';
   import RunsTable from './RunsTable.svelte';

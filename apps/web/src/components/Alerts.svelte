@@ -5,7 +5,7 @@
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
   import { ApiError, type Api } from '../lib/api.ts';
-  import type { CatalogEntry, SettingsPage } from '../lib/alerts.ts';
+  import type { CatalogEntry, SettingsPage } from '../lib/alerts/alerts.ts';
   import AlertInbox from './alerts/AlertInbox.svelte';
   import AlertLog from './alerts/AlertLog.svelte';
   import AlertRules from './alerts/AlertRules.svelte';
@@ -13,7 +13,7 @@
   import Alert from './ui/Alert.svelte';
   import PageHeader from './ui/PageHeader.svelte';
   import Tabs from './ui/Tabs.svelte';
-  import { alertStore } from '../lib/alert-store.svelte.ts';
+  import { alertStore } from '../lib/alerts/store.svelte.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 

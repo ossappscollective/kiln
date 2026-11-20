@@ -8,7 +8,7 @@
   `fromName` and `toName` labels.
 -->
 <script lang="ts">
-  import { diffWords } from '../../lib/listing-drift.ts';
+  import { diffWords } from '../../lib/listing/drift.ts';
 
   let {
     from,

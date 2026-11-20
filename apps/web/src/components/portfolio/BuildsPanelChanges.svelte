@@ -7,7 +7,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { changesHeadline } from '../../lib/ci.ts';
+  import { changesHeadline } from '../../lib/ci/ci.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import type { BuildChanges } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';

@@ -19,14 +19,14 @@
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { appAddress } from '../../lib/app-scope.ts';
-  import { storeTextOf } from '../../lib/keyword-use.ts';
+  import { storeTextOf } from '../../lib/aso/keyword-use.ts';
   import {
     fieldInfo,
     measureField,
     notStageableReason,
     sameText,
     stageBlockedReason,
-  } from '../../lib/listing-edit.ts';
+  } from '../../lib/listing/edit.ts';
   import { canStage, findStagedText, normalizeText, stagingError } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { storeName } from '../../lib/portfolio.ts';

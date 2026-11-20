@@ -25,7 +25,7 @@
     previewFacts,
     previewNotes,
     sampleTable,
-  } from '../../lib/analytics-import.ts';
+  } from '../../lib/analytics/import.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';

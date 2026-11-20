@@ -21,7 +21,7 @@
     replyAvailability,
     replyStatusLabel,
     replyStatusTone,
-  } from '../../lib/review-reply.ts';
+  } from '../../lib/reviews/reply.ts';
   import {
     MAX_NOTE_LENGTH,
     collapseText,
@@ -34,8 +34,8 @@
     triageDiff,
     type Review,
     type ReviewStatus,
-  } from '../../lib/reviews.ts';
-  import type { ReviewTranslation as ReviewTranslationResult } from '../../lib/review-translation.ts';
+  } from '../../lib/reviews/reviews.ts';
+  import type { ReviewTranslation as ReviewTranslationResult } from '../../lib/reviews/translation.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { Member } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';

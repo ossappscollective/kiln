@@ -8,7 +8,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { buildName, isPending, runTitle, shortSha, sortRuns } from '../../lib/ci.ts';
+  import { buildName, isPending, runTitle, shortSha, sortRuns } from '../../lib/ci/ci.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppBuild, WorkflowRun } from '../../lib/types.ts';

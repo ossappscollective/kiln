@@ -15,7 +15,7 @@
   import { untrack } from 'svelte';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
-  import { asksToAddKeywords, withoutParam } from '../../lib/aso-budget.ts';
+  import { asksToAddKeywords, withoutParam } from '../../lib/aso/budget.ts';
   import {
     type AsoCheck,
     type AsoConfig,
@@ -35,7 +35,7 @@
     resultWaitSeconds,
     sortKeywords,
     waitText,
-  } from '../../lib/aso.ts';
+  } from '../../lib/aso/aso.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { platformLabel, runLimited } from '../../lib/portfolio.ts';
   import { countOf, summaryLine } from '../../lib/section-state.ts';

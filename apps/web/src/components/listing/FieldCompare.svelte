@@ -19,9 +19,9 @@
     usage,
     usageText,
     shortRef,
-  } from '../../lib/listing-drift.ts';
-  import { blockingLines, fieldLimitNote, fieldWord } from '../../lib/locale-drawer.ts';
-  import { cellInfo, cellStatus } from '../../lib/listing-matrix.ts';
+  } from '../../lib/listing/drift.ts';
+  import { blockingLines, fieldLimitNote, fieldWord } from '../../lib/listing/locale-drawer.ts';
+  import { cellInfo, cellStatus } from '../../lib/listing/matrix.ts';
   import type { FieldStage } from '../../lib/staged.ts';
   import type { DriftField, DriftSide } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';

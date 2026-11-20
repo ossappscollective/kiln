@@ -25,9 +25,9 @@
     parseFreeFormInputs,
     workflowKey,
     type InputValues,
-  } from '../../lib/ci.ts';
-  import { APPS_HINT, APPS_INFO, appsLine, dispatchAppsBody, toggleApp } from '../../lib/dispatch-apps.ts';
-  import { type DispatchTarget, dispatchLinkableApps, dispatchPreselection } from '../../lib/dispatch-target.ts';
+  } from '../../lib/ci/ci.ts';
+  import { APPS_HINT, APPS_INFO, appsLine, dispatchAppsBody, toggleApp } from '../../lib/ci/dispatch-apps.ts';
+  import { type DispatchTarget, dispatchLinkableApps, dispatchPreselection } from '../../lib/ci/dispatch-target.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { repositoryName } from '../../lib/repositories.ts';
   import { dispatchHints } from '../../lib/start-release.ts';

@@ -1,5 +1,5 @@
 import type { Platform, ReleaseState } from '@mrm/core';
-import { runBadge } from './ci.ts';
+import { runBadge } from './ci/ci.ts';
 import {
   type BadgeTone,
   compareReleases,

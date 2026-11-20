@@ -15,7 +15,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { runTitle } from '../../lib/ci.ts';
+  import { runTitle } from '../../lib/ci/ci.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {
     type ScopedRuns,

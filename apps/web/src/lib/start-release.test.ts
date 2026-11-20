@@ -10,7 +10,7 @@ import {
   startedLine,
 } from './start-release.ts';
 import type { AppBuild, CiWorkflow, WorkflowInputSpec } from './types.ts';
-import { rankWorkflows } from './workflows.ts';
+import { rankWorkflows } from './ci/workflows.ts';
 
 const wf = (name: string, path: string, state = 'active'): CiWorkflow => ({
   id: path,

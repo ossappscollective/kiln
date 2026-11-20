@@ -24,8 +24,8 @@
   import { onMount, tick, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { fullTime } from '../../lib/format.ts';
-  import type { ReplyConfig } from '../../lib/review-reply.ts';
-  import type { ReviewTranslation } from '../../lib/review-translation.ts';
+  import type { ReplyConfig } from '../../lib/reviews/reply.ts';
+  import type { ReviewTranslation } from '../../lib/reviews/translation.ts';
   import {
     isReviewsAddress,
     appReviewHref,
@@ -40,7 +40,7 @@
     shouldWriteAddress,
     rowDotTone,
     withReview,
-  } from '../../lib/review-split.ts';
+  } from '../../lib/reviews/split.ts';
   import {
     type InboxApp,
     type Review,
@@ -48,7 +48,7 @@
     ratingText,
     shortcutFor,
     statusLabel,
-  } from '../../lib/reviews.ts';
+  } from '../../lib/reviews/reviews.ts';
   import { platformById } from '../../lib/stores.ts';
   import type { Member } from '../../lib/types.ts';
   import AppIcon from '../ui/AppIcon.svelte';

@@ -42,13 +42,13 @@
     type ReviewFilters,
     type ReviewSort,
     type ReviewsSummary,
-  } from '../../lib/reviews.ts';
-  import { REPLY_OFF_TEXT, type ReplyConfig } from '../../lib/review-reply.ts';
+  } from '../../lib/reviews/reviews.ts';
+  import { REPLY_OFF_TEXT, type ReplyConfig } from '../../lib/reviews/reply.ts';
   import {
     type ReviewTranslation,
     canTranslate,
     translationErrorMessage,
-  } from '../../lib/review-translation.ts';
+  } from '../../lib/reviews/translation.ts';
   import {
     isLowOnly,
     mergeTranslations,
@@ -57,9 +57,9 @@
     translateAllLabel,
     unansweredChip,
     unansweredFilters,
-  } from '../../lib/reviews-tab.ts';
-  import { filtersButtonText, popoverFilterCount, statsLine, statusChips, statusesAfterChip } from '../../lib/reviews-toolbar.ts';
-  import { averageText } from '../../lib/reviews.ts';
+  } from '../../lib/reviews/tab.ts';
+  import { filtersButtonText, popoverFilterCount, statsLine, statusChips, statusesAfterChip } from '../../lib/reviews/toolbar.ts';
+  import { averageText } from '../../lib/reviews/reviews.ts';
   import Section from '../ui/Section.svelte';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { type TranslationConfig, languageName, loadTranslationConfig } from '../../lib/settings.ts';
@@ -80,7 +80,7 @@
   import ReviewCard from './ReviewCard.svelte';
   import ReviewsAi from './ReviewsAi.svelte';
   import ReviewSplit from './ReviewSplit.svelte';
-  import { isReviewsAddress, reviewFromHash, withReview } from '../../lib/review-split.ts';
+  import { isReviewsAddress, reviewFromHash, withReview } from '../../lib/reviews/split.ts';
 
   let {
     api,

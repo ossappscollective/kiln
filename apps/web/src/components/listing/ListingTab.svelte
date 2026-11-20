@@ -30,7 +30,7 @@
     shortRef,
     statusLabel,
     type DriftFilter,
-  } from '../../lib/listing-drift.ts';
+  } from '../../lib/listing/drift.ts';
   import {
     canPullField,
     pullDisabledReason,
@@ -41,12 +41,12 @@
     summarizePull,
     toggleAllDifferences,
     toggleKey,
-  } from '../../lib/listing-pull.ts';
+  } from '../../lib/listing/pull.ts';
   import {
     cleanWarnings,
     lastAttemptText,
     scheduleView,
-  } from '../../lib/listing-sections.ts';
+  } from '../../lib/listing/sections.ts';
   import { describeError, storeName } from '../../lib/portfolio.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { toast } from '../../lib/toast.svelte.ts';

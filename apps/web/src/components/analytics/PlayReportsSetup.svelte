@@ -13,7 +13,7 @@
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
-  import { type AnalyticsStatus, playSourceLine } from '../../lib/analytics.ts';
+  import { type AnalyticsStatus, playSourceLine } from '../../lib/analytics/analytics.ts';
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
   import '../readable-card.css';

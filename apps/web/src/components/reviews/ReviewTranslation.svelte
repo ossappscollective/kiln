@@ -19,7 +19,7 @@
     privacyNote,
     translationCaption,
     translationErrorMessage,
-  } from '../../lib/review-translation.ts';
+  } from '../../lib/reviews/translation.ts';
   import { type TranslationConfig, languageName, loadTranslationConfig } from '../../lib/settings.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';

@@ -3,7 +3,7 @@
   allows. Props: api, workspaceId, catalog, onsaved (reload the catalog).
 -->
 <script lang="ts">
-  import { type CatalogEntry, matrixGroups } from '../../lib/alerts.ts';
+  import { type CatalogEntry, matrixGroups } from '../../lib/alerts/alerts.ts';
   import Section from '../ui/Section.svelte';
   import AlertRuleRow from './AlertRuleRow.svelte';
 

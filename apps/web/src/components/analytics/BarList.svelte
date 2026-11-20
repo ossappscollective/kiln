@@ -5,8 +5,8 @@
   Props: bars ({ id, title, unit, items }). Values of 0 or less draw no bar but are still listed.
 -->
 <script lang="ts">
-  import { formatExact, formatValue } from '../../lib/analytics.ts';
-  import type { VersionBars } from '../../lib/analytics-view.ts';
+  import { formatExact, formatValue } from '../../lib/analytics/analytics.ts';
+  import type { VersionBars } from '../../lib/analytics/view.ts';
 
   let { bars }: { bars: VersionBars } = $props();
 

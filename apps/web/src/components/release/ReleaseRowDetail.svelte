@@ -12,7 +12,7 @@
   import { can, platformMeta, type Role, supports } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import { type PlatformScope, appAddress } from '../../lib/app-scope.ts';
-  import { runBadge } from '../../lib/ci.ts';
+  import { runBadge } from '../../lib/ci/ci.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { describeError, storeName } from '../../lib/portfolio.ts';
   import { dueText, formatTargetDate, rolloutHeadline } from '../../lib/release.ts';

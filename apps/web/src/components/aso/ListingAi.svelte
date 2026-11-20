@@ -8,8 +8,8 @@
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
-  import { suggestAvailability } from '../../lib/ai.ts';
-  import { aiStore } from '../../lib/ai-store.svelte.ts';
+  import { suggestAvailability } from '../../lib/ai/ai.ts';
+  import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import AiSuggestions from '../ai/AiSuggestions.svelte';

@@ -8,9 +8,9 @@
   onrun (called with the row), onfollow (called with the run and its repository).
 -->
 <script lang="ts">
-  import { isPending, runTitle } from '../../lib/ci.ts';
+  import { isPending, runTitle } from '../../lib/ci/ci.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
-  import { type WorkflowRow, relevanceLabel, runBlockedReason } from '../../lib/workflows.ts';
+  import { type WorkflowRow, relevanceLabel, runBlockedReason } from '../../lib/ci/workflows.ts';
   import type { WorkflowRun } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';

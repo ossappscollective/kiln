@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { AiConfig } from './ai.ts';
+import type { AiConfig } from './ai/ai.ts';
 import { ApiError } from './api.ts';
 import {
   aiEngine,

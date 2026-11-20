@@ -5,7 +5,7 @@
   Props: competitor, history (or null while it loads), now, canWrite, comparing, ontoggle, onremove, showStore.
 -->
 <script lang="ts">
-  import { type AsoCompetitor, type AsoCompetitorHistory, changeText, countText, lastChangeText, ratingText } from '../../lib/aso.ts';
+  import { type AsoCompetitor, type AsoCompetitorHistory, changeText, countText, lastChangeText, ratingText } from '../../lib/aso/aso.ts';
   import { timeAgo } from '../../lib/format.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';

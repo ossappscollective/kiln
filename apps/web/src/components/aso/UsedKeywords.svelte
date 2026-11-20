@@ -21,8 +21,8 @@
   import type { Api } from '../../lib/api.ts';
   import { openStatusPopover } from '../../lib/app-page.ts';
   import { appAddress } from '../../lib/app-scope.ts';
-  import { type AsoConfig, type AsoKeyword, type AsoListingKeywordsResponse, addSummaryText, asoErrorMessage, chunk, sumAddSummary } from '../../lib/aso.ts';
-  import { termKeywordItem, freshnessText, termMark } from '../../lib/aso-listing.ts';
+  import { type AsoConfig, type AsoKeyword, type AsoListingKeywordsResponse, addSummaryText, asoErrorMessage, chunk, sumAddSummary } from '../../lib/aso/aso.ts';
+  import { termKeywordItem, freshnessText, termMark } from '../../lib/aso/listing.ts';
   import {
     APP_STORE_NOTE,
     NOT_READ_TEXT,
@@ -32,11 +32,11 @@
     usedKeywords,
     usedSummary,
     visitorsText,
-  } from '../../lib/keyword-use.ts';
+  } from '../../lib/aso/keyword-use.ts';
   import { canStage, findStagedText } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
-  import { territoryName } from '../../lib/reviews.ts';
+  import { territoryName } from '../../lib/reviews/reviews.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import FieldEditor from '../listing/FieldEditor.svelte';

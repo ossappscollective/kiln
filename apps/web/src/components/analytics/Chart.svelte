@@ -9,11 +9,11 @@
   The geometry is lib/analytics-chart.ts; the words are lib/analytics-view.ts. Colors come from VizScope.
 -->
 <script lang="ts">
-  import { formatDay, formatValue } from '../../lib/analytics.ts';
+  import { formatDay, formatValue } from '../../lib/analytics/analytics.ts';
   import { floating } from '../../lib/floating.ts';
   import { pointAnchor } from '../../lib/virtual-anchor.ts';
-  import { indexAt, labelsCollide, plot, provisionalIndex, xTickIndexes } from '../../lib/analytics-chart.ts';
-  import { type ChartPanel, describePanel, tooltipFor } from '../../lib/analytics-view.ts';
+  import { indexAt, labelsCollide, plot, provisionalIndex, xTickIndexes } from '../../lib/analytics/chart.ts';
+  import { type ChartPanel, describePanel, tooltipFor } from '../../lib/analytics/view.ts';
 
   let {
     panel,

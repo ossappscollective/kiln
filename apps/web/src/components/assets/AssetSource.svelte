@@ -9,7 +9,7 @@
 -->
 <script lang="ts">
   import { fullTime, timeAgo } from '../../lib/format.ts';
-  import { shortCommit, sourceHint, sourceText } from '../../lib/assets.ts';
+  import { shortCommit, sourceHint, sourceText } from '../../lib/assets/assets.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import type { AssetIndex } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';

@@ -6,7 +6,7 @@
   Props: chips (StatChipModel[]), days (the length of the period, for the sentence).
 -->
 <script lang="ts">
-  import type { StatChipModel } from '../../lib/analytics-view.ts';
+  import type { StatChipModel } from '../../lib/analytics/view.ts';
   import Icon from '../ui/Icon.svelte';
   import StatChip from '../ui/StatChip.svelte';
 

@@ -29,7 +29,7 @@
     proposeFromExample,
     rowsForBuild,
     sameDraft,
-  } from '../../lib/ci.ts';
+  } from '../../lib/ci/ci.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppBuild, AppSummary, BuildConventionsView, RepositoryTags } from '../../lib/types.ts';

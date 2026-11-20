@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { appSectionDefs } from './app-scope.ts';
-import { shortcutFor } from './reviews.ts';
+import { shortcutFor } from './reviews/reviews.ts';
 import {
   appChords,
   CHORD_LEADER,

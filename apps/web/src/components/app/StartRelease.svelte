@@ -33,10 +33,10 @@
     prepareReleaseHref,
     startedLine,
   } from '../../lib/start-release.ts';
-  import { rankWorkflows } from '../../lib/workflows.ts';
+  import { rankWorkflows } from '../../lib/ci/workflows.ts';
   import type { ActiveRuns, AppBuild, AppSummary, CiWorkflow, RepositorySummary, WorkflowRun } from '../../lib/types.ts';
   import RunningNow from '../ci/RunningNow.svelte';
-  import { dispatchTarget } from '../../lib/dispatch-target.ts';
+  import { dispatchTarget } from '../../lib/ci/dispatch-target.ts';
   import DispatchDialog from '../ci/DispatchDialog.svelte';
   import Button from '../ui/Button.svelte';
 

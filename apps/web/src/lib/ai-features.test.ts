@@ -19,7 +19,7 @@ import {
   suggestionTitle,
   toggleSelection,
   validateAiForm,
-} from './ai.ts';
+} from './ai/ai.ts';
 import {
   auditFieldText,
   basedOnText,
@@ -39,7 +39,7 @@ import {
   sentimentShares,
   tagLine,
   validateContextForm,
-} from './ai-insights.ts';
+} from './ai/insights.ts';
 import { ApiError } from './api.ts';
 
 const variants = (): AiProposal => ({

@@ -19,7 +19,7 @@ import {
   sameDraft,
   shouldAutoRematch,
   tagFoundText,
-} from './ci.ts';
+} from './ci/ci.ts';
 import type { BuildDiagnostics, RepositoryTags } from './types.ts';
 
 const names = (

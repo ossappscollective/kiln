@@ -10,7 +10,7 @@
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
-  import { coachHref, countriesForLocale, keywordsForLocale, overlayStaged } from '../../lib/aso-budget.ts';
+  import { coachHref, countriesForLocale, keywordsForLocale, overlayStaged } from '../../lib/aso/budget.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import {
     type AsoFitResponse,
@@ -23,10 +23,10 @@
     fitStatusInfo,
     localesOf,
     priorityLabel,
-  } from '../../lib/aso.ts';
+  } from '../../lib/aso/aso.ts';
   import { headerParams, withHeaderParams } from '../../lib/app-header.ts';
   import { appAddress } from '../../lib/app-scope.ts';
-  import { fitLead } from '../../lib/aso-lead.ts';
+  import { fitLead } from '../../lib/aso/lead.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { countOf, summaryLine } from '../../lib/section-state.ts';

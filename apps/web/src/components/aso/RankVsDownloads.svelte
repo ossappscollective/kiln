@@ -14,11 +14,11 @@
 <script lang="ts">
   import { type Platform, addDays, dateToDay } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
-  import { formatDay } from '../../lib/analytics.ts';
-  import type { Box } from '../../lib/analytics-chart.ts';
-  import { xTickIndexes } from '../../lib/analytics-chart.ts';
-  import { missingRuns } from '../../lib/analytics.ts';
-  import { asoErrorMessage } from '../../lib/aso.ts';
+  import { formatDay } from '../../lib/analytics/analytics.ts';
+  import type { Box } from '../../lib/analytics/chart.ts';
+  import { xTickIndexes } from '../../lib/analytics/chart.ts';
+  import { missingRuns } from '../../lib/analytics/analytics.ts';
+  import { asoErrorMessage } from '../../lib/aso/aso.ts';
   import {
     DEFAULT_DAYS,
     MAX_DRAWN,
@@ -35,7 +35,7 @@
     tipFor,
     toggleKeyword,
     whatChangedList,
-  } from '../../lib/rank-downloads.ts';
+  } from '../../lib/aso/rank-downloads.ts';
   import { floating } from '../../lib/floating.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { pointAnchor } from '../../lib/virtual-anchor.ts';

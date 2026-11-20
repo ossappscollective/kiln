@@ -12,9 +12,9 @@
     kindUsesDesktop,
     readDeviceChoice,
     writeDeviceChoice,
-  } from '../../lib/alert-desktop.ts';
-  import { type NotifyState, inDesktopShell, notifyStateText, requestNotificationPermission } from '../../lib/alert-notify.ts';
-  import { type CatalogEntry, type Preference, effectiveChannels, toggleChannel } from '../../lib/alerts.ts';
+  } from '../../lib/alerts/desktop.ts';
+  import { type NotifyState, inDesktopShell, notifyStateText, requestNotificationPermission } from '../../lib/alerts/notify.ts';
+  import { type CatalogEntry, type Preference, effectiveChannels, toggleChannel } from '../../lib/alerts/alerts.ts';
   import Alert from '../ui/Alert.svelte';
   import Section from '../ui/Section.svelte';
 

@@ -11,7 +11,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { isPending, runTitle, shortSha } from '../../lib/ci.ts';
+  import { isPending, runTitle, shortSha } from '../../lib/ci/ci.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { createPoller } from '../../lib/poll.ts';
   import { githubUrl } from '../../lib/repositories.ts';

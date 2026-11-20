@@ -7,7 +7,7 @@
 -->
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
-  import { type AsoConfig, asoErrorMessage } from '../../lib/aso.ts';
+  import { type AsoConfig, asoErrorMessage } from '../../lib/aso/aso.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';

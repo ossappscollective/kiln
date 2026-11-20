@@ -11,7 +11,7 @@
   import { can, type Role, supports } from '@mrm/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { appSettingsPartIds as ids, appSettingsSections, deleteLine } from '../../lib/app-settings.ts';
-  import { aiStore } from '../../lib/ai-store.svelte.ts';
+  import { aiStore } from '../../lib/ai/store.svelte.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { appErrorMessage, appLabel, describeError, platformLabel, portfolioHref, storeName } from '../../lib/portfolio.ts';
   import { toast } from '../../lib/toast.svelte.ts';

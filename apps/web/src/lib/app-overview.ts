@@ -4,7 +4,7 @@ import { appAddress } from './app-scope.ts';
 import { chipFor, lineFor, type PendingLine, type PendingSummary } from './pending.ts';
 import { latestRelease, type ReleaseLoad } from './portfolio.ts';
 import { type PipelineSummaryApp, unfinishedHeading, unfinishedItem } from './release-pipeline.ts';
-import type { SummaryApp } from './reviews.ts';
+import type { SummaryApp } from './reviews/reviews.ts';
 import type { AppSummary, ReleaseSummary } from './types.ts';
 
 /** The rows and the stats strip of the all-apps overview, from data the screen already loads. */

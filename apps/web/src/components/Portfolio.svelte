@@ -23,7 +23,7 @@
     syncDetail,
     syncSummaryText,
   } from '../lib/portfolio.ts';
-  import type { WorkspaceReviewsSummary } from '../lib/reviews.ts';
+  import type { WorkspaceReviewsSummary } from '../lib/reviews/reviews.ts';
   import { toast } from '../lib/toast.svelte.ts';
   import type { AppSummary } from '../lib/types.ts';
   import RunningNow from './ci/RunningNow.svelte';

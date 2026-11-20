@@ -4,7 +4,7 @@
   Props: run (anything with status and conclusion).
 -->
 <script lang="ts">
-  import { runBadge } from '../../lib/ci.ts';
+  import { runBadge } from '../../lib/ci/ci.ts';
   import type { WorkflowRun } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
 

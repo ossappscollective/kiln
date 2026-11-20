@@ -14,7 +14,7 @@
   import { type Role, can, normalizeBucketId } from '@mrm/core';
   import { untrack } from 'svelte';
   import { type Api } from '../../lib/api.ts';
-  import { type PlayBucketTestResult, type PlayBucketView, analyticsErrorText, bucketSourceText } from '../../lib/analytics.ts';
+  import { type PlayBucketTestResult, type PlayBucketView, analyticsErrorText, bucketSourceText } from '../../lib/analytics/analytics.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
   import { bucketTestWord } from '../../lib/readable-forms.ts';

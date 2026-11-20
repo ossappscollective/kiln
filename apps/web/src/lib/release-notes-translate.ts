@@ -6,10 +6,10 @@ import {
   isLocalAddress,
   providerSentence,
   resetText,
-} from './ai.ts';
+} from './ai/ai.ts';
 import { ApiError } from './api.ts';
 import { type Drafts, normalizeLocale } from './release-notes.ts';
-import { translationErrorMessage } from './review-translation.ts';
+import { translationErrorMessage } from './reviews/translation.ts';
 import type { TranslationConfig } from './settings.ts';
 
 /**

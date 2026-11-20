@@ -12,8 +12,8 @@
   import { type Role, type StoreImagesView } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { type PullReport, canChangeAssets, skipText, storeKeyOf, summarizePull, SYNC_ROLE_REASON } from '../../lib/assets-sync.ts';
-  import { formatBytes, localeLabel } from '../../lib/assets.ts';
+  import { type PullReport, canChangeAssets, skipText, storeKeyOf, summarizePull, SYNC_ROLE_REASON } from '../../lib/assets/sync.ts';
+  import { formatBytes, localeLabel } from '../../lib/assets/assets.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { stagingError } from '../../lib/staged.ts';
   import type { AppSummary } from '../../lib/types.ts';

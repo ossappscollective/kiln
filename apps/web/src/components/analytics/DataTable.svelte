@@ -4,7 +4,7 @@
   Props: model (DataTableModel from lib/analytics-view.ts), caption.
 -->
 <script lang="ts">
-  import type { DataTableModel } from '../../lib/analytics-view.ts';
+  import type { DataTableModel } from '../../lib/analytics/view.ts';
 
   let { model, caption }: { model: DataTableModel; caption: string } = $props();
 </script>

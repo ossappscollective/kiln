@@ -9,11 +9,11 @@
 -->
 <script lang="ts">
   import type { Platform, Role } from '@mrm/core';
-  import { canStagePlacement, placementWord, stageInLabel } from '../../lib/ai-placement.ts';
+  import { canStagePlacement, placementWord, stageInLabel } from '../../lib/ai/placement.ts';
   import type { Api } from '../../lib/api.ts';
-  import { storeTextOf } from '../../lib/keyword-use.ts';
-  import { addTermToText } from '../../lib/listing-edit.ts';
-  import { fieldInfo } from '../../lib/listing-edit.ts';
+  import { storeTextOf } from '../../lib/aso/keyword-use.ts';
+  import { addTermToText } from '../../lib/listing/edit.ts';
+  import { fieldInfo } from '../../lib/listing/edit.ts';
   import Button from '../ui/Button.svelte';
   import FieldEditor from '../listing/FieldEditor.svelte';
 

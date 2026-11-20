@@ -14,9 +14,9 @@
   import { type AiProposalKind, type Role, can } from '@mrm/core';
   import { tick } from 'svelte';
   import { floating } from '../../lib/floating.ts';
-  import { type AiPreview, type AiRunBody, type AiTaskView, aiErrorMessage, disclosureGate, providerSentence, suggestAvailability } from '../../lib/ai.ts';
-  import { previewFacts, previewText } from '../../lib/ai-insights.ts';
-  import { aiStore } from '../../lib/ai-store.svelte.ts';
+  import { type AiPreview, type AiRunBody, type AiTaskView, aiErrorMessage, disclosureGate, providerSentence, suggestAvailability } from '../../lib/ai/ai.ts';
+  import { previewFacts, previewText } from '../../lib/ai/insights.ts';
+  import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Button from '../ui/Button.svelte';

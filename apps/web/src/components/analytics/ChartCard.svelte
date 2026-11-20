@@ -7,7 +7,7 @@
   Missing days are hatched, not zero: a caption says so when any day of the card is missing.
 -->
 <script lang="ts">
-  import { type ChartCard, cardDates, cardFreshness, cardInfo, tableFor } from '../../lib/analytics-view.ts';
+  import { type ChartCard, cardDates, cardFreshness, cardInfo, tableFor } from '../../lib/analytics/view.ts';
   import InfoTip from '../ui/InfoTip.svelte';
   import Section from '../ui/Section.svelte';
   import BarList from './BarList.svelte';

@@ -5,7 +5,7 @@
   Props: checks (oldest first), label, width = 72, height = 20.
 -->
 <script lang="ts">
-  import { type AsoCheck, sparkline } from '../../lib/aso.ts';
+  import { type AsoCheck, sparkline } from '../../lib/aso/aso.ts';
 
   let { checks, label, width = 72, height = 20 }: { checks: Pick<AsoCheck, 'rank' | 'total'>[]; label: string; width?: number; height?: number } = $props();
 

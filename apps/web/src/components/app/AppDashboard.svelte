@@ -24,12 +24,12 @@
   import { appAddress } from '../../lib/app-scope.ts';
   import { scopeRunsToApps } from '../../lib/running.ts';
   import { type StartedRun, isStartedRun } from '../../lib/start-release.ts';
-  import { buildMatrix, modeCounts } from '../../lib/listing-matrix.ts';
+  import { buildMatrix, modeCounts } from '../../lib/listing/matrix.ts';
   import { latestRelease, liveRelease, trackLabel } from '../../lib/portfolio.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
   import { submitStore } from '../../lib/store-submit-store.svelte.ts';
-  import type { AsoSummary } from '../../lib/aso.ts';
+  import type { AsoSummary } from '../../lib/aso/aso.ts';
   import type { ActiveRuns, AppBuild, AppSummary, ListingDrift, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
   import ReleaseStatus from '../portfolio/ReleaseStatus.svelte';
   import SyncStatus from '../portfolio/SyncStatus.svelte';

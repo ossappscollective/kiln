@@ -26,7 +26,7 @@
     importedLine,
     needsPeriod,
     previewFacts,
-  } from '../../lib/search-terms.ts';
+  } from '../../lib/aso/search-terms.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';

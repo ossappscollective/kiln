@@ -20,9 +20,9 @@
     countText,
     previewNote,
     previewState,
-  } from '../../lib/assets.ts';
-  import { storeOnlyCount, storeStatusOf } from '../../lib/assets-groups.ts';
-  import { diffBadge, diffSetOf, setIdOf } from '../../lib/assets-sync.ts';
+  } from '../../lib/assets/assets.ts';
+  import { storeOnlyCount, storeStatusOf } from '../../lib/assets/groups.ts';
+  import { diffBadge, diffSetOf, setIdOf } from '../../lib/assets/sync.ts';
   import { STAGE_ROLE_REASON, type SetStaging } from '../../lib/staged.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import type { AssetItem, AssetStoreSide } from '../../lib/types.ts';

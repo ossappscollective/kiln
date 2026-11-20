@@ -13,7 +13,7 @@
   import { type Role, can } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
-  import { type RangeChoice, parseRange, resolveRange, withRange } from '../../lib/analytics.ts';
+  import { type RangeChoice, parseRange, resolveRange, withRange } from '../../lib/analytics/analytics.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import AiSuggestions from '../ai/AiSuggestions.svelte';
   import AsoCoach from '../aso/AsoCoach.svelte';

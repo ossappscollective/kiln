@@ -1,6 +1,6 @@
 import type { Platform, StagedChangesView } from '@mrm/core';
 import { appAddress, type PlatformScope } from './app-scope.ts';
-import { type AsoMover, type AsoSummary, asoViewHref, isBigDrop, moverText } from './aso.ts';
+import { type AsoMover, type AsoSummary, asoViewHref, isBigDrop, moverText } from './aso/aso.ts';
 import type { IconName } from './icons.ts';
 import { platformLabel } from './portfolio.ts';
 import { type SummaryStall, unfinishedItem } from './release-pipeline.ts';

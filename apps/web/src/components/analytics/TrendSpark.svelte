@@ -5,7 +5,7 @@
   Props: points ((number | null)[]), label (the accessible name), width = 96, height = 28.
 -->
 <script lang="ts">
-  import { presentRuns } from '../../lib/analytics.ts';
+  import { presentRuns } from '../../lib/analytics/analytics.ts';
 
   let { points, label, width = 96, height = 28 }: { points: (number | null)[]; label: string; width?: number; height?: number } = $props();
 

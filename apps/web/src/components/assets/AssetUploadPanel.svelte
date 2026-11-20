@@ -21,8 +21,8 @@
     imageFilesOf,
     isHexColour,
     specErrorsOf,
-  } from '../../lib/assets-sync.ts';
-  import { formatBytes } from '../../lib/assets.ts';
+  } from '../../lib/assets/sync.ts';
+  import { formatBytes } from '../../lib/assets/assets.ts';
   import { stagingError } from '../../lib/staged.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';

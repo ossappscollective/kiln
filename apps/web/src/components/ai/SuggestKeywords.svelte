@@ -8,10 +8,10 @@
 -->
 <script lang="ts">
   import type { Role } from '@mrm/core';
-  import { aiErrorMessage } from '../../lib/ai.ts';
-  import { aiStore } from '../../lib/ai-store.svelte.ts';
+  import { aiErrorMessage } from '../../lib/ai/ai.ts';
+  import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
-  import { type AsoKeyword, countryForLocale } from '../../lib/aso.ts';
+  import { type AsoKeyword, countryForLocale } from '../../lib/aso/aso.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';

@@ -12,8 +12,8 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { type AsoCoachResponse, asoErrorMessage } from '../../lib/aso.ts';
-  import { coachHref } from '../../lib/aso-budget.ts';
+  import { type AsoCoachResponse, asoErrorMessage } from '../../lib/aso/aso.ts';
+  import { coachHref } from '../../lib/aso/budget.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
