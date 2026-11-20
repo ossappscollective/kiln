@@ -7,11 +7,12 @@
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
-  import type { AsoConfig } from '../../lib/aso.ts';
+  import type { AsoCompetitor, AsoConfig } from '../../lib/aso.ts';
+  import { competitorCounts, competitorsLead } from '../../lib/aso-lead.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
   import AddCompetitor from './AddCompetitor.svelte';
-  import AsoBar from './AsoBar.svelte';
+  import PageLead from '../ui/PageLead.svelte';
   import CompetitorGroup from './CompetitorGroup.svelte';
 
   let {
@@ -47,6 +48,15 @@
     local += 1;
   }
 
+  /** What each group holds, for the one lead above them. */
+  let summaries = $state<Record<string, { competitors: AsoCompetitor[]; suggestions: number } | undefined>>({});
+  const lead = $derived.by(() => {
+    const groups = members.map((m) => summaries[m.id]).filter((g): g is { competitors: AsoCompetitor[]; suggestions: number } => g !== undefined);
+    const counts = competitorCounts(groups.flatMap((g) => g.competitors), now);
+    return competitorsLead({ ...counts, suggestions: groups.reduce((n, g) => n + g.suggestions, 0) });
+  });
+  const summarised = $derived(members.every((m) => summaries[m.id] !== undefined));
+
   function added() {
     adding = false;
     changed();
@@ -54,11 +64,20 @@
 </script>
 
 <div class="competitors stack">
-  {#if canWrite}
-    <AsoBar label="Competitor actions">
-      <span class="spacer"></span>
+  {#if summarised}
+    <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="competitors-lead">
+      {#snippet actions()}
+        {#if canWrite}
+          <div class="acts" role="toolbar" aria-label="Competitor actions">
+            <Button variant="primary" icon="plus" onclick={() => (adding = !adding)} aria-expanded={adding}>Add competitor</Button>
+          </div>
+        {/if}
+      {/snippet}
+    </PageLead>
+  {:else if canWrite}
+    <div class="acts" role="toolbar" aria-label="Competitor actions">
       <Button variant="primary" icon="plus" onclick={() => (adding = !adding)} aria-expanded={adding}>Add competitor</Button>
-    </AsoBar>
+    </div>
   {/if}
   {#if adding && canWrite}
     <AddCompetitor {api} {workspaceId} {members} {config} ondone={added} oncancel={() => (adding = false)} />
@@ -75,6 +94,16 @@
       releases={releases[app.id] ?? []}
       version={version + local}
       onchanged={changed}
+      onsummary={(id, facts) => (summaries[id] = facts)}
     />
   {/each}
 </div>
+
+<style>
+  .acts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+  }
+</style>

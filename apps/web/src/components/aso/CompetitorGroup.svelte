@@ -6,6 +6,7 @@
   releases (of this app, for our version), version (bump to read again), onchanged.
 -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import {
     type AsoCompetitor,
@@ -35,6 +36,7 @@
     releases,
     version,
     onchanged,
+    onsummary,
   }: {
     api: Api;
     workspaceId: string;
@@ -46,6 +48,8 @@
     releases: ReleaseSummary[];
     version: number;
     onchanged: () => void;
+    /** Tells the view above what this group holds, so one lead can say it for every app in scope. */
+    onsummary?: (appId: string, facts: { competitors: AsoCompetitor[]; suggestions: number }) => void;
   } = $props();
 
   let competitors = $state<AsoCompetitor[]>([]);
@@ -92,6 +96,12 @@
     void version;
     void app.id;
     void load();
+  });
+
+  $effect(() => {
+    if (loading || error) return;
+    const facts = { competitors: competitors.slice(), suggestions: canWrite ? suggestions.length : 0 };
+    untrack(() => onsummary?.(app.id, facts));
   });
 
   function toggle(id: string) {
@@ -149,7 +159,7 @@
   });
 </script>
 
-<section class="group stack" aria-label="{platformLabel(app.platform)} competitors">
+<section class="group stack roomy" aria-label="{platformLabel(app.platform)} competitors">
   {#if multi}<h3 class="eyebrow">{platformLabel(app.platform)}</h3>{/if}
 
   {#if error}
@@ -233,7 +243,7 @@
   .cards {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-    gap: var(--space-3);
+    gap: var(--space-4);
   }
 
   .none {
@@ -242,7 +252,21 @@
 
   .count {
     margin: 0;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
+  }
+
+  .roomy {
+    font-size: 0.9375rem;
+  }
+
+  .roomy :global(table.compact th),
+  .roomy :global(table.compact td) {
+    padding-block: var(--space-3);
+    font-size: 0.9375rem;
+  }
+
+  .roomy :global(table.compact thead th) {
+    font-size: var(--text-sm);
   }
 
   .name {
@@ -265,7 +289,7 @@
     gap: var(--space-2) var(--space-3);
     align-items: center;
     justify-content: space-between;
-    padding: var(--space-2) 0;
+    padding: var(--space-3) 0;
     border-top: 1px solid var(--line);
   }
 
@@ -284,6 +308,6 @@
     flex-wrap: wrap;
     gap: var(--space-2);
     align-items: center;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 </style>

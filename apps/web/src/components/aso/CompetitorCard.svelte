@@ -100,7 +100,8 @@
   .competitor {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-3);
+    font-size: 0.9375rem;
     min-width: 0;
   }
 
@@ -115,12 +116,12 @@
     flex: 1;
     min-width: 0;
     margin: 0;
-    font-size: var(--text-md);
+    font-size: var(--text-lg);
   }
 
   .sub {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   .facts {
@@ -131,12 +132,13 @@
   }
 
   .facts dt {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     color: var(--muted);
   }
 
   .facts dd {
     margin: 0;
+    font-size: 0.9375rem;
     overflow-wrap: anywhere;
   }
 
@@ -156,14 +158,14 @@
   }
 
   .when {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
   }
 
   .confirm {
     display: inline-flex;
     gap: var(--space-2);
     align-items: center;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   .history,
