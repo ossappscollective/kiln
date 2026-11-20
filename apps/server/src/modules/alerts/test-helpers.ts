@@ -1,10 +1,10 @@
 import type { Database } from '@mrm/db';
-import { claimNext, completeJob, failJob } from './jobs.ts';
-import { bootRepoApp } from './repo-test-helpers.ts';
-import { createAlertDeliveryHandler } from './services/alert-delivery.ts';
-import { ALERT_QUEUE } from './services/alerts.ts';
-import { emitEvent } from './services/events.ts';
-import type { MailInput, MailResult } from './services/mailer.ts';
+import { claimNext, completeJob, failJob } from '../../jobs.ts';
+import { bootRepoApp } from '../../repo-test-helpers.ts';
+import { createAlertDeliveryHandler } from './delivery.ts';
+import { ALERT_QUEUE } from './service.ts';
+import { emitEvent } from '../../services/events.ts';
+import type { MailInput, MailResult } from '../../services/mailer.ts';
 
 /** A fake mailer: records what it was asked to send and answers from a script. */
 export function fakeMail() {

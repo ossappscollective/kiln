@@ -92,7 +92,7 @@ counts only: not the review text, not the title, not the name ([ADR 0027](adr/00
 ### Events that never alert
 
 Some events are the success of something a person just did, or routine noise; an alert for them would only repeat what the screen already
-said. They are listed in code (`notAlertable` in `services/alert-catalog.ts`) and a test fails if an event type is in neither the catalog nor that list,
+said. They are listed in code (`notAlertable` in `modules/alerts/catalog.ts`) and a test fails if an event type is in neither the catalog nor that list,
 so a new event type has to be decided:
 
 `app.synced`, `changeset.created`, `changeset.approved`, `changeset.applied`, `plan.rollout_step_done`, `plan.rollout_step_skipped`,

@@ -1,8 +1,8 @@
 import type { Database } from '@mrm/db';
-import { alertCatalog } from '../services/alert-catalog.ts';
-import { markRead } from '../services/alert-inbox.ts';
-import { setPreference, setRule } from '../services/alert-prefs.ts';
-import { raiseAlert } from '../services/alerts.ts';
+import { alertCatalog } from '../modules/alerts/catalog.ts';
+import { markRead } from '../modules/alerts/inbox.ts';
+import { setPreference, setRule } from '../modules/alerts/prefs.ts';
+import { raiseAlert } from '../modules/alerts/service.ts';
 import { DEMO_USERS } from './routes.ts';
 
 /**

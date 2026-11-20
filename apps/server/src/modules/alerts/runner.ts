@@ -1,7 +1,7 @@
 import type { Database } from '@mrm/db';
-import { sendDueDigests } from './alert-digest.ts';
-import { runAlertEvaluator } from './alert-evaluator.ts';
-import { pruneAlerts } from './alert-inbox.ts';
+import { sendDueDigests } from './digest.ts';
+import { runAlertEvaluator } from './evaluator.ts';
+import { pruneAlerts } from './inbox.ts';
 
 /**
  * What the scheduler runs for alerts (scheduler.ts, option `alerts`): the state evaluator, the due digests, and once an hour the

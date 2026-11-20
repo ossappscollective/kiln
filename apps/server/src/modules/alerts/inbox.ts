@@ -8,9 +8,9 @@ import {
   alertDef,
   alertGroupLabels,
   configurableAlertTypes,
-} from './alert-catalog.ts';
-import { raiseAlert } from './alerts.ts';
-import { recordAudit } from './audit.ts';
+} from './catalog.ts';
+import { raiseAlert } from './service.ts';
+import { recordAudit } from '../../services/audit.ts';
 
 /** Reading side of alerts (docs/api/alerts.md): the inbox of a person, the delivery log, "send a test", and the catalog as the API shows it. */
 

@@ -14,7 +14,7 @@ import { type AsoDeps, asoLimitsFor, asoModule } from './modules/aso/index.ts';
 import type { ModuleShared } from './modules/module.ts';
 import { type ReviewsDeps, reviewsModule } from './modules/reviews/index.ts';
 import { aiRoutes } from './routes/ai.ts';
-import { alertRoutes } from './routes/alerts.ts';
+import { alertsModule } from './modules/alerts/index.ts';
 import { analyticsImportPath } from './modules/analytics/routes.ts';
 import { appRoutes } from './routes/apps.ts';
 import { type AssetSyncRoutesContext, assetSyncRoutes } from './routes/asset-sync.ts';
@@ -378,8 +378,6 @@ export function createApp(deps: AppDeps) {
       ...deps.webhooks,
     }),
   );
-  // Alerts (docs/api/alerts.md): the inbox, a person's choices, the workspace rules, the delivery log. Email is sent by the worker.
-  app.route('/api/workspaces', alertRoutes({ db: services.db, now: services.now }));
   const cloneUpkeep =
     deps.cloneUpkeep ??
     (deps.reads
@@ -442,6 +440,7 @@ export function createApp(deps: AppDeps) {
       ...(translationSeams.resolve ? { resolve: translationSeams.resolve } : {}),
     }),
   );
+  alertsModule.mount(app, services, undefined, shared);
   asoModule.mount(app, services, deps.aso, shared);
   analyticsModule.mount(app, services, deps.analytics, shared);
   reviewsModule.mount(app, services, deps.reviews, shared);

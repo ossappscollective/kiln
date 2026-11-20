@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { can, isRole, type Role } from '@mrm/core';
 import type { Row, Sql } from '@mrm/db';
-import { enqueue } from '../jobs.ts';
+import { enqueue } from '../../jobs.ts';
 import {
   type AlertChannel,
   type AlertData,
@@ -14,7 +14,7 @@ import {
   redactAlertData,
   resolveParams,
   severityRank,
-} from './alert-catalog.ts';
+} from './catalog.ts';
 import {
   defaultUserSettings,
   isMuted,
@@ -24,9 +24,9 @@ import {
   ruleView,
   toUserSettings,
   type UserSettings,
-} from './alert-prefs.ts';
-import { inQuietHours, quietEndsAt } from './alert-time.ts';
-import { type EventRecord, emitEvent } from './events.ts';
+} from './prefs.ts';
+import { inQuietHours, quietEndsAt } from './time.ts';
+import { type EventRecord, emitEvent } from '../../services/events.ts';
 
 /**
  * Alerts (docs/alerts.md, docs/adr/0022-alerts.md). An alert is a read-only side effect: it tells people about something and never

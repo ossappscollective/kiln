@@ -11,7 +11,7 @@ import { addCompetitorBody, addKeywordsBody, updateKeywordBody } from '../module
 import { publishApplyBody, publishPreviewBody } from '../routes/pending.ts';
 import { translateNotesBody } from '../routes/release-notes-translate.ts';
 import { aiOperations } from './api-operations-ai.ts';
-import { alertOperations } from './api-operations-alerts.ts';
+import { alertOperations } from '../modules/alerts/api-operations.ts';
 import { analyticsOperations } from '../modules/analytics/operations.ts';
 import { buildsOperations } from './api-operations-builds.ts';
 import { mcpOperations } from './api-operations-mcp.ts';

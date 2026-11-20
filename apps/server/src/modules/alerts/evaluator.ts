@@ -1,7 +1,7 @@
 import type { Database, Row, Sql } from '@mrm/db';
-import { type AlertData, type AlertTypeId, alertDef, redactAlertData } from './alert-catalog.ts';
-import { listRuleViews, type RuleView } from './alert-prefs.ts';
-import { raiseAlert } from './alerts.ts';
+import { type AlertData, type AlertTypeId, alertDef, redactAlertData } from './catalog.ts';
+import { listRuleViews, type RuleView } from './prefs.ts';
+import { raiseAlert } from './service.ts';
 
 /**
  * The evaluator for conditions that exist only as state (docs/alerts.md): a store sync that keeps failing, a credential whose test

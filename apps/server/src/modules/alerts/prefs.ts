@@ -13,9 +13,9 @@ import {
   isSeverity,
   personalChannels,
   resolveParams,
-} from './alert-catalog.ts';
-import { type DigestMode, digestModes, isValidTimeZone } from './alert-time.ts';
-import { recordAudit } from './audit.ts';
+} from './catalog.ts';
+import { type DigestMode, digestModes, isValidTimeZone } from './time.ts';
+import { recordAudit } from '../../services/audit.ts';
 
 /**
  * What people and admins decided about alerts (docs/alerts.md): the workspace rule of each type (admins), a person's own settings,

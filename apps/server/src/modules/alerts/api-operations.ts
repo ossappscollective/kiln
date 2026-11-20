@@ -6,9 +6,9 @@ import {
   ruleBody,
   settingsBody,
   testBody,
-} from '../routes/alerts.ts';
-import { alertChannels, alertGroups, alertSeverities } from './alert-catalog.ts';
-import type { Operation } from './openapi.ts';
+} from './routes.ts';
+import { alertChannels, alertGroups, alertSeverities } from './catalog.ts';
+import type { Operation } from '../../services/openapi.ts';
 
 /**
  * The operations of alerts (docs/api/alerts.md), kept in their own file and added to the registry in api-operations.ts. Reading the

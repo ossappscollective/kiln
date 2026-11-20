@@ -4,16 +4,16 @@ import {
   defaultParams,
   type EventLike,
   releaseDefs,
-} from './alert-catalog-core.ts';
-import { moreDefs } from './alert-catalog-more.ts';
-import type { EventType } from './event-types.ts';
+} from './catalog-core.ts';
+import { moreDefs } from './catalog-more.ts';
+import type { EventType } from '../../services/event-types.ts';
 
 /**
  * The alert catalog (docs/alerts.md, docs/adr/0022-alerts.md): every condition somebody can be told about, as data. Pure: no
  * database, no clock, no network, so the screen, the docs and the tests all read the same table. The definitions live in
  * alert-catalog-core.ts (types, helpers, releases) and alert-catalog-more.ts (the rest); this file puts them together.
  */
-export * from './alert-catalog-core.ts';
+export * from './catalog-core.ts';
 
 const defs = [...releaseDefs, ...moreDefs] as const;
 

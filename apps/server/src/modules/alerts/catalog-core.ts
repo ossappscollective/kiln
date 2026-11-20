@@ -1,5 +1,5 @@
 import type { Action } from '@mrm/core';
-import type { EventType } from './event-types.ts';
+import type { EventType } from '../../services/event-types.ts';
 
 /**
  * The alert catalog, part 1: the types, the helpers and the release definitions (docs/alerts.md, docs/adr/0022-alerts.md): every condition somebody can be told about, as data. Pure: no

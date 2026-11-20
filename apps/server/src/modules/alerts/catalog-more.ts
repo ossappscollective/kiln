@@ -1,4 +1,4 @@
-import { app, DAY, def, everyone, HOUR, isoDay, noEmail, num, str } from './alert-catalog-core.ts';
+import { app, DAY, def, everyone, HOUR, isoDay, noEmail, num, str } from './catalog-core.ts';
 
 /** The alert catalog, part 2: reviews, store, builds, analytics, ASO, AI, security and system (see alert-catalog.ts). */
 export const moreDefs = [

@@ -21,9 +21,9 @@ import {
   syncIntervalMs,
 } from './scheduler.ts';
 import { pruneSessions } from './services/accounts.ts';
-import { createAlertDeliveryHandler } from './services/alert-delivery.ts';
-import { ALERT_PASS_INTERVAL_MS, createAlertRunner } from './services/alert-runner.ts';
-import { ALERT_QUEUE } from './services/alerts.ts';
+import { createAlertDeliveryHandler } from './modules/alerts/delivery.ts';
+import { ALERT_PASS_INTERVAL_MS, createAlertRunner } from './modules/alerts/runner.ts';
+import { ALERT_QUEUE } from './modules/alerts/service.ts';
 import { analyticsIntervalMs } from './modules/analytics/schedule.ts';
 import {
   ANALYTICS_SYNC_QUEUE,

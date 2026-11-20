@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { dbTest } from '@mrm/db/testing';
-import { bootAlerts } from './alert-test-helpers.ts';
-import { sendDueDigests } from './services/alert-digest.ts';
-import { deliveryOutcomes } from './services/alerts.ts';
-import type { Resolver, SendResult, sendPinned } from './services/webhook-transport.ts';
+import { bootAlerts } from './test-helpers.ts';
+import { sendDueDigests } from './digest.ts';
+import { deliveryOutcomes } from './service.ts';
+import type { Resolver, SendResult, sendPinned } from '../../services/webhook-transport.ts';
 
 const T0 = Date.UTC(2026, 0, 5, 12, 0); // a Monday at noon UTC
 const settings = (

@@ -4,9 +4,9 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
-import { type AppEnv, parseBody, queryInt } from '../http.ts';
-import { memberRole } from '../services/accounts.ts';
-import { alertChannels, alertSeverities, alertTypeIds } from '../services/alert-catalog.ts';
+import { type AppEnv, parseBody, queryInt } from '../../http.ts';
+import { memberRole } from '../../services/accounts.ts';
+import { alertChannels, alertSeverities, alertTypeIds } from './catalog.ts';
 import {
   catalogEntries,
   DEFAULT_INBOX_LIMIT,
@@ -17,7 +17,7 @@ import {
   markRead,
   sendTestAlert,
   unreadCount,
-} from '../services/alert-inbox.ts';
+} from './inbox.ts';
 import {
   createMute,
   deleteMute,
@@ -29,9 +29,9 @@ import {
   saveUserSettings,
   setPreference,
   setRule,
-} from '../services/alert-prefs.ts';
-import { digestModes } from '../services/alert-time.ts';
-import { createTestLimiter, type TestLimiter } from '../services/credential-tests.ts';
+} from './prefs.ts';
+import { digestModes } from './time.ts';
+import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 
 /** Bodies, exported for the operations registry (services/api-operations-alerts.ts). */
 export const markReadBody = z

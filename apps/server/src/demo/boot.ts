@@ -13,8 +13,8 @@ import {
 } from '../modules/aso/service.ts';
 import { createEventStreamHub } from '../routes/events.ts';
 import { createScheduler } from '../scheduler.ts';
-import { runAlertEvaluator } from '../services/alert-evaluator.ts';
-import { ALERT_PASS_INTERVAL_MS, createAlertRunner } from '../services/alert-runner.ts';
+import { runAlertEvaluator } from '../modules/alerts/evaluator.ts';
+import { ALERT_PASS_INTERVAL_MS, createAlertRunner } from '../modules/alerts/runner.ts';
 import {
   ANALYTICS_SYNC_QUEUE,
   createAnalyticsSyncHandler,
