@@ -4,9 +4,9 @@ import { test } from 'node:test';
 import { AiError, isStrictCompatible } from '@mrm/connectors';
 import { aiTaskIds } from '@mrm/core';
 import { dbTest } from '@mrm/db/testing';
-import { type AiBoot, API_KEY, bootAi, keywordAnswer } from './ai-test-helpers.ts';
-import { wrapReviewText } from './services/ai-task-reply.ts';
-import { aiTasks } from './services/ai-tasks.ts';
+import { type AiBoot, API_KEY, bootAi, keywordAnswer } from './test-helpers.ts';
+import { wrapReviewText } from './ai-task-reply.ts';
+import { aiTasks } from './ai-tasks.ts';
 
 /**
  * AI assistance (docs/api/ai.md, docs/adr/0016-ai-foundation.md). The model is a scripted fake and the stores are fakes: nothing
@@ -1774,7 +1774,7 @@ dbTest('deleting an app deletes its suggestions; retention purges old ones', asy
   const id = (await t.run('keyword_ideas', { appId, locale: 'en-US' })).body.suggestion
     .id as string;
   assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM ai_suggestions'))[0]?.n), 1);
-  const { purgeAiData } = await import('./services/ai-suggestions.ts');
+  const { purgeAiData } = await import('./ai-suggestions.ts');
   assert.equal(await purgeAiData(db, t.now()), 0, 'young rows stay');
   assert.ok(
     (await purgeAiData(db, t.now() + 91 * 86_400_000)) >= 1,
@@ -1796,9 +1796,9 @@ dbTest('deleting an app deletes its suggestions; retention purges old ones', asy
 // ----- the structure: AI cannot reach a store ---------------------------------------------------------------
 
 test('structure: the AI modules import only the services they may and never name an action that leaves the tool', () => {
-  const dir = new URL('./services/', import.meta.url);
+  const dir = new URL('./', import.meta.url);
   const files = [
-    'ai.ts',
+    'service.ts',
     'ai-tasks.ts',
     'ai-task-types.ts',
     'ai-task-keywords.ts',
@@ -1816,7 +1816,7 @@ test('structure: the AI modules import only the services they may and never name
     'ai-task-aso.ts',
     'ai-task-listing-more.ts',
   ].map((f) => [f, new URL(f, dir)] as const);
-  const routes = readFileSync(new URL('./routes/ai.ts', import.meta.url), 'utf8');
+  const routes = readFileSync(new URL('./routes.ts', import.meta.url), 'utf8');
   const allowed = new Set([
     'ai-config',
     'ai-models',
@@ -1839,6 +1839,13 @@ test('structure: the AI modules import only the services they may and never name
     'analytics-query',
     'aso',
     'aso-net',
+    'insights',
+    'query',
+    'live',
+    'replies',
+    'drift',
+    'service',
+    'net',
     'apps',
     'audit',
     'events',
@@ -1852,25 +1859,29 @@ test('structure: the AI modules import only the services they may and never name
     'translate-net',
     'webhook-transport',
   ]);
+  // Files of the app that every module may import (types, the Hono helpers).
+  const outside = new Set(['http', 'errors']);
   const forbidden =
     /\b(sendReviewReply|applyDraftPush|pushStagedDraft|applyStoreSubmit|applyStoreRelease|applyRollout|applyPublish|replyToReview|publishStoreBatch|createConnector|connectorFactory|ConnectorFactory)\b/;
   for (const [name, url] of files) {
     const source = readFileSync(url, 'utf8');
-    for (const m of source.matchAll(/from '\.\/([a-z0-9-]+)\.ts'/g))
-      assert.ok(allowed.has(m[1] as string), `${name} imports ./${m[1]}.ts`);
+    assert.doesNotMatch(source, /from '\.\/service\.ts'/, `${name} imports the run service`);
+    for (const m of source.matchAll(/from '\.{1,2}\/(?:[a-z0-9-]+\/)*([a-z0-9-]+)\.ts'/g))
+      assert.ok(allowed.has(m[1] as string) || outside.has(m[1] as string), `${name} imports ${m[1]}.ts`);
     assert.doesNotMatch(source, forbidden, `${name} names something that can act outside the tool`);
   }
-  for (const m of routes.matchAll(/from '\.\.\/services\/([a-z0-9-]+)\.ts'/g))
+  for (const m of routes.matchAll(/from '\.{1,2}\/(?:[a-z0-9-]+\/)*([a-z0-9-]+)\.ts'/g))
     assert.ok(
       allowed.has(m[1] as string) ||
+        outside.has(m[1] as string) ||
         m[1] === 'accounts' ||
         m[1] === 'credential-tests' ||
-        m[1] === 'ai',
-      `routes/ai.ts imports ${m[1]}`,
+        m[1] === 'service',
+      `modules/ai/routes.ts imports ${m[1]}`,
     );
   assert.doesNotMatch(routes, forbidden);
   // The only calls into other services from the accept path.
-  const ai = readFileSync(new URL('ai.ts', dir), 'utf8');
+  const ai = readFileSync(new URL('service.ts', dir), 'utf8');
   assert.match(ai, /addKeywords\(/);
   assert.match(ai, /stageText\(/);
   assert.match(ai, /saveReplyDraft\(/);

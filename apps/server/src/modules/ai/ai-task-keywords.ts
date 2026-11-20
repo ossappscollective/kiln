@@ -12,8 +12,8 @@ import {
   normalizeLocale,
   PLAY_FIELD_SPECS,
 } from '@mrm/core';
-import { listCompetitors, listKeywords } from '../modules/aso/service.ts';
-import { getDrift } from '../modules/listing/live.ts';
+import { listCompetitors, listKeywords } from '../aso/service.ts';
+import { getDrift } from '../listing/live.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import {
   checkScope,

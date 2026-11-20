@@ -1,7 +1,7 @@
 import { checkReplyText, type JsonSchema, normalizeReplyText } from '@mrm/connectors';
 import { type AiFlag, type AiReplyProposal, aiLimits } from '@mrm/core';
-import { replyLimitFor } from '../modules/reviews/replies.ts';
-import { getReview, type StoreKey } from '../modules/reviews/service.ts';
+import { replyLimitFor } from '../reviews/replies.ts';
+import { getReview, type StoreKey } from '../reviews/service.ts';
 import { hasPersonalData, looksLikePromise } from './ai-app-context.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { redactPersonal } from './ai-task-data.ts';

@@ -14,8 +14,8 @@ import {
   listModelsBody,
   runTaskBody,
   updateConfigBody,
-} from '../routes/ai.ts';
-import type { Operation } from './openapi.ts';
+} from './routes.ts';
+import type { Operation } from '../../operations/openapi.ts';
 
 /**
  * The operations of AI assistance (docs/api/ai.md), kept in their own file and added to the registry in api-operations.ts. Every

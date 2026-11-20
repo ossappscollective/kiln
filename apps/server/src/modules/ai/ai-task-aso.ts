@@ -23,9 +23,9 @@ import {
   normalizeLocale,
   PLAY_FIELD_SPECS,
 } from '@mrm/core';
-import { overview } from '../modules/analytics/query.ts';
-import { coachFor, summaryFor } from '../modules/aso/insights.ts';
-import { listCompetitors, listKeywords } from '../modules/aso/service.ts';
+import { overview } from '../analytics/query.ts';
+import { coachFor, summaryFor } from '../aso/insights.ts';
+import { listCompetitors, listKeywords } from '../aso/service.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { loadReviewsForAi, periodDays } from './ai-task-data.ts';
 import { loadLocaleTexts } from './ai-task-keywords.ts';

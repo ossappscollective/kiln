@@ -2,17 +2,17 @@ import { type Action, can, canToken } from '@mrm/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { type AppEnv, parseBody } from '../http.ts';
-import { memberRole } from '../services/accounts.ts';
-import { getApp } from '../services/apps.ts';
-import type { TestLimiter } from '../services/credential-tests.ts';
+import { type AppEnv, parseBody } from '../../http.ts';
+import { memberRole } from '../../services/accounts.ts';
+import { getApp } from '../../services/apps.ts';
+import type { TestLimiter } from '../../services/credential-tests.ts';
 import {
   auditNotesTranslation,
   isNoteLocale,
   NOTES_TRANSLATE_LIMITS,
   type NotesTranslateContext,
   translateReleaseNotes,
-} from '../services/release-notes-translate.ts';
+} from './release-notes-translate.ts';
 
 export type ReleaseNotesTranslateRoutesContext = NotesTranslateContext & {
   /** Requests per workspace per minute (default built in createApp: 10). */

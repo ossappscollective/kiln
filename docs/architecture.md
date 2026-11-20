@@ -34,7 +34,7 @@ Web UI · Tauri shell · CLI and webhooks
 ## Code layout
 
 - **Server modules.** A feature that can be added or removed (`aso`, `analytics`, `reviews`, `alerts`,
-  `ci`, `builds`, `listing`, `publish`, `planning`) is a folder under `apps/server/src/modules/<id>/` with `index.ts` (its
+  `ci`, `builds`, `listing`, `publish`, `planning`, `ai`) is a folder under `apps/server/src/modules/<id>/` with `index.ts` (its
   `Deps` type and the `ServerModule` that mounts it), routes, service, `operations.ts` and tests.
   `app.ts` lists the modules; removing one means removing its line and its folder. The module
   contract is in `modules/module.ts`.

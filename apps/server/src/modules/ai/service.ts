@@ -17,16 +17,16 @@ import {
   type Role,
 } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import type { AsoSources } from '../modules/aso/net.ts';
-import { type AsoContext, type AsoLimits, addKeywords } from '../modules/aso/service.ts';
-import type { AssetsContext } from '../modules/listing/asset-repo.ts';
-import { normalizeListingValue } from '../modules/listing/drift.ts';
-import { type StagedContext, stageText } from '../modules/publish/staged-changes.ts';
+import type { AsoSources } from '../aso/net.ts';
+import { type AsoContext, type AsoLimits, addKeywords } from '../aso/service.ts';
+import type { AssetsContext } from '../listing/asset-repo.ts';
+import { normalizeListingValue } from '../listing/drift.ts';
+import { type StagedContext, stageText } from '../publish/staged-changes.ts';
 import {
   getReviewView,
   type ReviewReplyContext,
   saveReplyDraft,
-} from '../modules/reviews/replies.ts';
+} from '../reviews/replies.ts';
 import { applyContextRules, getAppContext, withAppContext } from './ai-app-context.ts';
 import {
   type AiActor,
@@ -69,9 +69,9 @@ import {
   type UsageWarning,
   usageWarning,
 } from './ai-usage.ts';
-import { getApp } from './apps.ts';
-import { recordAudit } from './audit.ts';
-import { emitEvent } from './events.ts';
+import { getApp } from '../../services/apps.ts';
+import { recordAudit } from '../../services/audit.ts';
+import { emitEvent } from '../../services/events.ts';
 
 /**
  * Running AI tasks, and accepting or dismissing what they proposed (docs/adr/0016-ai-foundation.md, docs/api/ai.md).

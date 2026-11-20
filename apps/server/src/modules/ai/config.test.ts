@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
-import { loadConfig } from './config.ts';
+import { loadConfig } from '../../config.ts';
 
 const key = randomBytes(32).toString('base64');
 const load = (env: Record<string, string>) => loadConfig({ MRM_MASTER_KEY: key, ...env });

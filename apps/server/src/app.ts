@@ -1,5 +1,4 @@
 import { serveStatic } from '@hono/node-server/serve-static';
-import { aiLimits } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import type { Context } from 'hono';
 import { Hono } from 'hono';
@@ -24,7 +23,7 @@ import { type ReviewsDeps, reviewsModule } from './modules/reviews/index.ts';
 import { defaultReplyConnectorFactory } from './modules/reviews/replies.ts';
 import { buildOpenApiDocument } from './operations/openapi.ts';
 import { operations } from './operations/registry.ts';
-import { aiRoutes } from './routes/ai.ts';
+import { type AiSettings, aiModule } from './modules/ai/index.ts';
 import { appRoutes } from './routes/apps.ts';
 import { authRoutes, meRoute, requireUser } from './routes/auth.ts';
 import { changeSetFixupRoutes } from './routes/change-set-fixup.ts';
@@ -38,15 +37,12 @@ import {
   setUpMail,
 } from './routes/mail-mount.ts';
 import { memberRoutes } from './routes/members.ts';
-import { releaseNotesTranslateRoutes } from './routes/release-notes-translate.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
 import { settingsRoutes } from './routes/settings.ts';
 import { stepUpRoutes } from './routes/step-up.ts';
 import { tokenRoutes } from './routes/tokens.ts';
 import { type WebhookRoutesContext, webhookRoutes } from './routes/webhooks.ts';
 import { workspaceRoutes } from './routes/workspaces.ts';
-import type { AiContext } from './services/ai-config.ts';
-import { createConcurrencyGate } from './services/ai-usage.ts';
 import {
   DEFAULT_SYNC_TIMEOUT_MS,
   defaultStoreConnectorFactory,
@@ -268,16 +264,7 @@ export type AppDeps = {
    * MRM_AI_ALLOW_PRIVATE_URLS. `fetch` replaces the network for Anthropic and OpenAI, `resolve` and `exchange` for an OpenAI compatible
    * server, `clientFactory` hands in a whole client (tests use a fake). `limiter` is the per workspace budget of runs a minute.
    */
-  ai?: {
-    enabled?: boolean;
-    allowPrivateUrls?: boolean;
-    fetch?: typeof fetch;
-    resolve?: AiContext['resolve'];
-    exchange?: AiContext['exchange'];
-    timeoutMs?: number;
-    clientFactory?: AiContext['clientFactory'];
-    limiter?: TestLimiter;
-  };
+  ai?: AiSettings | undefined;
   /** The MCP endpoint for AI assistants (docs/mcp.md). `enabled` is MRM_MCP_ENABLED (default false: POST /mcp answers 404). */
   mcp?: McpDeps | undefined;
 };
@@ -505,67 +492,19 @@ export function createApp(deps: AppDeps) {
       sync: { apps: appsContext, limiter: appSyncLimiter },
     }),
   );
-  const aiGate = createConcurrencyGate(aiLimits.maxConcurrentPerWorkspace);
-  // AI assistance: suggestions for keywords, listing text and review replies. OFF unless MRM_AI_ENABLED and the workspace turns it on.
-  // It only PROPOSES: accepting calls the keyword, staged text and reply draft services; nothing here can push, submit, publish,
-  // release or send. Mounted after the services it hands accepted proposals to are configured.
-  app.route(
-    '/api/workspaces',
-    aiRoutes({
-      db: services.db,
-      masterKey: services.masterKey,
-      now: services.now,
-      enabled: deps.ai?.enabled ?? false,
-      ...(deps.ai?.allowPrivateUrls ? { allowPrivateUrls: true } : {}),
-      ...(deps.ai?.fetch ? { fetch: deps.ai.fetch } : {}),
-      ...(deps.ai?.resolve ? { resolve: deps.ai.resolve } : {}),
-      ...(deps.ai?.exchange ? { exchange: deps.ai.exchange } : {}),
-      ...(deps.ai?.timeoutMs !== undefined ? { timeoutMs: deps.ai.timeoutMs } : {}),
-      ...(deps.ai?.clientFactory ? { clientFactory: deps.ai.clientFactory } : {}),
+  aiModule.mount(
+    app,
+    services,
+    {
+      settings: deps.ai,
+      notesLimiter: deps.translation?.notesLimiter,
       asoLimits: asoLimitsFor(deps.aso),
-      assets: { repo: assetsRepo },
       reply: {
-        db: services.db,
-        masterKey: services.masterKey,
-        now: services.now,
-        replyEnabled: deps.reviews?.reply?.enabled ?? false,
-        replyConnectorFactory:
-          deps.reviews?.reply?.connectorFactory ?? defaultReplyConnectorFactory,
+        enabled: deps.reviews?.reply?.enabled ?? false,
+        connectorFactory: deps.reviews?.reply?.connectorFactory ?? defaultReplyConnectorFactory,
       },
-      gate: aiGate,
-      limiter:
-        deps.ai?.limiter ?? createTestLimiter({ now: services.now, limit: aiLimits.runsPerMinute }),
-    }),
-  );
-  // Translating the "what is new" text of a release (machine or AI): returns text for the editors, stores and stages nothing.
-  // The AI engine shares the concurrency gate, the usage rows, the budget and the cost cap of the AI tasks.
-  app.route(
-    '/api/workspaces',
-    releaseNotesTranslateRoutes({
-      db: services.db,
-      now: services.now,
-      translation: {
-        db: services.db,
-        masterKey: services.masterKey,
-        now: services.now,
-        ...translationSeams,
-      },
-      ai: {
-        db: services.db,
-        masterKey: services.masterKey,
-        now: services.now,
-        enabled: deps.ai?.enabled ?? false,
-        ...(deps.ai?.allowPrivateUrls ? { allowPrivateUrls: true } : {}),
-        ...(deps.ai?.fetch ? { fetch: deps.ai.fetch } : {}),
-        ...(deps.ai?.resolve ? { resolve: deps.ai.resolve } : {}),
-        ...(deps.ai?.exchange ? { exchange: deps.ai.exchange } : {}),
-        ...(deps.ai?.timeoutMs !== undefined ? { timeoutMs: deps.ai.timeoutMs } : {}),
-        ...(deps.ai?.clientFactory ? { clientFactory: deps.ai.clientFactory } : {}),
-      },
-      gate: aiGate,
-      limiter:
-        deps.translation?.notesLimiter ?? createTestLimiter({ now: services.now, limit: 10 }),
-    }),
+    },
+    shared,
   );
   // Public: the person with the link is not signed in yet.
   app.route('/api/invitations', publicInvitationRoutes(services));

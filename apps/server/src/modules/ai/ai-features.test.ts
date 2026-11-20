@@ -3,12 +3,12 @@ import { test } from 'node:test';
 import { isStrictCompatible } from '@mrm/connectors';
 import { findBannedWord, normalizeAiAppContext } from '@mrm/core';
 import { dbTest } from '@mrm/db/testing';
-import { type AiBoot, bootAi } from './ai-test-helpers.ts';
-import { keywordIdeasFromReviewsTask } from './services/ai-task-aso.ts';
-import { redactPersonal } from './services/ai-task-data.ts';
-import { claimsUnknownRank, oneOf, strings } from './services/ai-task-lenient.ts';
-import { aiTasks } from './services/ai-tasks.ts';
-import { usageWarning } from './services/ai-usage.ts';
+import { type AiBoot, bootAi } from './test-helpers.ts';
+import { keywordIdeasFromReviewsTask } from './ai-task-aso.ts';
+import { redactPersonal } from './ai-task-data.ts';
+import { claimsUnknownRank, oneOf, strings } from './ai-task-lenient.ts';
+import { aiTasks } from './ai-tasks.ts';
+import { usageWarning } from './ai-usage.ts';
 
 /**
  * The AI features of docs/adr/0024-ai-features.md: review summary, review tags (cached), fix next, listing audit, the ASO health

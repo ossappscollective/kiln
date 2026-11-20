@@ -6,11 +6,11 @@ import {
   type FakeAnswer,
 } from '@mrm/connectors';
 import type { Database } from '@mrm/db';
-import type { ReviewReplyConnectorFactory } from './modules/reviews/replies.ts';
-import type { ReviewConnectorFactory } from './modules/reviews/sync.ts';
-import { ASC_SECRET, FakeReplyStore, PLAY_SECRET } from './modules/reviews/test-helpers.ts';
-import { bootRepoApp } from './repo-test-helpers.ts';
-import { createTestLimiter } from './services/credential-tests.ts';
+import type { ReviewReplyConnectorFactory } from '../reviews/replies.ts';
+import type { ReviewConnectorFactory } from '../reviews/sync.ts';
+import { ASC_SECRET, FakeReplyStore, PLAY_SECRET } from '../reviews/test-helpers.ts';
+import { bootRepoApp } from '../../repo-test-helpers.ts';
+import { createTestLimiter } from '../../services/credential-tests.ts';
 
 /**
  * Shared by the AI tests (docs/adr/0016-ai-foundation.md). No provider and no store is ever contacted: the model is a scripted
@@ -19,7 +19,7 @@ import { createTestLimiter } from './services/credential-tests.ts';
 
 export const API_KEY = 'sk-ant-test-0123456789abcdefghij';
 
-type Deps = Partial<Parameters<typeof import('./app.ts').createApp>[0]>;
+type Deps = Partial<Parameters<typeof import('../../app.ts').createApp>[0]>;
 type Script =
   | FakeAnswer[]
   | ((request: Parameters<FakeAiClient['complete']>[0], index: number) => FakeAnswer);

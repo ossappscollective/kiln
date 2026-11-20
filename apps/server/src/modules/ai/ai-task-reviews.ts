@@ -17,7 +17,7 @@ import {
   aiThemeKinds,
   listingStoreOf,
 } from '@mrm/core';
-import { getReview } from '../modules/reviews/service.ts';
+import { getReview } from '../reviews/service.ts';
 import { looksLikePromise } from './ai-app-context.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { getReviewTags, reviewTextHash, saveReviewTags } from './ai-review-classes.ts';

@@ -12,9 +12,9 @@ import {
 } from './ai-config.ts';
 import { currentAiWarning, runAiDirect } from './ai-direct.ts';
 import type { ConcurrencyGate, UsageWarning } from './ai-usage.ts';
-import type { ManagedApp } from './apps.ts';
-import { recordAudit } from './audit.ts';
-import { type TranslationContext, type TranslationFailure, translateText } from './translation.ts';
+import type { ManagedApp } from '../../services/apps.ts';
+import { recordAudit } from '../../services/audit.ts';
+import { type TranslationContext, type TranslationFailure, translateText } from '../../services/translation.ts';
 
 /**
  * Translating the "what is new" text of a release into other languages (docs/api/releases-write.md, docs/adr/0028-release-notes-translation.md).

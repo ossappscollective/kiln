@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { AiError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { bootAi } from './ai-test-helpers.ts';
+import { bootAi } from './test-helpers.ts';
 import {
   cleanModelText,
   isNoteLocale,
   translationWarnings,
-} from './services/release-notes-translate.ts';
-import { fakeGoogle, GOOGLE_SECRET } from './translation-test-helpers.ts';
+} from './release-notes-translate.ts';
+import { fakeGoogle, GOOGLE_SECRET } from '../../translation-test-helpers.ts';
 
 /**
  * Translating the "what is new" text of a release (docs/adr/0028-release-notes-translation.md). The translation provider is a fake Google,

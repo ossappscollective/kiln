@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { dbTest } from '@mrm/db/testing';
-import { bootAi, keywordAnswer } from './ai-test-helpers.ts';
+import { bootAi, keywordAnswer } from './test-helpers.ts';
 
 /**
  * Accepting keyword ideas (bug: "it said they were added but I do not see them"). The server side of the answer to it: an accept

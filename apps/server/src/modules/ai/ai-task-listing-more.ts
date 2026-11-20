@@ -16,8 +16,8 @@ import {
   type StoreFamily,
   storeFamilyOf,
 } from '@mrm/core';
-import { listKeywords } from '../modules/aso/service.ts';
-import { normalizeListingValue } from '../modules/listing/drift.ts';
+import { listKeywords } from '../aso/service.ts';
+import { normalizeListingValue } from '../listing/drift.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { loadLocaleTexts } from './ai-task-keywords.ts';
 import { int, line } from './ai-task-lenient.ts';

@@ -3,8 +3,8 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
-import { type AppEnv, parseBody, queryInt } from '../http.ts';
-import { memberRole } from '../services/accounts.ts';
+import { type AppEnv, parseBody, queryInt } from '../../http.ts';
+import { memberRole } from '../../services/accounts.ts';
 import {
   type AiServices,
   acceptSuggestion,
@@ -16,13 +16,13 @@ import {
   previewAiTask,
   runAiTask,
   testAiConnection,
-} from '../services/ai.ts';
-import { getAppContext, setAppContext } from '../services/ai-app-context.ts';
-import { type AiFailure, updateAiConfig } from '../services/ai-config.ts';
-import { listAiModels } from '../services/ai-models.ts';
-import { getReviewTags } from '../services/ai-review-classes.ts';
-import { getApp } from '../services/apps.ts';
-import type { TestLimiter } from '../services/credential-tests.ts';
+} from './service.ts';
+import { getAppContext, setAppContext } from './ai-app-context.ts';
+import { type AiFailure, updateAiConfig } from './ai-config.ts';
+import { listAiModels } from './ai-models.ts';
+import { getReviewTags } from './ai-review-classes.ts';
+import { getApp } from '../../services/apps.ts';
+import type { TestLimiter } from '../../services/credential-tests.ts';
 
 /**
  * AI assistance (docs/api/ai.md, docs/adr/0016-ai-foundation.md). Mounted under /api/workspaces.

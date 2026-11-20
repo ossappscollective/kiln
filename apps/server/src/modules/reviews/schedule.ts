@@ -1,7 +1,7 @@
 import { needsStoreAppId, parsePlatform } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { enqueue } from '../../jobs.ts';
-import { purgeAiData } from '../../services/ai-suggestions.ts';
+import { purgeAiData } from '../ai/ai-suggestions.ts';
 import { purgeOrphanTranslations } from '../../services/translation.ts';
 import { pruneReviews, purgeOrphanReviewRows } from './service.ts';
 import { REVIEW_SYNC_QUEUE, type ReviewSyncPayload } from './sync.ts';

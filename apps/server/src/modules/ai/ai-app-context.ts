@@ -10,7 +10,7 @@ import {
 } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { type AiActor, type AiFailure, aiFail } from './ai-config.ts';
-import { recordAudit } from './audit.ts';
+import { recordAudit } from '../../services/audit.ts';
 
 /**
  * The AI context of an app (docs/adr/0024-ai-features.md): what a person tells the assistant ONCE about an app (what it is, who it is

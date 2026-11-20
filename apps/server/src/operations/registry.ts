@@ -8,7 +8,7 @@ import { listingOperations } from '../modules/listing/operations.ts';
 import { planningOperations } from '../modules/planning/operations.ts';
 import { publishOperations } from '../modules/publish/operations.ts';
 import { reviewsOperations } from '../modules/reviews/operations.ts';
-import { aiOperations } from './ai.ts';
+import { aiOperations } from '../modules/ai/operations.ts';
 import { mcpOperations } from './mcp.ts';
 import type { Operation } from './openapi.ts';
 import { releasesOperations } from './releases.ts';

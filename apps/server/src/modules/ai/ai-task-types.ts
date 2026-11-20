@@ -2,7 +2,7 @@ import type { JsonSchema } from '@mrm/connectors';
 import type { AiAppContext, AiProposal, AiProposalKind, AiTaskId } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { type AiFailure, aiFail } from './ai-config.ts';
-import type { ManagedApp } from './apps.ts';
+import type { ManagedApp } from '../../services/apps.ts';
 
 /**
  * What an AI task is (docs/adr/0016-ai-foundation.md). A task is DATA plus three pure-ish functions:

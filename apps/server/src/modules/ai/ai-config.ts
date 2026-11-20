@@ -18,15 +18,15 @@ import {
   type Role,
 } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import { recordAudit } from './audit.ts';
-import { useCredentialSecret } from './credentials.ts';
+import { recordAudit } from '../../services/audit.ts';
+import { useCredentialSecret } from '../../services/credentials.ts';
 import {
   checkTranslateUrl,
   createGuardedFetch,
   type GuardedFetch,
   type PostExchange,
-} from './translate-net.ts';
-import { checkWebhookUrl, type Resolver, resolveAllowed } from './webhook-transport.ts';
+} from '../../services/translate-net.ts';
+import { checkWebhookUrl, type Resolver, resolveAllowed } from '../../services/webhook-transport.ts';
 
 /**
  * The AI configuration of a workspace and the failure vocabulary of the AI routes (docs/api/ai.md,

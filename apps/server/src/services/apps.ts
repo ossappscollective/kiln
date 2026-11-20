@@ -34,7 +34,7 @@ import { deleteAsoData } from '../modules/aso/data.ts';
 import { deleteListingData, syncListing } from '../modules/listing/live.ts';
 import { recordAppliedChangeSets } from '../modules/listing/repo.ts';
 import { deleteReviewData } from '../modules/reviews/service.ts';
-import { deleteAiData } from './ai-suggestions.ts';
+import { deleteAiData } from '../modules/ai/ai-suggestions.ts';
 import { deleteAppIcon } from './app-icon-store.ts';
 import { deleteAppReleaseSettings } from './app-release-settings.ts';
 import { recordAudit } from './audit.ts';

@@ -1,6 +1,6 @@
 import { PLATFORMS } from '@mrm/core';
 import { z } from 'zod';
-import { translateNotesBody } from '../routes/release-notes-translate.ts';
+import { translateNotesBody } from '../modules/ai/notes-translate-routes.ts';
 import { type Draft, platform, stagedAppSchema, timestamp, W } from './shared.ts';
 
 // ----- the release pipeline signal (docs/api/release-pipeline.md) -------------------------------------------------
