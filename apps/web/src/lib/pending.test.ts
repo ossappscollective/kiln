@@ -43,6 +43,7 @@ import {
   staleViewIds,
   stateBadge,
   stepRows,
+  visibleRows,
   toggled,
   totalsLine,
 } from './pending.ts';
@@ -813,4 +814,27 @@ test('with nothing staged or an older server the defaults are the old ones and t
   // An included direct release step makes the plan a direct one even when the server did not default to it.
   const added = plan([step('release', { request: { type: 'release', track: 'production', userFraction: 0.1, direct: true } })], { defaultedToDirect: false });
   assert.equal(isDirectPlan(added), true);
+});
+
+test('visibleRows leaves out the steps with nothing to do, numbers the rest, and keeps all rows when none has anything to do', () => {
+  const row = (type: 'push_draft' | 'submit' | 'release' | 'rollout', idle: boolean) => ({
+    type,
+    order: ['push_draft', 'submit', 'release', 'rollout'].indexOf(type) + 1,
+    label: type,
+    checked: false,
+    toggleable: !idle,
+    reason: null,
+    word: idle ? 'Nothing to do' : 'Needs details',
+    tone: 'neutral' as const,
+    irreversible: false,
+    deferred: false,
+    needsInput: false,
+    idle,
+  });
+  const some = visibleRows([row('push_draft', true), row('submit', true), row('release', false), row('rollout', true)]);
+  assert.deepEqual(some.shown.map((r) => [r.type, r.order]), [['release', 1]]);
+  assert.deepEqual(some.left, ['push_draft', 'submit', 'rollout']);
+  const none = visibleRows([row('push_draft', true), row('submit', true)]);
+  assert.equal(none.shown.length, 2);
+  assert.deepEqual(none.left, []);
 });

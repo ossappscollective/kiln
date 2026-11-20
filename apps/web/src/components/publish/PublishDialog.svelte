@@ -44,6 +44,7 @@
     requestsFor,
     resultSummary,
     stepRows,
+    visibleRows,
     toggled,
     warningsOf,
   } from '../../lib/pending.ts';
@@ -105,7 +106,8 @@
   let seq = 0;
 
   const busy = $derived(phase === 'previewing' || phase === 'publishing');
-  const rows = $derived(plan ? stepRows(plan) : []);
+  const visible = $derived(plan ? visibleRows(stepRows(plan)) : { shown: [], left: [] });
+  const rows = $derived(visible.shown);
   const summary = $derived(result ? resultSummary(result, askedFractionOf(plan)) : null);
   // Google Play offers a staged rollout for updates only: no share is asked for the first release in production, or when the app setting says never.
   const inputs = $derived(releaseInputsFor({ view: app ? releaseSettingsStore.get(app.id) : null, track, stagedPercent: '' }));
@@ -416,6 +418,9 @@
           {/if}
         {/each}
       </ol>
+      {#if visible.left.length > 0}
+        <p class="muted small" data-testid="plan-left-out">Nothing to do now, so not shown: {visible.left.join('; ')}.</p>
+      {/if}
 
       {#if canDraftOnly}
         <div class="row">

@@ -747,7 +747,7 @@ export async function buildPlan(
           ? isGooglePlatform(app.platform)
             ? request?.direct === true
               ? `Release to ${request.track ?? 'the track'} (sent to Google for review)`
-              : 'Start the Google Play draft release'
+              : 'Roll out the draft release on Google Play'
             : 'Release the approved version'
           : STEP_LABEL[type],
       requested,

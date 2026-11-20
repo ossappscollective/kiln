@@ -615,6 +615,8 @@ export type StepRow = {
   deferred: boolean;
   /** Google Play release only: it needs the track and the share, which the dialog asks for. */
   needsInput: boolean;
+  /** There is nothing for this step to do now (the dialog leaves it out instead of showing a step that cannot be ticked). */
+  idle: boolean;
 };
 
 export const SINGLE_STEP_HINT = 'Use the single step under "Advanced: do one step".';
@@ -654,6 +656,20 @@ export function stepRow(step: PlanStep, platform: Platform): StepRow {
     irreversible: step.irreversible,
     deferred: step.deferred,
     needsInput,
+    idle: step.availability === 'nothing_to_do',
+  };
+}
+
+/**
+ * The rows the dialog shows: the steps that have something to do, numbered one after the other, and the names of the steps left out
+ * (for one quiet line). When no step has anything to do, every row stays so the dialog can say why.
+ */
+export function visibleRows(rows: readonly StepRow[]): { shown: StepRow[]; left: string[] } {
+  const active = rows.filter((r) => !r.idle);
+  if (active.length === 0) return { shown: [...rows], left: [] };
+  return {
+    shown: active.map((r, i) => ({ ...r, order: i + 1 })),
+    left: rows.filter((r) => r.idle).map((r) => r.label),
   };
 }
 
