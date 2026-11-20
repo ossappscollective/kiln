@@ -372,6 +372,8 @@ export const CLONE_READ_PURPOSES: ReadonlySet<string> = new Set([
   'repository.assets',
   // The one read of app.json that prefills the Expo project link of an app (modules/eas/link.ts).
   'eas.detect',
+  // The read of eas.json and the app config of an app (modules/eas/config.ts).
+  'eas.config',
 ]);
 
 /** The token git authenticates with: the PAT, or the App's installation token as a function. */

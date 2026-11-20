@@ -56,6 +56,7 @@ export type EasFindingCode =
   | 'submit_rollout_out_of_range'
   | 'submit_profile_without_build_profile'
   | 'submit_identifier_mismatch'
+  | 'app_identifier_mismatch'
   | 'app_config_unreadable'
   | 'app_config_dynamic'
   | 'app_config_missing'
