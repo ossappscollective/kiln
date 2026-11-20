@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { CiRun } from '@mrm/connectors';
+import { type CiProviderId, ciProviderOf } from '@mrm/core';
 import { mapOrNull, type Row, type Sql } from '@mrm/db';
 import { emitEvent } from '../../services/events.ts';
 import { purgeConventionOrphans } from './conventions.ts';
@@ -50,9 +51,11 @@ export type WorkflowRunView = {
   workflowPath: string | null;
   /** The run title: the `run-name`, or GitHub's default (the commit or pull request title). */
   title: string | null;
-  /** GitHub's own status kept verbatim (`queued`, `in_progress`, `completed`, ...) or `pending`. */
+  /** GitHub's own status kept verbatim (`queued`, `in_progress`, `completed`, ...) or `pending`; another provider's is put into these words. */
   status: string;
   conclusion: string | null;
+  /** Which CI provider the run lives in (`github`, `eas-workflows`; packages/core/src/ci-providers.ts). */
+  provider: CiProviderId;
   /** True while the run is not finished (what the poller and the UI wait for). */
   active: boolean;
   headSha: string | null;
@@ -70,7 +73,7 @@ export type WorkflowRunView = {
   syncedAt: number;
 };
 
-export const RUN_COLUMNS = `id, repository_id, app_id, run_id, workflow, workflow_path, title, status,
+export const RUN_COLUMNS = `id, repository_id, app_id, run_id, workflow, workflow_path, title, status, provider,
   conclusion, head_sha, commit_message, branch, event, run_number, url, inputs_json, dispatched_by,
   started_at, run_updated_at, synced_at`;
 
@@ -108,6 +111,7 @@ export const toRunView = (r: Row, linked?: readonly string[]): WorkflowRunView =
     title: mapOrNull(r.title, String),
     status: String(r.status),
     conclusion: mapOrNull(r.conclusion, String),
+    provider: ciProviderOf(r.provider),
     active: isActiveStatus(String(r.status)),
     headSha: mapOrNull(r.head_sha, String),
     commitMessage: mapOrNull(r.commit_message, String),
@@ -194,7 +198,7 @@ export const firstLine = (message: string | undefined): string | null => {
  * first seen already finished (history read for the first time) is not announced, unless it
  * finished within `RECENT_FINISH_EVENT_MS`, which means it ran between two reads.
  */
-async function announce(
+export async function announce(
   sql: Sql,
   run: {
     workspaceId: string;
@@ -314,12 +318,14 @@ export async function countActiveRuns(
   sql: Sql,
   workspaceId: string,
   repositoryId: string,
+  /** Only the runs of this provider (the GitHub poll waits for GitHub's runs only). Default: every provider's. */
+  provider?: CiProviderId,
 ): Promise<number> {
   const marks = ACTIVE_STATUSES.map(() => '?').join(', ');
   const [row] = await sql.query(
     `SELECT COUNT(*) AS n FROM workflow_runs
-      WHERE workspace_id = ? AND repository_id = ? AND status IN (${marks})`,
-    [workspaceId, repositoryId, ...ACTIVE_STATUSES],
+      WHERE workspace_id = ? AND repository_id = ? AND status IN (${marks})${provider ? ' AND provider = ?' : ''}`,
+    [workspaceId, repositoryId, ...ACTIVE_STATUSES, ...(provider ? [provider] : [])],
   );
   return Number(row?.n ?? 0);
 }
@@ -343,6 +349,10 @@ export type PendingDispatch = {
   /** Set when GitHub named the run in its answer: the row is then a real run, not a placeholder. */
   runId?: string | undefined;
   runUrl?: string | undefined;
+  /** The CI provider that ran it. Default `github`. */
+  provider?: CiProviderId | undefined;
+  /** Where the workflow file is, when it is not the name that was dispatched (`.eas/workflows/build.yml`). */
+  workflowPath?: string | undefined;
 };
 
 /** Records a dispatch the moment it was sent. Returns the stored row. */
@@ -379,8 +389,8 @@ export async function recordDispatch(sql: Sql, d: PendingDispatch): Promise<Work
     await sql.execute(
       `INSERT INTO workflow_runs
          (id, workspace_id, repository_id, app_id, run_id, workflow, workflow_path, status, branch,
-          event, url, inputs_json, dispatched_by, started_at, run_updated_at, synced_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'workflow_dispatch', ?, ?, ?, ?, ?, ?)`,
+          event, url, inputs_json, dispatched_by, started_at, run_updated_at, synced_at, provider)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'workflow_dispatch', ?, ?, ?, ?, ?, ?, ?)`,
       [
         rowId,
         d.workspaceId,
@@ -388,7 +398,7 @@ export async function recordDispatch(sql: Sql, d: PendingDispatch): Promise<Work
         appIds[0] ?? null,
         runId,
         d.workflow,
-        d.workflow,
+        d.workflowPath ?? d.workflow,
         d.runId ? 'queued' : 'pending',
         d.ref,
         d.runUrl ?? null,
@@ -397,6 +407,7 @@ export async function recordDispatch(sql: Sql, d: PendingDispatch): Promise<Work
         d.now,
         d.now,
         d.now,
+        d.provider ?? 'github',
       ],
     );
     await setRunApps(sql, { workspaceId: d.workspaceId, runRef: rowId, appIds, now: d.now });

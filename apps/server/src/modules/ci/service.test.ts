@@ -335,6 +335,7 @@ dbTest(
       title: 'Release 2.4.0 (build 241)',
       status: 'in_progress',
       conclusion: null,
+      provider: 'github',
       active: true,
       headSha: SHA_3,
       commitMessage: 'Third',

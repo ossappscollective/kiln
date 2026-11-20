@@ -297,7 +297,10 @@ async function compute(
   // 3. Progress of the runs in progress: read for who may scan, else what anyone read lately.
   const progress = new Map<string, ProgressView | null>();
   let limited = false;
-  const inProgress = active.filter((r) => r.status === 'in_progress').slice(0, MAX_JOB_READS);
+  // Jobs are GitHub's: a run of another provider has no jobs to read here.
+  const inProgress = active
+    .filter((r) => r.provider === 'github' && r.status === 'in_progress')
+    .slice(0, MAX_JOB_READS);
   await inBatches(inProgress, READ_PARALLEL, async (run) => {
     const repository = byId.get(run.repositoryId);
     if (!repository) return;

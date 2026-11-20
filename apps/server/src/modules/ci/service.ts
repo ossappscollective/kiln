@@ -550,7 +550,8 @@ async function readRuns(
     if (!notModified) runPageIds.set(repository.id, seen);
     const stale = await ctx.db.query(
       `SELECT run_id FROM workflow_runs
-        WHERE workspace_id = ? AND repository_id = ? AND status IN ('queued', 'in_progress', 'waiting', 'requested')`,
+        WHERE workspace_id = ? AND repository_id = ? AND provider = 'github'
+          AND status IN ('queued', 'in_progress', 'waiting', 'requested')`,
       [workspaceId, repository.id],
     );
     const missing: string[] = [];
@@ -816,7 +817,7 @@ export function createCiPollHandler(ctx: CiContext): JobHandler {
       });
       return;
     }
-    const active = await countActiveRuns(ctx.db, workspaceId, repositoryId);
+    const active = await countActiveRuns(ctx.db, workspaceId, repositoryId, 'github');
     if (active === 0) return;
     if (now >= deadline) {
       await recordAudit(ctx.db, {
