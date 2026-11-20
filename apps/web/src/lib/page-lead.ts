@@ -40,3 +40,26 @@ export function buildsLead(total: number, unlinked: number): { headline: string;
     tone: 'info',
   };
 }
+
+/** The top of Keywords: how many words are tracked and how many rank in the top 10; "not checked yet" is the one thing to do. */
+export function keywordsLead(
+  keywords: readonly { state: string | null; rank: number | null }[],
+): { headline: string; hint: string; tone: LeadTone } {
+  const n = keywords.length;
+  if (n === 0)
+    return {
+      headline: 'No keywords tracked yet',
+      hint: 'Add the words people search for to see where your app ranks in the store.',
+      tone: 'neutral',
+    };
+  const top10 = keywords.filter((k) => k.state === 'ranked' && k.rank !== null && k.rank <= 10).length;
+  const unchecked = keywords.filter((k) => k.state === null).length;
+  return {
+    headline: `${n} ${n === 1 ? 'keyword' : 'keywords'} tracked, ${top10} in the top 10`,
+    hint:
+      unchecked > 0
+        ? `${unchecked} not checked yet. Press Check now to read their rank.`
+        : 'Where your app ranks in the store search for the words you follow.',
+    tone: unchecked > 0 ? 'info' : 'neutral',
+  };
+}

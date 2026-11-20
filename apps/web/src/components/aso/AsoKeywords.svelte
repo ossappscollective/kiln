@@ -46,7 +46,6 @@
   import Icon from '../ui/Icon.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Section from '../ui/Section.svelte';
-  import StatChip from '../ui/StatChip.svelte';
   import AddKeywords from './AddKeywords.svelte';
   import AsoBar from './AsoBar.svelte';
   import Sparkline from './Sparkline.svelte';
@@ -211,11 +210,6 @@
       <select aria-label="Sort keywords" bind:value={sort}>
         {#each keywordSorts as s (s.id)}<option value={s.id}>{s.label}</option>{/each}
       </select>
-      <span class="chips">
-        <StatChip label="tracked" value={keywords.length} />
-        <StatChip label="in top 10" value={top10} tone="ok" />
-        {#if unchecked > 0}<StatChip label="not checked yet" value={unchecked} tone="info" />{/if}
-      </span>
     {/if}
     <span class="spacer"></span>
     {#if canWrite}
@@ -371,12 +365,6 @@
 <style>
   .search {
     width: 14rem;
-  }
-
-  .chips {
-    display: inline-flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
   }
 
   .empty {

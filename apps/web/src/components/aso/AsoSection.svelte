@@ -37,6 +37,8 @@
   import AsoListing from './AsoListing.svelte';
   import AsoMarkets from './AsoMarkets.svelte';
   import AsoSearchTerms from './AsoSearchTerms.svelte';
+  import PageLead from '../ui/PageLead.svelte';
+  import { keywordsLead } from '../../lib/page-lead.ts';
   import UsedKeywords from './UsedKeywords.svelte';
   import AsoStatus from './AsoStatus.svelte';
   import RankVsDownloads from './RankVsDownloads.svelte';
@@ -129,6 +131,7 @@
     });
   });
 
+  const kwLead = $derived(keywordsLead(keywords));
   const shared = $derived({ api, workspaceId, role, members, config, keywords, version, now, onchanged: changed });
 </script>
 
@@ -177,8 +180,9 @@
     <div>
       {#if view === 'keywords'}
         <div class="stack loose">
-          <UsedKeywords {...shared} {canWrite} />
+          {#if keywords.length > 0}<PageLead headline={kwLead.headline} hint={kwLead.hint} tone={kwLead.tone} testid="keywords-lead" />{/if}
           <AsoKeywords {...shared} {canWrite} />
+          <UsedKeywords {...shared} {canWrite} />
         </div>
       {:else if view === 'listing'}
         <AsoListing {...shared} {canWrite} />

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildsLead, needsAnswerText, reviewsLead } from './page-lead.ts';
+import { buildsLead, keywordsLead, needsAnswerText, reviewsLead } from './page-lead.ts';
 
 test('needsAnswerText says what the person has to do', () => {
   assert.equal(needsAnswerText('5 unanswered, oldest 3 d'), '5 reviews need an answer, oldest 3 d');
@@ -21,4 +21,19 @@ test('buildsLead counts builds and the ones without a run', () => {
   assert.equal(buildsLead(0, 0).headline, 'No builds yet');
   assert.deepEqual(buildsLead(1, 0), { headline: '1 build, each matched to a CI run', tone: 'ok' });
   assert.deepEqual(buildsLead(12, 3), { headline: '12 builds, 3 without a CI run', tone: 'info' });
+});
+
+test('keywordsLead counts the top 10 and points at unchecked words', () => {
+  assert.equal(keywordsLead([]).headline, 'No keywords tracked yet');
+  const some = keywordsLead([
+    { state: 'ranked', rank: 3 },
+    { state: 'ranked', rank: 40 },
+    { state: null, rank: null },
+  ]);
+  assert.equal(some.headline, '3 keywords tracked, 1 in the top 10');
+  assert.equal(some.tone, 'info');
+  assert.match(some.hint, /1 not checked yet/);
+  const done = keywordsLead([{ state: 'ranked', rank: 1 }]);
+  assert.equal(done.headline, '1 keyword tracked, 1 in the top 10');
+  assert.equal(done.tone, 'neutral');
 });
