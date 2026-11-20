@@ -17,6 +17,7 @@
 <script lang="ts">
   import type { Role } from '@mrm/core';
   import { untrack } from 'svelte';
+  import { announcePublished } from '../../../lib/app-page.ts';
   import type { Api } from '../../../lib/api.ts';
   import { confirmed } from '../../../lib/step-up-prompt.svelte.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
@@ -197,6 +198,7 @@
       closeDialog();
       notice = null;
       releaseStore.markReleased(app.id);
+      announcePublished(app.id);
       announcement = 'The release was started.';
       toast.success(resultText(done.result));
       void releaseStore.load(api, workspaceId, app.id);

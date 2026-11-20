@@ -13,6 +13,7 @@
 <script lang="ts">
   import type { Role } from '@mrm/core';
   import { untrack } from 'svelte';
+  import { announcePublished } from '../../lib/app-page.ts';
   import type { Api } from '../../lib/api.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { timeAgo } from '../../lib/format.ts';
@@ -155,6 +156,7 @@
       closeDialog();
       notice = null;
       submitStore.markSubmitted(app.id);
+      announcePublished(app.id);
       announcement = 'The version was sent to the store review. Nothing was released or published.';
       toast.success(resultText(done.result));
       void submitStore.load(api, workspaceId, app.id);

@@ -210,9 +210,12 @@
   $effect(() => {
     const onPublished = (event: Event) => {
       const appId = (event as CustomEvent<{ appId?: string }>).detail?.appId;
-      if (appId === undefined || !scoped.some((m) => m.id === appId)) return;
-      window.location.hash = appAddress(id, 'releases', address.platform);
-      void syncScoped().then(() => pendingStore.refresh(api, workspaceId, scoped.map((m) => m.id), { submit: canSubmit(role) }));
+      const published = members.find((m) => m.id === appId);
+      if (appId === undefined || published === undefined) return;
+      // The record that was published (it may be the other platform than the page shows): read its store again, then the pending
+      // lists of every record of the app, so no stale "draft to publish" is left on either.
+      window.location.hash = appAddress(id, 'releases', scoped.includes(published) ? address.platform : published.platform);
+      void sync(published).then(() => pendingStore.refresh(api, workspaceId, members.map((m) => m.id), { submit: canSubmit(role) }));
     };
     window.addEventListener(PUBLISHED_EVENT, onPublished);
     return () => window.removeEventListener(PUBLISHED_EVENT, onPublished);
