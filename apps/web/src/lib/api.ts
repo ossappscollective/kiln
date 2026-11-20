@@ -78,6 +78,7 @@ import type {
   ToRepoResult,
   UploadQuery,
 } from './assets/sync.ts';
+import type { ExpoDetection, ExpoLinkView, SetExpoLinkBody } from './eas/eas.ts';
 import type {
   BuildsList,
   DownloadLink,
@@ -2305,6 +2306,28 @@ export function createApi(options: ApiOptions = {}) {
         `${analyticsPath(workspaceId, appId)}/search-terms/import?fileName=${encodeURIComponent(fileName)}&confirmHash=${encodeURIComponent(confirmHash)}${period === '' ? '' : `&${period}`}`,
         undefined,
         file,
+      ),
+    // The Expo (EAS) project of an app record (docs/api/eas.md). Reading needs `apps.read`; saving, removing and detecting need `apps.write`.
+    expoLink: (workspaceId: string, appId: string) =>
+      request<{ link: ExpoLinkView | null }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo`,
+      ),
+    setExpoLink: (workspaceId: string, appId: string, body: SetExpoLinkBody) =>
+      request<{ link: ExpoLinkView }>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo`,
+        body,
+      ),
+    removeExpoLink: (workspaceId: string, appId: string) =>
+      request<void>(
+        'DELETE',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo`,
+      ),
+    detectExpoProject: (workspaceId: string, appId: string) =>
+      request<{ detection: ExpoDetection }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo/detect`,
       ),
   };
 }

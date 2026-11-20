@@ -92,7 +92,7 @@ export function storeById(id: string | null | undefined): StoreInfo {
   return isStoreId(id) ? storeInfo[id] : storeInfo.generic;
 }
 
-/** The store behind a credential or connector kind: `app_store_connect`, `google_play`, `github_app`, `github_token`. */
+/** The store behind a credential or connector kind: `app_store_connect`, `google_play`, `github_app`, `github_token`, `expo`. */
 export function storeForCredentialKind(kind: string | null | undefined): StoreInfo {
   switch (kind) {
     case 'app_store_connect':
@@ -102,6 +102,8 @@ export function storeForCredentialKind(kind: string | null | undefined): StoreIn
     case 'github_app':
     case 'github_token':
       return storeInfo.github;
+    case 'expo':
+      return storeInfo.expo;
     default:
       return storeInfo.generic;
   }
