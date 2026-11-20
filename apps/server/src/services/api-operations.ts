@@ -12,6 +12,7 @@ import { publishApplyBody, publishPreviewBody } from '../routes/pending.ts';
 import { translateNotesBody } from '../routes/release-notes-translate.ts';
 import { aiOperations } from './api-operations-ai.ts';
 import { alertOperations } from './api-operations-alerts.ts';
+import { storeVersionOperations } from './api-operations-store-version.ts';
 import { analyticsOperations } from './api-operations-analytics.ts';
 import { buildsOperations } from './api-operations-builds.ts';
 import { mcpOperations } from './api-operations-mcp.ts';
@@ -6746,6 +6747,7 @@ const drafts: Draft[] = [
   ...aiOperations,
   ...analyticsOperations,
   ...alertOperations,
+  ...storeVersionOperations,
   ...searchTermsOperations,
   ...buildsOperations,
   ...stepUpOperations,

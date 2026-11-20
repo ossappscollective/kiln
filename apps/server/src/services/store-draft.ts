@@ -352,10 +352,11 @@ const clearUnknown = (sql: Sql, app: ManagedApp) =>
 // ---------------------------------------------------------------------------------------------
 // Connection
 
-type Connection = { input: Omit<DraftConnectorInput, 'fetch'>; secret: string };
+export type Connection = { input: Omit<DraftConnectorInput, 'fetch'>; secret: string };
 
-async function connect(
-  ctx: StoreConnectContext,
+/** Looks the credential up and decrypts it for one use (audited as `credential.use` with `purpose`). Also used by services/store-version.ts. */
+export async function connect(
+  ctx: Pick<StoreConnectContext, 'db' | 'masterKey' | 'now'>,
   workspaceId: string,
   app: ManagedApp,
   actor: Actor,

@@ -44,6 +44,7 @@ import { settingsRoutes } from './routes/settings.ts';
 import { type StagedRoutesContext, stagedRoutes } from './routes/staged-changes.ts';
 import { stepUpRoutes } from './routes/step-up.ts';
 import { type ReleaseRoutesContext, storeReleaseRoutes } from './routes/store-release.ts';
+import { storeVersionRoutes, type VersionRoutesContext } from './routes/store-version.ts';
 import { type SubmitRoutesContext, storeSubmitRoutes } from './routes/store-submit.ts';
 import { tokenRoutes } from './routes/tokens.ts';
 import { type WebhookRoutesContext, webhookRoutes } from './routes/webhooks.ts';
@@ -276,6 +277,11 @@ export type AppDeps = {
    * tests. The reads of builds and version codes use the draft connector (`storeDraft.connectorFactory`) and no switch.
    */
   storeRelease?: ReleaseRoutesContext['release'];
+  /**
+   * Creating the next App Store version (docs/api/store-version.md): a reversible store write behind the SAME switch as the draft
+   * push (`storeDraft.enabled`, MRM_STORE_DRAFT_WRITE_ENABLED) and its timeouts. Only `connectorFactory` (fakes in tests) is set here.
+   */
+  storeVersion?: Pick<NonNullable<VersionRoutesContext['version']>, 'connectorFactory'>;
   /**
    * Publishing everything an app has pending in one go (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md): a store write
    * that is OFF unless `enabled` (MRM_STORE_PUBLISH_BATCH_ENABLED). It turns no step on: the steps keep the switches, the fakes and the
@@ -685,6 +691,21 @@ export function createApp(deps: AppDeps) {
       masterKey: services.masterKey,
       now: services.now,
       ...(deps.storeSubmit ? { submit: deps.storeSubmit } : {}),
+    }),
+  );
+  // Creating the next App Store version: a reversible draft write, behind the draft-write switch.
+  app.route(
+    '/api/workspaces',
+    storeVersionRoutes({
+      db: services.db,
+      masterKey: services.masterKey,
+      now: services.now,
+      version: {
+        ...(deps.storeDraft?.enabled !== undefined ? { enabled: deps.storeDraft.enabled } : {}),
+        ...(deps.storeDraft?.timeoutMs !== undefined ? { timeoutMs: deps.storeDraft.timeoutMs } : {}),
+        ...(deps.storeDraft?.claimTtlMs !== undefined ? { claimTtlMs: deps.storeDraft.claimTtlMs } : {}),
+        ...(deps.storeVersion?.connectorFactory ? { connectorFactory: deps.storeVersion.connectorFactory } : {}),
+      },
     }),
   );
   // Releasing: reads of builds and version codes (no switch), and the irreversible step (off unless MRM_STORE_RELEASE_ENABLED).
