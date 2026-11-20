@@ -10,6 +10,8 @@ Design: [ADR 0009](../adr/0009-staged-store-drafts.md), [ADR 0010](../adr/0010-s
 (`release[]` in the view, `PUT .../staged/release-fields`) written by the same push, with `release[]` and `checks` in the preview: see
 [releases-write](releases-write.md) and [ADR 0014](../adr/0014-release-management.md). Releasing is yet another gated step.
 
+Creating the next App Store version, when there is no editable one to push into, is a reversible draft write behind the same switch and right: [store-version](store-version.md), [ADR 0031](../adr/0031-create-app-store-version.md).
+
 **Never run against a real store**: the connectors are tested with fakes only. See
 [below](#unverified-check-with-a-real-account).
 

@@ -401,7 +401,7 @@ Things to settle first:
 - The table `staged_changes` (the staged items, by reference) and `store_draft_claims` (one row while a
   push is in flight) are created by migration 23.
 
-See [adr/0009-staged-store-drafts](adr/0009-staged-store-drafts.md) and [api/staged-changes](api/staged-changes.md).
+See [adr/0009-staged-store-drafts](adr/0009-staged-store-drafts.md) and [api/staged-changes](api/staged-changes.md). The same switch also lets the release stepper create the next App Store version ([api/store-version](api/store-version.md)).
 
 ### Submitting a draft for store review (a store write, off by default)
 
