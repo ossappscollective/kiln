@@ -15,6 +15,7 @@
   import { type Role, isApplePlatform } from '@mrm/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../../lib/api.ts';
+  import { fitToViewport } from '../../../lib/fit-viewport.ts';
   import { readCache } from '../../../lib/read-cache.ts';
   import type { PlatformScope } from '../../../lib/app-scope.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
@@ -284,7 +285,7 @@
   const back = $derived(current === null ? null : neighbour(current, visible, -1));
 </script>
 
-<section class="stepper" aria-label="Prepare release, {platformLabel(app.platform)}" data-testid="release-stepper">
+<section class="stepper" aria-label="Prepare release, {platformLabel(app.platform)}" data-testid="release-stepper" use:fitToViewport={{ margin: 16, min: 420 }}>
   <header class="head">
     <h3>Prepare release{showPlatform ? `: ${platformLabel(app.platform)}` : ''}</h3>
     {#if releaseVersion}<span class="muted">version {releaseVersion}</span>{/if}
@@ -365,7 +366,7 @@
   .stepper {
     display: flex;
     flex-direction: column;
-    max-height: calc(100dvh - 4rem);
+    max-height: calc(100dvh - 4rem); /* until fitToViewport has measured */
     overflow: hidden;
     gap: var(--space-3);
     padding: var(--space-4);
