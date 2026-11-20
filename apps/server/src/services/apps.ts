@@ -650,10 +650,14 @@ type ReleaseInput = {
 };
 
 /**
- * The newest build of the same version string. A heuristic: Apple's link from a version to its
- * build is a separate resource that is not read. Prefers builds the store has processed.
+ * The build of a version. Apple's own link (the build attached to the version) wins; when it is not
+ * known, the newest build of the same version string is a heuristic, preferring processed builds.
  */
 function pickBuild(version: StoreVersion, builds: StoreBuild[]): StoreBuild | undefined {
+  if (version.buildStoreId !== undefined) {
+    const linked = builds.find((b) => b.storeId === version.buildStoreId);
+    if (linked) return linked;
+  }
   const candidates = builds.filter((b) => b.versionString === version.versionString);
   const usable = candidates.filter((b) => b.processing === 'processed' && b.expired !== true);
   const pool = usable.length > 0 ? usable : candidates;
@@ -689,11 +693,16 @@ async function readStore(connector: StoreConnector, app: ManagedApp): Promise<Re
       );
     }
     const builds = await connector.listBuilds(appStoreId);
+    // The build Apple says each version uses; a version created under another name than its build's still gets the right one.
+    const linked = connector.listVersionBuilds
+      ? await connector.listVersionBuilds(appStoreId).catch(() => new Map<string, string>())
+      : new Map<string, string>();
     return {
       appStoreId,
       builds: seenFromAppleBuilds(builds),
       releases: versions.map((v) => {
-        const build = pickBuild(v, builds);
+        const linkedId = linked.get(v.storeId);
+        const build = pickBuild(linkedId ? { ...v, buildStoreId: linkedId } : v, builds);
         return {
           version: v.versionString,
           track: '',

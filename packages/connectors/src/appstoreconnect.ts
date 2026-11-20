@@ -606,6 +606,30 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
   }
 
   /**
+   * Which build each version uses, as Apple links them: `GET /v1/apps/{id}/appStoreVersions?include=build` fills the
+   * `build` relationship of each version. The link is the truth; the build's own pre-release version string is not,
+   * because a version can be created under another name than the build's (build 170 of 3.02.0 attached to 3.1.1).
+   * UNVERIFIED against the live API: an answer Apple rejects gives an empty map, never an error.
+   */
+  async listVersionBuilds(appStoreId: string): Promise<Map<string, string>> {
+    const links = new Map<string, string>();
+    try {
+      const path = `/v1/apps/${enc(appStoreId)}/appStoreVersions?include=build&fields[appStoreVersions]=versionString&limit=${this.#pageSize}`;
+      for await (const item of this.#pages(path, `reading the builds of the versions of app ${appStoreId}`)) {
+        const id = text(item.id);
+        const relationships = isRecord(item.relationships) ? item.relationships : {};
+        const link = isRecord(relationships.build) ? relationships.build : {};
+        const data = isRecord(link.data) ? link.data : undefined;
+        const buildId = data ? text(data.id) : undefined;
+        if (id && buildId) links.set(id, buildId);
+      }
+    } catch (error) {
+      if (!(error instanceof StoreError)) throw error;
+    }
+    return links;
+  }
+
+  /**
    * The builds of an app, newest first, with the marketing version joined in.
    *
    * `GET /v1/apps/{id}/builds` cannot be used for this: Apple's page for it lists only `limit` and

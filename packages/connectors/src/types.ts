@@ -35,6 +35,8 @@ export type StoreVersion = {
    * or deliberately not mapped (never guessed). See `mapAppStoreState`, `mapPlayTrackRelease`.
    */
   lifecycleState?: ReleaseState;
+  /** Apple only: the store id of the build attached to this version, when Apple said (the real link, whatever the build's own version string is). */
+  buildStoreId?: string;
   /** Google Play only: the track (`production`, `beta`, ...) this release is on. */
   track?: string;
   /** Google Play only: the version codes in the release. */
@@ -112,6 +114,11 @@ export interface StoreConnector {
   listApps(options?: ListAppsOptions): Promise<StoreApp[]>;
   listVersions(appStoreId: string): Promise<StoreVersion[]>;
   listBuilds(appStoreId: string): Promise<StoreBuild[]>;
+  /**
+   * Apple only: the build each version really uses (version store id to build store id), from the versions' build link.
+   * Optional (a test double and Google Play lack it); a failure must not fail the sync, so callers fall back to guessing.
+   */
+  listVersionBuilds?(appStoreId: string): Promise<Map<string, string>>;
   /**
    * Reads the localized listing from the store. Read-only. Optional so that a connector without
    * it (a test double) still works; the listing read is then skipped.

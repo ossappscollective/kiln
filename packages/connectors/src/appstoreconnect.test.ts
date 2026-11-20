@@ -744,3 +744,30 @@ test('malformed secrets and keys are invalid_input, and never echo the key', () 
   );
   assert.ok(createPrivateKey(key.privateKey));
 });
+
+test('listVersionBuilds maps each version to the build Apple links to it', async () => {
+  const { fake, connector } = setup();
+  fake.on({
+    method: 'GET',
+    match: '/v1/apps/10746822401/appStoreVersions?include=build&fields[appStoreVersions]=versionString&limit=200',
+    json: {
+      data: [
+        { type: 'appStoreVersions', id: 'v311', relationships: { build: { data: { type: 'builds', id: 'b170' } } } },
+        { type: 'appStoreVersions', id: 'v300', relationships: { build: { data: null } } },
+      ],
+    },
+  });
+  const links = await connector.listVersionBuilds('10746822401');
+  assert.deepEqual([...links], [['v311', 'b170']]);
+});
+
+test('listVersionBuilds gives an empty map when Apple rejects the parameter', async () => {
+  const { fake, connector } = setup();
+  fake.on({
+    method: 'GET',
+    match: '/v1/apps/10746822401/appStoreVersions?include=build&fields[appStoreVersions]=versionString&limit=200',
+    status: 400,
+    json: fx.appleParameterError('include'),
+  });
+  assert.equal((await connector.listVersionBuilds('10746822401')).size, 0);
+});
