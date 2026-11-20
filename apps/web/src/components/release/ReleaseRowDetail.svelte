@@ -15,7 +15,7 @@
   import { runBadge } from '../../lib/ci.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { describeError, storeName } from '../../lib/portfolio.ts';
-  import { dueText, formatTargetDate, rolloutBadge, rolloutHeadline } from '../../lib/release.ts';
+  import { dueText, formatTargetDate, rolloutHeadline } from '../../lib/release.ts';
   import { type PromoteOption, promoteHref } from '../../lib/play-promote.ts';
   import { type ReleaseRow, buildsForRelease } from '../../lib/releases-table.ts';
   import type { AppBuild, AppSummary, PlanDetail } from '../../lib/types.ts';
@@ -54,7 +54,6 @@
   const plan = $derived(row.plan.kind === 'plan' ? row.plan.plan : null);
   const matching = $derived(builds === null ? [] : buildsForRelease(row.release, builds));
   const due = $derived(plan?.targetDate ? dueText(plan.due, plan.released) : null);
-  const rolloutChip = $derived(plan ? rolloutBadge(plan.rollout) : null);
 
   let detail = $state<PlanDetail | null>(null);
   let planProblem = $state('');
@@ -94,6 +93,10 @@
 </script>
 
 <div class="detail">
+  <div class="row wrap actions">
+    <Button variant={promote ? 'secondary' : 'primary'} icon="rocket" href={releaseHref}>Open the release</Button>
+    <Button variant="ghost" icon="pipeline" href={buildsHref}>Builds and CI</Button>
+  </div>
   <div class="grid">
     <section class="part" aria-label="Store">
       <h4>In the store <span class="muted">· {storeName(row.platform)}, read only</span></h4>
@@ -134,7 +137,6 @@
         <p class="chips">
           <Badge tone={row.plan.tone}>{row.plan.label}</Badge>
           {#if due}<Badge tone={due.tone}>{due.text}</Badge>{/if}
-          {#if rolloutChip}<Badge tone={rolloutChip.tone}>{rolloutChip.label}</Badge>{/if}
         </p>
         <dl>
           <div><dt>Target date</dt><dd>{plan.targetDate ? formatTargetDate(plan.targetDate) : 'Not set'}</dd></div>
@@ -199,10 +201,6 @@
     {/if}
   </section>
 
-  <div class="row wrap actions">
-    <Button size="sm" icon="rocket" href={releaseHref}>Open the release</Button>
-    <Button size="sm" variant="ghost" icon="pipeline" href={buildsHref}>Builds and CI</Button>
-  </div>
 </div>
 
 <style>
@@ -239,7 +237,7 @@
     display: grid;
     gap: var(--space-1);
     margin: 0 0 var(--space-3);
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   dl > div {
@@ -266,7 +264,7 @@
 
   .note {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   .promote-line {

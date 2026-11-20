@@ -196,7 +196,7 @@
   }
 
   .small {
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   .count {
@@ -204,7 +204,7 @@
     gap: var(--space-1);
     align-items: center;
     margin: 0;
-    font-size: var(--text-xs);
+    font-size: 0.8125rem;
     color: var(--muted);
   }
 
