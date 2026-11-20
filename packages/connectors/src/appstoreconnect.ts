@@ -326,6 +326,17 @@ function describeAppleFully(details: StoreErrorDetail[]): string {
     .join('; ');
 }
 
+/**
+ * What the person can do about the reasons Apple lists, when we know: the age rating questionnaire (Apple adds questions, and a
+ * version cannot be reviewed until every one is answered) lives in App Information, not in the version.
+ */
+export function appleFixHint(details: StoreErrorDetail[]): string {
+  const text = details.map((d) => `${d.detail ?? ''} ${d.pointer ?? ''}`).join(' ');
+  return /ageRatingDeclarations/i.test(text)
+    ? ' To fix it: in App Store Connect open the app, App Information, Age Rating, answer every question (Apple adds new ones from time to time) and save, then try again.'
+    : '';
+}
+
 /** True for a 400 whose body says a query parameter is wrong (`PARAMETER_ERROR.*`, or a named one). */
 export function isAppleParameterError(error: unknown): boolean {
   return (
@@ -409,7 +420,7 @@ export function appleError(reply: StoreReply, nowMs: number, what: string): Stor
   return new StoreError(
     'appstoreconnect',
     'unexpected',
-    `App Store Connect answered ${what} with HTTP ${status}${fully || summary ? ` (${(fully || summary).slice(0, 1500)})` : ''}.`,
+    `App Store Connect answered ${what} with HTTP ${status}${fully || summary ? ` (${(fully || summary).slice(0, 1500)})` : ''}.${appleFixHint(details)}`,
     status,
     details,
   );

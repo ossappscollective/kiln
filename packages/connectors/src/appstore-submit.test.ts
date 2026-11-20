@@ -426,3 +426,12 @@ test('Apple associatedErrors of a 409 on a version are kept: the kind of resourc
   assert.equal(details[2]?.detail, 'appScreenshotSets: Screenshots are missing');
   assert.ok(!JSON.stringify(details).includes('1234-aaaa'));
 });
+
+test('an age rating reason of Apple comes with what to do about it', async () => {
+  const { appleFixHint } = await import('./appstoreconnect.ts');
+  assert.match(
+    appleFixHint([{ detail: "ageRatingDeclarations: You must provide a value for the attribute 'socialMedia'" }]),
+    /App Information, Age Rating/,
+  );
+  assert.equal(appleFixHint([{ detail: 'something else' }]), '');
+});
