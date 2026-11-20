@@ -5,13 +5,13 @@ import { dbTest } from '@mrm/db/testing';
 import { rgbaPng, rgbPng } from '../../png-test-helpers.ts';
 import { decodePng } from '../../services/png-codec.ts';
 import type { Exchange, ExchangeRequest } from '../../services/safe-fetch.ts';
-import { clearStoreImageCaches } from './store-images.ts';
 import {
   bootStaged,
   type StagedBoot,
   type StagedBootOptions,
   sha256,
 } from '../publish/test-helpers.ts';
+import { clearStoreImageCaches } from './store-images.ts';
 
 /**
  * Two way sync of graphics (docs/api/assets.md, docs/adr/0012-assets-two-way-sync.md): reading the store, the comparison, the

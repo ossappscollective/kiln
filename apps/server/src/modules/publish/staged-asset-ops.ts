@@ -7,15 +7,15 @@ import {
   type StagedChangesView,
   slotKey,
 } from '@mrm/core';
-import { repoSetsOf } from '../listing/asset-diff.ts';
-import { openAssets } from '../listing/asset-repo.ts';
-import { layoutFor, planSet, type Wanted } from '../listing/asset-repo-plan.ts';
-import { stepsToChanges } from '../listing/asset-repo-write.ts';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type ChangeSetView, createFileChangeSet } from '../../services/change-sets.ts';
 import { type FixFailure, fixImage } from '../../services/image-fix.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
+import { repoSetsOf } from '../listing/asset-diff.ts';
+import { openAssets } from '../listing/asset-repo.ts';
+import { layoutFor, planSet, type Wanted } from '../listing/asset-repo-plan.ts';
+import { stepsToChanges } from '../listing/asset-repo-write.ts';
 import { getBlob } from './staged-asset-blobs.ts';
 import { assetSetsOf, loadStagedRows, type StagedContext } from './staged-changes.ts';
 import {

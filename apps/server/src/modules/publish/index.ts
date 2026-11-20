@@ -51,7 +51,10 @@ export const publishModule: ServerModule<PublishDeps> = {
   mount(app, services, deps, shared) {
     const { db, masterKey, now } = services;
     const { rollout, draft, submit, release, version, publish } = deps ?? {};
-    app.route('/api/workspaces', rolloutRoutes({ db, masterKey, now, ...(rollout ? { rollout } : {}) }));
+    app.route(
+      '/api/workspaces',
+      rolloutRoutes({ db, masterKey, now, ...(rollout ? { rollout } : {}) }),
+    );
     // Staging touches the database only (files are read through the asset index, with the budget of the Assets tab).
     app.route(
       '/api/workspaces',
@@ -64,7 +67,10 @@ export const publishModule: ServerModule<PublishDeps> = {
         ...(draft ? { draft } : {}),
       }),
     );
-    app.route('/api/workspaces', storeSubmitRoutes({ db, masterKey, now, ...(submit ? { submit } : {}) }));
+    app.route(
+      '/api/workspaces',
+      storeSubmitRoutes({ db, masterKey, now, ...(submit ? { submit } : {}) }),
+    );
     app.route(
       '/api/workspaces',
       storeVersionRoutes({

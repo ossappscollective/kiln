@@ -14,11 +14,11 @@ import { type ChangeSetView, createFileChangeSet } from '../../services/change-s
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { gitBlobOid } from '../publish/staged-asset-blobs.ts';
-import { getStoreImages, storeImageBytes } from './store-images.ts';
 import { type AssetSyncContext, repoSetsOf } from './asset-diff.ts';
 import { openAssets } from './asset-repo.ts';
 import { layoutFor, planSet, type Wanted } from './asset-repo-plan.ts';
 import { stepsToChanges } from './asset-repo-write.ts';
+import { getStoreImages, storeImageBytes } from './store-images.ts';
 
 /**
  * Pull from the store (docs/adr/0012-assets-two-way-sync.md): the store's current images become a change set for the app's

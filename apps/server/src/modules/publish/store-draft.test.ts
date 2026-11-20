@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { StoreError, StoreRateLimitError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { clearAssetIndexes } from '../listing/asset-repo.ts';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import { clearRepoSnapshots } from '../../services/repo-snapshot.ts';
+import { clearAssetIndexes } from '../listing/asset-repo.ts';
 import {
   ASC_SECRET,
   bootStaged,

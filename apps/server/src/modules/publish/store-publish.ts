@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import { type Platform, supports, versionCodesOf } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import { storeFor } from '../reviews/sync.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { emitEvent } from '../../services/events.ts';
+import { type Failure, failure } from '../../services/repositories.ts';
+import { storeFor } from '../reviews/sync.ts';
 import {
   loadPendingFacts,
   type PendingItem,
@@ -13,7 +14,6 @@ import {
   pendingItemsOf,
   totalsOf,
 } from './pending.ts';
-import { type Failure, failure } from '../../services/repositories.ts';
 import {
   applyDraftPush,
   DRAFT_ENV,

@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { StoreError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
+import { PASSWORD } from '../../testkit.ts';
 import { FakeRolloutStore } from './rollout-test-helpers.ts';
 import { textEntry } from './store-draft-record.ts';
 import type { RolloutConnectorFactory } from './store-rollout.ts';
 import { bootStaged, type StagedBoot } from './test-helpers.ts';
-import { PASSWORD } from '../../testkit.ts';
 
 /**
  * Publishing several steps at once (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md) and the pending view. Everything

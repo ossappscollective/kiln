@@ -19,10 +19,10 @@ import {
   sniffImageFormat,
   validateAssets,
 } from '@mrm/core';
-import { type AssetHandle, isCommitSha, openAssets } from '../listing/asset-repo.ts';
 import type { ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
+import { type AssetHandle, isCommitSha, openAssets } from '../listing/asset-repo.ts';
 import {
   type BlobMediaType,
   deleteUnreferencedBlobs,

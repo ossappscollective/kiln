@@ -21,6 +21,7 @@ import type { AsoSources } from '../modules/aso/net.ts';
 import { type AsoContext, type AsoLimits, addKeywords } from '../modules/aso/service.ts';
 import type { AssetsContext } from '../modules/listing/asset-repo.ts';
 import { normalizeListingValue } from '../modules/listing/drift.ts';
+import { type StagedContext, stageText } from '../modules/publish/staged-changes.ts';
 import {
   getReviewView,
   type ReviewReplyContext,
@@ -71,7 +72,6 @@ import {
 import { getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { emitEvent } from './events.ts';
-import { type StagedContext, stageText } from '../modules/publish/staged-changes.ts';
 
 /**
  * Running AI tasks, and accepting or dismissing what they proposed (docs/adr/0016-ai-foundation.md, docs/api/ai.md).

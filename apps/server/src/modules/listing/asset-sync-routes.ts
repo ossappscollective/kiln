@@ -32,11 +32,11 @@ import {
   type DraftContext,
   defaultDraftConnectorFactory,
 } from '../publish/store-draft.ts';
-import type { StoreImageNet } from './store-image-net.ts';
-import { getStoreImages, storeThumbnail, thumbSizeOf } from './store-images.ts';
 import { buildAssetDiff } from './asset-diff.ts';
 import { pullStoreImages } from './asset-pull.ts';
 import { IMAGE_TYPES, matchesEtag, safeImageHeaders } from './asset-routes.ts';
+import type { StoreImageNet } from './store-image-net.ts';
+import { getStoreImages, storeThumbnail, thumbSizeOf } from './store-images.ts';
 
 /**
  * Two way sync of the app's graphics (docs/api/assets.md, docs/api/staged-changes.md, docs/adr/0012-assets-two-way-sync.md):

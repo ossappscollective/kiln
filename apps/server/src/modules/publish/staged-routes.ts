@@ -7,6 +7,7 @@ import { type AppEnv, parseBody } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure, type RepoContext } from '../../services/repositories.ts';
+import { requireStepUp } from '../../services/step-up.ts';
 import {
   clearStaged,
   getStagedChanges,
@@ -16,7 +17,6 @@ import {
   unstage,
 } from './staged-changes.ts';
 import { stageReleaseField } from './staged-release.ts';
-import { requireStepUp } from '../../services/step-up.ts';
 import {
   applyDraftPush,
   type DraftConnectorFactory,

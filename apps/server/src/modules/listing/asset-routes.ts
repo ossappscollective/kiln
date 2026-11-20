@@ -8,8 +8,8 @@ import type { AppIcons } from '../../services/app-icons.ts';
 import { getApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure, type RepoContext } from '../../services/repositories.ts';
-import { peekStoreImages, storeSideOf } from './store-images.ts';
 import { isCommitSha, openAssets } from './asset-repo.ts';
+import { peekStoreImages, storeSideOf } from './store-images.ts';
 
 export type AssetRoutesContext = {
   db: Database;
