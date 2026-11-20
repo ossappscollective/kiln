@@ -496,6 +496,13 @@ export async function deleteApp(
       input.id,
       input.workspaceId,
     ]);
+    // The cached EAS builds and submissions of the app (modules/eas/status.ts).
+    for (const table of ['eas_builds', 'eas_submissions', 'eas_status_sync']) {
+      await tx.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
+        input.id,
+        input.workspaceId,
+      ]);
+    }
     // In-app products read from the stores and the write claim (modules/monetization).
     for (const table of [
       'store_product_prices',

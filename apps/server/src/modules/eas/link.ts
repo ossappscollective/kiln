@@ -96,6 +96,16 @@ export async function getExpoLink(
   return row ? toView(row) : null;
 }
 
+/**
+ * Deletes the cached EAS builds and submissions of an app record (docs/adr/0036-eas-build-submit-status.md): its link was removed or now
+ * names another project, so the snapshot no longer belongs to it.
+ */
+export async function clearEasStatus(sql: Sql, workspaceId: string, appId: string): Promise<void> {
+  for (const table of ['eas_builds', 'eas_submissions', 'eas_status_sync']) {
+    await sql.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [appId, workspaceId]);
+  }
+}
+
 /** Every link of the workspace (for a feature that walks the linked apps, such as a status sync). Database only. */
 export async function listExpoLinks(sql: Sql, workspaceId: string): Promise<ExpoLinkView[]> {
   const rows = await sql.query(`${SELECT} WHERE l.workspace_id = ? ORDER BY l.created_at, l.app_id`, [
@@ -191,6 +201,10 @@ export async function setExpoLink(
         at,
       ],
     );
+    // Builds and submissions cached for another project are not this project's.
+    if (before && String(before.project_id) !== project.id) {
+      await clearEasStatus(tx, input.workspaceId, app.id);
+    }
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor,
@@ -227,6 +241,7 @@ export async function removeExpoLink(
       input.appId,
       input.workspaceId,
     ]);
+    await clearEasStatus(tx, input.workspaceId, input.appId);
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor,

@@ -203,6 +203,17 @@ const schema = z.object({
       .refine((v) => v === 0 || (v >= 15 && v <= 10_080), 'must be 0 (off) or from 15 to 10080')
       .default(360),
   ),
+  // EAS Build and Submit status (docs/adr/0036-eas-build-submit-status.md): minutes between scheduled reads of the builds and
+  // submissions of every app that is linked to an Expo project. 0 turns them off, otherwise 5 to 10080; the default is 30. A build or
+  // submission still running is read again every three minutes. Only linked apps are ever read, so a workspace without an Expo
+  // credential costs nothing. A person with the right can always read an app by hand.
+  MRM_EAS_STATUS_INTERVAL_MINUTES: blankIsUnset(
+    z.coerce
+      .number()
+      .int()
+      .refine((v) => v === 0 || (v >= 5 && v <= 10_080), 'must be 0 (off) or from 5 to 10080')
+      .default(30),
+  ),
   // Days a stored rank check and competitor snapshot is kept; 0 keeps them for ever.
   MRM_ASO_RETENTION_DAYS: blankIsUnset(
     z.coerce
@@ -622,6 +633,8 @@ export type Config = {
   reviewRetentionDays: number;
   /** Minutes between scheduled analytics syncs of every app; 0 is off (MRM_ANALYTICS_INTERVAL_MINUTES, default 360). */
   analyticsIntervalMinutes: number;
+  /** Minutes between scheduled reads of the EAS builds and submissions of every linked app; 0 is off (MRM_EAS_STATUS_INTERVAL_MINUTES, default 30). */
+  easStatusIntervalMinutes: number;
   /** Minutes between scheduled ASO refreshes of every app; 0 is off (MRM_ASO_INTERVAL_MINUTES). */
   asoIntervalMinutes: number;
   /** Days a stored rank check or competitor snapshot is kept; 0 keeps them (MRM_ASO_RETENTION_DAYS). */
@@ -728,6 +741,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     reviewSyncIntervalMinutes: data.MRM_REVIEW_SYNC_INTERVAL_MINUTES,
     reviewRetentionDays: data.MRM_REVIEW_RETENTION_DAYS,
     analyticsIntervalMinutes: data.MRM_ANALYTICS_INTERVAL_MINUTES,
+    easStatusIntervalMinutes: data.MRM_EAS_STATUS_INTERVAL_MINUTES,
     asoIntervalMinutes: data.MRM_ASO_INTERVAL_MINUTES,
     asoRetentionDays: data.MRM_ASO_RETENTION_DAYS,
     asoPlayUnofficialEnabled: data.MRM_ASO_PLAY_UNOFFICIAL_ENABLED === 'true',

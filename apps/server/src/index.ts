@@ -24,6 +24,11 @@ import {
   createAsoRefreshHandler,
 } from './modules/aso/service.ts';
 import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from './modules/ci/service.ts';
+import {
+  createEasStatusHandler,
+  EAS_STATUS_QUEUE,
+  easStatusIntervalMs,
+} from './modules/eas/status-sync.ts';
 import { EAS_POLL_QUEUE, createEasPollHandler } from './modules/eas/workflows.ts';
 import {
   createListingReadHandler,
@@ -250,6 +255,12 @@ const worker = createWorker({
       timeoutMs: DEFAULT_REVIEW_TIMEOUT_MS,
       translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
     }),
+    // Scheduled reads of the EAS builds and submissions of linked apps (read-only toward Expo; docs/api/eas.md).
+    [EAS_STATUS_QUEUE]: createEasStatusHandler({
+      db: database,
+      masterKey: config.masterKey,
+      now: Date.now,
+    }),
     // Scheduled and background ASO refreshes (public store data only; docs/api/aso.md).
     [ASO_REFRESH_QUEUE]: createAsoRefreshHandler({
       db: database,
@@ -304,6 +315,7 @@ const scheduler = createScheduler({
   reviewSyncIntervalMs: reviewSyncIntervalMs(config.reviewSyncIntervalMinutes),
   reviewRetentionDays: config.reviewRetentionDays,
   analyticsIntervalMs: analyticsIntervalMs(config.analyticsIntervalMinutes),
+  easStatusIntervalMs: easStatusIntervalMs(config.easStatusIntervalMinutes),
   asoIntervalMs: asoLimits.intervalMs,
   asoPlayEnabled: config.asoPlayUnofficialEnabled,
   asoRetentionDays: config.asoRetentionDays,
@@ -348,6 +360,11 @@ if (config.worker === 'inline') {
   if (config.analyticsIntervalMinutes > 0) {
     console.log(
       `Scheduled analytics syncs every ${config.analyticsIntervalMinutes} minutes (read-only; only for workspaces that turn on the setting analytics.enabled)`,
+    );
+  }
+  if (config.easStatusIntervalMinutes > 0) {
+    console.log(
+      `Scheduled EAS status reads every ${config.easStatusIntervalMinutes} minutes (read-only; only apps linked to an Expo project)`,
     );
   }
   if (config.asoIntervalMinutes > 0) {
