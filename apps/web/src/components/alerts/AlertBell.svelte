@@ -30,6 +30,16 @@
     if (open && next && host && !host.contains(next)) open = false;
   }
 
+  // A click or tap anywhere outside the bell and its list closes it (clicking empty page gives no focus change).
+  $effect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (host && event.target instanceof Node && !host.contains(event.target)) open = false;
+    };
+    document.addEventListener('pointerdown', outside, true);
+    return () => document.removeEventListener('pointerdown', outside, true);
+  });
+
   function onkeydown(event: KeyboardEvent) {
     if (open && event.key === 'Escape') {
       event.stopPropagation();
