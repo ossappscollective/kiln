@@ -28,8 +28,7 @@
       aria-invalid={errors.stalledAfterHours ? 'true' : undefined}
     />
     <p class="hint" id="{uid}-after-hint">
-      A release that was started but not finished, for example a build that was never chosen or an approved version nobody released, is
-      shown as “Release left unfinished” after this many hours. 0 turns the reminder off; the release steps are still shown.
+      A started release with no progress, such as an unchosen build or an approved version nobody released, is shown as “Release left unfinished”. 0 turns the reminder off.
     </p>
     {#if errors.stalledAfterHours}<p class="field-error" role="alert">{errors.stalledAfterHours}</p>{/if}
   </div>
@@ -45,7 +44,7 @@
       aria-describedby="{uid}-repeat-hint"
       aria-invalid={errors.stalledRepeatHours ? 'true' : undefined}
     />
-    <p class="hint" id="{uid}-repeat-hint">The same stall is reminded again after this many hours. 0 reminds once and never again.</p>
+    <p class="hint" id="{uid}-repeat-hint">0 reminds once and never again.</p>
     {#if errors.stalledRepeatHours}<p class="field-error" role="alert">{errors.stalledRepeatHours}</p>{/if}
   </div>
 </Card>

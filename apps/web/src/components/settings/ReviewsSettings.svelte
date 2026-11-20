@@ -31,9 +31,7 @@
       <option value="4">4 stars or fewer</option>
     </select>
     <p class="hint" id="{uid}-threshold-hint">
-      New reviews at or below this rating raise the “new low rating” event and are marked Low rating. A change applies from the next
-      sync. Raising it does not send events for reviews that were already read; only reviews first seen from then on, or whose rating
-      changes, count.
+      Reviews at or below this are marked Low rating and raise an alert. A change applies from the next sync, and not to reviews already read.
     </p>
     {#if error}<p class="field-error" role="alert">{error}</p>{/if}
   </div>
@@ -50,7 +48,7 @@
       aria-invalid={errors.unansweredReminderHours ? 'true' : undefined}
     />
     <p class="hint" id="{uid}-reminder-hint">
-      One digest at most this often, when a review has waited this long without an answer. 0 is off, which is the default.
+      One reminder at most this often. 0 is off (the default).
     </p>
     {#if errors.unansweredReminderHours}<p class="field-error" role="alert">{errors.unansweredReminderHours}</p>{/if}
   </div>
@@ -69,7 +67,7 @@
       <option value="4">4 stars or fewer</option>
       <option value="5">5 stars (every review, the default)</option>
     </select>
-    <p class="hint" id="{uid}-maxrating-hint">Only these reviews are counted in the reminder, in the unanswered badge and in the “Show unanswered” list.</p>
+    <p class="hint" id="{uid}-maxrating-hint">Used by the reminder, the unanswered badge and the “Show unanswered” list.</p>
     {#if errors.unansweredMaxRating}<p class="field-error" role="alert">{errors.unansweredMaxRating}</p>{/if}
   </div>
 </Card>

@@ -150,7 +150,7 @@
     title="Mail"
     collapseKey="mail-settings"
     {summary}
-    description="The mail server this instance sends email through: emailed confirmation codes and alerts. Saved here, the password is kept encrypted and is never shown again."
+    description="The mail server that sends confirmation codes and alert emails. Its password is kept encrypted and never shown again."
   >
     {#if loadError}
       <Alert tone="error">{loadError}</Alert>

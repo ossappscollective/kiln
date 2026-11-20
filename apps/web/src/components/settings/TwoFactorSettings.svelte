@@ -175,7 +175,7 @@
   title="Authenticator app and email"
   collapseKey="two-factor"
   summary={status ? twoFactorSummary(status) : undefined}
-  description="Two more ways to confirm a hard action: the six digits an authenticator app shows, or a code sent to your email. On a server with accounts, an owner or admin can also ask for one when people sign in."
+  description="Two more ways to confirm a hard action: the six digits of an authenticator app, or a code sent to your email."
 >
   {#if loadError}
     <Alert tone="error">{loadError}</Alert>

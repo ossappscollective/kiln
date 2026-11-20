@@ -27,9 +27,8 @@
       Read analytics from the stores
     </label>
     <p class="hint" id="{uid}-enabled-hint">
-      Reads impressions, product page views, downloads, crashes and sales from App Store Connect, and crash rates, installs and ratings from Google
-      Play, and keeps them on this server. It only reads; creating the Apple report request is a separate step with a preview and a confirmation,
-      in the Analytics section of an app. Numbers already stored stay readable when this is off, and importing a report file works either way.
+      Reads downloads, page views, crashes and sales from App Store Connect, and installs, crash rates and ratings from Google Play, and keeps them on this
+      server. It only reads. Numbers already stored stay readable when this is off.
     </p>
   </div>
   <div class="field">
@@ -64,14 +63,10 @@
       aria-invalid={errors.analyticsBucketId ? 'true' : undefined}
     />
     <p class="hint" id="{uid}-bucket-hint">
-      The Cloud Storage bucket of the monthly Play Console reports, like pubsite_prod_rev_01234567890123456789 (a gs:// address is accepted). The
-      service account needs read access to it. With it, installs and ratings are read. It is the DEFAULT for every Android app: an app of another
-      Google Play account (each account has its own bucket) sets its own under App settings, and that wins.
+      The Cloud Storage bucket of the monthly Play Console reports, like pubsite_prod_rev_01234567890123456789. The service account needs read access.
+      It is the default for every Android app; an app of another Play account sets its own under App settings.
     </p>
     {#if errors.analyticsBucketId}<p class="field-error" role="alert">{errors.analyticsBucketId}</p>{/if}
   </div>
-  <p class="hint">
-    How often analytics syncs is set by the server (MRM_ANALYTICS_INTERVAL_MINUTES: every 6 hours by default, 0 for never), not here. The Analytics
-    section of an app shows the interval in use and when each source was last read.
-  </p>
+  <p class="hint">How often it syncs is set by the server (MRM_ANALYTICS_INTERVAL_MINUTES, every 6 hours by default), not here.</p>
 </Card>

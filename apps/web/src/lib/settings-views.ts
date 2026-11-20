@@ -78,3 +78,31 @@ export const unsavedViewsNote = (view: SettingsView): string =>
   isFormView(view)
     ? ''
     : 'You have unsaved changes in General or Analytics. They stay until you save or discard them there.';
+
+/** One part of a Settings view the person can jump to: `id` is the element id of its wrapper on the page. */
+export type SettingsSection = { id: string; label: string };
+
+/**
+ * The parts of a view, in the order they are drawn, for the "Jump to" row. Store refresh is the first part of General: it is what makes
+ * alerts work, so it is not buried under the reviews and translation choices. Security keeps every sign-in and confirmation item
+ * together: confirming hard actions (with the recovery codes), the second factor, and the mail server (admins only). A view with fewer
+ * than three parts has no row. Pass `isAdmin` for the mail part.
+ */
+export function settingsSectionsFor(view: SettingsView, isAdmin = false): SettingsSection[] {
+  const list: SettingsSection[] =
+    view === 'general'
+      ? [
+          { id: 'settings-store-refresh', label: 'Store refresh' },
+          { id: 'settings-reviews', label: 'Reviews' },
+          { id: 'settings-releases', label: 'Releases' },
+          { id: 'settings-translation', label: 'Translation' },
+        ]
+      : view === 'security'
+        ? [
+            { id: 'settings-confirm', label: 'Confirm hard actions' },
+            { id: 'settings-second-factor', label: 'Authenticator and email' },
+            ...(isAdmin ? [{ id: 'settings-mail', label: 'Mail server' }] : []),
+          ]
+        : [];
+  return list.length >= 3 ? list : [];
+}

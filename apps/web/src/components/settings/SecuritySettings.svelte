@@ -182,7 +182,7 @@
     });
 </script>
 
-<Card title="Security: confirm hard actions" collapseKey="security" description="Ask for a passkey or a password again before publishing, submitting, releasing, changing a rollout, turning on Apple analytics, deleting a credential or switching a feature on.">
+<Card title="Security: confirm hard actions" collapseKey="security" description="Ask for a passkey or password again before anything that cannot be undone: publishing, releasing, changing a rollout, deleting a credential.">
   {#if loadError}
     <Alert tone="error">{loadError}</Alert>
     <p><Button onclick={load}>Try again</Button></p>

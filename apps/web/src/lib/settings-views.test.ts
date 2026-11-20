@@ -4,6 +4,7 @@ import { can, roles } from '@mrm/core';
 import {
   isFormView,
   resolveSettingsView,
+  settingsSectionsFor,
   settingsViewOf,
   settingsViews,
   settingsViewsFor,
@@ -69,4 +70,25 @@ test('Save settings belongs to the form views; the others warn about unsaved cha
   assert.equal(isFormView('ai'), false);
   assert.equal(unsavedViewsNote('general'), '');
   assert.notEqual(unsavedViewsNote('ai'), '');
+});
+
+test('General lists Store refresh first, then the other parts in the order they are drawn', () => {
+  assert.deepEqual(
+    settingsSectionsFor('general').map((s) => s.label),
+    ['Store refresh', 'Reviews', 'Releases', 'Translation'],
+  );
+});
+
+test('Security keeps confirmation, the second factor and (for admins) mail together', () => {
+  assert.deepEqual(settingsSectionsFor('security'), [], 'two parts need no jump row');
+  assert.deepEqual(settingsSectionsFor('security', true).map((s) => s.label), [
+    'Confirm hard actions',
+    'Authenticator and email',
+    'Mail server',
+  ]);
+});
+
+test('views with fewer than three parts have no jump row', () => {
+  assert.deepEqual(settingsSectionsFor('analytics'), []);
+  assert.deepEqual(settingsSectionsFor('ai'), []);
 });

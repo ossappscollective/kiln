@@ -25,11 +25,12 @@
     settingsErrorMessage,
     validateForm,
   } from '../lib/settings.ts';
-  import { isFormView, resolveSettingsView, settingsViewsFor, unsavedViewsNote, withSettingsView } from '../lib/settings-views.ts';
+  import { isFormView, resolveSettingsView, settingsSectionsFor, settingsViewsFor, unsavedViewsNote, withSettingsView } from '../lib/settings-views.ts';
   import { confirmed } from '../lib/step-up-prompt.svelte.ts';
   import { toast } from '../lib/toast.svelte.ts';
   import CredentialForm from './credentials/CredentialForm.svelte';
   import AnalyticsSettings from './settings/AnalyticsSettings.svelte';
+  import JumpTo from './settings/JumpTo.svelte';
   import ReleaseSettings from './settings/ReleaseSettings.svelte';
   import SyncSettings from './settings/SyncSettings.svelte';
   import AiSettings from './settings/AiSettings.svelte';
@@ -57,6 +58,8 @@
   const allowed = (action: Parameters<typeof can>[1]) => can(role, action);
   const views = $derived(settingsViewsFor(allowed));
   const view = $derived(resolveSettingsView(address.hash, allowed));
+  /** Mail is the server's: owners and admins see it, so only they have it in the jump row. */
+  const sections = $derived(settingsSectionsFor(view, editable));
 
   let data = $state<SettingsResponse | null>(null);
   let form = $state<SettingsForm | null>(null);
@@ -154,12 +157,13 @@
 </script>
 
 <section>
-  <PageHeader title="Settings" description="How this workspace reads and translates customer reviews, when it reminds you, how people sign in and confirm, and which AI it may use." />
+  <PageHeader title="Settings" description="Choices for the whole workspace: store refresh, reminders, translation, security and AI." />
 
   <div class="row bar">
     <ViewSwitch {views} value={view} hrefFor={(id) => withSettingsView(address.hash, id)} label="Settings views" />
     <SectionsToggle />
   </div>
+  <JumpTo {sections} label="Parts of {view} settings" />
 
   {#if !canRead}
     <Alert tone="info">Your role does not include workspace settings. Members, admins and owners can see them.</Alert>
@@ -180,35 +184,46 @@
     {:else}
     <form class="settings" onsubmit={save} novalidate>
       {#if view === 'general'}
-        <ReviewsSettings
-          bind:form
-          editable={editable && data.writable.indexOf('reviews.lowRatingThreshold') >= 0}
-          error={errors.lowRatingThreshold}
-          {errors}
-          writable={editable ? data.writable : []}
-        />
-        <SyncSettings bind:form {editable} {errors} writable={data.writable} sync={data.sync} />
-        <ReleaseSettings bind:form {editable} {errors} writable={data.writable} />
-        <TranslationSettings
-          bind:form
-          {errors}
-          {editable}
-          {data}
-          {canManageCredentials}
-          {dirty}
-          {testing}
-          {outcome}
-          ontest={test}
-          onaddcredential={() => (addingCredential = true)}
-        />
+        <div id="settings-store-refresh" class="part" tabindex="-1">
+          <SyncSettings bind:form {editable} {errors} writable={data.writable} sync={data.sync} />
+        </div>
+        <div id="settings-reviews" class="part" tabindex="-1">
+          <ReviewsSettings
+            bind:form
+            editable={editable && data.writable.indexOf('reviews.lowRatingThreshold') >= 0}
+            error={errors.lowRatingThreshold}
+            {errors}
+            writable={editable ? data.writable : []}
+          />
+        </div>
+        <div id="settings-releases" class="part" tabindex="-1">
+          <ReleaseSettings bind:form {editable} {errors} writable={data.writable} />
+        </div>
+        <div id="settings-translation" class="part" tabindex="-1">
+          <TranslationSettings
+            bind:form
+            {errors}
+            {editable}
+            {data}
+            {canManageCredentials}
+            {dirty}
+            {testing}
+            {outcome}
+            ontest={test}
+            onaddcredential={() => (addingCredential = true)}
+          />
+        </div>
       {:else}
         <AnalyticsSettings bind:form {editable} {errors} writable={editable ? data.writable : []} />
       {/if}
       {#if saveError}<Alert tone="error">{saveError}</Alert>{/if}
       {#if editable}
-        <div class="row">
-          <Button type="submit" variant="primary" loading={saving} disabled={!dirty}>Save settings</Button>
-          <Button disabled={!dirty || saving} onclick={revert}>Discard changes</Button>
+        <div class="savebar" class:pending={dirty}>
+          <p class="state" role="status">{dirty ? 'You have unsaved changes.' : 'All changes are saved.'}</p>
+          <div class="row">
+            <Button disabled={!dirty || saving} onclick={revert}>Discard</Button>
+            <Button type="submit" variant="primary" loading={saving} disabled={!dirty}>Save settings</Button>
+          </div>
         </div>
       {/if}
     </form>
@@ -220,10 +235,10 @@
       <div class="ai"><Alert tone="info">{unsavedViewsNote(view)} <a href={withSettingsView(address.hash, 'general')}>Go to General</a>.</Alert></div>
     {/if}
     {#if view === 'security' && canRead}
-      <div class="ai">
-        <SecuritySettings {api} {workspaceId} {role} />
-        <TwoFactorSettings {api} {workspaceId} {role} />
-        <MailSettings {api} {workspaceId} {role} />
+      <div class="ai stack loose">
+        <div id="settings-confirm" class="part" tabindex="-1"><SecuritySettings {api} {workspaceId} {role} /></div>
+        <div id="settings-second-factor" class="part" tabindex="-1"><TwoFactorSettings {api} {workspaceId} {role} /></div>
+        {#if editable}<div id="settings-mail" class="part" tabindex="-1"><MailSettings {api} {workspaceId} {role} /></div>{/if}
       </div>
     {:else if view === 'ai'}
       {#if canAi}
@@ -246,6 +261,45 @@
   .ai {
     max-width: 48rem;
     margin-top: var(--space-5);
+  }
+
+  .part {
+    scroll-margin-top: var(--space-4);
+  }
+
+  .part:focus {
+    outline: none;
+  }
+
+  /* The save bar stays at the bottom of the visible part, so a long form never hides it. */
+  .savebar {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm, 0 1px 2px rgb(0 0 0 / 8%));
+  }
+
+  .savebar.pending {
+    border-color: var(--accent, var(--line));
+  }
+
+  .state {
+    margin: 0;
+    font-size: 0.9375rem;
+    color: var(--muted);
+  }
+
+  .pending .state {
+    color: var(--ink);
   }
 
   .settings {
