@@ -164,7 +164,11 @@ export interface StoreReleaseReader {
   readonly store: StoreName;
   readonly platform: Platform;
   /** App Store: the builds of the app for this platform. Google Play: the uploaded version codes (and where a track uses them). */
-  listReleaseCandidates(input: { version?: string; track?: string }): Promise<ReleaseCandidates>;
+  listReleaseCandidates(input: {
+    version?: string;
+    track?: string;
+    limit?: number;
+  }): Promise<ReleaseCandidates>;
   /** The release fields of the editable App Store version, or of the draft release of a Google Play track. */
   readEditableRelease(input: { track?: string }): Promise<EditableRelease>;
 }

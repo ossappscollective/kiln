@@ -305,8 +305,18 @@ test('App Store: listReleaseCandidates lists the builds of this platform with pr
   assert.match(decodeURIComponent(query), /filter\[app\]=10746822401/);
   assert.match(decodeURIComponent(query), /filter\[preReleaseVersion\.platform\]=IOS/);
   assert.equal(api.writes().length, 0);
-  const only = await connector.listReleaseCandidates({ version: '2.0' });
-  assert.deepEqual(only.store === 'appstoreconnect' ? only.builds.map((b) => b.id) : [], ['b-old']);
+  // Only the newest ten are asked for, and the version is no filter: a build made as another version can be attached.
+  assert.match(decodeURIComponent(query), /limit=10(&|$)/);
+  assert.doesNotMatch(decodeURIComponent(query), /preReleaseVersion\.version/);
+  const other = await connector.listReleaseCandidates({ version: '2.0', limit: 3 });
+  assert.deepEqual(
+    other.store === 'appstoreconnect' ? other.builds.map((b) => b.id) : [],
+    ['b-1', 'b-2', 'b-3', 'b-old'],
+  );
+  assert.match(
+    decodeURIComponent(api.seen.filter((s) => s.path === '/v1/builds').at(-1)?.query ?? ''),
+    /limit=3(&|$)/,
+  );
 });
 
 test('macOS: only the Mac builds are listed, and the Mac version is the one read', async () => {

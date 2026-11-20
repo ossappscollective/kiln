@@ -153,6 +153,7 @@ export type AppleDraftConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
 };
 
 const DEFAULT_BASE = 'https://api.appstoreconnect.apple.com';
+const DEFAULT_BUILD_CANDIDATES = 10;
 const MAX_ERROR_DETAILS = 5;
 const MAX_SET_FILES = 10;
 /** An upload URL is only used when it is an https address of Apple's. */
@@ -998,9 +999,16 @@ export class AppleDraftConnector
    * the pre release version Apple includes, so a Mac build never shows in an iOS list even if a filter is ignored.
    */
   async listReleaseCandidates(input: {
+    /** Not a filter: a build made as another marketing version can be attached too (see release-eligibility.ts). */
     version?: string;
     track?: string;
+    /** How many of the newest builds to read (default 10, at most 200): one small page is quick. */
+    limit?: number;
   }): Promise<ReleaseCandidates> {
+    const pageLimit = Math.min(
+      200,
+      Math.max(1, Math.trunc(Number.isFinite(input.limit) ? (input.limit as number) : DEFAULT_BUILD_CANDIDATES)),
+    );
     let editable: VersionRef | undefined;
     try {
       editable = await this.#editableVersion();
@@ -1015,21 +1023,18 @@ export class AppleDraftConnector
       [
         `filter[app]=${enc(this.#appId)}`,
         `filter[preReleaseVersion.platform]=${this.#apple}`,
-        ...(input.version !== undefined && input.version !== ''
-          ? [`filter[preReleaseVersion.version]=${enc(input.version)}`]
-          : []),
         'include=preReleaseVersion',
         'sort=-uploadedDate',
         `fields[builds]=version,uploadedDate,processingState,expired,preReleaseVersion${withCompliance ? ',usesNonExemptEncryption' : ''}`,
         'fields[preReleaseVersions]=version,platform',
-        'limit=200',
+        `limit=${pageLimit}`,
       ].join('&');
     let url: string | undefined = `${this.#base}/v1/builds?${queryOf(true)}`;
     let withCompliance = true;
     const builds: BuildCandidate[] = [];
     let truncatedAt: number | null = null;
     for (let page = 0; url !== undefined; page++) {
-      if (page >= Math.min(this.#maxPages, 2)) {
+      if (page >= 1) {
         truncatedAt = builds.length;
         break;
       }
@@ -1059,13 +1064,6 @@ export class AppleDraftConnector
         const platform = preAttrs ? text(preAttrs.platform) : undefined;
         if (platform !== undefined && platform !== this.#apple) continue;
         const version = preAttrs ? (text(preAttrs.version) ?? null) : null;
-        if (
-          input.version !== undefined &&
-          input.version !== '' &&
-          version !== null &&
-          version !== input.version
-        )
-          continue;
         const processingState = text(a.processingState) ?? null;
         const expired = typeof a.expired === 'boolean' ? a.expired : null;
         const ready = processingState === 'VALID' && expired !== true;
