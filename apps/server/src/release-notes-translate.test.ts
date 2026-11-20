@@ -102,10 +102,13 @@ dbTest(
     await t.enableMachine();
     await t.call(t.owner, 'PUT', '/settings', { 'translation.dailyCharBudget': TEXT.length + 10 });
     const res = await t.post(body('machine'));
-    // The first language fits, the second does not: the answer keeps the first and says why the second has no text.
+    // One language fits, the other does not: the answer keeps the one and says why the other has no text. The languages are
+    // translated by parallel workers, so which one fits first is not fixed.
     assert.equal(res.status, 200, res.text);
-    assert.deepEqual(Object.keys(res.body.texts), ['de-DE']);
-    assert.match(res.body.failed['fr-FR'], /daily translation budget/);
+    const kept = Object.keys(res.body.texts);
+    assert.equal(kept.length, 1, kept.join(','));
+    const lost = kept[0] === 'de-DE' ? 'fr-FR' : 'de-DE';
+    assert.match(res.body.failed[lost], /daily translation budget/);
     const again = await t.post(body('machine'));
     assert.equal(again.status, 429);
     assert.equal(again.body.error, 'translation_budget');

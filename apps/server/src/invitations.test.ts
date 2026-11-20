@@ -147,7 +147,10 @@ dbTest('single use under concurrency: exactly one accept wins', async (db) => {
   // Exactly one wins. A loser is told the link is no longer valid (404), or, when it ran after the winner made the account but before
   // the invitation was marked used, that the account exists (409). Either way nothing was created: the counts below prove it.
   assert.equal(statuses.filter((s) => s === 201).length, 1);
-  assert.ok(statuses.filter((s) => s !== 201).every((s) => s === 404 || s === 409), statuses.join(','));
+  assert.ok(
+    statuses.filter((s) => s !== 201).every((s) => s === 404 || s === 409),
+    statuses.join(','),
+  );
   const [users] = await db.query("SELECT COUNT(*) AS n FROM users WHERE email = 'bob@example.com'");
   assert.equal(Number(users?.n), 1);
   const [members] = await db.query(
