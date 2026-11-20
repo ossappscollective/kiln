@@ -18,6 +18,7 @@
   import { dueText, formatTargetDate, rolloutHeadline } from '../../lib/release.ts';
   import { type PromoteOption, promoteHref } from '../../lib/play-promote.ts';
   import { type ReleaseRow, buildsForRelease } from '../../lib/releases-table.ts';
+  import { PLANS_ENABLED } from '../../lib/features.ts';
   import type { AppBuild, AppSummary, PlanDetail } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -49,9 +50,9 @@
     promote?: PromoteOption | null;
   } = $props();
 
-  const canReadPlans = $derived(can(role, 'plans.read'));
+  const canReadPlans = $derived(PLANS_ENABLED && can(role, 'plans.read'));
   const canWrite = $derived(can(role, 'plans.write'));
-  const plan = $derived(row.plan.kind === 'plan' ? row.plan.plan : null);
+  const plan = $derived(PLANS_ENABLED && row.plan.kind === 'plan' ? row.plan.plan : null);
   const matching = $derived(builds === null ? [] : buildsForRelease(row.release, builds));
   const due = $derived(plan?.targetDate ? dueText(plan.due, plan.released) : null);
 
@@ -128,6 +129,7 @@
       {/if}
     </section>
 
+    {#if PLANS_ENABLED}
     <section class="part" aria-label="Plan">
       <h4>Plan <span class="muted">· our own planning data</span></h4>
       {#if plan === null}
@@ -147,6 +149,7 @@
         {#if row.plan.kind === 'plan' && row.plan.viaApp}<p class="muted note">This plan is on the other platform's app and covers both.</p>{/if}
       {/if}
     </section>
+    {/if}
   </div>
 
   {#if plan !== null && canReadPlans}

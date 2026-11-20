@@ -32,6 +32,7 @@
   } from '../../lib/releases-table.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { AppBuild, AppSummary, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
+  import { PLANS_ENABLED } from '../../lib/features.ts';
   import ReleaseTable from '../release/ReleaseTable.svelte';
   import NextStep from './NextStep.svelte';
   import ReleaseStepper from '../release/stepper/ReleaseStepper.svelte';
@@ -62,7 +63,7 @@
     syncRuns: number;
   } = $props();
 
-  const canReadPlans = $derived(can(role, 'plans.read'));
+  const canReadPlans = $derived(PLANS_ENABLED && can(role, 'plans.read'));
 
   let plans = $state<Record<string, PlanSummary[] | undefined>>({});
   let plansOk = $state(false);
@@ -216,7 +217,7 @@
           </label>
           <InfoTip label="About this list" align="end">
             <p>
-              Shown here: the newest release of each platform, what is live now, what is not live yet, and what has a plan.
+              Shown here: the newest release of each platform, what is live now, what is not live yet{PLANS_ENABLED ? ', and what has a plan' : ''}.
               Everything else is under Older releases.
             </p>
             <p>

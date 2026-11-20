@@ -38,6 +38,7 @@
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import RunningNow from '../ci/RunningNow.svelte';
   import AnalyticsStrip from '../analytics/AnalyticsStrip.svelte';
+  import { PLANS_ENABLED } from '../../lib/features.ts';
   import AttentionList from './AttentionList.svelte';
   import NextStep from './NextStep.svelte';
 
@@ -148,7 +149,7 @@
             .catch(ignore),
         );
       }
-      if (can(role, 'plans.read')) {
+      if (PLANS_ENABLED && can(role, 'plans.read')) {
         jobs.push(
           api
             .appPlans(workspaceId, app.id)

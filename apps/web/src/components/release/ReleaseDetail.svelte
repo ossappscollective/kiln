@@ -28,6 +28,7 @@
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import Checklist from './Checklist.svelte';
+  import { PLANS_ENABLED } from '../../lib/features.ts';
   import NewPlan from './NewPlan.svelte';
   import PlanOverview from './PlanOverview.svelte';
   import PlatformPanel from './PlatformPanel.svelte';
@@ -39,7 +40,7 @@
   /** Back to the app's Releases tab, keeping the platform scope that is in the address. */
   const backHref = $derived(appAddress(appId, 'releases', address.platform));
 
-  const canReadPlans = $derived(can(role, 'plans.read'));
+  const canReadPlans = $derived(PLANS_ENABLED && can(role, 'plans.read'));
   const canWrite = $derived(can(role, 'plans.write'));
 
   let app = $state<AppSummary | null>(null);
@@ -233,7 +234,7 @@
     <div class="release-head">
       <AppIcon name={app.name} url={app.iconUrl} platform={app.platform} seed={app.id} size="lg" />
       <div class="release-head-main">
-    <PageHeader title="{app.name} {version}" description="Where this version is on each platform, and the plan for getting it out." />
+    <PageHeader title="{app.name} {version}" description={PLANS_ENABLED ? 'Where this version is on each platform, and the plan for getting it out.' : 'Where this version is on each platform.'} />
       </div>
     </div>
 
@@ -271,7 +272,9 @@
         </p>
       {/if}
 
-      {#if !canReadPlans}
+      {#if !PLANS_ENABLED}
+        <!-- Release plans are switched off (lib/features.ts). -->
+      {:else if !canReadPlans}
         <Alert tone="info">Your role does not include release plans.</Alert>
       {:else if plansProblem}
         <Alert tone="error" title="Could not load the plan">{plansProblem}</Alert>

@@ -17,6 +17,7 @@
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { VersionGroup } from '../../lib/releases-table.ts';
   import type { AppBuild, AppSummary } from '../../lib/types.ts';
+  import { PLANS_ENABLED } from '../../lib/features.ts';
   import ReleaseRowDetail from './ReleaseRowDetail.svelte';
   import ReleaseStatus from '../portfolio/ReleaseStatus.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -46,7 +47,7 @@
   } = $props();
 
   const uid = $props.id();
-  const columns = 9;
+  const columns = PLANS_ENABLED ? 9 : 8;
 
   const canPrepare = $derived(can(role, 'listing.read'));
   let open = $state<Set<string>>(new Set());
@@ -74,7 +75,7 @@
         <th scope="col" class="num">Rollout</th>
         <th scope="col" title="The day of the build upload (App Store). Google Play gives no date: then the day this server first saw the release.">Date</th>
         <th scope="col">CI</th>
-        <th scope="col">Plan</th>
+        {#if PLANS_ENABLED}<th scope="col">Plan</th>{/if}
       </tr>
     </thead>
     {#each groups as group (group.version)}
@@ -137,13 +138,15 @@
                 <span title={row.ci.title}><Badge tone={row.ci.tone} dot={row.ci.dot}>{row.ci.label}</Badge></span>
               {/if}
             </td>
-            <td>
-              {#if row.plan.kind === 'plan'}
-                <span title={row.plan.title}><Badge tone={row.plan.tone}>{row.plan.label}</Badge></span>
-              {:else}
-                <span class="muted" title={row.plan.title}>{row.plan.label}</span>
-              {/if}
-            </td>
+            {#if PLANS_ENABLED}
+              <td>
+                {#if row.plan.kind === 'plan'}
+                  <span title={row.plan.title}><Badge tone={row.plan.tone}>{row.plan.label}</Badge></span>
+                {:else}
+                  <span class="muted" title={row.plan.title}>{row.plan.label}</span>
+                {/if}
+              </td>
+            {/if}
           </tr>
           {#if isOpen && app}
             <tr class="detail-row" id="{uid}-{row.key}">
