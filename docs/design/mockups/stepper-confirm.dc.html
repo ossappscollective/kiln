@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Prepare release: Confirm step</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1B1F27}
+a{color:#2B3CB8}a:hover{color:#1F2C8C}
+</style>
+</helmet>
+<div style="width:1240px;height:780px;box-sizing:border-box;background:#F6F7F9;padding:28px 32px;display:flex;flex-direction:column;gap:18px">
+  <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:#5B6472">
+    <span>Demo Weather</span><span>/</span><span>Releases</span><span>/</span><span style="color:#1B1F27;font-weight:600">Prepare 2.9.0</span>
+    <span style="display:inline-flex;align-items:center;gap:6px;background:#E3F0FB;color:#0B5A8F;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600;margin-left:6px">iOS</span>
+    <span style="flex:1"></span>
+    <button style="font:inherit;font-size:14px;background:none;border:0;color:#2B3CB8;cursor:pointer">Close</button>
+  </div>
+
+  <div style="flex:1;min-height:0;display:flex;background:#fff;border:1px solid #E2E5EA;border-radius:14px;overflow:hidden">
+    <nav aria-label="Steps" style="width:268px;box-sizing:border-box;border-right:1px solid #E2E5EA;padding:22px 16px;display:flex;flex-direction:column;gap:6px;background:#FBFBFC">
+      <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5B6472;margin:0 8px 8px">Steps</div>
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px">
+        <span style="width:24px;height:24px;border-radius:50%;background:#DDF1E3;display:flex;align-items:center;justify-content:center;flex:none"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7" fill="none" stroke="#1F7A3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <div><div style="font-weight:600;font-size:15px">Build</div><div style="font-size:13px;color:#5B6472">Build 413 attached</div></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px">
+        <span style="width:24px;height:24px;border-radius:50%;background:#DDF1E3;display:flex;align-items:center;justify-content:center;flex:none"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7" fill="none" stroke="#1F7A3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <div><div style="font-weight:600;font-size:15px">Notes</div><div style="font-size:13px;color:#5B6472">6 languages have notes</div></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px">
+        <span style="width:24px;height:24px;border-radius:50%;border:2px dashed #9AA3B2;box-sizing:border-box;flex:none"></span>
+        <div><div style="font-weight:600;font-size:15px">Assets</div><div style="font-size:13px;color:#5B6472">Optional, nothing staged</div></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px">
+        <span style="width:24px;height:24px;border-radius:50%;background:#DDF1E3;display:flex;align-items:center;justify-content:center;flex:none"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7" fill="none" stroke="#1F7A3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <div><div style="font-weight:600;font-size:15px">Review</div><div style="font-size:13px;color:#5B6472">1 staged change</div></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:10px;background:#EEF0FD;border:1px solid #C9D0F6">
+        <span style="width:24px;height:24px;border-radius:50%;background:#3347D4;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none">5</span>
+        <div><div style="font-weight:700;font-size:15px">Confirm</div><div style="font-size:13px;color:#5B6472">Last step. Nothing is sent before it.</div></div>
+      </div>
+    </nav>
+
+    <section style="flex:1;min-width:0;display:flex;flex-direction:column">
+      <div style="flex:1;min-height:0;overflow:auto;padding:28px 36px;display:flex;flex-direction:column;gap:20px">
+        <div>
+          <h2 style="margin:0;font-size:26px;line-height:1.2">Publish 2 steps to the App Store</h2>
+          <p style="margin:8px 0 0;font-size:16px;color:#3B4351">They run in this order and stop at the first one that fails.</p>
+        </div>
+
+        <ol style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px">
+          <li style="display:flex;gap:16px;align-items:flex-start;padding:16px 18px;border:1px solid #D5D9E0;border-radius:12px">
+            <span style="width:28px;height:28px;border-radius:50%;background:#EEF0F4;color:#1B1F27;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none">1</span>
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:17px">Push the staged change to the store draft</div>
+              <div style="font-size:15px;color:#3B4351;margin-top:2px">1 text change, version 2.9.0</div>
+            </div>
+            <span style="font-size:14px;color:#5B6472;white-space:nowrap">Can be changed again</span>
+          </li>
+          <li style="display:flex;gap:16px;align-items:flex-start;padding:16px 18px;border:1px solid #D5D9E0;border-radius:12px">
+            <span style="width:28px;height:28px;border-radius:50%;background:#EEF0F4;color:#1B1F27;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none">2</span>
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:17px">Release the approved version</div>
+              <div style="font-size:15px;color:#3B4351;margin-top:2px">Version 2.9.0, as a phased release over 7 days</div>
+            </div>
+            <span style="background:#FFF1E0;color:#8A4B00;border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700;white-space:nowrap">Cannot be undone from here</span>
+          </li>
+        </ol>
+
+        <div style="font-size:14px;color:#5B6472;display:flex;gap:18px;flex-wrap:wrap">
+          <a href="#">Details of each step</a>
+          <a href="#">Do just one step (advanced)</a>
+        </div>
+      </div>
+
+      <footer style="display:flex;align-items:center;gap:14px;padding:16px 36px;border-top:1px solid #E2E5EA;background:#fff">
+        <button style="font:inherit;font-size:15px;padding:11px 20px;border-radius:10px;border:1px solid #D5D9E0;background:#fff;color:#1B1F27">Back</button>
+        <span style="font-size:14px;color:#5B6472">Step 5 of 5</span>
+        <span style="flex:1"></span>
+        <span style="font-size:14px;color:#5B6472">You confirm with your password or passkey next.</span>
+        <button style="font:inherit;font-size:15px;font-weight:700;padding:11px 28px;border-radius:10px;border:0;background:#3347D4;color:#fff">Review and publish</button>
+      </footer>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":780}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

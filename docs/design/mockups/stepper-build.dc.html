@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Prepare release: Build step</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1B1F27}
+a{color:#2B3CB8}a:hover{color:#1F2C8C}
+</style>
+</helmet>
+<div style="width:1240px;height:780px;box-sizing:border-box;background:#F6F7F9;padding:28px 32px;display:flex;flex-direction:column;gap:18px">
+  <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:#5B6472">
+    <span>Demo Weather</span><span>/</span><span>Releases</span><span>/</span><span style="color:#1B1F27;font-weight:600">Prepare 2.9.0</span>
+    <span style="display:inline-flex;align-items:center;gap:6px;background:#E3F0FB;color:#0B5A8F;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600;margin-left:6px">iOS</span>
+    <span style="flex:1"></span>
+    <button style="font:inherit;font-size:14px;background:none;border:0;color:#2B3CB8;cursor:pointer">Close</button>
+  </div>
+
+  <div style="flex:1;min-height:0;display:flex;background:#fff;border:1px solid #E2E5EA;border-radius:14px;overflow:hidden">
+    <nav aria-label="Steps" style="width:268px;box-sizing:border-box;border-right:1px solid #E2E5EA;padding:22px 16px;display:flex;flex-direction:column;gap:6px;background:#FBFBFC">
+      <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5B6472;margin:0 8px 8px">Steps</div>
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:10px;background:#EEF0FD;border:1px solid #C9D0F6">
+        <span style="width:24px;height:24px;border-radius:50%;background:#3347D4;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none">1</span>
+        <div><div style="font-weight:700;font-size:15px">Build</div><div style="font-size:13px;color:#5B6472">Build 413 attached</div></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px">
+        <span style="width:24px;height:24px;border-radius:50%;background:#DDF1E3;color:#1F7A3D;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7" fill="none" stroke="#1F7A3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <div><div style="font-weight:600;font-size:15px">Notes</div><div style="font-size:13px;color:#5B6472">6 languages have notes</div></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px">
+        <span style="width:24px;height:24px;border-radius:50%;border:2px dashed #9AA3B2;box-sizing:border-box;flex:none"></span>
+        <div><div style="font-weight:600;font-size:15px">Assets</div><div style="font-size:13px;color:#5B6472">Optional, nothing staged</div></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px">
+        <span style="width:24px;height:24px;border-radius:50%;background:#DDF1E3;display:flex;align-items:center;justify-content:center;flex:none"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7" fill="none" stroke="#1F7A3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <div><div style="font-weight:600;font-size:15px">Review</div><div style="font-size:13px;color:#5B6472">1 staged change</div></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px">
+        <span style="width:24px;height:24px;border-radius:50%;border:2px solid #9AA3B2;box-sizing:border-box;flex:none"></span>
+        <div><div style="font-weight:600;font-size:15px">Confirm</div><div style="font-size:13px;color:#5B6472">Last step. Nothing is sent before it.</div></div>
+      </div>
+    </nav>
+
+    <section style="flex:1;min-width:0;display:flex;flex-direction:column">
+      <div style="flex:1;min-height:0;overflow:auto;padding:28px 36px;display:flex;flex-direction:column;gap:18px">
+        <div>
+          <h2 style="margin:0;font-size:26px;line-height:1.2">Choose the build for 2.9.0</h2>
+          <p style="margin:8px 0 0;font-size:16px;color:#3B4351">Build 413 is already attached, so you can go straight to the next step.</p>
+        </div>
+
+        <div role="radiogroup" aria-label="Builds" style="display:flex;flex-direction:column;gap:10px">
+          <label style="display:flex;align-items:center;gap:16px;padding:14px 18px;border:2px solid #3347D4;border-radius:12px;background:#F7F8FF">
+            <input type="radio" name="b" checked style="width:18px;height:18px;margin:0">
+            <span style="font-weight:700;font-size:17px;width:100px">Build 413</span>
+            <span style="font-size:15px;color:#3B4351;width:110px">version 2.9.0</span>
+            <span style="font-size:15px;color:#5B6472;flex:1">Uploaded Nov 16, 22:12</span>
+            <span style="background:#DDF1E3;color:#1B6B36;border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700">Attached</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:16px;padding:14px 18px;border:1px solid #D5D9E0;border-radius:12px">
+            <input type="radio" name="b" style="width:18px;height:18px;margin:0">
+            <span style="font-weight:600;font-size:17px;width:100px">Build 412</span>
+            <span style="font-size:15px;color:#3B4351;width:110px">version 2.8.1</span>
+            <span style="font-size:15px;color:#5B6472;flex:1">Uploaded Oct 30, 22:12</span>
+            <span style="color:#5B6472;font-size:14px">Can be chosen</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:16px;padding:14px 18px;border:1px solid #D5D9E0;border-radius:12px">
+            <input type="radio" name="b" style="width:18px;height:18px;margin:0">
+            <span style="font-weight:600;font-size:17px;width:100px">Build 410</span>
+            <span style="font-size:15px;color:#3B4351;width:110px">version 2.8.0</span>
+            <span style="font-size:15px;color:#5B6472;flex:1">Uploaded Oct 12, 09:40</span>
+            <span style="color:#5B6472;font-size:14px">Can be chosen</span>
+          </label>
+          <div style="font-size:14px;color:#5B6472;padding:0 4px">Showing 3 newest of 14 builds. <a href="#">Show all</a></div>
+        </div>
+
+        <details style="border-top:1px solid #E2E5EA;padding-top:14px">
+          <summary style="cursor:pointer;font-size:15px;color:#2B3CB8;font-weight:600">Details of the selected build (CI run, install to test, version label)</summary>
+        </details>
+      </div>
+
+      <footer style="display:flex;align-items:center;gap:14px;padding:16px 36px;border-top:1px solid #E2E5EA;background:#fff">
+        <button disabled style="font:inherit;font-size:15px;padding:11px 20px;border-radius:10px;border:1px solid #D5D9E0;background:#fff;color:#7A8392">Back</button>
+        <span style="font-size:14px;color:#5B6472">Step 1 of 5</span>
+        <span style="flex:1"></span>
+        <button style="font:inherit;font-size:15px;font-weight:700;padding:11px 28px;border-radius:10px;border:0;background:#3347D4;color:#fff">Next: Notes</button>
+      </footer>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":780}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
