@@ -14,7 +14,7 @@
  * - A gap is a gap: a day with no number is `null`, never zero, and is not counted in a window.
  */
 
-import { addDays, dateToDay, daysBetween } from './analytics.ts';
+import { addDays, dateToDay, daysBetween } from '../analytics.ts';
 import { isBigMove, type RankChangeKind, rankChange } from './aso.ts';
 
 export const rankDownloadsLimits = {

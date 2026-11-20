@@ -1,4 +1,4 @@
-import type { Platform } from './platform.ts';
+import type { Platform } from '../platform.ts';
 
 /**
  * How a build number is found in the name of a git tag or of a GitHub release.

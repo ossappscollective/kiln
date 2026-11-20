@@ -1,6 +1,6 @@
 import type { ListingStore } from './listing.ts';
 import type { ImageFormat } from './image-header.ts';
-import { isDesktop, type Platform, supports } from './platform.ts';
+import { isDesktop, type Platform, supports } from '../platform.ts';
 
 /**
  * What the stores accept as listing graphics, as data, and a pure checker that holds a list of

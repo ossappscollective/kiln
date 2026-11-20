@@ -1,5 +1,5 @@
-import { byFamily, type Platform, supports } from './platform.ts';
-import type { StagedProblem } from './staged-changes.ts';
+import { byFamily, type Platform, supports } from '../platform.ts';
+import type { StagedProblem } from '../listing/staged-changes.ts';
 
 /**
  * Release fields (docs/api/releases-write.md, docs/adr/0014-release-management.md): what a person edits about a

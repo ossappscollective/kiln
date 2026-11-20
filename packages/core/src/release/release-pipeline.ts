@@ -1,5 +1,5 @@
 import type { ReleaseState } from './lifecycle.ts';
-import type { Platform } from './platform.ts';
+import type { Platform } from '../platform.ts';
 
 /**
  * The release pipeline of one app and platform, from facts only (no I/O): where a release is between "a CI run succeeded" and

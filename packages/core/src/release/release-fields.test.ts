@@ -9,7 +9,7 @@ import {
   STAGEABLE_RELEASE_FIELDS,
   versionCodesOf,
 } from './release-fields.ts';
-import { STAGED_KINDS } from './staged-changes.ts';
+import { STAGED_KINDS } from '../listing/staged-changes.ts';
 
 const NOW = Date.parse('2026-11-19T12:00:00Z');
 const codes = (list: { code: string; severity: string }[], severity?: string) =>

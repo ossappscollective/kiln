@@ -28,8 +28,8 @@ import {
   type RankChange,
   stem,
   words } from './aso.ts';
-import { APP_STORE_FIELD_SPECS, countBytes, countCharacters, PLAY_FIELD_SPECS } from './listing.ts';
-import { supports } from './platform.ts';
+import { APP_STORE_FIELD_SPECS, countBytes, countCharacters, PLAY_FIELD_SPECS } from '../listing/listing.ts';
+import { supports } from '../platform.ts';
 
 // ---------------------------------------------------------------------------------------------
 // Locale helpers

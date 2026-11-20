@@ -4,8 +4,8 @@
  * writes a store. Pure functions only, so both sides compute the same readiness and due flags.
  */
 
-import { APP_STORE_FIELD_SPECS, countCharacters, PLAY_CHANGELOG_SPEC } from './listing.ts';
-import { byFamily, type Platform } from './platform.ts';
+import { APP_STORE_FIELD_SPECS, countCharacters, PLAY_CHANGELOG_SPEC } from '../listing/listing.ts';
+import { byFamily, type Platform } from '../platform.ts';
 
 /** `null` means the plan covers both platforms. */
 export type PlanPlatform = Platform | null;

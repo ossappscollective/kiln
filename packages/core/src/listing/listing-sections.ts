@@ -13,7 +13,7 @@
  * phone numbers. Media is metadata only: display types, counts, file names, asset states and ids.
  */
 
-import { type Platform, supports } from './platform.ts';
+import { type Platform, supports } from '../platform.ts';
 
 export const LISTING_SECTIONS = [
   'categories',

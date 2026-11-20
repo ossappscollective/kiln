@@ -4,7 +4,7 @@
  * the states, the events that move between them, and how states group on the dashboard.
  */
 
-import { type Platform, type StoreFamily, storeFamilyOf } from './platform.ts';
+import { type Platform, type StoreFamily, storeFamilyOf } from '../platform.ts';
 
 export const RELEASE_STATES = [
   'draft',

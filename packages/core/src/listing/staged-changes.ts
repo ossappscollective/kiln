@@ -1,5 +1,5 @@
-import { byFamily, isDesktop, listingStoreOf, type Platform, type StoreId, supports } from './platform.ts';
-import type { ReleaseFieldId, StagedReleaseFieldView } from './release-fields.ts';
+import { byFamily, isDesktop, listingStoreOf, type Platform, type StoreId, supports } from '../platform.ts';
+import type { ReleaseFieldId, StagedReleaseFieldView } from '../release/release-fields.ts';
 import {
   type AssetKind,
   type AssetStore,

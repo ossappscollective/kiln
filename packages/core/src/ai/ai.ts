@@ -10,8 +10,8 @@
  */
 
 import type { AiInsightProposal, AiVariantsProposal } from './ai-insights.ts';
-import { type StoreId } from './platform.ts';
-import type { ListingStore } from './listing.ts';
+import { type StoreId } from '../platform.ts';
+import type { ListingStore } from '../listing/listing.ts';
 
 export * from './ai-insights.ts';
 

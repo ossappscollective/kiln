@@ -8,7 +8,7 @@
  * ids that were sent; nothing here can push, submit, publish, release or send.
  */
 
-import type { ListingStore } from './listing.ts';
+import type { ListingStore } from '../listing/listing.ts';
 import type { AiFlag } from './ai.ts';
 
 // ---------------------------------------------------------------------------------------------

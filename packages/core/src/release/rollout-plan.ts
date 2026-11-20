@@ -8,7 +8,7 @@
  * (a person confirms it, see `compareRollout`).
  */
 import type { ReleaseState } from './lifecycle.ts';
-import { type Platform, storeFamilyOf, supports } from './platform.ts';
+import { type Platform, storeFamilyOf, supports } from '../platform.ts';
 
 // ---------------------------------------------------------------------------------------------
 // Limits and shapes

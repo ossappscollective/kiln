@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addDays, dayToMs } from './analytics.ts';
+import { addDays, dayToMs } from '../analytics.ts';
 import {
   buildRankVsDownloads,
   compareMove,

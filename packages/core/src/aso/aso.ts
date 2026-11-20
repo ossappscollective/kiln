@@ -14,7 +14,7 @@
  * UNVERIFIED in comments and in the ADR; the fit result carries them as `assumptions`.
  */
 
-import { type Platform, supports } from './platform.ts';
+import { type Platform, supports } from '../platform.ts';
 
 // ---------------------------------------------------------------------------------------------
 // Terms

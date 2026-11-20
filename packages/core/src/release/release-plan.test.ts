@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { APP_STORE_FIELD_SPECS, PLAY_CHANGELOG_SPEC } from './listing.ts';
+import { APP_STORE_FIELD_SPECS, PLAY_CHANGELOG_SPEC } from '../listing/listing.ts';
 import {
   computeReadiness,
   DEFAULT_CHECKLIST_TEMPLATES,

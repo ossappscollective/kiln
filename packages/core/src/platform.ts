@@ -1,4 +1,4 @@
-import type { ListingStore } from './listing.ts';
+import type { ListingStore } from './listing/listing.ts';
 
 /**
  * The platforms an app can be on, and everything call sites need to know about one: its label, the

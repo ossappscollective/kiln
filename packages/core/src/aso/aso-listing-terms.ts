@@ -30,8 +30,8 @@ import {
   type TrackedRef,
   termKeyOf,
   type WasteReason } from './aso-coach.ts';
-import { countBytes } from './listing.ts';
-import { supports } from './platform.ts';
+import { countBytes } from '../listing/listing.ts';
+import { supports } from '../platform.ts';
 
 export type TermSource = 'keywords' | 'title' | 'subtitle' | 'shortDescription' | 'description';
 

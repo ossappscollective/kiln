@@ -9,7 +9,7 @@ import {
   type ReleaseState,
   transition,
 } from './lifecycle.ts';
-import type { Platform } from './platform.ts';
+import type { Platform } from '../platform.ts';
 
 function run(platform: Platform, events: ReleaseEvent[]): ReleaseState {
   let state: ReleaseState = 'draft';

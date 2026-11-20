@@ -1,4 +1,4 @@
-import { type Platform, PLATFORMS, supports } from './platform.ts';
+import { type Platform, PLATFORMS, supports } from '../platform.ts';
 import { type AssetSlot, assetStoreOf, slotKey } from './staged-changes.ts';
 import {
   APPLE_DISPLAYS,
