@@ -57,7 +57,8 @@ export function trainInputOf(data: Pick<AppPipeline, 'app' | 'pipeline'>): Train
   };
 }
 
-export type TrainButton = { label: string; appId: string; step: StepId };
+/** `page: 'release'`: the button opens the release page of the version (its state), not a step of Prepare release. */
+export type TrainButton = { label: string; appId: string; step: StepId; page?: 'release' };
 
 export type Train = {
   /** `version:3.1.1`, or `build:<app id>` for a build with no version. */
@@ -271,6 +272,8 @@ function describe(t: {
         label: 'Follow the review',
         appId: (t.items.filter((i) => i.state === 'in_review')[0] as TrainInput).appId,
         step: 'confirm',
+        // Nothing is left to do in Prepare release: the release page shows where the review stands.
+        page: 'release',
       };
     } else if (own.length > 0) {
       const mine = own[0] as TrainInput;

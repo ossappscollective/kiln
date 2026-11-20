@@ -1,6 +1,6 @@
 import type { Platform } from '@mrm/core';
 import type { AttentionItem } from './app-attention.ts';
-import type { PlatformScope } from './app-scope.ts';
+import { appAddress, type PlatformScope } from './app-scope.ts';
 import { releaseStepHref } from './release-stepper.ts';
 import type { Train } from './release-trains.ts';
 
@@ -87,7 +87,9 @@ export function orderTrains(trains: readonly Train[]): Train[] {
 }
 
 const trainHref = (t: Train, scope: PlatformScope | null): string =>
-  releaseStepHref(t.button.appId, scope, t.button.step, t.version);
+  t.button.page === 'release' && t.version !== null
+    ? appAddress(t.button.appId, 'releases', scope, t.version)
+    : releaseStepHref(t.button.appId, scope, t.button.step, t.version);
 
 function rowOf(t: Train, scope: PlatformScope | null): NextRow {
   const r = rank(t);

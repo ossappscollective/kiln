@@ -36,11 +36,11 @@ test('elapsed text is hours, then days, and empty when unknown', () => {
   assert.equal(elapsedText(NOW - 50 * HOUR, NOW), '2 days');
 });
 
-test('a version in review says how long and offers to follow the review', () => {
+test('a version in review says how long and has nothing to open', () => {
   const l = lead([rel({ since: NOW - 50 * HOUR })]);
   assert.equal(l.headline, 'Version 2.9.0 is in store review for 2 days');
   assert.equal(l.tone, 'info');
-  assert.deepEqual(l.action, { label: 'Follow the review', appId: 'a1', step: 'confirm' });
+  assert.equal(l.action, null);
   assert.deepEqual(l.words, [{ platform: 'ios', word: 'In review', tone: 'info' }]);
 });
 

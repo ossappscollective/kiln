@@ -178,7 +178,8 @@ export function releaseLead(input: {
           headline: `Version ${v}${on} is in store review${elapsed ? ` for ${elapsed}` : ''}`,
           hint: 'Waiting on the store. Nobody here can speed it up.',
           tone: 'info',
-          action: go('Follow the review', 'confirm'),
+          // This page is where the review is followed: there is nothing to open (Prepare release has no step for it).
+          action: null,
         };
         break;
       }

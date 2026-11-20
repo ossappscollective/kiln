@@ -96,6 +96,9 @@ test('a release in store review waits on the store: a link to follow it, and a q
   assert.equal(s.tone, 'info');
   assert.equal(s.waiting?.who, 'store');
   assert.ok(s.primary && 'href' in s.primary);
+  // "Follow the review" opens the release page of the version, not a step of Prepare release.
+  assert.equal(s.primary && 'label' in s.primary ? s.primary.label : '', 'Follow the review');
+  assert.ok(s.primary && 'href' in s.primary && s.primary.href.includes('/release/3.1.1'));
   assert.equal(s.offerStart, true);
   assert.equal(
     chooseNextStep(input({ trains: releaseTrains([inReview]), canStart: false })).offerStart,
