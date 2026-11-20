@@ -430,7 +430,7 @@
         {:else if current === 'assets'}
           <StepAssets {api} {workspaceId} {app} {view} {scope} />
         {:else if current === 'review'}
-          <StepReview {api} {workspaceId} {role} {app} confirmVisible={visible.indexOf('confirm') >= 0} />
+          <StepReview {api} {workspaceId} {role} {app} />
         {:else if current === 'confirm'}
           <StepConfirm
             bind:this={confirmStep}

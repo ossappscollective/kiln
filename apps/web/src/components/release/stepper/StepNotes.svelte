@@ -59,6 +59,7 @@
   import Alert from '../../ui/Alert.svelte';
   import Badge from '../../ui/Badge.svelte';
   import Button from '../../ui/Button.svelte';
+  import Disclosure from '../../ui/Disclosure.svelte';
   import InfoTip from '../../ui/InfoTip.svelte';
   import Skeleton from '../../ui/Skeleton.svelte';
   import { untrack } from 'svelte';
@@ -326,8 +327,8 @@
 {/snippet}
 
 <div class="stack">
-  <p class="lead">
-    What is new, per language. Staging saves the text in this tool; it reaches the store when you push the draft in the last step.
+  <p class="lead muted">
+    Staging saves the text in this tool. It reaches the store when you push the draft in the last step.
     <InfoTip label="About the notes" text="Apple allows 4000 characters, Google Play 500. An empty text cannot be staged here; this tool does not clear a store field." />
   </p>
 
@@ -337,8 +338,8 @@
   {/if}
 
   {#if apple}
+    <Disclosure summary="Reuse TestFlight notes" stateKey="stepper-notes-testflight-{app.id}">
     <section class="tf" aria-label="TestFlight notes">
-      <h3>TestFlight notes</h3>
       {#if candidates === null}
         <p class="muted small">The builds were not read yet. Choose the build in the first step.</p>
       {:else if builds.length === 0}
@@ -359,6 +360,7 @@
         {#if tfNote}<p class="small" role="status">{tfNote}</p>{/if}
       {/if}
     </section>
+    </Disclosure>
   {/if}
 
   {#if mayTranslate && rows.length > 1}
@@ -457,7 +459,7 @@
     </div>
 
     <div class="row step-actions">
-      <Button variant="primary" loading={staging} disabled={unsaved.length === 0 || staging || overs > 0} onclick={stageNotes}>
+      <Button loading={staging} disabled={unsaved.length === 0 || staging || overs > 0} onclick={stageNotes}>
         Stage the notes{unsaved.length > 0 ? ` (${unsaved.length})` : ''}
       </Button>
       {#if overs > 0}<span class="small bad">Shorten the texts over the limit first.</span>{:else if unsaved.length === 0}<span class="muted small">Nothing to stage: every language is as staged or as in the store.</span>{/if}

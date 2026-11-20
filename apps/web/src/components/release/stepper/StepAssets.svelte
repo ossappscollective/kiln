@@ -65,10 +65,6 @@
 </script>
 
 <div class="stack">
-  <p class="lead">
-    Screenshots are optional for a release. Check them against the store, and stage new ones on the Assets tab if this version needs them.
-  </p>
-
   {#if loading && diff === null}
     <div role="status" aria-label="Comparing the screenshots"><Skeleton width="60%" height="16px" /></div>
   {:else if problem}
@@ -81,15 +77,17 @@
       <Badge tone={line.tone === 'warn' ? 'warn' : line.tone === 'ok' ? 'ok' : 'neutral'} icon={line.tone === 'ok' ? 'check' : undefined}>{line.tone === 'warn' ? 'May need an update' : line.tone === 'ok' ? 'Up to date' : 'Not known'}</Badge>
       <span>{line.text}</span>
     </p>
-    {#if diff && diff.version}
+    {#if diff && diff.version && line.tone === 'warn'}
       <p class="muted small">Compared with {diff.version.versionString ? `version ${diff.version.versionString}` : 'the version in the store'}.</p>
     {/if}
   {/if}
 
-  <p class="status">
-    <Badge tone={sets > 0 ? 'info' : 'neutral'}>{sets} staged</Badge>
-    <span>{stagedSetsLine(sets, files)}</span>
-  </p>
+  {#if sets > 0}
+    <p class="status">
+      <Badge tone="info">{sets} staged</Badge>
+      <span>{stagedSetsLine(sets, files)}</span>
+    </p>
+  {/if}
 
   <div class="row">
     <Button href={appAddress(app.id, 'assets', scope)} icon="grid">Open the Assets tab</Button>
@@ -98,10 +96,6 @@
 </div>
 
 <style>
-  .lead {
-    margin: 0;
-  }
-
   .status {
     display: flex;
     flex-wrap: wrap;
