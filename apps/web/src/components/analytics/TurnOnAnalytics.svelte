@@ -3,6 +3,7 @@
   It writes one workspace setting (`analytics.enabled`, needs `analytics.manage`: owners and admins). Nothing is requested from a
   store by turning it on; the first read happens at the next scheduled or manual sync. It can be turned off again in Settings.
   Props: api, workspaceId, onchanged (called after the setting was saved), label = 'Turn on analytics', variant = 'primary'.
+  Readable pass (docs/design/readability.md): one sentence and one line that it only reads; the points sit behind "How it works".
 -->
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
@@ -11,6 +12,8 @@
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
+  import '../readable-card.css';
   import Modal from '../ui/Modal.svelte';
 
   let {
@@ -45,15 +48,17 @@
 <Button {variant} icon="activity" onclick={() => { problem = ''; open = true; }}>{label}</Button>
 
 <Modal bind:open size="md" title="Turn on analytics for this workspace?" dismissible={!busy}>
-  <div class="stack">
+  <div class="stack readable-card">
     <p>Analytics reads daily numbers for your apps from the stores and keeps them on this server.</p>
-    <ul class="points">
-      <li>For iOS and macOS apps: App Store analytics reports, and Sales and Trends when a vendor number is set.</li>
-      <li>For Android apps: Android vitals and the monthly Play Console reports, when the bucket id is set.</li>
-      <li>It only reads. The one thing that is written to a store, an Apple report request, is a separate step with its own preview and confirmation.</li>
-      <li>Apple deletes its daily reports after 35 days, so the numbers this server reads are the only copy. They are not deleted.</li>
-      <li>You can turn it off again under Settings. Numbers already stored stay readable.</li>
-    </ul>
+    <p class="warn-line">It only reads: the one write, an Apple report request, is a separate step with its own confirmation.</p>
+    <Disclosure summary="How it works">
+      <ul class="points">
+        <li>For iOS and macOS apps: App Store analytics reports, and Sales and Trends when a vendor number is set.</li>
+        <li>For Android apps: Android vitals and the monthly Play Console reports, when the bucket id is set.</li>
+        <li>Apple deletes its daily reports after 35 days, so the numbers this server reads are the only copy. They are not deleted.</li>
+        <li>You can turn it off again under Settings. Numbers already stored stay readable.</li>
+      </ul>
+    </Disclosure>
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
   </div>
   {#snippet footer()}
@@ -66,6 +71,7 @@
   .points {
     padding-left: var(--space-5);
     margin: 0;
+    font-size: 0.9375rem;
   }
 
   .points li + li {

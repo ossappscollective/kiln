@@ -4,6 +4,7 @@
   before it is on. Turning it on needs `analytics.manage` (owners and admins); everyone else is told who can. For an Apple app a
   report file can be imported without turning anything on, because that contacts no store.
   Props: api, workspaceId, app (id and platform), role, onchanged.
+  Readable pass (docs/design/readability.md): one sentence, the turn-on button (the one primary), notes at 15px.
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
@@ -77,6 +78,7 @@
   }
 
   .note {
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
+    line-height: 1.45;
   }
 </style>
