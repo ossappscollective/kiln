@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { credentialWord, testWord } from './readable-forms.ts';
+import { bucketTestWord, credentialWord, testWord } from './readable-forms.ts';
 
 describe('credentialWord', () => {
   it('is Added when a credential exists, even if none is required', () => {
@@ -31,5 +31,26 @@ describe('testWord', () => {
   it('is Works or Failed with a tone that is not only colour', () => {
     assert.deepEqual(testWord({ ok: true }), { tone: 'ok', label: 'Works' });
     assert.deepEqual(testWord({ ok: false }), { tone: 'bad', label: 'Failed' });
+  });
+});
+
+describe('bucketTestWord', () => {
+  it('is Not tested before a result and Testing while one runs', () => {
+    assert.equal(bucketTestWord(null).label, 'Not tested');
+    assert.equal(bucketTestWord({ code: 'ok', ok: true }, true).label, 'Testing');
+  });
+
+  it('is Works only for the ok code', () => {
+    assert.deepEqual(bucketTestWord({ code: 'ok', ok: true }), { tone: 'ok', label: 'Works' });
+  });
+
+  it('is Reachable when the bucket can be read but holds nothing for the app yet', () => {
+    assert.deepEqual(bucketTestWord({ code: 'no_reports_yet', ok: true }), { tone: 'neutral', label: 'Reachable' });
+  });
+
+  it('is Failed for a result that is not ok, whatever the code', () => {
+    for (const code of ['bucket_forbidden', 'bucket_not_found', 'unreachable', 'credential_problem']) {
+      assert.deepEqual(bucketTestWord({ code, ok: false }), { tone: 'warn', label: 'Failed' }, code);
+    }
   });
 });

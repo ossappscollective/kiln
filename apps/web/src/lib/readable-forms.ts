@@ -32,3 +32,15 @@ export function testWord(state: { testing?: boolean; ok: boolean | null }): Word
   if (state.ok === null) return { tone: 'neutral', label: 'Not tested' };
   return state.ok ? { tone: 'ok', label: 'Works' } : { tone: 'bad', label: 'Failed' };
 }
+
+/**
+ * The answer of "Test the bucket" in one word. The sentence of the answer (a fixed vocabulary) stays under it: the word says whether to
+ * act, the sentence says what to do.
+ */
+export function bucketTestWord(result: { code: string; ok: boolean } | null, testing = false): Word {
+  if (testing) return { tone: 'neutral', label: 'Testing' };
+  if (result === null) return { tone: 'neutral', label: 'Not tested' };
+  if (result.code === 'ok') return { tone: 'ok', label: 'Works' };
+  if (result.ok) return { tone: 'neutral', label: 'Reachable' };
+  return { tone: 'warn', label: 'Failed' };
+}

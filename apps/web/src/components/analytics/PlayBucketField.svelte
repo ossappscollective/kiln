@@ -7,6 +7,8 @@
   Reading is open to everyone; changing and testing need `analytics.manage` (owners and admins).
   Props: api, workspaceId, role, app (id, platform), onchanged? (called after a save, so the screen reads its status again),
   heading? (draw the small label, default true).
+  Readable pass (docs/design/readability.md): 15px text, label + control + ONE hint, one primary (Save), and the test is one word with a quiet
+  action; the sentence of the answer stays under it.
 -->
 <script lang="ts">
   import { type Role, can, normalizeBucketId } from '@mrm/core';
@@ -15,7 +17,10 @@
   import { type PlayBucketTestResult, type PlayBucketView, analyticsErrorText, bucketSourceText } from '../../lib/analytics.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
+  import { bucketTestWord } from '../../lib/readable-forms.ts';
+  import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
+  import '../readable-card.css';
 
   let {
     api,
@@ -106,18 +111,17 @@
   }
 
   const tone = (r: PlayBucketTestResult) => (r.code === 'ok' ? 'ok' : r.ok ? 'info' : 'warn');
+  const testState = $derived(bucketTestWord(result, testing));
 </script>
 
-<div class="stack">
+<div class="stack readable-card">
   {#if heading}<strong id="{uid}-h">Google Play reports bucket</strong>{/if}
   {#if loadError}
     <Alert tone="error">{loadError}</Alert>
   {:else if view === null}
-    <p class="muted small" role="status">Reading the setting…</p>
+    <p class="muted" role="status">Reading the setting…</p>
   {:else}
-    <p class="muted small">
-      Installs and ratings come from the reports bucket of the Play account that owns this app (the same bucket for all its apps). {bucketSourceText(view)}
-    </p>
+    <p class="muted">Installs and ratings are read from the reports bucket of this app's Play account. {bucketSourceText(view)}</p>
     {#if canManage}
       <label class="check">
         <input type="checkbox" bind:checked={useDefault} />
@@ -136,16 +140,19 @@
           disabled={useDefault}
           aria-invalid={problem ? 'true' : undefined}
         />
-        <p class="hint">Copy it in Play Console under Download reports, Statistics: the "Copy Cloud Storage URI" button next to the section header.</p>
+        <p class="hint">Copy it in Play Console under Download reports, Statistics, with "Copy Cloud Storage URI".</p>
       </div>
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}
       {#if result}<Alert tone={tone(result)}>{result.message}</Alert>{/if}
       <div class="row">
-        <Button size="sm" variant="primary" loading={saving} disabled={saving || !dirty || (!useDefault && !valid)} onclick={() => void save()}>Save</Button>
-        <Button size="sm" loading={testing} disabled={testing || (useDefault ? inherited === null : !valid)} onclick={() => void test()}>Test the bucket</Button>
+        <Button variant="primary" loading={saving} disabled={saving || !dirty || (!useDefault && !valid)} onclick={() => void save()}>Save</Button>
+        <span class="connection">
+          <Badge tone={testState.tone}>{testState.label}</Badge>
+          <Button size="sm" variant="ghost" loading={testing} disabled={testing || (useDefault ? inherited === null : !valid)} onclick={() => void test()}>Test the bucket</Button>
+        </span>
       </div>
     {:else}
-      <p class="small">
+      <p>
         {view.bucketId ? `This app reads ${view.bucketId}.` : 'No bucket is set for this app.'} Ask an owner or an admin to change it.
       </p>
     {/if}
@@ -153,12 +160,6 @@
 </div>
 
 <style>
-  .small,
-  .hint {
-    margin: 0;
-    font-size: var(--text-sm);
-  }
-
   .field {
     display: flex;
     flex-direction: column;
@@ -169,6 +170,5 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-sm);
   }
 </style>

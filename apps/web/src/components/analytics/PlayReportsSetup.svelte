@@ -7,12 +7,16 @@
   Drawn with the Section primitive. The grants named in step 2 are UNVERIFIED (docs/research/analytics-apis.md): the test button says
   `bucket_forbidden` if they are not enough.
   Props: api, workspaceId, role, app (id, platform), status, onchanged (read the status again).
+  Readable pass (docs/design/readability.md): the status line, ONE sentence on why, the field of the bucket (its Save is the one primary), then
+  the three steps at 15px (open, because this card only shows while the bucket is missing) and the quiet alternatives.
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import { type AnalyticsStatus, playSourceLine } from '../../lib/analytics.ts';
   import Button from '../ui/Button.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
+  import '../readable-card.css';
   import Section from '../ui/Section.svelte';
   import ImportReportDialog from './ImportReportDialog.svelte';
   import PlayBucketField from './PlayBucketField.svelte';
@@ -35,29 +39,28 @@
   key="play-bucket.{app.id}"
   summary={playSourceLine(status)}
 >
-  <div class="stack">
+  <div class="stack readable-card">
     <p class="line" data-testid="play-source-line">{playSourceLine(status)}</p>
-    <p class="muted small">
-      Google only publishes installs and ratings as monthly CSV files in a private Cloud Storage bucket of your Play account. Crash and ANR numbers do not
-      need it, which is why those are here and downloads are not.
-    </p>
-    <ol class="steps">
-      <li>
-        In Play Console open <strong>Download reports</strong>, then <strong>Statistics</strong>, and press <strong>Copy Cloud Storage URI</strong> next to
-        the section header. It starts with <code>gs://pubsite_prod_rev_</code>. It is the same bucket for every app of your Play account.
-      </li>
-      <li>
-        Give the service account of this app's credential read access: <strong>Storage Object Viewer</strong> on that bucket, and in Play Console the
-        permission to view app information and download bulk reports (read-only). Google does not say whether both are needed, so use the test below.
-      </li>
-      <li>Paste it here as the bucket of this app. Apps of another Play account get their own.</li>
-    </ol>
+    <p class="muted">Google only publishes installs and ratings as monthly files in a private bucket of your Play account; crash and ANR numbers do not need it.</p>
     <PlayBucketField {api} {workspaceId} {role} {app} heading={false} {onchanged} />
+    <Disclosure summary="How to find the bucket and give access" open>
+      <ol class="steps">
+        <li>
+          In Play Console open <strong>Download reports</strong>, then <strong>Statistics</strong>, and press <strong>Copy Cloud Storage URI</strong> next to
+          the section header. It starts with <code>gs://pubsite_prod_rev_</code> and is the same for every app of your Play account.
+        </li>
+        <li>
+          Give the service account of this app's credential read access: <strong>Storage Object Viewer</strong> on that bucket, and in Play Console the
+          permission to view app information and download bulk reports (read-only). Google does not say whether both are needed, so use the test.
+        </li>
+        <li>Paste it as the bucket of this app. Apps of another Play account get their own.</li>
+      </ol>
+    </Disclosure>
     <div class="row">
       {#if canManage}
         <Button size="sm" icon="upload" onclick={() => (importOpen = true)}>Import a Play Console CSV instead</Button>
       {/if}
-      <a class="small" href="#/settings?view=analytics">Use one bucket for every Android app: workspace settings</a>
+      <a href="#/settings?view=analytics">Use one bucket for every Android app: workspace settings</a>
     </div>
   </div>
 </Section>
@@ -72,17 +75,12 @@
     font-weight: var(--weight-medium, 500);
   }
 
-  .small {
-    margin: 0;
-    font-size: var(--text-sm);
-  }
-
   .steps {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
     margin: 0;
     padding-left: var(--space-5);
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 </style>
