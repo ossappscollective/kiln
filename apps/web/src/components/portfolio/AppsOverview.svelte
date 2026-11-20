@@ -113,7 +113,7 @@
             <div class="status">
               {#if status.primary.kind === 'release'}
                 {#if g.members.length > 1}<PlatformBadge platform={status.primary.release.platform} showLabel={false} />{/if}
-                <ReleaseStatus status={status.primary.release.status} rawState={status.primary.release.rawState} rolloutFraction={status.primary.release.rolloutFraction} />
+                <ReleaseStatus status={status.primary.release.status} rawState={status.primary.release.rawState} rolloutFraction={status.primary.release.rolloutFraction} sentForReviewAt={status.primary.release.sentForReviewAt} />
               {:else if status.primary.kind === 'sync-failed'}
                 <Badge tone="bad" icon="alert">Sync failed</Badge>
               {:else if status.primary.kind === 'loading'}

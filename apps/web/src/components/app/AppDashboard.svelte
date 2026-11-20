@@ -261,7 +261,7 @@
               {#if inFlight}
                 <span class="latest">
                   <strong>{inFlight.version}</strong>
-                  <ReleaseStatus status={inFlight.status} rawState={inFlight.rawState} rolloutFraction={inFlight.rolloutFraction} />
+                  <ReleaseStatus status={inFlight.status} rawState={inFlight.rawState} rolloutFraction={inFlight.rolloutFraction} sentForReviewAt={inFlight.sentForReviewAt} />
                   <a href={appAddress(app.id, 'releases', null, inFlight.version)}>Open<span class="visually-hidden"> version {inFlight.version}</span></a>
                 </span>
               {:else}
@@ -294,7 +294,7 @@
               {#if latest}
                 <strong>{latest.version}</strong>
                 {#if latest.track && latest.track !== 'production'}<span class="muted">{trackLabel(latest.track)}</span>{/if}
-                <ReleaseStatus status={latest.status} rawState={latest.rawState} rolloutFraction={latest.rolloutFraction} />
+                <ReleaseStatus status={latest.status} rawState={latest.rawState} rolloutFraction={latest.rolloutFraction} sentForReviewAt={latest.sentForReviewAt} />
                 <a href={appAddress(app.id, 'releases', null, latest.version)}>Plan and details<span class="visually-hidden"> for version {latest.version}</span></a>
               {:else}
                 <span class="muted">{app.lastSyncedAt === null ? 'Not synced yet' : 'No releases reported'}</span>

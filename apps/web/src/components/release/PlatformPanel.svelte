@@ -78,7 +78,7 @@
       <div class="release">
         {#if release.track !== null}<h3 class="track">{trackLabel(release.track)}</h3>{/if}
         <div class="line">
-          <ReleaseStatus status={release.status} rawState={release.rawState} />
+          <ReleaseStatus status={release.status} rawState={release.rawState} sentForReviewAt={release.sentForReviewAt} />
           <span class="muted small">Store state <code>{release.rawState}</code></span>
         </div>
         {#if release.status}

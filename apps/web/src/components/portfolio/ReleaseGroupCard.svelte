@@ -51,7 +51,7 @@
           <tr>
             <th scope="row" class="version">{release.version}</th>
             <td>{release.build ?? '—'}</td>
-            <td><ReleaseStatus status={release.status} rawState={release.rawState} rolloutFraction={release.rolloutFraction} /></td>
+            <td><ReleaseStatus status={release.status} rawState={release.rawState} rolloutFraction={release.rolloutFraction} sentForReviewAt={release.sentForReviewAt} /></td>
             <td><code>{release.rawState}</code></td>
             <td class="muted">
               {#if release.storeUpdatedAt !== null}

@@ -86,7 +86,7 @@
                     <span class="muted">{trackLabel(latest.track)}</span>
                   {/if}
                 </div>
-                <ReleaseStatus status={latest.status} rawState={latest.rawState} rolloutFraction={latest.rolloutFraction} />
+                <ReleaseStatus status={latest.status} rawState={latest.rawState} rolloutFraction={latest.rolloutFraction} sentForReviewAt={latest.sentForReviewAt} />
                 {#if latest.status === null}<code class="raw">{latest.rawState}</code>{/if}
                 {#if live && live.id !== latest.id}
                   <span class="muted live">Live: {live.version}</span>

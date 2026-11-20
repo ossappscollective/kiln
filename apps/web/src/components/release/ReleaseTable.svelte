@@ -115,10 +115,7 @@
             </td>
             <td class="tabular">{row.buildText}</td>
             <td>
-              <ReleaseStatus status={row.status} rawState={row.release.rawState} />
-              {#if row.release.sentForReviewAt}
-                <span title="Sent to Google Play from here {new Date(row.release.sentForReviewAt).toLocaleString()}. Google Play does not report the review state: the release may still be waiting for review. Check Play Console."><Badge tone="info" icon="clock">In review</Badge></span>
-              {/if}
+              <ReleaseStatus status={row.status} rawState={row.release.rawState} sentForReviewAt={row.release.sentForReviewAt} />
             </td>
             <td class="num tabular">
               {#if row.rolloutText}{row.rolloutText}{:else}<span class="muted" title={row.platform !== 'android' ? 'Apple’s phased release share is not read yet.' : 'The store reports no rollout share.'}>—</span>{/if}

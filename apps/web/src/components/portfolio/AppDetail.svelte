@@ -241,7 +241,7 @@
             <dt>Latest release</dt>
             <dd>
               {#if latest}
-                <span class="latest"><strong>{latest.version}</strong> <ReleaseStatus status={latest.status} rawState={latest.rawState} rolloutFraction={latest.rolloutFraction} /> <a href={releaseHref(app.id, latest.version)}>Plan and details<span class="visually-hidden"> for version {latest.version}</span></a></span>
+                <span class="latest"><strong>{latest.version}</strong> <ReleaseStatus status={latest.status} rawState={latest.rawState} rolloutFraction={latest.rolloutFraction} sentForReviewAt={latest.sentForReviewAt} /> <a href={releaseHref(app.id, latest.version)}>Plan and details<span class="visually-hidden"> for version {latest.version}</span></a></span>
               {:else}
                 <span class="muted">None yet</span>
               {/if}
