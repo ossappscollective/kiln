@@ -6,8 +6,13 @@
   pushes, submits, publishes or sends, and says where the result is. Ticking only some keyword ideas tracks them and keeps the rest
   proposed (the suggestion closes with its last open idea); "Undo" removes the keywords the accept just tracked.
   Everything the model wrote is shown as text, never as markup; nothing about the provider is shown here.
+  Wording that matters: a keyword idea says "Where it would go: Title" and "This is a suggestion for what to put there. Nothing changes
+  until you stage it." Accepting an idea only TRACKS the keyword. Putting it in the listing is a separate button ("Stage in title") that
+  opens the field editor with the keyword added, the text before and after and the character budget; only the editor's own "Stage" button
+  writes (to our own database). A suggested text shows what the field says now ("Now") beside the suggestion with the changes underlined.
   Props: api, workspaceId, role, suggestion, platform? (the scope of the open app, for the links), compact? (no heading: the drawer of a
-  listing field), appPlatform? (the platform of the app, to say where keywords went), onaccepted? (called with the ids the accept
+  listing field), appPlatform? (the platform of the app, to say where keywords went), current? (the text each field has now, by field id,
+  for the before and after of a suggested text), onaccepted? (called with the ids the accept
   returned, and again after an undo, so the screen can read its own list again).
 -->
 <script lang="ts">
@@ -15,7 +20,7 @@
   import { untrack } from 'svelte';
   import {
     acceptBody,
-    acceptLabel,
+    acceptButtonLabel,
     acceptedNote,
     aiErrorMessage,
     initialSelection,
@@ -24,6 +29,7 @@
     suggestionTitle,
     toggleSelection,
   } from '../../lib/ai.ts';
+  import { PLACEMENT_NOT_APPLIED, TRACKING_ONLY_NOTE, platformOfStore } from '../../lib/ai-placement.ts';
   import { aiStore } from '../../lib/ai-store.svelte.ts';
   import { ApiError, type Api } from '../../lib/api.ts';
   import type { PlatformScope } from '../../lib/app-scope.ts';
@@ -37,6 +43,8 @@
   import AiInsightView from './AiInsightView.svelte';
   import Button from '../ui/Button.svelte';
   import BudgetMeter from '../aso/BudgetMeter.svelte';
+  import DiffText from '../listing/DiffText.svelte';
+  import StageKeywordButton from './StageKeywordButton.svelte';
 
   let {
     api,
@@ -46,6 +54,7 @@
     platform = null,
     appPlatform = null,
     compact = false,
+    current,
     onaccepted,
   }: {
     api: Api;
@@ -55,6 +64,7 @@
     platform?: PlatformScope | null;
     appPlatform?: Platform | null;
     compact?: boolean;
+    current?: Record<string, string>;
     onaccepted?: (result: AiAcceptedRef) => void | Promise<void>;
   } = $props();
 
@@ -85,6 +95,12 @@
   let busy = $state<'' | 'accept' | 'dismiss' | 'undo'>('');
   let problem = $state('');
   let clash = $state(false);
+
+  /** What the field of a text row says now, when the screen knows it (the row's field is its group for variants, else its key). */
+  const nowOf = (row: { key: string; group: string | null; text: string | null }): string | null => {
+    const value = current?.[row.group ?? row.key];
+    return value === undefined || row.text === null ? null : value;
+  };
 
   const nothingToTake = $derived(rows.every((r) => !r.acceptable));
   /** A report has nothing to tick: it can be marked as reviewed, which changes nothing. */
@@ -170,6 +186,11 @@
       </header>
     {/if}
     <p class="muted small">Written by an AI model. Read it before you accept it.</p>
+    {#if proposal.kind === 'keywords'}
+      <p class="muted small">{TRACKING_ONLY_NOTE}</p>
+    {:else if proposal.kind === 'listing_text' || proposal.kind === 'listing_variants'}
+      <p class="muted small">{PLACEMENT_NOT_APPLIED}</p>
+    {/if}
 
     {#if proposal.kind === 'insight'}
       <AiInsightView {proposal} appId={suggestion.appId} platform={appPlatform} />
@@ -195,7 +216,33 @@
                 <Badge tone={f.tone} icon={f.tone === 'bad' ? 'x-circle' : f.tone === 'warn' ? 'alert-triangle' : undefined}>{f.text}</Badge>
               {/each}
             </p>
-            {#if row.text !== null}<p class="text">{row.text}</p>{/if}
+            {#if row.placement !== null && proposal.kind === 'keywords'}
+              <p class="why muted">{PLACEMENT_NOT_APPLIED}</p>
+              {#if row.acceptable}
+                <StageKeywordButton
+                  {api}
+                  {workspaceId}
+                  {role}
+                  appId={suggestion.appId}
+                  platform={appPlatform ?? platformOfStore(proposal.store)}
+                  store={proposal.store}
+                  locale={proposal.locale}
+                  term={row.title}
+                  field={row.placement}
+                />
+              {/if}
+            {/if}
+            {#if row.text !== null}
+              {@const before = nowOf(row)}
+              {#if before !== null}
+                <p class="cmp muted small">Now</p>
+                <p class="text">{#if before === ''}<span class="muted">(empty)</span>{:else}{before}{/if}</p>
+                <p class="cmp muted small">Suggested, changes underlined</p>
+                <p class="text"><DiffText from={before} to={row.text} side="to" fromName="the text now" toName="the suggestion" /></p>
+              {:else}
+                <p class="text">{row.text}</p>
+              {/if}
+            {/if}
             {#if row.meter}
               <BudgetMeter
                 id="{uid}-m{row.index}"
@@ -227,7 +274,7 @@
       <span class="spacer"></span>
       <Button size="sm" variant="ghost" loading={busy === 'dismiss'} disabled={busy !== ''} onclick={() => void dismiss()}>Dismiss</Button>
       {#if clash}
-        <Button size="sm" variant="primary" loading={busy === 'accept'} disabled={busy !== '' || (!isReport && selected.length === 0)} onclick={() => void accept(true)}>Replace and {acceptLabel(suggestion.kind, selected.length).toLowerCase()}</Button>
+        <Button size="sm" variant="primary" loading={busy === 'accept'} disabled={busy !== '' || (!isReport && selected.length === 0)} onclick={() => void accept(true)}>Replace and {acceptButtonLabel(proposal, rows, selected).toLowerCase()}</Button>
       {:else}
         <Button
           size="sm"
@@ -237,7 +284,7 @@
           disabled={busy !== '' || (!isReport && selected.length === 0) || !mayAccept}
           onclick={() => void accept(false)}
         >
-          {acceptLabel(suggestion.kind, selected.length)}
+          {acceptButtonLabel(proposal, rows, selected)}
         </Button>
       {/if}
     </div>
@@ -325,6 +372,10 @@
 
   .compact .text {
     background: var(--surface);
+  }
+
+  .cmp {
+    margin: var(--space-1) 0 0;
   }
 
   .why {

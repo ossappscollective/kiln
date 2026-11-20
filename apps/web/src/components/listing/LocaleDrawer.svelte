@@ -25,6 +25,7 @@
   import type { MatrixRow } from '../../lib/listing-matrix.ts';
   import { canPullField, pullKey, pullableInLocale } from '../../lib/listing-pull.ts';
   import { storeName } from '../../lib/portfolio.ts';
+  import { fieldInfo } from '../../lib/listing-edit.ts';
   import { fieldStage } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import type { AppSummary, DriftField } from '../../lib/types.ts';
@@ -56,6 +57,7 @@
     allLocales = [],
     api,
     workspaceId,
+    onedit,
   }: {
     open?: boolean;
     row: MatrixRow | null;
@@ -76,6 +78,7 @@
     allLocales?: string[];
     api?: Api;
     workspaceId?: string;
+    onedit?: (app: AppSummary, field: DriftField) => void;
   } = $props();
 
   const uid = $props.id();
@@ -216,8 +219,24 @@
                 onunstage={(id, f) => app && onunstage(app, id, f)}
               >
                 {#snippet extra()}
+                  {#if app && onedit && locked.indexOf(platform) < 0 && fieldInfo(platform, field.field) !== null}
+                    <div class="editrow">
+                      <Button size="sm" icon="edit" onclick={() => onedit(app, field)}>Edit {field.label.toLowerCase()}</Button>
+                    </div>
+                  {/if}
                   {#if app && api && workspaceId && locked.indexOf(platform) < 0}
-                    <ImproveField {api} {workspaceId} {role} {app} {field} />
+                    <ImproveField
+                      {api}
+                      {workspaceId}
+                      {role}
+                      {app}
+                      {field}
+                      current={field.live.value ?? field.db.value ?? ''}
+                      buttonLabel="Suggest with AI"
+                      onaccepted={async () => {
+                        await stagedStore.load(api, workspaceId, app.id);
+                      }}
+                    />
                   {/if}
                 {/snippet}
               </FieldCompare>
@@ -329,6 +348,10 @@
 
   .budget {
     padding: 0 var(--space-4) var(--space-3);
+  }
+
+  .editrow {
+    margin-top: var(--space-2);
   }
 
   .pullrow {

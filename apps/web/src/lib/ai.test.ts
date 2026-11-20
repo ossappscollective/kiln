@@ -311,7 +311,8 @@ test('keyword ideas become rows with the reason as plain text, flags and the rea
   const rows = proposalRows(keywordProposal);
   assert.equal(rows.length, 3);
   assert.equal(rows[0]?.title, 'hydration tracker');
-  assert.equal(rows[0]?.note, 'For the keyword field');
+  assert.equal(rows[0]?.note, 'Where it would go: Keyword field');
+  assert.equal(rows[2]?.note, 'Where it would go: no listing field, tracking only');
   assert.equal(rows[1]?.acceptable, false);
   assert.deepEqual(
     rows[1]?.flags.map((f) => f.text),

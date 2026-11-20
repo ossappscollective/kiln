@@ -6,6 +6,7 @@ import {
   type AiConfig,
   acceptBody,
   acceptedNote,
+  acceptButtonLabel,
   acceptLabel,
   aiChanges,
   aiErrorMessage,
@@ -127,6 +128,41 @@ test('accepting variants names the field and the position of each choice', () =>
   assert.deepEqual(acceptBody(proposal, rows, []), { choices: [] });
   assert.equal(acceptLabel('listing_variants', 1), 'Stage 1 text');
   assert.equal(suggestionTitle(proposal), 'Text variants · en-US');
+});
+
+test('the accept button names the field it stages into, and keyword ideas say Track, not add', () => {
+  const proposal = variants();
+  const rows = proposalRows(proposal);
+  assert.equal(acceptButtonLabel(proposal, rows, [3]), 'Stage in promotional text');
+  assert.equal(acceptButtonLabel(proposal, rows, []), 'Stage 0 texts');
+  const keywords: AiProposal = {
+    kind: 'keywords',
+    store: 'app_store',
+    country: 'us',
+    locale: 'en-US',
+    items: [{ term: 'offline maps', reason: 'x', field: 'name', acceptable: true, flags: [] }],
+  };
+  const krows = proposalRows(keywords);
+  assert.equal(acceptButtonLabel(keywords, krows, [0]), 'Track 1 keyword');
+  assert.equal(krows[0]?.placement, 'name');
+  assert.equal(krows[0]?.note, 'Where it would go: Title (App Store name)');
+  const text: AiProposal = {
+    kind: 'listing_text',
+    locale: 'en-US',
+    fields: [
+      {
+        field: 'keywords',
+        text: 'a,b',
+        reason: '',
+        length: 3,
+        limit: 100,
+        unit: 'bytes',
+        acceptable: true,
+        flags: [],
+      },
+    ],
+  };
+  assert.equal(acceptButtonLabel(text, proposalRows(text), [0]), 'Stage in keyword field');
 });
 
 test('a report has no rows to tick; it is marked as reviewed and says nothing was changed', () => {

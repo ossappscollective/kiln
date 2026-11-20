@@ -18,7 +18,7 @@ is **not drawn at all** while it is off, or for a role that may not use it.
 | Insights, ASO, overview                                 | **ASO health report** per app with data                                                                                                                              | `aso_health`                                             |
 | Insights, ASO, Ideas                                    | **Suggest keywords** (existing) and **Ideas from reviews**                                                                                                           | `keyword_ideas`, `keyword_ideas_reviews`                 |
 | Insights, ASO, Store listing, under the terms of an app | **Audit this language**, **Suggest variants**, **Translate into this language** (from another stored language), with an optional goal                                | `listing_audit`, `listing_variants`, `listing_translate` |
-| Listing, a field of a language                          | **Improve** (existing)                                                                                                                                               | `listing_improve`                                        |
+| Listing, a field of a language                          | **Suggest with AI** in the field editor and in the locale drawer (was "Improve"); shows the text now and the suggestion, then Stage or Dismiss                          | `listing_improve`                                        |
 | App settings, "AI assistant"                            | The **AI context** of the app (admins edit, members read)                                                                                                            | none                                                     |
 | Workspace settings, "AI assistant"                      | Provider, model, key, token budget, **soft warning**, **prices and cost cap**, usage by task                                                                         | none                                                     |
 
@@ -26,6 +26,20 @@ The first time a person runs a task in a session, a small popover says who recei
 **Show exactly what will be sent** in it reads the real data of this run from our own database (`POST /ai/tasks/{id}/preview`: nothing goes
 to a provider and nothing is spent) so the person can read it before saying yes. "Don't ask again for this task" is kept in the browser
 (localStorage) per task, task version and provider: a new version or another provider asks again.
+
+## What a keyword suggestion means
+
+A keyword idea names a listing field, for example "Where it would go: Title". That is a **suggestion of where the keyword could be used**,
+and it says so: "This is a suggestion for what to put there. Nothing changes until you stage it." Accepting an idea only **tracks** the keyword
+(so its rank is followed); it never edits the listing. To use the keyword in the listing, press the button under the idea, "Stage in title",
+"Stage in keyword field", "Stage in short description" and so on. It opens the field editor with the keyword added to the stored text: you see
+the text before and after and the character or byte budget, change it as you like, and press Stage. Staging saves in our own database; a push
+to a store is still the previewed, confirmed step of the staged changes. For the App Store name and subtitle, which a draft push cannot write,
+the button says "Draft in title" and the editor is for working the text out and copying it.
+
+A suggested text (Improve, variants, translation) shows what the field says now beside the suggestion with the changes underlined, and its
+button names the field ("Stage in keyword field"). In the field editor the same suggestion is asked for with "Suggest with AI". The privacy
+line and "Show exactly what will be sent" are unchanged.
 
 ## The AI context of an app
 

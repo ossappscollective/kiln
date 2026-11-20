@@ -16,6 +16,9 @@
   finished, so this tab reloads), lockedPlatforms? (platforms whose selected version is live or in review: their
   fields are read-only, with no stage control and no staged-changes tray), locale? (the locale of the page header:
   naming one the grid has opens its drawer; stepping to another locale there tells onlocale), onlocale?.
+  Every cell whose field can be edited has a pencil ("Edit title, en-US"): it opens the field editor (FieldEditor) on that field and locale, with
+  a live counter against the store's limit, the text before and after, "Suggest with AI" and "Stage". The same editor opens from "Edit" on
+  each field of the locale drawer. Staging saves the text in our own database; nothing reaches a store from here.
   The locales read here are handed to the header picker (lib/nav-signals.svelte.ts).
 -->
 <script lang="ts">
@@ -48,6 +51,7 @@
     modeCounts,
     type MatrixCell,
   } from '../../lib/listing-matrix.ts';
+  import { fieldInfo } from '../../lib/listing-edit.ts';
   import { pullDisabledReason, pullableFields, summarizePull } from '../../lib/listing-pull.ts';
   import { warningCountOf, warningGroups } from '../../lib/listing-warnings.ts';
   import { describeError, platformLabel, storeName } from '../../lib/portfolio.ts';
@@ -67,6 +71,7 @@
   import Section from '../ui/Section.svelte';
   import SectionsToggle from '../ui/SectionsToggle.svelte';
   import StatusPill from '../ui/StatusPill.svelte';
+  import FieldEditor from './FieldEditor.svelte';
   import HistoryDrawer from './HistoryDrawer.svelte';
   import ListingSections from './ListingSections.svelte';
   import LocaleDrawer from './LocaleDrawer.svelte';
@@ -121,6 +126,19 @@
   let pullOpen = $state(false);
   let pullApp = $state<AppSummary | null>(null);
   let pullFieldsList = $state<DriftField[]>([]);
+
+  let editOpen = $state(false);
+  let editTarget = $state<{ app: AppSummary; locale: string; field: string; current: string } | null>(null);
+
+  /** Opens the field editor on one field of one locale, with the text the store has now. */
+  function openEditor(app: AppSummary, field: DriftField) {
+    editTarget = { app, locale: field.locale, field: field.field, current: field.live.value ?? field.db.value ?? '' };
+    editOpen = true;
+  }
+
+  /** The field of a cell that the editor can edit on a platform that is not locked, else null. */
+  const editableField = (cell: MatrixCell): DriftField | null =>
+    cell.field !== null && lockedPlatforms.indexOf(cell.platform) < 0 && fieldInfo(cell.platform, cell.field.field) !== null ? cell.field : null;
 
   /** The field being staged or unstaged: `<app id>\u0000<locale>\u0000<field>`, or ''. One at a time. */
   let stagingKey = $state('');
@@ -425,6 +443,7 @@
   {#if hasRows}
     <div class="context">
       <p class="ctx muted">{listingContext(shown, matrix.rows.length)}</p>
+      <p class="ctx muted">To change a text, press the pencil in its cell: you can write it, check its length and ask for an AI suggestion. Changes are staged here first; nothing reaches a store until you push the staged changes.</p>
       <p class="statusline {line.tone}" data-testid="listing-status-line">
         <StatusDot status={line.tone === 'ok' ? 'sync' : line.tone === 'warn' ? 'repo-differs' : 'na'} />
         <span>{line.text}{anySyncing ? ' · reading the store…' : ''}</span>
@@ -679,6 +698,21 @@
                         {/each}
                         {#if staged.length > 0}<span class="staged-mark" aria-hidden="true" title="Staged for a draft push"><Icon name="layers" size={14} /></span>{/if}
                       </button>
+                      {#each cells as cell (cell.platform)}
+                        {@const editable = editableField(cell)}
+                        {@const owner = members.find((m) => m.platform === cell.platform)}
+                        {#if editable && owner}
+                          <button
+                            type="button"
+                            class="bare edit"
+                            aria-label="Edit {column.label.toLowerCase()}, {row.locale}{both ? `, ${platformLabel(cell.platform)}` : ''}"
+                            title="Edit {column.label.toLowerCase()} ({row.locale}){both ? `, ${platformLabel(cell.platform)}` : ''}"
+                            onclick={() => openEditor(owner, editable)}
+                          >
+                            <Icon name="edit" size={14} />
+                          </button>
+                        {/if}
+                      {/each}
                     </td>
                   {/each}
                 </tr>
@@ -732,7 +766,22 @@
   allLocales={matrix.rows.map((r) => r.locale)}
   {api}
   {workspaceId}
+  onedit={openEditor}
 />
+
+{#if editTarget}
+  <FieldEditor
+    bind:open={editOpen}
+    {api}
+    {workspaceId}
+    {role}
+    appId={editTarget.app.id}
+    platform={editTarget.app.platform}
+    locale={editTarget.locale}
+    field={editTarget.field}
+    current={editTarget.current}
+  />
+{/if}
 
 {#if members.length > 0}
   <PullDialog
@@ -1044,6 +1093,24 @@
 
   .dots.dim {
     opacity: 0.3;
+  }
+
+  .edit {
+    display: inline-flex;
+    padding: var(--space-1);
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+  }
+
+  .edit:hover {
+    color: var(--accent);
+    background: var(--surface-hover);
+  }
+
+  .edit:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
   }
 
   h2.phead {

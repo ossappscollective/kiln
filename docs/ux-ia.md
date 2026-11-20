@@ -63,6 +63,20 @@ Same principles as phase 1: quiet by default, the important thing first, one pri
   | `terms`                                                     | Search terms (an app with no Google Play record falls back to Keywords) |
   | `/aso`, `/aso?view=x`, `/analytics`                         | redirect to `/insights?view=keywords                                    | x`, `/insights` |
 
+- **Keywords your listing uses now** (Insights, Keywords, first block; `UsedKeywords.svelte`, `keyword-use.ts`, `listing-edit.ts`): per app and
+  one locale at a time, what the STORED listing says today. App Store: the 100 byte keyword field plus the words and phrases of the name
+  (shown as "title") and subtitle. Google Play has no keyword field, so the words and phrases of the title, short description and full
+  description are DERIVED by the tool and the view says so. Each keyword shows where it appears (title, subtitle, keyword field,
+  description), whether it is tracked and its latest rank, and (Google Play, when a Play Console search terms file was imported) the
+  visitors that came from searching it (not search volume). "Track" is one click (the existing keywords endpoint); "Edit" opens the
+  field editor on that field and locale. A locale with no stored text gets an empty state that points to Sync. The tracker is below it.
+- **Field editor** (`FieldEditor.svelte`): one dialog for one field of one locale (title or name, subtitle, short description, keyword
+  field, promotional text, description). A live counter against the store's limit (characters, bytes for the keyword field), the store
+  text and the new text side by side with the changes marked, "Suggest with AI" (before and after, then Stage or Dismiss), "Copy text"
+  and "Stage in <field>". Staging saves in our own database; a push to a store stays the gated step of the tray. It opens from the pencil
+  in each cell of the Store listing grid, from "Edit" on each field of the locale drawer (kept), from the Keywords view and from "Stage in
+  title" under an AI keyword idea. The App Store name and subtitle cannot be written by a draft push: their editor is for working the text
+  out and copying it, and says so.
 - **Store listing** (Text view): the context line (stores and locale count) and ONE status line ("3 locales need attention, 1 with
   missing fields", with "Show them"), then the toolbar: locale filters, search, "Legend and sources" (legend, where each side was
   read) and a "More" menu (Read repository, Pull differences). The matrix header and the locale column are sticky inside the grid.

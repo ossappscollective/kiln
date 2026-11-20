@@ -2,7 +2,9 @@
   AsoSection: the Keywords and Search terms views of Insights of an open app (`#/portfolio/<id>/insights?view=keywords`; the old
   `?view=aso` and `#/portfolio/<id>/aso` redirect). The address keeps the keyword view (`?view=keywords|rank|listing|competitors|ideas|fit|gaps|markets`)
   and `?view=terms` is the separate Search terms view (Google Play apps only, from a Play Console file).
-  Keywords: a small switch of two views, Keywords (the tracker: rank history per locale, add and remove keywords, "Check now") and Rank
+  Keywords: starts with "Keywords your listing uses now" (UsedKeywords: what the stored listing says, per locale, with where each keyword
+  appears, whether it is tracked, one-click Track and Edit that opens the field editor), then the tracker below it. A small switch of two
+  views, Keywords (the tracker: rank history per locale, add and remove keywords, "Check now") and Rank
   and downloads (the rank history laid on downloads; a correlation view), and a "More" menu with the rest: In your listing,
   Competitors, Ideas, Fit, Gaps and Markets. The ranked next steps are on the Overview of Insights; the keyword ideas that "Suggest keywords"
   asked for are listed here (Keywords and Ideas), where accepting them reads the tracked keywords again at once.
@@ -35,6 +37,7 @@
   import AsoListing from './AsoListing.svelte';
   import AsoMarkets from './AsoMarkets.svelte';
   import AsoSearchTerms from './AsoSearchTerms.svelte';
+  import UsedKeywords from './UsedKeywords.svelte';
   import AsoStatus from './AsoStatus.svelte';
   import RankVsDownloads from './RankVsDownloads.svelte';
 
@@ -173,7 +176,10 @@
     {/if}
     <div>
       {#if view === 'keywords'}
-        <AsoKeywords {...shared} {canWrite} />
+        <div class="stack loose">
+          <UsedKeywords {...shared} {canWrite} />
+          <AsoKeywords {...shared} {canWrite} />
+        </div>
       {:else if view === 'listing'}
         <AsoListing {...shared} {canWrite} />
       {:else if view === 'competitors'}

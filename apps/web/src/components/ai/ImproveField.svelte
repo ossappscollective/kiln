@@ -4,7 +4,10 @@
   its flags: over the limit cannot be accepted, a trimmed keyword field says so. Accepting STAGES the text (the staged-changes tray and
   Pending changes show it); nothing reaches a store until the previewed, confirmed draft push, which this never starts.
   Drawn only for a field a draft push can write, on a version that is not locked, and only when AI is on and the role may use it.
-  Props: api, workspaceId, role, app (the app record), field (the drift field: its locale and id), label (the field's name).
+  The proposal is shown with what the field says now beside it (before and after, changes underlined), and the person stages it
+  ("Stage in keyword field") or dismisses it. It is a suggestion: nothing changes until it is staged.
+  Props: api, workspaceId, role, app (the app: id and platform), field (the drift field: its locale, id and label), current? (the text
+  the field has now, for the before and after), buttonLabel? ("Improve" by default), onaccepted? (called after the text was staged).
 -->
 <script lang="ts">
   import type { Role } from '@mrm/core';
@@ -12,6 +15,7 @@
   import { aiStore } from '../../lib/ai-store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import type { AppSummary, DriftField } from '../../lib/types.ts';
+  import type { AiAcceptedRef } from '@mrm/core';
   import AiSuggestionCard from './AiSuggestionCard.svelte';
   import SuggestButton from './SuggestButton.svelte';
 
@@ -21,12 +25,18 @@
     role,
     app,
     field,
+    current,
+    buttonLabel = 'Improve',
+    onaccepted,
   }: {
     api: Api;
     workspaceId: string;
     role: Role;
-    app: AppSummary;
+    app: Pick<AppSummary, 'id' | 'platform'>;
     field: Pick<DriftField, 'locale' | 'field' | 'label'>;
+    current?: string | null;
+    buttonLabel?: string;
+    onaccepted?: (result: AiAcceptedRef) => void | Promise<void>;
   } = $props();
 
   let suggestionId = $state<string | null>(null);
@@ -52,9 +62,18 @@
 
 {#if eligible}
   <div class="improve">
-    <SuggestButton {api} {workspaceId} {role} kind="listing_text" taskId="listing_improve" label="Improve" hiddenLabel="{field.label} ({field.locale}) with AI" onrun={run} />
+    <SuggestButton {api} {workspaceId} {role} kind="listing_text" taskId="listing_improve" label={buttonLabel} hiddenLabel="{field.label} ({field.locale}) with AI" onrun={run} />
     {#if shown}
-      <AiSuggestionCard {api} {workspaceId} {role} suggestion={shown} platform={app.platform} compact />
+      <AiSuggestionCard
+        {api}
+        {workspaceId}
+        {role}
+        suggestion={shown}
+        platform={app.platform}
+        compact
+        current={current === undefined || current === null ? undefined : { [field.field]: current }}
+        {onaccepted}
+      />
     {/if}
   </div>
 {/if}

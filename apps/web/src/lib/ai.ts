@@ -15,6 +15,7 @@ import {
   type Platform,
   type Role,
 } from '@mrm/core';
+import { placementLine, stageInLabel } from './ai-placement.ts';
 import { centsFromText, centsInput, insightTitle } from './ai-insights.ts';
 import { ApiError } from './api.ts';
 import { appAddress, appReviewsHref, type PlatformScope } from './app-scope.ts';
@@ -527,6 +528,8 @@ export function blockedReason(flags: readonly AiFlag[]): string {
 }
 
 const LISTING_LABELS: Record<string, string> = {
+  name: 'Title (App Store name)',
+  subtitle: 'Subtitle',
   description: 'Description',
   keywords: 'Keyword field',
   promotional_text: 'Promotional text',
@@ -587,6 +590,8 @@ export type ProposalRow = {
   group: string | null;
   /** The position inside its group, for the `choices` of an accept. */
   variant: number | null;
+  /** A keyword idea: the listing field it would go in (a suggestion only), or null. Other rows: null. */
+  placement: string | null;
 };
 
 /** The proposal of a suggestion as rows for the screen. Every text is data: the screen shows it as text only. */
@@ -599,13 +604,14 @@ export function proposalRows(proposal: AiProposal): ProposalRow[] {
         title: item.term,
         text: null,
         reason: item.reason,
-        note: item.field ? `For the ${listingFieldLabel(item.field).toLowerCase()}` : null,
+        note: placementLine(item.field),
         flags: flagInfos(item.flags),
         acceptable: item.acceptable,
         blocked: item.acceptable ? null : blockedReason(item.flags),
         meter: null,
         group: null,
         variant: null,
+        placement: item.field,
       }));
     case 'listing_text':
       return proposal.fields.map((f, index) => ({
@@ -621,6 +627,7 @@ export function proposalRows(proposal: AiProposal): ProposalRow[] {
         meter: f.limit === null ? null : meterFor(f.length, f.limit, f.unit),
         group: null,
         variant: null,
+        placement: null,
       }));
     case 'listing_variants': {
       const out: ProposalRow[] = [];
@@ -639,6 +646,7 @@ export function proposalRows(proposal: AiProposal): ProposalRow[] {
             meter: f.limit === null ? null : meterFor(v.length, f.limit, f.unit),
             group: f.field,
             variant: n,
+            placement: null,
           });
         });
       }
@@ -662,6 +670,7 @@ export function proposalRows(proposal: AiProposal): ProposalRow[] {
           meter: meterFor(proposal.length, proposal.limit, 'characters'),
           group: null,
           variant: null,
+          placement: null,
         },
       ];
   }
@@ -742,6 +751,23 @@ export function acceptLabel(kind: AiProposalKind, chosen: number): string {
     case 'insight':
       return 'Mark as reviewed';
   }
+}
+
+/**
+ * The label of the accept button of a card: for one chosen text it names the field ("Stage in keyword field"), so a person sees that
+ * accepting STAGES that text; for keyword ideas it says "Track", never "add to the listing".
+ */
+export function acceptButtonLabel(
+  proposal: AiProposal,
+  rows: readonly ProposalRow[],
+  selected: readonly number[],
+): string {
+  const chosen = rows.filter((r) => r.acceptable && selected.indexOf(r.index) !== -1);
+  const only = chosen.length === 1 ? (chosen[0] as ProposalRow) : null;
+  if (only !== null && (proposal.kind === 'listing_text' || proposal.kind === 'listing_variants')) {
+    return stageInLabel(only.group ?? only.key);
+  }
+  return acceptLabel(proposal.kind, chosen.length);
 }
 
 // ---------------------------------------------------------------------------------------------
