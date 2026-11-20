@@ -361,8 +361,12 @@
 </section>
 
 <style>
+  /* The step tiles, the step's own buttons (.step-actions) and Back/Next stay in view; only the step's content scrolls. */
   .stepper {
-    display: grid;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 4rem);
+    overflow: hidden;
     gap: var(--space-3);
     padding: var(--space-4);
     background: var(--surface);
@@ -490,8 +494,16 @@
     background: var(--bad);
   }
 
+  .stepper > * {
+    flex: none;
+  }
+
   .body {
+    flex: 1 1 auto;
     min-width: 0;
+    min-height: 12rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
 </style>

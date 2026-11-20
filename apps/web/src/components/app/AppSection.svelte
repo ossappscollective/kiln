@@ -146,9 +146,9 @@
 {:else if section === 'pending'}
   <div class="stack loose">
     <PendingChanges {api} {workspaceId} {role} {members} />
-    <!-- Open AI suggestions (a staged-text proposal is accepted here, then shows in the list above): drawn only when AI is on and one is open. -->
+    <!-- Open AI suggestions of staged text (accepted here, then shown in the list above): drawn only when AI is on and one is open. Keyword ideas are accepted in Insights, not here. -->
     {#each members as m (m.id)}
-      <AiSuggestions {api} {workspaceId} {role} app={m} platform={address.platform} showPlatform={members.length > 1} />
+      <AiSuggestions {api} {workspaceId} {role} app={m} platform={address.platform} showPlatform={members.length > 1} exceptKind="keywords" />
     {/each}
   </div>
 {:else if section === 'listing'}

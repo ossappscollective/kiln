@@ -218,7 +218,7 @@
         {#if applePart.truncatedAt !== null}<p class="muted small">Only the newest {applePart.truncatedAt} builds are listed.</p>{/if}
       {/if}
 
-      <div class="row">
+      <div class="row step-actions">
         {#if mayEdit}
           <Button variant="primary" loading={staging} disabled={picked === '' || staging || picked === (stagedBuild?.value ?? '') || rows.every((r) => r.id !== picked || !r.eligibility.selectable)} onclick={stageBuild}>
             Use this build
@@ -304,7 +304,7 @@
         {#if shareText.trim() !== '' && fraction === null}<p class="small bad">Type a number from 0.01 to 100.</p>{/if}
       </div>
 
-      <div class="row">
+      <div class="row step-actions">
         {#if mayEdit}
           <Button variant="primary" loading={staging} disabled={pickedCodes.length === 0 || !trackOk || staging || (shareText.trim() !== '' && fraction === null)} onclick={stageCodes}>
             Use these version codes

@@ -5,7 +5,7 @@
   (AiSuggestionCard); accepting uses an existing mechanism and says where the result is.
   Props: api, workspaceId, role, app (the app record), platform? (the scope of the open app, for links), showPlatform? (name the
   platform in the line when the page shows several), kind? (only the suggestions of this kind: the Keywords views list the keyword ideas
-  they asked for), tasks? (only the suggestions of these tasks, which is also how a screen shows the reports it asked for), onaccepted? (the screen reads its own list again after an accept or an undo).
+  they asked for), exceptKind? (leave out the suggestions of this kind: Pending changes leaves out the keyword ideas, which are accepted in Insights), tasks? (only the suggestions of these tasks, which is also how a screen shows the reports it asked for), onaccepted? (the screen reads its own list again after an accept or an undo).
 -->
 <script lang="ts">
   import { type AiAcceptedRef, type AiProposalKind, type Role, can } from '@mrm/core';
@@ -27,6 +27,7 @@
     platform = null,
     showPlatform = false,
     kind = null,
+    exceptKind = null,
     tasks = null,
     onaccepted,
   }: {
@@ -37,6 +38,7 @@
     platform?: PlatformScope | null;
     showPlatform?: boolean;
     kind?: AiProposalKind | null;
+    exceptKind?: AiProposalKind | null;
     tasks?: string[] | null;
     onaccepted?: (result: AiAcceptedRef) => void | Promise<void>;
   } = $props();
@@ -48,7 +50,7 @@
   const list = $derived(
     aiStore
       .shown(app.id)
-      .filter((s) => (kind === null || s.kind === kind) && (tasks === null || tasks.indexOf(s.task) !== -1) && (kind !== null || tasks !== null || s.kind !== 'insight')),
+      .filter((s) => (kind === null || s.kind === kind) && (exceptKind === null || s.kind !== exceptKind) && (tasks === null || tasks.indexOf(s.task) !== -1) && (kind !== null || tasks !== null || s.kind !== 'insight')),
   );
   const count = $derived(list.filter((s) => s.status === 'proposed').length);
 

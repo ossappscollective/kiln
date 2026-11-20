@@ -1340,3 +1340,13 @@ td.actions {
     break-inside: avoid;
   }
 }
+
+/* The button row of a step in a scrolling panel: it stays at the bottom of the visible part. */
+.step-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding-block: var(--space-2);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}

@@ -296,7 +296,7 @@
       <Button size="sm" disabled={!isNoteLocale(newLocale) || locales.indexOf(newLocale.trim().replace(/_/g, '-')) >= 0} onclick={addLocale}>Add</Button>
     </div>
 
-    <div class="row">
+    <div class="row step-actions">
       <Button variant="primary" loading={staging} disabled={unsaved.length === 0 || staging || overs > 0} onclick={stageNotes}>
         Stage the notes{unsaved.length > 0 ? ` (${unsaved.length})` : ''}
       </Button>
