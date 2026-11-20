@@ -314,3 +314,17 @@ function describe(t: {
     button,
   };
 }
+
+/**
+ * The trains of each platform on its own. An app that ships on iOS, macOS and Android has one release per store, and each one has
+ * its own next step, so they are never merged into a single train (a merged one could only point at one of them).
+ */
+export function releaseTrainsByPlatform(all: readonly TrainInput[]): Train[] {
+  const platforms: Platform[] = [];
+  for (const i of all) if (platforms.indexOf(i.platform) < 0) platforms.push(i.platform);
+  const out: Train[] = [];
+  for (const p of platforms)
+    for (const t of releaseTrains(all.filter((i) => i.platform === p)))
+      out.push({ ...t, key: `${p}:${t.key}` });
+  return out;
+}

@@ -24,13 +24,14 @@
   import { chooseNextStep } from '../../lib/next-step.ts';
   import { pipelineStore } from '../../lib/pipeline-store.svelte.ts';
   import { promoteHref, promoteOptions } from '../../lib/play-promote.ts';
-  import { releaseTrains, trainInputOf } from '../../lib/release-trains.ts';
+  import { releaseTrainsByPlatform, trainInputOf } from '../../lib/release-trains.ts';
   import { releaseStepHref } from '../../lib/release-stepper.ts';
   import type { StartedRun } from '../../lib/start-release.ts';
   import type { ActiveRuns, AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import TrainSteps from '../release/TrainSteps.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
+  import PlatformBadge from '../ui/PlatformBadge.svelte';
   import AttentionList from './AttentionList.svelte';
   import StartRelease from './StartRelease.svelte';
 
@@ -73,7 +74,7 @@
   }
 
   const trains = $derived(
-    releaseTrains(
+    releaseTrainsByPlatform(
       members
         .map((m) => pipelineStore.app(m.id))
         .filter((d): d is NonNullable<typeof d> => d !== null)
@@ -128,6 +129,7 @@
         {#if step.waiting}<Badge tone={step.waiting.who === 'you' ? 'warn' : 'neutral'}>{step.waiting.text}</Badge>{/if}
       </h2>
       {#if step.text !== ''}<p class="muted">{step.text}</p>{/if}
+      {#if step.rows.length > 0}<p class="muted">Each store has its own release, so each has its own button.</p>{/if}
     </div>
     <div class="actions">
       {#if step.primary && 'href' in step.primary}
@@ -160,6 +162,21 @@
       {/if}
     </div>
   </div>
+
+  {#if step.rows.length > 0}
+    <ul class="rows" aria-label="Releases on their way" data-testid="next-step-rows">
+      {#each step.rows as r (r.key)}
+        <li class="row" data-tone={r.tone} data-testid="next-step-row">
+          <span class="who">{#each r.platforms as p (p)}<PlatformBadge platform={p} />{/each}</span>
+          <span class="what">
+            <span>{r.text}</span>
+            {#if r.waiting}<Badge tone={r.waiting.who === 'you' ? 'warn' : 'neutral'}>{r.waiting.text}</Badge>{/if}
+          </span>
+          <Button variant={r.urgent ? 'primary' : 'secondary'} icon="arrow-right" href={r.href}>{r.label}</Button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
 
   {#if step.train}
     <div class="steps"><TrainSteps steps={step.train.steps} /></div>
@@ -301,6 +318,37 @@
     margin: var(--space-4) 0 0;
     font-size: var(--text-base);
     list-style: none;
+  }
+
+  .rows {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    margin: var(--space-4) 0 0;
+    list-style: none;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 8rem minmax(0, 1fr) auto;
+    gap: var(--space-3) var(--space-4);
+    align-items: center;
+    padding: var(--space-3) 0;
+    border-top: 1px solid var(--line);
+    font-size: var(--text-base);
+  }
+
+  .what {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    align-items: center;
+  }
+
+  @media (max-width: 640px) {
+    .row {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   .more {

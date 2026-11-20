@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AttentionItem } from './app-attention.ts';
 import { chooseNextStep, orderTrains } from './next-step.ts';
-import { releaseTrains, type TrainInput } from './release-trains.ts';
+import { releaseTrains, releaseTrainsByPlatform, type TrainInput } from './release-trains.ts';
 
 const rows = (statuses: string[]) =>
   ['ci', 'build', 'prepare', 'review', 'release'].map((id, i) => ({
@@ -115,12 +115,41 @@ test('a rejection comes before an approval, and an approval before a release in 
   );
   const s = chooseNextStep(input({ trains }));
   assert.equal(s.tone, 'bad');
-  assert.equal(s.title, 'Version 3.0.0');
-  assert.equal(s.otherTrains.length, 2);
+  // Several releases: none is chosen over the others; each is a row with its own button.
+  assert.equal(s.primary, null);
+  assert.equal(s.train, null);
   assert.deepEqual(
-    s.otherTrains.map((o) => o.title),
-    ['Version 2.0.0', 'Version 1.0.0'],
+    s.rows.map((r) => [r.title, r.urgent]),
+    [
+      ['Version 3.0.0', true],
+      ['Version 2.0.0', true],
+      ['Version 1.0.0', false],
+    ],
   );
+});
+
+test('each platform with a release on its way has its own row and its own button, Android in review included', () => {
+  const trains = releaseTrainsByPlatform([
+    { ...inReview, appId: 'ios', platform: 'ios', version: '2.0.1' },
+    { ...inReview, appId: 'mac', platform: 'macos', version: '2.0.1' },
+    { ...inReview, appId: 'and', platform: 'android', version: '2.0.1' },
+  ]);
+  const s = chooseNextStep(input({ trains }));
+  assert.equal(s.rows.length, 3);
+  assert.deepEqual(
+    s.rows.map((r) => r.platforms),
+    [['ios'], ['macos'], ['android']],
+  );
+  assert.ok(s.rows.every((r) => r.waiting?.who === 'store' && !r.urgent && r.href.length > 0));
+  assert.equal(new Set(s.rows.map((r) => r.key)).size, 3);
+  assert.equal(s.offerStart, true);
+});
+
+test('one release on its way stays the big card, with no rows', () => {
+  const s = chooseNextStep(input({ trains: releaseTrains([inReview]) }));
+  assert.equal(s.rows.length, 0);
+  assert.ok(s.train);
+  assert.ok(s.primary);
 });
 
 test('the release left unfinished is the train, not a second line; the other items stay', () => {

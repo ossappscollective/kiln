@@ -1,6 +1,7 @@
 import type { AttentionItem } from './app-attention.ts';
 import type { PlatformScope } from './app-scope.ts';
 import { releaseStepHref } from './release-stepper.ts';
+import type { Platform } from '@mrm/core';
 import type { Train } from './release-trains.ts';
 
 /**
@@ -16,6 +17,21 @@ export type NextAction =
   | { label: string; href: string }
   | { label: string; action: 'start-release' | 'prepare-release' };
 
+/** One release with a next step of its own: a row of the card when several platforms have one. */
+export type NextRow = {
+  key: string;
+  platforms: Platform[];
+  tone: 'bad' | 'warn' | 'info';
+  title: string;
+  /** What is going on and what waits for whom. */
+  text: string;
+  waiting: { who: 'you' | 'store' | 'ci'; text: string } | null;
+  href: string;
+  label: string;
+  /** Waits for the person (or failed): its button is the primary one; the rest are quiet. */
+  urgent: boolean;
+};
+
 export type NextStepKind = 'train' | 'attention' | 'start' | 'prepare' | 'idle';
 
 export type NextStep = {
@@ -29,6 +45,11 @@ export type NextStep = {
   primary: NextAction | null;
   /** The release the card is about; its five steps are drawn in the card. */
   train: Train | null;
+  /**
+   * Every release on its way, one row each, when there are several (one per platform): each has its own next step and its own
+   * button, none is chosen over the others. Empty when there is one (the card itself is that step).
+   */
+  rows: NextRow[];
   /** Other releases on their way: one quiet line each. */
   otherTrains: { title: string; text: string; href: string; label: string }[];
   /** The rest of "Needs attention": what the card does not already say. */
@@ -68,6 +89,21 @@ export function orderTrains(trains: readonly Train[]): Train[] {
 const trainHref = (t: Train, scope: PlatformScope | null): string =>
   releaseStepHref(t.button.appId, scope, t.button.step, t.version);
 
+function rowOf(t: Train, scope: PlatformScope | null): NextRow {
+  const r = rank(t);
+  return {
+    key: t.key,
+    platforms: t.platforms,
+    tone: r === 0 ? 'bad' : r === 1 ? 'warn' : 'info',
+    title: t.title,
+    text: t.lines.join(' '),
+    waiting: t.waiting ? { who: t.waiting.who, text: t.waiting.text } : null,
+    href: trainHref(t, scope),
+    label: t.button.label,
+    urgent: r <= 1,
+  };
+}
+
 export function chooseNextStep(input: NextStepInput): NextStep {
   const trains = orderTrains(input.trains);
   // The release left unfinished is the release trains' business: one line, not two. It only stays when no train could be read.
@@ -77,6 +113,7 @@ export function chooseNextStep(input: NextStepInput): NextStep {
   const base = {
     items: [] as AttentionItem[],
     otherTrains: [] as NextStep['otherTrains'],
+    rows: [] as NextRow[],
     train: null as Train | null,
   };
 
@@ -87,12 +124,13 @@ export function chooseNextStep(input: NextStepInput): NextStep {
       ...base,
       kind: 'train',
       tone: r === 0 ? 'bad' : r === 1 ? 'warn' : 'info',
-      title: lead.title,
-      text: lead.lines.join(' '),
-      waiting: lead.waiting ? { who: lead.waiting.who, text: lead.waiting.text } : null,
-      primary: { label: lead.button.label, href: trainHref(lead, input.scope) },
-      train: lead,
-      otherTrains: trains.slice(1).map((t) => ({
+      title: trains.length > 1 ? 'Your next steps' : lead.title,
+      text: trains.length > 1 ? '' : lead.lines.join(' '),
+      waiting: trains.length > 1 ? null : lead.waiting ? { who: lead.waiting.who, text: lead.waiting.text } : null,
+      primary: trains.length > 1 ? null : { label: lead.button.label, href: trainHref(lead, input.scope) },
+      train: trains.length > 1 ? null : lead,
+      rows: trains.length > 1 ? trains.map((t) => rowOf(t, input.scope)) : [],
+      otherTrains: trains.length > 1 ? [] : trains.slice(1).map((t) => ({
         title: t.title,
         text: t.lines[0] ?? '',
         href: trainHref(t, input.scope),
