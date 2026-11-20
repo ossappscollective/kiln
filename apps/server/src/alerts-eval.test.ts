@@ -65,7 +65,7 @@ dbTest(
   async (db) => {
     const t = await bootAlerts(db);
     await db.execute(
-      "INSERT INTO credentials (id, workspace_id, kind, label, ciphertext, created_at, last_test_at, last_test_ok, last_test_message) VALUES ('c1', ?, 'github_token', 'GitHub CI', 'x', 1, 5, 0, 'bad')",
+      "INSERT INTO credentials (id, workspace_id, kind, label, ciphertext, created_at, last_test_at, last_test_ok, last_test_message) VALUES ('c1', ?, 'github_token', 'GitHub CI', 'x', 1, 5, 0, 'token-test-message-xyz')",
       [t.workspaceId],
     );
     await db.execute(
@@ -77,7 +77,7 @@ dbTest(
     assert.equal(alerts.length, 1);
     assert.equal(alerts[0]?.type, 'credential.invalid');
     assert.match(String(alerts[0]?.body), /GitHub CI/);
-    assert.doesNotMatch(JSON.stringify(alerts), /bad|ciphertext/);
+    assert.doesNotMatch(JSON.stringify(alerts), /token-test-message-xyz|ciphertext/);
     // The same credential failing its test through the event collapses into the alert that is there.
     await t.emit(
       'credential.test_failed',
