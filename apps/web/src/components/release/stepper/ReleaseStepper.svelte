@@ -1,6 +1,8 @@
 <!--
-  ReleaseStepper: "Prepare release" for ONE app record: Build, Notes, Assets, Review, Confirm. Each step has a readiness dot
-  (and a word, never colour alone). The steps only STAGE changes in our own database; nothing reaches a store when a step
+  ReleaseStepper: "Prepare release" for ONE app record: Build, Notes, Assets, Review, Confirm. The steps are a rail on the left (number or
+  check, name, one line of status; the current one highlighted, and a word for assistive technology, never colour alone), the step on the
+  right (one heading, one sentence, the choices), and a footer that always sits at the bottom: Back, "Step N of M" and the ONE primary
+  button, named after the next step ("Next: Notes"); on the last step it is "Review and publish" (lib/stepper-layout.ts). The steps only STAGE changes in our own database; nothing reaches a store when a step
   changes. Only the Confirm step does, through the gated flows that already exist: push the draft (typed app name and an
   acknowledgement), submit for review (typed phrase), release (typed phrase, and for Google Play the share you type), and the
   rollout controls. Their confirmations are the same components, unchanged. A step the role or the server's switches do not
@@ -22,15 +24,14 @@
   import { type EditableRelease, type ReleaseCandidates, type PlayCandidates, type BuildCandidate } from '../../../lib/release-candidates.ts';
   import { type Promote } from '../../../lib/play-promote.ts';
   import { type PromoteNotesState, noteRows, promoteNotesFill, unsavedLocales } from '../../../lib/release-notes.ts';
+  import type { PendingItem } from '../../../lib/pending.ts';
   import { type AppPipeline } from '../../../lib/release-pipeline.ts';
   import {
     type EditableState,
     type StepId,
-    LEVEL_TONE,
     LEVEL_WORD,
     chosenOf,
     confirmHiddenReason,
-    neighbour,
     resolveStep,
     stagedFacts,
     stagedField,
@@ -40,6 +41,8 @@
     visibleSteps,
   } from '../../../lib/release-stepper.ts';
   import { canStage, stagingError } from '../../../lib/staged.ts';
+  import { pendingStore } from '../../../lib/pending-store.svelte.ts';
+  import { confirmSteps, footerFor, railMark, stepIntro } from '../../../lib/stepper-layout.ts';
   import { stagedStore } from '../../../lib/staged-store.svelte.ts';
   import { canSubmit } from '../../../lib/store-submit.ts';
   import { submitStore } from '../../../lib/store-submit-store.svelte.ts';
@@ -48,6 +51,8 @@
   import type { AppBuild, AppSummary, ReleaseSummary } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';
   import Button from '../../ui/Button.svelte';
+  import Icon from '../../ui/Icon.svelte';
+  import PlatformBadge from '../../ui/PlatformBadge.svelte';
   import StepAssets from './StepAssets.svelte';
   import StepBuild from './StepBuild.svelte';
   import StepConfirm from './StepConfirm.svelte';
@@ -336,93 +341,139 @@
       if (canRelease(role)) void releaseStore.loadConfig(api, workspaceId);
       void loadPipeline();
       void loadLocales();
+      void pendingStore.loadView(api, workspaceId, app.id);
     });
   });
 
-  const next = $derived(current === null ? null : neighbour(current, visible, 1));
-  const back = $derived(current === null ? null : neighbour(current, visible, -1));
+  const pendingView = $derived(pendingStore.view(app.id));
+  /** What the Confirm step will write, in order (null until what is pending was read). */
+  const confirmList = $derived(
+    pendingView === null ? null : confirmSteps(pendingView.platforms.reduce<PendingItem[]>((all, p) => all.concat(p.items), []), app.platform),
+  );
+  const intro = $derived(
+    current === null
+      ? null
+      : stepIntro(current, {
+          platform: app.platform,
+          version: releaseVersion,
+          chosen,
+          notes: { withText: rows.filter((r) => r.draft.trim() !== '').length },
+          staged: stagedFacts(view),
+          confirm: confirmList,
+        }),
+  );
+  const footer = $derived(current === null ? null : footerFor(current, visible));
+  let confirmStep = $state<ReturnType<typeof StepConfirm> | undefined>();
+  const publishState = $derived(footer !== null && footer.primary.kind === 'publish' && confirmStep ? confirmStep.publishState() : { enabled: true, reason: '' });
 </script>
 
 <section class="stepper" aria-label="Prepare release, {platformLabel(app.platform)}" data-testid="release-stepper" use:fitToViewport={{ margin: 16, min: 420, fill: true }}>
   <header class="head">
-    <h3>Prepare release{showPlatform ? `: ${platformLabel(app.platform)}` : ''}</h3>
+    <h3>Prepare release</h3>
+    {#if showPlatform}<PlatformBadge platform={app.platform} />{/if}
     {#if releaseVersion}<span class="muted">version {releaseVersion}</span>{/if}
     <span class="spacer"></span>
     <Button size="sm" variant="ghost" icon="x" onclick={onclose}>Close</Button>
   </header>
-  <p class="muted note">Nothing is sent to the store until the last step.</p>
 
-  <ol class="steps" aria-label="Steps">
-    {#each statuses as s, i (s.id)}
-      {@const tone = LEVEL_TONE[s.level]}
-      <li>
-        <button type="button" class="step" class:current={current === s.id} aria-current={current === s.id ? 'step' : undefined} onclick={() => onstep(s.id)}>
-          <span class="dot {tone}" aria-hidden="true"></span>
-          <span class="label" title={s.label}><span class="num">{i + 1}</span> {s.label}</span>
-          <span class="word">{LEVEL_WORD[s.level]}</span>
-          <span class="text" title={s.text}>{s.text}</span>
-        </button>
-      </li>
-    {/each}
-  </ol>
-  {#if hidden}<p class="muted note">{hidden}</p>{/if}
+  <div class="shell">
+    <nav class="rail" aria-label="Steps">
+      <ol class="steps">
+        {#each statuses as s, i (s.id)}
+          {@const mark = railMark(s.level, current === s.id)}
+          <li>
+            <button type="button" class="step" class:current={current === s.id} aria-current={current === s.id ? 'step' : undefined} onclick={() => onstep(s.id)}>
+              <span class="mark {mark}" aria-hidden="true">{#if mark === 'done'}<Icon name="check" size={14} />{:else if mark === 'optional'}{:else}{i + 1}{/if}</span>
+              <span class="what">
+                <span class="label">{s.label}<span class="visually-hidden">, step {i + 1} of {statuses.length}, {LEVEL_WORD[s.level]}</span></span>
+                <span class="text" title={s.text}>{s.text}</span>
+              </span>
+            </button>
+          </li>
+        {/each}
+      </ol>
+      <p class="muted foot-note">Nothing is sent to the store before the last step.</p>
+      {#if hidden}<p class="muted foot-note">{hidden}</p>{/if}
+    </nav>
 
-  {#if promoteStageProblem}<Alert tone="error" ondismiss={() => (promoteStageProblem = '')}>{promoteStageProblem}</Alert>{/if}
+    <div class="main">
+      {#if promoteStageProblem}<div class="problem"><Alert tone="error" ondismiss={() => (promoteStageProblem = '')}>{promoteStageProblem}</Alert></div>{/if}
 
-  <div class="body" id="{uid}-body">
-    {#if current === 'build'}
-      <StepBuild
-        {api}
-        {workspaceId}
-        {role}
-        {app}
-        {view}
-        {editable}
-        {editableState}
-        {candidates}
-        {candidatesState}
-        {sourceCandidates}
-        {appBuilds}
-        bind:track
-        bind:source
-        {promote}
-        onread={readBuilds}
-        onreadtracks={readTracks}
-      />
-    {:else if current === 'notes'}
-      <StepNotes {api} {workspaceId} {role} {app} {view} {editable} {candidates} {chosenBuildId} track={releaseTrack} {locales} {promote} {promoteNotes} bind:drafts bind:extra />
-    {:else if current === 'assets'}
-      <StepAssets {api} {workspaceId} {app} {view} {scope} />
-    {:else if current === 'review'}
-      <StepReview {api} {workspaceId} {role} {app} confirmVisible={visible.indexOf('confirm') >= 0} />
-    {:else if current === 'confirm'}
-      <StepConfirm
-        {api}
-        {workspaceId}
-        {role}
-        {app}
-        {releases}
-        {apple}
-        version={releaseVersion}
-        track={releaseTrack}
-        codes={stagedCodes === null ? [] : stagedCodes.value.split(',').filter((c) => c !== '')}
-        stagedShare={stagedShare ? stagedShare.value : ''}
-        onreleased={() => void loadPipeline()}
-      />
-    {:else}
-      <Alert tone="info">No step is available for your role.</Alert>
-    {/if}
+      <div class="body" id="{uid}-body">
+        {#if intro}
+          <div class="intro">
+            <h4 id="{uid}-title">{intro.title}</h4>
+            <p>{intro.sentence}</p>
+          </div>
+        {/if}
+        {#if current === 'build'}
+          <StepBuild
+            {api}
+            {workspaceId}
+            {role}
+            {app}
+            {view}
+            {editable}
+            {editableState}
+            {candidates}
+            {candidatesState}
+            {sourceCandidates}
+            {appBuilds}
+            bind:track
+            bind:source
+            {promote}
+            onread={readBuilds}
+            onreadtracks={readTracks}
+          />
+        {:else if current === 'notes'}
+          <StepNotes {api} {workspaceId} {role} {app} {view} {editable} {candidates} {chosenBuildId} track={releaseTrack} {locales} {promote} {promoteNotes} bind:drafts bind:extra />
+        {:else if current === 'assets'}
+          <StepAssets {api} {workspaceId} {app} {view} {scope} />
+        {:else if current === 'review'}
+          <StepReview {api} {workspaceId} {role} {app} confirmVisible={visible.indexOf('confirm') >= 0} />
+        {:else if current === 'confirm'}
+          <StepConfirm
+            bind:this={confirmStep}
+            {api}
+            {workspaceId}
+            {role}
+            {app}
+            steps={confirmList}
+            {releases}
+            {apple}
+            version={releaseVersion}
+            track={releaseTrack}
+            codes={stagedCodes === null ? [] : stagedCodes.value.split(',').filter((c) => c !== '')}
+            stagedShare={stagedShare ? stagedShare.value : ''}
+            onreleased={() => void loadPipeline()}
+          />
+        {:else}
+          <Alert tone="info">No step is available for your role.</Alert>
+        {/if}
+      </div>
+
+      {#if footer}
+        <footer class="foot" data-testid="stepper-footer">
+          <Button disabled={footer.back === null} onclick={() => footer.back !== null && onstep(footer.back)}>Back</Button>
+          <span class="position muted">{footer.position}</span>
+          <span class="spacer"></span>
+          {#if footer.primary.kind === 'publish' && !publishState.enabled && publishState.reason}<span class="reason muted" data-testid="stepper-why">{publishState.reason}</span>{/if}
+          {#if footer.primary.kind === 'step'}
+            {@const to = footer.primary.to}
+            <Button variant="primary" size="lg" onclick={() => onstep(to)}>{footer.primary.label}</Button>
+          {:else if footer.primary.kind === 'publish'}
+            <Button variant="primary" size="lg" icon="upload" disabled={!publishState.enabled} onclick={() => confirmStep?.publish()}>{footer.primary.label}</Button>
+          {:else}
+            <Button variant="primary" size="lg" onclick={onclose}>{footer.primary.label}</Button>
+          {/if}
+        </footer>
+      {/if}
+    </div>
   </div>
-
-  <footer class="foot">
-    {#if back}<Button onclick={() => onstep(back)}>Back</Button>{/if}
-    <span class="spacer"></span>
-    {#if next}<Button variant="primary" onclick={() => onstep(next)}>Next</Button>{:else}<Button onclick={onclose}>Close</Button>{/if}
-  </footer>
 </section>
 
 <style>
-  /* The step tiles, the step's own buttons (.step-actions) and Back/Next stay in view; only the step's content scrolls. */
+  /* The rail, the step's own buttons and the footer (Back, Step N of M, the primary) stay in view; only the step's content scrolls. */
   .stepper {
     display: flex;
     flex-direction: column;
@@ -432,11 +483,10 @@
     padding: var(--space-4);
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-xl);
   }
 
-  .head,
-  .foot {
+  .head {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2) var(--space-3);
@@ -445,9 +495,6 @@
 
   h3 {
     margin: 0;
-  }
-
-  h3 {
     font-size: var(--text-lg);
   }
 
@@ -455,116 +502,219 @@
     flex: 1;
   }
 
-  .note,
-  .small {
-    margin: 0;
-    font-size: var(--text-sm);
+  .stepper > * {
+    flex: none;
+  }
+
+  .stepper > .shell {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .shell {
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  .rail {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: 16.5rem;
+    padding: var(--space-4) var(--space-3);
+    overflow-y: auto;
+    background: var(--surface-sunken);
+    border-inline-end: 1px solid var(--line);
   }
 
   .steps {
     display: grid;
-    /* Five equal columns that may shrink (minmax 0), so nothing leaks out of a card; on a narrow page 2 or 1 per row. */
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: var(--space-2);
+    gap: var(--space-1);
     padding: 0;
     margin: 0;
     list-style: none;
   }
 
   .step {
-    display: grid;
-    grid-template-rows: auto auto minmax(2.5em, auto);
-    gap: var(--space-1);
-    align-content: start;
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
     width: 100%;
     min-width: 0;
-    height: 100%;
-    overflow: hidden;
-    white-space: normal;
     padding: var(--space-2) var(--space-3);
     text-align: left;
+    white-space: normal;
     cursor: pointer;
-    background: var(--surface-sunken);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-md);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-lg);
+  }
+
+  .step:hover {
+    background: var(--surface-hover);
   }
 
   .step.current {
-    background: var(--surface);
+    background: var(--accent-bg);
     border-color: var(--accent);
   }
 
-  .label {
-    min-width: 0;
-    overflow: hidden;
+  .mark {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 1.5rem;
+    height: 1.5rem;
+    font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
+    color: var(--muted);
+    border: 2px solid var(--line-strong);
+    border-radius: 50%;
+  }
+
+  .mark.current {
+    color: var(--accent-ink);
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .mark.done {
+    color: var(--ok-ink);
+    background: var(--ok-bg);
+    border-color: var(--ok-line);
+  }
+
+  .mark.attention {
+    color: var(--warn-ink);
+    background: var(--warn-bg);
+    border-color: var(--warn-line);
+  }
+
+  .mark.blocked {
+    color: var(--bad-ink);
+    background: var(--bad-bg);
+    border-color: var(--bad);
+  }
+
+  .mark.optional {
+    border-style: dashed;
+  }
+
+  .what {
+    display: grid;
+    min-width: 0;
+  }
+
+  .label {
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+  }
+
+  /* One line of status; the full text is on hover. */
+  .text {
+    overflow: hidden;
+    font-size: var(--text-sm);
+    color: var(--muted);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .num {
-    color: var(--muted);
+  .step.current .text {
+    white-space: normal;
   }
 
-  .word {
-    font-size: var(--text-xs);
-    font-weight: var(--weight-semibold);
-    color: var(--muted);
-  }
-
-  /* The card says it in a few words (two lines at most, the full text on hover); the details are in the panel below. */
-  .text {
-    display: -webkit-box;
-    min-width: 0;
-    overflow: hidden;
+  .foot-note {
+    margin: 0;
     font-size: var(--text-sm);
-    color: var(--muted);
-    overflow-wrap: anywhere;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
   }
 
-  @media (max-width: 1099px) {
-    .steps {
-      grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
-    }
+  .main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: var(--surface);
   }
 
-  .dot {
-    display: inline-block;
-    width: 0.6rem;
-    height: 0.6rem;
-    background: var(--muted);
-    border-radius: 50%;
-  }
-
-  .dot.ok {
-    background: var(--ok);
-  }
-
-  .dot.info {
-    background: var(--info);
-  }
-
-  .dot.warn {
-    background: var(--warn);
-  }
-
-  .dot.bad {
-    background: var(--bad);
-  }
-
-  .stepper > * {
+  .problem {
     flex: none;
+    padding: var(--space-3) var(--space-8) 0;
   }
 
   .body {
+    display: grid;
     flex: 1 1 auto;
+    align-content: start;
+    gap: var(--space-5);
     min-width: 0;
     min-height: 12rem;
+    padding: var(--space-6) var(--space-8);
     overflow-y: auto;
     overscroll-behavior: contain;
+    font-size: var(--text-md);
   }
 
+  .intro h4 {
+    margin: 0;
+    font-size: var(--text-2xl);
+    line-height: 1.2;
+  }
+
+  .intro p {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-md);
+    color: var(--muted);
+  }
+
+  .foot {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+    align-items: center;
+    padding: var(--space-4) var(--space-8);
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+  }
+
+  .position,
+  .reason {
+    font-size: var(--text-sm);
+  }
+
+  @media (max-width: 859px) {
+    .shell {
+      flex-direction: column;
+    }
+
+    .rail {
+      width: auto;
+      padding: var(--space-2);
+      overflow: auto hidden;
+      border-inline-end: 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .steps {
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(10rem, 1fr);
+    }
+
+    .foot-note {
+      display: none;
+    }
+
+    .body,
+    .foot,
+    .problem {
+      padding-inline: var(--space-4);
+    }
+  }
 </style>

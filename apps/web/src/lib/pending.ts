@@ -619,7 +619,7 @@ export type StepRow = {
   idle: boolean;
 };
 
-export const SINGLE_STEP_HINT = 'Use the single step under "Advanced: do one step".';
+export const SINGLE_STEP_HINT = 'Use the single step under "Do just one step (advanced)".';
 
 /** The row of one step of the plan, from the plan alone. The rollout always names a change, so it stays a single step. */
 export function stepRow(step: PlanStep, platform: Platform): StepRow {

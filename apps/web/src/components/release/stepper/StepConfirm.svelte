@@ -6,7 +6,10 @@
   an acknowledgement), submit for review (SubmitReady: typed phrase), release (StoreRelease: typed phrase, and for Google Play the share
   you type) and the rollout controls. They are separate: a push does not submit and a submit does not release.
   On Google Play "Check this release" (PlayCheck) comes first: local checks and "Check with Google Play" (errors only; nothing is saved).
-  Props: api, workspaceId, role, app, releases (store releases by app id, for the rollout controls), apple, version (App Store
+  The heading and the primary button ("Review and publish") are the stepper's: this step draws the numbered list of what will be written, in order
+  (`steps`, from lib/stepper-layout.ts), with the "Cannot be undone from here" badge on the step it applies to, and exports `publish()` and
+  `publishState()` for the footer button.
+  Props: api, workspaceId, role, app, steps (the numbered list; null while it is read), releases (store releases by app id, for the rollout controls), apple, version (App Store
   marketing version or null), track (Google Play), codes (staged version codes), stagedShare (staged intended share or ''),
   onreleased (called after a successful release).
 -->
@@ -16,10 +19,12 @@
   import { fractionOf } from '../../../lib/play-check.ts';
   import { canRelease, percentFromFraction } from '../../../lib/store-release.ts';
   import { canSubmit } from '../../../lib/store-submit.ts';
+  import type { ConfirmStep } from '../../../lib/stepper-layout.ts';
   import type { AppSummary, ReleaseSummary } from '../../../lib/types.ts';
   import StagedTrayApp from '../../listing/StagedTrayApp.svelte';
   import SubmitReady from '../../listing/SubmitReady.svelte';
   import PendingChanges from '../../publish/PendingChanges.svelte';
+  import Badge from '../../ui/Badge.svelte';
   import Disclosure from '../../ui/Disclosure.svelte';
   import RolloutControls from '../RolloutControls.svelte';
   import PlayCheck from './PlayCheck.svelte';
@@ -30,6 +35,7 @@
     workspaceId,
     role,
     app,
+    steps,
     releases,
     apple,
     version,
@@ -42,6 +48,7 @@
     workspaceId: string;
     role: Role;
     app: AppSummary;
+    steps: readonly ConfirmStep[] | null;
     releases: Record<string, ReleaseSummary[]>;
     apple: boolean;
     version: string | null;
@@ -50,19 +57,45 @@
     stagedShare: string;
     onreleased: () => void;
   } = $props();
+
+  let pending = $state<ReturnType<typeof PendingChanges> | undefined>();
+
+  /** The stepper's "Review and publish": opens the plan (or shows what blocks it). */
+  export function publish() {
+    pending?.open();
+  }
+
+  /** Whether "Review and publish" can be pressed, and the one line that says why not. */
+  export function publishState(): { enabled: boolean; reason: string } {
+    return pending ? pending.publishState() : { enabled: false, reason: 'Reading what is pending.' };
+  }
 </script>
 
 <div class="stack loose">
-  <p class="lead">
-    Publish what is pending in one go. You see the plan first, step by step, and confirm it once. Nothing reaches a store before that.
-  </p>
   {#if !apple}
     <PlayCheck {api} {workspaceId} {app} {track} {codes} fraction={fractionOf(stagedShare)} source="staged" />
   {/if}
-  <PendingChanges {api} {workspaceId} {role} members={[app]} compact list={false} onpublished={onreleased} />
-  <Disclosure summary="Advanced: do one step" stateKey="stepper-advanced-{app.id}">
+
+  {#if steps !== null && steps.length > 0}
+    <ol class="plan" aria-label="What will be written, in order" data-testid="confirm-plan">
+      {#each steps as s, i (s.type)}
+        <li class="item">
+          <span class="num" aria-hidden="true">{i + 1}</span>
+          <div class="what">
+            <div class="title">{s.title}</div>
+            {#if s.detail}<div class="detail">{s.detail}</div>{/if}
+          </div>
+          {#if s.irreversible}<Badge tone="warn" icon="alert-triangle">{s.note}</Badge>{:else if s.note}<span class="note">{s.note}</span>{/if}
+        </li>
+      {/each}
+    </ol>
+  {/if}
+
+  <PendingChanges bind:this={pending} {api} {workspaceId} {role} members={[app]} compact list={false} headless onpublished={onreleased} />
+
+  <Disclosure summary="Do just one step (advanced)" stateKey="stepper-advanced-{app.id}">
     <div class="stack loose">
-      <p class="lead">
+      <p class="muted small">
         These steps write to the store. Each one shows what will happen first and asks you to confirm. They are separate: pushing a draft does not submit it, and submitting does not release it.
       </p>
       <section class="part" aria-label="Push the draft">
@@ -94,10 +127,6 @@
 </div>
 
 <style>
-  .lead {
-    margin: 0;
-  }
-
   h4 {
     margin: 0;
     font-size: var(--text-md);
@@ -106,6 +135,58 @@
   .small {
     margin: 0;
     font-size: var(--text-sm);
+  }
+
+  .plan {
+    display: grid;
+    gap: var(--space-3);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .item {
+    display: flex;
+    gap: var(--space-4);
+    align-items: flex-start;
+    padding: var(--space-4) var(--space-5);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-xl);
+  }
+
+  .num {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    font-weight: var(--weight-bold, 700);
+    background: var(--surface-sunken);
+    border-radius: 50%;
+  }
+
+  .what {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .title {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .detail {
+    margin-top: 2px;
+    font-size: var(--text-md);
+    color: var(--muted);
+  }
+
+  .note {
+    font-size: var(--text-sm);
+    color: var(--muted);
+    white-space: nowrap;
   }
 
   .part {

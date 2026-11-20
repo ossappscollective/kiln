@@ -383,7 +383,7 @@ test('step rows: available steps are ticked, unavailable ones disabled with a re
   assert.equal(rows[1]!.reason, null);
   assert.equal(rows[1]!.deferred, true);
   assert.match(rows[2]!.reason ?? '', /Switched off on this server \(MRM_RELEASE\)/);
-  assert.match(rows[3]!.reason ?? '', /Advanced: do one step/);
+  assert.match(rows[3]!.reason ?? '', /Do just one step (advanced)/);
   assert.equal(rows[2]!.word, 'Switched off');
   assert.equal(rows[0]!.reason, null);
 });

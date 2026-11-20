@@ -7,7 +7,9 @@
   opens the plan dialog; it is disabled with the reason (role, the server's switch and how to turn it on, nothing waiting); with errors it stays enabled and lists what blocks, each with "Show it" (the server plans per step, so a blocked item cannot be left out and nothing is published). The page title comes from the app header, so no heading is drawn here.
   Reads stored state only: no store is contacted until the person opens the plan.
   Props: api, workspaceId, role, members (the app records in scope), 
-  compact? (the stepper: no hint line), list? (false: only the line and the button, no items; the stepper's last step), onpublished? (called after the screens read again following a
+  compact? (the stepper: no hint line), list? (false: only the line and the button, no items; the stepper's last step), headless?
+  (the stepper's last step: no line and no button of its own, the stepper's footer holds "Review and publish" and calls `open()`; `publishState()`
+  says whether it can be pressed and why not; a blocking error still shows here), onpublished? (called after the screens read again following a
   publish or a discard, so a parent can refresh what it shows).
 -->
 <script lang="ts">
@@ -60,6 +62,7 @@
     members,
     compact = false,
     list = true,
+    headless = false,
     onpublished,
   }: {
     api: Api;
@@ -68,6 +71,7 @@
     members: AppSummary[];
     compact?: boolean;
     list?: boolean;
+    headless?: boolean;
     onpublished?: () => void;
   } = $props();
 
@@ -229,6 +233,19 @@
     publishOpen = true;
   }
 
+  /** For a parent that holds the button (the stepper's footer): open the plan, or show what blocks it. */
+  export function open() {
+    openPublish();
+  }
+
+  /** Whether the button can be pressed, and the one line that says why it cannot (empty when it can). */
+  export function publishState(): { enabled: boolean; reason: string } {
+    const enabled = (availability.state === 'ready' || availability.state === 'blocked') && targets.length > 0;
+    if (enabled) return { enabled, reason: '' };
+    if (loading && !known) return { enabled, reason: 'Reading what is pending.' };
+    return { enabled, reason: pillLabel !== '' ? pillLabel : availability.state === 'ready' ? 'Nothing is waiting to be published.' : availability.message };
+  }
+
   /** "Show it": scrolls to the item and puts the focus on its row. */
   function showItem(anchor: string) {
     const el = document.getElementById(anchor);
@@ -241,6 +258,7 @@
 <section class="pending" aria-label="Pending changes" data-testid="pending-changes">
   <p class="visually-hidden" role="status">{announcement}</p>
 
+  {#if !headless}
   <div class="top">
     <div class="lead">
       <p class="line" class:muted={empty || loading}>
@@ -262,6 +280,7 @@
       >Review and publish all…</Button>
     </div>
   </div>
+  {/if}
 
   {#if empty}
     <!-- quiet: nothing is pending, so nothing needs explaining -->
@@ -279,6 +298,8 @@
         </ul>
       {/if}
     </div>
+  {:else if headless}
+    <!-- the footer of the stepper says why the button is off -->
   {:else if availability.state === 'nothing' || availability.state === 'loading'}
     {#if !empty && known}<p class="muted small" id="{uid}-why">{availability.message}</p>{/if}
   {:else if availability.state !== 'ready' && pillLabel !== ''}
