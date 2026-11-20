@@ -6,6 +6,7 @@ export * from './apple-auth.ts';
 export * from './apple-search.ts';
 export * from './appstore-draft.ts';
 export * from './appstore-release.ts';
+export * from './appstore-version.ts';
 export * from './appstore-reviews.ts';
 export * from './appstore-rollout.ts';
 export * from './appstore-submit.ts';

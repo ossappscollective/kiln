@@ -269,3 +269,23 @@ test('an app with iOS in review and Android in review shows both, and the other 
   );
   assert.equal(overviewStats([row]).inReview, 1, 'one app, counted once');
 });
+
+test('a row offers ONE next action, the most urgent first, and none when nothing waits', () => {
+  const next = (releases: ReleaseSummary[], extra: Partial<AppSummary> = {}, line = null as null | { count: number; blocking: number; waiting: number }, newReviews: number | null = null) => {
+    const groups = groupApps([app('i', 'ios', extra)]);
+    const [row] = buildOverviewRows(groups, { i: { state: 'ready', releases } }, newReviews === null ? null : [summaryApp('i', 'ios', 1, 4, newReviews)]);
+    assert.ok(row);
+    row.pending = line;
+    return rowNextAction(row, rowStatus(row, false));
+  };
+  assert.equal(next([rel('i', 'ios', '2.0', 'rejected')], {}, { count: 3, blocking: 0, waiting: 0 }, 4)?.label, 'Fix the rejection');
+  assert.equal(next([rel('i', 'ios', '2.0', 'halted')])?.tone, 'bad');
+  assert.equal(next([rel('i', 'ios', '2.0', 'approved')])?.label, 'Release it');
+  assert.equal(next([rel('i', 'ios', '2.0', 'in_review')], {}, { count: 2, blocking: 0, waiting: 0 })?.label, 'Review 2 pending');
+  assert.equal(next([rel('i', 'ios', '2.0', 'in_review')], {}, { count: 2, blocking: 1, waiting: 0 })?.tone, 'warn');
+  assert.equal(next([rel('i', 'ios', '2.0', 'live')], {}, null, 1)?.label, 'Read 1 new review');
+  assert.equal(next([rel('i', 'ios', '2.0', 'live')], {}, null, 0), null);
+  assert.equal(next([rel('i', 'ios', '2.0', 'in_review')]), null);
+  assert.equal(next([], { lastSyncError: 'boom' })?.label, 'Check the sync error');
+  assert.match(next([rel('i', 'ios', '2.0', 'rejected')])?.href ?? '', /^#\/portfolio\/.+\/release\/2\.0\?platform=ios$/);
+});

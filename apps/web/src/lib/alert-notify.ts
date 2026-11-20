@@ -1,7 +1,7 @@
 /**
  * Desktop notifications for alerts (docs/alerts.md). Two ways, one function: inside the desktop shell (Tauri) the notification
  * plugin shows a native notification; in a browser the Notification API does, while the page is open. Nothing is sent anywhere:
- * the text is the alert's title and body (ids and names), shown on this computer only.
+ * the text is the alert's title only, shown on this computer only.
  *
  * UNVERIFIED: the Tauri path calls the notification plugin's commands through the shell's own IPC (`__TAURI_INTERNALS__`) because no
  * npm package is installed for it. It was written from the plugin's documented commands and has not been run in a built shell.
@@ -54,16 +54,19 @@ export async function requestNotificationPermission(): Promise<NotifyState> {
   }
 }
 
-/** Shows one notification. Returns false when it could not (no permission, unsupported). Never throws. */
-export async function showNotification(title: string, body: string): Promise<boolean> {
-  if ((await notificationState()) !== 'granted') return false;
+/**
+ * Shows one notification with a title (the alert's title; `alert-desktop.ts` cleans it) and no body: nothing but the title leaves the
+ * app. Returns false when it could not (no permission, unsupported). Never throws.
+ */
+export async function showNotification(title: string): Promise<boolean> {
+  if (title === '' || (await notificationState()) !== 'granted') return false;
   const tauri = internals();
   try {
     if (tauri) {
-      await tauri.invoke('plugin:notification|notify', { options: { title, body } });
+      await tauri.invoke('plugin:notification|notify', { options: { title } });
       return true;
     }
-    new Notification(title, { body });
+    new Notification(title);
     return true;
   } catch {
     return false;

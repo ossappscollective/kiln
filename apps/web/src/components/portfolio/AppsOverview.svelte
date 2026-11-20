@@ -1,19 +1,18 @@
 <!--
   AppsOverview: the apps of the workspace, one merged row per app (the iOS, macOS and Android records of one
-  product together): icon, the bundle id (a wrapping mono chip), the latest version of each platform in ONE column, ONE status pill
-  with an "N pending" badge and one count for releases left unfinished (rowStatus), the rating with the new reviews, and the last
-  sync. Five columns, so the table stays readable at 800 px.
+  product together). Read left to right: the app (icon, name, bundle id, rating), its platforms with the latest version of each
+  (platform name always written), the status pill (rowStatus; one per platform that is in review, rolling out, halted or rejected, each named), ONE next action (rowNextAction: the most urgent thing to do, or
+  nothing), and the last sync with its button. Pending changes, unfinished releases and new reviews are not extra badges: the
+  most urgent of them is the next action.
   Props: rows (from buildOverviewRows), now (epoch ms), canSync (shows Sync), syncing (app ids being
   synced), locked (true while "Sync all" owns the sync buttons), onsync (called with a row's group).
 -->
 <script lang="ts">
-  import type { Platform } from '@mrm/core';
+  import { type Platform, platformLabel } from '@mrm/core';
   import type { AppGroup } from '../../lib/app-groups.ts';
-  import { type OverviewRow, type PlatformCell, rowStatus } from '../../lib/app-overview.ts';
+  import { type OverviewRow, type PlatformCell, rowNextAction, rowStatus } from '../../lib/app-overview.ts';
   import { appAddress } from '../../lib/app-scope.ts';
-  import { storeForPlatform } from '../../lib/stores.ts';
   import type { AppSummary } from '../../lib/types.ts';
-  import PendingChip from '../publish/PendingChip.svelte';
   import SyncStatus from './SyncStatus.svelte';
   import ReleaseStatus from './ReleaseStatus.svelte';
   import AppIcon from '../ui/AppIcon.svelte';
@@ -22,7 +21,6 @@
   import Icon from '../ui/Icon.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
-  import StoreBadge from '../ui/StoreBadge.svelte';
 
   let {
     rows,
@@ -51,7 +49,7 @@
 {#snippet version(c: PlatformCell | null, platform: Platform)}
   {#if c !== null}
     <li class="ver">
-      <PlatformBadge {platform} showLabel={false} />
+      <PlatformBadge {platform} />
       {#if c.state === 'loading'}
         <Skeleton width="56px" height="14px" />
       {:else if c.state === 'error'}
@@ -71,9 +69,9 @@
     <thead>
       <tr>
         <th scope="col">App</th>
-        <th scope="col">Latest version</th>
+        <th scope="col">Platforms</th>
         <th scope="col">Status</th>
-        <th scope="col">Reviews</th>
+        <th scope="col">Next</th>
         <th scope="col">Last synced</th>
         {#if canSync}<th scope="col"><span class="visually-hidden">Actions</span></th>{/if}
       </tr>
@@ -83,6 +81,7 @@
         {@const g = row.group}
         {@const loading = [row.ios, row.macos, row.android].some((c) => c !== null && c.state === 'loading')}
         {@const status = rowStatus(row, loading)}
+        {@const next = rowNextAction(row, status)}
         <tr>
           <td>
             <div class="app">
@@ -96,8 +95,10 @@
               <div class="names">
                 <a id="app-open-{g.key}" class="app-name" href={appAddress(g.key)}>{g.name}</a>
                 <div class="meta">
-                  {#each g.members as m (m.id)}<StoreBadge store={storeForPlatform(m.platform).store} variant="icon" size="sm" />{/each}
                   <code class="identifier">{g.members[0]?.identifier}</code>
+                  {#if row.rating !== null}
+                    <span class="rating" title="{row.ratingCount} stored {row.ratingCount === 1 ? 'review' : 'reviews'}"><Icon name="star-filled" size={14} /> {row.rating.toFixed(1)}</span>
+                  {/if}
                 </div>
               </div>
             </div>
@@ -112,8 +113,12 @@
           <td>
             <div class="status">
               {#if status.primary.kind === 'release'}
-                {#if g.members.length > 1}<PlatformBadge platform={status.primary.release.platform} showLabel={false} />{/if}
-                <ReleaseStatus status={status.primary.release.status} rawState={status.primary.release.rawState} rolloutFraction={status.primary.release.rolloutFraction} sentForReviewAt={status.primary.release.sentForReviewAt} />
+                {#each [status.primary.release, ...status.more] as r (r.id)}
+                  <span class="pill">
+                    <ReleaseStatus status={r.status} rawState={r.rawState} rolloutFraction={r.rolloutFraction} sentForReviewAt={r.sentForReviewAt} />
+                    {#if g.members.length > 1}<span class="muted on">{platformLabel(r.platform)}</span>{/if}
+                  </span>
+                {/each}
               {:else if status.primary.kind === 'sync-failed'}
                 <Badge tone="bad" icon="alert">Sync failed</Badge>
               {:else if status.primary.kind === 'loading'}
@@ -121,29 +126,14 @@
               {:else}
                 <span class="muted">{status.primary.text}</span>
               {/if}
-              {#each status.more as other (other.id)}
-                <PlatformBadge platform={other.platform} showLabel={false} />
-                <ReleaseStatus status={other.status} rawState={other.rawState} rolloutFraction={other.rolloutFraction} sentForReviewAt={other.sentForReviewAt} />
-              {/each}
-              <PendingChip line={status.pending} href={appAddress(g.key, 'pending')} />
-              {#if status.unfinished}
-                <a class="unfinished" href={status.unfinished.href ?? undefined} title={status.unfinished.title}>
-                  <Badge tone="warn" icon="clock">{status.unfinished.text}</Badge>
-                </a>
-              {/if}
             </div>
           </td>
           <td>
-            <div class="reviews">
-              {#if row.rating !== null}
-                <span class="rating" title="{row.ratingCount} stored {row.ratingCount === 1 ? 'review' : 'reviews'}"><Icon name="star-filled" size={14} /> {row.rating.toFixed(1)}</span>
-              {:else}
-                <span class="muted" aria-label="No rating">–</span>
-              {/if}
-              {#if row.newReviews !== null && row.newReviews > 0}
-                <a href={appAddress(g.key, 'reviews')}><Badge tone="accent">{row.newReviews} new</Badge><span class="visually-hidden"> reviews of {g.name}</span></a>
-              {/if}
-            </div>
+            {#if next}
+              <a class="next {next.tone}" href={next.href} title={next.title}>{next.label}<Icon name="arrow-right" size={14} /><span class="visually-hidden"> for {g.name}</span></a>
+            {:else}
+              <span class="muted" aria-label="Nothing to do">–</span>
+            {/if}
           </td>
           <td>
             <SyncStatus app={syncMember(row)} {now} />
@@ -223,15 +213,35 @@
     white-space: nowrap;
   }
 
-  .reviews {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-2);
+  .pill {
+    display: inline-flex;
+    gap: var(--space-1);
     align-items: center;
   }
 
-  .unfinished {
+  .on {
+    font-size: var(--text-sm);
+  }
+
+  /* The next action is the one thing in the row that reads as a call to act; its tone says how urgent. */
+  .next {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: center;
+    font-weight: var(--weight-medium);
     text-decoration: none;
+  }
+
+  .next:hover {
+    text-decoration: underline;
+  }
+
+  .next.bad {
+    color: var(--bad-ink);
+  }
+
+  .next.warn {
+    color: var(--warn-ink);
   }
 
   .rating {

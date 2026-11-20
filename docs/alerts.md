@@ -136,11 +136,31 @@ When email keeps failing, `system.smtp_failing` raises a critical alert (inbox, 
 
 The notification is shown by the web app, not by the server: while the app is open, the bell polls every minute and when the page becomes
 visible, and shows one notification for each alert the server marked for it (the person's choices allow it and it is not quiet hours), once,
-and only for alerts that arrived after the page was opened. Nothing is shown when the app is closed.
+and only for alerts that arrived after the page was opened. Nothing is shown when the app is closed. A notification says **the alert's title
+and nothing else** (for example "Weather 3.1.1 is in store review"): no body, no review text, no store text, and nothing is sent anywhere.
 
-- **Browser:** the Notification API. The person must allow notifications (Settings, Alerts, "Allow notifications").
-- **Desktop app (Tauri):** the same code calls the native notification plugin when it finds the Tauri bridge. The plugin and a capability
-  for the local server's address are in `apps/desktop/src-tauri`. **Not compiled or run when it was written**; see [Unverified](#unverified).
+Where to turn it on: **Alerts, Settings, "Desktop notifications"**.
+
+1. **A switch for this device.** Permission is per browser or desktop app, so the switch is too (kept in this browser's local storage, key
+   `mrm.alerts.desktop`). Turning it on is what asks the system for permission, from that click; the app never asks on load. Without an
+   explicit choice the device follows its permission, so someone who allowed notifications before the switch existed keeps getting them.
+   When it is off, the alerts that would have notified are marked as handled, so turning it on later does not replay them.
+2. **The kinds.** A list of checkboxes (release in review, approved, rejected, halted, live, stalled, store sync failed, review sync failed,
+   credential invalid) that set the person's own choice for the type, for all apps: the same choice as the "Desktop notification" column in
+   "What I receive", which also has every other kind and a choice per app. The default for each kind is the workspace's (`release.in_review`
+   is off by default, rejected, approved and halted are on). The server flags an alert for the desktop only when the person's choice includes
+   it and it is outside quiet hours.
+3. **Once per alert.** The ids of notified alerts are remembered in this browser (the newest 200); an alert that is raised again with a larger
+   count does not notify again. At most three are shown for one read; the rest are marked so they never arrive as a burst.
+
+The rules are pure functions in `apps/web/src/lib/alert-desktop.ts` (tested in `alert-desktop.test.ts`). Google Play reports no review
+state, so Android apps give "halted" and rollout alerts but no "in review" or "rejected".
+
+- **Browser:** the Notification API.
+- **Desktop app (Tauri):** the same code calls the native notification plugin when it finds the Tauri bridge. The plugin
+  (`tauri-plugin-notification` in `apps/desktop/src-tauri/Cargo.toml`, `.plugin(...)` in `main.rs`) and a capability for the local server's
+  address (`capabilities/notifications.json`) are in the repository. **Not compiled or run when it was written**; see [Unverified](#unverified).
+  No npm package is used: the web code calls the plugin's commands through `window.__TAURI_INTERNALS__`.
 
 ## Mute and snooze
 

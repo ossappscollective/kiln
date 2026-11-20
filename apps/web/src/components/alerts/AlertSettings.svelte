@@ -39,6 +39,7 @@
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Section from '../ui/Section.svelte';
+  import DesktopNotifications from './DesktopNotifications.svelte';
 
   let {
     api,
@@ -235,6 +236,8 @@
 </script>
 
 <div class="stack loose">
+  <DesktopNotifications {api} {workspaceId} {catalog} bind:prefs bind:notify />
+
   <Section title="How and when" key="alerts-how" summary={quietSummary(page.settings)}>
     <form class="stack" onsubmit={saveSettings}>
       <div class="field">
@@ -304,6 +307,7 @@
       <p class="hint" role="status">
         Desktop notifications{desktopShell ? ' (desktop app)' : ' (this browser)'}: {notifyStateText[notify]}
         {#if notify === 'default'}<button type="button" class="linklike" onclick={askDesktop}>Allow notifications</button>{/if}
+        The switch for this device is in “Desktop notifications” above.
       </p>
       {#if testError}<Alert tone="error">{testError}</Alert>{/if}
       {#if testResult}

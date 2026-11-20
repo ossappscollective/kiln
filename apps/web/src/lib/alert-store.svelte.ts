@@ -1,17 +1,23 @@
-import { showNotification } from './alert-notify.ts';
+import {
+  deviceEnabled,
+  notificationTitle,
+  planNotifications,
+  readDeviceChoice,
+  remember,
+} from './alert-desktop.ts';
+import { notificationState, showNotification } from './alert-notify.ts';
 import type { InboxAlert } from './alerts.ts';
 import type { Api } from './api.ts';
 
 /**
  * What the shell knows about alerts (docs/alerts.md): the unread count and the newest alerts for the bell, kept fresh by a slow poll
- * while the page is visible and on every return to it. A desktop notification is shown once per alert for the ones the server flags
- * (`desktop`: the person's own choices allow it outside quiet hours), and only for alerts that arrived after this page opened, so
- * opening the app never replays old news. A failed read keeps what there was; no screen needs it to work.
+ * while the page is visible and on every return to it. A desktop notification (title only) is shown once per alert for the ones the server flags
+ * (`desktop`: the person's own choices allow it outside quiet hours), when this device has them on, and only for alerts that arrived
+ * after this page opened, so opening the app never replays old news. The rules are in alert-desktop.ts. A failed read keeps what there was; no screen needs it to work.
  */
 
 const POLL_MS = 60_000;
 const SEEN_KEY = 'mrm.alerts.notified';
-const MAX_SEEN = 200;
 
 let unread = $state(0);
 let items = $state<InboxAlert[]>([]);
@@ -32,7 +38,7 @@ const readSeen = (): string[] => {
 const writeSeen = (ids: string[]) => {
   try {
     if (typeof localStorage !== 'undefined')
-      localStorage.setItem(SEEN_KEY, JSON.stringify(ids.slice(-MAX_SEEN)));
+      localStorage.setItem(SEEN_KEY, JSON.stringify(ids));
   } catch {
     // Storage is full or blocked: a notification may repeat, nothing else.
   }
@@ -40,17 +46,17 @@ const writeSeen = (ids: string[]) => {
 
 async function notifyNew(alerts: InboxAlert[]): Promise<void> {
   const seen = readSeen();
-  const fresh = alerts.filter(
-    (a) => a.desktop && !a.read && a.lastAt >= startedAt && seen.indexOf(a.id) < 0,
-  );
-  if (fresh.length === 0) return;
-  const done = seen.slice();
-  for (const a of fresh.slice(0, 3)) {
-    if (await showNotification(a.title, a.body)) done.push(a.id);
-  }
-  // Alerts beyond the first three are not announced one by one; they are marked so they do not appear later as a burst.
-  for (const a of fresh.slice(3)) done.push(a.id);
-  writeSeen(done);
+  const choice = readDeviceChoice(typeof localStorage === 'undefined' ? undefined : localStorage);
+  const plan = planNotifications({
+    alerts,
+    seen,
+    startedAt,
+    deviceOn: deviceEnabled(choice, await notificationState()),
+  });
+  if (plan.mark.length === 0) return;
+  // An alert is marked even when its notification could not be shown (blocked, unsupported): it is not retried every minute.
+  for (const a of plan.show) await showNotification(notificationTitle(a));
+  writeSeen(remember(seen, plan.mark));
 }
 
 export const alertStore = {
