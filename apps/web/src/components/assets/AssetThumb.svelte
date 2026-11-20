@@ -165,7 +165,7 @@
     text-align: center;
   }
   .note {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
   }
   .order {
     position: absolute;
@@ -176,23 +176,25 @@
     border-radius: var(--radius-sm);
     background: var(--surface);
     border: 1px solid var(--line);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     text-align: center;
-    line-height: 18px;
+    line-height: 20px;
   }
   .caption {
     display: grid;
-    gap: 2px;
+    gap: var(--space-1);
+    padding: 0 var(--space-1) var(--space-1);
     min-width: 0;
   }
   .name {
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
+    font-weight: var(--weight-medium);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .facts {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
   }
   .status {
     margin-top: var(--space-1);

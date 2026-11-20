@@ -54,6 +54,7 @@
     sliceIndex,
   } from '../../lib/assets-groups.ts';
   import { SYNC_ROLE_REASON, type EditorSet, canChangeAssets, setIdOf, storeKeyOf } from '../../lib/assets-sync.ts';
+  import { assetsLead, otherCountsText, splitProblems } from '../../lib/assets-lead.ts';
   import { describeError } from '../../lib/portfolio.ts';
   import { REVERSE_IMAGE_SYNC_NOTE, STAGE_ROLE_REASON, canStage, setStaging, stageAssetsBody, stagingError } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
@@ -66,11 +67,13 @@
   import SectionsToggle from '../ui/SectionsToggle.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
+  import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import Tabs from '../ui/Tabs.svelte';
   import AssetCompareDialog from './AssetCompareDialog.svelte';
   import AssetGallery from './AssetGallery.svelte';
   import AssetLightbox from './AssetLightbox.svelte';
+  import AssetProblemLines from './AssetProblemLines.svelte';
   import AssetProblems from './AssetProblems.svelte';
   import AssetPullDialog from './AssetPullDialog.svelte';
   import AssetSetEditor from './AssetSetEditor.svelte';
@@ -379,6 +382,10 @@
     else toast.success(`Staged ${done} ${done === 1 ? 'set' : 'sets'} for the store. Nothing is in the store yet: push from the staged changes above.`);
   }
   const searched = $derived(index ? [...index.folders.screenshots, ...index.folders.previews, ...(index.folders.androidImages ? [index.folders.androidImages] : [])] : []);
+  const problemSplit = $derived(splitProblems(index?.problems ?? []));
+  const lead = $derived(index ? assetsLead({ problems: index.problems, summary: summaryText(index) }) : null);
+  /** Stage is the one primary of the page when nothing blocks; with a blocking problem the problems come first and it stays quiet. */
+  const stagePrimary = $derived(lead !== null && lead.blocking === 0 && stageableShown.length > 0);
 </script>
 
 <div class="stack assets" aria-busy={loading}>
@@ -452,27 +459,34 @@
           </EmptyState>
         </div>
       {:else}
-        <section class="summarybar" aria-label="Summary">
-          <p class="summary"><strong>{summaryText(index)}</strong> <span class="muted">· {problemCountsText(index)}</span></p>
-          <div class="row wrap staging">
-            <SectionsToggle />
-            <InfoTip label="About staging" align="end" width="24rem">
-              <p>Stage collects repository files for a draft push. {REVERSE_IMAGE_SYNC_NOTE}</p>
-            </InfoTip>
-            {#if !locked}
-            <Button
-              size="sm"
-              icon="layers"
-              loading={stagingAll}
-              disabled={stageableShown.length === 0 || stagingId !== '' || stagingAll}
-              title={!canStage(role) ? STAGE_ROLE_REASON : stageableShown.length === 0 ? 'No set shown here can be staged, or all of them are staged already. A set says why next to it.' : undefined}
-              onclick={stageAll}
-            >Stage for store{stageableShown.length > 0 ? ` (${stageableShown.length} ${stageableShown.length === 1 ? 'set' : 'sets'} shown)` : ''}</Button>
-            {/if}
-            <Button size="sm" icon="eye" onclick={() => openCompare('', null)} title="Reads what the store holds now (a read, nothing is written there) and shows how it differs from the repository.">Compare with the store</Button>
-            <Button size="sm" icon="download" disabled={!mayChange} title={!mayChange ? SYNC_ROLE_REASON : 'Downloads the store\'s images into a draft change set.'} onclick={() => pullFromStore(null)}>Pull from store</Button>
-          </div>
-        </section>
+        {#if lead}
+          <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="assets-lead">
+            {#snippet aside()}
+              <span class="row wrap staging">
+                <SectionsToggle />
+                <InfoTip label="About staging" buttonText="About staging" align="start" width="24rem">
+                  <p>Stage collects repository files for a draft push. {REVERSE_IMAGE_SYNC_NOTE}</p>
+                </InfoTip>
+              </span>
+            {/snippet}
+            {#snippet actions()}
+              <div class="row wrap staging" role="group" aria-label="Summary">
+                {#if !locked}
+                <Button
+                  variant={stagePrimary ? 'primary' : 'secondary'}
+                  icon="layers"
+                  loading={stagingAll}
+                  disabled={stageableShown.length === 0 || stagingId !== '' || stagingAll}
+                  title={!canStage(role) ? STAGE_ROLE_REASON : stageableShown.length === 0 ? 'No set shown here can be staged, or all of them are staged already. A set says why next to it.' : undefined}
+                  onclick={stageAll}
+                >Stage for store{stageableShown.length > 0 ? ` (${stageableShown.length} ${stageableShown.length === 1 ? 'set' : 'sets'} shown)` : ''}</Button>
+                {/if}
+                <Button icon="eye" onclick={() => openCompare('', null)} title="Reads what the store holds now (a read, nothing is written there) and shows how it differs from the repository.">Compare with the store</Button>
+                <Button icon="download" disabled={!mayChange} title={!mayChange ? SYNC_ROLE_REASON : 'Downloads the store\'s images into a draft change set.'} onclick={() => pullFromStore(null)}>Pull from store</Button>
+              </div>
+            {/snippet}
+          </PageLead>
+        {/if}
 
         {#if selection.length > 0}
           <section class="bulk" aria-label="Selected sets">
@@ -483,9 +497,15 @@
           </section>
         {/if}
 
-        {#if index.problems.length > 0}
-          <Section title="Problems found" key="problems" count={index.problems.length} summary={problemCountsText(index)} defaultOpen={false}>
-            <div class="problem-list"><AssetProblems problems={index.problems} onopenpath={openPath} /></div>
+        {#if problemSplit.blocking.length > 0}
+          <section class="blocking" aria-label="Problems to fix">
+            <AssetProblemLines problems={problemSplit.blocking} onopenpath={openPath} />
+          </section>
+        {/if}
+
+        {#if problemSplit.other.length > 0}
+          <Section title="Problems found" key="problems" count={problemSplit.other.length} summary={otherCountsText(problemSplit.other)} defaultOpen={false}>
+            <div class="problem-list"><AssetProblems problems={problemSplit.other} onopenpath={openPath} /></div>
           </Section>
         {/if}
 
@@ -620,27 +640,20 @@
 
 <style>
   .sourcebar {
-    padding: var(--space-1) var(--space-3);
+    padding: var(--space-2) var(--space-4);
     background: var(--surface-sunken);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
   }
-  .summarybar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-4);
-    align-items: center;
-    justify-content: space-between;
-  }
-  .summary {
-    margin: 0;
-  }
   .small {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
   .staging {
-    gap: var(--space-3);
+    gap: var(--space-2) var(--space-3);
+  }
+  .blocking {
+    margin: 0;
   }
   .bulk {
     display: flex;
@@ -653,7 +666,9 @@
     border-radius: var(--radius-lg);
   }
   .group-panel {
+    gap: var(--space-4);
     padding-top: var(--space-4);
+    font-size: 0.9375rem;
   }
   .filters {
     display: flex;
@@ -670,7 +685,7 @@
   }
   .searched {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
     overflow-wrap: anywhere;
   }
   .problem-list,
