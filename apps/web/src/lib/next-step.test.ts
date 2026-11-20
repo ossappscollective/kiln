@@ -173,6 +173,21 @@ test('the release left unfinished is the train, not a second line; the other ite
   );
 });
 
+test('a release waiting on the store does not hide a new build with no version: that line stays', () => {
+  const build = item({
+    id: 'ios:unfinished',
+    tone: 'warn',
+    text: 'A new build has no version yet',
+    href: '#/x',
+    action: 'Create a version',
+  });
+  const s = chooseNextStep(input({ trains: releaseTrains([inReview]), attention: [build] }));
+  assert.deepEqual(
+    s.items.map((i) => i.id),
+    ['ios:unfinished'],
+  );
+});
+
 test('with no release that could be read, an unfinished release or a bad item leads', () => {
   const unfinished = item({
     id: 'ios:unfinished',

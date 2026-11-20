@@ -136,7 +136,8 @@ test('a stalled release becomes "Release left unfinished" with the evidence sent
     several: true,
     stalled: stall({ step: 'build_ready', evidence: [{ kind: 'build', id: '9', at: null }] }),
   });
-  assert.equal(named?.text, 'Android: Release left unfinished');
+  assert.equal(named?.text, 'Android: A new build has no version yet');
+  assert.equal(named?.action, 'Create a version');
   assert.equal(named?.href, '#/portfolio/a2/releases?platform=both&step=build');
   const old = unfinishedItem({
     appId: 'a1',

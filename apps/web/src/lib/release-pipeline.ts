@@ -191,11 +191,24 @@ const ACTIONS: Readonly<Record<StallStep, string>> = {
   approved: 'Release it',
   rejected: 'See what to fix',
   draft: 'Finish the release',
-  build_ready: 'Choose the build',
+  build_ready: 'Create a version',
   build_invalid: 'See the build',
   build_processing: 'See the build',
   ci_run: 'Check for the build',
 };
+
+/**
+ * What is left, in words: a release that was started and not finished, or, for a build (or a CI run) nobody has taken further, the
+ * build. "Release left unfinished" for a build with no version was misleading: there is no release to finish yet.
+ */
+const HEADINGS: Readonly<Partial<Record<StallStep, string>>> = {
+  build_ready: 'A new build has no version yet',
+  build_processing: 'A build is still processing',
+  build_invalid: 'A build failed processing',
+  ci_run: 'A CI run produced no build',
+};
+export const unfinishedHeading = (step: StallStep): string =>
+  HEADINGS[step] ?? 'Release left unfinished';
 
 export type UnfinishedInput = {
   appId: string;
@@ -218,7 +231,7 @@ export function unfinishedItem(input: UnfinishedInput): AttentionItem | null {
     id: `${input.appId}:unfinished`,
     tone: s.stale ? 'info' : 'warn',
     icon: 'clock',
-    text: `${who}Release left unfinished${s.stale ? ' (more than 14 days ago)' : ''}`,
+    text: `${who}${unfinishedHeading(s.step)}${s.stale ? ' (more than 14 days ago)' : ''}`,
     detail: s.message,
     href: releaseStepHref(input.appId, input.scope, stepForStall(s.step), stallVersion(s.evidence)),
     action: ACTIONS[s.step] ?? 'Open the release',

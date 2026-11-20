@@ -108,10 +108,13 @@ function rowOf(t: Train, scope: PlatformScope | null): NextRow {
 
 export function chooseNextStep(input: NextStepInput): NextStep {
   const trains = orderTrains(input.trains);
-  // The release left unfinished is the release trains' business: one line, not two. It only stays when no train could be read.
+  // The release left unfinished is the release trains' business, one line not two, when a train of the same app already asks the
+  // person to act. A release that waits on the store says nothing about a new build with no version: that stays as its own line.
   const unfinished = input.attention.filter(isUnfinished);
-  const items =
-    trains.length > 0 ? input.attention.filter((i) => !isUnfinished(i)) : [...input.attention];
+  const covered = new Set(trains.filter((t) => rank(t) <= 1).flatMap((t) => t.appIds));
+  const items = input.attention.filter(
+    (i) => !isUnfinished(i) || !covered.has(i.id.slice(0, i.id.length - ':unfinished'.length)),
+  );
   const base = {
     items: [] as AttentionItem[],
     otherTrains: [] as NextStep['otherTrains'],

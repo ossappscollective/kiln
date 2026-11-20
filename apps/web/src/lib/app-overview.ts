@@ -3,7 +3,7 @@ import type { AppGroup } from './app-groups.ts';
 import { appAddress } from './app-scope.ts';
 import { chipFor, lineFor, type PendingLine, type PendingSummary } from './pending.ts';
 import { latestRelease, type ReleaseLoad } from './portfolio.ts';
-import { type PipelineSummaryApp, unfinishedItem } from './release-pipeline.ts';
+import { type PipelineSummaryApp, unfinishedHeading, unfinishedItem } from './release-pipeline.ts';
 import type { SummaryApp } from './reviews.ts';
 import type { AppSummary, ReleaseSummary } from './types.ts';
 
@@ -195,7 +195,14 @@ export type RowStatus = {
    * Releases left unfinished, collapsed to ONE badge: its text names the count, the `title` lists each platform with the server's
    * sentence. Null when there are none.
    */
-  unfinished: { count: number; text: string; title: string; href: string | null } | null;
+  unfinished: {
+    count: number;
+    text: string;
+    /** The button of the row: the step's own words ("Create a version"), "Finish the release(s)" for releases. */
+    action: string;
+    title: string;
+    href: string | null;
+  } | null;
   /** What is pending for the app (the "N pending" badge). */
   pending: PendingLine | null;
 };
@@ -233,19 +240,26 @@ export function rowStatus(row: OverviewRow, loading: boolean): RowStatus {
     .filter((x) => x.item !== null);
   let unfinished: RowStatus['unfinished'] = null;
   const first = items[0];
+  const allReleases = items.every(
+    (x) => x.left.stalled === null || unfinishedHeading(x.left.stalled.step) === 'Release left unfinished',
+  );
   if (first) {
     const who = (platform: Parameters<typeof platformLabel>[0]) => platformLabel(platform);
     unfinished =
       items.length === 1
         ? {
             count: 1,
-            text: `Release left unfinished${several ? `: ${who(first.left.app.platform)}` : ''}`,
+            text: `${first.left.stalled ? unfinishedHeading(first.left.stalled.step) : 'Release left unfinished'}${several ? `: ${who(first.left.app.platform)}` : ''}`,
+            action: first.item?.action ?? 'Finish the release',
             title: first.item?.detail ?? '',
             href: first.item?.href ?? null,
           }
         : {
             count: items.length,
-            text: `${items.length} releases left unfinished`,
+            text: allReleases
+              ? `${items.length} releases left unfinished`
+              : `${items.length} things left unfinished`,
+            action: allReleases ? 'Finish the releases' : 'See what is left',
             title: items
               .map((x) => `${who(x.left.app.platform)}: ${x.item?.detail ?? ''}`)
               .join('\n'),
@@ -292,7 +306,7 @@ export function rowNextAction(row: OverviewRow, status: RowStatus): RowNextActio
     return { label: 'Check the sync error', href: appAddress(key), tone: 'bad' };
   if (status.unfinished)
     return {
-      label: status.unfinished.count === 1 ? 'Finish the release' : 'Finish the releases',
+      label: status.unfinished.action,
       href: status.unfinished.href ?? appAddress(key, 'releases'),
       tone: 'warn',
       title: status.unfinished.title,

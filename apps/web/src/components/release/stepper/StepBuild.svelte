@@ -213,7 +213,7 @@
         <div class="retry"><Button size="sm" icon="refresh" onclick={onread}>Try again</Button></div>
       </Alert>
     {:else if applePart}
-      {#if none}<Alert tone="warn" title="No build can be chosen yet">{none}</Alert>{/if}
+      {#if none && editableState.state !== 'none'}<Alert tone="warn" title="No build can be chosen yet">{none}</Alert>{/if}
       {#if rows.length > 0}
         <fieldset class="builds" disabled={!mayEdit || staging}>
           <legend class="visually-hidden">Builds</legend>
