@@ -4,6 +4,9 @@
   against the store's limit (characters, or bytes for the App Store keyword field), and the text before and after with the changes
   marked. "Suggest with AI" (when AI is on and the role may use it) asks for a proposal in the same words: it is shown with what the
   field says now and staged only when the person says so.
+  Reading order (docs/design/readability.md, "Second pass: forms and dialogs"): the label, the box, the counter and ONE line of hint (why Stage
+  is off, in red when the text is over the limit); then the quiet helpers (the AI suggestion); the comparison with the store sits behind
+  "Show the changes against the store" and only exists once the text differs. The primary is "Stage in <field>" in the footer.
   Everything here is saved in OUR OWN database as a staged change. Nothing reaches a store: the staged text goes to the store's draft
   only through the previewed, confirmed push of the staged changes, which this never starts. The App Store name and subtitle cannot be
   written by a draft push, so for them the editor is a place to work the text out and copy it, and says so.
@@ -75,6 +78,7 @@
   let draft = $state('');
   let busy = $state<'' | 'stage' | 'unstage'>('');
   let problem = $state('');
+  let showDiff = $state(false);
   let startedFor = '';
 
   async function readStore() {
@@ -103,6 +107,7 @@
       if (id === startedFor) return;
       startedFor = id;
       problem = '';
+      showDiff = false;
       loaded = null;
       loadProblem = '';
       void stagedStore.load(api, workspaceId, appId).then(() => {
@@ -186,7 +191,7 @@
   bind:open
   size="lg"
   title={info ? `Edit ${info.lower} · ${locale}` : 'Edit'}
-  description="{storeName(platform)}. Changes are staged here, in this tool. Nothing reaches the store until you push the staged changes."
+  description="{storeName(platform)}. Staged here, in this tool: nothing reaches the store until you push the staged changes."
 >
   {#if info === null || meter === null}
     <p>This field cannot be edited here.</p>
@@ -226,42 +231,53 @@
         {:else}
           <p id="{uid}-meter" class="muted note">{meter.text}</p>
         {/if}
+        {#if blocked !== null && stageable && !unchanged}<p class="note hintline" class:bad={meter.over}>{blocked}</p>{/if}
       </div>
-
-      <div class="compare" aria-label="Before and after">
-        <div class="side">
-          <p class="eyebrow">In the store now</p>
-          <p class="text">
-            {#if loading}<span class="muted">Reading…</span>
-            {:else if before === ''}<span class="muted">(nothing stored)</span>
-            {:else}<DiffText from={before} to={draft} side="from" fromName="the store" toName="your text" />{/if}
-          </p>
-        </div>
-        <div class="side">
-          <p class="eyebrow">After your change</p>
-          <p class="text">
-            {#if empty}<span class="muted">(empty)</span>
-            {:else}<DiffText from={before} to={draft} side="to" fromName="the store" toName="your text" />{/if}
-          </p>
-        </div>
-      </div>
-      <p class="muted note">Words only in the store are struck through; words only in your text are underlined.</p>
 
       {#if info.stageable}
-        <ImproveField
-          {api}
-          {workspaceId}
-          {role}
-          app={{ id: appId, platform }}
-          field={{ locale, field, label: info.label }}
-          current={storeText}
-          buttonLabel="Suggest with AI"
-          onaccepted={aiStaged}
-        />
+        <div class="helpers">
+          <ImproveField
+            {api}
+            {workspaceId}
+            {role}
+            app={{ id: appId, platform }}
+            field={{ locale, field, label: info.label }}
+            current={storeText}
+            buttonLabel="Suggest with AI"
+            onaccepted={aiStaged}
+          />
+        </div>
+      {/if}
+
+      {#if !unchanged}
+        <div>
+          <button type="button" class="link" aria-expanded={showDiff} aria-controls="{uid}-compare" onclick={() => (showDiff = !showDiff)}>
+            {showDiff ? 'Hide the changes against the store' : 'Show the changes against the store'}
+          </button>
+        </div>
+        <div id="{uid}-compare" class="stack tight" hidden={!showDiff}>
+          <div class="compare" aria-label="Before and after">
+            <div class="side">
+              <p class="eyebrow">In the store now</p>
+              <p class="text">
+                {#if loading}<span class="muted">Reading…</span>
+                {:else if before === ''}<span class="muted">(nothing stored)</span>
+                {:else}<DiffText from={before} to={draft} side="from" fromName="the store" toName="your text" />{/if}
+              </p>
+            </div>
+            <div class="side">
+              <p class="eyebrow">After your change</p>
+              <p class="text">
+                {#if empty}<span class="muted">(empty)</span>
+                {:else}<DiffText from={before} to={draft} side="to" fromName="the store" toName="your text" />{/if}
+              </p>
+            </div>
+          </div>
+          <p class="muted note">Words only in the store are struck through; words only in your text are underlined.</p>
+        </div>
       {/if}
 
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}
-      {#if blocked !== null && stageable && !unchanged}<p class="muted note">{blocked}</p>{/if}
     </div>
   {/if}
 
@@ -291,11 +307,25 @@
   .editor textarea {
     width: 100%;
     font: inherit;
+    font-size: 0.9375rem;
+    line-height: 1.5;
   }
 
   .note {
     margin: 0;
     font-size: var(--text-sm);
+  }
+
+  .hintline.bad {
+    font-weight: var(--weight-semibold);
+    color: var(--bad-ink);
+  }
+
+  .helpers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
   }
 
   .compare {
@@ -310,8 +340,10 @@
 
   .text {
     margin: 0;
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-3);
     overflow-wrap: anywhere;
+    font-size: 0.9375rem;
+    line-height: 1.5;
     white-space: pre-wrap;
     background: var(--surface-sunken);
     border: 1px solid var(--line);
