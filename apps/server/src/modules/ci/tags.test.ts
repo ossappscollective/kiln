@@ -13,7 +13,7 @@ import {
   type RunFacts,
   resolveTagLink,
   type TagData,
-} from './services/build-tags.ts';
+} from './tags.ts';
 
 // Fixtures modelled on a real fastlane lane: the build number is decided inside the run, the lane
 // commits the bump ("chore: new build") and tags it `<platform>/<flavor>/<version>/<versionCode>`.

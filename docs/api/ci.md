@@ -387,7 +387,7 @@ failed one, then the newest):
 3. **`run_number`** (not on by default): the build number equals the workflow's run number plus an
    offset, as with fastlane's `increment_build_number(build_number: ENV["GITHUB_RUN_NUMBER"])`. Run
    numbers are per workflow and collide easily, so it needs the workflows it applies to named
-   (`runNumberMatcher` in `services/build-links.ts`); there is no setting for it yet.
+   (`runNumberMatcher` in `modules/ci/links.ts`); there is no setting for it yet.
 
 A run without a commit never links a build. Matchers are a plain list (`BuildMatcher`), so another
 convention is one more object in `createCiContext(..., { matchers })`. Links found by a matcher are

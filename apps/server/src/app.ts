@@ -20,12 +20,9 @@ import { appRoutes } from './routes/apps.ts';
 import { type AssetSyncRoutesContext, assetSyncRoutes } from './routes/asset-sync.ts';
 import { assetRoutes } from './routes/assets.ts';
 import { authRoutes, meRoute, requireUser } from './routes/auth.ts';
-import { buildsRoutes, publicBuildsRoutes } from './routes/builds.ts';
 import { changeSetFixupRoutes } from './routes/change-set-fixup.ts';
-import { ciRoutes } from './routes/ci.ts';
 import { type CredentialTestDeps, credentialTestRoutes } from './routes/credential-tests.ts';
 import { createEventStreamHub, type EventStreamHub, eventRoutes } from './routes/events.ts';
-import { internalSharingRoutes } from './routes/internal-sharing.ts';
 import { publicInvitationRoutes, workspaceInvitationRoutes } from './routes/invitations.ts';
 import { listingRoutes } from './routes/listing.ts';
 import {
@@ -59,8 +56,9 @@ import {
   defaultStoreConnectorFactory,
   type StoreConnectorFactory,
 } from './services/apps.ts';
-import { type BuildsSettings, createBuildsContext } from './services/builds.ts';
-import { type CiContext, createCiContext } from './services/ci.ts';
+import { type BuildsDeps, buildsModule } from './modules/builds/index.ts';
+import { ciModule } from './modules/ci/index.ts';
+import { type CiContext, createCiContext } from './modules/ci/service.ts';
 import {
   type CloneUpkeep,
   createCloneUpkeep,
@@ -198,7 +196,7 @@ export type AppDeps = {
    * answer `409 builds_download_disabled` unless `downloadEnabled` (MRM_BUILDS_DOWNLOAD_ENABLED, default false). Uploading an Android build
    * to Google Play internal app sharing (docs/api/internal-sharing.md) is off unless `internalSharingEnabled` (MRM_PLAY_INTERNAL_SHARING_ENABLED).
    */
-  builds?: Partial<BuildsSettings>;
+  builds?: BuildsDeps;
   /**
    * The scheduled listing read (MRM_LISTING_INTERVAL_MINUTES) in milliseconds, 0 or absent for off.
    * Only used to tell the Listing tab when the next read is due; the scheduler is built in index.ts.
@@ -411,8 +409,20 @@ export function createApp(deps: AppDeps) {
     connectorFactory: deps.appSync?.connectorFactory ?? defaultStoreConnectorFactory,
     timeoutMs: deps.appSync?.timeoutMs ?? DEFAULT_SYNC_TIMEOUT_MS,
   };
+  // CI: workflows, dispatch and runs of a repository, and the builds of an app linked to them.
+  const ciContext = createCiContext(
+    {
+      db: services.db,
+      masterKey: services.masterKey,
+      now: services.now,
+      connectorFactory: deps.connectorFactory ?? defaultConnectorFactory,
+      timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
+    },
+    deps.ci,
+  );
   const appSyncLimiter = deps.appSync?.limiter ?? createTestLimiter({ now: services.now });
   const shared: ModuleShared = {
+    ci: ciContext,
     translation: translationSeams,
     appSyncLimiter,
     translationLimiter: deps.translation?.limiter,
@@ -441,6 +451,8 @@ export function createApp(deps: AppDeps) {
     }),
   );
   alertsModule.mount(app, services, undefined, shared);
+  ciModule.mount(app, services, undefined, shared);
+  buildsModule.mount(app, services, deps.builds, shared);
   asoModule.mount(app, services, deps.aso, shared);
   analyticsModule.mount(app, services, deps.analytics, shared);
   reviewsModule.mount(app, services, deps.reviews, shared);
@@ -688,23 +700,6 @@ export function createApp(deps: AppDeps) {
         deps.translation?.notesLimiter ?? createTestLimiter({ now: services.now, limit: 10 }),
     }),
   );
-  // CI: workflows, dispatch and runs of a repository, and the builds of an app linked to them.
-  const ciContext = createCiContext(
-    {
-      db: services.db,
-      masterKey: services.masterKey,
-      now: services.now,
-      connectorFactory: deps.connectorFactory ?? defaultConnectorFactory,
-      timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
-    },
-    deps.ci,
-  );
-  app.route('/api/workspaces', ciRoutes(ciContext));
-  // Builds to test: CI artifacts and store builds of an app, downloads through the server (off unless switched on), links for a phone.
-  const buildsContext = createBuildsContext(ciContext, deps.builds);
-  app.route('/api/workspaces', buildsRoutes(buildsContext));
-  app.route('/api/workspaces', internalSharingRoutes(buildsContext));
-  app.route('/api/builds', publicBuildsRoutes(buildsContext));
   // Public: the person with the link is not signed in yet.
   app.route('/api/invitations', publicInvitationRoutes(services));
 

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { CiRun } from '@mrm/connectors';
 import { mapOrNull, type Row, type Sql } from '@mrm/db';
-import { purgeConventionOrphans } from './build-conventions.ts';
-import { emitEvent } from './events.ts';
+import { purgeConventionOrphans } from './conventions.ts';
+import { emitEvent } from '../../services/events.ts';
 
 /**
  * The stored side of CI tracking: `workflow_runs` rows, one per GitHub Actions run of a connected

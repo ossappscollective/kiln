@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto';
 import type { CommitDetail, GitRelease, ReleaseList, TagList } from '@mrm/connectors';
 import type { Platform } from '@mrm/core';
 import type { Sql } from '@mrm/db';
-import { getApp, listAppReleases, type ManagedApp } from './apps.ts';
+import { getApp, listAppReleases, type ManagedApp } from '../../services/apps.ts';
 import {
   type EffectiveConventions,
   effectiveConventions,
   listConventions,
-} from './build-conventions.ts';
+} from './conventions.ts';
 import {
   type BuildMatcher,
   buildKey,
@@ -18,7 +18,7 @@ import {
   putBuildLink,
   type StoredBuild,
   type StoredLink,
-} from './build-links.ts';
+} from './links.ts';
 import {
   type CommitFacts,
   type CompiledConventions,
@@ -30,10 +30,10 @@ import {
   type TagCandidate,
   type TagData,
   type TagRef,
-} from './build-tags.ts';
-import type { WorkflowRunView } from './ci-runs.ts';
-import { firstLine, runCountsForApp } from './ci-runs.ts';
-import { timedCache } from './timed-cache.ts';
+} from './tags.ts';
+import type { WorkflowRunView } from './runs.ts';
+import { firstLine, runCountsForApp } from './runs.ts';
+import { timedCache } from '../../services/timed-cache.ts';
 
 /**
  * The part of build linking that reads tags, releases and commits from GitHub and writes what it

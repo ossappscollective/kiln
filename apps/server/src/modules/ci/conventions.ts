@@ -11,7 +11,7 @@ import {
 } from '@mrm/core';
 import type { Database, Row, Sql } from '@mrm/db';
 import { z } from 'zod';
-import { recordAudit } from './audit.ts';
+import { recordAudit } from '../../services/audit.ts';
 
 /**
  * How a team names the tags and releases that carry a build number, stored per repository, with

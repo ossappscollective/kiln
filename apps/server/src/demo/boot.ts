@@ -21,7 +21,7 @@ import {
   DEFAULT_ANALYTICS_TIMEOUT_MS,
 } from '../modules/analytics/sync.ts';
 import { APP_SYNC_QUEUE, createAppSyncHandler, DEFAULT_SYNC_TIMEOUT_MS } from '../services/apps.ts';
-import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from '../services/ci.ts';
+import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from '../modules/ci/service.ts';
 import { createTestLimiter } from '../services/credential-tests.ts';
 import {
   createListingReadHandler,

@@ -1,8 +1,8 @@
 import { type Action, can } from '@mrm/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
-import type { AppEnv } from '../http.ts';
-import { memberRole } from '../services/accounts.ts';
+import type { AppEnv } from '../../http.ts';
+import { memberRole } from '../../services/accounts.ts';
 import {
   type BuildsContext,
   createDownloadLink,
@@ -12,7 +12,7 @@ import {
   readDownloadLink,
   releaseLink,
   reserveLink,
-} from '../services/builds.ts';
+} from './service.ts';
 
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
 const ws = (c: Context<AppEnv>) => param(c, 'workspaceId');

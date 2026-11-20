@@ -9,9 +9,9 @@ import {
   readRunJobs,
   refreshRuns,
   runActor,
-} from './ci.ts';
-import { ACTIVE_STATUSES, listWorkspaceRuns, type WorkflowRunView } from './ci-runs.ts';
-import { type Failure, listRepositories, type Repository } from './repositories.ts';
+} from './service.ts';
+import { ACTIVE_STATUSES, listWorkspaceRuns, type WorkflowRunView } from './runs.ts';
+import { type Failure, listRepositories, type Repository } from '../../services/repositories.ts';
 
 type Actor = { type: ActorType; id: string };
 

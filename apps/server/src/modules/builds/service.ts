@@ -7,20 +7,20 @@ import {
   type TestFlightGroup,
   type TestFlightLinksConnector } from '@mrm/connectors';
 import { can, type Platform, supports } from '@mrm/core';
-import { memberRole } from './accounts.ts';
+import { memberRole } from '../../services/accounts.ts';
 import {
   defaultStoreConnectorFactory,
   getApp,
   type ManagedApp,
-  type StoreConnectorFactory } from './apps.ts';
-import { recordAudit } from './audit.ts';
-import { listConventions } from './build-conventions.ts';
-import { type CiContext, guarded, openCi } from './ci.ts';
-import { listRuns, runCountsForApp, type WorkflowRunView } from './ci-runs.ts';
-import { createTestLimiter, type TestLimiter } from './credential-tests.ts';
-import { useCredentialSecret } from './credentials.ts';
-import { type Failure, getRepository, withTimeout } from './repositories.ts';
-import { timedCache } from './timed-cache.ts';
+  type StoreConnectorFactory } from '../../services/apps.ts';
+import { recordAudit } from '../../services/audit.ts';
+import { listConventions } from '../ci/conventions.ts';
+import { type CiContext, guarded, openCi } from '../ci/service.ts';
+import { listRuns, runCountsForApp, type WorkflowRunView } from '../ci/runs.ts';
+import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
+import { useCredentialSecret } from '../../services/credentials.ts';
+import { type Failure, getRepository, withTimeout } from '../../services/repositories.ts';
+import { timedCache } from '../../services/timed-cache.ts';
 
 /**
  * Builds you can test before publishing (docs/api/builds.md, docs/research/test-builds.md): the zips that CI runs

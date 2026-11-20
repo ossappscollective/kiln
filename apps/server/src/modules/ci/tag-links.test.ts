@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import type { CommitDetail } from '@mrm/connectors';
 import { GithubError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { bootCi, type CiBoot, run } from './ci-test-helpers.ts';
-import { clearScanCaches, MAX_COMMIT_FETCHES } from './services/build-scan.ts';
-import { refreshRuns } from './services/ci.ts';
-import { getRepository } from './services/repositories.ts';
+import { bootCi, type CiBoot, run } from './test-helpers.ts';
+import { clearScanCaches, MAX_COMMIT_FETCHES } from './scan.ts';
+import { refreshRuns } from './service.ts';
+import { getRepository } from '../../services/repositories.ts';
 
 // A fake GitHub modelled on a real fastlane lane (oss-weather): the version code is decided inside
 // the run, the lane commits "chore: new build" and tags it `<platform>/<flavor>/<version>/<code>`.

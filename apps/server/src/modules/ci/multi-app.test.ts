@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { dbTest } from '@mrm/db/testing';
-import { bootCi, type CiBoot, run } from './ci-test-helpers.ts';
-import { purgeOrphans } from './services/ci-runs.ts';
-import { listEvents } from './services/events.ts';
+import { bootCi, type CiBoot, run } from './test-helpers.ts';
+import { purgeOrphans } from './runs.ts';
+import { listEvents } from '../../services/events.ts';
 
 // A run can be dispatched for several apps of one repository (docs/api/ci.md, "One run, several apps"). Fake GitHub only.
 

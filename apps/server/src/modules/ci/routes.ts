@@ -3,9 +3,9 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
-import { type AppEnv, parseBody, queryInt } from '../http.ts';
-import { memberRole } from '../services/accounts.ts';
-import { conventionsBody } from '../services/build-conventions.ts';
+import { type AppEnv, parseBody, queryInt } from '../../http.ts';
+import { memberRole } from '../../services/accounts.ts';
+import { conventionsBody } from './conventions.ts';
 import {
   buildChanges,
   type CiContext,
@@ -23,10 +23,10 @@ import {
   rematchBuilds,
   setConventions,
   unlinkBuild,
-} from '../services/ci.ts';
-import { listActiveRuns } from '../services/ci-active.ts';
-import { countActiveRuns, getRunView, listRuns, runCountsForApp } from '../services/ci-runs.ts';
-import { type Failure, getRepository } from '../services/repositories.ts';
+} from './service.ts';
+import { listActiveRuns } from './active.ts';
+import { countActiveRuns, getRunView, listRuns, runCountsForApp } from './runs.ts';
+import { type Failure, getRepository } from '../../services/repositories.ts';
 
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
 const ws = (c: Context<AppEnv>) => param(c, 'workspaceId');

@@ -2,9 +2,9 @@ import { type Action, can } from '@mrm/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { type AppEnv, parseBody } from '../http.ts';
-import { memberRole } from '../services/accounts.ts';
-import type { BuildsContext } from '../services/builds.ts';
+import { type AppEnv, parseBody } from '../../http.ts';
+import { memberRole } from '../../services/accounts.ts';
+import type { BuildsContext } from './service.ts';
 import {
   applyShare,
   listShares,
@@ -12,8 +12,8 @@ import {
   readShareLink,
   sharingConfig,
   sharingDisabledFailure,
-} from '../services/internal-sharing.ts';
-import { requireStepUp } from '../services/step-up.ts';
+} from './internal-sharing.ts';
+import { requireStepUp } from '../../services/step-up.ts';
 
 /**
  * Google Play internal app sharing from the Test builds panel (docs/api/internal-sharing.md, docs/adr/0020-play-internal-sharing.md).

@@ -37,7 +37,7 @@ import {
   DEFAULT_SYNC_TIMEOUT_MS,
   defaultStoreConnectorFactory,
 } from './services/apps.ts';
-import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from './services/ci.ts';
+import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from './modules/ci/service.ts';
 import { checkGit, setUpReads } from './services/clone-reads.ts';
 import { createCloneUpkeep } from './services/clone-upkeep.ts';
 import { createTestLimiter } from './services/credential-tests.ts';

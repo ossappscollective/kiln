@@ -16,9 +16,9 @@ import {
   DEFAULT_TAG_PATTERNS,
   type Platform,
 } from '@mrm/core';
-import { enqueue, type JobHandler } from '../jobs.ts';
-import { getApp, listAppReleases, type ManagedApp } from './apps.ts';
-import { recordAudit } from './audit.ts';
+import { enqueue, type JobHandler } from '../../jobs.ts';
+import { getApp, listAppReleases, type ManagedApp } from '../../services/apps.ts';
+import { recordAudit } from '../../services/audit.ts';
 import {
   type BuildConventions,
   type EffectiveConventions,
@@ -26,7 +26,7 @@ import {
   listConventions,
   type StoredConventions,
   saveConventions,
-} from './build-conventions.ts';
+} from './conventions.ts';
 import {
   type BuildMatcher,
   type BuildView,
@@ -40,7 +40,7 @@ import {
   putBuildLink,
   relinkApp,
   removeBuildLink,
-} from './build-links.ts';
+} from './links.ts';
 import {
   clearScanCaches,
   getScan,
@@ -51,7 +51,7 @@ import {
   type StoredScan,
   scanBuildTags,
   type TagClient,
-} from './build-scan.ts';
+} from './scan.ts';
 import {
   countActiveRuns,
   firstLine,
@@ -61,8 +61,8 @@ import {
   recordDispatch,
   storeRuns,
   type WorkflowRunView,
-} from './ci-runs.ts';
-import { createTestLimiter, type TestLimiter } from './credential-tests.ts';
+} from './runs.ts';
+import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import {
   type Failure,
   failure,
@@ -75,9 +75,9 @@ import {
   type RepoContext,
   type Repository,
   withTimeout,
-} from './repositories.ts';
-import { timedCache } from './timed-cache.ts';
-import { parseWorkflowDispatch, type WorkflowDispatchInfo } from './workflow-inputs.ts';
+} from '../../services/repositories.ts';
+import { timedCache } from '../../services/timed-cache.ts';
+import { parseWorkflowDispatch, type WorkflowDispatchInfo } from '../../services/workflow-inputs.ts';
 
 type Actor = { type: ActorType; id: string };
 

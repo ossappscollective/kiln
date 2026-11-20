@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dbTest } from '@mrm/db/testing';
-import { bootCi, run, SHA_2 } from './ci-test-helpers.ts';
+import { bootCi, run, SHA_2 } from './modules/ci/test-helpers.ts';
 import {
   createScheduler,
   MAX_SYNC_INTERVAL_MINUTES,
@@ -9,7 +9,7 @@ import {
   syncIntervalMs,
 } from './scheduler.ts';
 import { APP_SYNC_QUEUE } from './services/apps.ts';
-import { CI_POLL_QUEUE, refreshRuns } from './services/ci.ts';
+import { CI_POLL_QUEUE, refreshRuns } from './modules/ci/service.ts';
 import { getRepository } from './services/repositories.ts';
 
 // Every tick here runs on an injected clock, jitter and limiter: nothing waits, nothing is random,

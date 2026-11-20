@@ -13,7 +13,7 @@ import { translateNotesBody } from '../routes/release-notes-translate.ts';
 import { aiOperations } from './api-operations-ai.ts';
 import { alertOperations } from '../modules/alerts/api-operations.ts';
 import { analyticsOperations } from '../modules/analytics/operations.ts';
-import { buildsOperations } from './api-operations-builds.ts';
+import { buildsOperations } from '../modules/builds/api-operations.ts';
 import { mcpOperations } from './api-operations-mcp.ts';
 import { searchTermsOperations } from './api-operations-search-terms.ts';
 import { stepUpOperations } from './api-operations-step-up.ts';

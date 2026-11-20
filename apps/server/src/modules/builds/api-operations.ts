@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { internalShareApplyBody, internalSharePreviewBody } from '../routes/internal-sharing.ts';
-import type { Operation } from './openapi.ts';
+import { internalShareApplyBody, internalSharePreviewBody } from './internal-sharing-routes.ts';
+import type { Operation } from '../../services/openapi.ts';
 
 /**
  * The operations of "Builds to test" (docs/api/builds.md), in their own file and added to the registry in api-operations.ts.

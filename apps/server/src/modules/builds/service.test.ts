@@ -10,9 +10,9 @@ import {
 } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
 import { Hono } from 'hono';
-import { bootCi, FakeCi, run } from './ci-test-helpers.ts';
-import { ASC_SECRET } from './modules/reviews/test-helpers.ts';
-import { publicBuildsRoutes } from './routes/builds.ts';
+import { bootCi, FakeCi, run } from '../ci/test-helpers.ts';
+import { ASC_SECRET } from '../reviews/test-helpers.ts';
+import { publicBuildsRoutes } from './routes.ts';
 import {
   artifactOwner,
   clearBuildCaches,
@@ -22,8 +22,8 @@ import {
   safeFilename,
   signDownloadLink,
   TESTFLIGHT_LIFETIME_MS,
-} from './services/builds.ts';
-import { createTestLimiter } from './services/credential-tests.ts';
+} from './service.ts';
+import { createTestLimiter } from '../../services/credential-tests.ts';
 
 // Everything runs against a fake GitHub and a fake artifact storage: no live call is ever made.
 

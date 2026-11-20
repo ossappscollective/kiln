@@ -13,10 +13,10 @@ import type {
   ListWorkflowRunsOptions,
 } from '@mrm/connectors';
 import type { Database } from '@mrm/db';
-import type { AppDeps } from './app.ts';
-import { bootRepoApp } from './repo-test-helpers.ts';
-import { type CiClient, clearCiCaches, createCiContext } from './services/ci.ts';
-import { clearActiveCaches } from './services/ci-active.ts';
+import type { AppDeps } from '../../app.ts';
+import { bootRepoApp } from '../../repo-test-helpers.ts';
+import { type CiClient, clearCiCaches, createCiContext } from './service.ts';
+import { clearActiveCaches } from './active.ts';
 
 /** Shared by ci.test.ts and scheduler.test.ts. Not a test file itself. */
 

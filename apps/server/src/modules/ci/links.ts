@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { type Platform, PLATFORMS, RELEASE_STATES, type ReleaseState, supports } from '@mrm/core';
 import { oneOf, type Row, type Sql } from '@mrm/db';
-import { type AppRelease, listAppReleases, type ManagedApp } from './apps.ts';
-import type { Confidence, LinkEvidence } from './build-tags.ts';
-import { RUN_COLUMNS, runCountsForApp, runViews, type WorkflowRunView } from './ci-runs.ts';
+import { type AppRelease, listAppReleases, type ManagedApp } from '../../services/apps.ts';
+import type { Confidence, LinkEvidence } from './tags.ts';
+import { RUN_COLUMNS, runCountsForApp, runViews, type WorkflowRunView } from './runs.ts';
 
 /**
  * Links the builds a store reports to the CI run (and so the commit) that made them, through the

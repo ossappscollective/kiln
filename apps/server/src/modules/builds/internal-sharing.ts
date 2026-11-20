@@ -12,8 +12,8 @@ import {
 import type { Platform } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import { decryptSecret, encryptSecret } from '@mrm/vault';
-import { getApp, type ManagedApp } from './apps.ts';
-import { recordAudit } from './audit.ts';
+import { getApp, type ManagedApp } from '../../services/apps.ts';
+import { recordAudit } from '../../services/audit.ts';
 import {
   type BuildsContext,
   type BuildsFailure,
@@ -21,9 +21,9 @@ import {
   findArtifact,
   guessArtifact,
   openArtifactDownload,
-} from './builds.ts';
-import { useCredentialSecret } from './credentials.ts';
-import type { Failure } from './repositories.ts';
+} from './service.ts';
+import { useCredentialSecret } from '../../services/credentials.ts';
+import type { Failure } from '../../services/repositories.ts';
 import { supports } from '@mrm/core';
 
 /**

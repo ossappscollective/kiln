@@ -5,8 +5,8 @@ import {
   StoreRateLimitError,
 } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { zip } from '../../../packages/connectors/src/play-search-terms.fixtures.ts';
-import { bootCi } from './ci-test-helpers.ts';
+import { zip } from '../../../../../packages/connectors/src/play-search-terms.fixtures.ts';
+import { bootCi } from '../ci/test-helpers.ts';
 import {
   AAB,
   art,
@@ -16,8 +16,8 @@ import {
   type SharingBoot,
   sha256,
   streamOf,
-} from './internal-sharing-test-helpers.ts';
-import { LINK_RETENTION_MS } from './services/internal-sharing.ts';
+} from './test-helpers.ts';
+import { LINK_RETENTION_MS } from './internal-sharing.ts';
 
 // Google Play internal app sharing (docs/api/internal-sharing.md, docs/adr/0020-play-internal-sharing.md). Everything runs against a fake
 // GitHub, a fake artifact storage and a fake Google: no network.

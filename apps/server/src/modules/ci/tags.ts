@@ -5,8 +5,8 @@ import {
   type NameFields,
   type Platform,
 } from '@mrm/core';
-import type { BuildConventions } from './build-conventions.ts';
-import type { WorkflowRunView } from './ci-runs.ts';
+import type { BuildConventions } from './conventions.ts';
+import type { WorkflowRunView } from './runs.ts';
 
 /**
  * Follows a build number to the run that made it through the tag a release lane creates:
