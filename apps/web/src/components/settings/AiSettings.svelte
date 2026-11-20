@@ -12,7 +12,10 @@
   - "Test connection" sends one fixed small request (no workspace data) through the saved settings.
   - Who receives the text is stated plainly, and for each task a "What is sent" popover lists what is sent and what never is.
   Nothing an AI task does changes a store: it makes suggestions a person accepts (see the AI suggestions of ASO, the locale drawer and replies).
-  Props: api, workspaceId, role.
+  Readable pass (docs/design/readability.md): 15px labels and hints, ONE sentence per hint; the server switch, the address rules, the prices and
+  what is sent sit behind disclosures. The visible one-liners stay for what costs money or leaves the server (who receives the text, the
+  estimate is not the bill). The key and the connection are one word each (lib/readable-forms.ts); Test is a quiet action; the form ends in
+  the same SaveBar as the app Settings. Props: api, workspaceId, role.
 -->
 <script lang="ts">
   import { type Role, buildSecret, can } from '@mrm/core';
@@ -57,9 +60,13 @@
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Card from '../ui/Card.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import TextField from '../ui/TextField.svelte';
+  import SaveBar from '../app/settings/SaveBar.svelte';
+  import { credentialWord, testWord } from '../../lib/readable-forms.ts';
+  import '../readable-card.css';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -108,6 +115,10 @@
   const notListed = $derived(form ? modelNotListed(shownModels, form.model) : false);
   const advice = $derived(data && form && choice?.needsUrl ? addressAdvice(form.baseUrl, data.server.allowPrivateUrls) : null);
   const result = $derived(testProblem !== '' ? { ok: false, text: testProblem } : outcome === null ? null : aiTestText(outcome, data?.providers ?? []));
+  const keyWord = $derived(
+    credentialWord({ configured: choice?.credentialPresent ?? false, required: choice?.credentialRequired ?? false, optionalLabel: 'Not needed' }),
+  );
+  const testState = $derived(testWord({ testing, ok: result === null ? null : result.ok }));
   const sample = $derived(testProblem === '' && outcome !== null ? aiTestSample(outcome) : '');
 
   async function load() {
@@ -240,20 +251,22 @@
   }
 </script>
 
-<Card title="AI assistant" collapseKey="ai" description="Suggestions and reports for keywords, listing text, review replies and review summaries. You read every suggestion and accept it yourself; nothing is sent to a store by this.">
+<Card title="AI assistant" collapseKey="ai" description="Suggestions for keywords, listing text and review replies. You accept each one yourself; nothing goes to a store.">
   {#if loadError}
     <Alert tone="error">{loadError}</Alert>
     <p><Button onclick={() => void load()}>Try again</Button></p>
   {:else if !data || !form || !info}
     <Skeleton />
   {:else}
-    <form class="stack" onsubmit={save} novalidate>
+    <form class="stack readable-card" onsubmit={save} novalidate>
       <div class="field">
         <p class="status">
           <Badge tone={info.tone === 'ok' ? 'ok' : info.tone === 'warn' ? 'warn' : 'info'} icon={info.tone === 'ok' ? 'check' : info.tone === 'warn' ? 'alert-triangle' : 'info'}>{info.label}</Badge>
           <span>{info.message}</span>
         </p>
-        <p class="hint">Off by default. It needs the server switch (MRM_AI_ENABLED) and the setting below, a provider, a model and, for most providers, a key.</p>
+        <Disclosure summary="What AI needs to run">
+          <p class="hint">Off by default. It needs the server switch (MRM_AI_ENABLED) and the setting below, a provider, a model and, for most providers, a key.</p>
+        </Disclosure>
       </div>
 
       {#if !editable}
@@ -303,7 +316,7 @@
             <Button icon="refresh" loading={loadingModels} disabled={loadingModels} onclick={() => void loadModels(true)}>Load models</Button>
           </div>
           <p class="hint" id="{uid}-model-hint">
-            Choose from the list or type the name exactly as your provider gives it. Any name is accepted. The model must be able to return structured answers.
+            Pick from the list or type the name as your provider gives it; the model must return structured answers.
           </p>
           {#if errors.model}<p class="field-error" role="alert">{errors.model}</p>{/if}
           {#if modelsProblem}
@@ -322,15 +335,18 @@
             label="Server address"
             bind:value={form.baseUrl}
             placeholder="https://models.example.com/v1"
-            hint="The address of an OpenAI compatible server, usually ending in /v1. https, or http://localhost when the person who runs this server allows it. No name, password or key in the address."
+            hint="An OpenAI compatible server, usually ending in /v1, with no name, password or key in the address."
             error={errors.baseUrl}
             autocomplete="off"
             spellcheck="false"
           />
+          <Disclosure summary="About the address">
+            <p class="hint">The address is https, or http://localhost when the person who runs this server allows it. It is used exactly as typed.</p>
+          </Disclosure>
           {#if advice}
             <Alert tone={advice.tone}>{advice.text}</Alert>
           {:else if needsV1Hint(form.baseUrl)}
-            <p class="hint">Most servers expect the address to end in /v1 (for example http://localhost:1234/v1). It is used exactly as typed.</p>
+            <p class="hint">Most servers expect the address to end in /v1, for example http://localhost:1234/v1.</p>
           {/if}
         {/if}
 
@@ -340,34 +356,29 @@
             type="password"
             bind:value={form.apiKey}
             placeholder={choice?.credentialPresent ? 'A key is saved. Type a new one to replace it.' : choice && !choice.credentialRequired ? 'Optional' : ''}
-            hint="Kept in the credential vault and never shown again. Leave it empty to keep what is saved."
+            hint="Kept in the credential vault and never shown again; leave it empty to keep what is saved."
             error={errors.apiKey}
             autocomplete="new-password"
             spellcheck="false"
           />
-          <p class="status">
-            {#if choice?.credentialPresent}
-              <Badge tone="ok" icon="check">Key added</Badge>
-            {:else if choice?.credentialRequired}
-              <Badge tone="warn">No key yet</Badge>
-            {:else}
-              <Badge>No key needed</Badge>
-            {/if}
+          <p class="connection">
+            <Badge tone={keyWord.tone} icon={keyWord.tone === 'ok' ? 'check' : undefined}>{keyWord.label}</Badge>
             <a class="link sm" href="#/credentials">Manage credentials</a>
           </p>
         </div>
 
         {#if localModel}
           <p class="hint">
-            This model runs on your own machine or network, so nothing is billed and no usage limit or price is needed. Runs are not limited here.
+            This model runs on your own machine or network, so nothing is billed and no limit or price is needed.
           </p>
         {:else}
         <div class="field">
           <label for="{uid}-budget">Monthly usage limit</label>
           <input id="{uid}-budget" inputmode="numeric" bind:value={form.budget} autocomplete="off" aria-invalid={errors.budget ? 'true' : undefined} aria-describedby="{uid}-budget-hint" />
           <p class="hint" id="{uid}-budget-hint">
-            What this workspace may use per month (UTC), counted in tokens, the unit providers bill in. 0 means no limit here. Set a spending limit with your provider too: this is an estimate.
+            What this workspace may use per month (UTC), counted in tokens. 0 means no limit here.
           </p>
+          <p class="warn-line">This is an estimate: set a spending limit with your provider too.</p>
           {#if errors.budget}<p class="field-error" role="alert">{errors.budget}</p>{/if}
         </div>
 
@@ -375,17 +386,15 @@
           <label for="{uid}-soft">Warn me at (percent of a limit)</label>
           <input id="{uid}-soft" inputmode="numeric" bind:value={form.softWarn} autocomplete="off" aria-invalid={errors.softWarn ? 'true' : undefined} aria-describedby="{uid}-soft-hint" />
           <p class="hint" id="{uid}-soft-hint">
-            From this share of the monthly limit on, a run says how much is used. It is only a warning: runs keep working until 100%. 0 turns the warning off.
+            From this share of the limit on, a run says how much is used; runs keep working until 100%. 0 is off.
           </p>
           {#if errors.softWarn}<p class="field-error" role="alert">{errors.softWarn}</p>{/if}
         </div>
 
         <fieldset class="field">
           <legend>Cost estimate and cap (optional)</legend>
-          <p class="hint">
-            Providers bill in dollars, not tokens. Enter the prices of your model (dollars per million tokens, from your provider's price list) to see an estimate, and a monthly cap in dollars that stops runs
-            before the estimate passes it. The estimate is not your bill: check it with your provider.
-          </p>
+          <p class="hint">Add both prices per million tokens for an estimate, and a monthly cap in dollars that stops runs before it passes.</p>
+          <p class="warn-line">The estimate is not your bill: check it with your provider.</p>
           <div class="row wrap">
             <div class="field">
               <label for="{uid}-price-in">Input price ($ per million)</label>
@@ -403,7 +412,9 @@
               {#if errors.costCap}<p class="field-error" role="alert">{errors.costCap}</p>{/if}
             </div>
           </div>
-          <p class="hint">0 or empty means not set. The cap needs both prices. A model on your own machine costs nothing here: leave them empty.</p>
+          <Disclosure summary="About prices and the cap">
+            <p class="hint">Take the prices from your provider's price list. 0 or empty means not set. The cap needs both prices. A model on your own machine costs nothing here: leave them empty.</p>
+          </Disclosure>
         </fieldset>
         {/if}
       {/if}
@@ -433,8 +444,10 @@
 
       <div class="field">
         <p class="who">{providerSentence(saved)}</p>
-        {#if saved}<p class="hint">{saved.privacy}</p>{/if}
-        {#if readyTasks.length > 0}
+        {#if saved || readyTasks.length > 0}
+          <Disclosure summary="What is sent, task by task">
+            {#if saved}<p class="hint">{saved.privacy}</p>{/if}
+          {#if readyTasks.length > 0}
           <ul class="tasks">
             {#each readyTasks as t (t.id)}
               <li>
@@ -451,32 +464,33 @@
               </li>
             {/each}
           </ul>
+          {/if}
+          </Disclosure>
         {/if}
       </div>
 
       {#if saveError}<Alert tone="error">{saveError}</Alert>{/if}
 
       {#if editable}
-        <div class="row wrap">
-          <Button type="submit" variant="primary" loading={saving} disabled={!dirty}>Save AI settings</Button>
-          <Button disabled={!dirty || saving} onclick={revert}>Discard changes</Button>
-          <Button icon="refresh" loading={testing} disabled={dirty || testing || data.state !== 'ready'} onclick={() => void test()}>Test connection</Button>
+        <div class="field">
+          <p class="connection">
+            <Badge tone={testState.tone}>{testState.label}</Badge>
+            <Button size="sm" variant="ghost" icon="refresh" loading={testing} disabled={dirty || testing || data.state !== 'ready'} onclick={() => void test()}>Test connection</Button>
+          </p>
+          <p class="hint">
+            {#if dirty}Save first: the test uses the saved settings.{:else if data.state !== 'ready'}The test needs AI to be on and set up (see the status above).{:else}The test sends one fixed small request with no data of yours.{/if}
+          </p>
+          {#if result}
+            <Alert tone={result.ok ? 'ok' : 'error'}>{result.text}</Alert>
+          {/if}
+          {#if sample}
+            <div class="sample">
+              <p class="hint">What the model answered (first 300 characters)</p>
+              <pre>{sample}</pre>
+            </div>
+          {/if}
         </div>
-        {#if dirty}
-          <p class="hint">Save first: the test uses the saved settings.</p>
-        {:else if data.state !== 'ready'}
-          <p class="hint">The test needs AI to be on and set up (see the status above).</p>
-        {/if}
-        <p class="hint">The test sends one fixed small request with no data of yours.</p>
-        {#if result}
-          <Alert tone={result.ok ? 'ok' : 'error'}>{result.text}</Alert>
-        {/if}
-        {#if sample}
-          <div class="sample">
-            <p class="hint">What the model answered (first 300 characters)</p>
-            <pre>{sample}</pre>
-          </div>
-        {/if}
+        <SaveBar type="submit" {dirty} {saving} saveLabel="Save AI settings" ondiscard={revert} />
       {/if}
     </form>
   {/if}
