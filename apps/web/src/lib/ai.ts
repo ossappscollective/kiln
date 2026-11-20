@@ -1343,3 +1343,17 @@ export const modelNotListed = (
 /** The count line after a successful read from the provider. */
 export const modelsCountText = (n: number): string =>
   n === 1 ? '1 model available.' : `${n} models available.`;
+
+/** Whether an address of an OpenAI compatible server is on this machine or a private network (nothing is billed there). */
+export function isLocalAddress(address: string): boolean {
+  const m = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]*@)?(\[[^\]]+\]|[^/:?#]+)/i.exec(address.trim());
+  if (!m) return false;
+  const host = (m[1] as string).toLowerCase();
+  if (host === 'localhost' || host === '[::1]' || host === 'host.docker.internal') return true;
+  if (host.endsWith('.localhost') || host.endsWith('.local')) return true;
+  const ip = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(host);
+  if (!ip) return false;
+  const a = Number(ip[1]);
+  const b = Number(ip[2]);
+  return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
+}

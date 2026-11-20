@@ -42,6 +42,7 @@ import {
   usageFraction,
   usageText,
   validateAiForm,
+  isLocalAddress,
 } from './ai.ts';
 import { ApiError } from './api.ts';
 
@@ -929,4 +930,11 @@ test('the sample of an unusable answer is shown as short plain text, and only fo
   assert.equal(aiTestSample({ ok: false, kind: 'auth', sample: 'not shown' }), '');
   assert.equal(aiTestSample({ ok: false, kind: 'invalid_output' }), '');
   assert.equal(aiTestSample({ ok: true, provider: 'openai_compatible', model: 'm' }), '');
+});
+
+test('isLocalAddress: this machine and private networks, not the internet', () => {
+  for (const a of ['http://localhost:11434/v1', 'http://127.0.0.1:1234/v1', 'http://[::1]:8080', 'http://192.168.1.20:8000/v1', 'http://10.0.0.5/v1', 'http://172.20.0.2/v1', 'http://studio.local:1234/v1', 'http://host.docker.internal:11434/v1'])
+    assert.equal(isLocalAddress(a), true, a);
+  for (const a of ['https://api.openai.com/v1', 'http://172.32.0.1/v1', 'http://8.8.8.8', 'localhost', '', 'https://example.com/localhost'])
+    assert.equal(isLocalAddress(a), false, a);
 });

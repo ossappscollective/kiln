@@ -43,6 +43,7 @@
     modelsSignature,
     needsV1Hint,
     oldestCredentialOfKind,
+    isLocalAddress,
     providerSentence,
     usageFraction,
     usageText,
@@ -81,6 +82,15 @@
   const dirty = $derived(data !== null && form !== null && isAiDirty(data, form));
   const info = $derived(data ? aiStateInfo(data) : null);
   const choice = $derived(data && form ? (data.providers.find((p) => p.id === form?.provider) ?? null) : null);
+  /** A server on this machine or network: no bill, so no limit to set. */
+  const localModel = $derived(form?.provider === 'openai_compatible' && isLocalAddress(form.baseUrl));
+  // The limit fields are hidden for such a server, so what is saved must not be a limit the person never saw.
+  $effect(() => {
+    if (form && localModel) {
+      if (form.budget !== '0') form.budget = '0';
+      if (form.costCap !== '') form.costCap = '';
+    }
+  });
   const saved = $derived(data ? (data.providers.find((p) => p.id === data?.settings.provider) ?? null) : null);
   const fraction = $derived(data ? usageFraction(data.usage) : null);
   const readyTasks = $derived((tasks?.tasks ?? []).filter((t) => t.status === 'ready'));
@@ -347,6 +357,11 @@
           </p>
         </div>
 
+        {#if localModel}
+          <p class="hint">
+            This model runs on your own machine or network, so nothing is billed and no usage limit or price is needed. Runs are not limited here.
+          </p>
+        {:else}
         <div class="field">
           <label for="{uid}-budget">Monthly usage limit</label>
           <input id="{uid}-budget" inputmode="numeric" bind:value={form.budget} autocomplete="off" aria-invalid={errors.budget ? 'true' : undefined} aria-describedby="{uid}-budget-hint" />
@@ -390,6 +405,7 @@
           </div>
           <p class="hint">0 or empty means not set. The cap needs both prices. A model on your own machine costs nothing here: leave them empty.</p>
         </fieldset>
+        {/if}
       {/if}
 
       <div class="field">
