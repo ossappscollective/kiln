@@ -52,7 +52,7 @@ between an app and its EAS project, and a place in the server where each feature
 - **EAS Workflows as a CI provider.** Run and watch workflows of the linked project next to GitHub Actions; needs a write call to Expo
   and therefore its own right (`ci.dispatch` is the likely fit) and switch.
 - **EAS Build and Submit status.** Builds and submissions of the linked project in "Builds to test" and the release pipeline.
-- **EAS Update (OTA) view.** Channels, branches and updates of the linked project, read-only first.
+- **EAS Update (OTA) view.** Channels, branches and updates of the linked project, read-only first. Done: [ADR 0037](0037-eas-update.md).
 - **The `eas.json` reader** (`packages/connectors/src/expo/eas-config.ts`, being written separately): profiles, channels and submit
   settings, to tell which profile a build used.
 

@@ -383,6 +383,15 @@ reading, syncing and planning are not affected. Set it to `true` only when you w
 
 See [adr/0008-store-rollout-writes](adr/0008-store-rollout-writes.md) and [api/rollout](api/rollout.md).
 
+### Raising an EAS Update rollout (an Expo write, off by default)
+
+`MRM_EAS_UPDATE_ROLLOUT_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill switch for raising the rollout
+percentage of an over-the-air update at Expo from this tool. While `false`, the preview and apply routes answer `409 eas_update_write_disabled`;
+reading channels, updates and insights is not affected and needs no switch. It changes what the clients of an app receive and cannot be
+lowered from here, so settle first: only owners and admins can do it (`releases.rollout`); the workspace's step-up policy applies (the
+action class `rollout`); the Expo token needs the Developer role; a change is confirmed against a fresh read of Expo and never retried after
+an unknown outcome. No table is created. See [adr/0037-eas-update](adr/0037-eas-update.md) and [api/eas-update](api/eas-update.md).
+
 ### Writing listing drafts to a store (a store write, off by default)
 
 `MRM_STORE_DRAFT_WRITE_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill
