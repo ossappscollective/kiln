@@ -83,7 +83,7 @@
     <div class="head">
       <div class="titles">
         <h3 id="{uid}-title"><Icon name="rocket" size={18} /> Rollout controls</h3>
-        <p class="muted lead">Raise, pause, halt or finish a rollout in the store, after a release is live.</p>
+        <p class="muted lead">Raise, pause, halt or finish a rollout in the store.</p>
       </div>
       {#if availability.state === 'ready'}
         <Badge tone="warn" icon="lock">Changes the live store</Badge>
@@ -96,7 +96,7 @@
       <Alert tone="warn">{availability.message}</Alert>
     {:else if config}
       <p class="muted note">
-        Each change is previewed first, needs your confirmation and is recorded in the audit log. Some cannot be undone.
+        Every change is previewed first, needs your confirmation and is recorded in the audit log.
       </p>
       <div class="stack">
         {#each members as app (app.id)}
@@ -154,6 +154,6 @@
 
   .note {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 </style>

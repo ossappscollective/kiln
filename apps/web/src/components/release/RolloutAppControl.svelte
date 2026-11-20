@@ -27,9 +27,9 @@
     rolloutTargets,
     stateQuery,
   } from '../../lib/store-rollout.ts';
+  import { irreversibleLine, rolloutNowLine } from '../../lib/release-detail.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
-  import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import RolloutPreviewDialog from './RolloutPreviewDialog.svelte';
@@ -245,6 +245,8 @@
   }
 
   const shareId = $derived(`${uid}-share`);
+  /** The one short line next to the buttons: which enabled changes cannot be undone. */
+  const warning = $derived(irreversibleLine(buttons));
 </script>
 
 <div class="app card" data-testid="rollout-app">
@@ -272,9 +274,9 @@
     {#if readError}<Alert tone="error">{readError}</Alert>{/if}
 
     {#if view}
-      <p class="state" aria-live="polite">
-        <strong>In the store now:</strong> {describeState(view.current)}
-        <span class="muted">(read {new Date(view.readAt).toLocaleTimeString()})</span>
+      <p class="state" aria-live="polite" title={describeState(view.current)}>
+        <strong class="now">{rolloutNowLine(view.current)}</strong>
+        <span class="muted">In the store, read {new Date(view.readAt).toLocaleTimeString()}</span>
       </p>
     {:else if !readError}
       <p class="muted note">Read the state from the store first: this only reads, it changes nothing.</p>
@@ -286,7 +288,6 @@
     <div class="row wrap actions">
       {#each buttons as b (b.action)}
         <Button
-          size="sm"
           variant={b.irreversible ? 'danger' : 'secondary'}
           disabled={b.disabled}
           title={b.reason ?? undefined}
@@ -295,9 +296,9 @@
         >
           {b.label}{b.action === 'set_fraction' ? '…' : ''}
         </Button>
-        {#if b.irreversible && !b.disabled}<Badge tone="warn">cannot be undone</Badge>{/if}
       {/each}
     </div>
+    {#if warning}<p class="irreversible" data-testid="rollout-irreversible">{warning}</p>{/if}
 
     {#if sharing && view}
       <div class="field share">
@@ -358,7 +359,25 @@
   .state,
   .note {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
+  }
+
+  .state {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    align-items: baseline;
+  }
+
+  .now {
+    font-size: var(--text-md);
+  }
+
+  .irreversible {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: var(--weight-semibold);
+    color: var(--warn-ink, var(--text));
   }
 
   .share {
@@ -368,6 +387,6 @@
   .error {
     margin: 0;
     color: var(--bad-ink);
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 </style>
