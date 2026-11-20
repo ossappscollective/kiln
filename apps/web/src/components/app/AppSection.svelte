@@ -26,6 +26,7 @@
   import Alert from '../ui/Alert.svelte';
   import AssetsTab from '../assets/AssetsTab.svelte';
   import EasConfigCard from '../eas/EasConfigCard.svelte';
+  import EasUpdateCard from '../eas/EasUpdateCard.svelte';
   import ListingMatrix from '../listing/ListingMatrix.svelte';
   import BuildsPanel from '../portfolio/BuildsPanel.svelte';
   import TestBuilds from '../builds/TestBuilds.svelte';
@@ -108,6 +109,7 @@
   <div class="stack loose">
     <BuildsPanel {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
     <EasConfigCard {api} {workspaceId} {role} {app} />
+    <EasUpdateCard {api} {workspaceId} {role} {app} />
   </div>
 {/snippet}
 {#snippet testBuilds(app: AppSummary)}

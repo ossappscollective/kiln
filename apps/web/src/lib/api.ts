@@ -80,6 +80,13 @@ import type {
 } from './assets/sync.ts';
 import type { ExpoDetection, ExpoLinkView, SetExpoLinkBody } from './eas/eas.ts';
 import type {
+  EasRolloutPreview,
+  EasRolloutRequest,
+  EasRolloutResult,
+  EasUpdateInsights,
+  EasUpdateState,
+} from './eas/eas-update.ts';
+import type {
   BuildsList,
   DownloadLink,
   InternalSharingConfig,
@@ -2335,6 +2342,37 @@ export function createApi(options: ApiOptions = {}) {
       request<EasConfigView>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/eas-config`,
+      ),
+    // EAS Update of the linked Expo project (docs/api/eas-update.md). The reads need `apps.read` and call Expo; raising a rollout is off
+    // unless the server sets MRM_EAS_UPDATE_ROLLOUT_ENABLED, needs `releases.rollout`, and only `easUpdateRolloutApply` changes Expo.
+    easUpdates: (workspaceId: string, appId: string) =>
+      request<{ state: EasUpdateState }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo/updates`,
+      ),
+    easUpdateInsights: (workspaceId: string, appId: string, group: string, days = 7) =>
+      request<{ insights: EasUpdateInsights }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo/updates/${encodeURIComponent(group)}/insights?days=${days}`,
+      ),
+    easUpdateRolloutPreview: (workspaceId: string, appId: string, body: EasRolloutRequest) =>
+      request<{ preview: EasRolloutPreview }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo/updates/rollout/preview`,
+        body,
+      ),
+    easUpdateRolloutApply: (
+      workspaceId: string,
+      appId: string,
+      body: EasRolloutRequest & { confirmHash: string },
+      grant?: string,
+    ) =>
+      request<{ result: EasRolloutResult }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo/updates/rollout/apply`,
+        body,
+        undefined,
+        grantHeader(grant),
       ),
   };
 }
