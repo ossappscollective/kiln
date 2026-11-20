@@ -168,6 +168,8 @@
           <p class="muted">A code was sent to <strong>{sent.info.to}</strong>. It works once and lasts 10 minutes.</p>
         {/if}
         <TextField
+          id="second-factor-code"
+          name={method === 'recovery' ? 'recovery-code' : 'totp'}
           label={method === 'recovery' ? 'Recovery code' : 'Code'}
           bind:value={code}
           inputmode={method === 'recovery' ? 'text' : 'numeric'}

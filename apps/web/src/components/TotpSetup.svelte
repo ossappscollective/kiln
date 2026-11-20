@@ -45,6 +45,8 @@
   </div>
   <form class="stack" onsubmit={submit}>
     <TextField
+      id="totp-setup-code"
+      name="totp"
       label="Code from the app"
       bind:value={code}
       inputmode="numeric"

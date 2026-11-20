@@ -36,6 +36,7 @@
     open = $bindable(true),
     api,
     workspaceId,
+    email,
     action,
     target = {},
     factors,
@@ -45,6 +46,8 @@
     open?: boolean;
     api: Api;
     workspaceId: string;
+    /** The signed-in person: a password manager needs a username next to a password field to offer the right entry. */
+    email?: string;
     action: string;
     target?: StepUpTarget;
     factors: readonly StepUpFactor[];
@@ -226,7 +229,9 @@
 
     {#if showPassword}
       <form class="stack" onsubmit={withPassword}>
-        <TextField label="Password" type="password" reveal bind:value={password} autocomplete="current-password" required disabled={busy} />
+        <!-- Not shown, but present for password managers (a login form is a username and a password). -->
+        <input class="visually-hidden" type="text" name="username" autocomplete="username" value={email ?? ''} readonly tabindex="-1" aria-hidden="true" />
+        <TextField id="step-up-password" name="password" label="Password" type="password" reveal bind:value={password} autocomplete="current-password" required disabled={busy} />
         <div class="row"><Button type="submit" variant="primary" loading={busy} disabled={busy || password === ''}>Confirm</Button></div>
       </form>
     {/if}
@@ -250,7 +255,7 @@
 
     {#if showTotp}
       <form class="stack" onsubmit={(event) => { event.preventDefault(); void withCode('totp', totpCode); }}>
-        <TextField label="Authenticator code" bind:value={totpCode} inputmode="numeric" autocomplete="one-time-code" placeholder="123456" hint="The six digits your authenticator app shows. Each code works once." required disabled={busy} />
+        <TextField id="step-up-totp" name="totp" label="Authenticator code" bind:value={totpCode} inputmode="numeric" autocomplete="one-time-code" placeholder="123456" hint="The six digits your authenticator app shows. Each code works once." required disabled={busy} />
         <div class="row"><Button type="submit" variant="primary" loading={busy} disabled={busy || !codeComplete(totpCode)}>Confirm</Button></div>
       </form>
     {/if}
@@ -259,7 +264,7 @@
       {#if emailSent}
         <form class="stack" onsubmit={(event) => { event.preventDefault(); void withCode('email', emailCode); }}>
           <p class="muted">A code was sent to <strong>{emailSent.to}</strong>. It works once, for this action only.</p>
-          <TextField label="Code from the email" bind:value={emailCode} inputmode="numeric" autocomplete="one-time-code" placeholder="123456" required disabled={busy} />
+          <TextField id="step-up-otp-email" name="otp" label="Code from the email" bind:value={emailCode} inputmode="numeric" autocomplete="one-time-code" placeholder="123456" required disabled={busy} />
           <div class="row">
             <Button type="submit" variant="primary" loading={busy} disabled={busy || !codeComplete(emailCode)}>Confirm</Button>
             <Button disabled={busy || emailWait > 0} onclick={sendEmailCode}>{emailWait > 0 ? `Send again in ${emailWait}s` : 'Send again'}</Button>

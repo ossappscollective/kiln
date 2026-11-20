@@ -541,7 +541,7 @@
 {/if}
 
 {#if workspace}
-  <StepUpHost {api} {workspaceId} />
+  <StepUpHost {api} {workspaceId} email={me.user.email} />
 {/if}
 
 <style>
