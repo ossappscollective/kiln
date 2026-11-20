@@ -268,7 +268,7 @@ function describe(t: {
         `Version ${v}${names(t.items, several)} is in store review. Waiting on the store.`,
       );
       button = {
-        label: 'Open the release steps',
+        label: 'Follow the review',
         appId: (t.items.filter((i) => i.state === 'in_review')[0] as TrainInput).appId,
         step: 'confirm',
       };

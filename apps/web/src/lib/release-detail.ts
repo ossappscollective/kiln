@@ -178,7 +178,7 @@ export function releaseLead(input: {
           headline: `Version ${v}${on} is in store review${elapsed ? ` for ${elapsed}` : ''}`,
           hint: 'Waiting on the store. Nobody here can speed it up.',
           tone: 'info',
-          action: go('Open the release steps', 'confirm'),
+          action: go('Follow the review', 'confirm'),
         };
         break;
       }
