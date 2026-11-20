@@ -27,6 +27,8 @@
     webauthnSupported,
   } from '../lib/step-up.ts';
   import { codeComplete, resendIn, twoFactorProblem } from '../lib/two-factor.ts';
+  import { STEP_UP_VALIDITY, confirmSentence } from '../lib/auth-copy.ts';
+  import './auth-form.css';
   import Alert from './ui/Alert.svelte';
   import Button from './ui/Button.svelte';
   import Modal from './ui/Modal.svelte';
@@ -210,11 +212,11 @@
   bind:open
   size="sm"
   title="Confirm: {stepUpActionLabel(action)}"
-  description="This is a hard action, so you are asked once more. The confirmation is good for one use, for a few minutes."
+  description={confirmSentence(factors, supported)}
   dismissible={!busy}
   onclose={closed}
 >
-  <div class="stack">
+  <div class="stack readable-form">
     {#if stuck}
       <Alert tone="warn" title="This window cannot use passkeys">
         Your passkey cannot be used here (the desktop app's window may not offer passkeys). Open the app in a browser, or set a confirmation
@@ -222,9 +224,11 @@
       </Alert>
     {/if}
 
+    {#if problem}<Alert tone="error">{problem}</Alert>{/if}
+
     {#if showPasskey}
       <p class="muted">Use the passkey on this device (Touch ID, Face ID, Windows Hello) or a security key.</p>
-      <Button variant="primary" icon="key" loading={busy} disabled={busy} onclick={withPasskey}>Confirm with Touch ID / passkey</Button>
+      <Button variant="primary" size="lg" block icon="key" loading={busy} disabled={busy} onclick={withPasskey}>Confirm with Touch ID / passkey</Button>
     {/if}
 
     {#if showPassword}
@@ -232,7 +236,7 @@
         <!-- Not shown, but present for password managers (a login form is a username and a password). -->
         <input class="visually-hidden" type="text" name="username" autocomplete="username" value={email ?? ''} readonly tabindex="-1" aria-hidden="true" />
         <TextField id="step-up-password" name="password" label="Password" type="password" reveal bind:value={password} autocomplete="current-password" required disabled={busy} />
-        <div class="row"><Button type="submit" variant="primary" loading={busy} disabled={busy || password === ''}>Confirm</Button></div>
+        <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || password === ''}>Confirm</Button>
       </form>
     {/if}
 
@@ -249,14 +253,14 @@
           required
           disabled={busy}
         />
-        <div class="row"><Button type="submit" variant="primary" loading={busy} disabled={busy || !recoveryCodeComplete(recoveryCode)}>Confirm</Button></div>
+        <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || !recoveryCodeComplete(recoveryCode)}>Confirm</Button>
       </form>
     {/if}
 
     {#if showTotp}
       <form class="stack" onsubmit={(event) => { event.preventDefault(); void withCode('totp', totpCode); }}>
         <TextField id="step-up-totp" name="totp" label="Authenticator code" bind:value={totpCode} inputmode="numeric" autocomplete="one-time-code" placeholder="123456" hint="The six digits your authenticator app shows. Each code works once." required disabled={busy} />
-        <div class="row"><Button type="submit" variant="primary" loading={busy} disabled={busy || !codeComplete(totpCode)}>Confirm</Button></div>
+        <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || !codeComplete(totpCode)}>Confirm</Button>
       </form>
     {/if}
 
@@ -265,19 +269,17 @@
         <form class="stack" onsubmit={(event) => { event.preventDefault(); void withCode('email', emailCode); }}>
           <p class="muted">A code was sent to <strong>{emailSent.to}</strong>. It works once, for this action only.</p>
           <TextField id="step-up-otp-email" name="otp" label="Code from the email" bind:value={emailCode} inputmode="numeric" autocomplete="one-time-code" placeholder="123456" required disabled={busy} />
-          <div class="row">
-            <Button type="submit" variant="primary" loading={busy} disabled={busy || !codeComplete(emailCode)}>Confirm</Button>
-            <Button disabled={busy || emailWait > 0} onclick={sendEmailCode}>{emailWait > 0 ? `Send again in ${emailWait}s` : 'Send again'}</Button>
-          </div>
+          <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || !codeComplete(emailCode)}>Confirm</Button>
+          <p class="quiet-links"><Button variant="link" disabled={busy || emailWait > 0} onclick={sendEmailCode}>{emailWait > 0 ? `Send again in ${emailWait}s` : 'Send again'}</Button></p>
         </form>
       {:else}
         <p class="muted">We email a six digit code to your verified address. It works once, for this action only.</p>
-        <Button variant="primary" icon="mail" loading={busy} disabled={busy} onclick={sendEmailCode}>Email me a code</Button>
+        <Button variant="primary" size="lg" block icon="mail" loading={busy} disabled={busy} onclick={sendEmailCode}>Email me a code</Button>
       {/if}
     {/if}
 
     {#if current !== undefined && (hasPasskey || hasPassword || hasRecovery || hasTotp || hasEmail)}
-      <p class="alts">
+      <p class="quiet-links">
         {#if hasPasskey && current !== 'passkey'}<Button variant="link" disabled={busy} onclick={switchTo('passkey')}>Use passkey</Button>{/if}
         {#if hasPassword && current !== 'password'}<Button variant="link" disabled={busy} onclick={switchTo('password')}>Use password</Button>{/if}
         {#if hasTotp && current !== 'totp'}<Button variant="link" disabled={busy} onclick={switchTo('totp')}>Use an authenticator code</Button>{/if}
@@ -286,19 +288,10 @@
       </p>
     {/if}
 
-    {#if problem}<Alert tone="error">{problem}</Alert>{/if}
+    {#if current !== undefined}<p class="quiet">{STEP_UP_VALIDITY}</p>{/if}
   </div>
 
   {#snippet footer()}
     <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>
   {/snippet}
 </Modal>
-
-<style>
-  .alts {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    margin: 0;
-  }
-</style>
