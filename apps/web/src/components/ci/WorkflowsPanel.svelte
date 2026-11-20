@@ -11,11 +11,14 @@
   Props: api, workspaceId, repository, role,
   appIds (the records in scope), appPlatforms (every platform of the app), platforms (those in scope),
   scopeLabel ("iOS"), configured (release workflows of the build conventions), showTitle (name the
-  repository above, when an app has more than one).
+  repository above, when an app has more than one), afterLead? (a snippet drawn under the lead).
+  The page opens with a PageLead (lib/workflow-lead.ts): where the workflows stand ("Last run failed 2 hours ago on main", "3 workflows,
+  1 failing") and ONE primary action: open the run that failed or is going, or start the release workflow. The runs are listed one line
+  each, failing first; what is only sometimes needed is behind "Details" on the row.
 -->
 <script lang="ts">
   import { type Platform, type Role, can } from '@mrm/core';
-  import { onMount, untrack } from 'svelte';
+  import { type Snippet, onMount, untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { POLL_MAX_MS, POLL_MS, hasActiveRun } from '../../lib/ci.ts';
   import { timeAgo } from '../../lib/format.ts';
@@ -39,6 +42,8 @@
   import Skeleton from '../ui/Skeleton.svelte';
   import StatusPill from '../ui/StatusPill.svelte';
   import { dispatchTarget } from '../../lib/dispatch-target.ts';
+  import { workflowsLead } from '../../lib/workflow-lead.ts';
+  import PageLead from '../ui/PageLead.svelte';
   import DispatchDialog from './DispatchDialog.svelte';
   import RunDrawer from './RunDrawer.svelte';
   import RunsTable from './RunsTable.svelte';
@@ -55,6 +60,7 @@
     scopeLabel,
     configured,
     showTitle = false,
+    afterLead,
   }: {
     api: Api;
     workspaceId: string;
@@ -66,6 +72,8 @@
     scopeLabel: string;
     configured: string[];
     showTitle?: boolean;
+    /** Drawn right under the lead (the runs going now), so the headline stays first. */
+    afterLead?: Snippet | undefined;
   } = $props();
 
   const canScan = $derived(can(role, 'repositories.scan'));
@@ -214,6 +222,27 @@
           .filter((t) => t !== '')
           .join(' '),
   );
+  /** The lead waits for what it reads: the runs, and the workflows when this role can list them. */
+  const leadReady = $derived(runs !== null && !runsProblem && !workflowsProblem && (!canScan || workflows !== null));
+  const lead = $derived(workflowsLead({ rows, runs: runsByPlatform.shown, now, canDispatch }));
+  const primaryName = $derived.by(() => {
+    const primary = lead.primary;
+    if (primary?.kind !== 'start') return '';
+    return rows.find((r) => r.entry.workflow.id === primary.workflowId)?.entry.workflow.name ?? '';
+  });
+
+  function leadAction() {
+    const primary = lead.primary;
+    if (!primary) return;
+    if (primary.kind === 'open') {
+      const run = (runs ?? []).find((r) => r.id === primary.runId);
+      if (run) follow(run);
+    } else {
+      const row = rows.find((r) => r.entry.workflow.id === primary.workflowId);
+      if (row) dispatchRow = row;
+    }
+  }
+
   const permission = $derived(
     !canScan
       ? 'Listing and starting workflows asks GitHub, which needs the member or admin role. The workflows below are the ones the stored runs came from.'
@@ -237,6 +266,21 @@
 
 <div class="stack">
   <p class="visually-hidden" role="status">{announcement}</p>
+
+  {#if leadReady}
+    <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="workflows-lead">
+      {#snippet actions()}
+        {#if lead.primary?.kind === 'start'}
+          <Button variant="primary" icon="play" label={lead.primary.label === 'Start release' ? `Start release: run ${primaryName}` : lead.primary.label} onclick={leadAction}
+            >{lead.primary.label}</Button
+          >
+        {:else if lead.primary}
+          <Button variant="primary" onclick={leadAction}>{lead.primary.label}</Button>
+        {/if}
+      {/snippet}
+    </PageLead>
+  {/if}
+  {#if afterLead}{@render afterLead()}{/if}
 
   {#if showTitle}
     <h2 class="repo">{repositoryName(repository)} <span class="muted text-sm">default branch {repository.defaultBranch}</span></h2>
@@ -265,9 +309,9 @@
     {:else}
       {#if permission || note}
         <div class="pad notes">
-          {#if permission}<p class="muted text-sm">{permission}</p>{/if}
+          {#if permission}<p class="muted">{permission}</p>{/if}
           {#if note}
-            <p class="muted text-sm">
+            <p class="muted">
               {note}
               {#if leftOut > 0 && !scopedWorkflows.fellBack}
                 <Button size="sm" variant="link" onclick={() => (showAllPlatforms = !showAllPlatforms)}
@@ -363,6 +407,7 @@
 
   .notes p {
     margin: 0;
+    font-size: 0.9375rem;
   }
 
   .repo {

@@ -1,6 +1,8 @@
 <!--
   AppWorkflows: the Workflows page of an app. The GitHub Actions workflows of the app's repository,
-  with a Run button, the runs going now, and the recent runs (components/ci/WorkflowsPanel.svelte).
+  with a Run button, the runs going now, and the recent runs (components/ci/WorkflowsPanel.svelte). It opens with a lead (where the
+  workflows stand, one primary action: open the run or start the release workflow), then the runs going now, the workflows (last run of
+  each) and the recent runs, one line each, failing first.
   The platform scope of the app (iOS, Android, Both) filters them by what their names say.
   Quiet states: no repository linked is one line with a link to attach one; a repository without GitHub
   is one line; a connection that cannot read Actions is one StatusPill (inside the panel).
@@ -94,7 +96,7 @@
     <Skeleton width="45%" height="16px" />
   </div>
 {:else}
-  {#if github.length > 0}
+  {#snippet running()}
     <RunningNow
       {api}
       {workspaceId}
@@ -107,7 +109,9 @@
           members.map((m) => ({ id: m.id, repositoryId: m.repositoryId, workflow: releaseWorkflows[m.id] ?? null })),
         )}
     />
-  {/if}
+  {/snippet}
+  <!-- With one repository the lead of its panel comes first and the runs going now sit under it; with several they stay on top. -->
+  {#if github.length > 1}{@render running()}{/if}
 
   <div class="stack loose">
     {#each github as repository (repository.id)}
@@ -122,6 +126,7 @@
         {scopeLabel}
         configured={configuredFor(repository.id)}
         showTitle={github.length > 1}
+        afterLead={github.length === 1 ? running : undefined}
       />
     {/each}
     {#each localOnly as repository (repository.id)}

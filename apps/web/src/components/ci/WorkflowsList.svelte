@@ -39,7 +39,7 @@
 </script>
 
 <div class="table-wrap">
-  <table class="compact">
+  <table class="compact wfs">
     <caption class="visually-hidden">Workflows</caption>
     <thead>
       <tr>
@@ -75,7 +75,7 @@
             {#if last}
               <div class="last">
                 <RunStatus run={last} />
-                <span class="muted text-sm">
+                <span class="muted when">
                   {#if last.branch}<code>{last.branch}</code> · {/if}
                   {#if actor}{actor} · {/if}
                   <time datetime={new Date(last.startedAt).toISOString()} title={fullTime(last.startedAt)}>{timeAgo(last.startedAt, now)}</time>
@@ -90,7 +90,7 @@
                     >{last.active ? 'Follow' : 'Jobs'}</Button
                   >
                 {:else}
-                  <span class="muted text-sm">Waiting for GitHub to name the run</span>
+                  <span class="muted when">Waiting for GitHub to name the run</span>
                 {/if}
               </div>
             {:else}
@@ -122,9 +122,19 @@
     align-items: center;
   }
 
+  .wfs td {
+    padding-block: var(--space-3);
+    font-size: 0.9375rem;
+  }
+
+  .when {
+    font-size: 0.9375rem;
+  }
+
   .path {
     display: block;
-    font-size: var(--text-xs);
+    margin-top: var(--space-1);
+    font-size: var(--text-sm);
     overflow-wrap: anywhere;
   }
 
