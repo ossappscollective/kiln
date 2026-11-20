@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/*.svelte", "!**/src-tauri/gen"]
+    "includes": ["**", "!**/*.svelte", "!**/src-tauri/gen", "!docs/design/mockups"]
   },
   "formatter": {
     "indentStyle": "space",
