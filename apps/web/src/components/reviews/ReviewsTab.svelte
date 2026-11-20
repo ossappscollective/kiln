@@ -66,7 +66,9 @@
   import { splitView } from '../../lib/split-view.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, Member } from '../../lib/types.ts';
+  import { reviewsLead } from '../../lib/page-lead.ts';
   import Alert from '../ui/Alert.svelte';
+  import PageLead from '../ui/PageLead.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Icon from '../ui/Icon.svelte';
@@ -230,6 +232,7 @@
   }
 
   const chip = $derived(unansweredChip(summary?.unanswered, now));
+  const lead = $derived(reviewsLead({ loaded: summary !== null, stored: summary?.stored.count ?? 0, chip }));
   /** The unanswered filter is on: no developer response (and the ratings the count covers). */
   const showingUnanswered = $derived(filters.response === 'no');
 
@@ -336,31 +339,42 @@
 <section class="reviews stack" aria-busy={loading}>
   <p class="visually-hidden" role="status">{announcement}</p>
 
-  <div class="intro">
-    <p class="lastread muted small">
-      {#if summary}
-        {lastReadText(summary.sync, (at) => timeAgo(at, now))}
-        {#if summary.sync.lastSuccessAt !== null}<span class="faint">({fullTime(summary.sync.lastSuccessAt)})</span>{/if}
-      {/if}
-    </p>
-    <InfoTip label="About the reviews of this app" buttonText="About reviews" align="start" width="26rem">
-      <p>
-        What customers wrote in {storeLabel(summary?.app.store ?? (app.platform === 'android' ? 'googleplay' : 'appstoreconnect'))},
-        read from the store and kept here for your team. This is a copy for triage: reading and triage change nothing in the store. A reply does, and goes through its own confirmation.
-      </p>
-      {#if summary?.retentionDays}<p class="muted">Reviews older than {summary.retentionDays} days are deleted automatically.</p>{/if}
-      {#if summary?.retentionDays === 0}<p class="muted">Reviews are kept until the app is deleted.</p>{/if}
-    </InfoTip>
-    {#if replyConfig && !replyConfig.enabled}
-      <StatusPill tone="info" label="Replying is switched off" stateKey="reviews.reply-off">
-        <p>{REPLY_OFF_TEXT}</p>
-      </StatusPill>
-    {/if}
-    <span class="spacer"></span>
+  {#snippet readButton(primary: boolean)}
     {#if canSync}
-      <Button variant="primary" icon="refresh" loading={syncing} disabled={needsAppSync} onclick={readNow}>Read reviews now</Button>
+      <Button variant={primary ? 'primary' : 'secondary'} icon="refresh" loading={syncing} disabled={needsAppSync} onclick={readNow}>Read reviews now</Button>
     {/if}
-  </div>
+  {/snippet}
+
+  <PageLead
+    testid={chip ? 'unanswered-chip' : 'reviews-lead'}
+    tone={lead.tone}
+    headline={lead.headline}
+    hint={summary ? lastReadText(summary.sync, (at) => timeAgo(at, now)) : undefined}
+  >
+    {#snippet aside()}
+      <span class="row wrap">
+        <InfoTip label="About the reviews of this app" buttonText="About reviews" align="start" width="26rem">
+          <p>
+            What customers wrote in {storeLabel(summary?.app.store ?? (app.platform === 'android' ? 'googleplay' : 'appstoreconnect'))},
+            read from the store and kept here for your team. This is a copy for triage: reading and triage change nothing in the store. A reply does, and goes through its own confirmation.
+          </p>
+          {#if summary?.retentionDays}<p class="muted">Reviews older than {summary.retentionDays} days are deleted automatically.</p>{/if}
+          {#if summary?.retentionDays === 0}<p class="muted">Reviews are kept until the app is deleted.</p>{/if}
+        </InfoTip>
+        {#if replyConfig && !replyConfig.enabled}
+          <StatusPill tone="info" label="Replying is switched off" stateKey="reviews.reply-off">
+            <p>{REPLY_OFF_TEXT}</p>
+          </StatusPill>
+        {/if}
+      </span>
+    {/snippet}
+    {#snippet actions()}
+      {#if lead.primary === 'show' && chip}
+        <Button variant="primary" aria-label={chip.label} disabled={showingUnanswered} onclick={showUnanswered}>{showingUnanswered ? 'Showing unanswered' : 'Show unanswered'}</Button>
+      {/if}
+      {#if lead.primary !== 'none'}{@render readButton(lead.primary === 'read')}{/if}
+    {/snippet}
+  </PageLead>
 
   {#if needsAppSync}
     <Alert tone="warn" title="Sync the app first">
@@ -405,12 +419,6 @@
       <Section title="Rating summary" key="summary" variant="plain" level={2} summary={`${averageText(summary.stored.average)} · ${statsLine(summary.stored)}`}>
       <div class="statsrow">
         <RatingOverview {summary} />
-        {#if chip}
-          <p class="unanswered muted" data-testid="unanswered-chip">
-            <span>{chip.text}</span>
-            <Button size="sm" variant="ghost" aria-label={chip.label} disabled={showingUnanswered} onclick={showUnanswered}>{showingUnanswered ? 'Showing unanswered' : 'Show unanswered'}</Button>
-          </p>
-        {/if}
       </div>
       </Section>
 
@@ -586,30 +594,6 @@
 
 <style>
   .small {
-    margin: 0;
-    font-size: var(--text-sm);
-  }
-
-  .faint {
-    color: var(--faint);
-  }
-
-  .intro {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-3);
-    align-items: center;
-  }
-
-  .lastread {
-    min-width: 0;
-  }
-
-  .unanswered {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    align-items: center;
     margin: 0;
     font-size: var(--text-sm);
   }
