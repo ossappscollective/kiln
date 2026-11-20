@@ -4,6 +4,7 @@ import { ApiError } from './api.ts';
 import {
   canConfirmRelease,
   classifyReleaseFailure,
+  directText,
   mayConfirmAgain,
   parsePercent,
   percentFromFraction,
@@ -183,4 +184,15 @@ test('an unknown outcome is never confirmed again, and a cut connection during t
     'outcome_unknown',
   );
   assert.equal(classifyReleaseFailure(err('push_outcome_unknown')).kind, 'other_unknown');
+});
+
+test('a direct release is asked for with direct: true on Google Play only, and the answer says it in the server words', () => {
+  const asked = { track: 'production', fraction: 0.1, versionCodes: [] as string[] };
+  assert.deepEqual(releaseBody('android', { ...asked, direct: true }), { track: 'production', userFraction: 0.1, direct: true });
+  assert.deepEqual(releaseBody('android', asked), { track: 'production', userFraction: 0.1 });
+  assert.deepEqual(releaseBody('ios', { ...asked, version: '2.1', direct: true }), { version: '2.1' });
+  const summary = 'Makes and sends the release with version code 241 to the production track for 10% of users, with release notes in en-US. Google reviews this release before users get it; it cannot be undone from here.';
+  assert.equal(directText({ direct: { creates: true, versionCodes: ['241'], name: null, notesLanguages: ['en-US'], summary } }), summary);
+  assert.equal(directText({ direct: null }), null);
+  assert.equal(directText({}), null);
 });

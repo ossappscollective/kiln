@@ -114,6 +114,8 @@ export type StepRequest = {
   track?: string;
   versionCodes?: string[];
   userFraction?: number;
+  /** Google Play release: release the staged fields in one step, no draft first (docs/adr/0029-direct-play-release.md). */
+  direct?: boolean;
 };
 
 export type Availability =
@@ -164,6 +166,10 @@ export type PublishPlan = {
   planHash: string | null;
   confirmationRequired: boolean;
   confirmation: { phrase: string; instruction: string } | null;
+  /** Google Play: the staged track, version codes and intended share, when a release can be made from them (absent from an older server). */
+  direct?: { track: string; versionCodes: string[]; stagedFraction: number | null } | null;
+  /** Google Play: only release fields are staged, so the plan is one direct release step (absent from an older server). */
+  defaultedToDirect?: boolean;
   readAt: number;
 };
 
@@ -673,6 +679,34 @@ export function requestsFor(
   return out;
 }
 
+/** What the release inputs of the dialog start with: the staged track, and the share staged as an intention (a reminder, never sent by itself). */
+export function releaseInputDefaults(plan: PublishPlan | null): { track: string; sharePercent: string; direct: boolean } {
+  const staged = plan?.direct ?? null;
+  const fraction = staged?.stagedFraction ?? null;
+  return {
+    track: staged?.track ?? 'production',
+    sharePercent: fraction !== null && fraction > 0 && fraction <= 1 ? String(Math.round(fraction * 10000) / 100) : '',
+    direct: plan?.defaultedToDirect === true,
+  };
+}
+
+/** The release step the person adds in the dialog: direct when the plan was made as a direct release. */
+export const releaseStepRequest = (input: { track: string; fraction: number; direct: boolean }): StepRequest => ({
+  type: 'release',
+  track: input.track.trim(),
+  userFraction: input.fraction,
+  ...(input.direct ? { direct: true } : {}),
+});
+
+/** "Save as a draft only": the push alone (nothing is submitted or released). Offered when the plan is a direct release. */
+export const draftOnlySteps = (): StepRequest[] => [{ type: 'push_draft' }];
+
+/** The plan is a direct release (made so by the server, or because its release step is one). */
+export const isDirectPlan = (plan: PublishPlan | null): boolean =>
+  plan !== null &&
+  (plan.defaultedToDirect === true ||
+    plan.steps.some((s) => s.type === 'release' && s.request?.direct === true));
+
 /** The types that are part of the plan. */
 export const includedTypes = (plan: PublishPlan): PublishStepType[] =>
   plan.steps.filter((s) => s.included).map((s) => s.type);
@@ -882,6 +916,21 @@ export type ResultRow = {
 /** A code from the server, reduced to what is safe to print: lower-case letters, digits and underscores. */
 const safeCode = (code: string): string => code.replace(/[^a-z0-9_]/g, '').slice(0, 40) || 'error';
 
+const SAYS_STORE = ['store_rejected', 'store_forbidden', 'store_not_found', 'draft_not_allowed'];
+
+/**
+ * What the store (or this server) said about a failed step, as one short plain line: the server already removed secrets from it.
+ * Empty when it adds nothing (no message, or just the code again).
+ */
+export function storeSaid(step: { error: string; message?: string | undefined }): string {
+  // Only for a refusal by the store: the reason (what to fix) is what the person needs. Other codes keep their fixed words.
+  if (SAYS_STORE.indexOf(step.error) < 0) return '';
+  const raw = (step.message ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (raw === '' || raw === step.error) return '';
+  const cut = raw.length > 500 ? `${raw.slice(0, 497)}...` : raw;
+  return `The store said: ${cut}`;
+}
+
 export function resultRow(step: StepResult): ResultRow {
   const label = STEP_NAME[step.type];
   if (step.status === 'applied') {
@@ -907,8 +956,9 @@ export function resultRow(step: StepResult): ResultRow {
     };
   }
   const known = FAILED_TEXT[step.error];
+  const said = storeSaid(step);
   const text =
-    `${known ?? `The step did not finish (${safeCode(step.error)}).`} ${OUTCOME_TEXT[step.outcome] ?? ''}`.trim();
+    `${known ?? `The step did not finish (${safeCode(step.error)}).`}${said === '' ? '' : ` ${said}`} ${OUTCOME_TEXT[step.outcome] ?? ''}`.trim();
   return {
     type: step.type,
     label,

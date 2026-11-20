@@ -44,6 +44,17 @@ export type ReleaseBody = {
   track?: string;
   userFraction?: number;
   versionCodes?: string[];
+  /** Google Play: release the staged fields in one step, no draft first (docs/adr/0029-direct-play-release.md). */
+  direct?: boolean;
+};
+
+/** Google Play, direct release: what is sent, in the server's words, and the facts behind them. Never a note. */
+export type ReleaseDirect = {
+  creates: boolean;
+  versionCodes: string[];
+  name: string | null;
+  notesLanguages: string[];
+  summary: string;
 };
 
 export type ReleasePreview = {
@@ -75,6 +86,8 @@ export type ReleasePreview = {
     userFraction: number | null;
     description: string;
   };
+  /** Google Play, direct release only; null otherwise (an older server sends nothing). */
+  direct?: ReleaseDirect | null;
   irreversible: string[];
   releases: true;
   checks: { blocking: ReleaseCheck[]; warnings: ReleaseCheck[]; canRelease: boolean };
@@ -199,7 +212,13 @@ export function releaseLine(input: ReleaseLineInput): ReleaseLine {
 /** The request of the preview and the release: the same fields for both, so the hash holds. */
 export function releaseBody(
   platform: Platform,
-  input: { version?: string; track?: string; fraction: number | null; versionCodes?: string[] },
+  input: {
+    version?: string;
+    track?: string;
+    fraction: number | null;
+    versionCodes?: string[];
+    direct?: boolean;
+  },
 ): ReleaseBody {
   if (platform === 'android') {
     return {
@@ -208,6 +227,7 @@ export function releaseBody(
       ...(input.versionCodes && input.versionCodes.length > 0
         ? { versionCodes: input.versionCodes }
         : {}),
+      ...(input.direct === true ? { direct: true } : {}),
     };
   }
   return input.version ? { version: input.version } : {};
@@ -238,6 +258,13 @@ export function canConfirmRelease(
   if (preview.checks.blocking.length > 0 || !preview.checks.canRelease) return false;
   if (preview.confirmHash === null || preview.confirmation === null) return false;
   return confirmationMatches(typed, preview.confirmation.phrase);
+}
+
+/** The sentence that says what a direct release does (the server's own words, else built here for an older server). */
+export function directText(preview: Pick<ReleasePreview, 'direct'>): string | null {
+  const d = preview.direct;
+  if (!d) return null;
+  return d.summary.trim() !== '' ? d.summary : null;
 }
 
 export const storeConsole = (platform: Platform): string =>

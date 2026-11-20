@@ -15,8 +15,12 @@ import {
   includedTypes,
   isDiscardable,
   itemAnchor,
+  draftOnlySteps,
+  isDirectPlan,
   lineFor,
   lineOfView,
+  releaseInputDefaults,
+  releaseStepRequest,
   needsReview,
   nextStepText,
   type PendingItem,
@@ -620,7 +624,7 @@ test('a completed publish says so; a stopped one names the step and offers a new
   assert.equal(stopped.rows[2]?.review, false);
 });
 
-test('results use fixed words and never print the text of a store or an unknown code verbatim', () => {
+test('results use fixed words; a refusal by the store adds what the store said, plain and cut; an unknown code prints nothing', () => {
   const failed = resultRow({
     type: 'submit',
     status: 'failed',
@@ -629,9 +633,12 @@ test('results use fixed words and never print the text of a store or an unknown 
     outcome: 'refused',
     message: 'Apple says <b>bad</b> token abc123',
   });
-  assert.ok(!failed.text.includes('abc123'));
-  assert.ok(!failed.text.includes('Apple says'));
-  assert.match(failed.text, /The store rejected this step\. Nothing was changed\./);
+  assert.match(failed.text, /The store rejected this step\. The store said: Apple says <b>bad<\/b> token abc123 Nothing was changed\./);
+  const long = resultRow({ type: 'submit', status: 'failed', error: 'store_rejected', httpStatus: 422, outcome: 'refused', message: `x${'y'.repeat(900)}\n\u0000z` });
+  assert.ok(long.text.length < 700);
+  assert.ok(!/[\u0000-\u001f]/.test(long.text));
+  const plain = resultRow({ type: 'submit', status: 'failed', error: 'store_unavailable', httpStatus: 502, outcome: 'unknown', message: 'secret-ish text' });
+  assert.ok(!plain.text.includes('secret-ish'));
   const unknown = resultRow({
     type: 'release',
     status: 'failed',
@@ -754,4 +761,56 @@ test('a pushed Google Play draft release is a pending item that waits for the re
   // The button is available when only a draft release waits and the release step is switched on.
   const ok = publishAvailability({ role: 'admin', config: config(), configFailed: false, totals: { items: 1, actionable: 1, blocking: 0 }, nextSteps: ['release'] });
   assert.equal(ok.state, 'ready');
+});
+
+// ----- the direct release in the plan dialog (docs/adr/0029-direct-play-release.md) ---------------------
+
+const directPlan = (over: Partial<PublishPlan> = {}): PublishPlan =>
+  plan(
+    [
+      step('push_draft', { included: false, availability: 'not_requested', request: null }),
+      step('submit', { included: false, availability: 'not_requested', request: null }),
+      step('release', { included: false, availability: 'needs_input', request: null, platform: 'android' }),
+      step('rollout', { included: false, availability: 'not_requested', request: null }),
+    ],
+    {
+      app: { id: 'app1', name: 'Weather', platform: 'android', store: 'googleplay' },
+      defaultedToDirect: true,
+      direct: { track: 'production', versionCodes: ['241'], stagedFraction: 0.1 },
+      ...over,
+    },
+  );
+
+test('a plan the server made as a direct release starts the inputs from what is staged and adds a direct release step', () => {
+  const p = directPlan();
+  assert.equal(isDirectPlan(p), true);
+  assert.deepEqual(releaseInputDefaults(p), { track: 'production', sharePercent: '10', direct: true });
+  assert.deepEqual(releaseStepRequest({ track: ' production ', fraction: 0.1, direct: true }), {
+    type: 'release',
+    track: 'production',
+    userFraction: 0.1,
+    direct: true,
+  });
+  assert.deepEqual(releaseStepRequest({ track: 'production', fraction: 1, direct: false }), {
+    type: 'release',
+    track: 'production',
+    userFraction: 1,
+  });
+  assert.deepEqual(draftOnlySteps(), [{ type: 'push_draft' }]);
+  // The row of that step needs the track and the share, as the release of a draft does.
+  const row = stepRows(p).find((r) => r.type === 'release');
+  assert.equal(row?.needsInput, true);
+});
+
+test('with nothing staged or an older server the defaults are the old ones and the plan is not a direct release', () => {
+  assert.deepEqual(releaseInputDefaults(null), { track: 'production', sharePercent: '', direct: false });
+  const old = plan([step('push_draft')], { app: { id: 'a', name: 'n', platform: 'android', store: 'googleplay' } });
+  assert.equal(isDirectPlan(old), false);
+  assert.deepEqual(releaseInputDefaults(old), { track: 'production', sharePercent: '', direct: false });
+  // A staged share that is not a share is not shown.
+  assert.equal(releaseInputDefaults(directPlan({ direct: { track: 'beta', versionCodes: ['1'], stagedFraction: 0 } })).sharePercent, '');
+  assert.equal(releaseInputDefaults(directPlan({ direct: { track: 'beta', versionCodes: ['1'], stagedFraction: 0.025 } })).sharePercent, '2.5');
+  // An included direct release step makes the plan a direct one even when the server did not default to it.
+  const added = plan([step('release', { request: { type: 'release', track: 'production', userFraction: 0.1, direct: true } })], { defaultedToDirect: false });
+  assert.equal(isDirectPlan(added), true);
 });

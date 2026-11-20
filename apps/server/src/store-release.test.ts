@@ -831,6 +831,7 @@ dbTest(
     assert.equal(p.request.track, 'production', 'the staged track is used when none is named');
     assert.deepEqual(p.request.versionCodes, ['241']);
     assert.equal(p.request.build, undefined, 'the notes are not repeated in the answer');
+    assert.equal(p.request.direct, true, 'so that the request of the preview can be sent back as it is');
     assert.deepEqual(
       [p.direct.creates, p.direct.versionCodes, p.direct.name, p.direct.notesLanguages],
       [true, ['241'], '2.1 (241)', ['de-DE', 'en-US']],

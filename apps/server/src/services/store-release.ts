@@ -828,9 +828,9 @@ export type ReleasePreview = {
 };
 
 /** The request as an answer shows it: what the direct release is built from is not repeated (notes are texts). */
-const publicRequest = (request: ReleaseRequest): ReleaseRequest => {
-  const { build: _build, ...rest } = request;
-  return rest;
+const publicRequest = (request: ReleaseRequest): ReleaseRequest & { direct?: true } => {
+  const { build, ...rest } = request;
+  return build === undefined ? rest : { ...rest, direct: true };
 };
 
 /** Plain words for a direct release. */

@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
   import { fullTime } from '../../lib/format.ts';
-  import { type ReleasePreview, audienceText, storeConsole } from '../../lib/store-release.ts';
+  import { type ReleasePreview, audienceText, directText, storeConsole } from '../../lib/store-release.ts';
   import Alert from '../ui/Alert.svelte';
 
   let { preview }: { preview: ReleasePreview } = $props();
@@ -14,9 +14,15 @@
   const blocking = $derived(preview.checks.blocking);
   const android = $derived(preview.app.platform === 'android');
   const console_ = $derived(storeConsole(preview.app.platform));
+  const directLine = $derived(directText(preview));
 </script>
 
 <div class="stack">
+  {#if directLine && preview.direct}
+    <Alert tone="warn" title={preview.direct.creates ? 'Made from what you staged and sent to Google Play in one step' : 'The existing draft is sent to Google Play'}>
+      <p class="alert-text" data-testid="release-direct">{directLine}</p>
+    </Alert>
+  {/if}
   <dl class="facts" data-testid="release-facts">
     <div><dt>App</dt><dd>{preview.app.name}</dd></div>
     {#if android}
@@ -24,7 +30,7 @@
       {#if preview.release}
         <div><dt>Release</dt><dd>{preview.release.name ?? 'Unnamed'} ({preview.release.status})</dd></div>
         <div><dt>Version codes</dt><dd>{preview.release.versionCodes.length > 0 ? preview.release.versionCodes.join(', ') : 'None'}</dd></div>
-        <div><dt>Release notes</dt><dd>{preview.release.notes === 0 ? 'None' : `${preview.release.notes} ${preview.release.notes === 1 ? 'language' : 'languages'}`}</dd></div>
+        <div><dt>Release notes</dt><dd>{preview.direct && preview.direct.notesLanguages.length > 0 ? preview.direct.notesLanguages.join(', ') : preview.release.notes === 0 ? 'None' : `${preview.release.notes} ${preview.release.notes === 1 ? 'language' : 'languages'}`}</dd></div>
       {/if}
     {:else}
       <div><dt>Version</dt><dd>{preview.version?.versionString ?? 'Not known'}{preview.version ? ` (${preview.version.state})` : ''}</dd></div>

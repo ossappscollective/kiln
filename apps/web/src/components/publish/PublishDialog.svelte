@@ -29,13 +29,17 @@
     asSubmitPreview,
     canPublish,
     classifyPublishFailure,
+    draftOnlySteps,
     errorsOf,
     includedTypes,
+    isDirectPlan,
     needsReview,
     planReady,
     previewBody,
     promiseText,
     publishBody,
+    releaseInputDefaults,
+    releaseStepRequest,
     requestsFor,
     resultSummary,
     stepRows,
@@ -92,6 +96,8 @@
   let track = $state('production');
   let share = $state('');
   let shareError = $state('');
+  /** Google Play: the plan releases the staged fields in one step (the server made it so, or the person added it so). */
+  let direct = $state(false);
   let changed = false;
   let seq = 0;
 
@@ -133,7 +139,14 @@
     try {
       const out = await api.previewPublish(workspaceId, app.id, previewBody(steps));
       if (mine !== seq) return;
+      // A first plan (the dialog opened or the platform changed) starts the inputs from what is staged; later plans keep what was typed.
+      if (plan === null) {
+        const start = releaseInputDefaults(out.plan);
+        track = start.track;
+        share = start.sharePercent;
+      }
       plan = out.plan;
+      direct = isDirectPlan(out.plan);
       wanted = includedTypes(out.plan);
       result = null;
       typed = '';
@@ -166,8 +179,24 @@
       return;
     }
     shareError = '';
-    void review(requestsFor(plan, toggled(wanted, 'release', true), { release: { type: 'release', track: track.trim(), userFraction: fraction } }), 'The plan was made again with the release.');
+    void review(requestsFor(plan, toggled(wanted, 'release', true), { release: releaseStepRequest({ track, fraction, direct }) }), 'The plan was made again with the release.');
   }
+
+  /** "Save as a draft only": the push alone. Nothing is submitted or released by it. */
+  function saveAsDraftOnly() {
+    if (!plan || busy) return;
+    void review(draftOnlySteps(), 'The plan was made again as a draft only: nothing is sent to review or released.');
+  }
+
+  /** Back to the default plan (the direct release when only release fields are staged). */
+  function backToDirect() {
+    if (busy) return;
+    void review(null);
+  }
+
+  const pushStep = $derived(plan ? stepOf('push_draft') : undefined);
+  const canDraftOnly = $derived(direct && pushStep !== undefined && pushStep.requires.enabled && pushStep.requires.allowed);
+  const offersDirect = $derived(plan !== null && !direct && (plan.direct ?? null) !== null && plan.included === 1 && wanted.length === 1 && wanted[0] === 'push_draft');
 
   async function publish() {
     if (!plan || !ready) return;
@@ -333,6 +362,12 @@
               {#if row.reason}<p class="reason muted">{row.reason}</p>{/if}
 
               {#if row.needsInput}
+                {#if direct}
+                  <p class="small" data-testid="direct-explainer">
+                    This makes the release from what you staged (version codes, notes) and sends it to Google Play in one step. No draft is saved first.
+                    Google reviews it before users get it, and it cannot be undone from here. You name the share of users.
+                  </p>
+                {/if}
                 <div class="inputs">
                   <div class="field">
                     <label for="{uid}-track">Track</label>
@@ -368,6 +403,18 @@
           {/if}
         {/each}
       </ol>
+
+      {#if canDraftOnly}
+        <div class="row">
+          <Button size="sm" disabled={busy || stale} onclick={saveAsDraftOnly}>Save as a draft only</Button>
+          <span class="muted small">Writes the staged release to the Google Play draft. Nothing is sent to review or released.</span>
+        </div>
+      {:else if offersDirect}
+        <div class="row">
+          <Button size="sm" disabled={busy || stale} onclick={backToDirect}>Release to production directly instead</Button>
+          <span class="muted small">One step: Google reviews it before users get it. No draft first.</span>
+        </div>
+      {/if}
 
       {#if !plan.confirmable}
         <Alert tone="error" title="This plan cannot be published as it is">

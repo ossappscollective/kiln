@@ -9,7 +9,9 @@
   share (`user_fraction`) is shown only as a reminder.
   Props: api, workspaceId, role, app ({ id, name, platform }), version (App Store: the marketing version, or null for
   "the one waiting"), track (Google Play), versionCodes (Google Play, optional), stagedShare (the staged intended share
-  as text, or ''), onreleased (called after a successful release, so the screen reads the pipeline again).
+  as text, or ''), stagedFields (Google Play: a track and version codes are staged; the release can then be made from them in one step,
+  no draft first, and Google reviews it: a checkbox that starts on, docs/adr/0029-direct-play-release.md), onreleased (called after a
+  successful release, so the screen reads the pipeline again).
 -->
 <script lang="ts">
   import type { Role } from '@mrm/core';
@@ -49,6 +51,7 @@
     track = '',
     versionCodes = [],
     stagedShare = '',
+    stagedFields = false,
     onreleased,
   }: {
     api: Api;
@@ -59,6 +62,8 @@
     track?: string;
     versionCodes?: string[];
     stagedShare?: string;
+    /** Google Play: a track and version codes are staged, so the release can be made from them in one step. */
+    stagedFields?: boolean;
     onreleased?: () => void;
   } = $props();
 
@@ -77,6 +82,8 @@
   let announcement = $state('');
   /** What the person typed as the share, in percent. Never filled in for them. */
   let shareText = $state('');
+  /** Google Play: release the staged fields in one step (no draft first). Starts on when something is staged; the person can switch it off. */
+  let direct = $state(untrack(() => stagedFields));
   let seq = 0;
 
   const android = $derived(app.platform === 'android');
@@ -95,7 +102,7 @@
   );
   const busy = $derived(previewing || applying);
   const reminder = $derived(percentFromFraction(stagedShare));
-  const body = $derived(releaseBody(app.platform, { version: version ?? undefined, track: track || undefined, fraction, versionCodes }));
+  const body = $derived(releaseBody(app.platform, { version: version ?? undefined, track: track || undefined, fraction, versionCodes, direct: android && direct && stagedFields }));
   const needsTrack = $derived(android && track.trim() === '');
 
   let shownFor = '';
@@ -235,6 +242,12 @@
   {#if line.kind !== 'hidden'}
     <div class="release" data-testid="release-control" role="group" aria-label="Release, {platformLabel(app.platform)}">
       {#if line.kind === 'ready'}
+        {#if android && stagedFields}
+          <label class="check direct-option">
+            <input type="checkbox" bind:checked={direct} disabled={busy} />
+            <span>Make the release from what is staged and send it to Google for review in one step (no draft needed)</span>
+          </label>
+        {/if}
         {#if android}
           <div class="share">
             <label for="{uid}-share">Share of users to release to (%)</label>
@@ -315,6 +328,14 @@
     flex-wrap: wrap;
     gap: var(--space-2) var(--space-3);
     align-items: flex-end;
+  }
+
+  .direct-option {
+    display: flex;
+    flex-basis: 100%;
+    gap: var(--space-2);
+    align-items: flex-start;
+    font-size: var(--text-sm);
   }
 
   .share {

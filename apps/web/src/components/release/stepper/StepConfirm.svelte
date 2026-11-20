@@ -1,6 +1,7 @@
 <!--
   StepConfirm: the last step of "Prepare release": "Review and publish all" (components/publish): one plan for the steps that wait
-  (push the draft, submit for review, release), reviewed once and confirmed with one typed phrase. Under a quiet "Advanced: do one
+  (push the draft, submit for review, release; on Google Play with only release fields staged: ONE step, "Release to production", sent to
+  Google for review without a draft, with "Save as a draft only" as the other choice), reviewed once and confirmed with one typed phrase. Under a quiet "Advanced: do one
   step" disclosure the single gated flows are still here, each unchanged: push the draft (StagedTrayApp, push part: typed app name and
   an acknowledgement), submit for review (SubmitReady: typed phrase), release (StoreRelease: typed phrase, and for Google Play the share
   you type) and the rollout controls. They are separate: a push does not submit and a submit does not release.
@@ -78,7 +79,7 @@
       {#if canRelease(role)}
         <section class="part" aria-label="Release">
           <h4>3. Release</h4>
-          <StoreRelease {api} {workspaceId} {role} {app} version={apple ? version : null} track={apple ? '' : track} versionCodes={apple ? [] : codes} {stagedShare} {onreleased} />
+          <StoreRelease {api} {workspaceId} {role} {app} version={apple ? version : null} track={apple ? '' : track} versionCodes={apple ? [] : codes} {stagedShare} stagedFields={!apple && track.trim() !== '' && codes.length > 0} {onreleased} />
           {#if !apple && percentFromFraction(stagedShare) !== ''}
             <p class="muted small">You staged an intended share earlier. It is not used: you type the share again when you release.</p>
           {/if}
