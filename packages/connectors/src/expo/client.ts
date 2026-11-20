@@ -43,7 +43,26 @@ export type ExpoGraphql = {
   graphql<T>(request: GraphqlRequest, options?: { signal?: AbortSignal | undefined }): Promise<T>;
 };
 
-export type ExpoClient = ExpoGraphql;
+export type RestRequest = {
+  method: 'GET' | 'POST';
+  /** Starts with `/`, below the API origin (`/v2/workflows/dispatch`). Ids in it are percent-encoded by the caller. */
+  path: string;
+  /** JSON; sent only when given. */
+  body?: unknown;
+  /** The fixed sentence for a 404, when the default (which speaks of a project) does not fit. */
+  notFound?: string | undefined;
+  /** The fixed sentence for a 400, when the default (which speaks of a project reference) does not fit. */
+  invalid?: string | undefined;
+};
+
+/** The REST side of Expo (`https://api.expo.dev/v2/...`, docs.expo.dev/eas/workflows/rest-api): the same token, the same errors. */
+export type ExpoRest = {
+  readonly apiOrigin: string;
+  /** Runs one REST call and returns the parsed JSON object. Never retried. */
+  rest<T>(request: RestRequest, options?: { signal?: AbortSignal | undefined }): Promise<T>;
+};
+
+export type ExpoClient = ExpoGraphql & ExpoRest;
 
 /** The origin without a trailing slash; an ExpoError (`invalid_input`) when it is not an http(s) origin. */
 export function normalizeExpoOrigin(origin: string | undefined): string {
@@ -142,52 +161,73 @@ export function createExpoClient(options: ExpoClientOptions): ExpoClient {
   const fail = (kind: ExpoErrorKind, extra: ConstructorParameters<typeof ExpoError>[1] = {}) =>
     new ExpoError(kind, { ...extra, known });
 
+  type Call = { signal?: AbortSignal | undefined };
+
+  /** One HTTP exchange under the time limit and the size cap. The error text of the network is dropped on purpose (it can carry the address). */
+  async function exchange(
+    url: string,
+    init: { method: string; headers: Record<string, string>; body?: string },
+    call: Call,
+  ): Promise<{ response: Response; text: string | undefined }> {
+    // A timer of our own (not AbortSignal.timeout, whose timer does not keep the process alive), cleared when the request is over.
+    const limit = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      limit.abort();
+    }, timeoutMs);
+    const signal = call.signal ? AbortSignal.any([call.signal, limit.signal]) : limit.signal;
+    try {
+      const response = await send(url, {
+        ...init,
+        headers: { ...init.headers, authorization: `Bearer ${token}`, 'user-agent': userAgent },
+        // A redirect would carry the token to another address.
+        redirect: 'manual',
+        signal,
+      });
+      return { response, text: await readCapped(response, maxBytes) };
+    } catch (error) {
+      const name = error instanceof Error ? error.name : '';
+      if (error instanceof ExpoError) throw error;
+      if (timedOut || name === 'TimeoutError') {
+        throw fail('network', {
+          timedOut: true,
+          message: 'Expo did not answer in time. Try again in a minute.',
+        });
+      }
+      throw fail('network');
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  const parseObject = (text: string, status: number): Record<string, unknown> => {
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw fail('unexpected', { status });
+    }
+    if (!isRecord(body)) throw fail('unexpected', { status });
+    return body;
+  };
+
   return {
     apiOrigin,
-    async graphql<T>(request: GraphqlRequest, call: { signal?: AbortSignal | undefined } = {}) {
-      // A timer of our own (not AbortSignal.timeout, whose timer does not keep the process alive), cleared when the request is over.
-      const limit = new AbortController();
-      let timedOut = false;
-      const timer = setTimeout(() => {
-        timedOut = true;
-        limit.abort();
-      }, timeoutMs);
-      const signal = call.signal ? AbortSignal.any([call.signal, limit.signal]) : limit.signal;
-      let response: Response;
-      let text: string | undefined;
-      try {
-        response = await send(`${apiOrigin}/graphql`, {
+    async graphql<T>(request: GraphqlRequest, call: Call = {}) {
+      const { response, text } = await exchange(
+        `${apiOrigin}/graphql`,
+        {
           method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            accept: 'application/json',
-            authorization: `Bearer ${token}`,
-            'user-agent': userAgent,
-          },
+          headers: { 'content-type': 'application/json', accept: 'application/json' },
           body: JSON.stringify({
             query: request.query,
             ...(request.variables ? { variables: request.variables } : {}),
             ...(request.operationName ? { operationName: request.operationName } : {}),
           }),
-          // A redirect would carry the token to another address.
-          redirect: 'manual',
-          signal,
-        });
-        text = await readCapped(response, maxBytes);
-      } catch (error) {
-        // The error text is dropped on purpose: it can contain the address or the request.
-        const name = error instanceof Error ? error.name : '';
-        if (error instanceof ExpoError) throw error;
-        if (timedOut || name === 'TimeoutError') {
-          throw fail('network', {
-            timedOut: true,
-            message: 'Expo did not answer in time. Try again in a minute.',
-          });
-        }
-        throw fail('network');
-      } finally {
-        clearTimeout(timer);
-      }
+        },
+        call,
+      );
 
       const status = response.status;
       if (status === 429) {
@@ -202,14 +242,7 @@ export function createExpoClient(options: ExpoClientOptions): ExpoClient {
       if (status < 200 || status >= 300) throw fail('unexpected', { status });
       if (text === undefined) throw fail('unexpected', { status, message: 'Expo sent too large an answer.' });
 
-      let body: unknown;
-      try {
-        body = JSON.parse(text);
-      } catch {
-        throw fail('unexpected', { status });
-      }
-      if (!isRecord(body)) throw fail('unexpected', { status });
-
+      const body = parseObject(text, status);
       const errors = body.errors;
       if (Array.isArray(errors) && errors.length > 0) {
         const first = errors[0];
@@ -220,6 +253,40 @@ export function createExpoClient(options: ExpoClientOptions): ExpoClient {
       }
       if (!isRecord(body.data)) throw fail('unexpected', { status });
       return body.data as T;
+    },
+
+    async rest<T>(request: RestRequest, call: Call = {}) {
+      // A path is built by the caller from fixed words and encoded ids; anything else could point the token elsewhere.
+      if (!/^\/[A-Za-z0-9._~\/%-]*$/.test(request.path) || request.path.includes('..') || request.path.includes('//')) {
+        throw fail('invalid_input', { message: 'That is not a valid Expo request path.' });
+      }
+      const { response, text } = await exchange(
+        `${apiOrigin}${request.path}`,
+        {
+          method: request.method,
+          headers: {
+            accept: 'application/json',
+            ...(request.body !== undefined ? { 'content-type': 'application/json' } : {}),
+          },
+          ...(request.body !== undefined ? { body: JSON.stringify(request.body) } : {}),
+        },
+        call,
+      );
+      const status = response.status;
+      if (status === 429) {
+        throw fail('rate_limited', {
+          status,
+          retryAfterSeconds: retryAfterOf(response.headers.get('retry-after')),
+        });
+      }
+      if (status === 401) throw fail('auth', { status });
+      if (status === 403) throw fail('forbidden', { status });
+      if (status === 404) throw fail('not_found', { status, message: request.notFound });
+      if (status === 400 || status === 422) throw fail('invalid_input', { status, message: request.invalid });
+      if (status >= 500) throw fail('server', { status });
+      if (status < 200 || status >= 300) throw fail('unexpected', { status });
+      if (text === undefined) throw fail('unexpected', { status, message: 'Expo sent too large an answer.' });
+      return parseObject(text, status) as T;
     },
   };
 }
