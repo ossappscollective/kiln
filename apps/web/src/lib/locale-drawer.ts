@@ -75,8 +75,16 @@ export function fieldLimitNote(field: DriftField): {
 } | null {
   if (field.limit === null) return null;
   const sides = [
-    { name: 'The repository', u: usage(field.repo.value, field.limit, field.unit), has: field.repo.value !== null },
-    { name: 'The store', u: usage(field.live.value, field.limit, field.unit), has: field.live.value !== null },
+    {
+      name: 'The repository',
+      u: usage(field.repo.value, field.limit, field.unit),
+      has: field.repo.value !== null,
+    },
+    {
+      name: 'The store',
+      u: usage(field.live.value, field.limit, field.unit),
+      has: field.live.value !== null,
+    },
   ].filter((s) => s.has);
   const first = sides[0];
   if (first === undefined) return null;
@@ -101,7 +109,9 @@ export function blockingLines(field: DriftField): string[] {
     ...field.problems.repo.map((p) => `Repository: ${p.message}`),
     ...field.problems.live.map((p) => `Store: ${p.message}`),
   ];
-  const tooLong = [...field.problems.repo, ...field.problems.live].some((p) => p.code === 'too_long');
+  const tooLong = [...field.problems.repo, ...field.problems.live].some(
+    (p) => p.code === 'too_long',
+  );
   const note = fieldLimitNote(field);
   if (!tooLong && note?.message) lines.push(note.message);
   return lines;

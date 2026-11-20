@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { STEP_UP_VALIDITY, confirmSentence, enrollChoiceHint, otherWayLabel, waysPhrase } from './auth-copy.ts';
+import {
+  confirmSentence,
+  enrollChoiceHint,
+  otherWayLabel,
+  STEP_UP_VALIDITY,
+  waysPhrase,
+} from './auth-copy.ts';
 
 test('the ways are named in a stable order, joined with commas and "or"', () => {
   assert.equal(waysPhrase(['password', 'passkey'], true), 'your passkey or your password');
@@ -17,7 +23,10 @@ test('a passkey is not offered in a window that cannot use one', () => {
 });
 
 test('the confirm sentence is one sentence and never promises a way that is not there', () => {
-  assert.equal(confirmSentence(['passkey', 'password'], true), 'Use your passkey or your password to confirm this one action.');
+  assert.equal(
+    confirmSentence(['passkey', 'password'], true),
+    'Use your passkey or your password to confirm this one action.',
+  );
   assert.equal(confirmSentence(['passkey'], false), 'This action needs to be confirmed again.');
   assert.equal(confirmSentence([], true), 'This action needs to be confirmed again.');
   assert.ok(!STEP_UP_VALIDITY.includes('\n'));

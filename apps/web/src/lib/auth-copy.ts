@@ -32,7 +32,9 @@ export function confirmSentence(
   passkeySupported: boolean,
 ): string {
   const ways = waysPhrase(factors, passkeySupported);
-  return ways ? `Use ${ways} to confirm this one action.` : 'This action needs to be confirmed again.';
+  return ways
+    ? `Use ${ways} to confirm this one action.`
+    : 'This action needs to be confirmed again.';
 }
 
 /** How long a confirmation lasts: one quiet line under the form. */

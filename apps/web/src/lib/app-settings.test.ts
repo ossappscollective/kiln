@@ -3,13 +3,13 @@ import { test } from 'node:test';
 import {
   appEventTypes,
   appSettingsSections,
-  deleteLine,
-  saveBarText,
-  stagedRolloutHint,
   conventionLines,
   credentialFacts,
+  deleteLine,
   listensToApp,
   lowRatingText,
+  saveBarText,
+  stagedRolloutHint,
   templatesSummary,
   webhookSummary,
 } from './app-settings.ts';
@@ -119,8 +119,14 @@ test('low rating text', () => {
 });
 
 test('the Jump to row lists only the parts that are drawn', () => {
-  const labels = (input: Parameters<typeof appSettingsSections>[0]) => appSettingsSections(input).map((s) => s.label);
-  assert.deepEqual(labels({ android: false, ai: false, canDelete: false }), ['Stores', 'Repository', 'Release defaults', 'Notifications']);
+  const labels = (input: Parameters<typeof appSettingsSections>[0]) =>
+    appSettingsSections(input).map((s) => s.label);
+  assert.deepEqual(labels({ android: false, ai: false, canDelete: false }), [
+    'Stores',
+    'Repository',
+    'Release defaults',
+    'Notifications',
+  ]);
   assert.deepEqual(labels({ android: true, ai: true, canDelete: true }), [
     'Stores',
     'Repository',

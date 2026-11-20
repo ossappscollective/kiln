@@ -9,7 +9,7 @@ import { timeAgo } from './format.ts';
 import type { LeadTone } from './page-lead.ts';
 import { isFailedRun } from './running.ts';
 import type { WorkflowRun } from './types.ts';
-import { type WorkflowRow, runBlockedReason } from './workflows.ts';
+import { runBlockedReason, type WorkflowRow } from './workflows.ts';
 
 export type WorkflowsPrimary =
   | { kind: 'open'; runId: string; label: string }
@@ -128,7 +128,12 @@ export function workflowsLead(input: {
   const ago = timeAgo(last.startedAt, input.now);
   const headline = `Last run ${pastTense(last)} ${ago}${where(last)}`;
   if (isFailedRun(last))
-    return { headline, hint, tone: 'bad', primary: { kind: 'open', runId: last.id, label: 'Open the run' } };
+    return {
+      headline,
+      hint,
+      tone: 'bad',
+      primary: { kind: 'open', runId: last.id, label: 'Open the run' },
+    };
   return {
     headline,
     hint,

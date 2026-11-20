@@ -63,9 +63,18 @@ test('orderFields: over the limit first, then diverged, missing, store ahead, re
 
 test('splitFields: an identical field over its limit needs attention', () => {
   const long = 'x'.repeat(40);
-  const r = splitFields([named('identical', 'A'), named('identical', 'B', { repo: side(long), live: side(long) })]);
-  assert.deepEqual(r.attention.map((f) => f.label), ['B']);
-  assert.deepEqual(r.inSync.map((f) => f.label), ['A']);
+  const r = splitFields([
+    named('identical', 'A'),
+    named('identical', 'B', { repo: side(long), live: side(long) }),
+  ]);
+  assert.deepEqual(
+    r.attention.map((f) => f.label),
+    ['B'],
+  );
+  assert.deepEqual(
+    r.inSync.map((f) => f.label),
+    ['A'],
+  );
 });
 
 test('fieldLimitNote: quiet counter; one sentence when a side is over', () => {
@@ -73,12 +82,18 @@ test('fieldLimitNote: quiet counter; one sentence when a side is over', () => {
   assert.equal(fieldLimitNote(field('identical', { repo: side(null), live: side(null) })), null);
   const ok = fieldLimitNote(field('repo-ahead', { repo: side('abcdefghij'), live: side('abc') }));
   assert.deepEqual(ok, { text: '10 / 30 characters', over: false, message: null });
-  const over = fieldLimitNote(field('repo-ahead', { repo: side('x'.repeat(34)), live: side('abc') }));
+  const over = fieldLimitNote(
+    field('repo-ahead', { repo: side('x'.repeat(34)), live: side('abc') }),
+  );
   assert.equal(over?.over, true);
   assert.equal(over?.message, 'The repository is 4 characters over the limit of 30.');
-  const both = fieldLimitNote(field('identical', { repo: side('x'.repeat(31)), live: side('x'.repeat(31)) }));
+  const both = fieldLimitNote(
+    field('identical', { repo: side('x'.repeat(31)), live: side('x'.repeat(31)) }),
+  );
   assert.equal(both?.message, 'The repository and the store are over the limit of 30 characters.');
-  const bytes = fieldLimitNote(field('identical', { unit: 'bytes', limit: 100, repo: side('x'.repeat(101)), live: side('x') }));
+  const bytes = fieldLimitNote(
+    field('identical', { unit: 'bytes', limit: 100, repo: side('x'.repeat(101)), live: side('x') }),
+  );
   assert.equal(bytes?.message, 'The repository is 1 byte over the limit of 100.');
 });
 
@@ -90,7 +105,10 @@ test('blockingLines: server messages with their side; the generated sentence onl
   ]);
   const withProblem = field('repo-ahead', {
     repo: side(long),
-    problems: { repo: [{ code: 'too_long', severity: 'error', message: 'Too long: 40 of 30.' } as never], live: [] },
+    problems: {
+      repo: [{ code: 'too_long', severity: 'error', message: 'Too long: 40 of 30.' } as never],
+      live: [],
+    },
   });
   assert.deepEqual(blockingLines(withProblem), ['Repository: Too long: 40 of 30.']);
 });
@@ -110,13 +128,22 @@ test('localeLead: in sync, differing, over the limit, empty', () => {
   const one = localeLead([{ fields: [named('diverged', 'A')] }]);
   assert.equal(one.headline, '1 field differs from the store');
   const long = 'x'.repeat(40);
-  const over = localeLead([{ fields: [named('identical', 'A', { repo: side(long), live: side(long) }), named('repo-ahead', 'B')] }]);
+  const over = localeLead([
+    {
+      fields: [
+        named('identical', 'A', { repo: side(long), live: side(long) }),
+        named('repo-ahead', 'B'),
+      ],
+    },
+  ]);
   assert.equal(over.headline, "1 field is over the store's limit");
   assert.equal(over.tone, 'bad');
   assert.match(over.hint, /1 more differs from the store/);
 });
 
-const input = (partial: Partial<Parameters<typeof leadAction>[0][number]> & { fields: DriftField[] }) => ({
+const input = (
+  partial: Partial<Parameters<typeof leadAction>[0][number]> & { fields: DriftField[] },
+) => ({
   platform: 'ios' as const,
   pullable: [],
   canPull: true,

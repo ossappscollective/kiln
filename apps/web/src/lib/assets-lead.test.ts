@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AssetProblem } from '@mrm/core';
-import { affectedSets, assetsLead, otherCountsText, problemAction, splitProblems } from './assets-lead.ts';
+import {
+  affectedSets,
+  assetsLead,
+  otherCountsText,
+  problemAction,
+  splitProblems,
+} from './assets-lead.ts';
 
 const p = (over: Partial<AssetProblem>): AssetProblem => ({
   rule: 'apple.screenshot.size',
@@ -27,7 +33,13 @@ test('affectedSets counts a set once however many files fail in it, and names a 
     p({ path: 'c.png', locale: 'de-DE', kind: 'screenshot', device: 'iphone' }),
   ]);
   assert.deepEqual(a, { count: 2, kind: 'screenshot' });
-  assert.deepEqual(affectedSets([p({ locale: 'en-US', kind: 'icon' }), p({ locale: 'en-US', kind: 'screenshot' })]), { count: 2, kind: null });
+  assert.deepEqual(
+    affectedSets([
+      p({ locale: 'en-US', kind: 'icon' }),
+      p({ locale: 'en-US', kind: 'screenshot' }),
+    ]),
+    { count: 2, kind: null },
+  );
   assert.deepEqual(affectedSets([p({})]), { count: 1, kind: null });
 });
 
@@ -47,7 +59,13 @@ test('assetsLead: blocking first, then warnings, then all good', () => {
     assetsLead({ summary: 's', problems: [p({ locale: 'en-US', kind: 'icon' })] }).headline,
     '1 icon set has a problem',
   );
-  const warn = assetsLead({ summary: 's', problems: [p({ severity: 'warning', locale: 'en-US', kind: 'screenshot' }), p({ severity: 'info' })] });
+  const warn = assetsLead({
+    summary: 's',
+    problems: [
+      p({ severity: 'warning', locale: 'en-US', kind: 'screenshot' }),
+      p({ severity: 'info' }),
+    ],
+  });
   assert.equal(warn.headline, '1 screenshot set has a warning');
   assert.equal(warn.tone, 'warn');
   const ok = assetsLead({ summary: '3 files', problems: [p({ severity: 'info' })] });

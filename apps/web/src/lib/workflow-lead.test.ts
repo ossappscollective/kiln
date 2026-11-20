@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { WorkflowRow } from './workflows.ts';
 import type { WorkflowRun } from './types.ts';
 import { failingRunIds, orderRuns, workflowsLead } from './workflow-lead.ts';
+import type { WorkflowRow } from './workflows.ts';
 
 const HOUR = 3_600_000;
 const NOW = 1_800_000_000_000;
@@ -51,10 +51,22 @@ test('failing runs come first, then the runs going now, then the rest newest fir
   const runs = [
     run('a', { workflowPath: 'a.yml', startedAt: NOW - 1 * HOUR }),
     run('b', { workflowPath: 'b.yml', conclusion: 'failure', startedAt: NOW - 5 * HOUR }),
-    run('c', { workflowPath: 'c.yml', status: 'in_progress', conclusion: null, active: true, startedAt: NOW - 2 * HOUR }),
+    run('c', {
+      workflowPath: 'c.yml',
+      status: 'in_progress',
+      conclusion: null,
+      active: true,
+      startedAt: NOW - 2 * HOUR,
+    }),
   ];
-  assert.deepEqual(orderRuns(runs).map((r) => r.id), ['b', 'c', 'a']);
-  assert.deepEqual(runs.map((r) => r.id), ['a', 'b', 'c']);
+  assert.deepEqual(
+    orderRuns(runs).map((r) => r.id),
+    ['b', 'c', 'a'],
+  );
+  assert.deepEqual(
+    runs.map((r) => r.id),
+    ['a', 'b', 'c'],
+  );
 });
 
 test('an old failure of a workflow that has run well since is not failing', () => {
@@ -63,7 +75,10 @@ test('an old failure of a workflow that has run well since is not failing', () =
     run('old', { conclusion: 'failure', startedAt: NOW - 9 * HOUR }),
   ];
   assert.equal(failingRunIds(runs).size, 0);
-  assert.deepEqual(orderRuns(runs).map((r) => r.id), ['new', 'old']);
+  assert.deepEqual(
+    orderRuns(runs).map((r) => r.id),
+    ['new', 'old'],
+  );
 });
 
 test('the lead says the last run failed, with when and where, and offers to open it', () => {
@@ -87,16 +102,32 @@ test('after a good run the one action is to start the release workflow, when it 
   assert.equal(lead.headline, 'Last run succeeded 1 hour ago on main');
   assert.equal(lead.tone, 'ok');
   assert.equal(lead.hint, '1 workflow, none failing.');
-  assert.deepEqual(lead.primary, { kind: 'start', workflowId: 'ios', repositoryId: 'r1', label: 'Start release' });
+  assert.deepEqual(lead.primary, {
+    kind: 'start',
+    workflowId: 'ios',
+    repositoryId: 'r1',
+    label: 'Start release',
+  });
   // No right to dispatch, or a disabled workflow: the run is the one thing to open.
-  assert.equal(workflowsLead({ rows, runs: [ok], now: NOW, canDispatch: false }).primary?.kind, 'open');
+  assert.equal(
+    workflowsLead({ rows, runs: [ok], now: NOW, canDispatch: false }).primary?.kind,
+    'open',
+  );
   const off = [row('ios', 'configured', ok, 'disabled_manually')];
-  assert.equal(workflowsLead({ rows: off, runs: [ok], now: NOW, canDispatch: true }).primary?.kind, 'open');
+  assert.equal(
+    workflowsLead({ rows: off, runs: [ok], now: NOW, canDispatch: true }).primary?.kind,
+    'open',
+  );
 });
 
 test('a run going now is followed; a pending run has no page to open', () => {
   const going = run('g', { status: 'in_progress', conclusion: null, active: true });
-  const two = workflowsLead({ rows: [], runs: [going, run('g2', { active: true, status: 'queued', conclusion: null })], now: NOW, canDispatch: true });
+  const two = workflowsLead({
+    rows: [],
+    runs: [going, run('g2', { active: true, status: 'queued', conclusion: null })],
+    now: NOW,
+    canDispatch: true,
+  });
   assert.equal(two.headline, '2 runs are going now');
   assert.deepEqual(two.primary, { kind: 'open', runId: 'g', label: 'Follow the run' });
   const pending = run('pending-1', { status: 'pending', conclusion: null, active: true });
@@ -106,11 +137,23 @@ test('a run going now is followed; a pending run has no page to open', () => {
 });
 
 test('no runs: say so, and offer the release workflow only when there is one', () => {
-  assert.equal(workflowsLead({ rows: [], runs: [], now: NOW, canDispatch: true }).headline, 'No workflows to run yet');
-  const lead = workflowsLead({ rows: [row('ios', 'release', null)], runs: [], now: NOW, canDispatch: true });
+  assert.equal(
+    workflowsLead({ rows: [], runs: [], now: NOW, canDispatch: true }).headline,
+    'No workflows to run yet',
+  );
+  const lead = workflowsLead({
+    rows: [row('ios', 'release', null)],
+    runs: [],
+    now: NOW,
+    canDispatch: true,
+  });
   assert.equal(lead.headline, 'No run has been read yet');
   assert.equal(lead.primary?.kind, 'start');
-  assert.equal(workflowsLead({ rows: [row('o', 'other', null)], runs: [], now: NOW, canDispatch: true }).primary, null);
+  assert.equal(
+    workflowsLead({ rows: [row('o', 'other', null)], runs: [], now: NOW, canDispatch: true })
+      .primary,
+    null,
+  );
 });
 
 test('a cancelled last run reads as cancelled, with a neutral tone', () => {

@@ -24,7 +24,9 @@ export function competitorCounts(
 ): { total: number; changed: number; notFound: number } {
   return {
     total: list.length,
-    changed: list.filter((c) => c.latest?.kind === 'change' && now - c.latest.checkedAt < RECENT_CHANGE_MS).length,
+    changed: list.filter(
+      (c) => c.latest?.kind === 'change' && now - c.latest.checkedAt < RECENT_CHANGE_MS,
+    ).length,
     notFound: list.filter((c) => c.state === 'not_found').length,
   };
 }
@@ -37,7 +39,10 @@ export function competitorsLead(input: {
   suggestions: number;
 }): AsoLead {
   const { total, changed, notFound, suggestions } = input;
-  const more = suggestions > 0 ? ` ${plural(suggestions, 'suggestion')} from your keywords ${suggestions === 1 ? 'is' : 'are'} below.` : '';
+  const more =
+    suggestions > 0
+      ? ` ${plural(suggestions, 'suggestion')} from your keywords ${suggestions === 1 ? 'is' : 'are'} below.`
+      : '';
   if (total === 0)
     return {
       headline: 'No competitors followed yet',
@@ -111,7 +116,9 @@ export function gapsLead(parts: readonly { gaps: number; competitors: number }[]
 }
 
 /** How well the listing covers the tracked keywords of one locale per app. `partial` counts the description-only ones too. */
-export function fitLead(parts: readonly { keywords: number; missing: number; partial: number }[]): AsoLead {
+export function fitLead(
+  parts: readonly { keywords: number; missing: number; partial: number }[],
+): AsoLead {
   const keywords = parts.reduce((n, p) => n + p.keywords, 0);
   const missing = parts.reduce((n, p) => n + p.missing, 0);
   const partial = parts.reduce((n, p) => n + p.partial, 0);
@@ -144,7 +151,11 @@ export function fitLead(parts: readonly { keywords: number; missing: number; par
 }
 
 /** One term across countries: how many keywords and countries, and the ones that rank nowhere. */
-export function marketsLead(input: { terms: number; countries: number; unranked: number }): AsoLead {
+export function marketsLead(input: {
+  terms: number;
+  countries: number;
+  unranked: number;
+}): AsoLead {
   const { terms, countries, unranked } = input;
   if (terms === 0)
     return {
@@ -163,9 +174,17 @@ export function marketsLead(input: { terms: number; countries: number; unranked:
 }
 
 /** Terms the listing sets that no keyword tracks yet. `loaded` is false while the listing text is being read. */
-export function listingLead(input: { loaded: boolean; localeRows: number; untracked: number }): AsoLead {
+export function listingLead(input: {
+  loaded: boolean;
+  localeRows: number;
+  untracked: number;
+}): AsoLead {
   if (!input.loaded)
-    return { headline: 'Keywords in your listing', hint: 'Reading the stored listing text.', tone: 'neutral' };
+    return {
+      headline: 'Keywords in your listing',
+      hint: 'Reading the stored listing text.',
+      tone: 'neutral',
+    };
   if (input.localeRows === 0)
     return {
       headline: 'No listing text is stored yet',
@@ -186,7 +205,9 @@ export function listingLead(input: { loaded: boolean; localeRows: number; untrac
 }
 
 /** The Google Play search terms: nothing imported yet, or how many terms the last file holds. */
-export function searchTermsLead(parts: readonly { stored: boolean; terms: number; period: string | null }[]): AsoLead {
+export function searchTermsLead(
+  parts: readonly { stored: boolean; terms: number; period: string | null }[],
+): AsoLead {
   const stored = parts.filter((p) => p.stored);
   if (stored.length === 0)
     return {
@@ -197,8 +218,13 @@ export function searchTermsLead(parts: readonly { stored: boolean; terms: number
   const terms = stored.reduce((n, p) => n + p.terms, 0);
   const period = stored.length === 1 ? stored[0]?.period : null;
   return {
-    headline: terms === 0 ? 'No search terms in this period' : `${plural(terms, 'search term')} from Google Play`,
-    hint: period ? `${period}. Terms you do not track yet have a Track button.` : 'Terms you do not track yet have a Track button.',
+    headline:
+      terms === 0
+        ? 'No search terms in this period'
+        : `${plural(terms, 'search term')} from Google Play`,
+    hint: period
+      ? `${period}. Terms you do not track yet have a Track button.`
+      : 'Terms you do not track yet have a Track button.',
     tone: 'neutral',
   };
 }
