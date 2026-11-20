@@ -1,4 +1,4 @@
-import { isGooglePlatform, type Platform, PLATFORMS } from '@mrm/core';
+import { type Platform, PLATFORMS, type StoreId, storeOf } from '@mrm/core';
 import { oneOf, type Sql } from '@mrm/db';
 import { type ReviewStatus, reviewStatuses } from './reviews.ts';
 
@@ -286,7 +286,7 @@ export async function reviewsSummary(
 // Workspace-wide (the reviews inbox of every app)
 
 export type WorkspaceAppCounts = {
-  app: { id: string; name: string; platform: Platform; store: 'appstoreconnect' | 'googleplay' };
+  app: { id: string; name: string; platform: Platform; store: StoreId };
   total: number;
   /** Triage status `new`. */
   new: number;
@@ -386,7 +386,7 @@ export async function workspaceReviewsSummary(
         id: String(a.id),
         name: String(a.name),
         platform,
-        store: isGooglePlatform(platform) ? 'googleplay' : 'appstoreconnect',
+        store: storeOf(platform),
       },
       total,
       new: n(r?.new_count),

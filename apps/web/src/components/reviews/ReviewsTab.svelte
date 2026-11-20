@@ -16,7 +16,7 @@
   Review text is written by customers and is shown as plain text only. It never goes into a URL.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can, storeOf } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
@@ -355,7 +355,7 @@
       <span class="row wrap">
         <InfoTip label="About the reviews of this app" buttonText="About reviews" align="start" width="26rem">
           <p>
-            What customers wrote in {storeLabel(summary?.app.store ?? (app.platform === 'android' ? 'googleplay' : 'appstoreconnect'))},
+            What customers wrote in {storeLabel(summary?.app.store ?? storeOf(app.platform))},
             read from the store and kept here for your team. This is a copy for triage: reading and triage change nothing in the store. A reply does, and goes through its own confirmation.
           </p>
           {#if summary?.retentionDays}<p class="muted">Reviews older than {summary.retentionDays} days are deleted automatically.</p>{/if}

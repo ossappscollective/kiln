@@ -752,7 +752,11 @@ test('listVersionBuilds maps each version to the build Apple links to it', async
     match: '/v1/apps/10746822401/appStoreVersions?include=build&limit=200',
     json: {
       data: [
-        { type: 'appStoreVersions', id: 'v311', relationships: { build: { data: { type: 'builds', id: 'b170' } } } },
+        {
+          type: 'appStoreVersions',
+          id: 'v311',
+          relationships: { build: { data: { type: 'builds', id: 'b170' } } },
+        },
         { type: 'appStoreVersions', id: 'v300', relationships: { build: { data: null } } },
       ],
     },
@@ -779,8 +783,16 @@ test('listVersionBuilds asks for the build of a version that is not live when th
     match: '/v1/apps/10746822401/appStoreVersions?include=build&limit=200',
     json: {
       data: [
-        { type: 'appStoreVersions', id: 'v311', attributes: { versionString: '3.1.1', appVersionState: 'WAITING_FOR_REVIEW' } },
-        { type: 'appStoreVersions', id: 'v300', attributes: { versionString: '3.0.0', appVersionState: 'READY_FOR_DISTRIBUTION' } },
+        {
+          type: 'appStoreVersions',
+          id: 'v311',
+          attributes: { versionString: '3.1.1', appVersionState: 'WAITING_FOR_REVIEW' },
+        },
+        {
+          type: 'appStoreVersions',
+          id: 'v300',
+          attributes: { versionString: '3.0.0', appVersionState: 'READY_FOR_DISTRIBUTION' },
+        },
       ],
     },
   });

@@ -1,3 +1,4 @@
+import type { StoreId } from '@mrm/core';
 import {
   AiError,
   DraftOutcomeUnknownError,
@@ -41,7 +42,7 @@ export type FailKind = (typeof FAIL_KINDS)[number];
 type Entry = { connector: FailConnector; kind: FailKind; count: number };
 
 /** Methods that change something in a store; for them `unknown` is "the request was sent and the answer was lost". */
-const WRITES: Record<string, (store: 'appstoreconnect' | 'googleplay') => StoreError> = {
+const WRITES: Record<string, (store: StoreId) => StoreError> = {
   applyDraft: (s) => new DraftOutcomeUnknownError(s, 'The request timed out (demo failure).', []),
   submit: (s) => new SubmitOutcomeUnknownError(s, 'The request timed out (demo failure).'),
   release: (s) => new ReleaseOutcomeUnknownError(s, 'The request timed out (demo failure).'),

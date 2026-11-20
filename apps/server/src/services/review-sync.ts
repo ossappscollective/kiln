@@ -13,7 +13,7 @@ import {
   type StoreReviewConnector,
   secretStrings,
 } from '@mrm/connectors';
-import { type ActorType, isApplePlatform, isGooglePlatform, type Platform } from '@mrm/core';
+import { type ActorType, isApplePlatform, isGooglePlatform, type Platform, storeOf } from '@mrm/core';
 import type { Database, Param, Row, Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
 import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
@@ -87,8 +87,7 @@ export const reviewBackoffMs = (failures: number): number =>
   Math.min(MIN_BACKOFF_MS * 2 ** Math.max(0, failures - 1), MAX_BACKOFF_MS);
 
 /** The store behind a platform. */
-export const storeFor = (platform: Platform): StoreKey =>
-  isApplePlatform(platform) ? 'appstoreconnect' : 'googleplay';
+export const storeFor = (platform: Platform): StoreKey => storeOf(platform);
 
 // ---------------------------------------------------------------------------------------------
 // Connectors

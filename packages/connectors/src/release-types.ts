@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { Platform } from '@mrm/core';
+import { type Platform, type StoreId } from '@mrm/core';
 import { StoreError, type StoreName } from './errors.ts';
 
 /**
@@ -186,7 +186,7 @@ export const MAX_NOTES_HISTORY_VERSIONS = 12;
 
 /** What an earlier version of the store listing said was new, in one language. */
 export type NotesHistoryEntry = {
-  source: 'appstoreconnect' | 'googleplay';
+  source: StoreId;
   locale: string;
   /** At most MAX_NOTE_CHARS characters. */
   text: string;

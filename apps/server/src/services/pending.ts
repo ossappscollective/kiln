@@ -1,4 +1,4 @@
-import { isGooglePlatform, type Platform, PLATFORMS, type StagedProblem } from '@mrm/core';
+import { isGooglePlatform, type Platform, PLATFORMS, type StagedProblem, type StoreId } from '@mrm/core';
 import { type Database, nullableNumber, oneOf, type Sql } from '@mrm/db';
 import { getApp, listApps, type ManagedApp } from './apps.ts';
 import { type Failure, failure } from './repositories.ts';
@@ -72,13 +72,13 @@ export type PendingTotals = {
 
 export type PendingPlatform = {
   platform: Platform;
-  store: 'appstoreconnect' | 'googleplay';
+  store: StoreId;
   items: PendingItem[];
   totals: PendingTotals;
 };
 
 export type PendingView = {
-  app: { id: string; name: string; platform: Platform; store: 'appstoreconnect' | 'googleplay' };
+  app: { id: string; name: string; platform: Platform; store: StoreId };
   /** One entry per platform of the app (an app has one platform today). */
   platforms: PendingPlatform[];
   totals: PendingTotals & { platforms: Platform[]; nextSteps: PublishStep[] };
@@ -477,7 +477,7 @@ export type PendingSummaryApp = {
   /** Both `appId` and `id`, so a token limited to some apps is filtered by the usual rule. */
   appId: string;
   id: string;
-  app: { id: string; name: string; platform: Platform; store: 'appstoreconnect' | 'googleplay' };
+  app: { id: string; name: string; platform: Platform; store: StoreId };
   /** Items that wait for a step. */
   count: number;
   /** Items with an error. */

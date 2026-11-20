@@ -1,4 +1,4 @@
-import { type Action, can, parsePlatform } from '@mrm/core';
+import { type Action, can, parsePlatform, storeOf } from '@mrm/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -224,8 +224,9 @@ function parseQuery(
   if (issues.length > 0 || !sort || limit === undefined) return { ok: false, issues };
   // `store` and `platform` narrow to a store; an app has one, so they only ever empty the list.
   if (store || platform) {
+    const parsed = parsePlatform(platform);
     (filter as ReviewFilter & { store?: string }).store =
-      store || (platform === 'android' ? 'googleplay' : 'appstoreconnect');
+      store || (parsed ? storeOf(parsed) : 'appstoreconnect');
   }
   return { ok: true, filter, sort, ...(cursor ? { cursor } : {}), limit };
 }

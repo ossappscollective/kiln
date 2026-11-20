@@ -1,3 +1,4 @@
+import type { StoreId } from '@mrm/core';
 import type { NotesHistoryRead } from '@mrm/connectors';
 import type { Sql } from '@mrm/db';
 import type { ManagedApp } from './apps.ts';
@@ -19,7 +20,7 @@ export const MAX_NOTES_HISTORY_LIMIT = 100;
 export const MAX_USES_PER_NOTE = 10;
 
 export type NoteUse = {
-  source: 'appstoreconnect' | 'googleplay' | 'plan';
+  source: StoreId | 'plan';
   locale: string;
   /** The marketing version, the Google Play release name, or the version of the plan. */
   version: string | null;
@@ -45,7 +46,7 @@ export type HistoryNote = {
 };
 
 export type NotesHistory = {
-  app: { id: string; platform: string; store: 'appstoreconnect' | 'googleplay' };
+  app: { id: string; platform: string; store: StoreId };
   locale: string | null;
   notes: HistoryNote[];
   /** More notes exist than `limit`. */

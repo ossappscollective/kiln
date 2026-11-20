@@ -15,6 +15,10 @@ export type Platform = (typeof PLATFORMS)[number];
 
 export type StoreFamily = 'apple' | 'google';
 
+/** The stores this app talks to, as the id used in the API, the database and error messages. One place: add a store here. */
+export const STORE_IDS = ['appstoreconnect', 'googleplay'] as const;
+export type StoreId = (typeof STORE_IDS)[number];
+
 export type PlatformMeta = {
   id: Platform;
   /** The name in a chip or a control: "iOS", "macOS", "Android". */
@@ -24,6 +28,8 @@ export type PlatformMeta = {
   /** The console behind it: "App Store Connect", "Google Play Console". */
   consoleName: string;
   family: StoreFamily;
+  /** The store that sells it (what a connector, a review or a draft is tagged with). */
+  store: StoreId;
   /** A registered generic glyph (`apps/web/src/lib/icons.ts`), never a brand mark. */
   glyph: 'platform-ios' | 'platform-macos' | 'platform-android';
   /** Apple's `platform` value in App Store Connect API queries, when the family is Apple. */
@@ -41,6 +47,7 @@ export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
     storeName: 'App Store',
     consoleName: 'App Store Connect',
     family: 'apple',
+    store: 'appstoreconnect',
     glyph: 'platform-ios',
     applePlatform: 'IOS',
     credentialKind: 'app_store_connect',
@@ -52,6 +59,7 @@ export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
     storeName: 'Mac App Store',
     consoleName: 'App Store Connect',
     family: 'apple',
+    store: 'appstoreconnect',
     glyph: 'platform-macos',
     applePlatform: 'MAC_OS',
     credentialKind: 'app_store_connect',
@@ -63,6 +71,7 @@ export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
     storeName: 'Google Play',
     consoleName: 'Google Play Console',
     family: 'google',
+    store: 'googleplay',
     glyph: 'platform-android',
     credentialKind: 'google_play',
     order: 2,
@@ -81,6 +90,8 @@ export const parsePlatform = (value: string | null | undefined): Platform | unde
 export const platformMeta = (platform: Platform): PlatformMeta => PLATFORM_META[platform];
 export const platformLabel = (platform: Platform): string => PLATFORM_META[platform].label;
 export const storeFamilyOf = (platform: Platform): StoreFamily => PLATFORM_META[platform].family;
+/** The store behind a platform. */
+export const storeOf = (platform: Platform): StoreId => PLATFORM_META[platform].store;
 export const isApplePlatform = (platform: Platform): boolean =>
   PLATFORM_META[platform].family === 'apple';
 export const isGooglePlatform = (platform: Platform): boolean =>

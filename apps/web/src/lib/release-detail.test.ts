@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { formatTargetDate } from './release.ts';
 import {
   checklistView,
   elapsedText,
   irreversibleLine,
+  type LeadRelease,
   planLine,
   releaseLead,
   rolloutNowLine,
-  type LeadRelease,
 } from './release-detail.ts';
-import { formatTargetDate } from './release.ts';
 import type { RolloutState } from './store-rollout.ts';
 
 const NOW = Date.UTC(2026, 10, 20, 12);
@@ -24,7 +24,15 @@ const rel = (over: Partial<LeadRelease> = {}): LeadRelease => ({
   ...over,
 });
 const lead = (releases: LeadRelease[], over: Record<string, unknown> = {}) =>
-  releaseLead({ version: '2.9.0', appId: 'a1', releases, planned: false, blocked: false, now: NOW, ...over });
+  releaseLead({
+    version: '2.9.0',
+    appId: 'a1',
+    releases,
+    planned: false,
+    blocked: false,
+    now: NOW,
+    ...over,
+  });
 
 test('elapsed text is hours, then days, and empty when unknown', () => {
   assert.equal(elapsedText(null, NOW), '');
@@ -50,7 +58,10 @@ test('the button labels follow the train button of the Releases tab', () => {
     appId: 'a1',
     step: 'confirm',
   });
-  assert.equal(lead([rel({ status: 'approved' })]).headline, 'Version 2.9.0 is approved: waiting for you to release it');
+  assert.equal(
+    lead([rel({ status: 'approved' })]).headline,
+    'Version 2.9.0 is approved: waiting for you to release it',
+  );
   assert.deepEqual(lead([rel({ status: 'rejected' })]).action, {
     label: 'See what to fix',
     appId: 'a1',
@@ -144,7 +155,10 @@ test('the checklist shows open items first, required before optional, and counts
     ]).hint,
     'Every required item is done.',
   );
-  assert.equal(checklistView([{ required: true, done: false }]).hint, '1 required item is still open.');
+  assert.equal(
+    checklistView([{ required: true, done: false }]).hint,
+    '1 required item is still open.',
+  );
 });
 
 test('the plan is one quiet line', () => {
@@ -160,7 +174,11 @@ test('the plan is one quiet line', () => {
     `Both platforms · Target ${formatTargetDate('2026-12-01')} (Due in 11 days) · Release notes in 2 of 3 locales`,
   );
   assert.equal(
-    planLine({ ...base, targetDate: null, readiness: { notes: { locales: 0, filled: 0 } } } as never),
+    planLine({
+      ...base,
+      targetDate: null,
+      readiness: { notes: { locales: 0, filled: 0 } },
+    } as never),
     'Both platforms · No target date',
   );
 });
@@ -195,7 +213,10 @@ const apple = (over: Record<string, unknown> = {}): RolloutState =>
 test('the current rollout is one line', () => {
   assert.equal(rolloutNowLine(play()), 'Rolling out: 20% of users');
   assert.equal(rolloutNowLine(play({ status: 'halted' })), 'Halted at 20% of users');
-  assert.equal(rolloutNowLine(play({ status: 'completed', userFraction: 1 })), 'Released to 100% of users');
+  assert.equal(
+    rolloutNowLine(play({ status: 'completed', userFraction: 1 })),
+    'Released to 100% of users',
+  );
   assert.equal(rolloutNowLine(play({ userFraction: null })), 'Rolling out');
   assert.equal(rolloutNowLine(apple()), 'Rolling out: day 3 of 7');
   assert.equal(rolloutNowLine(apple({ phasedReleaseState: 'PAUSED' })), 'Paused on day 3 of 7');
@@ -204,9 +225,16 @@ test('the current rollout is one line', () => {
 });
 
 test('one line names the enabled changes that cannot be undone', () => {
-  const b = (label: string, irreversible: boolean, disabled = false) => ({ label, irreversible, disabled });
+  const b = (label: string, irreversible: boolean, disabled = false) => ({
+    label,
+    irreversible,
+    disabled,
+  });
   assert.equal(irreversibleLine([b('Halt rollout', false), b('Release to 100%', false)]), null);
-  assert.equal(irreversibleLine([b('Halt rollout', false), b('Release to 100%', true)]), 'Release to 100% cannot be undone.');
+  assert.equal(
+    irreversibleLine([b('Halt rollout', false), b('Release to 100%', true)]),
+    'Release to 100% cannot be undone.',
+  );
   assert.equal(irreversibleLine([b('Release to 100%', true, true)]), null);
   assert.equal(
     irreversibleLine([b('Release to all users', true), b('Release to 100%', true)]),

@@ -1,4 +1,4 @@
-import { can, fractionRefusalNotice, type Platform, type Role } from '@mrm/core';
+import { can, fractionRefusalNotice, type Platform, type Role, type StoreId } from '@mrm/core';
 import { ApiError } from './api.ts';
 import { type AppSection, appAddress, type PlatformScope } from './app-scope.ts';
 import { releaseStepHref } from './release-stepper.ts';
@@ -61,7 +61,7 @@ export type PendingItem = {
 };
 
 export type PendingTotals = { items: number; actionable: number; blocking: number };
-export type PendingStore = 'appstoreconnect' | 'googleplay';
+export type PendingStore = StoreId;
 export type PendingPlatform = {
   platform: Platform;
   store: PendingStore;

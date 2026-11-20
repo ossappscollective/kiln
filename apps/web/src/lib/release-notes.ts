@@ -1,4 +1,4 @@
-import type { Platform } from '@mrm/core';
+import { type Platform, type StoreId } from '@mrm/core';
 import type { TestNotes } from './release-candidates.ts';
 
 /**
@@ -18,7 +18,7 @@ export const normalizeLocale = (locale: string): string =>
 // History (`GET /apps/{id}/release/notes-history`)
 
 export type NoteUse = {
-  source: 'appstoreconnect' | 'googleplay' | 'plan';
+  source: StoreId | 'plan';
   locale: string;
   version: string | null;
   track: string | null;
@@ -37,7 +37,7 @@ export type HistoryNote = {
 };
 
 export type NotesHistory = {
-  app: { id: string; platform: string; store: 'appstoreconnect' | 'googleplay' };
+  app: { id: string; platform: string; store: StoreId };
   locale: string | null;
   notes: HistoryNote[];
   truncated: boolean;

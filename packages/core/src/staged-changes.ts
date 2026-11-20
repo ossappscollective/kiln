@@ -1,4 +1,4 @@
-import { isApplePlatform, type Platform } from './platform.ts';
+import { isApplePlatform, type Platform, type StoreId } from './platform.ts';
 import type { ReleaseFieldId, StagedReleaseFieldView } from './release-fields.ts';
 import {
   type AssetKind,
@@ -325,7 +325,7 @@ export type StagedAssetView = {
 };
 
 export type StagedChangesView = {
-  app: { id: string; name: string; platform: Platform; store: 'appstoreconnect' | 'googleplay' };
+  app: { id: string; name: string; platform: Platform; store: StoreId };
   text: StagedTextView[];
   assets: StagedAssetView[];
   totals: {

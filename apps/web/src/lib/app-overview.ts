@@ -241,7 +241,9 @@ export function rowStatus(row: OverviewRow, loading: boolean): RowStatus {
   let unfinished: RowStatus['unfinished'] = null;
   const first = items[0];
   const allReleases = items.every(
-    (x) => x.left.stalled === null || unfinishedHeading(x.left.stalled.step) === 'Release left unfinished',
+    (x) =>
+      x.left.stalled === null ||
+      unfinishedHeading(x.left.stalled.step) === 'Release left unfinished',
   );
   if (first) {
     const who = (platform: Parameters<typeof platformLabel>[0]) => platformLabel(platform);

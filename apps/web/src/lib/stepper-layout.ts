@@ -205,7 +205,8 @@ export function stepIntro(step: StepId, f: IntroFacts): { title: string; sentenc
   if (n === 0 && f.inReview === true)
     return {
       title: `${f.version !== null ? `Version ${f.version} is` : 'This version is'} in store review`,
-      sentence: 'Waiting on the store. Nothing is waiting to be published, and nobody here can speed up the review.',
+      sentence:
+        'Waiting on the store. Nothing is waiting to be published, and nobody here can speed up the review.',
     };
   if (n === 0)
     return {

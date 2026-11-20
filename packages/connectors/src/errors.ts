@@ -1,3 +1,4 @@
+import type { StoreId } from '@mrm/core';
 /**
  * Typed errors for repo hosts. Messages are safe to show to a person and to write to a log:
  * they never carry a token, a JWT or a private key (see `redactSecrets`).
@@ -150,7 +151,7 @@ export class PullRequestFailedError extends GithubError {
 }
 
 /** Which store a `StoreError` came from. */
-export type StoreName = 'appstoreconnect' | 'googleplay';
+export type StoreName = StoreId;
 
 export type StoreErrorKind =
   /** The credential itself is unusable: malformed key, wrong key or issuer, bad JWT. */

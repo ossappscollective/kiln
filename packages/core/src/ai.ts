@@ -9,6 +9,7 @@
  * push, submit, publish, release or send a reply.
  */
 
+import type { StoreId } from './platform.ts';
 import type { AiInsightProposal, AiVariantsProposal } from './ai-insights.ts';
 
 export * from './ai-insights.ts';
@@ -239,7 +240,7 @@ export type AiListingProposal = {
 export type AiReplyProposal = {
   kind: 'reply_draft';
   reviewId: string;
-  store: 'appstoreconnect' | 'googleplay';
+  store: StoreId;
   /** The draft text. It only ever becomes a DRAFT a person edits: nothing here sends it. */
   text: string;
   length: number;

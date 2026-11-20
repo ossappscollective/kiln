@@ -1,4 +1,4 @@
-import { isPlatform, type Platform } from '@mrm/core';
+import { isPlatform, type Platform, type StoreId } from '@mrm/core';
 import { ApiError } from './api.ts';
 import type { ReplyDraft, ReplyState } from './review-reply.ts';
 
@@ -8,7 +8,7 @@ import type { ReplyDraft, ReplyState } from './review-reply.ts';
  * shown as plain text (never as HTML) and never put into a URL.
  */
 
-export type ReviewStore = 'appstoreconnect' | 'googleplay';
+export type ReviewStore = StoreId;
 
 /**
  * The customer reviews of an App Store Connect app are one list for the app, whatever platforms it has. They

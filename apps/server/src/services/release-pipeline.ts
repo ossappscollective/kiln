@@ -1,4 +1,4 @@
-import { evaluatePipeline, isGooglePlatform, type Pipeline, type PipelineBuildFact, type PipelineFacts, type PipelineRunFact, type PipelineState, type PipelineVersionFact, type Platform, PLATFORMS, RELEASE_STATES, type ReleaseState } from '@mrm/core';
+import { evaluatePipeline, type Pipeline, type PipelineBuildFact, type PipelineFacts, type PipelineRunFact, type PipelineState, type PipelineVersionFact, type Platform, PLATFORMS, RELEASE_STATES, type ReleaseState, type StoreId, storeOf } from '@mrm/core';
 import { nullableNumber, nullableString, oneOf, type Sql } from '@mrm/db';
 import { releasesSentHere, sentAtOf } from './apps.ts';
 import { effectiveConventions, listConventions } from './build-conventions.ts';
@@ -30,7 +30,7 @@ export type PipelineApp = {
   id: string;
   name: string;
   platform: Platform;
-  store: 'appstoreconnect' | 'googleplay';
+  store: StoreId;
 };
 
 /** A run counts as a release run for an app when it was started for it, or its workflow looks like one that ships builds. */
@@ -107,7 +107,7 @@ export async function loadPipelineFacts(
         id: a.id,
         name: a.name,
         platform: a.platform,
-        store: isGooglePlatform(a.platform) ? 'googleplay' : 'appstoreconnect',
+        store: storeOf(a.platform),
       },
     ]),
   );

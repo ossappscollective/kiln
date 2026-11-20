@@ -1,4 +1,4 @@
-import { type Platform, PLATFORMS } from '@mrm/core';
+import { type Platform, PLATFORMS, type StoreId } from '@mrm/core';
 import { nullableNumber, nullableString, oneOf, type Param, type Row, type Sql } from '@mrm/db';
 
 /**
@@ -17,7 +17,7 @@ export const isReviewStatus = (value: unknown): value is ReviewStatus =>
 export const reviewSorts = ['newest', 'rating', 'updated'] as const;
 export type ReviewSort = (typeof reviewSorts)[number];
 
-export type StoreKey = 'appstoreconnect' | 'googleplay';
+export type StoreKey = StoreId;
 
 export type ReviewResponse = { body: string; at: number | null; state: string | null };
 

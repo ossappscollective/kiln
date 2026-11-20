@@ -620,7 +620,10 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
     const unlinked: string[] = [];
     try {
       const path = `/v1/apps/${enc(appStoreId)}/appStoreVersions?include=build&limit=${this.#pageSize}`;
-      for await (const item of this.#pages(path, `reading the builds of the versions of app ${appStoreId}`)) {
+      for await (const item of this.#pages(
+        path,
+        `reading the builds of the versions of app ${appStoreId}`,
+      )) {
         const id = text(item.id);
         const relationships = isRecord(item.relationships) ? item.relationships : {};
         const link = isRecord(relationships.build) ? relationships.build : {};
@@ -632,7 +635,9 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
         }
         // A version that is not live yet (in review, in preparation) is the one whose build matters; ask for it on its own.
         const attributes = isRecord(item.attributes) ? item.attributes : {};
-        const state = mapAppStoreState(text(attributes.appVersionState)) ?? mapAppStoreState(text(attributes.appStoreState));
+        const state =
+          mapAppStoreState(text(attributes.appVersionState)) ??
+          mapAppStoreState(text(attributes.appStoreState));
         if (id && state !== 'live') unlinked.push(id);
       }
     } catch (error) {
