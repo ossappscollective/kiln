@@ -20,6 +20,11 @@ export function timeAgo(then: number, now: number = Date.now(), locale?: string)
   });
 }
 
+/** A calendar day in the person's language and zone, e.g. "20 Nov 2026". */
+export function dayText(at: number, locale?: string): string {
+  return new Date(at).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 export function fullTime(at: number, locale?: string): string {
   return new Date(at).toLocaleString(locale, {
     year: 'numeric',

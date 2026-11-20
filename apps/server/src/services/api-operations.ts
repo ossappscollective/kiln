@@ -158,6 +158,9 @@ const releaseSchema = z.object({
   rolloutFraction: z.number().nullable(),
   versionCodes: z.array(z.string()).nullable(),
   storeUpdatedAt: timestamp.nullable(),
+  statusSince: timestamp
+    .nullable()
+    .describe('When this server first saw the release in its current state.'),
   syncedAt: timestamp,
 });
 const changeSetSchema = z.object({

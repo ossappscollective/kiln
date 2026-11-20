@@ -216,8 +216,10 @@ export type ReleaseRow = {
   status: ReleaseState | null;
   /** "20%", or null when the store reports no share. */
   rolloutText: string | null;
-  /** When the store last changed it; null when it did not say. */
+  /** The date shown: the store's own date (the build upload, on the App Store), else when this server first saw the release in its state; null when neither is known. */
   at: number | null;
+  /** `store`: the store gave the date. `seen`: this server first saw the release then (the store gives no date). */
+  atSource: 'store' | 'seen' | null;
   ci: CiCell;
   plan: PlanCell;
 };
@@ -273,7 +275,13 @@ export function buildReleaseTable(input: TableInput): VersionGroup[] {
       buildText: buildText(release),
       status: release.status,
       rolloutText: formatRollout(release.rolloutFraction),
-      at: release.storeUpdatedAt,
+      at: release.storeUpdatedAt ?? release.statusSince ?? null,
+      atSource:
+        release.storeUpdatedAt !== null
+          ? 'store'
+          : release.statusSince !== undefined && release.statusSince !== null
+            ? 'seen'
+            : null,
       ci: ciFor(release, input.builds[release.appId] ?? null),
       plan: planCell(found, input.plans !== null),
     };

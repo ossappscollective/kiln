@@ -446,6 +446,8 @@ export type ReleaseSummary = {
   rolloutFraction: number | null;
   versionCodes: string[] | null;
   storeUpdatedAt: number | null;
+  /** When the server first saw the release in its current state (Google Play gives no release date). Absent from older servers. */
+  statusSince?: number | null;
   syncedAt: number;
 };
 

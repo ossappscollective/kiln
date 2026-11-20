@@ -161,6 +161,7 @@ test('buildsFromReleases: iOS builds per version, Android version codes per trac
     rolloutFraction: null,
     versionCodes: null,
     storeUpdatedAt: null,
+    statusSince: null,
     syncedAt: 1,
     ...over,
   });

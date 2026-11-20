@@ -10,7 +10,7 @@
   import type { Role } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import { type PlatformScope, appAddress } from '../../lib/app-scope.ts';
-  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { dayText, fullTime, timeAgo } from '../../lib/format.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { VersionGroup } from '../../lib/releases-table.ts';
   import type { AppBuild, AppSummary } from '../../lib/types.ts';
@@ -68,7 +68,7 @@
         <th scope="col">Build</th>
         <th scope="col">Status</th>
         <th scope="col" class="num">Rollout</th>
-        <th scope="col">Date</th>
+        <th scope="col" title="The day of the build upload (App Store). Google Play gives no date: then the day this server first saw the release.">Date</th>
         <th scope="col">CI</th>
         <th scope="col">Plan</th>
       </tr>
@@ -114,7 +114,10 @@
             </td>
             <td class="muted">
               {#if row.at !== null}
-                <time datetime={new Date(row.at).toISOString()} title={fullTime(row.at)}>{timeAgo(row.at, now)}</time>
+                <time
+                  datetime={new Date(row.at).toISOString()}
+                  title="{row.atSource === 'seen' ? 'First seen here ' : row.platform === 'android' ? '' : 'Build uploaded '}{fullTime(row.at)} ({timeAgo(row.at, now)})"
+                >{dayText(row.at)}{#if row.atSource === 'seen'}<span class="seen"> · seen</span>{/if}</time>
               {:else}
                 <span aria-label="Not reported by the store">—</span>
               {/if}
@@ -148,6 +151,9 @@
 </div>
 
 <style>
+  .seen {
+    font-size: var(--text-xs, 0.75rem);
+  }
   .releases {
     width: 100%;
     border-collapse: collapse;

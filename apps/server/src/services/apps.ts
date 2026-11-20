@@ -126,6 +126,8 @@ export type AppRelease = {
   rolloutFraction: number | null;
   versionCodes: string[] | null;
   storeUpdatedAt: number | null;
+  /** When this server first saw the release in its current state (the store gives no release date on Google Play). */
+  statusSince: number | null;
   syncedAt: number;
 };
 
@@ -191,6 +193,7 @@ const toRelease = (r: Row): AppRelease => {
     rolloutFraction: typeof details.rolloutFraction === 'number' ? details.rolloutFraction : null,
     versionCodes: Array.isArray(details.versionCodes) ? details.versionCodes.map(String) : null,
     storeUpdatedAt: orNull(r.store_updated_at, Number),
+    statusSince: orNull(r.status_since, Number),
     syncedAt: Number(r.synced_at),
   };
 };
@@ -231,7 +234,7 @@ export async function listAppReleases(
 ): Promise<AppRelease[]> {
   const rows = await sql.query(
     `SELECT id, app_id, platform, version, track, build, status, raw_state, details_json,
-            store_updated_at, synced_at
+            store_updated_at, status_since, synced_at
        FROM app_releases WHERE app_id = ? AND workspace_id = ? ORDER BY track, version, id`,
     [appId, workspaceId],
   );

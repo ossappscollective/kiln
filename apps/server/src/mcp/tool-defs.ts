@@ -128,6 +128,7 @@ const releaseView = (r: Json): Json =>
     'rolloutFraction',
     'versionCodes',
     'storeUpdatedAt',
+    'statusSince',
     'syncedAt',
   ]);
 
