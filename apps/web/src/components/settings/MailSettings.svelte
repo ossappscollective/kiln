@@ -26,6 +26,7 @@
   import Card from '../ui/Card.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import TextField from '../ui/TextField.svelte';
+  import '../readable-card.css';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -157,7 +158,7 @@
     {:else if !settings}
       <Skeleton />
     {:else}
-      <form class="stack" onsubmit={save} novalidate>
+      <form class="stack readable-card" onsubmit={save} novalidate>
         <p class="muted">{smtpSourceLabel(settings.source)}.</p>
         {#if locked}
           <Alert tone="info">This server's mail settings come from its environment (MRM_SMTP_*). Change them there and restart the server.</Alert>
