@@ -56,11 +56,11 @@ import {
 } from './services/clone-upkeep.ts';
 import { createTestLimiter, type TestLimiter } from './services/credential-tests.ts';
 import type { LocalWriteConfig } from './services/local-reads.ts';
+import { setMailLinkOrigin } from './services/mail-template.ts';
 import type { CloneReads, ConnectorFactory } from './services/repositories.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
 import { enableStepUpAutoApprove } from './services/step-up.ts';
 import type { TranslationContext } from './services/translation.ts';
-import { setMailLinkOrigin } from './services/mail-template.ts';
 import { createLaunchGate, hostGuard } from './single-user.ts';
 
 /** Largest request body of any API route. Listings are text; the biggest legitimate one is far below. */

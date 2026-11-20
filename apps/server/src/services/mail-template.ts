@@ -17,11 +17,7 @@ export const mailLink = (path: string): string | undefined =>
   linkOrigin ? `${linkOrigin}/${path}` : undefined;
 
 export const escapeHtml = (s: string): string =>
-  s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
@@ -42,7 +38,10 @@ export const mailBar = (color: string): string =>
   `<tr><td style="height:5px;background:${color};font-size:0;line-height:0;">&nbsp;</td></tr>`;
 
 /** A button to `href`; without a link, the sentence that says where to go. */
-export const mailButton = (a: { label: string; href: string | undefined; where: string }, color: string): string =>
+export const mailButton = (
+  a: { label: string; href: string | undefined; where: string },
+  color: string,
+): string =>
   a.href
     ? `<a href="${escapeHtml(a.href)}" style="display:inline-block;background:${color};color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:11px 20px;border-radius:8px;">${escapeHtml(a.label)}</a>`
     : `<span style="font-size:14px;color:#52606d;">Open Mobile Release Manager and go to <strong>${escapeHtml(a.where)}</strong>.</span>`;

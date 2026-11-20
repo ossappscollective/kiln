@@ -4,7 +4,6 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody, type Services } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
-import { mailBar, mailButton, mailFooter, mailLink, mailShell } from '../services/mail-template.ts';
 import { recordAudit } from '../services/audit.ts';
 import {
   clearSmtp,
@@ -15,6 +14,7 @@ import {
   smtpView,
 } from '../services/mail-config.ts';
 import { plainAddress } from '../services/mail-mime.ts';
+import { mailBar, mailButton, mailFooter, mailLink, mailShell } from '../services/mail-template.ts';
 import { MAIL_ERROR_MESSAGES, type Mailer } from '../services/mailer.ts';
 import { requireManage } from '../services/step-up.ts';
 import { activeEmail } from '../services/two-factor.ts';
@@ -203,7 +203,11 @@ export function mailRoutes(ctx: MailRoutesContext) {
 
 /** The HTML of the test message: a plain confirmation with a way back to the mail settings. */
 function testMessageHtml(): string {
-  const back = { label: 'Back to the mail settings', href: mailLink('#/settings?view=security'), where: 'Settings, Security, Mail server' };
+  const back = {
+    label: 'Back to the mail settings',
+    href: mailLink('#/settings?view=security'),
+    where: 'Settings, Security, Mail server',
+  };
   return mailShell(
     `${mailBar('#1f9d55')}
 <tr><td style="padding:24px 28px 0;">

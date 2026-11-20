@@ -1,9 +1,9 @@
-import { escapeHtml, mailBar, mailFooter, mailShell } from './mail-template.ts';
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import type { Database, Sql } from '@mrm/db';
 import { decryptSecret, encryptSecret } from '@mrm/vault';
 import { recordAudit } from './audit.ts';
 import { plainAddress } from './mail-mime.ts';
+import { escapeHtml, mailBar, mailFooter, mailShell } from './mail-template.ts';
 import type { MailErrorCode, Mailer, MailHint } from './mailer.ts';
 import {
   base32Decode,
