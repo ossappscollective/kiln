@@ -1,27 +1,5 @@
 import type { JsonSchema } from '@mrm/connectors';
-import {
-  type AiAsoHealthInsight,
-  type AiAuditCoverage,
-  type AiAuditField,
-  type AiAuditFinding,
-  type AiFlag,
-  type AiHealthAction,
-  type AiKeywordIdea,
-  type AiKeywordProposal,
-  type AiListingAuditInsight,
-  APP_STORE_FIELD_SPECS,
-  addDays,
-  aiHealthAreas,
-  aiLimits,
-  checkTerm,
-  countBytes,
-  countCharacters,
-  dateToDay,
-  isApplePlatform,
-  normalizeCountry,
-  normalizeLocale,
-  PLAY_FIELD_SPECS,
-} from '@mrm/core';
+import { addDays, type AiAsoHealthInsight, type AiAuditCoverage, type AiAuditField, type AiAuditFinding, type AiFlag, type AiHealthAction, aiHealthAreas, type AiKeywordIdea, type AiKeywordProposal, aiLimits, type AiListingAuditInsight, APP_STORE_FIELD_SPECS, checkTerm, countBytes, countCharacters, dateToDay, isApplePlatform, type ListingStore, normalizeCountry, normalizeLocale, PLAY_FIELD_SPECS } from '@mrm/core';
 import { coachFor, summaryFor } from '../modules/aso/insights.ts';
 import { listCompetitors, listKeywords } from '../modules/aso/service.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
@@ -123,7 +101,7 @@ const AUDIT_SCHEMA: JsonSchema = {
 };
 
 type AuditFacts = {
-  store: 'app_store' | 'google_play';
+  store: ListingStore;
   locale: string;
   fields: AiAuditField[];
   coverage: AiAuditCoverage[];
@@ -597,7 +575,7 @@ ${DATA_RULE}
 Suggest at most 15 NEW keywords or short phrases (1 to 4 words) people could type into the store search, in the language and market given. For each give: term, reason (one sentence), field (the listing field it would help most, or track_only), relevance (0 to 100: how well it fits this app), sources (comma separated: reviews, listing, competitors).
 Do not repeat a tracked keyword, do not suggest competitor or brand names, do not invent facts about the app. Answer only with the JSON object.`;
 
-const ideasSchema = (store: 'app_store' | 'google_play'): JsonSchema => ({
+const ideasSchema = (store: ListingStore): JsonSchema => ({
   type: 'object',
   properties: {
     ideas: {
@@ -629,7 +607,7 @@ const ideasSchema = (store: 'app_store' | 'google_play'): JsonSchema => ({
 });
 
 type IdeasFacts = {
-  store: 'app_store' | 'google_play';
+  store: ListingStore;
   country: string;
   locale: string;
   trackedKeys: string[];

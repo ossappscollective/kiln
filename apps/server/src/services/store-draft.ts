@@ -1,18 +1,6 @@
 import { createHash } from 'node:crypto';
 import { AppleDraftConnector, appleScope, connectorFactory, type DraftApplyResult, type DraftAssetWrite, DraftDriftError, type DraftFieldState, type DraftFieldWrite, type DraftFile, draftKey, DraftOutcomeUnknownError, DraftPartialError, type DraftReadRequest, type DraftState, type DraftStep, type DraftTextWrite, type EditableRelease, isStoreImageReader, isStoreNotesHistoryReader, isStoreReleaseReader, type NotesHistoryRead, PlayDraftConnector, redactSecrets, type ReleaseCandidates, sameDraftState, secretStrings, setMatches, type StoreConnectorInput, type StoreDraftConnector, StoreError, type StoreImagesRead, StoreRateLimitError } from '@mrm/connectors';
-import {
-  type AssetSlot,
-  isApplePlatform,
-  isGooglePlatform,
-  isReleaseFieldId,
-  LOCAL_ONLY_RELEASE_FIELDS,
-  type Platform,
-  RELEASE_FIELD_SPECS,
-  STAGED_LIMITS,
-  slotKey,
-  sniffImageFormat,
-  versionCodesOf,
-} from '@mrm/core';
+import { type AssetSlot, isApplePlatform, isGooglePlatform, isReleaseFieldId, LOCAL_ONLY_RELEASE_FIELDS, needsStoreAppId, type Platform, RELEASE_FIELD_SPECS, slotKey, sniffImageFormat, STAGED_LIMITS, versionCodesOf } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { type AssetsContext, openAssets } from './asset-repo.ts';
@@ -334,7 +322,7 @@ export async function connect(
       'credential_kind',
       "This app's credential is not the kind its platform needs.",
     );
-  if (isApplePlatform(app.platform) && !app.storeAppId)
+  if (needsStoreAppId(app.platform) && !app.storeAppId)
     return failure(
       422,
       'app_not_synced',

@@ -1,19 +1,5 @@
 import type { JsonSchema } from '@mrm/connectors';
-import {
-  type AiFlag,
-  type AiListingField,
-  type AiListingProposal,
-  APP_STORE_FIELD_SPECS,
-  aiLimits,
-  countBytes,
-  countCharacters,
-  isApplePlatform,
-  isStageableTextField,
-  normalizeLocale,
-  PLAY_FIELD_SPECS,
-  type Platform,
-  STAGEABLE_TEXT_FIELDS,
-} from '@mrm/core';
+import { type AiFlag, aiLimits, type AiListingField, type AiListingProposal, APP_STORE_FIELD_SPECS, countBytes, countCharacters, isApplePlatform, isStageableTextField, listingStoreOf, normalizeLocale, type Platform, PLAY_FIELD_SPECS, STAGEABLE_TEXT_FIELDS } from '@mrm/core';
 import { listKeywords } from '../modules/aso/service.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { loadLocaleTexts } from './ai-task-keywords.ts';
@@ -243,7 +229,7 @@ export const listingImproveTask: ReadyTask = {
     const goal = cleanGoal(scope.goal, aiLimits.maxGoalChars);
     const input = {
       task: 'listing_improve',
-      store: isApplePlatform(ctx.app.platform) ? 'app_store' : 'google_play',
+      store: listingStoreOf(ctx.app.platform),
       locale: texts.locale,
       appName: clip(ctx.app.name, 100),
       fields: fields.map((f) => ({

@@ -1,11 +1,4 @@
-import {
-  type AsoPlatform,
-  isApplePlatform,
-  type ListingRow,
-  type ListingRowTerm,
-  normalizeLocale,
-  type TermSource,
-} from '@mrm/core';
+import { type AsoPlatform, isApplePlatform, type ListingRow, type ListingRowTerm, normalizeLocale, storeShortName, type TermSource } from '@mrm/core';
 import type { AsoKeywordInput } from './aso.ts';
 import { timeAgo } from './format.ts';
 
@@ -19,7 +12,7 @@ import { timeAgo } from './format.ts';
 export const LISTING_TAG = 'from listing';
 
 export const storeName = (platform: AsoPlatform): string =>
-  isApplePlatform(platform) ? 'App Store' : 'Google Play';
+  storeShortName(platform);
 
 /** "Read from the App Store 3 hours ago", or that nothing was read yet. */
 export function freshnessText(platform: AsoPlatform, readAt: number | null, now: number): string {

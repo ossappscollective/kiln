@@ -10,7 +10,8 @@
  */
 
 import type { AiInsightProposal, AiVariantsProposal } from './ai-insights.ts';
-import type { StoreId } from './platform.ts';
+import { type StoreId } from './platform.ts';
+import type { ListingStore } from './listing.ts';
 
 export * from './ai-insights.ts';
 
@@ -212,7 +213,7 @@ export type AiKeywordIdea = {
 
 export type AiKeywordProposal = {
   kind: 'keywords';
-  store: 'app_store' | 'google_play';
+  store: ListingStore;
   country: string;
   locale: string;
   items: AiKeywordIdea[];

@@ -1,3 +1,4 @@
+import type { ListingStore } from './listing.ts';
 import type { ImageFormat } from './image-header.ts';
 
 /**
@@ -31,7 +32,7 @@ import type { ImageFormat } from './image-header.ts';
  *   https://docs.fastlane.tools/actions/supply/ (supply: `metadata/android/<locale>/images/`).
  */
 
-export type AssetStore = 'app_store' | 'google_play';
+export type AssetStore = ListingStore;
 
 /**
  * - `screenshot`, `preview`: store listing media per locale and device.

@@ -1,3 +1,5 @@
+import type { ListingStore } from './listing.ts';
+
 /**
  * The platforms an app can be on, and everything call sites need to know about one: its label, the
  * store it is sold in, which store family (Apple's App Store Connect or Google Play) serves it, and
@@ -33,6 +35,12 @@ export type PlatformMeta = {
   family: StoreFamily;
   /** The store that sells it (what a connector, a review or a draft is tagged with). */
   store: StoreId;
+  /** The same store as listing data names it. */
+  listingStore: ListingStore;
+  /** The store's own name in a sentence: "App Store" (also for macOS) or "Google Play". */
+  storeShortName: string;
+  /** The app has an id in the store's own system that a sync must have read first (Apple's numeric app id); Google Play uses the package name. */
+  needsStoreAppId: boolean;
   /** A registered generic glyph (`apps/web/src/lib/icons.ts`), never a brand mark. */
   glyph: 'platform-ios' | 'platform-macos' | 'platform-android';
   /** Apple's `platform` value in App Store Connect API queries, when the family is Apple. */
@@ -51,6 +59,9 @@ export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
     consoleName: 'App Store Connect',
     family: 'apple',
     store: 'appstoreconnect',
+    listingStore: 'app_store',
+    storeShortName: 'App Store',
+    needsStoreAppId: true,
     glyph: 'platform-ios',
     applePlatform: 'IOS',
     credentialKind: 'app_store_connect',
@@ -63,6 +74,9 @@ export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
     consoleName: 'App Store Connect',
     family: 'apple',
     store: 'appstoreconnect',
+    listingStore: 'app_store',
+    storeShortName: 'App Store',
+    needsStoreAppId: true,
     glyph: 'platform-macos',
     applePlatform: 'MAC_OS',
     credentialKind: 'app_store_connect',
@@ -75,6 +89,9 @@ export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
     consoleName: 'Google Play Console',
     family: 'google',
     store: 'googleplay',
+    listingStore: 'google_play',
+    storeShortName: 'Google Play',
+    needsStoreAppId: false,
     glyph: 'platform-android',
     credentialKind: 'google_play',
     order: 2,
@@ -95,6 +112,17 @@ export const platformLabel = (platform: Platform): string => PLATFORM_META[platf
 export const storeFamilyOf = (platform: Platform): StoreFamily => PLATFORM_META[platform].family;
 /** The store behind a platform. */
 export const storeOf = (platform: Platform): StoreId => PLATFORM_META[platform].store;
+/** The store as listing data names it (`app_store` or `google_play`). */
+export const listingStoreOf = (platform: Platform): ListingStore => PLATFORM_META[platform].listingStore;
+/** "App Store" or "Google Play", for a sentence. */
+export const storeShortName = (platform: Platform): string => PLATFORM_META[platform].storeShortName;
+/** Whether the platform's store needs the app's store id read first (Apple), rather than the package name (Google Play). */
+export const needsStoreAppId = (platform: Platform): boolean => PLATFORM_META[platform].needsStoreAppId;
+/** The app's id in the store's own system: Apple's numeric app id (null before the first sync) or the Google Play package name. */
+export const storeSideId = (
+  platform: Platform,
+  app: { storeAppId: string | null; identifier: string },
+): string | null => (PLATFORM_META[platform].needsStoreAppId ? app.storeAppId : app.identifier);
 export const isApplePlatform = (platform: Platform): boolean =>
   PLATFORM_META[platform].family === 'apple';
 export const isGooglePlatform = (platform: Platform): boolean =>

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { APPLE_ROLLOUT_ACTIONS, AppleRolloutConnector, type AppleRolloutState, type AppleRolloutTarget, appleScope, connectorFactory, isMarketingVersion, isPlayTrackName, isVersionCode, normalizeFraction, planAppleRollout, planPlayRollout, PLAY_ROLLOUT_ACTIONS, PlayRolloutConnector, type PlayRolloutState, type PlayRolloutTarget, redactSecrets, type RolloutChange, RolloutDriftError, rolloutKey, RolloutOutcomeUnknownError, type RolloutPlan, type RolloutState, type RolloutTarget, sameRolloutState, secretStrings, type StoreConnectorInput, StoreError, StoreRateLimitError, type StoreRolloutConnector } from '@mrm/connectors';
-import { type ActorType, isApplePlatform, type Platform } from '@mrm/core';
+import { type ActorType, isApplePlatform, needsStoreAppId, type Platform } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
@@ -458,7 +458,7 @@ async function connect(
       "This app's credential is not the kind its platform needs.",
     );
   }
-  if (isApplePlatform(app.platform) && !app.storeAppId) {
+  if (needsStoreAppId(app.platform) && !app.storeAppId) {
     return failure(
       422,
       'app_not_synced',

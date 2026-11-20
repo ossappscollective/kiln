@@ -1,13 +1,4 @@
-import type {
-  CoachAction,
-  CoverageGap,
-  FitFields,
-  FitStatus,
-  Idea,
-  ListingFit,
-  SuggestedCompetitor,
-  TermAcrossMarkets,
-} from '@mrm/core';
+import { type CoachAction, type CoverageGap, type FitFields, type FitStatus, type Idea, type ListingFit, type ListingStore, type SuggestedCompetitor, type TermAcrossMarkets } from '@mrm/core';
 import {
   checkTerm,
   defaultLocaleFor,
@@ -34,7 +25,7 @@ import { retrySeconds } from './portfolio.ts';
 // API shapes
 
 export type AsoPlatform = Platform;
-export type AsoStore = 'app_store' | 'google_play';
+export type AsoStore = ListingStore;
 
 export type AsoConfig = {
   apple: { enabled: boolean; source: string; documentedCallsPerMinute: number };

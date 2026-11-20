@@ -1,16 +1,5 @@
 import type { JsonSchema } from '@mrm/connectors';
-import {
-  type AiFlag,
-  type AiKeywordIdea,
-  type AiKeywordProposal,
-  APP_STORE_FIELD_SPECS,
-  aiLimits,
-  checkTerm,
-  isApplePlatform,
-  normalizeCountry,
-  normalizeLocale,
-  PLAY_FIELD_SPECS,
-} from '@mrm/core';
+import { type AiFlag, type AiKeywordIdea, type AiKeywordProposal, aiLimits, APP_STORE_FIELD_SPECS, checkTerm, type ListingStore, listingStoreOf, normalizeCountry, normalizeLocale, PLAY_FIELD_SPECS } from '@mrm/core';
 import { listCompetitors, listKeywords } from '../modules/aso/service.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import {
@@ -57,7 +46,7 @@ Rules:
 6. If the data has appContext, take it into account: what the app is and who it is for, and never suggest a word in neverUseWords.
 7. Answer only with the JSON object that matches the schema.`;
 
-const schemaFor = (store: 'app_store' | 'google_play'): JsonSchema => ({
+const schemaFor = (store: ListingStore): JsonSchema => ({
   type: 'object',
   properties: {
     ideas: {
@@ -92,7 +81,7 @@ const schemaFor = (store: 'app_store' | 'google_play'): JsonSchema => ({
 });
 
 type Facts = {
-  store: 'app_store' | 'google_play';
+  store: ListingStore;
   country: string;
   locale: string;
   trackedKeys: string[];
@@ -176,7 +165,7 @@ export const keywordIdeasTask: ReadyTask = {
       return aiFail(400, 'invalid_request', 'The storefront is two letters, such as us.', {
         issues: [{ path: 'country', message: 'Two letters such as us.' }],
       });
-    const store = isApplePlatform(ctx.app.platform) ? 'app_store' : 'google_play';
+    const store = listingStoreOf(ctx.app.platform);
 
     const texts = await loadLocaleTexts(ctx, locale);
     if (!texts) {

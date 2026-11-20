@@ -1,4 +1,4 @@
-import { isApplePlatform, type Platform, type StoreId } from './platform.ts';
+import { isApplePlatform, listingStoreOf, type Platform, type StoreId } from './platform.ts';
 import type { ReleaseFieldId, StagedReleaseFieldView } from './release-fields.ts';
 import {
   type AssetKind,
@@ -247,7 +247,7 @@ export function slotMaxFiles(platform: Platform, slot: AssetSlot): number {
 }
 
 export const assetStoreOf = (platform: Platform): AssetStore =>
-  isApplePlatform(platform) ? 'app_store' : 'google_play';
+  listingStoreOf(platform);
 
 // ---------------------------------------------------------------------------------------------
 // What the API shows

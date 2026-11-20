@@ -1,22 +1,5 @@
 import type { JsonSchema } from '@mrm/connectors';
-import {
-  type AiFixItem,
-  type AiFixNextInsight,
-  type AiFlag,
-  type AiReviewClassifyInsight,
-  type AiReviewSummaryInsight,
-  type AiReviewTags,
-  type AiReviewTheme,
-  type AiSentiment,
-  type AiSeverity,
-  type AiThemeKind,
-  APP_STORE_FIELD_SPECS,
-  aiReviewTopics,
-  aiSentiments,
-  aiSeverities,
-  aiThemeKinds,
-  isApplePlatform,
-} from '@mrm/core';
+import { type AiFixItem, type AiFixNextInsight, type AiFlag, type AiReviewClassifyInsight, type AiReviewSummaryInsight, type AiReviewTags, type AiReviewTheme, aiReviewTopics, type AiSentiment, aiSentiments, aiSeverities, type AiSeverity, type AiThemeKind, aiThemeKinds, APP_STORE_FIELD_SPECS, isApplePlatform, listingStoreOf } from '@mrm/core';
 import { looksLikePromise } from './ai-app-context.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { getReviewTags, reviewTextHash, saveReviewTags } from './ai-review-classes.ts';
@@ -51,7 +34,7 @@ const clamp = (value: unknown, min: number, max: number, fallback: number): numb
   int(value, min, max, fallback);
 
 const storeOf = (platform: Parameters<typeof isApplePlatform>[0]) =>
-  isApplePlatform(platform) ? 'app_store' : 'google_play';
+  listingStoreOf(platform);
 
 const sentimentFromRating = (rating: number): AiSentiment =>
   rating >= 4 ? 'positive' : rating === 3 ? 'neutral' : 'negative';

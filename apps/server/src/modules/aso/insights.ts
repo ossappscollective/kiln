@@ -1,28 +1,4 @@
-import {
-  buildCoach,
-  type CoachAction,
-  type CoachKeyword,
-  type CompetitorText,
-  type CoverageGap,
-  coverageGaps,
-  defaultLocaleFor,
-  type FitFields,
-  type FitKeyword,
-  type Idea,
-  type IdeaSource,
-  isApplePlatform,
-  isGooglePlatform,
-  type ListingFit,
-  languageOf,
-  listingFit,
-  type MarketKeyword,
-  mineIdeas,
-  normalizeLocale,
-  type SuggestedCompetitor,
-  suggestCompetitors,
-  type TermAcrossMarkets,
-  termsAcrossMarkets,
-} from '@mrm/core';
+import { buildCoach, type CoachAction, type CoachKeyword, type CompetitorText, type CoverageGap, coverageGaps, defaultLocaleFor, type FitFields, type FitKeyword, type Idea, type IdeaSource, isApplePlatform, isGooglePlatform, languageOf, type ListingFit, listingFit, type ListingStore, type MarketKeyword, mineIdeas, normalizeLocale, storeSideId, suggestCompetitors, type SuggestedCompetitor, type TermAcrossMarkets, termsAcrossMarkets } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import type { ManagedApp } from '../../services/apps.ts';
 import { getLiveListing } from '../../services/listing-live.ts';
@@ -359,7 +335,7 @@ export async function suggestionsFor(
   app: ManagedApp,
   options: { minKeywords?: number; limit?: number } = {},
 ): Promise<{ suggestions: SuggestionView[]; basedOnKeywords: number; notes: string[] }> {
-  const ownId = isApplePlatform(app.platform) ? app.storeAppId : app.identifier;
+  const ownId = storeSideId(app.platform, app);
   const keywords = await listKeywords(sql, workspaceId, app.id);
   const followed = await listCompetitors(sql, workspaceId, app.id);
   const rows = await sql.query(
@@ -452,7 +428,7 @@ export async function marketsFor(
 export const localeOfCountry = (country: string): string => defaultLocaleFor(country);
 
 export type AsoSummary = {
-  app: { id: string; platform: ManagedApp['platform']; store: 'app_store' | 'google_play' };
+  app: { id: string; platform: ManagedApp['platform']; store: ListingStore };
   keywords: {
     total: number;
     ranked: number;

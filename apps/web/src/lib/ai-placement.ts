@@ -1,4 +1,4 @@
-import { isStageableTextField, type Platform } from '@mrm/core';
+import { isStageableTextField, type ListingStore, type Platform } from '@mrm/core';
 
 /**
  * The words around an AI keyword idea and a suggested listing text, pure. A keyword idea names the listing field it would help most
@@ -53,11 +53,11 @@ export function placementLine(field: string | null): string {
 export const stageInLabel = (field: string): string => `Stage in ${placementWord(field)}`;
 
 /** The AI task and the store use these ids; `app_store` and `google_play` are the stores of a keyword proposal. */
-export const platformOfStore = (store: 'app_store' | 'google_play'): Platform =>
+export const platformOfStore = (store: ListingStore): Platform =>
   store === 'google_play' ? 'android' : 'ios';
 
 /** A draft push can write the field of this store (the App Store name and subtitle are not written). */
-export const canStagePlacement = (store: 'app_store' | 'google_play', field: string): boolean =>
+export const canStagePlacement = (store: ListingStore, field: string): boolean =>
   isStageableTextField(platformOfStore(store), field);
 
 /** What the button of a text proposal says: "Stage in keyword field" for one text, "Stage 2 texts" for more. */

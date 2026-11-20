@@ -1,12 +1,6 @@
 import { createHash } from 'node:crypto';
 import { APPLE_RELEASABLE_STATE, AppleReleaseConnector, appleScope, connectorFactory, type PlayReleaseBuild, PlayReleaseConnector, ReleaseDriftError, releaseKey, ReleaseOutcomeUnknownError, type ReleaseRequest, type ReleaseState, type StoreConnectorInput, type StoreReleaseConnector } from '@mrm/connectors';
-import {
-  isApplePlatform,
-  isGooglePlatform,
-  normalizeReleaseValue,
-  type Platform,
-  versionCodesOf,
-} from '@mrm/core';
+import { isApplePlatform, isGooglePlatform, needsStoreAppId, normalizeReleaseValue, type Platform, versionCodesOf } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
@@ -241,7 +235,7 @@ async function connect(
       'credential_kind',
       "This app's credential is not the kind its platform needs.",
     );
-  if (isApplePlatform(app.platform) && !app.storeAppId)
+  if (needsStoreAppId(app.platform) && !app.storeAppId)
     return failure(
       422,
       'app_not_synced',

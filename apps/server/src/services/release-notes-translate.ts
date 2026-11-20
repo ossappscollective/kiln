@@ -1,5 +1,5 @@
 import type { JsonSchema } from '@mrm/connectors';
-import { type AiProvider, isApplePlatform, sameLanguage } from '@mrm/core';
+import { type AiProvider, isApplePlatform, sameLanguage, storeShortName } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { getAppContext, withAppContext } from './ai-app-context.ts';
 import {
@@ -280,7 +280,7 @@ async function translateAi(
       const data = withAppContext(
         {
           task: NOTES_TASK.id,
-          store: isApplePlatform(input.app.platform) ? 'App Store' : 'Google Play',
+          store: storeShortName(input.app.platform),
           limit,
           unit: 'characters',
           from: input.sourceLocale,

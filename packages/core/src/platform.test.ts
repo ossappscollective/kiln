@@ -5,6 +5,10 @@ import { allowedEvents, transition } from './lifecycle.ts';
 import {
   isApplePlatform,
   isGooglePlatform,
+  listingStoreOf,
+  needsStoreAppId,
+  storeShortName,
+  storeSideId,
   PLATFORM_META,
   PLATFORMS,
   parsePlatform,
@@ -102,4 +106,18 @@ test('macOS screenshot sizes are the four 16:10 sizes Apple lists', () => {
     storeSetKey('macos', 'en-US', { kind: 'screenshot', device: 'mac' }),
     'macos/en-US/screenshot:mac',
   );
+});
+
+test('the platform table carries the store facts that call sites used to branch on', () => {
+  assert.equal(listingStoreOf('ios'), 'app_store');
+  assert.equal(listingStoreOf('macos'), 'app_store');
+  assert.equal(listingStoreOf('android'), 'google_play');
+  assert.equal(storeShortName('macos'), 'App Store');
+  assert.equal(storeShortName('android'), 'Google Play');
+  assert.equal(needsStoreAppId('ios'), true);
+  assert.equal(needsStoreAppId('android'), false);
+  const app = { storeAppId: '123', identifier: 'com.example' };
+  assert.equal(storeSideId('ios', app), '123');
+  assert.equal(storeSideId('android', app), 'com.example');
+  assert.equal(storeSideId('ios', { storeAppId: null, identifier: 'x' }), null);
 });

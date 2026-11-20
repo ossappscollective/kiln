@@ -1,25 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { AsoError, isPlayPackageName } from '@mrm/connectors';
-import {
-  type ActorType,
-  type AsoPlatform,
-  type CompetitorChange,
-  type CompetitorState,
-  checkTerm,
-  DEFAULT_EDGE_TOP,
-  decideSnapshot,
-  defaultLocaleFor,
-  isApplePlatform,
-  isBigMove,
-  isGooglePlatform,
-  MAX_NOTES_CHARACTERS,
-  MAX_TAG_CHARACTERS,
-  normalizeCountry,
-  normalizeLocale,
-  type RankChange,
-  rankChange,
-  rankTrend,
-} from '@mrm/core';
+import { type ActorType, type AsoPlatform, checkTerm, type CompetitorChange, type CompetitorState, decideSnapshot, DEFAULT_EDGE_TOP, defaultLocaleFor, isApplePlatform, isBigMove, isGooglePlatform, type ListingStore, listingStoreOf, MAX_NOTES_CHARACTERS, MAX_TAG_CHARACTERS, normalizeCountry, normalizeLocale, type RankChange, rankChange, rankTrend, storeSideId } from '@mrm/core';
 import {
   type Database,
   nullableNumber,
@@ -103,8 +84,8 @@ export type AsoContext = {
   maxRunMs?: number;
 };
 
-export const platformStore = (platform: AsoPlatform): 'app_store' | 'google_play' =>
-  isApplePlatform(platform) ? 'app_store' : 'google_play';
+export const platformStore = (platform: AsoPlatform): ListingStore =>
+  listingStoreOf(platform);
 
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 
@@ -569,7 +550,7 @@ export type CompetitorSnapshotView = {
 export type AsoCompetitor = {
   id: string;
   appId: string;
-  store: 'app_store' | 'google_play';
+  store: ListingStore;
   externalId: string;
   country: string;
   name: string;
@@ -791,7 +772,7 @@ export async function addCompetitor(
   const country = input.country === undefined ? 'us' : normalizeCountry(input.country);
   if (!country)
     return failure(422, 'invalid_country', 'The country is two letters, such as us or de.');
-  if (externalId === (isApplePlatform(app.platform) ? app.storeAppId : app.identifier)) {
+  if (externalId === (storeSideId(app.platform, app))) {
     return failure(422, 'own_app', 'That is this app itself.');
   }
   const store = platformStore(app.platform);
@@ -1090,7 +1071,7 @@ async function run(
   const before = await getAsoState(ctx.db, workspaceId, app.id);
   const threshold = await rankMoveThresholdFor(ctx.db, workspaceId);
   const maxRunMs = ctx.maxRunMs ?? DEFAULT_ASO_RUN_MS;
-  const ownId = isApplePlatform(app.platform) ? app.storeAppId : app.identifier;
+  const ownId = storeSideId(app.platform, app);
 
   const result: AsoRefreshResult = {
     at: startedAt,

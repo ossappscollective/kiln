@@ -1,14 +1,6 @@
 import { createHash } from 'node:crypto';
 import { appleScope, AppleSubmitConnector, connectorFactory, DRAFT_IMAGE_READY_STATES, PlaySubmitConnector, type StoreConnectorInput, type StoreSubmitConnector, SubmitDriftError, submitKey, SubmitOutcomeUnknownError, type SubmitState } from '@mrm/connectors';
-import {
-  APP_STORE_FIELD_SPECS,
-  type AssetFacts,
-  isApplePlatform,
-  isGooglePlatform,
-  PLAY_FIELD_SPECS,
-  type Platform,
-  validateAssets,
-} from '@mrm/core';
+import { APP_STORE_FIELD_SPECS, type AssetFacts, isApplePlatform, isGooglePlatform, needsStoreAppId, type Platform, PLAY_FIELD_SPECS, validateAssets } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
@@ -255,7 +247,7 @@ async function connect(
       'credential_kind',
       "This app's credential is not the kind its platform needs.",
     );
-  if (isApplePlatform(app.platform) && !app.storeAppId)
+  if (needsStoreAppId(app.platform) && !app.storeAppId)
     return failure(
       422,
       'app_not_synced',

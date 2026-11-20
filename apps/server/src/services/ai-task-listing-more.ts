@@ -1,18 +1,5 @@
 import type { JsonSchema } from '@mrm/connectors';
-import {
-  type AiFlag,
-  type AiListingProposal,
-  type AiVariant,
-  type AiVariantField,
-  type AiVariantsProposal,
-  APP_STORE_FIELD_SPECS,
-  aiLimits,
-  isApplePlatform,
-  isStageableTextField,
-  normalizeLocale,
-  PLAY_FIELD_SPECS,
-  type Platform,
-} from '@mrm/core';
+import { type AiFlag, aiLimits, type AiListingProposal, type AiVariant, type AiVariantField, type AiVariantsProposal, APP_STORE_FIELD_SPECS, isApplePlatform, isStageableTextField, listingStoreOf, normalizeLocale, type Platform, PLAY_FIELD_SPECS } from '@mrm/core';
 import { listKeywords } from '../modules/aso/service.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { loadLocaleTexts } from './ai-task-keywords.ts';
@@ -45,7 +32,7 @@ type Specs = Record<
 >;
 const specsFor = (platform: Platform): Specs =>
   (isApplePlatform(platform) ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS) as unknown as Specs;
-const storeOf = (platform: Platform) => (isApplePlatform(platform) ? 'app_store' : 'google_play');
+const storeOf = (platform: Platform) => (listingStoreOf(platform));
 
 // ---------------------------------------------------------------------------------------------
 // listing_variants

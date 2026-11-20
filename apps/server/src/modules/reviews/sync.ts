@@ -1,12 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { AppStoreReviewsConnector, connectorFactory, fetchRatingSummary, type ListReviewsResult, PLAY_REVIEW_WINDOW_MS, PlayReviewsConnector, type RatingSummary, redactSecrets, secretStrings, type StoreConnectorInput, StoreError, StoreRateLimitError, type StoreReview, type StoreReviewConnector } from '@mrm/connectors';
-import {
-  type ActorType,
-  isApplePlatform,
-  isGooglePlatform,
-  type Platform,
-  storeOf,
-} from '@mrm/core';
+import { type ActorType, isApplePlatform, isGooglePlatform, needsStoreAppId, type Platform, storeOf } from '@mrm/core';
 import type { Database, Param, Row, Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../../jobs.ts';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
@@ -479,7 +473,7 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
       "This app's credential is not the kind its platform needs.",
     );
   }
-  if (isApplePlatform(app.platform) && !app.storeAppId) {
+  if (needsStoreAppId(app.platform) && !app.storeAppId) {
     return plain(
       422,
       'app_not_synced',

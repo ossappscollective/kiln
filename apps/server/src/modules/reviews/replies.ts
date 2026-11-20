@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { APPLE_REPLY_LIMIT, AppStoreReviewsConnector, checkReplyText, connectorFactory, normalizeReplyText, PLAY_REPLY_LIMIT, PlayReviewsConnector, redactSecrets, ReplyOutcomeUnknownError, secretStrings, StoreError, StoreRateLimitError, type StoreReview, type StoreReviewReplyConnector } from '@mrm/connectors';
-import { type ActorType, isApplePlatform } from '@mrm/core';
+import { type ActorType, needsStoreAppId } from '@mrm/core';
 import {
   type Database,
   nullableNumber,
@@ -855,7 +855,7 @@ export async function sendReviewReply(
       failure(422, 'credential_kind', "This app's credential is not the kind its platform needs."),
     );
   }
-  if (isApplePlatform(app.platform) && !app.storeAppId) {
+  if (needsStoreAppId(app.platform) && !app.storeAppId) {
     return refusal(
       failure(
         422,

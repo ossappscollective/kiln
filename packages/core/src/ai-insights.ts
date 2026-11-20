@@ -8,6 +8,7 @@
  * ids that were sent; nothing here can push, submit, publish, release or send.
  */
 
+import type { ListingStore } from './listing.ts';
 import type { AiFlag } from './ai.ts';
 
 // ---------------------------------------------------------------------------------------------
@@ -338,7 +339,7 @@ export type AiListingAuditInsight = {
   kind: 'insight';
   insight: 'listing_audit';
   locale: string;
-  store: 'app_store' | 'google_play';
+  store: ListingStore;
   /** Counted by the server. */
   fields: AiAuditField[];
   coverage: AiAuditCoverage[];
