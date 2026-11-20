@@ -43,6 +43,10 @@
   let generation = 0;
 
   const steps = $derived(historySteps(entries));
+  /** One line above the timeline says what the underlined words are, instead of the same line under every entry. */
+  const hasDiff = $derived(
+    steps.some((st) => !st.removed && typeof st.previous === 'string' && st.entry.value !== null && st.previous !== st.entry.value),
+  );
 
   const message = (e: unknown) => (e instanceof ApiError ? e.message : 'Something went wrong. Try again.');
 
@@ -140,6 +144,7 @@
             and when its repository listing is read.
           </p>
         {:else}
+          {#if hasDiff}<p class="muted legend">Underlined words are new compared with the earlier value from the same source.</p>{/if}
           <ol class="timeline">
             {#each steps as step (step.entry.id)}
               {@const e = step.entry}
@@ -156,7 +161,6 @@
                   <div class="value">
                     <DiffText from={step.previous} to={e.value} side="to" fromName="the earlier value" toName="this value" />
                   </div>
-                  <p class="meta muted">Words in this value that the earlier one from the same source did not have are underlined.</p>
                 {:else if e.value !== null}
                   <div class="value">{e.value}</div>
                 {/if}
@@ -227,6 +231,11 @@
 
   header p {
     margin: var(--space-1) 0 0;
+    font-size: 0.9375rem;
+  }
+
+  .legend {
+    margin: 0 0 var(--space-4);
     font-size: var(--text-sm);
   }
 
@@ -245,7 +254,7 @@
 
   li {
     position: relative;
-    padding: 0 0 var(--space-5) var(--space-4);
+    padding: 0 0 var(--space-6) var(--space-4);
   }
 
   li::before {
@@ -266,11 +275,13 @@
     gap: var(--space-2);
     align-items: center;
     margin-bottom: var(--space-2);
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   .value {
     max-height: 14rem;
+    font-size: 0.9375rem;
+    line-height: 1.5;
     padding: var(--space-2) var(--space-3);
     overflow: auto;
     white-space: pre-wrap;
@@ -290,7 +301,8 @@
 
   .meta {
     margin: var(--space-1) 0 0;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
+    color: var(--muted);
   }
 
   .meta.over {
