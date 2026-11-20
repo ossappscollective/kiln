@@ -10,6 +10,7 @@ import {
 } from './modules/aso/schedule.ts';
 import { ACTIVE_STATUSES, purgeOrphans } from './modules/ci/runs.ts';
 import { DEFAULT_POLL_MAX_MS, enqueueCiPoll } from './modules/ci/service.ts';
+import { type EasStatusQueueSummary, queueEasStatusSyncs } from './modules/eas/status-sync.ts';
 import { type ListingQueueSummary, queueListingReads } from './modules/listing/schedule.ts';
 import { type ReminderSummary, sendPlanReminders } from './modules/planning/plan-reminders.ts';
 import { type ReleaseWatchSummary, sendReleaseWatch } from './modules/planning/release-watch.ts';
@@ -130,6 +131,19 @@ export type SchedulerOptions = {
    */
   analyticsIntervalMs?: number;
   analytics?: { perTick?: number; perWorkspace?: number; spacingMs?: number; maxJitterMs?: number };
+  /**
+   * Milliseconds between scheduled reads of the EAS builds and submissions of one linked app record (MRM_EAS_STATUS_INTERVAL_MINUTES, default
+   * 30). 0 or absent turns them off. They queue `eas.status` jobs (modules/eas/status-sync.ts), bounded and spaced by `easStatus`, sharing
+   * `limiter`; a record with a build still running is read again after `activeIntervalMs` (default three minutes).
+   */
+  easStatusIntervalMs?: number;
+  easStatus?: {
+    perTick?: number;
+    perWorkspace?: number;
+    spacingMs?: number;
+    maxJitterMs?: number;
+    activeIntervalMs?: number;
+  };
   /** MRM_ASO_RETENTION_DAYS: rank checks and competitor snapshots older than this are deleted (at most once an hour). 0 keeps them. Absent: no pruning. */
   asoRetentionDays?: number;
   /** Runs started longer ago than this are no longer polled. Default 3 hours. */
@@ -174,6 +188,8 @@ export type TickSummary = {
   asoUpkeep?: AsoUpkeepSummary;
   /** What the scheduled analytics syncs queued; absent when they are off. */
   analytics?: AnalyticsQueueSummary;
+  /** What the scheduled EAS status reads queued; absent when they are off. */
+  easStatus?: EasStatusQueueSummary;
   /** What the analytics upkeep deleted; set only in a tick where it ran. */
   analyticsUpkeep?: AnalyticsUpkeepSummary;
   /** What a clone sweep returned; set only in a tick where one ran. */
@@ -258,6 +274,7 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
   let lastAsoUpkeepAt: number | undefined;
   let lastAnalyticsUpkeepAt: number | undefined;
   const analyticsInterval = options.analyticsIntervalMs ?? 0;
+  const easStatusInterval = options.easStatusIntervalMs ?? 0;
   /** When the reminders last ran in this process. Other instances have their own; the unique key keeps them apart. */
   let lastReminderAt: number | undefined;
 
@@ -334,7 +351,7 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
     const marks = ACTIVE_STATUSES.map(() => '?').join(', ');
     const rows = await db.query(
       `SELECT DISTINCT workspace_id, repository_id FROM workflow_runs
-        WHERE status IN (${marks}) AND started_at > ?`,
+        WHERE provider = 'github' AND status IN (${marks}) AND started_at > ?`,
       [...ACTIVE_STATUSES, at - pollMaxMs],
     );
     for (const row of rows) {
@@ -494,6 +511,20 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
         } catch (error) {
           report('analytics upkeep failed', error);
         }
+      }
+    }
+    if (easStatusInterval > 0) {
+      // EAS status reads are optional work: a failure here must not stop syncs or polls.
+      try {
+        summary.easStatus = await queueEasStatusSyncs(db, {
+          now: at,
+          intervalMs: easStatusInterval,
+          ...(options.easStatus ?? {}),
+          ...(options.jitter ? { jitter: options.jitter } : {}),
+          ...(options.limiter ? { limiter: options.limiter } : {}),
+        });
+      } catch (error) {
+        report('scheduled EAS status reads failed', error);
       }
     }
     const sweep = options.cloneSweep;

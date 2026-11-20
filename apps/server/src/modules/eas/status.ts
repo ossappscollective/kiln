@@ -15,7 +15,7 @@ import type { EasDeps } from './index.ts';
 import { getExpoLink, type ExpoLinkView } from './link.ts';
 
 /**
- * EAS Build and Submit status (docs/adr/0036-eas-build-submit-status.md, docs/api/eas.md): the builds and the submissions of the Expo
+ * EAS Build and Submit status (docs/adr/0036-eas-build-submit-status.md, docs/api/eas-builds.md): the builds and the submissions of the Expo
  * project an app record is linked to, kept as a snapshot in `eas_builds`, `eas_submissions` and `eas_status_sync`. READ ONLY toward
  * Expo: nothing is created, cancelled or resubmitted there. A read (`refreshEasStatus`) replaces the snapshot of the app record; the
  * views (`getEasStatus`) read the database only, so listing never calls Expo.

@@ -255,7 +255,7 @@ const worker = createWorker({
       timeoutMs: DEFAULT_REVIEW_TIMEOUT_MS,
       translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
     }),
-    // Scheduled reads of the EAS builds and submissions of linked apps (read-only toward Expo; docs/api/eas.md).
+    // Scheduled reads of the EAS builds and submissions of linked apps (read-only toward Expo; docs/api/eas-builds.md).
     [EAS_STATUS_QUEUE]: createEasStatusHandler({
       db: database,
       masterKey: config.masterKey,

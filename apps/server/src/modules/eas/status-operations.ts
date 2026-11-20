@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { type Draft, W } from '../../operations/shared.ts';
 
 /**
- * The operations of EAS Build and Submit status (docs/adr/0036-eas-build-submit-status.md, docs/api/eas.md). Reading the stored snapshot needs
+ * The operations of EAS Build and Submit status (docs/adr/0036-eas-build-submit-status.md, docs/api/eas-builds.md). Reading the stored snapshot needs
  * `builds.read`; a manual read from Expo needs `apps.sync`. Neither changes anything at Expo.
  */
 
