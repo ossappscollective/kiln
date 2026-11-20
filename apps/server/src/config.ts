@@ -152,15 +152,15 @@ const schema = z.object({
   MRM_GIT_SIGNING_KEY: blankIsUnset(z.string().trim().optional()),
   MRM_GIT_SIGNING_PROGRAM: blankIsUnset(z.string().trim().optional()),
   MRM_GIT_GNUPGHOME: blankIsUnset(z.string().trim().optional()),
-  // Minutes between scheduled store syncs of every app. 0 (the default) turns scheduled syncs off;
-  // otherwise 5 to 10080 (a week). Scheduled syncs read the stores with the stored credentials,
-  // so they are opt-in. See docs/api/ci.md.
+  // Minutes between scheduled store syncs of every app. 30 by default (a sync only READS the stores, with the stored
+  // credentials, and is what lets the app follow a release in review and raise alerts when its state changes); 0 turns scheduled
+  // syncs off; otherwise 5 to 10080 (a week). See docs/api/ci.md.
   MRM_SYNC_INTERVAL_MINUTES: blankIsUnset(
     z.coerce
       .number()
       .int()
       .refine((v) => v === 0 || (v >= 5 && v <= 10_080), 'must be 0 (off) or from 5 to 10080')
-      .default(0),
+      .default(30),
   ),
   // Minutes between scheduled reads of the customer reviews of every app. 0 (the default) turns them
   // off; otherwise 15 to 10080. Google Play serves only about the last 7 days of reviews, so for
@@ -605,7 +605,7 @@ export type Config = {
   cloneSweepIntervalMinutes: number;
   /** The git program (MRM_GIT_PATH). */
   gitPath: string;
-  /** Minutes between scheduled syncs of every app; 0 is off (MRM_SYNC_INTERVAL_MINUTES). */
+  /** Minutes between scheduled syncs of every app; 30 by default, 0 is off (MRM_SYNC_INTERVAL_MINUTES). */
   syncIntervalMinutes: number;
   /** Minutes between scheduled review reads of every app; 0 is off (MRM_REVIEW_SYNC_INTERVAL_MINUTES). */
   reviewSyncIntervalMinutes: number;

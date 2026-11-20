@@ -604,10 +604,13 @@ There is no cron and no extra process: a small scheduler runs where the job work
 (`MRM_WORKER=inline`, the default) and only **queues jobs**; the worker runs them through the normal
 handlers, so a sync keeps its audit trail and retries.
 
-- **`MRM_SYNC_INTERVAL_MINUTES`** (default `0`, off): queue an `app.sync` job for every app whose
-  last sync attempt, successful or not, is older than this. `0`, or a value from `5` to `10080`
-  (one week); anything else stops the server at start. It is off by default because a sync reads the
-  stores with the stored credentials.
+- **`MRM_SYNC_INTERVAL_MINUTES`** (default `30`): queue an `app.sync` job for every app whose
+  last sync attempt, successful or not, is older than this. `0` turns scheduled syncs off, or a
+  value from `5` to `10080` (one week); anything else stops the server at start. It is on by
+  default because a sync only reads the stores (with the stored credentials) and is what lets the
+  app follow a release in review: a change of state raises the usual events and alerts. Google Play
+  reports no review state, so for Android the alerts are about what Play does report (track,
+  rollout, halted).
 - The scheduler ticks every minute (first tick 10 seconds after start). Each queued job gets a
   **random delay** of up to a tenth of the interval (at most 5 minutes), so a workspace does not
   sync all its apps in the same second. An app with a sync job already waiting or running is

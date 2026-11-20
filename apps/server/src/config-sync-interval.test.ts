@@ -5,11 +5,11 @@ import { loadConfig } from './config.ts';
 
 const key = randomBytes(32).toString('base64');
 
-test('MRM_SYNC_INTERVAL_MINUTES is off by default, blank means off, and the range is checked', () => {
-  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).syncIntervalMinutes, 0);
+test('MRM_SYNC_INTERVAL_MINUTES is 30 by default (blank too), 0 turns it off, and the range is checked', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).syncIntervalMinutes, 30);
   assert.equal(
     loadConfig({ MRM_MASTER_KEY: key, MRM_SYNC_INTERVAL_MINUTES: '' }).syncIntervalMinutes,
-    0,
+    30,
   );
   assert.equal(
     loadConfig({ MRM_MASTER_KEY: key, MRM_SYNC_INTERVAL_MINUTES: '0' }).syncIntervalMinutes,

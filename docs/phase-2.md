@@ -69,7 +69,7 @@ and a release page show the result; none of those screens has been rendered in a
 - [ ] Settle the mapping and policy decisions in [open-decisions.md](open-decisions.md): Apple state
       mappings, non-iOS platforms, a dedicated Play service account, the app name, the audit
       actor for background syncs
-- [x] Scheduled sync (`MRM_SYNC_INTERVAL_MINUTES`, off by default; 5 to 10080): a scheduler in the
+- [x] Scheduled sync (`MRM_SYNC_INTERVAL_MINUTES`, 30 minutes by default, 0 is off; 5 to 10080): a scheduler in the
       job queue enqueues `app.sync` per app whose last attempt is older than the interval, with
       jitter, skipping apps already queued or attempted recently, sharing the sync route's rate
       limiter, with an injected clock in tests ([docs/api/ci.md](api/ci.md#scheduled-sync)). The
