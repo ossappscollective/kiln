@@ -48,6 +48,7 @@
     toggled,
     warningsOf,
   } from '../../lib/pending.ts';
+  import { announcePublished } from '../../lib/app-page.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { EVERYONE, releaseInputsFor } from '../../lib/release-settings.ts';
   import { releaseSettingsStore } from '../../lib/release-settings-store.svelte.ts';
@@ -273,8 +274,13 @@
 
   function closed() {
     seq++;
-    if (changed) onchanged();
+    const published = changed;
     changed = false;
+    if (published) {
+      onchanged();
+      // The app page reads the store again and shows the releases, so the person lands where the result is.
+      if (app) announcePublished(app.id);
+    }
   }
 
   // The plan is made when the dialog opens, and again when the person switches to another platform.

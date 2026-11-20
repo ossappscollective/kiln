@@ -31,9 +31,10 @@
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { dataChips } from '../../lib/app-chips.ts';
   import { canonicalAppHash, canonicalSection, pageTitle, resolveView, showsScope, viewsFor } from '../../lib/app-nav.ts';
-  import { pendingBar } from '../../lib/app-page.ts';
+  import { PUBLISHED_EVENT, pendingBar } from '../../lib/app-page.ts';
   import { lineFor } from '../../lib/pending.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
+  import { canSubmit } from '../../lib/store-submit.ts';
   import { type AppGroup, groupApps, groupOf } from '../../lib/app-groups.ts';
   import { type AppSection, appAddress, resolveScope, visibleSections } from '../../lib/app-scope.ts';
   import { appLabel, describeError, portfolioHref, syncApp, syncSummaryText } from '../../lib/portfolio.ts';
@@ -197,6 +198,18 @@
   async function syncScoped() {
     for (const app of scoped) await sync(app);
   }
+
+  // Something was published from this app's "Review and publish all": read the store again and show the releases (where the new state is).
+  $effect(() => {
+    const onPublished = (event: Event) => {
+      const appId = (event as CustomEvent<{ appId?: string }>).detail?.appId;
+      if (appId === undefined || !scoped.some((m) => m.id === appId)) return;
+      window.location.hash = appAddress(id, 'releases', address.platform);
+      void syncScoped().then(() => pendingStore.refresh(api, workspaceId, scoped.map((m) => m.id), { submit: canSubmit(role) }));
+    };
+    window.addEventListener(PUBLISHED_EVENT, onPublished);
+    return () => window.removeEventListener(PUBLISHED_EVENT, onPublished);
+  });
 </script>
 
 <section aria-busy={loading}>

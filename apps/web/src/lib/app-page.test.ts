@@ -51,3 +51,13 @@ test('the Status dot: a failed sync warns, all synced is fine, otherwise unknown
   assert.equal(statusDot([{ lastSyncedAt: null, lastSyncError: null }]), 'neutral');
   assert.equal(statusDot([]), 'neutral');
 });
+
+test('announcePublished sends one window event with the app id, and is false without a window', async () => {
+  const { announcePublished, PUBLISHED_EVENT } = await import('./app-page.ts');
+  const seen: { type: string; appId?: string }[] = [];
+  const target = new EventTarget();
+  target.addEventListener(PUBLISHED_EVENT, (e) => seen.push({ type: e.type, appId: (e as CustomEvent<{ appId: string }>).detail.appId }));
+  assert.equal(announcePublished('app-1', target), true);
+  assert.deepEqual(seen, [{ type: 'mrm:published', appId: 'app-1' }]);
+  assert.equal(announcePublished('app-1', null), false);
+});

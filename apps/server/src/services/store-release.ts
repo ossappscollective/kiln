@@ -1089,8 +1089,15 @@ async function markReleasedHere(
   track: string,
   codes: readonly string[],
   completed: boolean,
+  at: number,
 ): Promise<void> {
   await clearPushedRelease(sql, app.id, app.platform, track, codes);
+  // The staged release fields (track, version codes, notes, name, share) were used by this release, so they are no longer waiting:
+  // a direct release does not go through a draft push, which is what marks them pushed otherwise.
+  await sql.execute(
+    "UPDATE staged_changes SET pushed_at = ?, pushed_hash = value_hash WHERE app_id = ? AND kind = 'release_field' AND (pushed_hash IS NULL OR pushed_hash <> value_hash)",
+    [at, app.id],
+  );
   const wanted = [...codes].sort().join(',');
   for (const r of await sql.query(
     "SELECT id, details_json FROM app_releases WHERE app_id = ? AND platform = 'android' AND track = ? AND status = 'draft'",
@@ -1138,7 +1145,7 @@ async function succeed(
     s.before.store === 'googleplay' && s.before.release ? s.before.release.versionCodes : [];
   await ctx.db.transaction(async (tx) => {
     if (track && codes.length > 0)
-      await markReleasedHere(tx, s.app, track, codes, s.request.userFraction === 1);
+      await markReleasedHere(tx, s.app, track, codes, s.request.userFraction === 1, at);
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor: input.actor,

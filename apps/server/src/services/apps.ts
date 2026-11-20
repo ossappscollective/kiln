@@ -129,6 +129,12 @@ export type AppRelease = {
   storeUpdatedAt: number | null;
   /** When this server first saw the release in its current state (the store gives no release date on Google Play). */
   statusSince: number | null;
+  /**
+   * Google Play: when this server sent the release to Google (a release started from here, in the last 7 days, for these version
+   * codes in this track). Google Play does not report the review state through its API, so this is all that is known: a release
+   * read as live or rolling out may still be waiting for Google's review. Null for everything else.
+   */
+  sentForReviewAt?: number | null;
   syncedAt: number;
 };
 
@@ -239,7 +245,44 @@ export async function listAppReleases(
        FROM app_releases WHERE app_id = ? AND workspace_id = ? ORDER BY track, version, id`,
     [appId, workspaceId],
   );
-  return rows.map(toRelease);
+  const sent = await releasesSentHere(sql, workspaceId, appId);
+  return rows.map((r) => {
+    const release = toRelease(r);
+    if (release.platform !== 'android' || release.track === null || sent.length === 0) return release;
+    const codes = release.versionCodes ?? [];
+    const at = sent
+      .filter((s) => s.track === release.track && s.codes.some((c) => codes.indexOf(c) >= 0))
+      .reduce<number | null>((latest, s) => (latest === null || s.at > latest ? s.at : latest), null);
+    return at === null ? release : { ...release, sentForReviewAt: at };
+  });
+}
+
+/** How long a release started from here is shown as "sent for review" (Google Play never says when the review ends). */
+export const SENT_FOR_REVIEW_DAYS = 7;
+
+/** The Google Play releases this server started in the last `SENT_FOR_REVIEW_DAYS` days (from the audit log: ids only). */
+async function releasesSentHere(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<{ track: string; codes: string[]; at: number }[]> {
+  const since = Date.now() - SENT_FOR_REVIEW_DAYS * 24 * 60 * 60 * 1000;
+  const rows = await sql.query(
+    `SELECT detail, created_at FROM audit_events
+      WHERE workspace_id = ? AND action = 'store.released' AND target_id = ? AND created_at >= ?`,
+    [workspaceId, appId, since],
+  );
+  const out: { track: string; codes: string[]; at: number }[] = [];
+  for (const row of rows) {
+    try {
+      const d = JSON.parse(String(row.detail ?? '{}')) as { track?: unknown; versionCodes?: unknown };
+      if (typeof d.track !== 'string' || !Array.isArray(d.versionCodes)) continue;
+      out.push({ track: d.track, codes: d.versionCodes.map(String), at: Number(row.created_at) });
+    } catch {
+      // A row that is not JSON is not a release this server recorded.
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------------------------

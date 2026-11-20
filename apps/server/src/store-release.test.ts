@@ -863,6 +863,25 @@ dbTest(
     const audit = (await t.audit('store.released'))[0];
     assert.deepEqual([audit?.detail.direct, audit?.detail.created, audit?.detail.userFraction], [true, true, 0.1]);
     assert.doesNotMatch(JSON.stringify(audit), /Other notes|Geheime/, 'ids and counts only');
+    // The staged release fields were used by this release: nothing of them waits any more.
+    const waiting = await db.query(
+      "SELECT target FROM staged_changes WHERE app_id = ? AND kind = 'release_field' AND (pushed_hash IS NULL OR pushed_hash <> value_hash)",
+      [app],
+    );
+    assert.deepEqual(waiting, [], 'no staged release field is left unpushed');
+    // The release list says this server sent it to Google (Google Play does not report the review).
+    const { listAppReleases } = await import('./services/apps.ts');
+    const row = (version: string, codes: string[]) =>
+      db.execute(
+        `INSERT INTO app_releases (id, app_id, workspace_id, platform, version, track, build, status, raw_state, details_json, store_updated_at, synced_at, status_since)
+         VALUES (?, ?, ?, 'android', ?, 'production', NULL, 'live', 'completed', ?, NULL, 1, 1)`,
+        [`rel-${version}`, app, t.workspaceId, version, JSON.stringify({ versionCodes: codes })],
+      );
+    await row('2.1', ['241']);
+    await row('2.0', ['200']);
+    const list = await listAppReleases(db, t.workspaceId, app);
+    assert.equal(typeof list.find((r) => r.version === '2.1')?.sentForReviewAt, 'number', 'the release sent from here says so');
+    assert.equal(list.find((r) => r.version === '2.0')?.sentForReviewAt, undefined, 'an older release does not');
   },
 );
 

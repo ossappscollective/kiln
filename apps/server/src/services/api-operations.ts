@@ -162,6 +162,12 @@ const releaseSchema = z.object({
   statusSince: timestamp
     .nullable()
     .describe('When this server first saw the release in its current state.'),
+  sentForReviewAt: timestamp
+    .nullable()
+    .optional()
+    .describe(
+      'Google Play: when this server sent the release to Google (in the last 7 days). Google Play does not report the review state through its API, so a release read as live may still be in review.',
+    ),
   syncedAt: timestamp,
 });
 const changeSetSchema = z.object({

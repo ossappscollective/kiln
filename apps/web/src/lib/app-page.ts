@@ -57,3 +57,15 @@ export function openStatusPopover(
   if (target === null) return false;
   return target.dispatchEvent(new Event(OPEN_STATUS_EVENT, { cancelable: true })) === false;
 }
+
+/** The name of the window event sent when something was published from "Review and publish all" and its window was closed. */
+export const PUBLISHED_EVENT = 'mrm:published';
+
+/** Tells the app page that a publish happened: it reads the store again and shows the releases. False when there is no window. */
+export function announcePublished(
+  appId: string,
+  target: Pick<EventTarget, 'dispatchEvent'> | null = typeof window === 'undefined' ? null : window,
+): boolean {
+  if (target === null) return false;
+  return target.dispatchEvent(new CustomEvent(PUBLISHED_EVENT, { detail: { appId } }));
+}

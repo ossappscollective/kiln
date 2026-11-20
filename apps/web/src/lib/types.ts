@@ -448,6 +448,8 @@ export type ReleaseSummary = {
   storeUpdatedAt: number | null;
   /** When the server first saw the release in its current state (Google Play gives no release date). Absent from older servers. */
   statusSince?: number | null;
+  /** Google Play: when this app sent the release to Google (last 7 days). The review state itself is not reported by Google. */
+  sentForReviewAt?: number | null;
   syncedAt: number;
 };
 
