@@ -8,13 +8,15 @@
 -->
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
-  import { dueText, formatTargetDate, planErrorMessage, planPlatformLabel } from '../../lib/release.ts';
+  import { formatTargetDate, planErrorMessage } from '../../lib/release.ts';
+  import { planLine } from '../../lib/release-detail.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { PlanChanges, PlanDetail } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
   import Modal from '../ui/Modal.svelte';
 
   let {
@@ -44,7 +46,6 @@
   let confirmDelete = $state(false);
   let deleteProblem = $state('');
 
-  const due = $derived(plan.targetDate ? dueText(plan.due, plan.released) : null);
   const notes = $derived(notesDraft ?? plan.notes);
   const notesDirty = $derived(notesDraft !== undefined && notesDraft !== plan.notes);
   const readiness = $derived(plan.readiness);
@@ -118,11 +119,10 @@
   <div class="card-header">
     <div>
       <h2 id="{uid}-title">Plan</h2>
-      <p>{planPlatformLabel(plan.platform)}. Our own notes and checks; nothing here is sent to a store.</p>
+      <p data-testid="plan-line">{planLine(plan)}</p>
     </div>
     <div class="row">
       {#if plan.blocked}<Badge tone="bad" icon={toneIcon('bad')}>Blocked</Badge>{/if}
-      {#if due}<Badge tone={due.tone} icon={toneIcon(due.tone)}>{due.text}</Badge>{/if}
       <Badge tone={readiness.ready ? 'ok' : 'warn'} icon={toneIcon(readiness.ready ? 'ok' : 'warn')}>{readiness.ready ? 'Ready by our checks' : 'Not ready'}</Badge>
     </div>
   </div>
@@ -131,11 +131,8 @@
 
   <div class="stack loose">
     <div class="readiness">
-      <p class="line">
-        <strong>{readiness.required.done} of {readiness.required.total}</strong> required checklist {readiness.required.total === 1 ? 'item' : 'items'} done.
-        <strong>{readiness.notes.filled} of {readiness.notes.locales}</strong> {readiness.notes.locales === 1 ? 'locale has' : 'locales have'} release notes.
-      </p>
       {#if readiness.reasons.length > 0}
+        <p class="line"><strong>What still stands in the way</strong></p>
         <ul class="reasons">
           {#each readiness.reasons as reason (reason)}<li>{reason}</li>{/each}
         </ul>
@@ -144,6 +141,9 @@
       {/if}
     </div>
 
+    <Disclosure summary="Details" stateKey="release-plan-details" open={plan.blocked}>
+    <div class="stack loose">
+    <p class="muted line quiet">Our own notes and checks; nothing here is sent to a store.</p>
     <div class="grid">
       <div class="field">
         <label for="{uid}-date">Target date</label>
@@ -179,7 +179,7 @@
           </div>
         </form>
       {:else if plan.blocked}
-        <Alert tone="warn" title="Blocked">{plan.blockedReason}</Alert>
+        <p class="line"><strong>Blocked:</strong> {plan.blockedReason}</p>
         {#if canWrite}
           <div class="row actions">
             <Button disabled={busy} onclick={startBlock}>Change reason</Button>
@@ -211,6 +211,8 @@
         <Button variant="danger" icon="trash" disabled={busy} onclick={() => { deleteProblem = ''; confirmDelete = true; }}>Delete this plan</Button>
       </div>
     {/if}
+    </div>
+    </Disclosure>
   </div>
 </section>
 
@@ -233,6 +235,12 @@
 <style>
   .line {
     margin: 0;
+    font-size: 1rem;
+  }
+
+  .quiet {
+    margin-bottom: var(--space-4);
+    font-size: 0.9375rem;
   }
 
   .readiness {
