@@ -7,6 +7,8 @@ import { migrations } from './migrations.ts';
 export { type Dialect, detectDialect } from './dialect.ts';
 export { type Migration, migrations } from './migrations.ts';
 
+export { mapOrNull, nullableNumber, nullableString, oneOf, oneOfOrNull } from './row.ts';
+
 export type Param = string | number | null;
 export type Row = Record<string, unknown>;
 

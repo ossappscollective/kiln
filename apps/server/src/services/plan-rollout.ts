@@ -1,29 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import {
-  type ActorType,
-  APPLE_PHASED_SCHEDULE,
-  checkRolloutAction,
-  compareRollout,
-  isApplePlatform,
-  type Platform,
-  type ReleaseState,
-  type RolloutAction,
-  type RolloutComparison,
-  type RolloutDoneSource,
-  type RolloutIssue,
-  type RolloutKind,
-  type RolloutStepInput,
-  type RolloutStepState,
-  type RolloutStepStatus,
-  type RolloutSummary,
-  rolloutTemplate,
-  type StoreRollout,
-  storeFamilyOf,
-  storeRollout,
-  summarizeRollout,
-  validateRolloutSteps,
-} from '@mrm/core';
-import type { Sql } from '@mrm/db';
+import { type ActorType, APPLE_PHASED_SCHEDULE, checkRolloutAction, compareRollout, isApplePlatform, type Platform, PLATFORMS, type ReleaseState, type RolloutAction, type RolloutComparison, type RolloutDoneSource, type RolloutIssue, type RolloutKind, type RolloutStepInput, type RolloutStepState, type RolloutStepStatus, type RolloutSummary, rolloutTemplate, storeFamilyOf, type StoreRollout, storeRollout, summarizeRollout, validateRolloutSteps } from '@mrm/core';
+import { mapOrNull, oneOf, type Row, type Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import type { EventType } from './event-types.ts';
 import { emitEvent } from './events.ts';
@@ -38,10 +15,7 @@ import { type Failure, failure, type Outcome } from './repositories.ts';
  */
 
 type Actor = { type: ActorType; id: string };
-type Row = Record<string, unknown>;
 
-const orNull = <T>(v: unknown, f: (x: unknown) => T): T | null =>
-  v === null || v === undefined ? null : f(v);
 const DAY = 24 * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------------------------
@@ -86,18 +60,18 @@ const APPLE_NOTE =
 // Reading
 
 const toStep = (r: Row, now: number): RolloutStepView => {
-  const plannedAt = orNull(r.planned_at, Number);
+  const plannedAt = mapOrNull(r.planned_at, Number);
   const status = String(r.status) as RolloutStepStatus;
   return {
     id: String(r.id),
     position: Number(r.position) + 1,
     percent: Number(r.percent),
     plannedAt,
-    note: orNull(r.note, String),
+    note: mapOrNull(r.note, String),
     status,
-    doneAt: orNull(r.done_at, Number),
-    doneBy: r.done_by ? { id: String(r.done_by), name: orNull(r.done_by_name, String) } : null,
-    doneSource: orNull(r.done_source, String) as RolloutDoneSource | null,
+    doneAt: mapOrNull(r.done_at, Number),
+    doneBy: r.done_by ? { id: String(r.done_by), name: mapOrNull(r.done_by_name, String) } : null,
+    doneSource: mapOrNull(r.done_source, String) as RolloutDoneSource | null,
     due: status === 'planned' && plannedAt !== null && plannedAt <= now,
   };
 };
@@ -184,11 +158,11 @@ export async function observeStore(
     (r.status === 'rolling_out' || r.status === 'live' || r.status === 'halted' ? 0 : 5);
   const best = [...rows].sort((a, b) => rank(a) - rank(b))[0] as Row;
   return storeRollout({
-    platform: String(best.platform) as Platform,
-    status: orNull(best.status, String) as ReleaseState | null,
-    rawState: orNull(best.raw_state, String),
+    platform: oneOf(best.platform, PLATFORMS, 'platform'),
+    status: mapOrNull(best.status, String) as ReleaseState | null,
+    rawState: mapOrNull(best.raw_state, String),
     fraction: parseFraction(best.details_json),
-    syncedAt: orNull(best.synced_at, Number),
+    syncedAt: mapOrNull(best.synced_at, Number),
   });
 }
 
@@ -212,16 +186,16 @@ async function planFacts(sql: Sql, ref: RolloutRef): Promise<PlanFacts | undefin
     [ref.planId, ref.workspaceId, ref.appId],
   );
   if (!r) return undefined;
-  const kind = orNull(r.rollout_kind, String);
+  const kind = mapOrNull(r.rollout_kind, String);
   return {
     id: String(r.id),
     version: String(r.version),
     appId: String(r.app_id),
-    appPlatform: String(r.app_platform) as Platform,
+    appPlatform: oneOf(r.app_platform, PLATFORMS, 'platform'),
     createdAt: Number(r.created_at),
     kind: kind === 'steps' || kind === 'apple_phased' ? kind : null,
-    template: orNull(r.rollout_template, String),
-    startAt: orNull(r.rollout_start_at, Number),
+    template: mapOrNull(r.rollout_template, String),
+    startAt: mapOrNull(r.rollout_start_at, Number),
   };
 }
 

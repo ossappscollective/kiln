@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { isGooglePlatform, type Platform, RELEASE_STATES, type ReleaseState } from '@mrm/core';
-import type { Sql } from '@mrm/db';
+import { isGooglePlatform, type Platform, PLATFORMS, RELEASE_STATES, type ReleaseState } from '@mrm/core';
+import { oneOf, type Row, type Sql } from '@mrm/db';
 import { type AppRelease, listAppReleases, type ManagedApp } from './apps.ts';
 import type { Confidence, LinkEvidence } from './build-tags.ts';
 import { RUN_COLUMNS, runCountsForApp, runViews, type WorkflowRunView } from './ci-runs.ts';
@@ -331,8 +331,6 @@ export type StoredLink = {
   evidence: LinkEvidence | null;
 };
 
-type Row = Record<string, unknown>;
-
 function parseEvidence(raw: unknown): LinkEvidence | null {
   if (typeof raw !== 'string') return null;
   try {
@@ -351,7 +349,7 @@ function parseEvidence(raw: unknown): LinkEvidence | null {
 const toLink = (r: Row): StoredLink => ({
   id: String(r.id),
   appId: String(r.app_id),
-  platform: String(r.platform) as Platform,
+  platform: oneOf(r.platform, PLATFORMS, 'platform'),
   buildNumber: String(r.build_number),
   repositoryId: String(r.repository_id),
   runId: String(r.run_id),

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { CiRun } from '@mrm/connectors';
-import type { Sql } from '@mrm/db';
+import { mapOrNull, type Row, type Sql } from '@mrm/db';
 import { purgeConventionOrphans } from './build-conventions.ts';
 import { emitEvent } from './events.ts';
 
@@ -13,8 +13,6 @@ import { emitEvent } from './events.ts';
  * repository must stay possible. Rows of a disconnected repository are never read (every read
  * starts from the repository) and `purgeOrphans` deletes them.
  */
-
-type Row = Record<string, unknown>;
 
 /** GitHub's own run statuses that mean the run is not finished. Anything else is not polled. */
 export const ACTIVE_STATUSES = [
@@ -76,9 +74,6 @@ export const RUN_COLUMNS = `id, repository_id, app_id, run_id, workflow, workflo
   conclusion, head_sha, commit_message, branch, event, run_number, url, inputs_json, dispatched_by,
   started_at, run_updated_at, synced_at`;
 
-const orNull = <T>(v: unknown, f: (x: unknown) => T): T | null =>
-  v === null || v === undefined ? null : f(v);
-
 function parseInputs(raw: unknown): Record<string, string> | null {
   if (typeof raw !== 'string') return null;
   try {
@@ -109,19 +104,19 @@ export const toRunView = (r: Row, linked?: readonly string[]): WorkflowRunView =
     appId: appIds[0] ?? null,
     appIds,
     workflow: String(r.workflow),
-    workflowPath: orNull(r.workflow_path, String),
-    title: orNull(r.title, String),
+    workflowPath: mapOrNull(r.workflow_path, String),
+    title: mapOrNull(r.title, String),
     status: String(r.status),
-    conclusion: orNull(r.conclusion, String),
+    conclusion: mapOrNull(r.conclusion, String),
     active: isActiveStatus(String(r.status)),
-    headSha: orNull(r.head_sha, String),
-    commitMessage: orNull(r.commit_message, String),
-    branch: orNull(r.branch, String),
-    event: orNull(r.event, String),
-    runNumber: orNull(r.run_number, Number),
-    url: orNull(r.url, String),
+    headSha: mapOrNull(r.head_sha, String),
+    commitMessage: mapOrNull(r.commit_message, String),
+    branch: mapOrNull(r.branch, String),
+    event: mapOrNull(r.event, String),
+    runNumber: mapOrNull(r.run_number, Number),
+    url: mapOrNull(r.url, String),
     inputs: parseInputs(r.inputs_json),
-    dispatchedBy: orNull(r.dispatched_by, String),
+    dispatchedBy: mapOrNull(r.dispatched_by, String),
     startedAt: Number(r.started_at),
     updatedAt: Number(r.run_updated_at),
     syncedAt: Number(r.synced_at),
@@ -470,7 +465,7 @@ export async function storeRuns(
     id: String(p.id),
     appIds: appIdsOf(p, pendingApps.get(String(p.id))),
     workflow: String(p.workflow),
-    branch: orNull(p.branch, String),
+    branch: mapOrNull(p.branch, String),
     startedAt: Number(p.started_at),
   }));
 

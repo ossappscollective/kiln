@@ -23,7 +23,7 @@ import {
   searchTermLimits,
   summariseSearchTerms,
 } from '@mrm/core';
-import type { Database, Param, Sql } from '@mrm/db';
+import { type Database, nullableNumber, type Param, type Sql } from '@mrm/db';
 import type { ManagedApp } from './apps.ts';
 import { getApp } from './apps.ts';
 import { listKeywords } from './aso.ts';
@@ -387,8 +387,6 @@ export type SearchTermsView = {
   notes: { code: SearchTermNoteCode; message: string }[];
 };
 
-const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
-
 export function checkSearchTermsQuery(query: SearchTermsQuery):
   | {
       ok: true;
@@ -525,8 +523,8 @@ export async function searchTermsFor(
     to: String(r.period_to),
     key: String(r.term_key),
     term: String(r.term),
-    visitors: num(r.visitors),
-    installs: num(r.installs),
+    visitors: nullableNumber(r.visitors),
+    installs: nullableNumber(r.installs),
     conversion: r.conversion_micro === null ? null : Number(r.conversion_micro) / 1_000_000,
   }));
   const summary = summariseSearchTerms(points, {

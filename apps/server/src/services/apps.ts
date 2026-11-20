@@ -11,15 +11,8 @@ import {
   type StoreVersion,
   secretStrings,
 } from '@mrm/connectors';
-import {
-  type ActorType,
-  isApplePlatform,
-  isGooglePlatform,
-  type Platform,
-  platformLabel,
-  type ReleaseState,
-} from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+import { type ActorType, isApplePlatform, isGooglePlatform, type Platform, platformLabel, PLATFORMS, type ReleaseState } from '@mrm/core';
+import { type Database, mapOrNull, oneOf, type Row, type Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
 import { deleteAiData } from './ai-suggestions.ts';
 import { deleteAnalyticsData } from './analytics-store.ts';
@@ -35,7 +28,6 @@ import { type Failure, failure, type Outcome } from './repositories.ts';
 import { deleteReviewData } from './reviews.ts';
 
 type Actor = { type: ActorType; id: string };
-type Row = Record<string, unknown>;
 
 export const APP_SYNC_QUEUE = 'app.sync';
 export const DEFAULT_SYNC_TIMEOUT_MS = 60_000;
@@ -138,21 +130,18 @@ export type AppRelease = {
   syncedAt: number;
 };
 
-const orNull = <T>(v: unknown, f: (x: unknown) => T): T | null =>
-  v === null || v === undefined ? null : f(v);
-
 const toApp = (r: Row): ManagedApp => ({
   id: String(r.id),
   name: String(r.name),
-  platform: String(r.platform) as Platform,
+  platform: oneOf(r.platform, PLATFORMS, 'platform'),
   identifier: String(r.identifier),
-  storeAppId: orNull(r.store_app_id, String),
+  storeAppId: mapOrNull(r.store_app_id, String),
   credentialId: String(r.credential_id),
-  repositoryId: orNull(r.repository_id, String),
+  repositoryId: mapOrNull(r.repository_id, String),
   createdAt: Number(r.created_at),
-  lastSyncedAt: orNull(r.last_synced_at, Number),
-  lastSyncAttemptAt: orNull(r.last_sync_attempt_at, Number),
-  lastSyncError: orNull(r.last_sync_error, String),
+  lastSyncedAt: mapOrNull(r.last_synced_at, Number),
+  lastSyncAttemptAt: mapOrNull(r.last_sync_attempt_at, Number),
+  lastSyncError: mapOrNull(r.last_sync_error, String),
   ...iconHint(r),
 });
 
@@ -191,16 +180,16 @@ const toRelease = (r: Row): AppRelease => {
   return {
     id: String(r.id),
     appId: String(r.app_id),
-    platform: String(r.platform) as Platform,
+    platform: oneOf(r.platform, PLATFORMS, 'platform'),
     version: String(r.version),
     track: String(r.track ?? '') === '' ? null : String(r.track),
-    build: orNull(r.build, String),
-    status: orNull(r.status, String) as ReleaseState | null,
+    build: mapOrNull(r.build, String),
+    status: mapOrNull(r.status, String) as ReleaseState | null,
     rawState: String(r.raw_state),
     rolloutFraction: typeof details.rolloutFraction === 'number' ? details.rolloutFraction : null,
     versionCodes: Array.isArray(details.versionCodes) ? details.versionCodes.map(String) : null,
-    storeUpdatedAt: orNull(r.store_updated_at, Number),
-    statusSince: orNull(r.status_since, Number),
+    storeUpdatedAt: mapOrNull(r.store_updated_at, Number),
+    statusSince: mapOrNull(r.status_since, Number),
     syncedAt: Number(r.synced_at),
   };
 };

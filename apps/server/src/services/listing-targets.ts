@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { checkListingRoot, normalizeRoot } from '@mrm/connectors';
 import type { ActorType } from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+import type { Database, Row, Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 
 /**
@@ -33,7 +33,6 @@ export type ListingTarget = {
   updatedAt: number;
 };
 
-type Row = Record<string, unknown>;
 const text = (v: unknown) => (v === null || v === undefined ? null : String(v));
 
 const toTarget = (r: Row): ListingTarget => ({

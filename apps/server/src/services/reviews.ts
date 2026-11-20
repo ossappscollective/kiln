@@ -1,5 +1,5 @@
-import type { Platform } from '@mrm/core';
-import type { Param, Row, Sql } from '@mrm/db';
+import { type Platform, PLATFORMS } from '@mrm/core';
+import { nullableNumber, nullableString, oneOf, type Param, type Row, type Sql } from '@mrm/db';
 
 /**
  * The review inbox as data: rows of `app_reviews`, listing with filters, sorting and a cursor,
@@ -48,9 +48,6 @@ export type Review = {
   statusChangedBy: string | null;
 };
 
-const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
-const numOrNull = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
-
 export function parseResponse(raw: unknown): ReviewResponse | null {
   if (typeof raw !== 'string' || raw === '') return null;
   try {
@@ -75,24 +72,24 @@ export const toReview = (r: Row): Review => ({
   platform: String(r.store) === 'googleplay' ? 'android' : 'ios',
   storeReviewId: String(r.store_review_id),
   rating: Number(r.rating),
-  title: str(r.title),
+  title: nullableString(r.title),
   body: String(r.body),
-  authorName: str(r.author_name),
-  territory: str(r.territory),
-  language: str(r.language),
-  appVersion: str(r.app_version),
-  buildNumber: str(r.build_number),
-  device: str(r.device),
+  authorName: nullableString(r.author_name),
+  territory: nullableString(r.territory),
+  language: nullableString(r.language),
+  appVersion: nullableString(r.app_version),
+  buildNumber: nullableString(r.build_number),
+  device: nullableString(r.device),
   createdAt: Number(r.created_at),
   updatedAt: Number(r.updated_at),
   firstSeenAt: Number(r.first_seen_at),
   fetchedAt: Number(r.fetched_at),
   developerResponse: parseResponse(r.developer_response),
   status: (isReviewStatus(r.status) ? r.status : 'new') as ReviewStatus,
-  assigneeUserId: str(r.assignee_user_id),
-  internalNote: str(r.internal_note),
-  statusChangedAt: numOrNull(r.status_changed_at),
-  statusChangedBy: str(r.status_changed_by),
+  assigneeUserId: nullableString(r.assignee_user_id),
+  internalNote: nullableString(r.internal_note),
+  statusChangedAt: nullableNumber(r.status_changed_at),
+  statusChangedBy: nullableString(r.status_changed_by),
 });
 
 export const REVIEW_COLUMNS = `id, app_id, store, store_review_id, rating, title, body, author_name,
@@ -365,7 +362,7 @@ export async function listWorkspaceReviews(
       apps.set(String(a.id), {
         id: String(a.id),
         name: String(a.name),
-        platform: String(a.platform) as Platform,
+        platform: oneOf(a.platform, PLATFORMS, 'platform'),
       });
   }
   const page = reviews.map((r) => ({

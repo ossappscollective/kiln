@@ -1,5 +1,5 @@
-import { isGooglePlatform, type Platform, parsePlatform } from '@mrm/core';
-import type { Sql } from '@mrm/db';
+import { isGooglePlatform, type Platform, PLATFORMS } from '@mrm/core';
+import { oneOf, type Sql } from '@mrm/db';
 import { type ReviewStatus, reviewStatuses } from './reviews.ts';
 
 /**
@@ -380,7 +380,7 @@ export async function workspaceReviewsSummary(
   for (const a of apps) {
     const r = byApp.get(String(a.id));
     const total = n(r?.total);
-    const platform = (parsePlatform(String(a.platform)) ?? 'ios') as Platform;
+    const platform = oneOf(a.platform, PLATFORMS, 'platform');
     out.push({
       app: {
         id: String(a.id),

@@ -15,7 +15,14 @@ import {
   secretStrings,
 } from '@mrm/connectors';
 import { type ActorType, isApplePlatform } from '@mrm/core';
-import type { Database, Param, Row, Sql } from '@mrm/db';
+import {
+  type Database,
+  nullableNumber,
+  nullableString,
+  type Param,
+  type Row,
+  type Sql,
+} from '@mrm/db';
 import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
@@ -149,9 +156,6 @@ export type ReplyState = { status: 'none' | ReplyStatus; sentAt: number | null }
 
 export type ReviewView = Review & { replyDraft: ReplyDraft | null; reply: ReplyState };
 
-const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
-const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
-
 function parseEvidence(raw: unknown): Record<string, unknown> | null {
   if (typeof raw !== 'string' || raw === '') return null;
   try {
@@ -177,15 +181,15 @@ export function toDraft(r: Row): ReplyDraft {
     length: text.length,
     limit: replyLimitFor(store),
     status: isReplyStatus(r.status) ? r.status : 'draft',
-    errorCode: str(r.error_code),
+    errorCode: nullableString(r.error_code),
     evidence: parseEvidence(r.evidence),
     createdBy: String(r.created_by),
     updatedBy: String(r.updated_by),
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
-    sentAt: num(r.sent_at),
-    sentBy: str(r.sent_by),
-    storeResponseId: str(r.store_response_id),
+    sentAt: nullableNumber(r.sent_at),
+    sentBy: nullableString(r.sent_by),
+    storeResponseId: nullableString(r.store_response_id),
   };
 }
 
@@ -201,7 +205,7 @@ async function loadDraft(
     `SELECT ${DRAFT_COLUMNS} FROM review_reply_drafts WHERE review_id = ? AND workspace_id = ?`,
     [reviewId, workspaceId],
   );
-  return row ? { ...toDraft(row), claimAt: num(row.claim_at) } : undefined;
+  return row ? { ...toDraft(row), claimAt: nullableNumber(row.claim_at) } : undefined;
 }
 
 export const replyStateOf = (draft: ReplyDraft | null): ReplyState =>

@@ -9,7 +9,7 @@ import {
   patternListProblems,
   prefixProblem,
 } from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+import type { Database, Row, Sql } from '@mrm/db';
 import { z } from 'zod';
 import { recordAudit } from './audit.ts';
 
@@ -93,8 +93,6 @@ export const conventionsBody = z
   });
 
 export type ConventionsBody = z.infer<typeof conventionsBody>;
-
-type Row = Record<string, unknown>;
 
 function parseList(raw: unknown): string[] {
   if (typeof raw !== 'string') return [];

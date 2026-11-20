@@ -1,18 +1,5 @@
-import {
-  evaluatePipeline,
-  isGooglePlatform,
-  type Pipeline,
-  type PipelineBuildFact,
-  type PipelineFacts,
-  type PipelineRunFact,
-  type PipelineState,
-  type PipelineVersionFact,
-  type Platform,
-  parsePlatform,
-  RELEASE_STATES,
-  type ReleaseState,
-} from '@mrm/core';
-import type { Sql } from '@mrm/db';
+import { evaluatePipeline, isGooglePlatform, type Pipeline, type PipelineBuildFact, type PipelineFacts, type PipelineRunFact, type PipelineState, type PipelineVersionFact, type Platform, PLATFORMS, RELEASE_STATES, type ReleaseState } from '@mrm/core';
+import { nullableNumber, nullableString, oneOf, type Sql } from '@mrm/db';
 import { releasesSentHere, sentAtOf } from './apps.ts';
 import { effectiveConventions, listConventions } from './build-conventions.ts';
 import { RELEASE_WORKFLOW } from './build-tags.ts';
@@ -45,9 +32,6 @@ export type PipelineApp = {
   platform: Platform;
   store: 'appstoreconnect' | 'googleplay';
 };
-
-const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
-const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
 
 /** A run counts as a release run for an app when it was started for it, or its workflow looks like one that ships builds. */
 function releaseLike(run: WorkflowRunView, appId: string, preferred: string | null): boolean {
@@ -111,9 +95,9 @@ export async function loadPipelineFacts(
       (r): AppRow => ({
         id: String(r.id),
         name: String(r.name),
-        platform: (parsePlatform(String(r.platform)) ?? 'ios') as Platform,
-        repositoryId: str(r.repository_id),
-        lastSyncedAt: num(r.last_synced_at),
+        platform: oneOf(r.platform, PLATFORMS, 'platform'),
+        repositoryId: nullableString(r.repository_id),
+        lastSyncedAt: nullableNumber(r.last_synced_at),
       }),
     );
   const apps = new Map<string, PipelineApp>(
@@ -195,14 +179,14 @@ export async function loadPipelineFacts(
         const state = String(b.processing_state);
         return {
           buildNumber: String(b.build_number),
-          version: str(b.version),
+          version: nullableString(b.version),
           state:
             state === 'processing' || state === 'processed' || state === 'invalid'
               ? state
               : 'unknown',
-          rawState: str(b.raw_state),
+          rawState: nullableString(b.raw_state),
           expired: b.expired === null || b.expired === undefined ? null : Number(b.expired) === 1,
-          uploadedAt: num(b.uploaded_at),
+          uploadedAt: nullableNumber(b.uploaded_at),
           firstSeenAt: Number(b.first_seen_at),
           runId: linkOf.get(String(b.build_number)) ?? null,
         };
@@ -215,9 +199,9 @@ export async function loadPipelineFacts(
     const versionFacts: PipelineVersionFact[] = releases
       .filter((r) => String(r.app_id) === app.id && String(r.platform) === app.platform)
       .map((r) => {
-        const status = str(r.status);
+        const status = nullableString(r.status);
         const details = parseDetails(r.details_json);
-        const track = str(r.track);
+        const track = nullableString(r.track);
         const known = status !== null && STATES.has(status) ? (status as ReleaseState) : null;
         const inReview =
           sent.length > 0 &&
@@ -228,7 +212,7 @@ export async function loadPipelineFacts(
           track: track === null || track === '' ? null : track,
           status: inReview ? ('in_review' as ReleaseState) : known,
           rawState: String(r.raw_state),
-          build: str(r.build),
+          build: nullableString(r.build),
           versionCodes: details.versionCodes,
           rolloutFraction: details.rolloutFraction,
           // A row written before the sync recorded the time of the move: its last sync is the best lower bound.

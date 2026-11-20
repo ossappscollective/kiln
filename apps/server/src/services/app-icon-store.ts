@@ -1,4 +1,4 @@
-import type { Sql } from '@mrm/db';
+import { mapOrNull, type Row, type Sql } from '@mrm/db';
 
 /**
  * The app_icons table (migration 18): at most one row per app, holding the resolved icon as base64
@@ -30,26 +30,22 @@ export type IconRow = {
   lastError: string | null;
 };
 
-type Row = Record<string, unknown>;
-const orNull = <T>(v: unknown, f: (x: unknown) => T): T | null =>
-  v === null || v === undefined ? null : f(v);
-
 const toRow = (r: Row): IconRow => ({
   appId: String(r.app_id),
   workspaceId: String(r.workspace_id),
-  source: orNull(r.source, String) as IconSource | null,
-  sourceId: orNull(r.source_id, String),
-  mediaType: orNull(r.media_type, String) as IconMediaType | null,
+  source: mapOrNull(r.source, String) as IconSource | null,
+  sourceId: mapOrNull(r.source_id, String),
+  mediaType: mapOrNull(r.media_type, String) as IconMediaType | null,
   data: typeof r.data === 'string' ? new Uint8Array(Buffer.from(r.data, 'base64')) : null,
-  size: orNull(r.size, Number),
-  width: orNull(r.width, Number),
-  height: orNull(r.height, Number),
-  etag: orNull(r.etag, String),
-  fetchedAt: orNull(r.fetched_at, Number),
+  size: mapOrNull(r.size, Number),
+  width: mapOrNull(r.width, Number),
+  height: mapOrNull(r.height, Number),
+  etag: mapOrNull(r.etag, String),
+  fetchedAt: mapOrNull(r.fetched_at, Number),
   checkedAt: Number(r.checked_at),
   failures: Number(r.failures ?? 0),
-  backoffUntil: orNull(r.backoff_until, Number),
-  lastError: orNull(r.last_error, String),
+  backoffUntil: mapOrNull(r.backoff_until, Number),
+  lastError: mapOrNull(r.last_error, String),
 });
 
 const COLUMNS =

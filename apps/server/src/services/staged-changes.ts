@@ -1,43 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import {
-  ASSET_KIND_LABELS,
-  ASSET_KINDS,
-  type AssetFacts,
-  type AssetKind,
-  type AssetProblem,
-  type AssetSlot,
-  appleDisplayType,
-  assetSlotSupport,
-  assetStoreOf,
-  checkReleaseField,
-  checkReleaseSet,
-  deviceLabel,
-  isApplePlatform,
-  isReleaseFieldId,
-  isStageableTextField,
-  type Platform,
-  PUSHABLE_IMAGE_FORMATS,
-  parseSlotKey,
-  playImageType,
-  RELEASE_FIELD_SPECS,
-  type ReleaseFieldId,
-  type ReleaseFieldItem,
-  releaseItemKey,
-  STAGEABLE_RELEASE_FIELDS,
-  STAGEABLE_TEXT_FIELDS,
-  STAGED_LIMITS,
-  type StagedAssetFileView,
-  type StagedAssetView,
-  type StagedChangesView,
-  type StagedProblem,
-  type StagedReleaseFieldView,
-  type StagedSource,
-  type StagedTextView,
-  slotKey,
-  slotMaxFiles,
-  validateAssets,
-} from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+import { appleDisplayType, ASSET_KIND_LABELS, ASSET_KINDS, type AssetFacts, type AssetKind, type AssetProblem, type AssetSlot, assetSlotSupport, assetStoreOf, checkReleaseField, checkReleaseSet, deviceLabel, isApplePlatform, isReleaseFieldId, isStageableTextField, parseSlotKey, type Platform, PLATFORMS, playImageType, PUSHABLE_IMAGE_FORMATS, RELEASE_FIELD_SPECS, type ReleaseFieldId, type ReleaseFieldItem, releaseItemKey, slotKey, slotMaxFiles, STAGEABLE_RELEASE_FIELDS, STAGEABLE_TEXT_FIELDS, STAGED_LIMITS, type StagedAssetFileView, type StagedAssetView, type StagedChangesView, type StagedProblem, type StagedReleaseFieldView, type StagedSource, type StagedTextView, validateAssets } from '@mrm/core';
+import { type Database, nullableNumber, nullableString, oneOf, type Row, type Sql } from '@mrm/db';
 import { getApp, type ManagedApp } from './apps.ts';
 import { type AssetsContext, isCommitSha, openAssets } from './asset-repo.ts';
 import { recordAudit } from './audit.ts';
@@ -76,7 +39,6 @@ import { deleteUnreferencedBlobs } from './staged-asset-blobs.ts';
  */
 
 type Actor = { type: 'user' | 'token' | 'system'; id: string };
-type Row = Record<string, unknown>;
 
 export type StagedContext = {
   db: Database;
@@ -115,36 +77,33 @@ export type StagedRow = {
   pushedHash: string | null;
 };
 
-const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
-const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
-
 function toRow(r: Row): StagedRow {
   const alpha = r.asset_alpha;
   return {
     id: String(r.id),
     workspaceId: String(r.workspace_id),
     appId: String(r.app_id),
-    platform: String(r.platform) as Platform,
+    platform: oneOf(r.platform, PLATFORMS, 'platform'),
     kind: String(r.kind) as StagedRow['kind'],
     locale: String(r.locale),
     target: String(r.target),
     ordinal: Number(r.ordinal),
     source: String(r.source) as StagedSource,
-    valueText: str(r.value_text),
+    valueText: nullableString(r.value_text),
     valueHash: String(r.value_hash),
-    assetPath: str(r.asset_path),
-    assetCommit: str(r.asset_commit),
-    assetBytes: num(r.asset_bytes),
-    assetWidth: num(r.asset_width),
-    assetHeight: num(r.asset_height),
-    assetFormat: str(r.asset_format),
+    assetPath: nullableString(r.asset_path),
+    assetCommit: nullableString(r.asset_commit),
+    assetBytes: nullableNumber(r.asset_bytes),
+    assetWidth: nullableNumber(r.asset_width),
+    assetHeight: nullableNumber(r.asset_height),
+    assetFormat: nullableString(r.asset_format),
     assetAlpha:
       alpha === null || alpha === undefined ? null : Number(alpha) === 1 || alpha === true,
     createdBy: String(r.created_by),
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
-    pushedAt: num(r.pushed_at),
-    pushedHash: str(r.pushed_hash),
+    pushedAt: nullableNumber(r.pushed_at),
+    pushedHash: nullableString(r.pushed_hash),
   };
 }
 

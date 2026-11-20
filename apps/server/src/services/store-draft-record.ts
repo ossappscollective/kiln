@@ -4,8 +4,8 @@ import {
   type DraftState,
   setMatches,
 } from '@mrm/connectors';
-import type { AssetKind, Platform } from '@mrm/core';
-import type { Sql } from '@mrm/db';
+import { type AssetKind, type Platform, PLATFORMS } from '@mrm/core';
+import { oneOf, type Sql } from '@mrm/db';
 import { hashListingValue } from './listing-drift.ts';
 
 /**
@@ -110,7 +110,7 @@ export async function loadPush(
   if (!row) return undefined;
   return {
     appId: String(row.app_id),
-    platform: String(row.platform) as Platform,
+    platform: oneOf(row.platform, PLATFORMS, 'platform'),
     versionId:
       row.version_id === null || row.version_id === undefined ? null : String(row.version_id),
     versionString:

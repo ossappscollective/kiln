@@ -1,5 +1,5 @@
 import { evaluatePipeline, HOUR_MS, MAX_STALLED_AFTER_HOURS } from '@mrm/core';
-import type { Database } from '@mrm/db';
+import type { Database, Row } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import { emitEvent } from './events.ts';
 import { loadPipelineFacts } from './release-pipeline.ts';
@@ -45,8 +45,6 @@ export type ReleaseWatchSummary = {
   failed: number;
   capped: boolean;
 };
-
-type Row = Record<string, unknown>;
 
 /** Everything a `release.stalled` event says; ids, versions and times only. */
 type StallReminder = {

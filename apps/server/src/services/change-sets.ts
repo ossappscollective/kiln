@@ -9,7 +9,7 @@ import {
   type ListingProblem,
   validateListing,
 } from '@mrm/core';
-import type { Sql } from '@mrm/db';
+import { mapOrNull, type Row, type Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import { listingChanges, type RepositoryListings } from './listing-sources.ts';
 import type { ListingSelection, ListingTarget } from './listing-targets.ts';
@@ -132,10 +132,6 @@ export type ChangeSetView = {
   files: ChangeSetFile[];
 };
 
-type Row = Record<string, unknown>;
-const orNull = <T>(v: unknown, f: (x: unknown) => T): T | null =>
-  v === null || v === undefined ? null : f(v);
-
 export const changeOf = (f: FileChange): ChangeSetFile['change'] =>
   f.before === undefined ? 'added' : f.after === undefined ? 'deleted' : 'modified';
 
@@ -205,16 +201,16 @@ export function toView(row: Row, withContent: boolean): ChangeSetView {
     summary: String(row.summary),
     status: String(row.status) as ChangeSetStatus,
     createdBy: { type: String(row.created_by_type) as ActorType, id: String(row.created_by_id) },
-    branch: orNull(row.branch, String),
-    prUrl: orNull(row.pr_url, String),
-    prNumber: orNull(row.pr_number, Number),
-    commitSha: orNull(row.commit_sha, String),
-    error: orNull(row.error, String),
+    branch: mapOrNull(row.branch, String),
+    prUrl: mapOrNull(row.pr_url, String),
+    prNumber: mapOrNull(row.pr_number, Number),
+    commitSha: mapOrNull(row.commit_sha, String),
+    error: mapOrNull(row.error, String),
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
-    approvedBy: orNull(row.approved_by, String),
-    approvedAt: orNull(row.approved_at, Number),
-    appliedAt: orNull(row.applied_at, Number),
+    approvedBy: mapOrNull(row.approved_by, String),
+    approvedAt: mapOrNull(row.approved_at, Number),
+    appliedAt: mapOrNull(row.applied_at, Number),
     outcome: parseOutcome(row),
     fixups: parseFixups(row),
     origin: summariseOrigin(parseOrigin(row)),

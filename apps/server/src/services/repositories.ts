@@ -16,7 +16,7 @@ import {
 } from '@mrm/connectors';
 import type { ActorType, Listing, ListingProblem } from '@mrm/core';
 import { validateListing } from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+import { type Database, mapOrNull, type Row, type Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import {
   type CloneReads,
@@ -250,10 +250,6 @@ export type Repository = {
   local: LocalCheckout | null;
 };
 
-type Row = Record<string, unknown>;
-const orNull = <T>(v: unknown, f: (x: unknown) => T): T | null =>
-  v === null || v === undefined ? null : f(v);
-
 const toRepository = (r: Row): Repository => {
   const localOnly = r.credential_id === null || r.credential_id === undefined;
   const local: LocalCheckout | null =
@@ -263,11 +259,11 @@ const toRepository = (r: Row): Repository => {
           path: String(r.local_path),
           branch: String(r.local_branch),
           name: String(r.local_name),
-          headSha: orNull(r.local_last_commit, String),
-          lastReadAt: orNull(r.local_last_read_at, Number),
+          headSha: mapOrNull(r.local_last_commit, String),
+          lastReadAt: mapOrNull(r.local_last_read_at, Number),
         };
-  const owner = orNull(r.owner, String) ?? '';
-  const repo = orNull(r.repo, String) ?? '';
+  const owner = mapOrNull(r.owner, String) ?? '';
+  const repo = mapOrNull(r.repo, String) ?? '';
   return {
     id: String(r.id),
     credentialId: localOnly ? '' : String(r.credential_id),
@@ -275,8 +271,8 @@ const toRepository = (r: Row): Repository => {
     repo,
     name: localOnly ? (local?.name ?? 'Local repository') : `${owner}/${repo}`,
     defaultBranch: String(r.default_branch),
-    projectKind: orNull(r.project_kind, String),
-    detectedAt: orNull(r.detected_at, Number),
+    projectKind: mapOrNull(r.project_kind, String),
+    detectedAt: mapOrNull(r.detected_at, Number),
     createdAt: Number(r.created_at),
     localOnly,
     local,

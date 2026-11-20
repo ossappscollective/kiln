@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { ASSET_SYNC_LIMITS } from '@mrm/core';
-import type { Sql } from '@mrm/db';
+import type { Row, Sql } from '@mrm/db';
 
 /**
  * The bytes of the images a person uploaded (or fixed in the app) to a staged set of graphics, kept in the database
@@ -11,8 +11,6 @@ import type { Sql } from '@mrm/db';
  * text is what the database layer can store (it has no binary parameter, like app_icons). Nothing here is ever logged,
  * audited or put in an event: only the blob id and the hash.
  */
-
-type Row = Record<string, unknown>;
 
 export type BlobMediaType = 'image/png' | 'image/jpeg';
 

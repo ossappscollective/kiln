@@ -1,25 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import {
-  type ActorType,
-  type ChecklistTemplateItem,
-  computeReadiness,
-  DEFAULT_CHECKLIST_TEMPLATES,
-  type DueFlags,
-  defaultTemplate,
-  dueFlags,
-  isBuiltinTemplateId,
-  MAX_CHECKLIST_ITEMS,
-  MAX_NOTE_LOCALES,
-  MAX_TEMPLATES,
-  type PlanPlatform,
-  type Platform,
-  type Readiness,
-  type RolloutStepState,
-  type RolloutSummary,
-  releaseNotesLength,
-  releaseNotesLimit,
-} from '@mrm/core';
-import type { Database, Param, Sql } from '@mrm/db';
+import { type ActorType, type ChecklistTemplateItem, computeReadiness, DEFAULT_CHECKLIST_TEMPLATES, defaultTemplate, type DueFlags, dueFlags, isBuiltinTemplateId, MAX_CHECKLIST_ITEMS, MAX_NOTE_LOCALES, MAX_TEMPLATES, type PlanPlatform, type Platform, PLATFORMS, type Readiness, releaseNotesLength, releaseNotesLimit, type RolloutStepState, type RolloutSummary } from '@mrm/core';
+import { type Database, mapOrNull, oneOf, type Param, type Row, type Sql } from '@mrm/db';
 import { getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import {
@@ -37,7 +18,6 @@ import { type Failure, failure, type Outcome } from './repositories.ts';
  */
 
 type Actor = { type: ActorType; id: string };
-type Row = Record<string, unknown>;
 
 export type PlansContext = {
   db: Database;
@@ -46,9 +26,6 @@ export type PlansContext = {
 };
 
 const notFound = (): Failure => failure(404, 'not_found');
-
-const orNull = <T>(v: unknown, f: (x: unknown) => T): T | null =>
-  v === null || v === undefined ? null : f(v);
 
 // ---------------------------------------------------------------------------------------------
 // Shapes
@@ -136,8 +113,8 @@ const toItem = (r: Row): PlanItem => ({
   text: String(r.text),
   required: Number(r.required) === 1,
   done: Number(r.done) === 1,
-  doneBy: r.done_by ? { id: String(r.done_by), name: orNull(r.done_by_name, String) } : null,
-  doneAt: orNull(r.done_at, Number),
+  doneBy: r.done_by ? { id: String(r.done_by), name: mapOrNull(r.done_by_name, String) } : null,
+  doneAt: mapOrNull(r.done_at, Number),
 });
 
 const toNote = (r: Row): PlanNote => {
@@ -157,20 +134,20 @@ function summarize(
   now: number,
   steps: readonly RolloutStepState[] = [],
 ): PlanSummary {
-  const platform = orNull(r.platform, String) as PlanPlatform;
-  const targetDate = orNull(r.target_date, String);
+  const platform = mapOrNull(r.platform, String) as PlanPlatform;
+  const targetDate = mapOrNull(r.target_date, String);
   const released = Number(r.released) === 1;
   return {
     id: String(r.id),
     appId: String(r.app_id),
     appName: String(r.app_name),
-    appPlatform: String(r.app_platform) as Platform,
+    appPlatform: oneOf(r.app_platform, PLATFORMS, 'platform'),
     appIdentifier: String(r.app_identifier),
     version: String(r.version),
     platform,
     targetDate,
     blocked: Number(r.blocked) === 1,
-    blockedReason: orNull(r.blocked_reason, String),
+    blockedReason: mapOrNull(r.blocked_reason, String),
     notes: String(r.notes ?? ''),
     createdBy: String(r.created_by),
     createdAt: Number(r.created_at),
@@ -940,7 +917,7 @@ export async function setReleaseNotes(
       [input.planId, input.workspaceId, input.appId],
     );
     if (!plan) return notFound();
-    const platform = orNull(plan.platform, String) as PlanPlatform;
+    const platform = mapOrNull(plan.platform, String) as PlanPlatform;
     const limit = releaseNotesLimit(platform);
     const length = releaseNotesLength(input.text);
     if (length > limit) {

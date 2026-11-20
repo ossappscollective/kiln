@@ -20,7 +20,14 @@ import {
   rankChange,
   rankTrend,
 } from '@mrm/core';
-import type { Database, Param, Row, Sql } from '@mrm/db';
+import {
+  type Database,
+  nullableNumber,
+  nullableString,
+  type Param,
+  type Row,
+  type Sql,
+} from '@mrm/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
 import { getApp, type ManagedApp } from './apps.ts';
 import type { AsoSources, PublicApp } from './aso-net.ts';
@@ -100,8 +107,6 @@ export const platformStore = (platform: AsoPlatform): 'app_store' | 'google_play
   isApplePlatform(platform) ? 'app_store' : 'google_play';
 
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
-const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
-const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
 
 // ---------------------------------------------------------------------------------------------
 // Errors
@@ -191,9 +196,11 @@ const asState = (v: unknown): KeywordState | null =>
 export function toKeyword(r: Row): AsoKeyword {
   const state = asState(r.last_state);
   const previousState = asState(r.prev_state);
-  const total = num(r.last_total);
-  const rank = num(r.last_rank_pos);
-  const previous = previousState ? { state: previousState, rank: num(r.prev_rank_pos) } : null;
+  const total = nullableNumber(r.last_total);
+  const rank = nullableNumber(r.last_rank_pos);
+  const previous = previousState
+    ? { state: previousState, rank: nullableNumber(r.prev_rank_pos) }
+    : null;
   const change =
     state && previous
       ? rankChange({ rank: previous.rank, total: total ?? 0 }, { rank, total: total ?? 0 })
@@ -206,19 +213,19 @@ export function toKeyword(r: Row): AsoKeyword {
     locale: String(r.locale),
     term: String(r.term),
     key: String(r.term_key),
-    tag: str(r.tag),
-    notes: str(r.notes),
+    tag: nullableString(r.tag),
+    notes: nullableString(r.notes),
     priority: Number(r.priority),
     createdBy: String(r.created_by),
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
-    lastCheckedAt: num(r.last_checked_at),
+    lastCheckedAt: nullableNumber(r.last_checked_at),
     state,
     rank: state ? rank : null,
     total: state ? total : null,
     previous,
     change,
-    error: str(r.last_error),
+    error: nullableString(r.last_error),
   };
 }
 
@@ -531,7 +538,7 @@ export async function keywordHistory(
     .map((r) => ({
       id: String(r.id),
       checkedAt: Number(r.checked_at),
-      rank: num(r.rank_pos),
+      rank: nullableNumber(r.rank_pos),
       total: Number(r.total),
       source: String(r.source),
     }))
@@ -588,36 +595,36 @@ function parseChanges(raw: unknown): CompetitorChange[] | null {
 }
 
 export function toSnapshot(r: Row): CompetitorSnapshotView {
-  const milli = num(r.rating_milli);
+  const milli = nullableNumber(r.rating_milli);
   return {
     id: String(r.id),
     checkedAt: Number(r.checked_at),
     kind: String(r.kind) as CompetitorSnapshotView['kind'],
-    version: str(r.version),
+    version: nullableString(r.version),
     rating: milli === null ? null : milli / 1000,
-    ratingCount: num(r.rating_count),
-    price: str(r.price),
-    currency: str(r.currency),
-    title: str(r.title),
-    subtitle: str(r.subtitle),
-    descriptionExcerpt: str(r.description_excerpt),
-    screenshotCount: num(r.screenshot_count),
+    ratingCount: nullableNumber(r.rating_count),
+    price: nullableString(r.price),
+    currency: nullableString(r.currency),
+    title: nullableString(r.title),
+    subtitle: nullableString(r.subtitle),
+    descriptionExcerpt: nullableString(r.description_excerpt),
+    screenshotCount: nullableNumber(r.screenshot_count),
     changes: parseChanges(r.changes),
   };
 }
 
 const stateOfSnapshot = (r: Row): CompetitorState & { checkedAt: number } => ({
   checkedAt: Number(r.checked_at),
-  version: str(r.version),
-  ratingMilli: num(r.rating_milli),
-  ratingCount: num(r.rating_count),
-  price: str(r.price),
-  title: str(r.title),
-  subtitle: str(r.subtitle),
+  version: nullableString(r.version),
+  ratingMilli: nullableNumber(r.rating_milli),
+  ratingCount: nullableNumber(r.rating_count),
+  price: nullableString(r.price),
+  title: nullableString(r.title),
+  subtitle: nullableString(r.subtitle),
   textHash: String(r.text_hash),
-  descriptionHash: str(r.description_hash),
-  screenshotCount: num(r.screenshot_count),
-  mediaHash: str(r.media_hash),
+  descriptionHash: nullableString(r.description_hash),
+  screenshotCount: nullableNumber(r.screenshot_count),
+  mediaHash: nullableString(r.media_hash),
 });
 
 async function latestSnapshotRow(sql: Sql, competitorId: string): Promise<Row | undefined> {
@@ -643,9 +650,9 @@ async function toCompetitor(sql: Sql, r: Row): Promise<AsoCompetitor> {
     name: String(r.name),
     addedBy: String(r.added_by),
     addedAt: Number(r.added_at),
-    lastCheckedAt: num(r.last_checked_at),
+    lastCheckedAt: nullableNumber(r.last_checked_at),
     state,
-    error: str(r.last_error),
+    error: nullableString(r.last_error),
     latest: latest ? toSnapshot(latest) : null,
   };
 }
@@ -971,11 +978,11 @@ export async function getAsoState(
     }
   }
   return {
-    lastAttemptAt: num(row?.last_attempt_at),
-    lastSuccessAt: num(row?.last_success_at),
-    lastError: str(row?.last_error),
+    lastAttemptAt: nullableNumber(row?.last_attempt_at),
+    lastSuccessAt: nullableNumber(row?.last_success_at),
+    lastError: nullableString(row?.last_error),
     consecutiveFailures: Number(row?.consecutive_failures ?? 0),
-    backoffUntil: num(row?.backoff_until),
+    backoffUntil: nullableNumber(row?.backoff_until),
     lastResult,
   };
 }

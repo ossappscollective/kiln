@@ -1,5 +1,5 @@
-import { isGooglePlatform, type Platform, type StagedProblem } from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+import { isGooglePlatform, type Platform, PLATFORMS, type StagedProblem } from '@mrm/core';
+import { type Database, nullableNumber, oneOf, type Sql } from '@mrm/db';
 import { getApp, listApps, type ManagedApp } from './apps.ts';
 import { type Failure, failure } from './repositories.ts';
 import { storeFor } from './review-sync.ts';
@@ -88,7 +88,6 @@ export type PendingView = {
 };
 
 const MAX_REFS = 200;
-const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
 
 const problemsOf = (problems: readonly StagedProblem[], item?: string): PendingProblem[] =>
   problems
@@ -153,7 +152,7 @@ export async function loadPendingFacts(
     `SELECT app_id, platform FROM store_draft_pushes WHERE workspace_id = ?${only}`,
     args(workspaceId),
   )) {
-    const record = await loadPush(sql, String(r.app_id), String(r.platform) as Platform);
+    const record = await loadPush(sql, String(r.app_id), oneOf(r.platform, PLATFORMS, 'platform'));
     if (record) pushes.set(record.appId, record);
   }
 
@@ -168,7 +167,7 @@ export async function loadPendingFacts(
       version: String(r.version),
       track: String(r.track ?? ''),
       status: String(r.status),
-      since: num(r.status_since) ?? num(r.synced_at),
+      since: nullableNumber(r.status_since) ?? nullableNumber(r.synced_at),
     });
   }
 
@@ -189,7 +188,7 @@ export async function loadPendingFacts(
       id: String(r.id),
       track: String(r.track),
       codes,
-      since: num(r.status_since) ?? num(r.synced_at),
+      since: nullableNumber(r.status_since) ?? nullableNumber(r.synced_at),
     });
   }
 

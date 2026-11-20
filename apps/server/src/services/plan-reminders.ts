@@ -6,7 +6,7 @@ import {
   REMINDER_STALE_DAYS,
   rolloutStepReminderDue,
 } from '@mrm/core';
-import type { Database, Param } from '@mrm/db';
+import type { Database, Param, Row } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import type { EventType } from './event-types.ts';
 import { emitEvent } from './events.ts';
@@ -91,8 +91,6 @@ function leadHoursOf(options: ReminderOptions): number {
     ? Math.min(Math.max(Math.trunc(hours), 1), MAX_REMINDER_LEAD_HOURS)
     : DEFAULT_REMINDER_LEAD_HOURS;
 }
-
-type Row = Record<string, unknown>;
 
 const base = (r: Row) => ({
   planId: String(r.plan_id),

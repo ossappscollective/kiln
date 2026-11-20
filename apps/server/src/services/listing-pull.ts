@@ -11,7 +11,7 @@ import {
   platformMeta,
   validateListing,
 } from '@mrm/core';
-import type { Sql } from '@mrm/db';
+import type { Row, Sql } from '@mrm/db';
 import { getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import {
@@ -905,8 +905,6 @@ export type RecomputePlan = {
   diffFromPrevious: FieldDiff[];
   summary: string;
 };
-
-type Row = Record<string, unknown>;
 
 /**
  * Works out the pull again from the stored request, the latest stored store snapshot (or one just

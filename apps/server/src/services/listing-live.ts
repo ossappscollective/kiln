@@ -25,7 +25,7 @@ import {
   sectionOfField,
   sectionToText,
 } from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+import { type Database, nullableNumber, nullableString, type Sql } from '@mrm/db';
 import {
   ABSENT_HASH,
   classifyDrift,
@@ -84,9 +84,6 @@ export type ListingStatus = {
   listingWarnings: string[];
 };
 
-const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
-const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
-
 const MAX_WARNINGS = 20;
 const MAX_WARNING_LENGTH = 400;
 
@@ -114,12 +111,12 @@ export async function getListingStatus(
     [appId, workspaceId],
   );
   return {
-    listingReadAt: num(row?.listing_read_at),
-    listingError: str(row?.listing_error),
-    repoReadAt: num(row?.repo_read_at),
-    repoRef: str(row?.repo_ref),
-    repoError: str(row?.repo_error),
-    listingAttemptAt: num(row?.listing_attempt_at),
+    listingReadAt: nullableNumber(row?.listing_read_at),
+    listingError: nullableString(row?.listing_error),
+    repoReadAt: nullableNumber(row?.repo_read_at),
+    repoRef: nullableString(row?.repo_ref),
+    repoError: nullableString(row?.repo_error),
+    listingAttemptAt: nullableNumber(row?.listing_attempt_at),
     listingFailures: Number(row?.listing_failures ?? 0),
     listingWarnings: parseWarnings(row?.listing_warnings),
   };
@@ -553,7 +550,7 @@ async function loadIndex(sql: Sql, workspaceId: string, appId: string): Promise<
     field: String(r.field),
     channel: String(r.channel),
     source: String(r.source) as ListingSource,
-    sourceRef: str(r.source_ref),
+    sourceRef: nullableString(r.source_ref),
     hash: String(r.value_hash),
     observedAt: Number(r.observed_at),
   }));
@@ -574,7 +571,7 @@ async function loadValues(
         WHERE workspace_id = ? AND app_id = ? AND id IN (${chunk.map(() => '?').join(', ')})`,
       [workspaceId, appId, ...chunk],
     );
-    for (const r of rows) found.set(String(r.id), str(r.value));
+    for (const r of rows) found.set(String(r.id), nullableString(r.value));
   }
   return found;
 }
@@ -621,13 +618,13 @@ async function loadSections(
       latest.set(key, null);
       continue;
     }
-    const value = sectionFromText(name, str(r.value));
+    const value = sectionFromText(name, nullableString(r.value));
     // A stored text that is not a section any more (a newer server wrote it) reads as not read.
     latest.set(
       key,
       value === undefined
         ? null
-        : { value, observedAt: Number(r.observed_at), sourceRef: str(r.source_ref) },
+        : { value, observedAt: Number(r.observed_at), sourceRef: nullableString(r.source_ref) },
     );
   }
   const present = new Map<string, SectionRow>();
@@ -1082,9 +1079,9 @@ export async function getHistory(
       locale: String(r.locale),
       field: String(r.field),
       channel: String(r.channel),
-      value: str(r.value),
+      value: nullableString(r.value),
       source: String(r.source) as ListingSource,
-      sourceRef: str(r.source_ref),
+      sourceRef: nullableString(r.source_ref),
       observedAt: Number(r.observed_at),
       actor: r.actor_type ? { type: String(r.actor_type), id: String(r.actor_id ?? '') } : null,
     })),
