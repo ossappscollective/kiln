@@ -251,3 +251,21 @@ test('a failed sync is the pill only when there is no release status; loading an
   assert.ok(fresh);
   assert.deepEqual(rowStatus(fresh, false).primary, { kind: 'none', text: 'Not synced yet' });
 });
+
+test('an app with iOS in review and Android in review shows both, and the other platform is not hidden by a newer release of another track', () => {
+  const groups = groupApps([app('i', 'ios'), app('a', 'android')]);
+  const beta = { ...rel('a', 'android', '4.03.0', 'live'), id: 'a-beta', track: 'beta' };
+  const releases: Record<string, ReleaseLoad> = {
+    i: { state: 'ready', releases: [rel('i', 'ios', '3.1.1', 'in_review')] },
+    a: { state: 'ready', releases: [beta, rel('a', 'android', '4.02.0', 'in_review')] },
+  };
+  const [row] = buildOverviewRows(groups, releases, null);
+  assert.ok(row);
+  const status = rowStatus(row, false);
+  assert.equal(status.primary.kind === 'release' ? status.primary.release.platform : null, 'ios');
+  assert.deepEqual(
+    status.more.map((r) => [r.platform, r.status]),
+    [['android', 'in_review']],
+  );
+  assert.equal(overviewStats([row]).inReview, 1, 'one app, counted once');
+});
