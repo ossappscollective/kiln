@@ -42,6 +42,7 @@
   import Badge from '../../ui/Badge.svelte';
   import Button from '../../ui/Button.svelte';
   import InfoTip from '../../ui/InfoTip.svelte';
+  import CreateVersion from './CreateVersion.svelte';
   import Skeleton from '../../ui/Skeleton.svelte';
 
   let {
@@ -190,7 +191,7 @@
 
     {#if editableState.state === 'none'}
       <Alert tone="warn" title="No version is in Prepare for Submission">
-        App Store Connect has no version a build can be attached to. Create the next version in App Store Connect, sync this app, then read again here.
+        <CreateVersion {api} {workspaceId} {role} {app} {onread} />
       </Alert>
     {:else if editableState.state === 'error'}
       <Alert tone="error" title="Could not read the version">{editableState.message}</Alert>
