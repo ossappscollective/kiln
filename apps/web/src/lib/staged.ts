@@ -146,7 +146,7 @@ export type DraftPushResult = {
   version: { id: string; versionString: string | null; state: string } | null;
   steps: DraftStep[];
   counts: { applied: number; alreadySame: number; filesUploaded: number; filesRemoved: number };
-  commit: 'not_sent_for_review' | 'none';
+  commit: 'not_sent_for_review' | 'draft_release' | 'none';
   draft: true;
   submitted: false;
   confirmedByReread: boolean;

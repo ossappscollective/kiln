@@ -82,3 +82,13 @@ but it overwrites what is in the store's draft, which someone else may be editin
 - Asset reverse sync (store images into the repository) is not built: see
   [api/staged-changes](../api/staged-changes.md#reverse-sync-store-to-repository).
 - Nothing here was run against a real store. The first real push should be on a test app.
+
+## Amendment (2026-11-20): a draft release without the hold-back
+
+Google refuses `changesNotSentForReview=true` for apps where managed publishing is off (`draft_not_allowed`). That blocked "Promote to
+production" for such an app: its push holds nothing but the draft release of a track (track, version codes, release notes). A draft
+release is not served to users by a commit (`status: draft`), so for an edit that holds **only** that, and only after Google refused the
+hold-back, the connector commits once more without `changesNotSentForReview` (`changesInReviewBehavior=ERROR_IF_IN_REVIEW` stays).
+The result says `commit: draft_release`. An edit with a store listing text or an image is never committed that way: decision 10
+above stands for those. UNVERIFIED against real Google; the first push of such an app is the test, and the rollout is still the
+separate, gated release step.

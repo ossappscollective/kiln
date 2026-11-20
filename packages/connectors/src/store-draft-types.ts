@@ -171,10 +171,11 @@ export type DraftApplyResult = {
   before: DraftState;
   steps: DraftStep[];
   /**
-   * Google Play: the commit that held the changes back from review. App Store: always `none`
+   * Google Play: the commit that held the changes back from review (`not_sent_for_review`), or `draft_release`: Google refused
+   * the hold-back and the edit held only the draft release of a track, so it was committed without it. App Store: always `none`
    * (there is no commit; every request changes the draft at once).
    */
-  commit: 'not_sent_for_review' | 'none';
+  commit: 'not_sent_for_review' | 'draft_release' | 'none';
 };
 
 /** The store's draft is not what the person confirmed: nothing was written. */

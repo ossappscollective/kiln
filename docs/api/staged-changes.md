@@ -104,7 +104,7 @@ Reads the store's draft (not a write) and the staged files. Returns `{ preview }
 
 Body `{ confirmHash }` (64 lower-case hex characters; anything else is `400`). Returns `{ result }`:
 `{ app, version, steps[] { type, locale, target, outcome (applied|already_same), uploaded?, removed? },
-counts { applied, alreadySame, filesUploaded, filesRemoved }, commit (not_sent_for_review|none), draft: true,
+counts { applied, alreadySame, filesUploaded, filesRemoved }, commit (not_sent_for_review|draft_release|none), draft: true,
 submitted: false, confirmedByReread, pushedAt, note }`. What was written is marked `pushed` in the staged view.
 Staged items stay staged (a second push skips what matches).
 
@@ -124,7 +124,7 @@ The [submit](submit.md) step requires it and checks the store's draft against it
 | 409    | `draft_partial` (`items`)                                            | After an unknown outcome the draft holds some of the changes.                                                     |
 | 502    | `draft_partial` (`completed`, `failed`, `storeError`)                | The App Store refused part way; what was written stays.                                                           |
 | 502    | `write_failed` (`outcome: not_applied`)                              | App Store: the store did not answer and nothing was written.                                                      |
-| 409    | `draft_not_allowed`                                                  | Google would not hold the changes back from review; nothing was committed.                                        |
+| 409    | `draft_not_allowed`                                                  | Google would not hold the changes back from review; nothing was committed. (A push of only the draft release of a track is committed without the hold-back instead, `commit: draft_release`.) |
 | 409    | `changes_in_review`                                                  | Changes are in review; this server never cancels one.                                                             |
 | 422    | `no_editable_version`                                                | The App Store has no version that can be edited. Create it in App Store Connect.                                  |
 | 422    | `store_auth`, `store_forbidden`, `store_not_found`, `store_rejected` | The store refused; the message is redacted.                                                                       |

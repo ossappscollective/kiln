@@ -1108,7 +1108,7 @@ function previewOf(
       ]
     : [
         DRAFT_NOTE,
-        'Google Play applies nothing until the final commit, which is made with changesNotSentForReview. If Google refuses that, nothing is committed.',
+        'Google Play applies nothing until the final commit, which is made with changesNotSentForReview. If Google refuses that, nothing is committed, except for a push that holds only the draft release of a track: that is committed once more without it (a draft release is not served to users).',
         'This server does not cancel a review that is in progress: if changes are in review the push is refused.',
       ];
   return {
@@ -1167,7 +1167,7 @@ export type DraftPushResult = {
   steps: DraftResultStep[];
   counts: { applied: number; alreadySame: number; filesUploaded: number; filesRemoved: number };
   /** Google Play: `not_sent_for_review` (the commit held the changes back). App Store: `none`. */
-  commit: 'not_sent_for_review' | 'none';
+  commit: 'not_sent_for_review' | 'draft_release' | 'none';
   /** The release fields that were part of the push (docs/api/releases-write.md). */
   fields: number;
   /** Always true: what was written is a draft. */

@@ -363,14 +363,18 @@ export class PlayDraftConnector
         }
         // From here on the request may be applied even if the answer is lost.
         settled = true;
+        // Only a draft release of a track (fields) may be committed without the hold-back when Google refuses it: a texts or
+        // images change is never committed that way (it could go to review).
+        const releaseOnly = steps.every((s) => s.type === 'field' || s.outcome !== 'applied');
+        let commit: 'not_sent_for_review' | 'draft_release' = 'not_sent_for_review';
         try {
-          await this.#commit(editId);
+          commit = await this.#commit(editId, releaseOnly);
         } catch (error) {
           // A refused commit (4xx) applied nothing: the edit is deleted below. An unknown one is left alone.
           if (!(error instanceof DraftOutcomeUnknownError)) settled = false;
           throw error;
         }
-        return { before, steps, commit: 'not_sent_for_review' as const };
+        return { before, steps, commit };
       } finally {
         if (!settled) await this.#deleteEdit(http, editId);
       }
@@ -866,10 +870,24 @@ export class PlayDraftConnector
   /**
    * The commit, held back from review (`changesNotSentForReview=true`) and never cancelling a review
    * in progress (`changesInReviewBehavior=ERROR_IF_IN_REVIEW`). A lost answer or a 5xx is `DraftOutcomeUnknownError`.
+   * When Google refuses the hold-back (an app with managed publishing off) and the edit holds nothing but the draft release of a
+   * track (`releaseOnly`), the commit is made once more without it: a draft release is not served to users by a commit
+   * (docs/adr/0009-staged-store-drafts.md, amended 2026-11-20; UNVERIFIED against every app). Answers `draft_release` then.
    */
-  async #commit(editId: string): Promise<void> {
+  async #commit(editId: string, releaseOnly = false): Promise<'not_sent_for_review' | 'draft_release'> {
+    try {
+      await this.#commitOnce(editId, true);
+      return 'not_sent_for_review';
+    } catch (error) {
+      if (!releaseOnly || !(error instanceof StoreError) || error.kind !== 'draft_not_allowed') throw error;
+    }
+    await this.#commitOnce(editId, false);
+    return 'draft_release';
+  }
+
+  async #commitOnce(editId: string, holdBack: boolean): Promise<void> {
     const what = 'committing the draft';
-    const url = `${this.#url(`/${enc(editId)}`)}:commit?changesNotSentForReview=true&changesInReviewBehavior=ERROR_IF_IN_REVIEW`;
+    const url = `${this.#url(`/${enc(editId)}`)}:commit?${holdBack ? 'changesNotSentForReview=true&' : ''}changesInReviewBehavior=ERROR_IF_IN_REVIEW`;
     for (let attempt = 0; ; attempt++) {
       const token = await this.#tokens.token();
       let reply: StoreReply;

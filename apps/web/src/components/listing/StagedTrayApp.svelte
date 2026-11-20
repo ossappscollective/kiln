@@ -375,6 +375,8 @@
       <p class="alert-text">{resultText(result)}</p>
       {#if result.commit === 'not_sent_for_review'}
         <p class="alert-text">Google Play holds the changes back from review. Send them for review in Play Console when you are ready.</p>
+      {:else if result.commit === 'draft_release'}
+        <p class="alert-text">Google Play would not hold the changes back from review for this app, so the draft release was saved without that. A draft release is not served to users: roll it out in the last step or in Play Console.</p>
       {/if}
       {#if result.note}<p class="alert-text">{result.note}</p>{/if}
     </Alert>

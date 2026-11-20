@@ -411,6 +411,19 @@ test('Google Play: readDraft of the release fields with no draft release; missin
   assert.equal(api.seen.filter((s) => s.method === 'PUT').length, 0);
 });
 
+test('Google Play: when Google refuses the hold-back, a push of only the draft release is committed once without it', async () => {
+  const { api, connector } = play();
+  api.commitAnswer = 'not_sent_refused';
+  const done = await connector.applyDraft(
+    input({ fields: [field('track', 'production'), field('version_codes', '240,241'), field('release_notes', 'Fixes', 'en-US')] }),
+  );
+  assert.equal(done.commit, 'draft_release');
+  assert.equal(api.commits.length, 2);
+  assert.match(api.commits[0]?.query ?? '', /changesNotSentForReview=true/);
+  assert.ok(!/changesNotSentForReview/.test(api.commits[1]?.query ?? ''));
+  assert.match(api.commits[1]?.query ?? '', /changesInReviewBehavior=ERROR_IF_IN_REVIEW/);
+});
+
 test('Google Play: a draft release is created next to the others and committed held back from review; never a share', async () => {
   const { api, connector } = play();
   const fields = [

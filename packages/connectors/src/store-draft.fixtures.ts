@@ -1237,6 +1237,11 @@ export class FakePlayDraftApi {
             },
           });
         case 'not_sent_refused':
+          // Google refuses only the hold-back; the same commit without it is accepted.
+          if (!/changesNotSentForReview=true/.test(s.query)) {
+            this.#apply();
+            return json(200, fx.googleEdit);
+          }
           return json(400, {
             error: {
               code: 400,

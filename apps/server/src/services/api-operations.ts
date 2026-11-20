@@ -1846,9 +1846,9 @@ const draftResultSchema = z.object({
   }),
   fields: z.number().int().describe('How many release fields were part of the push.'),
   commit: z
-    .enum(['not_sent_for_review', 'none'])
+    .enum(['not_sent_for_review', 'draft_release', 'none'])
     .describe(
-      'Google Play: the edit was committed with `changesNotSentForReview=true`. App Store: `none` (every request changes the draft at once).',
+      'Google Play: the edit was committed with `changesNotSentForReview=true`, or `draft_release` when Google refused that and the edit held only the draft release of a track (committed without it). App Store: `none` (every request changes the draft at once).',
     ),
   draft: z.literal(true),
   submitted: z
