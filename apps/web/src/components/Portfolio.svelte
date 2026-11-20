@@ -37,7 +37,7 @@
   import Alert from './ui/Alert.svelte';
   import Button from './ui/Button.svelte';
   import EmptyState from './ui/EmptyState.svelte';
-  import InfoTip from './ui/InfoTip.svelte';
+  import PageHeader from './ui/PageHeader.svelte';
   import Skeleton from './ui/Skeleton.svelte';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
@@ -313,19 +313,11 @@
   <AppShell {api} {workspaceId} {role} id={open.id} />
 {:else}
   <section>
-    <header class="allhead">
-      <div class="titleblock">
-        <h1 class="page-title">All apps</h1>
-        <InfoTip
-          label="About this list"
-          text="The apps of this workspace as the stores report them, one row per app with the versions of each platform (iOS, macOS, Android) side by side. Everything here is read from the stores; nothing is written to them."
-        />
-      </div>
-      {#if canRead && apps !== null && apps.length > 0}
-        <OverviewStats {stats} />
-      {/if}
-      <span class="spacer"></span>
-      <div class="page-actions">
+    <PageHeader
+      title="All apps"
+      description="Every app of this workspace, with where each platform stands and the one thing to do next. Read from the stores; nothing here is written to them."
+    >
+      {#snippet actions()}
         {#if canRead && apps !== null && apps.length > 0}
           <ViewToggle mode={viewMode} onchange={setView} />
           {#if canSync}
@@ -335,8 +327,11 @@
             <Button variant="primary" icon="plus" onclick={() => (adding = true)}>Add app</Button>
           {/if}
         {/if}
-      </div>
-    </header>
+      {/snippet}
+    </PageHeader>
+    {#if canRead && apps !== null && apps.length > 0}
+      <div class="stats"><OverviewStats {stats} /></div>
+    {/if}
 
     {#if !canRead}
       <Alert tone="info">Your role does not include apps.</Alert>
@@ -408,22 +403,8 @@
 {/if}
 
 <style>
-  .allhead {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-4);
-    align-items: center;
-    margin-bottom: var(--space-4);
-  }
-
-  .titleblock {
-    display: flex;
-    gap: var(--space-1);
-    align-items: center;
-  }
-
-  .page-title {
-    font-size: var(--text-xl);
+  .stats {
+    margin-bottom: var(--space-5);
   }
 
   .skeleton-row {

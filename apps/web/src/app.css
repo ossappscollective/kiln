@@ -1378,3 +1378,14 @@ td.actions {
   background: var(--surface);
   border-top: 1px solid var(--line);
 }
+
+/* ---------- Readable pass (docs/design/readability.md): page headers of the workspace pages ---------- */
+.page-header .page-title {
+  font-size: var(--text-2xl);
+  line-height: 1.2;
+}
+
+.page-header .page-desc {
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}

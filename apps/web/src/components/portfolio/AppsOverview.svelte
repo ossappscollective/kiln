@@ -172,8 +172,14 @@
   }
 
   .app-name {
-    font-weight: var(--weight-medium);
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
     overflow-wrap: break-word;
+  }
+
+  /* The rows read at the body size of the redesign (15px), not the dense table size. */
+  table {
+    font-size: 0.9375rem;
   }
 
   /* The table sizes columns from their content: without a floor the App column collapses to one character wide. */
@@ -228,8 +234,12 @@
     display: inline-flex;
     gap: var(--space-1);
     align-items: center;
-    font-weight: var(--weight-medium);
+    padding: var(--space-1) var(--space-3);
+    font-weight: var(--weight-semibold);
     text-decoration: none;
+    background: var(--accent-bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-full);
   }
 
   .next:hover {
@@ -238,10 +248,12 @@
 
   .next.bad {
     color: var(--bad-ink);
+    background: var(--bad-bg);
   }
 
   .next.warn {
     color: var(--warn-ink);
+    background: var(--warn-bg);
   }
 
   .rating {

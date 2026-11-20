@@ -14,6 +14,12 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   Overview, Releases, Store listing, Reviews, Insights, Builds. At the bottom: All apps, Inbox, Settings, and a collapsed "More"
   with Repositories, Credentials, Members, API tokens, Webhooks, Audit log and the other workspace pages the role may open.
   App settings (stores, credentials) is the gear in the page header and the link in the Status popover.
+- **Readable pass, left panel and overview (2026-11-20, [readability](design/readability.md))**: the panel opens with one soft card, the
+  app (icon, name, switcher) and one line per platform with its tint, name and state ("iOS In review 2.9.0", "Android Live 2.8.1";
+  `lib/app-status.ts`, from the releases the app screen loaded: `navSignals.setReleases`). Groups are labelled "This app" and
+  "Workspace". Counts say what needs you: Releases (left unfinished), Store listing (changes waiting to publish), Reviews (unanswered),
+  All apps (apps that need attention), Inbox (unanswered, workspace). The current page has a bar, a tint and a heavier label. Text is 15px.
+  The header of an app page is the page name (24px) over the app name and bundle id.
 - **Views inside a page** (`ViewSwitch`, `?view=` in the address, platform, version and locale stay): Store listing = Text, Graphics;
   Insights = Overview, Keywords, Search terms (phase 2, see 0a); Builds = Builds,
   Workflows, Test builds.
@@ -27,13 +33,15 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   one **Sync now** action.
 - **Pending bar** (`PendingBar`): while an app has changes waiting, one quiet strip under the header on every app page, "N changes
   waiting. Nothing is published until you review them." and one "Review and publish" button to `/pending`. Hidden with nothing pending
-  and on the pending page. Pending changes is not a navigation entry any more.
+  and on the pending page. Pending changes is not a navigation entry any more. The bar is no longer yellow (a blocking error keeps the
+  warning colour). **On the Overview it is not a bar:** the changes are one link under the primary button of the Next step card
+  ("2 changes waiting. Review and publish", `pendingPlacement` in `lib/app-page.ts`); a blocking error stays a bar there too.
 - **Next step card** (`NextStep`, Overview and Releases): one primary button chosen by state, in this order: a release whose step
   failed (rejected), a release that waits for you (finish, attach a build, release it), a release in store review (quiet "Start release"
   beside it), then with nothing on its way "Start release" (or "Prepare release" without a linked repository). The five release steps,
-  the other releases on their way and "Also needs attention" are inside the card, so the old "waiting for you" strip, the separate
-  "Needs attention" card and the Prepare release / Open the release steps buttons are gone. Overview then shows three compact platform
-  tiles (live, in flight) and a collapsed Details (bundle ids, last sync, analytics).
+  the other releases on their way are inside the card ("Your next step", 30px title, one large button); on the Overview the rest of "Needs attention" is its own card "Also worth a look" under the platform cards (Releases keeps it in the card), so the old "waiting for you" strip, the separate
+  "Needs attention" card and the Prepare release / Open the release steps buttons are gone. Overview then shows the platform
+  cards side by side (tint on the left edge, name, what is on the store, the version in flight with its status, "Open releases") and a collapsed Details (bundle ids, last sync, analytics).
   **Promote** ([ADR 0025](adr/0025-play-release-checks.md)): on an Android app a release that serves users from a track that is not production
   gets "Promote to production" in its Releases row (platform cell), in the row's details and as one quiet line in the Next step card. It
   opens Prepare release on the Build step with the source track, the target and the version codes selected (`&from=internal&to=production&codes=241`).

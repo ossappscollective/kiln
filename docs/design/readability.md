@@ -34,6 +34,20 @@ Not done in this pass (candidates, in order of value): the preview bodies themse
 "Details", which the standalone dialogs share; `StepBuild` and `StepNotes` hold several alerts that
 could follow the same fold rule; `ReleaseDetail` and `PlanOverview` were not reworked.
 
+## Applied globally (2026-11-20, mockups approved)
+
+The direction of `docs/design/mockups/` applies to every screen, in this order of work: Prepare release and the publish dialog (the
+stepper), then the shell and the overview (this section), then the other pages as they are touched.
+
+| Part | What it is now |
+| --- | --- |
+| Left panel (`AppNav`, `Shell`) | A card with the app and one status line per platform (tint, name, state and version; `lib/app-status.ts`). Labelled groups "This app" and "Workspace". Count badges only for what needs you (releases left unfinished, changes waiting on Store listing, unanswered reviews; All apps and Inbox in the workspace group). Current page: tint, bar and heavier label. 15px text. Secondary workspace pages stay under "More" |
+| App header (`AppShell`) | Page name (24px) over the app name and bundle id; platform control, Sync, Status and settings at the right |
+| Pending changes (`PendingBar`, `pendingPlacement`) | On the Overview one link in the Next step card; elsewhere a slim neutral line; a blocking error stays a visible warning bar everywhere |
+| Overview (`AppDashboard`, `NextStep`) | "Your next step" card (30px title, 17px sentence, one large primary button, the five release steps), platform cards side by side with tint and status, "Also worth a look" (three lines, "Show N more"), Details collapsed |
+| All apps (`Portfolio`, `AppsOverview`) | The same page header as the other workspace pages (title, one sentence, primary "Add app" at the right); the next action of a row is a visible pill |
+| Page headers (`PageHeader`, `app.css`) | 24px title, 15px one-line explanation, the primary action at the right. Inbox and Settings already used it |
+
 ## Store and platform markers
 
 iOS, macOS and Android are told apart by four signals, so no single one carries the meaning:
