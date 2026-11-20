@@ -67,6 +67,27 @@ stepper), then the shell and the overview (this section), then the other pages a
 | Members, API tokens, Webhooks, Repositories | One-sentence headers; Members gets "Invite someone" as the header action (it focuses the invite form below); one-line footers; 15px table text. Revoke, Remove and Delete stay `danger` and secondary to the safe actions |
 | Workflows, Audit log | Already had `PageHeader`, one primary and filters on one line; unchanged |
 
+### The pages of an app (2026-11-20)
+
+The pages the left panel of an app links to open with `ui/PageLead`: one headline that says where the page stands (a
+sentence, 20px), one short sentence under it (15px), and the page's actions at the right, with at most one primary. The page
+name is the app header's; the lead is status plus the next action, not a second title. The headlines are pure
+(`lib/page-lead.ts`: `reviewsLead`, `buildsLead`, `keywordsLead`, `settingsLead`, `needsAnswerText`, tested).
+
+| Page | What it is now |
+| --- | --- |
+| Store listing (`ListingMatrix`) | Lead: "3 locales need attention, 1 with missing fields" (or "All locales are in sync"), the stores and locale count, one sentence on how editing works (pencil, staged, nothing reaches a store until published), and ONE primary "Show the N locales that need attention". The two muted paragraphs and the status line are gone. Chips and the locale grid are 15px with roomier cells. "Staged changes" keeps its slim line; the two long notes sit behind "How staged changes reach a store" |
+| Reviews (`ReviewsTab`) | Lead: "5 reviews need an answer, oldest 3 d" with ONE primary "Show unanswered"; "Read reviews now" becomes secondary (primary only when nothing waits; none in the empty state, which has its own). Last read, "About reviews" and the "Replying is switched off" pill sit under the headline. The old quiet chip inside the rating summary is gone (`data-testid="unanswered-chip"` moved to the lead). Customer text is 15px, titles 17px |
+| Builds (`BuildsPanel`) | Lead: "12 builds, 3 without a CI run" with when tags were searched; "Re-run matching" and "Build number conventions" at the right. The "No repository is linked" alert is one sentence in the lead. "How builds are matched" is collapsed (it opened by itself when a build was unlinked). Table 15px, cell notes 14px |
+| Test builds (`TestBuilds`) | Lead with the count, the one-line purpose and "Read again"; the long explanation sits behind "About test builds" |
+| Insights, Keywords (`AsoSection`) | The tracked keywords come first (they are what you decide on), under a one-line lead ("12 keywords tracked, 3 in the top 10", and "N not checked yet. Press Check now"); "Keywords your listing uses now" moves below. The stat chips in the action bar are gone (the lead says it) |
+| Insights, Overview (`AnalyticsPlatform`, `AnalyticsOff`) | The order was right (figures, one chart, more charts folded). "Analytics is off" is one sentence and the turn-on button; what it reads sits behind "What it reads". Delta lines, captions and notes are 13 to 15px |
+| App settings (`AppSettings`) | Lead: a failing sync first ("The last sync failed for Android", where to look), then a record never synced, otherwise "Stores are connected"; Collapse all and Expand all beside it. Section text 15px. The Danger zone stays collapsed |
+
+Not done (candidates): the locale drawer and field editor of Store listing, `ReplyDialog`, the ASO views behind "More",
+`AppWorkflows` (already two muted sentences and the panels), the Graphics view of Store listing (`components/assets`), and the
+sub-sections of Settings (their forms keep their own copy).
+
 ## Store and platform markers
 
 iOS, macOS and Android are told apart by four signals, so no single one carries the meaning:

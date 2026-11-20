@@ -79,15 +79,17 @@
 
 {#snippet content()}
   <div class="stack">
-    <p class="muted note">
-      Changes collect here, one tray per store, and are pushed to the store's draft in one batch after a preview. {NOT_SUBMITTED}
-    </p>
-
     {#each members as app (app.id)}
       <StagedTrayApp {api} {workspaceId} {role} {app} showPlatform={members.length > 1} />
     {/each}
 
-    <p class="muted note submit-note"><Icon name="info" size={14} /> {SUBMIT_NEXT_STEP}</p>
+    <details class="how">
+      <summary>How staged changes reach a store</summary>
+      <p class="muted note">
+        Changes collect here, one tray per store, and are pushed to the store's draft in one batch after a preview. {NOT_SUBMITTED}
+      </p>
+      <p class="muted note submit-note"><Icon name="info" size={14} /> {SUBMIT_NEXT_STEP}</p>
+    </details>
   </div>
 {/snippet}
 
@@ -165,8 +167,13 @@
   }
 
   .note {
-    margin: 0;
-    font-size: var(--text-sm);
+    margin: var(--space-2) 0 0;
+    font-size: 0.9375rem;
+  }
+
+  .how summary {
+    font-size: 0.9375rem;
+    cursor: pointer;
   }
 
   .submit-note {
