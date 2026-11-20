@@ -9,11 +9,13 @@
   import type { Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { doneBy, moveId, planErrorMessage } from '../../lib/release.ts';
+  import { checklistView } from '../../lib/release-detail.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { ChecklistTemplate, PlanDetail, PlanItem } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
   import TextField from '../ui/TextField.svelte';
 
   let {
@@ -65,7 +67,7 @@
   });
 
   const items = $derived(plan.items);
-  const required = $derived(plan.readiness.required);
+  const view = $derived(checklistView(items));
 
   /** One request at a time, so two quick clicks cannot interleave their answers. */
   async function run<T extends { plan: PlanDetail }>(call: () => Promise<T>): Promise<T | null> {
@@ -154,11 +156,7 @@
     <div>
       <h2 id="{uid}-title">Checklist</h2>
       <p>
-        {#if items.length === 0}
-          No items yet.
-        {:else}
-          {required.done} of {required.total} required {required.total === 1 ? 'item' : 'items'} done{items.length > required.total ? `, ${items.length - required.total} optional` : ''}.
-        {/if}
+        {view.headline}.{view.hint ? ` ${view.hint}` : ''}
       </p>
     </div>
   </div>
@@ -171,9 +169,9 @@
       {canWrite ? 'Add the things to check before this version goes out, or start from a template below.' : 'Nobody has added checklist items yet.'}
     </p>
   {:else}
-    <ul class="items">
-      {#each items as item, index (item.id)}
-        <li class="item" class:done={item.done}>
+    {#snippet row(item: PlanItem)}
+      {@const index = items.findIndex((i) => i.id === item.id)}
+      <li class="item" class:done={item.done} class:needed={!item.done && item.required}>
           <div class="main">
             {#if editingId === item.id}
               <form
@@ -195,7 +193,7 @@
                 <span class="text">{item.text}</span>
               </label>
               <span class="tags">
-                {#if item.required}<Badge tone="accent">Required</Badge>{:else}<Badge>Optional</Badge>{/if}
+                {#if item.required}<Badge tone={item.done ? 'accent' : 'warn'}>Required</Badge>{:else}<Badge>Optional</Badge>{/if}
                 {#if item.done && item.doneAt !== null}
                   <span class="muted small">
                     {doneBy(item)},
@@ -218,8 +216,21 @@
             </div>
           {/if}
         </li>
-      {/each}
-    </ul>
+    {/snippet}
+    {#if view.open.length > 0}
+      <ul class="items">
+        {#each view.open as item (item.id)}{@render row(item)}{/each}
+      </ul>
+    {/if}
+    {#if view.done.length > 0}
+      <div class="donegroup">
+        <Disclosure summary="Done ({view.done.length})" open={view.open.length === 0}>
+          <ul class="items">
+            {#each view.done as item (item.id)}{@render row(item)}{/each}
+          </ul>
+        </Disclosure>
+      </div>
+    {/if}
   {/if}
 
   {#if canWrite}
@@ -229,6 +240,7 @@
       <Button type="submit" icon="plus" loading={busy} disabled={newText.trim() === ''}>Add item</Button>
     </form>
 
+    <Disclosure summary="Start from a template" open={items.length === 0}>
     <div class="template">
       <div class="field">
         <label for="{uid}-template">Add the items of a template</label>
@@ -241,6 +253,7 @@
       </div>
       <Button disabled={busy || !templateId} onclick={applyTemplate}>Add items</Button>
     </div>
+    </Disclosure>
   {/if}
 </section>
 
@@ -272,6 +285,15 @@
     border-top: 1px solid var(--line);
   }
 
+  /* An open required item is what stands in the way: a tinted edge, never folded. */
+  .item.needed {
+    border-left: 3px solid var(--warn);
+  }
+
+  .donegroup {
+    margin-bottom: var(--space-4);
+  }
+
   .main {
     display: flex;
     flex-direction: column;
@@ -281,6 +303,7 @@
   }
 
   .text {
+    font-size: 1rem;
     overflow-wrap: anywhere;
   }
 
