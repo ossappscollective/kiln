@@ -370,6 +370,8 @@ export const CLONE_READ_PURPOSES: ReadonlySet<string> = new Set([
   'changeset.recompute',
   // Media files of the Assets tab and the app icons (asset-repo.ts): only headers and single files.
   'repository.assets',
+  // The one read of app.json that prefills the Expo project link of an app (modules/eas/link.ts).
+  'eas.detect',
 ]);
 
 /** The token git authenticates with: the PAT, or the App's installation token as a function. */

@@ -1,6 +1,9 @@
 import type { ServerModule } from '../module.ts';
 import { easParts } from './parts.ts';
 
+// The seam every EAS feature uses to reach Expo: a client for one credential, and the response for an Expo error (client.ts).
+export { type ExpoClientResult, type ExpoUse, expoClientFor, expoFailure } from './client.ts';
+
 /**
  * Expo Application Services (docs/adr/0033-eas-integration.md): the link between an app and its EAS project, EAS Workflows as a CI
  * provider, EAS Build and Submit status, EAS Update (OTA) and the reading of `eas.json`. The module is a list of parts (parts.ts); each

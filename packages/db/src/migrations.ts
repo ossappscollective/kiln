@@ -3,6 +3,7 @@ import { aiFeatureMigrations } from './migrations-ai-features.ts';
 import { alertEmailMigrations } from './migrations-alert-email.ts';
 import { alertMigrations } from './migrations-alerts.ts';
 import { analyticsBucketMigrations } from './migrations-analytics-bucket.ts';
+import { easMigrations } from './migrations-eas.ts';
 
 /**
  * Forward-only SQL migrations, applied in order at boot (see migrate() in index.ts).
@@ -1818,4 +1819,5 @@ export const migrations: Migration[] = [
   ...aiFeatureMigrations,
   ...analyticsBucketMigrations,
   ...alertEmailMigrations,
+  ...easMigrations,
 ];

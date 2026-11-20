@@ -491,6 +491,11 @@ export async function deleteApp(
       input.id,
       input.workspaceId,
     ]);
+    // The link to the app's Expo (EAS) project (modules/eas/link.ts).
+    await tx.execute('DELETE FROM app_expo_links WHERE app_id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
     await tx.execute('DELETE FROM apps WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,

@@ -2115,3 +2115,32 @@ export const alertConditions = pgTable(
     index('alert_conditions_active_idx').on(t.workspaceId, t.active),
   ],
 );
+
+/** The link between an app and its Expo (EAS) project (migration 44). Not a secret: the token stays in `credentials`. */
+export const appExpoLinks = pgTable(
+  'app_expo_links',
+  {
+    /** No foreign key: deleteApp removes the row. */
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** No foreign key: a credential can be deleted while a link still names it. */
+    credentialId: text('credential_id').notNull(),
+    /** The EAS project id (a UUID). */
+    projectId: text('project_id').notNull(),
+    accountName: text('account_name').notNull(),
+    slug: text('slug').notNull(),
+    projectName: text('project_name').notNull(),
+    /** When Expo last confirmed the project with the credential. */
+    verifiedAt: epochMs('verified_at').notNull(),
+    linkedBy: text('linked_by').notNull(),
+    createdAt: epochMs('created_at').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [
+    index('app_expo_links_workspace_idx').on(t.workspaceId),
+    index('app_expo_links_project_idx').on(t.projectId),
+    index('app_expo_links_credential_idx').on(t.credentialId),
+  ],
+);
