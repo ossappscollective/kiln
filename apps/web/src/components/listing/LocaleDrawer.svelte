@@ -12,6 +12,10 @@
   platforms whose version is locked: their fields are read-only here, with no stage control, and no AI "Improve"), asoKeywords? (the
   tracked ASO keywords by app id; given when the role can read ASO, it shows the keyword budget of each platform's
   fields: the store text with the staged text on top, see AsoBudget), allLocales? (every locale of the grid), api? and workspaceId? (given: each field of a platform that can be edited offers the AI "Improve", see ImproveField).
+  Reading order (docs/design/readability.md, "Second pass: forms and dialogs"): the lead says what must be done for THIS locale ("3 fields differ
+  from the store") with the one primary action; each platform lists its fields with the ones that differ or are blocked first, each with ONE
+  status word and a quiet counter; the fields that are in sync are folded; the comparison and the history of a field sit behind quiet controls
+  (FieldCompare); the keyword budget and the long note about staging come last.
   A native <dialog> shown as a side panel, so the focus trap, Escape and the focus return come from
   the browser. A pull or history dialog opened from here stacks above it.
 -->
@@ -21,9 +25,9 @@
   import type { Api } from '../../lib/api.ts';
   import type { AsoKeyword } from '../../lib/aso.ts';
   import { localeSummary } from '../../lib/listing-drift.ts';
-  import { cellInfo, cellStatus } from '../../lib/listing-matrix.ts';
   import type { MatrixRow } from '../../lib/listing-matrix.ts';
   import { canPullField, pullKey, pullableInLocale } from '../../lib/listing-pull.ts';
+  import { type LeadActionInput, leadAction, localeLead, splitFields } from '../../lib/locale-drawer.ts';
   import { storeName } from '../../lib/portfolio.ts';
   import { fieldInfo } from '../../lib/listing-edit.ts';
   import { fieldStage } from '../../lib/staged.ts';
@@ -35,7 +39,8 @@
   import AsoBudget from '../aso/AsoBudget.svelte';
   import ImproveField from '../ai/ImproveField.svelte';
   import FieldCompare from './FieldCompare.svelte';
-  import StatusDot from './StatusDot.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
+  import PageLead from '../ui/PageLead.svelte';
 
   let {
     open = $bindable(false),
@@ -128,6 +133,54 @@
 
   const pickedIn = (platform: Platform, fields: DriftField[]): DriftField[] =>
     fields.filter((f) => canPullField(f) && picked.has(keyOf(platform, f)));
+
+  /** What the drawer opens on: how many fields differ in this locale, and what to do about it. */
+  const lead = $derived.by(() => {
+    const r = row;
+    return r ? localeLead(r.platforms.map((p) => ({ fields: r.fields[p] ?? [] }))) : null;
+  });
+
+  /** The ONE primary action, from the actions the drawer already has (shorten, pull, stage). */
+  const primary = $derived.by(() => {
+    const r = row;
+    if (!r) return null;
+    const inputs: LeadActionInput[] = r.platforms.map((platform) => {
+      const app = appOf(platform);
+      const fields = r.fields[platform] ?? [];
+      const readOnly = locked.indexOf(platform) >= 0;
+      return {
+        platform,
+        fields,
+        pullable: pullableInLocale({ locale: r.locale, fields }),
+        canPull: app !== undefined && (pullReasons[platform] ?? null) === null,
+        canEdit: (f: DriftField) => app !== undefined && onedit !== undefined && !readOnly && fieldInfo(platform, f.field) !== null,
+        canStage: (f: DriftField) => {
+          if (app === undefined || readOnly) return false;
+          const st = fieldStage({ role, platform, field: f, view: stagedStore.view(app.id) });
+          return st.state === 'available' && !st.upToDate;
+        },
+      };
+    });
+    return leadAction(inputs);
+  });
+
+  const primaryBusy = $derived.by(() => {
+    const a = primary;
+    if (!a || a.kind !== 'stage') return false;
+    const app = appOf(a.platform);
+    return app !== undefined && stagingKey === `${app.id}\u0000${a.field.locale}\u0000${a.field.field}`;
+  });
+
+  function runPrimary() {
+    const a = primary;
+    const r = row;
+    if (!a || !r) return;
+    const app = appOf(a.platform);
+    if (!app) return;
+    if (a.kind === 'edit') onedit?.(app, a.field);
+    else if (a.kind === 'pull') onpull(app, pullableInLocale({ locale: r.locale, fields: r.fields[a.platform] ?? [] }));
+    else onstage(app, a.field);
+  }
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
@@ -149,22 +202,113 @@
       </header>
 
       <div class="body">
+        {#if lead}
+          <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="locale-lead">
+            {#snippet actions()}
+              {#if primary}
+                <Button
+                  variant="primary"
+                  icon={primary.kind === 'edit' ? 'edit' : primary.kind === 'pull' ? 'git-pull-request' : 'layers'}
+                  loading={primaryBusy}
+                  disabled={primaryBusy}
+                  onclick={runPrimary}
+                >
+                  {primary.label}
+                </Button>
+              {/if}
+            {/snippet}
+          </PageLead>
+        {/if}
+
         {#each row.platforms as platform (platform)}
           {@const app = appOf(platform)}
           {@const fields = row.fields[platform] ?? []}
           {@const pullable = pullableInLocale({ locale: row.locale, fields })}
           {@const reason = pullReasons[platform] ?? null}
           {@const selection = pickedIn(platform, fields)}
+          {@const split = splitFields(fields)}
+          {#snippet fieldRow(field: DriftField)}
+            <FieldCompare
+              {field}
+              storeLabel={channels[platform] === 'editable' ? 'Editable version' : 'Live store'}
+              {now}
+              onhistory={(f) => app && onhistory(app, f)}
+              pullable={canPullField(field)}
+              pullDisabled={reason}
+              selected={picked.has(keyOf(platform, field))}
+              onselect={(f, on) => select(platform, f, on)}
+              onpull={(f) => app && onpull(app, [f])}
+              stage={app && locked.indexOf(platform) < 0 ? fieldStage({ role, platform, field, view: stagedStore.view(app.id) }) : undefined}
+              stageBusy={app !== undefined && stagingKey === `${app.id}\u0000${field.locale}\u0000${field.field}`}
+              onstage={(f) => app && onstage(app, f)}
+              onunstage={(id, f) => app && onunstage(app, id, f)}
+            >
+              {#snippet extra()}
+                {#if app && onedit && locked.indexOf(platform) < 0 && fieldInfo(platform, field.field) !== null}
+                  <div class="editrow">
+                    <Button size="sm" icon="edit" onclick={() => onedit(app, field)}>Edit {field.label.toLowerCase()}</Button>
+                  </div>
+                {/if}
+                {#if app && api && workspaceId && locked.indexOf(platform) < 0}
+                  <ImproveField
+                    {api}
+                    {workspaceId}
+                    {role}
+                    {app}
+                    {field}
+                    current={field.live.value ?? field.db.value ?? ''}
+                    buttonLabel="Suggest with AI"
+                    onaccepted={async () => {
+                      await stagedStore.load(api, workspaceId, app.id);
+                    }}
+                  />
+                {/if}
+              {/snippet}
+            </FieldCompare>
+          {/snippet}
           <section class="platform card flush" aria-label="{platformLabel(platform)} listing, locale {row.locale}">
             <div class="phead">
               <h3><PlatformBadge {platform} tinted /></h3>
               <span class="muted">{storeName(platform)} · {localeSummary({ locale: row.locale, fields })}</span>
             </div>
-            <div class="dots" aria-label="Status of each field">
-              {#each fields as field (field.field)}
-                {@const status = cellStatus(field)}
-                <span class="dotted"><StatusDot {status} label="{field.label}: {cellInfo(status).label}" /><span>{field.label}</span></span>
+
+            {#if app !== undefined && pullable.length > 0}
+              <div class="pullrow">
+                {#if reason !== null}
+                  <p class="muted note"><Icon name="info" size={14} /> Pulling into the repository is not available. {reason}</p>
+                {:else}
+                  {#if !(primary?.kind === 'pull' && primary.platform === platform)}
+                    <Button size="sm" icon="git-pull-request" onclick={() => onpull(app, pullable)}>
+                      Pull {row.locale} into repository ({pullable.length})
+                    </Button>
+                  {/if}
+                  <Button size="sm" variant="ghost" icon="git-pull-request" disabled={selection.length === 0} onclick={() => onpull(app, selection)}>
+                    Pull selected{selection.length > 0 ? ` (${selection.length})` : ''}
+                  </Button>
+                {/if}
+              </div>
+            {/if}
+
+            {#if fields.length === 0}
+              <p class="muted empty">This locale has no fields on this store.</p>
+            {/if}
+            <div class="fields" role="group" aria-label="Status of each field">
+              {#each split.attention as field (field.field)}
+                {@render fieldRow(field)}
               {/each}
+              {#if split.inSync.length > 0}
+                <details class="insync" open={split.attention.length === 0}>
+                  <summary>
+                    <span class="chev"><Icon name="chevron-right" size={16} /></span>
+                    {split.inSync.length === fields.length ? 'All' : ''}
+                    {split.inSync.length}
+                    {split.inSync.length === 1 ? 'field' : 'fields'} in sync
+                  </summary>
+                  {#each split.inSync as field (field.field)}
+                    {@render fieldRow(field)}
+                  {/each}
+                </details>
+              {/if}
             </div>
 
             {#if app !== undefined && asoKeywords !== undefined && fields.length > 0}
@@ -183,74 +327,16 @@
                 />
               </div>
             {/if}
-
-            {#if app !== undefined && pullable.length > 0}
-              <div class="pullrow">
-                {#if reason !== null}
-                  <p class="muted note"><Icon name="info" size={14} /> Pulling into the repository is not available. {reason}</p>
-                {:else}
-                  <Button size="sm" icon="git-pull-request" onclick={() => onpull(app, pullable)}>
-                    Pull {row.locale} into repository ({pullable.length})
-                  </Button>
-                  <Button size="sm" icon="git-pull-request" disabled={selection.length === 0} onclick={() => onpull(app, selection)}>
-                    Pull selected{selection.length > 0 ? ` (${selection.length})` : ''}
-                  </Button>
-                {/if}
-              </div>
-            {/if}
-
-            {#if fields.length === 0}
-              <p class="muted empty">This locale has no fields on this store.</p>
-            {/if}
-            {#each fields as field (field.field)}
-              <FieldCompare
-                {field}
-                storeLabel={channels[platform] === 'editable' ? 'Editable version' : 'Live store'}
-                {now}
-                onhistory={(f) => app && onhistory(app, f)}
-                pullable={canPullField(field)}
-                pullDisabled={reason}
-                selected={picked.has(keyOf(platform, field))}
-                onselect={(f, on) => select(platform, f, on)}
-                onpull={(f) => app && onpull(app, [f])}
-                stage={app && locked.indexOf(platform) < 0 ? fieldStage({ role, platform, field, view: stagedStore.view(app.id) }) : undefined}
-                stageBusy={app !== undefined && stagingKey === `${app.id}\u0000${field.locale}\u0000${field.field}`}
-                onstage={(f) => app && onstage(app, f)}
-                onunstage={(id, f) => app && onunstage(app, id, f)}
-              >
-                {#snippet extra()}
-                  {#if app && onedit && locked.indexOf(platform) < 0 && fieldInfo(platform, field.field) !== null}
-                    <div class="editrow">
-                      <Button size="sm" icon="edit" onclick={() => onedit(app, field)}>Edit {field.label.toLowerCase()}</Button>
-                    </div>
-                  {/if}
-                  {#if app && api && workspaceId && locked.indexOf(platform) < 0}
-                    <ImproveField
-                      {api}
-                      {workspaceId}
-                      {role}
-                      {app}
-                      {field}
-                      current={field.live.value ?? field.db.value ?? ''}
-                      buttonLabel="Suggest with AI"
-                      onaccepted={async () => {
-                        await stagedStore.load(api, workspaceId, app.id);
-                      }}
-                    />
-                  {/if}
-                {/snippet}
-              </FieldCompare>
-            {/each}
           </section>
         {/each}
 
-        <p class="muted foot">
-          <Icon name="info" size={14} /> "Stage from repo" collects the repository's text of a field that differs for the draft push in the
-          staged-changes tray; it changes nothing in a store. Other edits are made in the repository, as change sets.
-          {#each members as app (app.id)}
-            {#if app.repositoryId !== null}<a href="#/repositories">Open repositories</a>{/if}
-          {/each}
-        </p>
+        <Disclosure summary="How staging and pulling work">
+          <p class="muted foot">
+            "Stage from repo" collects the repository's text of a field that differs for the draft push in the staged-changes tray; it
+            changes nothing in a store. Other edits are made in the repository, as change sets.
+            {#if members.some((m) => m.repositoryId !== null)}<a href="#/repositories">Open repositories</a>{/if}
+          </p>
+        </Disclosure>
       </div>
     </div>
   {/if}
@@ -301,7 +387,7 @@
 
   header p {
     margin: var(--space-1) 0 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   .nav {
@@ -314,8 +400,8 @@
     display: flex;
     flex: 1;
     flex-direction: column;
-    gap: var(--space-4);
-    padding: var(--space-4) var(--space-5) var(--space-6);
+    gap: var(--space-5);
+    padding: var(--space-5) var(--space-5) var(--space-6);
     overflow: auto;
   }
 
@@ -324,7 +410,7 @@
     flex-wrap: wrap;
     gap: var(--space-1) var(--space-3);
     align-items: center;
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-4);
   }
 
   .phead h3 {
@@ -332,26 +418,17 @@
     font-size: var(--text-md);
   }
 
-  .dots {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-4);
-    padding: 0 var(--space-4) var(--space-3);
-    font-size: var(--text-sm);
-  }
-
-  .dotted {
-    display: inline-flex;
-    gap: var(--space-1);
-    align-items: center;
+  .phead .muted {
+    font-size: 0.9375rem;
   }
 
   .budget {
-    padding: 0 var(--space-4) var(--space-3);
+    padding: var(--space-3) var(--space-4) var(--space-4);
+    border-top: 1px solid var(--line);
   }
 
   .editrow {
-    margin-top: var(--space-2);
+    display: flex;
   }
 
   .pullrow {
@@ -359,7 +436,7 @@
     flex-wrap: wrap;
     gap: var(--space-2);
     align-items: center;
-    padding: var(--space-2) var(--space-4) var(--space-3);
+    padding: 0 var(--space-4) var(--space-3);
   }
 
   .note {
@@ -375,13 +452,42 @@
     margin: 0;
   }
 
-  .foot {
+  .insync {
+    border-top: 1px solid var(--line);
+  }
+
+  .insync > summary {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
+    gap: var(--space-2);
     align-items: center;
+    padding: var(--space-3) var(--space-4);
+    font-size: 0.9375rem;
+    color: var(--muted);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .insync > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .insync > summary:hover {
+    background: var(--surface-hover);
+  }
+
+  .insync > summary .chev {
+    display: inline-flex;
+    transition: transform var(--duration-fast) var(--ease);
+  }
+
+  .insync[open] > summary .chev {
+    transform: rotate(90deg);
+  }
+
+  .foot {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
+    line-height: 1.45;
   }
 
   @keyframes slide {
