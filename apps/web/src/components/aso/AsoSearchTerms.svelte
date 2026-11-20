@@ -84,7 +84,7 @@
     searchTermsLead(
       apps.flatMap((m) => {
         const d = data[m.id];
-        return d ? [{ stored: d.stored, terms: d.terms.length, period: d.terms.length > 0 ? periodLine(d) : null }] : [];
+        return d ? [{ stored: d.stored !== null, terms: d.terms.length, period: d.terms.length > 0 ? periodLine(d) : null }] : [];
       }),
     ),
   );
