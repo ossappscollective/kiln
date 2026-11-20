@@ -10,7 +10,6 @@
 <script lang="ts">
   import { type Api } from '../lib/api.ts';
   import {
-    METHOD_LABELS,
     type CodeSent,
     type LoginChallenge,
     type LoginMethod,
@@ -20,6 +19,7 @@
     resendIn,
     twoFactorProblem,
   } from '../lib/two-factor.ts';
+  import { enrollChoiceHint, otherWayLabel } from '../lib/auth-copy.ts';
   import AuthCard from './AuthCard.svelte';
   import TotpSetup from './TotpSetup.svelte';
   import Alert from './ui/Alert.svelte';
@@ -131,6 +131,8 @@
 
   const wait = $derived(sent ? resendIn(sent.at, sent.info.resendAfterSeconds, now) : 0);
   const others = $derived(challenge.methods.filter((m) => m !== method));
+  const showOthers = $derived(!dead && !enrolling && others.length > 0);
+  const showBack = $derived(!dead && !(enrolling && !method));
   const title = $derived(enrolling ? 'Set up a second step' : 'Confirm it is you');
   const subtitle = $derived(
     enrolling
@@ -149,11 +151,14 @@
       <Alert tone="error">{problem || 'This sign-in expired. Sign in again.'}</Alert>
       <Button variant="primary" size="lg" block onclick={oncancel}>Back to sign in</Button>
     {:else if enrolling && !method}
-      <p class="muted">Choose how you will get your codes.</p>
+      <p class="quiet">Choose how you will get your codes.</p>
       {#each challenge.methods as option (option)}
-        <Button size="lg" block onclick={() => choose(option)}>{option === 'totp' ? 'Authenticator app' : 'Email me a code'}</Button>
+        <div class="choice">
+          <Button size="lg" block onclick={() => choose(option)}>{option === 'totp' ? 'Authenticator app' : 'Email me a code'}</Button>
+          <p class="quiet">{enrollChoiceHint(option)}</p>
+        </div>
       {/each}
-      <Button variant="ghost" onclick={oncancel}>Back</Button>
+      <p class="quiet-links"><Button variant="link" onclick={oncancel}>Back</Button></p>
     {:else if enrolling && method === 'totp'}
       {#if begin}
         <TotpSetup {begin} {busy} {problem} onconfirm={confirmTotp} oncancel={() => (begin = null)} />
@@ -161,11 +166,11 @@
         <Button variant="primary" size="lg" block loading={busy} onclick={startTotp}>Show the QR code</Button>
         {#if problem}<Alert tone="error">{problem}</Alert>{/if}
       {/if}
-      <Button variant="ghost" onclick={() => (method = undefined)}>Choose another way</Button>
+      <p class="quiet-links"><Button variant="link" onclick={() => (method = undefined)}>Choose another way</Button></p>
     {:else if method === 'totp' || method === 'recovery' || (method === 'email' && sent)}
       <form class="stack" onsubmit={submit} novalidate>
         {#if method === 'email' && sent}
-          <p class="muted">A code was sent to <strong>{sent.info.to}</strong>. It works once and lasts 10 minutes.</p>
+          <p class="quiet">A code was sent to <strong>{sent.info.to}</strong>. It works once and lasts 10 minutes.</p>
         {/if}
         <TextField
           id="second-factor-code"
@@ -180,26 +185,40 @@
         {#if problem}<Alert tone="error">{problem}</Alert>{/if}
         <Button variant="primary" type="submit" size="lg" block loading={busy} disabled={!ready}>Continue</Button>
         {#if method === 'email'}
-          <Button disabled={busy || wait > 0} onclick={sendEmail}>{wait > 0 ? `Send again in ${wait}s` : 'Send again'}</Button>
+          <p class="quiet-links"><Button variant="link" disabled={busy || wait > 0} onclick={sendEmail}>{wait > 0 ? `Send again in ${wait}s` : 'Send again'}</Button></p>
         {/if}
       </form>
     {:else if method === 'email'}
-      <p class="muted">We will email a six digit code to the address on your account.</p>
+      <p class="quiet">We will email a six digit code to the address on your account.</p>
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}
       <Button variant="primary" size="lg" block loading={busy} onclick={sendEmail}>Email me a code</Button>
     {:else}
       <Alert tone="error">There is no way to confirm this sign-in. Ask an owner or admin to reset your second factor.</Alert>
     {/if}
 
-    {#if !dead && !enrolling && others.length > 0}
-      <div class="row">
-        {#each others as other (other)}
-          <Button variant="link" onclick={() => choose(other)}>{METHOD_LABELS[other]}</Button>
-        {/each}
-      </div>
-    {/if}
-    {#if !dead && !(enrolling && !method)}
-      <Button variant="ghost" onclick={oncancel}>Back to sign in</Button>
+    {#if showOthers || showBack}
+      <p class="quiet-links">
+        {#if showOthers}
+          {#each others as other (other)}
+            <Button variant="link" onclick={() => choose(other)}>{otherWayLabel(other)}</Button>
+          {/each}
+        {/if}
+        {#if showBack}
+          <Button variant="link" onclick={oncancel}>Back to sign in</Button>
+        {/if}
+      </p>
     {/if}
   </div>
 </AuthCard>
+
+<style>
+  .choice {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .choice + .choice {
+    margin-top: var(--space-5);
+  }
+</style>
