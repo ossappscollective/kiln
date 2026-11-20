@@ -67,3 +67,54 @@ export function capItems<T extends { tone: string }>(
   items.forEach((item, i) => (i < limit || item.tone === 'bad' ? shown : hidden).push(item));
   return { shown, hidden };
 }
+
+// ---------------------------------------------------------------------------------------------
+// The publish dialog
+
+/** The most consequential step that is included: the one the dialog's title names. */
+const TITLE_ORDER: readonly PlanStep['type'][] = ['release', 'submit', 'push_draft', 'rollout'];
+
+/**
+ * The title of the publish dialog says what happens ("Release 2.9.0 to the App Store"), from the included steps and the version the
+ * plan carries. `store` is the store with its article ("the App Store", "Google Play").
+ */
+export function publishTitle(plan: Pick<PublishPlan, 'steps'>, store: string): string {
+  const included = plan.steps.filter((s) => s.included);
+  const top = TITLE_ORDER.map((t) => included.filter((s) => s.type === t)[0]).filter((s): s is PlanStep => s !== undefined)[0];
+  if (top === undefined) return `Publish to ${store}`;
+  const summary = top.summary ?? {};
+  const pick = (key: string): string => (typeof summary[key] === 'string' ? (summary[key] as string).trim() : '');
+  const version = top.type === 'release' ? pick('version') : top.type === 'submit' ? pick('versionString') : '';
+  const v = version !== '' ? ` ${version}` : '';
+  switch (top.type) {
+    case 'release':
+      return `Release${v} to ${store}`;
+    case 'submit':
+      return `Submit${v} for review on ${store}`;
+    case 'push_draft':
+      return `Update the draft on ${store}`;
+    default:
+      return `Change the rollout on ${store}`;
+  }
+}
+
+/**
+ * The one short line in the footer that says why Publish is disabled; empty when it can be pressed (or while it runs).
+ * The typed phrase is named only when the plan asks for it.
+ */
+export function publishDisabledReason(input: {
+  phase: string;
+  stale: boolean;
+  ready: boolean;
+  wanted: number;
+  plan: Pick<PublishPlan, 'confirmable' | 'confirmationRequired' | 'confirmation'> | null;
+}): string {
+  if (input.ready || input.phase === 'publishing' || input.phase === 'done') return '';
+  if (input.phase === 'previewing') return 'Making the plan.';
+  const plan = input.plan;
+  if (plan === null) return '';
+  if (input.stale) return 'The plan is out of date. Review again to publish.';
+  if (!plan.confirmable) return input.wanted === 0 ? 'Tick at least one step to publish.' : 'A step cannot run. Untick it or fix what blocks it.';
+  if (plan.confirmationRequired && plan.confirmation) return `Type "${plan.confirmation.phrase}" to publish.`;
+  return 'Tick the box above to publish.';
+}

@@ -7,6 +7,9 @@
   steps and the phrase, and is never retried. The answer lists every step as done, not run or failed in fixed words (a store's own text
   is never shown); a plan that changed, a step that drifted or a state that changed offer "Review again", which only previews.
   Ticking or unticking a step previews again (a new plan, a new hash, a new phrase): nothing carries over from the old one.
+  The title says what happens ("Release 2.9.0 to the App Store"). Each step is a card with its tick, its numbers and "Details of this step". The
+  confirmation is ONE box: a single tick that says what cannot be undone (no typed phrase), or, when the plan requires one, the phrase field
+  inside the same box. The footer says in one line why Publish is off (lib/readability.ts: publishTitle, publishDisabledReason).
   Props: open (bindable), api, workspaceId, targets (the app records that have something to publish), onchanged (called after a
   publish answered and when the dialog closes after one, so the screens read what they show again).
 -->
@@ -50,7 +53,7 @@
   } from '../../lib/pending.ts';
   import { announcePublished } from '../../lib/app-page.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
-  import { foldWarnings, planHeadline, shownStatusWord, stepGist } from '../../lib/readability.ts';
+  import { foldWarnings, planHeadline, publishDisabledReason, publishTitle, shownStatusWord, stepGist } from '../../lib/readability.ts';
   import { EVERYONE, releaseInputsFor } from '../../lib/release-settings.ts';
   import { releaseSettingsStore } from '../../lib/release-settings-store.svelte.ts';
   import { storeName } from '../../lib/staged.ts';
@@ -119,6 +122,8 @@
   const ready = $derived(phase === 'ready' && !stale && canPublish(plan, wanted, typed, ack));
   const store = $derived(app ? storeName(app.platform) : 'the store');
   const phraseId = `${uid}-phrase`;
+  const title = $derived(plan ? publishTitle(plan, store) : 'Review and publish');
+  const why = $derived(publishDisabledReason({ phase, stale, ready, wanted: wanted.length, plan }));
 
   /** Scrolls to the confirmation under the plan and puts the cursor in it (the Publish button stays off until it is done). */
   function focusConfirm() {
@@ -335,7 +340,7 @@
 <Modal
   bind:open
   size="lg"
-  title="Review and publish all: confirm"
+  {title}
   description={app ? `${app.name} · ${platformLabel(app.platform)}` : ''}
   dismissible={phase !== 'publishing'}
   onclose={closed}
@@ -374,10 +379,7 @@
       <Alert tone="error" title="No plan was made">{problem}</Alert>
     {:else if plan}
       {@const head = planHeadline(plan, store)}
-      <div class="headline" data-testid="plan-headline">
-        <p class="headline-title"><strong>{head.title}</strong></p>
-        {#if head.sequence}<p class="muted small">In this order: {head.sequence}.</p>{/if}
-      </div>
+      {#if plan.included > 1 && head.sequence}<p class="muted headline" data-testid="plan-headline">They run in this order and stop at the first one that fails: {head.sequence}.</p>{:else if plan.included === 0}<p class="muted headline" data-testid="plan-headline">{head.title}.</p>{/if}
       {#if notice}<p class="notice muted small" role="status"><Icon name="info" size={14} /> {notice}</p>{/if}
 
       <ol class="steps" aria-label="Steps, in the order they run" aria-busy={phase === 'previewing'}>
@@ -394,10 +396,10 @@
                     disabled={!row.toggleable || busy || stale || row.needsInput}
                     onchange={(e) => toggle(row.type, e.currentTarget.checked)}
                   />
-                  <span><strong>{row.order}. {row.label}</strong></span>
+                  <span class="step-title">{row.order}. {row.label}</span>
                 </label>
                 {#if shownStatusWord(row)}<Badge tone={row.tone}>{shownStatusWord(row)}</Badge>{/if}
-                {#if row.irreversible}<Badge tone="warn" icon="alert-triangle">Cannot be undone</Badge>{/if}
+                {#if row.irreversible}<Badge tone="warn" icon="alert-triangle">Cannot be undone from here</Badge>{/if}
                 {#if row.deferred}<Badge tone="info" icon="clock">Checked later</Badge>{/if}
               </div>
               {#if step.included && !step.deferred && stepGist(step)}<p class="gist" data-testid="plan-step-gist-{row.type}">{stepGist(step)}</p>{/if}
@@ -445,7 +447,7 @@
                 <Disclosure summary="Details of this step" open={stepGist(step) === ''}>
                   <div class="detail">
                     {@render details(step)}
-                    {#if step.irreversible && step.stepPhrase}
+                    {#if step.irreversible && step.stepPhrase && plan?.confirmationRequired}
                       <p class="small muted">Its own confirmation would be “{step.stepPhrase}”. The phrase you type below confirms it as part of this plan.</p>
                     {/if}
                   </div>
@@ -492,23 +494,26 @@
           {wanted.length === 0 ? 'Tick at least one step.' : 'A step you chose cannot run. Untick it, or fix what blocks it, then review again.'}
         </Alert>
       {:else if plan.confirmationRequired && plan.confirmation}
-        <p class="muted small">The steps run in order and stop at the first one that does not finish. Nothing is retried. It is recorded in the audit log.</p>
-        {#if plan.irreversible}
-          <p class="irrev small" data-testid="plan-irreversible">
-            <Icon name="alert-triangle" size={14} /> Cannot be undone from here: {plan.irreversibleSteps.map((t) => STEP_NAME[t]).join(', ')}. Only the store's own console can cancel it.
-          </p>
-        {/if}
-        <div class="field">
-          <label for={phraseId}>Type <strong class="phrase">{plan.confirmation.phrase}</strong> to confirm</label>
-          <p class="muted small">{plan.confirmation.instruction}</p>
-          <input id={phraseId} type="text" autocomplete="off" autocapitalize="off" spellcheck="false" bind:value={typed} disabled={busy || stale} />
+        <div class="confirm" class:irrev={plan.irreversible}>
+          {#if plan.irreversible}
+            <p class="irrev-line" data-testid="plan-irreversible">
+              <Icon name="alert-triangle" size={16} /> <span><strong>Cannot be undone from here:</strong> {plan.irreversibleSteps.map((t) => STEP_NAME[t]).join(', ')}. Only the store's own console can cancel it. Recorded in the audit log.</span>
+            </p>
+          {/if}
+          <div class="field">
+            <label for={phraseId}>Type <strong class="phrase">{plan.confirmation.phrase}</strong> to confirm</label>
+            <p class="muted small">{plan.confirmation.instruction}</p>
+            <input id={phraseId} type="text" autocomplete="off" autocapitalize="off" spellcheck="false" bind:value={typed} disabled={busy || stale} />
+          </div>
         </div>
       {:else}
-        <p class="muted small">The steps run in order and stop at the first one that does not finish. Nothing is retried. It is recorded in the audit log.</p>
-        <label class="check">
+        <label class="confirm ack" class:irrev={plan.irreversible} data-testid={plan.irreversible ? 'plan-irreversible' : undefined}>
           <input type="checkbox" bind:checked={ack} disabled={busy || stale} data-testid="plan-confirm-ack" />
-          <span>{plan.irreversible ? `I have read the plan above and want it written to ${store} now. Some steps cannot be undone from here. I confirm with my passkey or password next.` : `I have read the plan above. I want it written to ${store} now. Nothing is submitted or released by it.`}</span>
+          <span>
+            {#if plan.irreversible}<strong>I understand.</strong> {plan.irreversibleSteps.map((t) => STEP_NAME[t]).join(', ')} cannot be undone from here: only the store's own console can stop it. Recorded in the audit log.{:else}<strong>I have read the plan.</strong> Nothing is submitted or released by it. Recorded in the audit log.{/if}
+          </span>
         </label>
+        <p class="muted small">When you press Publish you confirm with your password or passkey. There is no phrase to type.</p>
       {/if}
 
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}
@@ -525,17 +530,19 @@
       {#if summary?.review}<Button icon="refresh" onclick={() => review(null)}>Review again</Button>{/if}
       <Button variant="primary" onclick={close}>Close</Button>
     {:else}
-      {#if plan && phase === 'ready' && !stale && !ready && plan.confirmable}
-        <button type="button" class="why-disabled" onclick={focusConfirm} data-testid="why-publish-disabled">
-          {plan.confirmationRequired && plan.confirmation ? `Type "${plan.confirmation.phrase}" to publish` : 'Tick the box under the plan to publish'}
-        </button>
+      {#if why}
+        {#if plan && phase === 'ready' && !stale && plan.confirmable}
+          <button type="button" class="why-disabled" onclick={focusConfirm} data-testid="why-publish-disabled">{why}</button>
+        {:else}
+          <span class="why-text" data-testid="why-publish-disabled">{why}</span>
+        {/if}
       {/if}
       <Button disabled={phase === 'publishing'} onclick={close}>Cancel</Button>
       {#if stale || (phase === 'error' && !plan)}
         <Button icon="refresh" disabled={busy} onclick={() => review(null)}>Review again</Button>
       {/if}
       {#if plan}
-        <Button variant="danger-solid" icon="upload" loading={phase === 'publishing'} disabled={!ready || busy} onclick={publish}>
+        <Button variant="primary" icon="upload" loading={phase === 'publishing'} disabled={!ready || busy} onclick={publish}>
           Publish {plan.included} {plan.included === 1 ? 'step' : 'steps'}
         </Button>
       {/if}
@@ -544,17 +551,70 @@
 </Modal>
 
 <style>
-  .why-disabled {
+  .why-disabled,
+  .why-text {
     margin-inline-end: auto;
+    font-size: var(--text-sm);
+    color: var(--muted);
+    text-align: start;
+  }
+
+  .why-disabled {
     padding: 0;
     font: inherit;
     font-size: var(--text-sm);
-    color: var(--accent);
-    text-align: start;
-    text-decoration: underline;
     cursor: pointer;
     background: none;
     border: 0;
+  }
+
+  .why-disabled:hover {
+    color: var(--ink);
+    text-decoration: underline;
+  }
+
+  .step-title {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .step input[type='checkbox'],
+  .ack input[type='checkbox'] {
+    flex: none;
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  /* ONE box for the irreversible acknowledgement (or the typed phrase when the plan requires one). */
+  .confirm {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--surface-sunken);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-xl);
+  }
+
+  .confirm.irrev {
+    background: var(--warn-bg);
+    border-color: var(--warn-line);
+  }
+
+  .ack {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+    font-size: var(--text-md);
+    line-height: 1.4;
+    cursor: pointer;
+  }
+
+  .irrev-line {
+    display: flex;
+    gap: var(--space-2);
+    align-items: baseline;
+    margin: 0;
+    color: var(--warn-ink);
   }
 
   .tabs {
@@ -574,14 +634,14 @@
   .result {
     display: grid;
     gap: var(--space-2);
-    padding: var(--space-3);
-    background: var(--surface-sunken);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-xl);
   }
 
   .step.off {
-    background: var(--surface);
+    background: var(--surface-sunken);
   }
 
   .step-head {
@@ -592,18 +652,12 @@
     margin: 0;
   }
 
-  .headline-title {
-    margin: 0;
-    font-size: var(--text-md);
-  }
-
-  .headline p {
+  .headline {
     margin: 0;
   }
 
   .notice,
-  .warnline,
-  .irrev {
+  .warnline {
     display: flex;
     gap: var(--space-2);
     align-items: baseline;
@@ -615,14 +669,10 @@
     color: var(--warn-ink);
   }
 
-  .irrev {
-    color: var(--bad-ink);
-  }
-
   .gist {
     margin: 0;
-    font-size: var(--text-sm);
-    color: var(--ink);
+    font-size: var(--text-md);
+    color: var(--muted);
   }
 
   .reason,

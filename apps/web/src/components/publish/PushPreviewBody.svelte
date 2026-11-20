@@ -17,18 +17,15 @@
   import Badge from '../ui/Badge.svelte';
 
   let { preview }: { preview: DraftPreview } = $props();
+
+  /** The warnings of the server and the store's warning checks, in ONE list under ONE heading (never two alerts that say the same). */
+  const readFirst = $derived(
+    [...preview.warnings, ...(preview.checks ? preview.checks.warnings.map((c) => c.message) : [])].filter((w, i, all) => w.trim() !== '' && all.indexOf(w) === i),
+  );
 </script>
 
 <div class="stack">
   <p class="summary" data-testid="push-summary">{previewSummaryText(preview.summary)}</p>
-
-  {#if preview.warnings.length > 0}
-    <Alert tone="warn" title="Read before you confirm">
-      <ul class="plain">
-        {#each preview.warnings as warning (warning)}<li>{warning}</li>{/each}
-      </ul>
-    </Alert>
-  {/if}
 
   {#if preview.checks && preview.checks.blocking.length > 0}
     <Alert tone="error" title="The store says this cannot be written as it is">
@@ -38,10 +35,10 @@
       Nothing can be pushed until that is fixed. Close this, fix it in the release steps, then preview again.
     </Alert>
   {/if}
-  {#if preview.checks && preview.checks.warnings.length > 0}
+  {#if readFirst.length > 0}
     <Alert tone="warn" title="Read before you confirm">
       <ul class="plain">
-        {#each preview.checks.warnings as check (check.code + (check.item ?? ''))}<li>{check.message}</li>{/each}
+        {#each readFirst as text (text)}<li>{text}</li>{/each}
       </ul>
     </Alert>
   {/if}
