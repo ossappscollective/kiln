@@ -14,6 +14,7 @@
   import type { Api } from '../../lib/api.ts';
   import { type AsoKeyword, asoErrorMessage, asoViewHref } from '../../lib/aso.ts';
   import { address } from '../../lib/address.svelte.ts';
+  import { searchTermsLead } from '../../lib/aso-lead.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { countOf, summaryLine } from '../../lib/section-state.ts';
@@ -36,6 +37,7 @@
   import EmptyState from '../ui/EmptyState.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Section from '../ui/Section.svelte';
+  import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import SearchTermsImportDialog from './SearchTermsImportDialog.svelte';
 
@@ -78,6 +80,16 @@
   /** The terms tracked in this visit, so the button turns into "Tracked" before the lists are read again. */
   let justTracked = $state<Record<string, boolean | undefined>>({});
   let reload = $state(0);
+  const lead = $derived(
+    searchTermsLead(
+      apps.flatMap((m) => {
+        const d = data[m.id];
+        return d ? [{ stored: d.stored, terms: d.terms.length, period: d.terms.length > 0 ? periodLine(d) : null }] : [];
+      }),
+    ),
+  );
+  /** With one app the lead holds the one Import button (once a file is stored; before that the empty state has the primary one). */
+  const single = $derived(apps.length === 1);
 
   $effect(() => {
     void version;
@@ -137,10 +149,19 @@
   }
 </script>
 
-<div class="terms stack">
+<div class="terms stack roomy">
   {#if apps.length === 0}
     <p class="none">Search terms come from Google Play Console, so they are only for Google Play apps.</p>
   {:else}
+    {#if !loading && apps.some((m) => data[m.id])}
+      <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="search-terms-lead">
+        {#snippet actions()}
+          {#if single && canImport && apps[0] && data[apps[0].id]?.stored}
+            <Button icon="upload" onclick={() => openImport(apps[0]?.id ?? '')}>Import a file</Button>
+          {/if}
+        {/snippet}
+      </PageLead>
+    {/if}
     {#if countries.length > 0 || apps.some((m) => data[m.id]?.terms.length)}
       <div class="row">
         <label for="{uid}-sort" class="muted">Sort by</label>
@@ -175,7 +196,7 @@
                 </InfoTip>
               {/if}
               <span class="spacer"></span>
-              {#if canImport && d && d.stored}
+              {#if canImport && d && d.stored && !single}
                 <Button size="sm" icon="upload" onclick={() => openImport(app.id)}>Import a file</Button>
               {/if}
             </div>
@@ -257,6 +278,20 @@
 {/if}
 
 <style>
+  .roomy {
+    font-size: 0.9375rem;
+  }
+
+  .roomy :global(table.compact th),
+  .roomy :global(table.compact td) {
+    padding-block: var(--space-3);
+    font-size: 0.9375rem;
+  }
+
+  .roomy :global(table.compact thead th) {
+    font-size: var(--text-sm);
+  }
+
   .terms select {
     width: auto;
   }
@@ -270,7 +305,7 @@
   .sum,
   .foot {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
   }
 
   .term {
@@ -279,7 +314,7 @@
 
   .hint {
     display: block;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-regular);
   }
 
@@ -287,7 +322,7 @@
     max-width: 44rem;
     padding-left: var(--space-5);
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: 0.9375rem;
     color: var(--muted);
   }
 
