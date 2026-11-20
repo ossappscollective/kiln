@@ -515,7 +515,7 @@
                 <p class="from">
                   <AppIcon name={review.app.name} url={iconUrls[review.app.id] ?? null} platform={review.app.platform} size="xs" labelled={true} />
                   <span class="app-name">{review.app.name}</span>
-                  <PlatformBadge platform={review.app.platform} showLabel={false} />
+                  <PlatformBadge platform={review.app.platform} />
                   <a class="link sm" href={appReviewsHref(review.app.id)} title="Opens the reviews of this app.">Open app</a>
                   <span class="muted small">{timeAgo(review.createdAt, now)}</span>
                 </p>

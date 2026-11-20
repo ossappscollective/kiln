@@ -210,11 +210,13 @@ export const icons = {
   'store-android': stroke(
     '<rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M10 8v8l6-4-6-4Z"/>',
   ),
+  // Three silhouettes, so the platforms differ even without color: iOS a tall phone with a pill
+  // at the top, Android a rounded square holding a 2x2 grid, macOS a wide display on a stand.
   'platform-ios': stroke(
     '<rect x="6.5" y="2.5" width="11" height="19" rx="3"/><path d="M10 5.5h4M10.5 18.5h3"/>',
   ),
   'platform-android': stroke(
-    '<rect x="6.5" y="2.5" width="11" height="19" rx="3"/><path d="M12 5.5h.01M9 18.5h6"/>',
+    '<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M8.5 8.5h2v2h-2zM13.5 8.5h2v2h-2zM8.5 13.5h2v2h-2zM13.5 13.5h2v2h-2z"/>',
   ),
   'platform-macos': stroke(
     '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M3 12.5h18M9 20h6M12 16v4"/>',

@@ -137,13 +137,16 @@ export function storeForProjectKind(kind: string | null | undefined): StoreInfo 
 
 export type PlatformId = 'ios' | 'macos' | 'android' | 'unknown';
 
-export type PlatformInfo = { platform: PlatformId; label: string; icon: IconName };
+/** The tint of a platform: its own hue (see the `--platform-*` tokens), `neutral` for an unknown one. */
+export type PlatformTint = 'ios' | 'macos' | 'android' | 'neutral';
+
+export type PlatformInfo = { platform: PlatformId; label: string; icon: IconName; tint: PlatformTint };
 
 export const platformInfo: Record<PlatformId, PlatformInfo> = {
-  ios: { platform: 'ios', label: 'iOS', icon: 'platform-ios' },
-  macos: { platform: 'macos', label: 'macOS', icon: 'platform-macos' },
-  android: { platform: 'android', label: 'Android', icon: 'platform-android' },
-  unknown: { platform: 'unknown', label: 'Unknown platform', icon: 'smartphone' },
+  ios: { platform: 'ios', label: 'iOS', icon: 'platform-ios', tint: 'ios' },
+  macos: { platform: 'macos', label: 'macOS', icon: 'platform-macos', tint: 'macos' },
+  android: { platform: 'android', label: 'Android', icon: 'platform-android', tint: 'android' },
+  unknown: { platform: 'unknown', label: 'Unknown platform', icon: 'smartphone', tint: 'neutral' },
 };
 
 /** A platform string (`ios`, `android`, any case). Anything else is the neutral smartphone. */

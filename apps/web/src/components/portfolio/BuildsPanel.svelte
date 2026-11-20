@@ -258,7 +258,7 @@
               <tr>
                 <td>
                   <div class="cell">
-                    <span class="line"><PlatformBadge platform={build.platform} showLabel={false} /> <strong>{build.version}</strong></span>
+                    <span class="line"><PlatformBadge platform={build.platform} /> <strong>{build.version}</strong></span>
                     <span class="muted text-sm">{buildNumberLabel(build.platform)} <code>{build.buildNumber}</code></span>
                     {#if build.tracks.length > 0}<span class="muted text-sm">{build.tracks.join(', ')}</span>{/if}
                   </div>

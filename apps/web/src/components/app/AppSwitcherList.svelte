@@ -49,7 +49,7 @@
         <code class="ids">{item.identifiers.join(' · ')}</code>
         {#if item.pending}<span class="chiprow"><PendingChip line={item.pending} /></span>{/if}
       </span>
-      <span class="plats">{#each item.platforms as p (p)}<PlatformBadge platform={p} showLabel={false} />{/each}</span>
+      <span class="plats">{#each item.platforms as p (p)}<PlatformBadge platform={p} />{/each}</span>
       {#if item.number !== null}<kbd class="num" title="{mod} + {item.number}">{item.number}</kbd>{/if}
     </li>
   {/each}

@@ -7,10 +7,10 @@
 <script lang="ts">
   import type { PlatformScope, ScopeOption } from '../../lib/app-scope.ts';
   import Icon from '../ui/Icon.svelte';
+  import PlatformBadge from '../ui/PlatformBadge.svelte';
 
   let { options, scope, onchange }: { options: ScopeOption[]; scope: PlatformScope; onchange: (scope: PlatformScope) => void } = $props();
 
-  const icons = { ios: 'platform-ios', macos: 'platform-macos', android: 'platform-android', both: 'layers' } as const;
 </script>
 
 <div class="scope" role="group" aria-label="Platform">
@@ -23,8 +23,12 @@
       title={o.disabled ? o.reason : undefined}
       onclick={() => onchange(o.id)}
     >
-      <Icon name={icons[o.id]} size={16} />
-      {o.label}
+      {#if o.id === 'both'}
+        <Icon name="layers" size={16} />
+        {o.label}
+      {:else}
+        <PlatformBadge platform={o.id} />
+      {/if}
     </button>
   {/each}
 </div>

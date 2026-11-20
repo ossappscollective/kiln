@@ -143,3 +143,11 @@ test('only the App Store and Google Play use a tint; the rest stay neutral', () 
   const tinted = storeIds.filter((id) => storeInfo[id].tint !== 'neutral').sort();
   assert.deepEqual(tinted, ['app_store', 'google_play', 'mac_app_store', 'testflight']);
 });
+
+test('each platform has its own tint and glyph, and an unknown one is neutral', () => {
+  const real = [platformInfo.ios, platformInfo.macos, platformInfo.android];
+  assert.equal(new Set(real.map((p) => p.tint)).size, 3);
+  assert.equal(new Set(real.map((p) => p.icon)).size, 3);
+  assert.deepEqual(real.map((p) => p.tint), ['ios', 'macos', 'android']);
+  assert.equal(platformById('tizen').tint, 'neutral');
+});

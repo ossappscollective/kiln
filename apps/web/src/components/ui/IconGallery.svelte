@@ -83,7 +83,7 @@
   <section class="stack">
     <h2>Platform badges</h2>
     <p class="row"><PlatformBadge platform="ios" /> <PlatformBadge platform="macos" /> <PlatformBadge platform="android" /> <PlatformBadge platform="tizen" /></p>
-    <p class="row"><PlatformBadge platform="ios" tinted /> <PlatformBadge platform="android" tinted /> <PlatformBadge platform="ios" showLabel={false} /></p>
+    <p class="row"><PlatformBadge platform="ios" tinted={false} /> <PlatformBadge platform="android" tinted={false} /> <PlatformBadge platform="ios" showLabel={false} /></p>
   </section>
 
   <section class="stack">

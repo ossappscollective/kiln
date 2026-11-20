@@ -108,7 +108,7 @@
             <th scope="row" class="version"><a href={appAddress(row.appId, 'releases', scope, row.version)}>{row.version}</a></th>
             <td>
               <span class="plat">
-                <PlatformBadge platform={row.platform} showLabel={showPlatform || row.track === null} tinted />
+                <PlatformBadge platform={row.platform} />
                 {#if row.track !== null}<span class="muted track">{row.trackText}</span>{/if}
                 {#if promote}<a class="promote" href={promoteHref(promote)} title="Open Prepare release with these version codes, to release them in {promote.to}.">{promote.label}</a>{/if}
               </span>

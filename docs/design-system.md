@@ -150,7 +150,8 @@ marks drawn for this project, not company logos:
 | `store`                            | storefront                                    | any store; the fallback for an unknown value |
 | `store-ios`                        | shopping bag                                  | App Store, App Store Connect                 |
 | `store-android`                    | rounded square with a play triangle           | Google Play, Google Play Console             |
-| `platform-ios`, `platform-android` | phone outlines (top pill, camera dot)         | iOS, Android                                 |
+| `platform-ios`                     | tall phone outline with a top pill            | iOS                                          |
+| `platform-android`                 | rounded square with a 2x2 grid                | Android                                      |
 | `platform-macos`                   | desktop display with a stand and a bezel line | macOS                                        |
 | `send`                             | paper plane                                   | TestFlight                                   |
 | `repo`                             | repository outline                            | GitHub                                       |
@@ -162,7 +163,7 @@ marks drawn for this project, not company logos:
 <StoreBadge store="google_play" />                <!-- chip: glyph + "Google Play" -->
 <StoreBadge store="github" variant="icon" />      <!-- glyph only; the glyph carries the title -->
 <StoreBadge store="google_play" tone="tinted" />  <!-- the one restrained accent: ok tint -->
-<PlatformBadge platform="ios" />                  <!-- tile + "iOS"; showLabel={false} keeps the name for screen readers -->
+<PlatformBadge platform="ios" />                  <!-- tinted tile (own hue per platform) + "iOS"; showLabel={false} keeps the name for screen readers; official logo from src/assets/platforms if added -->
 ```
 
 Use `lib/stores.ts` instead of repeating strings: `storeForCredentialKind('app_store_connect')`,

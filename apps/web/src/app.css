@@ -49,6 +49,16 @@
   --info-ink: #164a8a;
   --info: #2f6fd0;
   --info-line: #bcd5f5;
+  /* platform tints: one hue per platform, so iOS, macOS and Android never look alike */
+  --platform-ios-bg: #e1f1fc;
+  --platform-ios-ink: #0b4f80;
+  --platform-ios-line: #b3d6ee;
+  --platform-macos-bg: #efe9fb;
+  --platform-macos-ink: #4a2f94;
+  --platform-macos-line: #d0c3f0;
+  --platform-android-bg: #e4f5dc;
+  --platform-android-ink: #2f5d10;
+  --platform-android-line: #c0e0ae;
 
   --scrim: rgb(16 24 40 / 0.5);
   --focus-soft: rgb(52 83 212 / 0.24);
@@ -180,6 +190,15 @@
   --info-ink: #a7c8f8;
   --info: #5b9be8;
   --info-line: #213f70;
+  --platform-ios-bg: #0f2b40;
+  --platform-ios-ink: #9fd2f5;
+  --platform-ios-line: #1d4a6c;
+  --platform-macos-bg: #261c47;
+  --platform-macos-ink: #cbb9f7;
+  --platform-macos-line: #43347a;
+  --platform-android-bg: #1f3112;
+  --platform-android-ink: #b5e08f;
+  --platform-android-line: #35521f;
 
   --scrim: rgb(2 4 8 / 0.64);
   --focus-soft: rgb(141 162 247 / 0.32);
@@ -238,6 +257,15 @@
     --info-ink: #a7c8f8;
     --info: #5b9be8;
     --info-line: #213f70;
+    --platform-ios-bg: #0f2b40;
+    --platform-ios-ink: #9fd2f5;
+    --platform-ios-line: #1d4a6c;
+    --platform-macos-bg: #261c47;
+    --platform-macos-ink: #cbb9f7;
+    --platform-macos-line: #43347a;
+    --platform-android-bg: #1f3112;
+    --platform-android-ink: #b5e08f;
+    --platform-android-line: #35521f;
 
     --scrim: rgb(2 4 8 / 0.64);
     --focus-soft: rgb(141 162 247 / 0.32);

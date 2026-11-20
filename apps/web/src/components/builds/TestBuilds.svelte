@@ -209,7 +209,7 @@
               <div class="main">
                 <div class="head">
                   <span class="line">
-                    {#if row.platform}<PlatformBadge platform={row.platform} showLabel={false} />{/if}
+                    {#if row.platform}<PlatformBadge platform={row.platform} />{/if}
                     <strong class="title">{row.title}</strong>
                     <Badge tone="neutral">{kindLabel(row.kind)}</Badge>
                   </span>
