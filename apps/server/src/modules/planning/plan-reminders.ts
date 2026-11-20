@@ -7,9 +7,9 @@ import {
   rolloutStepReminderDue,
 } from '@mrm/core';
 import type { Database, Param, Row } from '@mrm/db';
-import { recordAudit } from './audit.ts';
-import type { EventType } from './event-types.ts';
-import { emitEvent } from './events.ts';
+import { recordAudit } from '../../services/audit.ts';
+import type { EventType } from '../../services/event-types.ts';
+import { emitEvent } from '../../services/events.ts';
 
 /**
  * Reminders about release plans: a deadline that is close, a deadline that has passed, a rollout

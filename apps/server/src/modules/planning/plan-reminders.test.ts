@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Database } from '@mrm/db';
 import { dbTest } from '@mrm/db/testing';
-import { loadConfig } from './config.ts';
+import { loadConfig } from '../../config.ts';
 import {
   createScheduler,
   DEFAULT_REMINDER_INTERVAL_MINUTES,
   reminderIntervalMs,
-} from './scheduler.ts';
-import { REMINDER_ACTOR, sendPlanReminders } from './services/plan-reminders.ts';
-import { addMember, auditActions, boot, registerOwner, seedWorkspace } from './testkit.ts';
+} from '../../scheduler.ts';
+import { REMINDER_ACTOR, sendPlanReminders } from './plan-reminders.ts';
+import { addMember, auditActions, boot, registerOwner, seedWorkspace } from '../../testkit.ts';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;

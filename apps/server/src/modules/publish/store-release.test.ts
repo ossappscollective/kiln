@@ -939,7 +939,7 @@ dbTest(
       'an older release stays as Google says',
     );
     // The same on the release pipeline the screens draw (the Next step card), but never for the release watch.
-    const { appPipeline, loadPipelineFacts } = await import('../../services/release-pipeline.ts');
+    const { appPipeline, loadPipelineFacts } = await import('../planning/release-pipeline.ts');
     const screen = await appPipeline(db, {
       workspaceId: t.workspaceId,
       appId: app,

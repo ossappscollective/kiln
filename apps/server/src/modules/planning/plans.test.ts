@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import type { Database } from '@mrm/db';
 import { dbTest } from '@mrm/db/testing';
-import { purgePlansOfApp } from './services/plans.ts';
-import { addMember, auditActions, boot, registerOwner, seedWorkspace } from './testkit.ts';
+import { purgePlansOfApp } from './plans.ts';
+import { addMember, auditActions, boot, registerOwner, seedWorkspace } from '../../testkit.ts';
 
 /** 2027-01-10 12:00 UTC. */
 const NOW = Date.UTC(2027, 0, 10, 12, 0, 0);

@@ -18,6 +18,7 @@ import { ciModule } from './modules/ci/index.ts';
 import { type CiContext, createCiContext } from './modules/ci/service.ts';
 import { type ListingDeps, listingModule } from './modules/listing/index.ts';
 import type { ModuleShared } from './modules/module.ts';
+import { planningModule } from './modules/planning/index.ts';
 import { type PublishDeps, publishModule } from './modules/publish/index.ts';
 import { type ReviewsDeps, reviewsModule } from './modules/reviews/index.ts';
 import { defaultReplyConnectorFactory } from './modules/reviews/replies.ts';
@@ -37,9 +38,7 @@ import {
   setUpMail,
 } from './routes/mail-mount.ts';
 import { memberRoutes } from './routes/members.ts';
-import { planRoutes } from './routes/plans.ts';
 import { releaseNotesTranslateRoutes } from './routes/release-notes-translate.ts';
-import { releasePipelineRoutes } from './routes/release-pipeline.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
 import { settingsRoutes } from './routes/settings.ts';
 import { stepUpRoutes } from './routes/step-up.ts';
@@ -471,8 +470,6 @@ export function createApp(deps: AppDeps) {
   asoModule.mount(app, services, deps.aso, shared);
   analyticsModule.mount(app, services, deps.analytics, shared);
   reviewsModule.mount(app, services, deps.reviews, shared);
-  // Where a release is between CI and live, and whether it is stalled: read-only, from stored data.
-  app.route('/api/workspaces', releasePipelineRoutes({ db: services.db, now: services.now }));
   publishModule.mount(
     app,
     services,
@@ -486,8 +483,7 @@ export function createApp(deps: AppDeps) {
     },
     shared,
   );
-  // Release planning: our own checklists, notes and deadlines. No store is read or written.
-  app.route('/api/workspaces', planRoutes({ db: services.db, now: services.now }));
+  planningModule.mount(app, services, undefined, shared);
   // Fix up the branch of a change set (one more commit on top of it) and recompute a store pull.
   // They share the context of the repository routes (clones, the local write switch) and the store
   // read of a pull (the app sync's context and per workspace budget).

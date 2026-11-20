@@ -25,11 +25,11 @@ import {
   validateRolloutSteps,
 } from '@mrm/core';
 import { mapOrNull, oneOf, type Row, type Sql } from '@mrm/db';
-import { recordAudit } from './audit.ts';
-import type { EventType } from './event-types.ts';
-import { emitEvent } from './events.ts';
+import { recordAudit } from '../../services/audit.ts';
+import type { EventType } from '../../services/event-types.ts';
+import { emitEvent } from '../../services/events.ts';
 import type { PlansContext } from './plans.ts';
-import { type Failure, failure, type Outcome } from './repositories.ts';
+import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
 
 /**
  * Staged rollout steps of a release plan. PLANNING DATA ONLY: nothing here reads a store with a

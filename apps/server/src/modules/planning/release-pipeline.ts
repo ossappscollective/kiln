@@ -15,16 +15,16 @@ import {
   supports,
 } from '@mrm/core';
 import { nullableNumber, nullableString, oneOf, type Sql } from '@mrm/db';
-import { effectiveConventions, listConventions } from '../modules/ci/conventions.ts';
+import { effectiveConventions, listConventions } from '../ci/conventions.ts';
 import {
   RUN_COLUMNS,
   runCountsForApp,
   runViews,
   type WorkflowRunView,
-} from '../modules/ci/runs.ts';
-import { RELEASE_WORKFLOW } from '../modules/ci/tags.ts';
-import { releasesSentHere, sentAtOf } from './apps.ts';
-import { getSettings } from './workspace-settings.ts';
+} from '../ci/runs.ts';
+import { RELEASE_WORKFLOW } from '../ci/tags.ts';
+import { releasesSentHere, sentAtOf } from '../../services/apps.ts';
+import { getSettings } from '../../services/workspace-settings.ts';
 
 /**
  * The release pipeline of an app (docs/api/release-pipeline.md): where its release is between a CI run and "live", and whether it

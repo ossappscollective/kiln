@@ -5,12 +5,12 @@ import { searchTermsOperations } from '../modules/aso/search-terms-operations.ts
 import { buildsOperations } from '../modules/builds/operations.ts';
 import { ciOperations } from '../modules/ci/operations.ts';
 import { listingOperations } from '../modules/listing/operations.ts';
+import { planningOperations } from '../modules/planning/operations.ts';
 import { publishOperations } from '../modules/publish/operations.ts';
 import { reviewsOperations } from '../modules/reviews/operations.ts';
 import { aiOperations } from './ai.ts';
 import { mcpOperations } from './mcp.ts';
 import type { Operation } from './openapi.ts';
-import { plansOperations } from './plans.ts';
 import { releasesOperations } from './releases.ts';
 import { repositoriesOperations } from './repositories.ts';
 import type { Draft } from './shared.ts';
@@ -34,7 +34,7 @@ const drafts: Draft[] = [
   ...workspaceOperations,
   ...repositoriesOperations,
   ...ciOperations,
-  ...plansOperations,
+  ...planningOperations,
   ...reviewsOperations,
   ...asoOperations,
   ...searchTermsOperations,

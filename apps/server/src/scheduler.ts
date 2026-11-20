@@ -18,8 +18,8 @@ import {
   reviewUpkeep,
 } from './modules/reviews/schedule.ts';
 import { APP_SYNC_QUEUE } from './services/apps.ts';
-import { type ReminderSummary, sendPlanReminders } from './services/plan-reminders.ts';
-import { type ReleaseWatchSummary, sendReleaseWatch } from './services/release-watch.ts';
+import { type ReminderSummary, sendPlanReminders } from './modules/planning/plan-reminders.ts';
+import { type ReleaseWatchSummary, sendReleaseWatch } from './modules/planning/release-watch.ts';
 import {
   loadSyncPrefs,
   MAX_SYNC_INTERVAL_MINUTES,

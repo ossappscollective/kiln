@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { type Draft, none, object, W } from './shared.ts';
+import { type Draft, none, object, W } from '../../operations/shared.ts';
 
-export const plansOperations: Draft[] = [
+export const planningOperations: Draft[] = [
   {
     id: 'listPlans',
     method: 'get',

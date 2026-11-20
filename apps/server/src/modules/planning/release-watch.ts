@@ -1,10 +1,10 @@
 import { evaluatePipeline, HOUR_MS, MAX_STALLED_AFTER_HOURS } from '@mrm/core';
 import type { Database, Row } from '@mrm/db';
-import { unansweredByApp } from '../modules/reviews/summary.ts';
-import { recordAudit } from './audit.ts';
-import { emitEvent } from './events.ts';
+import { unansweredByApp } from '../reviews/summary.ts';
+import { recordAudit } from '../../services/audit.ts';
+import { emitEvent } from '../../services/events.ts';
 import { loadPipelineFacts } from './release-pipeline.ts';
-import { getSettings } from './workspace-settings.ts';
+import { getSettings } from '../../services/workspace-settings.ts';
 
 /**
  * Two signals about work that waits for a person, sent as events (`release.stalled`, `review.unanswered`) so they flow through
