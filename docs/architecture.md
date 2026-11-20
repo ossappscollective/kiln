@@ -40,6 +40,9 @@ Web UI · Tauri shell · CLI and webhooks
   contract is in `modules/module.ts`.
 - **Expo (EAS).** `modules/eas/` links an app record to its EAS project with an Expo access token (credential kind `expo`, client in
   `packages/connectors/src/expo/`); EAS features add their parts there ([ADR 0033](adr/0033-eas-integration.md)).
+- **In-app products.** `modules/monetization/` reads in-app purchases and subscriptions into a stored snapshot (capability
+  `inAppPurchases`) and has one gated write, the display name and description of one locale; prices and availability are read-only
+  ([ADR 0034](adr/0034-in-app-products.md), [api/products](api/products.md)).
 - **Store writes.** `modules/publish/` holds everything that writes to a store: staged changes, the draft push,
   version, submit, release, rollout and the pending/publish batch. Each step keeps its own switch, right and
   test seams (`PublishDeps`); the listing module reads staged state from it.

@@ -365,6 +365,16 @@ organisation's name**. Things to settle first:
 
 See [adr/0007-review-replies](adr/0007-review-replies.md).
 
+### Changing the texts of in-app products (a store write, off by default)
+
+`MRM_STORE_PRODUCT_WRITE_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill switch for changing the display
+name and description of an in-app purchase or subscription from this tool. While `false` the localization route answers
+`409 store_product_write_disabled`; listing, syncing and reading products are not affected. Only owners and admins can write
+(`monetization.write`; an API token only when its actions name it), an apply asks for the person's confirmation when the workspace's
+step-up covers `store.push_draft`, and nothing but the texts of one locale is ever sent: no price, no availability. The stores do not
+document which key role or permission allows it. See [adr/0034-in-app-products](adr/0034-in-app-products.md) and
+[api/products](api/products.md).
+
 ### Changing a store rollout (a store write, off by default)
 
 `MRM_STORE_ROLLOUT_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill
