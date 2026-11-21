@@ -58,12 +58,12 @@ revenue and metrics strip is **v2, not built**.
    Settings, a "RevenueCat project" card next to the Expo card. The page reads the joined view from `GET .../revenuecat/products` and
    merges by store product id, so the products list API is unchanged.
 10. **Configuration facts only.** No money amount and no customer data is read, stored or shown. The key's permissions are asked to
-    exclude them; the code never calls a customer, metrics or charts endpoint. The overview strip is v2.
+    exclude them; the code never calls a customer, metrics or charts endpoint. The overview strip was built later ([ADR 0043](0043-revenuecat-metrics.md)); the configuration copy stays free of money.
 
 ## Not built
 
-- The revenue and metrics strip (v2): needs charts and metrics permissions on the key and an owner decision on who may see revenue.
-- Any write to RevenueCat or a store from this feature. No MCP tool yet (read tools can be added from the operation registry later).
+- The revenue and metrics strip: built in [ADR 0043](0043-revenuecat-metrics.md) (with the owner decision that viewers can see revenue and a read tool for MCP).
+- Any write to RevenueCat or a store from this feature.
 - Webhooks from RevenueCat, customer lookups, experiments, paywalls.
 
 ## UNVERIFIED (nothing ran against a real RevenueCat project)

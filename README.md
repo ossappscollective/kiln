@@ -58,7 +58,11 @@ production.
 - An AI assistant for reviews, the store listing and ASO: suggestions and reports a person reads, never an action on a store; the provider
   and key are set under Settings, AI, which also shows what is sent per task ([docs/ai-features.md](docs/ai-features.md)).
 - Analytics: App Store Connect and Google Play numbers. For Google Play the monthly reports come from a Cloud Storage bucket, set once for
-  the workspace (Settings, Analytics) or per app ([docs/api/analytics.md](docs/api/analytics.md)).
+  the workspace (Settings, Analytics) or per app ([docs/api/analytics.md](docs/api/analytics.md)). Besides installs, ratings and sales it shows Google
+  Play monthly earnings (net of Google's fees and taxes, per currency) and subscription counts (active, new, cancelled) for both stores.
+- RevenueCat: link an app to its RevenueCat project to compare the store's products with RevenueCat's configuration, and see RevenueCat's own
+  active subscriptions, active trials, MRR and 28-day revenue (all stores of the project, visible to every member) on the Products page
+  ([docs/api/revenuecat.md](docs/api/revenuecat.md)).
 - Test builds: find the builds a CI run produced, share a TestFlight link or a Google Play internal sharing link, and download an artifact
   ([docs/api/builds.md](docs/api/builds.md)).
 - Demo mode: `pnpm demo` seeds "Demo Studio" on simulated stores, with alerts in the inbox, so the whole app can be tried without any

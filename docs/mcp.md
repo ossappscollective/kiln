@@ -66,7 +66,7 @@ server's.
 `get_release_overview`, `list_release_candidates`, `get_editable_release`, `check_play_release` (asks Google Play whether it would refuse a release; saves nothing; "no errors" is not "no warnings"), `get_release_notes_history`, `get_pending_changes`, `get_pending_overview`,
 `get_listing` (texts per locale), `get_listing_drift`, `get_staged_changes`, `list_reviews`, `list_workspace_reviews`, `get_review`,
 `get_reviews_summary`, `get_reviews_overview`, `get_aso_summary`, `list_aso_keywords`, `get_aso_keyword_history`, `list_aso_competitors`, `get_aso_coach`,
-`get_aso_gaps`, `get_analytics_overview`, `get_analytics_status`, `get_analytics_product_sales`, `list_build_artifacts` (links only), `list_builds`, `list_internal_shares`,
+`get_aso_gaps`, `get_analytics_overview`, `get_analytics_status`, `get_analytics_product_sales`, `get_revenuecat_metrics` (RevenueCat's project-wide overview figures: active subscriptions, trials, MRR, 28-day revenue, with currency; any member who can read the app can read them), `list_build_artifacts` (links only), `list_builds`, `list_internal_shares`,
 `list_release_plans`, `list_events`, and `whoami` (what this token may do).
 
 **Write tools** (change only this workspace's own data; the token must name the action):

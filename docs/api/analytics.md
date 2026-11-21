@@ -17,9 +17,11 @@ Workspace settings (see [settings](settings.md)), all written with `analytics.ma
 
 - `analytics.enabled` (boolean, default `false`): syncing, the scheduled job and the Apple enable action need it. Reading and **importing** do not.
 - `analytics.appleVendorNumber` (string, 5 to 12 digits): turns on `apple_sales` (units and proceeds, also by product) for iOS and macOS apps.
-- `analytics.playBucketId` (string, `pubsite_prod_rev_` and digits): the Cloud Storage bucket of the monthly CSV reports, for the whole workspace. The narrower places below win; prefer them.
-  The same bucket also holds the Google Play **estimated sales** reports: they turn on `play_sales` with no further setting, but need the Play Console permission
-  **View financial data** (set to Global) for the service account. See [Sales](#sales).
+- `analytics.playBucketId` (string, `pubsite_prod_rev_` and digits): the Cloud Storage bucket of the monthly CSV reports, for the whole workspace. The narrower places below win; prefer them. The estimated sales, monthly earnings and subscription statistics files are in the same bucket and also need the Play Console permission **View financial data** (Global) for the service account.
+  The same bucket also holds the Google Play **estimated sales** reports, the monthly **Earnings** report and the **subscription statistics**: they turn on
+  `play_sales`, `play_earnings` and `play_subscriptions` with no further setting, but need the Play Console permission **View financial data** (set to Global) for the
+  service account. See [Sales](#sales), [Earnings](#earnings-google-play-monthly) and [Subscriptions](#subscriptions).
+- The vendor number also turns on `apple_subscriptions` (the Subscription and Subscription Event reports of Sales and Trends). See [Subscriptions](#subscriptions).
 
 `KILN_ANALYTICS_INTERVAL_MINUTES` (default 360; `0` off; 15 to 10080) sets how often the scheduler queues a sync. See [deployment](../deployment.md).
 
@@ -83,6 +85,10 @@ Workspace settings (see [settings](settings.md)), all written with `analytics.ma
 `aggregation` (`sum` or `mean`) says how days combine into a week or month; `total` is the sum or the mean over the range. Money series
 come one **per currency** (`id: "sales_proceeds:EUR"` for Apple, `id: "sales_gross:EUR"` for Google Play, `currency: "EUR"`); nothing is converted or added across currencies. `derived`
 series (`product_page_conversion`, `impression_tap_rate`) are computed from two others and are null where the denominator is missing.
+A series with `"cadence": "monthly"` (Google Play earnings) is reported once a month: each point is a month, dated the first of it, and `coverage` counts months
+(`days` is a count of months, `gapDays` of months missing, no `gaps` or `recent_days_incomplete` note); read it with `granularity=month`. A daily or weekly read of
+it is mostly gaps. Subscription counts (`subscriptions_*`, `play_subscriptions_*`) are `unit: "count"`: counts of subscriptions on a day (levels: `aggregation: "mean"`) or
+events (sums), never people, never money.
 `breakdown` (top 10 values) is present only when asked and the source has the dimension. With `breakdown=product` the sales series list the top products
 (store product ids); a money series lists only the products of its own currency. `coverage.state`: `complete`, `partial`, `none`.
 
@@ -90,7 +96,8 @@ Coverage note codes (`coverageNoteCodes`, with the sentence in `message`): `appl
 `apple_counts_not_unique`, `apple_usage_sample_not_total`, `apple_estimates`, `apple_pacific_time`, `apple_proceeds_per_currency`,
 `apple_in_app_not_included`, `apple_rating_history_not_available`, `apple_impressions_only_via_reports`, `google_unit_unverified`,
 `google_legacy_store_listing`, `google_no_impressions`, `google_rating_average_only`, `google_monthly_files`, `play_estimated_sales_gross`,
-`play_sales_latency`, `play_sales_utc`, `play_sales_per_currency`, `apple_product_sales_include_in_app`, `sales_products_capped`, `derived`, `imported`,
+`play_sales_latency`, `play_sales_utc`, `play_sales_per_currency`, `play_earnings_monthly`, `play_earnings_net`, `play_earnings_per_currency`,
+`play_earnings_pacific`, `apple_subscription_counts`, `apple_subscription_events`, `play_subscription_stats`, `apple_product_sales_include_in_app`, `sales_products_capped`, `derived`, `imported`,
 `recent_days_incomplete`, `gaps`, `source_not_connected`, `no_data_yet`, `only_since_connected`.
 
 ### `GET status`
@@ -150,8 +157,8 @@ Setup codes (`analyticsSetupCodes`): `turn_on_analytics`, `create_report_request
 
 ### `POST sync`
 
-Needs `analytics.enabled`. Body optional: `{ "sources": [...] }` (sources of the app's platform: `apple_analytics`, `apple_sales`,
-`play_vitals`, `play_reports`, `play_sales`). A store failure is **not** an HTTP error: the answer is 200 and each source says what happened.
+Needs `analytics.enabled`. Body optional: `{ "sources": [...] }` (sources of the app's platform: `apple_analytics`, `apple_sales`, `apple_subscriptions`,
+`play_vitals`, `play_reports`, `play_sales`, `play_earnings`, `play_subscriptions`). A store failure is **not** an HTTP error: the answer is 200 and each source says what happened.
 
 ```json
 {
@@ -228,7 +235,40 @@ Two different things share the sales charts, and the API never calls the Google 
 | Notes | `apple_estimates`, `apple_proceeds_per_currency`, `apple_pacific_time`, `apple_in_app_not_included` | `play_estimated_sales_gross`, `play_sales_per_currency`, `play_sales_latency`, `play_sales_utc` |
 
 A day without a row is `null` (a gap), not 0. A month without a file yet is normal (the sync is `ok` with no data); the monthly **Earnings** report (net figures)
-is not read. The Estimated sales report is "not recommended for accounting" (Google): treat it as a trend, not as revenue.
+is read as its own source, below. The Estimated sales report is "not recommended for accounting" (Google): treat it as a trend, not as revenue.
+
+### Earnings (Google Play, monthly)
+
+ADR [0042](../adr/0042-earnings-and-subscription-metrics.md). Source `play_earnings` (Android). The Google Play **Earnings** report is a monthly statement, net of
+Google's fees and taxes: the figure for accounting, where the estimated sales above are what buyers paid.
+
+| | |
+| --- | --- |
+| Needs | the reports bucket id (above) and the Play Console permission **View financial data**, Global. A refused folder is `play_sales_forbidden` (the same code and next step `grant_play_financial_permission` as the sales; the statistics of the same bucket keep working) |
+| Source file | `earnings/earnings_YYYYMM*.zip` in the reports bucket: ALL apps of the account, filtered by `Package ID`. Google generates it once a month, typically by the 5th of the following month. The sync reads the current and the previous month (six months on the first read) |
+| Not available yet | A month with no file is **not an error**: it is skipped, the series has no point for it (`null`, not 0), and the status says nothing failed. The current month never has a file |
+| Stored | on the **first day of the month of the file**, never on a transaction date (the days in the file are Pacific Time, every other series is UTC), per merchant currency (`currency` dimension, `<CUR>:<product id>` per product) |
+| Metrics | `earnings_net:<CUR>` (the signed sum of every line of the app), `earnings_charges:<CUR>`, `earnings_taxes:<CUR>`, `earnings_fees:<CUR>` (the lines of one family, as signed), `earnings_orders` (number of `Charge` lines) |
+| Currency | `Merchant Currency` with `Amount (Merchant Currency)`, the currency you are paid in. Per currency, never converted or added |
+| Notes | `play_earnings_monthly`, `play_earnings_net`, `play_earnings_per_currency`, `play_earnings_pacific` |
+
+Gross and net are two separate series of the same currency and month (`earnings_charges:EUR` and `earnings_net:EUR`); neither is derived from the other. Read them with
+`granularity=month`. The Insights card is "Earnings (net, monthly)"; it has its own twelve-month range and the same currency tabs as the sales cards.
+
+### Subscriptions
+
+ADR [0042](../adr/0042-earnings-and-subscription-metrics.md). Counts of subscriptions (unitless: not people, not money), per day.
+
+| | Apple (`apple_subscriptions`, iOS and macOS) | Google Play (`play_subscriptions`, Android) |
+| --- | --- | --- |
+| Needs | `analytics.appleVendorNumber`; the key's role Sales and Reports or higher (`sales_forbidden` otherwise) | the reports bucket id and View financial data, Global (`play_sales_forbidden` otherwise) |
+| Source | `GET /v1/salesReports` with `SUBSCRIPTION` (a snapshot of the day) and `SUBSCRIPTION_EVENT`, `SUMMARY`, `DAILY`, version `1_3`. The per-subscriber `SUBSCRIBER` report is **not** read | `financial-stats/subscriptions/subscriptions_<package>_<product>_YYYYMM_<dimension>.csv` in the reports bucket, one file per product and month |
+| Metrics | `subscriptions_active` (standard price), `subscriptions_active_trial` (free trial offers), `subscriptions_active_offer` (paid offers), `subscriptions_new`, `subscriptions_cancelled`, `subscriptions_trial_conversions` | `play_subscriptions_active`, `play_subscriptions_new`, `play_subscriptions_cancelled` |
+| Dimensions | none (the app), `product` (the store product id), `duration` (Apple: `1 Month`) | none (the app), `product` |
+| Notes | `apple_subscription_counts`, `apple_subscription_events` | `play_subscription_stats` |
+
+`breakdown=product` lists the products of `subscriptions_active` and the other series. Apple's and Google's counts are different measures and never mixed. The Insights card is
+"Subscriptions": active (with trials), new and cancelled, and the active ones by product. A day without a report is `null`, not 0.
 
 **By product.** The same facts are also stored under the dimension `product` (`breakdown=product`): the value is the store product id (Apple SKU, Google SKU ID),
 and for money `<CUR>:<product id>`, so the currency is part of the key. At most **200 distinct products per app and source** are stored (known ones stay, new ones
@@ -333,6 +373,23 @@ Sales key's role after an Admin creates the request; what Apple answers to a dup
 `freshnessInfo` and the crash-rate unit (stored as sent); Play Console permission names; whether the Play Console permission alone lets the service account read the bucket or Storage Object Viewer must be granted on it (the empty state in Insights says both); bucket id discovery and IAM; CSV encodings and
 file names; whether the Play Console statistics export has exactly the bucket's columns (the import assumes it); the `store_performance` columns and their fate after the June and July 2026 change; whether month files grow in place;
 how far back vitals reach.
+
+**Earnings (UNVERIFIED, see ADR 0042).** Confirmed from Google's help page (answer 6135870): the object `earnings/earnings_YYYYMM.zip`, generated by the 5th of the next month,
+the Pacific Time transaction dates, the column names (Transaction Date, Transaction Type, Package ID, SKU ID, Merchant Currency, `Amount (Merchant Currency)`, ...), the types
+`Charge`, `Google fee`, `Tax`, `Charge refund`, `Google fee refund`, `Charge rebill`, `Tax rebill`, `Google fee rebill` and `Adjustment`, and the permission. Not confirmed:
+the **sign** of each type (`earnings_net` is a plain signed sum, so it is right only if Google writes fees and refunds as negative amounts and taxes with the sign that makes
+the ledger add up; if not, the net is wrong and the families are the way to check); that the zip holds exactly one CSV and its encoding; the spelling of the types and the
+columns (compared case-insensitively); whether a file can be split or suffixed (every object with the prefix is read; an identical copy is skipped); `Package ID` versus the
+older `Product ID`; amounts with a thousands separator; the 10 MiB cap; what Cloud Storage answers when View financial data is missing (assumed 403).
+
+**Subscriptions (UNVERIFIED, see ADR 0042).** Confirmed from Apple's field tables (read 2026-11-21) and Google's help page: the report types and version `1_3`, the Apple column
+names, the Google object name and columns (Date, Package Name, Product ID, Country, New Subscriptions, Canceled Subscriptions, Active Subscriptions, Base Plan ID, Offer ID).
+Not confirmed: Apple's count columns beyond the documented ones (matched by header text: `free trial` is a trial, `pay up front` and `pay as you go` are paid offers) and that they do
+not overlap; the day and time zone of a Subscription report (the day asked for is used); the exact event names (new = `Subscribe`, `Opt-In` and `Start ...`; cancelled =
+`Cancel...`; a trial conversion = `Paid Subscription from Introductory Offer` on a free-trial row; renewals, reactivations, refunds and billing events are not counted; new
+includes trials started); that `Subscription Apple ID` is the `storeRef` the Products page stores; the `Desktop` device of a Mac subscription; Google's dimension suffix
+(`country` documented, `overview` tried first), the date format, whether a file's rows overlap (summed as they are, which would double count) and what `Active Subscriptions`
+includes (trials, grace period, paused).
 
 **Sales (UNVERIFIED, see ADR 0038).** Confirmed from Google's help pages: the object name `sales/salesreport_YYYYMM.zip`, the column names (Order Number, Order Charged
 Date, Financial Status, Product Title, Package ID, Product Type, SKU ID, Currency of Sale, Item Price, Taxes Collected, Charged Amount, Country of Buyer, ...), UTC days,

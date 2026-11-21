@@ -40,6 +40,8 @@ currencies. Android had no sales, and no sales were known per product or subscri
 
 ## Not done
 
+(Superseded by [ADR 0042](0042-earnings-and-subscription-metrics.md): the Earnings report and the subscription metrics were built there. What follows is what this ADR decided at the time.)
+
 The monthly **Earnings** report (`earnings/earnings_YYYYMM*.zip`: net of Google's fee, Pacific Time, merchant currency, "Charge", "Google fee", "Tax" lines, sent
 about the fifth of the following month) is the figure for accounting. It is a possible follow-up as a separate, monthly, net series; it is not read here.
 Subscription metrics (active subscribers, churn, MRR) are not built: neither report holds them.

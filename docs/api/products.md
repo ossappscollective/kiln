@@ -58,7 +58,7 @@ warnings, syncedAt } }`. Not behind the write switch.
 - **Second step, RevenueCat.** When the app is linked to a RevenueCat project ([api/revenuecat](revenuecat.md)), the sync then reads RevenueCat and
   the answer also carries `revenuecat` (`null` without a link, `{ ok: true, ... }` or `{ ok: false, code, message }`). The steps are independent: a RevenueCat
   failure never touches the store snapshot or the status of this call, and a store failure does not stop the RevenueCat step (its result is in the error
-  body). The joined view is `GET /apps/{appId}/revenuecat/products`; this page's list is unchanged.
+  body). The joined view is `GET /apps/{appId}/revenuecat/products`; this page's list is unchanged. The RevenueCat step also reads RevenueCat's metrics overview (`revenuecat.metrics`, its own `ok` or `code` and `message`; a failure there, such as a key without the metrics permission, never makes the step fail); the figures are `GET /apps/{appId}/revenuecat/metrics` ([ADR 0043](../adr/0043-revenuecat-metrics.md)).
 
 ## `PUT /apps/{appId}/products/{productId}/localizations/{locale}`
 

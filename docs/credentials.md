@@ -176,7 +176,7 @@ now, but the token can do whatever its role can, so keep it private. Docs: https
 RevenueCat ([api/revenuecat](api/revenuecat.md), [ADR 0039](adr/0039-revenuecat.md)) needs a **V2 secret API key** of the kind **RevenueCat
 secret key** (`revenuecat`), made by a project Admin in the RevenueCat dashboard (the project, API keys, Secret API keys, New secret API
 key, version V2). Allow **read only** on the project configuration (projects, apps, products, entitlements, offerings, packages) and
-nothing else: no write permission, no customer information, no charts or metrics. The key is shown once, is stored encrypted and is never
+nothing else: no write permission and no customer information. For the figures strip on the Products page ([ADR 0043](adr/0043-revenuecat-metrics.md)) also allow reading the **metrics overview** (`charts_metrics:overview:read`); without it the strip stays empty with a sentence that says so and everything else keeps working. The key is shown once, is stored encrypted and is never
 returned. The connection test asks which projects the key sees and how many apps each has. A key belongs to one project, so a workspace
 with several RevenueCat projects saves one credential each. Version 1 keys and the public SDK keys do not work with this API. RevenueCat
 allows 60 reads a minute for the project configuration, shared by everything that uses the same key. How the dashboard groups the
@@ -193,7 +193,7 @@ Analytics ([api/analytics](api/analytics.md)) reads numbers only. **None of this
   Reading the reports after that may work with a lower role (not verified).
 - **App Store Connect, Sales and Trends:** the key needs a role that may read sales reports (Sales and Reports, Finance, Admin or App Manager are listed) and the **vendor number** (App Store Connect, Payments and Financial Reports), saved as the workspace setting `analytics.appleVendorNumber`.
 - **Google Play, vitals:** enable the **Google Play Developer Reporting API** in the Google Cloud project of the service account, and give the account the Play Console permission to view app quality and vitals data. The server asks for the extra scope `playdeveloperreporting` only for this.
-- **Google Play, monthly CSV reports:** the account also needs read access to the Cloud Storage bucket of your developer account's reports (Play Console, Download reports; the id looks like `pubsite_prod_rev_` and digits, saved as `analytics.playBucketId`). The server asks for the scope `devstorage.read_only`.
+- **Google Play, monthly CSV reports:** the account also needs read access to the Cloud Storage bucket of your developer account's reports (Play Console, Download reports; the id looks like `pubsite_prod_rev_` and digits, saved as `analytics.playBucketId`). The server asks for the scope `devstorage.read_only`. The estimated sales, monthly earnings and subscription statistics files are in the same bucket and also need the Play Console permission **View financial data** (Global) for the service account.
 
 Nothing is read until the workspace setting `analytics.enabled` is on.
 

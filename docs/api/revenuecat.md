@@ -1,10 +1,10 @@
 # RevenueCat of an app
 
-The link between an app record and its RevenueCat project and app, the stored copy of the project configuration, and the joined view the
-Products page draws ([ADR 0039](../adr/0039-revenuecat.md)). It needs a credential of the kind `revenuecat` (a V2 secret API key with read
+The link between an app record and its RevenueCat project and app, the stored copy of the project configuration, the joined view the
+Products page draws ([ADR 0039](../adr/0039-revenuecat.md)) and RevenueCat's own overview figures ([ADR 0043](../adr/0043-revenuecat-metrics.md), below). It needs a credential of the kind `revenuecat` (a V2 secret API key with read
 permissions on the project configuration, see [credentials](../credentials.md#revenuecat-secret-api-key)). One link per app record: an iOS
-and an Android record of the same product each have their own. **Configuration facts only: no money amount and no customer data is read,
-stored or returned. Nothing in RevenueCat or a store is ever changed by these routes.** Covers Apple (iOS and macOS) and Google Play;
+and an Android record of the same product each have their own. **The configuration copy holds facts only: no money amount and no customer data. The one place RevenueCat money is read and stored is the metrics overview, in its own copy
+(see [Metrics](#metrics-overview)). Nothing in RevenueCat or a store is ever changed by these routes.** Covers Apple (iOS and macOS) and Google Play;
 RevenueCat apps of any other store are listed as "not mapped" and ignored.
 
 **UNVERIFIED:** tested with fixtures and an injected `fetch` only, never against a real RevenueCat project (list in the ADR).
@@ -13,6 +13,7 @@ RevenueCat apps of any other store are listed as "not mapped" and ignored.
 | --- | --- | --- |
 | `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat` | `apps.read` | `{ supported, link, sync }`. Database only. |
 | `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat/products` | `apps.read` | The store products joined to the stored RevenueCat copy, with warnings. Database only. |
+| `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat/metrics` | `apps.read` | RevenueCat's overview figures of the linked project (active subscriptions, trials, MRR, 28-day revenue). Database only. |
 | `PUT /api/workspaces/:workspaceId/apps/:appId/revenuecat` | `apps.write` | Links the app (or changes the link). Asks RevenueCat first. |
 | `DELETE /api/workspaces/:workspaceId/apps/:appId/revenuecat` | `apps.write` | Removes the link and the stored copy. `204`; `404` when there was none. |
 | `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat/detect?credentialId=&projectId=` | `apps.write` | READS RevenueCat: the projects the key sees and, for one, its apps. Saves nothing. |
@@ -115,14 +116,56 @@ Right `apps.sync`; shares the per-workspace app-sync limit (`429 rate_limited` w
 link. Reads `products`, `entitlements` (with their products) and `offerings` (with their packages and products) of the project, keeps the
 products of the linked app, and replaces the stored copy in one transaction. At most 45 requests per read; a read that hits a cap is
 `complete: false` with a sentence. A failed read keeps the previous copy and records a fixed sentence in `sync.lastError` (RevenueCat's own
-text is never copied) and `failures`. Answers `{ sync: { products, entitlements, offerings, otherAppProducts, complete, warnings, syncedAt } }`.
+text is never copied) and `failures`. Answers `{ sync: { products, entitlements, offerings, otherAppProducts, complete, warnings, syncedAt, metrics } }`, where `metrics` is `{ ok: true, metrics: <count>, fetchedAt }` or
+`{ ok: false, code, message, retryAfterSeconds? }`: after the configuration the sync reads the metrics overview (one more request, a different RevenueCat rate limit). A failure
+there (for example `revenuecat_forbidden`: the key lacks `charts_metrics:overview:read`) never changes the configuration copy or the status of the sync.
 Audit `revenuecat.synced` (counts only). Timeout `504 timeout`.
 
 `POST /apps/:appId/products/sync` ([products](products.md)) runs this as its **second step** when the app is linked, after the store step.
 The steps are independent. Its body is `{ sync, revenuecat }` where `revenuecat` is `null` (no link), `{ ok: true, products, entitlements,
-offerings, otherAppProducts, complete, warnings, syncedAt }`, or `{ ok: false, code, message, retryAfterSeconds? }`. A store failure keeps
+offerings, otherAppProducts, complete, warnings, syncedAt, metrics }`, or `{ ok: false, code, message, retryAfterSeconds? }`. A store failure keeps
 its status and body and adds `revenuecat` when the app is linked. A RevenueCat failure never changes the store snapshot or the status of the
 sync.
+
+## Metrics overview
+
+`GET .../revenuecat/metrics` (right `apps.read`; operation `getAppRevenueCatMetrics`; MCP read tool `get_revenuecat_metrics`) answers the stored copy of
+`GET /v2/projects/{id}/metrics/overview`, written by the sync above. It never calls RevenueCat.
+
+```json
+{
+  "supported": true,
+  "linked": true,
+  "metrics": {
+    "scope": "project",
+    "projectId": "proj1a2b3c4d",
+    "projectName": "Trail Notes",
+    "currency": "USD",
+    "fetchedAt": 1763000000000,
+    "figures": {
+      "activeSubscriptions": { "id": "active_subscriptions", "name": "Active Subscriptions", "kind": "count", "value": 340, "currency": null, "period": "P0D", "windowDays": 0, "lastUpdatedAt": 1763000000000 },
+      "activeTrials": { "id": "active_trials", "name": "Active Trials", "kind": "count", "value": 12, "currency": null, "period": "P0D", "windowDays": 0, "lastUpdatedAt": 1763000000000 },
+      "mrr": { "id": "mrr", "name": "MRR", "kind": "money", "value": 1234.5, "currency": "USD", "period": "P0D", "windowDays": 0, "lastUpdatedAt": 1763000000000 },
+      "revenue": { "id": "revenue", "name": "Revenue", "kind": "money", "value": 2000, "currency": "USD", "period": "P28D", "windowDays": 28, "lastUpdatedAt": 1763000000000 }
+    },
+    "others": [{ "id": "new_customers", "name": "New Customers", "kind": "count", "value": 77, "currency": null, "period": "P28D", "windowDays": 28, "lastUpdatedAt": 1763000000000 }]
+  },
+  "status": { "lastAttemptAt": 1763000000000, "lastError": null, "failures": 0 }
+}
+```
+
+- **Whose numbers:** RevenueCat's, for the **whole project** (`scope: "project"`: every app and store of it), not the linked app alone and not the store consoles'. `revenue` is
+  RevenueCat's gross of the window (`windowDays`, 28), before store fees and taxes.
+- **Money carries its currency**, the one RevenueCat reported for the project (`currency`), and is never converted or added. When RevenueCat names none, `currency` is `null`:
+  the amount is not a known currency. Counts have `kind: "count"` and `currency: null`.
+- **A figure RevenueCat did not report is `null`**, never zero. `metrics` is `null` before the first good read and for an app without a link; `status` says how the last
+  attempt went (`lastError` is a fixed sentence; a failed read keeps the older figures and counts a failure, a rate limit is not a failure).
+- **Who can read it:** every member who can read the app (`apps.read`), revenue included. That is a decision of the owner (ADR 0043), not an oversight: there is no extra role
+  for money.
+- **The key** needs the extra read permission `charts_metrics:overview:read` ([credentials](../credentials.md#revenuecat-secret-api-key)). Without it the sync is fine and
+  `sync.metrics` / `status.lastError` say what to grant.
+- **UNVERIFIED:** the metric ids other than `active_trials` (the strip falls back to the display names), whether the values are always numbers, whether they are production only,
+  the status RevenueCat answers without the permission. See the ADR.
 
 ## Errors
 
