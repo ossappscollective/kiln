@@ -10,6 +10,7 @@
 <script lang="ts">
   import { type RetryOption, outcomeSignature, outcomeSteps, switchHint } from '../../lib/change-set-apply.ts';
   import { isWebUrl } from '../../lib/credentials.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { prLabel } from '../../lib/repositories.ts';
   import type { ChangeSetView } from '../../lib/types.ts';
   import ExternalLink from '../credentials/ExternalLink.svelte';
@@ -17,6 +18,7 @@
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
+  import T from '../ui/T.svelte';
 
   let {
     changeSet,
@@ -40,18 +42,17 @@
 </script>
 
 {#if outcome}
-  <Alert tone={problem ? 'warn' : 'ok'} title={problem ? 'Committed to the local clone, with a problem' : 'Committed to the local clone'}>
+  <Alert tone={problem ? 'warn' : 'ok'} title={problem ? t('repositories:outcome.titleProblem') : t('repositories:outcome.title')}>
     <div class="stack tight">
       <p>
-        The commit is on the branch <code>{outcome.commit.branch}</code> (<code>{outcome.commit.sha.slice(0, 7)}</code>), made on top of
-        <code>{outcome.base.branch}</code>. The checked out branch and the working folder were not touched.
+        <T key="repositories:outcome.where" params={{ branch: outcome.commit.branch, sha: outcome.commit.sha.slice(0, 7), base: outcome.base.branch }} />
       </p>
       <p class="row">
-        To look at it: <code>{hint}</code>
-        <CopyButton value={hint} label="Copy the command" iconOnly />
+        <T key="repositories:outcome.lookAt" params={{ command: hint }} />
+        <CopyButton value={hint} label={t('repositories:outcome.copyCommand')} iconOnly />
       </p>
 
-      <ul class="steps" aria-label="What happened, step by step">
+      <ul class="steps" aria-label={t('repositories:outcome.stepsAria')}>
         {#each steps as step (step.id)}
           <li>
             <Badge tone={step.tone}>{step.label}</Badge>
@@ -74,7 +75,7 @@
 
       {#if changeSet.fixups && changeSet.fixups.length > 0}
         <p class="muted small">
-          {changeSet.fixups.length === 1 ? 'One fix up commit was' : `${changeSet.fixups.length} fix up commits were`} added on top of the first one; the commit above is the latest.
+          {t('repositories:outcome.fixups', { count: changeSet.fixups.length })}
         </p>
       {/if}
 
@@ -82,11 +83,11 @@
         <div class="row wrap">
           {#each options as option (option.id)}
             <Button icon="git-pull-request" disabled={busy !== ''} loading={busy === option.id} onclick={() => onretry(option)}>
-              {busy === option.id ? 'Working…' : option.label}
+              {busy === option.id ? t('repositories:outcome.working') : option.label}
             </Button>
           {/each}
           {#if onfixup}
-            <Button icon="git-branch" disabled={busy !== ''} onclick={onfixup}>Fix up this branch</Button>
+            <Button icon="git-branch" disabled={busy !== ''} onclick={onfixup}>{t('repositories:outcome.fixUp')}</Button>
           {/if}
         </div>
       {/if}

@@ -34,12 +34,14 @@
     stageLabel,
   } from '../../lib/change-set-fixup.ts';
   import { type Resolution, conflictReasonText } from '../../lib/change-set-refresh.ts';
+  import { k, t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { ChangeSetView } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
+  import T from '../ui/T.svelte';
 
   let {
     api,
@@ -130,7 +132,7 @@
         repoChoices = keptRepo;
         branchChoices = keptBranch;
       } else {
-        error = e instanceof ApiError ? e.message : 'The fix up did not work. Try again.';
+        error = e instanceof ApiError ? e.message : t('repositories:fixup.failed');
         // A step that failed after the commit (the push) is recorded on the change set.
         if (!dryRun) onchanged();
       }
@@ -147,43 +149,35 @@
   }
 
   const nothing = $derived(preview?.nothingToFix === true);
+  const keepMineAll = { repository: k('repositories:fixup.keepMineAllRepo'), branch: k('repositories:fixup.keepMineAllBranch') };
+  const keepTheirsAll = { repository: k('repositories:fixup.keepTheirsAllRepo'), branch: k('repositories:fixup.keepBranchAll') };
 </script>
 
-<Modal bind:open size="lg" title="Fix up this branch" dismissible={!busy}>
+<Modal bind:open size="lg" title={t('repositories:fixup.title')} dismissible={!busy}>
   <div class="stack">
     {#if phase !== 'done'}
       {#if phase === 'confirm'}
-        <p>
-          The branch <code>{branch}</code> already exists. A fix up reads the repository again, works out what the branch is missing, and adds
-          the difference as a new commit on top of the branch.
-        </p>
-        <Alert tone="info" title="History is not rewritten">
-          {fixupPromise(branch)} Commits and edits that other people made on the branch stay; a change in the same place as yours is shown to
-          you and you choose.
+        <p><T key="repositories:fixup.intro" params={{ branch }} /></p>
+        <Alert tone="info" title={t('repositories:fixup.historyTitle')}>
+          {fixupPromise(branch)} {t('repositories:fixup.historyBody')}
         </Alert>
         {#if local}
-          <p class="muted small">
-            The commit is made in the local clone without touching its checked out branch or working folder. It is signed with the server's
-            key when the server signs commits, like the first one. If the branch is checked out in the clone, the fix up is refused.
-          </p>
+          <p class="muted small">{t('repositories:fixup.localNote')}</p>
         {:else}
-          <p class="muted small">
-            The commit is added through the GitHub API as a fast-forward and the pull request follows the branch. If the pull request is closed
-            or merged, nothing is written.
-          </p>
+          <p class="muted small">{t('repositories:fixup.githubNote')}</p>
         {/if}
       {/if}
 
       {#if phase === 'conflicts'}
-        <Alert tone="warn" title="{pending.length === 1 ? 'One file' : `${pending.length} files`} need a choice">
-          Nothing has been written. For each file choose to keep your text or the other one. After that, check again.
+        <Alert tone="warn" title={t('repositories:fixup.needChoice', { count: pending.length })}>
+          {t('repositories:fixup.needChoiceBody')}
         </Alert>
         {#each ['repository', 'branch'] as const as stage (stage)}
           {@const group = pending.filter((f) => (f.stage ?? 'repository') === stage)}
           {#if group.length > 1}
             <div class="row">
-              <Button size="sm" onclick={() => chooseAll(stage, 'mine')}>Keep mine for all ({stage === 'branch' ? 'branch' : 'repository'})</Button>
-              <Button size="sm" onclick={() => chooseAll(stage, 'theirs')}>{fixupChoiceInfo[stage].theirs.label} for all ({stage === 'branch' ? 'branch' : 'repository'})</Button>
+              <Button size="sm" onclick={() => chooseAll(stage, 'mine')}>{t(keepMineAll[stage])}</Button>
+              <Button size="sm" onclick={() => chooseAll(stage, 'theirs')}>{t(keepTheirsAll[stage])}</Button>
             </div>
           {/if}
           {#each group as file (file.path)}
@@ -194,15 +188,15 @@
                 {#if file.reason && stage === 'repository'}{conflictReasonText[file.reason]}{/if}
               </p>
               <div class="texts">
-                {#each [{ label: stage === 'branch' ? 'On the branch now' : 'In the repository now (theirs)', text: file.theirs }, { label: stage === 'branch' ? 'What the fix up would write (mine)' : 'Your change (mine)', text: file.ours }] as column (column.label)}
+                {#each [{ id: 'theirs', label: stage === 'branch' ? t('repositories:fixup.onBranchNow') : t('repositories:fixup.inRepoNow'), text: file.theirs }, { id: 'mine', label: stage === 'branch' ? t('repositories:fixup.wouldWrite') : t('repositories:fixup.yourChange'), text: file.ours }] as column (column.id)}
                   <div>
                     <p class="label small">{column.label}</p>
                     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-                    <pre tabindex="0" aria-label="{column.label}, {file.path}">{#if column.text === null || column.text === undefined}<em>The file does not exist.</em>{:else}{column.text}{/if}</pre>
+                    <pre tabindex="0" aria-label={t('repositories:fixup.columnAria', { label: column.label, path: file.path })}>{#if column.text === null || column.text === undefined}<em>{t('repositories:fixup.fileMissing')}</em>{:else}{column.text}{/if}</pre>
                   </div>
                 {/each}
               </div>
-              <div class="choices" role="radiogroup" aria-label="What to do with {file.path}">
+              <div class="choices" role="radiogroup" aria-label={t('repositories:fixup.chooseAria', { path: file.path })}>
                 {#each ['mine', 'theirs'] as const as option (option)}
                   <label class="check">
                     {#if stage === 'branch'}
@@ -223,7 +217,7 @@
       {/if}
 
       {#if phase === 'preview' && preview}
-        <Alert tone={nothing ? 'ok' : 'info'} title={nothing ? 'Nothing to fix up' : 'What the new commit would hold'}>
+        <Alert tone={nothing ? 'ok' : 'info'} title={nothing ? t('repositories:fixup.nothingTitle') : t('repositories:fixup.previewTitle')}>
           {fixupPreviewMessage(preview)}
           {#if !nothing}{fixupPromise(branch)}{/if}
         </Alert>
@@ -232,12 +226,12 @@
             <li>
               <code>{file.path}</code>
               <Badge tone={outcomeTone[file.outcome]}>{outcomeLabel[file.outcome]}</Badge>
-              <span class="muted small">{fixupStateLabel(file.state)}{#if file.leavesSet}; it leaves the change set{/if}</span>
+              <span class="muted small">{file.leavesSet ? t('repositories:fixup.stateLeaves', { state: fixupStateLabel(file.state) }) : fixupStateLabel(file.state)}</span>
             </li>
           {/each}
         </ul>
         {#if preview.pullRequest.state === 'none' && !local}
-          <p class="muted small">There is no pull request for this branch yet; it is opened with the commit.</p>
+          <p class="muted small">{t('repositories:fixup.noPr')}</p>
         {/if}
       {/if}
 
@@ -246,8 +240,8 @@
           <label class="check tops">
             <input type="checkbox" bind:checked={fromStore} disabled={busy} />
             <span class="option-text">
-              <span>Take the text from the live store listing</span>
-              <span class="muted small">Makes the pull again from the store snapshot and the repository as they are now, and adds what changed.</span>
+              <span>{t('repositories:fixup.fromStore')}</span>
+              <span class="muted small">{t('repositories:fixup.fromStoreHint')}</span>
             </span>
           </label>
         {/if}
@@ -255,25 +249,25 @@
           <label class="check tops">
             <input type="checkbox" bind:checked={push} disabled={busy} />
             <span class="option-text">
-              <span>Push the branch to GitHub</span>
-              <span class="muted small">A normal push, never forced. If the branch on GitHub has other commits, the commit stays local and you are told.</span>
+              <span>{t('repositories:fixup.push')}</span>
+              <span class="muted small">{t('repositories:fixup.pushHint')}</span>
             </span>
           </label>
           {#if !hasPr}
             <label class="check tops">
               <input type="checkbox" bind:checked={openPr} disabled={busy} />
               <span class="option-text">
-                <span>Open a pull request</span>
-                <span class="muted small">There is none yet. It needs the push.</span>
+                <span>{t('repositories:fixup.openPr')}</span>
+                <span class="muted small">{t('repositories:fixup.openPrHint')}</span>
               </span>
             </label>
           {/if}
         {/if}
       {/if}
     {:else if result}
-      <Alert tone="ok" title={result.nothingToFix ? 'Nothing to fix up' : 'Fixed up'}>
+      <Alert tone="ok" title={result.nothingToFix ? t('repositories:fixup.nothingTitle') : t('repositories:fixup.fixedUp')}>
         {fixupDoneMessage(result)}
-        {#if result.commit?.signed}The commit is signed with the server's key.{/if}
+        {#if result.commit?.signed}{t('repositories:fixup.signed')}{/if}
       </Alert>
       {#if behindNote(result.changeSet)}<Alert tone="warn">{behindNote(result.changeSet)}</Alert>{/if}
       <ul class="plain results">
@@ -291,17 +285,17 @@
 
   {#snippet footer()}
     {#if phase === 'done'}
-      <Button variant="primary" onclick={() => (open = false)}>Done</Button>
+      <Button variant="primary" onclick={() => (open = false)}>{t('repositories:fixup.done')}</Button>
     {:else}
-      <Button disabled={busy} onclick={() => (open = false)}>{phase === 'preview' && nothing ? 'Close' : 'Cancel'}</Button>
+      <Button disabled={busy} onclick={() => (open = false)}>{phase === 'preview' && nothing ? t('repositories:fixup.close') : t('repositories:fixup.cancel')}</Button>
       {#if phase === 'confirm'}
-        <Button variant="primary" icon="git-branch" loading={busy} onclick={() => run(true)}>{busy ? 'Checking…' : 'Check what would change'}</Button>
+        <Button variant="primary" icon="git-branch" loading={busy} onclick={() => run(true)}>{busy ? t('repositories:fixup.checking') : t('repositories:fixup.check')}</Button>
       {:else if phase === 'conflicts'}
         <Button variant="primary" icon="refresh" loading={busy} disabled={!ready} onclick={() => run(true)}>
-          {busy ? 'Checking…' : 'Check with my choices'}
+          {busy ? t('repositories:fixup.checking') : t('repositories:fixup.checkChoices')}
         </Button>
       {:else if phase === 'preview' && !nothing}
-        <Button variant="primary" icon="git-branch" loading={busy} onclick={() => run(false)}>{busy ? 'Adding the commit…' : 'Add the commit'}</Button>
+        <Button variant="primary" icon="git-branch" loading={busy} onclick={() => run(false)}>{busy ? t('repositories:fixup.adding') : t('repositories:fixup.add')}</Button>
       {/if}
     {/if}
   {/snippet}

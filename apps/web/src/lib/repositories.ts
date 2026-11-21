@@ -16,6 +16,8 @@ import {
   type Role,
 } from '@kiln/core';
 import type { ApiError } from './api.ts';
+import { formatList } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import type {
   ChangeSetView,
   ListingSelection,
@@ -48,22 +50,22 @@ export type ParsedRepository =
  */
 export function parseRepositoryInput(input: string): ParsedRepository {
   const text = input.trim();
-  if (text === '') return { ok: false, message: 'Enter the repository as owner/name.' };
+  if (text === '') return { ok: false, message: t('repositories:connect.enterRepo') };
   const address = /^(?:git@github\.com:|(?:https?:\/\/)?(?:www\.)?github\.com\/)/i;
   const isAddress = address.test(text);
   const path = text.replace(address, '').replace(/[?#].*$/, '');
   const parts = path.split('/').filter((part) => part !== '');
   // A bare name is exactly owner/name; a GitHub address may carry more (…/tree/main).
   if (parts.length < 2 || (!isAddress && parts.length > 2)) {
-    return { ok: false, message: 'Use the form owner/name, for example acme/mobile-app.' };
+    return { ok: false, message: t('repositories:connect.useForm') };
   }
   const owner = parts[0] ?? '';
   let repo = parts[1] ?? '';
   if (repo.toLowerCase().endsWith('.git')) repo = repo.slice(0, -4);
   if (!OWNER.test(owner))
-    return { ok: false, message: `“${owner}” is not a GitHub user or organization name.` };
+    return { ok: false, message: t('repositories:connect.badOwner', { owner }) };
   if (!REPO.test(repo) || repo === '.' || repo === '..') {
-    return { ok: false, message: `“${repo}” is not a GitHub repository name.` };
+    return { ok: false, message: t('repositories:connect.badRepo', { repo }) };
   }
   return { ok: true, owner, repo };
 }
@@ -79,7 +81,7 @@ export const repositoryName = (repository: {
 }) =>
   repository.owner && repository.repo
     ? `${repository.owner}/${repository.repo}`
-    : (repository.name ?? 'Local repository');
+    : (repository.name ?? t('repositories:name.local'));
 
 export type ConnectProblem = {
   /** Where to show it: under a field, or above the buttons. */
@@ -99,32 +101,32 @@ export function connectProblem(
     case 'credential_not_found':
       return {
         field: 'credential',
-        message: 'That credential no longer exists. Pick another one.',
+        message: t('repositories:connect.credentialGone'),
       };
     case 'credential_kind':
       return {
         field: 'credential',
-        message: 'Only a GitHub App or a GitHub token can connect a repository.',
+        message: t('repositories:connect.credentialKind'),
       };
     case 'already_connected':
-      return { field: 'repository', message: `${name} is already connected to this workspace.` };
+      return { field: 'repository', message: t('repositories:connect.alreadyConnected', { name }) };
     case 'github_auth':
       return {
         field: 'credential',
         message: error.message,
-        hint: 'GitHub did not accept this credential. Test it on the Credentials screen, or replace its secret.',
+        hint: t('repositories:connect.authHint'),
       };
     case 'github_forbidden':
       return {
         field: 'repository',
         message: error.message,
-        hint: `The credential cannot read ${name}. For a GitHub App, check that it is installed on ${target.owner} and that ${target.repo} is selected under Repository access. For a token, check that it covers this repository and has read access to its contents.`,
+        hint: t('repositories:connect.forbiddenHint', { name, owner: target.owner, repo: target.repo }),
       };
     case 'github_not_found':
       return {
         field: 'repository',
         message: error.message,
-        hint: `Check the spelling of ${name}. GitHub also answers this way for a private repository that the credential cannot see, so confirm that the App or token has access to it.`,
+        hint: t('repositories:connect.notFoundHint', { name }),
       };
     case 'invalid_request':
       return { field: 'repository', message: error.message };
@@ -138,33 +140,36 @@ export function connectProblem(
 
 export type Tone = 'neutral' | 'ok' | 'bad' | 'warn' | 'info' | 'accent';
 
-export const projectKindLabel: Record<ProjectKind, string> = {
-  fastlane: 'Fastlane',
-  expo: 'Expo',
-  both: 'Fastlane and Expo',
-  unknown: 'Not recognized',
+const projectKindKeys: Record<ProjectKind, string> = {
+  fastlane: k('repositories:kind.fastlane'),
+  expo: k('repositories:kind.expo'),
+  both: k('repositories:kind.both'),
+  unknown: k('repositories:kind.unknown'),
 };
+
+/** The name of a project type, in the active language. */
+export const projectKindLabel = (kind: ProjectKind): string => t(projectKindKeys[kind]);
 
 /** The badge for a repository's project type. `null` means it was never scanned. */
 export function projectKindBadge(kind: ProjectKind | null | undefined): {
   label: string;
   tone: Tone;
 } {
-  if (!kind) return { label: 'Not scanned', tone: 'neutral' };
-  return { label: projectKindLabel[kind], tone: kind === 'unknown' ? 'warn' : 'accent' };
+  if (!kind) return { label: t('repositories:kind.notScanned'), tone: 'neutral' };
+  return { label: projectKindLabel(kind), tone: kind === 'unknown' ? 'warn' : 'accent' };
 }
 
 /** One sentence on what the detected type means for this tool. */
 export function projectKindSummary(kind: ProjectKind): string {
   switch (kind) {
     case 'fastlane':
-      return 'A fastlane project. Store listing text is read from the metadata folders and changes are applied as a pull request, or as a commit on a new branch of a local clone.';
+      return t('repositories:kind.summaryFastlane');
     case 'expo':
-      return 'An Expo project. Its App Store listing is read from and edited in store.config.json when the repository has one. Google Play listing text lives in fastlane only.';
+      return t('repositories:kind.summaryExpo');
     case 'both':
-      return 'Both fastlane and Expo files were found. The App Store listing comes from store.config.json when there is one (the fastlane App Store files are then ignored); the Google Play listing comes from fastlane.';
+      return t('repositories:kind.summaryBoth');
     case 'unknown':
-      return 'No fastlane or Expo files were found. Check that this is the right repository and that the credential can read all of it.';
+      return t('repositories:kind.summaryUnknown');
   }
 }
 
@@ -185,14 +190,14 @@ export const storeLabel: Record<ListingStore, string> = {
  */
 export function listingReadNotice(role: Role): string | null {
   if (can(role, 'repositories.scan')) return null;
-  return 'The store listing is read from GitHub with the stored credential, which needs the member role or higher. As a viewer you can see the project and the change sets, but not the listing text. Ask an admin if you need access.';
+  return t('repositories:listing.readNotice');
 }
 
 /** The badge for where a store's listing is read from. */
 export function listingSourceBadge(source: StoreSource['source']): { label: string; tone: Tone } {
   return source === 'expo-store-config'
-    ? { label: 'Expo store config', tone: 'accent' }
-    : { label: 'Fastlane', tone: 'info' };
+    ? { label: t('repositories:listing.sourceExpo'), tone: 'accent' }
+    : { label: t('repositories:listing.sourceFastlane'), tone: 'info' };
 }
 
 /** "file" for an Expo store config, "folder" for fastlane metadata. */
@@ -206,7 +211,7 @@ export const copyrightLocation = (source: StoreSource['source']): string =>
 /** The sentence for a source that exists but could not be read, or null when it is fine. */
 export function sourceProblem(source: Pick<StoreSource, 'error'>): string | null {
   if (source.error === undefined) return null;
-  return `${source.error} The listing cannot be shown or changed until the file is fixed in the repository.`;
+  return t('repositories:listing.sourceProblem', { error: source.error });
 }
 
 /** True when no store has any listing text and no source is broken (a broken one is shown as such). */
@@ -222,11 +227,11 @@ export function listingIsEmpty(data: Pick<RepositoryListing, 'found' | 'sources'
 /** The sentence for a repository with no listing text: where each store was looked for. */
 export function emptyListingDescription(data: Pick<RepositoryListing, 'sources'>): string {
   const { appStore, googlePlay } = data.sources;
-  const apple =
+  const key =
     appStore.source === 'expo-store-config'
-      ? `${appStore.path} (App Store, no apple.info locales)`
-      : `${appStore.path} (App Store)`;
-  return `No listing text was found at ${apple} or ${googlePlay.path} (Google Play). Fastlane keeps one folder per locale with a text file per field; Expo keeps the App Store text in store.config.json under apple.info. Run a scan to see what the project contains.`;
+      ? k('repositories:listing.emptyExpo')
+      : k('repositories:listing.emptyFastlane');
+  return t(key, { appStore: appStore.path, googlePlay: googlePlay.path });
 }
 
 export const changeSetStatuses: readonly ChangeSetStatus[] = [
@@ -240,53 +245,61 @@ export const changeSetStatuses: readonly ChangeSetStatus[] = [
 
 export type StatusInfo = { label: string; tone: Tone; dot: boolean; description: string };
 
-const statusInfo: Record<ChangeSetStatus, StatusInfo> = {
+type StatusSpec = { label: string; description: string; tone: Tone; dot: boolean };
+
+const statusSpecs: Record<ChangeSetStatus, StatusSpec> = {
   draft: {
-    label: 'Draft',
+    label: k('repositories:status.draft'),
     tone: 'neutral',
     dot: false,
-    description: 'Waiting for an admin or owner to approve it.',
+    description: k('repositories:status.draftHint'),
   },
   approved: {
-    label: 'Approved',
+    label: k('repositories:status.approved'),
     tone: 'info',
     dot: false,
-    description:
-      'Approved. It can be applied as a pull request or as a commit on a new branch of the local clone.',
+    description: k('repositories:status.approvedHint'),
   },
   applying: {
-    label: 'Applying',
+    label: k('repositories:status.applying'),
     tone: 'accent',
     dot: true,
-    description: 'Creating the branch and the pull request.',
+    description: k('repositories:status.applyingHint'),
   },
   applied: {
-    label: 'Applied',
+    label: k('repositories:status.applied'),
     tone: 'ok',
     dot: false,
-    description: 'The pull request is open. Merge it in GitHub.',
+    description: k('repositories:status.appliedHint'),
   },
   failed: {
-    label: 'Failed',
+    label: k('repositories:status.failed'),
     tone: 'bad',
     dot: false,
-    description: 'The change did not reach the repository.',
+    description: k('repositories:status.failedHint'),
   },
   discarded: {
-    label: 'Discarded',
+    label: k('repositories:status.discarded'),
     tone: 'neutral',
     dot: false,
-    description: 'Closed without changing the repository.',
+    description: k('repositories:status.discardedHint'),
   },
 };
 
-export const changeSetStatusInfo = (status: ChangeSetStatus): StatusInfo => statusInfo[status];
-
-export const fileChangeLabel: Record<'added' | 'modified' | 'deleted', string> = {
-  added: 'Added',
-  modified: 'Modified',
-  deleted: 'Deleted',
+export const changeSetStatusInfo = (status: ChangeSetStatus): StatusInfo => {
+  const spec = statusSpecs[status];
+  return { label: t(spec.label), tone: spec.tone, dot: spec.dot, description: t(spec.description) };
 };
+
+const fileChangeKeys: Record<'added' | 'modified' | 'deleted', string> = {
+  added: k('repositories:file.added'),
+  modified: k('repositories:file.modified'),
+  deleted: k('repositories:file.deleted'),
+};
+
+/** "Added", "Modified" or "Deleted", in the active language. */
+export const fileChangeLabel = (change: 'added' | 'modified' | 'deleted'): string =>
+  t(fileChangeKeys[change]);
 
 export const fileChangeTone: Record<'added' | 'modified' | 'deleted', Tone> = {
   added: 'ok',
@@ -295,7 +308,7 @@ export const fileChangeTone: Record<'added' | 'modified' | 'deleted', Tone> = {
 };
 
 export function filesChangedLabel(count: number): string {
-  return `${count} ${count === 1 ? 'file' : 'files'}`;
+  return t('repositories:file.count', { count });
 }
 
 /** "You", a member's name when known, or what kind of actor it was. */
@@ -305,10 +318,12 @@ export function actorLabel(
   names: Readonly<Record<string, string>> = {},
 ): string {
   if (actor.type === 'user')
-    return actor.id === myId ? 'You' : (names[actor.id] ?? 'A team member');
-  if (actor.type === 'token') return 'An API token';
-  if (actor.type === 'assistant') return 'The assistant';
-  return 'The system';
+    return actor.id === myId
+      ? t('repositories:actor.you')
+      : (names[actor.id] ?? t('repositories:actor.teamMember'));
+  if (actor.type === 'token') return t('repositories:actor.apiToken');
+  if (actor.type === 'assistant') return t('repositories:actor.assistant');
+  return t('repositories:actor.system');
 }
 
 /** The person who approved, from the user id the API stores. */
@@ -352,11 +367,17 @@ export function changeSetActions(input: {
 /** The text of the link to a change set's pull request. */
 export const prLabel = (changeSet: Pick<ChangeSetView, 'prNumber'>) =>
   changeSet.prNumber === null
-    ? 'Open the pull request'
-    : `Open pull request #${changeSet.prNumber}`;
+    ? t('repositories:pr.open')
+    : t('repositories:pr.openNumber', { number: changeSet.prNumber });
 
 // ---------------------------------------------------------------------------------------------
 // Counting characters
+
+const usageCharacters = {
+  plain: k('repositories:usage.characters'),
+  withMax: k('repositories:usage.charactersMax'),
+};
+const usageBytes = { plain: k('repositories:usage.bytes'), withMax: k('repositories:usage.bytesMax') };
 
 export type FieldUsage = {
   count: number;
@@ -376,7 +397,8 @@ export function fieldUsage(
 ): FieldUsage {
   const count = spec.unit === 'bytes' ? countBytes(value) : countCharacters(value);
   const { maxLength: max, minLength: min, unit } = spec;
-  const text = max === undefined ? `${count} ${unit}` : `${count} / ${max} ${unit}`;
+  const keys = unit === 'bytes' ? usageBytes : usageCharacters;
+  const text = max === undefined ? t(keys.plain, { count }) : t(keys.withMax, { count, max });
   return {
     count,
     ...(max === undefined ? {} : { max }),
@@ -606,10 +628,11 @@ export function suggestSummary(edits: readonly ListingEdit[]): string {
   const locales = [
     ...new Set(edits.map((e) => e.locale).filter((l): l is string => l !== undefined)),
   ].sort();
-  const fields = edits.length === 1 ? '1 listing field' : `${edits.length} listing fields`;
-  if (locales.length === 0) return `Update ${fields}`;
-  if (locales.length <= 3) return `Update ${fields} in ${locales.join(', ')}`;
-  return `Update ${fields} in ${locales.length} locales`;
+  const count = edits.length;
+  if (locales.length === 0) return t('repositories:summary.update', { count });
+  if (locales.length <= 3)
+    return t('repositories:summary.updateIn', { count, locales: locales.join(', ') });
+  return t('repositories:summary.updateMany', { count, languages: locales.length });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -753,16 +776,16 @@ export function detectionPaths(
 ): Array<{ label: string; values: string[] }> {
   const { paths } = detection;
   const rows: Array<{ label: string; values: string[] | string | undefined }> = [
-    { label: 'Fastlane folders', values: paths.fastlaneDirs },
-    { label: 'Fastfiles', values: paths.fastfiles },
-    { label: 'App Store listing', values: paths.iosMetadata },
-    { label: 'Google Play listing', values: paths.androidMetadata },
-    { label: 'iOS screenshots', values: paths.iosScreenshots },
-    { label: 'Android images', values: paths.androidImages },
-    { label: 'Expo app.json', values: paths.appJson },
-    { label: 'Expo app config', values: paths.appConfig },
-    { label: 'EAS eas.json', values: paths.easJson },
-    { label: 'package.json', values: paths.packageJson },
+    { label: t('repositories:detect.fastlaneDirs'), values: paths.fastlaneDirs },
+    { label: t('repositories:detect.fastfiles'), values: paths.fastfiles },
+    { label: t('repositories:detect.iosMetadata'), values: paths.iosMetadata },
+    { label: t('repositories:detect.androidMetadata'), values: paths.androidMetadata },
+    { label: t('repositories:detect.iosScreenshots'), values: paths.iosScreenshots },
+    { label: t('repositories:detect.androidImages'), values: paths.androidImages },
+    { label: t('repositories:detect.appJson'), values: paths.appJson },
+    { label: t('repositories:detect.appConfig'), values: paths.appConfig },
+    { label: t('repositories:detect.easJson'), values: paths.easJson },
+    { label: t('repositories:detect.packageJson'), values: paths.packageJson },
   ];
   const out: Array<{ label: string; values: string[] }> = [];
   for (const row of rows) {
@@ -773,7 +796,7 @@ export function detectionPaths(
   const targets = detection.listing?.targets ?? [];
   if (targets.length > 1) {
     out.push({
-      label: 'Listing targets',
+      label: t('repositories:detect.listingTargets'),
       values: targets.map((t) => `${t.label}: ${targetRootsSummary(t.roots)}`),
     });
   }
@@ -782,7 +805,7 @@ export function detectionPaths(
 
 /** "Confirmed" for a fact a file states, "Likely" for a reading that is only a guess. */
 export const strengthLabel = (strength: 'definite' | 'inferred') =>
-  strength === 'definite' ? 'Confirmed' : 'Likely';
+  strength === 'definite' ? t('repositories:detect.confirmed') : t('repositories:detect.likely');
 
 /** "iOS and Android", "iOS (likely)", or "None found". */
 export function platformsSummary(
@@ -790,12 +813,12 @@ export function platformsSummary(
 ): string {
   const parts = [
     ...detection.platforms.map(platformLabel),
-    ...detection.platformsInferred.map((p) => `${platformLabel(p)} (likely)`),
+    ...detection.platformsInferred.map((p) =>
+      t('repositories:detect.platformLikely', { platform: platformLabel(p) }),
+    ),
   ];
-  if (parts.length === 0) return 'None found';
-  return parts.length === 1
-    ? (parts[0] as string)
-    : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  if (parts.length === 0) return t('repositories:detect.noneFound');
+  return formatList(parts);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -809,18 +832,18 @@ export function platformsSummary(
  */
 export function checkListingRoot(path: string): string | undefined {
   const text = normalizeRoot(path);
-  if (text === '') return 'Enter a folder path inside the repository.';
-  if (text.length > 300) return 'The path is too long (at most 300 characters).';
+  if (text === '') return t('repositories:root.empty');
+  if (text.length > 300) return t('repositories:root.tooLong');
   if (text.startsWith('/'))
-    return 'The path must be relative to the repository, without a leading slash.';
+    return t('repositories:root.leadingSlash');
   // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are refused on purpose
   if (/[\\\x00-\x1f\x7f]/.test(text))
-    return 'The path must not contain backslashes or control characters.';
+    return t('repositories:root.badChars');
   for (const segment of text.split('/')) {
     if (segment === '' || segment === '.' || segment === '..') {
-      return 'The path must not contain empty, "." or ".." segments.';
+      return t('repositories:root.badSegment');
     }
-    if (segment.toLowerCase() === '.git') return 'The path must not point into .git.';
+    if (segment.toLowerCase() === '.git') return t('repositories:root.gitFolder');
   }
   return undefined;
 }
@@ -862,15 +885,15 @@ export function targetFormFrom(
 export function targetFormProblems(form: TargetForm): Partial<Record<TargetFormField, string>> {
   const problems: Partial<Record<TargetFormField, string>> = {};
   const name = form.name.trim();
-  if (name === '') problems.name = 'Give the target a name.';
-  else if (name.length > 60) problems.name = 'Use at most 60 characters.';
+  if (name === '') problems.name = t('repositories:target.nameRequired');
+  else if (name.length > 60) problems.name = t('repositories:target.nameTooLong');
   for (const field of ['appStoreRoot', 'googlePlayRoot'] as const) {
     if (form[field].trim() === '') continue;
     const message = checkListingRoot(form[field]);
     if (message) problems[field] = message;
   }
   if (form.appStoreRoot.trim() === '' && form.googlePlayRoot.trim() === '') {
-    problems.roots = 'Give an App Store folder, a Google Play folder or both.';
+    problems.roots = t('repositories:target.rootsRequired');
   }
   return problems;
 }
@@ -910,14 +933,16 @@ export function targetRootsSummary(roots: {
   googlePlay: string | null;
 }): string {
   const parts = [
-    roots.appStore ? `App Store: ${roots.appStore}` : '',
-    roots.googlePlay ? `Google Play: ${roots.googlePlay}` : '',
+    roots.appStore ? t('repositories:target.rootAppStore', { path: roots.appStore }) : '',
+    roots.googlePlay ? t('repositories:target.rootGooglePlay', { path: roots.googlePlay }) : '',
   ].filter(Boolean);
-  return parts.length > 0 ? parts.join(' · ') : 'no folders';
+  return parts.length > 0 ? parts.join(' · ') : t('repositories:target.noFolders');
 }
 
 export const targetOptionLabel = (target: Pick<ListingTargetView, 'label' | 'origin'>): string =>
-  target.origin === 'custom' ? `${target.label} (custom)` : target.label;
+  target.origin === 'custom'
+    ? t('repositories:target.optionCustom', { label: target.label })
+    : target.label;
 
 /**
  * Whether the listing panel shows the target bar: several places to read from, a saved one, folders
@@ -962,24 +987,49 @@ export function checkLocalPathInput(
 ): { ok: true; path: string } | { ok: false; message: string } {
   const path = input.trim();
   if (/[\u0000-\u001f\u007f]/.test(path))
-    return { ok: false, message: 'The path must not contain control characters.' };
-  if (path === '') return { ok: false, message: 'Enter the path of a folder on the server.' };
-  if (path.length > MAX_LOCAL_PATH_LENGTH) return { ok: false, message: 'That path is too long.' };
+    return { ok: false, message: t('repositories:local.controlChars') };
+  if (path === '') return { ok: false, message: t('repositories:local.pathEmpty') };
+  if (path.length > MAX_LOCAL_PATH_LENGTH) return { ok: false, message: t('repositories:local.pathTooLong') };
   if (!/^(?:\/|[A-Za-z]:[\\/]|\\\\)/.test(path)) {
     return {
       ok: false,
-      message: 'Use an absolute path, such as /Volumes/dev/my-app. “~” is not expanded.',
+      message: t('repositories:local.pathAbsolute'),
     };
   }
   if (path.split(/[\\/]+/).includes('..'))
-    return { ok: false, message: 'The path must not contain “..”.' };
+    return { ok: false, message: t('repositories:local.pathDotDot') };
   return { ok: true, path };
 }
 
 /** The first seven characters of a commit id. */
 export const shortSha = (sha: string | null | undefined): string => (sha ? sha.slice(0, 7) : '');
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+type ReadKeys = {
+  unknown: string;
+  uncountable: string;
+  other: string;
+  detached: string;
+  clean: string;
+  dirty: string;
+};
+
+const readWithCommit: ReadKeys = {
+  unknown: k('repositories:local.shaBranchUnknown'),
+  uncountable: k('repositories:local.shaBranchUncountable'),
+  other: k('repositories:local.shaBranchOther'),
+  detached: k('repositories:local.shaBranchDetached'),
+  clean: k('repositories:local.shaBranchClean'),
+  dirty: k('repositories:local.shaBranchDirty'),
+};
+
+const readLatest: ReadKeys = {
+  unknown: k('repositories:local.latestBranchUnknown'),
+  uncountable: k('repositories:local.latestBranchUncountable'),
+  other: k('repositories:local.latestBranchOther'),
+  detached: k('repositories:local.latestBranchDetached'),
+  clean: k('repositories:local.latestBranchClean'),
+  dirty: k('repositories:local.latestBranchDirty'),
+};
 
 /**
  * One sentence on what a local folder is read as: the committed tip of a branch, never the
@@ -993,18 +1043,18 @@ export function localReadSummary(input: {
   checkedOutBranch?: string | null | undefined;
   dirtyCount?: number | null | undefined;
 }): string {
-  const head = input.sha
-    ? `Reads commit ${shortSha(input.sha)} on branch ${input.branch}`
-    : `Reads the latest commit on branch ${input.branch}`;
+  const keys = input.sha ? readWithCommit : readLatest;
   const { dirtyCount, checkedOutBranch } = input;
-  if (dirtyCount === undefined) return `${head}. Uncommitted changes in the folder are never read.`;
-  if (dirtyCount === null)
-    return `${head}. Uncommitted changes are never read (they could not be counted).`;
+  const params = { sha: shortSha(input.sha), branch: input.branch };
+  if (dirtyCount === undefined) return t(keys.unknown, params);
+  if (dirtyCount === null) return t(keys.uncountable, params);
   if (checkedOutBranch !== undefined && checkedOutBranch !== input.branch) {
-    return `${head}. The folder has ${checkedOutBranch ?? 'a detached HEAD'} checked out; only committed work on ${input.branch} is read.`;
+    return checkedOutBranch === null
+      ? t(keys.detached, params)
+      : t(keys.other, { ...params, checkedOut: checkedOutBranch });
   }
-  if (dirtyCount === 0) return `${head}. The folder has no uncommitted changes.`;
-  return `${head}; ${plural(dirtyCount, 'uncommitted change is', 'uncommitted changes are')} not included.`;
+  if (dirtyCount === 0) return t(keys.clean, params);
+  return t(keys.dirty, { ...params, count: dirtyCount });
 }
 
 /** The notice for a server where local clones are off: what to set, in the words of the setting. */
@@ -1014,22 +1064,21 @@ export function localDisabledNotice(
   const reason = config.reason;
   if (reason === 'reads_api') {
     return {
-      title: 'Local clones are off: KILN_READS=api',
-      body:
-        config.message ?? 'KILN_READS=api means git is never run, so local clones cannot be read.',
+      title: t('repositories:local.offReadsApiTitle'),
+      body: config.message ?? t('repositories:local.offReadsApiBody'),
       envName: config.envName,
     };
   }
   if (reason === 'git_missing') {
     return {
-      title: 'git is not available on the server',
-      body: config.message ?? 'Install git or set KILN_GIT_PATH.',
+      title: t('repositories:local.gitMissingTitle'),
+      body: config.message ?? t('repositories:local.gitMissingBody'),
       envName: config.envName,
     };
   }
   return {
-    title: 'Local clones are not enabled',
-    body: `Set ${config.envName}=/Volumes/dev (a colon-separated list of the folders that may hold your clones) and restart the server.`,
+    title: t('repositories:local.disabledTitle'),
+    body: t('repositories:local.disabledBody', { envName: config.envName }),
     envName: config.envName,
   };
 }
@@ -1037,8 +1086,10 @@ export function localDisabledNotice(
 /** The allowed folders as a hint under the path field. */
 export function localRootsHint(config: Pick<LocalConfig, 'roots'> | null | undefined): string {
   const roots = config?.roots ?? [];
-  if (roots.length === 0) return 'The folder must be inside an allowed folder on the server.';
-  return `The folder must be inside ${roots.length === 1 ? 'the allowed folder' : 'one of the allowed folders'}: ${roots.join(', ')}.`;
+  if (roots.length === 0) return t('repositories:local.rootsNone');
+  const key =
+    roots.length === 1 ? k('repositories:local.rootsOne') : k('repositories:local.rootsMany');
+  return t(key, { roots: roots.join(', ') });
 }
 
 export type LocalStatusInfo = { label: string; tone: Tone; ok: boolean };
@@ -1047,22 +1098,22 @@ export type LocalStatusInfo = { label: string; tone: Tone; ok: boolean };
 export function localStatusInfo(status: LocalStatus): LocalStatusInfo {
   switch (status) {
     case 'ok':
-      return { label: 'Readable', tone: 'ok', ok: true };
+      return { label: t('repositories:local.statusOk'), tone: 'ok', ok: true };
     case 'not_enabled':
-      return { label: 'Local clones off', tone: 'warn', ok: false };
+      return { label: t('repositories:local.statusNotEnabled'), tone: 'warn', ok: false };
     case 'reads_api':
-      return { label: 'Reading from GitHub', tone: 'warn', ok: false };
+      return { label: t('repositories:local.statusReadsApi'), tone: 'warn', ok: false };
     case 'git_missing':
-      return { label: 'git missing', tone: 'bad', ok: false };
+      return { label: t('repositories:local.statusGitMissing'), tone: 'bad', ok: false };
     case 'not_found':
-      return { label: 'Folder not found', tone: 'bad', ok: false };
+      return { label: t('repositories:local.statusNotFound'), tone: 'bad', ok: false };
     case 'outside_roots':
-      return { label: 'Outside allowed folders', tone: 'bad', ok: false };
+      return { label: t('repositories:local.statusOutside'), tone: 'bad', ok: false };
     case 'not_a_repository':
     case 'bare_repository':
-      return { label: 'Not a repository', tone: 'bad', ok: false };
+      return { label: t('repositories:local.statusNotRepo'), tone: 'bad', ok: false };
     default:
-      return { label: 'Cannot be read', tone: 'bad', ok: false };
+      return { label: t('repositories:local.statusUnreadable'), tone: 'bad', ok: false };
   }
 }
 
@@ -1106,7 +1157,7 @@ export function connectChoices(
       kind: 'attach',
       id: `attach:${r.id}`,
       repositoryId: r.id,
-      label: `Attach to ${repositoryName(r)}`,
+      label: t('repositories:choice.attach', { name: repositoryName(r) }),
       recommended: origin !== null && sameRepo(origin, r),
       needsConfirm: origin !== null && !sameRepo(origin, r),
       replaces: r.local && r.local.path !== check.realPath ? r.local.path : null,
@@ -1122,7 +1173,7 @@ export function connectChoices(
     {
       kind: 'local_only',
       id: 'local-only',
-      label: 'Connect as a local-only repository',
+      label: t('repositories:choice.localOnly'),
       recommended: false,
       needsConfirm: false,
     },
@@ -1140,20 +1191,24 @@ export function defaultChoice(choices: readonly ConnectChoice[]): ConnectChoice 
 
 /** What the primary button says for a choice. */
 export function choiceButtonLabel(choice: ConnectChoice | undefined): string {
-  if (!choice) return 'Choose what to do';
-  return choice.kind === 'local_only' ? 'Connect as local-only repository' : choice.label;
+  if (!choice) return t('repositories:choice.pick');
+  return choice.kind === 'local_only' ? t('repositories:choice.localOnlyButton') : choice.label;
 }
 
 /** A line under a choice: why it is suggested, or what it changes. */
 export function choiceNote(choice: ConnectChoice, remote: LocalCheck['remote']): string | null {
-  if (choice.kind === 'local_only') {
-    return 'No GitHub connection: the folder is the repository. Pull requests are not available for it yet.';
+  if (choice.kind === 'local_only') return t('repositories:choice.noteLocalOnly');
+  const path = choice.replaces ?? '';
+  if (choice.recommended) {
+    return choice.replaces
+      ? t('repositories:choice.noteRecommendedReplaces', { path })
+      : t('repositories:choice.noteRecommended');
   }
-  const replaces = choice.replaces ? ` Replaces its current local clone (${choice.replaces}).` : '';
-  if (choice.recommended)
-    return `The clone’s origin points at this repository. Applying still opens a pull request on GitHub.${replaces}`;
   if (choice.needsConfirm && remote) {
-    return `The clone’s origin is ${remote.owner}/${remote.repo}, a different repository. Attach only if it is a fork or mirror of this one.${replaces}`;
+    const origin = `${remote.owner}/${remote.repo}`;
+    return choice.replaces
+      ? t('repositories:choice.noteConfirmReplaces', { origin, path })
+      : t('repositories:choice.noteConfirm', { origin });
   }
-  return replaces ? replaces.trim() : null;
+  return choice.replaces ? t('repositories:choice.noteReplaces', { path }) : null;
 }

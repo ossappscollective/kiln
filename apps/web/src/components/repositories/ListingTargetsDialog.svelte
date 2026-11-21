@@ -20,6 +20,7 @@
     targetRootsSummary,
     targetServerProblems,
   } from '../../lib/repositories.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { ListingTargetView, RepositorySummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -102,14 +103,18 @@
         editing === 'new'
           ? await api.createListingTarget(workspaceId, repository.id, body)
           : await api.updateListingTarget(workspaceId, repository.id, editing, body);
-      toast.success(editing === 'new' ? `Saved the target ${result.target.name}.` : `Updated ${result.target.name}.`);
+      toast.success(
+        editing === 'new'
+          ? t('repositories:tgt.saved', { name: result.target.name })
+          : t('repositories:tgt.updated', { name: result.target.name }),
+      );
       editing = null;
       onchanged({ selectId: result.target.id });
     } catch (e) {
       if (e instanceof ApiError) {
         problems = targetServerProblems(e);
         if (Object.keys(problems).length === 0) error = e.message;
-      } else error = 'Could not save the target.';
+      } else error = t('repositories:tgt.saveFailed');
     } finally {
       saving = false;
     }
@@ -120,11 +125,11 @@
     error = '';
     try {
       await api.deleteListingTarget(workspaceId, repository.id, target.id);
-      toast.success(`Deleted the target ${target.label}.`);
+      toast.success(t('repositories:tgt.deleted', { name: target.label }));
       confirmDelete = null;
       onchanged({ deletedId: target.id });
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not delete the target.';
+      error = e instanceof ApiError ? e.message : t('repositories:tgt.deleteFailed');
     } finally {
       deleting = false;
     }
@@ -134,8 +139,8 @@
 <Modal
   bind:open
   size="lg"
-  title="Listing targets"
-  description="Where the store listing of {repositoryName(repository)} lives. A folder you set here is always used instead of the detected one."
+  title={t('repositories:tgt.title')}
+  description={t('repositories:tgt.description', { name: repositoryName(repository) })}
   dismissible={!saving && !deleting}
 >
   <div class="stack loose">
@@ -143,9 +148,9 @@
 
     {#if editing === null}
       {#if targets.length === 0}
-        <p class="muted">No saved targets yet.</p>
+        <p class="muted">{t('repositories:tgt.none')}</p>
       {:else}
-        <ul class="plain list" aria-label="Saved listing targets">
+        <ul class="plain list" aria-label={t('repositories:tgt.listAria')}>
           {#each targets as target (target.id)}
             <li class="item">
               <div>
@@ -155,23 +160,23 @@
               </div>
               <div class="row actions">
                 {#if confirmDelete === target.id}
-                  <span>Delete {target.label}?</span>
-                  <Button size="sm" variant="danger-solid" loading={deleting} onclick={() => remove(target)}>Delete</Button>
-                  <Button size="sm" disabled={deleting} onclick={() => (confirmDelete = null)}>Keep</Button>
+                  <span>{t('repositories:tgt.confirmDelete', { name: target.label })}</span>
+                  <Button size="sm" variant="danger-solid" loading={deleting} onclick={() => remove(target)}>{t('repositories:tgt.delete')}</Button>
+                  <Button size="sm" disabled={deleting} onclick={() => (confirmDelete = null)}>{t('repositories:tgt.keep')}</Button>
                 {:else}
-                  <Button size="sm" icon="edit" label="Edit {target.label}" onclick={() => startEdit(target)}>Edit</Button>
-                  <Button size="sm" variant="danger" icon="trash" label="Delete {target.label}" onclick={() => (confirmDelete = target.id)}>Delete</Button>
+                  <Button size="sm" icon="edit" label={t('repositories:tgt.editAria', { name: target.label })} onclick={() => startEdit(target)}>{t('repositories:tgt.edit')}</Button>
+                  <Button size="sm" variant="danger" icon="trash" label={t('repositories:tgt.deleteAria', { name: target.label })} onclick={() => (confirmDelete = target.id)}>{t('repositories:tgt.delete')}</Button>
                 {/if}
               </div>
             </li>
           {/each}
         </ul>
       {/if}
-      <div><Button icon="plus" onclick={() => startNew()}>Add a target</Button></div>
+      <div><Button icon="plus" onclick={() => startNew()}>{t('repositories:tgt.add')}</Button></div>
     {:else}
       <form
         class="stack"
-        aria-label={editing === 'new' ? 'Add a listing target' : 'Edit the listing target'}
+        aria-label={editing === 'new' ? t('repositories:tgt.formAdd') : t('repositories:tgt.formEdit')}
         onsubmit={(e) => {
           e.preventDefault();
           void save();
@@ -179,52 +184,52 @@
       >
         <TextField
           id="{uid}-name"
-          label="Name"
+          label={t('repositories:tgt.name')}
           bind:value={form.name}
           maxlength={60}
           autocomplete="off"
           required
           error={shown('name')}
-          hint="Shown in the target list, for example the app's name."
+          hint={t('repositories:tgt.nameHint')}
         />
         <TextField
           id="{uid}-app"
-          label="App id (optional)"
+          label={t('repositories:tgt.appId')}
           bind:value={form.appId}
           autocomplete="off"
           error={shown('appId')}
-          hint="The bundle id or package name, for your own reference."
+          hint={t('repositories:tgt.appIdHint')}
         />
         <TextField
           id="{uid}-ios"
-          label="App Store folder"
+          label={t('repositories:tgt.ios')}
           bind:value={form.appStoreRoot}
           autocomplete="off"
           spellcheck={false}
           placeholder="fastlane/metadata/com.example.app/ios"
           error={shown('appStoreRoot') ?? shown('roots')}
-          hint="The folder that holds the locale folders (en-US, de-DE, ...), relative to the repository. Leave empty if this target has no App Store listing."
+          hint={t('repositories:tgt.iosHint')}
         />
         <TextField
           id="{uid}-play"
-          label="Google Play folder"
+          label={t('repositories:tgt.play')}
           bind:value={form.googlePlayRoot}
           autocomplete="off"
           spellcheck={false}
           placeholder="fastlane/metadata/com.example.app/android"
           error={shown('googlePlayRoot')}
-          hint="The same for Google Play. Leave empty if this target has none."
+          hint={t('repositories:tgt.playHint')}
         />
         <div class="row end">
-          <Button disabled={saving} onclick={() => (editing = null)}>Cancel</Button>
-          <Button type="submit" variant="primary" loading={saving}>{editing === 'new' ? 'Save target' : 'Save changes'}</Button>
+          <Button disabled={saving} onclick={() => (editing = null)}>{t('repositories:action.cancel')}</Button>
+          <Button type="submit" variant="primary" loading={saving}>{editing === 'new' ? t('repositories:tgt.saveTarget') : t('repositories:tgt.saveChanges')}</Button>
         </div>
       </form>
     {/if}
   </div>
 
   {#snippet footer()}
-    <Button disabled={saving || deleting} onclick={() => (open = false)}>Close</Button>
+    <Button disabled={saving || deleting} onclick={() => (open = false)}>{t('repositories:tgt.close')}</Button>
   {/snippet}
 </Modal>
 

@@ -8,6 +8,7 @@
 -->
 <script lang="ts">
   import type { ListingFieldSpec, ListingProblem } from '@kiln/core';
+  import { t } from '../../lib/i18n/t.ts';
   import { fieldUsage } from '../../lib/repositories.ts';
   import Badge from '../ui/Badge.svelte';
   import Icon from '../ui/Icon.svelte';
@@ -50,9 +51,9 @@
   <div class="head">
     <label for={id}>{label ?? spec.label}</label>
     <span class="meta">
-      {#if spec.required}<span class="muted small">Required</span>{/if}
-      {#if edited}<Badge tone="info">Edited</Badge>{/if}
-      <span id="{id}-count" class="count tabular" class:over={usage.over}>{usage.text}{#if usage.over}<span class="visually-hidden">, over the limit</span>{/if}</span>
+      {#if spec.required}<span class="muted small">{t('repositories:field.required')}</span>{/if}
+      {#if edited}<Badge tone="info">{t('repositories:field.edited')}</Badge>{/if}
+      <span id="{id}-count" class="count tabular" class:over={usage.over}>{usage.text}{#if usage.over}<span class="visually-hidden">{t('repositories:field.overLimit')}</span>{/if}</span>
     </span>
   </div>
 
@@ -84,7 +85,7 @@
   {#if spec.note || spec.source}
     <p class="hint" id="{id}-note">
       {#if spec.note}{spec.note}{' '}{/if}
-      <ExternalLink href={spec.source} label="Source" />
+      <ExternalLink href={spec.source} label={t('repositories:field.source')} />
     </p>
   {/if}
 
@@ -99,7 +100,7 @@
       {#each warnings as problem, i (i)}
         <li class="warning">
           <Icon name="alert-triangle" size={14} />
-          <span><span class="visually-hidden">Warning: </span>{problem.message}</span>
+          <span><span class="visually-hidden">{t('repositories:field.warning')} </span>{problem.message}</span>
         </li>
       {/each}
     </ul>

@@ -23,6 +23,7 @@
     looksStale,
     stalenessSummary,
   } from '../../lib/change-set-refresh.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { ChangeSetView } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -78,7 +79,7 @@
       checked = await api.changeSetStaleness(workspaceId, changeSet.id);
     } catch (e) {
       checked = null;
-      checkError = e instanceof ApiError ? e.message : 'Could not check the repository. Try again.';
+      checkError = e instanceof ApiError ? e.message : t('repositories:stale.checkFailed');
     } finally {
       checking = false;
     }
@@ -88,17 +89,17 @@
 {#if (mayCheck || mayRefresh) && (stale || mayCheck)}
   <div class="stack">
     {#if stale}
-      <Alert tone="warn" title="This change set is out of date">
+      <Alert tone="warn" title={t('repositories:stale.title')}>
         <p class="tight">
           {#if checked?.stale}
             {stalenessSummary(checked)}
           {:else}
-            The repository changed after this change set was made, so applying it would not match the files.
+            {t('repositories:stale.changed')}
           {/if}
           {#if mayRefresh}
-            Refresh it to put your change on top of what is there now, instead of starting over.
+            {t('repositories:stale.refreshHint')}
           {:else}
-            Someone who can create change sets can refresh it.
+            {t('repositories:stale.askHint')}
           {/if}
         </p>
         {#if changedFiles.length > 0}
@@ -110,7 +111,7 @@
         {/if}
         {#if mayRefresh}
           <div class="row tight-row">
-            <Button variant="primary" icon="refresh" onclick={() => (dialogOpen = true)}>Refresh…</Button>
+            <Button variant="primary" icon="refresh" onclick={() => (dialogOpen = true)}>{t('repositories:stale.refresh')}</Button>
           </div>
         {/if}
       </Alert>
@@ -118,7 +119,7 @@
 
     {#if mayCheck}
       <div class="row check-row">
-        <Button size="sm" icon="refresh" loading={checking} onclick={check}>{checking ? 'Checking…' : 'Check for updates'}</Button>
+        <Button size="sm" icon="refresh" loading={checking} onclick={check}>{checking ? t('repositories:stale.checking') : t('repositories:stale.check')}</Button>
         {#if checked && !checked.stale}
           <span class="muted small" role="status">{stalenessSummary(checked)}</span>
         {/if}
@@ -142,8 +143,8 @@
 
 {#if mayRecompute}
   <div class="row check-row recompute">
-    <Button size="sm" icon="refresh" onclick={() => (recomputeOpen = true)}>Recompute from the live store</Button>
-    <span class="muted small">Makes this pull again from the store listing and the repository as they are now.</span>
+    <Button size="sm" icon="refresh" onclick={() => (recomputeOpen = true)}>{t('repositories:stale.recompute')}</Button>
+    <span class="muted small">{t('repositories:stale.recomputeHint')}</span>
   </div>
   <RecomputeDialog
     {api}

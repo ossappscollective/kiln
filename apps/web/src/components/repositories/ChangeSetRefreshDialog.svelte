@@ -24,12 +24,14 @@
     resolutionInfo,
     toResolutions,
   } from '../../lib/change-set-refresh.ts';
+  import { k, t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { ChangeSetView } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
+  import T from '../ui/T.svelte';
 
   let {
     api,
@@ -92,7 +94,7 @@
         for (const f of pendingConflicts(found.files)) kept[f.path] = choices[f.path];
         choices = kept;
       } else {
-        error = e instanceof ApiError ? e.message : 'The refresh did not work. Try again.';
+        error = e instanceof ApiError ? e.message : t('repositories:refresh.failed');
       }
     } finally {
       busy = false;
@@ -106,12 +108,12 @@
   }
 
   const outcomeLabel: Record<RefreshFile['outcome'], string> = {
-    unchanged: 'Unchanged',
-    merged: 'Merged',
-    dropped: 'Already there, dropped',
-    kept_mine: 'Kept yours',
-    kept_theirs: 'Kept theirs, dropped',
-    conflict: 'Conflict',
+    unchanged: k('repositories:refresh.outcomeUnchanged'),
+    merged: k('repositories:refresh.outcomeMerged'),
+    dropped: k('repositories:refresh.outcomeDropped'),
+    kept_mine: k('repositories:refresh.outcomeKeptMine'),
+    kept_theirs: k('repositories:refresh.outcomeKeptTheirs'),
+    conflict: k('repositories:refresh.outcomeConflict'),
   };
   const outcomeTone: Record<RefreshFile['outcome'], 'neutral' | 'ok' | 'info' | 'warn'> = {
     unchanged: 'neutral',
@@ -123,33 +125,27 @@
   };
 </script>
 
-<Modal bind:open size="lg" title="Refresh this change set" dismissible={!busy}>
+<Modal bind:open size="lg" title={t('repositories:refresh.title')} dismissible={!busy}>
   <div class="stack">
     {#if phase === 'confirm'}
-      <p>
-        The repository changed after this change set was made. Refreshing reads the files again and puts your change on top of what is
-        there now.
-      </p>
+      <p>{t('repositories:refresh.intro')}</p>
       <ul class="plain small">
-        <li>Files that did not change stay as they are.</li>
-        <li>Files whose change is already in the repository leave the change set.</li>
-        <li>Files that changed in another place are merged line by line.</li>
-        <li>Files that changed in the same place are shown to you, and you choose. Nothing is changed until you do.</li>
+        <li>{t('repositories:refresh.point1')}</li>
+        <li>{t('repositories:refresh.point2')}</li>
+        <li>{t('repositories:refresh.point3')}</li>
+        <li>{t('repositories:refresh.point4')}</li>
       </ul>
       {#if wasApproved}
-        <Alert tone="info">
-          This change set is approved. If a refresh changes its text it becomes a draft again and has to be approved again.
-        </Alert>
+        <Alert tone="info">{t('repositories:refresh.approved')}</Alert>
       {/if}
     {:else if phase === 'conflicts'}
-      <Alert tone="warn" title="{conflicts.length === 1 ? 'One file' : `${conflicts.length} files`} changed in the same place">
-        Choose for each file. <strong>Keep mine</strong> overwrites what the repository has with your text. <strong>Keep theirs</strong> drops
-        your change to that file. Nothing has been changed yet.
+      <Alert tone="warn" title={t('repositories:refresh.conflictTitle', { count: conflicts.length })}>
+        <T key="repositories:refresh.conflictBody" />
       </Alert>
       {#if conflicts.length > 1}
         <div class="row">
-          <Button size="sm" onclick={() => chooseAll('mine')}>Keep mine for all</Button>
-          <Button size="sm" onclick={() => chooseAll('theirs')}>Keep theirs for all</Button>
+          <Button size="sm" onclick={() => chooseAll('mine')}>{t('repositories:refresh.keepMineAll')}</Button>
+          <Button size="sm" onclick={() => chooseAll('theirs')}>{t('repositories:refresh.keepTheirsAll')}</Button>
         </div>
       {/if}
       {#each conflicts as file (file.path)}
@@ -157,20 +153,20 @@
           <legend><code>{file.path}</code></legend>
           {#if file.reason}<p class="muted small">{conflictReasonText[file.reason]}</p>{/if}
           <div class="texts">
-            {#each [{ label: 'In the repository now (theirs)', text: file.theirs }, { label: 'Your change (mine)', text: file.ours }] as column (column.label)}
+            {#each [{ id: 'theirs', label: t('repositories:refresh.theirsColumn'), text: file.theirs }, { id: 'mine', label: t('repositories:refresh.mineColumn'), text: file.ours }] as column (column.id)}
               <div>
                 <p class="label small">{column.label}</p>
                 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-                <pre tabindex="0" aria-label="{column.label}, {file.path}">{#if column.text === null || column.text === undefined}<em>The file does not exist.</em>{:else}{column.text}{/if}</pre>
+                <pre tabindex="0" aria-label={t('repositories:refresh.columnAria', { label: column.label, path: file.path })}>{#if column.text === null || column.text === undefined}<em>{t('repositories:refresh.fileMissing')}</em>{:else}{column.text}{/if}</pre>
               </div>
             {/each}
           </div>
           <details>
-            <summary class="small">The version your change was made from</summary>
+            <summary class="small">{t('repositories:refresh.baseSummary')}</summary>
             <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-            <pre tabindex="0" aria-label="Original text, {file.path}">{#if file.base === null || file.base === undefined}<em>The file did not exist.</em>{:else}{file.base}{/if}</pre>
+            <pre tabindex="0" aria-label={t('repositories:refresh.baseAria', { path: file.path })}>{#if file.base === null || file.base === undefined}<em>{t('repositories:refresh.baseMissing')}</em>{:else}{file.base}{/if}</pre>
           </details>
-          <div class="choices" role="radiogroup" aria-label="What to do with {file.path}">
+          <div class="choices" role="radiogroup" aria-label={t('repositories:refresh.chooseAria', { path: file.path })}>
             {#each ['mine', 'theirs'] as const as option (option)}
               <label class="check">
                 <input type="radio" name="{uid}-{file.path}" value={option} bind:group={choices[file.path]} disabled={busy} />
@@ -185,7 +181,7 @@
       {/each}
       {#if files.length > conflicts.length}
         <details>
-          <summary class="small">The other {files.length - conflicts.length} {files.length - conflicts.length === 1 ? 'file' : 'files'}</summary>
+          <summary class="small">{t('repositories:refresh.others', { count: files.length - conflicts.length })}</summary>
           <ul class="plain small">
             {#each files.filter((f) => f.outcome !== 'conflict') as file (file.path)}
               <li><code>{file.path}</code> <Badge tone={fileStateInfo[file.state].tone}>{fileStateInfo[file.state].label}</Badge></li>
@@ -194,14 +190,14 @@
         </details>
       {/if}
     {:else if result}
-      <Alert tone={result.nothingLeft ? 'warn' : 'ok'} title={result.nothingLeft ? 'Nothing left to apply' : 'Refreshed'}>
+      <Alert tone={result.nothingLeft ? 'warn' : 'ok'} title={result.nothingLeft ? t('repositories:refresh.nothingLeft') : t('repositories:refresh.refreshed')}>
         {refreshDoneMessage(result)}
       </Alert>
       <ul class="plain results">
         {#each result.files as file (file.path)}
           <li>
             <code>{file.path}</code>
-            <Badge tone={outcomeTone[file.outcome]}>{outcomeLabel[file.outcome]}</Badge>
+            <Badge tone={outcomeTone[file.outcome]}>{t(outcomeLabel[file.outcome])}</Badge>
           </li>
         {/each}
       </ul>
@@ -213,18 +209,18 @@
   {#snippet footer()}
     {#if phase === 'done'}
       {#if result?.nothingLeft}
-        <Button onclick={() => (open = false)}>Keep it</Button>
-        <Button variant="danger-solid" onclick={() => { open = false; ondiscard(); }}>Discard change set</Button>
+        <Button onclick={() => (open = false)}>{t('repositories:refresh.keep')}</Button>
+        <Button variant="danger-solid" onclick={() => { open = false; ondiscard(); }}>{t('repositories:refresh.discard')}</Button>
       {:else}
-        <Button variant="primary" onclick={() => (open = false)}>Done</Button>
+        <Button variant="primary" onclick={() => (open = false)}>{t('repositories:refresh.done')}</Button>
       {/if}
     {:else}
-      <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>
+      <Button disabled={busy} onclick={() => (open = false)}>{t('repositories:action.cancel')}</Button>
       {#if phase === 'confirm'}
-        <Button variant="primary" icon="refresh" loading={busy} onclick={() => run()}>{busy ? 'Refreshing…' : 'Refresh'}</Button>
+        <Button variant="primary" icon="refresh" loading={busy} onclick={() => run()}>{busy ? t('repositories:refresh.refreshing') : t('repositories:refresh.refresh')}</Button>
       {:else}
         <Button variant="primary" icon="refresh" loading={busy} disabled={!ready} onclick={() => run(toResolutions(choices))}>
-          {busy ? 'Refreshing…' : 'Apply my choices'}
+          {busy ? t('repositories:refresh.refreshing') : t('repositories:refresh.applyChoices')}
         </Button>
       {/if}
     {/if}

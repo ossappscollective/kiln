@@ -11,7 +11,8 @@
   import { type Role, can } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { localOnlyNotice } from '../../lib/change-set-apply.ts';
-  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import {
     localDisabledNotice,
     localReadSummary,
@@ -26,6 +27,7 @@
   import Card from '../ui/Card.svelte';
   import Icon from '../ui/Icon.svelte';
   import Modal from '../ui/Modal.svelte';
+  import T from '../ui/T.svelte';
   import LocalCheckoutConnect from './LocalCheckoutConnect.svelte';
 
   let {
@@ -85,7 +87,7 @@
       live = (await api.checkLocalClone(workspaceId, { path: local.path, branch: local.branch })).check;
     } catch (e) {
       live = null;
-      liveError = e instanceof ApiError ? e.message : 'Could not check the folder. Try again.';
+      liveError = e instanceof ApiError ? e.message : t('repositories:lc.checkFailed');
     } finally {
       liveBusy = false;
     }
@@ -102,7 +104,7 @@
       const { check } = await api.checkLocalClone(workspaceId, { path: local.path, branch: local.branch });
       branches = check.branches;
     } catch (e) {
-      branchError = e instanceof ApiError ? e.message : 'Could not list the branches of the folder.';
+      branchError = e instanceof ApiError ? e.message : t('repositories:lc.branchesFailed');
     } finally {
       branchLoading = false;
     }
@@ -118,10 +120,10 @@
     try {
       const { repository: saved } = await api.attachLocalClone(workspaceId, repository.id, { branch: branchValue });
       branchOpen = false;
-      toast.success(`Now reading branch ${saved.local?.branch ?? branchValue}.`);
+      toast.success(t('repositories:lc.branchChanged', { branch: saved.local?.branch ?? branchValue }));
       onchanged(saved);
     } catch (e) {
-      branchError = e instanceof ApiError ? e.message : 'Could not change the branch.';
+      branchError = e instanceof ApiError ? e.message : t('repositories:lc.branchFailed');
     } finally {
       branchSaving = false;
     }
@@ -133,10 +135,10 @@
     try {
       const { repository: saved } = await api.detachLocalClone(workspaceId, repository.id);
       detachOpen = false;
-      toast.success('Detached the local clone. The folder was not changed.');
+      toast.success(t('repositories:lc.detached'));
       onchanged(saved);
     } catch (e) {
-      detachError = e instanceof ApiError ? e.message : 'Could not detach the local clone.';
+      detachError = e instanceof ApiError ? e.message : t('repositories:lc.detachFailed');
     } finally {
       detaching = false;
     }
@@ -144,16 +146,14 @@
 
   function attached(done: { kind: 'attached' | 'local_only'; repository: RepositorySummary }) {
     attachOpen = false;
-    toast.success(`Reading ${repository.name} from the local clone.`);
+    toast.success(t('repositories:lc.readingFromClone', { name: repository.name }));
     onchanged(done.repository);
   }
 </script>
 
 <Card
-  title="Local clone"
-  description={repository.localOnly
-    ? 'This repository is a folder on the server. It has no GitHub connection.'
-    : 'Reads can come from a clone on the server instead of GitHub. Pull requests still go to GitHub.'}
+  title={t('repositories:lc.title')}
+  description={repository.localOnly ? t('repositories:lc.descLocalOnly') : t('repositories:lc.descGithub')}
 >
   {#if local}
     <div class="stack">
@@ -163,9 +163,9 @@
           <p class="tight">{notice.body}</p>
           <p class="tight">
             {#if repository.localOnly}
-              Until then this repository cannot be read.
+              {t('repositories:lc.untilLocalOnly')}
             {:else}
-              Until then this repository is read from GitHub.
+              {t('repositories:lc.untilGithub')}
             {/if}
           </p>
         </Alert>
@@ -173,25 +173,25 @@
 
       <dl class="facts">
         <div>
-          <dt>Folder</dt>
+          <dt>{t('repositories:lc.folder')}</dt>
           <dd><code>{local.path}</code></dd>
         </div>
         <div>
-          <dt>Branch read</dt>
+          <dt>{t('repositories:lc.branchRead')}</dt>
           <dd><code>{local.branch}</code></dd>
         </div>
         <div>
-          <dt>State</dt>
+          <dt>{t('repositories:lc.state')}</dt>
           <dd>{#if info}<Badge tone={info.tone} dot>{info.label}</Badge>{/if}</dd>
         </div>
         <div>
-          <dt>Last read</dt>
+          <dt>{t('repositories:lc.lastRead')}</dt>
           <dd>
             {#if local.lastReadAt}
               <code>{shortSha(local.headSha)}</code>
-              <time datetime={new Date(local.lastReadAt).toISOString()} title={fullTime(local.lastReadAt)}>{timeAgo(local.lastReadAt)}</time>
+              <time datetime={new Date(local.lastReadAt).toISOString()} title={formatDateTime(local.lastReadAt)}>{formatRelativeTime(local.lastReadAt)}</time>
             {:else}
-              <span class="muted">Not read yet</span>
+              <span class="muted">{t('repositories:lc.notRead')}</span>
             {/if}
           </dd>
         </div>
@@ -221,18 +221,18 @@
 
       {#if canWrite}
         <div class="row wrap">
-          <Button icon="refresh" loading={liveBusy} disabled={!enabled} onclick={checkNow}>{liveBusy ? 'Checking…' : 'Check now'}</Button>
-          <Button icon="git-branch" disabled={!enabled} onclick={openBranch}>Change branch</Button>
+          <Button icon="refresh" loading={liveBusy} disabled={!enabled} onclick={checkNow}>{liveBusy ? t('repositories:lc.checking') : t('repositories:lc.checkNow')}</Button>
+          <Button icon="git-branch" disabled={!enabled} onclick={openBranch}>{t('repositories:lc.changeBranch')}</Button>
           {#if !repository.localOnly}
-            <Button icon="edit" disabled={!enabled} onclick={() => (attachOpen = true)}>Change folder</Button>
-            <Button variant="danger" onclick={() => (detachOpen = true)}>Detach</Button>
+            <Button icon="edit" disabled={!enabled} onclick={() => (attachOpen = true)}>{t('repositories:lc.changeFolder')}</Button>
+            <Button variant="danger" onclick={() => (detachOpen = true)}>{t('repositories:lc.detach')}</Button>
           {/if}
         </div>
       {/if}
     </div>
   {:else}
     <div class="stack">
-      <p class="tight">No local clone is attached. This repository is read from GitHub.</p>
+      <p class="tight">{t('repositories:lc.noneAttached')}</p>
       {#if canWrite}
         {#if config && !config.enabled}
           {@const notice = localDisabledNotice(config)}
@@ -241,7 +241,7 @@
           </Alert>
         {/if}
         <div>
-          <Button icon="plus" disabled={!enabled} onclick={() => (attachOpen = true)}>Attach a local clone</Button>
+          <Button icon="plus" disabled={!enabled} onclick={() => (attachOpen = true)}>{t('repositories:lc.attach')}</Button>
         </div>
       {/if}
     </div>
@@ -251,8 +251,8 @@
 <Modal
   bind:open={attachOpen}
   size="lg"
-  title={local ? 'Change the local clone' : 'Attach a local clone'}
-  description="Reads come from the committed files of a git folder on the server. Applying still opens a pull request on GitHub."
+  title={local ? t('repositories:lc.modalChange') : t('repositories:lc.modalAttach')}
+  description={t('repositories:lc.modalDescription')}
 >
   {#if attachOpen}
     <LocalCheckoutConnect
@@ -267,39 +267,39 @@
   {/if}
 </Modal>
 
-<Modal bind:open={branchOpen} size="sm" title="Change the branch to read" dismissible={!branchSaving}>
+<Modal bind:open={branchOpen} size="sm" title={t('repositories:lc.branchTitle')} dismissible={!branchSaving}>
   <div class="stack">
     {#if branchError}<Alert tone="error">{branchError}</Alert>{/if}
     <div class="field">
-      <label for="{uid}-branch">Branch</label>
+      <label for="{uid}-branch">{t('repositories:lc.branchLabel')}</label>
       <select id="{uid}-branch" bind:value={branchValue} disabled={branchLoading || branchSaving}>
         {#if branchLoading}
-          <option value={branchValue}>Loading…</option>
+          <option value={branchValue}>{t('repositories:lc.loading')}</option>
         {:else}
           {#each branches.includes(branchValue) ? branches : [branchValue, ...branches] as name (name)}
             <option value={name}>{name}</option>
           {/each}
         {/if}
       </select>
-      <p class="hint">Only committed work on this branch is read. The folder’s own checkout is not changed.</p>
+      <p class="hint">{t('repositories:lc.branchHint')}</p>
     </div>
   </div>
   {#snippet footer()}
-    <Button disabled={branchSaving} onclick={() => (branchOpen = false)}>Cancel</Button>
-    <Button variant="primary" loading={branchSaving} disabled={branchLoading || branchValue === local?.branch} onclick={saveBranch}>Use this branch</Button>
+    <Button disabled={branchSaving} onclick={() => (branchOpen = false)}>{t('repositories:action.cancel')}</Button>
+    <Button variant="primary" loading={branchSaving} disabled={branchLoading || branchValue === local?.branch} onclick={saveBranch}>{t('repositories:lc.useBranch')}</Button>
   {/snippet}
 </Modal>
 
-<Modal bind:open={detachOpen} size="sm" title="Detach the local clone?" dismissible={!detaching}>
+<Modal bind:open={detachOpen} size="sm" title={t('repositories:lc.detachTitle')} dismissible={!detaching}>
   <div class="stack">
     <p class="tight">
-      <strong>{repository.name}</strong> is read from GitHub again. The folder <code>{local?.path}</code> is not changed or deleted.
+      <T key="repositories:lc.detachBody" params={{ name: repository.name, path: local?.path }} />
     </p>
     {#if detachError}<Alert tone="error">{detachError}</Alert>{/if}
   </div>
   {#snippet footer()}
-    <Button disabled={detaching} onclick={() => (detachOpen = false)}>Cancel</Button>
-    <Button variant="danger-solid" loading={detaching} onclick={detach}>Detach</Button>
+    <Button disabled={detaching} onclick={() => (detachOpen = false)}>{t('repositories:action.cancel')}</Button>
+    <Button variant="danger-solid" loading={detaching} onclick={detach}>{t('repositories:lc.detach')}</Button>
   {/snippet}
 </Modal>
 

@@ -4,7 +4,8 @@
   onopen (called with a repository), ondisconnect (called after the person confirms).
 -->
 <script lang="ts">
-  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { githubUrl, repositoryName } from '../../lib/repositories.ts';
   import { storeById } from '../../lib/stores.ts';
   import type { RepositorySummary } from '../../lib/types.ts';
@@ -12,6 +13,7 @@
   import Badge from '../ui/Badge.svelte';
   import Icon from '../ui/Icon.svelte';
   import Modal from '../ui/Modal.svelte';
+  import T from '../ui/T.svelte';
   import KindBadge from './KindBadge.svelte';
 
   let {
@@ -45,14 +47,14 @@
 
 <div class="table-wrap">
   <table>
-    <caption class="visually-hidden">Connected repositories</caption>
+    <caption class="visually-hidden">{t('repositories:list.caption')}</caption>
     <thead>
       <tr>
-        <th scope="col">Repository</th>
-        <th scope="col">Branch</th>
-        <th scope="col">Project type</th>
-        <th scope="col">Last scan</th>
-        <th scope="col"><span class="visually-hidden">Actions</span></th>
+        <th scope="col">{t('repositories:list.repository')}</th>
+        <th scope="col">{t('repositories:list.branch')}</th>
+        <th scope="col">{t('repositories:list.projectType')}</th>
+        <th scope="col">{t('repositories:list.lastScan')}</th>
+        <th scope="col"><span class="visually-hidden">{t('repositories:list.actions')}</span></th>
       </tr>
     </thead>
     <tbody>
@@ -65,15 +67,15 @@
                 type="button"
                 id="repo-open-{repository.id}"
                 class="link name-button"
-                aria-label="Open {repositoryName(repository)}"
+                aria-label={t('repositories:list.openAria', { name: repositoryName(repository) })}
                 onclick={() => onopen(repository)}
               >
                 {repositoryName(repository)}
               </button>
               {#if repository.localOnly}
-                <Badge tone="info">Local only</Badge>
+                <Badge tone="info">{t('repositories:list.localOnly')}</Badge>
               {:else if repository.local}
-                <Badge>Local clone</Badge>
+                <Badge>{t('repositories:list.localClone')}</Badge>
               {/if}
             </div>
             {#if repository.local}
@@ -84,9 +86,9 @@
           <td><KindBadge kind={repository.projectKind} /></td>
           <td class="muted">
             {#if repository.detectedAt}
-              <time datetime={new Date(repository.detectedAt).toISOString()} title={fullTime(repository.detectedAt)}>{timeAgo(repository.detectedAt)}</time>
+              <time datetime={new Date(repository.detectedAt).toISOString()} title={formatDateTime(repository.detectedAt)}>{formatRelativeTime(repository.detectedAt)}</time>
             {:else}
-              Never
+              {t('repositories:list.never')}
             {/if}
           </td>
           <td class="actions">
@@ -97,7 +99,7 @@
                   href={githubUrl(repository.owner, repository.repo)}
                   target="_blank"
                   icon="external-link"
-                  label="{repositoryName(repository)} on GitHub (opens in a new tab)">GitHub</Button
+                  label={t('repositories:list.githubAria', { name: repositoryName(repository) })}>{t('repositories:list.github')}</Button
                 >
               {/if}
               {#if canWrite}
@@ -105,8 +107,8 @@
                   size="sm"
                   variant="danger"
                   disabled={busyId === repository.id}
-                  label="Disconnect {repositoryName(repository)}"
-                  onclick={() => ask(repository)}>Disconnect</Button
+                  label={t('repositories:list.disconnectAria', { name: repositoryName(repository) })}
+                  onclick={() => ask(repository)}>{t('repositories:action.disconnect')}</Button
                 >
               {/if}
             </div>
@@ -117,22 +119,22 @@
   </table>
 </div>
 
-<Modal bind:open size="sm" title="Disconnect this repository?" onclose={() => (confirming = null)}>
+<Modal bind:open size="sm" title={t('repositories:list.confirmTitle')} onclose={() => (confirming = null)}>
   {#if confirming}
     <p>
-      <strong>{repositoryName(confirming)}</strong> will be removed from this workspace, together with its finished change
-      sets.
       {#if confirming.localOnly}
-        The folder <code>{confirming.local?.path}</code> is not changed or deleted.
+        <T key="repositories:list.confirmLocalOnly" params={{ name: repositoryName(confirming), path: confirming.local?.path }} />
+      {:else if confirming.local}
+        <T key="repositories:list.confirmGithubLocal" params={{ name: repositoryName(confirming) }} />
       {:else}
-        The repository on GitHub{confirming.local ? ' and the local folder are' : ' is'} not changed.
+        <T key="repositories:list.confirmGithub" params={{ name: repositoryName(confirming) }} />
       {/if}
     </p>
-    <p class="muted">A repository with a draft, approved or applying change set cannot be disconnected.</p>
+    <p class="muted">{t('repositories:list.confirmBlocked')}</p>
   {/if}
   {#snippet footer()}
-    <Button onclick={() => (open = false)}>Cancel</Button>
-    <Button variant="danger-solid" onclick={confirm}>Disconnect</Button>
+    <Button onclick={() => (open = false)}>{t('repositories:action.cancel')}</Button>
+    <Button variant="danger-solid" onclick={confirm}>{t('repositories:action.disconnect')}</Button>
   {/snippet}
 </Modal>
 

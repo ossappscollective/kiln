@@ -2,6 +2,7 @@
   import { type Role, can } from '@kiln/core';
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../lib/api.ts';
+  import { t } from '../lib/i18n/t.ts';
   import { resolveChangeSetReview, takeChangeSetReview } from '../lib/repository-intent.ts';
   import { repositoryName } from '../lib/repositories.ts';
   import { toast } from '../lib/toast.svelte.ts';
@@ -38,7 +39,7 @@
       items = (await api.repositories(workspaceId)).repositories;
     } catch (e) {
       items = null;
-      error = e instanceof ApiError ? e.message : 'Could not load repositories.';
+      error = e instanceof ApiError ? e.message : t('repositories:page.loadFailed');
       return;
     }
     openRequestedChangeSet(items);
@@ -49,7 +50,7 @@
     const found = resolveChangeSetReview(takeChangeSetReview(), list);
     if (!found) return;
     if ('missing' in found) {
-      toast.info('The repository of that change set is no longer connected.');
+      toast.info(t('repositories:page.changeSetGone'));
       return;
     }
     initialChangeSetId = found.changeSetId;
@@ -91,7 +92,7 @@
   }
 
   async function connected(repository: RepositorySummary) {
-    toast.success(`Connected ${repositoryName(repository)}. Scan it to see what it contains.`);
+    toast.success(t('repositories:page.connected', { name: repositoryName(repository) }));
     await load();
     selected = repository;
   }
@@ -99,8 +100,8 @@
   async function connectedLocal(done: { kind: 'attached' | 'local_only'; repository: RepositorySummary }) {
     toast.success(
       done.kind === 'attached'
-        ? `Attached the local clone to ${repositoryName(done.repository)}. Scan it to read from the folder.`
-        : `Connected ${repositoryName(done.repository)} as a local-only repository. Scan it to see what it contains.`,
+        ? t('repositories:page.attached', { name: repositoryName(done.repository) })
+        : t('repositories:page.connectedLocal', { name: repositoryName(done.repository) }),
     );
     await load();
     selected = done.repository;
@@ -110,10 +111,10 @@
     busyId = repository.id;
     try {
       await api.disconnectRepository(workspaceId, repository.id);
-      toast.success(`Disconnected ${repositoryName(repository)}.`);
+      toast.success(t('repositories:page.disconnected', { name: repositoryName(repository) }));
       await load();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : 'Could not disconnect the repository.');
+      toast.error(e instanceof ApiError ? e.message : t('repositories:page.disconnectFailed'));
     } finally {
       busyId = '';
     }
@@ -130,27 +131,27 @@
 
 <section>
   <PageHeader
-    title="Repositories"
-    description="The fastlane or Expo projects your listing text is read from. Changes go back as pull requests that a person approves."
+    title={t('repositories:page.title')}
+    description={t('repositories:page.description')}
   >
     {#snippet actions()}
       {#if canRead && canConnect && !selected && items !== null}
-        <Button variant="primary" icon="plus" onclick={() => (connecting = true)}>Connect repository</Button>
+        <Button variant="primary" icon="plus" onclick={() => (connecting = true)}>{t('repositories:page.connect')}</Button>
       {/if}
     {/snippet}
   </PageHeader>
 
   {#if !canRead}
-    <Alert tone="info">Your role does not include repositories.</Alert>
+    <Alert tone="info">{t('repositories:page.noAccess')}</Alert>
   {:else if selected}
     <RepositoryDetail {api} {workspaceId} {role} {myId} {names} initial={selected} {initialChangeSetId} onback={back} onupdated={patch} />
   {:else if error}
     <div class="stack">
       <Alert tone="error">{error}</Alert>
-      <div><Button icon="refresh" onclick={load}>Try again</Button></div>
+      <div><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
     </div>
   {:else if items === null}
-    <div class="card" role="status" aria-label="Loading repositories">
+    <div class="card" role="status" aria-label={t('repositories:page.loadingAria')}>
       <div class="stack">
         {#each [0, 1, 2] as i (i)}
           <div class="skeleton-row">
@@ -164,14 +165,12 @@
     <div class="card">
       <EmptyState
         icon="git-branch"
-        title="No repositories connected"
-        description={canConnect
-          ? 'Connect your app’s GitHub repository or a clone on the server. Nothing is written without an approved change set.'
-          : 'An admin or owner connects repositories. Once one is connected it appears here.'}
+        title={t('repositories:page.emptyTitle')}
+        description={canConnect ? t('repositories:page.emptyWrite') : t('repositories:page.emptyRead')}
       >
         {#snippet actions()}
           {#if canConnect}
-            <Button variant="primary" icon="plus" onclick={() => (connecting = true)}>Connect repository</Button>
+            <Button variant="primary" icon="plus" onclick={() => (connecting = true)}>{t('repositories:page.connect')}</Button>
           {/if}
         {/snippet}
       </EmptyState>

@@ -49,6 +49,7 @@
     targetRootsSummary,
     writeField,
   } from '../../lib/repositories.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type {
     ChangeSetView,
@@ -63,6 +64,7 @@
   import EmptyState from '../ui/EmptyState.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import Tabs from '../ui/Tabs.svelte';
+  import T from '../ui/T.svelte';
   import TextField from '../ui/TextField.svelte';
   import FieldEditor from './FieldEditor.svelte';
   import ListingDiagnostics from './ListingDiagnostics.svelte';
@@ -111,7 +113,7 @@
       data = result;
       edited = cloneListing(result.listing);
     } catch (e) {
-      loadError = e instanceof ApiError ? e.message : 'Could not read the listing files.';
+      loadError = e instanceof ApiError ? e.message : t('repositories:lp.loadFailed');
     } finally {
       loading = false;
     }
@@ -175,6 +177,11 @@
   const errorCount = $derived(problems.filter((p) => p.severity === 'error').length);
   const localesEdited = $derived(new Set(edits.map((e) => `${e.store}:${e.locale ?? ''}`)));
 
+  /** The locale in the picker: the code (or what "default" means), and a mark when it has edits. */
+  const localeOptionLabel = (s: ListingStore, code: string) => {
+    const label = code === 'default' ? t('repositories:lp.localeDefault') : code;
+    return localesEdited.has(`${s}:${code}`) ? t('repositories:lp.localeEdited', { label }) : label;
+  };
   const asStore = (id: string): ListingStore => (id === 'google_play' ? 'google_play' : 'app_store');
   const tabs = $derived(
     listingStores.map((s) => ({ id: s, label: storeLabel[s], count: edited ? storeLocales(edited, s).length : 0 })),
@@ -204,7 +211,7 @@
     edited = cloneListing(data.listing);
     summaryTouched = false;
     createError = '';
-    toast.info('Your edits were discarded.');
+    toast.info(t('repositories:lp.discarded'));
   }
 
   async function create() {
@@ -218,14 +225,14 @@
         listing: listingForChangeSet(data.listing, edited),
         ...selectionForRequest(data),
       });
-      toast.success('Draft change set created. An admin or owner can review and approve it.');
+      toast.success(t('repositories:lp.created'));
       if (result.warnings?.length) toast.warning(result.warnings.join(' '));
       // What was edited now lives in the draft, so the boxes go back to the repository's text.
       edited = cloneListing(data.listing);
       summaryTouched = false;
       oncreated(result.changeSet);
     } catch (e) {
-      createError = e instanceof ApiError ? e.message : 'Could not create the change set.';
+      createError = e instanceof ApiError ? e.message : t('repositories:lp.createFailed');
     } finally {
       creating = false;
     }
@@ -241,7 +248,7 @@
     <div class="card target-bar">
       <div class="locale-bar">
         <div class="field">
-          <label for="{uid}-target">Listing target</label>
+          <label for="{uid}-target">{t('repositories:lp.targetLabel')}</label>
           <select
             id="{uid}-target"
             value={data.selected?.id ?? ''}
@@ -250,7 +257,7 @@
             onchange={(e) => void choose({ target: e.currentTarget.value })}
           >
             {#if data.selected?.id == null}
-              <option value="" disabled>{data.selected?.label ?? 'Detected folders'}</option>
+              <option value="" disabled>{data.selected?.label ?? t('repositories:lp.detectedFolders')}</option>
             {/if}
             {#each targets as target (target.id)}
               <option value={target.id}>{targetOptionLabel(target)}</option>
@@ -258,16 +265,16 @@
           </select>
         </div>
         {#if canManageTargets}
-          <Button icon="settings" disabled={switching || loading} onclick={openTargets}>Manage targets</Button>
+          <Button icon="settings" disabled={switching || loading} onclick={openTargets}>{t('repositories:lp.manageTargets')}</Button>
         {/if}
       </div>
       <p class="hint root" id="{uid}-target-hint">
         {#if switching}
-          Create the change set or discard your edits before switching target.
+          {t('repositories:lp.switchHint')}
         {:else}
-          Reading <code>{targetRootsSummary({ appStore: data.roots.appStore || null, googlePlay: data.roots.googlePlay || null })}</code>.
+          <T key="repositories:lp.reading" params={{ roots: targetRootsSummary({ appStore: data.roots.appStore || null, googlePlay: data.roots.googlePlay || null }) }} />
           {#if targets.filter((t) => t.origin === 'detected').length > 1 && data.selected?.origin === 'default'}
-            Several apps were found; the first is shown until you choose one.
+            {t('repositories:lp.severalApps')}
           {/if}
         {/if}
       </p>
@@ -295,7 +302,11 @@
   <p class="hint root source">
     <Badge tone={badge.tone}>{badge.label}</Badge>
     <span>
-      Read from the {sourcePathKind(src.source)} <code>{src.path}</code> on <code>{repository.defaultBranch}</code>
+      {#if sourcePathKind(src.source) === 'file'}
+        <T key="repositories:lp.sourceFile" params={{ path: src.path, branch: repository.defaultBranch }} />
+      {:else}
+        <T key="repositories:lp.sourceFolder" params={{ path: src.path, branch: repository.defaultBranch }} />
+      {/if}
     </span>
   </p>
 {/snippet}
@@ -310,7 +321,7 @@
   {#if edited && src && broken}
     <div class="stack loose">
       {@render sourceLine(src)}
-      <Alert tone="error" title="{storeLabel[s]} listing cannot be read">{broken}</Alert>
+      <Alert tone="error" title={t('repositories:lp.cannotRead', { store: storeLabel[s] })}>{broken}</Alert>
     </div>
   {:else if edited && src && list.length === 0}
     <div class="stack loose">
@@ -318,12 +329,12 @@
       <div class="card">
         <EmptyState
           icon="file-text"
-          title="No {storeLabel[s]} listing text found"
+          title={t('repositories:lp.noText', { store: storeLabel[s] })}
           description={found === false
             ? src.source === 'expo-store-config'
-              ? `${src.path} has no apple.info locales yet.`
-              : `Nothing was found under ${src.path}. A fastlane listing has one folder per locale, such as ${src.path}/en-US, with a text file for each field.`
-            : 'The listing has no locales yet.'}
+              ? t('repositories:lp.emptyExpoLocales', { path: src.path })
+              : t('repositories:lp.emptyFastlane', { path: src.path })
+            : t('repositories:lp.noLocales')}
         />
         {#if found === false && src.source === 'fastlane'}{@render diagnosticFor(s)}{/if}
       </div>
@@ -332,21 +343,21 @@
     <div class="stack loose">
       <div class="locale-bar">
         <div class="field">
-          <label for="{uid}-{s}-locale">Locale</label>
+          <label for="{uid}-{s}-locale">{t('repositories:lp.locale')}</label>
           <select
             id="{uid}-{s}-locale"
             value={locale}
             onchange={(e) => (localeByStore[s] = e.currentTarget.value)}
           >
             {#each list as code (code)}
-              <option value={code}>{code === 'default' ? 'default (fallback for missing locales)' : code}{localesEdited.has(`${s}:${code}`) ? ' (edited)' : ''}</option>
+              <option value={code}>{localeOptionLabel(s, code)}</option>
             {/each}
           </select>
         </div>
         {@render sourceLine(src)}
       </div>
       {#if src.source === 'expo-store-config' && src.warnings.length > 0}
-        <Alert tone="warn" title="Notes on {src.path}">
+        <Alert tone="warn" title={t('repositories:lp.notesOn', { path: src.path })}>
           <ul class="plain">
             {#each src.warnings as warning (warning)}<li>{warning}</li>{/each}
           </ul>
@@ -372,18 +383,18 @@
         <div class="card fields">
           <div class="card-header">
             <div>
-              <h3>Release notes</h3>
-              <p>One file per version code in <code>changelogs/</code>. The file named default is the fallback.</p>
+              <h3>{t('repositories:lp.releaseNotes')}</h3>
+              <p><T key="repositories:lp.releaseNotesHint" /></p>
             </div>
           </div>
           {#if codes.length === 0}
-            <p class="muted">This locale has no release note files.</p>
+            <p class="muted">{t('repositories:lp.noReleaseNotes')}</p>
           {:else}
             {#each codes as code (code)}
               <FieldEditor
                 spec={PLAY_CHANGELOG_SPEC}
                 id="{uid}-{s}-{locale}-changelog-{code}"
-                label={code === 'default' ? 'Release notes (default)' : `Release notes for version code ${code}`}
+                label={code === 'default' ? t('repositories:lp.releaseNotesDefault') : t('repositories:lp.releaseNotesFor', { code })}
                 value={readField(edited, s, locale, changelogField(code)) ?? ''}
                 original={readField(base, s, locale, changelogField(code))}
                 readonly={!canEdit}
@@ -397,8 +408,8 @@
         <div class="card fields">
           <div class="card-header">
             <div>
-              <h3>Across all locales</h3>
-              <p>Stored once, as <code>{copyrightLocation(src.source)}</code>.</p>
+              <h3>{t('repositories:lp.allLocales')}</h3>
+              <p><T key="repositories:lp.allLocalesHint" params={{ file: copyrightLocation(src.source) }} /></p>
             </div>
           </div>
           <FieldEditor
@@ -417,28 +428,28 @@
 {/snippet}
 
 {#if readNotice !== null}
-  <Alert tone="info" title="The listing is not available for your role">{readNotice}</Alert>
+  <Alert tone="info" title={t('repositories:lp.notAvailable')}>{readNotice}</Alert>
 {:else if loadError}
   <div class="stack">
     <Alert tone="error">{loadError}</Alert>
-    <div><Button icon="refresh" onclick={load}>Try again</Button></div>
+    <div><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
   </div>
 {:else if data === null || edited === null}
-  <div class="card" role="status" aria-label="Reading the listing files from GitHub">
+  <div class="card" role="status" aria-label={t('repositories:lp.readingAria')}>
     <div class="stack">
       <Skeleton width="25%" height="14px" />
       <Skeleton height="36px" />
       <Skeleton width="25%" height="14px" />
       <Skeleton height="112px" />
-      <p class="muted">Reading the listing files from {repositoryName(repository)}. This can take a few seconds.</p>
+      <p class="muted">{t('repositories:lp.readingFrom', { name: repositoryName(repository) })}</p>
     </div>
   </div>
 {:else if listingIsEmpty(data)}
   <div class="stack loose">
     {@render targetBar()}
     <div class="card">
-      <EmptyState icon="file-text" title="No listing files found" description={emptyListingDescription(data)}>
-        {#snippet actions()}<Button icon="refresh" onclick={load}>Check again</Button>{/snippet}
+      <EmptyState icon="file-text" title={t('repositories:lp.noFilesTitle')} description={emptyListingDescription(data)}>
+        {#snippet actions()}<Button icon="refresh" onclick={load}>{t('repositories:lp.checkAgain')}</Button>{/snippet}
       </EmptyState>
       {#each listingStores as s (s)}
         {#if s === 'app_store' ? data.sources.appStore.source === 'fastlane' : true}
@@ -452,22 +463,22 @@
   <div class="stack loose">
     {@render targetBar()}
     {#if !canEdit}
-      <Alert tone="info">Your role can read the listing but not edit it.</Alert>
+      <Alert tone="info">{t('repositories:lp.readOnly')}</Alert>
     {/if}
     {#if data.warnings.length > 0}
-      <Alert tone="warn" title="Listing warnings">
+      <Alert tone="warn" title={t('repositories:lp.warnings')}>
         <ul class="plain">
           {#each data.warnings as warning (warning)}<li>{warning}</li>{/each}
         </ul>
       </Alert>
     {/if}
 
-    <Tabs {tabs} bind:value={store} label="Store" panel={storePanel} />
+    <Tabs {tabs} bind:value={store} label={t('repositories:lp.storeTabs')} panel={storePanel} />
 
     {#if canEdit}
       <form
         class="card bar"
-        aria-label="Create a change set from your edits"
+        aria-label={t('repositories:lp.formAria')}
         onsubmit={(e) => {
           e.preventDefault();
           void create();
@@ -475,36 +486,36 @@
       >
         <div class="card-header">
           <div>
-            <h3>Create a change set</h3>
+            <h3>{t('repositories:lp.formTitle')}</h3>
             <p>
               {#if edits.length === 0}
-                Edit a field above. Your changes become a draft that an admin or owner approves before anything is written to the repository.
+                {t('repositories:lp.formHintEmpty')}
               {:else}
-                {edits.length} {edits.length === 1 ? 'field' : 'fields'} edited. Nothing is written until an admin or owner approves the draft and applies it, as a pull request or as a commit on a new branch of the local clone.
+                {t('repositories:lp.formHintEdited', { count: edits.length })}
               {/if}
             </p>
           </div>
         </div>
         <TextField
-          label="Summary"
+          label={t('repositories:lp.summary')}
           bind:value={summary}
           oninput={() => (summaryTouched = true)}
           maxlength={200}
           autocomplete="off"
-          hint="One line that names the change. It becomes the pull request title."
+          hint={t('repositories:lp.summaryHint')}
         />
         {#if errorCount > 0 && edits.length > 0}
           <div class="gap">
             <Alert tone="warn">
-              {errorCount} {errorCount === 1 ? 'field is' : 'fields are'} over a limit or missing. You can still create the draft, but the store may refuse it.
+              {t('repositories:lp.overLimit', { count: errorCount })}
             </Alert>
           </div>
         {/if}
         {#if createError}<div class="gap"><Alert tone="error">{createError}</Alert></div>{/if}
         <div class="row end gap">
-          <Button disabled={edits.length === 0 || creating} onclick={discardEdits}>Discard edits</Button>
+          <Button disabled={edits.length === 0 || creating} onclick={discardEdits}>{t('repositories:lp.discardEdits')}</Button>
           <Button type="submit" variant="primary" icon="git-pull-request" loading={creating} disabled={edits.length === 0 || summary.trim() === ''}>
-            {creating ? 'Creating…' : 'Create draft change set'}
+            {creating ? t('repositories:lp.creating') : t('repositories:lp.createDraft')}
           </Button>
         </div>
       </form>

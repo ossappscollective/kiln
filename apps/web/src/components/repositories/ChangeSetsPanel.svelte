@@ -9,14 +9,16 @@
   import { type Role, can } from '@kiln/core';
   import { tick, untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { fullTime, timeAgo } from '../../lib/format.ts';
-  import { actorLabel, filesChangedLabel } from '../../lib/repositories.ts';
+  import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
+  import { actorLabel, filesChangedLabel, repositoryName } from '../../lib/repositories.ts';
   import type { ChangeSetView, LocalConfig, RepositorySummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import ChangeSetReview from './ChangeSetReview.svelte';
+  import T from '../ui/T.svelte';
   import StatusBadge from './StatusBadge.svelte';
 
   let {
@@ -50,7 +52,7 @@
       items = (await api.changeSets(workspaceId, { repositoryId: repository.id })).changeSets;
     } catch (e) {
       items = null;
-      error = e instanceof ApiError ? e.message : 'Could not load the change sets.';
+      error = e instanceof ApiError ? e.message : t('repositories:changes.loadFailed');
     }
   }
 
@@ -90,10 +92,10 @@
 {:else if error}
   <div class="stack">
     <Alert tone="error">{error}</Alert>
-    <div><Button icon="refresh" onclick={load}>Try again</Button></div>
+    <div><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
   </div>
 {:else if items === null}
-  <div class="card" role="status" aria-label="Loading change sets">
+  <div class="card" role="status" aria-label={t('repositories:changes.loadingAria')}>
     <div class="stack">
       {#each [0, 1, 2] as i (i)}
         <div class="skeleton-row">
@@ -107,12 +109,12 @@
   <div class="card">
     <EmptyState
       icon="git-pull-request"
-      title="No change sets yet"
-      description="A change set is the only way text reaches this repository. Edit the listing to create a draft; an admin or owner approves it, then applies it as a pull request or as a commit on a new branch of the local clone."
+      title={t('repositories:changes.emptyTitle')}
+      description={t('repositories:changes.emptyDescription')}
     >
       {#snippet actions()}
         {#if can(role, 'changesets.write')}
-          <Button variant="primary" icon="edit" onclick={ongotolisting}>Edit the listing</Button>
+          <Button variant="primary" icon="edit" onclick={ongotolisting}>{t('repositories:changes.editListing')}</Button>
         {/if}
       {/snippet}
     </EmptyState>
@@ -120,28 +122,30 @@
 {:else}
   <div class="table-wrap">
     <table>
-      <caption class="visually-hidden">Change sets of {repository.owner}/{repository.repo}</caption>
+      <caption class="visually-hidden">{t('repositories:changes.caption', { name: repositoryName(repository) })}</caption>
       <thead>
         <tr>
-          <th scope="col">Summary</th>
-          <th scope="col">Status</th>
-          <th scope="col">Files</th>
-          <th scope="col">Created</th>
+          <th scope="col">{t('repositories:changes.summary')}</th>
+          <th scope="col">{t('repositories:changes.status')}</th>
+          <th scope="col">{t('repositories:changes.files')}</th>
+          <th scope="col">{t('repositories:changes.created')}</th>
         </tr>
       </thead>
       <tbody>
         {#each items as item (item.id)}
+          {#snippet createdTime(text: string)}
+            <time datetime={new Date(item.createdAt).toISOString()} title={formatDateTime(item.createdAt)}>{text}</time>
+          {/snippet}
           <tr>
             <td>
-              <button type="button" id="cs-open-{item.id}" class="link summary" aria-label="Review {item.summary}" onclick={() => (openId = item.id)}>
+              <button type="button" id="cs-open-{item.id}" class="link summary" aria-label={t('repositories:changes.reviewAria', { summary: item.summary })} onclick={() => (openId = item.id)}>
                 {item.summary}
               </button>
             </td>
             <td><StatusBadge status={item.status} /></td>
             <td>{filesChangedLabel(item.filesChanged)}</td>
             <td class="muted">
-              {actorLabel(item.createdBy, myId, names)},
-              <time datetime={new Date(item.createdAt).toISOString()} title={fullTime(item.createdAt)}>{timeAgo(item.createdAt)}</time>
+              <T key="repositories:changes.createdBy" params={{ actor: actorLabel(item.createdBy, myId, names), ago: formatRelativeTime(item.createdAt) }} tags={{ link: createdTime }} />
             </td>
           </tr>
         {/each}

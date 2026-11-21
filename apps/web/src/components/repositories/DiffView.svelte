@@ -5,6 +5,7 @@
   Added and removed lines carry a "+" or "-" and hidden text, so color is never the only cue.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { collapseDiff, diffLines, differsOnlyInLineEnds } from '../../lib/repositories.ts';
 
   let { before, after, path }: { before?: string | undefined; after?: string | undefined; path: string } = $props();
@@ -16,19 +17,19 @@
 </script>
 
 {#if rows.length === 0}
-  <p class="empty muted">This file is empty.</p>
+  <p class="empty muted">{t('repositories:diff.empty')}</p>
 {:else}
   <!-- A long diff scrolls sideways; keyboard users need to focus it to scroll it. -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="diff" role="region" aria-label="Changes in {path}" tabindex="0">
+  <div class="diff" role="region" aria-label={t('repositories:diff.regionAria', { path })} tabindex="0">
     <table>
-      <caption class="visually-hidden">Line by line changes in {path}</caption>
+      <caption class="visually-hidden">{t('repositories:diff.caption', { path })}</caption>
       <thead class="visually-hidden">
         <tr>
-          <th scope="col">Old line</th>
-          <th scope="col">New line</th>
-          <th scope="col">Change</th>
-          <th scope="col">Text</th>
+          <th scope="col">{t('repositories:diff.oldLine')}</th>
+          <th scope="col">{t('repositories:diff.newLine')}</th>
+          <th scope="col">{t('repositories:diff.change')}</th>
+          <th scope="col">{t('repositories:diff.text')}</th>
         </tr>
       </thead>
       <tbody>
@@ -37,7 +38,7 @@
             <tr class="fold">
               <td colspan="4">
                 <button type="button" class="link" onclick={() => (expanded[index] = true)}>
-                  Show {block.rows.length} unchanged lines
+                  {t('repositories:diff.showUnchanged', { count: block.rows.length })}
                 </button>
               </td>
             </tr>
@@ -47,9 +48,9 @@
                 <td class="no">{row.oldNo ?? ''}</td>
                 <td class="no">{row.newNo ?? ''}</td>
                 <td class="sign">
-                  {#if row.kind === 'add'}<span aria-hidden="true">+</span><span class="visually-hidden">Added</span>
-                  {:else if row.kind === 'del'}<span aria-hidden="true">-</span><span class="visually-hidden">Removed</span>
-                  {:else}<span class="visually-hidden">Unchanged</span>{/if}
+                  {#if row.kind === 'add'}<span aria-hidden="true">+</span><span class="visually-hidden">{t('repositories:diff.added')}</span>
+                  {:else if row.kind === 'del'}<span aria-hidden="true">-</span><span class="visually-hidden">{t('repositories:diff.removed')}</span>
+                  {:else}<span class="visually-hidden">{t('repositories:diff.unchanged')}</span>{/if}
                 </td>
                 <td class="text">{row.text === '' ? ' ' : row.text}</td>
               </tr>
@@ -60,7 +61,7 @@
     </table>
   </div>
   {#if lineEndsOnly}
-    <p class="hint">Only line endings or the newline at the end of the file changed.</p>
+    <p class="hint">{t('repositories:diff.lineEndsOnly')}</p>
   {/if}
 {/if}
 

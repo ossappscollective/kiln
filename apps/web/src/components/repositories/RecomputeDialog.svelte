@@ -21,6 +21,7 @@
     recomputeBody,
     recomputeDoneMessage,
   } from '../../lib/change-set-fixup.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { ChangeSetView } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -73,45 +74,42 @@
       toast.success(recomputeDoneMessage(done));
       onrecomputed(done);
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'The recompute did not work. Try again.';
+      error = e instanceof ApiError ? e.message : t('repositories:recompute.failed');
     } finally {
       busy = false;
     }
   }
 </script>
 
-<Modal bind:open size="lg" title="Recompute from the live store" dismissible={!busy}>
+<Modal bind:open size="lg" title={t('repositories:recompute.title')} dismissible={!busy}>
   <div class="stack">
     {#if !result}
-      <p>
-        This change set was made by pulling the store listing. Recomputing makes the pull again from the store listing as it is now, against
-        the repository as it is now, and replaces the files of this change set.
-      </p>
+      <p>{t('repositories:recompute.intro')}</p>
       <ul class="plain small">
-        <li>The change set keeps its id and its author. Nothing is written to the repository.</li>
-        <li>Fields the store changed since are updated, and fields the repository has caught up on leave the change set.</li>
-        <li>It becomes a draft again and has to be approved again.</li>
+        <li>{t('repositories:recompute.point1')}</li>
+        <li>{t('repositories:recompute.point2')}</li>
+        <li>{t('repositories:recompute.point3')}</li>
       </ul>
       {#if wasApproved}
-        <Alert tone="info">This change set is approved. If the text changes, the approval is cleared.</Alert>
+        <Alert tone="info">{t('repositories:recompute.approved')}</Alert>
       {/if}
       {#if mayRefresh}
         <label class="check tops">
           <input type="checkbox" bind:checked={refresh} disabled={busy} />
           <span class="option-text">
-            <span>Refresh from the store first</span>
-            <span class="muted small">Reads the listing from the store now (read only, the same read a sync makes) instead of using the last one.</span>
+            <span>{t('repositories:recompute.refreshFirst')}</span>
+            <span class="muted small">{t('repositories:recompute.refreshFirstHint')}</span>
           </span>
         </label>
       {:else}
-        <p class="muted small">The last listing read from the store is used. Someone who may sync the app can read it again first.</p>
+        <p class="muted small">{t('repositories:recompute.lastListing')}</p>
       {/if}
     {:else}
-      <Alert tone={result.nothingLeft ? 'warn' : 'ok'} title={result.nothingLeft ? 'Nothing left to pull' : 'Recomputed'}>
+      <Alert tone={result.nothingLeft ? 'warn' : 'ok'} title={result.nothingLeft ? t('repositories:recompute.nothingLeft') : t('repositories:recompute.done')}>
         {recomputeDoneMessage(result)}
       </Alert>
       {#if result.store?.error}
-        <Alert tone="warn">The store could not be read ({result.store.error}), so the last listing read was used.</Alert>
+        <Alert tone="warn">{t('repositories:recompute.storeError', { error: result.store.error })}</Alert>
       {/if}
       <p class="muted small">{diffSummary(result.diffFromPrevious)}</p>
       <ul class="plain results">
@@ -134,14 +132,14 @@
   {#snippet footer()}
     {#if result}
       {#if result.nothingLeft}
-        <Button onclick={() => (open = false)}>Keep it</Button>
-        <Button variant="danger-solid" onclick={() => { open = false; ondiscard(); }}>Discard change set</Button>
+        <Button onclick={() => (open = false)}>{t('repositories:recompute.keep')}</Button>
+        <Button variant="danger-solid" onclick={() => { open = false; ondiscard(); }}>{t('repositories:recompute.discard')}</Button>
       {:else}
-        <Button variant="primary" onclick={() => (open = false)}>Done</Button>
+        <Button variant="primary" onclick={() => (open = false)}>{t('repositories:recompute.finish')}</Button>
       {/if}
     {:else}
-      <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>
-      <Button variant="primary" icon="refresh" loading={busy} onclick={run}>{busy ? 'Recomputing…' : 'Recompute'}</Button>
+      <Button disabled={busy} onclick={() => (open = false)}>{t('repositories:action.cancel')}</Button>
+      <Button variant="primary" icon="refresh" loading={busy} onclick={run}>{busy ? t('repositories:recompute.recomputing') : t('repositories:recompute.recompute')}</Button>
     {/if}
   {/snippet}
 </Modal>

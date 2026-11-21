@@ -26,6 +26,7 @@
     pushAvailability,
     signingNote,
   } from '../../lib/change-set-apply.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { filesChangedLabel } from '../../lib/repositories.ts';
   import type { ChangeSetView } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -75,27 +76,27 @@
 
   const confirmLabel = $derived(
     effective.mode === 'github_pr'
-      ? 'Apply and open pull request'
+      ? t('repositories:apply.confirmPr')
       : effective.push
         ? effective.openPr
-          ? 'Commit, push and open pull request'
-          : 'Commit and push'
-        : 'Commit to a new branch',
+          ? t('repositories:apply.confirmPushPr')
+          : t('repositories:apply.confirmPush')
+        : t('repositories:apply.confirmCommit'),
   );
 </script>
 
-<Modal bind:open size="md" title="Apply this change set?">
+<Modal bind:open size="md" title={t('repositories:apply.title')}>
   <div class="stack">
     <fieldset class="stack tight">
-      <legend>How to apply it</legend>
+      <legend>{t('repositories:apply.how')}</legend>
 
       <label class="check option" class:selected={choice.mode === 'github_pr'} class:off={!githubPr.available}>
         <input type="radio" name="{uid}-mode" value="github_pr" bind:group={choice.mode} disabled={busy || !githubPr.available} aria-describedby="{uid}-pr-note" />
         <span class="option-text">
-          <span class="option-label">Open a pull request on GitHub</span>
+          <span class="option-label">{t('repositories:apply.optionPr')}</span>
           <span class="muted small" id="{uid}-pr-note">
             {#if githubPr.available}
-              Creates a new branch in the repository, commits {changeSet ? filesChangedLabel(changeSet.filesChanged) : 'the files'} and opens a pull request. Nothing is pushed to the default branch.
+              {changeSet ? t('repositories:apply.prDescFiles', { files: filesChangedLabel(changeSet.filesChanged) }) : t('repositories:apply.prDesc')}
             {:else}
               {githubPr.reason}
             {/if}
@@ -106,7 +107,7 @@
       <label class="check option" class:selected={choice.mode === 'local_branch'} class:off={!localBranch.available}>
         <input type="radio" name="{uid}-mode" value="local_branch" bind:group={choice.mode} disabled={busy || !localBranch.available} aria-describedby="{uid}-local-note" />
         <span class="option-text">
-          <span class="option-label">Commit to a new branch in the local clone</span>
+          <span class="option-label">{t('repositories:apply.optionLocal')}</span>
           <span class="muted small" id="{uid}-local-note">
             {#if localBranch.available}
               {APPLY_LOCAL_EXPLANATION}
@@ -120,10 +121,10 @@
 
     {#if choice.mode === 'local_branch'}
       <TextField
-        label="Branch name"
+        label={t('repositories:apply.branchName')}
         bind:value={choice.branch}
         placeholder={defaultBranch}
-        hint="A new branch, made from the tip of the branch the clone is read from. It must not exist yet. Leave it blank for {defaultBranch}."
+        hint={t('repositories:apply.branchHint', { name: defaultBranch })}
         error={branchError}
         spellcheck={false}
         autocomplete="off"
@@ -138,10 +139,10 @@
         <label class="check tops" class:off={!push.available}>
           <input type="checkbox" bind:checked={choice.push} disabled={busy || !push.available} aria-describedby="{uid}-push-note" />
           <span class="option-text">
-            <span>Push the branch to GitHub</span>
+            <span>{t('repositories:apply.push')}</span>
             <span class="muted small" id="{uid}-push-note">
               {#if push.available}
-                Pushes with the repository's stored credential, to its GitHub address only. The folder's own remotes and git settings are not used. If the push fails the commit stays and you can retry.
+                {t('repositories:apply.pushNote')}
               {:else}
                 {push.reason}
               {/if}
@@ -151,10 +152,10 @@
         <label class="check tops" class:off={!openPr.available}>
           <input type="checkbox" bind:checked={choice.openPr} disabled={busy || !openPr.available} aria-describedby="{uid}-pr-open-note" />
           <span class="option-text">
-            <span>Open a pull request</span>
+            <span>{t('repositories:apply.openPr')}</span>
             <span class="muted small" id="{uid}-pr-open-note">
               {#if openPr.available}
-                Into the branch the commit was made on top of.
+                {t('repositories:apply.openPrNote')}
               {:else}
                 {openPr.reason}
               {/if}
@@ -170,7 +171,7 @@
   </div>
 
   {#snippet footer()}
-    <Button onclick={() => (open = false)}>Cancel</Button>
+    <Button onclick={() => (open = false)}>{t('repositories:action.cancel')}</Button>
     <Button variant="primary" disabled={busy || blocker !== null} onclick={confirm}>{confirmLabel}</Button>
   {/snippet}
 </Modal>

@@ -5,7 +5,8 @@
 -->
 <script lang="ts">
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import {
     detectionPaths,
     platformsSummary,
@@ -49,9 +50,9 @@ import { supports } from '@kiln/core';
     try {
       const detail = await api.scanRepository(workspaceId, repository.id);
       onscanned(detail);
-      toast.success(`Scanned ${repositoryName(repository)}.`);
+      toast.success(t('repositories:project.scanned', { name: repositoryName(repository) }));
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not scan the repository.';
+      error = e instanceof ApiError ? e.message : t('repositories:project.scanFailed');
     } finally {
       scanning = false;
     }
@@ -61,8 +62,8 @@ import { supports } from '@kiln/core';
   const localeRows = $derived(
     detection
       ? [
-          { label: 'App Store locales', values: detection.locales.ios },
-          { label: 'Google Play locales', values: detection.locales.android },
+          { label: t('repositories:project.localesApp'), values: detection.locales.ios },
+          { label: t('repositories:project.localesPlay'), values: detection.locales.android },
         ].filter((row) => row.values.length > 0)
       : [],
   );
@@ -70,17 +71,19 @@ import { supports } from '@kiln/core';
     const expo = detection?.expo;
     if (!expo) return [];
     const rows: Array<[string, string]> = [];
-    if (expo.name) rows.push(['Name', expo.name]);
-    if (expo.slug) rows.push(['Slug', expo.slug]);
-    if (expo.version) rows.push(['Version', expo.version]);
-    if (expo.iosBundleIdentifier) rows.push(['iOS bundle identifier', expo.iosBundleIdentifier]);
-    if (expo.androidPackage) rows.push(['Android package', expo.androidPackage]);
-    if (expo.buildProfiles.length > 0) rows.push(['EAS build profiles', expo.buildProfiles.join(', ')]);
-    if (expo.submitProfiles.length > 0) rows.push(['EAS submit profiles', expo.submitProfiles.join(', ')]);
+    if (expo.name) rows.push([t('repositories:project.expoName'), expo.name]);
+    if (expo.slug) rows.push([t('repositories:project.expoSlug'), expo.slug]);
+    if (expo.version) rows.push([t('repositories:project.expoVersion'), expo.version]);
+    if (expo.iosBundleIdentifier) rows.push([t('repositories:project.expoIosBundle'), expo.iosBundleIdentifier]);
+    if (expo.androidPackage) rows.push([t('repositories:project.expoAndroidPackage'), expo.androidPackage]);
+    if (expo.buildProfiles.length > 0) rows.push([t('repositories:project.expoBuildProfiles'), expo.buildProfiles.join(', ')]);
+    if (expo.submitProfiles.length > 0) rows.push([t('repositories:project.expoSubmitProfiles'), expo.submitProfiles.join(', ')]);
     for (const config of expo.storeConfigs) {
       rows.push([
-        config.profile ? `Store config (${config.profile})` : 'Store config',
-        config.dynamic ? `${config.path} (a script, so its text cannot be read)` : config.path,
+        config.profile
+          ? t('repositories:project.storeConfigProfile', { profile: config.profile })
+          : t('repositories:project.storeConfig'),
+        config.dynamic ? t('repositories:project.storeConfigDynamic', { path: config.path }) : config.path,
       ]);
     }
     return rows;
@@ -91,58 +94,56 @@ import { supports } from '@kiln/core';
   {#if error}
     <div class="stack">
       <Alert tone="error">{error}</Alert>
-      {#if canScan}<div><Button icon="refresh" onclick={scan}>Try again</Button></div>{/if}
+      {#if canScan}<div><Button icon="refresh" onclick={scan}>{t('common:action.tryAgain')}</Button></div>{/if}
     </div>
   {/if}
 
   {#if scanning}
-    <div class="card" role="status" aria-label="Scanning the repository">
+    <div class="card" role="status" aria-label={t('repositories:project.scanningAria')}>
       <div class="stack">
         <Skeleton width="40%" height="20px" />
         <Skeleton width="80%" height="14px" />
         <Skeleton width="60%" height="14px" />
-        <p class="muted">Reading the file list from GitHub. This can take a few seconds.</p>
+        <p class="muted">{t('repositories:project.scanningHint')}</p>
       </div>
     </div>
   {:else if detection === null}
     <div class="card">
       <EmptyState
         icon="search"
-        title="Not scanned yet"
-        description={canScan
-          ? 'A scan lists the files in the repository and works out whether it uses fastlane, Expo or both. It only reads.'
-          : 'Nobody has scanned this repository yet. A member, admin or owner can scan it.'}
+        title={t('repositories:project.emptyTitle')}
+        description={canScan ? t('repositories:project.emptyWrite') : t('repositories:project.emptyRead')}
       >
         {#snippet actions()}
-          {#if canScan}<Button variant="primary" icon="search" onclick={scan}>Scan repository</Button>{/if}
+          {#if canScan}<Button variant="primary" icon="search" onclick={scan}>{t('repositories:project.scan')}</Button>{/if}
         {/snippet}
       </EmptyState>
     </div>
   {:else}
-    <Card title="Project type" collapseKey="project-type" description={projectKindSummary(detection.kind)}>
+    <Card title={t('repositories:project.typeTitle')} collapseKey="project-type" description={projectKindSummary(detection.kind)}>
       {#snippet actions()}
-        {#if canScan}<Button icon="refresh" onclick={scan}>Scan again</Button>{/if}
+        {#if canScan}<Button icon="refresh" onclick={scan}>{t('repositories:project.scanAgain')}</Button>{/if}
       {/snippet}
       <dl class="facts">
         <div>
-          <dt>Detected</dt>
+          <dt>{t('repositories:project.detected')}</dt>
           <dd><KindBadge kind={detection.kind} /></dd>
         </div>
         <div>
-          <dt>Platforms</dt>
+          <dt>{t('repositories:project.platforms')}</dt>
           <dd>{platformsSummary(detection)}</dd>
         </div>
         {#if repository.detectedAt}
           <div>
-            <dt>Last scan</dt>
-            <dd><time datetime={new Date(repository.detectedAt).toISOString()} title={fullTime(repository.detectedAt)}>{timeAgo(repository.detectedAt)}</time></dd>
+            <dt>{t('repositories:list.lastScan')}</dt>
+            <dd><time datetime={new Date(repository.detectedAt).toISOString()} title={formatDateTime(repository.detectedAt)}>{formatRelativeTime(repository.detectedAt)}</time></dd>
           </div>
         {/if}
       </dl>
     </Card>
 
     {#if detection.warnings.length > 0}
-      <Alert tone="warn" title={detection.warnings.length === 1 ? 'One thing to check' : 'Things to check'}>
+      <Alert tone="warn" title={detection.warnings.length === 1 ? t('repositories:project.warningOne') : t('repositories:project.warningMany')}>
         <ul class="plain">
           {#each detection.warnings as warning (warning)}<li>{warning}</li>{/each}
         </ul>
@@ -150,7 +151,7 @@ import { supports } from '@kiln/core';
     {/if}
 
     {#if paths.length > 0 || localeRows.length > 0}
-      <Card title="What was found" collapseKey="found" defaultOpen={false} description="Folders and files the scan used.">
+      <Card title={t('repositories:project.foundTitle')} collapseKey="found" defaultOpen={false} description={t('repositories:project.foundDescription')}>
         <dl class="facts stacked">
           {#each paths as row (row.label)}
             <div>
@@ -171,7 +172,7 @@ import { supports } from '@kiln/core';
     {/if}
 
     {#if expoRows.length > 0}
-      <Card title="Expo" collapseKey="expo" description="Read from app.json and eas.json. Nothing is run.">
+      <Card title={t('repositories:project.expoTitle')} collapseKey="expo" description={t('repositories:project.expoDescription')}>
         <dl class="facts stacked">
           {#each expoRows as [label, value] (label)}
             <div>
@@ -181,25 +182,25 @@ import { supports } from '@kiln/core';
           {/each}
         </dl>
         {#if detection.expo?.dynamicConfig}
-          <p class="hint">The Expo config is a script, so name, version and identifiers cannot be read without running it.</p>
+          <p class="hint">{t('repositories:project.expoDynamic')}</p>
         {/if}
       </Card>
     {/if}
 
     <section class="stack" aria-labelledby="evidence-title">
-      <h3 id="evidence-title">Evidence</h3>
+      <h3 id="evidence-title">{t('repositories:project.evidenceTitle')}</h3>
       {#if detection.evidence.length === 0}
-        <p class="muted">No files that point to fastlane or Expo were found.</p>
+        <p class="muted">{t('repositories:project.evidenceNone')}</p>
       {:else}
         <div class="table-wrap">
           <table class="compact">
-            <caption class="visually-hidden">Files that led to the detected project type</caption>
+            <caption class="visually-hidden">{t('repositories:project.evidenceCaption')}</caption>
             <thead>
               <tr>
-                <th scope="col">What was found</th>
-                <th scope="col">File</th>
-                <th scope="col">Platform</th>
-                <th scope="col">Certainty</th>
+                <th scope="col">{t('repositories:project.evidenceFound')}</th>
+                <th scope="col">{t('repositories:project.evidenceFile')}</th>
+                <th scope="col">{t('repositories:project.evidencePlatform')}</th>
+                <th scope="col">{t('repositories:project.evidenceCertainty')}</th>
               </tr>
             </thead>
             <tbody>
@@ -207,7 +208,7 @@ import { supports } from '@kiln/core';
                 <tr>
                   <td>{item.fact}</td>
                   <td><code>{item.path}</code></td>
-                  <td>{item.platform === 'ios' ? 'iOS' : item.platform === 'android' ? 'Android' : 'Both or neither'}</td>
+                  <td>{item.platform === 'ios' ? 'iOS' : item.platform === 'android' ? 'Android' : t('repositories:project.platformBoth')}</td>
                   <td>
                     <Badge tone={item.strength === 'definite' ? 'ok' : 'warn'}>{strengthLabel(item.strength)}</Badge>
                   </td>
@@ -216,7 +217,7 @@ import { supports } from '@kiln/core';
             </tbody>
           </table>
         </div>
-        <p class="hint">Confirmed means a file states it. Likely is a reasonable reading and never changes the detected type.</p>
+        <p class="hint">{t('repositories:project.evidenceHint')}</p>
       {/if}
     </section>
   {/if}

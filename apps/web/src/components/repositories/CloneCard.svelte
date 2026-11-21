@@ -10,12 +10,14 @@
   import { type Role, can } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { type RepositoryClone, cloneSummary, limitsSentence, purgeMessage } from '../../lib/clone-upkeep.ts';
-  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { RepositorySummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import Card from '../ui/Card.svelte';
+  import T from '../ui/T.svelte';
 
   let {
     api,
@@ -41,7 +43,7 @@
       info = await api.repositoryClone(workspaceId, repository.id);
     } catch (e) {
       info = null;
-      error = e instanceof ApiError ? e.message : 'Could not look at the clone.';
+      error = e instanceof ApiError ? e.message : t('repositories:clone.lookFailed');
     }
   }
 
@@ -59,7 +61,7 @@
       toast.success(purgeMessage(result));
       await load();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : 'The clone could not be removed. Try again.');
+      toast.error(e instanceof ApiError ? e.message : t('repositories:clone.freeFailed'));
     } finally {
       freeing = false;
     }
@@ -69,24 +71,28 @@
 {#if error}
   <Alert tone="warn">{error}</Alert>
 {:else if info && (info.enabled || info.clone)}
-  <Card title="Clone on the server" collapseKey="clone" description="A cache of the repository, so scans and listings do not download it every time.">
+  <Card title={t('repositories:clone.title')} collapseKey="clone" description={t('repositories:clone.description')}>
     {#snippet actions()}
       {#if mayFree && info?.clone}
-        <Button size="sm" icon="trash" loading={freeing} onclick={free}>{freeing ? 'Freeing…' : 'Free space'}</Button>
+        <Button size="sm" icon="trash" loading={freeing} onclick={free}>{freeing ? t('repositories:clone.freeing') : t('repositories:clone.freeSpace')}</Button>
       {/if}
     {/snippet}
     <div class="stack tight">
       <p class="line">{cloneSummary(info)}</p>
       {#if info.clone}
         <p class="muted small">
-          Last used
-          <time datetime={new Date(info.clone.lastUsedAt).toISOString()} title={fullTime(info.clone.lastUsedAt)}>{timeAgo(info.clone.lastUsedAt)}</time>.
-          {limitsSentence(info.limits)}
+          <T key="repositories:clone.lastUsed" params={{ ago: formatRelativeTime(info.clone.lastUsedAt), limits: limitsSentence(info.limits) }} tags={{ link: usedTime }} />
         </p>
       {/if}
     </div>
   </Card>
 {/if}
+
+{#snippet usedTime(text: string)}
+  {#if info?.clone}
+    <time datetime={new Date(info.clone.lastUsedAt).toISOString()} title={formatDateTime(info.clone.lastUsedAt)}>{text}</time>
+  {:else}{text}{/if}
+{/snippet}
 
 <style>
   .line {

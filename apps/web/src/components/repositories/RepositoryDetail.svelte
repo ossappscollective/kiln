@@ -10,7 +10,8 @@
   import { type Listing, type Role, can } from '@kiln/core';
   import { onMount, untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { githubUrl, hasEdits, repositoryName } from '../../lib/repositories.ts';
   import type {
     ChangeSetView,
@@ -27,6 +28,7 @@
   import Modal from '../ui/Modal.svelte';
   import PageHeader from '../ui/PageHeader.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import T from '../ui/T.svelte';
   import Tabs from '../ui/Tabs.svelte';
   import CiPanel from '../ci/CiPanel.svelte';
   import ChangeSetsPanel from './ChangeSetsPanel.svelte';
@@ -93,7 +95,7 @@
       loaded = true;
       onupdated(detail.repository);
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not load the repository.';
+      error = e instanceof ApiError ? e.message : t('repositories:detail.loadFailed');
     }
   }
 
@@ -140,31 +142,34 @@
 
   // CI runs on GitHub: a local-only repository has none.
   const tabs = $derived([
-    { id: 'project', label: 'Project' },
-    { id: 'listing', label: 'Store listing' },
-    { id: 'changes', label: 'Change sets' },
-    ...(repository.localOnly ? [] : [{ id: 'ci', label: 'CI' }]),
+    { id: 'project', label: t('repositories:detail.tabProject') },
+    { id: 'listing', label: t('repositories:detail.tabListing') },
+    { id: 'changes', label: t('repositories:detail.tabChanges') },
+    ...(repository.localOnly ? [] : [{ id: 'ci', label: t('repositories:detail.tabCi') }]),
   ]);
 </script>
 
 <div class="stack loose" bind:this={root}>
   <div>
-    <Button variant="ghost" icon="chevron-left" onclick={back}>All repositories</Button>
+    <Button variant="ghost" icon="chevron-left" onclick={back}>{t('repositories:detail.back')}</Button>
   </div>
 
   <PageHeader title={repositoryName(repository)} level={2}>
     {#snippet actions()}
       <KindBadge kind={repository.projectKind} />
       {#if repository.localOnly}
-        <Badge tone="info">Local only</Badge>
+        <Badge tone="info">{t('repositories:list.localOnly')}</Badge>
       {:else}
-        <Button href={githubUrl(repository.owner, repository.repo)} target="_blank" icon="external-link" label="Open {repositoryName(repository)} on GitHub (opens in a new tab)">GitHub</Button>
+        <Button href={githubUrl(repository.owner, repository.repo)} target="_blank" icon="external-link" label={t('repositories:detail.githubAria', { name: repositoryName(repository) })}>{t('repositories:list.github')}</Button>
       {/if}
     {/snippet}
   </PageHeader>
   <p class="meta muted">
-    {repository.localOnly ? 'Branch' : 'Default branch'} <code>{repository.defaultBranch}</code>. Connected
-    <time datetime={new Date(repository.createdAt).toISOString()} title={fullTime(repository.createdAt)}>{timeAgo(repository.createdAt)}</time>.
+    {#if repository.localOnly}
+      <T key="repositories:detail.metaBranch" params={{ branch: repository.defaultBranch, ago: formatRelativeTime(repository.createdAt) }} tags={{ link: createdTime }} />
+    {:else}
+      <T key="repositories:detail.metaDefaultBranch" params={{ branch: repository.defaultBranch, ago: formatRelativeTime(repository.createdAt) }} tags={{ link: createdTime }} />
+    {/if}
   </p>
 
   <LocalCheckoutCard {api} {workspaceId} {repository} {role} config={localConfig} onchanged={localChanged} />
@@ -173,10 +178,10 @@
   {#if error}
     <div class="stack">
       <Alert tone="error">{error}</Alert>
-      <div><Button icon="refresh" onclick={load}>Try again</Button></div>
+      <div><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
     </div>
   {:else if !loaded}
-    <div class="card" role="status" aria-label="Loading the repository">
+    <div class="card" role="status" aria-label={t('repositories:detail.loadingAria')}>
       <div class="stack">
         <Skeleton width="30%" height="20px" />
         <Skeleton width="70%" height="14px" />
@@ -184,7 +189,7 @@
       </div>
     </div>
   {:else}
-    <Tabs {tabs} bind:value={tab} label="Repository sections">
+    <Tabs {tabs} bind:value={tab} label={t('repositories:detail.tabsLabel')}>
       {#snippet panel(id)}
         {#if id === 'project'}
           <ProjectPanel {api} {workspaceId} {repository} {detection} {canScan} onscanned={scanned} />
@@ -220,16 +225,20 @@
   {/if}
 </div>
 
-<Modal bind:open={leaveOpen} size="sm" title="Leave without creating a change set?">
-  <p>You have edited listing text that is not in a change set yet. Leaving discards those edits.</p>
+{#snippet createdTime(text: string)}
+  <time datetime={new Date(repository.createdAt).toISOString()} title={formatDateTime(repository.createdAt)}>{text}</time>
+{/snippet}
+
+<Modal bind:open={leaveOpen} size="sm" title={t('repositories:detail.leaveTitle')}>
+  <p>{t('repositories:detail.leaveBody')}</p>
   {#snippet footer()}
-    <Button onclick={() => (leaveOpen = false)}>Keep editing</Button>
+    <Button onclick={() => (leaveOpen = false)}>{t('repositories:detail.keepEditing')}</Button>
     <Button
       variant="danger-solid"
       onclick={() => {
         leaveOpen = false;
         onback();
-      }}>Discard edits and leave</Button
+      }}>{t('repositories:detail.discardLeave')}</Button
     >
   {/snippet}
 </Modal>

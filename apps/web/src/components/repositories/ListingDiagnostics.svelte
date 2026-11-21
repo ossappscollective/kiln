@@ -9,8 +9,10 @@
 -->
 <script lang="ts">
   import type { ListingStore } from '@kiln/core';
+  import { t } from '../../lib/i18n/t.ts';
   import type { StoreDiagnostic } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
+  import T from '../ui/T.svelte';
 
   let {
     diagnostic,
@@ -34,12 +36,12 @@
   const unused = $derived(diagnostic.unused.filter((u) => u.store === store || u.store === null));
 </script>
 
-<section class="diagnostic" aria-label="Why no {label} listing was found">
+<section class="diagnostic" aria-label={t('repositories:diag.aria', { label })}>
   <p class="message">{diagnostic.message}</p>
 
   {#if diagnostic.searched.length > 0}
     <div>
-      <h4>{diagnostic.explicit ? 'Folder checked' : 'Looked for'}</h4>
+      <h4>{diagnostic.explicit ? t('repositories:diag.folderChecked') : t('repositories:diag.lookedFor')}</h4>
       <ul class="plain">
         {#each diagnostic.searched as place (place)}<li><code>{place}</code></li>{/each}
       </ul>
@@ -48,7 +50,7 @@
 
   {#if diagnostic.entries.length > 0}
     <div>
-      <h4>What is in <code>{diagnostic.root}</code></h4>
+      <h4><T key="repositories:diag.whatIsIn" params={{ root: diagnostic.root }} /></h4>
       <ul class="plain entries">
         {#each diagnostic.entries as entry (entry)}<li><code>{entry}</code></li>{/each}
       </ul>
@@ -57,7 +59,7 @@
 
   {#if unused.length > 0}
     <div>
-      <h4>Folders that look like metadata but were not used</h4>
+      <h4>{t('repositories:diag.unusedTitle')}</h4>
       <ul class="plain found">
         {#each unused as folder (folder.path)}
           <li>
@@ -65,8 +67,8 @@
             <span class="reason">{folder.reason}</span>
             {#if folder.store === store && (canChoose || canSave)}
               <span class="row actions">
-                {#if canChoose}<Button size="sm" onclick={() => onuse(folder.path)}>Use as the {label} folder</Button>{/if}
-                {#if canSave}<Button size="sm" variant="ghost" onclick={() => onsave(folder.path)}>Save as a target</Button>{/if}
+                {#if canChoose}<Button size="sm" onclick={() => onuse(folder.path)}>{t('repositories:diag.useFolder', { label })}</Button>{/if}
+                {#if canSave}<Button size="sm" variant="ghost" onclick={() => onsave(folder.path)}>{t('repositories:diag.saveTarget')}</Button>{/if}
               </span>
             {/if}
           </li>

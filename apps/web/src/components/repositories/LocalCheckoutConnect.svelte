@@ -9,6 +9,7 @@
 -->
 <script lang="ts">
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import {
     type ConnectChoice,
     checkLocalPathInput,
@@ -25,6 +26,7 @@
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
+  import T from '../ui/T.svelte';
   import TextField from '../ui/TextField.svelte';
 
   let {
@@ -91,7 +93,7 @@
       choiceId = next?.id ?? '';
     } catch (e) {
       check = null;
-      problem = e instanceof ApiError ? e.message : 'Could not check the folder. Try again.';
+      problem = e instanceof ApiError ? e.message : t('repositories:lc.checkFailed');
     } finally {
       checking = false;
     }
@@ -119,7 +121,7 @@
         ondone({ kind: 'local_only', repository });
       }
     } catch (e) {
-      problem = e instanceof ApiError ? e.message : 'Something went wrong. Try again.';
+      problem = e instanceof ApiError ? e.message : t('common:error.genericRetry');
     } finally {
       saving = false;
     }
@@ -130,34 +132,34 @@
   {@const notice = localDisabledNotice(config)}
   <Alert tone="info" title={notice.title}>
     <p class="tight">{notice.body}</p>
-    <p class="tight muted">Only the person who runs the server can change it: it decides which folders this tool may ever read.</p>
+    <p class="tight muted">{t('repositories:lcc.disabledNote')}</p>
   </Alert>
   {#if oncancel}
-    <div class="actions"><Button onclick={oncancel}>Close</Button></div>
+    <div class="actions"><Button onclick={oncancel}>{t('repositories:lcc.close')}</Button></div>
   {/if}
 {:else}
   <div class="stack">
     <form class="stack" {onsubmit} novalidate>
       <TextField
-        label="Folder on the server"
+        label={t('repositories:lcc.folderLabel')}
         bind:value={path}
         required
         autocomplete="off"
         autocapitalize="off"
         spellcheck={false}
         placeholder="/Volumes/dev/my-app"
-        hint={config ? localRootsHint(config) : 'Loading the allowed folders…'}
+        hint={config ? localRootsHint(config) : t('repositories:lcc.loadingRoots')}
         error={pathError}
         disabled={config === null}
       />
       <div class="row">
-        <Button type="submit" icon="search" loading={checking} disabled={config === null || saving}>{checking ? 'Checking…' : 'Check folder'}</Button>
-        <span class="muted small">Reading only: checking changes nothing.</span>
+        <Button type="submit" icon="search" loading={checking} disabled={config === null || saving}>{checking ? t('repositories:lcc.checking') : t('repositories:lcc.checkFolder')}</Button>
+        <span class="muted small">{t('repositories:lcc.readingOnly')}</span>
       </div>
     </form>
 
     {#if problem}
-      <Alert tone="error" title="Could not use that folder">
+      <Alert tone="error" title={t('repositories:lcc.problemTitle')}>
         <p class="tight">{problem}</p>
       </Alert>
     {/if}
@@ -166,35 +168,35 @@
       <div class="found stack" aria-live="polite">
         <dl class="facts">
           <div>
-            <dt>Folder</dt>
-            <dd><code>{current.realPath}</code>{#if current.worktree}&nbsp;<span class="muted">(a git worktree)</span>{/if}</dd>
+            <dt>{t('repositories:lc.folder')}</dt>
+            <dd><code>{current.realPath}</code>{#if current.worktree}&nbsp;<span class="muted">{t('repositories:lcc.worktree')}</span>{/if}</dd>
           </div>
           <div>
-            <dt>Origin</dt>
+            <dt>{t('repositories:lcc.origin')}</dt>
             <dd>
               {#if current.remote}
                 {current.remote.host}/{current.remote.owner}/{current.remote.repo}
               {:else}
-                <span class="muted">No origin remote</span>
+                <span class="muted">{t('repositories:lcc.noOrigin')}</span>
               {/if}
             </dd>
           </div>
           <div>
-            <dt>Checked out</dt>
-            <dd>{#if current.checkedOutBranch}<code>{current.checkedOutBranch}</code>{:else}<span class="muted">Detached HEAD at {shortSha(current.headSha)}</span>{/if}</dd>
+            <dt>{t('repositories:lcc.checkedOut')}</dt>
+            <dd>{#if current.checkedOutBranch}<code>{current.checkedOutBranch}</code>{:else}<span class="muted">{t('repositories:lcc.detachedAt', { sha: shortSha(current.headSha) })}</span>{/if}</dd>
           </div>
         </dl>
 
         {#if current.branches.length > 0}
           <div class="field">
-            <label for="{uid}-branch" class="required">Branch to read</label>
+            <label for="{uid}-branch" class="required">{t('repositories:lcc.branchToRead')}</label>
             <select id="{uid}-branch" bind:value={branch} disabled={checking || saving} onchange={() => runCheck(branch)}>
-              {#if branch === ''}<option value="" disabled>Choose a branch</option>{/if}
+              {#if branch === ''}<option value="" disabled>{t('repositories:lcc.chooseBranch')}</option>{/if}
               {#each current.branches as name (name)}
                 <option value={name}>{name}</option>
               {/each}
             </select>
-            <p class="hint" id="{uid}-branch-hint">Only the committed tip of this branch is read, never the files you are editing.</p>
+            <p class="hint" id="{uid}-branch-hint">{t('repositories:lcc.branchHint')}</p>
           </div>
         {/if}
 
@@ -204,7 +206,7 @@
             <span>{localReadSummary({ branch, sha: current.branchSha, checkedOutBranch: current.checkedOutBranch, dirtyCount: current.dirtyCount })}</span>
           </p>
         {:else}
-          <Alert tone="warn" title="Choose a branch">HEAD is detached in this folder, so there is no current branch. Pick the branch to read.</Alert>
+          <Alert tone="warn" title={t('repositories:lcc.detachedTitle')}>{t('repositories:lcc.detachedBody')}</Alert>
         {/if}
 
         {#each current.warnings as warning (warning)}
@@ -212,12 +214,16 @@
         {/each}
 
         {#if current.existing && choices.length === 0}
-          <Alert tone="info" title="Already connected">
-            This folder is already used by <strong>{current.existing.name}</strong>{#if current.existing.localOnly} (local-only){/if}. Open that repository to change it.
+          <Alert tone="info" title={t('repositories:lcc.existingTitle')}>
+            {#if current.existing.localOnly}
+              <T key="repositories:lcc.existingLocalOnly" params={{ name: current.existing.name }} />
+            {:else}
+              <T key="repositories:lcc.existing" params={{ name: current.existing.name }} />
+            {/if}
           </Alert>
         {:else if choices.length > 0}
           <fieldset class="stack tight">
-            <legend>What to do with it</legend>
+            <legend>{t('repositories:lcc.whatToDo')}</legend>
             {#each choices as option (option.id)}
               {@const note = choiceNote(option, current.remote)}
               <label class="check option" class:selected={choice?.id === option.id}>
@@ -225,7 +231,7 @@
                   <input type="radio" name="{uid}-choice" value={option.id} bind:group={choiceId} disabled={saving} />
                 {/if}
                 <span class="option-text">
-                  <span class="option-label">{option.label}{#if option.kind === 'attach' && option.recommended}<span class="muted"> (recommended)</span>{/if}</span>
+                  <span class="option-label">{#if option.kind === 'attach' && option.recommended}{t('repositories:lcc.optionRecommended', { label: option.label })}{:else}{option.label}{/if}</span>
                   {#if note}<span class="muted small">{note}</span>{/if}
                 </span>
               </label>
@@ -235,15 +241,13 @@
           {#if needsConfirm}
             <label class="check">
               <input type="checkbox" bind:checked={confirmed} disabled={saving} />
-              <span>The origin is a different repository. It is a fork or mirror of this one, and I want to attach it anyway.</span>
+              <span>{t('repositories:lcc.confirmMismatch')}</span>
             </label>
           {/if}
 
           {#if choice?.kind === 'local_only'}
-            <Alert tone="info" title="What a local-only repository can do">
-              The tool reads it and builds change sets from the committed files. There is no GitHub repository to open a pull
-              request on, so a change set is applied as a commit on a new branch of the folder, which you merge yourself. That
-              needs KILN_LOCAL_REPO_WRITE=true on the server.
+            <Alert tone="info" title={t('repositories:lcc.localOnlyTitle')}>
+              {t('repositories:lcc.localOnlyBody')}
             </Alert>
           {/if}
         {/if}
@@ -251,9 +255,9 @@
     {/if}
 
     <div class="actions">
-      {#if oncancel}<Button disabled={saving} onclick={oncancel}>Cancel</Button>{/if}
+      {#if oncancel}<Button disabled={saving} onclick={oncancel}>{t('repositories:action.cancel')}</Button>{/if}
       {#if current && choices.length > 0}
-        <Button variant="primary" loading={saving} disabled={!canSave} onclick={save}>{saving ? 'Saving…' : choiceButtonLabel(choice)}</Button>
+        <Button variant="primary" loading={saving} disabled={!canSave} onclick={save}>{saving ? t('repositories:lcc.saving') : choiceButtonLabel(choice)}</Button>
       {/if}
     </div>
   </div>

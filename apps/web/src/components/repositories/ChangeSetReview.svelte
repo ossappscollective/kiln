@@ -18,7 +18,8 @@
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { isWebUrl } from '../../lib/credentials.ts';
-  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import {
     type ApplyBody,
     type RetryOption,
@@ -53,6 +54,7 @@
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import T from '../ui/T.svelte';
   import DiffView from './DiffView.svelte';
   import StatusBadge from './StatusBadge.svelte';
 
@@ -106,7 +108,9 @@
       const fresh = (await api.changeSet(workspaceId, id)).changeSet;
       if (silent && changeSet && changeSet.status === 'applying' && fresh.status !== 'applying') {
         toast.info(
-          fresh.status === 'applied' ? 'The pull request is open.' : 'The change set finished. Check its status.',
+          fresh.status === 'applied'
+            ? t('repositories:review.prOpenedToast')
+            : t('repositories:review.finishedToast'),
         );
         onchanged();
       }
@@ -117,7 +121,7 @@
         titleEl?.focus();
       }
     } catch (e) {
-      if (!silent) loadError = e instanceof ApiError ? e.message : 'Could not load the change set.';
+      if (!silent) loadError = e instanceof ApiError ? e.message : t('repositories:review.loadFailed');
     }
   }
 
@@ -158,7 +162,7 @@
     try {
       if (kind === 'approve') {
         changeSet = (await api.approveChangeSet(workspaceId, id)).changeSet;
-        toast.success('Approved. It can now be applied.');
+        toast.success(t('repositories:review.approvedToast'));
       } else if (kind === 'apply') {
         const result = await api.applyChangeSet(workspaceId, id, body);
         changeSet = result.changeSet;
@@ -168,11 +172,11 @@
         else toast.success(message);
       } else {
         changeSet = (await api.discardChangeSet(workspaceId, id)).changeSet;
-        toast.success('Change set discarded. The repository was not changed.');
+        toast.success(t('repositories:review.discardedToast'));
       }
       onchanged();
     } catch (e) {
-      actionError = e instanceof ApiError ? e.message : 'That did not work. Try again.';
+      actionError = e instanceof ApiError ? e.message : t('repositories:review.actionFailed');
       if (kind === 'apply' && e instanceof ApiError) applyCode = e.code ?? null;
       // A failed apply changes the status on the server, so look again.
       await load(true);
@@ -197,14 +201,14 @@
       changeSet = result.changeSet;
       toast.success(
         result.alreadyDone
-          ? 'Nothing left to do.'
+          ? t('repositories:review.nothingLeftToast')
           : option.openPr
-            ? 'The branch is on GitHub and the pull request is open.'
-            : 'The branch was pushed.',
+            ? t('repositories:review.pushedPrToast')
+            : t('repositories:review.pushedToast'),
       );
       onchanged();
     } catch (e) {
-      actionError = e instanceof ApiError ? e.message : 'That did not work. Try again.';
+      actionError = e instanceof ApiError ? e.message : t('repositories:review.actionFailed');
       // The step that failed is recorded on the change set, so look again.
       await load(true);
       onchanged();
@@ -244,23 +248,35 @@
 </script>
 
 {#snippet when(at: number)}
-  <time datetime={new Date(at).toISOString()} title={fullTime(at)}>{timeAgo(at)}</time>
+  <time datetime={new Date(at).toISOString()} title={formatDateTime(at)}>{formatRelativeTime(at)}</time>
+{/snippet}
+
+{#snippet createdTime(text: string)}
+  {#if changeSet}<time datetime={new Date(changeSet.createdAt).toISOString()} title={formatDateTime(changeSet.createdAt)}>{text}</time>{:else}{text}{/if}
+{/snippet}
+
+{#snippet approvedTime(text: string)}
+  {#if changeSet?.approvedAt}<time datetime={new Date(changeSet.approvedAt).toISOString()} title={formatDateTime(changeSet.approvedAt)}>{text}</time>{:else}{text}{/if}
+{/snippet}
+
+{#snippet prLink(text: string)}
+  {#if changeSet?.prUrl}<ExternalLink href={changeSet.prUrl} label={text} />{:else}{text}{/if}
 {/snippet}
 
 <div class="stack loose">
   <div>
-    <Button variant="ghost" icon="chevron-left" onclick={onback}>All change sets</Button>
+    <Button variant="ghost" icon="chevron-left" onclick={onback}>{t('repositories:review.back')}</Button>
   </div>
 
   {#if loadError}
     <div class="stack">
       <Alert tone="error">{loadError}</Alert>
       <div class="row">
-        <Button icon="refresh" onclick={() => load()}>Try again</Button>
+        <Button icon="refresh" onclick={() => load()}>{t('common:action.tryAgain')}</Button>
       </div>
     </div>
   {:else if changeSet === null}
-    <div class="card" role="status" aria-label="Loading the change set">
+    <div class="card" role="status" aria-label={t('repositories:review.loadingAria')}>
       <div class="stack">
         <Skeleton width="50%" height="20px" />
         <Skeleton width="30%" height="14px" />
@@ -280,34 +296,34 @@
 
       <dl class="facts">
         <div>
-          <dt>Created</dt>
-          <dd>{actorLabel(changeSet.createdBy, myId, names)}, {@render when(changeSet.createdAt)}</dd>
+          <dt>{t('repositories:review.created')}</dt>
+          <dd><T key="repositories:review.createdBy" params={{ actor: actorLabel(changeSet.createdBy, myId, names), ago: formatRelativeTime(changeSet.createdAt) }} tags={{ link: createdTime }} /></dd>
         </div>
         {#if changeSet.approvedBy && changeSet.approvedAt}
           <div>
-            <dt>Approved</dt>
-            <dd>{approverLabel(changeSet.approvedBy, myId, names)}, {@render when(changeSet.approvedAt)}</dd>
+            <dt>{t('repositories:review.approved')}</dt>
+            <dd><T key="repositories:review.createdBy" params={{ actor: approverLabel(changeSet.approvedBy, myId, names), ago: formatRelativeTime(changeSet.approvedAt) }} tags={{ link: approvedTime }} /></dd>
           </div>
         {/if}
         {#if changeSet.appliedAt}
           <div>
-            <dt>Applied</dt>
+            <dt>{t('repositories:review.applied')}</dt>
             <dd>{@render when(changeSet.appliedAt)}</dd>
           </div>
         {/if}
         <div>
-          <dt>Files</dt>
+          <dt>{t('repositories:review.files')}</dt>
           <dd>{filesChangedLabel(changeSet.filesChanged)}</dd>
         </div>
         {#if changeSet.branch}
           <div>
-            <dt>Branch</dt>
+            <dt>{t('repositories:review.branch')}</dt>
             <dd><code>{changeSet.branch}</code></dd>
           </div>
         {/if}
         {#if changeSet.commitSha}
           <div>
-            <dt>Commit</dt>
+            <dt>{t('repositories:review.commit')}</dt>
             <dd><code>{changeSet.commitSha.slice(0, 7)}</code></dd>
           </div>
         {/if}
@@ -315,8 +331,8 @@
 
       {#if changeSet.status === 'applying'}
         <div class="gap">
-          <Alert tone="info" title="Applying">
-            Creating the branch and committing the files. This page checks again every few seconds.
+          <Alert tone="info" title={t('repositories:review.applyingTitle')}>
+            {t('repositories:review.applyingBody')}
           </Alert>
         </div>
       {/if}
@@ -333,21 +349,21 @@
         </div>
       {:else if changeSet.status === 'applied'}
         <div class="gap">
-          <Alert tone="ok" title="The pull request is open">
+          <Alert tone="ok" title={t('repositories:review.prOpenTitle')}>
             {#if changeSet.prUrl && isWebUrl(changeSet.prUrl)}
-              <ExternalLink href={changeSet.prUrl} label={prLabel(changeSet)} />. Review and merge it in GitHub; nothing was pushed to the default branch.
+              <T key="repositories:review.prOpenLink" params={{ label: prLabel(changeSet) }} tags={{ link: prLink }} />
             {:else if changeSet.commitSha}
-              The change was committed as <code>{changeSet.commitSha.slice(0, 7)}</code>.
+              <T key="repositories:review.committedAs" params={{ sha: changeSet.commitSha.slice(0, 7) }} />
             {:else}
-              Review and merge it in GitHub.
+              {t('repositories:review.reviewMerge')}
             {/if}
             {#if fixupCount(changeSet) > 0}
-              {fixupCount(changeSet) === 1 ? 'One fix up commit was' : `${fixupCount(changeSet)} fix up commits were`} added to the branch since.
+              {t('repositories:review.fixupsAdded', { count: fixupCount(changeSet) })}
             {/if}
           </Alert>
           {#if mayFixup}
             <div class="row gap">
-              <Button icon="git-branch" onclick={() => (fixupOpen = true)}>Fix up this branch</Button>
+              <Button icon="git-branch" onclick={() => (fixupOpen = true)}>{t('repositories:review.fixUp')}</Button>
               <span class="muted small">{fixupPromise(changeSet.branch ?? '')}</span>
             </div>
           {/if}
@@ -356,14 +372,19 @@
 
       {#if fixups.length > 0}
         <div class="gap">
-          <p class="small"><strong>Fix ups</strong> (commits added on top of the branch, oldest first)</p>
+          <p class="small"><T key="repositories:review.fixupsTitle" /></p>
           <ul class="fixups small">
             {#each fixups as fix (fix.commit)}
               <li>
+                {#snippet fixTime(text: string)}
+                  <time datetime={new Date(fix.at).toISOString()} title={formatDateTime(fix.at)}>{text}</time>
+                {/snippet}
                 <code>{fix.commit.slice(0, 7)}</code>
-                {fix.files === 1 ? '1 file' : `${fix.files} files`},
-                {@render when(fix.at)},
-                {fix.pushed ? 'on GitHub' : 'in the local clone only'}
+                {#if fix.pushed}
+                  <T key="repositories:review.fixupPushed" params={{ count: fix.files, ago: formatRelativeTime(fix.at) }} tags={{ link: fixTime }} />
+                {:else}
+                  <T key="repositories:review.fixupLocal" params={{ count: fix.files, ago: formatRelativeTime(fix.at) }} tags={{ link: fixTime }} />
+                {/if}
               </li>
             {/each}
           </ul>
@@ -372,23 +393,22 @@
 
       {#if changeSet.status === 'failed'}
         <div class="gap">
-          <Alert tone="error" title="The change was not applied">
-            {changeSet.error ?? 'GitHub refused the change.'}
+          <Alert tone="error" title={t('repositories:review.failedTitle')}>
+            {changeSet.error ?? t('repositories:review.githubRefused')}
             {#if changeSet.branch}
-              A branch named <code>{changeSet.branch}</code> was created before the failure; delete it in GitHub if you do not need it.
+              <T key="repositories:review.failedBranch" params={{ branch: changeSet.branch }} />
             {/if}
             {#if mayFixup}
-              The branch exists, so it cannot be refreshed. Fix it up to add one commit on top of the branch (history is not rewritten), or discard
-              this change set and create a new one from the current listing.
+              {t('repositories:review.failedFixup')}
             {:else if canRefresh(role, changeSet)}
-              Refresh it to put your change on top of what the repository has now, or discard it and create a new one from the current listing.
+              {t('repositories:review.failedRefresh')}
             {:else}
-              Discard this change set and create a new one from the current listing.
+              {t('repositories:review.failedDiscard')}
             {/if}
           </Alert>
           {#if mayFixup}
             <div class="row gap">
-              <Button variant="primary" icon="git-branch" onclick={() => (fixupOpen = true)}>Fix up this branch</Button>
+              <Button variant="primary" icon="git-branch" onclick={() => (fixupOpen = true)}>{t('repositories:review.fixUp')}</Button>
             </div>
           {/if}
         </div>
@@ -412,44 +432,44 @@
       {/if}
 
       {#if localOnly && changeSet.status === 'approved' && localApplyReason}
-        <div class="gap"><Alert tone="info" title="Committing to a branch is not possible yet">{localApplyReason}</Alert></div>
+        <div class="gap"><Alert tone="info" title={t('repositories:review.localBlockedTitle')}>{localApplyReason}</Alert></div>
       {/if}
 
       {#if anyAction}
         <div class="row actions gap">
           {#if actions.discard}
-            <Button variant="danger" disabled={busy !== ''} loading={busy === 'discard'} onclick={() => (discardOpen = true)}>Discard</Button>
+            <Button variant="danger" disabled={busy !== ''} loading={busy === 'discard'} onclick={() => (discardOpen = true)}>{t('repositories:review.discard')}</Button>
           {/if}
           <span class="spacer"></span>
           {#if actions.approve}
             <Button variant="primary" icon="check" loading={busy === 'approve'} disabled={busy !== ''} onclick={() => run('approve')}>
-              {busy === 'approve' ? 'Approving…' : 'Approve'}
+              {busy === 'approve' ? t('repositories:review.approving') : t('repositories:review.approve')}
             </Button>
           {/if}
           {#if actions.apply}
             <Button variant="primary" icon={localOnly ? 'git-branch' : 'git-pull-request'} loading={busy === 'apply'} disabled={busy !== ''} onclick={() => (applyOpen = true)}>
-              {busy === 'apply' ? 'Applying…' : 'Apply…'}
+              {busy === 'apply' ? t('repositories:review.applying') : t('repositories:review.apply')}
             </Button>
           {/if}
         </div>
       {:else if changeSet.status === 'draft' || changeSet.status === 'approved'}
-        <p class="hint gap">Only an admin or owner can {changeSet.status === 'draft' ? 'approve' : 'apply'} a change set.</p>
+        <p class="hint gap">{changeSet.status === 'draft' ? t('repositories:review.onlyAdminApprove') : t('repositories:review.onlyAdminApply')}</p>
       {/if}
     </section>
 
     <section class="stack" aria-labelledby="cs-files">
-      <h3 id="cs-files">Changed files ({changeSet.files.length})</h3>
+      <h3 id="cs-files">{t('repositories:review.changedFiles', { count: changeSet.files.length })}</h3>
       {#if changeSet.files.length === 0}
-        <p class="muted">This change set has no files.</p>
+        <p class="muted">{t('repositories:review.noFiles')}</p>
       {/if}
       {#each files as { file, stats } (file.path)}
         <details class="file card flush" open={files.length <= 5}>
           <summary>
             <span class="path"><code>{file.path}</code></span>
-            <Badge tone={fileChangeTone[file.change]}>{fileChangeLabel[file.change]}</Badge>
+            <Badge tone={fileChangeTone[file.change]}>{fileChangeLabel(file.change)}</Badge>
             <span class="stats tabular">
-              <span class="added"><span aria-hidden="true">+</span><span class="visually-hidden">Added lines: </span>{stats.added}</span>
-              <span class="removed"><span aria-hidden="true">-</span><span class="visually-hidden">Removed lines: </span>{stats.removed}</span>
+              <span class="added"><span aria-hidden="true">+</span><span class="visually-hidden">{t('repositories:review.addedLines')} </span>{stats.added}</span>
+              <span class="removed"><span aria-hidden="true">-</span><span class="visually-hidden">{t('repositories:review.removedLines')} </span>{stats.removed}</span>
             </span>
           </summary>
           <DiffView before={file.before} after={file.after} path={file.path} />
@@ -462,14 +482,11 @@
 <ApplyDialog bind:open={applyOpen} {changeSet} context={applyContext} busy={busy === 'apply'} onconfirm={confirmApply} />
 <FixupDialog {api} {workspaceId} {changeSet} {role} bind:open={fixupOpen} onfixed={fixedUp} onchanged={() => void load(true)} />
 
-<Modal bind:open={discardOpen} size="sm" title="Discard this change set?">
-  <p>
-    <strong>{changeSet?.summary}</strong> will be closed without changing the repository. This cannot be undone; you can make a new
-    change set from the listing.
-  </p>
+<Modal bind:open={discardOpen} size="sm" title={t('repositories:review.discardTitle')}>
+  <p><T key="repositories:review.discardBody" params={{ summary: changeSet?.summary }} /></p>
   {#snippet footer()}
-    <Button onclick={() => (discardOpen = false)}>Keep it</Button>
-    <Button variant="danger-solid" onclick={confirmDiscard}>Discard change set</Button>
+    <Button onclick={() => (discardOpen = false)}>{t('repositories:review.keep')}</Button>
+    <Button variant="danger-solid" onclick={confirmDiscard}>{t('repositories:review.discardConfirm')}</Button>
   {/snippet}
 </Modal>
 

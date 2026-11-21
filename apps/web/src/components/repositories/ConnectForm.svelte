@@ -9,6 +9,7 @@
 <script lang="ts">
   import { credentialKindInfo, isCredentialKind } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { type ConnectProblem, connectProblem, parseRepositoryInput } from '../../lib/repositories.ts';
   import type { CredentialSummary, LocalConfig, RepositorySummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -16,6 +17,7 @@
   import Icon from '../ui/Icon.svelte';
   import Modal from '../ui/Modal.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import T from '../ui/T.svelte';
   import TextField from '../ui/TextField.svelte';
   import LocalCheckoutConnect from './LocalCheckoutConnect.svelte';
 
@@ -62,7 +64,7 @@
       credentials = all.filter((c) => githubKinds.includes(c.kind));
       if (credentials.length === 1) credentialId = credentials[0]?.id ?? '';
     } catch (e) {
-      loadError = e instanceof ApiError ? e.message : 'Could not load credentials.';
+      loadError = e instanceof ApiError ? e.message : t('repositories:connect.credentialsFailed');
     }
   }
 
@@ -74,7 +76,7 @@
       localConfig = config.local;
       localRepositories = list.repositories;
     } catch (e) {
-      localError = e instanceof ApiError ? e.message : 'Could not load the local clone settings.';
+      localError = e instanceof ApiError ? e.message : t('repositories:connect.localFailed');
     }
   }
 
@@ -95,7 +97,7 @@
     problem = null;
     credentialError = '';
     targetError = '';
-    if (!credentialId) credentialError = 'Choose the credential to connect with.';
+    if (!credentialId) credentialError = t('repositories:connect.chooseCredentialError');
     const parsed = parseRepositoryInput(target);
     if (!parsed.ok) targetError = parsed.message;
     if (credentialError || !parsed.ok) return;
@@ -112,7 +114,7 @@
       problem =
         e instanceof ApiError
           ? connectProblem(e, parsed)
-          : { field: 'form', message: 'Something went wrong. Try again.' };
+          : { field: 'form', message: t('common:error.genericRetry') };
     } finally {
       busy = false;
     }
@@ -121,19 +123,19 @@
 
 <Modal
   bind:open
-  title="Connect a repository"
-  description="Nothing is changed in the repository until you approve a change set."
+  title={t('repositories:connect.title')}
+  description={t('repositories:connect.description')}
   size={mode === 'local' ? 'lg' : 'md'}
   dismissible={!busy}
 >
-  <div class="mode" role="radiogroup" aria-label="How to connect">
+  <div class="mode" role="radiogroup" aria-label={t('repositories:connect.how')}>
     <label class="check mode-option" class:selected={mode === 'github'}>
       <input type="radio" name="{formId}-mode" value="github" bind:group={mode} disabled={busy} />
-      <span><Icon name="repo" /> GitHub repository</span>
+      <span><Icon name="repo" /> {t('repositories:connect.modeGithub')}</span>
     </label>
     <label class="check mode-option" class:selected={mode === 'local'}>
       <input type="radio" name="{formId}-mode" value="local" bind:group={mode} disabled={busy} />
-      <span><Icon name="folder" /> Local clone</span>
+      <span><Icon name="folder" /> {t('repositories:connect.modeLocal')}</span>
     </label>
   </div>
 
@@ -141,7 +143,7 @@
     {#if localError}
       <div class="stack">
         <Alert tone="error">{localError}</Alert>
-        <div><Button icon="refresh" onclick={loadLocal}>Try again</Button></div>
+        <div><Button icon="refresh" onclick={loadLocal}>{t('common:action.tryAgain')}</Button></div>
       </div>
     {:else}
       <LocalCheckoutConnect
@@ -157,7 +159,7 @@
     {/if}
   {:else}
     {#if credentials === null && !loadError}
-      <div class="stack" role="status" aria-label="Loading credentials">
+      <div class="stack" role="status" aria-label={t('repositories:connect.loadingCredentialsAria')}>
         <Skeleton width="30%" height="14px" />
         <Skeleton height="36px" />
         <Skeleton width="30%" height="14px" />
@@ -166,17 +168,16 @@
     {:else if loadError}
       <div class="stack">
         <Alert tone="error">{loadError}</Alert>
-        <div><Button icon="refresh" onclick={loadCredentials}>Try again</Button></div>
+        <div><Button icon="refresh" onclick={loadCredentials}>{t('common:action.tryAgain')}</Button></div>
       </div>
     {:else if credentials && credentials.length === 0}
-      <Alert tone="info" title="No GitHub credential yet">
-        Add a GitHub App or a GitHub token on the <a href="#/credentials" onclick={() => (open = false)}>Credentials</a> screen,
-        then come back to connect a repository.
+      <Alert tone="info" title={t('repositories:connect.noCredentialTitle')}>
+        <T key="repositories:connect.noCredentialBody" tags={{ link: credentialsLink }} />
       </Alert>
     {:else if credentials}
       <form id={formId} class="stack" onsubmit={submit} novalidate>
         <div class="field">
-          <label for="{formId}-credential" class="required">GitHub credential</label>
+          <label for="{formId}-credential" class="required">{t('repositories:connect.credentialLabel')}</label>
           <select
             id="{formId}-credential"
             bind:value={credentialId}
@@ -184,7 +185,7 @@
             aria-invalid={credentialError || problem?.field === 'credential' ? 'true' : undefined}
             aria-describedby={credentialError ? `${formId}-credential-error` : undefined}
           >
-            <option value="" disabled>Choose a credential</option>
+            <option value="" disabled>{t('repositories:connect.chooseCredential')}</option>
             {#each credentials as credential (credential.id)}
               <option value={credential.id}>{credential.label} ({kindLabel(credential.kind)})</option>
             {/each}
@@ -198,19 +199,19 @@
         </div>
 
         <TextField
-          label="Repository"
+          label={t('repositories:connect.repositoryLabel')}
           bind:value={target}
           required
           autocomplete="off"
           autocapitalize="off"
           spellcheck={false}
           placeholder="acme/mobile-app"
-          hint="Owner and name, such as acme/mobile-app. You can also paste the GitHub address."
+          hint={t('repositories:connect.repositoryHint')}
           error={targetError}
         />
 
         {#if problem}
-          <Alert tone="error" title="Could not connect the repository">
+          <Alert tone="error" title={t('repositories:connect.problemTitle')}>
             <p class="problem">{problem.message}</p>
             {#if problem.hint}<p class="problem hint-text">{problem.hint}</p>{/if}
           </Alert>
@@ -220,12 +221,16 @@
   {/if}
 
   {#snippet footer()}
-    <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>
+    <Button disabled={busy} onclick={() => (open = false)}>{t('repositories:action.cancel')}</Button>
     {#if mode === 'github' && credentials && credentials.length > 0}
-      <Button type="submit" form={formId} variant="primary" loading={busy}>{busy ? 'Connecting…' : 'Connect repository'}</Button>
+      <Button type="submit" form={formId} variant="primary" loading={busy}>{busy ? t('repositories:connect.connecting') : t('repositories:connect.submit')}</Button>
     {/if}
   {/snippet}
 </Modal>
+
+{#snippet credentialsLink(text: string)}
+  <a href="#/credentials" onclick={() => (open = false)}>{text}</a>
+{/snippet}
 
 <style>
   .mode {
