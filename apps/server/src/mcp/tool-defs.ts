@@ -605,7 +605,7 @@ const readTools: ToolDef[] = [
       platform: z.enum(['ios', 'macos', 'android']).optional(),
     }),
     description:
-      'Daily, weekly or monthly metrics from the stores (impressions, downloads, sessions, crashes, ratings, proceeds, ...) with totals and data coverage. Default granularity: week.',
+      'Daily, weekly or monthly metrics from the stores (impressions, downloads, sessions, crashes, ratings, Apple proceeds, Google Play estimated sales which are what buyers paid and not proceeds, ...) with totals and data coverage. Money is per currency and never converted. Default granularity: week.',
     query: (a) => ({
       from: a.from,
       to: a.to,
@@ -622,6 +622,17 @@ const readTools: ToolDef[] = [
     input: strict({ appId }),
     description:
       'Which analytics sources are set up, when they were last read and whether they failed.',
+  },
+  {
+    name: 'get_analytics_product_sales',
+    title: 'Sales of an app by store product',
+    kind: 'read',
+    op: 'getAppAnalyticsProductSales',
+    params: { id: 'appId' },
+    input: strict({ appId, from: day.optional(), to: day.optional() }),
+    description:
+      'Sales by product id (SKU) from stored analytics, default the last 28 days: units or orders and amounts per currency, never added across currencies. `measure` says what the amount is: Apple developer proceeds, or a Google Play estimate of what buyers paid (not proceeds). Empty with `hasSalesData: false` until sales are set up.',
+    query: (a) => ({ from: a.from, to: a.to }),
   },
   {
     name: 'list_build_artifacts',

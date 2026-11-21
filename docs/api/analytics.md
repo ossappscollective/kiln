@@ -16,8 +16,10 @@ vocabulary; switch on `error`, not on `message`. Too many syncs, previews or ena
 Workspace settings (see [settings](settings.md)), all written with `analytics.manage`:
 
 - `analytics.enabled` (boolean, default `false`): syncing, the scheduled job and the Apple enable action need it. Reading and **importing** do not.
-- `analytics.appleVendorNumber` (string, 5 to 12 digits): turns on `apple_sales` for iOS and macOS apps.
+- `analytics.appleVendorNumber` (string, 5 to 12 digits): turns on `apple_sales` (units and proceeds, also by product) for iOS and macOS apps.
 - `analytics.playBucketId` (string, `pubsite_prod_rev_` and digits): the Cloud Storage bucket of the monthly CSV reports, for the whole workspace. The narrower places below win; prefer them.
+  The same bucket also holds the Google Play **estimated sales** reports: they turn on `play_sales` with no further setting, but need the Play Console permission
+  **View financial data** (set to Global) for the service account. See [Sales](#sales).
 
 `MRM_ANALYTICS_INTERVAL_MINUTES` (default 360; `0` off; 15 to 10080) sets how often the scheduler queues a sync. See [deployment](../deployment.md).
 
@@ -26,6 +28,7 @@ Workspace settings (see [settings](settings.md)), all written with `analytics.ma
 | Method and path                                       | Needs  | Purpose                                                                                                    |
 | ----------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------- |
 | `GET overview?platform&from&to&granularity&breakdown` | read   | series for one app                                                                                         |
+| `GET product-sales?from&to`                           | read   | sales of one app by store product (SKU), from stored analytics; see [Sales](#sales)                        |
 | `GET status`                                          | read   | what is set up, what is missing, last runs                                                                 |
 | `POST sync`                                           | manage | read the stores now (body optional `{ "sources": [...] }`)                                                 |
 | `GET apple/enable[?backfill=true]`                    | manage | preview of the Apple report request (reads Apple, changes nothing)                                         |
@@ -39,7 +42,7 @@ Workspace settings (see [settings](settings.md)), all written with `analytics.ma
 ### `GET overview`
 
 `platform` must equal the app's platform. `from` and `to` are `YYYY-MM-DD` (default: the 28 days up to yesterday; at most 400 days).
-`granularity`: `day` (default), `week`, `month`. `breakdown`: one of `territory`, `source_type`, `app_version`, `currency`.
+`granularity`: `day` (default), `week`, `month`. `breakdown`: one of `territory`, `source_type`, `app_version`, `currency`, `product`.
 
 ```json
 {
@@ -78,14 +81,16 @@ Workspace settings (see [settings](settings.md)), all written with `analytics.ma
 
 `value` is `null` where the store gave nothing: **null is not zero**; draw a gap. `unit`: `count`, `ratio`, `rating`, `money`.
 `aggregation` (`sum` or `mean`) says how days combine into a week or month; `total` is the sum or the mean over the range. Money series
-come one **per currency** (`id: "sales_proceeds:EUR"`, `currency: "EUR"`); nothing is converted or added across currencies. `derived`
+come one **per currency** (`id: "sales_proceeds:EUR"` for Apple, `id: "sales_gross:EUR"` for Google Play, `currency: "EUR"`); nothing is converted or added across currencies. `derived`
 series (`product_page_conversion`, `impression_tap_rate`) are computed from two others and are null where the denominator is missing.
-`breakdown` (top 10 values) is present only when asked and the source has the dimension. `coverage.state`: `complete`, `partial`, `none`.
+`breakdown` (top 10 values) is present only when asked and the source has the dimension. With `breakdown=product` the sales series list the top products
+(store product ids); a money series lists only the products of its own currency. `coverage.state`: `complete`, `partial`, `none`.
 
 Coverage note codes (`coverageNoteCodes`, with the sentence in `message`): `apple_usage_opt_in_only`, `apple_privacy_thresholds`,
 `apple_counts_not_unique`, `apple_usage_sample_not_total`, `apple_estimates`, `apple_pacific_time`, `apple_proceeds_per_currency`,
 `apple_in_app_not_included`, `apple_rating_history_not_available`, `apple_impressions_only_via_reports`, `google_unit_unverified`,
-`google_legacy_store_listing`, `google_no_impressions`, `google_rating_average_only`, `google_monthly_files`, `derived`, `imported`,
+`google_legacy_store_listing`, `google_no_impressions`, `google_rating_average_only`, `google_monthly_files`, `play_estimated_sales_gross`,
+`play_sales_latency`, `play_sales_utc`, `play_sales_per_currency`, `apple_product_sales_include_in_app`, `sales_products_capped`, `derived`, `imported`,
 `recent_days_incomplete`, `gaps`, `source_not_connected`, `no_data_yet`, `only_since_connected`.
 
 ### `GET status`
@@ -138,15 +143,15 @@ Source `state`: `off` (workspace setting off), `needs_setup`, `waiting` (set up;
 `enable`, `import`.
 
 Setup codes (`analyticsSetupCodes`): `turn_on_analytics`, `create_report_request`, `role_required`, `waiting_first_data`,
-`request_stopped`, `vendor_number_missing`, `sales_forbidden`, `bucket_id_missing`, `bucket_forbidden`, `reporting_api_not_enabled`,
+`request_stopped`, `vendor_number_missing`, `sales_forbidden`, `play_sales_forbidden`, `bucket_id_missing`, `bucket_forbidden`, `reporting_api_not_enabled`,
 `play_permission_missing`, `credential_problem`, `first_sync_pending`. Next steps (`analyticsNextSteps`): `turn_on_analytics`,
 `enable_apple_analytics`, `import_apple_report`, `ask_apple_admin`, `set_vendor_number`, `set_bucket_id`, `grant_play_permission`,
-`enable_reporting_api`, `fix_credential`, `sync_now`, `wait`.
+`grant_play_financial_permission`, `enable_reporting_api`, `fix_credential`, `sync_now`, `wait`.
 
 ### `POST sync`
 
 Needs `analytics.enabled`. Body optional: `{ "sources": [...] }` (sources of the app's platform: `apple_analytics`, `apple_sales`,
-`play_vitals`, `play_reports`). A store failure is **not** an HTTP error: the answer is 200 and each source says what happened.
+`play_vitals`, `play_reports`, `play_sales`). A store failure is **not** an HTTP error: the answer is 200 and each source says what happened.
 
 ```json
 {
@@ -176,7 +181,7 @@ Error codes (`analyticsErrorCodes`): `analytics_role_required`, `analytics_reque
 `report_not_ready`, `segment_expired`, `segment_too_large`, `file_too_large`, `bad_gzip`, `bad_format`, `unknown_report`,
 `missing_columns`, `no_rows`, `vendor_number_missing`, `vendor_number_invalid`, `sales_forbidden`, `play_reporting_not_enabled`,
 `play_permission_missing`, `play_app_not_found`, `play_vitals_bad_request`, `play_vitals_no_data`, `bucket_missing`, `bucket_invalid`, `bucket_forbidden`, `bucket_not_found`,
-`reports_not_found`, `store_auth`, `store_forbidden`, `store_not_found`, `rate_limited`, `store_unavailable`, `timeout`,
+`reports_not_found`, `play_sales_forbidden`, `store_auth`, `store_forbidden`, `store_not_found`, `rate_limited`, `store_unavailable`, `timeout`,
 `credential_unreadable`, `credential_not_found`, `app_not_synced`, `sync_failed`. Messages carry no URL, token, report row or store text.
 
 ### Google Play reports bucket
@@ -209,6 +214,47 @@ be listed, but no report of this package exists in it at all), which is a differ
   `bucket_invalid`, `bucket_forbidden`, `bucket_not_found`, `credential_problem`, `unreachable`. Rate limited like the sync.
 
 `GET status` carries `google: { bucketIdSet, bucketSource }` for Android apps (`bucketSource`: `app`, `account` or `workspace`).
+
+### Sales
+
+Two different things share the sales charts, and the API never calls the Google one "proceeds" (ADR [0038](../adr/0038-sales-analytics.md)).
+
+| | Apple (`apple_sales`, iOS and macOS) | Google Play (`play_sales`, Android) |
+| --- | --- | --- |
+| Needs | `analytics.appleVendorNumber`; the key's role Sales and Reports or higher (`sales_forbidden` otherwise) | the reports bucket id (above) and the Play Console permission **View financial data**, Global (`play_sales_forbidden` otherwise) |
+| Source file | Sales and Trends daily summary (`GET /v1/salesReports`), next day, Pacific Time | `sales/salesreport_YYYYMM.zip` in the reports bucket: ALL apps of the account, filtered by `Package ID`; extended daily with charged and refunded orders, up to a few days late, UTC |
+| Metrics | `sales_units` (net: refunds are negative), `sales_proceeds:<CUR>` (developer proceeds) | `sales_gross:<CUR>` (what the **buyer paid**, tax included, Google's fee NOT deducted), `sales_refunds:<CUR>` (refunded, positive), `sales_orders` (charged orders) |
+| Currency | `Currency of Proceeds` | `Currency of Sale` |
+| Notes | `apple_estimates`, `apple_proceeds_per_currency`, `apple_pacific_time`, `apple_in_app_not_included` | `play_estimated_sales_gross`, `play_sales_per_currency`, `play_sales_latency`, `play_sales_utc` |
+
+A day without a row is `null` (a gap), not 0. A month without a file yet is normal (the sync is `ok` with no data); the monthly **Earnings** report (net figures)
+is not read. The Estimated sales report is "not recommended for accounting" (Google): treat it as a trend, not as revenue.
+
+**By product.** The same facts are also stored under the dimension `product` (`breakdown=product`): the value is the store product id (Apple SKU, Google SKU ID),
+and for money `<CUR>:<product id>`, so the currency is part of the key. At most **200 distinct products per app and source** are stored (known ones stay, new ones
+are taken by volume; the totals are never dropped; `sales_products_capped` says so) and an id over 90 characters is skipped. Apple per-product numbers also
+include in-app purchases and subscriptions of the app (matched by `Parent Identifier` = the app's SKU, or by a SKU of the stored Products snapshot), while the
+total chart (`sales_units`, `sales_proceeds`) still counts the app itself only, so products can add up to more than the total.
+
+`GET product-sales?from&to` (right `analytics.read`, default the last 28 days, at most 400; no store is contacted) answers
+
+```json
+{
+  "appId": "...", "platform": "android", "from": "2026-10-22", "to": "2026-11-18",
+  "source": "play_sales", "measure": "google_buyer_paid_estimate", "unitsKind": "orders",
+  "hasSalesData": true, "enabled": true,
+  "sales": { "source": "play_sales", "label": "...", "state": "ready", "setup": null, "lastOkAt": 0, "lastError": null },
+  "products": [
+    { "productId": "coins_100", "units": 2, "days": 1, "amounts": [{ "currency": "EUR", "amount": 4.74, "refunds": 2.37 }] }
+  ],
+  "notes": [{ "code": "play_estimated_sales_gross", "message": "..." }]
+}
+```
+
+`measure`: `apple_proceeds` (`amount` is developer proceeds, already net of refunds, `refunds` null) or `google_buyer_paid_estimate` (`amount` is the sum charged,
+`refunds` the refunded sum; show `amount - refunds` as a net estimate). `units`: Apple net units, Google charged orders (null: no count). `amounts` has one entry per
+currency and is never added up. `hasSalesData` is false until a sales day is stored: a client then hides its sales UI and shows `sales.setup` (vendor number for Apple;
+bucket id and View financial data for Google). The Products page ([products](products.md)) reads this route.
 
 ### Apple enable
 
@@ -287,3 +333,12 @@ Sales key's role after an Admin creates the request; what Apple answers to a dup
 `freshnessInfo` and the crash-rate unit (stored as sent); Play Console permission names; whether the Play Console permission alone lets the service account read the bucket or Storage Object Viewer must be granted on it (the empty state in Insights says both); bucket id discovery and IAM; CSV encodings and
 file names; whether the Play Console statistics export has exactly the bucket's columns (the import assumes it); the `store_performance` columns and their fate after the June and July 2026 change; whether month files grow in place;
 how far back vitals reach.
+
+**Sales (UNVERIFIED, see ADR 0038).** Confirmed from Google's help pages: the object name `sales/salesreport_YYYYMM.zip`, the column names (Order Number, Order Charged
+Date, Financial Status, Product Title, Package ID, Product Type, SKU ID, Currency of Sale, Item Price, Taxes Collected, Charged Amount, Country of Buyer, ...), UTC days,
+that the amounts are the buyer's and no tax or fee is deducted, and the permission View financial data (Global). Not confirmed: that the zip holds exactly one CSV and its
+encoding (a byte order mark is honoured); the exact spelling of `Financial Status` (matched case-insensitively: `charged`, anything with `refund`; other values are left out);
+the **sign** of a refund amount (the absolute value is used); whether a refund row carries the day of the refund or of the charge; whether the package column is `Package ID`
+or the older `Product ID` (both are read); what Cloud Storage answers when View financial data is missing (assumed 403, reported as `play_sales_forbidden`); whether the
+10 MiB file cap fits a large account's month; for Apple, that the SKU of an in-app row is the store product id, and that a row's `Parent Identifier` is the app's SKU
+for every in-app type (Apple documents it as "SKU of the app associated with the In-App Purchase").

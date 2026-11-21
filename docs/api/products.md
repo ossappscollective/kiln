@@ -11,6 +11,16 @@ products_not_supported` on a sync). Apple records (iOS and macOS) use App Store 
 
 Routes are under `/api/workspaces/{workspaceId}`. A non-member gets 404, a member without the right gets 403.
 
+## Sales next to the products (read from analytics)
+
+The Products page shows a **Sales (28 days)** column and a small Sales section in the open product, from the stored analytics of the app
+(`GET /apps/{appId}/analytics/product-sales`, [analytics](analytics.md#sales); no store is called on page load). It matches a product by its
+`productId` (Apple SKU, Google Play SKU ID). Units and one amount per currency, never added; `—` when there is no number. The tooltip says what the
+number is: Apple developer proceeds, or a Google Play **estimate of what buyers paid** (tax included, Google's fee not deducted, refunds taken off; not
+proceeds). Only roles with `analytics.read` get the column, and it is hidden until the app has a stored sales day; then one line says how to turn it on
+(Apple vendor number; Google bucket id and the Play Console permission View financial data). Apple in-app products are matched to the sales rows by SKU
+(UNVERIFIED).
+
 ## What is not here
 
 No price or availability edit, no creating or deleting a product, no new locale. Price changes are the planned next step with their own
