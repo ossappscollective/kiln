@@ -7,7 +7,7 @@
   Props: title, key (unique on the page; add the platform or the group to it when several are drawn), level? = 3 (heading level),
   count? (a number or a short text, a chip beside the title), summary? (string or snippet, shown while collapsed), defaultOpen = true,
   variant = 'card' | 'plain', flush? (a card whose body has no padding: tables and lists), keepMounted? (the body stays in the page,
-  hidden, while collapsed), actions? (snippet, right side of the head), edge? (a summary card: the 2px brand-gradient top edge, `.accent-edge`),
+  hidden, while collapsed), actions? (snippet, right side of the head), edge? (a summary card: a 1px brand-gradient border, `.accent-edge`),
   onchange? (open), children (the body).
 -->
 <script lang="ts">

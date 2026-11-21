@@ -63,7 +63,7 @@ Only on these accents (decorative or redundant with text or an icon):
 1. the logo (`Logo.svelte`) and nothing else that is a "brand" mark;
 2. the primary button (`--primary-gradient`, with `--btn-glow`);
 3. the current item in the sidebar: a soft wash (`--nav-active-bg`) and a 4px bar (`--brand-gradient-vertical`, `--nav-bar-glow`);
-4. the 2px top edge of summary cards (`.accent-edge`: chart cards, the figures above them);
+4. the 1px gradient border of summary cards (`.accent-edge`: chart cards, the figures above them);
 5. the line of a single-series chart (with a blurred glow copy and a fading area);
 6. the selected segment of a segmented control (violet ring and glow, `--seg-selected-ring`);
 7. the focus ring and halo;

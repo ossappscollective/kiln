@@ -1,6 +1,6 @@
 /*
  * The brand-gradient accents, and only these (docs/design-system.md, "Where the gradient is used"):
- *   primary button . page title (h1.page-title, .gradient-title) . top edge of summary cards (.accent-edge)
+ *   primary button . page title (h1.page-title, .gradient-title) . gradient border of summary cards (.accent-edge)
  * The other accents are token-driven in their own components: the logo (Logo.svelte), the active navigation item
  * (--nav-active-bg, --brand-gradient-vertical, --nav-bar-glow), the selected segment (--seg-selected-ring), the focus
  * ring (--ring, --halo) and the chart line (--viz-*). Every value here is a token from theme.css.
@@ -84,20 +84,20 @@ h1.page-title,
   }
 }
 
-/* ---------- Summary cards: a 2px gradient edge along the top ---------- */
-.accent-edge {
-  position: relative;
-}
-
-/* The line runs along the flat part of the top edge only: it starts and ends where the card's rounded corner begins (one
-   radius in from each side), and sits over the 1px border (top: -1px). A full-width strip cannot follow a rounded corner,
-   so it showed as a straight bar crossing the curve. */
-.accent-edge::before {
-  position: absolute;
-  inset: -1px var(--radius-lg) auto;
-  height: 2px;
-  pointer-events: none;
-  content: "";
-  background: var(--brand-gradient-horizontal);
-  border-radius: 2px;
+/* ---------- Summary cards: a gradient hairline around the card ---------- */
+/* The 1px border itself is the brand gradient (blue, violet, ember, corner to corner, softened so it stays a hairline). It is
+   painted as a border-box background under a surface-coloured padding-box, so it follows the rounded corners exactly: no strip
+   or pseudo-element to line up with the radius. */
+/* The class is repeated to outrank the card's own scoped rules (Section.svelte), whatever the stylesheet order. */
+.accent-edge.accent-edge.accent-edge.accent-edge {
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--brand-blue) 80%, transparent),
+        color-mix(in srgb, var(--brand-violet) 55%, transparent) 55%,
+        color-mix(in srgb, var(--brand-ember) 75%, transparent)
+      )
+      border-box;
+  border-color: transparent;
 }
