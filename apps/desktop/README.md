@@ -8,6 +8,9 @@ needed on the user's machine: the app ships its own Node binary. Design and open
 Needs Rust, and (for the build) the web UI built with `pnpm build` from the repository root.
 `src-tauri/src/main.rs` has never been compiled, so expect small fixes on the first `cargo check`.
 
+The menu bar and the start-up messages are translated (French, Spanish, German) from `locales/desktop/*.json`, in the system's language:
+see [docs/i18n-desktop.md](../../docs/i18n-desktop.md). Try one with `KILN_LANG=fr pnpm --filter @kiln/desktop dev`.
+
 ## What gets packaged
 
 `scripts/prepare-sidecar.mjs` copies files that are already on this machine into

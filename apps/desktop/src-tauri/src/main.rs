@@ -26,6 +26,9 @@
 // The sidecar is started with std::process::Command, not the Tauri shell plugin, so no
 // `shell:*` permission exists for any page to use, and stdin can be closed for a clean stop.
 //
+// The shell's own text (the menu bar, start-up errors) comes from catalogs in apps/desktop/locales, in the language of the
+// operating system: see i18n.rs and docs/adr/0046-desktop-localisation.md. The window title is the product name and is not translated.
+//
 // The window is created in code, not in tauri.conf.json (`windows` is empty there), because its
 // URL contains the secret and the port, which only exist at run time. The page it loads is a
 // remote origin, so the capability file does not give it Tauri IPC. It talks to the server over
@@ -42,6 +45,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+
+mod i18n;
+mod menu;
 
 /// The running server. Taken out and stopped when the app exits.
 struct ServerChild(Mutex<Option<Child>>);
@@ -244,7 +250,11 @@ fn stop_server(app: &tauri::AppHandle) {
 }
 
 fn main() {
+    // Resolve the language of the system once, before anything needs a string.
+    i18n::init();
+
     let app = tauri::Builder::default()
+        .menu(|handle| menu::build(handle))
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
@@ -261,7 +271,7 @@ fn main() {
             let handle = app.handle().clone();
             thread::spawn(move || {
                 if !wait_for_health(port, Duration::from_secs(30)) {
-                    eprintln!("The server did not become ready in time.");
+                    eprintln!("{}", i18n::t("error.serverNotReady"));
                     handle.exit(1);
                     return;
                 }
@@ -278,7 +288,7 @@ fn main() {
                             .map_err(|e| e.to_string())
                     });
                 if let Err(message) = opened {
-                    eprintln!("Cannot open the window: {message}");
+                    eprintln!("{}", i18n::t_with("error.windowOpen", &[("message", message.as_str())]));
                     handle.exit(1);
                 }
             });
