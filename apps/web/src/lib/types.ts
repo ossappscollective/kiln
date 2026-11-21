@@ -25,6 +25,7 @@ import type {
   SectionCompare,
   StoreRollout,
 } from '@mrm/core';
+import type { RevenueCatStep } from './revenuecat/revenuecat.ts';
 
 export type User = { id: string; email: string; displayName: string };
 export type WorkspaceSummary = { id: string; name: string; role: Role };
@@ -1530,6 +1531,8 @@ export type ProductSyncResult = {
     warnings: string[];
     syncedAt: number;
   };
+  /** The second step of the sync, the RevenueCat read: null when the app has no RevenueCat link. A failure of it never fails the store step. */
+  revenuecat?: RevenueCatStep | null | undefined;
 };
 
 export type ProductTexts = { name: string; description: string };

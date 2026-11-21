@@ -21,6 +21,7 @@
   import AnalyticsSection from './settings/AnalyticsSection.svelte';
   import DefaultsSection from './settings/DefaultsSection.svelte';
   import ExpoProjectSection from '../eas/ExpoProjectSection.svelte';
+  import RevenueCatSection from '../revenuecat/RevenueCatSection.svelte';
   import NotificationsSection from './settings/NotificationsSection.svelte';
   import ReleaseSettingsSection from './settings/ReleaseSettingsSection.svelte';
   import RepositorySection from './settings/RepositorySection.svelte';
@@ -81,6 +82,7 @@
   <div id={ids.repository} class="part" tabindex="-1"><RepositorySection {api} {workspaceId} {role} {members} /></div>
   <div id={ids.defaults} class="part" tabindex="-1"><DefaultsSection {api} {workspaceId} {role} {members} /></div>
   <div id="app-settings-expo" class="part" tabindex="-1"><ExpoProjectSection {api} {workspaceId} {role} {members} {now} /></div>
+  <div id="app-settings-revenuecat" class="part" tabindex="-1"><RevenueCatSection {api} {workspaceId} {role} {members} {now} /></div>
   {#if members.some((m) => supports(m.platform, 'releaseTracks'))}
     <div id={ids.playReleases} class="part" tabindex="-1"><ReleaseSettingsSection {api} {workspaceId} {role} {members} /></div>
     <div id={ids.playBucket} class="part" tabindex="-1"><AnalyticsSection {api} {workspaceId} {role} {members} /></div>

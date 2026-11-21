@@ -7,6 +7,10 @@
   Sales (28 days): a column from STORED analytics only (`GET .../analytics/product-sales`, no store call), shown to roles that may read analytics and
   only once the app has a stored sales day. Units and one amount line per currency (never summed); the header's tooltip says what the number is
   (Apple proceeds, or a Google buyer-paid estimate that is not proceeds). Without sales data the column is hidden and one line says how to turn it on.
+  RevenueCat: when the app is linked to a RevenueCat project (docs/adr/0039-revenuecat.md), a RevenueCat column says where each product stands
+  there (and names its first entitlements), the detail has a RevenueCat section, and a collapsed list gives the things to check. All of it comes
+  from the STORED copy (`GET .../revenuecat/products`, no RevenueCat call) and is configuration only: no money, no customers. "Sync products" reads
+  RevenueCat as its second step; a failure of that step is shown beside the store result and never hides it. Not linked: one line says how to connect.
   Props: api, workspaceId, role, app, refreshKey (changes when an app sync finished, so this reads again).
 -->
 <script lang="ts">
@@ -32,6 +36,16 @@
     stateBadge,
     syncLine,
   } from '../../lib/products.ts';
+  import {
+    connectHint,
+    type RevenueCatProductsView,
+    type RevenueCatStep,
+    revenueCatRead,
+    showRevenueCatColumn,
+    stepFromBody,
+    stepResult,
+    syncLine as revenueCatSyncLine,
+  } from '../../lib/revenuecat/revenuecat.ts';
   import { storeForPlatform } from '../../lib/stores.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ProductsView } from '../../lib/types.ts';
@@ -42,6 +56,8 @@
   import InfoTip from '../ui/InfoTip.svelte';
   import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import RevenueCatCell from '../revenuecat/RevenueCatCell.svelte';
+  import RevenueCatWarnings from '../revenuecat/RevenueCatWarnings.svelte';
   import ProductDetail from './ProductDetail.svelte';
 
   let { api, workspaceId, role, app, refreshKey }: { api: Api; workspaceId: string; role: Role; app: AppSummary; refreshKey: number } = $props();
@@ -60,12 +76,16 @@
   let generation = 0;
   let sales = $state<ProductSalesView | null>(null);
   let salesGeneration = 0;
+  let revenueCat = $state<RevenueCatProductsView | null>(null);
+  let revenueCatGeneration = 0;
+  let revenueCatStep = $state<RevenueCatStep | null>(null);
 
   const mayReadSales = $derived(can(role, 'analytics.read'));
   const apple = $derived(platformSupports(app.platform, 'appleAnalyticsReports'));
   const showSales = $derived(mayReadSales && salesVisible(sales));
   const salesById = $derived(salesByProduct(sales));
-  const columns = $derived(showSales ? 7 : 6);
+  const showRevenueCat = $derived(showRevenueCatColumn(revenueCat));
+  const columns = $derived(6 + (showSales ? 1 : 0) + (showRevenueCat ? 1 : 0));
 
   /** Sales are an extra: stored analytics only, and a failure to read them never gets in the way of the product list. */
   async function loadSales() {
@@ -79,6 +99,17 @@
       if (mine === salesGeneration) sales = read;
     } catch {
       if (mine === salesGeneration) sales = null;
+    }
+  }
+
+  /** RevenueCat is an extra, like sales: the stored copy only, and a failure to read it never gets in the way of the product list. */
+  async function loadRevenueCat() {
+    const mine = ++revenueCatGeneration;
+    try {
+      const read = await api.revenueCatProducts(workspaceId, app.id);
+      if (mine === revenueCatGeneration) revenueCat = read;
+    } catch {
+      if (mine === revenueCatGeneration) revenueCat = null;
     }
   }
 
@@ -108,6 +139,7 @@
     untrack(() => {
       void load();
       void loadSales();
+      void loadRevenueCat();
     });
   });
 
@@ -115,16 +147,22 @@
     if (syncing) return;
     syncing = true;
     syncProblem = '';
+    revenueCatStep = null;
     try {
       const done = await api.syncAppProducts(workspaceId, app.id);
       const n = done.sync.products;
       toast.success(`Read ${n} ${n === 1 ? 'product' : 'products'} from ${storeName}.`);
+      revenueCatStep = done.revenuecat ?? null;
       detailKey += 1;
       await load();
+      void loadRevenueCat();
     } catch (e) {
       syncProblem = classifyProductFailure(e, 'read').message;
+      // The RevenueCat step runs even when the store step failed: its result is shown beside the store failure.
+      revenueCatStep = e instanceof ApiError ? stepFromBody(e.body) : null;
       // The failure is also kept on the server, so the list says it.
       await load();
+      void loadRevenueCat();
     } finally {
       syncing = false;
     }
@@ -157,6 +195,10 @@
   </PageLead>
 
   {#if syncProblem !== ''}<Alert tone="error" title="The sync did not finish">{syncProblem}</Alert>{/if}
+  {#if revenueCatStep}
+    {@const step = stepResult(revenueCatStep)}
+    <Alert tone={step.tone === 'bad' ? 'error' : step.tone === 'warn' ? 'warn' : 'ok'} title="RevenueCat">{step.text}</Alert>
+  {/if}
 
   {#if loading && !view}
     <div role="status" aria-label="Reading the products" class="stack">
@@ -179,6 +221,13 @@
           {#each view.sync.warnings as warning (warning)}<li>{warning}</li>{/each}
         </ul>
       </Alert>
+    {/if}
+
+    {#if showRevenueCat && revenueCat}
+      {@const rcLine = revenueCatSyncLine(revenueCat.sync, now)}
+      <p class="sync-line text-sm" class:bad={rcLine.tone === 'bad'} class:warn={rcLine.tone === 'warn'} role={rcLine.tone === 'bad' ? 'alert' : 'status'} data-testid="revenuecat-sync-line">
+        {rcLine.text}
+      </p>
     {/if}
 
     {#if !view.supported}
@@ -213,6 +262,7 @@
                   <span class="sales-head">{salesColumnTitle}<InfoTip label="About the sales numbers" text={salesMeasureText(sales)} align="end" width="24rem" /></span>
                 </th>
               {/if}
+              {#if showRevenueCat}<th scope="col">RevenueCat</th>{/if}
               <th scope="col">Languages</th>
               <th scope="col"><span class="visually-hidden">Actions</span></th>
             </tr>
@@ -240,6 +290,9 @@
                     {#each cell as line (line)}<div>{line}</div>{/each}
                   </td>
                 {/if}
+                {#if showRevenueCat && revenueCat}
+                  <td data-testid="product-revenuecat"><RevenueCatCell view={revenueCat} productId={p.productId} /></td>
+                {/if}
                 <td class="muted text-sm">{p.locales.length === 0 ? 'None' : p.locales.length <= 3 ? p.locales.join(', ') : `${p.locales.slice(0, 3).join(', ')} and ${p.locales.length - 3} more`}</td>
                 <td class="actions">
                   <Button
@@ -263,6 +316,7 @@
                       {app}
                       productId={p.productId}
                       sales={showSales ? sales : null}
+                      revenueCat={showRevenueCat ? revenueCat : null}
                       writeEnabled={view.write.enabled}
                       refreshKey={detailKey}
                       embedded
@@ -281,6 +335,14 @@
       </div>
       {#if mayReadSales && sales !== null && !showSales}
         <p class="muted text-sm sales-hint" data-testid="sales-hint">{salesSetupHint(sales, apple)}</p>
+      {/if}
+      {#if showRevenueCat && revenueCat}
+        <RevenueCatWarnings warnings={revenueCat.warnings} appId={app.id} />
+        {#if !revenueCatRead(revenueCat)}
+          <p class="muted text-sm" data-testid="revenuecat-unread-hint">This app is linked to RevenueCat, but RevenueCat has not been read yet. {maySync ? 'Use "Sync products" to read it.' : 'Ask a member to sync this app\'s products.'}</p>
+        {/if}
+      {:else if connectHint(revenueCat, can(role, 'apps.write')) !== ''}
+        <p class="muted text-sm" data-testid="revenuecat-connect-hint">{connectHint(revenueCat, can(role, 'apps.write'))}</p>
       {/if}
     {/if}
   {/if}

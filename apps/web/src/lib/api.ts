@@ -116,6 +116,13 @@ import type { NotesHistory } from './release-notes.ts';
 import type { TranslateNotesBody, TranslateNotesResult } from './release-notes-translate.ts';
 import type { AppPipeline, PipelineSummary } from './release-pipeline.ts';
 import type { ReleaseSettingsView } from './release-settings.ts';
+import type {
+  RevenueCatLinkRead,
+  RevenueCatLinkView,
+  RevenueCatOptions,
+  RevenueCatProductsView,
+  SetRevenueCatLinkBody,
+} from './revenuecat/revenuecat.ts';
 import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './reviews/reply.ts';
 import type {
   InboxPage,
@@ -2443,6 +2450,34 @@ export function createApi(options: ApiOptions = {}) {
       request<ProductSyncResult>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products/sync`,
+      ),
+    // RevenueCat of an app (docs/api/revenuecat.md): configuration facts only, nothing in RevenueCat is changed. Reading needs `apps.read`;
+    // linking, unlinking and detecting need `apps.write`. The read itself is the second step of `syncAppProducts`.
+    revenueCatLink: (workspaceId: string, appId: string) =>
+      request<RevenueCatLinkRead>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/revenuecat`,
+      ),
+    revenueCatProducts: (workspaceId: string, appId: string) =>
+      request<RevenueCatProductsView>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/revenuecat/products`,
+      ),
+    detectRevenueCat: (workspaceId: string, appId: string, credentialId: string, projectId?: string) =>
+      request<{ options: RevenueCatOptions }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/revenuecat/detect?credentialId=${encodeURIComponent(credentialId)}${projectId ? `&projectId=${encodeURIComponent(projectId)}` : ''}`,
+      ),
+    setRevenueCatLink: (workspaceId: string, appId: string, body: SetRevenueCatLinkBody) =>
+      request<{ link: RevenueCatLinkView }>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/revenuecat`,
+        body,
+      ),
+    removeRevenueCatLink: (workspaceId: string, appId: string) =>
+      request<void>(
+        'DELETE',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/revenuecat`,
       ),
     previewProductLocalization: (
       workspaceId: string,

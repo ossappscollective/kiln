@@ -4,7 +4,9 @@
   Reads the stored copy only (`GET .../products/<id>`); nothing here asks a store until the person previews a text change.
   A small "Sales" section shows the last 28 days of this product from the stored sales numbers the list already read (`sales`; null hides the
   section: no stored sales, or a role that cannot read analytics). Per currency, never summed; the text says what the number is.
-  Props: api, workspaceId, role, app, productId, sales, writeEnabled, refreshKey (changes after a sync, so this reads again), embedded (inside the
+  A "RevenueCat" section (configuration facts as plain text, from the stored copy; docs/adr/0039-revenuecat.md) is drawn when the app is linked
+  (`revenueCat`, the joined view of the app; null hides it).
+  Props: api, workspaceId, role, app, productId, sales, revenueCat, writeEnabled, refreshKey (changes after a sync, so this reads again), embedded (inside the
   table row of the product), onsaved (a text was changed: the list reads again), onclose, onswitchoff.
 -->
 <script lang="ts">
@@ -26,6 +28,7 @@
     READ_ONLY_NOTE,
     stateBadge,
   } from '../../lib/products.ts';
+  import type { RevenueCatProductsView } from '../../lib/revenuecat/revenuecat.ts';
   import type { AppSummary, ProductDetailView } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -33,6 +36,7 @@
   import Disclosure from '../ui/Disclosure.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import RevenueCatDetail from '../revenuecat/RevenueCatDetail.svelte';
   import LocalizationEditor from './LocalizationEditor.svelte';
 
   let {
@@ -42,6 +46,7 @@
     app,
     productId,
     sales = null,
+    revenueCat = null,
     writeEnabled,
     refreshKey,
     embedded = false,
@@ -56,6 +61,8 @@
     productId: string;
     /** The stored sales of the app (null: none stored, or no right to read analytics: the section is not drawn). */
     sales?: ProductSalesView | null | undefined;
+    /** The joined RevenueCat view of the app (null: the app is not linked: the section is not drawn). */
+    revenueCat?: RevenueCatProductsView | null | undefined;
     writeEnabled: boolean;
     refreshKey: number;
     /** Drawn inside the table row of the product: no card of its own and no Close (the row's button hides it). */
@@ -156,6 +163,10 @@
         {/if}
         <p class="muted text-sm">{sales.measure === 'apple_proceeds' ? 'Developer proceeds' : 'Estimated: what buyers paid, not your proceeds'}. Per currency, never added across currencies.</p>
       </div>
+    {/if}
+
+    {#if revenueCat}
+      <RevenueCatDetail view={revenueCat} {productId} now={Date.now()} />
     {/if}
 
     <div class="stack">
