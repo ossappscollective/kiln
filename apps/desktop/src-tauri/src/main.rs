@@ -99,38 +99,6 @@ fn load_or_create_master_key(data_dir: &Path) -> BoxResult<String> {
     Ok(key)
 }
 
-/// The app data folder of the first versions, from before the product was named Kiln
-/// (docs/adr/0040-rename-to-kiln.md). It sits next to the current one.
-const LEGACY_IDENTIFIER: &str = "dev.example.mobilereleasemanager";
-
-/// The app data folder: `default_dir`, unless only the earlier folder exists. Nothing is moved or deleted.
-fn resolve_data_dir(default_dir: PathBuf) -> PathBuf {
-    if !default_dir.exists() {
-        if let Some(old) = default_dir.parent().map(|p| p.join(LEGACY_IDENTIFIER)) {
-            if old.is_dir() {
-                return old;
-            }
-        }
-    }
-    default_dir
-}
-
-/// The database file: `kiln.db`, or the earlier `mrm.db` when only that one exists.
-fn database_file(data_dir: &Path) -> PathBuf {
-    let current = data_dir.join("kiln.db");
-    let earlier = data_dir.join("mrm.db");
-    if !current.exists() && earlier.exists() {
-        earlier
-    } else {
-        current
-    }
-}
-
-/// An environment variable of the shell: `KILN_<name>`, or the earlier `MRM_<name>`.
-fn shell_env(name: &str) -> Option<std::ffi::OsString> {
-    std::env::var_os(format!("KILN_{name}")).or_else(|| std::env::var_os(format!("MRM_{name}")))
-}
-
 /// Asks the OS for a free loopback port. Another process could take it before the server does;
 /// the server then fails to start and the shell reports that.
 fn free_port() -> BoxResult<u16> {
@@ -169,7 +137,7 @@ fn spawn_server(
     master_key: &str,
 ) -> BoxResult<Child> {
     let use_packaged =
-        !cfg!(debug_assertions) || shell_env("USE_PACKAGED_SERVER").is_some();
+        !cfg!(debug_assertions) || std::env::var_os("KILN_USE_PACKAGED_SERVER").is_some();
 
     let mut command = if use_packaged {
         let (node, launcher, web) = packaged_server(app).ok_or(
@@ -189,7 +157,7 @@ fn spawn_server(
         if !entry.exists() {
             return Err(format!("server entry not found at {}", entry.display()).into());
         }
-        let node = shell_env("NODE").unwrap_or_else(|| "node".into());
+        let node = std::env::var("KILN_NODE").unwrap_or_else(|_| "node".to_string());
         let mut command = Command::new(node);
         command
             .arg("--disable-warning=ExperimentalWarning")
@@ -205,13 +173,12 @@ fn spawn_server(
         .env("KILN_MASTER_KEY", master_key)
         .env("PORT", port.to_string())
         .env("KILN_DATA_DIR", data_dir)
-        .env("DATABASE_URL", format!("file:{}", database_file(data_dir).display()))
+        .env("DATABASE_URL", format!("file:{}", data_dir.join("kiln.db").display()))
         .env("KILN_WORKER", "inline")
         // The server watches its stdin and exits when it closes, so it stops even if this
         // process is killed without running its exit handler.
         .env("KILN_EXIT_WITH_PARENT", "1")
         .env_remove("KILN_TRUSTED_ORIGINS")
-        .env_remove("MRM_TRUSTED_ORIGINS")
         // The app may be started from a shell that exports Node options; do not pass them on.
         .env_remove("NODE_OPTIONS")
         .stdin(Stdio::piped());
@@ -280,7 +247,7 @@ fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            let data_dir = resolve_data_dir(app.path().app_data_dir()?);
+            let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
 
             // 32 bytes from the OS CSPRNG as 64 hex characters. Never logged, never in argv.
