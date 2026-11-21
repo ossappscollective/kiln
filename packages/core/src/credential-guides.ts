@@ -1095,6 +1095,76 @@ const expo: CredentialGuide = {
   checkedOn: '2026-11-20',
 };
 
+const revenuecat: CredentialGuide = {
+  summary:
+    'Lets the tool read the products, entitlements and offerings of one RevenueCat project, to show them next to your store products. It only reads: no purchase, customer or revenue data is used.',
+  prerequisites: [
+    'A RevenueCat project that has your apps. Only a project Admin can create or revoke a secret API key.',
+    'A secure place for the key, because it works for the whole project.',
+  ],
+  steps: [
+    {
+      title: 'Open the RevenueCat dashboard',
+      body: 'Sign in at app.revenuecat.com as an Admin of the project and open the project that has your apps.',
+      link: { label: 'RevenueCat: Authentication', url: 'https://www.revenuecat.com/docs/projects/authentication' },
+    },
+    {
+      title: 'Open API keys',
+      body: 'In the project settings select API keys, then the section Secret API keys.',
+    },
+    {
+      title: 'Create a new secret API key',
+      body: 'Select New secret API key and choose version V2. Name it after this tool so you can tell it from other keys.',
+    },
+    {
+      title: 'Choose read permissions only',
+      body: 'Allow reading the project configuration: projects, apps, products, entitlements, offerings and packages. Do not grant any write permission, and leave customer information and charts off.',
+    },
+    {
+      title: 'Copy the key',
+      body: 'Create the key and copy it. It starts with sk_.',
+    },
+    {
+      title: 'Enter the key here',
+      body: 'Paste the key into the form, then use Test connection. It asks RevenueCat which projects the key can see and how many apps each has.',
+    },
+  ],
+  permissions: [
+    'Read only, in the project configuration: projects, apps, products, entitlements, offerings and packages (the API names them project_configuration:projects:read, project_configuration:apps:read, project_configuration:products:read, project_configuration:entitlements:read, project_configuration:offerings:read and project_configuration:packages:read).',
+    'Never grant a write permission. This tool never changes anything in RevenueCat, and a key that cannot write cannot grant access, refund or delete if it ever leaks. Leave customer information and charts and metrics off as well.',
+    'RevenueCat does not document how the dashboard groups these permissions. If it offers only a whole domain, such as all of the project configuration, choose read only for that domain, and know that the key then reads more than this tool needs.',
+    'A secret key works for the whole project. Keep it out of your app, do not use the public SDK key here (it is not a credential for this API), and revoke it in the dashboard when someone who knew it leaves. RevenueCat invalidates a revoked key at once.',
+  ],
+  troubleshooting: [
+    {
+      problem: 'The test says RevenueCat did not accept the key.',
+      fix: 'The key was copied incompletely or was revoked. Version 1 keys and the public SDK keys do not work with this API. Create a new secret API key of version V2 and enter it again.',
+    },
+    {
+      problem: 'The test says the key may not read the projects or the apps.',
+      fix: 'A read permission is missing. Open the key in the dashboard, allow reading projects, apps, products, entitlements, offerings and packages, or create a new key with them.',
+    },
+    {
+      problem: 'The test shows no project, or not the one you expect.',
+      fix: 'A secret key belongs to one project. Create the key in the project that has your apps.',
+    },
+    {
+      problem: 'The test or a sync says RevenueCat asked to slow down.',
+      fix: 'RevenueCat allows 60 reads a minute for the project configuration, shared by everything that uses the same key. Wait a minute and try again.',
+    },
+    {
+      problem: 'The test says RevenueCat could not be reached.',
+      fix: 'Check that this server can reach api.revenuecat.com over https, and that a proxy, if you use one, allows it.',
+    },
+  ],
+  links: [
+    { label: 'RevenueCat: Authentication', url: 'https://www.revenuecat.com/docs/projects/authentication' },
+    { label: 'RevenueCat: API v2 overview', url: 'https://www.revenuecat.com/docs/api-v2' },
+    { label: 'RevenueCat: Dashboard', url: 'https://app.revenuecat.com' },
+  ],
+  checkedOn: '2026-11-21',
+};
+
 export const credentialGuides: Record<CredentialKind, CredentialGuide> = {
   app_store_connect: appStoreConnect,
   google_play: googlePlay,
@@ -1108,6 +1178,7 @@ export const credentialGuides: Record<CredentialKind, CredentialGuide> = {
   ai_openai: aiOpenai,
   ai_openai_compatible: aiOpenaiCompatible,
   expo,
+  revenuecat,
 };
 
 export function guideFor(kind: CredentialKind): CredentialGuide {

@@ -17,6 +17,7 @@ export const credentialKinds = [
   'ai_openai',
   'ai_openai_compatible',
   'expo',
+  'revenuecat',
 ] as const;
 export type CredentialKind = (typeof credentialKinds)[number];
 
@@ -159,6 +160,19 @@ export const credentialKindInfo: Record<CredentialKind, CredentialKindInfo> = {
       },
     ],
   },
+  revenuecat: {
+    label: 'RevenueCat secret API key (V2)',
+    description:
+      'A V2 secret API key of one RevenueCat project, used to read its products, entitlements and offerings next to the store products. Create it with read permissions only and never grant a write permission: this tool does not need one. The key works for the whole project.',
+    fields: [
+      {
+        name: 'apiKey',
+        label: 'Secret API key',
+        secret: true,
+        hint: 'In the RevenueCat dashboard open the project, then API keys, and create a new secret API key (version V2) with read permissions only. It starts with sk_. Do not use the public SDK key.',
+      },
+    ],
+  },
 };
 
 const clean = (value: string | undefined) => (value ?? '').trim();
@@ -183,6 +197,9 @@ export function buildSecret(kind: CredentialKind, values: Record<string, string>
     case 'github_token':
     case 'expo':
       return clean(values.token);
+    case 'revenuecat':
+      // One plain string, like a token: the key is the whole secret.
+      return clean(values.apiKey);
     case 'translate_google':
     case 'translate_deepl':
     case 'translate_libretranslate':
@@ -217,6 +234,11 @@ export function checkSecret(kind: CredentialKind, secret: string): string | unde
   if (kind === 'github_token' || kind === 'expo') {
     if (!secret.trim()) return 'Enter the token.';
     if (/\s/.test(secret.trim())) return 'A token has no spaces or line breaks.';
+    return undefined;
+  }
+  if (kind === 'revenuecat') {
+    if (!secret.trim()) return 'Enter the secret API key.';
+    if (/\s/.test(secret.trim())) return 'A key has no spaces or line breaks.';
     return undefined;
   }
   if (

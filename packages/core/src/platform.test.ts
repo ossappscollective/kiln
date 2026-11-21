@@ -17,6 +17,8 @@ import {
   parsePlatform,
   platformLabel,
   platformsOfFamily,
+  REVENUECAT_APP_TYPES,
+  revenueCatAppTypes,
   sortPlatforms,
   storeFamilyOf,
   storeShortName,
@@ -119,4 +121,14 @@ test('the platform table carries the store facts that call sites used to branch 
   assert.equal(storeSideId('ios', app), '123');
   assert.equal(storeSideId('android', app), 'com.example');
   assert.equal(storeSideId('ios', { storeAppId: null, identifier: 'x' }), null);
+});
+
+test('RevenueCat app types per platform: macOS is the legacy Mac app or the shared App Store app, never a name check', () => {
+  assert.deepEqual(revenueCatAppTypes('ios'), ['app_store']);
+  assert.deepEqual(revenueCatAppTypes('macos'), ['mac_app_store', 'app_store']);
+  assert.deepEqual(revenueCatAppTypes('android'), ['play_store']);
+  for (const platform of PLATFORMS) {
+    assert.equal(supports(platform, 'revenueCat'), true);
+    for (const type of revenueCatAppTypes(platform)) assert.ok(REVENUECAT_APP_TYPES.includes(type));
+  }
 });

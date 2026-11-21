@@ -25,6 +25,8 @@ const allowedHosts = new Set([
   'docs.vllm.ai',
   'docs.expo.dev',
   'expo.dev',
+  'www.revenuecat.com',
+  'app.revenuecat.com',
 ]);
 
 const verbs = new Set([

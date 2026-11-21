@@ -17,6 +17,10 @@ export type Platform = (typeof PLATFORMS)[number];
 
 export type StoreFamily = 'apple' | 'google';
 
+/** The RevenueCat app types this tool reads (RevenueCat's own words, as its API v2 uses them). Every other type is ignored, never an error. */
+export const REVENUECAT_APP_TYPES = ['app_store', 'mac_app_store', 'play_store'] as const;
+export type RevenueCatAppType = (typeof REVENUECAT_APP_TYPES)[number];
+
 /** The stores this app talks to, as the id used in the API, the database and error messages. One place: add a store here. */
 export const STORE_IDS = ['appstoreconnect', 'googleplay'] as const;
 export type StoreId = (typeof STORE_IDS)[number];
@@ -61,6 +65,12 @@ export type PlatformMeta = {
   applePlatform?: 'IOS' | 'MAC_OS';
   /** What the credential of the platform's store is. */
   credentialKind: StoreCredentialKind;
+  /**
+   * The RevenueCat app types (`app_store`, `mac_app_store`, `play_store`) that carry this platform's purchases, most specific first
+   * (docs/adr/0039-revenuecat.md). Ask `revenueCatAppTypes`. A macOS app is `mac_app_store` for a legacy Mac app and the shared
+   * `app_store` app for a universal purchase.
+   */
+  revenueCatAppTypes: readonly RevenueCatAppType[];
   /** Order in a scope control and in merged rows. */
   order: number;
 };
@@ -117,6 +127,8 @@ export const CAPABILITIES = [
   'bundleIdentifier',
   /** The store sells in-app purchases and subscriptions that can be read (and their display texts edited) through its API. */
   'inAppPurchases',
+  /** RevenueCat has an app type for the store, so the app's products can be read from a RevenueCat project (see `revenueCatAppTypes`). */
+  'revenueCat',
 ] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 export type PlatformCapabilities = Readonly<Record<Capability, boolean>>;
@@ -145,6 +157,7 @@ const APPLE_CAPABILITIES: PlatformCapabilities = {
   ratingHistory: false,
   sideloadInstall: false,
   inAppPurchases: true,
+  revenueCat: true,
 };
 
 const GOOGLE_CAPABILITIES: PlatformCapabilities = {
@@ -171,6 +184,7 @@ const GOOGLE_CAPABILITIES: PlatformCapabilities = {
   ratingHistory: true,
   sideloadInstall: true,
   inAppPurchases: true,
+  revenueCat: true,
 };
 
 export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
@@ -194,6 +208,7 @@ export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
     glyph: 'platform-ios',
     applePlatform: 'IOS',
     credentialKind: 'app_store_connect',
+    revenueCatAppTypes: ['app_store'],
     order: 0,
   },
   macos: {
@@ -216,6 +231,7 @@ export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
     glyph: 'platform-macos',
     applePlatform: 'MAC_OS',
     credentialKind: 'app_store_connect',
+    revenueCatAppTypes: ['mac_app_store', 'app_store'],
     order: 1,
   },
   android: {
@@ -237,6 +253,7 @@ export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
     capabilities: GOOGLE_CAPABILITIES,
     glyph: 'platform-android',
     credentialKind: 'google_play',
+    revenueCatAppTypes: ['play_store'],
     order: 2,
   },
 };
@@ -284,6 +301,9 @@ export const isDesktop = (platform: Platform): boolean =>
 /** Whether the platform's store has the capability. */
 export const supports = (platform: Platform, capability: Capability): boolean =>
   PLATFORM_META[platform].capabilities[capability];
+/** The RevenueCat app types that can carry the platform's purchases, most specific first; empty when the platform has no RevenueCat support. */
+export const revenueCatAppTypes = (platform: Platform): readonly RevenueCatAppType[] =>
+  supports(platform, 'revenueCat') ? PLATFORM_META[platform].revenueCatAppTypes : [];
 /** `supports` for a platform that arrives as a string or may be missing (a row, a query): unknown means no. */
 export const platformSupports = (
   platform: string | null | undefined,

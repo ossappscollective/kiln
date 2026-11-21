@@ -122,3 +122,14 @@ test('expo: one access token, stored as the plain string, trimmed, no spaces, ma
   assert.ok(credentialKindInfo.expo.fields.every((f) => f.secret === true));
   assert.match(credentialKindInfo.expo.description, /robot user/);
 });
+
+test('revenuecat: one secret API key, stored as the plain string, trimmed, no spaces, masked in the form', () => {
+  const secret = buildSecret('revenuecat', { apiKey: '  sk_abc123  ' });
+  assert.equal(secret, 'sk_abc123');
+  assert.equal(checkSecret('revenuecat', secret), undefined);
+  assert.match(checkSecret('revenuecat', buildSecret('revenuecat', { apiKey: ' ' })) ?? '', /Enter the secret API key/);
+  assert.match(checkSecret('revenuecat', 'sk_a b') ?? '', /no spaces/);
+  assert.equal(isCredentialKind('revenuecat'), true);
+  assert.ok(credentialKindInfo.revenuecat.fields.every((f) => f.secret === true));
+  assert.match(credentialKindInfo.revenuecat.description, /read permissions only/);
+});
