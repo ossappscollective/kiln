@@ -172,6 +172,8 @@ Each file starts with a comment that lists its props.
 | `CopyButton`                       | Copy a value with feedback and a fallback for plain http                                                                                                                                                                                                                          |
 | `Tabs`                             | Views of one object. Arrow keys move between tabs                                                                                                                                                                                                                                 |
 | `ThemeToggle`, `Logo`              | Theme choice and the product mark                                                                                                                                                                                                                                                 |
+| `LanguageSelect`                   | The language choice (a labelled select, options in their own language with `lang`). `layout` inline or stacked, `block`. Saved in this browser; see `docs/i18n.md`                               |
+| `T`                                | A translated message that has a link or emphasis inside (`<link>…</link>` tags, snippets per tag). Never `{@html}`; see `docs/i18n.md`                                         |
 | `Icon`                             | One of the registered inline SVG icons (`lib/icons.ts`), see Icons below                                                                                                                                                                                                          |
 | `StoreBadge`, `PlatformBadge`      | A store, tool or platform as a generic glyph plus its name                                                                                                                                                                                                                        |
 | `AppIcon`                          | The icon of an app in a square of a fixed size. Loads `iconUrl` of the app JSON (same origin only), falls back to the initials of the app and the platform glyph, never a broken image. Decorative beside the app's name (`labelled`), named when alone. See `docs/api/assets.md` |
@@ -182,7 +184,7 @@ Each file starts with a comment that lists its props.
 | `SegmentTabs`                      | iOS and Android (or other) tabs inside a page, instead of stacked copies                                                                                                                                                                                                          |
 | `IconGallery`                      | Dev only: every icon, store badge and status icon on one page. Not routed                                                                                                                                                                                                         |
 
-To show an icon in the navigation, set `icon` on the view in `lib/views.ts`.
+To show an icon in the navigation, set `icon` on the view in `lib/views.ts`. Its name is `labelKey` (a message key, translated where it is drawn).
 
 ## Icons
 

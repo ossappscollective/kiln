@@ -16,8 +16,10 @@ Short on purpose: read this once instead of repeating it in every brief.
 
 - Types: `node_modules/.bin/tsc -p <pkg> --noEmit` for `packages/core`, `packages/db`,
   `packages/connectors`, `apps/server`.
-- One test file: `node --test path/to/file.test.ts` from the package directory. Prefer this while working.
-- Full suites: `node --test "src/**/*.test.ts"` in each package (Postgres cases skip without
+- One test file: `node --test path/to/file.test.ts` from the package directory. Prefer this while working. In `apps/web` use
+  `node --import ./src/lib/i18n/test-setup.ts --test path/to/file.test.ts` (it preloads the English catalogs; without it a module that calls
+  `t()` returns keys). Localising a screen: read `docs/i18n.md` first; `pnpm i18n:check` (plain Node) validates your catalogs.
+- Full suites: `node --test "src/**/*.test.ts"` in each package (`pnpm --filter @kiln/web test` for the web, which adds the `--import` above) (Postgres cases skip without
   `KILN_TEST_POSTGRES_URL`). One known flaky test: webhooks "a disabled webhook, or a secret that cannot
   be read...".
 - Web: copy `apps/web/src` to `$HOME/webcheck/src`, then

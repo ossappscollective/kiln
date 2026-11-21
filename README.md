@@ -21,6 +21,7 @@ anything here.
 - [docs/api/analytics.md](docs/api/analytics.md): store analytics, including the Google Play reports bucket
 - [docs/api/builds.md](docs/api/builds.md): test builds from CI artifacts, TestFlight and Google Play internal sharing
 - [docs/demo.md](docs/demo.md): demo mode, the whole product on simulated stores
+- [docs/i18n.md](docs/i18n.md): localisation of the web app (English, French, Spanish, German): runtime, conventions, tooling; [docs/translating.md](docs/translating.md) for translators and Weblate, [docs/i18n-glossary.md](docs/i18n-glossary.md) for the terms ([ADR 0044](docs/adr/0044-localisation.md))
 
 ## What works today
 
@@ -185,6 +186,7 @@ staging script. The proposal is neither built into an app nor compiled; see the
 pnpm test        # node:test, no extra test runner
 pnpm typecheck
 pnpm lint        # Biome
+pnpm i18n:check  # translation catalogs and the keys used in the web source (also run by pnpm test)
 ```
 
 Postgres cases run only when `KILN_TEST_POSTGRES_URL` is set; otherwise they show as skipped. See
