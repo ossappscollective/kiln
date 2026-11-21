@@ -2366,3 +2366,135 @@ export const easStatusSync = pgTable(
   },
   (t) => [index('eas_status_sync_workspace_idx').on(t.workspaceId)],
 );
+
+/**
+ * RevenueCat next to the store products (migration 48, docs/adr/0039-revenuecat.md): the link between an app record and a RevenueCat
+ * project and app. Not a secret: the key stays in `credentials`. No foreign keys to apps or credentials: deleteApp removes the rows.
+ */
+export const appRevenuecatLinks = pgTable(
+  'app_revenuecat_links',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** No foreign key: a credential can be deleted while a link still names it. */
+    credentialId: text('credential_id').notNull(),
+    projectId: text('project_id').notNull(),
+    projectName: text('project_name').notNull(),
+    rcAppId: text('rc_app_id').notNull(),
+    rcAppName: text('rc_app_name').notNull(),
+    /** app_store, mac_app_store or play_store. */
+    rcAppType: text('rc_app_type').notNull(),
+    /** The bundle id or package name RevenueCat holds for the app. */
+    rcIdentifier: text('rc_identifier'),
+    verifiedAt: epochMs('verified_at').notNull(),
+    linkedBy: text('linked_by').notNull(),
+    createdAt: epochMs('created_at').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [
+    index('app_revenuecat_links_workspace_idx').on(t.workspaceId),
+    index('app_revenuecat_links_credential_idx').on(t.credentialId),
+  ],
+);
+
+/** The products of the linked RevenueCat app, as last read (migration 48). */
+export const revenuecatProducts = pgTable(
+  'revenuecat_products',
+  {
+    appId: text('app_id').notNull(),
+    rcProductId: text('rc_product_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** The store product id, or `subscription_id:base_plan_id` on Google Play. */
+    storeIdentifier: text('store_identifier').notNull(),
+    /** RevenueCat's type, kept as text so a new one still shows. */
+    productType: text('product_type').notNull(),
+    /** active, archived or unknown. */
+    state: text('state').notNull(),
+    rawState: text('raw_state'),
+    displayName: text('display_name'),
+    duration: text('duration'),
+    gracePeriod: text('grace_period'),
+    trialDuration: text('trial_duration'),
+    fetchedAt: epochMs('fetched_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.rcProductId] }),
+    index('revenuecat_products_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** The entitlements of the project that hold a product of the linked app, or none (migration 48). */
+export const revenuecatEntitlements = pgTable(
+  'revenuecat_entitlements',
+  {
+    appId: text('app_id').notNull(),
+    entitlementId: text('entitlement_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    lookupKey: text('lookup_key').notNull(),
+    displayName: text('display_name'),
+    state: text('state').notNull(),
+    rawState: text('raw_state'),
+    /** JSON: the RevenueCat product ids of this app attached to the entitlement. */
+    productIdsJson: text('product_ids_json').notNull().default('[]'),
+    /** Every product attached in the project, of any app. */
+    projectProductCount: integer('project_product_count').notNull().default(0),
+    fetchedAt: epochMs('fetched_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.entitlementId] }),
+    index('revenuecat_entitlements_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** The offerings of the project with the packages that hold a product of the linked app (migration 48). */
+export const revenuecatOfferings = pgTable(
+  'revenuecat_offerings',
+  {
+    appId: text('app_id').notNull(),
+    offeringId: text('offering_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    lookupKey: text('lookup_key').notNull(),
+    displayName: text('display_name'),
+    isCurrent: integer('is_current').notNull().default(0),
+    state: text('state').notNull(),
+    rawState: text('raw_state'),
+    /** JSON: the packages (lookup key, position, product ids with eligibility). */
+    packagesJson: text('packages_json').notNull().default('[]'),
+    fetchedAt: epochMs('fetched_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.offeringId] }),
+    index('revenuecat_offerings_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** The state of the last RevenueCat read of one app record (migration 48). */
+export const revenuecatSync = pgTable(
+  'revenuecat_sync',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    projectId: text('project_id'),
+    credentialId: text('credential_id'),
+    lastAttemptAt: epochMs('last_attempt_at'),
+    lastSyncedAt: epochMs('last_synced_at'),
+    /** A fixed sentence (never RevenueCat's text). */
+    lastError: text('last_error'),
+    failures: integer('failures').notNull().default(0),
+    productCount: integer('product_count').notNull().default(0),
+    otherAppProductCount: integer('other_app_product_count').notNull().default(0),
+    complete: integer('complete').notNull().default(1),
+    warningsJson: text('warnings_json').notNull().default('[]'),
+  },
+  (t) => [index('revenuecat_sync_workspace_idx').on(t.workspaceId)],
+);
