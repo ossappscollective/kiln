@@ -8,6 +8,8 @@ import {
   mapAppleTable,
   PlayReportsConnector,
   type PlayReportsPort,
+  PlaySalesConnector,
+  type PlaySalesPort,
   PlayVitalsConnector,
   type PlayVitalsPort,
   parseTable,
@@ -22,7 +24,9 @@ import {
   analyticsErrorMessages,
   analyticsLimits,
   dateToDay,
+  moneyMetrics,
   sourcesForPlatform,
+  splitProductDimValue,
 } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { enqueue, type JobHandler } from '../../jobs.ts';
@@ -32,6 +36,7 @@ import { useCredentialSecret } from '../../services/credentials.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { getSettings } from '../../services/workspace-settings.ts';
+import { capProductPoints, storedProductIds, storedStoreProductIds } from './product-sales.ts';
 import {
   getAppConfig,
   listReportRequests,
@@ -85,6 +90,13 @@ export type AnalyticsConnectorFactory = {
     bucketId: string;
     fetch: typeof fetch;
   }): PlayReportsPort;
+  /** The Estimated sales reports of the same bucket (needs the Play Console permission View financial data). */
+  playSales(input: {
+    secret: string;
+    packageName: string;
+    bucketId: string;
+    fetch: typeof fetch;
+  }): PlaySalesPort;
 };
 
 export const defaultAnalyticsConnectors: AnalyticsConnectorFactory = {
@@ -97,6 +109,13 @@ export const defaultAnalyticsConnectors: AnalyticsConnectorFactory = {
     }),
   playReports: (input) =>
     new PlayReportsConnector({
+      serviceAccount: input.secret,
+      packageName: input.packageName,
+      bucketId: input.bucketId,
+      fetch: input.fetch,
+    }),
+  playSales: (input) =>
+    new PlaySalesConnector({
       serviceAccount: input.secret,
       packageName: input.packageName,
       bucketId: input.bucketId,
@@ -402,6 +421,14 @@ async function readAppleSales(env: Env, newestDay: string | null): Promise<Outco
   let reports = 0;
   let from: string | null = null;
   let to: string | null = null;
+  // In-app rows are matched to the app by the SKUs of its stored products (the Products page snapshot; no store call).
+  const knownSkus = await storedStoreProductIds(ctx.db, workspaceId, app.id);
+  const stored = await storedProductIds(ctx.db, {
+    workspaceId,
+    appId: app.id,
+    platform: app.platform,
+    source: 'apple_sales',
+  });
   for (const day of days) {
     const text = await port.fetchSalesReport({ vendorNumber: env.vendorNumber, date: day });
     if (text === null) continue;
@@ -409,10 +436,17 @@ async function readAppleSales(env: Env, newestDay: string | null): Promise<Outco
       maxRows: analyticsLimits.maxRows,
       maxColumns: analyticsLimits.maxColumns,
     });
-    const parsed = mapAppleSalesTable(table, {
+    const read = mapAppleSalesTable(table, {
       appleId: app.storeAppId,
+      knownSkus,
       ...(platform ? { platform } : {}),
     });
+    const capped = capProductPoints(read.points, stored);
+    // Products kept now count against the cap of the next day of this sync.
+    for (const p of capped.points)
+      if (p.dimension?.type === 'product')
+        stored.add(splitProductDimValue(p.dimension.value, p.metric === 'sales_proceeds').productId);
+    const parsed = { ...read, points: capped.points };
     reports++;
     const result = await upsertPoints(
       ctx.db,
@@ -543,6 +577,68 @@ async function readPlayReports(env: Env, firstRead: boolean): Promise<Outcome> {
   }
   return { kind: 'done', status: 'ok', points, reports, dayFrom: from, dayTo: to };
 }
+
+/**
+ * Google Play estimated sales (docs/adr/0038-sales-analytics.md): the monthly `sales/salesreport_YYYYMM.zip` of the SAME bucket as
+ * the statistics, for this package only. The current month is read again every time (Google adds to it daily). A month without a
+ * file is expected (a new month, an app that has never sold); a refused folder is `play_sales_forbidden`.
+ */
+async function readPlaySales(env: Env, firstRead: boolean): Promise<Outcome> {
+  const { ctx, app, workspaceId } = env;
+  if (env.bucketId === null) return { kind: 'skip', setup: 'bucket_id_missing' };
+  const port = ctx.connectors.playSales({
+    secret: env.secret,
+    packageName: app.identifier,
+    bucketId: env.bucketId,
+    fetch: env.fetch,
+  });
+  const months = monthsBack(ctx.now(), firstRead ? analyticsWindows.playFirstMonths : 2);
+  const stored = await storedProductIds(ctx.db, {
+    workspaceId,
+    appId: app.id,
+    platform: app.platform,
+    source: 'play_sales',
+  });
+  let points = 0;
+  let reports = 0;
+  let from: string | null = null;
+  let to: string | null = null;
+  for (const month of months) {
+    let result: Awaited<ReturnType<typeof port.readMonth>>;
+    try {
+      result = await port.readMonth(month);
+    } catch (error) {
+      if (error instanceof AnalyticsError && error.code === 'reports_not_found') continue;
+      throw error;
+    }
+    reports++;
+    const capped = capProductPoints(result.points, stored);
+    for (const p of capped.points)
+      if (p.dimension?.type === 'product')
+        stored.add(splitProductDimValue(p.dimension.value, isMoneyMetric(p.metric)).productId);
+    const written = await upsertPoints(
+      ctx.db,
+      {
+        workspaceId,
+        appId: app.id,
+        platform: app.platform,
+        source: 'play_sales',
+        processingDate: dateToDay(ctx.now()),
+        origin: 'sync',
+        now: ctx.now(),
+      },
+      capped.points,
+    );
+    points += written.written;
+    const r = range(capped.points);
+    if (r.from !== null && (from === null || r.from < from)) from = r.from;
+    if (r.to !== null && (to === null || r.to > to)) to = r.to;
+  }
+  return { kind: 'done', status: 'ok', points, reports, dayFrom: from, dayTo: to };
+}
+
+const isMoneyMetric = (metric: string) =>
+  moneyMetrics.indexOf(metric as (typeof moneyMetrics)[number]) >= 0;
 
 // ---------------------------------------------------------------------------------------------
 // The sync
@@ -723,7 +819,9 @@ async function run(
             ? readAppleSales(env, newestDay)
             : source === 'play_vitals'
               ? readPlayVitals(env, newestDay)
-              : readPlayReports(env, firstRead),
+              : source === 'play_sales'
+                ? readPlaySales(env, firstRead)
+                : readPlayReports(env, firstRead),
       );
       work.catch(() => undefined);
       const outcome = await Promise.race([work, timedOut]);

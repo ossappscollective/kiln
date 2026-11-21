@@ -42,11 +42,13 @@ export const setupMessages: Record<AnalyticsSetupCode, string> = {
   request_stopped:
     'Apple stopped the report request because nothing was read for a long time. Enable Apple analytics again.',
   vendor_number_missing:
-    'Optional: set the Apple vendor number in the settings (analytics.appleVendorNumber) to add daily units and proceeds.',
+    'Optional: set the Apple vendor number in the settings (analytics.appleVendorNumber) to add daily units and proceeds, also by product.',
   sales_forbidden:
     'The App Store Connect key may not read Sales and Trends (it needs the Sales and Reports role or higher).',
+  play_sales_forbidden:
+    'The service account may not read the Play Console sales reports. In Play Console, Users and permissions, give it View financial data set to Global, then sync again.',
   bucket_id_missing:
-    'Optional: set the Cloud Storage bucket id of your Play Console reports (analytics.playBucketId) to add installs, ratings and store listing numbers.',
+    'Optional: set the Cloud Storage bucket id of your Play Console reports (analytics.playBucketId) to add installs, ratings, store listing numbers and sales (sales also need the Play Console permission View financial data).',
   bucket_forbidden:
     'The service account may not read the Cloud Storage bucket of the Play Console reports.',
   reporting_api_not_enabled:
@@ -91,6 +93,8 @@ export function deriveSetup(input: SetupInput): Setup | null {
       return mk('play_permission_missing', 'grant_play_permission');
     case 'bucket_forbidden':
       return mk('bucket_forbidden', 'grant_play_permission', { optional: true });
+    case 'play_sales_forbidden':
+      return mk('play_sales_forbidden', 'grant_play_financial_permission', { optional: true });
     case 'store_auth':
     case 'credential_unreadable':
     case 'credential_not_found':
@@ -118,7 +122,7 @@ export function deriveSetup(input: SetupInput): Setup | null {
   }
   if (source === 'apple_sales' && input.vendorNumber === '')
     return mk('vendor_number_missing', 'set_vendor_number', { optional: true });
-  if (source === 'play_reports' && input.bucketId === null)
+  if ((source === 'play_reports' || source === 'play_sales') && input.bucketId === null)
     return mk('bucket_id_missing', 'set_bucket_id', { optional: true });
   if (!importOnly && (state === undefined || state.lastAttemptAt === null))
     return mk('first_sync_pending', 'sync_now');

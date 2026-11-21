@@ -243,7 +243,7 @@ dbTest(
       'updates and other apps are left out',
     );
     const proceeds = await t.rows(
-      "SELECT dim_value, value_micro FROM analytics_daily WHERE metric = 'sales_proceeds' AND day = ? ORDER BY dim_value",
+      "SELECT dim_value, value_micro FROM analytics_daily WHERE metric = 'sales_proceeds' AND dim_type = 'currency' AND day = ? ORDER BY dim_value",
       [t.day(2)],
     );
     assert.deepEqual(

@@ -33,7 +33,7 @@ const seriesSchema = z.object({
   id: z
     .string()
     .describe(
-      'The metric, `sales_proceeds:EUR` for the proceeds of one currency, or `product_page_conversion` / `impression_tap_rate` (derived).',
+      'The metric, `sales_proceeds:EUR` (Apple developer proceeds) or `sales_gross:EUR` (Google Play estimated sales: what buyers paid, tax included, Google’s fee NOT deducted; never called proceeds) for the money of one currency, or `product_page_conversion` / `impression_tap_rate` (derived).',
     ),
   metric: z.enum([...analyticsMetrics, 'product_page_conversion', 'impression_tap_rate']),
   label: z.string(),
@@ -47,7 +47,7 @@ const seriesSchema = z.object({
     .string()
     .nullable()
     .describe(
-      'Only for proceeds: the currency of the payout. Proceeds are never converted or added across currencies.',
+      'Only for money series: the payout currency (Apple proceeds) or the currency of sale (Google estimated sales). Money is never converted or added across currencies.',
     ),
   delayDays: z
     .number()
@@ -91,6 +91,55 @@ const overviewSchema = z.object({
   notes: z
     .array(noteSchema)
     .describe('Limits that apply to the whole app, such as "Google offers no impressions".'),
+});
+
+const productSalesSchema = z.object({
+  appId: z.string(),
+  platform: z.enum(['ios', 'macos', 'android']),
+  from: day,
+  to: day,
+  source: z.enum(['apple_sales', 'play_sales']),
+  measure: z
+    .enum(['apple_proceeds', 'google_buyer_paid_estimate'])
+    .describe(
+      'What `amount` is: Apple developer proceeds, or the Google Play buyer-paid estimate (not proceeds).',
+    ),
+  unitsKind: z.enum(['units', 'orders']),
+  hasSalesData: z
+    .boolean()
+    .describe('Whether any sales day of the app is stored. When false, hide sales and show `sales.setup`.'),
+  enabled: z.boolean(),
+  sales: z.object({
+    source: z.enum(['apple_sales', 'play_sales']),
+    label: z.string(),
+    state: z.enum(['off', 'needs_setup', 'waiting', 'error', 'ready']),
+    setup: z
+      .object({
+        code: z.enum(analyticsSetupCodes),
+        nextStep: z.enum(analyticsNextSteps),
+        alternatives: z.array(z.enum(analyticsNextSteps)),
+        optional: z.boolean(),
+        message: z.string(),
+      })
+      .nullable(),
+    lastOkAt: timestamp.nullable(),
+    lastError: z.object({ code: z.string(), message: z.string() }).nullable(),
+  }),
+  products: z.array(
+    z.object({
+      productId: z.string().describe('Apple SKU or Google Play SKU ID: the productId of the Products page.'),
+      units: z.number().nullable(),
+      amounts: z.array(
+        z.object({
+          currency: z.string(),
+          amount: z.number(),
+          refunds: z.number().nullable().describe('Google only: refunded amounts in the range (positive).'),
+        }),
+      ),
+      days: z.number().int(),
+    }),
+  ),
+  notes: z.array(noteSchema),
 });
 
 const setupSchema = z.object({
@@ -253,7 +302,7 @@ export const analyticsOperations: Operation[] = [
     tags: ['analytics'],
     summary: 'Daily metrics of an app as series, each with its source, delay and coverage',
     description:
-      'Read-only, from what is stored (no store is contacted). `platform` may be left out; if given it must be the app’s platform. `from` and `to` are days (default: the last 28 days up to yesterday; at most 400 days). `granularity` is `day`, `week` (Monday) or `month`. `breakdown` adds the top 10 values of one dimension to the series that have it. Every series says where it comes from (`source`), how late the store may still change a day (`delayDays`), and what limits it (`coverage.notes`, a fixed vocabulary). Apple counts are not unique users; Apple usage data is a sample; proceeds are per currency and never converted; Google offers no impressions.',
+      'Read-only, from what is stored (no store is contacted). `platform` may be left out; if given it must be the app’s platform. `from` and `to` are days (default: the last 28 days up to yesterday; at most 400 days). `granularity` is `day`, `week` (Monday) or `month`. `breakdown` adds the top 10 values of one dimension to the series that have it (`product`: the sales metrics by store product id). Every series says where it comes from (`source`), how late the store may still change a day (`delayDays`), and what limits it (`coverage.notes`, a fixed vocabulary). Apple counts are not unique users; Apple usage data is a sample; Apple proceeds and Google estimated sales (`sales_gross`, `sales_refunds`, `sales_orders`) are per currency and never converted, and the two are different things (proceeds are net of Apple’s commission and tax, Google estimated sales are buyer-paid); Google offers no impressions.',
     risk: 'read',
     access: { action: 'analytics.read' },
     appScope: { kind: 'param', name: 'id' },
@@ -265,6 +314,20 @@ export const analyticsOperations: Operation[] = [
       breakdown: z.enum(analyticsDimensions).optional(),
     }),
     responses: { '200': { description: 'The series.', schema: overviewSchema } },
+  },
+  {
+    id: 'getAppAnalyticsProductSales',
+    method: 'get',
+    path: `${W}/apps/{id}/analytics/product-sales`,
+    tags: ['analytics'],
+    summary: 'Sales of an app by store product (SKU) over a range, from what is stored',
+    description:
+      'Read-only, from stored analytics (no store is contacted). `from` and `to` are days (default: the last 28 days up to yesterday; at most 400). One entry per product id: `units` (Apple: net units; Google: charged orders) and `amounts` PER CURRENCY, never added across currencies. `measure` says what `amount` is: `apple_proceeds` (developer proceeds, already net of refunds) or `google_buyer_paid_estimate` (what buyers paid, tax included, Google’s fee not deducted, with `refunds` listed apart; an estimate, not proceeds). Apple products include in-app purchases and subscriptions matched by SKU (UNVERIFIED). `hasSalesData` is false until a sales day is stored: then `sales.setup` says what is missing (Apple vendor number; Google bucket id and the Play Console permission View financial data).',
+    risk: 'read',
+    access: { action: 'analytics.read' },
+    appScope: { kind: 'param', name: 'id' },
+    query: z.object({ from: z.string().optional(), to: z.string().optional() }),
+    responses: { '200': { description: 'The products.', schema: productSalesSchema } },
   },
   {
     id: 'getAppAnalyticsStatus',

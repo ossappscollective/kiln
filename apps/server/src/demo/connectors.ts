@@ -9,6 +9,7 @@ import type {
   InternalSharingKind,
   InternalSharingUpload,
   PlayReportsPort,
+  PlaySalesPort,
   PlayVitalsPort,
   ReadStoreListingOptions,
   StoreApp,
@@ -692,6 +693,73 @@ function playPoints(
   return out;
 }
 
+/** Demo Google Play estimated sales: two products, buyer-paid amounts in two currencies, a few refunds. Invented numbers. */
+function playSalesPoints(app: (typeof DEMO_APPS)[number]): AnalyticsPoint[] {
+  const out: AnalyticsPoint[] = [];
+  const products = [
+    { sku: 'premium_unlock', eur: 4.99, usd: 4.99, base: 6 },
+    { sku: 'coins_500', eur: 2.49, usd: 2.99, base: 11 },
+  ];
+  for (const p of products) {
+    const sold = dailySeries(`${app.key}:sales:${p.sku}`, 90, p.base, { trend: 0.2 });
+    sold.forEach((s, i) => {
+      const orders = Math.round(s.value);
+      const eur = Math.round(orders * 0.6);
+      const usd = orders - eur;
+      const date = s.date;
+      out.push({ date, metric: 'sales_orders', value: orders });
+      out.push({
+        date,
+        metric: 'sales_orders',
+        value: orders,
+        dimension: { type: 'product', value: p.sku },
+      });
+      for (const [cur, n, price] of [
+        ['EUR', eur, p.eur],
+        ['USD', usd, p.usd],
+      ] as const) {
+        if (n === 0) continue;
+        const amount = Math.round(n * price * 100) / 100;
+        out.push({
+          date,
+          metric: 'sales_gross',
+          value: amount,
+          dimension: { type: 'currency', value: cur },
+        });
+        out.push({
+          date,
+          metric: 'sales_gross',
+          value: amount,
+          dimension: { type: 'product', value: `${cur}:${p.sku}` },
+        });
+        if (i % 9 === 4) {
+          out.push({
+            date,
+            metric: 'sales_refunds',
+            value: price,
+            dimension: { type: 'currency', value: cur },
+          });
+          out.push({
+            date,
+            metric: 'sales_refunds',
+            value: price,
+            dimension: { type: 'product', value: `${cur}:${p.sku}` },
+          });
+        }
+      }
+    });
+  }
+  // The same day of two products adds up in the totals.
+  const merged = new Map<string, AnalyticsPoint>();
+  for (const p of out) {
+    const key = `${p.date}|${p.metric}|${p.dimension?.type ?? ''}|${p.dimension?.value ?? ''}`;
+    const found = merged.get(key);
+    if (found) found.value += p.value;
+    else merged.set(key, { ...p });
+  }
+  return [...merged.values()];
+}
+
 function createAnalytics(world: DemoWorld): AnalyticsConnectorFactory {
   const apple = failing(new DemoApple(), world.failures, 'analytics');
   const appOf = (packageName: string) =>
@@ -744,6 +812,32 @@ function createAnalytics(world: DemoWorld): AnalyticsConnectorFactory {
             };
           },
         } satisfies PlayReportsPort,
+        world.failures,
+        'analytics',
+      ),
+    playSales: (input) =>
+      failing(
+        {
+          async readMonth(month: string) {
+            const all = playSalesPoints(appOf(input.packageName));
+            const points = all.filter((p) => p.date.slice(0, 4) + p.date.slice(5, 7) === month);
+            if (points.length === 0)
+              throw Object.assign(new Error('reports_not_found'), {
+                name: 'AnalyticsError',
+                code: 'reports_not_found',
+              });
+            return {
+              points,
+              file: `sales/salesreport_${month}.zip`,
+              stats: {
+                rowsRead: points.length,
+                rowsUsed: points.length,
+                rowsUnreadable: 0,
+                rowsFiltered: 0,
+              },
+            };
+          },
+        } satisfies PlaySalesPort,
         world.failures,
         'analytics',
       ),

@@ -24,6 +24,7 @@ import {
   type PlayBucketSource,
   safeRatio,
   sourcesForPlatform,
+  splitProductDimValue,
   supports,
 } from '@mrm/core';
 import type { Sql } from '@mrm/db';
@@ -80,7 +81,7 @@ export type SeriesCoverage = {
 };
 
 export type Series = {
-  /** The metric, `sales_proceeds:EUR` for proceeds of one currency, or a derived id. */
+  /** The metric, `sales_proceeds:EUR` or `sales_gross:EUR` for the money of one currency, or a derived id. */
   id: string;
   metric: AnalyticsMetric | 'product_page_conversion' | 'impression_tap_rate';
   label: string;
@@ -119,6 +120,19 @@ const staticNotes: Record<AnalyticsMetric, CoverageNoteCode[]> = {
   crashes: ['apple_usage_opt_in_only', 'apple_usage_sample_not_total', 'apple_privacy_thresholds'],
   sales_units: ['apple_estimates', 'apple_pacific_time', 'apple_in_app_not_included'],
   sales_proceeds: ['apple_estimates', 'apple_proceeds_per_currency', 'apple_pacific_time'],
+  sales_gross: [
+    'play_estimated_sales_gross',
+    'play_sales_per_currency',
+    'play_sales_latency',
+    'play_sales_utc',
+  ],
+  sales_refunds: [
+    'play_estimated_sales_gross',
+    'play_sales_per_currency',
+    'play_sales_latency',
+    'play_sales_utc',
+  ],
+  sales_orders: ['play_estimated_sales_gross', 'play_sales_latency', 'play_sales_utc'],
   crash_rate: ['google_unit_unverified'],
   anr_rate: ['google_unit_unverified'],
   installs_user: ['google_monthly_files'],
@@ -330,9 +344,22 @@ export async function overview(
     if (input.breakdown && dim && dim.length > 0) {
       const sums = new Map<string, number[]>();
       for (const r of dim) {
-        const list = sums.get(r.dimValue);
+        let value = r.dimValue;
+        if (input.breakdown === 'product' && info.unit === 'money') {
+          // A money value of a product is keyed `<CUR>:<product id>`: only this series' currency counts, and the id is shown.
+          const split = splitProductDimValue(value, true);
+          if (split.currency !== cur) continue;
+          value = split.productId;
+        }
+        const list = sums.get(value);
         if (list) list.push(r.value);
-        else sums.set(r.dimValue, [r.value]);
+        else sums.set(value, [r.value]);
+      }
+      if (sums.size === 0) {
+        series.push(item);
+        bucketed.set(id, values);
+        dayMaps.set(id, days);
+        return;
       }
       const items = [...sums.entries()]
         .map(([value, list]) => ({ value, total: aggregate(list, info.aggregation) ?? 0 }))
@@ -347,7 +374,7 @@ export async function overview(
 
   for (const metric of analyticsMetrics) {
     if (!sources.includes(metricInfo[metric].source)) continue;
-    if (metric === 'sales_proceeds') {
+    if (metricInfo[metric].unit === 'money') {
       const rows = currencyRows.get(metric) ?? [];
       const codes = [...new Set(rows.map((r) => r.dimValue))].sort();
       if (codes.length === 0) build(metric, [], metric, null);
@@ -506,6 +533,7 @@ const sourceLabels: Record<AnalyticsSource, string> = {
   apple_sales: 'Sales and Trends',
   play_vitals: 'Android vitals',
   play_reports: 'Play Console reports',
+  play_sales: 'Play Console sales reports',
 };
 
 export async function status(

@@ -23,6 +23,7 @@ import { requireStepUp } from '../../services/step-up.ts';
 import { getPlayBucket, setPlayBucket, testPlayBucket } from './bucket.ts';
 import { applyEnable, previewEnable } from './enable.ts';
 import { applyImport, previewImport } from './import.ts';
+import { productSales } from './product-sales.ts';
 import { checkOverviewQuery, overview, status } from './query.ts';
 import { type AnalyticsContext, syncAnalytics } from './sync.ts';
 
@@ -137,6 +138,34 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
       }),
     );
   });
+
+  routes.get(
+    '/:workspaceId/apps/:id/analytics/product-sales',
+    needs('analytics.read'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const q = (name: string) => c.req.query(name);
+      const checked = checkOverviewQuery(
+        app,
+        {
+          ...(q('from') !== undefined ? { from: q('from') as string } : {}),
+          ...(q('to') !== undefined ? { to: q('to') as string } : {}),
+        },
+        ctx.now(),
+      );
+      if (!checked.ok) return c.json(checked.body, checked.status);
+      return c.json(
+        await productSales(db, {
+          workspaceId: ws(c),
+          app,
+          from: checked.from,
+          to: checked.to,
+          intervalMinutes: ctx.intervalMinutes,
+        }),
+      );
+    },
+  );
 
   routes.get('/:workspaceId/apps/:id/analytics/status', needs('analytics.read'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));

@@ -9,6 +9,8 @@ import {
   type AppleReportRef,
   type AppleReportRequest,
   type PlayReportsPort,
+  type PlaySalesPort,
+  type PlaySalesResult,
   type PlayReportsResult,
   type PlayVitalsPort,
   type PlayVitalsResult,
@@ -389,8 +391,26 @@ export class FakeReports implements PlayReportsPort {
   }
 }
 
+export class FakeSales implements PlaySalesPort {
+  /** By month (YYYYMM). A month without an entry has no file. */
+  months = new Map<string, AnalyticsPoint[]>();
+  error: unknown;
+  asked: string[] = [];
+  async readMonth(month: string): Promise<PlaySalesResult> {
+    this.asked.push(month);
+    if (this.error) throw this.error;
+    const points = this.months.get(month);
+    if (!points) throw new AnalyticsError('reports_not_found');
+    return {
+      points,
+      file: `sales/salesreport_${month}.zip`,
+      stats: { rowsRead: points.length, rowsUsed: points.length, rowsUnreadable: 0, rowsFiltered: 0 },
+    };
+  }
+}
+
 export type BuiltInput = {
-  kind: 'apple' | 'vitals' | 'reports';
+  kind: 'apple' | 'vitals' | 'reports' | 'sales';
   secret: string;
   packageName?: string;
   bucketId?: string;
@@ -405,6 +425,7 @@ export async function bootAnalytics(
   const apple = new FakeApple();
   const vitals = new FakeVitals();
   const reports = new FakeReports();
+  const sales = new FakeSales();
   const built: BuiltInput[] = [];
   const connectors: AnalyticsConnectorFactory = {
     apple: (input) => (built.push({ kind: 'apple', secret: input.secret }), apple),
@@ -419,6 +440,15 @@ export async function bootAnalytics(
         bucketId: input.bucketId,
       }),
       reports
+    ),
+    playSales: (input) => (
+      built.push({
+        kind: 'sales',
+        secret: input.secret,
+        packageName: input.packageName,
+        bucketId: input.bucketId,
+      }),
+      sales
     ),
   };
   // The fixed point of the clock is "today"; every table the tests make is dated relative to it.
@@ -526,6 +556,7 @@ export async function bootAnalytics(
     apple,
     vitals,
     reports,
+    sales,
     built,
     now,
     today,
