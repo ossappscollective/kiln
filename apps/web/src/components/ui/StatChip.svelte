@@ -57,7 +57,8 @@
   }
 
   .v {
-    font-weight: var(--weight-semibold);
+    font-family: var(--font-display);
+    font-weight: var(--weight-display);
   }
 
   .l {
@@ -113,13 +114,13 @@
   }
 
   button.statchip[aria-pressed='true'] {
-    color: var(--accent);
-    background: var(--accent-bg);
+    color: var(--chip-ink);
+    background: var(--chip-bg);
     border-color: var(--accent);
   }
 
   .statchip:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: var(--ring);
     outline-offset: 1px;
   }
 </style>

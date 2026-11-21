@@ -44,7 +44,7 @@
     display: inline-flex;
     gap: 2px;
     padding: 2px;
-    background: var(--surface-sunken);
+    background: var(--track);
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
   }
@@ -64,7 +64,7 @@
     font-weight: var(--weight-medium);
     color: var(--muted);
     cursor: pointer;
-    border-radius: var(--radius-sm);
+    border-radius: calc(var(--radius-md) - 2px);
     transition:
       background-color var(--duration-fast) var(--ease),
       color var(--duration-fast) var(--ease);
@@ -76,7 +76,7 @@
 
   .opt[aria-pressed='true'] {
     color: var(--ink);
-    background: var(--surface);
-    box-shadow: var(--shadow-xs);
+    background: var(--seg-selected);
+    box-shadow: var(--seg-selected-ring);
   }
 </style>

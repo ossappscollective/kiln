@@ -301,17 +301,15 @@
     transition: color var(--duration-fast) var(--ease);
   }
 
-  nav a:hover {
+  nav a:not([aria-current='page']):hover {
     color: var(--ink);
     background: var(--surface-hover);
   }
 
-  /* The page you are on: colour, weight and a bar, so it never rests on colour alone. */
+  /* The page you are on: colour, weight and a bar (app.css, "Sidebar navigation"), so it never rests on colour alone. */
   nav a[aria-current='page'] {
     font-weight: var(--weight-semibold);
     color: var(--ink);
-    background: var(--accent-bg);
-    box-shadow: inset 3px 0 0 var(--accent);
   }
 
   nav a[aria-current='page'] :global(.icon) {

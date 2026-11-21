@@ -7,7 +7,8 @@
   Props: title, key (unique on the page; add the platform or the group to it when several are drawn), level? = 3 (heading level),
   count? (a number or a short text, a chip beside the title), summary? (string or snippet, shown while collapsed), defaultOpen = true,
   variant = 'card' | 'plain', flush? (a card whose body has no padding: tables and lists), keepMounted? (the body stays in the page,
-  hidden, while collapsed), actions? (snippet, right side of the head), onchange? (open), children (the body).
+  hidden, while collapsed), actions? (snippet, right side of the head), edge? (a summary card: the 2px brand-gradient top edge, `.accent-edge`),
+  onchange? (open), children (the body).
 -->
 <script lang="ts">
   import { type Snippet, onMount, untrack } from 'svelte';
@@ -24,6 +25,7 @@
     variant = 'card',
     flush = false,
     keepMounted = false,
+    edge = false,
     actions,
     onchange,
     children,
@@ -37,6 +39,7 @@
     variant?: 'card' | 'plain' | undefined;
     flush?: boolean | undefined;
     keepMounted?: boolean | undefined;
+    edge?: boolean | undefined;
     actions?: Snippet | undefined;
     onchange?: ((open: boolean) => void) | undefined;
     children: Snippet;
@@ -69,7 +72,7 @@
   const hasSummary = $derived(summary !== undefined && summary !== '');
 </script>
 
-<section class="section {variant}" class:open class:flush aria-labelledby="{uid}-title">
+<section class="section {variant}" class:open class:flush class:accent-edge={edge && variant === 'card'} aria-labelledby="{uid}-title">
   <div class="head">
     <svelte:element this={`h${level}`} class="heading" id="{uid}-title">
       <button type="button" class="bare toggle" aria-expanded={open} aria-controls="{uid}-body" onclick={toggle}>
@@ -93,7 +96,7 @@
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-xs);
+    box-shadow: var(--shadow-card);
   }
 
   .head {
@@ -136,7 +139,7 @@
   }
 
   .toggle:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: var(--ring);
     outline-offset: 1px;
   }
 
@@ -157,7 +160,7 @@
     line-height: 1.25rem;
     color: var(--muted);
     background: var(--surface-sunken);
-    border-radius: 999px;
+    border-radius: var(--radius-full);
   }
 
   .summary {

@@ -69,7 +69,7 @@
     flex-wrap: wrap;
     max-width: 100%;
     padding: 2px;
-    background: var(--surface-sunken);
+    background: var(--track);
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
   }
@@ -97,14 +97,15 @@
     background: color-mix(in srgb, var(--ink) 10%, transparent);
   }
 
+  /* The selected segment: a violet ring with a soft glow (--seg-selected-ring). */
   .seg[aria-selected='true'] {
     color: var(--ink);
-    background: var(--surface);
-    box-shadow: var(--shadow-xs);
+    background: var(--seg-selected);
+    box-shadow: var(--seg-selected-ring);
   }
 
   .seg:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: var(--ring);
     outline-offset: 1px;
   }
 

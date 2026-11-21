@@ -154,7 +154,7 @@
     padding: 10px 12px;
     margin-top: 8px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
   }
 
   .actions {

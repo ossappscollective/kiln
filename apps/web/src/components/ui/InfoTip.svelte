@@ -117,7 +117,7 @@
   }
 
   .trigger:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: var(--ring);
     outline-offset: 1px;
   }
 

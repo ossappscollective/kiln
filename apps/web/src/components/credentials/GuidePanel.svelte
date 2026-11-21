@@ -119,7 +119,7 @@
     padding: 16px 18px;
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: var(--radius-md);
   }
 
   h3 {
@@ -158,7 +158,7 @@
     padding: 10px 12px;
     background: var(--warn-bg);
     color: var(--warn-ink);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
   }
 
   .needs h4 {
@@ -221,7 +221,7 @@
     margin-top: 16px;
     padding: 8px 12px;
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
   }
 
   .trouble summary {
@@ -230,7 +230,7 @@
   }
 
   .trouble summary:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: var(--ring);
     outline-offset: 2px;
   }
 

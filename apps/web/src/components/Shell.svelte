@@ -590,7 +590,7 @@
     height: 100dvh;
     padding: var(--space-4) var(--space-3);
     overflow-y: auto;
-    background: var(--surface);
+    background: var(--sidebar);
     border-right: 1px solid var(--line);
   }
 
@@ -639,7 +639,7 @@
   }
 
   .ws:has(select:focus-visible) {
-    outline: 2px solid var(--accent);
+    outline: var(--ring);
     outline-offset: 2px;
   }
 
@@ -723,16 +723,15 @@
       color var(--duration-fast) var(--ease);
   }
 
-  .sidebar nav a:hover {
+  .sidebar nav a:not([aria-current='page']):hover {
     color: var(--ink);
     background: var(--surface-hover);
   }
 
   .sidebar nav a[aria-current='page'] {
+  /* The wash and the gradient bar of the current item are in app.css ("Sidebar navigation"), shared with AppNav. */
     font-weight: var(--weight-semibold);
     color: var(--ink);
-    background: var(--accent-bg);
-    box-shadow: inset 3px 0 0 var(--accent);
   }
 
   .sidebar nav a[aria-current='page'] :global(.icon) {

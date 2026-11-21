@@ -149,7 +149,7 @@
     padding: 10px 12px;
     color: var(--ok-ink);
     background: var(--ok-bg);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
   }
 
   .notice.shown {

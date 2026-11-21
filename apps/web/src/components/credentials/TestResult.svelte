@@ -71,7 +71,7 @@
   .box {
     margin: 10px 0 0;
     padding: 10px 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
   }
 
   .box.ok {

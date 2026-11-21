@@ -231,7 +231,7 @@
     margin: 8px 0 0;
     overflow-x: auto;
     background: var(--surface-sunken);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
   }
 
   .notice {
@@ -240,7 +240,7 @@
     margin: 0 0 16px;
     color: var(--ok-ink);
     background: var(--ok-bg);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
   }
 
   .notice.shown {

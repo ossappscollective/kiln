@@ -21,7 +21,7 @@
       <p class="tagline muted">iOS and Android releases, from one place.</p>
     </div>
     <div class="card panel readable-form">
-      <h1>{title}</h1>
+      <h1 class="gradient-title">{title}</h1>
       {#if subtitle}<p class="muted subtitle">{subtitle}</p>{/if}
       <div class="content">{@render children()}</div>
     </div>
@@ -36,6 +36,7 @@
     min-height: 100vh;
     min-height: 100dvh;
     padding: var(--space-8) var(--space-4);
+    background: var(--ambient) no-repeat;
     place-items: center;
   }
 
@@ -62,8 +63,9 @@
 
   .product {
     margin: 0;
+    font-family: var(--font-display);
     font-size: 1.0625rem;
-    font-weight: var(--weight-semibold);
+    font-weight: var(--weight-display);
   }
 
   .tagline {
@@ -73,7 +75,7 @@
 
   .panel {
     padding: var(--space-8);
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-card);
   }
 
   h1 {

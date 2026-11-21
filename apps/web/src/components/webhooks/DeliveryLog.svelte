@@ -159,6 +159,6 @@
     overflow: auto;
     white-space: pre-wrap;
     background: var(--surface-sunken);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
   }
 </style>

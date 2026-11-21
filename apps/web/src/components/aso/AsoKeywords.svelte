@@ -406,7 +406,7 @@ import { supports } from '@kiln/core';
   }
 
   .star:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: var(--ring);
   }
 
   .move {

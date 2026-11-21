@@ -378,8 +378,9 @@
   }
 
   .big {
+    font-family: var(--font-display);
     font-size: var(--text-xl);
-    font-weight: var(--weight-semibold);
+    font-weight: var(--weight-display);
   }
 
   .facts dt,

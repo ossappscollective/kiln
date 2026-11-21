@@ -221,7 +221,7 @@
     margin-top: 8px;
     overflow: auto;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
   }
 
   .actions {

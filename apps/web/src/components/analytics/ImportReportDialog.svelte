@@ -230,7 +230,7 @@
   }
 
   .drop:focus-within {
-    outline: 2px solid var(--accent);
+    outline: var(--ring);
     outline-offset: 2px;
   }
 
