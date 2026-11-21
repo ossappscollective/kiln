@@ -87,13 +87,14 @@
     border-radius: calc(var(--radius-md) - 2px);
   }
 
-  /* surface-hover is nearly the colour of the track, so the hover is a tint of the ink: visible in both themes. */
   .seg:hover {
     color: var(--ink);
   }
 
-  .seg:not([aria-selected='true']):hover {
-    background: color-mix(in srgb, var(--ink) 8%, transparent);
+  /* surface-hover is nearly the colour of the track, so the hover is a tint of the ink (visible in both themes). The selector is as
+     specific as the global `button.bare:hover:not(:disabled)`, which clears backgrounds and would otherwise win. */
+  .segments button.seg.bare:not([aria-selected='true']):hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ink) 10%, transparent);
   }
 
   .seg[aria-selected='true'] {

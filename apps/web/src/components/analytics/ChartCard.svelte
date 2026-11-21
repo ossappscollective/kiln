@@ -17,6 +17,7 @@
     panelsForCurrency,
     tableFor,
   } from '../../lib/analytics/view.ts';
+  import { browserLocale, chosenCurrency, defaultCurrency, offeredCurrencies, rememberCurrency } from '../../lib/analytics/currency.ts';
   import InfoTip from '../ui/InfoTip.svelte';
   import Section from '../ui/Section.svelte';
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
@@ -30,12 +31,23 @@
   let hover = $state<number | null>(null);
   let chosen = $state<string | undefined>(undefined);
 
-  // Money is never added across currencies. A card with several currencies shows one at a time, the biggest first, instead of one chart each.
-  const currencies = $derived(cardCurrencies(card));
+  // The order of the choices follows the default (not the pick of this visit), so the tabs do not jump when one is clicked.
+  const chosenOrDefault = (list: readonly string[]) => defaultCurrency(list, chosenCurrency(), browserLocale());
+  // A pick is kept in this browser, so every money chart opens on it next time.
+  $effect(() => {
+    if (chosen !== undefined) rememberCurrency(chosen);
+  });
+
+  // Money is never added across currencies. A card with several currencies shows one at a time instead of one chart each.
+  const bySize = $derived(cardCurrencies(card));
+  // It opens on the currency the person chose before, else the one of their locale, else the biggest; that one is offered first.
+  const currency = $derived(
+    chosen !== undefined && bySize.includes(chosen) ? chosen : defaultCurrency(bySize, chosenCurrency(), browserLocale()),
+  );
+  const currencies = $derived(offeredCurrencies(bySize, chosenOrDefault(bySize)));
   const choose = $derived(currencies.length > 1);
   // A handful fit as tabs; Apple can pay in twenty currencies, which would run off the card: those get a list.
   const asTabs = $derived(choose && currencies.length <= 6);
-  const currency = $derived(chosen !== undefined && currencies.includes(chosen) ? chosen : (currencies[0] ?? ''));
   const shown = $derived(choose ? panelsForCurrency(card, currency) : card.panels);
 
   const dates = $derived(cardDates(card));
@@ -75,7 +87,7 @@
         <select id="{uid}-cur" value={currency} onchange={(event) => (chosen = event.currentTarget.value)}>
           {#each currencies as c (c)}<option value={c}>{c}</option>{/each}
         </select>
-        <span class="muted text-sm">{currencies.length} currencies, the biggest first. They are never added together.</span>
+        <span class="muted text-sm">{currencies.length} currencies: yours first, then the biggest. They are never added together.</span>
       </div>
     {/if}
     <div
