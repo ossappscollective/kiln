@@ -469,6 +469,31 @@ export const allSeries = (c: ChartCard): AnalyticsSeries[] => {
   return out;
 };
 
+/** The sum of a panel's first series over the days shown (a missing day counts as nothing). */
+export const panelTotal = (p: ChartPanel): number =>
+  (p.series[0]?.series.points ?? []).reduce((n, pt) => n + (pt.value ?? 0), 0);
+
+/**
+ * The currencies a card draws, the one with the most volume first (by its first panel in that currency). Money is never added across
+ * currencies, so a card with several shows one currency at a time (tabs) instead of one long chart per currency.
+ */
+export function cardCurrencies(c: ChartCard): string[] {
+  const volume = new Map<string, number>();
+  for (const p of c.panels) {
+    if (p.currency && !volume.has(p.currency)) volume.set(p.currency, panelTotal(p));
+  }
+  return [...volume.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([currency]) => currency);
+}
+
+/** The panels shown for one currency: its own, and the ones that belong to no currency (orders). */
+export const panelsForCurrency = (c: ChartCard, currency: string): ChartPanel[] =>
+  c.panels
+    .filter((p) => p.currency === null || p.currency === currency)
+    // The tab already names the currency: a panel titled with just the code needs no title of its own.
+    .map((p) => (p.currency !== null && p.title === p.currency ? { ...p, title: null } : p));
+
 /** The dates of a card's charts (every series of one overview shares them). */
 export const cardDates = (c: ChartCard): string[] =>
   (c.panels[0]?.series[0]?.series.points ?? []).map((p) => p.date);

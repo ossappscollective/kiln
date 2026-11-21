@@ -15,6 +15,7 @@ import {
   buildCards,
   buildChips,
   buildStrip,
+  cardCurrencies,
   cardFreshness,
   cardInfo,
   describePanel,
@@ -23,6 +24,7 @@ import {
   noRatingHistory,
   overallState,
   pageNotes,
+  panelsForCurrency,
   platformNotes,
   scheduleText,
   sourceRows,
@@ -492,4 +494,23 @@ test('Android sales are their own card, named as buyer-paid estimates, one panel
   const notes = pageNotes({ ...base, series: [...base.series, ...androidSalesSeries()] });
   assert.ok(notes.some((t) => /what buyers paid/i.test(t)));
   assert.ok(notes.every((t) => !/server text/.test(t)));
+});
+
+test('a card with several currencies shows one at a time, the biggest first, and never adds them', () => {
+  const base = androidOverview();
+  const sales = buildCards({ ...base, series: [...base.series, ...androidSalesSeries()] }).find((c) => c.id === 'sales');
+  assert.ok(sales);
+  const currencies = cardCurrencies(sales);
+  assert.deepEqual([...currencies].sort(), ['EUR', 'USD']);
+  const first = currencies[0] ?? '';
+  const shown = panelsForCurrency(sales, first);
+  assert.ok(shown.every((p) => p.currency === null || p.currency === first), 'only that currency, plus orders');
+  assert.ok(shown.some((p) => p.id === 'sales_orders'), 'a panel without a currency stays');
+  assert.ok(shown.filter((p) => p.currency === first).every((p) => p.title !== first), 'the tab names the currency');
+  const other = currencies[1] ?? '';
+  assert.ok(panelsForCurrency(sales, other).every((p) => p.currency !== first));
+  // One currency: nothing to choose.
+  const apple = buildCards(without(appleOverview(), 'sales_proceeds:USD')).find((c) => c.id === 'proceeds');
+  assert.ok(apple);
+  assert.deepEqual(cardCurrencies(apple), ['EUR']);
 });
