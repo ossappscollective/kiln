@@ -1,0 +1,11 @@
+{
+  "login.email": "Correo electrónico",
+  "login.password": "Contraseña",
+  "login.passwordRequired": "Introduce tu contraseña.",
+  "login.submit": "Iniciar sesión",
+  "login.submitting": "Iniciando sesión",
+  "login.subtitle": "Usa el correo electrónico y la contraseña de tu cuenta.",
+  "login.title": "Iniciar sesión",
+  "session.ended": "La sesión ha terminado. Vuelve a iniciar sesión.",
+  "tagline": "Los lanzamientos de iOS y Android, en un solo lugar."
+}

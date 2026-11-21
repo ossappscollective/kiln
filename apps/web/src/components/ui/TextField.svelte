@@ -8,6 +8,7 @@
 -->
 <script lang="ts">
   import type { HTMLInputAttributes } from 'svelte/elements';
+  import { t } from '../../lib/i18n/t.ts';
   import Icon from './Icon.svelte';
 
   type Props = Omit<HTMLInputAttributes, 'value' | 'class' | 'children'> & {
@@ -44,7 +45,7 @@
       <button
         type="button"
         class="ghost icon sm"
-        aria-label={shown ? 'Hide password' : 'Show password'}
+        aria-label={shown ? t('common:password.hide') : t('common:password.show')}
         aria-pressed={shown}
         onclick={() => (shown = !shown)}
       >

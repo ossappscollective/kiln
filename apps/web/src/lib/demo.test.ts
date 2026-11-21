@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEMO_BANNER_TEXT, isDemoStatus } from './demo.ts';
+import { DEMO_BANNER_KEY, isDemoStatus } from './demo.ts';
+import { t } from './i18n/t.ts';
 
 test('only an answer that says demo: true is the demo workspace', () => {
   assert.equal(isDemoStatus({ demo: true, seededAt: 1, workspace: null }), true);
@@ -13,6 +14,6 @@ test('only an answer that says demo: true is the demo workspace', () => {
 });
 
 test('the bar says what the demo is', () => {
-  assert.match(DEMO_BANNER_TEXT, /^Demo workspace/);
-  assert.match(DEMO_BANNER_TEXT, /nothing leaves your machine/);
+  assert.match(t(DEMO_BANNER_KEY), /^Demo workspace/);
+  assert.match(t(DEMO_BANNER_KEY), /nothing leaves your machine/);
 });

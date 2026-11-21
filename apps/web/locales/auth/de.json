@@ -1,0 +1,11 @@
+{
+  "login.email": "E-Mail-Adresse",
+  "login.password": "Passwort",
+  "login.passwordRequired": "Geben Sie Ihr Passwort ein.",
+  "login.submit": "Anmelden",
+  "login.submitting": "Anmeldung läuft",
+  "login.subtitle": "Verwenden Sie die E-Mail-Adresse und das Passwort Ihres Kontos.",
+  "login.title": "Anmelden",
+  "session.ended": "Ihre Sitzung ist beendet. Melden Sie sich erneut an.",
+  "tagline": "iOS- und Android-Releases an einem Ort."
+}

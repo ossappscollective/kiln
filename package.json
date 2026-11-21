@@ -17,7 +17,10 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "lint": "biome check .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "i18n:check": "node scripts/i18n.mjs check",
+    "i18n:fix": "node scripts/i18n.mjs fix",
+    "i18n:scan": "node scripts/i18n.mjs scan"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",

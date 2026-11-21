@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { t } from '../lib/i18n/t.ts';
+  import LanguageSelect from './ui/LanguageSelect.svelte';
   import Logo from './ui/Logo.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
   import { productName } from './ui/brand.ts';
@@ -18,7 +20,7 @@
     <div class="brand">
       <Logo size={40} />
       <p class="product">{productName}</p>
-      <p class="tagline muted">iOS and Android releases, from one place.</p>
+      <p class="tagline muted">{t('auth:tagline')}</p>
     </div>
     <div class="card panel readable-form">
       <h1 class="gradient-title">{title}</h1>
@@ -26,7 +28,10 @@
       <div class="content">{@render children()}</div>
     </div>
     {#if footer}<div class="footer muted">{@render footer()}</div>{/if}
-    <div class="theme no-print"><ThemeToggle compact /></div>
+    <div class="prefs no-print">
+      <LanguageSelect />
+      <ThemeToggle compact />
+    </div>
   </div>
 </main>
 
@@ -100,8 +105,11 @@
     text-align: center;
   }
 
-  .theme {
+  .prefs {
     display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    align-items: center;
     justify-content: center;
     margin-top: var(--space-6);
   }

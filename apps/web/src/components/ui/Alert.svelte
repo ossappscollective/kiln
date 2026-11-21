@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { t } from '../../lib/i18n/t.ts';
   import Icon from './Icon.svelte';
 
   let {
@@ -25,7 +26,7 @@
   {#if title}<span class="alert-title">{title}</span>{/if}
   {@render children()}
   {#if ondismiss}
-    <button type="button" class="alert-close" aria-label="Dismiss" onclick={ondismiss}>
+    <button type="button" class="alert-close" aria-label={t('common:action.dismiss')} onclick={ondismiss}>
       <Icon name="x" />
     </button>
   {/if}

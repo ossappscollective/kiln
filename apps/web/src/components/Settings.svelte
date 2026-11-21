@@ -29,6 +29,7 @@
   import { confirmed } from '../lib/step-up-prompt.svelte.ts';
   import { toast } from '../lib/toast.svelte.ts';
   import CredentialForm from './credentials/CredentialForm.svelte';
+  import LanguageSettings from './settings/LanguageSettings.svelte';
   import AnalyticsSettings from './settings/AnalyticsSettings.svelte';
   import JumpTo from './settings/JumpTo.svelte';
   import ReleaseSettings from './settings/ReleaseSettings.svelte';
@@ -228,6 +229,10 @@
       {/if}
     </form>
     {/if}
+  {/if}
+
+  {#if canRead && view === 'general'}
+    <div class="ai"><LanguageSettings /></div>
   {/if}
 
   {#if !isFormView(view)}

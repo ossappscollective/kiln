@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { k, t } from '../../lib/i18n/t.ts';
   import { type ThemePref, getThemePref, onThemePref, setThemePref, themePrefs } from '../../lib/theme.ts';
   import Icon from './Icon.svelte';
   import type { IconName } from './icons.ts';
@@ -17,24 +18,24 @@
   });
 
   const options: Record<ThemePref, { label: string; icon: IconName }> = {
-    auto: { label: 'Auto', icon: 'monitor' },
-    light: { label: 'Light', icon: 'sun' },
-    dark: { label: 'Dark', icon: 'moon' },
+    auto: { label: k('common:theme.auto'), icon: 'monitor' },
+    light: { label: k('common:theme.light'), icon: 'sun' },
+    dark: { label: k('common:theme.dark'), icon: 'moon' },
   };
 </script>
 
-<div class="toggle" class:block role="group" aria-label="Theme">
+<div class="toggle" class:block role="group" aria-label={t('common:theme.label')}>
   {#each themePrefs as p (p)}
     <button
       type="button"
       class="bare opt"
       aria-pressed={pref === p}
-      aria-label={compact ? options[p].label : undefined}
-      title={compact ? options[p].label : undefined}
+      aria-label={compact ? t(options[p].label) : undefined}
+      title={compact ? t(options[p].label) : undefined}
       onclick={() => setThemePref(p)}
     >
       <Icon name={options[p].icon} />
-      {#if !compact}<span>{options[p].label}</span>{/if}
+      {#if !compact}<span>{t(options[p].label)}</span>{/if}
     </button>
   {/each}
 </div>

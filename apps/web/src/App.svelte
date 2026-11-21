@@ -13,6 +13,7 @@
   import ToastHost from './components/ui/ToastHost.svelte';
   import { tokenFromHash } from './components/members/links.ts';
   import { ApiError, createApi } from './lib/api.ts';
+  import { t } from './lib/i18n/t.ts';
   import { initTheme } from './lib/theme.ts';
   import type { Me } from './lib/types.ts';
 
@@ -35,7 +36,7 @@
   const api = createApi({
     onUnauthenticated: () => {
       if (phase.name !== 'app') return;
-      phase = singleUser ? { name: 'launch' } : { name: 'login', notice: 'Your session has ended. Sign in again.' };
+      phase = singleUser ? { name: 'launch' } : { name: 'login', notice: t('auth:session.ended') };
     },
   });
 
@@ -48,7 +49,7 @@
       else if (status.user) phase = { name: 'app', me: await api.me() };
       else phase = { name: 'login' };
     } catch (e) {
-      phase = { name: 'unreachable', message: e instanceof ApiError ? e.message : 'Something went wrong.' };
+      phase = { name: 'unreachable', message: e instanceof ApiError ? e.message : t('common:error.generic') };
     }
   }
 
@@ -56,7 +57,7 @@
     try {
       phase = { name: 'app', me: await api.me() };
     } catch (e) {
-      phase = { name: 'unreachable', message: e instanceof ApiError ? e.message : 'Something went wrong.' };
+      phase = { name: 'unreachable', message: e instanceof ApiError ? e.message : t('common:error.generic') };
     }
   }
 
@@ -95,10 +96,10 @@
 {:else if phase.name === 'loading'}
   <main class="boot" aria-busy="true">
     <Logo size={40} />
-    <p class="muted row" role="status"><Spinner label="" /> Loading</p>
+    <p class="muted row" role="status"><Spinner label="" /> {t('common:state.loading')}</p>
   </main>
 {:else if phase.name === 'unreachable'}
-  <AuthCard title="Cannot reach the server" subtitle="Check that the server is running, then try again.">
+  <AuthCard title={t('common:boot.unreachableTitle')} subtitle={t('common:boot.unreachableHint')}>
     <div class="stack">
       <Alert tone="error">{phase.message}</Alert>
       <Button
@@ -106,7 +107,7 @@
         onclick={() => {
           phase = { name: 'loading' };
           void start();
-        }}>Try again</Button
+        }}>{t('common:action.tryAgain')}</Button
       >
     </div>
   </AuthCard>

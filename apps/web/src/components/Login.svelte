@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ApiError, type Api } from '../lib/api.ts';
+  import { t } from '../lib/i18n/t.ts';
   import { type LoginChallenge, isLoginChallenge } from '../lib/two-factor.ts';
   import { emailProblem } from '../lib/validate.ts';
   import AuthCard from './AuthCard.svelte';
@@ -20,7 +21,7 @@
   let challenge = $state<LoginChallenge | null>(null);
 
   const emailError = $derived(touched.email ? emailProblem(email) : '');
-  const passwordError = $derived(touched.password && !password ? 'Enter your password.' : '');
+  const passwordError = $derived(touched.password && !password ? t('auth:login.passwordRequired') : '');
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -37,7 +38,7 @@
       }
       ondone();
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Something went wrong. Try again.';
+      error = e instanceof ApiError ? e.message : t('common:error.genericRetry');
       password = '';
       touched.password = false;
     } finally {
@@ -57,11 +58,11 @@
     }}
   />
 {:else}
-<AuthCard title="Sign in" subtitle="Use the email and password for your account.">
+<AuthCard title={t('auth:login.title')} subtitle={t('auth:login.subtitle')}>
   <form onsubmit={submit} class="stack" novalidate>
     {#if notice}<Alert tone="info">{notice}</Alert>{/if}
     <TextField
-      label="Email"
+      label={t('auth:login.email')}
       type="email"
       bind:value={email}
       autocomplete="username"
@@ -70,7 +71,7 @@
       onblur={() => (touched.email = true)}
     />
     <TextField
-      label="Password"
+      label={t('auth:login.password')}
       type="password"
       reveal
       bind:value={password}
@@ -81,7 +82,7 @@
     />
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     <Button variant="primary" type="submit" size="lg" block loading={busy}>
-      {busy ? 'Signing in' : 'Sign in'}
+      {busy ? t('auth:login.submitting') : t('auth:login.submit')}
     </Button>
   </form>
 </AuthCard>

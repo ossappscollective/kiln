@@ -13,6 +13,7 @@ import Tokens from '../components/Tokens.svelte';
 import Webhooks from '../components/Webhooks.svelte';
 import Workflows from '../components/Workflows.svelte';
 import type { Api } from './api.ts';
+import { k } from './i18n/t.ts';
 
 /** What the shell hands to every section. */
 export type ViewProps = { api: Api; workspaceId: string; role: Role };
@@ -20,7 +21,8 @@ export type ViewProps = { api: Api; workspaceId: string; role: Role };
 export type ViewDef = {
   /** Used in the URL as `#/<id>`. */
   id: string;
-  label: string;
+  /** The message key of the name in the navigation (translate with `t()` where it is drawn: this list is built once). */
+  labelKey: string;
   /** A name from components/ui/icons.ts, shown beside the label in the navigation. */
   icon?: string;
   component: Component<ViewProps>;
@@ -38,29 +40,29 @@ export const views: ViewDef[] = [
   {
     id: 'portfolio',
     icon: 'smartphone',
-    label: 'All apps',
+    labelKey: k('shell:nav.allApps'),
     component: Portfolio,
     requires: 'apps.read',
   },
   {
     id: 'reviews',
     icon: 'message',
-    label: 'Reviews inbox',
+    labelKey: k('shell:nav.reviews'),
     component: ReviewsInbox,
     requires: 'reviews.read',
   },
-  { id: 'aso', icon: 'trending-up', label: 'ASO', component: AsoOverview, requires: 'aso.read' },
+  { id: 'aso', icon: 'trending-up', labelKey: k('shell:nav.aso'), component: AsoOverview, requires: 'aso.read' },
   {
     id: 'repositories',
     icon: 'git-branch',
-    label: 'Repositories',
+    labelKey: k('shell:nav.repositories'),
     component: Repositories,
     requires: 'repositories.read',
   },
   {
     id: 'workflows',
     icon: 'play',
-    label: 'Workflows',
+    labelKey: k('shell:nav.workflows'),
     component: Workflows,
     requires: 'repositories.read',
   },
@@ -68,7 +70,7 @@ export const views: ViewDef[] = [
     id: 'credentials',
     group: 'workspace',
     icon: 'key',
-    label: 'Credentials',
+    labelKey: k('shell:nav.credentials'),
     component: Credentials,
     requires: 'credentials.read',
   },
@@ -76,7 +78,7 @@ export const views: ViewDef[] = [
     id: 'members',
     group: 'workspace',
     icon: 'users',
-    label: 'Members',
+    labelKey: k('shell:nav.members'),
     component: Members,
     requires: 'members.read',
   },
@@ -84,7 +86,7 @@ export const views: ViewDef[] = [
     id: 'tokens',
     group: 'workspace',
     icon: 'shield',
-    label: 'API tokens',
+    labelKey: k('shell:nav.apiTokens'),
     component: Tokens,
     requires: 'tokens.read',
   },
@@ -92,7 +94,7 @@ export const views: ViewDef[] = [
     id: 'webhooks',
     group: 'workspace',
     icon: 'globe',
-    label: 'Webhooks',
+    labelKey: k('shell:nav.webhooks'),
     component: Webhooks,
     requires: 'webhooks.read',
   },
@@ -100,7 +102,7 @@ export const views: ViewDef[] = [
     id: 'alerts',
     group: 'workspace',
     icon: 'bell',
-    label: 'Alerts',
+    labelKey: k('shell:nav.alerts'),
     component: Alerts,
     requires: 'alerts.read',
   },
@@ -108,7 +110,7 @@ export const views: ViewDef[] = [
     id: 'settings',
     group: 'workspace',
     icon: 'settings',
-    label: 'Settings',
+    labelKey: k('shell:nav.settings'),
     component: Settings,
     requires: 'settings.read',
   },
@@ -116,7 +118,7 @@ export const views: ViewDef[] = [
     id: 'audit',
     group: 'workspace',
     icon: 'history',
-    label: 'Audit log',
+    labelKey: k('shell:nav.auditLog'),
     component: Audit,
     requires: 'audit.read',
   },

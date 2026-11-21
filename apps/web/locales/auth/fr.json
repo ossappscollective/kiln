@@ -1,0 +1,11 @@
+{
+  "login.email": "Adresse e-mail",
+  "login.password": "Mot de passe",
+  "login.passwordRequired": "Saisissez votre mot de passe.",
+  "login.submit": "Se connecter",
+  "login.submitting": "Connexion en cours",
+  "login.subtitle": "Utilisez l’adresse e-mail et le mot de passe de votre compte.",
+  "login.title": "Connexion",
+  "session.ended": "Votre session a expiré. Reconnectez-vous.",
+  "tagline": "Vos publications iOS et Android, au même endroit."
+}

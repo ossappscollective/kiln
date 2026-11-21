@@ -3,6 +3,8 @@
  * server has no such route (404, or the web app's own page). The shell shows a slim, permanent bar when the answer says demo.
  */
 
+import { k } from './i18n/t.ts';
+
 /** Whether an answer of `GET /demo/status` says this is the demo workspace. Anything else (HTML, an error body, nothing) is not demo. */
 export function isDemoStatus(value: unknown): boolean {
   return (
@@ -10,5 +12,5 @@ export function isDemoStatus(value: unknown): boolean {
   );
 }
 
-/** The sentence of the bar. */
-export const DEMO_BANNER_TEXT = 'Demo workspace — simulated stores, nothing leaves your machine';
+/** The message key of the sentence of the bar (translate it with `t()` where it is drawn). */
+export const DEMO_BANNER_KEY = k('shell:demo.banner');

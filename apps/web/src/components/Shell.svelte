@@ -10,12 +10,14 @@
   import { pageTitle } from '../lib/app-nav.ts';
   import { appSwitchHash, jumpTarget, switcherItems, type SwitcherItem } from '../lib/app-switcher.ts';
   import { breadcrumbItems, charsFor, fitCrumbs } from '../lib/breadcrumb.ts';
-  import { DEMO_BANNER_TEXT } from '../lib/demo.ts';
+  import { DEMO_BANNER_KEY } from '../lib/demo.ts';
   import { alertStore } from '../lib/alerts/store.svelte.ts';
   import { platformStatusLines } from '../lib/app-status.ts';
-  import { appNavCounts, badgeLabel, badgeText } from '../lib/nav-badges.ts';
+  import { t } from '../lib/i18n/t.ts';
+  import { appNavCounts, badgeText } from '../lib/nav-badges.ts';
   import { lineFor } from '../lib/pending.ts';
   import { pendingStore } from '../lib/pending-store.svelte.ts';
+  import { roleLabel } from '../lib/role-label.ts';
   import { pipelineStore } from '../lib/pipeline-store.svelte.ts';
   import { navSignals } from '../lib/nav-signals.svelte.ts';
   import { CHORD_TIMEOUT_MS, type ChordState, chordHint, idleChord, isTypingTarget, stepShortcut } from '../lib/shortcuts.ts';
@@ -31,6 +33,7 @@
   import Button from './ui/Button.svelte';
   import EmptyState from './ui/EmptyState.svelte';
   import Icon from './ui/Icon.svelte';
+  import LanguageSelect from './ui/LanguageSelect.svelte';
   import StepUpHost from './StepUpHost.svelte';
   import Logo from './ui/Logo.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
@@ -65,7 +68,7 @@
     me.workspaces.find((w) => w.id === chosen)?.id ?? me.workspaces[0]?.id ?? '',
   );
   const workspace = $derived(me.workspaces.find((w) => w.id === workspaceId));
-  const roleLabel = $derived(workspace ? workspace.role.charAt(0).toUpperCase() + workspace.role.slice(1) : '');
+  const roleName = $derived(workspace ? roleLabel(workspace.role) : '');
 
   const visibleViews = $derived(
     views.filter((v) => !v.requires || !workspace || can(workspace.role, v.requires)),
@@ -74,6 +77,8 @@
   // A `?query` belongs to the screen (`#/reviews?rating=1`, `?platform=ios`): it never changes the section.
   const path = $derived(parseViewPath(address.hash));
   const current = $derived(visibleViews.find((v) => v.id === path.segments[0]) ?? visibleViews[0]);
+  /** The workspace sections as the open app's panel wants them: with the name in the active language. */
+  const railItems = $derived(visibleViews.map((v) => ({ ...v, label: t(v.labelKey) })));
   const mainViews = $derived(visibleViews.filter((v) => v.group !== 'workspace'));
   const workspaceViews = $derived(visibleViews.filter((v) => v.group === 'workspace'));
   /** The open app: while one is open its panel replaces the workspace navigation. */
@@ -261,7 +266,7 @@
   const crumbs = $derived(
     breadcrumbItems({
       workspace: workspace?.name,
-      section: current ? { label: current.label, href: `#/${current.id}` } : null,
+      section: current ? { label: t(current.labelKey), href: `#/${current.id}` } : null,
       appName: appContext.name,
       appOpen: Boolean(appAddr && current),
       page: appAddr ? pageTitle(appAddr.section) : null,
@@ -277,7 +282,7 @@
   const shownCrumbs = $derived(crumbsWidth > 0 ? fitCrumbs(crumbs, charsFor(crumbsWidth)) : crumbs);
 
   $effect(() => {
-    const parts = [appAddr ? appContext.name : '', current?.label, workspace?.name, productName].filter(Boolean);
+    const parts = [appAddr ? appContext.name : '', current ? t(current.labelKey) : '', workspace?.name, productName].filter(Boolean);
     document.title = parts.join(' · ');
   });
 
@@ -350,22 +355,22 @@
   <li>
     <a href="#/{v.id}" aria-current={current?.id === v.id ? 'page' : undefined}>
       <Icon name={isIconName(v.icon) ? v.icon : 'box'} size={18} />
-      <span>{v.label}</span>
+      <span>{t(v.labelKey)}</span>
       {#if badgeText(count)}
-        <span class="badge nav-count {v.id === 'portfolio' ? 'warn' : 'accent'}">{badgeText(count)}<span class="visually-hidden"> {v.id === 'portfolio' ? badgeLabel(count, 'app needs attention', 'apps need attention') : badgeLabel(count, 'unanswered review', 'unanswered reviews')}</span></span>
+        <span class="badge nav-count {v.id === 'portfolio' ? 'warn' : 'accent'}">{badgeText(count)}<span class="visually-hidden"> {#if v.id === 'portfolio'}{t('shell:badge.attention', { count })}{:else}{t('shell:badge.unanswered', { count })}{/if}</span></span>
       {/if}
       {#if hint}<kbd class="nav-hint" aria-hidden="true">{hint}</kbd>{/if}
     </a>
   </li>
 {/snippet}
 
-<a class="skip-link" href="#main" onclick={skipToContent}>Skip to content</a>
+<a class="skip-link" href="#main" onclick={skipToContent}>{t('shell:skipToContent')}</a>
 
 <div class="shell">
   <aside id="sidebar" class="sidebar no-print" data-open={drawerOpen}>
     <div class="side-head">
       <Logo size={28} wordmark />
-      <button type="button" class="ghost icon sm close" aria-label="Close navigation" onclick={() => closeDrawer()}>
+      <button type="button" class="ghost icon sm close" aria-label={t('shell:nav.close')} onclick={() => closeDrawer()}>
         <Icon name="x" />
       </button>
     </div>
@@ -375,11 +380,11 @@
         <span class="ws-mark" aria-hidden="true">{initials(workspace.name)}</span>
         <span class="ws-text">
           <span class="ws-name">{workspace.name}</span>
-          <span class="ws-role">{roleLabel}</span>
+          <span class="ws-role">{roleName}</span>
         </span>
         {#if me.workspaces.length > 1}
           <Icon name="chevron-down" />
-          <label class="visually-hidden" for="workspace">Workspace</label>
+          <label class="visually-hidden" for="workspace">{t('shell:workspace.selectLabel')}</label>
           <select id="workspace" value={workspaceId} onchange={(e) => chooseWorkspace(e.currentTarget.value)}>
             {#each me.workspaces as w (w.id)}<option value={w.id}>{w.name}</option>{/each}
           </select>
@@ -389,16 +394,16 @@
 
     <div bind:this={navEl} class="nav-wrap" class:chord={navSignals.chordPending}>
       {#if appAddr && workspace}
-        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} {unanswered} workspaceItems={visibleViews} counts={appCounts} status={appStatus} switcher={switcherList} mod={modKey} onopenswitcher={() => void navSignals.ensureApps(api, workspaceId)} onpickapp={pickApp} />
+        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} {unanswered} workspaceItems={railItems} counts={appCounts} status={appStatus} switcher={switcherList} mod={modKey} onopenswitcher={() => void navSignals.ensureApps(api, workspaceId)} onpickapp={pickApp} />
       {:else}
-        <nav aria-label="Sections">
+        <nav aria-label={t('shell:nav.sections')}>
           <ul>
             {#each mainViews as v (v.id)}
               {@render item(v)}
             {/each}
           </ul>
           {#if workspaceViews.length > 0}
-            <p class="eyebrow group-label">Workspace</p>
+            <p class="eyebrow group-label">{t('shell:nav.workspaceGroup')}</p>
             <ul>
               {#each workspaceViews as v (v.id)}
                 {@render item(v)}
@@ -414,21 +419,21 @@
     type="button"
     class="bare scrim no-print"
     data-open={drawerOpen}
-    aria-label="Close navigation"
+    aria-label={t('shell:nav.close')}
     tabindex="-1"
     onclick={() => closeDrawer()}
   ></button>
 
   <div class="column" inert={drawerOpen}>
     {#if demo}
-      <p class="demo-bar no-print" role="note" data-testid="demo-banner">{DEMO_BANNER_TEXT}</p>
+      <p class="demo-bar no-print" role="note" data-testid="demo-banner">{t(DEMO_BANNER_KEY)}</p>
     {/if}
     <header class="topbar no-print">
       <button
         bind:this={menuButton}
         type="button"
         class="ghost icon menu-button"
-        aria-label="Open navigation"
+        aria-label={t('shell:nav.open')}
         aria-expanded={drawerOpen}
         aria-controls="sidebar"
         onclick={openDrawer}
@@ -436,7 +441,7 @@
         <Icon name="menu" size={20} />
       </button>
 
-      <nav class="crumbs" aria-label="Breadcrumb" bind:clientWidth={crumbsWidth}>
+      <nav class="crumbs" aria-label={t('shell:breadcrumb.label')} bind:clientWidth={crumbsWidth}>
         <ol>
           {#each shownCrumbs as c (c.kind)}
             {#if c.kind === 'more'}
@@ -448,14 +453,14 @@
                   bind:this={crumbMenuButton}
                   type="button"
                   class="bare crumb-more-button"
-                  aria-label="Show the rest of the path"
+                  aria-label={t('shell:breadcrumb.more')}
                   aria-haspopup="true"
                   aria-expanded={crumbMenuOpen}
                   aria-controls="crumb-menu"
                   onclick={() => (crumbMenuOpen = !crumbMenuOpen)}
                 >…</button>
                 {#if crumbMenuOpen}
-                  <ul id="crumb-menu" class="menu crumb-menu" aria-label="Rest of the path" use:floating={{ anchor: crumbMenuButton ?? null, align: 'start', gap: 6 }}>
+                  <ul id="crumb-menu" class="menu crumb-menu" aria-label={t('shell:breadcrumb.restOfPath')} use:floating={{ anchor: crumbMenuButton ?? null, align: 'start', gap: 6 }}>
                     {#each c.menu as m (m.kind)}
                       <li><a href={m.href ?? undefined} onclick={() => (crumbMenuOpen = false)}>{m.label}</a></li>
                     {/each}
@@ -472,9 +477,9 @@
       </nav>
 
       {#if canApps}
-        <button type="button" class="ghost sm go" aria-label="Go to an app ({modKey} K)" onclick={openSwitcher}>
+        <button type="button" class="ghost sm go" aria-label={t('shell:goToApp.label', { shortcut: `${modKey} K` })} onclick={openSwitcher}>
           <Icon name="search" size={16} />
-          <span class="go-text">Go to app</span>
+          <span class="go-text">{t('shell:goToApp.text')}</span>
           <kbd aria-hidden="true">{isMac ? '⌘' : 'Ctrl'} K</kbd>
         </button>
       {/if}
@@ -488,7 +493,7 @@
           bind:this={userButton}
           type="button"
           class="bare user-button"
-          aria-label="Account menu for {me.user.displayName}"
+          aria-label={t('shell:account.menuLabel', { name: me.user.displayName })}
           aria-haspopup="true"
           aria-expanded={menuOpen}
           aria-controls="user-menu"
@@ -500,7 +505,7 @@
         </button>
 
         {#if menuOpen}
-          <div id="user-menu" class="menu" role="group" aria-label="Account" use:floating={{ anchor: userButton ?? null, align: 'end', gap: 8 }}>
+          <div id="user-menu" class="menu" role="group" aria-label={t('shell:account.group')} use:floating={{ anchor: userButton ?? null, align: 'end', gap: 8 }}>
             <div class="menu-head">
               <span class="avatar large" aria-hidden="true">{initials(me.user.displayName)}</span>
               <div class="menu-who">
@@ -509,12 +514,15 @@
               </div>
             </div>
             <div class="menu-section">
-              <p class="eyebrow">Theme</p>
+              <p class="eyebrow">{t('common:theme.label')}</p>
               <ThemeToggle block />
+            </div>
+            <div class="menu-section">
+              <LanguageSelect layout="stacked" block />
             </div>
             {#if canSignOut}
               <div class="menu-section">
-                <Button variant="ghost" block icon="log-out" loading={signingOut} onclick={signOut}>Sign out</Button>
+                <Button variant="ghost" block icon="log-out" loading={signingOut} onclick={signOut}>{t('shell:account.signOut')}</Button>
               </div>
             {/if}
           </div>
@@ -527,16 +535,16 @@
         {#if !workspace}
           <EmptyState
             icon="layers"
-            title="No workspace yet"
-            description="You are not a member of any workspace. Ask an owner to invite you."
+            title={t('shell:empty.noWorkspace.title')}
+            description={t('shell:empty.noWorkspace.description')}
           />
         {:else if current}
           <current.component {api} workspaceId={workspace.id} role={workspace.role} />
         {:else}
           <EmptyState
             icon="lock"
-            title="Nothing to show yet"
-            description="Your role does not include any sections yet."
+            title={t('shell:empty.noSections.title')}
+            description={t('shell:empty.noSections.description')}
           />
         {/if}
       </div>

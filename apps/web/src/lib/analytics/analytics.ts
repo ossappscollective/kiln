@@ -15,6 +15,7 @@ import {
 } from '@kiln/core';
 import { ApiError } from '../api.ts';
 import { parseViewPath } from '../app-scope.ts';
+import { formatCompact, formatCurrency, formatNumber, formatPercent as formatPercentOf } from '../i18n/format.ts';
 
 /**
  * Analytics in the web UI: the shapes of the API (docs/api/analytics.md), the date range kept in the address,
@@ -277,11 +278,7 @@ export function formatDay(day: string, withYear = false): string {
   return withYear ? `${month} ${d}, ${day.slice(0, 4)}` : `${month} ${d}`;
 }
 
-const group = (n: number): string => {
-  const sign = n < 0 ? '-' : '';
-  const digits = String(Math.round(Math.abs(n)));
-  return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-};
+const group = (n: number): string => formatNumber(Math.round(n), { maximumFractionDigits: 0 });
 
 /** Whole numbers with separators: 12,345. For tooltips and tables, where the exact number is wanted. */
 export const formatCountExact = (n: number): string => (Number.isFinite(n) ? group(n) : '');
@@ -291,44 +288,22 @@ export function formatCount(n: number): string {
   if (!Number.isFinite(n)) return '';
   const a = Math.abs(n);
   if (a < 10_000) return group(n);
-  const compact = (value: number, suffix: string): string =>
-    `${n < 0 ? '-' : ''}${(Math.round(value * 10) / 10).toString()}${suffix}`;
-  if (a < 1_000_000) return compact(a / 1_000, 'K');
-  if (a < 1_000_000_000) return compact(a / 1_000_000, 'M');
-  return compact(a / 1_000_000_000, 'B');
+  return formatCompact(n);
 }
 
 /** A fraction as a percentage with the digits its size needs: 0.0123 is 1.23%, 0.2 is 20%. */
 export function formatPercent(fraction: number, exact = false): string {
   if (!Number.isFinite(fraction)) return '';
-  const p = fraction * 100;
-  const a = Math.abs(p);
-  if (exact) return `${p.toFixed(2)}%`;
-  if (a === 0) return '0%';
-  if (a < 1) return `${p.toFixed(2)}%`;
-  if (a < 10) return `${p.toFixed(1)}%`;
-  return `${Math.round(p)}%`;
+  const a = Math.abs(fraction * 100);
+  const digits = exact || (a > 0 && a < 1) ? 2 : a > 0 && a < 10 ? 1 : 0;
+  return formatPercentOf(fraction, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
-export const formatRating = (n: number): string => (Number.isFinite(n) ? n.toFixed(2) : '');
+export const formatRating = (n: number): string => formatNumber(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Money in its own currency; never converted. A code the runtime does not know is written as text. */
 export function formatMoney(n: number, currency: string | null, exact = false): string {
-  if (!Number.isFinite(n)) return '';
-  const digits = exact || Math.abs(n) < 1_000 ? 2 : 0;
-  if (currency && /^[A-Z]{3}$/.test(currency)) {
-    try {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency,
-        minimumFractionDigits: digits,
-        maximumFractionDigits: digits,
-      }).format(n);
-    } catch {
-      // fall through to the plain form
-    }
-  }
-  return `${currency ? `${currency} ` : ''}${n.toFixed(digits)}`;
+  return formatCurrency(n, currency, { digits: exact || Math.abs(n) < 1_000 ? 2 : 0 });
 }
 
 /** A value for a chip or an axis: compact. */

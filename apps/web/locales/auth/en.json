@@ -1,0 +1,11 @@
+{
+  "login.email": "Email",
+  "login.password": "Password",
+  "login.passwordRequired": "Enter your password.",
+  "login.submit": "Sign in",
+  "login.submitting": "Signing in",
+  "login.subtitle": "Use the email and password for your account.",
+  "login.title": "Sign in",
+  "session.ended": "Your session has ended. Sign in again.",
+  "tagline": "iOS and Android releases, from one place."
+}
