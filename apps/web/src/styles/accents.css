@@ -89,12 +89,15 @@ h1.page-title,
   position: relative;
 }
 
+/* The line runs along the flat part of the top edge only: it starts and ends where the card's rounded corner begins (one
+   radius in from each side), and sits over the 1px border (top: -1px). A full-width strip cannot follow a rounded corner,
+   so it showed as a straight bar crossing the curve. */
 .accent-edge::before {
   position: absolute;
-  inset: 0 0 auto;
+  inset: -1px var(--radius-lg) auto;
   height: 2px;
   pointer-events: none;
   content: "";
   background: var(--brand-gradient-horizontal);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-radius: 2px;
 }

@@ -54,6 +54,18 @@
     box-shadow: var(--shadow-card);
   }
 
+  /* The figure sits straight on the card: no second pill border inside it (a box in a box). */
+  li :global(.statchip) {
+    min-height: 0;
+    padding: 0;
+    line-height: var(--leading-snug);
+    background: transparent;
+    border: 0;
+  }
+
+  li :global(.statchip .v) {
+    font-size: var(--text-xl);
+  }
 
   .delta {
     display: inline-flex;
