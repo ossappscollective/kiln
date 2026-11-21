@@ -2498,3 +2498,28 @@ export const revenuecatSync = pgTable(
   },
   (t) => [index('revenuecat_sync_workspace_idx').on(t.workspaceId)],
 );
+
+/**
+ * The last good read of the RevenueCat metrics overview of the project an app record is linked to (migration 49,
+ * docs/adr/0043-revenuecat-metrics.md), and how the last attempt went. The figures cover the whole project, not one app.
+ */
+export const revenuecatMetrics = pgTable(
+  'revenuecat_metrics',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    projectId: text('project_id').notNull(),
+    /** The currency RevenueCat reported for its money figures; null when it said none. */
+    currency: text('currency'),
+    /** JSON: the metrics as read (id, name, unit, period, value, last_updated_at). */
+    metricsJson: text('metrics_json').notNull().default('[]'),
+    fetchedAt: epochMs('fetched_at'),
+    lastAttemptAt: epochMs('last_attempt_at'),
+    /** A fixed sentence (never RevenueCat's text). */
+    lastError: text('last_error'),
+    failures: integer('failures').notNull().default(0),
+  },
+  (t) => [index('revenuecat_metrics_workspace_idx').on(t.workspaceId)],
+);

@@ -82,6 +82,25 @@ const productRevenueCat = z.object({
   ),
 });
 
+const metric = z.object({
+  id: z.string().describe('RevenueCat’s metric id, verbatim.'),
+  name: z.string(),
+  kind: z.enum(['count', 'money']).describe('A `count` is a plain number of things; `money` is an amount in `currency`.'),
+  value: z.number(),
+  currency: z
+    .string()
+    .nullable()
+    .describe('ISO 4217 code RevenueCat reported for its money figures. Null for a count, and for money when RevenueCat named none (then the amount is not a known currency). Never converted.'),
+  period: z.string().nullable().describe('RevenueCat’s period verbatim: `P0D` is the current value, `P28D` the last 28 days.'),
+  windowDays: z.number().int().nullable().describe('The period in days: 0 for the current value, 28 for `P28D`; null when it is not a number of days.'),
+  lastUpdatedAt: timestamp.nullable().describe('When RevenueCat last updated the figure.'),
+});
+
+export const metricsStep = z.union([
+  z.object({ ok: z.literal(true), metrics: z.number().int().describe('How many figures were read.'), fetchedAt: timestamp }),
+  z.object({ ok: z.literal(false), code: z.string(), message: z.string(), retryAfterSeconds: z.number().int().optional() }),
+]);
+
 const warning = z.object({
   code: z.enum([
     'store_product_not_in_revenuecat',
@@ -211,13 +230,57 @@ export const revenueCatOperations: Draft[] = [
     },
   },
   {
+    id: 'getAppRevenueCatMetrics',
+    method: 'get',
+    path: `${W}/apps/{appId}/revenuecat/metrics`,
+    tags: ['revenuecat'],
+    summary: 'RevenueCat’s own overview figures for the linked project: active subscriptions, active trials, MRR and revenue',
+    description:
+      'The stored copy of RevenueCat’s metrics overview (`GET /v2/projects/{id}/metrics/overview`), read by the RevenueCat sync; asks neither RevenueCat nor a store. These are RevenueCat’s figures for the WHOLE project (`scope: "project"`: every app and every store it knows), not this app alone and not the store consoles’ numbers. `figures` has the four of the Products page strip, each null when RevenueCat reported none (never zero). Money (`mrr`, `revenue`) carries `currency`, the code RevenueCat reported; it is never converted or summed. `revenue` is RevenueCat’s gross of the window (`windowDays`, 28), before store fees and taxes. `metrics` is null before the first good read, and for an app without a link; `status` says how the last attempt went (a failed one keeps the old figures and a fixed `lastError`). Viewers can read it (`apps.read`): revenue is visible to every member of the workspace (ADR 0043). The metric ids other than `active_trials` are unverified guesses with a display-name fallback (docs/api/revenuecat.md).',
+    risk: 'read',
+    access: { action: 'apps.read' },
+    appScope: { kind: 'param', name: 'appId' },
+    responses: {
+      '200': {
+        description: 'The stored figures and the state of the last read.',
+        schema: z.object({
+          supported: z.boolean(),
+          linked: z.boolean(),
+          metrics: z
+            .object({
+              scope: z.literal('project').describe('The figures cover every app and store of the RevenueCat project.'),
+              projectId: z.string(),
+              projectName: z.string(),
+              currency: z.string().nullable().describe('The currency RevenueCat reported for its money figures.'),
+              fetchedAt: timestamp.describe('When the figures were read from RevenueCat.'),
+              figures: z.object({
+                activeSubscriptions: metric.nullable(),
+                activeTrials: metric.nullable(),
+                mrr: metric.nullable(),
+                revenue: metric.nullable(),
+              }),
+              others: z.array(metric).describe('The other metrics RevenueCat reported (customers, for one), in its order.'),
+            })
+            .nullable(),
+          status: z
+            .object({
+              lastAttemptAt: timestamp.nullable(),
+              lastError: z.string().nullable().describe('A fixed sentence about the last failure (never RevenueCat’s text); null after a good read.'),
+              failures: z.number().int().describe('Reads in a row that failed.'),
+            })
+            .nullable(),
+        }),
+      },
+    },
+  },
+  {
     id: 'syncAppRevenueCat',
     method: 'post',
     path: `${W}/apps/{appId}/revenuecat/sync`,
     tags: ['revenuecat'],
     summary: 'Read the RevenueCat configuration of the linked app and replace the stored copy',
     description:
-      'Read-only toward RevenueCat: lists products, entitlements (with their products) and offerings (with packages) of the project and keeps those of the linked app (about 3 to 8 requests, under the 60 a minute of the project configuration; a cap or the rate limit ends the read early and `complete` is false). A failed sync keeps the last good copy (`lastError` on the link read). `POST .../products/sync` runs this as its second step when the app is linked; this route retries only this half. Rate limited per workspace, with the budget of the app sync. `422 revenuecat_not_linked`, `422 revenuecat_app_missing` (RevenueCat no longer has the linked app), `429` (RevenueCat said to slow down), `504 timeout`. Needs `apps.sync`. Audited as `revenuecat.synced` (counts only).',
+      'Read-only toward RevenueCat: lists products, entitlements (with their products) and offerings (with packages) of the project and keeps those of the linked app (about 3 to 8 requests, under the 60 a minute of the project configuration; a cap or the rate limit ends the read early and `complete` is false), then reads the metrics overview of the project (one request; `GET .../revenuecat/metrics`), whose result is in `sync.metrics` and never changes this answer. A failed sync keeps the last good copy (`lastError` on the link read). `POST .../products/sync` runs this as its second step when the app is linked; this route retries only this half. Rate limited per workspace, with the budget of the app sync. `422 revenuecat_not_linked`, `422 revenuecat_app_missing` (RevenueCat no longer has the linked app), `429` (RevenueCat said to slow down), `504 timeout`. Needs `apps.sync`. Audited as `revenuecat.synced` (counts only).',
     risk: 'write',
     access: { action: 'apps.sync' },
     appScope: { kind: 'param', name: 'appId' },
@@ -234,6 +297,9 @@ export const revenueCatOperations: Draft[] = [
             complete: z.boolean(),
             warnings: z.array(z.string()),
             syncedAt: timestamp,
+            metrics: metricsStep.describe(
+              'The metrics overview read after the configuration, with its own result: `ok: false` (for example a key without the Charts & Metrics permission) never changes the configuration copy or this answer’s status.',
+            ),
           }),
         }),
       },

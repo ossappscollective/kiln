@@ -7,6 +7,7 @@ import { getApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import type { Failure } from '../../services/repositories.ts';
 import { detectRevenueCat, getRevenueCatLink, type LinkContext, removeRevenueCatLink, setRevenueCatLink } from './link.ts';
+import { getRevenueCatMetrics } from './metrics.ts';
 import { readRevenueCatSyncStatus } from './snapshot.ts';
 import { notLinkedFailure, syncRevenueCat } from './sync.ts';
 import { getRevenueCatProductsView } from './view.ts';
@@ -75,6 +76,17 @@ export function revenueCatRoutes(
     return c.json({
       supported: supports(found.platform, 'revenueCat'),
       ...(await getRevenueCatProductsView(db, ws(c), found.id)),
+    });
+  });
+
+  // The stored metrics overview (docs/adr/0043-revenuecat-metrics.md): reads the database, never RevenueCat. `apps.read`: viewers see it.
+  app.get('/:workspaceId/apps/:appId/revenuecat/metrics', needs('apps.read'), async (c) => {
+    const found = await appOf(c);
+    if (!found) return c.json({ error: 'not_found' }, 404);
+    return c.json({
+      supported: supports(found.platform, 'revenueCat'),
+      linked: (await getRevenueCatLink(db, ws(c), found.id)) !== null,
+      ...(await getRevenueCatMetrics(db, ws(c), found.id)),
     });
   });
 

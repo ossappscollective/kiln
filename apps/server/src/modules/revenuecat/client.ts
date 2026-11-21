@@ -78,8 +78,20 @@ export async function revenueCatClientFor(
   if (secret === undefined) {
     return failure(422, 'credential_not_found', 'That credential does not exist.');
   }
+  return revenueCatClientFromSecret(secret, deps, use.signal);
+}
+
+/**
+ * A client for a key that is already open, with the same network seam and deadline. The metrics read uses its own client: its limit
+ * (25 requests a minute for Charts & Metrics) is a different domain from the configuration reads, so the request budget and the usage
+ * headers a configuration read left behind must not stop it.
+ */
+export function revenueCatClientFromSecret(
+  secret: string,
+  deps: RevenueCatDeps | undefined,
+  signal?: AbortSignal | undefined,
+): RevenueCatClientResult {
   const base = deps?.fetch ?? globalThis.fetch;
-  const signal = use.signal;
   const send: typeof fetch = signal
     ? (target, init) =>
         base(target, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, signal]) : signal })

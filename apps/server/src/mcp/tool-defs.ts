@@ -605,7 +605,7 @@ const readTools: ToolDef[] = [
       platform: z.enum(['ios', 'macos', 'android']).optional(),
     }),
     description:
-      'Daily, weekly or monthly metrics from the stores (impressions, downloads, sessions, crashes, ratings, Apple proceeds, Google Play estimated sales which are what buyers paid and not proceeds, ...) with totals and data coverage. Money is per currency and never converted. Default granularity: week.',
+      'Daily, weekly or monthly metrics from the stores (impressions, downloads, sessions, crashes, ratings, Apple proceeds, Google Play estimated sales which are what buyers paid and not proceeds, Google Play monthly earnings which are net of the fees and taxes Google takes, subscription counts, ...) with totals and data coverage. Money is per currency and never converted; counts have no unit; monthly earnings are labelled monthly (use granularity month). Default granularity: week.',
     query: (a) => ({
       from: a.from,
       to: a.to,
@@ -633,6 +633,16 @@ const readTools: ToolDef[] = [
     description:
       'Sales by product id (SKU) from stored analytics, default the last 28 days: units or orders and amounts per currency, never added across currencies. `measure` says what the amount is: Apple developer proceeds, or a Google Play estimate of what buyers paid (not proceeds). Empty with `hasSalesData: false` until sales are set up.',
     query: (a) => ({ from: a.from, to: a.to }),
+  },
+  {
+    name: 'get_revenuecat_metrics',
+    title: 'RevenueCat overview figures of an app',
+    kind: 'read',
+    op: 'getAppRevenueCatMetrics',
+    params: { appId: 'appId' },
+    input: strict({ appId }),
+    description:
+      "RevenueCat's own overview figures from the stored copy (read by the RevenueCat sync; RevenueCat is not called): active subscriptions, active trials, MRR and revenue of the last 28 days. They cover the whole RevenueCat project, every app and store of it, not only this app, and they are RevenueCat's numbers, not the store consoles'. Money carries the currency RevenueCat reported and is never converted; revenue is gross, before store fees and taxes. A figure RevenueCat did not report is null, never zero. `metrics` is null until the app is linked and synced.",
   },
   {
     name: 'list_build_artifacts',

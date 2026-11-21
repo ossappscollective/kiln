@@ -1,6 +1,7 @@
 import { PLATFORMS } from '@kiln/core';
 import { z } from 'zod';
 import { type Draft, reviewStore, timestamp, W } from '../../operations/shared.ts';
+import { metricsStep } from '../revenuecat/operations.ts';
 
 /** The operations of in-app products (docs/api/products.md). The registry (operations/registry.ts) lists them. */
 
@@ -95,6 +96,7 @@ const revenueCatStepSchema = z
       complete: z.boolean(),
       warnings: z.array(z.string()),
       syncedAt: timestamp,
+      metrics: metricsStep.describe('The RevenueCat metrics overview read after the configuration, with its own result (ADR 0043).'),
     }),
     z.object({ ok: z.literal(false), code: z.string(), message: z.string(), retryAfterSeconds: z.number().int().optional() }),
   ])

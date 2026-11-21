@@ -4,9 +4,10 @@ import type { Database } from '@kiln/db';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
-import { REVENUECAT_SYNC_PURPOSE, revenueCatClientFor, revenueCatFailure } from './client.ts';
+import { REVENUECAT_SYNC_PURPOSE, revenueCatClientFor, revenueCatClientFromSecret, revenueCatFailure } from './client.ts';
 import type { RevenueCatDeps } from './index.ts';
 import { getRevenueCatLink, notSupportedFailure } from './link.ts';
+import { type RevenueCatMetricsStep, syncRevenueCatMetrics } from './metrics.ts';
 import { recordRevenueCatFailure, replaceRevenueCatSnapshot } from './snapshot.ts';
 
 /**
@@ -37,6 +38,11 @@ export type RevenueCatSyncResult = {
   complete: boolean;
   warnings: string[];
   syncedAt: number;
+  /**
+   * The metrics overview read after the configuration (docs/adr/0043-revenuecat-metrics.md). It has its own result: a key without the
+   * Charts & Metrics permission fails here and nowhere else, and the configuration above is kept either way.
+   */
+  metrics: RevenueCatMetricsStep;
 };
 
 /** What the products sync reports for its RevenueCat step: the result, or a code and a fixed sentence. */
@@ -122,9 +128,23 @@ export async function syncRevenueCat(
         at,
       });
     });
+    // The metrics overview: best effort, its own request client (a different RevenueCat rate limit), never fails the sync.
+    const metricsClient = revenueCatClientFromSecret(opened.secret, ctx.deps, controller.signal);
+    const metrics: RevenueCatMetricsStep = metricsClient.ok
+      ? await syncRevenueCatMetrics(ctx.db, {
+          client: metricsClient.client,
+          secret: opened.secret,
+          workspaceId: input.workspaceId,
+          appId: app.id,
+          projectId: link.projectId,
+          signal: controller.signal,
+          at,
+        })
+      : { ok: false, code: String(metricsClient.body.error), message: String(metricsClient.body.message ?? metricsClient.body.error) };
     return {
       ok: true,
       result: {
+        metrics,
         products: config.products.length,
         entitlements: config.entitlements.length,
         offerings: config.offerings.length,

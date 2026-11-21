@@ -58,6 +58,8 @@ const TABLES = [
   'revenuecat_entitlements',
   'revenuecat_offerings',
   'revenuecat_sync',
+  // The metrics overview (migration 49, modules/revenuecat/metrics.ts) is about the linked project: a changed link clears it too.
+  'revenuecat_metrics',
 ] as const;
 
 /** Deletes the cached configuration and the sync state of an app record (its link was removed or now names another project or app). */

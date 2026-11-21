@@ -523,6 +523,7 @@ export async function deleteApp(
       'revenuecat_entitlements',
       'revenuecat_offerings',
       'revenuecat_sync',
+      'revenuecat_metrics',
     ]) {
       await tx.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
         input.id,

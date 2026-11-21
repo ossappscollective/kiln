@@ -21,6 +21,32 @@ export { errorBody, KEY as REVENUECAT_KEY, PROJECT_ID };
 export const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
 
+/** The shape of RevenueCat's overview answer (made-up numbers; the ids other than `active_trials` are UNVERIFIED guesses). */
+export function overviewBody(currency = 'USD') {
+  const metric = (id: string, name: string, unit: string, period: string, value: number) => ({
+    object: 'overview_metric',
+    id,
+    name,
+    description: name,
+    unit,
+    period,
+    value,
+    last_updated_at: 1_700_000_000_000,
+    last_updated_at_iso8601: '2023-11-14T22:13:20Z',
+  });
+  return {
+    object: 'overview_metrics',
+    currency,
+    metrics: [
+      metric('active_trials', 'Active Trials', '#', 'P0D', 12),
+      metric('active_subscriptions', 'Active Subscriptions', '#', 'P0D', 340),
+      metric('mrr', 'MRR', '$', 'P0D', 1234.5),
+      metric('revenue', 'Revenue', '$', 'P28D', 2000),
+      metric('new_customers', 'New Customers', '#', 'P28D', 77),
+    ],
+  };
+}
+
 export type RcCall = { method: string; path: string; query: URLSearchParams; authorization: string };
 
 /** Answers like RevenueCat REST v2: projects, apps, and the three configuration lists. `next` makes the following calls answer something else. */
@@ -31,6 +57,9 @@ export class FakeRevenueCat {
   products: unknown[] = [];
   entitlements: unknown[] = [];
   offerings: unknown[] = [];
+  /** The body of `GET /metrics/overview`; `overviewStatus` makes it answer an error instead (403 for a key without the permission). */
+  overview: unknown = overviewBody();
+  overviewStatus: number | undefined;
   /** Answers handed out, in order, instead of the normal one: a Response, or an Error to throw. */
   next: (Response | Error)[] = [];
 
@@ -46,7 +75,11 @@ export class FakeRevenueCat {
     const queued = this.next.shift();
     if (queued instanceof Error) throw queued;
     if (queued) return queued;
-    return json(this.answer(url.pathname.replace('/v2', '')));
+    const path = url.pathname.replace('/v2', '');
+    if (path.endsWith('/metrics/overview') && this.overviewStatus !== undefined) {
+      return json({ object: 'error', message: 'nope', type: 'permission_error' }, this.overviewStatus);
+    }
+    return json(this.answer(path));
   };
 
   private answer(path: string): unknown {
@@ -61,6 +94,7 @@ export class FakeRevenueCat {
     if (path === `${base}/products`) return list(this.products);
     if (path === `${base}/entitlements`) return list(this.entitlements);
     if (path === `${base}/offerings`) return list(this.offerings);
+    if (path === `${base}/metrics/overview`) return this.overview;
     return errorBody('resource_missing');
   }
 
@@ -139,6 +173,7 @@ export async function bootRevenueCat(
       'revenuecat_entitlements',
       'revenuecat_offerings',
       'revenuecat_sync',
+      'revenuecat_metrics',
       'store_product_sync',
     ]) {
       const rows = await db.query(`SELECT * FROM ${table}`);
