@@ -309,6 +309,9 @@
   /* The page you are on: colour, weight and a bar (app.css, "Sidebar navigation"), so it never rests on colour alone. */
   nav a[aria-current='page'] {
     font-weight: var(--weight-semibold);
+    /* The bar sits flush on the left: square there, rounded on the right. Must be repeated here, because the rule
+       above ("nav a") is scoped and would otherwise round all four corners and leave the bar sticking out. */
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
     color: var(--ink);
   }
 
