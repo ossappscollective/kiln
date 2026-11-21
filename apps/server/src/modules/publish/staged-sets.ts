@@ -18,7 +18,7 @@ import {
   slotMaxFiles,
   sniffImageFormat,
   validateAssets,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';

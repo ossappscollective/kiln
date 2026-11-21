@@ -16,7 +16,7 @@
   Review text is written by customers and is shown as plain text only. It never goes into a URL.
 -->
 <script lang="ts">
-  import { can, needsStoreAppId, type Role, storeOf, supports } from '@mrm/core';
+  import { can, needsStoreAppId, type Role, storeOf, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';

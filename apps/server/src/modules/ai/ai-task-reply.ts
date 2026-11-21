@@ -1,5 +1,5 @@
-import { checkReplyText, type JsonSchema, normalizeReplyText } from '@mrm/connectors';
-import { type AiFlag, type AiReplyProposal, aiLimits } from '@mrm/core';
+import { checkReplyText, type JsonSchema, normalizeReplyText } from '@kiln/connectors';
+import { type AiFlag, type AiReplyProposal, aiLimits } from '@kiln/core';
 import { replyLimitFor } from '../reviews/replies.ts';
 import { getReview, type StoreKey } from '../reviews/service.ts';
 import { hasPersonalData, looksLikePromise } from './ai-app-context.ts';

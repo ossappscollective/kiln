@@ -11,8 +11,8 @@ import {
   type PlayListing,
   platformMeta,
   validateListing,
-} from '@mrm/core';
-import type { Row, Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Row, Sql } from '@kiln/db';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import {

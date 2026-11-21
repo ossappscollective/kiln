@@ -5,7 +5,7 @@ import {
   type Platform,
   type Role,
   supports,
-} from '@mrm/core';
+} from '@kiln/core';
 import { ApiError } from './api.ts';
 import { confirmationMatches } from './store-submit.ts';
 

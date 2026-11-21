@@ -12,7 +12,7 @@ being asked; and there was no clear place to edit and ask for suggestions on the
 ## Decision
 
 1. **Start Keywords with what the listing uses now.** A block "Keywords your listing uses now" sits above the tracker. It is derived in the web from data it
-   already loads (`GET /aso/listing-keywords`, the stored text of every locale) with `@mrm/core` (`listingRows`, the tokenizer of `aso.ts`), plus phrases cut
+   already loads (`GET /aso/listing-keywords`, the stored text of every locale) with `@kiln/core` (`listingRows`, the tokenizer of `aso.ts`), plus phrases cut
    from the title and the subtitle or short description (`keyword-use.ts`). App Store: the keyword field entries and the words of name and subtitle. Google
    Play: words and phrases of title, short and full description; the view says in plain words that Play has no keyword field and the list is derived. A
    locale without stored text shows an empty state that points to Sync (reading the store only copies text into the tool).

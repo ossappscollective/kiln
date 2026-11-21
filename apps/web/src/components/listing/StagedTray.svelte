@@ -11,7 +11,7 @@
   Props: api, workspaceId, role, members (the app records in scope).
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { NOT_SUBMITTED, SUBMIT_NEXT_STEP, itemCount, pushAvailability } from '../../lib/staged.ts';

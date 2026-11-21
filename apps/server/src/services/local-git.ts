@@ -15,7 +15,7 @@ import {
 } from 'node:fs/promises';
 import { devNull, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { redactSecrets, secretStrings } from '@mrm/connectors';
+import { redactSecrets, secretStrings } from '@kiln/connectors';
 
 /**
  * Local clones: checking a folder a person wants to attach, and asking its repository a few

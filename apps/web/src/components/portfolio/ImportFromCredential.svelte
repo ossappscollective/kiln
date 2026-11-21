@@ -9,7 +9,7 @@
   (closes the dialog), busy (bindable; true while a request runs, so the dialog is not dismissed).
 -->
 <script lang="ts">
-  import { credentialKindInfo, isCredentialKind } from '@mrm/core';
+  import { credentialKindInfo, isCredentialKind } from '@kiln/core';
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { repositoryName } from '../../lib/repositories.ts';

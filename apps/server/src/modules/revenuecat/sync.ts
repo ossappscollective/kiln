@@ -1,6 +1,6 @@
-import { getRevenueCatApp, readRevenueCatConfiguration } from '@mrm/connectors';
-import { type ActorType, supports } from '@mrm/core';
-import type { Database } from '@mrm/db';
+import { getRevenueCatApp, readRevenueCatConfiguration } from '@kiln/connectors';
+import { type ActorType, supports } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';

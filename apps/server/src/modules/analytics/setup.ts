@@ -1,4 +1,4 @@
-import type { AnalyticsNextStep, AnalyticsSetupCode, AnalyticsSource } from '@mrm/core';
+import type { AnalyticsNextStep, AnalyticsSetupCode, AnalyticsSource } from '@kiln/core';
 import type { AppleMode, SourceState, StoredRequest } from './store.ts';
 
 /**

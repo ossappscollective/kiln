@@ -1,5 +1,5 @@
-import { needsStoreAppId, parsePlatform } from '@mrm/core';
-import type { Database } from '@mrm/db';
+import { needsStoreAppId, parsePlatform } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { enqueue } from '../../jobs.ts';
 import { purgeOrphanTranslations } from '../../services/translation.ts';
 import { purgeAiData } from '../ai/ai-suggestions.ts';

@@ -1,5 +1,5 @@
 import { createPrivateKey } from 'node:crypto';
-import { checkSecret } from '@mrm/core';
+import { checkSecret } from '@kiln/core';
 import { redactSecrets, secretStrings } from '../errors.ts';
 import type { VerifyOptions, VerifyResult } from '../verify.ts';
 import { signGithubAppJwt } from './github.ts';

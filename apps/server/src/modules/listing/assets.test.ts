@@ -11,9 +11,9 @@ import type {
   BlobHeadsOptions,
   BlobListing,
   BlobReads,
-} from '@mrm/connectors';
-import type { Database } from '@mrm/db';
-import { dbTest } from '@mrm/db/testing';
+} from '@kiln/connectors';
+import type { Database } from '@kiln/db';
+import { dbTest } from '@kiln/db/testing';
 import {
   CARD_APP,
   SCAN_APP,

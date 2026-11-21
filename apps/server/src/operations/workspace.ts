@@ -5,7 +5,7 @@ import {
   roles,
   translationModes,
   translationProviders,
-} from '@mrm/core';
+} from '@kiln/core';
 import { z } from 'zod';
 import { eventTypes } from '../services/event-types.ts';
 import { createTokenBody } from '../services/tokens.ts';

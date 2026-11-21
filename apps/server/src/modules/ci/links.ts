@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { PLATFORMS, type Platform, RELEASE_STATES, type ReleaseState, supports } from '@mrm/core';
-import { oneOf, type Row, type Sql } from '@mrm/db';
+import { PLATFORMS, type Platform, RELEASE_STATES, type ReleaseState, supports } from '@kiln/core';
+import { oneOf, type Row, type Sql } from '@kiln/db';
 import { type AppRelease, listAppReleases, type ManagedApp } from '../../services/apps.ts';
 import { RUN_COLUMNS, runCountsForApp, runViews, type WorkflowRunView } from './runs.ts';
 import type { Confidence, LinkEvidence } from './tags.ts';

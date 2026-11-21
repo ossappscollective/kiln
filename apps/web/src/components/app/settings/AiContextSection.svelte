@@ -8,7 +8,7 @@
   Props: api, workspaceId, role, members (the records in scope).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { aiErrorMessage } from '../../../lib/ai/ai.ts';
   import {

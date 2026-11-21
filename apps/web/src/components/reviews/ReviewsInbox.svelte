@@ -17,7 +17,7 @@
   Review text is written by customers: plain text only, never markup, never in a URL.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { onMount, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { appReviewsHref } from '../../lib/app-scope.ts';

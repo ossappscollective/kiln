@@ -9,7 +9,7 @@ import type { MiddlewareHandler } from 'hono';
  */
 
 /** The only user single-user mode has. It has no password hash, so it can never log in. */
-export const LOCAL_USER_EMAIL = 'local-user@mrm.invalid';
+export const LOCAL_USER_EMAIL = 'local-user@kiln.invalid';
 
 const sha256 = (value: string) => createHash('sha256').update(value).digest();
 

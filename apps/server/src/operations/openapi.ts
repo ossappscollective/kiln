@@ -1,4 +1,4 @@
-import { type Action, tokenForbiddenActions } from '@mrm/core';
+import { type Action, tokenForbiddenActions } from '@kiln/core';
 import type { ZodTypeAny } from 'zod';
 
 /**

@@ -1,4 +1,4 @@
-import { APPLE_DOCUMENTED_CALLS_PER_MINUTE, PLAY_UNOFFICIAL_NOTICE } from '@mrm/connectors';
+import { APPLE_DOCUMENTED_CALLS_PER_MINUTE, PLAY_UNOFFICIAL_NOTICE } from '@kiln/connectors';
 import {
   type Action,
   can,
@@ -6,7 +6,7 @@ import {
   INDEXED_FIELDS,
   normalizeCountry,
   supports,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';

@@ -20,7 +20,7 @@
   Review text is written by customers: plain text only, never markup, never in a URL.
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import { onMount, tick, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { fullTime } from '../../lib/format.ts';

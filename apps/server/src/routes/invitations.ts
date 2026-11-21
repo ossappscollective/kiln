@@ -1,4 +1,4 @@
-import { type Action, can, invitableBy, invitableRoles } from '@mrm/core';
+import { type Action, can, invitableBy, invitableRoles } from '@kiln/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';

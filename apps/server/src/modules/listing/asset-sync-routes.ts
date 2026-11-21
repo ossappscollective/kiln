@@ -7,8 +7,8 @@ import {
   FIX_KINDS,
   type FixKind,
   sniffImageFormat,
-} from '@mrm/core';
-import type { Database } from '@mrm/db';
+} from '@kiln/core';
+import type { Database } from '@kiln/db';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';

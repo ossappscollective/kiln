@@ -9,7 +9,7 @@
   that is not production, so "Promote to production" is offered; it opens Prepare release with its version codes).
 -->
 <script lang="ts">
-  import { can, platformMeta, type Role, supports } from '@mrm/core';
+  import { can, platformMeta, type Role, supports } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { type PlatformScope, appAddress } from '../../lib/app-scope.ts';
   import { runBadge } from '../../lib/ci/ci.ts';

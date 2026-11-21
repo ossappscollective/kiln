@@ -1,4 +1,4 @@
-import type { Role } from '@mrm/core';
+import type { Role } from '@kiln/core';
 
 export const roleLabel: Record<Role, string> = {
   owner: 'Owner',

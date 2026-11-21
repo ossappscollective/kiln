@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { Platform, StoreId } from '@mrm/core';
+import type { Platform, StoreId } from '@kiln/core';
 import { StoreError, type StoreName } from './errors.ts';
 
 /**

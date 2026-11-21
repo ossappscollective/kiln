@@ -9,7 +9,7 @@
   a test are ONE word (lib/readable-forms.ts) with a quiet action beside it; the long note about the address sits behind a disclosure.
 -->
 <script lang="ts">
-  import { type TranslationMode, translationModes } from '@mrm/core';
+  import { type TranslationMode, translationModes } from '@kiln/core';
   import {
     type FormErrors,
     type SettingsForm,

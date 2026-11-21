@@ -1,4 +1,4 @@
-import { type Action, can, type Role, type TokenRole, tokenActions, tokenRoles } from '@mrm/core';
+import { type Action, can, type Role, type TokenRole, tokenActions, tokenRoles } from '@kiln/core';
 import { fullTime, timeAgo } from './format.ts';
 import type { ApiToken } from './types.ts';
 

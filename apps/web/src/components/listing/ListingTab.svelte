@@ -15,7 +15,7 @@
   change set. The draft is reviewed and applied (as a pull request or a commit on a new branch of the local clone) in the repository's Change sets tab.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';

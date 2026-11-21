@@ -1,6 +1,6 @@
-import type { StoreConnector } from '@mrm/connectors';
-import { type ActorType, storeSideId } from '@mrm/core';
-import type { Database } from '@mrm/db';
+import type { StoreConnector } from '@kiln/connectors';
+import { type ActorType, storeSideId } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { enqueue, type Job, type JobHandler } from '../../jobs.ts';
 import {
   APP_SYNC_QUEUE,

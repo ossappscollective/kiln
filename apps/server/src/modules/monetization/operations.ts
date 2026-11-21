@@ -1,4 +1,4 @@
-import { PLATFORMS } from '@mrm/core';
+import { PLATFORMS } from '@kiln/core';
 import { z } from 'zod';
 import { type Draft, reviewStore, timestamp, W } from '../../operations/shared.ts';
 

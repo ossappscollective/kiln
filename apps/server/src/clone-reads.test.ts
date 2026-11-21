@@ -14,9 +14,9 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
-import { GitCloneError, GithubError } from '@mrm/connectors';
-import type { Database, Sql } from '@mrm/db';
-import { dbTest, openSqliteTestDatabase } from '@mrm/db/testing';
+import { GitCloneError, GithubError } from '@kiln/connectors';
+import type { Database, Sql } from '@kiln/db';
+import { dbTest, openSqliteTestDatabase } from '@kiln/db/testing';
 import {
   CARD_APP,
   mapsApp,

@@ -12,7 +12,7 @@ import {
   type MetricAggregation,
   type MetricUnit,
   safeRatio,
-} from '@mrm/core';
+} from '@kiln/core';
 import { ApiError } from '../api.ts';
 import { parseViewPath } from '../app-scope.ts';
 

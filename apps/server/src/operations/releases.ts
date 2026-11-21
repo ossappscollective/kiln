@@ -1,4 +1,4 @@
-import { PLATFORMS } from '@mrm/core';
+import { PLATFORMS } from '@kiln/core';
 import { z } from 'zod';
 import { translateNotesBody } from '../modules/ai/notes-translate-routes.ts';
 import { type Draft, platform, stagedAppSchema, timestamp, W } from './shared.ts';

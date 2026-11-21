@@ -13,7 +13,7 @@
   the manual form with these values: platform, identifier, name, credentialId, repositoryId).
 -->
 <script lang="ts">
-  import { PLATFORMS, type Platform, credentialKindInfo, isCredentialKind, platformMeta } from '@mrm/core';
+  import { PLATFORMS, type Platform, credentialKindInfo, isCredentialKind, platformMeta } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { repositoryName } from '../../lib/repositories.ts';
   import {

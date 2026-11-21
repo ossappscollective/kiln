@@ -14,7 +14,7 @@ import {
   type StoreImageFile,
   type StoreImageSet,
   storeSetKey,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { ManagedApp } from '../../services/apps.ts';
 import type { Failure } from '../../services/repositories.ts';
 import type { AssetView } from './asset-index.ts';

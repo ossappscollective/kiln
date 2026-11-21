@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { can, tokenForbiddenActions } from '@mrm/core';
+import { can, tokenForbiddenActions } from '@kiln/core';
 import {
   actionLabel,
   ceilingsFor,

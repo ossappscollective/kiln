@@ -12,7 +12,7 @@
   The numbers are core buildRankVsDownloads (server side); the layout and words are lib/rank-downloads.ts. Colors come from VizScope.
 -->
 <script lang="ts">
-  import { type Platform, addDays, dateToDay } from '@mrm/core';
+  import { type Platform, addDays, dateToDay } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { formatDay } from '../../lib/analytics/analytics.ts';
   import type { Box } from '../../lib/analytics/chart.ts';

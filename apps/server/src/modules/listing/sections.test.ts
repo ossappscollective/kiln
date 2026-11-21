@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { StoreListing } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import type { StoreListing } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { operations } from '../../operations/registry.ts';
 import {
   bootListing,

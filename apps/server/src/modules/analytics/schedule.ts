@@ -1,5 +1,5 @@
-import { parsePlatform, supports } from '@mrm/core';
-import type { Database } from '@mrm/db';
+import { parsePlatform, supports } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { enqueue } from '../../jobs.ts';
 import { ANALYTICS_SYNC_QUEUE, type AnalyticsSyncPayload } from './sync.ts';
 

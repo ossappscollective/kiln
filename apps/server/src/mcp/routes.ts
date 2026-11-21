@@ -1,4 +1,4 @@
-import { can } from '@mrm/core';
+import { can } from '@kiln/core';
 import type { Context, Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { type AppEnv, clientIp, type Services } from '../http.ts';

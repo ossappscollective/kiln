@@ -1,4 +1,4 @@
-import type { Sql } from '@mrm/db';
+import type { Sql } from '@kiln/db';
 import type { Review } from '../reviews/service.ts';
 import { listReviews, type ReviewFilter } from '../reviews/service.ts';
 import { clip } from './ai-task-types.ts';

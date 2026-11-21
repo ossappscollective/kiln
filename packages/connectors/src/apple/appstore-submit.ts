@@ -1,4 +1,4 @@
-import { classifyAppleScreenshot, PLATFORM_META } from '@mrm/core';
+import { classifyAppleScreenshot, PLATFORM_META } from '@kiln/core';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
 import {
   APPLE_DRAFT_VERSION_STATES,

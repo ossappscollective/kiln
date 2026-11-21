@@ -1,4 +1,4 @@
-import { can, type Role } from '@mrm/core';
+import { can, type Role } from '@kiln/core';
 import { ApiError } from '../api.ts';
 import type { Review, ReviewStore } from './reviews.ts';
 

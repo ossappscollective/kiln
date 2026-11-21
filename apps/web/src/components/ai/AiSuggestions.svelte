@@ -8,7 +8,7 @@
   they asked for), exceptKind? (leave out the suggestions of this kind: Pending changes leaves out the keyword ideas, which are accepted in Insights), tasks? (only the suggestions of these tasks, which is also how a screen shows the reports it asked for), onaccepted? (the screen reads its own list again after an accept or an undo).
 -->
 <script lang="ts">
-  import { type AiAcceptedRef, type AiProposalKind, type Role, can } from '@mrm/core';
+  import { type AiAcceptedRef, type AiProposalKind, type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { openLine } from '../../lib/ai/ai.ts';
   import { aiStore } from '../../lib/ai/store.svelte.ts';

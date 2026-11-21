@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { type Role, invitableBy } from '@mrm/core';
+  import { type Role, invitableBy } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import type { CreatedInvitation } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';

@@ -1,4 +1,4 @@
-import type { FileChange } from '@mrm/core';
+import type { FileChange } from '@kiln/core';
 import type { AssetHandle } from './asset-repo.ts';
 import type { PlanStep } from './asset-repo-plan.ts';
 

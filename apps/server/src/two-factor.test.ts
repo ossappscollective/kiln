@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { migrate } from '@mrm/db';
-import { dbTest } from '@mrm/db/testing';
+import { migrate } from '@kiln/db';
+import { dbTest } from '@kiln/db/testing';
 import { createApp } from './app.ts';
 import { createSession } from './services/accounts.ts';
 import { createFakeMailer, type FakeMailer } from './services/mailer.ts';

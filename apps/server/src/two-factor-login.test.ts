@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { createLoginLimiter } from './limiter.ts';
 import {
   LOGIN_CHALLENGE_MAX_ATTEMPTS,

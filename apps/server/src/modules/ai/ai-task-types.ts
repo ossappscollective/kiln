@@ -1,6 +1,6 @@
-import type { JsonSchema } from '@mrm/connectors';
-import type { AiAppContext, AiProposal, AiProposalKind, AiTaskId } from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+import type { JsonSchema } from '@kiln/connectors';
+import type { AiAppContext, AiProposal, AiProposalKind, AiTaskId } from '@kiln/core';
+import type { Database, Sql } from '@kiln/db';
 import type { ManagedApp } from '../../services/apps.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 

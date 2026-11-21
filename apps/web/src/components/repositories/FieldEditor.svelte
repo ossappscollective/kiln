@@ -1,13 +1,13 @@
 <!--
   FieldEditor: one listing field with its store limit.
-  Props: spec (the field's rules from @mrm/core), id, value, original (the text in the repository,
+  Props: spec (the field's rules from @kiln/core), id, value, original (the text in the repository,
   undefined when the field has no file), readonly, problems (what validateListing found for this
   field), onchange (called with the new text), label? (overrides the spec's label).
   The counter measures the way the store does (characters or bytes) and turns to an error when the
   limit is passed. The rule and its source sit under the field.
 -->
 <script lang="ts">
-  import type { ListingFieldSpec, ListingProblem } from '@mrm/core';
+  import type { ListingFieldSpec, ListingProblem } from '@kiln/core';
   import { fieldUsage } from '../../lib/repositories.ts';
   import Badge from '../ui/Badge.svelte';
   import Icon from '../ui/Icon.svelte';

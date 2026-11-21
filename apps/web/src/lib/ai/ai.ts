@@ -15,7 +15,7 @@ import {
   type Role,
   type StoreFamily,
   storeFamilyOf,
-} from '@mrm/core';
+} from '@kiln/core';
 import { ApiError } from '../api.ts';
 import { appAddress, appReviewsHref, type PlatformScope } from '../app-scope.ts';
 import { asoViewHref } from '../aso/aso.ts';

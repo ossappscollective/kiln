@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { detectProject, loadListing, type RepoConnector } from '@mrm/connectors';
+import { detectProject, loadListing, type RepoConnector } from '@kiln/connectors';
 import {
   mapsApp,
   scannerMonorepo,

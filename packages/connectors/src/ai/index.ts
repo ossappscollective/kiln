@@ -1,4 +1,4 @@
-import { type AiProvider, aiProviderInfo } from '@mrm/core';
+import { type AiProvider, aiProviderInfo } from '@kiln/core';
 import { ANTHROPIC_FALLBACK_MODELS, createAnthropicClient } from './anthropic.ts';
 import { createOpenAiClient, OPENAI_FALLBACK_MODELS } from './openai.ts';
 import { createOpenAiCompatibleClient } from './openai-compatible.ts';

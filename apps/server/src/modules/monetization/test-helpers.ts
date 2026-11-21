@@ -14,9 +14,9 @@ import {
   type StoreProductsConnector,
   type StoreProductWriteConnector,
   sameLocale,
-} from '@mrm/connectors';
-import type { Platform } from '@mrm/core';
-import type { Database } from '@mrm/db';
+} from '@kiln/connectors';
+import type { Platform } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import { ASC_SECRET, PLAY_SECRET } from '../reviews/test-helpers.ts';
 import type { MonetizationDeps } from './index.ts';

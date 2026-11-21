@@ -20,7 +20,7 @@
   the browser. A pull or history dialog opened from here stacks above it.
 -->
 <script lang="ts">
-  import { type Platform, type Role, platformLabel } from '@mrm/core';
+  import { type Platform, type Role, platformLabel } from '@kiln/core';
   import { coachHref, countriesForLocale, fieldsFromDrift, keywordsForLocale } from '../../lib/aso/budget.ts';
   import type { Api } from '../../lib/api.ts';
   import type { AsoKeyword } from '../../lib/aso/aso.ts';

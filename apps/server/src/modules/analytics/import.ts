@@ -9,7 +9,7 @@ import {
   mapPlayConsoleFile,
   type ParseStats,
   readTable,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 import {
   type ActorType,
   type AnalyticsSource,
@@ -18,8 +18,8 @@ import {
   metricInfo,
   supports,
   toMicro,
-} from '@mrm/core';
-import type { Database } from '@mrm/db';
+} from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { emitEvent } from '../../services/events.ts';

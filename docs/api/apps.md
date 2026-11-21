@@ -80,7 +80,7 @@ A release (one row per version, or per version and track on Android):
 - `build`: iOS, the build number of the most recently uploaded build with the same version string
   (a heuristic: the version-to-build link is not read from Apple), or `null`. Android, the
   release's version codes joined by commas, or `null`.
-- `status` is the normalized lifecycle state of `@mrm/core`: `draft`, `build_chosen`, `ready`,
+- `status` is the normalized lifecycle state of `@kiln/core`: `draft`, `build_chosen`, `ready`,
   `in_review`, `rejected`, `approved`, `propagating`, `rolling_out`, `live` or `halted`. It is
   `null` when the store's state has no mapping (never guessed); show `rawState` then. A Play
   track read never yields `in_review`, `rejected`, `approved` or `propagating` (the edits API does

@@ -52,7 +52,7 @@ export const credentials = pgTable('credentials', {
   /** app_store_connect, google_play, github_app or llm. */
   kind: text('kind').notNull(),
   label: text('label').notNull(),
-  /** Output of @mrm/vault encryptSecret. Never plain text. */
+  /** Output of @kiln/vault encryptSecret. Never plain text. */
   ciphertext: text('ciphertext').notNull(),
   createdAt: epochMs('created_at').notNull(),
   rotatedAt: epochMs('rotated_at'),

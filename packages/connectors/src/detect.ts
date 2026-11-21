@@ -1,4 +1,4 @@
-import type { Platform } from '@mrm/core';
+import type { Platform } from '@kiln/core';
 import {
   type DetectedTarget,
   type ListingCandidate,

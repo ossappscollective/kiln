@@ -1,6 +1,6 @@
 // Module resolve hook for the packaged server. See launcher.mjs.
 //
-// Maps `@mrm/<name>` and `@mrm/<name>/<subpath>` to `<root>/packages/<name>/<exports target>`
+// Maps `@kiln/<name>` and `@kiln/<name>/<subpath>` to `<root>/packages/<name>/<exports target>`
 // by reading that package's own `exports` map. Everything else resolves the normal way.
 //
 // The target files must stay outside any `node_modules` folder: Node refuses to strip types
@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const PATTERN = /^@mrm\/([a-z0-9-]+)(\/.+)?$/;
+const PATTERN = /^@kiln\/([a-z0-9-]+)(\/.+)?$/;
 let root = '';
 
 export function initialize(data) {
@@ -26,12 +26,12 @@ export function resolve(specifier, context, nextResolve) {
   try {
     manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
   } catch {
-    throw new Error(`Packaged server is missing workspace package @mrm/${name}`);
+    throw new Error(`Packaged server is missing workspace package @kiln/${name}`);
   }
   const key = rest ? `.${rest}` : '.';
   const target = manifest.exports?.[key];
   if (typeof target !== 'string') {
-    throw new Error(`@mrm/${name} does not export "${key}"`);
+    throw new Error(`@kiln/${name} does not export "${key}"`);
   }
   return nextResolve(pathToFileURL(join(dir, target)).href, context);
 }

@@ -3,7 +3,7 @@
   applied, failed or discarded). The text says the state; the tone only backs it up.
 -->
 <script lang="ts">
-  import type { ChangeSetStatus } from '@mrm/core';
+  import type { ChangeSetStatus } from '@kiln/core';
   import { changeSetStatusInfo } from '../../lib/repositories.ts';
   import Badge from '../ui/Badge.svelte';
 

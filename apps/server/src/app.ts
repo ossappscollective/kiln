@@ -1,5 +1,5 @@
 import { serveStatic } from '@hono/node-server/serve-static';
-import type { Database } from '@mrm/db';
+import type { Database } from '@kiln/db';
 import type { Context } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';

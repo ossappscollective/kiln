@@ -1,4 +1,4 @@
-import type { StoreReview } from '@mrm/connectors';
+import type { StoreReview } from '@kiln/connectors';
 import {
   APPLE_TERRITORIES,
   DEMO_APPS,

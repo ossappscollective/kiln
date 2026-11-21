@@ -12,8 +12,8 @@
   Mount it when the dialog is opened; unmount it on close, so every open starts clean.
 -->
 <script lang="ts">
-  import { PLACEHOLDER_HELP, type PatternKind } from '@mrm/core';
-  import { type Role, can, platformLabel } from '@mrm/core';
+  import { PLACEHOLDER_HELP, type PatternKind } from '@kiln/core';
+  import { type Role, can, platformLabel } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import {

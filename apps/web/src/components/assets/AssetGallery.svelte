@@ -11,7 +11,7 @@
   staged or unstaged, or ''). Staging changes our own database only; the push is in the staged-changes tray.
 -->
 <script lang="ts">
-  import type { AssetDiffView, AssetProblem } from '@mrm/core';
+  import type { AssetDiffView, AssetProblem } from '@kiln/core';
   import {
     type DeviceGroup,
     type LocaleGroup,

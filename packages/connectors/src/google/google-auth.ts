@@ -1,5 +1,5 @@
 import { createPrivateKey, type KeyObject, sign } from 'node:crypto';
-import { checkSecret } from '@mrm/core';
+import { checkSecret } from '@kiln/core';
 import { StoreError } from '../errors.ts';
 import { isRecord, type StoreHttp, serverTime, text } from '../store-http.ts';
 

@@ -3,9 +3,9 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import { GithubError } from '@mrm/connectors';
-import type { Database } from '@mrm/db';
-import { dbTest } from '@mrm/db/testing';
+import { GithubError } from '@kiln/connectors';
+import type { Database } from '@kiln/db';
+import { dbTest } from '@kiln/db/testing';
 import { BranchRepo } from './fixup-test-helpers.ts';
 import { buildRepo, git, gitWrapper, snapshot } from './local-git-test-helpers.ts';
 import { bootRepoApp, FakeRepo, fastlaneFiles, TOKEN } from './repo-test-helpers.ts';

@@ -9,7 +9,7 @@ import {
   VersionDriftError,
   type VersionListState,
   VersionOutcomeUnknownError,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 import {
   compareDottedVersions,
   isDottedVersion,
@@ -17,8 +17,8 @@ import {
   nextVersion,
   type Platform,
   supports,
-} from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Database, Sql } from '@kiln/db';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';

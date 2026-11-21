@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { type CredentialKind, buildSecret, checkSecret, credentialGuides } from '@mrm/core';
+  import { type CredentialKind, buildSecret, checkSecret, credentialGuides } from '@kiln/core';
   import { onMount } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import SecretFields from '../SecretFields.svelte';

@@ -7,7 +7,7 @@
   Readable pass (docs/design/readability.md): one sentence, the turn-on button (the one primary), notes at 15px.
 -->
 <script lang="ts">
-  import { can, platformSupports, type Role } from '@mrm/core';
+  import { can, platformSupports, type Role } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';

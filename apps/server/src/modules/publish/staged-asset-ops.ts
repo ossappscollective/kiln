@@ -6,7 +6,7 @@ import {
   type FixKind,
   type StagedChangesView,
   slotKey,
-} from '@mrm/core';
+} from '@kiln/core';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type ChangeSetView, createFileChangeSet } from '../../services/change-sets.ts';

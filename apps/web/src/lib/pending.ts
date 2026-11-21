@@ -5,7 +5,7 @@ import {
   type Role,
   type StoreId,
   supports,
-} from '@mrm/core';
+} from '@kiln/core';
 import { ApiError } from './api.ts';
 import { type AppSection, appAddress, type PlatformScope } from './app-scope.ts';
 import { releaseStepHref } from './release-stepper.ts';

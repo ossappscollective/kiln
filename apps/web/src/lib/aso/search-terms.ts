@@ -5,7 +5,7 @@ import {
   type SearchTermSort,
   searchTermLimits,
   type TermListing,
-} from '@mrm/core';
+} from '@kiln/core';
 import {
   analyticsErrorText,
   formatCountExact,

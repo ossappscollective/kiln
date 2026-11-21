@@ -1,4 +1,4 @@
-import type { AiCompleteRequest, FakeAnswer } from '@mrm/connectors';
+import type { AiCompleteRequest, FakeAnswer } from '@kiln/connectors';
 
 export type AiAnswerLike = FakeAnswer;
 

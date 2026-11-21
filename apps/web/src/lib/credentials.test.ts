@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { CredentialGuide } from '@mrm/core';
+import type { CredentialGuide } from '@kiln/core';
 import { ApiError } from './api.ts';
 import {
   announceTest,

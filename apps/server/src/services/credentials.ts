@@ -5,9 +5,9 @@ import {
   checkSecret,
   credentialKinds,
   isCredentialKind,
-} from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
-import { decryptSecret, encryptSecret } from '@mrm/vault';
+} from '@kiln/core';
+import type { Database, Sql } from '@kiln/db';
+import { decryptSecret, encryptSecret } from '@kiln/vault';
 import { recordAudit } from './audit.ts';
 
 export { type CredentialKind, credentialKinds };

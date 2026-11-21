@@ -1,4 +1,4 @@
-import type { Database } from '@mrm/db';
+import type { Database } from '@kiln/db';
 import { sendDueDigests } from './digest.ts';
 import { runAlertEvaluator } from './evaluator.ts';
 import { pruneAlerts } from './inbox.ts';

@@ -9,7 +9,7 @@
   Readable pass (docs/design/readability.md): 15px text, label + control + ONE hint, one primary (Save).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import {

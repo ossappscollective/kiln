@@ -14,7 +14,7 @@ import {
   type Platform,
   platformMeta,
   type Role,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { ApiError } from './api.ts';
 import type {
   ChangeSetView,
@@ -803,7 +803,7 @@ export function platformsSummary(
 
 /**
  * Why a path is not a valid listing folder, or undefined when it is. The same rules as the server
- * (checkListingRoot of @mrm/connectors, which follows the repository path rules): relative, no
+ * (checkListingRoot of @kiln/connectors, which follows the repository path rules): relative, no
  * leading slash, no empty, `.` or `..` segment, no `.git`, no backslash. A leading `./` and a
  * trailing slash are tolerated.
  */

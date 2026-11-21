@@ -1,4 +1,4 @@
-import type { Row, Sql } from '@mrm/db';
+import type { Row, Sql } from '@kiln/db';
 import { observeEventForAlerts } from '../modules/alerts/service.ts';
 import { type EventType, eventTypes, isEventType } from './event-types.ts';
 import { queueWebhookDeliveries } from './webhooks.ts';

@@ -13,7 +13,7 @@ import {
   type TrackedRank,
   termKeyOf,
   trackingOf,
-} from '@mrm/core';
+} from '@kiln/core';
 import {
   editableFields,
   type FieldInfo,
@@ -25,7 +25,7 @@ import {
 
 /**
  * "Keywords your listing uses now" (Insights, Keywords): the pure parts. The terms a locale of the stored listing sets are worked
- * out in `@mrm/core` (`listingRows`: the App Store keyword field entries and the words of the title and subtitle; Google Play: the words
+ * out in `@kiln/core` (`listingRows`: the App Store keyword field entries and the words of the title and subtitle; Google Play: the words
  * of the title and short description and the frequent words of the full description). Here the phrases of a title are added, each term is
  * put into plain words (where it appears, whether it is tracked and at which rank, the visitors a Play Console file reports for it)
  * and each field of the locale is measured so it can be edited. Nothing here reads a store or writes anything. ES2017 web build.

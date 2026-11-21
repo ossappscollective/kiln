@@ -1,4 +1,4 @@
-import { type Platform, sortPlatforms } from '@mrm/core';
+import { type Platform, sortPlatforms } from '@kiln/core';
 import { sortApps } from './portfolio.ts';
 import { findSiblings } from './release.ts';
 import type { AppSummary } from './types.ts';

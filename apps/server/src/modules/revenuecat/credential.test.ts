@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { apps, list, project } from '../../../../../packages/connectors/src/revenuecat/revenuecat.fixtures.ts';
 import { bootRevenueCat, errorBody, json, REVENUECAT_KEY } from './test-helpers.ts';
 

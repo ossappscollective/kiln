@@ -11,7 +11,7 @@
   the three steps at 15px (open, because this card only shows while the bucket is missing) and the quiet alternatives.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { type AnalyticsStatus, playSourceLine } from '../../lib/analytics/analytics.ts';
   import Button from '../ui/Button.svelte';

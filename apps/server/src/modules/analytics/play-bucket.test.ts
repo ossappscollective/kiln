@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { AnalyticsError, StoreError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { AnalyticsError, StoreError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import { BUCKET, bootAnalytics } from './test-helpers.ts';
 

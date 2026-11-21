@@ -1,5 +1,5 @@
-import type { Platform, StoreId } from '@mrm/core';
-import { releaseNotesLimit } from '@mrm/core';
+import type { Platform, StoreId } from '@kiln/core';
+import { releaseNotesLimit } from '@kiln/core';
 import type { TestNotes } from './release-candidates.ts';
 
 /**

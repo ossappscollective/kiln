@@ -14,7 +14,7 @@
   onreleased (called after a successful release).
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import type { Api } from '../../../lib/api.ts';
   import { fractionOf } from '../../../lib/play-check.ts';
   import { canRelease, percentFromFraction } from '../../../lib/store-release.ts';

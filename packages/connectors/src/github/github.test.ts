@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash, createPublicKey, generateKeyPairSync, verify } from 'node:crypto';
 import { test } from 'node:test';
-import type { ChangeSet } from '@mrm/core';
+import type { ChangeSet } from '@kiln/core';
 import {
   BranchExistsError,
   BranchMissingError,

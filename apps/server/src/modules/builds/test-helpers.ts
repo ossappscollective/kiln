@@ -6,8 +6,8 @@ import type {
   CiArtifactList,
   InternalSharingConnector,
   InternalSharingKind,
-} from '@mrm/connectors';
-import type { Database } from '@mrm/db';
+} from '@kiln/connectors';
+import type { Database } from '@kiln/db';
 import { zip } from '../../../../../packages/connectors/src/google/play-search-terms.fixtures.ts';
 import { PASSWORD } from '../../testkit.ts';
 import { bootCi, FakeCi, run } from '../ci/test-helpers.ts';

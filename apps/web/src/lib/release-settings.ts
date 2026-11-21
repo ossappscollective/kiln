@@ -1,6 +1,6 @@
 /**
  * The per-app release settings of Google Play (docs/adr/0029-direct-play-release.md): a default share and whether a staged rollout is
- * offered. The rules are in @mrm/core (pure, tested); this file turns them into what a release input starts as. Reads only.
+ * offered. The rules are in @kiln/core (pure, tested); this file turns them into what a release input starts as. Reads only.
  */
 import {
   type PlayReleaseSettings,
@@ -8,7 +8,7 @@ import {
   rolloutOffer,
   type StagedRolloutMode,
   sharePrefill,
-} from '@mrm/core';
+} from '@kiln/core';
 
 export type ReleaseSettingsView = {
   settings: PlayReleaseSettings;

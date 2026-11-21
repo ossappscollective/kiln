@@ -3,7 +3,7 @@ import {
   type AnalyticsMetric,
   analyticsLimits,
   productDimValue,
-} from '@mrm/core';
+} from '@kiln/core';
 import { AnalyticsError, type AnalyticsPoint, type ParseStats } from '../analytics-types.ts';
 import {
   columnIndex,

@@ -1,5 +1,5 @@
-import type { Platform } from '@mrm/core';
-import { supports } from '@mrm/core';
+import type { Platform } from '@kiln/core';
+import { supports } from '@kiln/core';
 import type { PendingItem, PublishStepType } from './pending.ts';
 import type { BuildRow } from './release-candidates.ts';
 import type { Chosen, Level, StagedFacts, StepId } from './release-stepper.ts';

@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import type { StoreReview } from '@mrm/connectors';
-import type { Database } from '@mrm/db';
+import type { StoreReview } from '@kiln/connectors';
+import type { Database } from '@kiln/db';
 import type { ReviewConnectorFactory } from './modules/reviews/sync.ts';
 import { ASC_SECRET, FakeReplyStore, storeReview } from './modules/reviews/test-helpers.ts';
 import { bootRepoApp } from './repo-test-helpers.ts';

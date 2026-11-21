@@ -1,4 +1,4 @@
-import type { Database } from '@mrm/db';
+import type { Database } from '@kiln/db';
 import { DEFAULT_MAX_ATTEMPTS, type JobHandler } from '../../jobs.ts';
 import {
   isMailErrorCode,

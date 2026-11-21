@@ -5,7 +5,7 @@ import {
   type RankMarker,
   type RankSeries,
   rankDownloadsLimits,
-} from '@mrm/core';
+} from '@kiln/core';
 import { formatCountExact, formatDay } from '../analytics/analytics.ts';
 import { type Box, type Geometry, niceTicks, plot } from '../analytics/chart.ts';
 

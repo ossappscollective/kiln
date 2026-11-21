@@ -1,4 +1,4 @@
-import { countBytes, countCharacters } from '@mrm/core';
+import { countBytes, countCharacters } from '@kiln/core';
 import type { BadgeTone } from '../portfolio.ts';
 import type {
   DriftField,

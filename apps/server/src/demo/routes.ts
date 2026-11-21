@@ -1,4 +1,4 @@
-import type { Database } from '@mrm/db';
+import type { Database } from '@kiln/db';
 import { Hono } from 'hono';
 import { setCookie } from 'hono/cookie';
 import { z } from 'zod';

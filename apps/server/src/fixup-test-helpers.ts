@@ -1,5 +1,5 @@
-import type { PullRequestInfo } from '@mrm/connectors';
-import { BranchMovedError } from '@mrm/connectors';
+import type { PullRequestInfo } from '@kiln/connectors';
+import { BranchMovedError } from '@kiln/connectors';
 import { FakeRepo } from './repo-test-helpers.ts';
 
 /**

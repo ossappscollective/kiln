@@ -6,7 +6,7 @@
   Props: choice (the current RangeChoice), now (epoch ms), onchange (called with the new choice).
 -->
 <script lang="ts">
-  import { dateToDay } from '@mrm/core';
+  import { dateToDay } from '@kiln/core';
   import { PRESET_DAYS, type RangeChoice, type ResolvedRange, customRangeProblem, formatDay, rangeText } from '../../lib/analytics/analytics.ts';
   import Button from '../ui/Button.svelte';
 

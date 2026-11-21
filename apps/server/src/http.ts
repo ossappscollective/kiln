@@ -1,5 +1,5 @@
 import { getConnInfo } from '@hono/node-server/conninfo';
-import type { Role } from '@mrm/core';
+import type { Role } from '@kiln/core';
 import type { Context, MiddlewareHandler } from 'hono';
 import type { z } from 'zod';
 import type { User } from './services/accounts.ts';
@@ -15,7 +15,7 @@ export type AppEnv = {
 
 /** Everything the routes need, injected so tests can control the clock and the cost. */
 export type Services = {
-  db: import('@mrm/db').Database;
+  db: import('@kiln/db').Database;
   masterKey: Buffer;
   now: () => number;
   /** Failed logins per email address. */

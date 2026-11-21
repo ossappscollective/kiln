@@ -1,4 +1,4 @@
-import { daysBetween } from '@mrm/core';
+import { daysBetween } from '@kiln/core';
 import { missingRuns, presentRuns, type Run } from './analytics.ts';
 import type { PanelKind } from './view.ts';
 

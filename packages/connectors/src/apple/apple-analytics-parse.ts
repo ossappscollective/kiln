@@ -4,7 +4,7 @@ import {
   type AnalyticsSource,
   analyticsLimits,
   productDimValue,
-} from '@mrm/core';
+} from '@kiln/core';
 import { AnalyticsError, type AnalyticsPoint, type ParseStats } from '../analytics-types.ts';
 import { columnIndex, normalizeHeader, parseDay, parseNumber, type Table } from '../delimited.ts';
 

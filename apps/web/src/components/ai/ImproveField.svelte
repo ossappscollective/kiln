@@ -10,12 +10,12 @@
   the field has now, for the before and after), buttonLabel? ("Improve" by default), onaccepted? (called after the text was staged).
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import { canImproveField } from '../../lib/ai/ai.ts';
   import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import type { AppSummary, DriftField } from '../../lib/types.ts';
-  import type { AiAcceptedRef } from '@mrm/core';
+  import type { AiAcceptedRef } from '@kiln/core';
   import AiSuggestionCard from './AiSuggestionCard.svelte';
   import SuggestButton from './SuggestButton.svelte';
 

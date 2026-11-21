@@ -14,7 +14,7 @@
   Props: api, workspaceId, role, members (the app records in scope), releases (by app id), now.
 -->
 <script lang="ts">
-  import { can, type Role, supports } from '@mrm/core';
+  import { can, type Role, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import { address } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';

@@ -8,7 +8,7 @@ import {
   playStateText,
   playStatusOf,
   type StagedChangesView,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { EditableRelease } from './release-candidates.ts';
 import { stagedField } from './release-stepper.ts';
 import { percentText } from './store-release.ts';

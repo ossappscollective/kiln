@@ -1,4 +1,4 @@
-import { PLATFORMS, translationProviders } from '@mrm/core';
+import { PLATFORMS, translationProviders } from '@kiln/core';
 import { z } from 'zod';
 import {
   type Draft,

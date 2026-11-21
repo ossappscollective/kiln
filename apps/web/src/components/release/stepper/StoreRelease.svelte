@@ -15,7 +15,7 @@
   successful release, so the screen reads the pipeline again).
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { announcePublished } from '../../../lib/app-page.ts';
   import type { Api } from '../../../lib/api.ts';
@@ -45,7 +45,7 @@
   import Button from '../../ui/Button.svelte';
   import InfoTip from '../../ui/InfoTip.svelte';
   import StoreReleaseDialog from './StoreReleaseDialog.svelte';
-import { supports } from '@mrm/core';
+import { supports } from '@kiln/core';
 
   let {
     api,

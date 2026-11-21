@@ -13,7 +13,7 @@
   edits) a slim banner says so and the listing and graphics are read-only (lockedPlatforms).
 -->
 <script lang="ts">
-  import { type Action, can, type Role, supports } from '@mrm/core';
+  import { type Action, can, type Role, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { address, appContext, replaceHash, setPlatformScope } from '../../lib/address.svelte.ts';

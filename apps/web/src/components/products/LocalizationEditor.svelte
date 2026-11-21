@@ -11,7 +11,7 @@
   (the texts were changed: read the product and the list again), onswitchoff (the server said the switch is off).
 -->
 <script lang="ts">
-  import { can, type Role } from '@mrm/core';
+  import { can, type Role } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import {
     changeSummary,

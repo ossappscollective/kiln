@@ -7,8 +7,8 @@ import type {
   StoreConnector,
   StoreListing,
   StoreVersion,
-} from '@mrm/connectors';
-import type { Platform } from '@mrm/core';
+} from '@kiln/connectors';
+import type { Platform } from '@kiln/core';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import type { StoreConnectorFactory } from '../../services/apps.ts';
 import { forgetInspectedChangeSets } from './repo.ts';

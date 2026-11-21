@@ -1,4 +1,4 @@
-import { ASSET_KIND_LABELS, type AssetKind, type AssetProblem, type AssetSet } from '@mrm/core';
+import { ASSET_KIND_LABELS, type AssetKind, type AssetProblem, type AssetSet } from '@kiln/core';
 import type { AssetIndex, AssetItem } from '../types.ts';
 
 /**

@@ -1,4 +1,4 @@
-import { aiLimits } from '@mrm/core';
+import { aiLimits } from '@kiln/core';
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import type { ServerModule } from '../module.ts';
 import type { AiContext } from './ai-config.ts';

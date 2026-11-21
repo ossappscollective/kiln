@@ -1,5 +1,5 @@
-import type { AssetKind, Platform } from '@mrm/core';
-import { platformMeta } from '@mrm/core';
+import type { AssetKind, Platform } from '@kiln/core';
+import { platformMeta } from '@kiln/core';
 import type { AssetIndex } from '../types.ts';
 import type { StoreCompare } from './assets.ts';
 

@@ -10,7 +10,7 @@
 -->
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { byFamily, checkRolloutAction, formatPercent, MAX_ROLLOUT_STEPS, platformMeta, type RolloutSummary, type RolloutTemplate, rolloutTemplatesFor } from '@mrm/core';
+  import { byFamily, checkRolloutAction, formatPercent, MAX_ROLLOUT_STEPS, platformMeta, type RolloutSummary, type RolloutTemplate, rolloutTemplatesFor } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {

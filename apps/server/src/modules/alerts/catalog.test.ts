@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { actions } from '@mrm/core';
+import { actions } from '@kiln/core';
 import { eventTypes } from '../../services/event-types.ts';
 import {
   alertCatalog,

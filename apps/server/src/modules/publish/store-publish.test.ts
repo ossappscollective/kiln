@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { StoreError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { StoreError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { PASSWORD } from '../../testkit.ts';
 import { FakeRolloutStore } from './rollout-test-helpers.ts';
 import { textEntry } from './store-draft-record.ts';

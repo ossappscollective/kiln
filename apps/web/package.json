@@ -1,5 +1,5 @@
 {
-  "name": "@mrm/web",
+  "name": "@kiln/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "test": "node --test \"src/**/*.test.ts\""
   },
   "dependencies": {
-    "@mrm/core": "workspace:*"
+    "@kiln/core": "workspace:*"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.0",

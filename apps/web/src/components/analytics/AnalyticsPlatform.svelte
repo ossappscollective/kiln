@@ -12,7 +12,7 @@
   platform name, when several platforms are shown), onstored (told whether something is stored for the app).
 -->
 <script lang="ts">
-  import { type Platform, type Role, can, dateToDay } from '@mrm/core';
+  import { type Platform, type Role, can, dateToDay } from '@kiln/core';
   import { type Snippet, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { type AnalyticsStatus, type ResolvedRange, analyticsErrorText, needsPlayBucket, stateInfo } from '../../lib/analytics/analytics.ts';

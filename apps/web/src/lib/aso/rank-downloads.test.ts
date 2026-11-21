@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addDays, buildRankVsDownloads, dateToDay } from '@mrm/core';
+import { addDays, buildRankVsDownloads, dateToDay } from '@kiln/core';
 import {
   chartName,
   dayIndexAt,

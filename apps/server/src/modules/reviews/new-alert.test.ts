@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { bootTranslation } from '../../translation-test-helpers.ts';
 import { alertCatalog, alertsFromEvent } from '../alerts/catalog.ts';
 import { MAX_NEW_REVIEW_EVENTS_PER_SYNC } from './sync.ts';

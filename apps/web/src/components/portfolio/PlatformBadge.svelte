@@ -4,7 +4,7 @@
   Props: platform, showLabel = true (false keeps the name for assistive technology only).
 -->
 <script lang="ts">
-  import type { Platform } from '@mrm/core';
+  import type { Platform } from '@kiln/core';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
 
   let { platform, showLabel = true }: { platform: Platform; showLabel?: boolean | undefined } = $props();

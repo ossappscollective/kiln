@@ -10,7 +10,7 @@
   Props: api, workspaceId, role, app ({ id, platform }), onread (read the stepper's store state again after a create).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { announcePublished } from '../../../lib/app-page.ts';
   import type { Api } from '../../../lib/api.ts';
   import { confirmed } from '../../../lib/step-up-prompt.svelte.ts';

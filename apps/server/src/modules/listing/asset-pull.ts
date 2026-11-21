@@ -7,7 +7,7 @@ import {
   storeImageKey,
   storeSetKey,
   supports,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type ChangeSetView, createFileChangeSet } from '../../services/change-sets.ts';

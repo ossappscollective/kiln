@@ -6,7 +6,7 @@ import {
   compareMedia,
   comparePrivacy,
   normalizeCategory,
-} from '@mrm/core';
+} from '@kiln/core';
 import * as expo from './expo-store.fixtures.ts';
 import {
   expoSections,

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { GithubError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { GithubError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import type { AppRelease } from '../../services/apps.ts';
 import { getRepository } from '../../services/repositories.ts';
 import {

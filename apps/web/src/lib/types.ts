@@ -24,7 +24,7 @@ import type {
   RolloutSummary,
   SectionCompare,
   StoreRollout,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { RevenueCatStep } from './revenuecat/revenuecat.ts';
 
 export type User = { id: string; email: string; displayName: string };
@@ -186,7 +186,7 @@ export type DetectionEvidence = {
   platform?: Platform;
 };
 
-/** The result of scanning a repository (the `ProjectDetection` of `@mrm/connectors`). */
+/** The result of scanning a repository (the `ProjectDetection` of `@kiln/connectors`). */
 export type ProjectDetection = {
   kind: ProjectKind;
   platforms: Platform[];
@@ -804,7 +804,7 @@ export type WorkflowRun = {
   /** GitHub's status verbatim (`queued`, `in_progress`, `completed`, ...) or `pending`; another provider's is put into these words. */
   status: string;
   conclusion: string | null;
-  /** The CI provider (`github`, `eas-workflows`; `ciProviderMeta` in `@mrm/core`). Absent from older servers: GitHub. */
+  /** The CI provider (`github`, `eas-workflows`; `ciProviderMeta` in `@kiln/core`). Absent from older servers: GitHub. */
   provider?: string | undefined;
   /** True while the run is not finished. */
   active: boolean;

@@ -1,4 +1,4 @@
-import { newestDottedVersion, nextVersion, type Platform } from '@mrm/core';
+import { newestDottedVersion, nextVersion, type Platform } from '@kiln/core';
 import { ApiError } from './api.ts';
 import { stepUpMessage } from './step-up.ts';
 

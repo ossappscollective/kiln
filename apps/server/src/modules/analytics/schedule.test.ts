@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { createScheduler } from '../../scheduler.ts';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import { analyticsIntervalMs, queueAnalyticsSyncs } from './schedule.ts';

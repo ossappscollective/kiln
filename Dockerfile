@@ -18,7 +18,7 @@ COPY . .
 
 # pnpm-lock.yaml is committed: install exactly what it says, or fail.
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @mrm/web build
+RUN pnpm --filter @kiln/web build
 
 ENV NODE_ENV=production
 ENV PORT=8787

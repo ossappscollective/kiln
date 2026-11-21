@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { graphqlError, userViewer } from '../../../../../packages/connectors/src/expo/expo.fixtures.ts';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import { EXPO_TOKEN, FakeExpo, json } from './test-helpers.ts';

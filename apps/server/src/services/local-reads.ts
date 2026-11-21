@@ -4,7 +4,7 @@ import {
   isBlobReads,
   type ProposalResult,
   type RepoConnector,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 import {
   type CloneBackedClient,
   type CloneReader,

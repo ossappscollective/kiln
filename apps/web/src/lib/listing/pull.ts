@@ -1,4 +1,4 @@
-import { can, listingStoreOf, type Platform, platformMeta, type Role } from '@mrm/core';
+import { can, listingStoreOf, type Platform, platformMeta, type Role } from '@kiln/core';
 import type { ApiError } from '../api.ts';
 import type {
   DriftField,

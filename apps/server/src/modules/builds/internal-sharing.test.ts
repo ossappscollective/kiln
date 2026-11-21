@@ -3,8 +3,8 @@ import {
   InternalSharingOutcomeUnknownError,
   StoreError,
   StoreRateLimitError,
-} from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+} from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { zip } from '../../../../../packages/connectors/src/google/play-search-terms.fixtures.ts';
 import { bootCi } from '../ci/test-helpers.ts';
 import { LINK_RETENTION_MS } from './internal-sharing.ts';

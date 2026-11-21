@@ -15,7 +15,7 @@
   shown), drafts (bindable: the text of each language in the editors), extra (bindable: languages the person added).
 -->
 <script lang="ts">
-  import { can, type Role, type StagedChangesView, supports } from '@mrm/core';
+  import { can, type Role, type StagedChangesView, supports } from '@kiln/core';
   import type { Api } from '../../../lib/api.ts';
   import { type BuildCandidate, type EditableRelease, type ReleaseCandidates, hasTestNotes } from '../../../lib/release-candidates.ts';
   import { type Promote } from '../../../lib/play-promote.ts';

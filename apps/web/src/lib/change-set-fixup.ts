@@ -4,7 +4,7 @@
  * RecomputeDialog.svelte only draw what they return. The server decides; this file keeps the
  * screens from offering what it will refuse, and puts the server's answers into words.
  */
-import { can, type Role } from '@mrm/core';
+import { can, type Role } from '@kiln/core';
 import type { ConflictReason, FileState, Resolution } from './change-set-refresh.ts';
 import type { ChangeSetView } from './types.ts';
 

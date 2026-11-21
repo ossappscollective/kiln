@@ -9,7 +9,7 @@
   sets can show how they differ).
 -->
 <script lang="ts">
-  import { type AssetCompareRow, type AssetDiffSet, type AssetDiffView, type AssetKind, type Role, COMPARE_LABELS, compareText } from '@mrm/core';
+  import { type AssetCompareRow, type AssetDiffSet, type AssetDiffView, type AssetKind, type Role, COMPARE_LABELS, compareText } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import {

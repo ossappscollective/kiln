@@ -9,7 +9,7 @@
   Props: api, workspaceId, role, members (the records in scope), all? (every record of the app).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { appAddress } from '../../lib/app-scope.ts';

@@ -1,4 +1,4 @@
-import type { Action } from '@mrm/core';
+import type { Action } from '@kiln/core';
 import type { SectionView } from './app-nav.ts';
 import { parseViewPath } from './app-scope.ts';
 

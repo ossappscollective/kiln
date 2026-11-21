@@ -1,4 +1,4 @@
-import type { ActorType, FileChange } from '@mrm/core';
+import type { ActorType, FileChange } from '@kiln/core';
 import { recordAudit } from './audit.ts';
 import {
   APPLY_CLAIM_TTL_MS,

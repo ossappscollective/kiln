@@ -13,7 +13,7 @@ import {
   StoreRateLimitError,
   type StoreVersion,
   secretStrings,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 import {
   type ActorType,
   byFamily,
@@ -26,8 +26,8 @@ import {
   type ReleaseState,
   type StoreCredentialKind,
   supports,
-} from '@mrm/core';
-import { type Database, mapOrNull, oneOf, type Row, type Sql } from '@mrm/db';
+} from '@kiln/core';
+import { type Database, mapOrNull, oneOf, type Row, type Sql } from '@kiln/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
 import { deleteAiData } from '../modules/ai/ai-suggestions.ts';
 import { deleteAnalyticsData } from '../modules/analytics/store.ts';
@@ -48,7 +48,7 @@ export const APP_SYNC_QUEUE = 'app.sync';
 export const DEFAULT_SYNC_TIMEOUT_MS = 60_000;
 const MAX_ERROR_LENGTH = 500;
 
-/** The credential kind each platform needs (from the platform table in @mrm/core). */
+/** The credential kind each platform needs (from the platform table in @kiln/core). */
 export const credentialKindFor: Readonly<Record<Platform, StoreCredentialKind>> = {
   ios: PLATFORM_META.ios.credentialKind,
   macos: PLATFORM_META.macos.credentialKind,

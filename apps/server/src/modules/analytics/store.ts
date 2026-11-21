@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AnalyticsPoint } from '@mrm/connectors';
+import type { AnalyticsPoint } from '@kiln/connectors';
 import {
   type AnalyticsDimension,
   type AnalyticsMetric,
@@ -9,8 +9,8 @@ import {
   normalizeBucketId,
   type PlayBucketSource,
   toMicro,
-} from '@mrm/core';
-import type { Database, Param, Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Database, Param, Sql } from '@kiln/db';
 import type { ManagedApp } from '../../services/apps.ts';
 
 /**

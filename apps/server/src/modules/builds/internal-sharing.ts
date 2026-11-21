@@ -8,11 +8,11 @@ import {
   readZipEntries,
   StoreError,
   StoreRateLimitError,
-} from '@mrm/connectors';
-import type { Platform } from '@mrm/core';
-import { supports } from '@mrm/core';
-import type { Sql } from '@mrm/db';
-import { decryptSecret, encryptSecret } from '@mrm/vault';
+} from '@kiln/connectors';
+import type { Platform } from '@kiln/core';
+import { supports } from '@kiln/core';
+import type { Sql } from '@kiln/db';
+import { decryptSecret, encryptSecret } from '@kiln/vault';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';

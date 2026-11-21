@@ -29,16 +29,16 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.0
         version: 1.19.19(hono@4.13.19)
-      '@mrm/connectors':
+      '@kiln/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
-      '@mrm/core':
+      '@kiln/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@mrm/db':
+      '@kiln/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@mrm/vault':
+      '@kiln/vault':
         specifier: workspace:*
         version: link:../../packages/vault
       hono:
@@ -50,7 +50,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@mrm/core':
+      '@kiln/core':
         specifier: workspace:*
         version: link:../../packages/core
     devDependencies:
@@ -75,7 +75,7 @@ importers:
 
   packages/connectors:
     dependencies:
-      '@mrm/core':
+      '@kiln/core':
         specifier: workspace:*
         version: link:../core
 

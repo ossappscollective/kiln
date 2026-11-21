@@ -9,7 +9,7 @@
   was made, and what was left out and why.
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import {
     type RecomputeResult,

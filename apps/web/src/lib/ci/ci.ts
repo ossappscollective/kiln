@@ -12,7 +12,7 @@ import {
   prefixProblem,
   previewPatterns,
   proposePattern,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { Tone } from '../repositories.ts';
 import type {
   AppBuild,

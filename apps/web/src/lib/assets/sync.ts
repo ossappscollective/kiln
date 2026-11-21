@@ -15,7 +15,7 @@ import {
   slotKey,
   storeSetKey,
   UPLOAD_FORMATS,
-} from '@mrm/core';
+} from '@kiln/core';
 import { ApiError } from '../api.ts';
 import type { IconName } from '../icons.ts';
 import type { AssetItem, ChangeSetView } from '../types.ts';

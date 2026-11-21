@@ -59,5 +59,5 @@ included in this repository, and there is no commit hash, date or licence to rec
 
 If real brand marks are added later, each one must be recorded here with: the source URL of the file,
 the commit hash and date it was read at, its licence, and a statement that it was copied byte for
-byte; it must pass `pnpm --filter @mrm/web icons:check`; and the trademark note above applies to it.
+byte; it must pass `pnpm --filter @kiln/web icons:check`; and the trademark note above applies to it.
 See "Adding an icon safely" in `docs/design-system.md`.

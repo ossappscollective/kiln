@@ -9,7 +9,7 @@
   and a button in its details: it opens Prepare release with the track and the version codes filled in (lib/play-promote.ts).
 -->
 <script lang="ts">
-  import { can, type Role, supports } from '@mrm/core';
+  import { can, type Role, supports } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { type PlatformScope, appAddress } from '../../lib/app-scope.ts';
   import { promoteHref, promoteOption } from '../../lib/play-promote.ts';

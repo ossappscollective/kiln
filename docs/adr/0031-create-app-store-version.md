@@ -34,7 +34,7 @@ connector ("nothing here creates a version"), so this needs its own decision.
 
 ## Consequences
 
-- The web app prefills the next patch of the newest version it knows (`nextVersion` in `@mrm/core`) and lets the person change it.
+- The web app prefills the next patch of the newest version it knows (`nextVersion` in `@kiln/core`) and lets the person change it.
 - After a create the app is synced from the web app (the same announcement a publish makes), so the stepper finds the version.
   The server does not sync by itself.
 - Whether Apple accepts the request body and which key roles may create a version are unverified.

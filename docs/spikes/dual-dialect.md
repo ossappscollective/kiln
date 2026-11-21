@@ -25,7 +25,7 @@ treat every Postgres line as unverified. See "Testing against Postgres" in CONTR
    `MRM_TEST_POSTGRES_URL` is set, on Postgres (`information_schema`, `pg_indexes`), and still
    compares the two schema files with each other. Foreign keys and unique constraints are not
    compared yet. Verified on SQLite; Postgres not run.
-2. The same repository tests run against both dialects in CI. Done in code: `@mrm/db/testing`
+2. The same repository tests run against both dialects in CI. Done in code: `@kiln/db/testing`
    (`dbTest`) runs `packages/db/src/index.test.ts`, `apps/server/src/app.test.ts` and
    `apps/server/src/jobs.test.ts` on SQLite and on a fresh schema per test in Postgres, and
    reports the Postgres cases as skipped when no server is configured. The CI service container

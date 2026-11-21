@@ -18,7 +18,7 @@
   the same SaveBar as the app Settings. Props: api, workspaceId, role.
 -->
 <script lang="ts">
-  import { type Role, buildSecret, can } from '@mrm/core';
+  import { type Role, buildSecret, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import {
     type AiConfig,

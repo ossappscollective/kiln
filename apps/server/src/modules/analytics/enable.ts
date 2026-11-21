@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { AnalyticsError, type AppleAccessType, type AppleAnalyticsPort } from '@mrm/connectors';
-import { type ActorType, analyticsErrorMessages, supports } from '@mrm/core';
+import { AnalyticsError, type AppleAccessType, type AppleAnalyticsPort } from '@kiln/connectors';
+import { type ActorType, analyticsErrorMessages, supports } from '@kiln/core';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';

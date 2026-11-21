@@ -7,7 +7,7 @@
   tab, from the link on the Listing tab), onback, onupdated (called with a fresh repository row).
 -->
 <script lang="ts">
-  import { type Listing, type Role, can } from '@mrm/core';
+  import { type Listing, type Role, can } from '@kiln/core';
   import { onMount, untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';

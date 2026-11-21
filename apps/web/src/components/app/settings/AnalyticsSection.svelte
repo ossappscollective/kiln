@@ -5,14 +5,14 @@
   Props: api, workspaceId, role, members (the records in scope).
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import type { Api } from '../../../lib/api.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
   import type { AppSummary } from '../../../lib/types.ts';
   import PlayBucketField from '../../analytics/PlayBucketField.svelte';
   import PlatformBadge from '../../ui/PlatformBadge.svelte';
   import SettingsCard from './SettingsCard.svelte';
-import { supports } from '@mrm/core';
+import { supports } from '@kiln/core';
 
   let { api, workspaceId, role, members }: { api: Api; workspaceId: string; role: Role; members: AppSummary[] } = $props();
 

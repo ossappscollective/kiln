@@ -16,7 +16,7 @@
   import AppIcon from '../ui/AppIcon.svelte';
   import Icon from '../ui/Icon.svelte';
   import RolloutObserved from './RolloutObserved.svelte';
-import { platformMeta, supports } from '@mrm/core';
+import { platformMeta, supports } from '@kiln/core';
 
   let {
     app,

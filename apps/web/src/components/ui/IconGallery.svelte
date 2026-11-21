@@ -2,12 +2,12 @@
   IconGallery: DEV ONLY. Every icon in the registry at several sizes, the store and platform badges
   in each variant and tone, and the status icons, so the maintainer can look at them in both themes.
   It is not routed and nothing imports it. To see it, temporarily mount it, for example in
-  src/main.ts: `mount(IconGallery, { target: document.body })`, then run `pnpm --filter @mrm/web dev`.
+  src/main.ts: `mount(IconGallery, { target: document.body })`, then run `pnpm --filter @kiln/web dev`.
   The look of the icons has only been checked for path validity and bounds, never in a browser.
   No props.
 -->
 <script lang="ts">
-  import { RELEASE_STATES } from '@mrm/core';
+  import { RELEASE_STATES } from '@kiln/core';
   import { type IconName, genericBrandIcons, iconNames, iconSizes } from '../../lib/icons.ts';
   import { statusIcon } from '../../lib/status-icons.ts';
   import { storeIds } from '../../lib/stores.ts';

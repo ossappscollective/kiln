@@ -15,7 +15,7 @@ import {
   type RankChangeKind,
   type SuggestedCompetitor,
   type TermAcrossMarkets,
-} from '@mrm/core';
+} from '@kiln/core';
 import { ApiError } from '../api.ts';
 import { appAddress, type PlatformScope, parseViewPath } from '../app-scope.ts';
 import type { IconName } from '../icons.ts';

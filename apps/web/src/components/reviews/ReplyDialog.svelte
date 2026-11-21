@@ -24,7 +24,7 @@
   The review text and the reply are plain text nodes only, never markup and never in a URL.
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { type FlagInfo, aiErrorMessage, flagInfos } from '../../lib/ai/ai.ts';
   import { aiStore } from '../../lib/ai/store.svelte.ts';

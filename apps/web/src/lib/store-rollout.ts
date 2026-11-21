@@ -1,4 +1,4 @@
-import { byFamily, can, type Platform, platformMeta, type Role, supports } from '@mrm/core';
+import { byFamily, can, type Platform, platformMeta, type Role, supports } from '@kiln/core';
 import { ApiError } from './api.ts';
 import { formatRollout, trackLabel } from './portfolio.ts';
 import type { AppSummary, ReleaseSummary } from './types.ts';

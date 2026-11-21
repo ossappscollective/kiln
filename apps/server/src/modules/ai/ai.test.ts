@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { AiError, isStrictCompatible } from '@mrm/connectors';
-import { aiTaskIds } from '@mrm/core';
-import { dbTest } from '@mrm/db/testing';
+import { AiError, isStrictCompatible } from '@kiln/connectors';
+import { aiTaskIds } from '@kiln/core';
+import { dbTest } from '@kiln/db/testing';
 import { wrapReviewText } from './ai-task-reply.ts';
 import { aiTasks } from './ai-tasks.ts';
 import { type AiBoot, API_KEY, bootAi, keywordAnswer } from './test-helpers.ts';

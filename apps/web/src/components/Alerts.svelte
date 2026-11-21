@@ -3,7 +3,7 @@
   the person's settings and the apps are read here once and handed to the tabs. Props: api, workspaceId, role.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { ApiError, type Api } from '../lib/api.ts';
   import type { CatalogEntry, SettingsPage } from '../lib/alerts/alerts.ts';
   import AlertInbox from './alerts/AlertInbox.svelte';

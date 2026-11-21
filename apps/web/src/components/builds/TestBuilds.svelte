@@ -7,7 +7,7 @@
   The address may carry `?build=<number>` (from the release stepper): that build is highlighted and the filters show it.
 -->
 <script lang="ts">
-  import { can, platformLabel, type Role } from '@mrm/core';
+  import { can, platformLabel, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { address } from '../../lib/address.svelte.ts';

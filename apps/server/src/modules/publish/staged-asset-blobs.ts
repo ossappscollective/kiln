@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { ASSET_SYNC_LIMITS } from '@mrm/core';
-import type { Row, Sql } from '@mrm/db';
+import { ASSET_SYNC_LIMITS } from '@kiln/core';
+import type { Row, Sql } from '@kiln/db';
 
 /**
  * The bytes of the images a person uploaded (or fixed in the app) to a staged set of graphics, kept in the database

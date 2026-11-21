@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { AiProposal } from '@mrm/core';
+import type { AiProposal } from '@kiln/core';
 import { ApiError } from '../api.ts';
 import {
   ADDRESS_TEXTS,

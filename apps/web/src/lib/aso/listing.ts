@@ -6,13 +6,13 @@ import {
   normalizeLocale,
   storeShortName,
   type TermSource,
-} from '@mrm/core';
+} from '@kiln/core';
 import { timeAgo } from '../format.ts';
 import type { AsoKeywordInput } from './aso.ts';
 
 /**
  * "Keywords in your listing" in the web (docs/api/aso.md): the pure parts. Which terms a locale of the stored listing
- * sets, whether they are wasted or tracked, is worked out in `@mrm/core` (`listingRows`); here the rows are put into
+ * sets, whether they are wasted or tracked, is worked out in `@kiln/core` (`listingRows`); here the rows are put into
  * words, short marks and the plan that tracks what is not tracked yet. Nothing here reads a store. Written for the ES2017 web build.
  */
 

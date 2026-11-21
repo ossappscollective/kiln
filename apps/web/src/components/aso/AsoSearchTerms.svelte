@@ -9,8 +9,8 @@
   The words and numbers are lib/search-terms.ts. Terms are shown here and kept nowhere else.
 -->
 <script lang="ts">
-  import { can, dateToDay, type Role, supports } from '@mrm/core';
-  import type { SearchTermSort } from '@mrm/core';
+  import { can, dateToDay, type Role, supports } from '@kiln/core';
+  import type { SearchTermSort } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { type AsoKeyword, asoErrorMessage, asoViewHref } from '../../lib/aso/aso.ts';
   import { address } from '../../lib/address.svelte.ts';

@@ -1,4 +1,4 @@
-import type { StoreId } from '@mrm/core';
+import type { StoreId } from '@kiln/core';
 /**
  * Typed errors for repo hosts. Messages are safe to show to a person and to write to a log:
  * they never carry a token, a JWT or a private key (see `redactSecrets`).

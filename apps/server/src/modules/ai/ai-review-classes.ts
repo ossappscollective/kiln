@@ -7,8 +7,8 @@ import {
   aiReviewTopics,
   aiSentiments,
   aiSeverities,
-} from '@mrm/core';
-import type { Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Sql } from '@kiln/db';
 
 /**
  * The tags the assistant gave reviews (table `review_classifications`, migration 41, docs/adr/0024-ai-features.md).

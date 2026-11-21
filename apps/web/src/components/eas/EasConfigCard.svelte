@@ -7,7 +7,7 @@
   Props: api, workspaceId, role, app (the record whose repository is read).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { collapsedSummary } from '../../lib/eas/eas-config.ts';
   import type { AppSummary, EasConfigView } from '../../lib/types.ts';

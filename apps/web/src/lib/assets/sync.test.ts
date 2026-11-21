@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { AssetDiffSet, StagedChangesView } from '@mrm/core';
+import type { AssetDiffSet, StagedChangesView } from '@kiln/core';
 import { ApiError } from '../api.ts';
 import {
   canChangeAssets,

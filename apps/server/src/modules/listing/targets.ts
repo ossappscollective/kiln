@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { checkListingRoot, normalizeRoot } from '@mrm/connectors';
-import type { ActorType } from '@mrm/core';
-import type { Database, Row, Sql } from '@mrm/db';
+import { checkListingRoot, normalizeRoot } from '@kiln/connectors';
+import type { ActorType } from '@kiln/core';
+import type { Database, Row, Sql } from '@kiln/db';
 import { recordAudit } from '../../services/audit.ts';
 
 /**

@@ -1,4 +1,4 @@
-import { type AssetKind, PLAY_DEVICES, PLAY_LISTING_MEMBERS } from '@mrm/core';
+import { type AssetKind, PLAY_DEVICES, PLAY_LISTING_MEMBERS } from '@kiln/core';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
 import type {
   DraftAssetState,

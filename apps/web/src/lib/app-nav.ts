@@ -1,4 +1,4 @@
-import type { Action } from '@mrm/core';
+import type { Action } from '@kiln/core';
 import { type AppSection, appAddress, parseAppAddress, parseViewPath } from './app-scope.ts';
 import { isAsoView } from './aso/aso.ts';
 import type { IconName } from './icons.ts';

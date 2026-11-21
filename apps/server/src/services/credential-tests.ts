@@ -1,6 +1,6 @@
-import * as connectors from '@mrm/connectors';
-import { redactSecrets, secretStrings } from '@mrm/connectors';
-import { type CredentialKind, isCredentialKind } from '@mrm/core';
+import * as connectors from '@kiln/connectors';
+import { redactSecrets, secretStrings } from '@kiln/connectors';
+import { type CredentialKind, isCredentialKind } from '@kiln/core';
 
 /**
  * "Test connection": checks a credential against the service it belongs to, without changing
@@ -15,7 +15,7 @@ export type Verifier = (secret: string, options: VerifierOptions) => Promise<Tes
 /** Finds the verifier for a kind, or undefined when this build has none. Looked up per call. */
 export type VerifierLookup = (kind: CredentialKind) => Verifier | undefined;
 
-/** The name each kind's verifier has in @mrm/connectors. */
+/** The name each kind's verifier has in @kiln/connectors. */
 const verifierNames: Record<CredentialKind, string> = {
   app_store_connect: 'verifyAppStoreConnectCredential',
   google_play: 'verifyGooglePlayCredential',

@@ -6,7 +6,7 @@ import {
   aiSeverities,
   aiSuggestionStatuses,
   aiTaskIds,
-} from '@mrm/core';
+} from '@kiln/core';
 import { z } from 'zod';
 import type { Operation } from '../../operations/openapi.ts';
 import {

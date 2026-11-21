@@ -2,7 +2,7 @@
   import { onMount, tick, untrack } from 'svelte';
   import type { Api } from '../lib/api.ts';
   import { floating } from '../lib/floating.ts';
-  import { can } from '@mrm/core';
+  import { can } from '@kiln/core';
   import { address, appContext } from '../lib/address.svelte.ts';
   import { carryHeaderParams } from '../lib/app-header.ts';
   import { groupApps } from '../lib/app-groups.ts';

@@ -13,10 +13,10 @@ import {
   type RepoConnector,
   redactSecrets,
   secretStrings,
-} from '@mrm/connectors';
-import type { ActorType, Listing, ListingProblem } from '@mrm/core';
-import { validateListing } from '@mrm/core';
-import { type Database, mapOrNull, type Row, type Sql } from '@mrm/db';
+} from '@kiln/connectors';
+import type { ActorType, Listing, ListingProblem } from '@kiln/core';
+import { validateListing } from '@kiln/core';
+import { type Database, mapOrNull, type Row, type Sql } from '@kiln/db';
 import {
   type DetectedSources,
   detectedSources,

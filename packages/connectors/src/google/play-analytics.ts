@@ -1,4 +1,4 @@
-import { type AnalyticsMetric, addDays, analyticsLimits, normalizeBucketId } from '@mrm/core';
+import { type AnalyticsMetric, addDays, analyticsLimits, normalizeBucketId } from '@kiln/core';
 import { AnalyticsError, type AnalyticsPoint, type ParseStats } from '../analytics-types.ts';
 import {
   columnIndex,

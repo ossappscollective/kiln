@@ -5,7 +5,7 @@ import {
   type ReleaseState,
   sortPlatforms,
   supports,
-} from '@mrm/core';
+} from '@kiln/core';
 import { parseViewPath } from './app-scope.ts';
 import { compareReleases, compareVersions } from './portfolio.ts';
 import type { ReleaseSummary } from './types.ts';

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { createScheduler } from '../../scheduler.ts';
 import { asoIntervalMs, asoUpkeep, queueAsoRefreshes } from './schedule.ts';
 import { ASO_REFRESH_QUEUE } from './service.ts';
@@ -19,7 +19,7 @@ test('asoIntervalMs accepts off or 60 to 10080 minutes', () => {
     assert.throws(() => asoIntervalMs(bad), /ASO interval/, String(bad));
 });
 
-const queued = async (db: import('@mrm/db').Database) =>
+const queued = async (db: import('@kiln/db').Database) =>
   (
     await db.query('SELECT payload, run_at FROM jobs WHERE queue = ? ORDER BY run_at', [
       ASO_REFRESH_QUEUE,

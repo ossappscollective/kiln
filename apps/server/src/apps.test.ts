@@ -7,9 +7,9 @@ import {
   StoreError,
   StoreRateLimitError,
   type StoreVersion,
-} from '@mrm/connectors';
-import type { Platform } from '@mrm/core';
-import { dbTest } from '@mrm/db/testing';
+} from '@kiln/connectors';
+import type { Platform } from '@kiln/core';
+import { dbTest } from '@kiln/db/testing';
 import type { createApp } from './app.ts';
 import { createWorker } from './jobs.ts';
 import { bootRepoApp } from './repo-test-helpers.ts';

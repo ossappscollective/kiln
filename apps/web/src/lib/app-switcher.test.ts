@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Platform } from '@mrm/core';
+import type { Platform } from '@kiln/core';
 import { groupApps } from './app-groups.ts';
 import {
   appSwitchHash,

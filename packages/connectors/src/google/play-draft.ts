@@ -4,7 +4,7 @@ import {
   PLAY_DEVICES,
   PLAY_LISTING_MEMBERS,
   versionCodesOf,
-} from '@mrm/core';
+} from '@kiln/core';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
 import { playCodeEligibility } from '../release-eligibility.ts';
 import {

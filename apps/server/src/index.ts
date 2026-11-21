@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { serve } from '@hono/node-server';
-import { createDatabase, migrate } from '@mrm/db';
+import { createDatabase, migrate } from '@kiln/db';
 import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { demoRequested } from './demo/config.ts';

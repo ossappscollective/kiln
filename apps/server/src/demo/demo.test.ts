@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import { createDatabase, migrate } from '@mrm/db';
+import { createDatabase, migrate } from '@kiln/db';
 import { createApp } from '../app.ts';
 import { createDemoRuntime, type DemoRuntime } from './boot.ts';
 import {

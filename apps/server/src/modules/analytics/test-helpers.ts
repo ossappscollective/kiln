@@ -14,9 +14,9 @@ import {
   type PlayReportsResult,
   type PlayVitalsPort,
   type PlayVitalsResult,
-} from '@mrm/connectors';
-import { addDays, dateToDay, type Platform } from '@mrm/core';
-import type { Database } from '@mrm/db';
+} from '@kiln/connectors';
+import { addDays, dateToDay, type Platform } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import type { AnalyticsConnectorFactory } from './sync.ts';
 

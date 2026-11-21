@@ -14,7 +14,7 @@
   Mount it when a workflow is chosen; unmount it on close, so every open starts clean.
 -->
 <script lang="ts">
-  import { platformLabel } from '@mrm/core';
+  import { platformLabel } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import {

@@ -9,7 +9,7 @@
   import { fullTime } from '../../lib/format.ts';
   import { type SubmitPreview, buildLine, checkText, localeLine, pushedText, trackLine, versionLine } from '../../lib/store-submit.ts';
   import Alert from '../ui/Alert.svelte';
-import { supports } from '@mrm/core';
+import { supports } from '@kiln/core';
 
   let { preview }: { preview: SubmitPreview } = $props();
 

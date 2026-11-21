@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Database } from '@mrm/db';
-import { dbTest } from '@mrm/db/testing';
+import type { Database } from '@kiln/db';
+import { dbTest } from '@kiln/db/testing';
 import { loadConfig } from '../../config.ts';
 import {
   createScheduler,

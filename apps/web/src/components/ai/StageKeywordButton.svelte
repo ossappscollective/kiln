@@ -8,7 +8,7 @@
   the idea names).
 -->
 <script lang="ts">
-  import type { Platform, Role } from '@mrm/core';
+  import type { Platform, Role } from '@kiln/core';
   import { canStagePlacement, placementWord, stageInLabel } from '../../lib/ai/placement.ts';
   import type { Api } from '../../lib/api.ts';
   import { storeTextOf } from '../../lib/aso/keyword-use.ts';

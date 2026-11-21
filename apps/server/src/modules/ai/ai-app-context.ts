@@ -7,8 +7,8 @@ import {
   findBannedWord,
   isEmptyAiAppContext,
   normalizeAiAppContext,
-} from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Database, Sql } from '@kiln/db';
 import { recordAudit } from '../../services/audit.ts';
 import { type AiActor, type AiFailure, aiFail } from './ai-config.ts';
 

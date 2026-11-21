@@ -1,5 +1,5 @@
-import { EXPO_LOCALES, isLocaleDir } from '@mrm/connectors';
-import type { Platform } from '@mrm/core';
+import { EXPO_LOCALES, isLocaleDir } from '@kiln/connectors';
+import type { Platform } from '@kiln/core';
 
 /**
  * Locale codes between the store and the repository, as pure functions.

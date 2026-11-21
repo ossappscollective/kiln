@@ -12,7 +12,7 @@
   and confirmed there; nothing on this card sends anything by itself.
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {

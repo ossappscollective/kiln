@@ -9,7 +9,7 @@
   Read-only: nothing here changes a file or a store.
 -->
 <script lang="ts">
-  import type { AssetProblem } from '@mrm/core';
+  import type { AssetProblem } from '@kiln/core';
   import {
     type PreviewState,
     dimensionsText,

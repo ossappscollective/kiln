@@ -13,8 +13,8 @@ import {
   type StoreId,
   storeOf,
   supports,
-} from '@mrm/core';
-import { nullableNumber, nullableString, oneOf, type Sql } from '@mrm/db';
+} from '@kiln/core';
+import { nullableNumber, nullableString, oneOf, type Sql } from '@kiln/db';
 import { releasesSentHere, sentAtOf } from '../../services/apps.ts';
 import { getSettings } from '../../services/workspace-settings.ts';
 import { effectiveConventions, listConventions } from '../ci/conventions.ts';
@@ -25,7 +25,7 @@ import { RELEASE_WORKFLOW } from '../ci/tags.ts';
  * The release pipeline of an app (docs/api/release-pipeline.md): where its release is between a CI run and "live", and whether it
  * is stalled. The facts come from this server's own tables only (the stored runs, the builds and releases of the last store sync,
  * the links between builds and runs), so reading it never asks GitHub or a store and costs a few queries per workspace.
- * The judgement is `evaluatePipeline` in `@mrm/core`.
+ * The judgement is `evaluatePipeline` in `@kiln/core`.
  */
 
 /** Runs older than this are not part of a release in flight. */

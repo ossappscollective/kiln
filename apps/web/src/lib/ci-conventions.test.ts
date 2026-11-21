@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DEFAULT_TAG_PATTERNS, MAX_PATTERNS } from '@mrm/core';
+import { DEFAULT_TAG_PATTERNS, MAX_PATTERNS } from '@kiln/core';
 import {
   appendPattern,
   confidenceBadge,

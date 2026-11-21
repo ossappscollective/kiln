@@ -42,7 +42,7 @@ A new provider adds a value there, a refresher and its own start route.
 
 `ci.dispatch` is a member right because a member can already create change sets and sync apps; a
 viewer only reads. It is a separate action (not folded into `repositories.scan`) so that a
-workspace that wants only admins to run CI can change the role table in `@mrm/core` in one place.
+workspace that wants only admins to run CI can change the role table in `@kiln/core` in one place.
 
 ## Workflows
 
@@ -514,7 +514,7 @@ Defaults (used while a convention stores none):
   `*{version} (build {buildNumber})`, `*v{version} ({buildNumber})`, `*{version} ({buildNumber})`,
   `*Build {buildNumber}`
 
-The pattern engine is `@mrm/core` (`build-patterns.ts`), shared by the server and the web preview.
+The pattern engine is `@kiln/core` (`build-patterns.ts`), shared by the server and the web preview.
 Not matched: iOS build numbers with dots (`1.2.3`), and Mac Catalyst tags.
 
 ### Conventions per repository and per app

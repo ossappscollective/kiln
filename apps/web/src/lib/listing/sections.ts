@@ -13,7 +13,7 @@ import {
   type Platform,
   type SectionStatus,
   supports,
-} from '@mrm/core';
+} from '@kiln/core';
 import { timeAgo } from '../format.ts';
 import type { BadgeTone } from '../portfolio.ts';
 import type { ListingSchedule, SectionDrift } from '../types.ts';

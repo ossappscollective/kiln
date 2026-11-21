@@ -1,4 +1,4 @@
-import type { Database, Row, Sql } from '@mrm/db';
+import type { Database, Row, Sql } from '@kiln/db';
 import { type AlertData, type AlertTypeId, alertDef, redactAlertData } from './catalog.ts';
 import { listRuleViews, type RuleView } from './prefs.ts';
 import { raiseAlert } from './service.ts';

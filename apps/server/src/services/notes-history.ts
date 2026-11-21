@@ -1,7 +1,7 @@
-import type { NotesHistoryRead } from '@mrm/connectors';
-import type { StoreId } from '@mrm/core';
-import { storeOf } from '@mrm/core';
-import type { Sql } from '@mrm/db';
+import type { NotesHistoryRead } from '@kiln/connectors';
+import type { StoreId } from '@kiln/core';
+import { storeOf } from '@kiln/core';
+import type { Sql } from '@kiln/db';
 import { readNotesHistoryOf, type StoreConnectContext } from '../modules/publish/store-draft.ts';
 import type { ManagedApp } from './apps.ts';
 import { timedCache } from './timed-cache.ts';

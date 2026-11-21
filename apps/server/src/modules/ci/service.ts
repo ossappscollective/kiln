@@ -9,13 +9,13 @@ import type {
   CommitComparison,
   DispatchResult,
   ListWorkflowRunsOptions,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 import {
   type ActorType,
   DEFAULT_RELEASE_PATTERNS,
   DEFAULT_TAG_PATTERNS,
   type Platform,
-} from '@mrm/core';
+} from '@kiln/core';
 import { enqueue, type JobHandler } from '../../jobs.ts';
 import { getApp, listAppReleases, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';

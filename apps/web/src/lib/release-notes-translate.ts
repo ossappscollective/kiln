@@ -1,4 +1,4 @@
-import { aiProviderInfo, can, type Role, translationProviderInfo } from '@mrm/core';
+import { aiProviderInfo, can, type Role, translationProviderInfo } from '@kiln/core';
 import {
   type AiConfig,
   aiErrorMessage,

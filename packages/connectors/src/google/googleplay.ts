@@ -1,4 +1,4 @@
-import type { ListingSections, LocaleText, MediaSet, PlayField } from '@mrm/core';
+import type { ListingSections, LocaleText, MediaSet, PlayField } from '@kiln/core';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
 import { mapPlayTrackRelease } from '../mappings.ts';
 import {

@@ -11,7 +11,7 @@
   no frame: for the "Needs attention" list, which draws its own line), showPlatform (a platform badge).
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { announcePublished } from '../../lib/app-page.ts';
   import type { Api } from '../../lib/api.ts';
@@ -40,7 +40,7 @@
   import InfoTip from '../ui/InfoTip.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import SubmitDialog from './SubmitDialog.svelte';
-import { byFamily } from '@mrm/core';
+import { byFamily } from '@kiln/core';
 
   let {
     api,

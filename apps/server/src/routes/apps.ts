@@ -1,5 +1,5 @@
-import { isPlayPackageName } from '@mrm/connectors';
-import { type Action, can, PLATFORMS } from '@mrm/core';
+import { isPlayPackageName } from '@kiln/connectors';
+import { type Action, can, PLATFORMS } from '@kiln/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';

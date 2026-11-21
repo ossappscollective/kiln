@@ -7,9 +7,9 @@ import {
   StoreError,
   type StoreListing,
   type StoreVersion,
-} from '@mrm/connectors';
-import type { Platform } from '@mrm/core';
-import { dbTest } from '@mrm/db/testing';
+} from '@kiln/connectors';
+import type { Platform } from '@kiln/core';
+import { dbTest } from '@kiln/db/testing';
 import {
   CARD_APP,
   SCAN_APP,

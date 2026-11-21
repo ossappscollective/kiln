@@ -12,7 +12,7 @@ import {
   type ReleaseState,
   type RolloutSummary,
   supports,
-} from '@mrm/core';
+} from '@kiln/core';
 import {
   appHref,
   compareVersions,
@@ -91,7 +91,7 @@ type Step = {
 const both = (text: string) => ({ ios: text, android: text });
 
 /**
- * What to do next for each state. Every `event` is one the state machine in @mrm/core allows from
+ * What to do next for each state. Every `event` is one the state machine in @kiln/core allows from
  * that state (a test checks it), so this table cannot drift from the lifecycle. The store consoles
  * are where these actions happen: this product writes nothing to a store.
  */

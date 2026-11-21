@@ -1,4 +1,4 @@
-import type { Platform } from '@mrm/core';
+import type { Platform } from '@kiln/core';
 import type { DispatchHint } from '../start-release.ts';
 import type { AppSummary, CiWorkflow, RepositorySummary } from '../types.ts';
 import { initialSelection } from './dispatch-apps.ts';

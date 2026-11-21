@@ -22,7 +22,7 @@
   import EmptyState from '../ui/EmptyState.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import KindBadge from './KindBadge.svelte';
-import { supports } from '@mrm/core';
+import { supports } from '@kiln/core';
 
   let {
     api,

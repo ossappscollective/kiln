@@ -5,7 +5,7 @@ import {
   PLAY_GRAPHIC_FILES,
   type Platform,
   supports,
-} from '@mrm/core';
+} from '@kiln/core';
 import { screenshotFolders } from './store-assets.ts';
 
 /**

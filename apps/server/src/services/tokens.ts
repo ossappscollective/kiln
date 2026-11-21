@@ -10,8 +10,8 @@ import {
   type TokenRole,
   tokenForbiddenActions,
   tokenRoles,
-} from '@mrm/core';
-import type { Database, Row, Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Database, Row, Sql } from '@kiln/db';
 import { z } from 'zod';
 import { recordAudit } from './audit.ts';
 

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ActorType } from '@mrm/core';
+import type { ActorType } from '@kiln/core';
 import { recordAudit } from './audit.ts';
 import {
   type GitProblemCode,

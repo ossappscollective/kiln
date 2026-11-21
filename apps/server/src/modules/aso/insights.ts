@@ -25,8 +25,8 @@ import {
   supports,
   type TermAcrossMarkets,
   termsAcrossMarkets,
-} from '@mrm/core';
-import type { Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Sql } from '@kiln/db';
 import type { ManagedApp } from '../../services/apps.ts';
 import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
 import { getLiveListing } from '../listing/live.ts';

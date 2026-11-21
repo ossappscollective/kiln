@@ -6,7 +6,7 @@
   Props: api, workspaceId, role.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { type Api } from '../../lib/api.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';

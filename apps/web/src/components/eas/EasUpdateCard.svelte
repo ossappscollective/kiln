@@ -7,7 +7,7 @@
   Props: api, workspaceId, role, app (the record whose Expo project is read).
 -->
 <script lang="ts">
-  import { type Role } from '@mrm/core';
+  import { type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { type EasUpdateState, updateSummary } from '../../lib/eas/eas-update.ts';

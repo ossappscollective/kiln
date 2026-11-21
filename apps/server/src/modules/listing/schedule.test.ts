@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { StoreError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { StoreError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { claimNext } from '../../jobs.ts';
 import { createScheduler } from '../../scheduler.ts';
 import { APP_SYNC_QUEUE } from '../../services/apps.ts';

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { StoreError, StoreRateLimitError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { StoreError, StoreRateLimitError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { checkTemplate, hashReplyText, plainValue, renderTemplate } from './replies.ts';
 import { deleteReviewData, pruneReviews, purgeOrphanReviewRows } from './service.ts';
 import { bootReviews, type ReviewsBoot } from './test-helpers.ts';

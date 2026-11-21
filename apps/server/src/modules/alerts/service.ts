@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { can, isRole, type Role } from '@mrm/core';
-import type { Row, Sql } from '@mrm/db';
+import { can, isRole, type Role } from '@kiln/core';
+import type { Row, Sql } from '@kiln/db';
 import { enqueue } from '../../jobs.ts';
 import { type EventRecord, emitEvent } from '../../services/events.ts';
 import {

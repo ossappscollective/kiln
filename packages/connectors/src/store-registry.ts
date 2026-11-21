@@ -1,4 +1,4 @@
-import type { Platform, StoreCredentialKind } from '@mrm/core';
+import type { Platform, StoreCredentialKind } from '@kiln/core';
 
 /**
  * What a connector is built from, whatever the store or the capability (read, reviews, draft, submit, rollout, release).

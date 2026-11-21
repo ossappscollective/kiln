@@ -1,4 +1,4 @@
-import { type Platform, parsePlatform } from '@mrm/core';
+import { type Platform, parsePlatform } from '@kiln/core';
 import type { IconName } from './icons.ts';
 
 /**

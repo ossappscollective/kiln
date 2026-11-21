@@ -7,7 +7,7 @@
   Props: proposal (the insight), appId (for the evidence links), platform? (the platform of the app, so a link opens the right tab).
 -->
 <script lang="ts">
-  import type { AiFlag, AiInsightProposal, Platform } from '@mrm/core';
+  import type { AiFlag, AiInsightProposal, Platform } from '@kiln/core';
   import { flagInfos } from '../../lib/ai/ai.ts';
   import {
     auditFieldText,

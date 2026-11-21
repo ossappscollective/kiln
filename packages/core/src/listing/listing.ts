@@ -1,7 +1,7 @@
 /**
  * Store listings as data: the fields each store has, their limits, and a validator.
  *
- * Pure. No file layout lives here (that is `@mrm/connectors/fastlane`); this module only knows
+ * Pure. No file layout lives here (that is `@kiln/connectors/fastlane`); this module only knows
  * what a listing is and what makes one acceptable to the store.
  *
  * Every limit carries the page it came from. A limit or a "required" flag that no official page

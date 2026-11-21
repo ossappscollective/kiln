@@ -1,4 +1,4 @@
-import type { Action } from '@mrm/core';
+import type { Action } from '@kiln/core';
 import type { EventType } from '../../services/event-types.ts';
 
 /**

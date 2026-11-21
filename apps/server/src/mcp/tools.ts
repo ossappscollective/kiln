@@ -1,4 +1,4 @@
-import { type Action, can, canToken, tokenExplicitOnlyActions } from '@mrm/core';
+import { type Action, can, canToken, tokenExplicitOnlyActions } from '@kiln/core';
 import type { z } from 'zod';
 import {
   type JsonSchema,

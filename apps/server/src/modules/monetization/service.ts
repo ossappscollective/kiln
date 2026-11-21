@@ -1,5 +1,5 @@
-import { StoreRateLimitError } from '@mrm/connectors';
-import { supports } from '@mrm/core';
+import { StoreRateLimitError } from '@kiln/connectors';
+import { supports } from '@kiln/core';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';

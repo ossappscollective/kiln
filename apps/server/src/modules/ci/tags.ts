@@ -4,7 +4,7 @@ import {
   matchName,
   type NameFields,
   type Platform,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { BuildConventions } from './conventions.ts';
 import type { WorkflowRunView } from './runs.ts';
 

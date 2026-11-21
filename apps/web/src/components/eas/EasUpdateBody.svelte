@@ -7,7 +7,7 @@
   Props: api, workspaceId, role, app, onread? (called with the view and whether a read is running, for the collapsed summary).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import {

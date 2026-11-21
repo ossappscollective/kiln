@@ -6,8 +6,8 @@ import {
   cloneSize,
   isCloneBusy,
   listClones,
-} from '@mrm/connectors';
-import type { Sql } from '@mrm/db';
+} from '@kiln/connectors';
+import type { Sql } from '@kiln/db';
 import { recordAudit } from './audit.ts';
 import type { CloneReads } from './clone-reads.ts';
 import { localCloneId } from './local-reads.ts';

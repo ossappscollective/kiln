@@ -22,7 +22,7 @@
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
   import SubmitPreviewBody from '../publish/SubmitPreviewBody.svelte';
-import { supports } from '@mrm/core';
+import { supports } from '@kiln/core';
 
   let {
     open = $bindable(false),

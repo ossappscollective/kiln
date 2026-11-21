@@ -4,8 +4,8 @@ import {
   DefaultBranchError,
   GithubError,
   type PullRequestInfo,
-} from '@mrm/connectors';
-import type { ActorType, FileChange } from '@mrm/core';
+} from '@kiln/connectors';
+import type { ActorType, FileChange } from '@kiln/core';
 import { recordAudit } from './audit.ts';
 import {
   commitFailure,

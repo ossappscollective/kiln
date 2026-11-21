@@ -15,7 +15,7 @@ import {
   parseTable,
   StoreError,
   StoreRateLimitError,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 import {
   type ActorType,
   type AnalyticsErrorCode,
@@ -27,8 +27,8 @@ import {
   moneyMetrics,
   sourcesForPlatform,
   splitProductDimValue,
-} from '@mrm/core';
-import type { Database } from '@mrm/db';
+} from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { enqueue, type JobHandler } from '../../jobs.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';

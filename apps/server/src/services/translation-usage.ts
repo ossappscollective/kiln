@@ -1,4 +1,4 @@
-import type { Sql } from '@mrm/db';
+import type { Sql } from '@kiln/db';
 
 /**
  * The daily character budget of translation, per workspace and UTC day, in `translation_usage`.

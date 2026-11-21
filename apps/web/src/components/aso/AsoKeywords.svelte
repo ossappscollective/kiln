@@ -11,7 +11,7 @@
   "Suggest keywords" (AI, only when AI is on) asks for ideas in the language each app tracks most; they arrive in the AI suggestions tray above.
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
@@ -50,7 +50,7 @@
   import AsoBar from './AsoBar.svelte';
   import Sparkline from './Sparkline.svelte';
   import SuggestKeywords from '../ai/SuggestKeywords.svelte';
-import { supports } from '@mrm/core';
+import { supports } from '@kiln/core';
 
   let {
     api,

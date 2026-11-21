@@ -1,4 +1,4 @@
-import type { AssetCompareTotals } from '@mrm/core';
+import type { AssetCompareTotals } from '@kiln/core';
 
 /**
  * The Assets step of "Prepare release": one plain sentence on whether the screenshots in the repository match what the store

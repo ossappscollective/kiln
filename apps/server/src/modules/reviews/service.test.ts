@@ -7,10 +7,10 @@ import {
   StoreRateLimitError,
   type StoreReview,
   type StoreReviewConnector,
-} from '@mrm/connectors';
-import type { Platform } from '@mrm/core';
-import type { Database } from '@mrm/db';
-import { dbTest } from '@mrm/db/testing';
+} from '@kiln/connectors';
+import type { Platform } from '@kiln/core';
+import type { Database } from '@kiln/db';
+import { dbTest } from '@kiln/db/testing';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import { createScheduler } from '../../scheduler.ts';
 import { createTestLimiter } from '../../services/credential-tests.ts';

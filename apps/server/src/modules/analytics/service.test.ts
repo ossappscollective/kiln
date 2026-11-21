@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { type AnalyticsBoot, bootAnalytics, discoveryTsv, downloadsTsv } from './test-helpers.ts';
 
 // Everything here runs against fakes: no store is ever contacted.

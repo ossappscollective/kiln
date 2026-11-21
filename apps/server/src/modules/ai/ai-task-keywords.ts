@@ -1,4 +1,4 @@
-import type { JsonSchema } from '@mrm/connectors';
+import type { JsonSchema } from '@kiln/connectors';
 import {
   type AiFlag,
   type AiKeywordIdea,
@@ -11,7 +11,7 @@ import {
   normalizeCountry,
   normalizeLocale,
   PLAY_FIELD_SPECS,
-} from '@mrm/core';
+} from '@kiln/core';
 import { listCompetitors, listKeywords } from '../aso/service.ts';
 import { getDrift } from '../listing/live.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';

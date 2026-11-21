@@ -13,8 +13,8 @@ import {
   expoUpdateChannels,
   expoUpdateGroupInsights,
   type RuntimeCheck,
-} from '@mrm/connectors';
-import type { ActorType, Platform } from '@mrm/core';
+} from '@kiln/connectors';
+import type { ActorType, Platform } from '@kiln/core';
 import type { ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';

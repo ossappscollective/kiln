@@ -5,9 +5,9 @@ import {
   redactSecrets,
   revenueCatErrorMessage,
   secretStrings,
-} from '@mrm/connectors';
-import type { ActorType } from '@mrm/core';
-import type { Database } from '@mrm/db';
+} from '@kiln/connectors';
+import type { ActorType } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import type { RevenueCatDeps } from './index.ts';

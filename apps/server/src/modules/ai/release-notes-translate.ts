@@ -1,6 +1,6 @@
-import type { JsonSchema } from '@mrm/connectors';
-import { type AiProvider, byFamily, sameLanguage, storeShortName } from '@mrm/core';
-import type { Database } from '@mrm/db';
+import type { JsonSchema } from '@kiln/connectors';
+import { type AiProvider, byFamily, sameLanguage, storeShortName } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import type { ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import {

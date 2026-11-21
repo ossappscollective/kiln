@@ -1,4 +1,4 @@
-import { analyticsLimits, isAnalyticsErrorCode, metricInfo } from '@mrm/core';
+import { analyticsLimits, isAnalyticsErrorCode, metricInfo } from '@kiln/core';
 import { ApiError } from '../api.ts';
 import {
   analyticsErrorText,

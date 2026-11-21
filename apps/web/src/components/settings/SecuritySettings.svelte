@@ -7,7 +7,7 @@
   Props: api, workspaceId, role.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime } from '../../lib/format.ts';
   import {

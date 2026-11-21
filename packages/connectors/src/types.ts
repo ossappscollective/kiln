@@ -1,4 +1,4 @@
-import type { ChangeSet, Listing, ListingSections, Platform, ReleaseState } from '@mrm/core';
+import type { ChangeSet, Listing, ListingSections, Platform, ReleaseState } from '@kiln/core';
 
 /**
  * Each store and each repo host sits behind one of these interfaces. Anything that is
@@ -61,7 +61,7 @@ export type StoreBuild = {
 };
 
 /**
- * The localized listing as the store holds it, in the shared per-locale model of `@mrm/core`.
+ * The localized listing as the store holds it, in the shared per-locale model of `@kiln/core`.
  *
  * - App Store Connect has two copies: the version users see (`live`) and the version being
  *   prepared (`editable`). Either can be absent (a new app has no live version; an app without a

@@ -5,7 +5,7 @@ import {
   aiErrorMessage,
   type CreateAiClientInput,
   createAiClient,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 import {
   type Action,
   type AiErrorKind,
@@ -16,8 +16,8 @@ import {
   can,
   isAiProvider,
   type Role,
-} from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Database, Sql } from '@kiln/db';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import {

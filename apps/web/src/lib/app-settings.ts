@@ -1,4 +1,4 @@
-import { type CredentialKind, credentialKindInfo, isCredentialKind } from '@mrm/core';
+import { type CredentialKind, credentialKindInfo, isCredentialKind } from '@kiln/core';
 import { appAddress } from './app-scope.ts';
 import { testStatus } from './credentials.ts';
 import type { SettingsSection } from './settings-views.ts';

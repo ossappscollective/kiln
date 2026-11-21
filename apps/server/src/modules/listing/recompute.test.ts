@@ -8,9 +8,9 @@ import {
   type StoreConnector,
   type StoreListing,
   type StoreVersion,
-} from '@mrm/connectors';
-import type { Platform } from '@mrm/core';
-import { dbTest } from '@mrm/db/testing';
+} from '@kiln/connectors';
+import type { Platform } from '@kiln/core';
+import { dbTest } from '@kiln/db/testing';
 import { BranchRepo } from '../../fixup-test-helpers.ts';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import type { StoreConnectorFactory } from '../../services/apps.ts';

@@ -4,7 +4,7 @@ import {
   type PipelineStepStatus,
   type Platform,
   platformLabel,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { AppPipeline, StripStep, Waiting } from './release-pipeline.ts';
 import { STRIP_LABELS, stepForState, stripVisible, waitingOf } from './release-pipeline.ts';
 import type { StepId } from './release-stepper.ts';

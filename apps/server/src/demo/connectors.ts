@@ -20,8 +20,8 @@ import type {
   StoreVersion,
   TestFlightGroup,
   TestFlightLinksConnector,
-} from '@mrm/connectors';
-import { createFakeAiClient } from '@mrm/connectors';
+} from '@kiln/connectors';
+import { createFakeAiClient } from '@kiln/connectors';
 import type { AnalyticsConnectorFactory } from '../modules/analytics/sync.ts';
 import type {
   AsoSources,

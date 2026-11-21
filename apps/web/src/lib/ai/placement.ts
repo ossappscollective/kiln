@@ -1,4 +1,4 @@
-import { isStageableTextField, type ListingStore, type Platform } from '@mrm/core';
+import { isStageableTextField, type ListingStore, type Platform } from '@kiln/core';
 
 /**
  * The words around an AI keyword idea and a suggested listing text, pure. A keyword idea names the listing field it would help most

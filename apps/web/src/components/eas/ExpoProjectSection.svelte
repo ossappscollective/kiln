@@ -5,7 +5,7 @@
   Props: api, workspaceId, role, members (the records in scope), now.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { type ExpoLinkView, expoCredentials, expoSummary, showExpoCard } from '../../lib/eas/eas.ts';

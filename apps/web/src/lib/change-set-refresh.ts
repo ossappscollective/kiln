@@ -4,7 +4,7 @@
  * (ChangeSetStale.svelte, ChangeSetRefreshDialog.svelte) only draw what they return. The server
  * decides; this file only keeps the screen from offering what the server will refuse.
  */
-import { can, type Role } from '@mrm/core';
+import { can, type Role } from '@kiln/core';
 import type { ChangeSetView } from './types.ts';
 
 export type FileState = 'same' | 'changed' | 'already_applied' | 'conflict';

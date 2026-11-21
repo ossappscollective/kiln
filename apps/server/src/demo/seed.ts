@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import type { Database } from '@mrm/db';
+import type { Database } from '@kiln/db';
 import type { Hono } from 'hono';
 import type { AppEnv } from '../http.ts';
 import { seedAlertRules, seedAlerts } from './alerts.ts';

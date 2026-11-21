@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import type { Database, Sql } from '@mrm/db';
+import type { Database, Sql } from '@kiln/db';
 import type { Context } from 'hono';
 import { getCookie } from 'hono/cookie';
 import type { AppEnv } from '../http.ts';

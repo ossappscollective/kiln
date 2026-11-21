@@ -1,4 +1,4 @@
-import { PLATFORMS, type Platform, platformLabel, sortPlatforms } from '@mrm/core';
+import { PLATFORMS, type Platform, platformLabel, sortPlatforms } from '@kiln/core';
 import type { IconName } from '../icons.ts';
 import type { BadgeTone } from '../portfolio.ts';
 import type { DriftField, ListingDrift } from '../types.ts';

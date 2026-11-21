@@ -8,7 +8,7 @@
   "Save as a target"), onuse(path), onsave(path).
 -->
 <script lang="ts">
-  import type { ListingStore } from '@mrm/core';
+  import type { ListingStore } from '@kiln/core';
   import type { StoreDiagnostic } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
 

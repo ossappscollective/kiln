@@ -15,7 +15,7 @@
   field, with a note), onstaged? (after a text was staged or taken back).
 -->
 <script lang="ts">
-  import { type AiAcceptedRef, type Platform, type Role } from '@mrm/core';
+  import { type AiAcceptedRef, type Platform, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { appAddress } from '../../lib/app-scope.ts';

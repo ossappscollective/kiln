@@ -1,5 +1,5 @@
-import { parsePlatform } from '@mrm/core';
-import type { Database } from '@mrm/db';
+import { parsePlatform } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { enqueue, type JobHandler } from '../../jobs.ts';
 import type { EasDeps } from './index.ts';
 import {

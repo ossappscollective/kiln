@@ -30,9 +30,9 @@ import {
   type StoreRolloutConnector,
   sameRolloutState,
   secretStrings,
-} from '@mrm/connectors';
-import { type ActorType, needsStoreAppId, type Platform, supports } from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+} from '@kiln/connectors';
+import { type ActorType, needsStoreAppId, type Platform, supports } from '@kiln/core';
+import type { Database, Sql } from '@kiln/db';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';

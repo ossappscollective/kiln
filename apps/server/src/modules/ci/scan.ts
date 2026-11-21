@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import type { CommitDetail, GitRelease, ReleaseList, TagList } from '@mrm/connectors';
-import type { Platform } from '@mrm/core';
-import type { Sql } from '@mrm/db';
+import type { CommitDetail, GitRelease, ReleaseList, TagList } from '@kiln/connectors';
+import type { Platform } from '@kiln/core';
+import type { Sql } from '@kiln/db';
 import { getApp, listAppReleases, type ManagedApp } from '../../services/apps.ts';
 import { timedCache } from '../../services/timed-cache.ts';
 import { type EffectiveConventions, effectiveConventions, listConventions } from './conventions.ts';
@@ -34,7 +34,7 @@ import {
 /**
  * The part of build linking that reads tags, releases and commits from GitHub and writes what it
  * finds as links (`build_links` with evidence). The matching itself is pure and lives in
- * build-tags.ts; the pattern language is in `@mrm/core`. See docs/api/ci.md.
+ * build-tags.ts; the pattern language is in `@kiln/core`. See docs/api/ci.md.
  *
  * One scan reads, for a repository: its tags (a bounded number of pages), its releases (a few
  * pages), and the commits of the tags that carry a build number that is not linked yet (a few

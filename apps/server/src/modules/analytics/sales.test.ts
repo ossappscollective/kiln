@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { AnalyticsPoint } from '@mrm/connectors';
-import { AnalyticsError } from '@mrm/connectors';
-import { productSalesLimits } from '@mrm/core';
-import { dbTest } from '@mrm/db/testing';
+import type { AnalyticsPoint } from '@kiln/connectors';
+import { AnalyticsError } from '@kiln/connectors';
+import { productSalesLimits } from '@kiln/core';
+import { dbTest } from '@kiln/db/testing';
 import { capProductPoints } from './product-sales.ts';
 import { type AnalyticsBoot, BUCKET, bootAnalytics, mdy, salesTsv } from './test-helpers.ts';
 

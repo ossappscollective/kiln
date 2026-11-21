@@ -1,4 +1,4 @@
-import type { Platform } from '@mrm/core';
+import type { Platform } from '@kiln/core';
 import type { AttentionItem } from './app-attention.ts';
 import { appAddress, type PlatformScope } from './app-scope.ts';
 import { releaseStepHref } from './release-stepper.ts';

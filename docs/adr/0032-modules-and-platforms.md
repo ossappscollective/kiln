@@ -15,10 +15,10 @@ ternary in a dozen files and the literal union of store names was written out 25
    `Deps` type (the seams tests replace). `createApp` mounts modules and passes `deps.<id>`; it does not know their insides.
 2. **Moving is mechanical.** `node scripts/move-files.mjs <root> from=to ...` does `git mv` and rewrites every relative import; the
    type check and the tests are the proof. One module per commit.
-3. **Platform facts live in `@mrm/core/platform.ts`.** `STORE_IDS` / `StoreId`, `PLATFORM_META[p].store` and `storeOf(p)` replace
+3. **Platform facts live in `@kiln/core/platform.ts`.** `STORE_IDS` / `StoreId`, `PLATFORM_META[p].store` and `storeOf(p)` replace
    the literals and ternaries. A new platform is a new row there plus a connector; a branch that still says `=== 'android'` is a
    candidate for a capability flag on the row.
-4. **Rows are read through `@mrm/db/row.ts`** (`nullableString`, `nullableNumber`, `oneOf`, ...), not cast.
+4. **Rows are read through `@kiln/db/row.ts`** (`nullableString`, `nullableNumber`, `oneOf`, ...), not cast.
 5. **`assertNever`** closes every `switch` over a union.
 
 6. **Store connectors come from one registry.** `StoreConnectorInput` and `connectorFactory({ app_store_connect, google_play })`

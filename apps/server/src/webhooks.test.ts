@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
-import { dbTest } from '@mrm/db/testing';
-import { decryptSecret } from '@mrm/vault';
+import { dbTest } from '@kiln/db/testing';
+import { decryptSecret } from '@kiln/vault';
 import { claimNext, completeJob, failJob } from './jobs.ts';
 import { bootRepoApp } from './repo-test-helpers.ts';
 import { emitEvent } from './services/events.ts';

@@ -6,9 +6,9 @@ import {
   isExpoProjectId,
   normalizeExpoFullName,
   readExpoProjectFromAppJson,
-} from '@mrm/connectors';
-import type { ActorType } from '@mrm/core';
-import { type Database, nullableString, type Sql } from '@mrm/db';
+} from '@kiln/connectors';
+import type { ActorType } from '@kiln/core';
+import { type Database, nullableString, type Sql } from '@kiln/db';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { isCloneBacked } from '../../services/clone-reads.ts';

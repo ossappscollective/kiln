@@ -11,7 +11,7 @@ import {
   SubmitOutcomeUnknownError,
   type SubmitState,
   submitKey,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 import {
   APP_STORE_FIELD_SPECS,
   type AssetFacts,
@@ -21,8 +21,8 @@ import {
   type Platform,
   supports,
   validateAssets,
-} from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Database, Sql } from '@kiln/db';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';

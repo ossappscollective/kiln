@@ -1,4 +1,4 @@
-import type { AssetKind, Platform } from '@mrm/core';
+import type { AssetKind, Platform } from '@kiln/core';
 import { StoreError, type StoreName } from './errors.ts';
 
 /**
@@ -18,7 +18,7 @@ import { StoreError, type StoreName } from './errors.ts';
  *   applied until the commit: a failure before it changes nothing.
  */
 
-/** A listing text of one locale to write. `field` is a `@mrm/core` listing field id. */
+/** A listing text of one locale to write. `field` is a `@kiln/core` listing field id. */
 export type DraftTextWrite = { locale: string; field: string; value: string };
 
 /**
@@ -43,7 +43,7 @@ export type DraftSlot = {
 /**
  * A release field to write into the draft (docs/api/releases-write.md): an App Store version field (build, version string,
  * release type, earliest release date, copyright, phased release) or a Google Play draft release field (track, name,
- * version codes, release notes of one language). `field` is a `@mrm/core` `ReleaseFieldId`, `value` its canonical text
+ * version codes, release notes of one language). `field` is a `@kiln/core` `ReleaseFieldId`, `value` its canonical text
  * (`normalizeReleaseValue`), `locale` is the language of a per language field and empty otherwise. `user_fraction` is never
  * sent here: Play cannot hold a share in a draft.
  */

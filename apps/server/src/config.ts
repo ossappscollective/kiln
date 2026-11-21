@@ -1,6 +1,6 @@
 import { accessSync, closeSync, constants, openSync, readSync, statSync } from 'node:fs';
 import { delimiter, isAbsolute, join, parse as parsePath, resolve } from 'node:path';
-import { parseMasterKey } from '@mrm/vault';
+import { parseMasterKey } from '@kiln/vault';
 import { z } from 'zod';
 import type { GitSigning } from './services/local-git.ts';
 import { parseExtraHosts } from './single-user.ts';

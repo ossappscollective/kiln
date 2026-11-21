@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import type { Resolver, SendResult, sendPinned } from '../../services/webhook-transport.ts';
 import { sendDueDigests } from './digest.ts';
 import { deliveryOutcomes } from './service.ts';

@@ -17,7 +17,7 @@
   import InfoTip from '../ui/InfoTip.svelte';
   import StoreBadge from '../ui/StoreBadge.svelte';
   import DataChips from './DataChips.svelte';
-import { platformMeta } from '@mrm/core';
+import { platformMeta } from '@kiln/core';
 
   let {
     members,

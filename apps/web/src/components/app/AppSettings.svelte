@@ -8,7 +8,7 @@
   Props: api, workspaceId, role, members (the records in scope), all? (every record of the app), now.
 -->
 <script lang="ts">
-  import { can, type Role, supports } from '@mrm/core';
+  import { can, type Role, supports } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { appSettingsPartIds as ids, appSettingsSections, deleteLine } from '../../lib/app-settings.ts';
   import { aiStore } from '../../lib/ai/store.svelte.ts';

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { RELEASE_STATES, roles } from '@mrm/core';
+import { RELEASE_STATES, roles } from '@kiln/core';
 import { isIconName } from './icons.ts';
 import { roleIcons, statusIcon, statusIcons, toneIcon } from './status-icons.ts';
 

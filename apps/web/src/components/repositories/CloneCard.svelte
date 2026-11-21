@@ -7,7 +7,7 @@
   Shown to everyone who can see the repository; only repositories.write may free the space.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { type RepositoryClone, cloneSummary, limitsSentence, purgeMessage } from '../../lib/clone-upkeep.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';

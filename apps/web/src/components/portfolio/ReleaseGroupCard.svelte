@@ -8,7 +8,7 @@
   import { type ReleaseGroup, statusInfo } from '../../lib/portfolio.ts';
   import ReleaseStatus from './ReleaseStatus.svelte';
   import Timeline from './Timeline.svelte';
-import { platformMeta } from '@mrm/core';
+import { platformMeta } from '@kiln/core';
 
   let { group, now }: { group: ReleaseGroup; now: number } = $props();
 

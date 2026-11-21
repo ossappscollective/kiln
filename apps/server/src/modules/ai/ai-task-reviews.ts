@@ -1,4 +1,4 @@
-import type { JsonSchema } from '@mrm/connectors';
+import type { JsonSchema } from '@kiln/connectors';
 import {
   type AiFixItem,
   type AiFixNextInsight,
@@ -16,7 +16,7 @@ import {
   aiSeverities,
   aiThemeKinds,
   listingStoreOf,
-} from '@mrm/core';
+} from '@kiln/core';
 import { getReview } from '../reviews/service.ts';
 import { looksLikePromise } from './ai-app-context.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { type AppStoreListing, type Listing, type PlayListing, validateListing } from '@mrm/core';
+import { type AppStoreListing, type Listing, type PlayListing, validateListing } from '@kiln/core';
 import {
   type FileMap,
   listingChangeSet,

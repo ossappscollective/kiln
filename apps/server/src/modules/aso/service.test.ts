@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { AsoError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { AsoError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { createAsoRefreshHandler } from './service.ts';
 import {
   bootAso,
@@ -865,7 +865,7 @@ dbTest('lookups are rate limited per workspace and the answer says when to retry
 // ----- what is worked out from what is stored ------------------------------------------------------
 
 async function seedListing(
-  db: import('@mrm/db').Database,
+  db: import('@kiln/db').Database,
   workspaceId: string,
   appId: string,
   locale: string,

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { ActorType } from '@mrm/core';
-import type { Database, Row, Sql } from '@mrm/db';
+import type { ActorType } from '@kiln/core';
+import type { Database, Row, Sql } from '@kiln/db';
 import { recordAudit } from '../../services/audit.ts';
 import {
   type AlertChannel,

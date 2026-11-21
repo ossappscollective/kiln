@@ -15,7 +15,7 @@
   onreadtracks (Google Play: read the tracks the person named).
 -->
 <script lang="ts">
-  import { can, type Role, supports } from '@mrm/core';
+  import { can, type Role, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../../lib/api.ts';
   import { buildNumberOfTitle, testBuildsHref } from '../../../lib/builds.ts';
@@ -40,7 +40,7 @@
   import { canStage, stagingError } from '../../../lib/staged.ts';
   import { stagedStore } from '../../../lib/staged-store.svelte.ts';
   import type { AppBuild, AppSummary } from '../../../lib/types.ts';
-  import type { StagedChangesView } from '@mrm/core';
+  import type { StagedChangesView } from '@kiln/core';
   import Alert from '../../ui/Alert.svelte';
   import Badge from '../../ui/Badge.svelte';
   import Button from '../../ui/Button.svelte';

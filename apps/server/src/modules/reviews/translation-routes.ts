@@ -1,4 +1,4 @@
-import { type Action, can, translationLimits } from '@mrm/core';
+import { type Action, can, translationLimits } from '@kiln/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';

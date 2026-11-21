@@ -1,4 +1,4 @@
-import { isPlatform } from '@mrm/core';
+import { isPlatform } from '@kiln/core';
 import { type ReplyState, replyStatusLabel } from './reply.ts';
 import {
   type InboxShortcut,

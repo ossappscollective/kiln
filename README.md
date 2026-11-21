@@ -38,7 +38,7 @@ production.
   listing, and turn edits into a change set that an admin approves and that is applied as a branch
   and pull request, never as a push to the default branch
   ([docs/api/repositories.md](docs/api/repositories.md)).
-- Expo `store.config.json`: read, validate and write back in `@mrm/connectors`, and used as the App
+- Expo `store.config.json`: read, validate and write back in `@kiln/connectors`, and used as the App
   Store listing source by the server and the repositories screen when a repo has one.
 - Read-only store sync: apps are bound to an App Store Connect or Google Play credential, and a
   sync (inline, or as a background job) stores a snapshot of their versions and tracks
@@ -97,7 +97,7 @@ Not verified, so treat as unknown:
   ([docs/spikes/store-api-conventions.md](docs/spikes/store-api-conventions.md),
   [docs/spikes/repo-conventions.md](docs/spikes/repo-conventions.md)).
 - **The web UI in a browser.** The Svelte components were type-checked when written, but nothing has
-  rendered them, `pnpm --filter @mrm/web build` has not produced a bundle in this environment, and
+  rendered them, `pnpm --filter @kiln/web build` has not produced a bundle in this environment, and
   `svelte-check` and `pnpm lint` could not be re-run there (missing platform binaries).
 - **Docker.** The `Dockerfile` and `docker-compose.yml` have never been built or started.
 - **Desktop.** `main.rs` has never been compiled; macOS signing, notarization, Windows and Linux
@@ -164,9 +164,9 @@ docker compose up --build     # http://localhost:8787
 **Desktop (Tauri)** needs Rust. Generate icons once, then start it with the dev servers running:
 
 ```sh
-pnpm --filter @mrm/desktop tauri icon path/to/app-icon.png
+pnpm --filter @kiln/desktop tauri icon path/to/app-icon.png
 pnpm dev                                  # in one terminal
-pnpm --filter @mrm/desktop dev            # in another
+pnpm --filter @kiln/desktop dev            # in another
 ```
 
 In development the shell starts the server from this checkout with your own `node`. It does not yet

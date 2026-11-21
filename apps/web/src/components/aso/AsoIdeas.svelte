@@ -8,7 +8,7 @@
   proposal in the AI suggestions tray above, and nothing is tracked until accepted there. The ideas below are counted from stored text, with no AI.
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import {
     type AsoIdeasResponse,

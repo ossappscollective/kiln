@@ -14,7 +14,7 @@
   components/ci/RunningNow.svelte. The run "Start release" starts shows in that same list.
 -->
 <script lang="ts">
-  import { can, platformLabel, platformMeta, type Role } from '@mrm/core';
+  import { can, platformLabel, platformMeta, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { address } from '../../lib/address.svelte.ts';

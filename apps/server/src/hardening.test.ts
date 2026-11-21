@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { createLoginLimiter } from './limiter.ts';
 import { boot, PASSWORD, registerOwner, send } from './testkit.ts';
 

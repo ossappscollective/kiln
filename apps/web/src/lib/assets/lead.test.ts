@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { AssetProblem } from '@mrm/core';
+import type { AssetProblem } from '@kiln/core';
 import { affectedSets, assetsLead, otherCountsText, problemAction, splitProblems } from './lead.ts';
 
 const p = (over: Partial<AssetProblem>): AssetProblem => ({

@@ -10,7 +10,7 @@
   The charts are small multiples, not a dashboard of widgets: see components/analytics/ChartCard.svelte.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
   import { type RangeChoice, parseRange, resolveRange, withRange } from '../../lib/analytics/analytics.ts';

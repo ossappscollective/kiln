@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { bootCi, type CiBoot } from '../ci/test-helpers.ts';
 
 // The release pipeline read: stored facts only, so there is no GitHub and no store call (docs/api/release-pipeline.md).

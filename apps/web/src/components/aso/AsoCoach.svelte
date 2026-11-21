@@ -1,7 +1,7 @@
 <!--
   AsoCoach: the next steps for the ASO of one app, ranked, each with one link to the place to do it (add keywords,
   open the field in the listing, open the competitors). Worked out on the server from what is already stored (no store
-  is read) by `buildCoach` in `@mrm/core`: no tracked keywords, ranks not checked lately, ranks that dropped,
+  is read) by `buildCoach` in `@kiln/core`: no tracked keywords, ranks not checked lately, ranks that dropped,
   tracked keywords missing from the listing, a followed competitor ranking above, waste in the keyword field, unused
   characters, locales with no keyword text, no competitor followed. Every number is a count from the data; there is no
   search volume and no promise of a gain. Quiet: the first steps as one line each, the rest and the details behind a

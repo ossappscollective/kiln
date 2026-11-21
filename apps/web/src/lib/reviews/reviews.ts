@@ -1,4 +1,4 @@
-import { isPlatform, type Platform, type StoreId } from '@mrm/core';
+import { isPlatform, type Platform, type StoreId } from '@kiln/core';
 import { ApiError } from '../api.ts';
 import type { ReplyDraft, ReplyState } from './reply.ts';
 

@@ -5,7 +5,7 @@ import type {
   ListingPrivacy,
   ListingSections,
   MediaSet,
-} from '@mrm/core';
+} from '@kiln/core';
 import { type FileMap, isLocaleDir, type ListingRoots } from './fastlane.ts';
 import { PLAY_GRAPHIC_TYPES, PLAY_SCREENSHOT_TYPES } from './store-sections.ts';
 

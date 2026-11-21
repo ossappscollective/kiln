@@ -7,7 +7,7 @@ import {
   translationModes,
   translationProviderInfo,
   translationProviders,
-} from '@mrm/core';
+} from '@kiln/core';
 import { ApiError } from './api.ts';
 import { timeAgo } from './format.ts';
 

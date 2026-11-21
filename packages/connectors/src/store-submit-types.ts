@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { AssetKind, Platform } from '@mrm/core';
+import type { AssetKind, Platform } from '@kiln/core';
 import { StoreError, type StoreName } from './errors.ts';
 import { type DraftReadRequest, type DraftState, draftKey } from './store-draft-types.ts';
 
@@ -34,7 +34,7 @@ export type SubmitImageFact = {
 
 export type SubmitAssetSet = {
   kind: AssetKind;
-  /** A `@mrm/core` device id (`iphone_6_5`, `phone`) or null. */
+  /** A `@kiln/core` device id (`iphone_6_5`, `phone`) or null. */
   device: string | null;
   /** App Store: the asset library placement group. Google Play: the `AppImageType`. */
   target: string;

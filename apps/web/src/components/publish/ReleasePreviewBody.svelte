@@ -8,7 +8,7 @@
   import { fullTime } from '../../lib/format.ts';
   import { type ReleasePreview, audienceText, directText, storeConsole } from '../../lib/store-release.ts';
   import Alert from '../ui/Alert.svelte';
-import { supports } from '@mrm/core';
+import { supports } from '@kiln/core';
 
   let { preview }: { preview: ReleasePreview } = $props();
 

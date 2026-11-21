@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { storeReview } from './modules/reviews/test-helpers.ts';
 import { createTestLimiter } from './services/credential-tests.ts';
 import {
@@ -12,7 +12,7 @@ import {
 
 // Everything runs against fakes: no translation provider is ever contacted.
 
-const rows = (db: import('@mrm/db').Database, sql: string) => db.query(sql);
+const rows = (db: import('@kiln/db').Database, sql: string) => db.query(sql);
 
 dbTest('translating reviews: rights, isolation, limits and the shape of the answer', async (db) => {
   const t = await bootTranslation(db);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AsoError } from '@mrm/connectors';
+import { AsoError } from '@kiln/connectors';
 import type { Exchange, ExchangeResponse } from '../../services/safe-fetch.ts';
 import { ASO_FETCH_MAX_BYTES, ASO_HOSTS, createAsoFetch, createAsoSources } from './net.ts';
 

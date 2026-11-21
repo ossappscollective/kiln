@@ -23,7 +23,7 @@
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
   import Modal from '../ui/Modal.svelte';
-import { platformMeta } from '@mrm/core';
+import { platformMeta } from '@kiln/core';
 
   let {
     open = $bindable(false),

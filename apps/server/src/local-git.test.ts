@@ -12,7 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import { GitCloneError } from '@mrm/connectors';
+import { GitCloneError } from '@kiln/connectors';
 import { LocalReadError } from './services/clone-reads.ts';
 import {
   checkPathText,

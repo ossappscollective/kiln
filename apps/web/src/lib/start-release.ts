@@ -1,4 +1,4 @@
-import { type Platform, platformLabel } from '@mrm/core';
+import { type Platform, platformLabel } from '@kiln/core';
 import { canDispatchWorkflow } from './ci/ci.ts';
 import type { WorkflowEntry } from './ci/workflows.ts';
 import { releaseStepHref } from './release-stepper.ts';

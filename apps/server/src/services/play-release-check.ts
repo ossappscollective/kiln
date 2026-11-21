@@ -6,9 +6,9 @@ import {
   StoreError,
   StoreRateLimitError,
   secretStrings,
-} from '@mrm/connectors';
-import { normalizeReleaseValue, supports, versionCodesOf } from '@mrm/core';
-import type { Database } from '@mrm/db';
+} from '@kiln/connectors';
+import { normalizeReleaseValue, supports, versionCodesOf } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import type {
   ReleaseConnectorFactory,
   ReleaseConnectorInput,

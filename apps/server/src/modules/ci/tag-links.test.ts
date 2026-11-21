@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import type { CommitDetail } from '@mrm/connectors';
-import { GithubError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import type { CommitDetail } from '@kiln/connectors';
+import { GithubError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { getRepository } from '../../services/repositories.ts';
 import { clearScanCaches, MAX_COMMIT_FETCHES } from './scan.ts';
 import { refreshRuns } from './service.ts';

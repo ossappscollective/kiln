@@ -3,7 +3,7 @@ import {
   classifyAppleScreenshot,
   normalizeReleaseValue,
   PLATFORM_META,
-} from '@mrm/core';
+} from '@kiln/core';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
 import { appleBuildEligibility } from '../release-eligibility.ts';
 import {
@@ -817,7 +817,7 @@ export class AppleDraftConnector
     }
   }
 
-  /** What the store holds for the wanted release fields, in the canonical text of `@mrm/core`. */
+  /** What the store holds for the wanted release fields, in the canonical text of `@kiln/core`. */
   async #readFields(
     wanted: readonly DraftFieldWrite[],
     version: VersionRef,

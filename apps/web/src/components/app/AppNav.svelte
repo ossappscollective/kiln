@@ -17,7 +17,7 @@
   Groups are labelled ("This app", "Workspace"); a count says what needs the person, and the current page is marked by colour, weight and a bar.
 -->
 <script lang="ts">
-  import { type Action, platformLabel } from '@mrm/core';
+  import { type Action, platformLabel } from '@kiln/core';
   import { address as pageAddress, appContext } from '../../lib/address.svelte.ts';
   import { carryHeaderParams } from '../../lib/app-header.ts';
   import { type RailItem, navEntryOf, visibleNav, workspaceRail } from '../../lib/app-nav.ts';

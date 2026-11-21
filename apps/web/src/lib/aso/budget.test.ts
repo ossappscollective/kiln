@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { listingBudget, type StagedChangesView } from '@mrm/core';
+import { listingBudget, type StagedChangesView } from '@kiln/core';
 import {
   asksToAddKeywords,
   budgetHeadline,

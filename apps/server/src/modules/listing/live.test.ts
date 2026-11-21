@@ -7,9 +7,9 @@ import {
   StoreError,
   type StoreListing,
   type StoreVersion,
-} from '@mrm/connectors';
-import type { Platform } from '@mrm/core';
-import { dbTest } from '@mrm/db/testing';
+} from '@kiln/connectors';
+import type { Platform } from '@kiln/core';
+import { dbTest } from '@kiln/db/testing';
 import { bootRepoApp, type FakeRepo } from '../../repo-test-helpers.ts';
 import type { StoreConnectorFactory } from '../../services/apps.ts';
 import { forgetInspectedChangeSets } from './repo.ts';
@@ -616,7 +616,7 @@ dbTest('repo-refresh passes a GitHub failure on and keeps the reason on the app'
   const { repositoryId } = await t.connect();
   const id = await t.addIos({ repositoryId });
   await t.refresh(id);
-  const { GithubError } = await import('@mrm/connectors');
+  const { GithubError } = await import('@kiln/connectors');
   t.repo.listError = new GithubError('forbidden', 'GitHub refused the read (403).', 403);
   const failed = await t.refresh(id);
   assert.equal(failed.status, 422);

@@ -7,7 +7,7 @@ import {
   type ReleaseState,
   supports,
   transition,
-} from '@mrm/core';
+} from '@kiln/core';
 import { type Api, ApiError } from './api.ts';
 import { timeAgo } from './format.ts';
 import type {
@@ -277,7 +277,7 @@ export function groupReleases(releases: readonly ReleaseSummary[]): ReleaseGroup
 }
 
 // ---------------------------------------------------------------------------------------------
-// The lifecycle timeline, walked from the state machine in @mrm/core
+// The lifecycle timeline, walked from the state machine in @kiln/core
 
 const FORWARD: readonly ReleaseEvent[] = [
   'choose_build',

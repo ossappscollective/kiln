@@ -1,4 +1,4 @@
-import type { RepoConnector } from '@mrm/connectors';
+import type { RepoConnector } from '@kiln/connectors';
 
 /**
  * One consistent view of a repository for one request, shared between requests for a short time.

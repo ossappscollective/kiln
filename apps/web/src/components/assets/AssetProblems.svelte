@@ -7,7 +7,7 @@
   The checks hold the files against the documented specs. They never ask a store.
 -->
 <script lang="ts">
-  import type { AssetProblem } from '@mrm/core';
+  import type { AssetProblem } from '@kiln/core';
   import { fileName, severityLabel, severityTone } from '../../lib/assets/assets.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import Badge from '../ui/Badge.svelte';

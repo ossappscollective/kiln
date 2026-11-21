@@ -71,7 +71,7 @@
   import ReleasePreviewBody from './ReleasePreviewBody.svelte';
   import RolloutPreviewBody from './RolloutPreviewBody.svelte';
   import SubmitPreviewBody from './SubmitPreviewBody.svelte';
-import { supports } from '@mrm/core';
+import { supports } from '@kiln/core';
 
   let {
     open = $bindable(false),

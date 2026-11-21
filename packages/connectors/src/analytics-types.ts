@@ -3,7 +3,7 @@ import {
   type AnalyticsErrorCode,
   type AnalyticsMetric,
   analyticsErrorMessages,
-} from '@mrm/core';
+} from '@kiln/core';
 
 /**
  * Shared types of the analytics readers (docs/adr/0017-analytics-foundation.md). An error carries a code from a FIXED vocabulary

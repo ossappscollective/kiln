@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import type { Database } from '@mrm/db';
+import type { Database } from '@kiln/db';
 import { createLoginLimiter } from './limiter.ts';
 import { hashPassword } from './passwords.ts';
 import { bootRepoApp } from './repo-test-helpers.ts';

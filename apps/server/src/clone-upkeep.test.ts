@@ -15,8 +15,8 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after } from 'node:test';
-import type { Database } from '@mrm/db';
-import { dbTest } from '@mrm/db/testing';
+import type { Database } from '@kiln/db';
+import { dbTest } from '@kiln/db/testing';
 import { bootRepoApp, FakeRepo, fastlaneFiles } from './repo-test-helpers.ts';
 import { createCloneReads } from './services/clone-reads.ts';
 import {

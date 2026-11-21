@@ -40,7 +40,7 @@ dependencies (`hono`, `@hono/node-server`, `zod`) plus four workspace packages t
   development, and a Node upgrade is a file swap.
 - Constraint: Node refuses to strip types from files under a `node_modules` path. The workspace
   packages must therefore live outside `node_modules` in the bundle, which pnpm's symlinks cannot
-  express. A 30-line resolve hook (`apps/desktop/sidecar/workspace-resolve.mjs`) maps `@mrm/*`
+  express. A 30-line resolve hook (`apps/desktop/sidecar/workspace-resolve.mjs`) maps `@kiln/*`
   to the copied package folders instead.
 - Third-party packages are JavaScript and are copied as real folders.
 - Sources are readable in the app bundle. Acceptable for an open source project.

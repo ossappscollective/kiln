@@ -1,4 +1,4 @@
-import type { AnalyticsPoint } from '@mrm/connectors';
+import type { AnalyticsPoint } from '@kiln/connectors';
 import {
   type AnalyticsMetric,
   type AnalyticsSource,
@@ -8,8 +8,8 @@ import {
   productSalesLimits,
   splitProductDimValue,
   supports,
-} from '@mrm/core';
-import type { Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Sql } from '@kiln/db';
 import type { ManagedApp } from '../../services/apps.ts';
 import { type AnalyticsStatus, type Note, type SourceStatus, status } from './query.ts';
 

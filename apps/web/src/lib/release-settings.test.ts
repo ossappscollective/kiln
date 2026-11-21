@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { FIRST_RELEASE_MESSAGE, FRACTION_REFUSED_MESSAGE, NEVER_MESSAGE } from '@mrm/core';
+import { FIRST_RELEASE_MESSAGE, FRACTION_REFUSED_MESSAGE, NEVER_MESSAGE } from '@kiln/core';
 import { ApiError } from './api.ts';
 import { askedFractionOf, type PublishPlan, resultRow, type StepResult } from './pending.ts';
 import { outcomeView, type PlayCheckAnswer } from './play-check.ts';

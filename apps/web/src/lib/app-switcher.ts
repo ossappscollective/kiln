@@ -1,4 +1,4 @@
-import type { Action, Platform } from '@mrm/core';
+import type { Action, Platform } from '@kiln/core';
 import type { AppGroup } from './app-groups.ts';
 import { canonicalAppHash, canonicalSection, sectionViews } from './app-nav.ts';
 import {

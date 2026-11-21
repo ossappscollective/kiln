@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { type AiClient, AiError, probeAiClient } from '@mrm/connectors';
+import { type AiClient, AiError, probeAiClient } from '@kiln/connectors';
 import {
   type Action,
   type AiAcceptedRef,
@@ -15,8 +15,8 @@ import {
   can,
   estimateTokens,
   type Role,
-} from '@mrm/core';
-import type { Database } from '@mrm/db';
+} from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { emitEvent } from '../../services/events.ts';

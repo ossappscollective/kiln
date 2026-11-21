@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { CI_POLL_QUEUE, refreshRuns } from './modules/ci/service.ts';
 import { bootCi, run, SHA_2 } from './modules/ci/test-helpers.ts';
 import {

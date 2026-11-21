@@ -6,7 +6,7 @@
   Props: api, workspaceId, role, app (id, repositoryId), link (the saved Expo link), now (epoch ms).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { onMount } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { runTitle, runProvider } from '../../lib/ci/ci.ts';

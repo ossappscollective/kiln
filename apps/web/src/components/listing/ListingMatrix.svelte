@@ -22,7 +22,7 @@
   The locales read here are handed to the header picker (lib/nav-signals.svelte.ts).
 -->
 <script lang="ts">
-  import { type Platform, type Role, can } from '@mrm/core';
+  import { type Platform, type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import type { AsoKeyword } from '../../lib/aso/aso.ts';

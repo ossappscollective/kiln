@@ -1,4 +1,4 @@
-import type { Database } from '@mrm/db';
+import type { Database } from '@kiln/db';
 import { alertCatalog } from '../modules/alerts/catalog.ts';
 import { markRead } from '../modules/alerts/inbox.ts';
 import { setPreference, setRule } from '../modules/alerts/prefs.ts';

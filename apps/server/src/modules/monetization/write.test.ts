@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { StoreError, StoreRateLimitError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { StoreError, StoreRateLimitError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { ASC_SECRET, bootMonetization, type MonetizationBoot } from './test-helpers.ts';
 
 const COINS = 'com.acme.coins100';

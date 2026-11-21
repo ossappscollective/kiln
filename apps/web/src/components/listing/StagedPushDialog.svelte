@@ -20,7 +20,7 @@
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
   import PushPreviewBody from '../publish/PushPreviewBody.svelte';
-import { platformMeta } from '@mrm/core';
+import { platformMeta } from '@kiln/core';
 
   let {
     open = $bindable(false),

@@ -1,4 +1,4 @@
-import type { AiTaskId } from '@mrm/core';
+import type { AiTaskId } from '@kiln/core';
 import { asoHealthTask, keywordIdeasFromReviewsTask, listingAuditTask } from './ai-task-aso.ts';
 import { keywordIdeasTask } from './ai-task-keywords.ts';
 import { listingImproveTask } from './ai-task-listing.ts';

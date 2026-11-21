@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { AssetProblem, StagedAssetView, StagedChangesView, StagedTextView } from '@mrm/core';
+import type { AssetProblem, StagedAssetView, StagedChangesView, StagedTextView } from '@kiln/core';
 import { ApiError } from './api.ts';
 import {
   canConfirmPush,

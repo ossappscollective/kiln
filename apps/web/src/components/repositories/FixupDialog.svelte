@@ -12,7 +12,7 @@
   pull request is closed, the remote has other commits, ...).
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import {
     type FixupFile,

@@ -1,4 +1,4 @@
-import type { Platform, ReleaseState } from '@mrm/core';
+import type { Platform, ReleaseState } from '@kiln/core';
 import { formatRollout, platformLabel, statusInfo } from './portfolio.ts';
 import { dueText, formatTargetDate, planPlatformLabel } from './release.ts';
 import type { StepId } from './release-stepper.ts';

@@ -4,9 +4,9 @@ import {
   type ExpoSubmissionSummary,
   expoBuilds,
   expoSubmissions,
-} from '@mrm/connectors';
-import { type ActorType, type Platform, platformMeta, type StoreId } from '@mrm/core';
-import { type Database, nullableNumber, nullableString, type Sql } from '@mrm/db';
+} from '@kiln/connectors';
+import { type ActorType, type Platform, platformMeta, type StoreId } from '@kiln/core';
+import { type Database, nullableNumber, nullableString, type Sql } from '@kiln/db';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';

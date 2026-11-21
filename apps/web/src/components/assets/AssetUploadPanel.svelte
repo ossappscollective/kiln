@@ -10,7 +10,7 @@
   ondone? (called when the file is staged, for a dialog that closes).
 -->
 <script lang="ts">
-  import type { FixAdvice, FixKind, StagedChangesView } from '@mrm/core';
+  import type { FixAdvice, FixKind, StagedChangesView } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import {
     DEFAULT_BACKGROUND,

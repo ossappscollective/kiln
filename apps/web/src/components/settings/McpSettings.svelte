@@ -11,7 +11,7 @@
   read stays visible, ONE primary (create the token), and the stdio details sit behind a disclosure.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { onMount } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { MCP_WARNING, type McpStatus, groupTools, mcpErrorMessage, presetTokenInput, snippets, stateView, toolNeeds } from '../../lib/mcp.ts';

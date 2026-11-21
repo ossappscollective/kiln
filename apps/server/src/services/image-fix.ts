@@ -8,7 +8,7 @@ import {
   requiredSizesText,
   type Size,
   sniffImageFormat,
-} from '@mrm/core';
+} from '@kiln/core';
 import { decodePng, encodePng, flatten, hasTransparentPixels, resizeCover } from './png-codec.ts';
 
 /**

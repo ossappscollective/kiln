@@ -14,8 +14,8 @@ import {
   type TranslationProvider,
   translationModes,
   translationProviders,
-} from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Database, Sql } from '@kiln/db';
 import { recordAudit } from './audit.ts';
 import {
   DEFAULT_SYNC_INTERVAL_MINUTES,

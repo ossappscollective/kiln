@@ -6,8 +6,8 @@ import {
   type CreateAiClientInput,
   createAiClient,
   LIST_ONLY_MODEL,
-} from '@mrm/connectors';
-import { type AiProvider, aiProviderInfo } from '@mrm/core';
+} from '@kiln/connectors';
+import { type AiProvider, aiProviderInfo } from '@kiln/core';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { checkTranslateUrl, createGuardedFetch } from '../../services/translate-net.ts';

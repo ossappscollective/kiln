@@ -14,7 +14,7 @@
   Props: api, workspaceId, role, app, refreshKey (changes when an app sync finished, so this reads again).
 -->
 <script lang="ts">
-  import { can, platformSupports, type Role } from '@mrm/core';
+  import { can, platformSupports, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import {
     type ProductSalesView,

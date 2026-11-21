@@ -1,4 +1,4 @@
-import { normalizeLanguageTag } from '@mrm/core';
+import { normalizeLanguageTag } from '@kiln/core';
 import type { TranslateProviderId } from './types.ts';
 
 /**

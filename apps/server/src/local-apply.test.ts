@@ -11,9 +11,9 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after } from 'node:test';
-import { GithubError } from '@mrm/connectors';
-import type { Database } from '@mrm/db';
-import { dbTest } from '@mrm/db/testing';
+import { GithubError } from '@kiln/connectors';
+import type { Database } from '@kiln/db';
+import { dbTest } from '@kiln/db/testing';
 import {
   mapsApp,
   SCAN_APP,

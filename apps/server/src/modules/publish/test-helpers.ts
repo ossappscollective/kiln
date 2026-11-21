@@ -44,9 +44,9 @@ import {
   type SubmitState,
   type SubmitTrack,
   setMatches,
-} from '@mrm/connectors';
-import { classifyAppleScreenshot, type Platform, type StagedChangesView } from '@mrm/core';
-import type { Database } from '@mrm/db';
+} from '@kiln/connectors';
+import { classifyAppleScreenshot, type Platform, type StagedChangesView } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { weatherApp } from '../../../../../packages/connectors/src/fastlane.fixtures.ts';
 import { bootRepoApp, FakeRepo } from '../../repo-test-helpers.ts';
 import type { StoreConnectorFactory } from '../../services/apps.ts';

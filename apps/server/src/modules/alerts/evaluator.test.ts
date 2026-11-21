@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { createScheduler } from '../../scheduler.ts';
 import { runAlertEvaluator } from './evaluator.ts';
 import { createAlertRunner } from './runner.ts';

@@ -89,7 +89,7 @@ or push). It prepares the ground for the phases that build and submit releases. 
       clock, a blocked flag with a reason, a computed readiness (every required item done, release
       notes for every locale within the store limit), at most one plan per app and version
 - [x] Checklist: add, edit, reorder, tick (who and when kept), required marker, templates. Three
-      templates ship in `@mrm/core` (first iOS release, first Android release, routine update); a
+      templates ship in `@kiln/core` (first iOS release, first Android release, routine update); a
       workspace can save its own
 - [x] Release notes per locale, checked against the limits of the listing rules (4000 characters on
       iOS, 500 on Android, 500 for a plan on both platforms)
@@ -135,7 +135,7 @@ planned for Phase 3: it shows drift **before** anything is pushed, and writes no
       `appStoreVersions` and `appStoreVersionLocalizations` (GET only, documented parameters only,
       checked by a request-allowlist test) for the live and the editable version; Google Play reads
       `edits.listings.list` through a read-only edit (inserted, read, deleted, never committed). Both map
-      into the `@mrm/core` listing model; fields a store lacks stay absent. Hand-written fixtures only
+      into the `@kiln/core` listing model; fields a store lacks stay absent. Hand-written fixtures only
 - [x] Table `listing_snapshots` (a row only when a value changed, by hash) and `app_listing_status`
       (last read, last error of the store and of the repository), with SQLite and Postgres schema files
       (migration 9 at the time of writing). Postgres has **not** run them

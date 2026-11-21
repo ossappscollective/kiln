@@ -6,7 +6,7 @@ import {
   type ListingProblem,
   type LocaleText,
   validateListing,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { ProjectDetection, ReadFile, StoreConfigFile } from './detect.ts';
 
 /**
@@ -18,7 +18,7 @@ import type { ProjectDetection, ReadFile, StoreConfigFile } from './detect.ts';
  * the one app-wide value of the listing. Google Play is not supported by EAS Metadata, so a
  * Play listing can never be read from or written to this file.
  *
- * Mapping to the `@mrm/core` listing model (`Listing.appStore`):
+ * Mapping to the `@kiln/core` listing model (`Listing.appStore`):
  *
  *   title -> name                 releaseNotes -> release_notes   supportUrl -> support_url
  *   subtitle -> subtitle          promoText -> promotional_text   privacyPolicyUrl -> privacy_url
@@ -286,7 +286,7 @@ function readInfo(info: unknown, snapshot: ExpoStoreSnapshot, appStore: AppStore
   }
 }
 
-/** Problems against the store limits in `@mrm/core`, ordered by locale and field. */
+/** Problems against the store limits in `@kiln/core`, ordered by locale and field. */
 export function validateExpoStoreConfig(snapshot: ExpoStoreSnapshot): ListingProblem[] {
   return validateListing(snapshot.listing);
 }

@@ -1,4 +1,4 @@
-import type { Database, Sql } from '@mrm/db';
+import type { Database, Sql } from '@kiln/db';
 
 /**
  * The token budget of AI runs (docs/adr/0016-ai-foundation.md): one row per run in `ai_usage`, counts only, NO TEXT.

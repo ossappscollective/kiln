@@ -37,8 +37,8 @@ import {
   slotMaxFiles,
   supports,
   validateAssets,
-} from '@mrm/core';
-import { type Database, nullableNumber, nullableString, oneOf, type Row, type Sql } from '@mrm/db';
+} from '@kiln/core';
+import { type Database, nullableNumber, nullableString, oneOf, type Row, type Sql } from '@kiln/db';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';

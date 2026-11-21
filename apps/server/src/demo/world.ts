@@ -17,7 +17,7 @@ import {
   type StoreVersion,
   type SubmitApplyInput,
   type SubmitResult,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 import {
   appleState,
   FakeRolloutStore,

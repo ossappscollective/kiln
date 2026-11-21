@@ -1,4 +1,4 @@
-import type { CredentialGuide } from '@mrm/core';
+import type { CredentialGuide } from '@kiln/core';
 import { ApiError } from './api.ts';
 import { fullTime, timeAgo } from './format.ts';
 import type { LastTest, TestResult } from './types.ts';

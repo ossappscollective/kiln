@@ -4,8 +4,8 @@ import {
   GithubError,
   GithubRateLimitError,
   PullRequestFailedError,
-} from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+} from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { bootRepoApp, FakeRepo, TOKEN } from './repo-test-helpers.ts';
 
 const SUBTITLE = 'fastlane/metadata/en-US/subtitle.txt';

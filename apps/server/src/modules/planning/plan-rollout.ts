@@ -23,8 +23,8 @@ import {
   summarizeRollout,
   supports,
   validateRolloutSteps,
-} from '@mrm/core';
-import { mapOrNull, oneOf, type Row, type Sql } from '@mrm/db';
+} from '@kiln/core';
+import { mapOrNull, oneOf, type Row, type Sql } from '@kiln/db';
 import { recordAudit } from '../../services/audit.ts';
 import type { EventType } from '../../services/event-types.ts';
 import { emitEvent } from '../../services/events.ts';

@@ -1,5 +1,5 @@
-import { PLATFORMS, type Platform, type StagedProblem, type StoreId, supports } from '@mrm/core';
-import { type Database, nullableNumber, oneOf, type Sql } from '@mrm/db';
+import { PLATFORMS, type Platform, type StagedProblem, type StoreId, supports } from '@kiln/core';
+import { type Database, nullableNumber, oneOf, type Sql } from '@kiln/db';
 import { getApp, listApps, type ManagedApp } from '../../services/apps.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { storeFor } from '../reviews/sync.ts';

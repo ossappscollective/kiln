@@ -1,4 +1,4 @@
-import type { Database } from '@mrm/db';
+import type { Database } from '@kiln/db';
 import { enqueue } from './jobs.ts';
 import { type AnalyticsQueueSummary, queueAnalyticsSyncs } from './modules/analytics/schedule.ts';
 import { type AnalyticsUpkeepSummary, analyticsUpkeep } from './modules/analytics/store.ts';

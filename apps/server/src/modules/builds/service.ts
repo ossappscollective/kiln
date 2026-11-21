@@ -6,8 +6,8 @@ import {
   StoreError,
   type TestFlightGroup,
   type TestFlightLinksConnector,
-} from '@mrm/connectors';
-import { can, type Platform, supports } from '@mrm/core';
+} from '@kiln/connectors';
+import { can, type Platform, supports } from '@kiln/core';
 import { memberRole } from '../../services/accounts.ts';
 import {
   defaultStoreConnectorFactory,

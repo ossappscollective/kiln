@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { listEvents } from '../../services/events.ts';
 import { purgeOrphans } from './runs.ts';
 import { bootCi, type CiBoot, run } from './test-helpers.ts';

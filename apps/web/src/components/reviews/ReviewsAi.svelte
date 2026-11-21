@@ -8,7 +8,7 @@
   Props: api, workspaceId, role, app (the app record), reviewIds (the reviews on screen, to read their tags), onclassified? (after tagging).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { suggestAvailability } from '../../lib/ai/ai.ts';
   import { aiStore } from '../../lib/ai/store.svelte.ts';

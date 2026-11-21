@@ -4,8 +4,8 @@ import {
   type MatchedProduct,
   type ProductRevenueCat,
   type RevenueCatWarning,
-} from '@mrm/connectors';
-import type { Sql } from '@mrm/db';
+} from '@kiln/connectors';
+import type { Sql } from '@kiln/db';
 import { type RevenueCatLinkView, getRevenueCatLink } from './link.ts';
 import {
   readRevenueCatCache,

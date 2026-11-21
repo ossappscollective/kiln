@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { StoreError, StoreRateLimitError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { StoreError, StoreRateLimitError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import { ASC_SECRET, bootMonetization, iapProduct } from './test-helpers.ts';
 
@@ -253,7 +253,7 @@ dbTest('who may read and who may sync; another workspace sees nothing', async (d
   const t = await bootMonetization(db);
   const appId = await t.addApp('ios');
   await t.sync(appId);
-  const { can } = await import('@mrm/core');
+  const { can } = await import('@kiln/core');
   for (const role of ['viewer', 'member', 'admin'] as const) {
     const cookie = await t.addMember(role);
     assert.equal((await t.list(appId, cookie)).status, 200, `${role} reads`);

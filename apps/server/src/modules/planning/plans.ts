@@ -21,8 +21,8 @@ import {
   type RolloutSummary,
   releaseNotesLength,
   releaseNotesLimit,
-} from '@mrm/core';
-import { type Database, mapOrNull, oneOf, type Param, type Row, type Sql } from '@mrm/db';
+} from '@kiln/core';
+import { type Database, mapOrNull, oneOf, type Param, type Row, type Sql } from '@kiln/db';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { type CredentialKind, credentialKindInfo } from '@mrm/core';
+  import { type CredentialKind, credentialKindInfo } from '@kiln/core';
 
   let {
     kind,

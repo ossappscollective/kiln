@@ -10,7 +10,7 @@
   files of the set), commit }), oncompare (open the comparison for this set).
 -->
 <script lang="ts">
-  import { type Role, slotMaxFiles } from '@mrm/core';
+  import { type Role, slotMaxFiles } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import {
     DEFAULT_BACKGROUND,

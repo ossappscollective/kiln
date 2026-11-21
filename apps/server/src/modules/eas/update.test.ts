@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { graphqlError } from '../../../../../packages/connectors/src/expo/expo.fixtures.ts';
 import { build } from '../../../../../packages/connectors/src/expo/updates.fixtures.ts';
 import { setPolicy } from '../../services/step-up.ts';

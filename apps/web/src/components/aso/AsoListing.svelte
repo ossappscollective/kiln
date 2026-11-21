@@ -14,7 +14,7 @@
   canWrite, onchanged, now.
 -->
 <script lang="ts">
-  import { type ListingRow, listingRows, type Role, supports, type TrackedRank } from '@mrm/core';
+  import { type ListingRow, listingRows, type Role, supports, type TrackedRank } from '@kiln/core';
   import { untrack } from 'svelte';
   import { address } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';

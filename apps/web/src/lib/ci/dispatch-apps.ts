@@ -1,4 +1,4 @@
-import { type Platform, platformLabel } from '@mrm/core';
+import { type Platform, platformLabel } from '@kiln/core';
 
 /**
  * The "For apps" choice of the dispatch dialog (docs/api/ci.md): a run can be started for several apps of one repository (one

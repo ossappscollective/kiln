@@ -16,7 +16,7 @@ import {
   slotKey,
   slotMaxFiles,
   supports,
-} from '@mrm/core';
+} from '@kiln/core';
 import { ApiError, waitPhrase } from './api.ts';
 import type { AssetItem, DriftField } from './types.ts';
 
@@ -44,7 +44,7 @@ export const REVERSE_IMAGE_SYNC_NOTE =
   'The store\'s images cannot be staged directly. "Pull from store" puts them into the repository as a draft change set to review and apply; after that they can be staged from there. Files you upload here are staged as they are.';
 
 // ---------------------------------------------------------------------------------------------
-// API shapes (the staged view itself comes from @mrm/core)
+// API shapes (the staged view itself comes from @kiln/core)
 
 export type StoreDraftConfig = {
   enabled: boolean;

@@ -4,7 +4,7 @@
  * (ChangeSetReview.svelte) only draw what they return. The server decides; this file only keeps the
  * screen from offering what the server will refuse, and says why in words.
  */
-import { can, type Role } from '@mrm/core';
+import { can, type Role } from '@kiln/core';
 import type { ChangeSetView, LocalOutcome, LocalSigningConfig, LocalWriteConfig } from './types.ts';
 
 export type ApplyMode = 'github_pr' | 'local_branch';

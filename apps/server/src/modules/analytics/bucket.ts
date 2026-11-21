@@ -1,4 +1,4 @@
-import { AnalyticsError } from '@mrm/connectors';
+import { AnalyticsError } from '@kiln/connectors';
 import {
   type ActorType,
   normalizeBucketId,
@@ -6,8 +6,8 @@ import {
   type PlayBucketTestCode,
   playBucketTestMessages,
   supports,
-} from '@mrm/core';
-import type { Database } from '@mrm/db';
+} from '@kiln/core';
+import type { Database } from '@kiln/db';
 import type { ManagedApp } from '../../services/apps.ts';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';

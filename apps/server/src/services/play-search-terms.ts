@@ -4,7 +4,7 @@ import {
   checkPeriod,
   readSearchTermsFile,
   type SearchTermsFile,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 import {
   type ActorType,
   addDays,
@@ -22,8 +22,8 @@ import {
   searchTermLimits,
   summariseSearchTerms,
   supports,
-} from '@mrm/core';
-import { type Database, nullableNumber, type Param, type Sql } from '@mrm/db';
+} from '@kiln/core';
+import { type Database, nullableNumber, type Param, type Sql } from '@kiln/db';
 import { defaultLocale, ownFields } from '../modules/aso/insights.ts';
 import { listKeywords } from '../modules/aso/service.ts';
 import type { ManagedApp } from './apps.ts';

@@ -9,7 +9,7 @@
   for all of them), onpulled (called with the report, also when nothing changed).
 -->
 <script lang="ts">
-  import { type Role, type StoreImagesView } from '@mrm/core';
+  import { type Role, type StoreImagesView } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { type PullReport, canChangeAssets, skipText, storeKeyOf, summarizePull, SYNC_ROLE_REASON } from '../../lib/assets/sync.ts';

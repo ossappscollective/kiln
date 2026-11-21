@@ -1,5 +1,5 @@
-import { needsStoreAppId, parsePlatform, supports } from '@mrm/core';
-import type { Database } from '@mrm/db';
+import { needsStoreAppId, parsePlatform, supports } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { enqueue } from '../../jobs.ts';
 import { ASO_CLAIM_TTL_MS, ASO_REFRESH_QUEUE, type AsoRefreshPayload } from './service.ts';
 

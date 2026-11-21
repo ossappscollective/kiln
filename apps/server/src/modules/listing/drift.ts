@@ -13,7 +13,7 @@ import {
   PLAY_FIELDS,
   type Platform,
   validateListing,
-} from '@mrm/core';
+} from '@kiln/core';
 
 /**
  * The pure part of the listing history and drift view: which fields an app has, how a value is

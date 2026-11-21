@@ -21,7 +21,7 @@
   were searched), partial (a limit was reached: it says what was left out), ready.
 -->
 <script lang="ts">
-  import { type AssetDiffView, type AssetKind, type Role, can } from '@mrm/core';
+  import { type AssetDiffView, type AssetKind, type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { replaceHash } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';

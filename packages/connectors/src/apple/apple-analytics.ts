@@ -1,4 +1,4 @@
-import { analyticsLimits } from '@mrm/core';
+import { analyticsLimits } from '@kiln/core';
 import { AnalyticsError } from '../analytics-types.ts';
 import { decodeTableText, openFileBytes } from '../delimited.ts';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';

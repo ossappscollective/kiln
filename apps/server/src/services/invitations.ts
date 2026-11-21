@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { can, type InvitableRole, invitableBy, isRole, type Role } from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+import { can, type InvitableRole, invitableBy, isRole, type Role } from '@kiln/core';
+import type { Database, Sql } from '@kiln/db';
 import { hashPassword, type ScryptCost } from '../passwords.ts';
 import { createSession, normalizeEmail, type User } from './accounts.ts';
 import { recordAudit } from './audit.ts';

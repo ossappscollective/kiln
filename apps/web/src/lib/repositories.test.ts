@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Listing } from '@mrm/core';
+import type { Listing } from '@kiln/core';
 import { ApiError, messageFor } from './api.ts';
 import {
   actorLabel,

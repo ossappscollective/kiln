@@ -8,7 +8,7 @@
   import { formatRollout } from '../../lib/portfolio.ts';
   import { rolloutView } from '../../lib/release.ts';
   import type { ReleaseSummary } from '../../lib/types.ts';
-import { byFamily } from '@mrm/core';
+import { byFamily } from '@kiln/core';
 
   let { release }: { release: ReleaseSummary } = $props();
 

@@ -7,7 +7,7 @@
   Props: status (ReleaseState or null), rawState?, rolloutFraction? (0 to 1), sentForReviewAt?.
 -->
 <script lang="ts">
-  import type { ReleaseState } from '@mrm/core';
+  import type { ReleaseState } from '@kiln/core';
   import { formatRollout, statusInfo } from '../../lib/portfolio.ts';
   import { statusIcon } from '../../lib/status-icons.ts';
   import Badge from '../ui/Badge.svelte';

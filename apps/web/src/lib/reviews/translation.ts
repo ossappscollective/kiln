@@ -5,7 +5,7 @@ import {
   type TranslationProvider,
   translationLimits,
   translationProviderInfo,
-} from '@mrm/core';
+} from '@kiln/core';
 import { ApiError } from '../api.ts';
 import { languageName } from '../settings.ts';
 

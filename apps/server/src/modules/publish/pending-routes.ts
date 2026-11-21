@@ -1,5 +1,5 @@
-import { type Action, can, canToken } from '@mrm/core';
-import type { Database } from '@mrm/db';
+import { type Action, can, canToken } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';

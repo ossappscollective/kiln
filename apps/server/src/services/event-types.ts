@@ -1,5 +1,5 @@
 // A leaf module (no imports), so the webhook and audit code can read the list without a cycle.
-import type { Action } from '@mrm/core';
+import type { Action } from '@kiln/core';
 
 /** Every type an event can have. Adding one here is all a new emitter needs, plus the docs. */
 export const eventTypes = [

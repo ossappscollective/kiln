@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import type { StoreImageRecord } from '@mrm/connectors';
-import { ASSET_SYNC_LIMITS, readImageHeader } from '@mrm/core';
-import { dbTest } from '@mrm/db/testing';
+import type { StoreImageRecord } from '@kiln/connectors';
+import { ASSET_SYNC_LIMITS, readImageHeader } from '@kiln/core';
+import { dbTest } from '@kiln/db/testing';
 import { rgbaPng, rgbPng } from '../../png-test-helpers.ts';
 import { decodePng } from '../../services/png-codec.ts';
 import type { Exchange, ExchangeRequest } from '../../services/safe-fetch.ts';

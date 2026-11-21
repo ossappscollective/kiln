@@ -7,9 +7,9 @@ import {
   normalizeGitRef,
   normalizeWorkflowFileName,
   workflowPathOf,
-} from '@mrm/connectors';
-import type { ActorType } from '@mrm/core';
-import type { Database } from '@mrm/db';
+} from '@kiln/connectors';
+import type { ActorType } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { enqueue, type JobHandler } from '../../jobs.ts';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';

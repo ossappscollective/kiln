@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { AsoError, isPlayPackageName } from '@mrm/connectors';
+import { AsoError, isPlayPackageName } from '@kiln/connectors';
 import {
   type ActorType,
   type AsoPlatform,
@@ -22,7 +22,7 @@ import {
   rankTrend,
   storeSideId,
   supports,
-} from '@mrm/core';
+} from '@kiln/core';
 import {
   type Database,
   nullableNumber,
@@ -30,7 +30,7 @@ import {
   type Param,
   type Row,
   type Sql,
-} from '@mrm/db';
+} from '@kiln/db';
 import { enqueue, type JobHandler } from '../../jobs.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';

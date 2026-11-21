@@ -1,5 +1,5 @@
-import { type Action, can } from '@mrm/core';
-import type { Database } from '@mrm/db';
+import { type Action, can } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import type { AppEnv } from '../../http.ts';

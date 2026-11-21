@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import { can, tokenExplicitOnlyActions } from '@mrm/core';
-import { dbTest } from '@mrm/db/testing';
+import { can, tokenExplicitOnlyActions } from '@kiln/core';
+import { dbTest } from '@kiln/db/testing';
 import { noFlags } from './mcp/flags.ts';
 import { MCP_BODY_LIMIT } from './mcp/routes.ts';
 import { LIMITS } from './mcp/shape.ts';

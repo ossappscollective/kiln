@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { AiAppContext, AiFlag, AiInsightProposal, AiProposal } from '@mrm/core';
-import { aiAcceptAction, can } from '@mrm/core';
+import type { AiAppContext, AiFlag, AiInsightProposal, AiProposal } from '@kiln/core';
+import { aiAcceptAction, can } from '@kiln/core';
 import {
   type AiConfig,
   acceptBody,

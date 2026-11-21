@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { listWorkspaceReviews } from './service.ts';
 import { workspaceReviewsSummary } from './summary.ts';
 import { bootReviews, type ReviewsBoot } from './test-helpers.ts';

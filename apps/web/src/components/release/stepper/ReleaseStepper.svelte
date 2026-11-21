@@ -14,7 +14,7 @@
   onclose, showPlatform.
 -->
 <script lang="ts">
-  import { type Role, supports } from '@mrm/core';
+  import { type Role, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../../lib/api.ts';
   import { fitToViewport } from '../../../lib/fit-viewport.ts';

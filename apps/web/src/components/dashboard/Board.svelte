@@ -7,7 +7,7 @@
   Props: api, workspaceId, role, apps (sorted), releases (loaded releases by app id), now (epoch ms).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { attentionItems, blockedCount, buildBoard } from '../../lib/dashboard.ts';
   import { lineFor } from '../../lib/pending.ts';

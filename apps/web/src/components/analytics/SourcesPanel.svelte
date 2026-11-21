@@ -10,7 +10,7 @@
   reports come from sits behind a disclosure.
 -->
 <script lang="ts">
-  import { can, platformSupports, type Role } from '@mrm/core';
+  import { can, platformSupports, type Role } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { type AnalyticsStatus, type StepAction, analyticsErrorText, stateInfo, stepAvailable } from '../../lib/analytics/analytics.ts';
   import { type SyncLine, lastReadAt, overallState, scheduleText, sourceRows, syncLines } from '../../lib/analytics/view.ts';

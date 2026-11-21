@@ -1,4 +1,4 @@
-import type { AiErrorKind, AiProvider } from '@mrm/core';
+import type { AiErrorKind, AiProvider } from '@kiln/core';
 
 /**
  * AI providers behind one interface (docs/adr/0016-ai-foundation.md). An adapter sends ONE structured

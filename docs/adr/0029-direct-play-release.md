@@ -50,7 +50,7 @@ For Google Play there is no separate submit. A commit **without** `changesNotSen
    direct "Release to production" step in the plan dialog, and the share in the Build step (the promote flow) start from it. It only
    pre-fills: the person can change it, a staged `user_fraction` wins over it, and a pre-filled share is not a confirmed share (the
    typed phrase `release <identifier> <track> <percent>%` still names it).
-7. **Staged rollout only when possible.** `rolloutOffer` in `@mrm/core` (pure, tested) decides whether the share is asked:
+7. **Staged rollout only when possible.** `rolloutOffer` in `@kiln/core` (pure, tested) decides whether the share is asked:
    - No earlier production release in the stored releases (none `live`, `rolling_out` or `halted` in `production`, as of the last
      sync; `earlierProductionRelease` in the settings answer): no staged rollout is possible, the share input is hidden, the release
      is made at 100% (`completed`, no `userFraction`), and the screen says "This is the first release in production: Google Play does

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { tick, untrack } from 'svelte';
   import type { Api } from '../lib/api.ts';
   import { address } from '../lib/address.svelte.ts';

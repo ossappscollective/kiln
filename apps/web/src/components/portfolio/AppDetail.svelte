@@ -4,7 +4,7 @@
   Props: api, workspaceId, role, id (the app id from the route).
 -->
 <script lang="ts">
-  import { can, platformMeta, type Role } from '@mrm/core';
+  import { can, platformMeta, type Role } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {

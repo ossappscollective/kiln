@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { AssetProblem, AssetSet } from '@mrm/core';
+import type { AssetProblem, AssetSet } from '@kiln/core';
 import type { AssetItem } from '../types.ts';
 import { NOT_COMPARED } from './assets.ts';
 import {

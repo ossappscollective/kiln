@@ -16,7 +16,7 @@
   returned, and again after an undo, so the screen can read its own list again).
 -->
 <script lang="ts">
-  import { type AiAcceptedRef, type AiSuggestionView, type Platform, type Role, aiAcceptAction, can } from '@mrm/core';
+  import { type AiAcceptedRef, type AiSuggestionView, type Platform, type Role, aiAcceptAction, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import {
     acceptBody,

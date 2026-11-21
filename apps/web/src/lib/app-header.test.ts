@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Platform, ReleaseState } from '@mrm/core';
+import type { Platform, ReleaseState } from '@kiln/core';
 import {
   buildVersionOptions,
   carryHeaderParams,

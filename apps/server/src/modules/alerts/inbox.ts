@@ -1,6 +1,6 @@
-import type { Role } from '@mrm/core';
-import { can } from '@mrm/core';
-import type { Database, Row, Sql } from '@mrm/db';
+import type { Role } from '@kiln/core';
+import { can } from '@kiln/core';
+import type { Database, Row, Sql } from '@kiln/db';
 import { recordAudit } from '../../services/audit.ts';
 import {
   type AlertChannel,

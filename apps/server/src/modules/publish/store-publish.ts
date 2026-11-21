@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { type Platform, supports, versionCodesOf } from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+import { type Platform, supports, versionCodesOf } from '@kiln/core';
+import type { Database, Sql } from '@kiln/db';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { emitEvent } from '../../services/events.ts';

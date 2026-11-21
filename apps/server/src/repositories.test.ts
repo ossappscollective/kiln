@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { GithubError, GithubRateLimitError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { GithubError, GithubRateLimitError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { bootRepoApp, FakeRepo, TOKEN } from './repo-test-helpers.ts';
 
 dbTest('connect, scan and read the listing of a fastlane repository', async (db) => {

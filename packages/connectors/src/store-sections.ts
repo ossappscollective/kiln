@@ -4,7 +4,7 @@ import type {
   ListingDetails,
   ListingReleaseNotes,
   MediaSet,
-} from '@mrm/core';
+} from '@kiln/core';
 import { StoreError, StoreRateLimitError } from './errors.ts';
 import { isRecord, type Json, num, records, text } from './store-http.ts';
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../lib/api.ts';
   import { curlExample } from '../lib/api-tokens.ts';

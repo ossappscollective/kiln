@@ -1,4 +1,4 @@
-import type { Database } from '@mrm/db';
+import type { Database } from '@kiln/db';
 import { PROJECT_ID, TOKEN } from '../../../../../packages/connectors/src/expo/expo.fixtures.ts';
 import { runAnswer } from '../../../../../packages/connectors/src/expo/workflows.fixtures.ts';
 import { bootCi } from '../ci/test-helpers.ts';

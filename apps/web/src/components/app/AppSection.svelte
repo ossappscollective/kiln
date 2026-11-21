@@ -12,7 +12,7 @@
   and assets are read-only for them), locale? (the locale of the page header).
 -->
 <script lang="ts">
-  import type { Platform, Role } from '@mrm/core';
+  import type { Platform, Role } from '@kiln/core';
   import type { Snippet } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { address, replaceHash } from '../../lib/address.svelte.ts';

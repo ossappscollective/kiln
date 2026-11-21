@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { credentialKindInfo, isCredentialKind } from '@mrm/core';
+  import { credentialKindInfo, isCredentialKind } from '@kiln/core';
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';

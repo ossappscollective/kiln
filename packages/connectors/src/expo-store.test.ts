@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { type AppStoreListing, type Listing, listingIsValid } from '@mrm/core';
+import { type AppStoreListing, type Listing, listingIsValid } from '@kiln/core';
 import { detectProject } from './detect.ts';
 import {
   COMPACT,

@@ -10,7 +10,7 @@
   table row of the product), onsaved (a text was changed: the list reads again), onclose, onswitchoff.
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import {
     type ProductSalesView,

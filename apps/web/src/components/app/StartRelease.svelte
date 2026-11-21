@@ -18,7 +18,7 @@
   Exports: observe(data) takes a RunningNow answer, so a screen with its own feed does not read twice.
 -->
 <script lang="ts">
-  import { type Platform, type Role, can } from '@mrm/core';
+  import { type Platform, type Role, can } from '@kiln/core';
   import { onDestroy } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { appAddress } from '../../lib/app-scope.ts';

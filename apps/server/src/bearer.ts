@@ -1,4 +1,4 @@
-import { canToken, lowerRole, type Role } from '@mrm/core';
+import { canToken, lowerRole, type Role } from '@kiln/core';
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import { getCookie } from 'hono/cookie';
 import { type AppEnv, clientIp, type Services } from './http.ts';

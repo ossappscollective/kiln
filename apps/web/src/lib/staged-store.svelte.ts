@@ -1,4 +1,4 @@
-import type { StagedChangesView } from '@mrm/core';
+import type { StagedChangesView } from '@kiln/core';
 import type { Api } from './api.ts';
 import { type StoreDraftConfig, stagingError } from './staged.ts';
 

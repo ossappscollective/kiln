@@ -1,4 +1,4 @@
-import type { JsonSchema } from '@mrm/connectors';
+import type { JsonSchema } from '@kiln/connectors';
 import {
   type AiFlag,
   type AiListingProposal,
@@ -15,7 +15,7 @@ import {
   type Platform,
   type StoreFamily,
   storeFamilyOf,
-} from '@mrm/core';
+} from '@kiln/core';
 import { listKeywords } from '../aso/service.ts';
 import { normalizeListingValue } from '../listing/drift.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';

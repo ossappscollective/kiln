@@ -7,7 +7,7 @@ import type {
   StagedChangesView,
   StagedRolloutMode,
   StoreImagesView,
-} from '@mrm/core';
+} from '@kiln/core';
 import type {
   AiAcceptBody,
   AiAcceptResult,

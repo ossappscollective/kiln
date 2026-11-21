@@ -4,10 +4,10 @@ import type {
   OpenPullRequestResult,
   ProposalResult,
   ProposeOptions,
-} from '@mrm/connectors';
-import { ChangeConflictError } from '@mrm/connectors';
-import type { ChangeSet } from '@mrm/core';
-import { type Database, migrate } from '@mrm/db';
+} from '@kiln/connectors';
+import { ChangeConflictError } from '@kiln/connectors';
+import type { ChangeSet } from '@kiln/core';
+import { type Database, migrate } from '@kiln/db';
 import { createApp } from './app.ts';
 import type { ConnectorFactory, RepoClient } from './services/repositories.ts';
 

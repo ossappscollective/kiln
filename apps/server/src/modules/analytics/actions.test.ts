@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
-import { AnalyticsError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { AnalyticsError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import {
   type AnalyticsBoot,
   bootAnalytics,

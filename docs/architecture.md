@@ -19,7 +19,7 @@ Web UI · Tauri shell · CLI and webhooks
 
 1. **Connectors hide the stores.** Apple and Google model releases differently (separate review
    resources versus one transactional Play edit). Only connectors know that. The rest of the
-   code sees the normalized lifecycle in `@mrm/core`.
+   code sees the normalized lifecycle in `@kiln/core`.
 2. **Change sets are the only way to write.** UI edits, repo commits and, in V2, assistant
    suggestions all create a change set with a diff that a person approves. Today this is built for
    repositories only (an admin or owner approves; apply opens a pull request on GitHub, or, opt-in,
@@ -27,7 +27,7 @@ Web UI · Tauri shell · CLI and webhooks
 3. **Every write is audited**, with the actor type (user, token, assistant, system).
 4. **Secrets are encrypted before they reach the database** and bound to their owner.
 5. **Read before write.** No phase writes to a store until the read-only sync matches the console.
-   The store connectors in `@mrm/connectors` contain no write call.
+   The store connectors in `@kiln/connectors` contain no write call.
 6. **Portable data model.** Text ids, epoch-millisecond times and JSON as text, so Postgres and
    SQLite share one model.
 
@@ -52,7 +52,7 @@ Web UI · Tauri shell · CLI and webhooks
 - **Platforms are data.** `packages/core/src/platform.ts` has one row per platform with its facts and
   a `capabilities` record. Code asks `supports(platform, capability)` or `byFamily`, never
   "is it iOS"; a new platform is a new row plus a connector (ADR 0032).
-- **Same grouping elsewhere.** Web `lib/` and `components/`, `@mrm/core` and `@mrm/connectors` group
+- **Same grouping elsewhere.** Web `lib/` and `components/`, `@kiln/core` and `@kiln/connectors` group
   files by feature folder (`aso/`, `analytics/`, `listing/`, `apple/`, `google/`, ...).
 
 ## What runs where

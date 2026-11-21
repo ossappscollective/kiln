@@ -1,5 +1,5 @@
-import type { Platform, ReleaseState } from '@mrm/core';
-import { isDesktop, platformMeta, supports } from '@mrm/core';
+import type { Platform, ReleaseState } from '@kiln/core';
+import { isDesktop, platformMeta, supports } from '@kiln/core';
 import { runBadge } from './ci/ci.ts';
 import {
   type BadgeTone,

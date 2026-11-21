@@ -1,4 +1,4 @@
-import type { ReleaseState, Role } from '@mrm/core';
+import type { ReleaseState, Role } from '@kiln/core';
 import type { IconName } from './icons.ts';
 
 /**

@@ -11,9 +11,9 @@ import {
   StoreRateLimitError,
   type StoreProductsConnector,
   type StoreProductWriteConnector,
-} from '@mrm/connectors';
-import { type ActorType, needsStoreAppId } from '@mrm/core';
-import type { Database } from '@mrm/db';
+} from '@kiln/connectors';
+import { type ActorType, needsStoreAppId } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { credentialKindFor, type ManagedApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';

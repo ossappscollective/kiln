@@ -12,7 +12,7 @@ import {
   MAX_ROLLOUT_NOTE_LENGTH,
   MAX_TEMPLATE_NAME_LENGTH,
   PLATFORMS,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';

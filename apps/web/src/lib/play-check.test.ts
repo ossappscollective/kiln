@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { StagedChangesView } from '@mrm/core';
+import type { StagedChangesView } from '@kiln/core';
 import {
   bodyKey,
   canCheck,

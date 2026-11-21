@@ -9,7 +9,7 @@ rendered in a browser, and Expo is only done at library level.
 
 ## Done and tested
 
-- [x] `GithubRepoConnector` in `@mrm/connectors`: GitHub App authentication, list and read files,
+- [x] `GithubRepoConnector` in `@kiln/connectors`: GitHub App authentication, list and read files,
       propose a change set as a branch and pull request, dispatch workflows, list workflow runs.
       Writes to `.github/` are blocked by default (see [open-decisions.md](open-decisions.md))
 - [x] `detectProject`: fastlane, Expo, both, or unknown, with evidence and warnings

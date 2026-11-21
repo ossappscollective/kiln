@@ -16,7 +16,7 @@ Needs Rust, and (for the build) the web UI built with `pnpm build` from the repo
 | Output                           | Used as                                                                                                                                                   |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `mrm-node-<target-triple>[.exe]` | Tauri `externalBin` `binaries/mrm-node`: the Node binary                                                                                                  |
-| `server/`                        | Tauri `resources`, installed as `server/`: server sources, `@mrm/*` packages, `hono`, `zod`, `@hono/node-server`, the launcher, and `web/` (the built UI) |
+| `server/`                        | Tauri `resources`, installed as `server/`: server sources, `@kiln/*` packages, `hono`, `zod`, `@hono/node-server`, the launcher, and `web/` (the built UI) |
 
 The Node binary is the one running the script, so run it with the official Node 22.18 or newer
 (nodejs.org, nvm, fnm, Volta). Homebrew and distribution packages are refused because they link
@@ -27,9 +27,9 @@ shared libraries.
 ```sh
 pnpm install
 pnpm build                                              # web UI -> apps/web/dist
-pnpm --filter @mrm/desktop check-sidecar                # dry run: prints the plan, writes nothing
-pnpm --filter @mrm/desktop tauri icon path/to/app-icon.png   # once
-pnpm --filter @mrm/desktop build                        # stages the sidecar, then tauri build
+pnpm --filter @kiln/desktop check-sidecar                # dry run: prints the plan, writes nothing
+pnpm --filter @kiln/desktop tauri icon path/to/app-icon.png   # once
+pnpm --filter @kiln/desktop build                        # stages the sidecar, then tauri build
 ```
 
 - `build` and `dev` run the staging step first, because Tauri refuses to build when the

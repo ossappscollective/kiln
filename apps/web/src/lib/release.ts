@@ -16,7 +16,7 @@ import {
   releaseNotesLimit,
   supports,
   validateRolloutSteps,
-} from '@mrm/core';
+} from '@kiln/core';
 import { ApiError } from './api.ts';
 import { compareVersions, platformLabel } from './portfolio.ts';
 import type { AppSummary, ReleaseSummary, RolloutStep } from './types.ts';

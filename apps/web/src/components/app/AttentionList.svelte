@@ -10,7 +10,7 @@
   "Also needs attention" heading).
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import type { AttentionItem } from '../../lib/app-attention.ts';
   import { capItems } from '../../lib/readability.ts';

@@ -1,4 +1,4 @@
-import { isTranslationProvider, type TranslationProvider } from '@mrm/core';
+import { isTranslationProvider, type TranslationProvider } from '@kiln/core';
 import { createAzureTranslator } from './azure.ts';
 import { createDeeplTranslator } from './deepl.ts';
 import { createGoogleTranslator } from './google.ts';

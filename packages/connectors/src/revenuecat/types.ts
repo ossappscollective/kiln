@@ -1,4 +1,4 @@
-import type { RevenueCatAppType } from '@mrm/core';
+import type { RevenueCatAppType } from '@kiln/core';
 
 /**
  * What this tool keeps of RevenueCat's configuration (docs/adr/0039-revenuecat.md). Configuration facts only: no money amounts, no

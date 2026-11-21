@@ -7,7 +7,7 @@
   onlocal (called when a folder was attached or connected, with what happened).
 -->
 <script lang="ts">
-  import { credentialKindInfo, isCredentialKind } from '@mrm/core';
+  import { credentialKindInfo, isCredentialKind } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { type ConnectProblem, connectProblem, parseRepositoryInput } from '../../lib/repositories.ts';
   import type { CredentialSummary, LocalConfig, RepositorySummary } from '../../lib/types.ts';

@@ -7,8 +7,8 @@ import {
   type PlayApp,
   PlayPublicConnector,
   searchApple,
-} from '@mrm/connectors';
-import { type AsoPlatform, byFamily, isDesktop, listingStoreOf } from '@mrm/core';
+} from '@kiln/connectors';
+import { type AsoPlatform, byFamily, isDesktop, listingStoreOf } from '@kiln/core';
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import { type Exchange, safeGet } from '../../services/safe-fetch.ts';
 import { timedCache } from '../../services/timed-cache.ts';

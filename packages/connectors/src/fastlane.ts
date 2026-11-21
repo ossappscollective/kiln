@@ -10,7 +10,7 @@ import {
   PLAY_FIELDS,
   type PlayField,
   type PlayListing,
-} from '@mrm/core';
+} from '@kiln/core';
 
 /**
  * Store listings as fastlane files. Pure: nothing here touches a network or a disk.

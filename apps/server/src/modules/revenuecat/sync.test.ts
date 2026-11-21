@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { StoreError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { StoreError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { entitlement, product } from '../../../../../packages/connectors/src/revenuecat/revenuecat.fixtures.ts';
 import { bootRevenueCat, errorBody, json, REVENUECAT_KEY } from './test-helpers.ts';
 

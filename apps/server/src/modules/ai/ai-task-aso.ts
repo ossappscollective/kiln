@@ -1,4 +1,4 @@
-import type { JsonSchema } from '@mrm/connectors';
+import type { JsonSchema } from '@kiln/connectors';
 import {
   type AiAsoHealthInsight,
   type AiAuditCoverage,
@@ -22,7 +22,7 @@ import {
   normalizeCountry,
   normalizeLocale,
   PLAY_FIELD_SPECS,
-} from '@mrm/core';
+} from '@kiln/core';
 import { overview } from '../analytics/query.ts';
 import { coachFor, summaryFor } from '../aso/insights.ts';
 import { listCompetitors, listKeywords } from '../aso/service.ts';

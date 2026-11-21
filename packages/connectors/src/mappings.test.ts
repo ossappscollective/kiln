@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { ReleaseState } from '@mrm/core';
+import type { ReleaseState } from '@kiln/core';
 import { KNOWN_APP_STORE_STATES, mapAppStoreState, mapPlayTrackRelease } from './mappings.ts';
 
 const appleTable: [string | null | undefined, ReleaseState | undefined][] = [

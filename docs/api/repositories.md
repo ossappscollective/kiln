@@ -51,7 +51,7 @@ repository), `localOnly`, and `local` (null without a clone). A local-only repos
 - `DELETE /repositories/:id` returns `204`. `409 open_change_sets` while a draft, approved or
   applying change set exists; finished ones are deleted with it.
 - `POST /repositories/:id/scan` lists the files, runs project detection, stores it and returns
-  `{ repository, detection, listingSources }` (the `ProjectDetection` of `@mrm/connectors`: kind,
+  `{ repository, detection, listingSources }` (the `ProjectDetection` of `@kiln/connectors`: kind,
   platforms, locales, paths, evidence, warnings; `listingSources` is described below).
   `detection.listing` (additive; absent from a scan stored by an older version) is
   `{ candidates, targets, hints }`: every folder that looks like a listing root, the candidates
@@ -59,7 +59,7 @@ repository), `localOnly`, and `local` (null without a clone). A local-only repos
   Fastfile names. Synchronous with a timeout. Audit `repository.scan`.
 - `GET /repositories/:id/listing` reads the listing at the default branch and returns
   `{ listing, found, roots, warnings, problems, sources, targets, selected, candidates,
-  diagnostics }`: the `Listing` model of `@mrm/core`, whether text was found per store, the
+  diagnostics }`: the `Listing` model of `@kiln/core`, whether text was found per store, the
   fastlane folders that were read, repository-level warnings, `validateListing` problems
   (`severity` `error` or `warning`), where each store's listing came from (see "Listing
   sources"), and the target fields described under "Listing targets". Query (all optional):

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { AsoError } from '@mrm/connectors';
-import type { Database } from '@mrm/db';
+import { AsoError } from '@kiln/connectors';
+import type { Database } from '@kiln/db';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import { ASC_SECRET, PLAY_SECRET } from '../reviews/test-helpers.ts';

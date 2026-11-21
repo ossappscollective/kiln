@@ -10,7 +10,7 @@ import {
   type StagedChangesView,
   supports,
   type WasteReason,
-} from '@mrm/core';
+} from '@kiln/core';
 import { withHeaderParams } from '../app-header.ts';
 import { appAddress, type PlatformScope, parseViewPath } from '../app-scope.ts';
 import type { DriftField } from '../types.ts';
@@ -18,7 +18,7 @@ import { type AsoKeyword, asoViewHref } from './aso.ts';
 
 /**
  * The budget meters and the coach in the web (docs/api/aso.md): the pure parts. What counts and what is
- * wasted is worked out in `@mrm/core` (`listingBudget`, `buildCoach`); here the listing text of a locale is
+ * wasted is worked out in `@kiln/core` (`listingBudget`, `buildCoach`); here the listing text of a locale is
  * put together from what the screens hold (the store copy, with the staged text on top) and the results
  * are turned into the words and addresses the screens show. Written for the ES2017 web build.
  */

@@ -7,7 +7,7 @@
   Props: api, workspaceId, role, app (the app record), locales (the languages of the stored listing).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { suggestAvailability } from '../../lib/ai/ai.ts';
   import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import type { Database } from '@mrm/db';
+import type { Database } from '@kiln/db';
 import {
   apps as rcApps,
   entitlement,

@@ -8,7 +8,7 @@
   Props: api, workspaceId, role, members (the app records in scope), releases (by app id).
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { type RolloutConfig, controlsAvailability } from '../../lib/store-rollout.ts';

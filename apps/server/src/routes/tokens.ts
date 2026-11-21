@@ -1,4 +1,4 @@
-import { type Action, can } from '@mrm/core';
+import { type Action, can } from '@kiln/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';

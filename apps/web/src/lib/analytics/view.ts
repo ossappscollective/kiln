@@ -1,5 +1,5 @@
-import type { MetricUnit } from '@mrm/core';
-import { platformSupports, supports } from '@mrm/core';
+import type { MetricUnit } from '@kiln/core';
+import { platformSupports, supports } from '@kiln/core';
 import { timeAgo } from '../format.ts';
 import {
   type AnalyticsOverview,

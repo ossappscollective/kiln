@@ -14,7 +14,7 @@ import {
   type RepoSections,
   readFastlaneSections,
   staticStoreConfigs,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 import {
   byFamily,
   type FileChange,
@@ -22,7 +22,7 @@ import {
   type ListingSections,
   listingStoreOf,
   type Platform,
-} from '@mrm/core';
+} from '@kiln/core';
 
 /**
  * Where each store's listing comes from. The rule (a product decision):

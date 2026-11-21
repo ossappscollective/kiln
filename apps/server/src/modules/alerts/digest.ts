@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Database } from '@mrm/db';
+import type { Database } from '@kiln/db';
 import { isSeverity } from './catalog-core.ts';
 import { alertGuide, renderDigestEmail } from './email.ts';
 import { toUserSettings } from './prefs.ts';

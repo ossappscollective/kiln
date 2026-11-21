@@ -1,4 +1,4 @@
-import type { AiAcceptedRef, AiSuggestionView } from '@mrm/core';
+import type { AiAcceptedRef, AiSuggestionView } from '@kiln/core';
 import type { Api } from '../api.ts';
 import type {
   AiAcceptBody,

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { addMember, auditActions, boot, registerOwner, seedWorkspace, send } from './testkit.ts';
 
 type MemberRow = { userId: string; email: string; displayName: string; role: string };

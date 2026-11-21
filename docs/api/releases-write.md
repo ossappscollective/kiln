@@ -244,7 +244,7 @@ Failures are answers with a fixed sentence and never a secret: `422 store_auth`,
 `422 store_rejected`, `422 credential_not_found`, `422 credential_unreadable`, `502 store_unavailable` (the sentence ends "Nothing was saved in
 Google Play"), `504 timeout`, `502 check_failed`. MCP: the read-only tool `check_play_release`.
 
-**Local checks** (web app, `@mrm/core` `checkPlayProposal`, no store call): release notes missing for a language that has a listing, notes over
+**Local checks** (web app, `@kiln/core` `checkPlayProposal`, no store call): release notes missing for a language that has a listing, notes over
 500 characters per language, a version code the target track already holds as live or rolling out (a problem) or a lower one (a warning), a share
 outside 0 to 100%, 100% sent as a completed release, an empty release name, and what the state means (a draft goes to nobody, a rollout reaches a
 share, completed is everybody). They are advice and never gate anything.

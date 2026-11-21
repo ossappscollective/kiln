@@ -1,4 +1,4 @@
-import type { Sql } from '@mrm/db';
+import type { Sql } from '@kiln/db';
 
 /**
  * The scheduled store refresh, per workspace. The server-wide switch is `MRM_SYNC_INTERVAL_MINUTES` (default 30; 0 turns scheduled

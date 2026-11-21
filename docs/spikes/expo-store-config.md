@@ -1,7 +1,7 @@
 # Spike: Expo `store.config.json` (EAS Metadata)
 
 **Question:** what does `store.config.json` hold, how does it map to the listing model in
-`@mrm/core`, and what can be written back safely?
+`@kiln/core`, and what can be written back safely?
 
 **Status:** the schema was checked on 2026-11-18 against the pages below. Anything under "Not
 verified" is a guess in the code (a warning, not an error). Code: `packages/connectors/src/expo-store.ts`.
@@ -55,12 +55,12 @@ Sources: [EAS Metadata](https://docs.expo.dev/eas/metadata/),
   (boolean). **`apple.review`**: `firstName`, `lastName`, `email`, `phone`, `demoUsername`,
   `demoPassword`, `demoRequired`, `notes`. Neither is part of the listing model.
 - The `title`, `subtitle`, `description`, `releaseNotes` and `promoText` limits equal the limits
-  `@mrm/core` already uses, so reusing `validateListing` gives the same answers as the schema for
+  `@kiln/core` already uses, so reusing `validateListing` gives the same answers as the schema for
   those fields.
 
 ## Mapping
 
-| `store.config.json`                              | `@mrm/core` field                             |
+| `store.config.json`                              | `@kiln/core` field                             |
 | ------------------------------------------------ | --------------------------------------------- |
 | `apple.info.<l>.title`                           | `name`                                        |
 | `subtitle`, `description`                        | `subtitle`, `description`                     |

@@ -24,12 +24,12 @@
     sectionsSummary,
     valueRows,
   } from '../../lib/listing/sections.ts';
-  import type { ListingMedia, ListingReleaseNotes, Platform } from '@mrm/core';
+  import type { ListingMedia, ListingReleaseNotes, Platform } from '@kiln/core';
   import type { SectionDrift } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
   import Icon from '../ui/Icon.svelte';
   import Section from '../ui/Section.svelte';
-import { listingStoreOf, supports } from '@mrm/core';
+import { listingStoreOf, supports } from '@kiln/core';
 
   let {
     sections,

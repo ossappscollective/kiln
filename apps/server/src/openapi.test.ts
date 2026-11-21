@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { can, type roles, tokenExplicitOnlyActions } from '@mrm/core';
-import { dbTest } from '@mrm/db/testing';
+import { can, type roles, tokenExplicitOnlyActions } from '@kiln/core';
+import { dbTest } from '@kiln/db/testing';
 import { z } from 'zod';
 import {
   buildOpenApiDocument,

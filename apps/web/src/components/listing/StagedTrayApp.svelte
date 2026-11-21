@@ -11,7 +11,7 @@
   is never retried (the person previews again, which reads the store); no button submits or publishes.
 -->
 <script lang="ts">
-  import { type Role } from '@mrm/core';
+  import { type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { fileName } from '../../lib/assets/assets.ts';

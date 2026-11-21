@@ -16,7 +16,7 @@
   Exports: observe(data) takes a RunningNow answer, so the screen's own feed is read once.
 -->
 <script lang="ts">
-  import { can, type Role, supports } from '@mrm/core';
+  import { can, type Role, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import type { AttentionItem } from '../../lib/app-attention.ts';

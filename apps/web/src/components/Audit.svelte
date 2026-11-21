@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { can, type Role } from '@mrm/core';
+  import { can, type Role } from '@kiln/core';
   import { ApiError, type Api } from '../lib/api.ts';
   import {
     categoryLabel,

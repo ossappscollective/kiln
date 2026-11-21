@@ -1,5 +1,5 @@
-import { evaluatePipeline, HOUR_MS, MAX_STALLED_AFTER_HOURS } from '@mrm/core';
-import type { Database, Row } from '@mrm/db';
+import { evaluatePipeline, HOUR_MS, MAX_STALLED_AFTER_HOURS } from '@kiln/core';
+import type { Database, Row } from '@kiln/db';
 import { recordAudit } from '../../services/audit.ts';
 import { emitEvent } from '../../services/events.ts';
 import { getSettings } from '../../services/workspace-settings.ts';

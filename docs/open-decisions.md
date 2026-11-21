@@ -351,7 +351,7 @@ the raw state). A phased release currently shows as `live` because it is not rea
 
 ## Smaller items
 
-- Project name, then the `@mrm` scope, Tauri identifier and title ([phase-0.md](phase-0.md)).
+- Project name, then the `@kiln` scope, Tauri identifier and title ([phase-0.md](phase-0.md)).
 - A security contact address in [SECURITY.md](../SECURITY.md) before the first release.
 - Whether the web `Portfolio` screen shows `rawState` for unmapped statuses, and how to present Play
   `rolloutFraction` ("share of users eligible", not "installed").

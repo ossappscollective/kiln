@@ -168,7 +168,7 @@ A locale is `default` or a code such as `en-US`, `de`, `pt_BR` (`400` otherwise)
 plan (`422 too_many_locales`). The text is checked against the store limit, counted in Unicode code
 points like the listing rules: **4000 for a plan on iOS** (App Store "What's new"), **500 for a
 plan on Android** (Play release notes) and **500 for a plan on both platforms** (the stricter one).
-The limits come from `@mrm/core` (`releaseNotesLimit`, built on the listing rules). Too long gives:
+The limits come from `@kiln/core` (`releaseNotesLimit`, built on the listing rules). Too long gives:
 
 ```json
 {
@@ -285,7 +285,7 @@ only a short `rollout` summary (`kind`, `total`, `done`, `skipped`, `planned`, `
   real date-time **not before the plan was created** (a step that is already done keeps its time) and
   not earlier than the step above it; `note` one line of at most 200 characters; a step that is
   **done keeps its percentage and cannot be left out**; no open step may sit before a done step.
-- **Templates in code** (`@mrm/core`: `ROLLOUT_TEMPLATES`): `builtin:play-default` (1, 5, 20, 50,
+- **Templates in code** (`@kiln/core`: `ROLLOUT_TEMPLATES`): `builtin:play-default` (1, 5, 20, 50,
   100%; our suggestion, Play has no default and accepts any share), `builtin:immediate` (one step at
   100%) and `builtin:apple-phased`. They are not stored per workspace and cannot be edited.
 - **Apple's phased release is informational.** Apple's schedule is fixed: **1, 2, 5, 10, 20, 50 and
@@ -358,7 +358,7 @@ only a short `rollout` summary (`kind`, `total`, `done`, `skipped`, `planned`, `
 ```
 
 - **Shipped templates** are `builtin:first-ios`, `builtin:first-android` and
-  `builtin:routine-update`. They are defined in `@mrm/core` (`DEFAULT_CHECKLIST_TEMPLATES`), not
+  `builtin:routine-update`. They are defined in `@kiln/core` (`DEFAULT_CHECKLIST_TEMPLATES`), not
   stored per workspace, so every workspace has them, they improve with an upgrade, and they cannot
   be changed or deleted (`409 builtin_template`). To change the wording, save your own template.
   The first-release lists cover the privacy policy URL, screenshots, export compliance (iOS),

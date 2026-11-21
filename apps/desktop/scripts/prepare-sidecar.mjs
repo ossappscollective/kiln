@@ -233,7 +233,7 @@ function collect(dir, destDir, skip = () => false, seen = new Set()) {
   return jobs;
 }
 
-const workspacePackages = new Map(); // '@mrm/db' -> directory
+const workspacePackages = new Map(); // '@kiln/db' -> directory
 for (const name of readdirSync(join(repoRoot, 'packages'))) {
   const file = join(repoRoot, 'packages', name, 'package.json');
   if (!existsSync(file)) continue;
@@ -298,7 +298,7 @@ const serverEntry = join(repoRoot, 'apps/server/src/index.ts');
 if (!existsSync(serverEntry)) problem(`Server entry not found: ${relative(repoRoot, serverEntry)}`);
 else {
   const serverDir = join(repoRoot, 'apps/server');
-  addWorkspacePackage(serverDir, join(serverDest, 'apps/server'), '@mrm/server');
+  addWorkspacePackage(serverDir, join(serverDest, 'apps/server'), '@kiln/server');
 }
 
 for (const file of ['launcher.mjs', 'workspace-resolve.mjs']) {

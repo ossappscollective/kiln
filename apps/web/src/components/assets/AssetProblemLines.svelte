@@ -4,7 +4,7 @@
   "Problems found". Props: problems (the errors), onopenpath? (opens the file in the lightbox).
 -->
 <script lang="ts">
-  import type { AssetProblem } from '@mrm/core';
+  import type { AssetProblem } from '@kiln/core';
   import { fileName } from '../../lib/assets/assets.ts';
   import { problemAction } from '../../lib/assets/lead.ts';
   import Badge from '../ui/Badge.svelte';

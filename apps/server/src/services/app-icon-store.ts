@@ -1,4 +1,4 @@
-import { mapOrNull, type Row, type Sql } from '@mrm/db';
+import { mapOrNull, type Row, type Sql } from '@kiln/db';
 
 /**
  * The app_icons table (migration 18): at most one row per app, holding the resolved icon as base64

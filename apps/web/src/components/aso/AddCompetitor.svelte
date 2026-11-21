@@ -14,7 +14,7 @@
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
-import { needsStoreAppId, supports } from '@mrm/core';
+import { needsStoreAppId, supports } from '@kiln/core';
 
   let {
     api,

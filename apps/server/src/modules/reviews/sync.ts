@@ -14,9 +14,9 @@ import {
   type StoreReview,
   type StoreReviewConnector,
   secretStrings,
-} from '@mrm/connectors';
-import { type ActorType, needsStoreAppId, type Platform, storeOf, supports } from '@mrm/core';
-import type { Database, Param, Row, Sql } from '@mrm/db';
+} from '@kiln/connectors';
+import { type ActorType, needsStoreAppId, type Platform, storeOf, supports } from '@kiln/core';
+import type { Database, Param, Row, Sql } from '@kiln/db';
 import { enqueue, type JobHandler } from '../../jobs.ts';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';

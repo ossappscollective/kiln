@@ -1,4 +1,4 @@
-import { supports } from '@mrm/core';
+import { supports } from '@kiln/core';
 import { parseViewPath } from './app-scope.ts';
 import { trackLabel } from './portfolio.ts';
 import { releaseStepHref } from './release-stepper.ts';

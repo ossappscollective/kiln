@@ -1,4 +1,4 @@
-import type { ChangeSet } from '@mrm/core';
+import type { ChangeSet } from '@kiln/core';
 import {
   type DispatchResult,
   type ListWorkflowRunsOptions,

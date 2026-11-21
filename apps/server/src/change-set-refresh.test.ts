@@ -3,10 +3,10 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import { GithubError } from '@mrm/connectors';
-import type { FileChange } from '@mrm/core';
-import type { Database } from '@mrm/db';
-import { dbTest } from '@mrm/db/testing';
+import { GithubError } from '@kiln/connectors';
+import type { FileChange } from '@kiln/core';
+import type { Database } from '@kiln/db';
+import { dbTest } from '@kiln/db/testing';
 import { buildRepo, git, gitWrapper } from './local-git-test-helpers.ts';
 import { bootRepoApp, FakeRepo, fastlaneFiles } from './repo-test-helpers.ts';
 import { evaluateFile, resolveConflict } from './services/change-set-refresh.ts';

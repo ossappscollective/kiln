@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildSecret } from '@mrm/core';
+import { buildSecret } from '@kiln/core';
 import * as fx from './store.fixtures.ts';
 import { verifyAppStoreConnectCredential, verifyGooglePlayCredential } from './verify-store.ts';
 

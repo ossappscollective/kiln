@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ExpoError, expoViewer } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { ExpoError, expoViewer } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { appJson, graphqlError, project } from '../../../../../packages/connectors/src/expo/expo.fixtures.ts';
 import { seedWorkspace } from '../../testkit.ts';
 import { expoClientFor, expoFailure } from './index.ts';

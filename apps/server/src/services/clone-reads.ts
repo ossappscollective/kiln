@@ -11,7 +11,7 @@ import {
   type RepoConnector,
   removeClone,
   removeWorkspaceClones,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 
 /**
  * Reads from a local git clone (docs/adr/0005-local-clone-reads.md). This file is the server's

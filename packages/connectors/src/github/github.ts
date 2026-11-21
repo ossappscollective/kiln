@@ -1,5 +1,5 @@
 import { createHash, createPrivateKey, type KeyObject, sign } from 'node:crypto';
-import { type ChangeSet, checkSecret, type FileChange } from '@mrm/core';
+import { type ChangeSet, checkSecret, type FileChange } from '@kiln/core';
 import type {
   BlobEntry,
   BlobHeadItem,

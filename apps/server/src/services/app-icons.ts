@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { type AssetKind, readImageHeader } from '@mrm/core';
-import type { Database } from '@mrm/db';
+import { type AssetKind, readImageHeader } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import type { AssetIndexView } from '../modules/listing/asset-index.ts';
 import { openAssets } from '../modules/listing/asset-repo.ts';
 import {

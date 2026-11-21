@@ -1,5 +1,5 @@
-import type { CiJob } from '@mrm/connectors';
-import type { ActorType } from '@mrm/core';
+import type { CiJob } from '@kiln/connectors';
+import type { ActorType } from '@kiln/core';
 import { type Failure, listRepositories, type Repository } from '../../services/repositories.ts';
 import { ACTIVE_STATUSES, listWorkspaceRuns, type WorkflowRunView } from './runs.ts';
 import {

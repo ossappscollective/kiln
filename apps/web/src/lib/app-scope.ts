@@ -6,7 +6,7 @@ import {
   type Platform,
   platformLabel,
   sortPlatforms,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { IconName } from './icons.ts';
 
 /**

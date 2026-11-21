@@ -1,4 +1,4 @@
-import type { Platform } from '@mrm/core';
+import type { Platform } from '@kiln/core';
 import { ApiError, waitPhrase } from '../api.ts';
 import { timeAgo } from '../format.ts';
 

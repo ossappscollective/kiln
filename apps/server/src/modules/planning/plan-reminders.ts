@@ -5,8 +5,8 @@ import {
   MAX_REMINDER_LEAD_HOURS,
   REMINDER_STALE_DAYS,
   rolloutStepReminderDue,
-} from '@mrm/core';
-import type { Database, Param, Row } from '@mrm/db';
+} from '@kiln/core';
+import type { Database, Param, Row } from '@kiln/db';
 import { recordAudit } from '../../services/audit.ts';
 import type { EventType } from '../../services/event-types.ts';
 import { emitEvent } from '../../services/events.ts';

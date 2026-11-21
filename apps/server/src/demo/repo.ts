@@ -9,7 +9,7 @@ import type {
   CiWorkflow,
   DispatchResult,
   ListWorkflowRunsOptions,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 import { FakeCi } from '../modules/ci/test-helpers.ts';
 import { BlobRepo } from '../modules/publish/test-helpers.ts';
 import { type ArtifactKind, artifactZip, sha256Hex } from './artifacts.ts';

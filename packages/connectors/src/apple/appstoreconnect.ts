@@ -5,7 +5,7 @@ import {
   type MediaSet,
   PLATFORM_META,
   type Platform,
-} from '@mrm/core';
+} from '@kiln/core';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
 import { mapAppStoreState } from '../mappings.ts';
 import {
@@ -115,7 +115,7 @@ const MAX_MEDIA_PER_SET = 50;
 
 /**
  * App info localizations (`GET /v1/appInfos/{id}/appInfoLocalizations`): Apple attribute to the
- * `@mrm/core` field. `privacyChoicesUrl` has no field in the listing model: it is read into the
+ * `@kiln/core` field. `privacyChoicesUrl` has no field in the listing model: it is read into the
  * `privacy` section instead (see `choicesUrls`).
  */
 const INFO_LOCALIZATION_FIELDS = {

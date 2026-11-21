@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { runJob } from '../../../../../packages/connectors/src/expo/workflows.fixtures.ts';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import { loadPipelineFacts } from '../planning/release-pipeline.ts';

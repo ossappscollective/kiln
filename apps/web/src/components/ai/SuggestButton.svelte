@@ -11,7 +11,7 @@
   the screen has that makes it unavailable now), align ('start' | 'end': which edge the popover lines up with).
 -->
 <script lang="ts">
-  import { type AiProposalKind, type Role, can } from '@mrm/core';
+  import { type AiProposalKind, type Role, can } from '@kiln/core';
   import { tick } from 'svelte';
   import { floating } from '../../lib/floating.ts';
   import { type AiPreview, type AiRunBody, type AiTaskView, aiErrorMessage, disclosureGate, providerSentence, suggestAvailability } from '../../lib/ai/ai.ts';

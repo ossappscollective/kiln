@@ -9,9 +9,9 @@ import {
   type StoreError,
   type StoreReview,
   type StoreReviewReplyConnector,
-} from '@mrm/connectors';
-import type { Platform } from '@mrm/core';
-import type { Database } from '@mrm/db';
+} from '@kiln/connectors';
+import type { Platform } from '@kiln/core';
+import type { Database } from '@kiln/db';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import type { ReviewReplyConnectorFactory } from './replies.ts';
 import type { ReviewConnectorFactory, ReviewConnectorInput } from './sync.ts';

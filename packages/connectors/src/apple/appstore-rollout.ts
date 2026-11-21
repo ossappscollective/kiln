@@ -1,4 +1,4 @@
-import { PLATFORM_META } from '@mrm/core';
+import { PLATFORM_META } from '@kiln/core';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
 import {
   type AppleRolloutChange,

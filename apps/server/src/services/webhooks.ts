@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
-import type { ActorType } from '@mrm/core';
-import type { Database, Row, Sql } from '@mrm/db';
-import { decryptSecret, encryptSecret } from '@mrm/vault';
+import type { ActorType } from '@kiln/core';
+import type { Database, Row, Sql } from '@kiln/db';
+import { decryptSecret, encryptSecret } from '@kiln/vault';
 import { z } from 'zod';
 import { DEFAULT_MAX_ATTEMPTS, enqueue, type JobHandler } from '../jobs.ts';
 import { recordAudit } from './audit.ts';

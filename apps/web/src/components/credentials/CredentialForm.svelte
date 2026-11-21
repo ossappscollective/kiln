@@ -6,7 +6,7 @@
     credentialGuides,
     credentialKindInfo,
     credentialKinds,
-  } from '@mrm/core';
+  } from '@kiln/core';
   import { onMount } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import SecretFields from '../SecretFields.svelte';

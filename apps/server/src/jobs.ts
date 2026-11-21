@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Sql } from '@mrm/db';
+import type { Sql } from '@kiln/db';
 
 /**
  * A queue in the database, so there is no Redis or RabbitMQ to run. Claiming is optimistic and

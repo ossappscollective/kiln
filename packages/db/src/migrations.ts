@@ -520,7 +520,7 @@ export const migrations: Migration[] = [
       const t = epoch(dialect);
       // build_conventions: how a team names the tags and releases that carry a build number, per
       // repository (app_id '' ) or per app (the app's own row wins). *_patterns_json are JSON arrays
-      // of pattern strings (see @mrm/core build-patterns); an empty array means "use the defaults".
+      // of pattern strings (see @kiln/core build-patterns); an empty array means "use the defaults".
       // tag_prefix is the literal that fills {prefix}; workflow is the release workflow (file name
       // or name) used when a tag is matched to a run by time, NULL to detect it.
       // build_scans: what the last tag and release read of a repository saw (counts, newest tag,

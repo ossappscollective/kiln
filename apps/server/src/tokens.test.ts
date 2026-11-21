@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { isBearerOnly } from './http.ts';
 import { bootRepoApp } from './repo-test-helpers.ts';
 import { SESSION_COOKIE } from './routes/auth.ts';

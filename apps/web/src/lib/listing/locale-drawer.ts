@@ -1,4 +1,4 @@
-import { type Platform, platformLabel } from '@mrm/core';
+import { type Platform, platformLabel } from '@kiln/core';
 import type { DriftField } from '../types.ts';
 import { usage, usageText } from './drift.ts';
 import { type CellStatus, cellStatus } from './matrix.ts';

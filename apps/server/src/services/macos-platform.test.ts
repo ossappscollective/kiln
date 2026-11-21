@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { migrate } from '@mrm/db';
-import { dbTest } from '@mrm/db/testing';
+import { migrate } from '@kiln/db';
+import { dbTest } from '@kiln/db/testing';
 import { fileFitsPlatform } from '../modules/listing/asset-index.ts';
 import { reviewsOwnedByOtherRecord } from '../modules/reviews/sync.ts';
 

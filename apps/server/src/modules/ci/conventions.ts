@@ -8,15 +8,15 @@ import {
   MAX_PREFIX_LENGTH,
   patternListProblems,
   prefixProblem,
-} from '@mrm/core';
-import type { Database, Row, Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Database, Row, Sql } from '@kiln/db';
 import { z } from 'zod';
 import { recordAudit } from '../../services/audit.ts';
 
 /**
  * How a team names the tags and releases that carry a build number, stored per repository, with
  * an optional override per app (a monorepo with one prefix per app). The pattern language lives in
- * `@mrm/core` (build-patterns.ts); this file is the stored side and the request schema.
+ * `@kiln/core` (build-patterns.ts); this file is the stored side and the request schema.
  *
  * Nothing stored here is a secret. An empty pattern list means "use the built-in defaults".
  */

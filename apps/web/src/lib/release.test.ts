@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { rolloutTemplate, summarizeRollout } from '@mrm/core';
+import { rolloutTemplate, summarizeRollout } from '@kiln/core';
 import { ApiError } from './api.ts';
 import {
   addDraftStep,

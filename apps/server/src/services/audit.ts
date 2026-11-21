@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
-import type { ActorType } from '@mrm/core';
-import type { Sql } from '@mrm/db';
+import type { ActorType } from '@kiln/core';
+import type { Sql } from '@kiln/db';
 import { emitEvent, eventFromAudit } from './events.ts';
 
 export type AuditInput = {

@@ -11,8 +11,8 @@ import type {
   GitRelease,
   GitTag,
   ListWorkflowRunsOptions,
-} from '@mrm/connectors';
-import type { Database } from '@mrm/db';
+} from '@kiln/connectors';
+import type { Database } from '@kiln/db';
 import type { AppDeps } from '../../app.ts';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import { clearActiveCaches } from './active.ts';

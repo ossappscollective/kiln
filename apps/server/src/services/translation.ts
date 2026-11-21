@@ -6,7 +6,7 @@ import {
   type TranslateErrorKind,
   type Translator,
   translateErrorMessage,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 import {
   type ActorType,
   normalizeLanguageTag,
@@ -14,8 +14,8 @@ import {
   type TranslationProvider,
   translationLimits,
   translationProviderInfo,
-} from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Database, Sql } from '@kiln/db';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { createGuardedFetch, type GuardedFetch, type PostExchange } from './translate-net.ts';

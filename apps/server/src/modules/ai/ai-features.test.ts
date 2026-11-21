@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isStrictCompatible } from '@mrm/connectors';
-import { findBannedWord, normalizeAiAppContext } from '@mrm/core';
-import { dbTest } from '@mrm/db/testing';
+import { isStrictCompatible } from '@kiln/connectors';
+import { findBannedWord, normalizeAiAppContext } from '@kiln/core';
+import { dbTest } from '@kiln/db/testing';
 import { keywordIdeasFromReviewsTask } from './ai-task-aso.ts';
 import { redactPersonal } from './ai-task-data.ts';
 import { claimsUnknownRank, oneOf, strings } from './ai-task-lenient.ts';

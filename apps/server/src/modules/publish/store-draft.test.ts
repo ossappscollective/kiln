@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { StoreError, StoreRateLimitError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { StoreError, StoreRateLimitError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import { clearRepoSnapshots } from '../../services/repo-snapshot.ts';
 import { clearAssetIndexes } from '../listing/asset-repo.ts';

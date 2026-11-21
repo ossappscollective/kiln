@@ -34,7 +34,7 @@ release starts the rollout. Two things were missing:
    deobfuscation file, the target API level and similar). So a result is "Google found no errors. The Play Console may still show
    warnings", never "no warnings". The sentence travels with the answer (`note`) and is fixed in the web app. An error is shown in Google's
    own words (cut, redacted), either when the release was put in the edit (`stage`) or when the edit was validated (`validate`).
-4. **Local checks beside it, no store call.** `checkPlayProposal` (`@mrm/core`, pure): release notes missing for a language that has a
+4. **Local checks beside it, no store call.** `checkPlayProposal` (`@kiln/core`, pure): release notes missing for a language that has a
    listing, notes over 500 characters, a version code the target track already holds as live or rolling out (a problem) or a lower one
    (a warning), a share outside 0 to 100%, 100% explained as a completed release, an empty release name, and a sentence that says what the
    state means (a draft goes to nobody, a rollout reaches a share, completed is everybody). They are advice; only Google's answer and the

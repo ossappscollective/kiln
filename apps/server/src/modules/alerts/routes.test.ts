@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { seedWorkspace } from '../../testkit.ts';
 import { bootAlerts } from './test-helpers.ts';
 

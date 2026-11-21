@@ -1,5 +1,5 @@
-import type { Platform } from '@mrm/core';
-import { platformSupports, supports } from '@mrm/core';
+import type { Platform } from '@kiln/core';
+import { platformSupports, supports } from '@kiln/core';
 import { appAddress } from './app-scope.ts';
 import { type EasBuildView, easBuildDetail, easBuildState, easBuildTitle } from './eas/eas-status.ts';
 

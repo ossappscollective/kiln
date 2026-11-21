@@ -6,7 +6,7 @@
   Props: api, workspaceId, role, members (the records in scope), now.
 -->
 <script lang="ts">
-  import { type Role, can, platformSupports } from '@mrm/core';
+  import { type Role, can, platformSupports } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { type RevenueCatLinkView, revenueCatSummary } from '../../lib/revenuecat/revenuecat.ts';

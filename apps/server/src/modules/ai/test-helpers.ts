@@ -4,8 +4,8 @@ import {
   createFakeAiClient,
   type FakeAiClient,
   type FakeAnswer,
-} from '@mrm/connectors';
-import type { Database } from '@mrm/db';
+} from '@kiln/connectors';
+import type { Database } from '@kiln/db';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import type { ReviewReplyConnectorFactory } from '../reviews/replies.ts';

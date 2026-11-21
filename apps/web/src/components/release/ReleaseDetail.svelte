@@ -7,7 +7,7 @@
   Props: api, workspaceId, role, appId, version.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { address } from '../../lib/address.svelte.ts';
   import { appAddress } from '../../lib/app-scope.ts';

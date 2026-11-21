@@ -8,7 +8,7 @@ import {
   type ReleaseState,
   type RolloutSummary,
   transition,
-} from '@mrm/core';
+} from '@kiln/core';
 import {
   attentionItems,
   attentionOf,

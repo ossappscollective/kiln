@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { ASSET_SYNC_LIMITS, readImageHeader, sniffImageFormat } from '@mrm/core';
+import { ASSET_SYNC_LIMITS, readImageHeader, sniffImageFormat } from '@kiln/core';
 import { type Exchange, safeGet } from '../../services/safe-fetch.ts';
 import type { Resolver } from '../../services/webhook-transport.ts';
 

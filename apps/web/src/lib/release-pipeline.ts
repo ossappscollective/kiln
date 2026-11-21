@@ -5,7 +5,7 @@ import {
   type Platform,
   platformLabel,
   type StallStep,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { AttentionItem } from './app-attention.ts';
 import type { PlatformScope } from './app-scope.ts';
 import { releaseStepHref, type StepId } from './release-stepper.ts';

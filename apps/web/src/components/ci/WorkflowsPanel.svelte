@@ -17,7 +17,7 @@
   each, failing first; what is only sometimes needed is behind "Details" on the row.
 -->
 <script lang="ts">
-  import { type Platform, type Role, can } from '@mrm/core';
+  import { type Platform, type Role, can } from '@kiln/core';
   import { type Snippet, onMount, untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { POLL_MAX_MS, POLL_MS, hasActiveRun } from '../../lib/ci/ci.ts';

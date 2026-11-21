@@ -15,8 +15,8 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
-import type { Database } from '@mrm/db';
-import { dbTest, openSqliteTestDatabase } from '@mrm/db/testing';
+import type { Database } from '@kiln/db';
+import { dbTest, openSqliteTestDatabase } from '@kiln/db/testing';
 import {
   mapsApp,
   SCAN_APP,

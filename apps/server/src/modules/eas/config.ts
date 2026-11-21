@@ -6,8 +6,8 @@ import {
   GithubError,
   GithubRateLimitError,
   readEasConfig,
-} from '@mrm/connectors';
-import { type ActorType, byFamily, isDesktop, type Platform } from '@mrm/core';
+} from '@kiln/connectors';
+import { type ActorType, byFamily, isDesktop, type Platform } from '@kiln/core';
 import type { ManagedApp } from '../../services/apps.ts';
 import { isCloneBacked } from '../../services/clone-reads.ts';
 import { openRepoSnapshot } from '../../services/repo-snapshot.ts';

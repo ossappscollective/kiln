@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createDatabase, type Database, migrate } from '@mrm/db';
+import { createDatabase, type Database, migrate } from '@kiln/db';
 import { Hono } from 'hono';
 import { type AppDeps, createApp } from '../app.ts';
 import type { AppEnv } from '../http.ts';

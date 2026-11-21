@@ -6,7 +6,7 @@ import {
   type StoreListing,
   StoreRateLimitError,
   secretStrings,
-} from '@mrm/connectors';
+} from '@kiln/connectors';
 import {
   type ActorType,
   compareAgeRating,
@@ -24,8 +24,8 @@ import {
   sectionOfField,
   sectionToText,
   supports,
-} from '@mrm/core';
-import { type Database, nullableNumber, nullableString, type Sql } from '@mrm/db';
+} from '@kiln/core';
+import { type Database, nullableNumber, nullableString, type Sql } from '@kiln/db';
 import {
   ABSENT_HASH,
   classifyDrift,

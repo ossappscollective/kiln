@@ -6,7 +6,7 @@
   The heading and the sentence are the stepper's; the publish button is on the last step. Props: api, workspaceId, role, app.
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import type { Api } from '../../../lib/api.ts';
   import type { AppSummary } from '../../../lib/types.ts';
   import StagedTrayApp from '../../listing/StagedTrayApp.svelte';

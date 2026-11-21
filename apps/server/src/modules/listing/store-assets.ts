@@ -1,4 +1,4 @@
-import { isLocaleDir } from '@mrm/connectors';
+import { isLocaleDir } from '@kiln/connectors';
 import {
   type AssetKind,
   type AssetStore,
@@ -8,7 +8,7 @@ import {
   PLAY_GRAPHIC_FILES,
   type Platform,
   supports,
-} from '@mrm/core';
+} from '@kiln/core';
 
 /**
  * Which files of a repository are store media, and what each one is. Pure: a list of paths in, a

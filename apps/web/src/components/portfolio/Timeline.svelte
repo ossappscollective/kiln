@@ -1,12 +1,12 @@
 <!--
   Timeline: the lifecycle of a release as a row of steps, from draft to live, with the release's
-  place marked. The steps come from the state machine in @mrm/core, so Android shows
+  place marked. The steps come from the state machine in @kiln/core, so Android shows
   "Propagating" and iOS does not. Done, current and upcoming are said in words for screen readers
   and shown by an icon and a border, not by color alone.
   Props: platform, status (ReleaseState or null), label (accessible name of the list).
 -->
 <script lang="ts">
-  import type { Platform, ReleaseState } from '@mrm/core';
+  import type { Platform, ReleaseState } from '@kiln/core';
   import { timeline } from '../../lib/portfolio.ts';
   import Icon from '../ui/Icon.svelte';
 

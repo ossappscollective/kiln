@@ -1,5 +1,5 @@
-import { type AiClient, AiError, type JsonSchema } from '@mrm/connectors';
-import { type AiProvider, estimateTokens } from '@mrm/core';
+import { type AiClient, AiError, type JsonSchema } from '@kiln/connectors';
+import { type AiProvider, estimateTokens } from '@kiln/core';
 import {
   type AiActor,
   type AiConfigValues,

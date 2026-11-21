@@ -8,7 +8,7 @@
   synced), locked (true while "Sync all" owns the sync buttons), onsync (called with a row's group).
 -->
 <script lang="ts">
-  import { type Platform, platformLabel } from '@mrm/core';
+  import { type Platform, platformLabel } from '@kiln/core';
   import type { AppGroup } from '../../lib/app-groups.ts';
   import { type OverviewRow, type PlatformCell, rowNextAction, rowStatus } from '../../lib/app-overview.ts';
   import { appAddress } from '../../lib/app-scope.ts';

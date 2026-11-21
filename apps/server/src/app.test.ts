@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { type Database, migrate } from '@mrm/db';
-import { dbTest } from '@mrm/db/testing';
+import { type Database, migrate } from '@kiln/db';
+import { dbTest } from '@kiln/db/testing';
 import { createApp } from './app.ts';
 import { createLoginLimiter } from './limiter.ts';
 

@@ -5,7 +5,7 @@
   a plan for another version, so the routine checklist is the default), oncreated (called with the plan).
 -->
 <script lang="ts">
-  import type { PlanPlatform } from '@mrm/core';
+  import type { PlanPlatform } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { planErrorMessage, planPlatformChoices } from '../../lib/release.ts';
   import { toast } from '../../lib/toast.svelte.ts';

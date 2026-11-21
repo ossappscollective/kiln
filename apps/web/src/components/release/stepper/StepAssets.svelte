@@ -5,7 +5,7 @@
   Props: api, workspaceId, app, view (the staged changes), scope (the platform scope for the link).
 -->
 <script lang="ts">
-  import { type AssetDiffView, type StagedChangesView } from '@mrm/core';
+  import { type AssetDiffView, type StagedChangesView } from '@kiln/core';
   import type { Api } from '../../../lib/api.ts';
   import { appAddress, type PlatformScope } from '../../../lib/app-scope.ts';
   import { stagingError } from '../../../lib/staged.ts';

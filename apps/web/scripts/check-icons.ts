@@ -1,5 +1,5 @@
 // Validates every icon in src/lib/icons.ts: path grammar, element whitelist and bounds inside the
-// 24 x 24 viewBox. Prints one line per icon and exits 1 on any problem. Run: pnpm --filter @mrm/web icons:check
+// 24 x 24 viewBox. Prints one line per icon and exits 1 on any problem. Run: pnpm --filter @kiln/web icons:check
 import { checkIcon } from '../src/lib/icon-geometry.ts';
 import { icons } from '../src/lib/icons.ts';
 

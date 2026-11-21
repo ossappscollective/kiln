@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { ProjectDetection } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import type { ProjectDetection } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { bootRepoApp, FakeRepo, fastlaneFiles } from '../../repo-test-helpers.ts';
 import { detectedSources } from './sources.ts';
 

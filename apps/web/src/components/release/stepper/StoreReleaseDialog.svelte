@@ -19,7 +19,7 @@
   import Modal from '../../ui/Modal.svelte';
   import ReleasePreviewBody from '../../publish/ReleasePreviewBody.svelte';
   import PlayCheck from './PlayCheck.svelte';
-import { supports } from '@mrm/core';
+import { supports } from '@kiln/core';
 
   let {
     open = $bindable(false),

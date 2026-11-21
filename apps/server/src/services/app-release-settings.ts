@@ -7,8 +7,8 @@ import {
   STAGED_ROLLOUT_MODES,
   type StagedRolloutMode,
   supports,
-} from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Database, Sql } from '@kiln/db';
 import { getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { type Failure, failure } from './repositories.ts';

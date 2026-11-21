@@ -11,7 +11,7 @@
   action; the sentence of the answer stays under it.
 -->
 <script lang="ts">
-  import { type Role, can, normalizeBucketId } from '@mrm/core';
+  import { type Role, can, normalizeBucketId } from '@kiln/core';
   import { untrack } from 'svelte';
   import { type Api } from '../../lib/api.ts';
   import { type PlayBucketTestResult, type PlayBucketView, analyticsErrorText, bucketSourceText } from '../../lib/analytics/analytics.ts';

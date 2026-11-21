@@ -3,8 +3,8 @@ import type {
   RevenueCatOffering,
   RevenueCatProduct,
   RevenueCatState,
-} from '@mrm/connectors';
-import type { Sql } from '@mrm/db';
+} from '@kiln/connectors';
+import type { Sql } from '@kiln/db';
 
 /**
  * The stored copy of an app's RevenueCat configuration (migration 48): what the last successful sync read and how the last sync went.

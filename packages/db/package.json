@@ -1,5 +1,5 @@
 {
-  "name": "@mrm/db",
+  "name": "@kiln/db",
   "version": "0.0.0",
   "private": true,
   "type": "module",

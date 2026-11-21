@@ -26,8 +26,8 @@ import {
   sourcesForPlatform,
   splitProductDimValue,
   supports,
-} from '@mrm/core';
-import type { Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Sql } from '@kiln/db';
 import type { ManagedApp } from '../../services/apps.ts';
 import { getSettings } from '../../services/workspace-settings.ts';
 import { deriveSetup, type Setup, setupMessages } from './setup.ts';

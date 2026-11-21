@@ -7,8 +7,8 @@ import {
   VersionDriftError,
   type VersionListState,
   VersionOutcomeUnknownError,
-} from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+} from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { setPolicy } from '../../services/step-up.ts';
 import type { VersionConnector, VersionConnectorInput } from './store-version.ts';
 import { bootStaged, type StagedBoot } from './test-helpers.ts';

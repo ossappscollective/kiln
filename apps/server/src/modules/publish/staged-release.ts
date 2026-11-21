@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { DraftFieldState, DraftFieldWrite } from '@mrm/connectors';
+import type { DraftFieldState, DraftFieldWrite } from '@kiln/connectors';
 import {
   byFamily,
   checkReleaseField,
@@ -12,7 +12,7 @@ import {
   STAGEABLE_RELEASE_FIELDS,
   STAGED_LIMITS,
   type StagedChangesView,
-} from '@mrm/core';
+} from '@kiln/core';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';

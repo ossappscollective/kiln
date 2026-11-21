@@ -1,4 +1,4 @@
-import type { Action, Role } from '@mrm/core';
+import type { Action, Role } from '@kiln/core';
 import type { Component } from 'svelte';
 import Alerts from '../components/Alerts.svelte';
 import Audit from '../components/Audit.svelte';

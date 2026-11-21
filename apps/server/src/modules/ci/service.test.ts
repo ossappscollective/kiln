@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { GithubError, GithubRateLimitError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { GithubError, GithubRateLimitError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import { getRepository } from '../../services/repositories.ts';
 import { PENDING_DISPATCH_TTL_MS, pruneRuns, RUN_RETENTION_MS, storeRuns } from './runs.ts';

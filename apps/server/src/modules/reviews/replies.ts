@@ -14,8 +14,8 @@ import {
   type StoreReview,
   type StoreReviewReplyConnector,
   secretStrings,
-} from '@mrm/connectors';
-import { type ActorType, needsStoreAppId } from '@mrm/core';
+} from '@kiln/connectors';
+import { type ActorType, needsStoreAppId } from '@kiln/core';
 import {
   type Database,
   nullableNumber,
@@ -23,7 +23,7 @@ import {
   type Param,
   type Row,
   type Sql,
-} from '@mrm/db';
+} from '@kiln/db';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';

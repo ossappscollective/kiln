@@ -1,4 +1,4 @@
-import { PLATFORMS } from '@mrm/core';
+import { PLATFORMS } from '@kiln/core';
 import { z } from 'zod';
 import { type Draft, none, object, timestamp, W } from '../../operations/shared.ts';
 import { addCompetitorBody, addKeywordsBody, updateKeywordBody } from './routes.ts';

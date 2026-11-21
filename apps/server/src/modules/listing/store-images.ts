@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { StoreImageRecord, StoreImagesRead } from '@mrm/connectors';
+import type { StoreImageRecord, StoreImagesRead } from '@kiln/connectors';
 import {
   ASSET_SYNC_LIMITS,
   type AssetPlatform,
@@ -9,7 +9,7 @@ import {
   type StoreImageSet,
   type StoreImagesView,
   storeImageKey,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { ManagedApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure } from '../../services/repositories.ts';

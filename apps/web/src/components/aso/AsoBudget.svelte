@@ -5,7 +5,7 @@
   details: which tracked keywords are in which field, what is wasted (spaces after commas, repeated or plural
   entries, words the name or subtitle already hold), words in several fields, words no tracked keyword uses,
   tracked keywords that are in no field, and the storefronts that are reported to read other locales
-  (UNVERIFIED: Apple does not state it). The sums are worked out in `@mrm/core` (`listingBudget`); nothing here
+  (UNVERIFIED: Apple does not state it). The sums are worked out in `@kiln/core` (`listingBudget`); nothing here
   reads a store or changes a listing, and no number is a search volume.
   Props: platform, locale, fields (the text of the locale: the store copy with staged text on top), staged? (the
   fields whose text is staged), keywords (the keywords tracked in this locale), listingLocales? (every locale of
@@ -13,7 +13,7 @@
   keywords), title? (the heading, default "Keyword budget").
 -->
 <script lang="ts">
-  import { type AsoPlatform, type FitField, type FitFields, type FitKeyword, listingBudget, storefrontCombos, supports } from '@mrm/core';
+  import { type AsoPlatform, type FitField, type FitFields, type FitKeyword, listingBudget, storefrontCombos, supports } from '@kiln/core';
   import { budgetHeadline, fieldWord, wasteReasonText } from '../../lib/aso/budget.ts';
   import CopyButton from '../ui/CopyButton.svelte';
   import InfoTip from '../ui/InfoTip.svelte';

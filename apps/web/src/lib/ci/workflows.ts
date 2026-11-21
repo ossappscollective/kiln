@@ -1,4 +1,4 @@
-import { type Platform, ciProviderMeta } from '@mrm/core';
+import { type Platform, ciProviderMeta } from '@kiln/core';
 import { isFailedRun, runAppIds } from '../running.ts';
 import type { CiWorkflow, WorkflowRun } from '../types.ts';
 import { canDispatchWorkflow } from './ci.ts';

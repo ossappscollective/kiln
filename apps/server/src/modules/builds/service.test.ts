@@ -7,8 +7,8 @@ import {
   StoreError,
   StoreRateLimitError,
   type TestFlightGroup,
-} from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+} from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { Hono } from 'hono';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import { bootCi, FakeCi, run } from '../ci/test-helpers.ts';

@@ -5,8 +5,8 @@ import {
   type StoreProductKind,
   type StoreProductState,
   sameLocale,
-} from '@mrm/connectors';
-import type { Sql } from '@mrm/db';
+} from '@kiln/connectors';
+import type { Sql } from '@kiln/db';
 
 /**
  * The stored copy of an app's in-app products (migration 45): what the last successful sync read, how the last sync went, and the views the routes

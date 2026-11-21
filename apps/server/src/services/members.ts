@@ -1,5 +1,5 @@
-import { decideRemoval, decideRoleChange, isRole, type Role } from '@mrm/core';
-import type { Database, Sql } from '@mrm/db';
+import { decideRemoval, decideRoleChange, isRole, type Role } from '@kiln/core';
+import type { Database, Sql } from '@kiln/db';
 import { recordAudit } from './audit.ts';
 import type { Actor } from './invitations.ts';
 

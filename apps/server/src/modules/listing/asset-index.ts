@@ -1,4 +1,4 @@
-import type { BlobHeadItem, BlobReads } from '@mrm/connectors';
+import type { BlobHeadItem, BlobReads } from '@kiln/connectors';
 import {
   ASSET_RULES,
   type AssetFacts,
@@ -19,7 +19,7 @@ import {
   summarizeAssets,
   supports,
   validateAssets,
-} from '@mrm/core';
+} from '@kiln/core';
 import {
   type AssetCandidate,
   appHints,

@@ -1,5 +1,5 @@
 import { gunzip } from 'node:zlib';
-import { analyticsLimits } from '@mrm/core';
+import { analyticsLimits } from '@kiln/core';
 import { AnalyticsError } from './analytics-types.ts';
 
 /**

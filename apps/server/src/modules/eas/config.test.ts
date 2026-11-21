@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { GithubError, GithubRateLimitError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { GithubError, GithubRateLimitError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import {
   APP_PLAIN,
   APP_UPDATES,

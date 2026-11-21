@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { migrate } from '@mrm/db';
-import { dbTest } from '@mrm/db/testing';
+import { migrate } from '@kiln/db';
+import { dbTest } from '@kiln/db/testing';
 import {
   backoffMs,
   claimNext,

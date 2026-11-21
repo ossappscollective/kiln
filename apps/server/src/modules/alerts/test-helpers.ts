@@ -1,4 +1,4 @@
-import type { Database } from '@mrm/db';
+import type { Database } from '@kiln/db';
 import { claimNext, completeJob, failJob } from '../../jobs.ts';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import { emitEvent } from '../../services/events.ts';

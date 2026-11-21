@@ -5,7 +5,7 @@
   Props: api, workspaceId, role, members (the records in scope).
 -->
 <script lang="ts">
-  import { can, type Role, STAGED_ROLLOUT_MODES, type StagedRolloutMode, supports } from '@mrm/core';
+  import { can, type Role, STAGED_ROLLOUT_MODES, type StagedRolloutMode, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import { type Api, ApiError } from '../../../lib/api.ts';
   import { stagedRolloutHint } from '../../../lib/app-settings.ts';

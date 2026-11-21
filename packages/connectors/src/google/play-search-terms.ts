@@ -6,7 +6,7 @@ import {
   SEARCH_TERM_OTHER_KEY,
   type SearchTermPoint,
   searchTermLimits,
-} from '@mrm/core';
+} from '@kiln/core';
 import { AnalyticsError, type ParseStats } from '../analytics-types.ts';
 import {
   columnIndex,

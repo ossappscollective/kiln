@@ -1,4 +1,4 @@
-import { type Action, aiLimits, aiProviders, aiSuggestionStatuses, can, canToken } from '@mrm/core';
+import { type Action, aiLimits, aiProviders, aiSuggestionStatuses, can, canToken } from '@kiln/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';

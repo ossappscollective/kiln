@@ -10,7 +10,7 @@
   Secrets are never settings: keys live under Credentials (the AI key is written from its card into the same vault).
 -->
 <script lang="ts">
-  import { type Role, can, translationProviderInfo } from '@mrm/core';
+  import { type Role, can, translationProviderInfo } from '@kiln/core';
   import { address } from '../lib/address.svelte.ts';
   import { type Api } from '../lib/api.ts';
   import {

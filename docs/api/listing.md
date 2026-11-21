@@ -76,7 +76,7 @@ Every value has a **source**, and a new snapshot row is stored **only when the v
 
 ## What each store has
 
-The values map into the listing model of `@mrm/core` (the same fields and limits as the listing
+The values map into the listing model of `@kiln/core` (the same fields and limits as the listing
 editor and the repository listing). A field a store does not have is simply never present.
 
 | Field                                    | App Store                                          | Google Play                                                   |

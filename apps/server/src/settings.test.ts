@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { bootTranslation } from './translation-test-helpers.ts';
 
 const PUBLIC = [{ address: '93.184.216.34', family: 4 }];

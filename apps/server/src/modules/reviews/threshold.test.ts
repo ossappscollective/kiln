@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { bootTranslation } from '../../translation-test-helpers.ts';
 import { storeReview } from './test-helpers.ts';
 

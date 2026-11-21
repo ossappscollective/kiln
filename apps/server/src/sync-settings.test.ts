@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { bootCi } from './modules/ci/test-helpers.ts';
 import { createScheduler } from './scheduler.ts';
 import { APP_SYNC_QUEUE } from './services/apps.ts';

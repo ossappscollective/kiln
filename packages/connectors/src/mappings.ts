@@ -1,8 +1,8 @@
-import type { ReleaseState } from '@mrm/core';
+import type { ReleaseState } from '@kiln/core';
 
 /**
  * Pure mappings from each store's own state names to the normalized lifecycle in
- * `@mrm/core` (`ReleaseState`). A state the table does not know returns `undefined`: it is never
+ * `@kiln/core` (`ReleaseState`). A state the table does not know returns `undefined`: it is never
  * guessed. Callers keep the store's raw state next to the mapped one.
  */
 

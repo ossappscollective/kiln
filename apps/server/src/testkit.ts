@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { type Database, migrate } from '@mrm/db';
+import { type Database, migrate } from '@kiln/db';
 import { createApp } from './app.ts';
 import { createSession } from './services/accounts.ts';
 

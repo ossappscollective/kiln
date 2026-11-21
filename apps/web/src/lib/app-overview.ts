@@ -1,4 +1,4 @@
-import { platformLabel, type ReleaseState } from '@mrm/core';
+import { platformLabel, type ReleaseState } from '@kiln/core';
 import type { AppGroup } from './app-groups.ts';
 import { appAddress } from './app-scope.ts';
 import { chipFor, lineFor, type PendingLine, type PendingSummary } from './pending.ts';

@@ -1,4 +1,4 @@
-import type { Database } from '@mrm/db';
+import type { Database } from '@kiln/db';
 import {
   BRANCH_MAIN,
   BRANCH_NEXT,

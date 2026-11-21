@@ -19,7 +19,7 @@
     type Role,
     can,
     validateListing,
-  } from '@mrm/core';
+  } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import {

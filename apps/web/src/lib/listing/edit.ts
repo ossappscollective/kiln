@@ -13,7 +13,7 @@ import {
   type Platform,
   type PlayField,
   type TermSource,
-} from '@mrm/core';
+} from '@kiln/core';
 
 /**
  * Editing a listing text from the web, pure parts: which main text fields a store has, their limits, whether a draft push can

@@ -8,8 +8,8 @@ import {
   type AiTaskId,
   aiLimits,
   isAiTaskId,
-} from '@mrm/core';
-import type { Row, Sql } from '@mrm/db';
+} from '@kiln/core';
+import type { Row, Sql } from '@kiln/db';
 import { USAGE_RETENTION_MS } from './ai-usage.ts';
 
 /**

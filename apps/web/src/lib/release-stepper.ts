@@ -6,7 +6,7 @@ import {
   type StagedChangesView,
   type StagedReleaseFieldView,
   supports,
-} from '@mrm/core';
+} from '@kiln/core';
 import { appAddress, type PlatformScope, parseViewPath } from './app-scope.ts';
 import type { BuildCandidate, EditableRelease } from './release-candidates.ts';
 

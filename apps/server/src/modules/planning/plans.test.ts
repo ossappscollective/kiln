@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import type { Database } from '@mrm/db';
-import { dbTest } from '@mrm/db/testing';
+import type { Database } from '@kiln/db';
+import { dbTest } from '@kiln/db/testing';
 import { addMember, auditActions, boot, registerOwner, seedWorkspace } from '../../testkit.ts';
 import { purgePlansOfApp } from './plans.ts';
 

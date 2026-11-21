@@ -9,7 +9,7 @@
   is fetched from a store, and nothing is uploaded.
 -->
 <script lang="ts">
-  import type { AssetProblem } from '@mrm/core';
+  import type { AssetProblem } from '@kiln/core';
   import {
     type PreviewState,
     bySeverity,

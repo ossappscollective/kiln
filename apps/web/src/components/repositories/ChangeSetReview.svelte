@@ -14,7 +14,7 @@
   result of a local commit is shown step by step, and a failed push or pull request can be retried.
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import type { Role } from '@kiln/core';
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { isWebUrl } from '../../lib/credentials.ts';

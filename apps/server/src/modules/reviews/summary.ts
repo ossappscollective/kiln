@@ -1,5 +1,5 @@
-import { PLATFORMS, type Platform, type StoreId, storeOf } from '@mrm/core';
-import { oneOf, type Sql } from '@mrm/db';
+import { PLATFORMS, type Platform, type StoreId, storeOf } from '@kiln/core';
+import { oneOf, type Sql } from '@kiln/db';
 import { type ReviewStatus, reviewStatuses } from './service.ts';
 
 /**

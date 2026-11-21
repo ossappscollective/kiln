@@ -1,4 +1,4 @@
-import { type Action, can } from '@mrm/core';
+import { type Action, can } from '@kiln/core';
 import { type Context, Hono, type Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../../http.ts';

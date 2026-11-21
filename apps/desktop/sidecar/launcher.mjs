@@ -4,7 +4,7 @@
 //
 // Node strips the TypeScript types of the server and workspace packages at load time. The
 // workspace packages are normally found through pnpm's node_modules symlinks, which a bundled
-// copy does not have, so a small resolve hook maps `@mrm/<name>` to the copied package folder.
+// copy does not have, so a small resolve hook maps `@kiln/<name>` to the copied package folder.
 import { register } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';

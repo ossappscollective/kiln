@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { endpointFor, runBridge } from './mcp/stdio.ts';
 import { bootRepoApp } from './repo-test-helpers.ts';
 
@@ -21,7 +21,7 @@ test('the bridge address: https, or http for this machine only, with /mcp added 
   assert.equal(endpointFor('http://127.0.0.1:8787/mcp?x=1#y').href, 'http://127.0.0.1:8787/mcp');
   assert.throws(() => endpointFor('http://mrm.example.com'), /https/);
   assert.throws(() => endpointFor('ftp://localhost'), /https/);
-  assert.throws(() => endpointFor('https://user:pw@mrm.example.com'), /user name/);
+  assert.throws(() => endpointFor('https://user:pw@kiln.example.com'), /user name/);
   assert.throws(() => endpointFor('not a url'), /valid address/);
 });
 

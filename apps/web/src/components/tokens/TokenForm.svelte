@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { type Role, type TokenRole } from '@mrm/core';
+  import { type Role, type TokenRole } from '@kiln/core';
   import { onMount } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import {

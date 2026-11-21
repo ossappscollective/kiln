@@ -1,4 +1,4 @@
-import type { Platform, StagedChangesView } from '@mrm/core';
+import type { Platform, StagedChangesView } from '@kiln/core';
 import { appAddress, type PlatformScope } from './app-scope.ts';
 import { type AsoMover, type AsoSummary, asoViewHref, isBigDrop, moverText } from './aso/aso.ts';
 import type { IconName } from './icons.ts';

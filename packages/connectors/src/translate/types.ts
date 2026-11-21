@@ -1,4 +1,4 @@
-import type { TranslationProvider } from '@mrm/core';
+import type { TranslationProvider } from '@kiln/core';
 
 /**
  * Translation providers behind one interface. A provider adapter turns a list of texts into a list

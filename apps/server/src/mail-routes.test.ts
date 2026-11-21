@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { createLoginLimiter } from './limiter.ts';
 import { bootRepoApp } from './repo-test-helpers.ts';
 import {

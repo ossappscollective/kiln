@@ -1,5 +1,5 @@
-import { isBlobReads } from '@mrm/connectors';
-import { type AssetKind, assetStoreOf } from '@mrm/core';
+import { isBlobReads } from '@kiln/connectors';
+import { type AssetKind, assetStoreOf } from '@kiln/core';
 import type { ManagedApp } from '../../services/apps.ts';
 import { isCloneBacked } from '../../services/clone-reads.ts';
 import { openRepoSnapshot } from '../../services/repo-snapshot.ts';

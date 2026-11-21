@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AiError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { AiError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { fakeGoogle, GOOGLE_SECRET } from '../../translation-test-helpers.ts';
 import { cleanModelText, isNoteLocale, translationWarnings } from './release-notes-translate.ts';
 import { bootAi } from './test-helpers.ts';

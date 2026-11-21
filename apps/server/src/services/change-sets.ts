@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { PullRequestFailedError } from '@mrm/connectors';
+import { PullRequestFailedError } from '@kiln/connectors';
 import {
   type ActorType,
   type ChangeSet,
@@ -8,8 +8,8 @@ import {
   type Listing,
   type ListingProblem,
   validateListing,
-} from '@mrm/core';
-import { mapOrNull, type Row, type Sql } from '@mrm/db';
+} from '@kiln/core';
+import { mapOrNull, type Row, type Sql } from '@kiln/db';
 import { listingChanges, type RepositoryListings } from '../modules/listing/sources.ts';
 import type { ListingSelection, ListingTarget } from '../modules/listing/targets.ts';
 import { recordAudit } from './audit.ts';

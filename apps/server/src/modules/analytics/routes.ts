@@ -5,7 +5,7 @@ import {
   can,
   sourcesForPlatform,
   supports,
-} from '@mrm/core';
+} from '@kiln/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';

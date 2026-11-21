@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { type Role, assignableBy, decideRemoval, decideRoleChange } from '@mrm/core';
+  import { type Role, assignableBy, decideRemoval, decideRoleChange } from '@kiln/core';
   import { roleIcons } from '../../lib/status-icons.ts';
   import type { Member } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';

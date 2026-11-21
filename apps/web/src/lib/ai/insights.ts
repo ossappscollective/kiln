@@ -10,7 +10,7 @@ import {
   aiContextLimits,
   emptyAiAppContext,
   normalizeAiAppContext,
-} from '@mrm/core';
+} from '@kiln/core';
 
 /**
  * The pure logic of the AI reports (summary, tags, what to fix next, listing audit, ASO health) and of the AI context form of an app

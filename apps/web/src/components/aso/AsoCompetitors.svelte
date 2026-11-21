@@ -5,7 +5,7 @@
   Props: api, workspaceId, role, members, config, canWrite, releases (by app id), version, now, onchanged.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import type { AsoCompetitor, AsoConfig } from '../../lib/aso/aso.ts';
   import { competitorCounts, competitorsLead } from '../../lib/aso/lead.ts';

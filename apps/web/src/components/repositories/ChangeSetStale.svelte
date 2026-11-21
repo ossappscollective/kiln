@@ -11,7 +11,7 @@
   Shown only for a change set that can be refreshed, and the buttons only to who may use them.
 -->
 <script lang="ts">
-  import { type Role } from '@mrm/core';
+  import { type Role } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { type RecomputeResult, canRecompute } from '../../lib/change-set-fixup.ts';
   import {

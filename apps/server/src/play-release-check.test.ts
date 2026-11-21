@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { StoreError } from '@mrm/connectors';
-import { dbTest } from '@mrm/db/testing';
+import { StoreError } from '@kiln/connectors';
+import { dbTest } from '@kiln/db/testing';
 import { bootStaged } from './modules/publish/test-helpers.ts';
 
 /**

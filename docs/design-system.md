@@ -2,7 +2,7 @@
 
 A restrained, enterprise-style system for the web UI (`apps/web`). Quiet surfaces, one accent,
 clear type, a strict 4px grid. Nothing here has been rendered in a browser yet; check the screens
-by eye when you first run `pnpm --filter @mrm/web dev`.
+by eye when you first run `pnpm --filter @kiln/web dev`.
 
 ## Principles
 
@@ -24,7 +24,7 @@ by eye when you first run `pnpm --filter @mrm/web dev`.
 
 `app.css` repeats the hex values of `tokens.ts`. `lib/contrast.test.ts` fails if the two differ, and
 checks WCAG AA contrast of the text and graphic pairs listed in `tokens.ts` in both themes. Change a
-color in both files, then run `pnpm --filter @mrm/web test`.
+color in both files, then run `pnpm --filter @kiln/web test`.
 
 ## Themes
 
@@ -190,8 +190,8 @@ reproduced, and the marks here are small generic glyphs, not logos. See `THIRD_P
    outline, geometry inside 1..23; `fill(...)` for a solid, closed shape inside 0..24). Only
    `<path d>`, `<circle>` and `<rect>`. Do not paste path data you cannot license.
 2. Add its name to `EXPECTED_NAMES` in `lib/icons.test.ts` (that list is the snapshot).
-3. Run `pnpm --filter @mrm/web icons:check` (prints each icon's bounding box and fails on invalid
-   path grammar or anything outside the viewBox) and `pnpm --filter @mrm/web test`.
+3. Run `pnpm --filter @kiln/web icons:check` (prints each icon's bounding box and fails on invalid
+   path grammar or anything outside the viewBox) and `pnpm --filter @kiln/web test`.
 4. Look at it in `IconGallery.svelte` in both themes at 14, 16 and 24 px. The checks do not tell you
    whether it looks right.
 5. A mark for a third-party brand needs a row in `THIRD_PARTY_NOTICES.md` and an entry in

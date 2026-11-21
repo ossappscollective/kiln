@@ -8,7 +8,7 @@
   when not given), now.
 -->
 <script lang="ts">
-  import { can, platformMeta, type Role } from '@mrm/core';
+  import { can, platformMeta, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../../lib/api.ts';
   import { credentialFacts, links, notAvailable } from '../../../lib/app-settings.ts';

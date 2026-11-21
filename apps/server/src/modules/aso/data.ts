@@ -1,4 +1,4 @@
-import type { Sql } from '@mrm/db';
+import type { Sql } from '@kiln/db';
 
 /**
  * Removes everything ASO holds for an app. Called by `deleteApp` (inside its transaction). Its own file so

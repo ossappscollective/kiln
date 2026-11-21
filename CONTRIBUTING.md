@@ -28,12 +28,12 @@ Each Postgres test creates its own schema with a random name in that database an
 it ends, so tests do not see each other's data. Use a database you do not mind us creating schemas
 in; the one from the compose file is thrown away with the container.
 
-When you write a test that touches the database, use `dbTest` from `@mrm/db/testing`. It runs the
+When you write a test that touches the database, use `dbTest` from `@kiln/db/testing`. It runs the
 body once per available database and closes the database afterwards:
 
 ```ts
-import { migrate } from '@mrm/db';
-import { dbTest } from '@mrm/db/testing';
+import { migrate } from '@kiln/db';
+import { dbTest } from '@kiln/db/testing';
 
 dbTest('inserts a workspace', async (db) => {
   await migrate(db);

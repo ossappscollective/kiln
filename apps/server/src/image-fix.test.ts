@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readImageHeader } from '@mrm/core';
+import { readImageHeader } from '@kiln/core';
 import { rgbaPng, rgbPng } from './png-test-helpers.ts';
 import { fixImage, parseHexColour } from './services/image-fix.ts';
 

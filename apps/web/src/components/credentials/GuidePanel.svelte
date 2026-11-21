@@ -3,7 +3,7 @@
 </script>
 
 <script lang="ts">
-  import { type CredentialKind, credentialGuides, credentialKindInfo } from '@mrm/core';
+  import { type CredentialKind, credentialGuides, credentialKindInfo } from '@kiln/core';
   import { tick } from 'svelte';
   import { formatCheckedOn, guideSections } from '../../lib/credentials.ts';
   import { storeForCredentialKind } from '../../lib/stores.ts';

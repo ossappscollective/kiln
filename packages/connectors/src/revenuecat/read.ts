@@ -1,4 +1,4 @@
-import { REVENUECAT_APP_TYPES, type RevenueCatAppType } from '@mrm/core';
+import { REVENUECAT_APP_TYPES, type RevenueCatAppType } from '@kiln/core';
 import type { RevenueCatClient } from './client.ts';
 import { RevenueCatError } from './errors.ts';
 import type {

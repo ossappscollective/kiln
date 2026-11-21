@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DEFAULT_RELEASE_PATTERNS, DEFAULT_TAG_PATTERNS } from '@mrm/core';
+import { DEFAULT_RELEASE_PATTERNS, DEFAULT_TAG_PATTERNS } from '@kiln/core';
 import {
   type BuildKey,
   type CommitFacts,

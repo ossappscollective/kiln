@@ -1,5 +1,5 @@
-import type { Database, Sql } from '@mrm/db';
-import { decryptSecret, encryptSecret } from '@mrm/vault';
+import type { Database, Sql } from '@kiln/db';
+import { decryptSecret, encryptSecret } from '@kiln/vault';
 import { z } from 'zod';
 import { recordAudit } from './audit.ts';
 import { parseMailbox } from './mail-mime.ts';

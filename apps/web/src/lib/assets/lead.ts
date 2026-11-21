@@ -1,4 +1,4 @@
-import type { AssetKind, AssetProblem } from '@mrm/core';
+import type { AssetKind, AssetProblem } from '@kiln/core';
 import type { LeadTone } from '../page-lead.ts';
 
 /**

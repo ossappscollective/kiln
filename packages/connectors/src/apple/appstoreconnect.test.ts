@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createPrivateKey, generateKeyPairSync, verify } from 'node:crypto';
 import { test } from 'node:test';
-import { buildSecret } from '@mrm/core';
+import { buildSecret } from '@kiln/core';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
 import * as fx from '../store.fixtures.ts';
 import {

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import type { CiRun } from '@mrm/connectors';
-import { type CiProviderId, ciProviderOf } from '@mrm/core';
-import { mapOrNull, type Row, type Sql } from '@mrm/db';
+import type { CiRun } from '@kiln/connectors';
+import { type CiProviderId, ciProviderOf } from '@kiln/core';
+import { mapOrNull, type Row, type Sql } from '@kiln/db';
 import { emitEvent } from '../../services/events.ts';
 import { purgeConventionOrphans } from './conventions.ts';
 

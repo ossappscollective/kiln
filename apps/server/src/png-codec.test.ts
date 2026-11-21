@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { deflateSync } from 'node:zlib';
-import { readImageHeader } from '@mrm/core';
+import { readImageHeader } from '@kiln/core';
 import { chunk, makePng, rgbaPng, rgbPng } from './png-test-helpers.ts';
 import {
   decodePng,

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@mrm/db/testing';
+import { dbTest } from '@kiln/db/testing';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 
 /** An app created without the option has the batch publish OFF (docs/api/pending.md): the default, and the steps' switches do not turn it on. */

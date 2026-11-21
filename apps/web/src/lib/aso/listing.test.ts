@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { listingRows } from '@mrm/core';
+import { listingRows } from '@kiln/core';
 import { asoViewFromHash, asoViewHref, asoViews } from './aso.ts';
 import { coachHref } from './budget.ts';
 import {

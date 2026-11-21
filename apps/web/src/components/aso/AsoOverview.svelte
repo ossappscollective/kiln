@@ -7,7 +7,7 @@
   Props (from the shell): api, workspaceId, role.
 -->
 <script lang="ts">
-  import { can, type CoachAction, type Role, supports } from '@mrm/core';
+  import { can, type CoachAction, type Role, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import {
