@@ -60,7 +60,7 @@ test('announcePublished sends one window event with the app id, and is false wit
     seen.push({ type: e.type, appId: (e as CustomEvent<{ appId: string }>).detail.appId }),
   );
   assert.equal(announcePublished('app-1', target), true);
-  assert.deepEqual(seen, [{ type: 'mrm:published', appId: 'app-1' }]);
+  assert.deepEqual(seen, [{ type: 'kiln:published', appId: 'app-1' }]);
   assert.equal(announcePublished('app-1', null), false);
 });
 

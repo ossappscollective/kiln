@@ -37,7 +37,7 @@ const applyBody = z.object({
     .max(200)
     .optional()
     .describe(
-      'local_branch: the branch to create. Default mrm/<slug of the summary>-<short id>. ASCII letters, digits and . _ - / only; must not exist.',
+      'local_branch: the branch to create. Default kiln/<slug of the summary>-<short id>. ASCII letters, digits and . _ - / only; must not exist.',
     ),
   push: z.boolean().optional().describe('local_branch: push the branch to GitHub afterwards.'),
   openPr: z

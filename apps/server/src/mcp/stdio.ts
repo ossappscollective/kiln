@@ -1,7 +1,7 @@
 /**
  * A stdio bridge for MCP clients that start a local command (docs/adr/0023-mcp-server.md, docs/mcp.md):
  *
- *   KILN_URL=https://mrm.example.com KILN_TOKEN=mrm_... node apps/server/src/mcp/stdio.ts
+ *   KILN_URL=https://kiln.example.com KILN_TOKEN=kiln_... node apps/server/src/mcp/stdio.ts
  *
  * It reads newline delimited JSON-RPC from stdin, POSTs each message to `<KILN_URL>/mcp` with the token, and writes the answers to stdout.
  * It is a transport only: every rule (what the token may do, size caps, untrusted markers, previews instead of writes) is the server's.

@@ -36,7 +36,7 @@ function statusFake(t: EasBoot) {
   };
   const fetchFn: typeof fetch = async (input, init) => {
     const body = JSON.parse(String(init?.body ?? '{}')) as { operationName?: string; variables?: Record<string, unknown> };
-    if (body.operationName !== 'MrmEasBuilds' && body.operationName !== 'MrmEasSubmissions') {
+    if (body.operationName !== 'KilnEasBuilds' && body.operationName !== 'KilnEasSubmissions') {
       return t.expo.fetch(input, init);
     }
     const headers = (init?.headers ?? {}) as Record<string, string>;
@@ -48,7 +48,7 @@ function statusFake(t: EasBoot) {
     const queued = state.next.shift();
     if (queued instanceof Error) throw queued;
     if (queued) return queued;
-    return json(body.operationName === 'MrmEasBuilds' ? buildsBody(state.builds) : submissionsBody(state.submissions));
+    return json(body.operationName === 'KilnEasBuilds' ? buildsBody(state.builds) : submissionsBody(state.submissions));
   };
   return { state, fetch: fetchFn };
 }
@@ -103,8 +103,8 @@ dbTest('a read stores the builds and submissions of the platform and the views s
   assert.deepEqual(
     fake.state.calls.map((c) => [c.operation, c.variables.platform ?? (c.variables.filter as { platform: string }).platform, c.authorization]),
     [
-      ['MrmEasBuilds', 'IOS', `Bearer ${EXPO_TOKEN}`],
-      ['MrmEasSubmissions', 'IOS', `Bearer ${EXPO_TOKEN}`],
+      ['KilnEasBuilds', 'IOS', `Bearer ${EXPO_TOKEN}`],
+      ['KilnEasSubmissions', 'IOS', `Bearer ${EXPO_TOKEN}`],
     ],
   );
   const { status } = res.body;

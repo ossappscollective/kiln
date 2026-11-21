@@ -1169,14 +1169,14 @@ dbTest(
     };
     const at = (path: string, method: string) =>
       doc.paths[`/api/workspaces/{workspaceId}${path}`]?.[method];
-    assert.equal(at('/store-submit/config', 'get')?.['x-mrm-action'], 'apps.read');
+    assert.equal(at('/store-submit/config', 'get')?.['x-kiln-action'], 'apps.read');
     for (const [path, method, action, risk] of [
       ['/apps/{id}/store-submit', 'get', 'store.submit', 'read'],
       ['/apps/{id}/store-submit/preview', 'post', 'store.submit', 'read'],
       ['/apps/{id}/store-submit', 'post', 'store.submit', 'destructive'],
     ] as const) {
-      assert.equal(at(path, method)?.['x-mrm-action'], action, `${method} ${path}`);
-      assert.equal(at(path, method)?.['x-mrm-risk'], risk, `${method} ${path}`);
+      assert.equal(at(path, method)?.['x-kiln-action'], action, `${method} ${path}`);
+      assert.equal(at(path, method)?.['x-kiln-risk'], risk, `${method} ${path}`);
     }
     const app = await pushedIos(t);
     await t.previewAndSubmit(app);

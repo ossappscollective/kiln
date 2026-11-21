@@ -88,7 +88,7 @@ function commitMore(dir: string, files: Files): string {
 
 /** A `gitPath` that logs the folder and arguments of every call, then runs the real git. */
 function gitWrapper(): { path: string; calls: () => { cwd: string; args: string }[] } {
-  const dir = scratch('mrm-wrap-');
+  const dir = scratch('kiln-wrap-');
   const log = join(dir, 'calls.log');
   const path = join(dir, 'git');
   writeFileSync(path, `#!/bin/sh\necho "$PWD|$*" >> '${log}'\nexec '${REAL_GIT}' "$@"\n`);
@@ -127,7 +127,7 @@ class ApiRepo extends FakeRepo {
 type Boot = { files?: Files; mode?: 'api' | 'clone' | 'auto'; roots?: 'default' | 'none' };
 
 async function boot(db: Database, options: Boot = {}) {
-  const base = scratch('mrm-local-');
+  const base = scratch('kiln-local-');
   const root = join(base, 'dev');
   const outside = join(base, 'outside');
   const dataDir = join(base, 'data');
@@ -435,7 +435,7 @@ for (const [name, files] of LAYOUTS) {
             viaLocal.cloneDir,
             viaLocal.t.workspaceId,
             `${local.repositoryId}-local`,
-            'mrm-clone.json',
+            'kiln-clone.json',
           ),
         ),
       );

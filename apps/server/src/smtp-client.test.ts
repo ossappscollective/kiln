@@ -13,7 +13,7 @@ const needTls = {
 } as const;
 const NOW = Date.UTC(2026, 10, 19, 10, 0, 0);
 const fast = { allowPrivateHosts: true, now: () => NOW, timeoutMs: 2_000, totalTimeoutMs: 8_000 };
-const FROM = 'Release Manager <mrm@example.com>';
+const FROM = 'Release Manager <kiln@example.com>';
 const config = (port: number, extra: Partial<SmtpConfig> = {}): SmtpConfig => ({
   host: '127.0.0.1',
   port,
@@ -50,9 +50,9 @@ test('plain SMTP: the envelope, the headers and the body arrive, with CRLF line 
     assert.deepEqual(result, { ok: true });
     const got = server.messages[0];
     assert.ok(got);
-    assert.equal(got.from, 'mrm@example.com');
+    assert.equal(got.from, 'kiln@example.com');
     assert.deepEqual(got.to, ['ada@example.com']);
-    assert.match(got.data, /^From: Release Manager <mrm@example\.com>\r\n/);
+    assert.match(got.data, /^From: Release Manager <kiln@example\.com>\r\n/);
     assert.match(got.data, /\r\nTo: ada@example\.com\r\n/);
     assert.match(got.data, /\r\nSubject: Hello\r\n/);
     assert.match(got.data, /\r\nMIME-Version: 1\.0\r\n/);
@@ -72,7 +72,7 @@ test('text and html become multipart/alternative; non-ASCII text survives quoted
       { ok: true },
     );
     const data = server.messages[0]?.data ?? '';
-    assert.match(data, /Content-Type: multipart\/alternative; boundary="=_mrm_[0-9a-f]+"/);
+    assert.match(data, /Content-Type: multipart\/alternative; boundary="=_kiln_[0-9a-f]+"/);
     assert.match(data, /Subject: =\?UTF-8\?B\?/);
     const decoded = unqp(data);
     assert.ok(
@@ -80,7 +80,7 @@ test('text and html become multipart/alternative; non-ASCII text survives quoted
       'the text part decodes to what was sent',
     );
     assert.ok(decoded.includes('<p>Prix = 5 € — café</p>'), 'and so does the html part');
-    assert.equal((data.match(/--=_mrm_[0-9a-f]+--/g) ?? []).length, 1);
+    assert.equal((data.match(/--=_kiln_[0-9a-f]+--/g) ?? []).length, 1);
     for (const line of data.split('\r\n')) assert.ok(line.length <= 998);
     assert.ok(/^[\x20-\x7e\r\n]*$/.test(data), 'the wire carries 7-bit text only');
   });
@@ -165,22 +165,22 @@ test('recipients: several, de-duplicated, at most 20', async () => {
 });
 
 test('AUTH PLAIN and AUTH LOGIN; a wrong password is smtp_auth_failed; the password is never in the data', async () => {
-  const auth = { user: 'mrm', password: 's3cret pass' };
+  const auth = { user: 'kiln', password: 's3cret pass' };
   await withServer({ auth }, async (server) => {
     assert.deepEqual(
-      await sendViaSmtp(config(server.port, { user: 'mrm', password: 's3cret pass' }), mail, fast),
+      await sendViaSmtp(config(server.port, { user: 'kiln', password: 's3cret pass' }), mail, fast),
       { ok: true },
     );
-    assert.equal(server.messages[0]?.user, 'mrm');
+    assert.equal(server.messages[0]?.user, 'kiln');
     assert.deepEqual(
-      await sendViaSmtp(config(server.port, { user: 'mrm', password: 'nope' }), mail, fast),
+      await sendViaSmtp(config(server.port, { user: 'kiln', password: 'nope' }), mail, fast),
       { ok: false, code: 'smtp_auth_failed' },
     );
     assert.ok(!server.messages[0]?.data.includes('s3cret'));
   });
   await withServer({ auth: { ...auth, mechanisms: ['LOGIN'] } }, async (server) => {
     assert.deepEqual(
-      await sendViaSmtp(config(server.port, { user: 'mrm', password: 's3cret pass' }), mail, fast),
+      await sendViaSmtp(config(server.port, { user: 'kiln', password: 's3cret pass' }), mail, fast),
       { ok: true },
     );
     assert.deepEqual(
@@ -194,14 +194,14 @@ test('AUTH PLAIN and AUTH LOGIN; a wrong password is smtp_auth_failed; the passw
   });
   await withServer({ auth: { ...auth, mechanisms: ['PLAIN'] } }, async (server) => {
     assert.deepEqual(
-      await sendViaSmtp(config(server.port, { user: 'mrm', password: 's3cret pass' }), mail, fast),
+      await sendViaSmtp(config(server.port, { user: 'kiln', password: 's3cret pass' }), mail, fast),
       { ok: true },
     );
   });
   // A login that the server does not offer (no AUTH line at all).
   await withServer({}, async (server) => {
     assert.deepEqual(
-      await sendViaSmtp(config(server.port, { user: 'mrm', password: 'x' }), mail, fast),
+      await sendViaSmtp(config(server.port, { user: 'kiln', password: 'x' }), mail, fast),
       { ok: false, code: 'smtp_auth_failed', hint: 'no_auth_mechanism' },
     );
   });
@@ -211,18 +211,18 @@ test(
   'STARTTLS: the connection is upgraded, the certificate is checked, and a password only goes after the upgrade',
   needTls,
   async () => {
-    const auth = { user: 'mrm', password: 'pw' };
+    const auth = { user: 'kiln', password: 'pw' };
     await withServer(
       { cert: cert ?? undefined, starttls: true, auth, authOnlyAfterTls: true },
       async (server) => {
         const ok = await sendViaSmtp(
-          config(server.port, { secure: 'starttls', user: 'mrm', password: 'pw' }),
+          config(server.port, { secure: 'starttls', user: 'kiln', password: 'pw' }),
           mail,
           { ...fast, tls: { ca: cert?.cert } },
         );
         assert.deepEqual(ok, { ok: true });
         assert.equal(server.messages[0]?.tls, true);
-        assert.equal(server.messages[0]?.user, 'mrm');
+        assert.equal(server.messages[0]?.user, 'kiln');
         // EHLO again after the upgrade, and AUTH only after STARTTLS.
         const ehlos = server.commands.filter((c) => /^EHLO/i.test(c)).length;
         assert.equal(ehlos, 2);
@@ -253,7 +253,7 @@ test('STARTTLS asked for but not offered is smtp_tls_failed: there is no quiet d
   await withServer({}, async (server) => {
     assert.deepEqual(
       await sendViaSmtp(
-        config(server.port, { secure: 'starttls', user: 'mrm', password: 'pw' }),
+        config(server.port, { secure: 'starttls', user: 'kiln', password: 'pw' }),
         mail,
         fast,
       ),
@@ -304,16 +304,16 @@ test('a login over plain text to another machine is refused before connecting; t
       port: 25,
       secure: 'none',
       from: FROM,
-      user: 'mrm',
+      user: 'kiln',
       password: 'pw',
     },
     mail,
     { ...fast, resolve: away },
   );
   assert.deepEqual(result, { ok: false, code: 'smtp_tls_failed', hint: 'login_needs_tls' });
-  await withServer({ auth: { user: 'mrm', password: 'pw' } }, async (server) => {
+  await withServer({ auth: { user: 'kiln', password: 'pw' } }, async (server) => {
     assert.deepEqual(
-      await sendViaSmtp(config(server.port, { user: 'mrm', password: 'pw' }), mail, fast),
+      await sendViaSmtp(config(server.port, { user: 'kiln', password: 'pw' }), mail, fast),
       { ok: true },
     );
   });

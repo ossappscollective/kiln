@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -40,7 +41,7 @@ const posix = process.platform !== 'win32';
 const posixTest = posix ? test : test.skip;
 const roots: string[] = [];
 const scratch = (): string => {
-  const dir = mkdtempSync(join(tmpdir(), 'mrm-clone-'));
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-clone-'));
   roots.push(dir);
   return dir;
 };
@@ -68,7 +69,7 @@ const git = (cwd: string, ...args: string[]) =>
 const inClone = (dir: string, ...args: string[]) =>
   execFileSync(REAL_GIT, [`--git-dir=${dir}`, ...args], {
     encoding: 'utf8',
-    env: gitEnv({ GIT_NO_LAZY_FETCH: '1', GIT_ALLOW_PROTOCOL: 'mrm-offline' }),
+    env: gitEnv({ GIT_NO_LAZY_FETCH: '1', GIT_ALLOW_PROTOCOL: 'kiln-offline' }),
     stdio: ['ignore', 'pipe', 'ignore'],
   }).trim();
 
@@ -642,7 +643,7 @@ test('a fresh clone has no hooks folder, and its config holds no credentials', a
   const config = readFileSync(join(r.dir, 'config'), 'utf8');
   assert.match(config, /hooksPath = \/dev\/null/);
   assert.match(config, /fsckObjects = true/);
-  assert.ok(existsSync(join(r.dir, 'mrm-clone.json')));
+  assert.ok(existsSync(join(r.dir, 'kiln-clone.json')));
 });
 
 posixTest('a tree with a .git entry is refused by the fsck of the fetch', async () => {
@@ -767,7 +768,7 @@ posixTest('the token reaches the host as a scoped header, nowhere else', async (
     assert.match(call.env, /GIT_CONFIG_NOSYSTEM=1/);
     if (!isFetch(call.argv)) {
       assert.ok(!leaks(call.env), `env leaked to: ${call.argv}`);
-      assert.match(call.env, /GIT_ALLOW_PROTOCOL=mrm-offline/);
+      assert.match(call.env, /GIT_ALLOW_PROTOCOL=kiln-offline/);
     }
   }
   for (const file of allFiles(r.dir)) {
@@ -839,7 +840,7 @@ posixTest('a local source gets the file protocol for its fetch only', async () =
   assert.match(fetches(calls)[0]?.env ?? '', /GIT_ALLOW_PROTOCOL=file\n/);
   for (const call of calls) {
     assert.ok(!leaks(call.env) && !leaks(call.argv));
-    if (!isFetch(call.argv)) assert.match(call.env, /GIT_ALLOW_PROTOCOL=mrm-offline/);
+    if (!isFetch(call.argv)) assert.match(call.env, /GIT_ALLOW_PROTOCOL=kiln-offline/);
   }
 });
 
@@ -917,7 +918,7 @@ posixTest('removeClone deletes only a real folder with our marker, in the base',
   mkdirSync(join(base, 'ws1'), { recursive: true });
   const victim = scratch();
   writeFileSync(join(victim, 'precious.txt'), 'keep me');
-  writeFileSync(join(victim, 'mrm-clone.json'), '{"version":1,"url":"x"}');
+  writeFileSync(join(victim, 'kiln-clone.json'), '{"version":1,"url":"x"}');
   const invalid = (e: unknown) => e instanceof GithubError && e.kind === 'invalid_input';
   const notManaged = (e: unknown) => e instanceof GitCloneError && e.reason === 'not_managed';
 
@@ -940,7 +941,7 @@ posixTest('removeClone deletes only a real folder with our marker, in the base',
   // A workspace folder that is a symlink to elsewhere.
   symlinkSync(victim, join(base, 'wslink'));
   mkdirSync(join(victim, 'inner'));
-  writeFileSync(join(victim, 'inner', 'mrm-clone.json'), '{"version":1,"url":"x"}');
+  writeFileSync(join(victim, 'inner', 'kiln-clone.json'), '{"version":1,"url":"x"}');
   await assert.rejects(removeClone(base, 'wslink', 'inner'), notManaged);
   // A real folder without our marker.
   mkdirSync(join(base, 'ws1', 'foreign'));
@@ -948,7 +949,7 @@ posixTest('removeClone deletes only a real folder with our marker, in the base',
   await assert.rejects(removeClone(base, 'ws1', 'foreign'), notManaged);
 
   assert.equal(readFileSync(join(victim, 'precious.txt'), 'utf8'), 'keep me');
-  assert.ok(existsSync(join(victim, 'inner', 'mrm-clone.json')));
+  assert.ok(existsSync(join(victim, 'inner', 'kiln-clone.json')));
   assert.equal(readFileSync(join(base, 'ws1', 'foreign', 'data.txt'), 'utf8'), 'not ours');
 });
 
@@ -1043,7 +1044,7 @@ test('listClones lists managed clones with size and last use, and refuses links 
   if (posix) {
     symlinkSync(join(base, 'w2', 'c'), join(base, 'w1', 'linked'));
     const outside = scratch();
-    writeFileSync(join(outside, 'mrm-clone.json'), '{"version":1,"url":"x","createdAt":1}');
+    writeFileSync(join(outside, 'kiln-clone.json'), '{"version":1,"url":"x","createdAt":1}');
     symlinkSync(outside, join(base, 'w1', 'escape'));
     symlinkSync(outside, join(base, 'w3'));
   }
@@ -1071,12 +1072,53 @@ test('listClones lists managed clones with size and last use, and refuses links 
   assert.equal(readFileSync(join(base, 'w1', 'stranger', 'file'), 'utf8'), 'not ours');
 });
 
+test('a clone made before the rename to Kiln (mrm-clone.json, refs/mrm) is still managed: read, listed, touched and removable, and no second marker appears', async () => {
+  const source = makeSource({ 'a.txt': 'x' });
+  const base = join(scratch(), 'clones');
+  const make = () =>
+    new GitCloneReader({
+      baseDir: base,
+      workspaceId: 'w1',
+      repositoryId: 'old',
+      source: { type: 'local', path: source },
+      defaultBranch: 'main',
+    });
+  const first = make();
+  await first.refresh();
+  // Make it look like an earlier version made it: the old marker name and the old local ref namespace.
+  renameSync(join(first.dir, 'kiln-clone.json'), join(first.dir, 'mrm-clone.json'));
+  const head = execFileSync('git', ['rev-parse', 'refs/kiln/heads/main'], { cwd: first.dir })
+    .toString()
+    .trim();
+  execFileSync('git', ['update-ref', 'refs/mrm/heads/main', head], { cwd: first.dir });
+  execFileSync('git', ['update-ref', '-d', 'refs/kiln/heads/main'], { cwd: first.dir });
+
+  const again = make();
+  assert.equal(await again.readFile('a.txt'), 'x');
+  assert.equal(existsSync(join(first.dir, 'kiln-clone.json')), false, 'the old marker is kept, no new one');
+  const listed = await listClones(base);
+  assert.deepEqual(listed.clones.map((c) => `${c.workspaceId}/${c.cloneId}`), ['w1/old']);
+  assert.equal(listed.refused, 0);
+  // A reader that never fetches again (infinite tip cache) still finds the tip under the old ref.
+  const offline = new GitCloneReader({
+    baseDir: base,
+    workspaceId: 'w1',
+    repositoryId: 'old',
+    source: { type: 'local', path: source },
+    defaultBranch: 'main',
+    ttlMs: Number.POSITIVE_INFINITY,
+  });
+  assert.equal(await offline.resolve('main'), head);
+  assert.equal(await removeClone(base, 'w1', 'old'), true);
+  assert.equal(existsSync(first.dir), false);
+});
+
 test('reading touches the clone: its last use moves, at most every 30 seconds', async () => {
   const source = makeSource({ 'a.txt': 'x' });
   const base = join(scratch(), 'clones');
   const r = reader(source, { base });
   await r.listFiles();
-  const marker = join(r.dir, 'mrm-clone.json');
+  const marker = join(r.dir, 'kiln-clone.json');
   const old = new Date(Date.now() - 3 * 24 * 3600_000);
   utimesSync(marker, old, old);
   // Within the throttle window of the first read: not touched again.

@@ -45,7 +45,7 @@ test('secrets are removed by key and by shape', () => {
       token: 't',
       authorization: 'Bearer abcdefghijklmnopqrstuvwxyz',
       downloadUrl: 'https://x',
-      note: 'see mrm_abcdefghijklmnopqrstuvwxyz0123 and eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijk',
+      note: 'see kiln_abcdefghijklmnopqrstuvwxyz0123 and eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijk',
       pem: '-----BEGIN PRIVATE KEY-----\nMIIB\n-----END PRIVATE KEY-----',
     },
     { markerId: 'm' },
@@ -63,6 +63,8 @@ test('secrets are removed by key and by shape', () => {
   ])
     assert.ok(!text.includes(leak), leak);
   assert.equal((value as { name: string }).name, 'ok');
+  assert.equal(redactString('x kiln_abcdefghijklmnopqrstuvwxyz0123 y'), 'x [redacted] y');
+  // A token made before the rename to Kiln starts with mrm_ and is redacted the same way.
   assert.equal(redactString('x mrm_abcdefghijklmnopqrstuvwxyz0123 y'), 'x [redacted] y');
 });
 

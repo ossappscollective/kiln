@@ -29,7 +29,7 @@ export type GooglePlayVerifyOptions = StoreVerifyOptions & {
 };
 
 /** A package name Play does not allow for real apps (`com.example` is reserved). */
-const PROBE_PACKAGE = 'com.example.mrm.credentialcheck';
+const PROBE_PACKAGE = 'com.example.kiln.credentialcheck';
 
 /**
  * What must never appear in output: the whole secret and the private key with each of its lines.

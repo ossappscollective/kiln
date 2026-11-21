@@ -274,7 +274,7 @@ test('addresses: the download path, the phone address, and a phone that cannot r
   );
   assert.equal(phoneCannotReach('http://localhost:5173'), true);
   assert.equal(phoneCannotReach('http://127.0.0.1:8787'), true);
-  assert.equal(phoneCannotReach('https://mrm.example.com'), false);
+  assert.equal(phoneCannotReach('https://kiln.example.com'), false);
   assert.equal(phoneCannotReach('nonsense'), true);
   assert.equal(secondsLeft(NOW + 90_500, NOW), 91);
   assert.equal(secondsLeft(NOW - 1, NOW), 0);

@@ -19,6 +19,7 @@ import {
 import { ApiError } from '../api.ts';
 import { appAddress, appReviewsHref, type PlatformScope } from '../app-scope.ts';
 import { asoViewHref } from '../aso/aso.ts';
+import { readMigrated } from '../legacy-storage.ts';
 import { platformLabel } from '../portfolio.ts';
 import { centsFromText, centsInput, insightTitle } from './insights.ts';
 import { placementLine, stageInLabel } from './placement.ts';
@@ -395,7 +396,7 @@ export type DisclosureStorage = {
   setItem(key: string, value: string): void;
 };
 
-export const DISCLOSURE_PREFIX = 'mrm.ai.skip.';
+export const DISCLOSURE_PREFIX = 'kiln.ai.skip.';
 export const disclosureKey = (taskId: string): string => `${DISCLOSURE_PREFIX}${taskId}`;
 
 /**
@@ -426,7 +427,8 @@ export function createDisclosureGate(storage: () => DisclosureStorage | null): D
   const session = new Map<string, string>();
   const read = (taskId: string): string | null => {
     try {
-      return storage()?.getItem(disclosureKey(taskId)) ?? null;
+      const store = storage();
+      return store ? readMigrated(store, disclosureKey(taskId)) : null;
     } catch {
       return null;
     }

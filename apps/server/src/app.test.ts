@@ -146,6 +146,49 @@ dbTest('login, logout, and a session that no longer works afterwards', async (db
   assert.equal((await app.request('/api/me', { headers: { cookie } })).status, 401);
 });
 
+dbTest('the session cookie is kiln_session, and a session cookie from before the rename still works', async (db) => {
+  const { app } = await boot(db);
+  await register(app);
+  const login = await app.request(
+    '/api/auth/login',
+    json({ email: 'ada@example.com', password: PASSWORD }),
+  );
+  const cookie = cookieOf(login);
+  assert.match(cookie, /^kiln_session=/);
+  const token = cookie.slice('kiln_session='.length);
+  const me = (headers: Record<string, string>) => app.request('/api/me', { headers });
+
+  // A session made before the upgrade lives in the old cookie: accepted while the new cookie is absent.
+  assert.equal((await me({ cookie: `mrm_session=${token}` })).status, 200);
+  assert.equal(
+    (await app.request('/api/auth/status', { headers: { cookie: `mrm_session=${token}` } })).status,
+    200,
+  );
+  // The new cookie wins when both are sent, so a stale old cookie never overrides it.
+  assert.equal((await me({ cookie: `kiln_session=${token}; mrm_session=stale` })).status, 200);
+  assert.equal((await me({ cookie: `kiln_session=stale; mrm_session=${token}` })).status, 401);
+
+  // Logging in again over an old cookie drops the old one.
+  const again = await app.request(
+    '/api/auth/login',
+    json({ email: 'ada@example.com', password: PASSWORD }, { cookie: `mrm_session=${token}` }),
+  );
+  const cleared = again.headers.getSetCookie();
+  assert.ok(cleared.some((c) => /^kiln_session=[^;]+/.test(c)));
+  assert.ok(cleared.some((c) => /^mrm_session=;/.test(c)));
+
+  // Sign-out ends a session that is only in the old cookie, and clears both names.
+  const out = await app.request('/api/auth/logout', {
+    method: 'POST',
+    headers: { cookie: `mrm_session=${token}` },
+  });
+  assert.equal(out.status, 204);
+  const names = out.headers.getSetCookie().map((c) => c.split('=')[0]);
+  assert.deepEqual(names.sort(), ['kiln_session', 'mrm_session']);
+  assert.equal((await me({ cookie: `mrm_session=${token}` })).status, 401);
+  assert.equal((await me({ cookie })).status, 401);
+});
+
 dbTest('wrong password and unknown email look the same', async (db) => {
   const { app } = await boot(db);
   await register(app);
@@ -215,18 +258,18 @@ dbTest(
     const { app } = await boot(db);
     const body = { email: 'ada@example.com', password: PASSWORD };
     const foreign = await app.request(
-      'http://mrm.test/api/auth/login',
-      json(body, { origin: 'https://evil.example', host: 'mrm.test' }),
+      'http://kiln.test/api/auth/login',
+      json(body, { origin: 'https://evil.example', host: 'kiln.test' }),
     );
     assert.equal(foreign.status, 403);
     const own = await app.request(
-      'http://mrm.test/api/auth/login',
-      json(body, { origin: 'http://mrm.test', host: 'mrm.test' }),
+      'http://kiln.test/api/auth/login',
+      json(body, { origin: 'http://kiln.test', host: 'kiln.test' }),
     );
     assert.equal(own.status, 401); // reached the handler (no account yet)
     const none = await app.request(
-      'http://mrm.test/api/auth/login',
-      json(body, { host: 'mrm.test' }),
+      'http://kiln.test/api/auth/login',
+      json(body, { host: 'kiln.test' }),
     );
     assert.equal(none.status, 401);
   },
@@ -235,8 +278,8 @@ dbTest(
 dbTest('trusted origins are allowed', async (db) => {
   const { app } = await boot(db, { trustedOrigins: ['http://localhost:5173'] });
   const res = await app.request(
-    'http://mrm.test/api/auth/login',
-    json({ email: 'a@b.co', password: 'x' }, { origin: 'http://localhost:5173', host: 'mrm.test' }),
+    'http://kiln.test/api/auth/login',
+    json({ email: 'a@b.co', password: 'x' }, { origin: 'http://localhost:5173', host: 'kiln.test' }),
   );
   assert.equal(res.status, 401);
 });
@@ -385,7 +428,7 @@ async function addMember(db: Database, workspaceId: string, role: string) {
     role,
   ]);
   const { token } = await createSession(db, id, Date.now());
-  return `mrm_session=${token}`;
+  return `kiln_session=${token}`;
 }
 
 dbTest('a viewer cannot read credentials and a member cannot write them', async (db) => {

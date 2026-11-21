@@ -188,9 +188,9 @@ export function buildMessage(input: BuildInput): Built {
     body = text;
   } else {
     const html = quotedPrintable(toCrlf(input.html)).replace(/(\r\n)+$/, '');
-    let boundary = input.boundary ?? `=_mrm_${randomBytes(18).toString('hex')}`;
+    let boundary = input.boundary ?? `=_kiln_${randomBytes(18).toString('hex')}`;
     while (text.includes(boundary) || html.includes(boundary))
-      boundary = `=_mrm_${randomBytes(18).toString('hex')}`;
+      boundary = `=_kiln_${randomBytes(18).toString('hex')}`;
     headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
     body = [
       `--${boundary}`,

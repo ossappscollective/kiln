@@ -8,7 +8,7 @@ test('detects postgres urls', () => {
 });
 
 test('detects sqlite urls', () => {
-  assert.equal(detectDialect('file:./.mrm-data/mrm.db'), 'sqlite');
+  assert.equal(detectDialect('file:./.kiln-data/kiln.db'), 'sqlite');
   assert.equal(detectDialect(':memory:'), 'sqlite');
 });
 

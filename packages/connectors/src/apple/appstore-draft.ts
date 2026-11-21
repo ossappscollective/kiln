@@ -113,7 +113,7 @@ import { appleError, isAppleParameterError } from './appstoreconnect.ts';
  *   10. a placement cannot be changed, only deleted (`DELETE /v1/appAssetLibraryPlacements/{id}`, 204); deleting a
  *      library image that still has placements is `409 STATE_ERROR.ASSET_HAS_PLACEMENTS`.
  *   UNVERIFIED: the checksum. The library has none, so the SHA-256 (first 32 hex characters) of every file this
- *   connector uploads is written into the image's `referenceName` (`mrm:sha256:<hex>`) and read back from there to
+ *   connector uploads is written into the image's `referenceName` (`kiln:sha256:<hex>`) and read back from there to
  *   tell "the same file" (idempotent pushes, reuse of an image that is already in the library); whether Apple
  *   accepts that text and length, the `filter[referenceName]` semantics of `GET /v1/appAssetLibraries/{id}/images`,
  *   the `limit` and `fields` parameters of the placements list, the `deviceFamily` strings of the display
@@ -189,13 +189,18 @@ type RefData = {
   maxCount: Map<string, number>;
 };
 
-const REFERENCE_PREFIX = 'mrm:sha256:';
+const REFERENCE_PREFIX = 'kiln:sha256:';
+/** Images uploaded before the rename to Kiln carry this name on Apple's side; they are still recognised (never rewritten). */
+const LEGACY_REFERENCE_PREFIX = 'mrm:sha256:';
 const REFERENCE_HEX = 32;
 const referenceName = (sha256: string): string =>
   `${REFERENCE_PREFIX}${sha256.slice(0, REFERENCE_HEX)}`;
+const legacyReferenceName = (sha256: string): string =>
+  `${LEGACY_REFERENCE_PREFIX}${sha256.slice(0, REFERENCE_HEX)}`;
 const hashOfReference = (name: string | undefined): string | null => {
-  if (name === undefined || !name.startsWith(REFERENCE_PREFIX)) return null;
-  const hex = name.slice(REFERENCE_PREFIX.length).toLowerCase();
+  const prefix = [REFERENCE_PREFIX, LEGACY_REFERENCE_PREFIX].find((p) => name?.startsWith(p));
+  if (name === undefined || prefix === undefined) return null;
+  const hex = name.slice(prefix.length).toLowerCase();
   return /^[0-9a-f]{32}$/.test(hex) ? hex : null;
 };
 const num = (v: unknown): number | undefined =>
@@ -1684,14 +1689,28 @@ export class AppleDraftConnector
     return { ...base, outcome: 'applied', uploaded, removed };
   }
 
-  /** An image of the library that already is this file and is processed, or undefined. A failed lookup is just "not found". */
+  /**
+   * An image of the library that already is this file and is processed, or undefined. A failed lookup is just "not found".
+   * Images uploaded before the rename to Kiln are named with the old prefix; they are found too, so nothing is uploaded twice.
+   */
   async #libraryImage(
     file: DraftAssetWrite['files'][number],
     group: string,
     ref: RefData,
   ): Promise<string | undefined> {
+    return (
+      (await this.#libraryImageNamed(file, group, ref, referenceName(file.sha256))) ??
+      (await this.#libraryImageNamed(file, group, ref, legacyReferenceName(file.sha256)))
+    );
+  }
+
+  async #libraryImageNamed(
+    file: DraftAssetWrite['files'][number],
+    group: string,
+    ref: RefData,
+    name: string,
+  ): Promise<string | undefined> {
     const library = await this.#libraryId();
-    const name = referenceName(file.sha256);
     let body: Json;
     try {
       body = (

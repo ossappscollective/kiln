@@ -30,7 +30,7 @@ export const tokenSummarySchema = z.object({
   name: z.string(),
   prefix: z
     .string()
-    .describe('`mrm_` and six more characters, to recognise the token. Not enough to use it.'),
+    .describe('`kiln_` and six more characters, to recognise the token. Not enough to use it.'),
   role: z.enum(['viewer', 'member', 'admin']),
   appIds: z.array(z.string()).nullable(),
   actions: z.array(z.string()).nullable(),

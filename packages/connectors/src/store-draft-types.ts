@@ -341,7 +341,7 @@ export type StoreImageRecord = {
   width: number | null;
   height: number | null;
   bytes: number | null;
-  /** Lower case hex of the whole file, or of its first characters (`mrm:sha256:` of this server's own uploads), or null. */
+  /** Lower case hex of the whole file, or of its first characters (`kiln:sha256:` of this server's own uploads), or null. */
   checksum: string | null;
   checksumKind: 'sha256' | 'md5' | null;
   state: string | null;

@@ -75,7 +75,7 @@ export class FakeUpdates {
     }
     if (queued instanceof Error) {
       // A write that was received and applied, whose answer is lost.
-      if (call.operationName === 'MrmSetUpdateRollout') this.answer(call);
+      if (call.operationName === 'KilnSetUpdateRollout') this.answer(call);
       throw queued;
     }
     if (queued) return queued;
@@ -84,13 +84,13 @@ export class FakeUpdates {
 
   private answer(call: UpdateCall): unknown {
     switch (call.operationName) {
-      case 'MrmUpdateChannels':
+      case 'KilnUpdateChannels':
         return { data: { app: { byId: { id: PROJECT_ID, updateChannels: this.channels } } } };
-      case 'MrmStoreBuildRuntimes':
+      case 'KilnStoreBuildRuntimes':
         return { data: { app: { byId: { id: PROJECT_ID, builds: this.builds } } } };
-      case 'MrmUpdateGroupInsights':
+      case 'KilnUpdateGroupInsights':
         return this.insights;
-      case 'MrmSetUpdateRollout': {
+      case 'KilnSetUpdateRollout': {
         const id = String(call.variables.updateId);
         const pct = Number(call.variables.rolloutPercentage);
         for (const ch of this.channels) {

@@ -2,8 +2,8 @@ import { accessSync, closeSync, constants, existsSync, openSync, readSync, statS
 import { delimiter, isAbsolute, join, parse as parsePath, resolve } from 'node:path';
 import { parseMasterKey } from '@kiln/vault';
 import { z } from 'zod';
-import type { GitSigning } from './services/local-git.ts';
 import { defaultDataDir, type PathExists, sqliteUrlInUse } from './legacy-data.ts';
+import type { GitSigning } from './services/local-git.ts';
 import { parseExtraHosts } from './single-user.ts';
 
 /** `KEY=` in an .env file is an empty string, which should read as "not set". */
@@ -45,7 +45,7 @@ const schema = z.object({
   // Comma-separated origins allowed to send state-changing requests besides the server itself.
   KILN_TRUSTED_ORIGINS: z.string().default(''),
   // The origin passkeys (step-up confirmation, docs/adr/0019-step-up-confirmation.md) are bound to, for example
-  // https://mrm.example.com. Empty: the origin of the request. Needed behind a proxy that rewrites Host.
+  // https://kiln.example.com. Empty: the origin of the request. Needed behind a proxy that rewrites Host.
   KILN_PUBLIC_ORIGIN: z
     .string()
     .default('')
@@ -57,7 +57,7 @@ const schema = z.object({
       } catch {
         return false;
       }
-    }, 'KILN_PUBLIC_ORIGIN must be an origin such as https://mrm.example.com (no path, no trailing slash).'),
+    }, 'KILN_PUBLIC_ORIGIN must be an origin such as https://kiln.example.com (no path, no trailing slash).'),
   // 'multi' is the hosted server with accounts. 'single_user' is the desktop app: no login,
   // loopback only, sessions start from KILN_LAUNCH_SECRET. See docs/adr/0003-single-user-mode.md.
   KILN_MODE: z.enum(['multi', 'single_user']).default('multi'),
@@ -706,7 +706,7 @@ export function loadConfig(
     throw new Error(`Invalid configuration:\n  ${problems.join('\n  ')}`);
   }
   const data = parsed.data;
-  // The default folder is `./.kiln-data`; an existing `./.mrm-data` from before the rename is kept in use.
+  // The default folder is `./.kiln-data`; an existing `./.kiln-data` from before the rename is kept in use.
   const defaultDir = defaultDataDir(exists);
   const dataDir = data.KILN_DATA_DIR ?? defaultDir;
   // Ignored in multi-user mode: nothing there consumes it.

@@ -85,7 +85,7 @@ test('ssh: the commit is signed with the server key; the object holds a signatur
   assert.equal(sshVerifies(s.dir, done.commit, k.signers), true, 'a good signature by that key');
   assert.equal(sshVerifies(s.dir, done.commit, sshKey().signers), false, 'and not by another key');
   // The same commit as an unsigned one, apart from the signature: same tree, parent, author, message.
-  const plain = await createBranchCommit(commitInput(s, { branch: 'mrm/plain' }));
+  const plain = await createBranchCommit(commitInput(s, { branch: 'kiln/plain' }));
   assert.equal(plain.ok, true);
   if (!plain.ok) return;
   assert.equal(plain.tree, done.tree);
@@ -150,7 +150,7 @@ test('ssh: the signing program sees a private HOME, only the variables we chose,
   assert.match(lines.find((l) => l.startsWith('args:')) ?? '', /^args:-Y sign -n git -f /);
   assert.match(
     lines.find((l) => l.startsWith('home:')) ?? '',
-    /^home:.*mrm-index-[^/]+\/home$/,
+    /^home:.*kiln-index-[^/]+\/home$/,
     'a private HOME, not the real one',
   );
   assert.equal(
@@ -185,7 +185,7 @@ test('ssh with a .pub key: the agent socket given in the signing setup is passed
     );
     assert.equal(locked.ok, false, 'a locked key and no agent: not signed');
     if (!locked.ok) assert.equal(locked.reason, 'locked');
-    assert.equal(git(s.dir, 'for-each-ref', 'refs/heads/mrm'), '');
+    assert.equal(git(s.dir, 'for-each-ref', 'refs/heads/kiln'), '');
 
     execFileSync(SSH_ADD ?? '', [k.key], {
       env: {
@@ -245,7 +245,7 @@ test('gpg: the commit is signed with the server key from the configured keyring,
     spy.lines().find((l) => l.startsWith('gnupg:')),
     `gnupg:${made.home}`,
   );
-  assert.match(spy.lines().find((l) => l.startsWith('home:')) ?? '', /mrm-index-[^/]+\/home$/);
+  assert.match(spy.lines().find((l) => l.startsWith('home:')) ?? '', /kiln-index-[^/]+\/home$/);
   const after = snapshot(s.dir);
   assert.deepEqual({ ...after, refs: '' }, { ...before, refs: '' });
 });
@@ -381,7 +381,7 @@ test('signing fails: refs, working tree, index and HEAD are untouched, the answe
     assert.ok(Date.now() - started < 10_000, `${c.name}: no hang`);
     unchanged(before, snapshot(s.dir));
     assert.equal(
-      git(s.dir, 'for-each-ref', '--format=%(refname)', 'refs/heads/mrm'),
+      git(s.dir, 'for-each-ref', '--format=%(refname)', 'refs/heads/kiln'),
       '',
       `${c.name}: no branch`,
     );

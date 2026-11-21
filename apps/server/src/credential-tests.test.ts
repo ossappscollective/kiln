@@ -89,7 +89,7 @@ async function addMember(db: Database, workspaceId: string, role: string) {
     role,
   ]);
   const { token } = await createSession(db, id, Date.now());
-  return `mrm_session=${token}`;
+  return `kiln_session=${token}`;
 }
 
 async function save(b: Booted, kind: string, secret: string, label = 'cred') {

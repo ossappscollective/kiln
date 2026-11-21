@@ -109,7 +109,7 @@ export async function boot(db: Database, overrides: Record<string, unknown> = {}
       'INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)',
       [t.workspaceId, id, role],
     );
-    const session = `mrm_session=${(await createSession(db, id, START)).token}`;
+    const session = `kiln_session=${(await createSession(db, id, START)).token}`;
     return { id, email, session };
   };
   return {

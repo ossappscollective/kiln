@@ -250,7 +250,7 @@ test('an assertion cannot be checked against the key of another algorithm', () =
 
 test('relying party ids: localhost and domains, never an IP address', () => {
   assert.equal(isValidRpId('localhost'), true);
-  assert.equal(isValidRpId('mrm.example.com'), true);
+  assert.equal(isValidRpId('kiln.example.com'), true);
   assert.equal(isValidRpId('127.0.0.1'), false);
   assert.equal(isValidRpId('[::1]'), false);
   assert.equal(isValidRpId('intranet'), false);

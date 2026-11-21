@@ -7,8 +7,8 @@ afterEach(() => setMailLinkOrigin(undefined));
 
 test('links are built on the public origin, and there are none without it', () => {
   assert.equal(mailLink('#/credentials'), undefined);
-  setMailLinkOrigin('https://mrm.example.com/');
-  assert.equal(mailLink('#/credentials'), 'https://mrm.example.com/#/credentials');
+  setMailLinkOrigin('https://kiln.example.com/');
+  assert.equal(mailLink('#/credentials'), 'https://kiln.example.com/#/credentials');
 });
 
 test('a button without a link says where to go; one with a link escapes it', () => {

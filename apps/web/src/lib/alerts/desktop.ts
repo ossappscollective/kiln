@@ -1,3 +1,4 @@
+import { readMigrated } from '../legacy-storage.ts';
 import type { CatalogEntry, InboxAlert, PersonalChannel, Preference } from './alerts.ts';
 import { effectiveChannels } from './alerts.ts';
 
@@ -39,14 +40,14 @@ export function kindUsesDesktop(entry: CatalogEntry, prefs: Preference[]): boole
 // ---------------------------------------------------------------------------------------------
 // This device: on or off (a browser or the desktop app asks for its permission per device, so the switch is per device too).
 
-export const DEVICE_KEY = 'mrm.alerts.desktop';
+export const DEVICE_KEY = 'kiln.alerts.desktop';
 
 type Storage = Pick<globalThis.Storage, 'getItem' | 'setItem'>;
 
 /** The stored choice of this device: true, false, or null when the person never chose. Never throws. */
 export function readDeviceChoice(storage: Storage | undefined): boolean | null {
   try {
-    const raw = storage ? storage.getItem(DEVICE_KEY) : null;
+    const raw = storage ? readMigrated(storage, DEVICE_KEY) : null;
     return raw === 'on' ? true : raw === 'off' ? false : null;
   } catch {
     return null;

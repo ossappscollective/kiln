@@ -168,7 +168,16 @@ export class GitCloneError extends GithubError {
 const SHA = /^[0-9a-f]{40}$/i;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/;
 const OWNER_REPO = /^[A-Za-z0-9_.-]{1,100}$/;
-const MARKER = 'mrm-clone.json';
+const MARKER = 'kiln-clone.json';
+/** Clones made before the rename to Kiln carry this marker. It is read as well, and never rewritten or removed. */
+const LEGACY_MARKER = 'mrm-clone.json';
+/** The marker file a managed clone folder has: either name (the current one first), or the current name when it has none yet. */
+async function markerIn(dir: string): Promise<string> {
+  for (const name of [MARKER, LEGACY_MARKER]) {
+    if (await stat(join(dir, name)).then(() => true, () => false)) return join(dir, name);
+  }
+  return join(dir, MARKER);
+}
 const MARKER_VERSION = 1;
 const MIB = 1024 * 1024;
 const BATCH_MAX = 500;
@@ -225,7 +234,9 @@ function parseRef(ref: string): RefSpec {
   return { kind: 'any', name: checkRefName(name) };
 }
 
-const localRef = (kind: 'heads' | 'tags' | 'commits', name: string) => `refs/mrm/${kind}/${name}`;
+const localRef = (kind: 'heads' | 'tags' | 'commits', name: string) => `refs/kiln/${kind}/${name}`;
+/** Where clones made before the rename keep their refs. Read as a fallback and cleaned up; never written. */
+const legacyLocalRef = (kind: 'heads' | 'tags' | 'commits', name: string) => `refs/mrm/${kind}/${name}`;
 
 function checkId(label: string, value: string): string {
   if (!SAFE_ID.test(value)) {
@@ -783,7 +794,7 @@ export class GitCloneReader implements RepoReader {
       // the caller decides to fetch it in a batch. The unknown protocol name blocks every
       // transport for git versions that do not know GIT_NO_LAZY_FETCH.
       GIT_NO_LAZY_FETCH: '1',
-      GIT_ALLOW_PROTOCOL: 'mrm-offline',
+      GIT_ALLOW_PROTOCOL: 'kiln-offline',
     });
     if (network) {
       delete env.GIT_NO_LAZY_FETCH;
@@ -850,7 +861,9 @@ export class GitCloneReader implements RepoReader {
     if (at - this.#lastTouch < TOUCH_EVERY_MS) return;
     this.#lastTouch = at;
     const when = new Date(at);
-    utimes(join(this.dir, MARKER), when, when).catch(() => undefined);
+    markerIn(this.dir)
+      .then((marker) => utimes(marker, when, when))
+      .catch(() => undefined);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -895,8 +908,7 @@ export class GitCloneReader implements RepoReader {
   async #ensure(): Promise<void> {
     await mkdir(this.#baseDir, { recursive: true, mode: 0o700 });
     const url = await this.#remoteUrl();
-    const marker = join(this.dir, MARKER);
-    const existing = await readMarker(marker);
+    const existing = await readMarker(await markerIn(this.dir));
     if (existing && existing.url === url && this.#verified) {
       this.#touch();
       return;
@@ -925,7 +937,7 @@ export class GitCloneReader implements RepoReader {
     await mkdir(this.dir, { recursive: true, mode: 0o700 });
     // The marker first: a crash during init leaves a folder we know is ours.
     await writeFile(
-      marker,
+      join(this.dir, MARKER),
       JSON.stringify({ version: MARKER_VERSION, url, createdAt: this.#now() }),
       { mode: 0o600 },
     );
@@ -1129,7 +1141,9 @@ export class GitCloneReader implements RepoReader {
     if (this.#ttl === Number.POSITIVE_INFINITY) {
       const kinds = spec.kind === 'any' ? (['heads', 'tags'] as const) : ([spec.kind] as const);
       for (const kind of kinds) {
-        const commit = await this.#revParse(localRef(kind, spec.name));
+        const commit =
+          (await this.#revParse(localRef(kind, spec.name))) ??
+          (await this.#revParse(legacyLocalRef(kind, spec.name)));
         if (commit) {
           this.#tips.set(key, { commit, fetchedAt: this.#now() });
           return commit;
@@ -1531,13 +1545,14 @@ export class GitCloneReader implements RepoReader {
     await raceAbort(
       withLock(this.dir, async () => {
         await this.#ensure();
-        const refs = await this.#gitOk(
-          ['for-each-ref', '--format=%(refname)', 'refs/mrm/commits'],
-          { what: 'for-each-ref' },
-        );
-        for (const name of refs.stdout.toString('utf8').split('\n')) {
-          if (name.startsWith('refs/mrm/commits/'))
-            await this.#gitOk(['update-ref', '-d', name], { what: 'update-ref' });
+        for (const root of ['refs/kiln/commits', 'refs/mrm/commits']) {
+          const refs = await this.#gitOk(['for-each-ref', '--format=%(refname)', root], {
+            what: 'for-each-ref',
+          });
+          for (const name of refs.stdout.toString('utf8').split('\n')) {
+            if (name.startsWith(`${root}/`))
+              await this.#gitOk(['update-ref', '-d', name], { what: 'update-ref' });
+          }
         }
         await this.#gitOk(['gc', '--prune=now', '--quiet'], {
           network: false,
@@ -1609,7 +1624,7 @@ export async function removeClone(
     if (info.isSymbolicLink() || !info.isDirectory()) throw refuse();
     const real = await realpath(dir);
     if (!real.startsWith(realBase + sep) || real === realBase) throw refuse();
-    if (!(await stat(join(real, MARKER)).catch(() => undefined))) throw refuse();
+    if (!(await stat(await markerIn(real)).catch(() => undefined))) throw refuse();
     await rm(real, { recursive: true, force: true, maxRetries: 3 });
     await rmdir(dirname(real)).catch(() => undefined); // the workspace folder, when now empty
     return true;
@@ -1730,7 +1745,7 @@ export async function listClones(
         continue;
       }
       if (!own.isDirectory()) continue;
-      const markerPath = join(dir, MARKER);
+      const markerPath = await markerIn(dir);
       const marker = await lstat(markerPath).catch(() => undefined);
       if (!marker?.isFile()) {
         refused++;

@@ -14,7 +14,7 @@ const settings = (
 ) => t.call(cookie, 'PUT', '/alerts/settings', body);
 
 dbTest('the alert email carries an HTML part with a button to the app', async (db) => {
-  const t = await bootAlerts(db, { publicOrigin: 'https://mrm.example.com' });
+  const t = await bootAlerts(db, { publicOrigin: 'https://kiln.example.com' });
   const app = await t.addApp();
   await t.rejected(app, '2.0', T0);
   assert.equal(await t.runMail(), 1);
@@ -22,11 +22,11 @@ dbTest('the alert email carries an HTML part with a button to the app', async (d
   assert.match(String(mail?.html), /<html/);
   assert.match(
     String(mail?.html),
-    /href="https:\/\/mrm\.example\.com\/#\/portfolio\/app1\/releases"/,
+    /href="https:\/\/kiln\.example\.com\/#\/portfolio\/app1\/releases"/,
   );
   assert.match(
     String(mail?.text),
-    /See the rejection: https:\/\/mrm\.example\.com\/#\/portfolio\/app1\/releases/,
+    /See the rejection: https:\/\/kiln\.example\.com\/#\/portfolio\/app1\/releases/,
   );
   assert.doesNotMatch(String(mail?.html), /undefined/);
 });
@@ -448,7 +448,7 @@ dbTest(
     });
     const app = await t.addApp();
     const hook = await t.call(t.owner, 'POST', '/webhooks', {
-      url: 'https://hooks.example.com/mrm',
+      url: 'https://hooks.example.com/kiln',
       eventTypes: ['alert.raised'],
     });
     assert.equal(hook.status, 201);

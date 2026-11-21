@@ -26,7 +26,7 @@ export type SectionHost = {
   setAll(open: boolean): void;
 };
 
-const HOST = Symbol('mrm.section-host');
+const HOST = Symbol('kiln.section-host');
 
 export function createSectionHost(
   scope: () => SectionScope,

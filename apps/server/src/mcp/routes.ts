@@ -31,7 +31,7 @@ import {
  * - OFF by default (KILN_MCP_ENABLED): while off, every method answers 404 as if the route did not exist.
  * - Streamable HTTP, stateless: a POST with a JSON-RPC message (or a batch) is answered with `application/json`; notifications get 202.
  *   GET (the optional server to client stream) and DELETE (ending a session, which does not exist) answer 405.
- * - Authentication is the API token and nothing else: `Authorization: Bearer mrm_...` is REQUIRED, the session cookie is ignored, so a
+ * - Authentication is the API token and nothing else: `Authorization: Bearer kiln_...` is REQUIRED, the session cookie is ignored, so a
  *   page in a browser can never act through this endpoint. A request with an `Origin` header is refused unless the origin is one the
  *   server already trusts (KILN_PUBLIC_ORIGIN, KILN_TRUSTED_ORIGINS): real MCP clients are not browsers and send none, and a rebound DNS name
  *   shows up as a foreign origin. In single user mode the host guard of the app (single-user.ts) runs before this as well.
@@ -136,7 +136,7 @@ export function mountMcp(app: Hono<AppEnv>, options: MountOptions): void {
         401,
         {
           error: 'invalid_token',
-          message: 'Send an API token as "Authorization: Bearer mrm_...".',
+          message: 'Send an API token as "Authorization: Bearer kiln_...".',
         },
         { 'WWW-Authenticate': 'Bearer error="invalid_token"' },
       );

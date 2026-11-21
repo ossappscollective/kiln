@@ -76,7 +76,7 @@ function writeAll(dir: string, files: Files) {
 
 /** A real git repository with these files in one commit on `main`. */
 function buildRepo(files: Files): string {
-  const dir = join(scratch('mrm-src-'), 'source');
+  const dir = join(scratch('kiln-src-'), 'source');
   mkdirSync(dir);
   git(dir, 'init', '-q', '-b', 'main');
   writeAll(dir, files);
@@ -94,7 +94,7 @@ function commitMore(dir: string, files: Files): string {
 
 /** A `gitPath` that logs its arguments, may run `body` first, then runs the real git. */
 function gitWrapper(body = ''): { path: string; calls: () => string[] } {
-  const dir = scratch('mrm-wrap-');
+  const dir = scratch('kiln-wrap-');
   const log = join(dir, 'calls.log');
   const path = join(dir, 'git');
   writeFileSync(path, `#!/bin/sh\necho "$@" >> '${log}'\n${body}\nexec '${REAL_GIT}' "$@"\n`);
@@ -141,7 +141,7 @@ type Boot = {
 
 async function boot(db: Database, options: Boot) {
   const source = buildRepo(options.files);
-  const cloneDir = join(scratch('mrm-clones-'), 'clones');
+  const cloneDir = join(scratch('kiln-clones-'), 'clones');
   const logs: string[] = [];
   let sourceAsked = 0;
   const reads = createCloneReads({
@@ -239,7 +239,7 @@ for (const [name, files] of LAYOUTS) {
       // The clone served every read; the API connector was never asked for a file or a tree.
       assert.equal(viaClone.api.apiReads, 0);
       assert.ok(viaApi.api.apiReads > 0);
-      assert.ok(existsSync(join(cloneOf(viaClone, viaClone.repositoryId), 'mrm-clone.json')));
+      assert.ok(existsSync(join(cloneOf(viaClone, viaClone.repositoryId), 'kiln-clone.json')));
       assert.deepEqual(viaClone.logs, []);
       const rows = await dbClone.query(
         "SELECT detail FROM audit_events WHERE action = 'repository.scan'",
@@ -479,7 +479,7 @@ dbTest(
 );
 
 dbTest('the request timeout kills a running git', async (db) => {
-  const pids = join(scratch('mrm-pids-'), 'pids');
+  const pids = join(scratch('kiln-pids-'), 'pids');
   const slow = gitWrapper(`case " $* " in *" fetch "*) echo $$ >> '${pids}'; exec sleep 30;; esac`);
   const b = await boot(db, {
     files: fastlaneFiles(),
@@ -570,7 +570,7 @@ dbTest('a clone that cannot be removed is logged and does not fail the disconnec
     200,
   );
   // Without its marker the folder is not ours to delete: the reader refuses.
-  rmSync(join(cloneOf(b, b.repositoryId), 'mrm-clone.json'));
+  rmSync(join(cloneOf(b, b.repositoryId), 'kiln-clone.json'));
   const gone = await b.t.call(b.t.owner, 'DELETE', `/repositories/${b.repositoryId}`);
   assert.ok(gone.status === 200 || gone.status === 204, gone.text);
   assert.equal((await b.t.call(b.t.owner, 'GET', '/repositories')).body.repositories.length, 0);
@@ -858,7 +858,7 @@ test('the adapter does not fall back without the option, on other errors, after 
 // Start-up
 
 test('setUpReads: api mode checks nothing; auto without git reads through the API; clone without git says so', async () => {
-  const dir = join(scratch('mrm-setup-'), 'clones');
+  const dir = join(scratch('kiln-setup-'), 'clones');
   const lines: string[] = [];
   const log = (line: string) => lines.push(line);
 
@@ -885,7 +885,7 @@ test('setUpReads: api mode checks nothing; auto without git reads through the AP
   assert.match(lines[0] ?? '', /KILN_READS=clone but git is not installed/);
 
   lines.length = 0;
-  const fresh = join(scratch('mrm-setup-'), 'deep', 'clones');
+  const fresh = join(scratch('kiln-setup-'), 'deep', 'clones');
   const ok = await setUpReads({ mode: 'auto', cloneDir: fresh, gitPath: REAL_GIT, log });
   assert.equal(ok.active, true);
   assert.equal(lines.length, 1);
@@ -898,7 +898,7 @@ test('setUpReads: api mode checks nothing; auto without git reads through the AP
 dbTest('auto with git missing at start behaves as api: no fall back rows, no clone', async (db) => {
   const inactive = await setUpReads({
     mode: 'auto',
-    cloneDir: join(scratch('mrm-setup-'), 'clones'),
+    cloneDir: join(scratch('kiln-setup-'), 'clones'),
     gitPath: '/nonexistent/git',
     log: () => undefined,
     source: () => assert.fail('no clone expected'),

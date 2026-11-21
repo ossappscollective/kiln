@@ -62,7 +62,7 @@
   // Shell opens the workspace the person last used; make that the one they just joined.
   function remember(workspaceId: string) {
     try {
-      localStorage.setItem('mrm.workspace', workspaceId);
+      localStorage.setItem('kiln.workspace', workspaceId);
     } catch {
       // Storage can be refused in a private window. The first workspace is shown instead.
     }

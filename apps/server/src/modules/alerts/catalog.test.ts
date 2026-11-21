@@ -92,7 +92,7 @@ test('redaction keeps ids, names and numbers and drops anything that looks like 
   const out = redactAlertData({
     appId: 'a1',
     tokenId: 't1',
-    token: 'mrm_secret',
+    token: 'kiln_secret',
     apiKey: 'k',
     password: 'p',
     ciphertext: 'c',

@@ -277,7 +277,7 @@ type Boot = {
 
 async function boot(db: Database, options: Boot) {
   const mode = options.mode ?? 'local';
-  const base = scratch('mrm-assets-');
+  const base = scratch('kiln-assets-');
   const root = join(base, 'dev');
   const dataDir = join(base, 'data');
   const cloneDir = join(dataDir, 'clones');

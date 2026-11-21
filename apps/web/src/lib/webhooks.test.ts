@@ -21,7 +21,7 @@ const now = Date.UTC(2026, 10, 18, 12, 0, 0);
 
 const endpoint = (over: Partial<WebhookEndpoint> = {}): WebhookEndpoint => ({
   id: 'w1',
-  url: 'https://hooks.example.com/mrm',
+  url: 'https://hooks.example.com/kiln',
   description: null,
   eventTypes: ['*'],
   enabled: true,
@@ -168,8 +168,8 @@ test('only a finished delivery can be sent again', () => {
 });
 
 test('the verification snippet matches the signing scheme the server documents', () => {
-  assert.match(verifySnippet, /x-mrm-signature/);
-  assert.match(verifySnippet, /x-mrm-timestamp/);
+  assert.match(verifySnippet, /x-kiln-signature/);
+  assert.match(verifySnippet, /x-kiln-timestamp/);
   assert.match(verifySnippet, /createHmac\('sha256'/);
   assert.match(verifySnippet, /timingSafeEqual/);
   assert.match(verifySnippet, /\$\{timestamp\}\.\$\{rawBody\}/);

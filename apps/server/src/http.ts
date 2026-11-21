@@ -1,6 +1,7 @@
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Role } from '@kiln/core';
 import type { Context, MiddlewareHandler } from 'hono';
+import { getCookie } from 'hono/cookie';
 import type { z } from 'zod';
 import type { User } from './services/accounts.ts';
 
@@ -82,8 +83,20 @@ export function sameOrigin(trusted: string[] = []): MiddlewareHandler {
 }
 
 /** The session cookie's name, repeated here so this file needs nothing from the routes (a test pins it). */
-export const SESSION_COOKIE_NAME = 'mrm_session';
-const SESSION_COOKIE_PRESENT = new RegExp(`(?:^|;\\s*)${SESSION_COOKIE_NAME}=`);
+export const SESSION_COOKIE_NAME = 'kiln_session';
+/**
+ * The name before the rename to Kiln (docs/adr/0040-rename-to-kiln.md). A session made under it is still
+ * accepted while the new cookie is absent, so people stay signed in across the upgrade; sign-out clears both.
+ */
+export const LEGACY_SESSION_COOKIE_NAME = 'mrm_session';
+const SESSION_COOKIE_PRESENT = new RegExp(
+  `(?:^|;\\s*)(?:${SESSION_COOKIE_NAME}|${LEGACY_SESSION_COOKIE_NAME})=`,
+);
+
+/** The session token the request carries: the Kiln cookie, or else the one from before the rename. */
+export function sessionToken(c: Context): string | undefined {
+  return getCookie(c, SESSION_COOKIE_NAME) || getCookie(c, LEGACY_SESSION_COOKIE_NAME) || undefined;
+}
 
 /**
  * True for a request that authenticates with `Authorization: Bearer` and carries no session cookie.

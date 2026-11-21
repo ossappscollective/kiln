@@ -206,7 +206,7 @@ export type ToolContext = {
   principal: TokenPrincipal;
   flags: McpFlags;
   dispatch: Dispatch;
-  /** Where the web app is, for links ("https://mrm.example.com"). */
+  /** Where the web app is, for links ("https://kiln.example.com"). */
   origin: string;
   /** Called after a write or preview tool. Ids only: no argument, no text. */
   audit?: (entry: AuditEntry) => Promise<void>;

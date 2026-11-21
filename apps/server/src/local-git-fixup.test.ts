@@ -65,8 +65,8 @@ const fix = (s: Setup, tip: string, over: Partial<Parameters<typeof fixupBranchC
 
 test('parseWorktreeBranches reads the branch lines of the porcelain output', () => {
   const out =
-    'worktree /a\nHEAD abc\nbranch refs/heads/main\n\nworktree /b\nHEAD def\nbranch refs/heads/mrm/x\n\nworktree /c\nHEAD 123\ndetached\n';
-  assert.deepEqual(parseWorktreeBranches(out), ['main', 'mrm/x']);
+    'worktree /a\nHEAD abc\nbranch refs/heads/main\n\nworktree /b\nHEAD def\nbranch refs/heads/kiln/x\n\nworktree /c\nHEAD 123\ndetached\n';
+  assert.deepEqual(parseWorktreeBranches(out), ['main', 'kiln/x']);
 });
 
 test('a fix up is one commit on the old tip; the ref moves forward with the old value supplied; nothing else changes', async () => {
@@ -113,7 +113,7 @@ test('branch_moved: the tip is not the one that was read; nothing is written, no
   assert.equal(moved.ok, false);
   if (!moved.ok) assert.equal(moved.code, 'branch_moved');
   assert.equal(git(s.dir, 'rev-parse', `refs/heads/${BRANCH}`), git(s.dir, 'rev-parse', 'main'));
-  const gone = await fix(s, tip, { branch: 'mrm/no-such-branch' });
+  const gone = await fix(s, tip, { branch: 'kiln/no-such-branch' });
   assert.equal(gone.ok, false);
 });
 

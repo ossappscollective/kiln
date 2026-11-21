@@ -297,7 +297,7 @@ dbTest(
     assert.deepEqual(t.mailer.last()?.to, ['ada@example.com']);
     const code = t.mailer.lastCode() ?? '';
     // Another action, another person's session: no.
-    const second = `mrm_session=${(await createSession(db, t.ownerId, t.clock.now)).token}`;
+    const second = `kiln_session=${(await createSession(db, t.ownerId, t.clock.now)).token}`;
     assert.equal((await verify(code, 'store.publish')).body.reason, 'code_not_sent');
     assert.equal((await verify(code, 'rollout', second)).body.reason, 'code_not_sent');
     const ok = await verify(code);

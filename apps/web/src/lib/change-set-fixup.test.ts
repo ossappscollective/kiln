@@ -26,7 +26,7 @@ const set = (patch: Partial<ChangeSetView> = {}): ChangeSetView =>
   ({
     id: 'c1',
     status: 'applied',
-    branch: 'mrm/x',
+    branch: 'kiln/x',
     outcome: null,
     origin: null,
     fixups: [],
@@ -56,7 +56,7 @@ test('who may recompute: a store pull without a branch, changesets.write and lis
   assert.equal(canRecompute('owner', set({ ...pull, status: 'failed' })), true);
   assert.equal(canRecompute('viewer', pull), false);
   assert.equal(canRecompute('owner', set({ ...pull, status: 'applied' })), false);
-  assert.equal(canRecompute('owner', set({ ...pull, status: 'failed', branch: 'mrm/x' })), false);
+  assert.equal(canRecompute('owner', set({ ...pull, status: 'failed', branch: 'kiln/x' })), false);
   assert.equal(canRecompute('owner', set({ ...pull, origin: null })), false);
   assert.equal(canRefreshFromStore('member'), true);
   assert.equal(canRefreshFromStore('viewer'), false);
@@ -126,8 +126,8 @@ test('conflicts of both comparisons are read from the 409 bodies and need their 
 
 test('the words: the promise, the preview, the result', () => {
   assert.match(
-    fixupPromise('mrm/x'),
-    /adds one commit to the branch mrm\/x\. It does not rewrite history/,
+    fixupPromise('kiln/x'),
+    /adds one commit to the branch kiln\/x\. It does not rewrite history/,
   );
   assert.equal(
     fixupPreviewMessage({ nothingToFix: true, willCommit: [] }),
@@ -144,14 +144,14 @@ test('the words: the promise, the preview, the result', () => {
   assert.match(fixupPreviewMessage({ nothingToFix: false, willCommit: [] }), /step is left/);
   const done = {
     nothingToFix: false,
-    branch: 'mrm/x',
+    branch: 'kiln/x',
     commit: { sha: 'abcdef123456', parent: 'p', files: 1, signed: false },
     pullRequest: { state: 'none' as const },
   };
-  assert.equal(fixupDoneMessage(done), 'Added commit abcdef1 to mrm/x.');
+  assert.equal(fixupDoneMessage(done), 'Added commit abcdef1 to kiln/x.');
   assert.equal(
     fixupDoneMessage({ ...done, pullRequest: { state: 'opened' } }),
-    'Added commit abcdef1 to mrm/x. The pull request is open.',
+    'Added commit abcdef1 to kiln/x. The pull request is open.',
   );
   assert.match(
     fixupDoneMessage({ nothingToFix: true, branch: 'b', pullRequest: { state: 'none' } }),

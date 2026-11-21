@@ -121,7 +121,7 @@ export function applyBlocker(choice: ApplyChoice, ctx: ApplyContext): string | n
 // The branch name
 
 /**
- * The name the server gives the branch when none is typed: `mrm/` + a slug of the summary + the
+ * The name the server gives the branch when none is typed: `kiln/` + a slug of the summary + the
  * first 8 characters of the change set id. Kept equal to `localBranchNameFor` in the server so the
  * field can show it; the server uses its own when the field is left as it is.
  */
@@ -133,7 +133,7 @@ export function defaultBranchName(id: string, summary: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 40)
     .replace(/-+$/, '');
-  return `mrm/${slug || 'update'}-${id.replace(/-/g, '').slice(0, 8)}`;
+  return `kiln/${slug || 'update'}-${id.replace(/-/g, '').slice(0, 8)}`;
 }
 
 /**
@@ -148,7 +148,7 @@ export function branchNameProblem(name: string): string | null {
   if (value.length > 200) return 'The branch name is longer than 200 characters.';
   if (value.startsWith('-')) return 'The branch name must not start with "-".';
   if (value === 'HEAD' || value === '@' || value.startsWith('refs/')) {
-    return 'That branch name is reserved. Pick a name such as mrm/update-listing.';
+    return 'That branch name is reserved. Pick a name such as kiln/update-listing.';
   }
   if (value.includes('..')) return 'The branch name must not contain "..".';
   if (value.includes('@{')) return 'The branch name must not contain "@{".';

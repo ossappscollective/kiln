@@ -232,12 +232,12 @@ test('git only gets plumbing that creates objects and one branch: a spy on every
   assert.equal(refWrites.length, 1);
   assert.match(
     refWrites[0]?.args ?? '',
-    new RegExp(`update-ref -m mrm: commit change set refs/heads/${BRANCH} [0-9a-f]{40} 0{40}$`),
+    new RegExp(`update-ref -m kiln: commit change set refs/heads/${BRANCH} [0-9a-f]{40} 0{40}$`),
     'create only: the old value is the zero id',
   );
   for (const call of calls) {
     if (call.index) {
-      assert.match(basename(dirname(call.index)), /^mrm-index-/, `index ${call.index}`);
+      assert.match(basename(dirname(call.index)), /^kiln-index-/, `index ${call.index}`);
       assert.equal(call.index.startsWith(s.dir), false);
     }
     assert.match(call.args, /core\.hooksPath=\/dev\/null/);
@@ -353,12 +353,12 @@ test('an existing branch is never moved: branch_exists, also when it only confli
   assert.equal(git(s.dir, 'rev-parse', 'taken'), tip);
   const asFolder = await createBranchCommit(commitInput(s, { branch: 'taken/sub' }));
   assert.equal(asFolder.ok === false && asFolder.code, 'branch_exists');
-  git(s.dir, 'branch', 'mrm/deep/er');
-  const asFile = await createBranchCommit(commitInput(s, { branch: 'mrm/deep' }));
+  git(s.dir, 'branch', 'kiln/deep/er');
+  const asFile = await createBranchCommit(commitInput(s, { branch: 'kiln/deep' }));
   assert.equal(asFile.ok === false && asFile.code, 'branch_exists');
   assert.deepEqual(git(s.dir, 'for-each-ref', '--format=%(refname)', 'refs/heads').split('\n'), [
+    'refs/heads/kiln/deep/er',
     'refs/heads/main',
-    'refs/heads/mrm/deep/er',
     'refs/heads/taken',
   ]);
 });
@@ -400,7 +400,7 @@ test('branch names: a table of what is refused and what is accepted', () => {
     if (!result.ok) assert.match(result.message, why, JSON.stringify(name));
   }
   for (const name of [
-    'mrm/update-subtitle-1234abcd',
+    'kiln/update-subtitle-1234abcd',
     'feature/x',
     'a',
     '_x',
@@ -414,7 +414,7 @@ test('branch names: a table of what is refused and what is accepted', () => {
 
 test('git itself agrees that every accepted name is a valid branch', () => {
   const s = setup();
-  for (const name of ['mrm/update-subtitle-1234abcd', 'feature/x', 'v1.2.3', 'a_b-c/d.e']) {
+  for (const name of ['kiln/update-subtitle-1234abcd', 'feature/x', 'v1.2.3', 'a_b-c/d.e']) {
     assert.equal(checkNewBranchName(name).ok, true);
     git(s.dir, 'check-ref-format', `refs/heads/${name}`);
   }
@@ -597,7 +597,7 @@ test('an image is committed byte for byte, held to the bytes it was made from, a
   // Other bytes than the ones the change set was made from: refused, nothing written.
   const stale = await createBranchCommit(
     commitInput(s, {
-      branch: 'mrm/stale-images-1234abcd',
+      branch: 'kiln/stale-images-1234abcd',
       files: [
         {
           path: 'shot.png',
@@ -609,5 +609,5 @@ test('an image is committed byte for byte, held to the bytes it was made from, a
     }),
   );
   assert.equal(stale.ok === false && stale.code, 'base_changed');
-  assert.equal(git(s.dir, 'branch', '--list', 'mrm/stale-images-1234abcd'), '');
+  assert.equal(git(s.dir, 'branch', '--list', 'kiln/stale-images-1234abcd'), '');
 });

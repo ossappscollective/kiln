@@ -1,4 +1,5 @@
 import type { Api } from '../api.ts';
+import { readMigrated } from '../legacy-storage.ts';
 import type { InboxAlert } from './alerts.ts';
 import {
   deviceEnabled,
@@ -17,7 +18,7 @@ import { notificationState, showNotification } from './notify.ts';
  */
 
 const POLL_MS = 60_000;
-const SEEN_KEY = 'mrm.alerts.notified';
+const SEEN_KEY = 'kiln.alerts.notified';
 
 let unread = $state(0);
 let items = $state<InboxAlert[]>([]);
@@ -28,7 +29,7 @@ let generation = 0;
 
 const readSeen = (): string[] => {
   try {
-    const raw = typeof localStorage === 'undefined' ? null : localStorage.getItem(SEEN_KEY);
+    const raw = typeof localStorage === 'undefined' ? null : readMigrated(localStorage, SEEN_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
   } catch {

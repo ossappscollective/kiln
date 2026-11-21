@@ -13,13 +13,13 @@ async function* lines(...parts: string[]) {
 }
 
 test('the bridge address: https, or http for this machine only, with /mcp added once', () => {
-  assert.equal(endpointFor('https://mrm.example.com').href, 'https://mrm.example.com/mcp');
-  assert.equal(endpointFor('https://mrm.example.com/').href, 'https://mrm.example.com/mcp');
-  assert.equal(endpointFor('https://mrm.example.com/mcp').href, 'https://mrm.example.com/mcp');
+  assert.equal(endpointFor('https://kiln.example.com').href, 'https://kiln.example.com/mcp');
+  assert.equal(endpointFor('https://kiln.example.com/').href, 'https://kiln.example.com/mcp');
+  assert.equal(endpointFor('https://kiln.example.com/mcp').href, 'https://kiln.example.com/mcp');
   assert.equal(endpointFor('https://host.example/base').href, 'https://host.example/base/mcp');
   assert.equal(endpointFor('http://localhost:8787').href, 'http://localhost:8787/mcp');
   assert.equal(endpointFor('http://127.0.0.1:8787/mcp?x=1#y').href, 'http://127.0.0.1:8787/mcp');
-  assert.throws(() => endpointFor('http://mrm.example.com'), /https/);
+  assert.throws(() => endpointFor('http://kiln.example.com'), /https/);
   assert.throws(() => endpointFor('ftp://localhost'), /https/);
   assert.throws(() => endpointFor('https://user:pw@kiln.example.com'), /user name/);
   assert.throws(() => endpointFor('not a url'), /valid address/);
@@ -50,8 +50,8 @@ test('the bridge forwards each line with the token, writes the answers, skips no
     return answers[i++]?.() ?? new Response('{}', { status: 200 });
   }) as unknown as typeof fetch;
   await runBridge({
-    url: 'https://mrm.example.com',
-    token: 'mrm_secrettokenvalue000000000000',
+    url: 'https://kiln.example.com',
+    token: 'kiln_secrettokenvalue000000000000',
     input: lines(
       '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26"}}\n{"jsonrpc":"2.0","method":"notifications/initialized"}\n{"jsonrpc":"2.0","id":2,"method":"tools/list"}\n',
       '{"jsonrpc":"2.0","id":3,"method":"ping"}\nnot json\n',
@@ -61,7 +61,7 @@ test('the bridge forwards each line with the token, writes the answers, skips no
     fetch: fakeFetch,
   });
   assert.equal(sent.length, 4);
-  assert.ok(sent.every((s) => s.auth === 'Bearer mrm_secrettokenvalue000000000000'));
+  assert.ok(sent.every((s) => s.auth === 'Bearer kiln_secrettokenvalue000000000000'));
   assert.equal(sent[0]?.version, null, 'no version header on initialize');
   assert.equal(sent[2]?.version, '2025-03-26', 'the negotiated version is sent afterwards');
   const parsed = out.map((l) => JSON.parse(l));
@@ -82,7 +82,7 @@ test('the bridge reports an unreachable server as an error for the request, not 
   const out: string[] = [];
   await runBridge({
     url: 'http://localhost:9',
-    token: 'mrm_x',
+    token: 'kiln_x',
     input: lines(
       '{"jsonrpc":"2.0","id":7,"method":"ping"}\n{"jsonrpc":"2.0","method":"notifications/initialized"}\n',
     ),
@@ -160,7 +160,7 @@ test('the script runs as a command: environment in, newline delimited JSON out, 
     });
   try {
     const ok = await run(
-      { KILN_URL: `http://127.0.0.1:${port}`, KILN_TOKEN: 'mrm_smoketoken' },
+      { KILN_URL: `http://127.0.0.1:${port}`, KILN_TOKEN: 'kiln_smoketoken' },
       '{"jsonrpc":"2.0","id":1,"method":"ping"}\n{"jsonrpc":"2.0","method":"notifications/initialized"}\n',
     );
     assert.equal(ok.code, 0);
@@ -173,12 +173,12 @@ test('the script runs as a command: environment in, newline delimited JSON out, 
     );
     assert.deepEqual(
       seen.map((s) => s.auth),
-      ['Bearer mrm_smoketoken', 'Bearer mrm_smoketoken'],
+      ['Bearer kiln_smoketoken', 'Bearer kiln_smoketoken'],
     );
     const missing = await run({}, '');
     assert.equal(missing.code, 2);
     assert.equal(missing.out, '');
-    const plain = await run({ KILN_URL: 'http://mrm.example.com', KILN_TOKEN: 'mrm_smoketoken' }, '');
+    const plain = await run({ KILN_URL: 'http://kiln.example.com', KILN_TOKEN: 'kiln_smoketoken' }, '');
     assert.equal(plain.code, 1);
     assert.match(plain.err, /https/);
     assert.ok(!plain.err.includes('smoketoken'));

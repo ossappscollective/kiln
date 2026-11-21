@@ -245,7 +245,7 @@ dbTest(
 );
 
 dbTest('the static UI and its fallback are served with the same headers', async (db) => {
-  const dir = mkdtempSync(join(tmpdir(), 'mrm-web-'));
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-web-'));
   mkdirSync(join(dir, 'assets'));
   writeFileSync(join(dir, 'index.html'), '<!doctype html><div id="app"></div>');
   writeFileSync(join(dir, 'assets', 'a.js'), 'export {};');

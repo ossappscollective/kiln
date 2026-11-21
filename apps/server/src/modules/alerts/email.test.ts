@@ -12,7 +12,7 @@ const def = (id: string) => {
 };
 
 test('a failing sync says how to fix it and links to the app and to the credentials', () => {
-  setAlertLinkOrigin('https://mrm.example.com/');
+  setAlertLinkOrigin('https://kiln.example.com/');
   const data = { appId: 'app 1', appName: 'Lyynk' };
   const d = def('store.sync_failed');
   const mail = renderAlertEmail(d, {
@@ -25,12 +25,12 @@ test('a failing sync says how to fix it and links to the app and to the credenti
   assert.match(mail.text, /What to do: .*Credentials screen/);
   assert.match(
     mail.text,
-    /See why the sync fails: https:\/\/mrm\.example\.com\/#\/portfolio\/app%201/,
+    /See why the sync fails: https:\/\/kiln\.example\.com\/#\/portfolio\/app%201/,
   );
-  assert.match(mail.text, /Check the credentials: https:\/\/mrm\.example\.com\/#\/credentials/);
-  assert.match(mail.html, /href="https:\/\/mrm\.example\.com\/#\/portfolio\/app%201"/);
-  assert.match(mail.html, /href="https:\/\/mrm\.example\.com\/#\/credentials"/);
-  assert.match(mail.html, /href="https:\/\/mrm\.example\.com\/#\/alerts"/);
+  assert.match(mail.text, /Check the credentials: https:\/\/kiln\.example\.com\/#\/credentials/);
+  assert.match(mail.html, /href="https:\/\/kiln\.example\.com\/#\/portfolio\/app%201"/);
+  assert.match(mail.html, /href="https:\/\/kiln\.example\.com\/#\/credentials"/);
+  assert.match(mail.html, /href="https:\/\/kiln\.example\.com\/#\/alerts"/);
 });
 
 test('without an origin the email names the screen and has no link', () => {
@@ -44,7 +44,7 @@ test('without an origin the email names the screen and has no link', () => {
 });
 
 test('names and text are escaped in the HTML and never become markup', () => {
-  setAlertLinkOrigin('https://mrm.example.com');
+  setAlertLinkOrigin('https://kiln.example.com');
   const d = def('release.rejected');
   const data = { appId: 'a"><script>', appName: '<img src=x onerror=1>' };
   const mail = renderAlertEmail(d, {
@@ -60,7 +60,7 @@ test('names and text are escaped in the HTML and never become markup', () => {
 });
 
 test('every alert type renders, and the app ones link to a screen of their app', () => {
-  setAlertLinkOrigin('https://mrm.example.com');
+  setAlertLinkOrigin('https://kiln.example.com');
   const data = { appId: 'a1', appName: 'Lyynk', version: '1.0', count: 3, from: 4, to: 3 };
   for (const d of alertCatalog) {
     const mail = renderAlertEmail(d, {
@@ -76,7 +76,7 @@ test('every alert type renders, and the app ones link to a screen of their app',
 });
 
 test('a repeated alert says how many times, and the digest links each alert', () => {
-  setAlertLinkOrigin('https://mrm.example.com');
+  setAlertLinkOrigin('https://kiln.example.com');
   const d = def('store.sync_failed');
   const mail = renderAlertEmail(d, {
     title: 't',
@@ -98,8 +98,8 @@ test('a repeated alert says how many times, and the digest links each alert', ()
   assert.equal(digest.subject, 'Alert digest: 2 alerts');
   assert.match(
     digest.text,
-    /- \[warning\] One\n {2}See why the sync fails: https:\/\/mrm\.example\.com\/#\/portfolio\/a1/,
+    /- \[warning\] One\n {2}See why the sync fails: https:\/\/kiln\.example\.com\/#\/portfolio\/a1/,
   );
   assert.match(digest.text, /- \[info\] Two \(2 times\)/);
-  assert.match(digest.html, /href="https:\/\/mrm\.example\.com\/#\/portfolio\/a1"/);
+  assert.match(digest.html, /href="https:\/\/kiln\.example\.com\/#\/portfolio\/a1"/);
 });

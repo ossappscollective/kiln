@@ -14,7 +14,7 @@ import {
 
 const key = randomBytes(32).toString('base64');
 
-// The defaults depend on which folders exist in the working directory (an old `.mrm-data` is kept in use), so tests that
+// The defaults depend on which folders exist in the working directory (an old `.kiln-data` is kept in use), so tests that
 // assert them say what exists.
 const nothing = () => false;
 
@@ -322,7 +322,7 @@ after(() => {
 
 /** Files for the signing checks: fake keys and programs (config.ts only looks at the shape, mode and path). */
 function signingFiles() {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'mrm-cfg-')));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'kiln-cfg-')));
   folders.push(dir);
   const file = (name: string, content: string, mode: number) => {
     const path = join(dir, name);

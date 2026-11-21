@@ -174,7 +174,7 @@ dbTest(
     assert.equal(odd.body.error, 'check_failed');
     assert.ok(!odd.text.includes('PRIVATE KEY'));
     const all = [denied.text, down.text, odd.text].join('\n');
-    for (const leak of ['PRIVATE KEY', 'client_email', 'mrm_'])
+    for (const leak of ['PRIVATE KEY', 'client_email', 'kiln_'])
       assert.ok(!all.includes(leak), leak);
   },
 );

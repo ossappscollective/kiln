@@ -44,7 +44,7 @@ export type SmtpOptions = {
   totalTimeoutMs?: number;
   /** Tests: extra TLS options such as `ca`. Certificate verification is never switched off by the app. */
   tls?: tls.ConnectionOptions;
-  /** The name sent in EHLO. Default `mrm.local`. */
+  /** The name sent in EHLO. Default `kiln.local`. */
   helo?: string;
 };
 
@@ -307,7 +307,7 @@ export async function deliver(
 ): Promise<MailResult> {
   const step = options.timeoutMs ?? 15_000;
   const total = options.totalTimeoutMs ?? 60_000;
-  const helo = (options.helo ?? 'mrm.local').replace(/[^A-Za-z0-9.-]/g, '') || 'mrm.local';
+  const helo = (options.helo ?? 'kiln.local').replace(/[^A-Za-z0-9.-]/g, '') || 'kiln.local';
   let wire: Wire | undefined;
   let giveUp: NodeJS.Timeout | undefined;
   let overall: SmtpFailure | undefined;

@@ -1,6 +1,6 @@
 // Entry point of the packaged server. See docs/adr/0004-desktop-sidecar.md.
 //
-// The desktop shell runs: mrm-node --disable-warning=ExperimentalWarning launcher.mjs
+// The desktop shell runs: kiln-node --disable-warning=ExperimentalWarning launcher.mjs
 //
 // Node strips the TypeScript types of the server and workspace packages at load time. The
 // workspace packages are normally found through pnpm's node_modules symlinks, which a bundled

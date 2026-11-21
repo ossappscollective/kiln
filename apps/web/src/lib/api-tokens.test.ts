@@ -23,7 +23,7 @@ const DAY = 24 * 3600_000;
 const token = (over: Partial<ApiToken> = {}): ApiToken => ({
   id: 't1',
   name: 'CI',
-  prefix: 'mrm_abcdef',
+  prefix: 'kiln_abcdef',
   role: 'member',
   appIds: null,
   actions: null,
@@ -147,12 +147,12 @@ test('scope says what the token is limited to', () => {
 });
 
 test('the curl example keeps the token in a header, never in the URL', () => {
-  const text = curlExample('https://mrm.example.com/', 'w1', 'mrm_secret');
+  const text = curlExample('https://kiln.example.com/', 'w1', 'kiln_secret');
   assert.equal(
     text,
-    'curl -H "Authorization: Bearer mrm_secret" \\\n  https://mrm.example.com/api/workspaces/w1/apps',
+    'curl -H "Authorization: Bearer kiln_secret" \\\n  https://kiln.example.com/api/workspaces/w1/apps',
   );
-  assert.equal(text.split('\n')[1]?.includes('mrm_secret'), false);
+  assert.equal(text.split('\n')[1]?.includes('kiln_secret'), false);
 });
 
 test('usable tokens come first, newest first within each group', () => {

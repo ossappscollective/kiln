@@ -4,8 +4,8 @@ import { inviteHash, inviteLink, tokenFromHash } from './links.ts';
 
 test('an invitation link is origin plus #/invite/token', () => {
   assert.equal(
-    inviteLink('https://mrm.example.com', 'abc-DEF_123'),
-    'https://mrm.example.com/#/invite/abc-DEF_123',
+    inviteLink('https://kiln.example.com', 'abc-DEF_123'),
+    'https://kiln.example.com/#/invite/abc-DEF_123',
   );
   assert.equal(inviteHash('a b'), '#/invite/a%20b');
 });

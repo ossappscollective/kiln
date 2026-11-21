@@ -269,6 +269,6 @@ export function smtpProblem(input: { host: string; port: string; from: string })
   if (port !== '' && !(/^\d{1,5}$/.test(port) && Number(port) >= 1 && Number(port) <= 65535))
     return 'The port is a number from 1 to 65535.';
   if (!/^[^\s@<>]+@[^\s@<>]+$|<[^\s@<>]+@[^\s@<>]+>\s*$/.test(input.from.trim()))
-    return 'Enter the sender address, such as mrm@example.com.';
+    return 'Enter the sender address, such as kiln@example.com.';
   return '';
 }

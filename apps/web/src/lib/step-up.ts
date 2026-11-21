@@ -223,7 +223,7 @@ export function recoveryCodesText(codes: readonly string[], generatedAt: number)
   ].join('\n');
 }
 
-export const RECOVERY_FILE_NAME = 'mrm-recovery-codes.txt';
+export const RECOVERY_FILE_NAME = 'kiln-recovery-codes.txt';
 
 /** What went wrong in the browser's WebAuthn call, as a sentence. The browser's own text is never shown. */
 export function webauthnFailureMessage(error: unknown): string {

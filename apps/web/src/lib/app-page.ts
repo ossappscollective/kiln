@@ -64,7 +64,7 @@ export function statusDot(
 }
 
 /** The name of the window event that opens the Status popover of the app header (the one place that holds "Sync now"). */
-export const OPEN_STATUS_EVENT = 'mrm:open-status';
+export const OPEN_STATUS_EVENT = 'kiln:open-status';
 
 /**
  * Opens the Status popover from a page, for the pages that used to carry a second Sync button ("Open Status to sync"). Returns false
@@ -78,7 +78,7 @@ export function openStatusPopover(
 }
 
 /** The name of the window event sent when something was published from "Review and publish all" and its window was closed. */
-export const PUBLISHED_EVENT = 'mrm:published';
+export const PUBLISHED_EVENT = 'kiln:published';
 
 /** Tells the app page that a publish happened: it reads the store again and shows the releases. False when there is no window. */
 export function announcePublished(

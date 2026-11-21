@@ -22,7 +22,7 @@ type Files = Record<string, string>;
 
 const dirs: string[] = [];
 const scratch = (): string => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'mrm-fixup-')));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'kiln-fixup-')));
   dirs.push(dir);
   return dir;
 };
@@ -484,16 +484,16 @@ dbTest('without KILN_LOCAL_REPO_WRITE a local fixup is refused and nothing chang
   const outcome = {
     mode: 'local_branch',
     base: { branch: 'main', commit: tip },
-    commit: { branch: 'mrm/x', sha: tip, at: 1 },
+    commit: { branch: 'kiln/x', sha: tip, at: 1 },
     requested: { push: false, openPr: false },
     push: { status: 'not_requested' },
     pr: { status: 'not_requested' },
   };
   await db.execute(
-    "UPDATE change_sets SET status = 'applied', branch = 'mrm/x', commit_sha = ?, outcome_json = ? WHERE id = ?",
+    "UPDATE change_sets SET status = 'applied', branch = 'kiln/x', commit_sha = ?, outcome_json = ? WHERE id = ?",
     [tip, JSON.stringify(outcome), id],
   );
-  git(dir, 'branch', 'mrm/x');
+  git(dir, 'branch', 'kiln/x');
   const refs = git(dir, 'for-each-ref');
   const res = await fixup(b, id);
   assert.equal(res.status, 409, res.text);

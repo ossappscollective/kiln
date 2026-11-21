@@ -88,9 +88,9 @@ test('tools are grouped read, write, preview, and say what they need', () => {
 });
 
 test('snippets: a placeholder without a token, the token when there is one, valid JSON, quoted shell', () => {
-  const placeholder = snippets('https://mrm.example.com/', null);
+  const placeholder = snippets('https://kiln.example.com/', null);
   assert.ok(placeholder.every((s) => s.text.includes('<your API token>')));
-  const real = snippets('https://mrm.example.com', "mrm_abc'def");
+  const real = snippets('https://kiln.example.com', "kiln_abc'def");
   assert.deepEqual(
     real.map((s) => s.title),
     [
@@ -102,23 +102,23 @@ test('snippets: a placeholder without a token, the token when there is one, vali
     ],
   );
   for (const s of real) {
-    assert.ok(s.text.includes('mrm_abc'));
+    assert.ok(s.text.includes('kiln_abc'));
     if (s.language === 'json') JSON.parse(s.text);
   }
   const cursor = JSON.parse(
     (real.find((s) => s.title === 'Cursor (HTTP)') as { text: string }).text,
   );
-  assert.equal(cursor.mcpServers['kiln'].url, 'https://mrm.example.com/mcp');
+  assert.equal(cursor.mcpServers['kiln'].url, 'https://kiln.example.com/mcp');
   assert.equal(
     cursor.mcpServers['kiln'].headers.Authorization,
-    "Bearer mrm_abc'def",
+    "Bearer kiln_abc'def",
   );
   const desktop = JSON.parse(
     (real.find((s) => s.client === 'claude-desktop') as { text: string }).text,
   );
-  assert.equal(desktop.mcpServers['kiln'].env.KILN_URL, 'https://mrm.example.com');
+  assert.equal(desktop.mcpServers['kiln'].env.KILN_URL, 'https://kiln.example.com');
   assert.ok(
-    (real[0] as { text: string }).text.includes(`'Authorization: Bearer mrm_abc'\\''def'`),
+    (real[0] as { text: string }).text.includes(`'Authorization: Bearer kiln_abc'\\''def'`),
     'a quote in the token cannot break out of the shell string',
   );
   assert.equal(mcpUrl('https://x.example///'), 'https://x.example/mcp');

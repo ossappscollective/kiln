@@ -58,7 +58,7 @@ const actorKinds: Record<string, ExpoActorKind> = {
   SSOUser: 'sso_user',
 };
 
-export const VIEWER_QUERY = `query MrmViewer {
+export const VIEWER_QUERY = `query KilnViewer {
   meActor {
     __typename
     id
@@ -72,7 +72,7 @@ export const VIEWER_QUERY = `query MrmViewer {
 export async function expoViewer(client: ExpoGraphql): Promise<ExpoViewer | null> {
   const data = await client.graphql<{ meActor?: unknown }>({
     query: VIEWER_QUERY,
-    operationName: 'MrmViewer',
+    operationName: 'KilnViewer',
   });
   const actor = data.meActor;
   if (actor === null || actor === undefined) return null;
@@ -120,11 +120,11 @@ export function normalizeExpoFullName(value: string): string | undefined {
   return match ? `@${match[1]}/${match[2]}` : undefined;
 }
 
-export const PROJECT_BY_FULL_NAME_QUERY = `query MrmProjectByFullName($fullName: String!) {
+export const PROJECT_BY_FULL_NAME_QUERY = `query KilnProjectByFullName($fullName: String!) {
   app { byFullName(fullName: $fullName) { ${PROJECT_FIELDS} } }
 }`;
 
-export const PROJECT_BY_ID_QUERY = `query MrmProjectById($appId: String!) {
+export const PROJECT_BY_ID_QUERY = `query KilnProjectById($appId: String!) {
   app { byId(appId: $appId) { ${PROJECT_FIELDS} } }
 }`;
 
@@ -138,7 +138,7 @@ export async function expoProjectByFullName(
   const data = await client.graphql<{ app?: unknown }>({
     query: PROJECT_BY_FULL_NAME_QUERY,
     variables: { fullName: normalized },
-    operationName: 'MrmProjectByFullName',
+    operationName: 'KilnProjectByFullName',
   });
   if (!isRecord(data.app)) throw unreadable();
   if (data.app.byFullName === null) throw new ExpoError('not_found');
@@ -152,7 +152,7 @@ export async function expoProjectById(client: ExpoGraphql, projectId: string): P
     query: PROJECT_BY_ID_QUERY,
     // Project ids are lower case UUIDs; an id typed in capitals is the same id.
     variables: { appId: projectId.toLowerCase() },
-    operationName: 'MrmProjectById',
+    operationName: 'KilnProjectById',
   });
   if (!isRecord(data.app)) throw unreadable();
   if (data.app.byId === null) throw new ExpoError('not_found');
@@ -197,7 +197,7 @@ const asTime = (value: unknown): number | null => {
 const UPDATE_FIELDS = `id group message createdAt runtime { version } platform gitCommitHash isRollBackToEmbedded
             rolloutPercentage rolloutControlUpdate { group }`;
 
-export const UPDATE_CHANNELS_QUERY = `query MrmUpdateChannels($appId: String!, $channelLimit: Int!, $branchLimit: Int!, $groupLimit: Int!) {
+export const UPDATE_CHANNELS_QUERY = `query KilnUpdateChannels($appId: String!, $channelLimit: Int!, $branchLimit: Int!, $groupLimit: Int!) {
   app {
     byId(appId: $appId) {
       id
@@ -304,7 +304,7 @@ export async function expoUpdateChannels(
       branchLimit: EXPO_UPDATE_BRANCH_LIMIT,
       groupLimit: options.groupLimit ?? EXPO_UPDATE_GROUP_LIMIT,
     },
-    operationName: 'MrmUpdateChannels',
+    operationName: 'KilnUpdateChannels',
   });
   if (!isRecord(data.app)) throw unreadable();
   if (data.app.byId === null) throw new ExpoError('not_found');
@@ -320,7 +320,7 @@ export async function expoUpdateChannels(
 /** Expo's key for each platform in `BuildFilter.platform` (the `AppPlatform` enum: ANDROID, IOS). */
 const BUILD_PLATFORM = { ios: 'IOS', android: 'ANDROID' } as const;
 
-export const STORE_BUILDS_QUERY = `query MrmStoreBuildRuntimes($appId: String!, $limit: Int!, $filter: BuildFilter) {
+export const STORE_BUILDS_QUERY = `query KilnStoreBuildRuntimes($appId: String!, $limit: Int!, $filter: BuildFilter) {
   app {
     byId(appId: $appId) {
       id
@@ -378,7 +378,7 @@ export async function expoStoreBuilds(
       limit: options.limit ?? 20,
       filter: { platform: BUILD_PLATFORM[options.platform], status: 'FINISHED', distribution: 'STORE' },
     },
-    operationName: 'MrmStoreBuildRuntimes',
+    operationName: 'KilnStoreBuildRuntimes',
   });
   if (!isRecord(data.app)) throw unreadable();
   if (data.app.byId === null) throw new ExpoError('not_found');
@@ -388,7 +388,7 @@ export async function expoStoreBuilds(
     .filter((b: ExpoStoreBuild | null): b is ExpoStoreBuild => b !== null);
 }
 
-export const UPDATE_INSIGHTS_QUERY = `query MrmUpdateGroupInsights($groupId: ID!, $timespan: InsightsTimespan!) {
+export const UPDATE_INSIGHTS_QUERY = `query KilnUpdateGroupInsights($groupId: ID!, $timespan: InsightsTimespan!) {
   updatesByGroup(group: $groupId) {
     id
     platform
@@ -452,7 +452,7 @@ export async function expoUpdateGroupInsights(
       groupId: groupId.toLowerCase(),
       timespan: { start: new Date(span.start).toISOString(), end: new Date(span.end).toISOString() },
     },
-    operationName: 'MrmUpdateGroupInsights',
+    operationName: 'KilnUpdateGroupInsights',
   });
   if (!Array.isArray(data.updatesByGroup)) throw unreadable();
   const found = data.updatesByGroup.map(insightsOf).filter((i): i is ExpoUpdateInsights => i !== null);
@@ -460,7 +460,7 @@ export async function expoUpdateGroupInsights(
   return found;
 }
 
-export const SET_UPDATE_ROLLOUT_MUTATION = `mutation MrmSetUpdateRollout($updateId: ID!, $rolloutPercentage: Int!) {
+export const SET_UPDATE_ROLLOUT_MUTATION = `mutation KilnSetUpdateRollout($updateId: ID!, $rolloutPercentage: Int!) {
   update {
     setRolloutPercentage(updateId: $updateId, percentage: $rolloutPercentage) {
       id
@@ -485,7 +485,7 @@ export async function expoSetUpdateRolloutPercentage(
   const data = await client.graphql<{ update?: unknown }>({
     query: SET_UPDATE_ROLLOUT_MUTATION,
     variables: { updateId: updateId.toLowerCase(), rolloutPercentage: percentage },
-    operationName: 'MrmSetUpdateRollout',
+    operationName: 'KilnSetUpdateRollout',
   });
   if (!isRecord(data.update) || !isRecord(data.update.setRolloutPercentage)) throw unreadable();
   const done = data.update.setRolloutPercentage;
@@ -574,7 +574,7 @@ const BUILD_FIELDS = `id status platform error { errorCode message } artifacts {
         updateChannel { name } distribution buildProfile appIdentifier sdkVersion appVersion appBuildVersion runtime { version }
         gitCommitHash gitCommitMessage createdAt updatedAt completedAt expirationDate isForIosSimulator`;
 
-export const EAS_BUILDS_QUERY = `query MrmEasBuilds($appId: String!, $offset: Int!, $limit: Int!, $filter: BuildFilter) {
+export const EAS_BUILDS_QUERY = `query KilnEasBuilds($appId: String!, $offset: Int!, $limit: Int!, $filter: BuildFilter) {
   app {
     byId(appId: $appId) {
       id
@@ -639,7 +639,7 @@ export async function expoBuilds(
       limit,
       filter: { platform: EXPO_PLATFORM_WIRE[options.platform] },
     },
-    operationName: 'MrmEasBuilds',
+    operationName: 'KilnEasBuilds',
   });
   if (!isRecord(data.app)) throw unreadable();
   if (data.app.byId === null) throw new ExpoError('not_found');
@@ -652,7 +652,7 @@ export async function expoBuilds(
 const SUBMISSION_FIELDS = `id status platform createdAt completedAt submittedBuild { id }
         androidConfig { applicationIdentifier track releaseStatus } iosConfig { ascAppIdentifier } error { errorCode message }`;
 
-export const EAS_SUBMISSIONS_QUERY = `query MrmEasSubmissions($appId: String!, $offset: Int!, $limit: Int!, $platform: AppPlatform) {
+export const EAS_SUBMISSIONS_QUERY = `query KilnEasSubmissions($appId: String!, $offset: Int!, $limit: Int!, $platform: AppPlatform) {
   app {
     byId(appId: $appId) {
       id
@@ -700,7 +700,7 @@ export async function expoSubmissions(
       limit,
       platform: EXPO_PLATFORM_WIRE[options.platform],
     },
-    operationName: 'MrmEasSubmissions',
+    operationName: 'KilnEasSubmissions',
   });
   if (!isRecord(data.app)) throw unreadable();
   if (data.app.byId === null) throw new ExpoError('not_found');

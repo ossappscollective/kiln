@@ -192,7 +192,7 @@ export async function bootRepoApp(db: Database, repo = new FakeRepo(), overrides
       [workspace, id, role],
     );
     const { token } = await createSession(db, id, Date.now());
-    return `mrm_session=${token}`;
+    return `kiln_session=${token}`;
   };
 
   const addCredential = async (

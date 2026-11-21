@@ -47,7 +47,8 @@ type AppleImage = {
 };
 type ApplePlacement = { id: string; locId: string; group: string; imageId: string };
 
-const refName = (bytes: Uint8Array) => `mrm:sha256:${sha256(bytes).slice(0, 32)}`;
+const refName = (bytes: Uint8Array) => `kiln:sha256:${sha256(bytes).slice(0, 32)}`;
+const legacyRefName = (bytes: Uint8Array) => `mrm:sha256:${sha256(bytes).slice(0, 32)}`;
 
 export class FakeAppleDraftApi {
   readonly seen: Seen[] = [];
@@ -170,7 +171,7 @@ export class FakeAppleDraftApi {
     });
   }
 
-  /** Puts files into a placement group of a localization (a test's starting point). `reference: false`: an image someone else uploaded. */
+  /** Puts files into a placement group of a localization (a test's starting point). `reference: false`: an image someone else uploaded; `'legacy'`: uploaded by a version before the rename to Kiln (old reference prefix). */
   addPlacements(
     locId: string,
     group: string,
@@ -178,7 +179,7 @@ export class FakeAppleDraftApi {
       name: string;
       bytes: Uint8Array;
       state?: string;
-      reference?: boolean;
+      reference?: boolean | 'legacy';
       size?: { width: number; height: number };
     }[],
   ): string[] {
@@ -189,7 +190,12 @@ export class FakeAppleDraftApi {
         id: imageId,
         fileName: f.name,
         fileSize: f.bytes.length,
-        referenceName: f.reference === false ? 'Somebody else' : refName(f.bytes),
+        referenceName:
+          f.reference === false
+            ? 'Somebody else'
+            : f.reference === 'legacy'
+              ? legacyRefName(f.bytes)
+              : refName(f.bytes),
         state: f.state ?? 'PREPARE_FOR_SUBMISSION',
         polls: 0,
         bytes: [f.bytes],

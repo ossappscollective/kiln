@@ -31,8 +31,8 @@ test('parseSmtpEnv: nothing set is "not configured"; defaults follow the securit
     allowPrivateHosts: false,
   });
   assert.deepEqual(
-    parseSmtpEnv({ KILN_SMTP_HOST: 'mail.example.com', KILN_SMTP_FROM: 'mrm@example.com' }).config,
-    { host: 'mail.example.com', port: 587, secure: 'starttls', from: 'mrm@example.com' },
+    parseSmtpEnv({ KILN_SMTP_HOST: 'mail.example.com', KILN_SMTP_FROM: 'kiln@example.com' }).config,
+    { host: 'mail.example.com', port: 587, secure: 'starttls', from: 'kiln@example.com' },
   );
   assert.equal(
     parseSmtpEnv({
@@ -249,9 +249,9 @@ dbTest(
       host: 'mail.example.com',
       port: 587,
       secure: 'starttls',
-      user: 'mrm',
+      user: 'kiln',
       password: PW,
-      from: 'Release <mrm@example.com>',
+      from: 'Release <kiln@example.com>',
     };
     assert.equal(
       (await t.send(t.owner, 'PUT', '/mail/settings', value)).body.error,
@@ -266,8 +266,8 @@ dbTest(
       host: 'mail.example.com',
       port: 587,
       secure: 'starttls',
-      user: 'mrm',
-      from: 'Release <mrm@example.com>',
+      user: 'kiln',
+      from: 'Release <kiln@example.com>',
       passwordSet: true,
       allowPrivateHosts: true,
     });
@@ -307,9 +307,9 @@ dbTest(
       host: 'mail.example.com',
       port: 587,
       secure: 'starttls',
-      user: 'mrm',
+      user: 'kiln',
       password: PW,
-      from: 'mrm@example.com',
+      from: 'kiln@example.com',
     };
     assert.equal((await t.save(base)).status, 200);
     const { password: _omit, ...noPassword } = base;
@@ -357,7 +357,7 @@ dbTest(
   'the address policy: a loopback or private mail host is refused unless the operator allows it; the metadata address never',
   async (db) => {
     const t = await boot(db, { env: { allowPrivateHosts: false } });
-    const value = { secure: 'none', from: 'mrm@example.com' };
+    const value = { secure: 'none', from: 'kiln@example.com' };
     for (const host of ['127.0.0.1', '10.1.2.3', '192.168.0.9', '::1']) {
       const res = await t.save({ ...value, host });
       assert.equal(res.status, 400, host);
@@ -381,7 +381,7 @@ dbTest(
       KILN_SMTP_HOST: '10.0.0.8',
       KILN_SMTP_USER: 'u',
       KILN_SMTP_PASSWORD: PW,
-      KILN_SMTP_FROM: 'mrm@example.com',
+      KILN_SMTP_FROM: 'kiln@example.com',
       KILN_SMTP_ALLOW_PRIVATE_HOSTS: 'true',
     });
     const t = await boot(db, { env });
@@ -394,7 +394,7 @@ dbTest(
       port: 587,
       secure: 'starttls',
       user: 'u',
-      from: 'mrm@example.com',
+      from: 'kiln@example.com',
       passwordSet: true,
       allowPrivateHosts: true,
     });
@@ -415,7 +415,7 @@ dbTest(
 dbTest(
   'Send test email: the real client against a real SMTP server; fixed failure codes; rate limited; only to yourself',
   async (db) => {
-    const server = await startFakeSmtp({ auth: { user: 'mrm', password: PW } });
+    const server = await startFakeSmtp({ auth: { user: 'kiln', password: PW } });
     try {
       const t = await boot(db);
       const test = (body?: unknown, cookie = t.owner) => t.send(cookie, 'POST', '/mail/test', body);
@@ -432,9 +432,9 @@ dbTest(
             host: '127.0.0.1',
             port: server.port,
             secure: 'none',
-            user: 'mrm',
+            user: 'kiln',
             password: PW,
-            from: 'Release Manager <mrm@example.com>',
+            from: 'Release Manager <kiln@example.com>',
           })
         ).status,
         200,
@@ -443,7 +443,7 @@ dbTest(
       assert.deepEqual(ok.body, { ok: true, to: 'ada@example.com' });
       const got = server.messages[0];
       assert.deepEqual(got?.to, ['ada@example.com']);
-      assert.equal(got?.user, 'mrm');
+      assert.equal(got?.user, 'kiln');
       assert.match(got?.data ?? '', /Subject: Test message from Kiln/);
       assert.match(got?.data ?? '', /multipart\/alternative/);
       // Anyone else's address: refused (this is not a relay).
@@ -458,9 +458,9 @@ dbTest(
             host: '127.0.0.1',
             port: server.port,
             secure: 'none',
-            user: 'mrm',
+            user: 'kiln',
             password: 'wrong',
-            from: 'mrm@example.com',
+            from: 'kiln@example.com',
           })
         ).status,
         200,
@@ -519,12 +519,12 @@ dbTest(
         ok: false,
         code: 'smtp_not_configured',
       });
-      await t.save({ host: '127.0.0.1', port: a.port, secure: 'none', from: 'mrm@example.com' });
+      await t.save({ host: '127.0.0.1', port: a.port, secure: 'none', from: 'kiln@example.com' });
       assert.equal(await mailer.configured(), true);
       assert.deepEqual(await mailer.send({ to: 'a@example.com', subject: 's', text: 't' }), {
         ok: true,
       });
-      await t.save({ host: '127.0.0.1', port: b.port, secure: 'none', from: 'mrm@example.com' });
+      await t.save({ host: '127.0.0.1', port: b.port, secure: 'none', from: 'kiln@example.com' });
       assert.deepEqual(await mailer.send({ to: 'a@example.com', subject: 's', text: 't' }), {
         ok: true,
       });

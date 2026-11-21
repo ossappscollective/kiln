@@ -2022,6 +2022,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kiln-desktop"
+version = "0.0.0"
+dependencies = [
+ "getrandom 0.2.17",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-notification",
+]
+
+[[package]]
 name = "libappindicator"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2198,16 +2208,6 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "mrm-desktop"
-version = "0.0.0"
-dependencies = [
- "getrandom 0.2.17",
- "tauri",
- "tauri-build",
- "tauri-plugin-notification",
 ]
 
 [[package]]

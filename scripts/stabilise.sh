@@ -7,7 +7,7 @@
 #   ./scripts/stabilise.sh quick      # skip Docker image and Tauri
 #
 # Needs: pnpm. Optional: docker (Postgres tests, image build), cargo (Tauri shell check). Missing tools are reported as SKIP.
-# It never reads .env or the dev database (apps/server/.mrm-data) and starts only a throwaway Postgres (docker-compose.test.yml).
+# It never reads .env or the dev database (apps/server/.kiln-data, or .mrm-data from before the rename) and starts only a throwaway Postgres (docker-compose.test.yml).
 set -u
 cd "$(dirname "$0")/.."
 MODE="${1:-all}"
@@ -55,11 +55,11 @@ step "tests (sqlite)" pnpm test
 
 if have docker && docker info > /dev/null 2>&1; then
   step "postgres up" docker compose -f docker-compose.test.yml up -d --wait
-  step "tests (postgres)" env KILN_TEST_POSTGRES_URL=postgres://mrm_test:mrm_test@localhost:55432/mrm_test pnpm test
+  step "tests (postgres)" env KILN_TEST_POSTGRES_URL=postgres://kiln_test:kiln_test@localhost:55432/kiln_test pnpm test
   docker compose -f docker-compose.test.yml down > /dev/null 2>&1
   if [ "$MODE" != quick ]; then
     step "docker compose config" docker compose config -q
-    step "docker image build" docker build -t mrm:stabilise .
+    step "docker image build" docker build -t kiln:stabilise .
   fi
 else
   skip "tests (postgres)" "docker is not running"

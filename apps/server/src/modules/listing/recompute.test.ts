@@ -393,7 +393,7 @@ dbTest(
     assert.equal(res.body.changeSet.status, 'draft');
     assert.equal(after(await getSet(p), SUBTITLE), 'After the failure\n');
 
-    await db.execute("UPDATE change_sets SET status = 'failed', branch = 'mrm/x' WHERE id = ?", [
+    await db.execute("UPDATE change_sets SET status = 'failed', branch = 'kiln/x' WHERE id = ?", [
       p.setId,
     ]);
     const branch = await recompute(p);

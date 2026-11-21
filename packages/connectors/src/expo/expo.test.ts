@@ -82,7 +82,7 @@ test('the request: POST {origin}/graphql, bearer token, JSON body, no redirects'
   assert.equal(headers['content-type'], 'application/json');
   assert.equal(call.init.redirect, 'manual');
   assert.match(call.body.query, /meActor/);
-  assert.equal(call.body.operationName, 'MrmViewer');
+  assert.equal(call.body.operationName, 'KilnViewer');
 });
 
 test('apiOrigin: default, a proxy with a path, trailing slashes; refuses credentials, queries and other schemes', () => {

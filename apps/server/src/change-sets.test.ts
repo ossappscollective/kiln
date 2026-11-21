@@ -60,7 +60,7 @@ dbTest('draft, approve, apply: the change lands as a pull request on a new branc
   assert.equal(applied.status, 200);
   const done = applied.body.changeSet;
   assert.equal(done.status, 'applied');
-  assert.match(done.branch, /^mrm\/[0-9a-f]{8}-update-the-subtitle$/);
+  assert.match(done.branch, /^kiln\/[0-9a-f]{8}-update-the-subtitle$/);
   assert.equal(done.prUrl, 'https://github.com/acme/app/pull/1');
   assert.equal(done.prNumber, 1);
   assert.equal(done.commitSha, 'a'.repeat(40));
@@ -260,7 +260,7 @@ const failureCases: [string, () => unknown, number, string][] = [
     'github_unavailable',
   ],
   ['default branch', () => new GithubError('default_branch', 'No.'), 409, 'default_branch'],
-  ['branch exists', () => new BranchExistsError('mrm/x'), 409, 'branch_exists'],
+  ['branch exists', () => new BranchExistsError('kiln/x'), 409, 'branch_exists'],
   ['already matches', () => new GithubError('no_changes', 'Already matches.'), 409, 'no_changes'],
 ];
 for (const [name, error, status, code] of failureCases) {
@@ -291,7 +291,7 @@ dbTest(
     await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
     repo.proposeErrors.push(
       new PullRequestFailedError(
-        'mrm/x',
+        'kiln/x',
         'b'.repeat(40),
         new GithubError('validation', 'No PR.', 422),
       ),
@@ -301,7 +301,7 @@ dbTest(
     assert.equal(res.body.error, 'pull_request_failed');
     const set = res.body.changeSet;
     assert.equal(set.status, 'failed');
-    assert.equal(set.branch, 'mrm/x');
+    assert.equal(set.branch, 'kiln/x');
     assert.equal(set.commitSha, 'b'.repeat(40));
     assert.equal(set.prUrl, null);
   },

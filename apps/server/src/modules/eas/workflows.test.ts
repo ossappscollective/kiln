@@ -136,7 +136,7 @@ dbTest('who may start a run: members and above, like a GitHub dispatch; not view
   assert.equal(t.expo.rest.length, 0, 'a refused person never reaches Expo');
   assert.equal((await t.dispatch(appId, { workflow: 'build.yml' }, member)).status, 202);
   assert.equal((await t.dispatch('nope', { workflow: 'build.yml' })).status, 404);
-  assert.equal((await t.dispatch(appId, { workflow: 'build.yml' }, 'mrm_session=nobody')).status, 401);
+  assert.equal((await t.dispatch(appId, { workflow: 'build.yml' }, 'kiln_session=nobody')).status, 401);
   const audit = await t.auditActions();
   assert.equal(audit.filter((a) => a.action === 'ci.dispatch').length, 1, 'only the allowed start is audited');
 });
@@ -372,7 +372,7 @@ dbTest('reading runs: viewers read what is stored but cannot ask Expo; unknown r
   assert.equal((await t.call(t.owner, 'GET', t.runPath(appId, SECOND))).status, 404);
   assert.equal((await t.call(t.owner, 'GET', t.runPath(appId, 'not-a-uuid'))).status, 400);
   assert.equal((await t.call(t.owner, 'GET', t.runPath('nope', FIRST))).status, 404);
-  assert.equal((await t.call('mrm_session=nobody', 'GET', t.runPath(appId, FIRST))).status, 401);
+  assert.equal((await t.call('kiln_session=nobody', 'GET', t.runPath(appId, FIRST))).status, 401);
   assert.equal(t.expo.rest.length, before);
   assert.deepEqual((await t.call(t.owner, 'GET', `/apps/${other}/expo/workflows/runs`)).body.runs, []);
 });

@@ -505,11 +505,11 @@ withBoot(
     const at = (path: string, method: string) =>
       doc.paths[`/api/workspaces/{workspaceId}${path}`]?.[method];
     assert.equal(
-      at('/apps/{id}/store-version/preview', 'post')?.['x-mrm-action'],
+      at('/apps/{id}/store-version/preview', 'post')?.['x-kiln-action'],
       'store.push_draft',
     );
-    assert.equal(at('/apps/{id}/store-version/preview', 'post')?.['x-mrm-risk'], 'read');
-    assert.equal(at('/apps/{id}/store-version', 'post')?.['x-mrm-action'], 'store.push_draft');
-    assert.equal(at('/apps/{id}/store-version', 'post')?.['x-mrm-risk'], 'destructive');
+    assert.equal(at('/apps/{id}/store-version/preview', 'post')?.['x-kiln-risk'], 'read');
+    assert.equal(at('/apps/{id}/store-version', 'post')?.['x-kiln-action'], 'store.push_draft');
+    assert.equal(at('/apps/{id}/store-version', 'post')?.['x-kiln-risk'], 'destructive');
   },
 );

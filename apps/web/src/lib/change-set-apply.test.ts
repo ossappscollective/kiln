@@ -37,9 +37,9 @@ const localOnly: ApplyContext = { localOnly: true, hasLocalClone: true, write: O
 test('a GitHub repository is applied as a pull request by default; a local-only one as a local commit', () => {
   assert.equal(defaultApplyMode(github), 'github_pr');
   assert.equal(defaultApplyMode(localOnly), 'local_branch');
-  assert.deepEqual(initialChoice(github, 'mrm/x'), {
+  assert.deepEqual(initialChoice(github, 'kiln/x'), {
     mode: 'github_pr',
-    branch: 'mrm/x',
+    branch: 'kiln/x',
     push: false,
     openPr: false,
   });
@@ -130,25 +130,25 @@ test('what stops Apply is told in words: the mode is impossible, or the branch n
   );
 });
 
-test('the default branch is mrm/ + a slug of the summary + the start of the id, as the server makes it', () => {
+test('the default branch is kiln/ + a slug of the summary + the start of the id, as the server makes it', () => {
   assert.equal(
     defaultBranchName('1234abcd-0000-4000-8000-000000000000', 'Update the subtitle'),
-    'mrm/update-the-subtitle-1234abcd',
+    'kiln/update-the-subtitle-1234abcd',
   );
   assert.equal(
     defaultBranchName('abcdef12-0', '  Ünïcode — & symbols!! '),
-    'mrm/u-ni-code-symbols-abcdef12',
+    'kiln/u-ni-code-symbols-abcdef12',
   );
-  assert.equal(defaultBranchName('abcdef12', '日本語'), 'mrm/update-abcdef12');
+  assert.equal(defaultBranchName('abcdef12', '日本語'), 'kiln/update-abcdef12');
   const long = defaultBranchName('abcdef12', 'x'.repeat(100));
-  assert.equal(long, `mrm/${'x'.repeat(40)}-abcdef12`);
+  assert.equal(long, `kiln/${'x'.repeat(40)}-abcdef12`);
   assert.equal(branchNameProblem(long), null);
 });
 
 test("branch names: blank is the default; the rules are the server's", () => {
   assert.equal(branchNameProblem(''), null);
   assert.equal(branchNameProblem('   '), null);
-  for (const ok of ['mrm/update-1', 'release_1.2', 'a', 'feature/x.y-z', 'A/B'])
+  for (const ok of ['kiln/update-1', 'release_1.2', 'a', 'feature/x.y-z', 'A/B'])
     assert.equal(branchNameProblem(ok), null, ok);
   for (const bad of [
     ' lead',
@@ -179,7 +179,7 @@ test("branch names: blank is the default; the rules are the server's", () => {
 });
 
 test('the request: nothing for a pull request; for a local commit only what differs from the default', () => {
-  const d = 'mrm/default-1';
+  const d = 'kiln/default-1';
   assert.equal(applyBody({ mode: 'github_pr', branch: d, push: true, openPr: true }, d), undefined);
   assert.deepEqual(applyBody({ mode: 'local_branch', branch: d, push: false, openPr: false }, d), {
     mode: 'local_branch',
@@ -208,14 +208,14 @@ test('the request: nothing for a pull request; for a local commit only what diff
 });
 
 test('the hint to look at the commit is git switch with the branch', () => {
-  assert.equal(switchHint('mrm/update-1'), 'git switch mrm/update-1');
+  assert.equal(switchHint('kiln/update-1'), 'git switch kiln/update-1');
   assert.match(APPLY_LOCAL_EXPLANATION, /git switch/);
 });
 
 const outcome = (patch: Partial<LocalOutcome> = {}): LocalOutcome => ({
   mode: 'local_branch',
   base: { branch: 'main', commit: 'a'.repeat(40) },
-  commit: { branch: 'mrm/x', sha: 'b'.repeat(40), at: 1 },
+  commit: { branch: 'kiln/x', sha: 'b'.repeat(40), at: 1 },
   requested: { push: false, openPr: false },
   push: { status: 'not_requested' },
   pr: { status: 'not_requested' },
@@ -226,7 +226,7 @@ test('the steps of a commit: each has its own status and tone, and a failure car
   assert.deepEqual(
     outcomeSteps(outcome()).map((s) => [s.id, s.tone, s.status]),
     [
-      ['commit', 'ok', 'Committed to mrm/x'],
+      ['commit', 'ok', 'Committed to kiln/x'],
       ['push', 'neutral', 'Not pushed'],
       ['pr', 'neutral', 'No pull request'],
     ],
@@ -314,11 +314,11 @@ test('the message after Apply says what happened to each step', () => {
   assert.equal(applyDoneMessage({ outcome: null }, true), 'This change set was already applied.');
   assert.match(
     applyDoneMessage({ outcome: outcome() }, undefined),
-    /Committed to mrm\/x in the local clone/,
+    /Committed to kiln\/x in the local clone/,
   );
   assert.match(
     applyDoneMessage({ outcome: outcome({ push: { status: 'pushed' } }) }, undefined),
-    /Committed and pushed mrm\/x/,
+    /Committed and pushed kiln\/x/,
   );
   assert.match(
     applyDoneMessage({ outcome: outcome({ push: { status: 'failed' } }) }, undefined),

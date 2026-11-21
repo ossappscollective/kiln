@@ -33,7 +33,7 @@ import { clearRepoSnapshots } from './services/repo-snapshot.ts';
  */
 
 const roots: string[] = [];
-const scratch = (prefix = 'mrm-upkeep-'): string => {
+const scratch = (prefix = 'kiln-upkeep-'): string => {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   roots.push(dir);
   return dir;
@@ -66,7 +66,7 @@ function writeAll(dir: string, files: Files) {
 }
 
 function buildRepo(files: Files): string {
-  const dir = join(scratch('mrm-src-'), 'source');
+  const dir = join(scratch('kiln-src-'), 'source');
   mkdirSync(dir);
   git(dir, 'init', '-q', '-b', 'main');
   writeAll(dir, files);
@@ -77,7 +77,7 @@ function buildRepo(files: Files): string {
 
 /** A git wrapper that logs every call, and sleeps in `fetch` while the flag file exists. */
 function wrapper(): { path: string; calls: () => string[]; slow: (on: boolean) => void } {
-  const dir = scratch('mrm-wrap-');
+  const dir = scratch('kiln-wrap-');
   const log = join(dir, 'calls.log');
   const flag = join(dir, 'slow');
   const path = join(dir, 'git');
@@ -138,7 +138,7 @@ async function setup(db: Database, config: Partial<CloneUpkeepConfig> = {}) {
   };
   const age = (workspaceId: string, id: string, daysAgo: number, extraMs = 0) => {
     const when = new Date(Date.now() - daysAgo * DAY - extraMs);
-    utimesSync(join(cloneDir, workspaceId, id, 'mrm-clone.json'), when, when);
+    utimesSync(join(cloneDir, workspaceId, id, 'kiln-clone.json'), when, when);
   };
   const exists = (id: string, workspaceId = t.workspaceId) =>
     existsSync(join(cloneDir, workspaceId, id));
@@ -176,7 +176,7 @@ dbTest('a sweep removes clones idle longer than the limit and keeps the others',
   assert.equal(rows[0]?.detail.freedBytes, result.freedBytes);
   assert.doesNotMatch(
     rows[0]?.detail ? JSON.stringify(rows[0].detail) : '',
-    /clones|mrm-upkeep|\//,
+    /clones|kiln-upkeep|\//,
   );
   assert.ok(s.logs.some((l) => /Clones: removed 2 \(2 idle, 0 over the limit\)/.test(l)));
   // Nothing due: no row, no log line.
@@ -315,22 +315,22 @@ dbTest(
     mkdirSync(join(s.cloneDir, s.t.workspaceId, 'stranger'), { recursive: true });
     writeFileSync(join(s.cloneDir, s.t.workspaceId, 'stranger', 'precious.txt'), 'mine');
     // A look-alike outside the folder, reached through links at both levels.
-    const outside = scratch('mrm-outside-');
+    const outside = scratch('kiln-outside-');
     mkdirSync(join(outside, 'victim'), { recursive: true });
     writeFileSync(
-      join(outside, 'victim', 'mrm-clone.json'),
+      join(outside, 'victim', 'kiln-clone.json'),
       '{"version":1,"url":"x","createdAt":1}',
     );
     writeFileSync(join(outside, 'victim', 'precious.txt'), 'outside');
     const when = new Date(Date.now() - 400 * DAY);
-    utimesSync(join(outside, 'victim', 'mrm-clone.json'), when, when);
+    utimesSync(join(outside, 'victim', 'kiln-clone.json'), when, when);
     symlinkSync(join(outside, 'victim'), join(s.cloneDir, s.t.workspaceId, 'linked-clone'));
     symlinkSync(outside, join(s.cloneDir, 'linked-workspace'));
     // A clone folder whose marker is a link to a file outside.
     mkdirSync(join(s.cloneDir, s.t.workspaceId, 'marker-link'));
     symlinkSync(
-      join(outside, 'victim', 'mrm-clone.json'),
-      join(s.cloneDir, s.t.workspaceId, 'marker-link', 'mrm-clone.json'),
+      join(outside, 'victim', 'kiln-clone.json'),
+      join(s.cloneDir, s.t.workspaceId, 'marker-link', 'kiln-clone.json'),
     );
 
     const result = await s.upkeep.sweep();
@@ -343,7 +343,7 @@ dbTest(
       'mine',
     );
     assert.deepEqual(readdirSync(join(outside, 'victim')).sort(), [
-      'mrm-clone.json',
+      'kiln-clone.json',
       'precious.txt',
     ]);
     // The listing does not show them either.
@@ -500,7 +500,7 @@ dbTest(
     await db.execute(
       "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ('ws2', 'u2', 'owner')",
     );
-    const cookie = `mrm_session=${(await createSession(db, 'u2', Date.now())).token}`;
+    const cookie = `kiln_session=${(await createSession(db, 'u2', Date.now())).token}`;
     b.reads.reader(
       {
         workspaceId: 'ws2',
@@ -630,7 +630,7 @@ dbTest('the scheduler sweeps on its interval, through the same upkeep', async (d
   const { createScheduler } = await import('./scheduler.ts');
   await b.t.call(b.t.owner, 'POST', `/repositories/${b.repositoryId}/scan`);
   utimesSync(
-    join(b.cloneDir, b.t.workspaceId, b.repositoryId, 'mrm-clone.json'),
+    join(b.cloneDir, b.t.workspaceId, b.repositoryId, 'kiln-clone.json'),
     new Date(Date.now() - 5 * DAY),
     new Date(Date.now() - 5 * DAY),
   );

@@ -2,7 +2,7 @@
 // Stages the desktop server for Tauri. See docs/adr/0004-desktop-sidecar.md.
 //
 // For one target triple this puts into src-tauri/binaries (git-ignored):
-//   mrm-node-<triple>[.exe]   the Node binary. Tauri `externalBin` entry "binaries/mrm-node".
+//   kiln-node-<triple>[.exe]   the Node binary. Tauri `externalBin` entry "binaries/kiln-node".
 //   server/                   the server as TypeScript sources plus its runtime dependencies,
 //                             the launcher, and the web UI. Tauri `resources` entry.
 //
@@ -207,7 +207,7 @@ if (!existsSync(nodeSource)) {
 // ---- what to stage ---------------------------------------------------------------------------
 
 const outDir = resolve(options.out ?? join(desktopDir, 'src-tauri/binaries'));
-const nodeDest = join(outDir, `mrm-node-${triple}${exe}`);
+const nodeDest = join(outDir, `kiln-node-${triple}${exe}`);
 const serverDest = join(outDir, 'server');
 
 const readJson = (file) => JSON.parse(readFileSync(file, 'utf8'));
@@ -393,7 +393,7 @@ if (options.smoke) {
  * key in the environment, stdin kept open), calls it, then closes stdin and expects a clean exit.
  */
 async function smoke(nodeBinary, serverDir, hasWeb) {
-  const dataDir = mkdtempSync(join(tmpdir(), 'mrm-smoke-'));
+  const dataDir = mkdtempSync(join(tmpdir(), 'kiln-smoke-'));
   const port = await new Promise((done, reject) => {
     const probe = createServer();
     probe.once('error', reject);
@@ -413,7 +413,7 @@ async function smoke(nodeBinary, serverDir, hasWeb) {
       KILN_MASTER_KEY: randomBytes(32).toString('base64'),
       PORT: String(port),
       KILN_DATA_DIR: dataDir,
-      DATABASE_URL: `file:${join(dataDir, 'mrm.db')}`,
+      DATABASE_URL: `file:${join(dataDir, 'kiln.db')}`,
       KILN_WEB_DIST: join(serverDir, 'web'),
       KILN_WORKER: 'inline',
       KILN_EXIT_WITH_PARENT: '1',

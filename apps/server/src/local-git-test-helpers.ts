@@ -26,7 +26,7 @@ import type { FileEdit } from './services/local-git.ts';
 
 const dirs: string[] = [];
 export const scratch = (): string => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'mrm-lw-')));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'kiln-lw-')));
   dirs.push(dir);
   return dir;
 };
@@ -150,14 +150,14 @@ export const SUBTITLE: FileEdit = {
   after: 'New subtitle\n',
 };
 
-export const BRANCH = 'mrm/update-subtitle-1234abcd';
+export const BRANCH = 'kiln/update-subtitle-1234abcd';
 
 /**
  * Runs `fn` with a private system temp folder (`TMPDIR`), so a test can ask "did it leave anything
  * behind" without seeing the temporary folders of other test files that run at the same time.
  */
 export async function withPrivateTmp<T>(fn: (dir: string) => Promise<T>): Promise<T> {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'mrm-tmp-')));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'kiln-tmp-')));
   const previous = process.env.TMPDIR;
   process.env.TMPDIR = dir;
   try {
@@ -209,7 +209,7 @@ export function sshKey(passphrase = ''): SshKey {
     '-N',
     passphrase,
     '-C',
-    'mrm-test-key',
+    'kiln-test-key',
     '-f',
     key,
   ]);
@@ -276,14 +276,14 @@ export type GpgKey = { home: string; fingerprint: string };
  */
 export function gpgKey(passphrase?: string): GpgKey | { skip: string } {
   if (!GPG) return { skip: 'gpg is not installed' };
-  const home = realpathSync(mkdtempSync(join(tmpdir(), 'mrm-gh-')));
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'kiln-gh-')));
   chmodSync(home, 0o700);
   gpgHomes.push(home);
   const env = { PATH: process.env.PATH ?? '', GNUPGHOME: home, LC_ALL: 'C' };
   const params = [
     'Key-Type: EDDSA',
     'Key-Curve: ed25519',
-    'Name-Real: MRM Test Signer',
+    'Name-Real: Kiln Test Signer',
     'Name-Email: signer@example.com',
     'Expire-Date: 0',
     passphrase === undefined ? '%no-protection' : `Passphrase: ${passphrase}`,

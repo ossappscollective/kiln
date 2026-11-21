@@ -24,8 +24,8 @@ test('only a draft, approved or failed change set without a branch can be refres
     assert.equal(isRefreshable(set(status)), true, status);
   for (const status of ['applying', 'applied', 'discarded'])
     assert.equal(isRefreshable(set(status)), false, status);
-  assert.equal(isRefreshable(set('failed', { branch: 'mrm/x' })), false);
-  assert.equal(isRefreshable(set('approved', { branch: 'mrm/x' })), true);
+  assert.equal(isRefreshable(set('failed', { branch: 'kiln/x' })), false);
+  assert.equal(isRefreshable(set('approved', { branch: 'kiln/x' })), true);
 });
 
 test('who may refresh and who may check: the rights the server asks for', () => {
@@ -63,7 +63,7 @@ test('a change set looks stale after a conflict, or when its stored error says t
   );
   assert.equal(looksStale(set('applied'), 'change_conflict'), false);
   assert.equal(
-    looksStale(set('failed', { branch: 'mrm/x' }), 'change_conflict'),
+    looksStale(set('failed', { branch: 'kiln/x' }), 'change_conflict'),
     false,
     'it cannot be refreshed, so it is not offered',
   );

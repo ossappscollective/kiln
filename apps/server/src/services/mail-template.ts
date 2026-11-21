@@ -7,7 +7,7 @@
 
 let linkOrigin: string | undefined;
 
-/** Installs the origin links are built on (for example https://mrm.example.com), or undefined for no links. */
+/** Installs the origin links are built on (for example https://kiln.example.com), or undefined for no links. */
 export function setMailLinkOrigin(origin: string | undefined): void {
   linkOrigin = origin ? origin.replace(/\/+$/, '') : undefined;
 }

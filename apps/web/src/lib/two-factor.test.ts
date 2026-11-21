@@ -187,9 +187,9 @@ test('the test email result reads as one sentence or two', () => {
 });
 
 test('the mail form is checked before it is sent', () => {
-  const good = { host: 'smtp.example.com', port: '587', from: 'mrm@example.com' };
+  const good = { host: 'smtp.example.com', port: '587', from: 'kiln@example.com' };
   assert.equal(smtpProblem(good), '');
-  assert.equal(smtpProblem({ ...good, from: 'Kiln <mrm@example.com>' }), '');
+  assert.equal(smtpProblem({ ...good, from: 'Kiln <kiln@example.com>' }), '');
   assert.equal(
     smtpProblem({ ...good, port: '' }),
     '',

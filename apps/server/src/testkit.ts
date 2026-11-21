@@ -105,7 +105,7 @@ export async function seedWorkspace(db: Database, name: string, ownerEmail: stri
     'owner',
   ]);
   const { token } = await createSession(db, userId, now);
-  return { userId, workspaceId, cookie: `mrm_session=${token}` };
+  return { userId, workspaceId, cookie: `kiln_session=${token}` };
 }
 
 export async function auditActions(db: Database, workspaceId: string) {

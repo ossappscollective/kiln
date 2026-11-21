@@ -1309,10 +1309,10 @@ test('openPullRequest opens a pull request for a branch that is already on GitHu
     method: 'POST',
     path: `${R}/pulls`,
     status: 201,
-    json: fx.pullRequest(5, 'mrm/local-1'),
+    json: fx.pullRequest(5, 'kiln/local-1'),
   });
   const result = await make(fake).openPullRequest({
-    branch: 'mrm/local-1',
+    branch: 'kiln/local-1',
     base: 'main',
     title: 'Update the subtitle',
     body: 'Body',
@@ -1320,7 +1320,7 @@ test('openPullRequest opens a pull request for a branch that is already on GitHu
   assert.equal(result.number, 5);
   assert.ok(result.url?.startsWith('https://'));
   const sent = fake.to('POST', '/pulls')[0]?.body;
-  assert.equal(sent?.head, 'mrm/local-1');
+  assert.equal(sent?.head, 'kiln/local-1');
   assert.equal(sent?.base, 'main');
   assert.equal(sent?.title, 'Update the subtitle');
   assert.equal(fake.to('POST', '/git/refs').length, 0, 'no branch is made');
@@ -1355,7 +1355,7 @@ test('openPullRequest refuses branch names that are not valid, and reports a ref
 // ---------------------------------------------------------------------------------------------
 // fix-up: one more commit on an existing branch
 
-const FIX_BRANCH = 'mrm/update-listing';
+const FIX_BRANCH = 'kiln/update-listing';
 const FIX_TIP = 'e5f60718293a4b5c6d7e8f9012345678901234ab';
 const FIX_TREE = 'f60718293a4b5c6d7e8f9012345678901234abcd';
 

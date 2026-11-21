@@ -144,13 +144,16 @@ export async function validateLocalPath(input: unknown, cfg: LocalRoots): Promis
       return bad('data_folder', 'That folder is part of the server’s own data and cannot be used.');
     }
   }
-  if (
-    await lstat(join(real, 'mrm-clone.json')).then(
-      () => true,
-      () => false,
-    )
-  ) {
-    return bad('data_folder', 'That folder is a clone managed by this server and cannot be used.');
+  // A managed clone has a marker file; clones made before the rename to Kiln have the old name.
+  for (const marker of ['kiln-clone.json', 'mrm-clone.json']) {
+    if (
+      await lstat(join(real, marker)).then(
+        () => true,
+        () => false,
+      )
+    ) {
+      return bad('data_folder', 'That folder is a clone managed by this server and cannot be used.');
+    }
   }
 
   const dotGit = await lstat(join(real, '.git')).catch(() => undefined);
@@ -322,7 +325,7 @@ function localGitEnv(cwd: string): Record<string, string> {
     GIT_ATTR_NOSYSTEM: '1',
     GIT_OPTIONAL_LOCKS: '0',
     GIT_NO_LAZY_FETCH: '1',
-    GIT_ALLOW_PROTOCOL: 'mrm-offline',
+    GIT_ALLOW_PROTOCOL: 'kiln-offline',
     GIT_CEILING_DIRECTORIES: dirname(cwd),
   });
   return env;
@@ -392,7 +395,7 @@ export type GitProblemCode =
   | 'invalid_branch';
 
 export const DUBIOUS_OWNERSHIP_MESSAGE =
-  'git refuses to read this folder because it is owned by a different user than the one running the server (git’s "dubious ownership" protection). Make the server’s user the owner of the folder (chown), or run the server as the folder’s owner. MRM does not add safe.directory exceptions, because that would trust configuration written by another user.';
+  'git refuses to read this folder because it is owned by a different user than the one running the server (git’s "dubious ownership" protection). Make the server’s user the owner of the folder (chown), or run the server as the folder’s owner. Kiln does not add safe.directory exceptions, because that would trust configuration written by another user.';
 
 /** A safe, short message for a failed git call: never git's own text beyond a classification. */
 export function gitProblem(result: GitResult): { code: GitProblemCode; message: string } {
@@ -748,7 +751,7 @@ export function checkNewBranchName(
     return bad(`The branch name is longer than ${MAX_BRANCH_LENGTH} characters.`);
   if (name.startsWith('-')) return bad('The branch name must not start with "-".');
   if (name === 'HEAD' || name === '@' || name.startsWith('refs/')) {
-    return bad('That branch name is reserved. Pick a name such as mrm/update-listing.');
+    return bad('That branch name is reserved. Pick a name such as kiln/update-listing.');
   }
   if (name.includes('..')) return bad('The branch name must not contain "..".');
   if (name.includes('@{')) return bad('The branch name must not contain "@{".');
@@ -1375,7 +1378,7 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
   await Promise.all(Array.from({ length: Math.min(4, Math.max(1, queue.length)) }, worker));
   if (failure) return failure;
 
-  const scratch = await mkdtemp(join(tmpdir(), 'mrm-index-'));
+  const scratch = await mkdtemp(join(tmpdir(), 'kiln-index-'));
   try {
     const indexEnv = { GIT_INDEX_FILE: join(scratch, 'index') };
     const read = await run(['read-tree', baseSha], { env: indexEnv });
@@ -1413,7 +1416,7 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
 
     // The only write to a ref: creating the branch. The old value must be the zero id, so an
     // existing branch (or one made a moment ago by someone else) is never moved.
-    const moved = await run(['update-ref', '-m', 'mrm: commit change set', ref, commitSha, zero]);
+    const moved = await run(['update-ref', '-m', 'kiln: commit change set', ref, commitSha, zero]);
     if (moved.code !== 0) {
       const now = await run(['rev-parse', '--verify', '-q', ref]);
       if (
@@ -1637,7 +1640,7 @@ export async function pushBranchCommit(input: PushInput): Promise<PushOutcome> {
     );
   }
 
-  const scratch = await mkdtemp(join(tmpdir(), 'mrm-push-'));
+  const scratch = await mkdtemp(join(tmpdir(), 'kiln-push-'));
   try {
     const bare = join(scratch, 'repo.git');
     const init = await runGitRaw(input.gitPath, scratch, [
@@ -2109,7 +2112,7 @@ export async function fixupBranchCommit(input: FixupCommitInput): Promise<FixupC
   await Promise.all(Array.from({ length: Math.min(4, Math.max(1, queue.length)) }, worker));
   if (failure) return failure;
 
-  const scratch = await mkdtemp(join(tmpdir(), 'mrm-index-'));
+  const scratch = await mkdtemp(join(tmpdir(), 'kiln-index-'));
   try {
     const indexEnv = { GIT_INDEX_FILE: join(scratch, 'index') };
     const read = await run(['read-tree', tip], { env: indexEnv });
@@ -2155,7 +2158,7 @@ export async function fixupBranchCommit(input: FixupCommitInput): Promise<FixupC
 
     // The only write to a ref: move this branch forward from the tip that was read. `update-ref`
     // takes the old value as its last argument and fails when the ref is anywhere else.
-    const moved = await run(['update-ref', '-m', 'mrm: fix up change set', ref, made.commit, tip]);
+    const moved = await run(['update-ref', '-m', 'kiln: fix up change set', ref, made.commit, tip]);
     if (moved.code !== 0) {
       const now = await run(['rev-parse', '--verify', '-q', ref]);
       if (now.code === 1 || (now.code === 0 && now.stdout.toString('utf8').trim() !== tip)) {

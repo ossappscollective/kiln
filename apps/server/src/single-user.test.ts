@@ -199,7 +199,7 @@ dbTest(
     assert.equal(res.headers.get('cache-control'), 'no-store');
     assert.equal(res.headers.get('referrer-policy'), 'no-referrer');
     const setCookie = res.headers.get('set-cookie') ?? '';
-    assert.match(setCookie, /^mrm_session=/);
+    assert.match(setCookie, /^kiln_session=/);
     assert.match(setCookie, /HttpOnly/i);
     assert.match(setCookie, /SameSite=Lax/i);
     assert.match(setCookie, /Path=\//);
@@ -403,7 +403,7 @@ dbTest('without a session the API answers 401', async (db) => {
   const { request } = await boot(db);
   assert.equal((await request('/api/me')).status, 401);
   assert.equal(
-    (await request('/api/me', { headers: { cookie: 'mrm_session=guess' } })).status,
+    (await request('/api/me', { headers: { cookie: 'kiln_session=guess' } })).status,
     401,
   );
 });
@@ -641,7 +641,7 @@ dbTest('multi mode: status reports mode multi and register and login still work'
 
 dbTest('multi mode: any Host header is accepted', async (db) => {
   const { app } = await boot(db, { single: false });
-  for (const host of ['mrm.example.com', 'evil.example:1', 'localhost:1']) {
+  for (const host of ['kiln.example.com', 'evil.example:1', 'localhost:1']) {
     assert.equal((await app.request('/api/health', { headers: { host } })).status, 200, host);
   }
 });

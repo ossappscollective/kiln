@@ -1,5 +1,5 @@
 [package]
-name = "mrm-desktop"
+name = "kiln-desktop"
 version = "0.0.0"
 description = "Tauri shell for Kiln"
 edition = "2021"

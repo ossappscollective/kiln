@@ -14,7 +14,7 @@ import { GithubRepoConnector } from './github/github.ts';
 
 const roots: string[] = [];
 const scratch = (): string => {
-  const dir = mkdtempSync(join(tmpdir(), 'mrm-blobs-'));
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-blobs-'));
   roots.push(dir);
   return dir;
 };
@@ -38,7 +38,7 @@ const git = (cwd: string, ...args: string[]) =>
 const inClone = (dir: string, ...args: string[]) =>
   execFileSync(REAL_GIT, [`--git-dir=${dir}`, ...args], {
     encoding: 'utf8',
-    env: { ...gitEnv, GIT_NO_LAZY_FETCH: '1', GIT_ALLOW_PROTOCOL: 'mrm-offline' },
+    env: { ...gitEnv, GIT_NO_LAZY_FETCH: '1', GIT_ALLOW_PROTOCOL: 'kiln-offline' },
     stdio: ['ignore', 'pipe', 'ignore'],
   }).trim();
 const hasObject = (cloneDir: string, oid: string): boolean => {

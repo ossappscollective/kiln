@@ -164,7 +164,7 @@ test('ASC: malformed secrets are caught before any request', async () => {
 // ---------------------------------------------------------------------------------------------
 // Google Play
 
-const PROBE = '/androidpublisher/v3/applications/com.example.mrm.credentialcheck/edits';
+const PROBE = '/androidpublisher/v3/applications/com.example.kiln.credentialcheck/edits';
 const PKG = 'com.example.coffee';
 const PKG_EDITS = `/androidpublisher/v3/applications/${PKG}/edits`;
 

@@ -635,10 +635,10 @@ export function createWebhookHandler(ctx: WebhookContext): JobHandler {
       {
         'content-type': 'application/json',
         'user-agent': 'Kiln-Webhooks/1',
-        'x-mrm-event': String(row.event_type),
-        'x-mrm-delivery': deliveryId,
-        'x-mrm-timestamp': String(timestamp),
-        'x-mrm-signature': `v1=${signWebhook(secret, timestamp, body)}`,
+        'x-kiln-event': String(row.event_type),
+        'x-kiln-delivery': deliveryId,
+        'x-kiln-timestamp': String(timestamp),
+        'x-kiln-signature': `v1=${signWebhook(secret, timestamp, body)}`,
       },
       { allowPrivate: ctx.allowPrivate, resolve: ctx.resolve, timeoutMs: ctx.timeoutMs },
     );

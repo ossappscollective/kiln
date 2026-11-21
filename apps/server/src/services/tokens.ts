@@ -16,7 +16,7 @@ import { z } from 'zod';
 import { recordAudit } from './audit.ts';
 
 /**
- * API tokens for scripts and CI. A token is `mrm_` plus 256 random bits (base64url). Only its
+ * API tokens for scripts and CI. A token is `kiln_` plus 256 random bits (base64url). Only its
  * SHA-256 is stored, so a leaked database cannot be replayed, and the token is shown once, when it
  * is made. It acts for the person who made it with three further limits: a role ceiling
  * (viewer, member or admin; never owner), optionally a list of apps, and optionally a list of
@@ -24,8 +24,13 @@ import { recordAudit } from './audit.ts';
  * workspace. See docs/api/tokens.md.
  */
 
-export const TOKEN_PREFIX = 'mrm_';
-/** Shown in lists to tell tokens apart: `mrm_` and the first six random characters. */
+export const TOKEN_PREFIX = 'kiln_';
+/**
+ * Tokens made before the rename to Kiln start with `mrm_`. They keep working: a token is looked up by the
+ * SHA-256 of the whole string, so nothing stored changes (docs/adr/0040-rename-to-kiln.md).
+ */
+export const LEGACY_TOKEN_PREFIX = 'mrm_';
+/** Shown in lists to tell tokens apart: `kiln_` and the first six random characters. */
 const PREFIX_SHOWN = TOKEN_PREFIX.length + 6;
 export const MAX_ACTIVE_TOKENS = 100;
 /** A token's last-used time is written at most once per this many milliseconds. */
@@ -34,7 +39,7 @@ export const LAST_USED_GRANULARITY_MS = 60_000;
 export const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
 
 /** The shape of a token, checked before the database is asked: 256 bits is 43 base64url characters. */
-const TOKEN_SHAPE = /^mrm_[A-Za-z0-9_-]{43}$/;
+const TOKEN_SHAPE = /^(?:kiln_|mrm_)[A-Za-z0-9_-]{43}$/;
 export const looksLikeToken = (value: string) => TOKEN_SHAPE.test(value);
 
 export const createTokenBody = z.object({
@@ -54,7 +59,7 @@ export type TokenStatus = 'active' | 'revoked' | 'expired';
 export type TokenSummary = {
   id: string;
   name: string;
-  /** `mrm_` and six more characters, to recognise a token. Not enough to use it. */
+  /** `kiln_` and six more characters, to recognise a token (`mrm_` for one made before the rename). Not enough to use it. */
   prefix: string;
   role: TokenRole;
   appIds: string[] | null;

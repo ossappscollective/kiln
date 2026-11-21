@@ -171,7 +171,7 @@ dbTest('a grant is bound to its action, target, session, time and single use', a
   const other = await t.grantFor('store.release', { id: a });
   assert.equal((await t.del(a, other)).body.reason, 'mismatch');
   // Another session of the same person.
-  const second = `mrm_session=${(await createSession(db, t.ownerId, START)).token}`;
+  const second = `kiln_session=${(await createSession(db, t.ownerId, START)).token}`;
   assert.equal((await t.del(a, ok.body.grant, second)).body.reason, 'mismatch');
   // Garbage.
   assert.equal((await t.del(a, 'sug_nope')).body.reason, 'invalid');
@@ -468,7 +468,7 @@ for (const kind of ['es256', 'eddsa'] as const) {
       );
       // A challenge issued to another session of the same person.
       const o5 = await assertionOptions();
-      const second = `mrm_session=${(await createSession(db, t.ownerId, t.clock.now)).token}`;
+      const second = `kiln_session=${(await createSession(db, t.ownerId, t.clock.now)).token}`;
       assert.equal(
         (
           await verify(

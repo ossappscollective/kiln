@@ -26,7 +26,7 @@ const SECRET_KEY =
   /(secret|password|passphrase|api[_-]?key|private[_-]?key|authorization|bearer|cookie|credential[_-]?value|download[_-]?url|signing|^token$|access[_-]?token|refresh[_-]?token|client[_-]?secret)/i;
 /** Values that look like one of our tokens, a PEM block, a JWT or an Authorization header. */
 const SECRET_VALUE =
-  /(mrm_[A-Za-z0-9_-]{16,}|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|Bearer\s+[A-Za-z0-9._~+/=-]{16,})/g;
+  /((?:kiln|mrm)_[A-Za-z0-9_-]{16,}|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|Bearer\s+[A-Za-z0-9._~+/=-]{16,})/g;
 
 export const REDACTED = '[redacted]';
 

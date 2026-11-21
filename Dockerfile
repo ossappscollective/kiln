@@ -25,7 +25,7 @@ ENV PORT=8787
 # The server writes only here (SQLite file, uploads, git clones in /data/clones). It is owned by
 # the unprivileged user below; a named volume mounted at /data starts with this ownership.
 ENV KILN_DATA_DIR=/data
-ENV DATABASE_URL=file:/data/mrm.db
+ENV DATABASE_URL=file:/data/kiln.db
 ENV KILN_CLONE_DIR=/data/clones
 RUN mkdir -p /data/clones && chown -R node:node /data && chmod 700 /data/clones
 EXPOSE 8787

@@ -1,5 +1,6 @@
 import { canonicalAppHash, canonicalSection, viewOf } from './app-nav.ts';
 import { parseAppAddress, parseViewPath } from './app-scope.ts';
+import { readMigrated } from './legacy-storage.ts';
 
 /**
  * The open or closed state of the collapsible sections of a page (components/ui/Section.svelte), remembered per workspace, person,
@@ -12,7 +13,7 @@ export type SectionScope = { workspaceId: string; userId: string; page: string }
 /** The part of `Storage` this needs; `null` stands for no storage at all. */
 export type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
 
-const PREFIX = 'mrm.sections.v1';
+const PREFIX = 'kiln.sections.v1';
 
 /** One entry per workspace, person and page; it holds `{ [sectionKey]: open }`. */
 export const sectionStorageKey = (scope: SectionScope): string =>
@@ -36,7 +37,7 @@ export function parseSectionState(raw: string | null | undefined): Record<string
 function load(storage: StorageLike | null, scope: SectionScope): Record<string, boolean> {
   if (!storage) return {};
   try {
-    return parseSectionState(storage.getItem(sectionStorageKey(scope)));
+    return parseSectionState(readMigrated(storage, sectionStorageKey(scope)));
   } catch {
     return {};
   }

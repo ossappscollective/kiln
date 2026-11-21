@@ -955,14 +955,14 @@ dbTest(
     };
     const w = '/api/workspaces/{workspaceId}';
     const at = (path: string, method: string) => doc.paths[`${w}${path}`]?.[method];
-    assert.equal(at('/rollout/config', 'get')?.['x-mrm-action'], 'apps.read');
+    assert.equal(at('/rollout/config', 'get')?.['x-kiln-action'], 'apps.read');
     for (const [path, method, risk] of [
       ['/apps/{id}/rollout/state', 'get', 'read'],
       ['/apps/{id}/rollout/preview', 'post', 'read'],
       ['/apps/{id}/rollout/apply', 'post', 'destructive'],
     ] as const) {
-      assert.equal(at(path, method)?.['x-mrm-action'], 'releases.rollout', path);
-      assert.equal(at(path, method)?.['x-mrm-risk'], risk, path);
+      assert.equal(at(path, method)?.['x-kiln-action'], 'releases.rollout', path);
+      assert.equal(at(path, method)?.['x-kiln-risk'], risk, path);
     }
   },
 );

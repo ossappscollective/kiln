@@ -52,7 +52,7 @@ export function parseSmtpEnv(env: Record<string, string | undefined>): SmtpEnv {
   const from = blank(env.KILN_SMTP_FROM);
   if (!from || !parseMailbox(from))
     throw new Error(
-      'KILN_SMTP_FROM must be set to the sender address, for example mrm@example.com or Release Manager <mrm@example.com>.',
+      'KILN_SMTP_FROM must be set to the sender address, for example kiln@example.com or Kiln <kiln@example.com>.',
     );
   const user = blank(env.KILN_SMTP_USER);
   const password =
@@ -175,7 +175,7 @@ export const smtpInputSchema = z
       .trim()
       .min(3)
       .max(300)
-      .refine((v) => parseMailbox(v) !== undefined, 'Use an address such as mrm@example.com.'),
+      .refine((v) => parseMailbox(v) !== undefined, 'Use an address such as kiln@example.com.'),
     user: z
       .string()
       .max(255)

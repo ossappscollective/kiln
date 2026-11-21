@@ -112,7 +112,7 @@ test('expandIpv6 reads the compressed and the mixed forms, and rejects the broke
 // ----- URLs -----------------------------------------------------------------------------------
 
 test('checkWebhookUrl accepts public https and refuses the rest', () => {
-  assert.equal(checkWebhookUrl('https://hooks.example.com/mrm?x=1').ok, true);
+  assert.equal(checkWebhookUrl('https://hooks.example.com/kiln?x=1').ok, true);
   assert.equal(checkWebhookUrl('https://93.184.216.34/hook').ok, true);
   assert.equal(checkWebhookUrl('https://[2606:4700:4700::1111]/hook').ok, true);
   const refused = [
@@ -280,7 +280,7 @@ test('sendPinned posts the body with the headers, to the pinned address, under t
       const out = await sendPinned(
         `http://localhost:${port}/hooks/in?x=1`,
         '{"a":1}',
-        { 'content-type': 'application/json', 'x-mrm-event': 'app.synced' },
+        { 'content-type': 'application/json', 'x-kiln-event': 'app.synced' },
         { allowPrivate: true, resolve: answering('127.0.0.1') },
       );
       assert.deepEqual(out, { ok: true, status: 200, body: 'thanks' });
@@ -288,7 +288,7 @@ test('sendPinned posts the body with the headers, to the pinned address, under t
       assert.equal(seen[0]?.method, 'POST');
       assert.equal(seen[0]?.url, '/hooks/in?x=1');
       assert.equal(seen[0]?.body, '{"a":1}');
-      assert.equal(seen[0]?.headers['x-mrm-event'], 'app.synced');
+      assert.equal(seen[0]?.headers['x-kiln-event'], 'app.synced');
       assert.equal(seen[0]?.headers.host, `localhost:${port}`);
       assert.equal(seen[0]?.headers['content-length'], '7');
     },

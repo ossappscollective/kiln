@@ -1,8 +1,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Database, Sql } from '@kiln/db';
 import type { Context } from 'hono';
-import { getCookie } from 'hono/cookie';
-import type { AppEnv } from '../http.ts';
+import { type AppEnv, sessionToken } from '../http.ts';
 import { hashPassword, type ScryptCost, verifyPassword } from '../passwords.ts';
 import { recordAudit } from './audit.ts';
 import { activeEmail, checkMailCode, checkTotpCode, hasActiveTotp } from './two-factor.ts';
@@ -24,8 +23,6 @@ import {
  * anything; previews stay free. With the policy off (the default) `requireStepUp` returns at once
  * and nothing changes.
  */
-
-export const SESSION_COOKIE_NAME = 'mrm_session';
 
 /** The classes of hard actions a policy can cover. */
 export const stepUpActions = [
@@ -409,7 +406,7 @@ export function relyingParty(
 // Sessions and challenges
 
 export function sessionIdOf(c: Context): string | undefined {
-  const token = getCookie(c, SESSION_COOKIE_NAME);
+  const token = sessionToken(c);
   return token ? sha256hex(token) : undefined;
 }
 

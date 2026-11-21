@@ -42,7 +42,7 @@ export async function openSqliteTestDatabase(): Promise<TestDatabase> {
 
 /** A fresh schema on the server named by baseUrl. close() drops it. */
 export async function openPostgresTestDatabase(baseUrl: string): Promise<TestDatabase> {
-  const schema = `mrm_test_${randomBytes(6).toString('hex')}`;
+  const schema = `kiln_test_${randomBytes(6).toString('hex')}`;
   const admin = await createDatabase(baseUrl);
   try {
     await admin.execute(`CREATE SCHEMA ${schema}`);

@@ -28,7 +28,7 @@ dbTest(
     const res = await t.login();
     assert.equal(res.status, 200);
     assert.deepEqual(Object.keys(res.body), ['user']);
-    assert.match(res.headers.get('set-cookie') ?? '', /^mrm_session=/);
+    assert.match(res.headers.get('set-cookie') ?? '', /^kiln_session=/);
     assert.equal((await t.send(t.owner, 'GET', '/two-factor/status')).body.login.mode, 'off');
   },
 );
@@ -93,7 +93,7 @@ dbTest(
     );
     // Not a session: the challenge opens nothing else.
     assert.equal(
-      (await t.raw('GET', '/api/me', undefined, { cookie: `mrm_session=${step1.body.challenge}` }))
+      (await t.raw('GET', '/api/me', undefined, { cookie: `kiln_session=${step1.body.challenge}` }))
         .status,
       401,
     );
@@ -105,7 +105,7 @@ dbTest(
     const good = await second(t, step1.body.challenge, 'totp', t.code(secret));
     assert.equal(good.status, 200, good.text);
     const cookie = good.headers.get('set-cookie')?.split(';')[0] ?? '';
-    assert.match(cookie, /^mrm_session=/);
+    assert.match(cookie, /^kiln_session=/);
     assert.equal(good.body.user.email, 'ada@example.com');
     assert.equal((await t.raw('GET', '/api/me', undefined, { cookie })).status, 200);
     // The challenge is spent.
@@ -312,7 +312,7 @@ dbTest(
       code: t.code(begun.body.secret),
     });
     assert.equal(done.status, 200, done.text);
-    assert.match(done.headers.get('set-cookie') ?? '', /^mrm_session=/);
+    assert.match(done.headers.get('set-cookie') ?? '', /^kiln_session=/);
     assert.equal((await t.audits('two_factor.enrolled_at_login')).length, 1);
     // Next time it is a second factor, not an enrolment.
     t.clock.now += STEP;
@@ -358,7 +358,7 @@ dbTest(
       code: t.mailer.lastCode(),
     });
     assert.equal(done.status, 200, done.text);
-    assert.match(done.headers.get('set-cookie') ?? '', /^mrm_session=/);
+    assert.match(done.headers.get('set-cookie') ?? '', /^kiln_session=/);
     // Mail not set up: only the app can be offered.
     await t.addUser('viewer', 'vi@example.com');
     t.mailer.isConfigured = false;

@@ -7,9 +7,9 @@ import { createDatabase, migrate } from '@kiln/db';
 import { createApp } from '../app.ts';
 import { createDemoRuntime, type DemoRuntime, wipe } from './boot.ts';
 import {
+  defaultDemoDir,
   DEMO_LEGACY_MARKER,
   DEMO_MARKER,
-  defaultDemoDir,
   demoMasterKey,
   demoProblems,
   demoRequested,
@@ -21,7 +21,7 @@ import { runDemo } from './main.ts';
 
 const dirs: string[] = [];
 const freshDir = () => {
-  const root = mkdtempSync(join(tmpdir(), 'mrm-demo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'kiln-demo-test-'));
   dirs.push(root);
   return join(root, 'data');
 };
@@ -39,7 +39,7 @@ async function session(rt: DemoRuntime, as = 'owner') {
   const login = await rt.app.request(`/demo/login?as=${as}&json`);
   assert.equal(login.status, 200);
   const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
-  assert.match(cookie, /^mrm_session=/);
+  assert.match(cookie, /^kiln_session=/);
   const status = (await (await rt.app.request('/demo/status')).json()) as Json;
   const W = `/api/workspaces/${status.workspace.id}`;
   const call = async (
@@ -96,7 +96,7 @@ test('it refuses Postgres, production and real-looking setups unless KILN_DEMO_F
   const base = { KILN_DEMO: 'true', KILN_DEMO_DIR: dir };
   assert.doesNotThrow(() => loadDemoConfig(base));
   for (const env of [
-    { DATABASE_URL: 'postgres://u:p@db.example.com/mrm' },
+    { DATABASE_URL: 'postgres://u:p@db.example.com/kiln' },
     { NODE_ENV: 'production' },
     { KILN_MASTER_KEY: 'abc' },
     { KILN_MODE: 'single_user' },

@@ -3,7 +3,9 @@
  * the biggest. Money is never converted or added across currencies; this only decides which one is shown first.
  */
 
-const CHOICE_KEY = 'mrm.analytics.currency';
+import { readMigrated } from '../legacy-storage.ts';
+
+const CHOICE_KEY = 'kiln.analytics.currency';
 
 /** The currency of a region, for the places people use this app from. Regions that are not listed fall back to the biggest currency. */
 const REGION_CURRENCY: Record<string, string> = {
@@ -34,7 +36,8 @@ export const browserLocale = (): string | null =>
 /** What the person chose last, or null. Storage can be missing or refuse; that is never an error. */
 export function chosenCurrency(): string | null {
   try {
-    const value = globalThis.localStorage?.getItem(CHOICE_KEY) ?? null;
+    const storage = globalThis.localStorage;
+    const value = storage ? readMigrated(storage, CHOICE_KEY) : null;
     return value !== null && /^[A-Z]{3}$/.test(value) ? value : null;
   } catch {
     return null;

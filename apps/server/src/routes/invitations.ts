@@ -1,9 +1,9 @@
 import { type Action, can, invitableBy, invitableRoles } from '@kiln/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
-import { getCookie, setCookie } from 'hono/cookie';
+import { setCookie } from 'hono/cookie';
 import { z } from 'zod';
-import { type AppEnv, parseBody, type Services } from '../http.ts';
+import { type AppEnv, parseBody, type Services, sessionToken } from '../http.ts';
 import { memberRole, resolveSession, SESSION_TTL_MS } from '../services/accounts.ts';
 import {
   acceptInvitation,
@@ -149,7 +149,7 @@ export function publicInvitationRoutes(services: Services) {
       return body.response;
     }
 
-    const cookie = getCookie(c, SESSION_COOKIE);
+    const cookie = sessionToken(c);
     const signedIn = cookie ? await resolveSession(db, cookie, now()) : undefined;
     const { displayName, password } = body.data;
     if (!signedIn) {

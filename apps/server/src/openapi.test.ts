@@ -130,7 +130,7 @@ test('a small document is valid, and carries the version and the security scheme
   assert.deepEqual(op.parameters, [
     { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
   ]);
-  assert.equal(op['x-mrm-risk'], 'read');
+  assert.equal(op['x-kiln-risk'], 'read');
 });
 
 test('the validator catches what would break a consumer', () => {
@@ -194,9 +194,9 @@ test('the validator catches what would break a consumer', () => {
     [
       'bad risk',
       (d) => {
-        d.paths['/api/things/{id}'].get['x-mrm-risk'] = 'scary';
+        d.paths['/api/things/{id}'].get['x-kiln-risk'] = 'scary';
       },
-      /x-mrm-risk/,
+      /x-kiln-risk/,
     ],
     [
       'path param missing',
@@ -406,9 +406,9 @@ test('the registry is the real document: valid, unique, and consistent', () => {
       );
     // The document says what the registry says.
     const documented = built.paths[op.path]?.[op.method];
-    assert.equal(documented?.['x-mrm-token-access'], tokenAllowedFor(op), `${op.id}: token access`);
-    assert.equal(documented?.['x-mrm-risk'], op.risk);
-    if (typeof op.access === 'object') assert.equal(documented?.['x-mrm-action'], op.access.action);
+    assert.equal(documented?.['x-kiln-token-access'], tokenAllowedFor(op), `${op.id}: token access`);
+    assert.equal(documented?.['x-kiln-risk'], op.risk);
+    if (typeof op.access === 'object') assert.equal(documented?.['x-kiln-action'], op.access.action);
     const security = documented?.security as unknown[];
     assert.equal(security.length === 0, op.access === 'public');
     assert.equal(
@@ -569,7 +569,7 @@ dbTest('GET /api/openapi.json needs a sign-in and returns a valid 3.1 document',
   const t = await bootRepoApp(db);
   assert.equal((await t.app.request('/api/openapi.json')).status, 401);
   assert.equal(
-    (await t.app.request('/api/openapi.json', { headers: { authorization: 'Bearer mrm_nope' } }))
+    (await t.app.request('/api/openapi.json', { headers: { authorization: 'Bearer kiln_nope' } }))
       .status,
     401,
   );
@@ -602,7 +602,7 @@ dbTest('GET /api/openapi.json needs a sign-in and returns a valid 3.1 document',
 
   // Nothing in it looks like a secret, an id of a real thing, or a path of this machine.
   const text = JSON.stringify(body);
-  assert.equal(/mrm_[A-Za-z0-9_-]{40,}/.test(text), false);
+  assert.equal(/kiln_[A-Za-z0-9_-]{40,}/.test(text), false);
   assert.equal(/whsec_[A-Za-z0-9_-]{40,}/.test(text), false);
   assert.equal(text.includes(t.workspaceId), false);
   assert.equal(text.includes(String(minted.body.token)), false);

@@ -244,11 +244,11 @@ test('a remote that never answers is stopped at the timeout and its process is g
 });
 
 test('scrubbing removes the token, its encodings, Authorization lines, address credentials and folders', () => {
-  const text = `fatal: unable to access 'https://x-access-token:${TOKEN}@github.com/a/b.git/': ${TOKEN} ${BASIC}\nAuthorization: Basic ${BASIC}\n/home/u/secret/clone /tmp/mrm-push-1`;
+  const text = `fatal: unable to access 'https://x-access-token:${TOKEN}@github.com/a/b.git/': ${TOKEN} ${BASIC}\nAuthorization: Basic ${BASIC}\n/home/u/secret/clone /tmp/kiln-push-1`;
   const out = scrubPushText(
     text,
     [TOKEN, BASIC, `Authorization: Basic ${BASIC}`],
-    ['/home/u/secret/clone', '/tmp/mrm-push-1'],
+    ['/home/u/secret/clone', '/tmp/kiln-push-1'],
   );
   assert.equal(out.includes(TOKEN), false);
   assert.equal(out.includes(BASIC), false);

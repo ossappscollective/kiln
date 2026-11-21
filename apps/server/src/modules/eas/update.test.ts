@@ -94,7 +94,7 @@ dbTest('a runtime version that no shipped binary has is reported as a mismatch, 
   assert.equal(state.platform, 'android');
   assert.equal(state.channels[0].runtimeCheck.status, 'ok');
   assert.equal(state.channels[0].branches[0].groups[0].updates[0].platform, 'android');
-  assert.equal(t.fake.calls.find((c) => c.operationName === 'MrmStoreBuildRuntimes')?.variables.appId, PROJECT_ID);
+  assert.equal(t.fake.calls.find((c) => c.operationName === 'KilnStoreBuildRuntimes')?.variables.appId, PROJECT_ID);
 });
 
 dbTest('every use of the credential is audited with its purpose, and the token is sent as a bearer and nowhere else', async (db) => {
@@ -180,7 +180,7 @@ dbTest('insights: launches, failed launches, crash rate, unique users and payloa
   assert.equal(insights.insights.crashRatePercent, 5);
   assert.equal(insights.insights.uniqueUsers, 121);
   assert.equal(insights.insights.averagePayloadBytes, 482_113);
-  const sent = t.fake.calls.find((c) => c.operationName === 'MrmUpdateGroupInsights');
+  const sent = t.fake.calls.find((c) => c.operationName === 'KilnUpdateGroupInsights');
   assert.equal(sent?.variables.groupId, GROUP_A);
   assert.deepEqual(await purposes(t), ['eas.update_insights']);
 });
@@ -238,7 +238,7 @@ dbTest('preview then apply raises the share once, is audited with ids and values
   assert.equal(p.branch, 'next');
   assert.equal(p.irreversible, false);
   assert.match(p.confirmHash, /^[0-9a-f]{64}$/);
-  assert.equal(t.fake.count('MrmSetUpdateRollout'), 0, 'a preview writes nothing');
+  assert.equal(t.fake.count('KilnSetUpdateRollout'), 0, 'a preview writes nothing');
 
   const done = await t.apply(appId, { ...pct(appId, GROUP_B, 60), confirmHash: p.confirmHash });
   assert.equal(done.status, 200, done.text);
@@ -250,8 +250,8 @@ dbTest('preview then apply raises the share once, is audited with ids and values
     to: 60,
     confirmedByReread: false,
   });
-  assert.equal(t.fake.count('MrmSetUpdateRollout'), 1);
-  const sent = t.fake.calls.find((c) => c.operationName === 'MrmSetUpdateRollout');
+  assert.equal(t.fake.count('KilnSetUpdateRollout'), 1);
+  const sent = t.fake.calls.find((c) => c.operationName === 'KilnSetUpdateRollout');
   assert.deepEqual(sent?.variables, { updateId: p.updateId, rolloutPercentage: 60 });
 
   const changed = (await t.auditActions()).filter((a) => a.action === 'eas.update_rollout_changed');
@@ -279,19 +279,19 @@ dbTest('a preview is bound to the state that was read: a rollout that moved sinc
   assert.equal(stale.body.error, 'state_changed');
   assert.deepEqual(stale.body.current, { from: 40, to: 60 });
   assert.notEqual(stale.body.confirmHash, p.confirmHash);
-  assert.equal(t.fake.count('MrmSetUpdateRollout'), 0);
+  assert.equal(t.fake.count('KilnSetUpdateRollout'), 0);
 
   // A different target with the same hash does not pass either.
   const other = await t.apply(appId, { ...pct(appId, GROUP_B, 70), confirmHash: stale.body.confirmHash });
   assert.equal(other.status, 409);
-  assert.equal(t.fake.count('MrmSetUpdateRollout'), 0);
+  assert.equal(t.fake.count('KilnSetUpdateRollout'), 0);
 
   // The rollout finished meanwhile: not what was previewed either.
   for (const u of t.fake.nextGroup()) u.rolloutPercentage = null;
   const gone = await t.apply(appId, { ...pct(appId, GROUP_B, 60), confirmHash: p.confirmHash });
   assert.equal(gone.status, 409);
   assert.equal(gone.body.error, 'state_changed');
-  assert.equal(t.fake.count('MrmSetUpdateRollout'), 0);
+  assert.equal(t.fake.count('KilnSetUpdateRollout'), 0);
 });
 
 dbTest('the share only goes up, only a rollout that exists can be raised, and the request is checked', async (db) => {
@@ -318,7 +318,7 @@ dbTest('the share only goes up, only a rollout that exists can be raised, and th
   ]) {
     assert.equal((await t.preview(appId, body)).status, 400, JSON.stringify(body));
   }
-  assert.equal(t.fake.count('MrmSetUpdateRollout'), 0);
+  assert.equal(t.fake.count('KilnSetUpdateRollout'), 0);
 });
 
 dbTest('100 ends the rollout and is marked irreversible, in the preview and in the audit', async (db) => {
@@ -356,7 +356,7 @@ dbTest('only owners and admins may preview or apply; a viewer and a member get 4
   }
   const admin = await t.addMember('admin');
   assert.equal((await t.preview(appId, pct(appId, GROUP_B, 50), admin)).status, 200);
-  assert.equal(t.fake.count('MrmSetUpdateRollout'), 0);
+  assert.equal(t.fake.count('KilnSetUpdateRollout'), 0);
 });
 
 dbTest('when the workspace policy covers rollout, apply needs a step-up grant bound to the app and the hash; preview stays free', async (db) => {
@@ -372,21 +372,21 @@ dbTest('when the workspace policy covers rollout, apply needs a step-up grant bo
   const missing = await t.apply(appId, body);
   assert.equal(missing.status, 403);
   assert.equal(missing.body.error, 'step_up_required');
-  assert.equal(t.fake.count('MrmSetUpdateRollout'), 0);
+  assert.equal(t.fake.count('KilnSetUpdateRollout'), 0);
 
   const wrongHash = await t.grantFor(appId, 'b'.repeat(64));
   const refused = await t.apply(appId, body, t.owner, { 'x-step-up-grant': wrongHash });
   assert.equal(refused.status, 403);
-  assert.equal(t.fake.count('MrmSetUpdateRollout'), 0);
+  assert.equal(t.fake.count('KilnSetUpdateRollout'), 0);
 
   const grant = await t.grantFor(appId, p.confirmHash);
   const done = await t.apply(appId, body, t.owner, { 'x-step-up-grant': grant });
   assert.equal(done.status, 200, done.text);
-  assert.equal(t.fake.count('MrmSetUpdateRollout'), 1);
+  assert.equal(t.fake.count('KilnSetUpdateRollout'), 1);
   // A grant is spent by its first use.
   const again = await t.apply(appId, body, t.owner, { 'x-step-up-grant': grant });
   assert.equal(again.status, 403);
-  assert.equal(t.fake.count('MrmSetUpdateRollout'), 1);
+  assert.equal(t.fake.count('KilnSetUpdateRollout'), 1);
 });
 
 dbTest('a refusal by Expo before the write is audited as not applied and never retried', async (db) => {
@@ -394,13 +394,13 @@ dbTest('a refusal by Expo before the write is audited as not applied and never r
   const appId = await t.linkedApp();
   const p = (await t.preview(appId, pct(appId, GROUP_B, 60))).body.preview;
   t.fake.intercept = (call) =>
-    call.operationName === 'MrmSetUpdateRollout' ? json(graphqlError('Entity not authorized: nope')) : undefined;
+    call.operationName === 'KilnSetUpdateRollout' ? json(graphqlError('Entity not authorized: nope')) : undefined;
   // The reads of the apply are answered normally; the write is refused.
   const res = await t.apply(appId, { ...pct(appId, GROUP_B, 60), confirmHash: p.confirmHash });
   assert.equal(res.status, 422);
   assert.equal(res.body.error, 'expo_forbidden');
   assert.ok(!res.text.includes('nope'));
-  assert.equal(t.fake.count('MrmSetUpdateRollout'), 1);
+  assert.equal(t.fake.count('KilnSetUpdateRollout'), 1);
   const failed = (await t.auditActions()).filter((a) => a.action === 'eas.update_rollout_failed');
   assert.equal(failed.length, 1);
   assert.equal(JSON.parse(failed[0]?.detail ?? '{}').outcome, 'not_applied');
@@ -414,7 +414,7 @@ async function lostWrite(t: UpdatesBoot, mode: 'apply' | 'ignore', readBack: boo
   t.fake.mutation = mode;
   let seenWrite = false;
   t.fake.intercept = (call) => {
-    if (call.operationName === 'MrmSetUpdateRollout') {
+    if (call.operationName === 'KilnSetUpdateRollout') {
       seenWrite = true;
       return new Error('socket closed');
     }
@@ -428,7 +428,7 @@ dbTest('when the answer of the write is lost and the read back shows the new sha
   const res = await lostWrite(t, 'apply', true);
   assert.equal(res.status, 200, res.text);
   assert.equal(res.body.result.confirmedByReread, true);
-  assert.equal(t.fake.count('MrmSetUpdateRollout'), 1, 'never retried');
+  assert.equal(t.fake.count('KilnSetUpdateRollout'), 1, 'never retried');
   const changed = (await t.auditActions()).filter((a) => a.action === 'eas.update_rollout_changed');
   assert.equal(JSON.parse(changed[0]?.detail ?? '{}').via, 'reread');
 });
@@ -439,7 +439,7 @@ dbTest('when the answer of the write is lost and the read back shows the old sha
   assert.equal(res.status, 502);
   assert.equal(res.body.error, 'write_failed');
   assert.equal(res.body.outcome, 'not_applied');
-  assert.equal(t.fake.count('MrmSetUpdateRollout'), 1);
+  assert.equal(t.fake.count('KilnSetUpdateRollout'), 1);
   assert.equal((await t.auditActions()).filter((a) => a.action === 'eas.update_rollout_failed').length, 1);
 });
 

@@ -24,7 +24,7 @@ type Boot = Awaited<ReturnType<typeof bootRepoApp>>;
 type Sent = { url: string; body: string; headers: Record<string, string> };
 
 const PUBLIC: Resolver = async () => [{ address: '93.184.216.34', family: 4 }];
-const URL_OK = 'https://hooks.example.com/mrm';
+const URL_OK = 'https://hooks.example.com/kiln';
 const masterKey = randomBytes(32);
 
 /** An app with webhooks pointed at a fake receiver, and a way to run the delivery jobs. */
@@ -293,9 +293,9 @@ dbTest('rotating the secret returns a new one once, and later deliveries use it'
   await t.run();
   const hit = t.sent[0];
   assert.ok(hit);
-  const ts = hit.headers['x-mrm-timestamp'] ?? '';
-  assert.equal(hit.headers['x-mrm-signature'], `v1=${signWebhook(second, ts, hit.body)}`);
-  assert.notEqual(hit.headers['x-mrm-signature'], `v1=${signWebhook(first, ts, hit.body)}`);
+  const ts = hit.headers['x-kiln-timestamp'] ?? '';
+  assert.equal(hit.headers['x-kiln-signature'], `v1=${signWebhook(second, ts, hit.body)}`);
+  assert.notEqual(hit.headers['x-kiln-signature'], `v1=${signWebhook(first, ts, hit.body)}`);
   const audits = JSON.stringify(await t.auditActions());
   assert.equal(audits.includes(first) || audits.includes(second), false);
 });
@@ -334,22 +334,22 @@ dbTest('an event is delivered, signed, to the endpoints that asked for its type'
     data: { found: 3 },
   });
   assert.equal(hit.headers['content-type'], 'application/json');
-  assert.equal(hit.headers['x-mrm-event'], 'app.synced');
-  assert.match(hit.headers['x-mrm-delivery'] ?? '', /^[0-9a-f-]{36}$/);
-  assert.match(hit.headers['x-mrm-timestamp'] ?? '', /^[0-9]{10}$/);
-  const signature = hit.headers['x-mrm-signature'] ?? '';
+  assert.equal(hit.headers['x-kiln-event'], 'app.synced');
+  assert.match(hit.headers['x-kiln-delivery'] ?? '', /^[0-9a-f-]{36}$/);
+  assert.match(hit.headers['x-kiln-timestamp'] ?? '', /^[0-9]{10}$/);
+  const signature = hit.headers['x-kiln-signature'] ?? '';
   assert.match(signature, /^v1=[0-9a-f]{64}$/);
   assert.equal(
     signature,
-    `v1=${signWebhook(wanted.body.secret, hit.headers['x-mrm-timestamp'] ?? '', hit.body)}`,
+    `v1=${signWebhook(wanted.body.secret, hit.headers['x-kiln-timestamp'] ?? '', hit.body)}`,
   );
   // Each endpoint is signed with its own secret.
   const second = t.sent.find((s) => s.url === 'https://b.example.com/in');
   assert.equal(
-    second?.headers['x-mrm-signature'],
-    `v1=${signWebhook(all.body.secret, second?.headers['x-mrm-timestamp'] ?? '', second?.body ?? '')}`,
+    second?.headers['x-kiln-signature'],
+    `v1=${signWebhook(all.body.secret, second?.headers['x-kiln-timestamp'] ?? '', second?.body ?? '')}`,
   );
-  assert.notEqual(second?.headers['x-mrm-signature'], signature);
+  assert.notEqual(second?.headers['x-kiln-signature'], signature);
 
   const log = await deliveries(t, wanted.body.webhook.id);
   assert.equal(log.length, 1);
@@ -454,7 +454,7 @@ dbTest('a failing receiver is retried with backoff, then the delivery succeeds',
   assert.equal(t.sent.length, 3);
   assert.equal(new Set(t.sent.map((s) => s.body)).size, 1, 'every attempt sends the same body');
   assert.equal(
-    new Set(t.sent.map((s) => s.headers['x-mrm-delivery'])).size,
+    new Set(t.sent.map((s) => s.headers['x-kiln-delivery'])).size,
     1,
     'and carries the same delivery id',
   );
@@ -572,14 +572,14 @@ dbTest('a test event goes through the same path, and says it is a test', async (
   assert.equal((await t.call(t.owner, 'POST', '/webhooks/nope/test')).status, 404);
   await t.run();
   const hit = t.sent[0];
-  assert.equal(hit?.headers['x-mrm-event'], 'webhook.test');
+  assert.equal(hit?.headers['x-kiln-event'], 'webhook.test');
   const parsed = JSON.parse(hit?.body ?? '{}');
   assert.equal(parsed.type, 'webhook.test');
   assert.equal(parsed.id, null);
   assert.equal(parsed.workspaceId, t.workspaceId);
   assert.equal(
-    hit?.headers['x-mrm-signature'],
-    `v1=${signWebhook(body.secret, hit?.headers['x-mrm-timestamp'] ?? '', hit?.body ?? '')}`,
+    hit?.headers['x-kiln-signature'],
+    `v1=${signWebhook(body.secret, hit?.headers['x-kiln-timestamp'] ?? '', hit?.body ?? '')}`,
   );
   const [log] = await deliveries(t, id);
   assert.equal(log?.eventType, 'webhook.test');

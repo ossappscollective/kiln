@@ -15,7 +15,7 @@ import { clearRepoSnapshots } from './services/repo-snapshot.ts';
 
 const dirs: string[] = [];
 const scratch = (): string => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'mrm-refresh-')));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'kiln-refresh-')));
   dirs.push(dir);
   return dir;
 };
@@ -416,7 +416,7 @@ dbTest(
     await b.t.db.execute("UPDATE change_sets SET status = 'applying' WHERE id = ?", [third]);
     assert.equal((await refresh(b, third)).body.status, 'applying');
     await b.t.db.execute(
-      "UPDATE change_sets SET status = 'failed', branch = 'mrm/abc' WHERE id = ?",
+      "UPDATE change_sets SET status = 'failed', branch = 'kiln/abc' WHERE id = ?",
       [third],
     );
     const withBranch = await refresh(b, third);
@@ -517,7 +517,7 @@ async function strangerOwner(b: Booted) {
     [workspaceId],
   );
   const { token } = await createSession(b.t.db, 'u-stranger', Date.now());
-  return { cookie: `mrm_session=${token}`, workspaceId };
+  return { cookie: `kiln_session=${token}`, workspaceId };
 }
 
 dbTest(

@@ -1079,7 +1079,7 @@ export type ApiTokenStatus = 'active' | 'revoked' | 'expired';
 export type ApiToken = {
   id: string;
   name: string;
-  /** `mrm_` and six more characters, to recognise it. */
+  /** `kiln_` and six more characters, to recognise it. */
   prefix: string;
   role: 'viewer' | 'member' | 'admin';
   /** Null: all apps. */

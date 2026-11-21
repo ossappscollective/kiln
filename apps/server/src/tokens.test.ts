@@ -64,19 +64,19 @@ async function insertApp(t: Boot, id: string, workspaceId = t.workspaceId) {
 // ----- creating and storing -----------------------------------------------------------------
 
 dbTest(
-  'a token is mrm_ plus 256 random bits, shown once, and only its SHA-256 is stored',
+  'a token is kiln_ plus 256 random bits, shown once, and only its SHA-256 is stored',
   async (db) => {
     const t = await boot(db);
     const { res, token, summary } = await makeToken(t, { name: 'Release CI' });
     assert.equal(res.status, 201);
     assert.equal(res.headers.get('cache-control'), 'no-store');
-    assert.match(token, /^mrm_[A-Za-z0-9_-]{43}$/);
-    assert.equal(Buffer.from(token.slice(4), 'base64url').length, 32);
+    assert.match(token, /^kiln_[A-Za-z0-9_-]{43}$/);
+    assert.equal(Buffer.from(token.slice(5), 'base64url').length, 32);
     assert.equal(summary.name, 'Release CI');
     assert.equal(summary.role, 'admin');
     assert.equal(summary.status, 'active');
     assert.equal(summary.lastUsedAt, null);
-    assert.equal(summary.prefix, token.slice(0, 10));
+    assert.equal(summary.prefix, token.slice(0, 11));
     assert.equal(JSON.stringify(summary).includes(token), false);
 
     const [row] = await db.query('SELECT token_hash FROM api_tokens');
@@ -85,7 +85,7 @@ dbTest(
     for (const table of ['api_tokens', 'audit_events', 'events']) {
       const rows = await db.query(`SELECT * FROM ${table}`);
       assert.equal(JSON.stringify(rows).includes(token), false, table);
-      assert.equal(JSON.stringify(rows).includes(token.slice(4)), false, table);
+      assert.equal(JSON.stringify(rows).includes(token.slice(5)), false, table);
     }
     // Listing never shows it again.
     const list = await t.call(t.owner, 'GET', '/tokens');
@@ -112,10 +112,31 @@ dbTest(
 
 test('tokenHash and looksLikeToken', () => {
   assert.equal(tokenHash('a'), createHash('sha256').update('a').digest('hex'));
+  assert.equal(looksLikeToken(`kiln_${'a'.repeat(43)}`), true);
+  assert.equal(looksLikeToken(`kiln_${'a'.repeat(42)}`), false);
+  assert.equal(looksLikeToken(`xrm_${'a'.repeat(43)}`), false);
+  // Tokens made before the rename to Kiln start with mrm_ and stay valid.
   assert.equal(looksLikeToken(`mrm_${'a'.repeat(43)}`), true);
   assert.equal(looksLikeToken(`mrm_${'a'.repeat(42)}`), false);
-  assert.equal(looksLikeToken(`xrm_${'a'.repeat(43)}`), false);
-  assert.equal(looksLikeToken(`mrm_${'a'.repeat(43)}\n`), false);
+  assert.equal(looksLikeToken(`kiln_${'a'.repeat(43)}\n`), false);
+});
+
+dbTest('a token made before the rename (mrm_ prefix) still works, and new ones are kiln_', async (db) => {
+  const t = await boot(db);
+  const { token } = await makeToken(t, { name: 'Old CI', role: 'admin' });
+  assert.match(token, /^kiln_/);
+  // Rewrite the stored row the way an earlier version wrote it: the SHA-256 of an mrm_ token and its short prefix.
+  const old = `mrm_${'Q'.repeat(43)}`;
+  await db.execute('UPDATE api_tokens SET token_hash = ?, prefix = ?', [tokenHash(old), old.slice(0, 10)]);
+  assert.equal((await bearer(t, old, 'GET', '/apps')).status, 200);
+  assert.equal((await bearer(t, token, 'GET', '/apps')).status, 401, 'the replaced hash no longer matches');
+  assert.equal((await bearer(t, `mrm_${'R'.repeat(43)}`, 'GET', '/apps')).status, 401);
+  // It lists with the prefix it was stored with, and can be revoked like any other.
+  const list = await t.call(t.owner, 'GET', '/tokens');
+  assert.equal(list.body.tokens[0].prefix, 'mrm_QQQQQQ');
+  const id = list.body.tokens[0].id as string;
+  assert.equal((await t.call(t.owner, 'DELETE', `/tokens/${id}`)).status, 204);
+  assert.equal((await bearer(t, old, 'GET', '/apps')).status, 401);
 });
 
 dbTest('creating and revoking a token is audited, without the token', async (db) => {
@@ -201,7 +222,7 @@ dbTest('a bearer token authenticates; a wrong or revoked one does not', async (d
   assert.equal(ok.status, 200);
   assert.deepEqual(await ok.json(), { apps: [] });
 
-  const wrong = await bearer(t, `mrm_${'A'.repeat(43)}`, 'GET', '/apps');
+  const wrong = await bearer(t, `kiln_${'A'.repeat(43)}`, 'GET', '/apps');
   assert.equal(wrong.status, 401);
   assert.equal((await json(wrong)).error, 'invalid_token');
   assert.match(wrong.headers.get('www-authenticate') ?? '', /invalid_token/);
@@ -466,7 +487,7 @@ dbTest(
     // A bearer request with no cookie is not tied to a browser, so Origin does not matter.
     assert.equal((await bearer(t, token, 'POST', '/apps', {}, evil)).status, 400);
     // An invalid token from another origin is a 401, not a pass.
-    assert.equal((await bearer(t, 'mrm_x', 'POST', '/apps', {}, evil)).status, 401);
+    assert.equal((await bearer(t, 'kiln_x', 'POST', '/apps', {}, evil)).status, 401);
     // With the cookie, the bearer header is not what authenticates, so garbage in it changes nothing...
     const withGarbage = await t.app.request(`/api/workspaces/${t.workspaceId}/apps`, {
       headers: { cookie: t.owner, authorization: 'Bearer garbage' },
@@ -487,19 +508,24 @@ test('isBearerOnly: a bearer header and no session cookie', () => {
     ({ req: { header: (name: string) => headers[name.toLowerCase()] } }) as unknown as Parameters<
       typeof isBearerOnly
     >[0];
-  assert.equal(isBearerOnly(c({ authorization: 'Bearer mrm_abc' })), true);
-  assert.equal(isBearerOnly(c({ authorization: 'bearer mrm_abc', cookie: 'theme=dark' })), true);
+  assert.equal(isBearerOnly(c({ authorization: 'Bearer kiln_abc' })), true);
+  assert.equal(isBearerOnly(c({ authorization: 'bearer kiln_abc', cookie: 'theme=dark' })), true);
   assert.equal(
-    isBearerOnly(c({ authorization: 'Bearer mrm_abc', cookie: `${SESSION_COOKIE}=abc` })),
+    isBearerOnly(c({ authorization: 'Bearer kiln_abc', cookie: `${SESSION_COOKIE}=abc` })),
     false,
   );
   assert.equal(
-    isBearerOnly(c({ authorization: 'Bearer mrm_abc', cookie: `a=b; ${SESSION_COOKIE}=` })),
+    isBearerOnly(c({ authorization: 'Bearer kiln_abc', cookie: `a=b; ${SESSION_COOKIE}=` })),
     false,
   );
   assert.equal(
-    isBearerOnly(c({ authorization: 'Bearer mrm_abc', cookie: `x${SESSION_COOKIE}=1` })),
+    isBearerOnly(c({ authorization: 'Bearer kiln_abc', cookie: `x${SESSION_COOKIE}=1` })),
     true,
+  );
+  // The session cookie from before the rename counts as a cookie too (a browser is involved).
+  assert.equal(
+    isBearerOnly(c({ authorization: 'Bearer kiln_abc', cookie: 'mrm_session=abc' })),
+    false,
   );
   assert.equal(isBearerOnly(c({ authorization: 'Basic abc' })), false);
   assert.equal(isBearerOnly(c({})), false);
@@ -531,7 +557,7 @@ dbTest('bad tokens count against the client address', async (db) => {
   const from = (ip: string) => ({ 'x-forwarded-for': ip });
   for (let i = 0; i < 3; i++)
     assert.equal(
-      (await bearer(t, 'mrm_bad', 'GET', '/apps', undefined, from('203.0.113.9'))).status,
+      (await bearer(t, 'kiln_bad', 'GET', '/apps', undefined, from('203.0.113.9'))).status,
       401,
     );
   const blocked = await bearer(t, token, 'GET', '/apps', undefined, from('203.0.113.9'));

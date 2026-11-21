@@ -262,8 +262,8 @@ export const verifySnippet = `// Node.js: verify a delivery
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 function verify(secret, headers, rawBody) {
-  const timestamp = headers['x-mrm-timestamp'];
-  const given = (headers['x-mrm-signature'] ?? '').replace(/^v1=/, '');
+  const timestamp = headers['x-kiln-timestamp'];
+  const given = (headers['x-kiln-signature'] ?? '').replace(/^v1=/, '');
   const expected = createHmac('sha256', secret).update(\`\${timestamp}.\${rawBody}\`).digest('hex');
   const fresh = Math.abs(Date.now() / 1000 - Number(timestamp)) < 300; // reject replays
   return fresh && given.length === expected.length && timingSafeEqual(Buffer.from(given), Buffer.from(expected));

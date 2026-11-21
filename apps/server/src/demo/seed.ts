@@ -465,7 +465,7 @@ export async function seedDemo(input: {
   await soft(
     'webhook',
     call('POST', '/webhooks', {
-      url: 'https://hooks.example.com/mrm/releases',
+      url: 'https://hooks.example.com/kiln/releases',
       description: 'Release channel (simulated receiver)',
       eventTypes: ['*'],
     }),
@@ -473,7 +473,7 @@ export async function seedDemo(input: {
   await soft(
     'webhook 2',
     call('POST', '/webhooks', {
-      url: 'https://hooks.example.com/mrm/reviews',
+      url: 'https://hooks.example.com/kiln/reviews',
       description: 'Low rating alerts (disabled)',
       eventTypes: ['review.new_low_rating'],
       enabled: false,

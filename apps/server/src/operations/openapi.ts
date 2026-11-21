@@ -26,7 +26,7 @@ export type Operation = {
   summary: string;
   description?: string;
   tags: string[];
-  /** `x-mrm-risk`: what calling it can do. Assistants use it to decide what needs a person's approval. */
+  /** `x-kiln-risk`: what calling it can do. Assistants use it to decide what needs a person's approval. */
   risk: Risk;
   access: Access;
   /** Can an API token call this? Default: yes when `access` is an action tokens may hold. */
@@ -244,9 +244,9 @@ export const TAG_DESCRIPTIONS: Record<string, string> = {
 };
 
 const INFO_DESCRIPTION =
-  'Every call needs a session cookie or an API token (`Authorization: Bearer mrm_...`), except the few marked public. ' +
-  '`x-mrm-risk` says what an operation can do (read, write, destructive); `x-mrm-action` is the permission it needs; ' +
-  '`x-mrm-token-access` says whether an API token may call it. Operations marked `x-mrm-partial` have responses that are ' +
+  'Every call needs a session cookie or an API token (`Authorization: Bearer kiln_...`), except the few marked public. ' +
+  '`x-kiln-risk` says what an operation can do (read, write, destructive); `x-kiln-action` is the permission it needs; ' +
+  '`x-kiln-token-access` says whether an API token may call it. Operations marked `x-kiln-partial` have responses that are ' +
   'described only in part. See docs/api/openapi.md.';
 
 function operationObject(op: Operation): Record<string, unknown> {
@@ -321,12 +321,12 @@ function operationObject(op: Operation): Record<string, unknown> {
       : {}),
     responses,
     security,
-    'x-mrm-risk': op.risk,
-    ...(typeof op.access === 'object' ? { 'x-mrm-action': op.access.action } : {}),
-    'x-mrm-token-access': viaToken,
-    ...(op.appScope ? { 'x-mrm-app-scope': op.appScope.kind } : {}),
-    ...(op.bodyLimit ? { 'x-mrm-body-limit': op.bodyLimit } : {}),
-    ...(op.partial ? { 'x-mrm-partial': true } : {}),
+    'x-kiln-risk': op.risk,
+    ...(typeof op.access === 'object' ? { 'x-kiln-action': op.access.action } : {}),
+    'x-kiln-token-access': viaToken,
+    ...(op.appScope ? { 'x-kiln-app-scope': op.appScope.kind } : {}),
+    ...(op.bodyLimit ? { 'x-kiln-body-limit': op.bodyLimit } : {}),
+    ...(op.partial ? { 'x-kiln-partial': true } : {}),
   };
 }
 
@@ -360,14 +360,14 @@ export function buildOpenApiDocument(
         cookieAuth: {
           type: 'apiKey',
           in: 'cookie',
-          name: 'mrm_session',
+          name: 'kiln_session',
           description:
             'The session cookie set by sign-in. State-changing requests must come from this server’s own origin.',
         },
         bearerAuth: {
           type: 'http',
           scheme: 'bearer',
-          bearerFormat: 'mrm_ token',
+          bearerFormat: 'kiln_ token',
           description:
             'An API token made under API tokens. A token is limited to one workspace, a role ceiling, and optionally apps and actions.',
         },
@@ -558,9 +558,9 @@ export function validateOpenApiDocument(doc: unknown): string[] {
       for (const tag of Array.isArray(operation.tags) ? operation.tags : []) {
         if (!declaredTags.has(String(tag))) bad(where, `tag ${String(tag)} is not declared`);
       }
-      const risk = operation['x-mrm-risk'];
+      const risk = operation['x-kiln-risk'];
       if (risk !== 'read' && risk !== 'write' && risk !== 'destructive') {
-        bad(where, 'x-mrm-risk must be read, write or destructive');
+        bad(where, 'x-kiln-risk must be read, write or destructive');
       }
 
       // Every {name} in the path is declared once as a required path parameter, and nothing else is.

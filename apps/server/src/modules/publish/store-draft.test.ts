@@ -1005,7 +1005,7 @@ dbTest(
     };
     const at = (path: string, method: string) =>
       doc.paths[`/api/workspaces/{workspaceId}${path}`]?.[method];
-    assert.equal(at('/store-draft/config', 'get')?.['x-mrm-action'], 'apps.read');
+    assert.equal(at('/store-draft/config', 'get')?.['x-kiln-action'], 'apps.read');
     for (const [path, method, action, risk] of [
       ['/apps/{id}/staged', 'get', 'listing.read', 'read'],
       ['/apps/{id}/staged/text', 'put', 'changesets.write', 'write'],
@@ -1013,8 +1013,8 @@ dbTest(
       ['/apps/{id}/staged/push/preview', 'post', 'store.push_draft', 'read'],
       ['/apps/{id}/staged/push', 'post', 'store.push_draft', 'destructive'],
     ] as const) {
-      assert.equal(at(path, method)?.['x-mrm-action'], action, `${method} ${path}`);
-      assert.equal(at(path, method)?.['x-mrm-risk'], risk, `${method} ${path}`);
+      assert.equal(at(path, method)?.['x-kiln-action'], action, `${method} ${path}`);
+      assert.equal(at(path, method)?.['x-kiln-risk'], risk, `${method} ${path}`);
     }
   },
 );

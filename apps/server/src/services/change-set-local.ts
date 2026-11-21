@@ -64,13 +64,13 @@ export const PUBLISH_CLAIM_TTL_MS = APPLY_CLAIM_TTL_MS;
 export type LocalApplyInput = {
   workspaceId: string;
   id: string;
-  /** The branch to create. Default: `mrm/<slug of the summary>-<short id>`. */
+  /** The branch to create. Default: `kiln/<slug of the summary>-<short id>`. */
   branch?: string | undefined;
   push: boolean;
   openPr: boolean;
 };
 
-/** `mrm/<slug of the summary>-<first 8 of the id>`: a valid branch name, unique per change set. */
+/** `kiln/<slug of the summary>-<first 8 of the id>`: a valid branch name, unique per change set. */
 export function localBranchNameFor(id: string, summary: string): string {
   const slug = summary
     .normalize('NFKD')
@@ -79,7 +79,7 @@ export function localBranchNameFor(id: string, summary: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 40)
     .replace(/-+$/, '');
-  return `mrm/${slug || 'update'}-${id.replace(/-/g, '').slice(0, 8)}`;
+  return `kiln/${slug || 'update'}-${id.replace(/-/g, '').slice(0, 8)}`;
 }
 
 /**

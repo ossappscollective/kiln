@@ -45,7 +45,7 @@ type Files = Record<string, string>;
 
 const dirs: string[] = [];
 const scratch = (): string => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'mrm-apply-')));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'kiln-apply-')));
   dirs.push(dir);
   return dir;
 };
@@ -210,7 +210,7 @@ dbTest(
     assert.equal(res.status, 200, res.text);
     const set = res.body.changeSet;
     assert.equal(set.status, 'applied');
-    assert.match(set.branch, /^mrm\/update-the-subtitle-[0-9a-f]{8}$/);
+    assert.match(set.branch, /^kiln\/update-the-subtitle-[0-9a-f]{8}$/);
     assert.ok(set.branch.endsWith(id.replace(/-/g, '').slice(0, 8)));
     assert.equal(set.commitSha, git(dir, 'rev-parse', `refs/heads/${set.branch}`));
     assert.equal(set.prUrl, null);

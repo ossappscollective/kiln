@@ -18,7 +18,7 @@ let cached: TestCert | null | undefined;
 /** A self-signed certificate for localhost and 127.0.0.1, made with openssl (null when openssl is not there, so a test can skip). */
 export function testCert(): TestCert | null {
   if (cached !== undefined) return cached;
-  const dir = mkdtempSync(join(tmpdir(), 'mrm-smtp-'));
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-smtp-'));
   try {
     execFileSync(
       'openssl',

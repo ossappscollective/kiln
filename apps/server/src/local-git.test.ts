@@ -29,7 +29,7 @@ import { translateLocalError } from './services/local-reads.ts';
 
 const dirs: string[] = [];
 const scratch = (): string => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'mrm-lg-')));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'kiln-lg-')));
   dirs.push(dir);
   return dir;
 };
@@ -182,7 +182,7 @@ test('validateLocalPath refuses the server’s own data and clone folders and ma
   const r = await validateLocalPath(dataInRoot, inner);
   assert.equal(r.ok === false && r.code, 'data_folder');
   const managed = repo(root, 'managed');
-  writeFileSync(join(managed, 'mrm-clone.json'), '{}');
+  writeFileSync(join(managed, 'kiln-clone.json'), '{}');
   const m = await validateLocalPath(managed, cfg);
   assert.equal(m.ok === false && m.code, 'data_folder');
   assert.ok(data);

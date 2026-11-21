@@ -1,18 +1,17 @@
 import { canToken, lowerRole, type Role } from '@kiln/core';
 import type { Context, MiddlewareHandler, Next } from 'hono';
-import { getCookie } from 'hono/cookie';
-import { type AppEnv, clientIp, type Services } from './http.ts';
+import { type AppEnv, clientIp, type Services, sessionToken } from './http.ts';
 import { createLoginLimiter, type LoginLimiter } from './limiter.ts';
 import { compilePath, tokenAllowedFor } from './operations/openapi.ts';
 import { operations } from './operations/registry.ts';
-import { requireUser, SESSION_COOKIE } from './routes/auth.ts';
+import { requireUser } from './routes/auth.ts';
 import { runAsToken } from './services/audit.ts';
 import { createTestLimiter, type TestLimiter } from './services/credential-tests.ts';
 import { authenticateToken, type TokenPrincipal, touchToken } from './services/tokens.ts';
 
 /**
  * Authentication for `/api/workspaces/*` and `/api/openapi.json`: the session cookie, as before, or
- * `Authorization: Bearer mrm_...`.
+ * `Authorization: Bearer kiln_...`.
  *
  * - A request that carries the session cookie goes through `requireUser` exactly as it always did.
  *   A bearer header next to a cookie is ignored, so the bearer path can never change how cookies
@@ -77,7 +76,7 @@ export function requireAuth(
     createLoginLimiter({ max: BAD_TOKEN_LIMIT, windowMs: 5 * 60_000, now: services.now });
 
   return async (c: Context<AppEnv>, next: Next) => {
-    if (getCookie(c, SESSION_COOKIE)) return cookieAuth(c, next);
+    if (sessionToken(c)) return cookieAuth(c, next);
     const header = c.req.header('authorization') ?? '';
     const presented = /^Bearer\s+(\S+)$/i.exec(header)?.[1];
     if (presented === undefined) return cookieAuth(c, next);

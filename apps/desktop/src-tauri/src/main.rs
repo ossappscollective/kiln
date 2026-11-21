@@ -19,7 +19,7 @@
 //   6. stops the server when the app exits.
 //
 // Release builds start the packaged server: the Node binary is a Tauri sidecar (`externalBin`
-// "binaries/mrm-node") and the server is a resource folder, both staged by
+// "binaries/kiln-node") and the server is a resource folder, both staged by
 // apps/desktop/scripts/prepare-sidecar.mjs (docs/adr/0004-desktop-sidecar.md). Debug builds run
 // `node apps/server/src/index.ts` from the repository checkout. Only `spawn_server` differs.
 //
@@ -139,14 +139,14 @@ fn free_port() -> BoxResult<u16> {
 }
 
 /// The packaged server, as laid out by `scripts/prepare-sidecar.mjs` and the Tauri bundler
-/// (docs/adr/0004-desktop-sidecar.md). The Node binary is the sidecar `mrm-node`: the bundler
+/// (docs/adr/0004-desktop-sidecar.md). The Node binary is the sidecar `kiln-node`: the bundler
 /// puts it next to this executable (Contents/MacOS on macOS) with the target triple removed. The
 /// server files are the `server` resource folder. Returns (node, launcher, web UI folder), or
 /// None when they are not there.
 fn packaged_server(app: &tauri::AppHandle) -> Option<(PathBuf, PathBuf, PathBuf)> {
     let exe = std::env::current_exe().ok()?;
     let exe_dir = exe.parent()?;
-    let node = exe_dir.join(if cfg!(windows) { "mrm-node.exe" } else { "mrm-node" });
+    let node = exe_dir.join(if cfg!(windows) { "kiln-node.exe" } else { "kiln-node" });
     let server_dir = app.path().resource_dir().ok()?.join("server");
     let launcher = server_dir.join("launcher.mjs");
     if node.exists() && launcher.exists() {

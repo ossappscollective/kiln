@@ -584,7 +584,7 @@ export async function discardChangeSet(
 // ---------------------------------------------------------------------------------------------
 // Apply
 
-/** `mrm/<first 8 of the id>-<slug of the summary>`: a valid git branch name, unique per set. */
+/** `kiln/<first 8 of the id>-<slug of the summary>`: a valid git branch name, unique per set. */
 export function branchNameFor(id: string, summary: string): string {
   const slug = summary
     .normalize('NFKD')
@@ -593,7 +593,7 @@ export function branchNameFor(id: string, summary: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 40)
     .replace(/-+$/, '');
-  return `mrm/${id.replace(/-/g, '').slice(0, 8)}-${slug || 'update'}`;
+  return `kiln/${id.replace(/-/g, '').slice(0, 8)}-${slug || 'update'}`;
 }
 
 const ZWSP = '\u200b';
