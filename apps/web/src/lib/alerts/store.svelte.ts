@@ -1,5 +1,4 @@
 import type { Api } from '../api.ts';
-import { readMigrated } from '../legacy-storage.ts';
 import type { InboxAlert } from './alerts.ts';
 import {
   deviceEnabled,
@@ -29,7 +28,7 @@ let generation = 0;
 
 const readSeen = (): string[] => {
   try {
-    const raw = typeof localStorage === 'undefined' ? null : readMigrated(localStorage, SEEN_KEY);
+    const raw = typeof localStorage === 'undefined' ? null : localStorage.getItem(SEEN_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
   } catch {

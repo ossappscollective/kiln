@@ -1,4 +1,3 @@
-import { readMigrated } from '../legacy-storage.ts';
 import type { CatalogEntry, InboxAlert, PersonalChannel, Preference } from './alerts.ts';
 import { effectiveChannels } from './alerts.ts';
 
@@ -47,7 +46,7 @@ type Storage = Pick<globalThis.Storage, 'getItem' | 'setItem'>;
 /** The stored choice of this device: true, false, or null when the person never chose. Never throws. */
 export function readDeviceChoice(storage: Storage | undefined): boolean | null {
   try {
-    const raw = storage ? readMigrated(storage, DEVICE_KEY) : null;
+    const raw = storage ? storage.getItem(DEVICE_KEY) : null;
     return raw === 'on' ? true : raw === 'off' ? false : null;
   } catch {
     return null;

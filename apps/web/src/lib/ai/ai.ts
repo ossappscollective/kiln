@@ -19,7 +19,6 @@ import {
 import { ApiError } from '../api.ts';
 import { appAddress, appReviewsHref, type PlatformScope } from '../app-scope.ts';
 import { asoViewHref } from '../aso/aso.ts';
-import { readMigrated } from '../legacy-storage.ts';
 import { platformLabel } from '../portfolio.ts';
 import { centsFromText, centsInput, insightTitle } from './insights.ts';
 import { placementLine, stageInLabel } from './placement.ts';
@@ -427,8 +426,7 @@ export function createDisclosureGate(storage: () => DisclosureStorage | null): D
   const session = new Map<string, string>();
   const read = (taskId: string): string | null => {
     try {
-      const store = storage();
-      return store ? readMigrated(store, disclosureKey(taskId)) : null;
+      return storage()?.getItem(disclosureKey(taskId)) ?? null;
     } catch {
       return null;
     }

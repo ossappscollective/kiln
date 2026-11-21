@@ -1,6 +1,5 @@
 import { canonicalAppHash, canonicalSection, viewOf } from './app-nav.ts';
 import { parseAppAddress, parseViewPath } from './app-scope.ts';
-import { readMigrated } from './legacy-storage.ts';
 
 /**
  * The open or closed state of the collapsible sections of a page (components/ui/Section.svelte), remembered per workspace, person,
@@ -37,7 +36,7 @@ export function parseSectionState(raw: string | null | undefined): Record<string
 function load(storage: StorageLike | null, scope: SectionScope): Record<string, boolean> {
   if (!storage) return {};
   try {
-    return parseSectionState(readMigrated(storage, sectionStorageKey(scope)));
+    return parseSectionState(storage.getItem(sectionStorageKey(scope)));
   } catch {
     return {};
   }

@@ -13,7 +13,6 @@ import {
   type RolloutSummary,
   supports,
 } from '@kiln/core';
-import { readMigrated } from './legacy-storage.ts';
 import {
   appHref,
   compareVersions,
@@ -38,7 +37,7 @@ type WritableStorage = Pick<Storage, 'setItem'>;
 export function readViewMode(storage?: ReadableStorage): ViewMode {
   try {
     const store = storage ?? globalThis.localStorage;
-    return readMigrated(store, VIEW_MODE_KEY) === 'board' ? 'board' : 'list';
+    return store.getItem(VIEW_MODE_KEY) === 'board' ? 'board' : 'list';
   } catch {
     return 'list';
   }

@@ -2,7 +2,6 @@
   import { onMount, tick, untrack } from 'svelte';
   import type { Api } from '../lib/api.ts';
   import { floating } from '../lib/floating.ts';
-  import { readMigrated } from '../lib/legacy-storage.ts';
   import { can } from '@kiln/core';
   import { address, appContext } from '../lib/address.svelte.ts';
   import { carryHeaderParams } from '../lib/app-header.ts';
@@ -54,7 +53,7 @@
   const KEY = 'kiln.workspace';
   const remembered = () => {
     try {
-      return readMigrated(localStorage, KEY);
+      return localStorage.getItem(KEY);
     } catch {
       return null;
     }

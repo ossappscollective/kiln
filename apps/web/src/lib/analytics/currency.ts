@@ -3,7 +3,6 @@
  * the biggest. Money is never converted or added across currencies; this only decides which one is shown first.
  */
 
-import { readMigrated } from '../legacy-storage.ts';
 
 const CHOICE_KEY = 'kiln.analytics.currency';
 
@@ -36,8 +35,7 @@ export const browserLocale = (): string | null =>
 /** What the person chose last, or null. Storage can be missing or refuse; that is never an error. */
 export function chosenCurrency(): string | null {
   try {
-    const storage = globalThis.localStorage;
-    const value = storage ? readMigrated(storage, CHOICE_KEY) : null;
+    const value = globalThis.localStorage?.getItem(CHOICE_KEY) ?? null;
     return value !== null && /^[A-Z]{3}$/.test(value) ? value : null;
   } catch {
     return null;

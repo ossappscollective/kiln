@@ -1,7 +1,5 @@
 /** Theme preference: follow the system (auto), or force light or dark. Remembered in localStorage. */
 
-import { legacyKeyOf, readMigrated } from './legacy-storage.ts';
-
 export const themePrefs = ['auto', 'light', 'dark'] as const;
 export type ThemePref = (typeof themePrefs)[number];
 
@@ -25,7 +23,7 @@ function defaultStorage(): Storage | undefined {
 /** The saved preference, or `auto` when nothing is saved or storage is unavailable. */
 export function readThemePref(storage: Reader | undefined = defaultStorage()): ThemePref {
   try {
-    return parseThemePref(storage ? readMigrated(storage, THEME_KEY) : null);
+    return parseThemePref(storage?.getItem(THEME_KEY));
   } catch {
     return 'auto';
   }
@@ -37,12 +35,7 @@ export function saveThemePref(
   storage: Writer | undefined = defaultStorage(),
 ): void {
   try {
-    if (pref === 'auto') {
-      storage?.removeItem(THEME_KEY);
-      // The pre-rename key would otherwise be copied back on the next read.
-      const legacy = legacyKeyOf(THEME_KEY);
-      if (legacy !== null) storage?.removeItem(legacy);
-    }
+    if (pref === 'auto') storage?.removeItem(THEME_KEY);
     else storage?.setItem(THEME_KEY, pref);
   } catch {
     // Not remembered. Nothing else to do.
