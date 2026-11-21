@@ -15,14 +15,16 @@
   import { type Platform, type Role, can, dateToDay } from '@kiln/core';
   import { type Snippet, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { type AnalyticsStatus, type ResolvedRange, analyticsErrorText, needsPlayBucket, stateInfo } from '../../lib/analytics/analytics.ts';
+  import { type AnalyticsStatus, type ResolvedRange, analyticsErrorText, needsPlayBucket, stateLabel } from '../../lib/analytics/analytics.ts';
   import { type Loaded, loadOverviews } from '../../lib/analytics/load.ts';
   import { buildCards, buildChips, hasStoredData, lastReadAt, noRatingHistory, overallState, pageNotes, platformNotes, splitHeadline } from '../../lib/analytics/view.ts';
   import { buildEarningsCard, buildSubscriptionsCard, earningsWaitingLine, type Extras, loadExtras } from '../../lib/analytics/extras.ts';
   import { asoViewHref } from '../../lib/aso/aso.ts';
   import { timeAgo } from '../../lib/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import Alert from '../ui/Alert.svelte';
+  import T from '../ui/T.svelte';
   import Button from '../ui/Button.svelte';
   import Section from '../ui/Section.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
@@ -147,20 +149,20 @@
   const reload = () => void load(true);
 </script>
 
-<section class="platform" class:busy={refreshing && status !== null} aria-label="{platformLabel(app.platform)} analytics" aria-busy={refreshing}>
+<section class="platform" class:busy={refreshing && status !== null} aria-label={t('analytics:platform.ariaLabel', { platform: platformLabel(app.platform) })} aria-busy={refreshing}>
   {#if heading}
     <h2 class="plat"><PlatformBadge platform={app.platform} tinted /></h2>
   {/if}
 
   {#if loading && !status}
-    <div role="status" aria-label="Loading analytics" class="stack">
+    <div role="status" aria-label={t('analytics:platform.loading')} class="stack">
       <Skeleton width="60%" height="28px" />
       <Skeleton width="100%" height="160px" />
     </div>
   {:else if statusError}
     <div class="stack">
-      <Alert tone="error" title="Could not read analytics">{statusError}</Alert>
-      <div class="row"><Button icon="refresh" onclick={() => void load(false)}>Try again</Button></div>
+      <Alert tone="error" title={t('analytics:platform.errorTitle')}>{statusError}</Alert>
+      <div class="row"><Button icon="refresh" onclick={() => void load(false)}>{t('common:action.tryAgain')}</Button></div>
     </div>
   {:else if status}
     {#if !stored}
@@ -169,7 +171,7 @@
         {@render extras?.()}
       {:else}
         <div class="stack">
-          <p class="quiet">No analytics data has been read for this app yet. Here is what is set up and what is next.</p>
+          <p class="quiet">{t('analytics:platform.nothingYet')}</p>
           <div class="card pad"><SourcesPanel {api} {workspaceId} {app} {status} {role} {now} onchanged={reload} /></div>
           {#if needsPlayBucket(status)}<PlayReportsSetup {api} {workspaceId} {role} {app} {status} onchanged={reload} />{/if}
           {@render extras?.()}
@@ -178,13 +180,13 @@
     {:else}
       <div class="stack loose">
         {#if !status.enabled}
-          <Alert tone="info">Analytics is off for this workspace, so nothing new is read. You are looking at what was stored.</Alert>
+          <Alert tone="info">{t('analytics:platform.offAlert')}</Alert>
         {/if}
 
         <div class="figures">
           <StatRow {chips} days={range.days} />
           {#if notes.length > 0}
-            <InfoTip label="How to read these numbers" buttonText="How to read these numbers" align="start" width="26rem">
+            <InfoTip label={t('analytics:platform.howToRead')} buttonText={t('analytics:platform.howToRead')} align="start" width="26rem">
               <ul class="notes">
                 {#each notes as n (n)}<li>{n}</li>{/each}
               </ul>
@@ -193,18 +195,18 @@
         </div>
 
         {#if overviewError}
-          <Alert tone="error" title="Could not read the numbers">{overviewError}</Alert>
-          <div class="row"><Button icon="refresh" onclick={() => void load(false)}>Try again</Button></div>
+          <Alert tone="error" title={t('analytics:platform.numbersErrorTitle')}>{overviewError}</Alert>
+          <div class="row"><Button icon="refresh" onclick={() => void load(false)}>{t('common:action.tryAgain')}</Button></div>
         {/if}
 
         {#if loaded && cards.length === 0}
-          <p class="quiet">No numbers in this date range. Try a longer range.</p>
+          <p class="quiet">{t('analytics:platform.noNumbers')}</p>
         {/if}
         {#if split.headline}
           <ChartCard card={split.headline} {today} {showData} />
         {/if}
         {#if split.rest.length > 0}
-          <Section title="More charts" key="more-charts.{app.platform}" variant="plain" count={split.rest.length} defaultOpen={false} summary={split.rest.map((c) => c.title).join(', ')}>
+          <Section title={t('analytics:platform.moreCharts')} key="more-charts.{app.platform}" variant="plain" count={split.rest.length} defaultOpen={false} summary={split.rest.map((c) => c.title).join(', ')}>
             <div class="grid">
               {#each split.rest as card (card.id)}
                 <ChartCard {card} {today} {showData} />
@@ -225,22 +227,24 @@
         {#if needsPlayBucket(status)}<PlayReportsSetup {api} {workspaceId} {role} {app} {status} onchanged={reload} />{/if}
 
         {#if noRatingHistory(app.platform) && loaded}
-          <p class="quiet">Ratings over time: Apple does not provide rating history.</p>
+          <p class="quiet">{t('analytics:platform.noRatingHistory')}</p>
         {/if}
 
         {@render extras?.()}
 
         {#if can(role, 'aso.read')}
-          <p class="quiet">Rank versus downloads, with the tracked keywords: <a href={asoViewHref(app.id, 'rank', app.platform)}>open Keywords</a>.</p>
+          <p class="quiet"><T key="analytics:platform.rankVsDownloads" tags={{ link: keywordsLink }} /></p>
         {/if}
 
-        <Section title="Sources and sync" key="sources.{app.platform}" defaultOpen={false} summary={`${stateInfo[overall].label}${lastRead === null ? '' : `, last read ${timeAgo(lastRead, now)}`}`}>
+        <Section title={t('analytics:platform.sourcesTitle')} key="sources.{app.platform}" defaultOpen={false} summary={lastRead === null ? stateLabel(overall) : t('analytics:platform.sourcesSummary', { state: stateLabel(overall), ago: timeAgo(lastRead, now) })}>
           <SourcesPanel {api} {workspaceId} {app} {status} {role} {now} onchanged={reload} />
         </Section>
       </div>
     {/if}
   {/if}
 </section>
+
+{#snippet keywordsLink(text: string)}<a href={asoViewHref(app.id, 'rank', app.platform)}>{text}</a>{/snippet}
 
 <style>
   .platform {

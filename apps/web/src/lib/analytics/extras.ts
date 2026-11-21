@@ -1,5 +1,6 @@
 import { dateToDay } from '@kiln/core';
 import type { Api } from '../api.ts';
+import { k, t } from '../i18n/t.ts';
 import {
   type AnalyticsOverview,
   type AnalyticsSeries,
@@ -10,7 +11,7 @@ import {
   seriesOf,
   stateOf,
 } from './analytics.ts';
-import type { ChartCard, ChartPanel, PanelKind, VersionBars } from './view.ts';
+import { type ChartCard, type ChartPanel, type PanelKind, seriesLabel, type VersionBars } from './view.ts';
 
 /**
  * Two cards of the Analytics screen that do not fit the daily, one-overview pattern (docs/adr/0042-earnings-and-subscription-metrics.md):
@@ -24,8 +25,8 @@ import type { ChartCard, ChartPanel, PanelKind, VersionBars } from './view.ts';
  *   Counts only (no unit, no money), with the active ones by product. Apple's and Google's are different measures and are never mixed.
  */
 
-export const EARNINGS_CARD_TITLE = 'Earnings (net, monthly)';
-export const SUBSCRIPTIONS_CARD_TITLE = 'Subscriptions';
+export const earningsCardTitle = (): string => t('analytics:earnings.cardTitle');
+export const subscriptionsCardTitle = (): string => t('analytics:subs.cardTitle');
 
 /** How many months the earnings card reads. */
 export const EARNINGS_MONTHS = 12;
@@ -66,7 +67,7 @@ export function earningsWaitingLine(status: AnalyticsStatus | null): string {
   const found = sourceOf(status, EARNINGS_SOURCE);
   if (!status?.enabled || !found || found.lastDay !== null) return '';
   if (stateOf(found.state) !== 'ready' && stateOf(found.state) !== 'waiting') return '';
-  return 'Google Play earnings are not available yet. Google posts the report of a month in the first days of the next month; the first one appears after the next sync.';
+  return t('analytics:earnings.waiting');
 }
 
 /** A monthly series with its points named by month ("2026-10") instead of the first day it is stored on. */
@@ -86,7 +87,7 @@ function panel(
   entries: [AnalyticsSeries | null, string | null, 1 | 2][],
   currency: string | null = null,
 ): ChartPanel | null {
-  const series = entries.flatMap(([s, label, color]) => (hasData(s) ? [{ key: s.id, label: label ?? s.label, color, series: s }] : []));
+  const series = entries.flatMap(([s, label, color]) => (hasData(s) ? [{ key: s.id, label: label ?? seriesLabel(s), color, series: s }] : []));
   return series.length === 0 ? null : { id, title, kind, unit, currency, domain: 'zero', series };
 }
 
@@ -110,19 +111,19 @@ export function buildEarningsCard(overview: AnalyticsOverview | null): ChartCard
         'line',
         'money',
         [
-          [net.find((s) => s.currency === currency) ?? null, `Net, after Google's fees and taxes (${currency})`, 1],
-          [charges.find((s) => s.currency === currency) ?? null, `Charges, what buyers paid (${currency})`, 2],
+          [net.find((s) => s.currency === currency) ?? null, t('analytics:earnings.net', { currency }), 1],
+          [charges.find((s) => s.currency === currency) ?? null, t('analytics:earnings.charges', { currency }), 2],
         ],
         currency,
       ),
     ),
     (() => {
       const orders = seriesOf(overview, 'earnings_orders');
-      return panel('earnings_orders', 'Charges (count)', 'columns', 'count', [[orders && hasData(orders) ? monthlySeries(orders) : null, null, 1]]);
+      return panel('earnings_orders', t('analytics:earnings.chargesCount'), 'columns', 'count', [[orders && hasData(orders) ? monthlySeries(orders) : null, null, 1]]);
     })(),
   ]);
   if (panels.length === 0) return null;
-  return { id: 'earnings', title: EARNINGS_CARD_TITLE, panels, versions: [] };
+  return { id: 'earnings', title: earningsCardTitle(), panels, versions: [] };
 }
 
 /**
@@ -143,20 +144,20 @@ export function buildSubscriptionsCard(overview: AnalyticsOverview | null): Char
     const cancelled = seriesOf(overview, `${family.prefix}_cancelled`);
     const trial = family.trial ? seriesOf(overview, family.trial) : null;
     panels.push(
-      panel(`${family.prefix}_active`, 'Active subscriptions', 'line', 'count', [
+      panel(`${family.prefix}_active`, t('analytics:subs.active'), 'line', 'count', [
         [active, null, 1],
-        [trial, 'Active free trials', 2],
+        [trial, t('analytics:subs.activeTrials'), 2],
       ]),
-      panel(`${family.prefix}_new`, 'New subscriptions', 'columns', 'count', [[fresh, null, 1]]),
-      panel(`${family.prefix}_cancelled`, 'Cancelled subscriptions', 'columns', 'count', [[cancelled, null, 1]]),
+      panel(`${family.prefix}_new`, t('analytics:subs.new'), 'columns', 'count', [[fresh, null, 1]]),
+      panel(`${family.prefix}_cancelled`, t('analytics:subs.cancelled'), 'columns', 'count', [[cancelled, null, 1]]),
     );
     const items = seriesOf(overview, `${family.prefix}_active`)?.breakdown;
     if (items && items.dimension === 'product' && items.items.length > 0 && hasData(active)) {
-      versions.push({ id: `${family.prefix}_by_product`, title: 'Active subscriptions by product', unit: 'count', items: items.items });
+      versions.push({ id: `${family.prefix}_by_product`, title: t('analytics:subs.byProduct'), unit: 'count', items: items.items });
     }
   }
   const list = compact(panels);
-  return list.length === 0 ? null : { id: 'subscriptions', title: SUBSCRIPTIONS_CARD_TITLE, panels: list, versions: compact(versions) };
+  return list.length === 0 ? null : { id: 'subscriptions', title: subscriptionsCardTitle(), panels: list, versions: compact(versions) };
 }
 
 export type ExtraReads = Pick<Api, 'analyticsOverview'>;

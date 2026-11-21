@@ -26,10 +26,12 @@
     previewNotes,
     sampleTable,
   } from '../../lib/analytics/import.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
+  import T from '../ui/T.svelte';
   import Icon from '../ui/Icon.svelte';
   import Modal from '../ui/Modal.svelte';
   import '../readable-card.css';
@@ -91,7 +93,7 @@
       const result = await api.importAnalytics(workspaceId, appId, file.name, hash, file);
       storedSomething = true;
       send({ type: 'imported', result: result.imported });
-      toast.success(result.imported.written > 0 ? 'Report file imported.' : 'The file was already imported.');
+      toast.success(result.imported.written > 0 ? t('analytics:importDialog.toastImported') : t('analytics:importDialog.toastRepeat'));
       onimported();
     } catch (e) {
       send({ type: 'failed', during: 'import', ...importErrorText(e) });
@@ -108,28 +110,27 @@
 <Modal
   bind:open
   size="lg"
-  title={android ? 'Import a Play Console CSV' : 'Import a report file'}
-  description={android ? 'For installs and ratings when the reports bucket is not set up: a statistics file you downloaded from Play Console.' : 'For when the API key cannot create report requests, or you exported a report by hand.'}
+  title={android ? t('analytics:importDialog.titleAndroid') : t('analytics:importDialog.titleApple')}
+  description={android ? t('analytics:importDialog.descAndroid') : t('analytics:importDialog.descApple')}
   dismissible={!busy}
 >
   <div class="stack readable-card">
     {#if flow.phase === 'done'}
-      <Alert tone="ok" title="Done">{importedText(flow.result)}</Alert>
+      <Alert tone="ok" title={t('common:action.done')}>{importedText(flow.result)}</Alert>
     {:else}
       <p class="muted">
         {#if android}
-          Drop the installs or ratings CSV of this app from Play Console here. It is read on this server and nothing is sent to Google.
+          {t('analytics:importDialog.dropAndroid')}
         {:else}
-          Drop an Analytics Report or a Sales and Trends summary from App Store Connect here. It is read on this server and nothing is sent to a store.
+          {t('analytics:importDialog.dropApple')}
         {/if}
       </p>
-      <Disclosure summary="About this import">
+      <Disclosure summary={t('analytics:importDialog.about')}>
         <p class="muted">
           {#if android}
-            In Play Console open Download reports, then Statistics, and download the file for this app. Rows of other apps in the file are left out. Numbers
-            read from your reports bucket are never replaced, and the same file twice stores nothing new.
+            {t('analytics:importDialog.aboutAndroid')}
           {:else}
-            Numbers the store API already read are never replaced, and the same file twice stores nothing new.
+            {t('analytics:importDialog.aboutApple')}
           {/if}
         </p>
       </Disclosure>
@@ -137,29 +138,29 @@
       {#if flow.phase === 'idle' || flow.phase === 'error' || flow.phase === 'checking'}
         <label class="drop" class:over={dragging} ondragover={(e) => { e.preventDefault(); dragging = true; }} ondragleave={() => (dragging = false)} {ondrop} for="{uid}-file">
           <Icon name="upload" size={20} />
-          <span><strong>Choose a file</strong> or drop it here</span>
-          <span class="muted small">.tsv, .csv or .gz, at most 10 MiB</span>
+          <span><T key="analytics:importDialog.choose" /></span>
+          <span class="muted small">{t('analytics:importDialog.fileTypes')}</span>
           <input id="{uid}-file" class="visually-hidden" type="file" accept=".tsv,.csv,.gz,.txt,text/csv,text/tab-separated-values,application/gzip" disabled={busy} onchange={(e) => { void choose(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} />
         </label>
         {#if fileProblem}<p class="field-error" role="alert">{fileProblem}</p>{/if}
-        {#if flow.phase === 'checking'}<p role="status" class="muted">Checking {flow.fileName}. Nothing is stored yet.</p>{/if}
+        {#if flow.phase === 'checking'}<p role="status" class="muted">{t('analytics:importDialog.checking', { name: flow.fileName })}</p>{/if}
         {#if flow.phase === 'error'}
-          <Alert tone="error" title={flow.during === 'preview' ? 'This file cannot be imported' : 'The file was not imported'}>{flow.message}</Alert>
+          <Alert tone="error" title={flow.during === 'preview' ? t('analytics:importDialog.errorPreview') : t('analytics:importDialog.errorImport')}>{flow.message}</Alert>
         {/if}
       {/if}
 
       {#if facts && (flow.phase === 'preview' || flow.phase === 'importing')}
-        <section aria-label="Preview of {flow.fileName}">
+        <section aria-label={t('analytics:importDialog.previewAria', { name: flow.fileName })}>
           <h3 class="h">{facts.report}</h3>
           <dl class="facts">
-            <div><dt>File</dt><dd class="mono">{flow.fileName}</dd></div>
-            <div><dt>Dates</dt><dd>{facts.range} ({facts.days})</dd></div>
-            <div class="wide"><dt>Rows</dt><dd>{facts.rows.join('; ')}.</dd></div>
+            <div><dt>{t('analytics:importDialog.file')}</dt><dd class="mono">{flow.fileName}</dd></div>
+            <div><dt>{t('analytics:importDialog.dates')}</dt><dd>{t('analytics:importDialog.datesValue', { range: facts.range, days: facts.days })}</dd></div>
+            <div class="wide"><dt>{t('analytics:importDialog.rows')}</dt><dd>{t('analytics:importDialog.rowsValue', { rows: facts.rows.join('; ') })}</dd></div>
           </dl>
           <div class="table-wrap">
             <table class="compact">
-              <caption class="visually-hidden">Metrics in the file</caption>
-              <thead><tr><th scope="col">Metric</th><th scope="col" class="num">Days</th><th scope="col" class="num">Total</th></tr></thead>
+              <caption class="visually-hidden">{t('analytics:importDialog.metricsCaption')}</caption>
+              <thead><tr><th scope="col">{t('analytics:importDialog.colMetric')}</th><th scope="col" class="num">{t('analytics:importDialog.colDays')}</th><th scope="col" class="num">{t('analytics:importDialog.colTotal')}</th></tr></thead>
               <tbody>
                 {#each facts.metrics as m (m.label)}
                   <tr><th scope="row">{m.label}</th><td class="num">{m.days}</td><td class="num">{m.total}</td></tr>
@@ -168,10 +169,10 @@
             </table>
           </div>
           {#if sample && sample.rows.length > 0}
-            <Disclosure summary="A few of the rows that would be stored" stateKey="analytics.import.sample">
+            <Disclosure summary={t('analytics:importDialog.sampleSummary')} stateKey="analytics.import.sample">
               <div class="table-wrap">
                 <table class="compact">
-                  <thead><tr>{#each sample.columns as c (c)}<th scope="col" class:num={c === 'Value'}>{c}</th>{/each}</tr></thead>
+                  <thead><tr>{#each sample.columns as c, ci (ci)}<th scope="col" class:num={ci === 3}>{c}</th>{/each}</tr></thead>
                   <tbody>
                     {#each sample.rows as row, i (i)}
                       <tr>{#each row as cell, j (j)}<td class:num={j === 3}>{cell}</td>{/each}</tr>
@@ -182,23 +183,23 @@
             </Disclosure>
           {/if}
           {#if notes.length > 0}
-            <Disclosure summary="Notes about this file" stateKey="analytics.import.notes">
+            <Disclosure summary={t('analytics:importDialog.notesSummary')} stateKey="analytics.import.notes">
               <ul class="notes">{#each notes as n (n)}<li>{n}</li>{/each}</ul>
             </Disclosure>
           {/if}
-          <p class="will"><strong>{facts.willStore}</strong> Nothing is stored until you confirm.</p>
+          <p class="will"><T key="analytics:importDialog.willStore" params={{ willStore: facts.willStore }} /></p>
         </section>
       {/if}
     {/if}
   </div>
   {#snippet footer()}
     {#if flow.phase === 'done'}
-      <Button variant="primary" onclick={() => (open = false)}>Close</Button>
+      <Button variant="primary" onclick={() => (open = false)}>{t('common:action.close')}</Button>
     {:else}
-      <Button disabled={busy} onclick={() => (open = false)}>{storedSomething ? 'Close' : 'Cancel'}</Button>
+      <Button disabled={busy} onclick={() => (open = false)}>{storedSomething ? t('common:action.close') : t('common:action.cancel')}</Button>
       {#if flow.phase === 'preview' || flow.phase === 'importing'}
-        <Button disabled={busy} onclick={() => send({ type: 'reset' })}>Choose another file</Button>
-        <Button variant="primary" icon="check" loading={flow.phase === 'importing'} disabled={!canConfirmImport(flow) || busy} onclick={confirm}>Import these values</Button>
+        <Button disabled={busy} onclick={() => send({ type: 'reset' })}>{t('analytics:importDialog.chooseAnother')}</Button>
+        <Button variant="primary" icon="check" loading={flow.phase === 'importing'} disabled={!canConfirmImport(flow) || busy} onclick={confirm}>{t('analytics:importDialog.confirm')}</Button>
       {/if}
     {/if}
   {/snippet}

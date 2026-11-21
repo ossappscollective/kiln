@@ -11,8 +11,9 @@
 -->
 <script lang="ts">
   import { can, platformSupports, type Role } from '@kiln/core';
+  import { t } from '../../lib/i18n/t.ts';
   import type { Api } from '../../lib/api.ts';
-  import { type AnalyticsStatus, type StepAction, analyticsErrorText, stateInfo, stepAvailable } from '../../lib/analytics/analytics.ts';
+  import { type AnalyticsStatus, type StepAction, analyticsErrorText, stateInfo, stateLabel, stepAvailable } from '../../lib/analytics/analytics.ts';
   import { type SyncLine, lastReadAt, overallState, scheduleText, sourceRows, syncLines } from '../../lib/analytics/view.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { appAddress } from '../../lib/app-scope.ts';
@@ -45,14 +46,18 @@
   const modeText = $derived(
     status.apple
       ? status.apple.mode === 'ongoing'
-        ? 'Apple reports come from an ongoing report request.'
+        ? t('analytics:sources.modeOngoing')
         : status.apple.mode === 'import'
-          ? 'Apple reports come from imported files.'
-          : 'No Apple report request exists yet.'
+          ? t('analytics:sources.modeImport')
+          : t('analytics:sources.modeNone')
       : status.google
         ? status.google.bucketIdSet
-          ? `The Play reports bucket is ${status.google.bucketSource === 'app' ? 'from app settings' : status.google.bucketSource === 'account' ? 'from the Play account of this app' : 'from the workspace default'}.`
-          : 'The Play reports bucket is not set.'
+          ? status.google.bucketSource === 'app'
+            ? t('analytics:sources.bucketApp')
+            : status.google.bucketSource === 'account'
+              ? t('analytics:sources.bucketAccount')
+              : t('analytics:sources.bucketWorkspace')
+          : t('analytics:sources.bucketNotSet')
         : '',
   );
 
@@ -70,7 +75,7 @@
     try {
       const result = await api.syncAnalytics(workspaceId, app.id);
       lines = syncLines(result.sync);
-      toast.success(result.sync.pointsWritten > 0 ? `Read ${result.sync.pointsWritten} new values.` : 'Synced. Nothing new.');
+      toast.success(result.sync.pointsWritten > 0 ? t('analytics:sources.synced', { count: result.sync.pointsWritten }) : t('analytics:sources.syncedNothing'));
       onchanged();
     } catch (e) {
       syncError = analyticsErrorText(e);
@@ -88,31 +93,31 @@
 
 <div class="stack">
   <div class="summary row">
-    <Badge tone={stateInfo[overall].tone} icon={stateInfo[overall].icon}>{stateInfo[overall].label}</Badge>
+    <Badge tone={stateInfo[overall].tone} icon={stateInfo[overall].icon}>{stateLabel(overall)}</Badge>
     <span class="muted text">
-      {last === null ? 'Not read yet.' : `Last read ${timeAgo(last, now)}.`}
+      {last === null ? t('analytics:sources.notReadYet') : t('analytics:sources.lastReadSentence', { ago: timeAgo(last, now) })}
       {scheduleText(status)}
     </span>
     <span class="spacer"></span>
     {#if canManage && status.enabled}
-      <Button size="sm" icon="refresh" loading={syncing} onclick={sync}>{syncing ? 'Syncing…' : 'Sync analytics now'}</Button>
+      <Button size="sm" icon="refresh" loading={syncing} onclick={sync}>{syncing ? t('analytics:sources.syncing') : t('analytics:step.syncNow')}</Button>
     {/if}
     {#if canManage}
-      <Button size="sm" icon="upload" onclick={() => (importOpen = true)}>{apple ? 'Import a report file' : 'Import a Play Console CSV'}</Button>
+      <Button size="sm" icon="upload" onclick={() => (importOpen = true)}>{apple ? t('analytics:step.importAppleReport') : t('analytics:sources.importPlayCsv')}</Button>
     {/if}
   </div>
 
   {#if syncError}<Alert tone="error">{syncError}</Alert>{/if}
   {#if lines.length > 0}
-    <ul class="sync" aria-label="What the sync did">
+    <ul class="sync" aria-label={t('analytics:sources.syncAria')}>
       {#each lines as line (line.source)}
-        <li><strong>{line.label}.</strong> {line.text}</li>
+        <li><strong>{t('analytics:sources.syncLabel', { label: line.label })}</strong> {line.text}</li>
       {/each}
     </ul>
   {/if}
 
   {#if modeText}
-    <Disclosure summary="Where the reports come from">
+    <Disclosure summary={t('analytics:sources.whereFrom')}>
       <p class="message">{modeText}</p>
     </Disclosure>
   {/if}
@@ -122,30 +127,30 @@
       <li>
         <div class="line">
           <strong>{row.label}</strong>
-          <Badge tone={row.tone} icon={row.icon}>{row.optional ? 'Optional setup' : row.stateLabel}</Badge>
-          <span class="muted text">{row.lastRead}{row.range ? `. Covers ${row.range}.` : ''}</span>
+          <Badge tone={row.tone} icon={row.icon}>{row.optional ? t('analytics:sources.optionalSetup') : row.stateLabel}</Badge>
+          <span class="muted text">{row.range ? t('analytics:sources.lastReadCovers', { lastRead: row.lastRead, range: row.range }) : row.lastRead}</span>
         </div>
         <p class="message">{row.message}</p>
-        {#if row.error}<p class="error-line"><strong>Last read failed.</strong> {row.error}</p>{/if}
+        {#if row.error}<p class="error-line"><strong>{t('analytics:sources.lastReadFailed')}</strong> {row.error}</p>{/if}
         {#if row.action || row.alternatives.length > 0}
           <div class="actions">
             {#each row.action ? [row.action, ...row.alternatives] : row.alternatives as action, i (action.label)}
               {#if action.kind === 'turn_on'}
-                {#if !canManage}<span class="muted text">Ask an owner or an admin to turn analytics on.</span>{:else if ri === firstTurnOn}<TurnOnAnalytics {api} {workspaceId} {onchanged} variant={i === 0 ? 'primary' : 'secondary'} />{/if}
+                {#if !canManage}<span class="muted text">{t('analytics:sources.askTurnOn')}</span>{:else if ri === firstTurnOn}<TurnOnAnalytics {api} {workspaceId} {onchanged} variant={i === 0 ? 'primary' : 'secondary'} />{/if}
               {:else if action.kind === 'link'}
                 <Button variant="secondary" href={action.target === 'settings' ? '#/settings?view=analytics' : '#/credentials'}>{action.label}</Button>
               {:else if action.kind === 'bucket'}
                 {#if canManage}
-                  <Button variant="secondary" href={appAddress(app.id, 'settings', 'android')}>Set the bucket for this app</Button>
+                  <Button variant="secondary" href={appAddress(app.id, 'settings', 'android')}>{t('analytics:sources.setBucket')}</Button>
                 {:else}
-                  <span class="muted text">Needs an owner or an admin: set the reports bucket of this app.</span>
+                  <span class="muted text">{t('analytics:sources.needsAdminBucket')}</span>
                 {/if}
               {:else if action.kind === 'text'}
-                <span class="muted text">Next step: {action.label}.</span>
+                <span class="muted text">{t('analytics:sources.nextStep', { label: action.label })}</span>
               {:else if stepAvailable(action, canManage)}
                 <Button variant={i === 0 ? 'primary' : 'secondary'} icon={action.kind === 'import' ? 'upload' : action.kind === 'sync' ? 'refresh' : undefined} onclick={() => run(action)}>{action.label}</Button>
               {:else}
-                <span class="muted text">Needs an owner or an admin: {action.label.toLowerCase()}.</span>
+                <span class="muted text">{t('analytics:sources.needsAdminAction', { action: action.label })}</span>
               {/if}
             {/each}
           </div>

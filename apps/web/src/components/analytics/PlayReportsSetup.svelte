@@ -14,7 +14,9 @@
   import { type Role, can } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { type AnalyticsStatus, playSourceLine } from '../../lib/analytics/analytics.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Button from '../ui/Button.svelte';
+  import T from '../ui/T.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
   import '../readable-card.css';
   import Section from '../ui/Section.svelte';
@@ -35,36 +37,27 @@
 </script>
 
 <Section
-  title="Downloads need your Play reports bucket"
+  title={t('analytics:playSetup.title')}
   key="play-bucket.{app.id}"
   summary={playSourceLine(status)}
 >
   <div class="stack readable-card">
     <p class="line" data-testid="play-source-line">{playSourceLine(status)}</p>
-    <p class="muted">Google only publishes installs and ratings as monthly files in a private bucket of your Play account; crash and ANR numbers do not need it.</p>
+    <p class="muted">{t('analytics:playSetup.why')}</p>
     <PlayBucketField {api} {workspaceId} {role} {app} heading={false} {onchanged} />
-    <Disclosure summary="How to find the bucket and give access" open>
+    <Disclosure summary={t('analytics:playSetup.how')} open>
       <ol class="steps">
-        <li>
-          In Play Console open <strong>Download reports</strong>, then <strong>Statistics</strong>, and press <strong>Copy Cloud Storage URI</strong> next to
-          the section header. It starts with <code>gs://pubsite_prod_rev_</code> and is the same for every app of your Play account.
-        </li>
-        <li>
-          Give the service account of this app's credential read access: <strong>Storage Object Viewer</strong> on that bucket, and in Play Console the
-          permission to view app information and download bulk reports (read-only). Google does not say whether both are needed, so use the test.
-        </li>
-        <li>Paste it as the bucket of this app. Apps of another Play account get their own.</li>
-        <li>
-          Optional, for estimated sales (what buyers paid, not your proceeds), monthly earnings (net of Google's fees and taxes) and subscription statistics: in Play Console, Users and permissions, give the service account
-          <strong>View financial data</strong>, set to Global. These files are in the same bucket.
-        </li>
+        <li><T key="analytics:playSetup.step1" /></li>
+        <li><T key="analytics:playSetup.step2" /></li>
+        <li>{t('analytics:playSetup.step3')}</li>
+        <li><T key="analytics:playSetup.step4" /></li>
       </ol>
     </Disclosure>
     <div class="row">
       {#if canManage}
-        <Button size="sm" icon="upload" onclick={() => (importOpen = true)}>Import a Play Console CSV instead</Button>
+        <Button size="sm" icon="upload" onclick={() => (importOpen = true)}>{t('analytics:playSetup.importCsv')}</Button>
       {/if}
-      <a href="#/settings?view=analytics">Use one bucket for every Android app: workspace settings</a>
+      <a href="#/settings?view=analytics">{t('analytics:playSetup.workspaceLink')}</a>
     </div>
   </div>
 </Section>

@@ -15,8 +15,10 @@
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { type EnablePreview, analyticsErrorText } from '../../lib/analytics/analytics.ts';
   import { ENABLE_PHRASE, canConfirmEnable, classifyEnableError, describeStep, enableDecision } from '../../lib/analytics/import.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
+  import T from '../ui/T.svelte';
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
   import '../readable-card.css';
@@ -96,7 +98,7 @@
       const hash = preview.confirmHash;
       await confirmed((grant) => api.enableApple(workspaceId, appId, { confirmHash: hash, ...(backfill ? { backfill: true } : {}) }, grant), hash);
       open = false;
-      toast.success('Apple analytics is enabled. The first reports take one to two days.');
+      toast.success(t('analytics:enable.toast'));
       onenabled();
     } catch (e) {
       const failure = classifyEnableError(e);
@@ -124,30 +126,30 @@
   }
 </script>
 
-<Modal bind:open size="lg" title="Enable Apple analytics" description="Apple makes analytics reports only after a report request exists for the app." dismissible={!sending}>
+<Modal bind:open size="lg" title={t('analytics:step.enableAppleAnalytics')} description={t('analytics:enable.description')} dismissible={!sending}>
   <div class="stack readable-card">
     {#if loading && !preview}
-      <div role="status" aria-label="Reading what exists at Apple"><Skeleton width="70%" height="16px" /><Skeleton width="50%" height="16px" /></div>
+      <div role="status" aria-label={t('analytics:enable.loading')}><Skeleton width="70%" height="16px" /><Skeleton width="50%" height="16px" /></div>
     {:else if loadError}
       <Alert tone="error">{loadError}</Alert>
-      <div class="row"><Button onclick={load}>Try again</Button></div>
+      <div class="row"><Button onclick={load}>{t('common:action.tryAgain')}</Button></div>
     {:else if preview && decision}
-      <p class="muted read">This preview read your App Store Connect account and changed nothing.</p>
+      <p class="muted read">{t('analytics:enable.previewNote')}</p>
 
       {#if changed}
-        <Alert tone="warn" title="The plan changed">What exists at Apple changed since you opened this. Nothing was sent. Read the plan below and confirm again.</Alert>
+        <Alert tone="warn" title={t('analytics:enable.changedTitle')}>{t('analytics:enable.changedBody')}</Alert>
       {/if}
 
       {#if decision.kind === 'import_instead'}
-        <Alert tone="warn" title="This key cannot create report requests">
-          Apple lists the Admin role for creating them. Use a key with the Admin role once, or import a report file you download from App Store Connect.
+        <Alert tone="warn" title={t('analytics:enable.roleTitle')}>
+          {t('analytics:enable.roleBody')}
         </Alert>
       {:else if decision.kind === 'nothing'}
-        <Alert tone="ok" title="Already enabled">The report request is already in place. Nothing would be created.</Alert>
+        <Alert tone="ok" title={t('analytics:enable.alreadyTitle')}>{t('analytics:enable.alreadyBody')}</Alert>
       {/if}
 
       <section aria-labelledby="{uid}-steps">
-        <h3 id="{uid}-steps" class="h">What would happen</h3>
+        <h3 id="{uid}-steps" class="h">{t('analytics:enable.whatHappens')}</h3>
         <ol class="steps">
           {#each preview.plan.steps as step (step.accessType)}
             <li>{describeStep(step)}</li>
@@ -156,18 +158,18 @@
       </section>
 
       <section aria-labelledby="{uid}-send">
-        <h3 id="{uid}-send" class="h">Exactly what will be sent to Apple</h3>
+        <h3 id="{uid}-send" class="h">{t('analytics:enable.exactlySent')}</h3>
         {#if preview.plan.willSend.length > 0}
           <ul class="send">
             {#each preview.plan.willSend as line (line)}<li>{line}</li>{/each}
           </ul>
         {:else}
-          <p class="muted">Nothing will be sent to Apple.</p>
+          <p class="muted">{t('analytics:enable.nothingSent')}</p>
         {/if}
       </section>
 
       {#if preview.plan.notes.length > 0}
-        <Disclosure summary={preview.plan.notes.length === 1 ? 'A note about this plan' : `${preview.plan.notes.length} notes about this plan`}>
+        <Disclosure summary={t('analytics:enable.notes', { count: preview.plan.notes.length })}>
           <ul class="notes muted">
             {#each preview.plan.notes as note (note)}<li>{note}</li>{/each}
           </ul>
@@ -177,14 +179,14 @@
       {#if decision.kind === 'confirm'}
         <label class="check">
           <input type="checkbox" checked={backfill} disabled={sending || loading} onchange={(e) => toggleBackfill(e.currentTarget.checked)} />
-          Also request history since 2024-01-01 (a one-time snapshot; Apple allows one a month)
+          {t('analytics:enable.backfill')}
         </label>
         <label class="check">
           <input type="checkbox" bind:checked={acknowledged} disabled={sending || loading} />
-          I understand this creates a report request in my App Store Connect account.
+          {t('analytics:enable.acknowledge')}
         </label>
         <div class="field">
-          <label for="{uid}-typed">Type <strong class="phrase">{ENABLE_PHRASE}</strong> to confirm</label>
+          <label for="{uid}-typed"><T key="analytics:enable.typeToConfirm" params={{ phrase: ENABLE_PHRASE }} tags={{ strong: phraseTag }} /></label>
           <input id="{uid}-typed" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" bind:value={typed} disabled={sending || loading} />
         </div>
       {/if}
@@ -193,14 +195,16 @@
     {/if}
   </div>
   {#snippet footer()}
-    <Button disabled={sending} onclick={() => (open = false)}>Cancel</Button>
+    <Button disabled={sending} onclick={() => (open = false)}>{t('common:action.cancel')}</Button>
     {#if decision?.kind === 'import_instead' && onimport}
-      <Button variant="primary" icon="upload" onclick={importInstead}>Import a report file</Button>
+      <Button variant="primary" icon="upload" onclick={importInstead}>{t('analytics:step.importAppleReport')}</Button>
     {:else if decision?.kind === 'confirm'}
-      <Button variant="primary" loading={sending} disabled={!ready || sending || loading} onclick={enable}>Create the request at Apple</Button>
+      <Button variant="primary" loading={sending} disabled={!ready || sending || loading} onclick={enable}>{t('analytics:enable.create')}</Button>
     {/if}
   {/snippet}
 </Modal>
+
+{#snippet phraseTag(text: string)}<strong class="phrase">{text}</strong>{/snippet}
 
 <style>
   .read {

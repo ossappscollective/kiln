@@ -10,6 +10,7 @@
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { appAddress } from '../../lib/app-scope.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { loadStrip } from '../../lib/analytics/load.ts';
   import type { Strip } from '../../lib/analytics/view.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
@@ -42,10 +43,10 @@
 
 {#if shown.length > 0}
   <VizScope>
-    <section class="strip card" aria-label="Last 28 days">
+    <section class="strip card" aria-label={t('analytics:strip.title')}>
       <div class="row between head">
-        <h2>Last 28 days</h2>
-        <a href={appAddress(members[0]?.id ?? '', 'analytics', members.length > 1 ? null : (members[0]?.platform ?? null))}>Analytics<Icon name="chevron-right" size={14} /></a>
+        <h2>{t('analytics:strip.title')}</h2>
+        <a href={appAddress(members[0]?.id ?? '', 'analytics', members.length > 1 ? null : (members[0]?.platform ?? null))}>{t('analytics:strip.link')}<Icon name="chevron-right" size={14} /></a>
       </div>
       {#each shown as app (app.id)}
         {@const strip = strips[app.id]}
@@ -58,7 +59,7 @@
                   <span class="label muted">{item.label}</span>
                   <span class="line">
                     <strong class="value" title={item.title}>{item.value}</strong>
-                    <TrendSpark points={item.points} label="{item.label}, last 28 days: {item.value}. {item.title}" />
+                    <TrendSpark points={item.points} label={t('analytics:strip.sparkLabel', { label: item.label, value: item.value, title: item.title })} />
                   </span>
                 </li>
               {/each}

@@ -162,7 +162,7 @@ test('the subscriptions card: counts only, active (with trials), new and cancell
   assert.equal(card.title, 'Subscriptions');
   assert.deepEqual(card.panels.map((p) => p.title), ['Active subscriptions', 'New subscriptions', 'Cancelled subscriptions']);
   assert.ok(card.panels.every((p) => p.unit === 'count' && p.currency === null), 'no money, no currency');
-  assert.deepEqual(card.panels[0]?.series.map((s) => s.label), ['subscriptions_active', 'Active free trials']);
+  assert.deepEqual(card.panels[0]?.series.map((s) => s.label), ['Active subscriptions, standard price', 'Active free trials']);
   assert.equal(card.versions[0]?.title, 'Active subscriptions by product');
   assert.deepEqual(card.versions[0]?.items.map((i) => i.value), ['pro_monthly', 'pro_yearly']);
   assert.equal(buildSubscriptionsCard(null), null);

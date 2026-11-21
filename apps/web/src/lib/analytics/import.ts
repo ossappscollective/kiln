@@ -1,5 +1,6 @@
 import { analyticsLimits, isAnalyticsErrorCode, metricInfo } from '@kiln/core';
 import { ApiError } from '../api.ts';
+import { t } from '../i18n/t.ts';
 import {
   analyticsErrorText,
   type EnablePlan,
@@ -11,6 +12,7 @@ import {
   type ImportResult,
   setupSentence,
 } from './analytics.ts';
+import { metricLabel as metricName } from './view.ts';
 
 /**
  * The two guarded flows of analytics, as pure logic: enabling Apple analytics (preview what will be created, then a typed
@@ -31,18 +33,15 @@ type StepKey = EnablePlan['steps'][number];
 /** One step of the plan in words (the server's `willSend` lines say the same for what would be sent). */
 export function describeStep(step: StepKey): string {
   const snapshot = step.accessType === 'ONE_TIME_SNAPSHOT';
-  const name = snapshot ? 'one-time snapshot' : 'ongoing report request';
   switch (step.action) {
     case 'create':
-      return snapshot
-        ? 'Create a one-time snapshot request, which brings history from 2024-01-01. Apple allows one a month.'
-        : 'Create an ongoing report request. Apple then makes daily reports from the day of the request.';
+      return snapshot ? t('analytics:import.stepSnapshotCreate') : t('analytics:import.stepOngoingCreate');
     case 'adopt':
-      return `Apple already has a ${name} for this app. It is kept and this server starts using it. Nothing is created.`;
+      return snapshot ? t('analytics:import.stepSnapshotAdopt') : t('analytics:import.stepOngoingAdopt');
     case 'exists':
-      return `The ${name} is already in place. Nothing to do.`;
+      return snapshot ? t('analytics:import.stepSnapshotExists') : t('analytics:import.stepOngoingExists');
     default:
-      return `A ${name} step.`;
+      return snapshot ? t('analytics:import.stepSnapshotOther') : t('analytics:import.stepOngoingOther');
   }
 }
 
@@ -108,9 +107,9 @@ export const MAX_IMPORT_BYTES = analyticsLimits.maxFileBytes;
 
 /** Why a file cannot be sent, or '' when it can. The server checks the content; this only saves a pointless upload. */
 export function checkImportFile(file: { name: string; size: number }): string {
-  if (file.size <= 0) return 'The file is empty.';
-  if (file.size > MAX_IMPORT_BYTES) return 'The file is larger than 10 MiB.';
-  if (file.name.length > 200) return 'The file name is longer than 200 characters.';
+  if (file.size <= 0) return t('analytics:import.fileEmpty');
+  if (file.size > MAX_IMPORT_BYTES) return t('analytics:import.fileTooLarge');
+  if (file.name.length > 200) return t('analytics:import.fileNameTooLong');
   return '';
 }
 
@@ -213,32 +212,29 @@ export type PreviewFacts = {
 /** What the preview says before anything is stored: which report, the dates, the rows read and skipped, the metrics. */
 export function previewFacts(plan: ImportPlan): PreviewFacts {
   const s = plan.stats;
-  const rows = [`${formatCountExact(s.rowsRead)} rows read, ${formatCountExact(s.rowsUsed)} used`];
-  if (s.rowsFiltered > 0)
-    rows.push(
-      `${formatCountExact(s.rowsFiltered)} left out because they belong to another app or platform`,
-    );
-  if (s.rowsUnreadable > 0) rows.push(`${formatCountExact(s.rowsUnreadable)} could not be read`);
+  const rows = [t('analytics:import.rowsRead', { read: formatCountExact(s.rowsRead), used: formatCountExact(s.rowsUsed) })];
+  if (s.rowsFiltered > 0) rows.push(t('analytics:import.rowsFiltered', { count: formatCountExact(s.rowsFiltered) }));
+  if (s.rowsUnreadable > 0) rows.push(t('analytics:import.rowsUnreadable', { count: formatCountExact(s.rowsUnreadable) }));
   const range =
     plan.dateFrom && plan.dateTo
       ? plan.dateFrom === plan.dateTo
         ? formatDay(plan.dateFrom, true)
-        : `${formatDay(plan.dateFrom, true)} to ${formatDay(plan.dateTo, true)}`
-      : 'No dates found';
+        : t('analytics:range.fromTo', { from: formatDay(plan.dateFrom, true), to: formatDay(plan.dateTo, true) })
+      : t('analytics:import.noDates');
   return {
-    report: plan.report.label || 'Apple report',
+    report: plan.report.label || t('analytics:import.reportFallback'),
     range,
     rows,
-    days: `${formatCountExact(plan.days)} ${plan.days === 1 ? 'day' : 'days'}`,
+    days: t('analytics:import.days', { count: plan.days }),
     metrics: plan.metrics.map((m) => ({
-      label: m.label,
+      label: metricName(m.metric, m.label),
       days: m.days,
-      total: m.total === null ? 'Average, not a total' : formatCountExact(m.total),
+      total: m.total === null ? t('analytics:import.averageNotTotal') : formatCountExact(m.total),
     })),
     willStore:
       plan.points > 0
-        ? `${formatCountExact(plan.points)} values for ${formatCountExact(plan.days)} ${plan.days === 1 ? 'day' : 'days'} can be stored.`
-        : 'Nothing in this file can be stored.',
+        ? t('analytics:import.willStore', { points: formatCountExact(plan.points), count: plan.days })
+        : t('analytics:import.nothingStorable'),
   };
 }
 
@@ -257,11 +253,11 @@ export function sampleTable(sample: readonly unknown[]): SampleTable {
     };
     if (typeof r.date !== 'string' || typeof r.metric !== 'string' || typeof r.value !== 'number')
       continue;
-    const label = (metricInfo as Record<string, { label: string }>)[r.metric]?.label ?? r.metric;
+    const label = metricName(r.metric, (metricInfo as Record<string, { label: string }>)[r.metric]?.label ?? r.metric);
     const dim =
       r.dimension && typeof r.dimension.type === 'string' && typeof r.dimension.value === 'string'
-        ? `${r.dimension.type.replace(/_/g, ' ')}: ${r.dimension.value}`
-        : 'Total';
+        ? t('analytics:import.dimension', { type: r.dimension.type.replace(/_/g, ' '), value: r.dimension.value })
+        : t('analytics:import.dimensionTotal');
     rows.push([
       formatDay(r.date, true),
       label,
@@ -270,7 +266,7 @@ export function sampleTable(sample: readonly unknown[]): SampleTable {
     ]);
     if (rows.length >= 6) break;
   }
-  return { columns: ['Date', 'Metric', 'Dimension', 'Value'], rows };
+  return { columns: [t('analytics:import.colDate'), t('analytics:import.colMetric'), t('analytics:import.colDimension'), t('analytics:import.colValue')], rows };
 }
 
 /** The notes of a preview: plain short sentences, drawn as text. */
@@ -282,15 +278,16 @@ export function previewNotes(notes: readonly unknown[]): string[] {
 
 /** The line after a successful import, from the numbers of the answer. A repeat of the same file stores nothing, and says so. */
 export function importedText(result: ImportResult['imported']): string {
-  if (result.written === 0)
-    return 'Nothing new was stored: every value was already there, or the store API already had it.';
-  const parts = [`Stored ${formatCountExact(result.written)} values`];
-  if (result.unchanged > 0) parts.push(`${formatCountExact(result.unchanged)} were already there`);
-  const range =
-    result.dateFrom && result.dateTo
-      ? ` for ${formatDay(result.dateFrom, true)} to ${formatDay(result.dateTo, true)}`
-      : '';
-  return `${parts.join(', ')}${range}.`;
+  if (result.written === 0) return t('analytics:import.nothingNew');
+  const span = result.dateFrom && result.dateTo ? { from: formatDay(result.dateFrom, true), to: formatDay(result.dateTo, true) } : null;
+  const count = result.written;
+  if (result.unchanged > 0) {
+    const unchanged = formatCountExact(result.unchanged);
+    return span
+      ? t('analytics:import.storedUnchangedSpan', { count, unchanged, ...span })
+      : t('analytics:import.storedUnchanged', { count, unchanged });
+  }
+  return span ? t('analytics:import.storedSpan', { count, ...span }) : t('analytics:import.stored', { count });
 }
 
 export const importSetupHint = (): string => setupSentence('role_required');

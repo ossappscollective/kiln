@@ -9,6 +9,7 @@
 <script lang="ts">
   import { can, platformSupports, type Role } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
@@ -22,32 +23,32 @@
   let importOpen = $state(false);
 </script>
 
-<section class="card off" aria-label="Analytics is off">
+<section class="card off" aria-label={t('analytics:off.title')}>
   <div class="stack">
-    <h3><Icon name="activity" size={16} /> Analytics is off</h3>
+    <h3><Icon name="activity" size={16} /> {t('analytics:off.title')}</h3>
     <div class="lead-line">
-      Turn it on to see this app's daily downloads, conversion and crashes.
-      <InfoTip label="What analytics reads" buttonText="What it reads" align="start" width="26rem">
+      {t('analytics:off.lead')}
+      <InfoTip label={t('analytics:off.tipLabel')} buttonText={t('analytics:off.tipButton')} align="start" width="26rem">
         <p>
           {#if apple}
-            Analytics reads daily numbers for this app from App Store Connect: impressions, product page views, downloads, conversion, crashes and, with a vendor number, units and proceeds, also by product.
+            {t('analytics:off.tipApple')}
           {:else}
-            Analytics reads daily numbers for this app from Google Play: crash and ANR rate by app version, and, with the bucket id of the Play Console reports, installs and ratings. With the Play Console permission View financial data it also reads estimated sales (what buyers paid, not your proceeds), monthly earnings (net of Google's fees and taxes) and subscription statistics.
+            {t('analytics:off.tipGoogle')}
           {/if}
         </p>
-        <p>It keeps them on this server and shows where each number comes from, how late it can be and what it leaves out. Nothing is requested from a store until it is turned on.</p>
+        <p>{t('analytics:off.tipKeeps')}</p>
       </InfoTip>
     </div>
     <div class="row">
       {#if canManage}
         <TurnOnAnalytics {api} {workspaceId} {onchanged} />
-        {#if apple}<Button icon="upload" onclick={() => (importOpen = true)}>Import a report file instead</Button>{/if}
+        {#if apple}<Button icon="upload" onclick={() => (importOpen = true)}>{t('analytics:off.importInstead')}</Button>{/if}
       {:else}
-        <p class="muted note">An owner or an admin can turn it on. The setting is under Settings, Analytics.</p>
+        <p class="muted note">{t('analytics:off.managerOnly')}</p>
       {/if}
-      <Button variant="ghost" href="#/settings?view=analytics">Open Settings</Button>
+      <Button variant="ghost" href="#/settings?view=analytics">{t('analytics:off.openSettings')}</Button>
     </div>
-    {#if canManage && apple}<p class="muted note">Importing a report file works without turning analytics on: it reads a file you give it and contacts no store.</p>{/if}
+    {#if canManage && apple}<p class="muted note">{t('analytics:off.importNote')}</p>{/if}
   </div>
 </section>
 

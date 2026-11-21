@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import { formatExact, formatValue } from '../../lib/analytics/analytics.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { VersionBars } from '../../lib/analytics/view.ts';
 
   let { bars }: { bars: VersionBars } = $props();
@@ -17,7 +18,7 @@
   <h4>{bars.title}</h4>
   <ul>
     {#each bars.items as item (item.value)}
-      <li title="{item.value}: {formatExact(bars.unit, item.total)}">
+      <li title={t('analytics:bars.itemTitle', { name: item.value, value: formatExact(bars.unit, item.total) })}>
         <span class="name">{item.value}</span>
         <span class="track" aria-hidden="true"><span class="fill" style:width="{top > 0 ? Math.max(0, (item.total / top) * 100) : 0}%"></span></span>
         <span class="value num">{formatValue(bars.unit, item.total)}</span>

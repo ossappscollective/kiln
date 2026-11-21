@@ -6,6 +6,7 @@
   Props: chips (StatChipModel[]), days (the length of the period, for the sentence).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import type { StatChipModel } from '../../lib/analytics/view.ts';
   import Icon from '../ui/Icon.svelte';
   import StatChip from '../ui/StatChip.svelte';
@@ -14,7 +15,7 @@
 </script>
 
 {#if chips.length > 0}
-  <ul class="stats" aria-label="Key figures">
+  <ul class="stats" aria-label={t('analytics:stat.label')}>
     {#each chips as chip (chip.id)}
       <li class="accent-edge" title={chip.title}>
         <StatChip label={chip.label} value={chip.value} />
@@ -27,7 +28,7 @@
       </li>
     {/each}
   </ul>
-  <span class="visually-hidden">Compared with the previous {days} days.</span>
+  <span class="visually-hidden">{t('analytics:stat.compared', { count: days })}</span>
 {/if}
 
 <style>

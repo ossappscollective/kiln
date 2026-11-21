@@ -1,3 +1,4 @@
+import { t } from '../i18n/t.ts';
 import { formatMoney } from './analytics.ts';
 
 /**
@@ -58,14 +59,10 @@ export function amountLines(view: ProductSalesView, item: ProductSalesItem | und
   return item.amounts.map((a) => formatMoney(shownAmount(view, a), a.currency));
 }
 
-const countText = (n: number): string =>
-  Number.isInteger(n) ? n.toLocaleString('en-US') : n.toFixed(2);
-
 /** "12 units" or "3 orders"; empty when the store gave no count. */
 export function unitsText(view: ProductSalesView, item: ProductSalesItem | undefined): string {
   if (!item || item.units === null) return '';
-  const word = view.unitsKind === 'orders' ? 'order' : 'unit';
-  return `${countText(item.units)} ${Math.abs(item.units) === 1 ? word : `${word}s`}`;
+  return view.unitsKind === 'orders' ? t('analytics:sales.orders', { count: item.units }) : t('analytics:sales.units', { count: item.units });
 }
 
 /** The cell text lines of the column, or `['—']` when this product has no sales number in the range. */
@@ -79,11 +76,12 @@ export function salesCell(view: ProductSalesView, item: ProductSalesItem | undef
 
 /** What the number is, for the tooltip of the column header and the detail section. */
 export function salesMeasureText(view: Pick<ProductSalesView, 'measure'>): string {
-  return view.measure === 'apple_proceeds'
-    ? 'Apple developer proceeds: what you receive after Apple’s commission and taxes, net of refunds. In-app purchases and subscriptions are matched to this app by SKU (UNVERIFIED). Shown per currency, never converted.'
-    : 'An estimate of what buyers paid, taxes included and before Google’s fee, with refunds taken off. It is not your proceeds. Posted up to a few days late, on UTC. Shown per currency, never converted.';
+  return view.measure === 'apple_proceeds' ? t('analytics:sales.measureApple') : t('analytics:sales.measureGoogle');
 }
 
+/** The header of the sales column of the products table. */
+export const salesColumnTitleText = (): string => t('analytics:sales.columnTitle');
+/** @deprecated English only: use `salesColumnTitleText()` (or `t('analytics:sales.columnTitle')`). */
 export const salesColumnTitle = 'Sales (28 days)';
 
 /**
@@ -94,16 +92,16 @@ export function salesSetupHint(view: ProductSalesView | null, platformIsApple: b
   const code = view?.sales.setup?.code ?? '';
   if (platformIsApple) {
     if (view !== null && !view.enabled)
-      return 'Sales by product are off. Turn on analytics and set the Apple vendor number under Settings, Analytics.';
+      return t('analytics:sales.hintAppleOff');
     if (code === 'sales_forbidden')
-      return 'Sales by product are off: the App Store Connect key may not read Sales and Trends (it needs the Sales and Reports role).';
-    return 'Sales by product need the Apple vendor number (Settings, Analytics). They appear once Sales and Trends has been read.';
+      return t('analytics:sales.hintAppleForbidden');
+    return t('analytics:sales.hintAppleVendor');
   }
   if (view !== null && !view.enabled)
-    return 'Sales by product are off. Turn on analytics under Settings, Analytics, set the Play Console reports bucket id, and give the service account the Play Console permission View financial data (Global).';
+    return t('analytics:sales.hintGoogleOff');
   if (code === 'bucket_id_missing')
-    return 'Sales by product need the Play Console reports bucket id (Settings, Analytics) and the Play Console permission View financial data (Global) for the service account.';
+    return t('analytics:sales.hintGoogleBucket');
   if (code === 'play_sales_forbidden')
-    return 'Sales by product are off: the service account needs the Play Console permission View financial data, set to Global.';
-  return 'Sales by product appear once the Play sales reports have been read. The service account needs the Play Console permission View financial data (Global).';
+    return t('analytics:sales.hintGoogleForbidden');
+  return t('analytics:sales.hintGoogleWaiting');
 }

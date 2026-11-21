@@ -4,6 +4,7 @@
   Props: model (DataTableModel from lib/analytics-view.ts), caption.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import type { DataTableModel } from '../../lib/analytics/view.ts';
 
   let { model, caption }: { model: DataTableModel; caption: string } = $props();
@@ -24,7 +25,7 @@
         <tr>
           <th scope="row">{row.date}</th>
           {#each row.cells as cell, i (i)}
-            <td class="num" class:muted={cell === 'No data'}>{cell}</td>
+            <td class="num" class:muted={cell === t('analytics:tip.noData')}>{cell}</td>
           {/each}
         </tr>
       {/each}

@@ -8,6 +8,7 @@
 <script lang="ts">
   import { dateToDay } from '@kiln/core';
   import { PRESET_DAYS, type RangeChoice, type ResolvedRange, customRangeProblem, formatDay, rangeText } from '../../lib/analytics/analytics.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Button from '../ui/Button.svelte';
 
   let { choice, range, now, onchange }: { choice: RangeChoice; range: ResolvedRange; now: number; onchange: (next: RangeChoice) => void } = $props();
@@ -38,27 +39,27 @@
 </script>
 
 <div class="range">
-  <div class="seg-group" role="group" aria-label="Date range">
+  <div class="seg-group" role="group" aria-label={t('analytics:range.groupLabel')}>
     {#each PRESET_DAYS as days (days)}
-      <button type="button" class="bare seg" aria-pressed={choice.kind === 'preset' && choice.days === days} onclick={() => { editing = false; onchange({ kind: 'preset', days }); }}>{days} days</button>
+      <button type="button" class="bare seg" aria-pressed={choice.kind === 'preset' && choice.days === days} onclick={() => { editing = false; onchange({ kind: 'preset', days }); }}>{t('analytics:range.preset', { count: days })}</button>
     {/each}
-    <button type="button" class="bare seg" aria-pressed={choice.kind === 'custom' || editing} aria-expanded={editing} aria-controls="{uid}-custom" onclick={() => (editing ? (editing = false) : openCustom())}>Custom</button>
+    <button type="button" class="bare seg" aria-pressed={choice.kind === 'custom' || editing} aria-expanded={editing} aria-controls="{uid}-custom" onclick={() => (editing ? (editing = false) : openCustom())}>{t('analytics:range.custom')}</button>
   </div>
-  <span class="text muted">{rangeText(choice, range)}{choice.kind === 'preset' ? `, ${formatDay(range.from)} to ${formatDay(range.to)}` : ''}</span>
+  <span class="text muted">{choice.kind === 'preset' ? t('analytics:range.summary', { label: rangeText(choice, range), from: formatDay(range.from), to: formatDay(range.to) }) : rangeText(choice, range)}</span>
 </div>
 
 {#if editing}
   <form class="custom" id="{uid}-custom" onsubmit={apply} novalidate>
     <div class="field">
-      <label for="{uid}-from">From</label>
+      <label for="{uid}-from">{t('analytics:range.from')}</label>
       <input id="{uid}-from" type="date" max={today} bind:value={from} aria-invalid={problem ? 'true' : undefined} />
     </div>
     <div class="field">
-      <label for="{uid}-to">To</label>
+      <label for="{uid}-to">{t('analytics:range.to')}</label>
       <input id="{uid}-to" type="date" max={today} bind:value={to} aria-invalid={problem ? 'true' : undefined} />
     </div>
-    <Button type="submit" variant="primary" size="sm">Apply</Button>
-    <Button size="sm" variant="ghost" onclick={() => (editing = false)}>Cancel</Button>
+    <Button type="submit" variant="primary" size="sm">{t('analytics:range.apply')}</Button>
+    <Button size="sm" variant="ghost" onclick={() => (editing = false)}>{t('common:action.cancel')}</Button>
     {#if problem}<p class="field-error" role="alert">{problem}</p>{/if}
   </form>
 {/if}

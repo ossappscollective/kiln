@@ -1,5 +1,7 @@
 import type { MetricUnit } from '@kiln/core';
 import { platformSupports, supports } from '@kiln/core';
+import { formatList } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 import { timeAgo } from '../format.ts';
 import {
   type AnalyticsOverview,
@@ -29,10 +31,66 @@ import {
   setupSentence,
   sourceLabel,
   stateInfo,
+  stateLabel,
   stateOf,
   stepAction,
   storedErrorText,
 } from './analytics.ts';
+
+const metricKeys: Record<string, string> = {
+  impressions: k('analytics:metric.impressions'),
+  product_page_views: k('analytics:metric.productPageViews'),
+  downloads_first_time: k('analytics:metric.downloadsFirstTime'),
+  downloads_redownload: k('analytics:metric.downloadsRedownload'),
+  sessions: k('analytics:metric.sessions'),
+  crashes: k('analytics:metric.crashes'),
+  sales_units: k('analytics:metric.salesUnits'),
+  sales_proceeds: k('analytics:metric.salesProceeds'),
+  crash_rate: k('analytics:metric.crashRate'),
+  anr_rate: k('analytics:metric.anrRate'),
+  installs_user: k('analytics:metric.installsUser'),
+  installs_device: k('analytics:metric.installsDevice'),
+  uninstalls_device: k('analytics:metric.uninstallsDevice'),
+  active_installs_device: k('analytics:metric.activeInstallsDevice'),
+  rating_average_daily: k('analytics:metric.ratingAverageDaily'),
+  rating_average_total: k('analytics:metric.ratingAverageTotal'),
+  store_listing_visitors: k('analytics:metric.storeListingVisitors'),
+  store_listing_acquisitions: k('analytics:metric.storeListingAcquisitions'),
+  sales_gross: k('analytics:metric.salesGross'),
+  sales_refunds: k('analytics:metric.salesRefunds'),
+  sales_orders: k('analytics:metric.salesOrders'),
+  earnings_net: k('analytics:metric.earningsNet'),
+  earnings_charges: k('analytics:metric.earningsCharges'),
+  earnings_taxes: k('analytics:metric.earningsTaxes'),
+  earnings_fees: k('analytics:metric.earningsFees'),
+  earnings_orders: k('analytics:metric.earningsOrders'),
+  subscriptions_active: k('analytics:metric.subscriptionsActive'),
+  subscriptions_active_offer: k('analytics:metric.subscriptionsActiveOffer'),
+  subscriptions_active_trial: k('analytics:metric.subscriptionsActiveTrial'),
+  subscriptions_new: k('analytics:metric.subscriptionsNew'),
+  subscriptions_cancelled: k('analytics:metric.subscriptionsCancelled'),
+  subscriptions_trial_conversions: k('analytics:metric.subscriptionsTrialConversions'),
+  play_subscriptions_active: k('analytics:metric.playSubscriptionsActive'),
+  play_subscriptions_new: k('analytics:metric.playSubscriptionsNew'),
+  play_subscriptions_cancelled: k('analytics:metric.playSubscriptionsCancelled'),
+};
+
+/** The name of a metric in the active language; the API's own (English) label when the metric has no message. */
+export const metricLabel = (metric: string, label: string): string => {
+  const key = metricKeys[metric];
+  return key ? t(key) : label;
+};
+
+/** The name of a series in the active language: the API sends English labels, so the metric id (or a derived id) picks the message. */
+export function seriesLabel(series: Pick<AnalyticsSeries, 'id' | 'metric' | 'label' | 'source'>): string {
+  const key = metricKeys[series.metric];
+  if (key) return t(key);
+  if (series.id === 'product_page_conversion')
+    return series.source.indexOf('play_') === 0 ? t('analytics:series.storeListingConversion') : t('analytics:series.productPageConversion');
+  if (series.id === 'impression_tap_rate') return t('analytics:series.tapThroughRate');
+  if (series.id === 'crash_rate_derived') return t('analytics:series.crashesPerSession');
+  return series.label;
+}
 
 /**
  * What the Analytics screen draws, worked out from the API's answers: the row of figures, the small-multiple chart cards
@@ -60,11 +118,11 @@ export type StatChipModel = {
 
 type ChipSpec = {
   id: string;
-  label: string;
+  labelKey: string;
   upIsGood: boolean;
   /** `total`: the sum or mean over the range. `level`: the newest value (a rating). */
   kind: 'total' | 'level';
-  title: string;
+  titleKey: string;
   pick: (overview: AnalyticsOverview | null) => AnalyticsSeries | null;
 };
 
@@ -75,7 +133,7 @@ export function appleCrashRate(overview: AnalyticsOverview | null): AnalyticsSer
   if (!hasData(crashes) || !hasData(sessions)) return null;
   const derived = deriveRatioSeries({
     id: 'crash_rate_derived',
-    label: 'Crashes per session',
+    label: t('analytics:series.crashesPerSession'),
     numerator: crashes,
     denominator: sessions,
   });
@@ -85,44 +143,42 @@ export function appleCrashRate(overview: AnalyticsOverview | null): AnalyticsSer
 const appleSpecs: ChipSpec[] = [
   {
     id: 'impressions',
-    label: 'Impressions',
+    labelKey: k('analytics:chip.impressions'),
     upIsGood: true,
     kind: 'total',
-    title: 'Counts of impressions, not unique people.',
+    titleKey: k('analytics:chipTitle.impressions'),
     pick: (o) => seriesOf(o, 'impressions'),
   },
   {
     id: 'product_page_views',
-    label: 'Product page views',
+    labelKey: k('analytics:chip.productPageViews'),
     upIsGood: true,
     kind: 'total',
-    title: 'Counts of page views, not unique people.',
+    titleKey: k('analytics:chipTitle.pageViews'),
     pick: (o) => seriesOf(o, 'product_page_views'),
   },
   {
     id: 'downloads',
-    label: 'First-time downloads',
+    labelKey: k('analytics:chip.downloads'),
     upIsGood: true,
     kind: 'total',
-    title: 'First-time downloads. Redownloads are in the chart below.',
+    titleKey: k('analytics:chipTitle.downloadsApple'),
     pick: (o) => seriesOf(o, 'downloads_first_time'),
   },
   {
     id: 'conversion',
-    label: 'Conversion',
+    labelKey: k('analytics:chip.conversion'),
     upIsGood: true,
     kind: 'total',
-    title:
-      'First-time downloads divided by product page views. Derived; it may not match App Store Connect.',
+    titleKey: k('analytics:chipTitle.conversionApple'),
     pick: (o) => seriesOf(o, 'product_page_conversion'),
   },
   {
     id: 'crash_rate',
-    label: 'Crash rate',
+    labelKey: k('analytics:chip.crashRate'),
     upIsGood: false,
     kind: 'total',
-    title:
-      'Crashes divided by sessions, from the people who opted in to share data. Derived here; not a total.',
+    titleKey: k('analytics:chipTitle.crashRateApple'),
     pick: appleCrashRate,
   },
 ];
@@ -130,52 +186,50 @@ const appleSpecs: ChipSpec[] = [
 const googleSpecs: ChipSpec[] = [
   {
     id: 'downloads',
-    label: 'Installs',
+    labelKey: k('analytics:chip.installs'),
     upIsGood: true,
     kind: 'total',
-    title: 'User installs from the Play Console monthly reports.',
+    titleKey: k('analytics:chipTitle.installs'),
     pick: (o) => seriesOf(o, 'installs_user'),
   },
   {
     id: 'product_page_views',
-    label: 'Store visitors',
+    labelKey: k('analytics:chip.storeVisitors'),
     upIsGood: true,
     kind: 'total',
-    title: 'From the legacy store listing export, which Google changed in 2026.',
+    titleKey: k('analytics:chipTitle.storeVisitors'),
     pick: (o) => seriesOf(o, 'store_listing_visitors'),
   },
   {
     id: 'conversion',
-    label: 'Conversion',
+    labelKey: k('analytics:chip.conversion'),
     upIsGood: true,
     kind: 'total',
-    title:
-      'Store listing acquisitions divided by visitors. Derived; it may not match Play Console.',
+    titleKey: k('analytics:chipTitle.conversionGoogle'),
     pick: (o) => seriesOf(o, 'product_page_conversion'),
   },
   {
     id: 'crash_rate',
-    label: 'Crash rate',
+    labelKey: k('analytics:chip.crashRate'),
     upIsGood: false,
     kind: 'total',
-    title: 'Mean daily crash rate from Android vitals, as the API sends it.',
+    titleKey: k('analytics:chipTitle.crashRateGoogle'),
     pick: (o) => seriesOf(o, 'crash_rate'),
   },
   {
     id: 'anr_rate',
-    label: 'ANR rate',
+    labelKey: k('analytics:chip.anrRate'),
     upIsGood: false,
     kind: 'total',
-    title: 'Mean daily ANR rate from Android vitals, as the API sends it.',
+    titleKey: k('analytics:chipTitle.anrRate'),
     pick: (o) => seriesOf(o, 'anr_rate'),
   },
   {
     id: 'rating',
-    label: 'Rating',
+    labelKey: k('analytics:chip.rating'),
     upIsGood: true,
     kind: 'level',
-    title:
-      'The newest all-time average rating of the Play Console reports. No count of ratings is available.',
+    titleKey: k('analytics:chipTitle.rating'),
     pick: (o) => seriesOf(o, 'rating_average_total'),
   },
 ];
@@ -198,9 +252,9 @@ export function buildChips(
     const delta = spec.kind === 'level' ? levelDelta(now, before) : periodDelta(now, before, days);
     chips.push({
       id: spec.id,
-      label: spec.label,
+      label: t(spec.labelKey),
       value: formatValue(now.unit, raw, now.currency),
-      title: spec.title,
+      title: t(spec.titleKey),
       delta,
       line: deltaLine(delta, days),
       spoken: deltaSpoken(delta, days),
@@ -252,7 +306,7 @@ function makePanel(
   const series: PanelSeries[] = [];
   for (const [s, label, color] of entries) {
     if (!hasData(s)) continue;
-    series.push({ key: s.id, label: label ?? s.label, color, series: s });
+    series.push({ key: s.id, label: label ?? seriesLabel(s), color, series: s });
   }
   if (series.length === 0) return null;
   return {
@@ -313,7 +367,7 @@ export function splitHeadline(cards: readonly ChartCard[]): {
 }
 
 /** What the Android sales card is called: the numbers are buyer-paid estimates, not proceeds (the Apple card is "Proceeds"). */
-export const SALES_CARD_TITLE_GOOGLE = 'Sales (buyer-paid, estimated)';
+export const salesCardTitleGoogle = (): string => t('analytics:card.salesGoogle');
 
 /**
  * The chart cards of one platform, in reading order: reach, downloads, conversion, crashes, ratings, proceeds (Apple) or sales (Google).
@@ -325,30 +379,30 @@ export function buildCards(overview: AnalyticsOverview | null): ChartCard[] {
   const cards: (ChartCard | null)[] = [];
   if (platformSupports(overview.platform, 'playReportsBucket')) {
     cards.push(
-      card('installs', 'Installs', [
-        makePanel('installs_user', 'User installs', 'columns', 'count', [
+      card('installs', t('analytics:card.installs'), [
+        makePanel('installs_user', t('analytics:panel.userInstalls'), 'columns', 'count', [
           [s('installs_user'), null, 1],
         ]),
-        makePanel('uninstalls_device', 'Device uninstalls', 'columns', 'count', [
+        makePanel('uninstalls_device', t('analytics:panel.deviceUninstalls'), 'columns', 'count', [
           [s('uninstalls_device'), null, 1],
         ]),
       ]),
-      card('listing', 'Store listing visitors and acquisitions', [
-        makePanel('store_listing_visitors', 'Visitors', 'line', 'count', [
+      card('listing', t('analytics:card.listing'), [
+        makePanel('store_listing_visitors', t('analytics:panel.visitors'), 'line', 'count', [
           [s('store_listing_visitors'), null, 1],
         ]),
-        makePanel('store_listing_acquisitions', 'Acquisitions', 'line', 'count', [
+        makePanel('store_listing_acquisitions', t('analytics:panel.acquisitions'), 'line', 'count', [
           [s('store_listing_acquisitions'), null, 1],
         ]),
       ]),
-      card('conversion', 'Store listing conversion', [
+      card('conversion', t('analytics:card.listingConversion'), [
         makePanel('product_page_conversion', null, 'line', 'ratio', [
           [s('product_page_conversion'), null, 1],
         ]),
       ]),
       card(
         'vitals',
-        'Crash and ANR rate',
+        t('analytics:card.vitals'),
         [
           makePanel('vitals', null, 'line', 'ratio', [
             [s('crash_rate'), null, 1],
@@ -356,19 +410,19 @@ export function buildCards(overview: AnalyticsOverview | null): ChartCard[] {
           ]),
         ],
         [
-          versionBars('crash_rate_versions', 'Crash rate by app version', s('crash_rate')),
-          versionBars('anr_rate_versions', 'ANR rate by app version', s('anr_rate')),
+          versionBars('crash_rate_versions', t('analytics:versions.crashRate'), s('crash_rate')),
+          versionBars('anr_rate_versions', t('analytics:versions.anrRate'), s('anr_rate')),
         ],
       ),
-      card('ratings', 'Rating over time', [
+      card('ratings', t('analytics:card.ratings'), [
         makePanel(
           'ratings',
           null,
           'line',
           'rating',
           [
-            [s('rating_average_total'), 'Average rating, all time', 1],
-            [s('rating_average_daily'), 'Average rating of the day', 2],
+            [s('rating_average_total'), t('analytics:panel.ratingAll'), 1],
+            [s('rating_average_daily'), t('analytics:panel.ratingDay'), 2],
           ],
           { domain: 'tight' },
         ),
@@ -378,77 +432,77 @@ export function buildCards(overview: AnalyticsOverview | null): ChartCard[] {
     const gross = overview.series.filter((x) => x.metric === 'sales_gross' && hasData(x));
     const refunds = overview.series.filter((x) => x.metric === 'sales_refunds' && hasData(x));
     cards.push(
-      card('sales', SALES_CARD_TITLE_GOOGLE, [
+      card('sales', salesCardTitleGoogle(), [
         ...gross.map((x) =>
           makePanel(
             x.id,
-            x.currency ?? 'Sales',
+            x.currency ?? t('analytics:panel.sales'),
             'columns',
             'money',
-            [[x, x.currency ? `Sales, buyer-paid (${x.currency})` : 'Sales, buyer-paid', 1]],
+            [[x, x.currency ? t('analytics:panel.salesBuyerPaidCurrency', { currency: x.currency }) : t('analytics:panel.salesBuyerPaid'), 1]],
             { currency: x.currency },
           ),
         ),
         ...refunds.map((x) =>
           makePanel(
             x.id,
-            x.currency ? `Refunds (${x.currency})` : 'Refunds',
+            x.currency ? t('analytics:panel.refundsCurrency', { currency: x.currency }) : t('analytics:panel.refunds'),
             'columns',
             'money',
-            [[x, x.currency ? `Refunds, buyer-paid (${x.currency})` : 'Refunds, buyer-paid', 2]],
+            [[x, x.currency ? t('analytics:panel.refundsBuyerPaidCurrency', { currency: x.currency }) : t('analytics:panel.refundsBuyerPaid'), 2]],
             { currency: x.currency },
           ),
         ),
-        makePanel('sales_orders', 'Orders', 'columns', 'count', [[s('sales_orders'), null, 1]]),
+        makePanel('sales_orders', t('analytics:panel.orders'), 'columns', 'count', [[s('sales_orders'), null, 1]]),
       ]),
     );
   } else {
     const crashRate = appleCrashRate(overview);
     cards.push(
-      card('reach', 'Impressions and product page views', [
-        makePanel('impressions', 'Impressions', 'line', 'count', [[s('impressions'), null, 1]]),
-        makePanel('product_page_views', 'Product page views', 'line', 'count', [
+      card('reach', t('analytics:card.reach'), [
+        makePanel('impressions', t('analytics:panel.impressions'), 'line', 'count', [[s('impressions'), null, 1]]),
+        makePanel('product_page_views', t('analytics:panel.productPageViews'), 'line', 'count', [
           [s('product_page_views'), null, 1],
         ]),
       ]),
-      card('downloads', 'Downloads', [
+      card('downloads', t('analytics:card.downloads'), [
         makePanel('downloads', null, 'stacked', 'count', [
           [s('downloads_first_time'), null, 1],
           [s('downloads_redownload'), null, 2],
         ]),
       ]),
-      card('conversion', 'Conversion', [
-        makePanel('product_page_conversion', 'Product page conversion', 'line', 'ratio', [
+      card('conversion', t('analytics:card.conversion'), [
+        makePanel('product_page_conversion', t('analytics:panel.productPageConversion'), 'line', 'ratio', [
           [s('product_page_conversion'), null, 1],
         ]),
-        makePanel('impression_tap_rate', 'Tap-through rate', 'line', 'ratio', [
+        makePanel('impression_tap_rate', t('analytics:panel.tapThroughRate'), 'line', 'ratio', [
           [s('impression_tap_rate'), null, 1],
         ]),
       ]),
       card(
         'crashes',
-        'Crashes',
+        t('analytics:card.crashes'),
         [
-          makePanel('crashes', 'Crashes', 'columns', 'count', [[s('crashes'), null, 1]]),
-          makePanel('crash_rate_derived', 'Crashes per session', 'line', 'ratio', [
+          makePanel('crashes', t('analytics:panel.crashes'), 'columns', 'count', [[s('crashes'), null, 1]]),
+          makePanel('crash_rate_derived', t('analytics:panel.crashesPerSession'), 'line', 'ratio', [
             [crashRate, null, 1],
           ]),
         ],
-        [versionBars('crash_versions', 'Crashes by app version', s('crashes'))],
+        [versionBars('crash_versions', t('analytics:versions.crashes'), s('crashes'))],
       ),
     );
     const proceeds = overview.series.filter((x) => x.metric === 'sales_proceeds' && hasData(x));
     cards.push(
       card(
         'proceeds',
-        'Proceeds',
+        t('analytics:card.proceeds'),
         proceeds.map((x) =>
           makePanel(
             x.id,
-            x.currency ?? 'Proceeds',
+            x.currency ?? t('analytics:panel.proceeds'),
             'columns',
             'money',
-            [[x, x.currency ? `Proceeds (${x.currency})` : 'Proceeds', 1]],
+            [[x, x.currency ? t('analytics:panel.proceedsCurrency', { currency: x.currency }) : t('analytics:panel.proceeds'), 1]],
             { currency: x.currency },
           ),
         ),
@@ -525,24 +579,25 @@ export type CardSeriesInfo = {
 const coverageWords = (s: AnalyticsSeries): string => {
   // A monthly figure counts months: a day-count would say "1 day with data" for a month.
   if (s.cadence === 'monthly') {
-    if (s.coverage.state === 'none') return 'No months with data in this range';
-    const gap = s.coverage.gapDays > 0 ? `, ${s.coverage.gapDays} ${s.coverage.gapDays === 1 ? 'month' : 'months'} missing between the first and the last` : '';
-    return `${s.coverage.days} ${s.coverage.days === 1 ? 'month' : 'months'} with data${gap}`;
+    if (s.coverage.state === 'none') return t('analytics:coverage.noMonths');
+    const withData = t('analytics:coverage.monthsWithData', { count: s.coverage.days });
+    return s.coverage.gapDays > 0
+      ? formatList([withData, t('analytics:coverage.monthsMissing', { count: s.coverage.gapDays })], { type: 'unit' })
+      : withData;
   }
-  if (s.coverage.state === 'none') return 'No days with data in this range';
-  const gap =
-    s.coverage.gapDays > 0
-      ? `, ${s.coverage.gapDays} ${s.coverage.gapDays === 1 ? 'day' : 'days'} missing between the first and the last`
-      : '';
-  return `${s.coverage.days} ${s.coverage.days === 1 ? 'day' : 'days'} with data${gap}`;
+  if (s.coverage.state === 'none') return t('analytics:coverage.noDays');
+  const withData = t('analytics:coverage.daysWithData', { count: s.coverage.days });
+  return s.coverage.gapDays > 0
+    ? formatList([withData, t('analytics:coverage.daysMissing', { count: s.coverage.gapDays })], { type: 'unit' })
+    : withData;
 };
 
 /** What the "About this data" popover lists per series: its source, how complete it is, how late it can be, and its notes. */
 export function cardInfo(c: ChartCard): CardSeriesInfo[] {
   return allSeries(c).map((s) => ({
     id: s.id,
-    label: s.label,
-    source: sourceLabel(s.source) + (s.derived ? ' (derived here)' : ''),
+    label: seriesLabel(s),
+    source: s.derived ? t('analytics:info.derivedHere', { source: sourceLabel(s.source) }) : sourceLabel(s.source),
     coverage: coverageWords(s),
     freshness: freshnessLine(s),
     notes: s.coverage.notes.map(noteText),
@@ -602,7 +657,7 @@ export function tooltipFor(panel: ChartPanel, index: number, today: string): Tip
       key: ps.key,
       label: ps.label,
       color: ps.color,
-      text: v === null ? 'No data' : formatExact(ps.series.unit, v, ps.series.currency),
+      text: v === null ? t('analytics:tip.noData') : formatExact(ps.series.unit, v, ps.series.currency),
       missing: v === null,
     };
   });
@@ -613,7 +668,7 @@ export function tooltipFor(panel: ChartPanel, index: number, today: string): Tip
     if (values.length > 0)
       rows.push({
         key: '__total',
-        label: 'Total',
+        label: t('analytics:tip.total'),
         color: 0,
         text: formatExact(
           panel.unit,
@@ -640,24 +695,23 @@ export function describePanel(panel: ChartPanel, cardTitle: string): string {
     if (values.length === 0) continue;
     const fmt = (v: number) => formatValue(ps.series.unit, v, ps.series.currency);
     const missing = ps.series.points.length - values.length;
-    parts.push(
-      `${ps.label}: latest ${fmt(lastValue(ps.series) ?? 0)}, lowest ${fmt(Math.min(...values))}, highest ${fmt(Math.max(...values))}${missing > 0 ? `, ${missing} ${missing === 1 ? 'day' : 'days'} with no data` : ''}`,
-    );
+    const figures = { label: ps.label, latest: fmt(lastValue(ps.series) ?? 0), lowest: fmt(Math.min(...values)), highest: fmt(Math.max(...values)) };
+    parts.push(missing > 0 ? t('analytics:panel.describeSeriesMissing', { ...figures, count: missing }) : t('analytics:panel.describeSeries', figures));
   }
-  return `${name}. ${parts.join('. ')}.`;
+  return parts.length === 0 ? t('analytics:panel.describeNone', { name }) : t('analytics:panel.describe', { name, parts: parts.join(' ') });
 }
 
 export type DataTableModel = { columns: string[]; rows: { date: string; cells: string[] }[] };
 
 /** The table twin of a card: a row per day, a column per series, "No data" where there is none. A value the store sent unverified also shows as sent. */
 export function tableFor(c: ChartCard): DataTableModel {
-  const columns = ['Date'];
+  const columns = [t('analytics:table.date')];
   const specs: { series: AnalyticsSeries; raw: boolean }[] = [];
   for (const s of allSeries(c)) {
-    columns.push(s.label);
+    columns.push(seriesLabel(s));
     specs.push({ series: s, raw: false });
     if (s.coverage.notes.some((n) => n.code === 'google_unit_unverified')) {
-      columns.push(`${s.label}, as sent`);
+      columns.push(t('analytics:table.asSent', { label: seriesLabel(s) }));
       specs.push({ series: s, raw: true });
     }
   }
@@ -666,7 +720,7 @@ export function tableFor(c: ChartCard): DataTableModel {
     date: formatDay(date, true),
     cells: specs.map(({ series, raw }) => {
       const v = series.points[i]?.value ?? null;
-      if (v === null) return 'No data';
+      if (v === null) return t('analytics:tip.noData');
       return raw ? String(v) : formatExact(series.unit, v, series.currency);
     }),
   }));
@@ -710,7 +764,7 @@ export type SourceRow = {
 };
 
 const usable = (a: StepAction | null): a is StepAction =>
-  a !== null && !(a.kind === 'text' && a.label === 'Wait');
+  a !== null && !(a.kind === 'text' && a.label === t('analytics:step.wait'));
 
 export function sourceRows(status: AnalyticsStatus, now: number): SourceRow[] {
   return status.sources.map((s: SourceStatus): SourceRow => {
@@ -722,10 +776,10 @@ export function sourceRows(status: AnalyticsStatus, now: number): SourceRow[] {
     else if (state === 'ready')
       message =
         s.firstDay && s.lastDay
-          ? `Data from ${formatDay(s.firstDay, true)} to ${formatDay(s.lastDay, true)}.`
-          : 'Ready.';
+          ? t('analytics:sourceRow.dataFromTo', { from: formatDay(s.firstDay, true), to: formatDay(s.lastDay, true) })
+          : t('analytics:sourceRow.ready');
     else if (state === 'off') message = setupSentence('turn_on_analytics');
-    else message = 'No data has been read yet.';
+    else message = t('analytics:sourceRow.noData');
     const stepFor = (step: string | undefined): StepAction | null =>
       step ? stepAction(step) : null;
     let action = stepFor(setup?.nextStep);
@@ -737,7 +791,7 @@ export function sourceRows(status: AnalyticsStatus, now: number): SourceRow[] {
       source: s.source,
       label: s.label || sourceLabel(s.source),
       state,
-      stateLabel: info.label,
+      stateLabel: stateLabel(state),
       tone: info.tone,
       icon: info.icon,
       optional: setup?.optional === true,
@@ -747,14 +801,14 @@ export function sourceRows(status: AnalyticsStatus, now: number): SourceRow[] {
       alternatives,
       range:
         s.firstDay && s.lastDay
-          ? `${formatDay(s.firstDay, true)} to ${formatDay(s.lastDay, true)}`
+          ? t('analytics:range.fromTo', { from: formatDay(s.firstDay, true), to: formatDay(s.lastDay, true) })
           : null,
       lastRead:
         s.lastOkAt === null
           ? s.lastAttemptAt === null
-            ? 'Not read yet'
-            : `Tried ${timeAgo(s.lastAttemptAt, now)}, nothing stored`
-          : `Last read ${timeAgo(s.lastOkAt, now)}`,
+            ? t('analytics:sourceRow.notRead')
+            : t('analytics:sourceRow.tried', { ago: timeAgo(s.lastAttemptAt, now) })
+          : t('analytics:sourceRow.lastRead', { ago: timeAgo(s.lastOkAt, now) }),
     };
   });
 }
@@ -769,13 +823,11 @@ export function lastReadAt(status: AnalyticsStatus): number | null {
 
 export function scheduleText(status: AnalyticsStatus): string {
   const minutes = status.schedule.intervalMinutes;
-  if (!status.enabled) return 'Scheduled syncs are off while analytics is off.';
-  if (minutes <= 0) return 'The server has no scheduled sync; use Sync analytics now.';
-  if (minutes % 1440 === 0)
-    return `Synced every ${minutes / 1440 === 1 ? 'day' : `${minutes / 1440} days`}.`;
-  if (minutes % 60 === 0)
-    return `Synced every ${minutes / 60 === 1 ? 'hour' : `${minutes / 60} hours`}.`;
-  return `Synced every ${minutes} minutes.`;
+  if (!status.enabled) return t('analytics:schedule.off');
+  if (minutes <= 0) return t('analytics:schedule.none');
+  if (minutes % 1440 === 0) return t('analytics:schedule.everyDay', { count: minutes / 1440 });
+  if (minutes % 60 === 0) return t('analytics:schedule.everyHour', { count: minutes / 60 });
+  return t('analytics:schedule.everyMinute', { count: minutes });
 }
 
 export type SyncLine = {
@@ -790,12 +842,16 @@ export function syncLines(sync: AnalyticsSyncResult['sync']): SyncLine[] {
   return sync.sources.map((s): SyncLine => {
     const label = sourceLabel(s.source);
     if (s.status === 'ok') {
-      const span =
-        s.dayFrom && s.dayTo ? ` for ${formatDay(s.dayFrom)} to ${formatDay(s.dayTo)}` : '';
+      const count = s.points ?? 0;
       return {
         source: s.source,
         label,
-        text: (s.points ?? 0) > 0 ? `Read ${s.points} values${span}.` : 'Nothing new.',
+        text:
+          count <= 0
+            ? t('analytics:sync.nothingNew')
+            : s.dayFrom && s.dayTo
+              ? t('analytics:sync.readValuesSpan', { count, from: formatDay(s.dayFrom), to: formatDay(s.dayTo) })
+              : t('analytics:sync.readValues', { count }),
         tone: 'ok',
       };
     }
@@ -803,26 +859,26 @@ export function syncLines(sync: AnalyticsSyncResult['sync']): SyncLine[] {
       return {
         source: s.source,
         label,
-        text: `Read part of the data.${s.errorCode ? ` ${storedErrorText(s.errorCode)}` : ''}`,
+        text: s.errorCode ? t('analytics:sync.partialWith', { error: storedErrorText(s.errorCode) }) : t('analytics:sync.partial'),
         tone: 'warn',
       };
     if (s.status === 'failed') {
-      const again = s.transient === true ? ' The next sync tries again.' : '';
+      const reason = s.errorCode ? storedErrorText(s.errorCode) : t('analytics:sync.readFailed');
       return {
         source: s.source,
         label,
-        text: `${s.errorCode ? storedErrorText(s.errorCode) : 'The read failed.'}${again}`,
+        text: s.transient === true ? t('analytics:sync.withRetry', { text: reason }) : reason,
         tone: 'bad',
       };
     }
     if (s.status === 'skipped') {
       const why =
         s.setup === 'import_only'
-          ? 'Skipped: this app imports report files instead.'
-          : `Skipped. ${s.setup ? setupSentence(s.setup) : 'It cannot run yet.'}`;
+          ? t('analytics:sync.skippedImport')
+          : t('analytics:sync.skipped', { reason: s.setup ? setupSentence(s.setup) : t('analytics:sync.cannotRun') });
       return { source: s.source, label, text: why, tone: 'neutral' };
     }
-    return { source: s.source, label, text: 'Done.', tone: 'neutral' };
+    return { source: s.source, label, text: t('analytics:sync.done'), tone: 'neutral' };
   });
 }
 
@@ -849,40 +905,40 @@ export function buildStrip(overview: AnalyticsOverview | null): Strip | null {
       ? [
           {
             id: 'downloads',
-            label: 'Installs',
-            title: 'User installs',
+            label: t('analytics:chip.installs'),
+            title: t('analytics:strip.installs'),
             series: seriesOf(overview, 'installs_user'),
           },
           {
             id: 'conversion',
-            label: 'Conversion',
-            title: 'Store listing conversion, derived',
+            label: t('analytics:chip.conversion'),
+            title: t('analytics:strip.conversionGoogle'),
             series: seriesOf(overview, 'product_page_conversion'),
           },
           {
             id: 'crash_rate',
-            label: 'Crash rate',
-            title: 'Mean daily crash rate from Android vitals, as sent',
+            label: t('analytics:chip.crashRate'),
+            title: t('analytics:strip.crashRateGoogle'),
             series: seriesOf(overview, 'crash_rate'),
           },
         ]
       : [
           {
             id: 'downloads',
-            label: 'First-time downloads',
-            title: 'First-time downloads',
+            label: t('analytics:chip.downloads'),
+            title: t('analytics:strip.downloadsApple'),
             series: seriesOf(overview, 'downloads_first_time'),
           },
           {
             id: 'conversion',
-            label: 'Conversion',
-            title: 'First-time downloads divided by product page views, derived',
+            label: t('analytics:chip.conversion'),
+            title: t('analytics:strip.conversionApple'),
             series: seriesOf(overview, 'product_page_conversion'),
           },
           {
             id: 'crash_rate',
-            label: 'Crash rate',
-            title: 'Crashes divided by sessions, from people who opted in; derived',
+            label: t('analytics:chip.crashRate'),
+            title: t('analytics:strip.crashRateApple'),
             series: appleCrashRate(overview),
           },
         ];

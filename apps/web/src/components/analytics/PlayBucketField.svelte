@@ -15,6 +15,7 @@
   import { untrack } from 'svelte';
   import { type Api } from '../../lib/api.ts';
   import { type PlayBucketTestResult, type PlayBucketView, analyticsErrorText, bucketSourceText } from '../../lib/analytics/analytics.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
   import { bucketTestWord } from '../../lib/readable-forms.ts';
@@ -76,7 +77,7 @@
   async function save() {
     if (saving || !canManage) return;
     if (!useDefault && !valid) {
-      problem = 'That is not a Play reports bucket. It looks like gs://pubsite_prod_rev_ followed by digits.';
+      problem = t('analytics:bucketField.invalid');
       return;
     }
     saving = true;
@@ -85,7 +86,7 @@
       const out = await api.setPlayBucket(workspaceId, app.id, { bucket: useDefault ? null : typed, scope: 'app' });
       fill(out.playBucket);
       result = null;
-      toast.success(useDefault ? 'This app uses the workspace default again.' : 'Saved the reports bucket of this app.');
+      toast.success(useDefault ? t('analytics:bucketField.toastDefault') : t('analytics:bucketField.toastSaved'));
       onchanged?.();
     } catch (e) {
       problem = analyticsErrorText(e);
@@ -115,20 +116,20 @@
 </script>
 
 <div class="stack readable-card">
-  {#if heading}<strong id="{uid}-h">Google Play reports bucket</strong>{/if}
+  {#if heading}<strong id="{uid}-h">{t('analytics:bucketField.heading')}</strong>{/if}
   {#if loadError}
     <Alert tone="error">{loadError}</Alert>
   {:else if view === null}
-    <p class="muted" role="status">Reading the setting…</p>
+    <p class="muted" role="status">{t('analytics:bucketField.loading')}</p>
   {:else}
-    <p class="muted">Installs and ratings are read from the reports bucket of this app's Play account. {bucketSourceText(view)}</p>
+    <p class="muted">{t('analytics:bucketField.intro', { source: bucketSourceText(view) })}</p>
     {#if canManage}
       <label class="check">
         <input type="checkbox" bind:checked={useDefault} />
-        Use the workspace default{inherited ? ` (${inherited})` : ' (none is set)'}
+        {inherited ? t('analytics:bucketField.useDefault', { bucket: inherited }) : t('analytics:bucketField.useDefaultNone')}
       </label>
       <div class="field">
-        <label for="{uid}-bucket">Bucket of this app</label>
+        <label for="{uid}-bucket">{t('analytics:bucketField.label')}</label>
         <input
           id="{uid}-bucket"
           type="text"
@@ -140,20 +141,20 @@
           disabled={useDefault}
           aria-invalid={problem ? 'true' : undefined}
         />
-        <p class="hint">Copy it in Play Console under Download reports, Statistics, with "Copy Cloud Storage URI".</p>
+        <p class="hint">{t('analytics:bucketField.hint')}</p>
       </div>
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}
       {#if result}<Alert tone={tone(result)}>{result.message}</Alert>{/if}
       <div class="row">
-        <Button variant="primary" loading={saving} disabled={saving || !dirty || (!useDefault && !valid)} onclick={() => void save()}>Save</Button>
+        <Button variant="primary" loading={saving} disabled={saving || !dirty || (!useDefault && !valid)} onclick={() => void save()}>{t('common:action.save')}</Button>
         <span class="connection">
           <Badge tone={testState.tone}>{testState.label}</Badge>
-          <Button size="sm" variant="ghost" loading={testing} disabled={testing || (useDefault ? inherited === null : !valid)} onclick={() => void test()}>Test the bucket</Button>
+          <Button size="sm" variant="ghost" loading={testing} disabled={testing || (useDefault ? inherited === null : !valid)} onclick={() => void test()}>{t('analytics:bucketField.test')}</Button>
         </span>
       </div>
     {:else}
       <p>
-        {view.bucketId ? `This app reads ${view.bucketId}.` : 'No bucket is set for this app.'} Ask an owner or an admin to change it.
+        {view.bucketId ? t('analytics:bucketField.readOnly', { bucket: view.bucketId }) : t('analytics:bucketField.readOnlyNone')}
       </p>
     {/if}
   {/if}

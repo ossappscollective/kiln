@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import { presentRuns } from '../../lib/analytics/analytics.ts';
+  import { t } from '../../lib/i18n/t.ts';
 
   let { points, label, width = 96, height = 28 }: { points: (number | null)[]; label: string; width?: number | undefined; height?: number | undefined } = $props();
 
@@ -37,7 +38,7 @@
 </script>
 
 {#if values.length === 0}
-  <span class="none muted" title="No data">–</span>
+  <span class="none muted" title={t('analytics:tip.noData')}>–</span>
 {:else}
   <svg viewBox="0 0 {width} {height}" {width} {height} role="img" aria-label={label}>
     <title>{label}</title>

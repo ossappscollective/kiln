@@ -3,8 +3,7 @@ import {
   type AnalyticsNextStep,
   type AnalyticsSetupCode,
   addDays,
-  analyticsErrorMessages,
-  coverageNoteMessages,
+  type CoverageNoteCode,
   dateToDay,
   daysBetween,
   isAnalyticsErrorCode,
@@ -15,7 +14,8 @@ import {
 } from '@kiln/core';
 import { ApiError } from '../api.ts';
 import { parseViewPath } from '../app-scope.ts';
-import { formatCompact, formatCurrency, formatNumber, formatPercent as formatPercentOf } from '../i18n/format.ts';
+import { formatCompact, formatCurrency, formatDate, formatNumber, formatPercent as formatPercentOf } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 
 /**
  * Analytics in the web UI: the shapes of the API (docs/api/analytics.md), the date range kept in the address,
@@ -251,31 +251,33 @@ export function previousRange(range: ResolvedRange): ResolvedRange {
 
 /** Why a custom range cannot be used, or '' when it can. */
 export function customRangeProblem(from: string, to: string, now: number): string {
-  if (!isIsoDate(from) || !isIsoDate(to)) return 'Enter both dates.';
-  if (from > to) return 'The start date must not be after the end date.';
-  if (to > dateToDay(now)) return 'The end date cannot be in the future.';
-  if (daysBetween(from, to) + 1 > MAX_RANGE_DAYS) return `Choose at most ${MAX_RANGE_DAYS} days.`;
+  if (!isIsoDate(from) || !isIsoDate(to)) return t('analytics:range.errBothDates');
+  if (from > to) return t('analytics:range.errOrder');
+  if (to > dateToDay(now)) return t('analytics:range.errFuture');
+  if (daysBetween(from, to) + 1 > MAX_RANGE_DAYS) return t('analytics:range.errTooLong', { count: MAX_RANGE_DAYS });
   return '';
 }
 
 export const rangeText = (choice: RangeChoice, range: ResolvedRange): string =>
   choice.kind === 'preset'
-    ? `Last ${choice.days} days`
-    : `${formatDay(range.from, true)} to ${formatDay(range.to, true)}`;
+    ? t('analytics:range.last', { count: choice.days })
+    : t('analytics:range.fromTo', { from: formatDay(range.from, true), to: formatDay(range.to, true) });
 
 // ---------------------------------------------------------------------------------------------
 // Numbers and dates
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** "Nov 17", or "Nov 17, 2026" with `withYear`. From the text of the date, so no time zone can move it. */
+/**
+ * "Nov 17", or "Nov 17, 2026" with `withYear`, in the active language. The calendar day is read from the text of the date and
+ * formatted in UTC, so no time zone can move it.
+ */
 export function formatDay(day: string, withYear = false): string {
   // A month ("2026-10", from `monthKey`) is named as one: "Oct 2026". It is never shown as a day.
-  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(day)) return `${MONTHS[Number(day.slice(5, 7)) - 1] ?? ''} ${day.slice(0, 4)}`;
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(day)) {
+    return formatDate(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, 1), { timeZone: 'UTC', month: 'short', year: 'numeric' });
+  }
   if (!isIsoDate(day)) return day;
-  const month = MONTHS[Number(day.slice(5, 7)) - 1] ?? '';
-  const d = Number(day.slice(8, 10));
-  return withYear ? `${month} ${d}, ${day.slice(0, 4)}` : `${month} ${d}`;
+  const at = Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)));
+  return formatDate(at, withYear ? { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' } : { timeZone: 'UTC', month: 'short', day: 'numeric' });
 }
 
 const group = (n: number): string => formatNumber(Math.round(n), { maximumFractionDigits: 0 });
@@ -531,59 +533,64 @@ export function deltaTone(delta: Delta, upIsGood: boolean): DeltaTone {
 export function deltaLine(delta: Delta, days: number): string {
   switch (delta.kind) {
     case 'change':
-      return `${delta.text} vs previous ${days} days`;
+      return t('analytics:delta.vsPrevious', { text: delta.text, count: days });
     case 'flat':
-      return `About the same as the previous ${days} days`;
+      return t('analytics:delta.same', { count: days });
     default:
-      return delta.reason === 'not_enough_data' ? 'Not enough data to compare' : '';
+      return delta.reason === 'not_enough_data' ? t('analytics:delta.notEnough') : '';
   }
 }
 
 /** The same for a screen reader: words and not a sign. */
 export function deltaSpoken(delta: Delta, days: number): string {
   if (delta.kind === 'change')
-    return `${delta.direction === 'up' ? 'Up' : 'Down'} ${delta.text.replace(/^[+-]/, '')} compared with the previous ${days} days`;
+    return delta.direction === 'up'
+      ? t('analytics:delta.spokenUp', { text: delta.text.replace(/^[+-]/, ''), count: days })
+      : t('analytics:delta.spokenDown', { text: delta.text.replace(/^[+-]/, ''), count: days });
   return deltaLine(delta, days);
 }
 
 // ---------------------------------------------------------------------------------------------
 // Where a number comes from and how late it can be
 
-export const sourceLabels: Record<string, string> = {
-  apple_analytics: 'App Store analytics reports',
-  apple_sales: 'Sales and Trends',
-  play_vitals: 'Android vitals',
-  play_reports: 'Play Console reports',
-  play_sales: 'Play Console sales reports',
-  play_earnings: 'Play Console earnings reports',
-  apple_subscriptions: 'Apple subscription reports',
-  play_subscriptions: 'Play Console subscription statistics',
+const sourceKeys: Record<string, string> = {
+  apple_analytics: k('analytics:source.appleAnalytics'),
+  apple_sales: k('analytics:source.appleSales'),
+  play_vitals: k('analytics:source.playVitals'),
+  play_reports: k('analytics:source.playReports'),
+  play_sales: k('analytics:source.playSales'),
+  play_earnings: k('analytics:source.playEarnings'),
+  apple_subscriptions: k('analytics:source.appleSubscriptions'),
+  play_subscriptions: k('analytics:source.playSubscriptions'),
 };
 
-export const sourceLabel = (source: string): string => sourceLabels[source] ?? 'Store data';
+export const sourceLabel = (source: string): string => {
+  const key = sourceKeys[source] ?? k('analytics:source.other');
+  return t(key);
+};
 
 /** How late a source can be, as a sentence. `delayDays` is an upper bound ("complete within"). */
 export function lagText(source: string, delayDays: number): string {
-  const days = `${delayDays} ${delayDays === 1 ? 'day' : 'days'}`;
+  const count = delayDays;
   switch (source) {
     case 'apple_analytics':
-      return `Apple reports can lag up to ${days}`;
+      return t('analytics:lag.appleAnalytics', { count });
     case 'apple_sales':
-      return 'Sales and Trends is posted the next day, on Pacific Time';
+      return t('analytics:lag.appleSales');
     case 'play_vitals':
-      return `Play vitals can lag up to ${days}`;
+      return t('analytics:lag.playVitals', { count });
     case 'play_reports':
-      return 'Play monthly reports are posted 3 to 7 days late';
+      return t('analytics:lag.playReports');
     case 'play_sales':
-      return 'Play sales are added to the month file every day, up to a few days late, on UTC';
+      return t('analytics:lag.playSales');
     case 'play_earnings':
-      return 'Google posts the earnings report of a month in the first days of the next month, so the newest month is the one before this';
+      return t('analytics:lag.playEarnings');
     case 'apple_subscriptions':
-      return `Apple subscription reports are posted a day or more late, up to ${days}, on Pacific Time`;
+      return t('analytics:lag.appleSubscriptions', { count });
     case 'play_subscriptions':
-      return `Play subscription statistics lag up to ${days}`;
+      return t('analytics:lag.playSubscriptions', { count });
     default:
-      return `The store can lag up to ${days}`;
+      return t('analytics:lag.other', { count });
   }
 }
 
@@ -595,8 +602,8 @@ export function freshnessLine(
   // A monthly figure is named by its month, never by the first day it is stored on.
   const last = series.coverage.lastDay;
   return last
-    ? `Data up to ${series.cadence === 'monthly' ? formatDay(monthKey(last), true) : formatDay(last)}. ${lag}.`
-    : `No data yet. ${lag}.`;
+    ? t('analytics:freshness.dataUpTo', { date: series.cadence === 'monthly' ? formatDay(monthKey(last), true) : formatDay(last), lag })
+    : t('analytics:freshness.noData', { lag });
 }
 
 /** "2026-10-01" to "2026-10": the key of the month a monthly figure is about. Anything else is returned as it is. */
@@ -604,44 +611,120 @@ export const monthKey = (day: string): string => (isIsoDate(day) ? day.slice(0, 
 
 /** The sentence of a coverage note, from the fixed vocabulary; an unknown code gets a generic one (the API's own text is not shown). */
 export function noteText(note: AnalyticsNote): string {
-  const known = (coverageNoteMessages as Record<string, string>)[note.code];
-  return known ?? 'A limit of the store data applies here.';
+  const key = (noteKeys as Record<string, string>)[note.code] ?? k('analytics:note.unknown');
+  return t(key);
 }
 
 // ---------------------------------------------------------------------------------------------
 // Errors, as sentences from the fixed vocabularies
 
 const apiSentences: Record<string, string> = {
-  analytics_disabled: 'Analytics is off for this workspace. Turn it on first.',
-  sync_in_progress: 'A sync of this app is already running. Try again in a moment.',
-  plan_changed:
-    'What exists at Apple changed since the preview. Review the new plan and confirm again.',
-  confirm_mismatch: 'This is not the file that was checked. Choose the file again.',
-  payload_too_large: 'The file is larger than 10 MiB.',
-  import_not_supported: 'Importing a report file is only for iOS and macOS apps.',
-  not_apple_app: 'Apple analytics is only for iOS and macOS apps.',
-  forbidden: 'Only an owner or an admin can do that.',
-  not_found: 'This app is no longer in the workspace.',
-  network: 'Cannot reach the server. Check that it is running.',
-  invalid_request: 'The request was not accepted. Check the values and try again.',
+  analytics_disabled: k('analytics:apiError.analyticsDisabled'),
+  sync_in_progress: k('analytics:apiError.syncInProgress'),
+  plan_changed: k('analytics:apiError.planChanged'),
+  confirm_mismatch: k('analytics:apiError.confirmMismatch'),
+  payload_too_large: k('analytics:apiError.payloadTooLarge'),
+  import_not_supported: k('analytics:apiError.importNotSupported'),
+  not_apple_app: k('analytics:apiError.notAppleApp'),
+  forbidden: k('analytics:apiError.forbidden'),
+  not_found: k('analytics:apiError.notFound'),
+  network: k('analytics:apiError.network'),
+  invalid_request: k('analytics:apiError.invalidRequest'),
 };
+
+// The sentence of each code of the fixed vocabularies of `@kiln/core`, translated here (the English text is the core's).
+const errorKeys: Record<AnalyticsErrorCode, string> = {
+  analytics_role_required: k('analytics:error.analyticsRoleRequired'),
+  analytics_request_missing: k('analytics:error.analyticsRequestMissing'),
+  analytics_request_stopped: k('analytics:error.analyticsRequestStopped'),
+  report_not_ready: k('analytics:error.reportNotReady'),
+  segment_expired: k('analytics:error.segmentExpired'),
+  segment_too_large: k('analytics:error.segmentTooLarge'),
+  file_too_large: k('analytics:error.fileTooLarge'),
+  bad_gzip: k('analytics:error.badGzip'),
+  bad_zip: k('analytics:error.badZip'),
+  period_required: k('analytics:error.periodRequired'),
+  bad_format: k('analytics:error.badFormat'),
+  unknown_report: k('analytics:error.unknownReport'),
+  missing_columns: k('analytics:error.missingColumns'),
+  no_rows: k('analytics:error.noRows'),
+  vendor_number_missing: k('analytics:error.vendorNumberMissing'),
+  vendor_number_invalid: k('analytics:error.vendorNumberInvalid'),
+  sales_forbidden: k('analytics:error.salesForbidden'),
+  play_reporting_not_enabled: k('analytics:error.playReportingNotEnabled'),
+  play_permission_missing: k('analytics:error.playPermissionMissing'),
+  play_app_not_found: k('analytics:error.playAppNotFound'),
+  play_vitals_bad_request: k('analytics:error.playVitalsBadRequest'),
+  play_vitals_no_data: k('analytics:error.playVitalsNoData'),
+  bucket_missing: k('analytics:error.bucketMissing'),
+  bucket_invalid: k('analytics:error.bucketInvalid'),
+  bucket_forbidden: k('analytics:error.bucketForbidden'),
+  bucket_not_found: k('analytics:error.bucketNotFound'),
+  reports_not_found: k('analytics:error.reportsNotFound'),
+  package_not_in_bucket: k('analytics:error.packageNotInBucket'),
+  play_sales_forbidden: k('analytics:error.playSalesForbidden'),
+  store_auth: k('analytics:error.storeAuth'),
+  store_forbidden: k('analytics:error.storeForbidden'),
+  store_not_found: k('analytics:error.storeNotFound'),
+  rate_limited: k('analytics:error.rateLimited'),
+  store_unavailable: k('analytics:error.storeUnavailable'),
+  timeout: k('analytics:error.timeout'),
+  credential_unreadable: k('analytics:error.credentialUnreadable'),
+  credential_not_found: k('analytics:error.credentialNotFound'),
+  app_not_synced: k('analytics:error.appNotSynced'),
+  sync_failed: k('analytics:error.syncFailed'),
+};
+
+const noteKeys: Record<CoverageNoteCode, string> = {
+  apple_usage_opt_in_only: k('analytics:note.appleUsageOptInOnly'),
+  apple_privacy_thresholds: k('analytics:note.applePrivacyThresholds'),
+  apple_counts_not_unique: k('analytics:note.appleCountsNotUnique'),
+  apple_usage_sample_not_total: k('analytics:note.appleUsageSampleNotTotal'),
+  apple_estimates: k('analytics:note.appleEstimates'),
+  apple_pacific_time: k('analytics:note.applePacificTime'),
+  apple_proceeds_per_currency: k('analytics:note.appleProceedsPerCurrency'),
+  apple_in_app_not_included: k('analytics:note.appleInAppNotIncluded'),
+  apple_rating_history_not_available: k('analytics:note.appleRatingHistoryNotAvailable'),
+  apple_impressions_only_via_reports: k('analytics:note.appleImpressionsOnlyViaReports'),
+  google_unit_unverified: k('analytics:note.googleUnitUnverified'),
+  google_legacy_store_listing: k('analytics:note.googleLegacyStoreListing'),
+  google_no_impressions: k('analytics:note.googleNoImpressions'),
+  google_rating_average_only: k('analytics:note.googleRatingAverageOnly'),
+  google_monthly_files: k('analytics:note.googleMonthlyFiles'),
+  play_estimated_sales_gross: k('analytics:note.playEstimatedSalesGross'),
+  play_sales_latency: k('analytics:note.playSalesLatency'),
+  play_sales_utc: k('analytics:note.playSalesUtc'),
+  play_sales_per_currency: k('analytics:note.playSalesPerCurrency'),
+  apple_product_sales_include_in_app: k('analytics:note.appleProductSalesIncludeInApp'),
+  sales_products_capped: k('analytics:note.salesProductsCapped'),
+  play_earnings_monthly: k('analytics:note.playEarningsMonthly'),
+  play_earnings_net: k('analytics:note.playEarningsNet'),
+  play_earnings_per_currency: k('analytics:note.playEarningsPerCurrency'),
+  play_earnings_pacific: k('analytics:note.playEarningsPacific'),
+  apple_subscription_counts: k('analytics:note.appleSubscriptionCounts'),
+  apple_subscription_events: k('analytics:note.appleSubscriptionEvents'),
+  play_subscription_stats: k('analytics:note.playSubscriptionStats'),
+  derived: k('analytics:note.derived'),
+  imported: k('analytics:note.imported'),
+  recent_days_incomplete: k('analytics:note.recentDaysIncomplete'),
+  gaps: k('analytics:note.gaps'),
+  source_not_connected: k('analytics:note.sourceNotConnected'),
+  no_data_yet: k('analytics:note.noDataYet'),
+  only_since_connected: k('analytics:note.onlySinceConnected'),
+};
+
 
 /** What went wrong, in a sentence from a fixed list. Never the text of a store, and never the server's own message. */
 export function analyticsErrorText(error: unknown): string {
-  if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
+  if (!(error instanceof ApiError)) return t('analytics:apiError.generic');
   if (error.code === 'rate_limited') {
     const wait = error.retryAfter;
-    return wait
-      ? `Too many analytics requests. Try again in ${wait} ${wait === 1 ? 'second' : 'seconds'}.`
-      : 'Too many analytics requests. Try again in a minute.';
+    return wait ? t('analytics:apiError.rateLimited', { count: wait }) : t('analytics:apiError.rateLimitedMinute');
   }
   const own = apiSentences[error.code];
-  if (own) return own;
-  if (isAnalyticsErrorCode(error.code))
-    return analyticsErrorMessages[error.code as AnalyticsErrorCode];
-  return error.status >= 500
-    ? 'The server had a problem. Try again.'
-    : 'The analytics request failed. Try again.';
+  if (own) return t(own);
+  if (isAnalyticsErrorCode(error.code)) return t(errorKeys[error.code as AnalyticsErrorCode]);
+  return error.status >= 500 ? t('analytics:apiError.server') : t('analytics:apiError.failed');
 }
 
 /** The code of an API error, or '' for anything else. */
@@ -650,58 +733,46 @@ export const errorCodeOf = (error: unknown): string =>
 
 /** A sentence for a stored error code (the last failed read of a source). */
 export const storedErrorText = (code: string): string =>
-  isAnalyticsErrorCode(code) ? analyticsErrorMessages[code] : analyticsErrorMessages.sync_failed;
+  isAnalyticsErrorCode(code) ? t(errorKeys[code]) : t(errorKeys.sync_failed);
 
 // ---------------------------------------------------------------------------------------------
 // Setup needs and next steps (the fixed vocabularies of the status)
 
-export const setupText: Record<AnalyticsSetupCode, string> = {
-  turn_on_analytics:
-    'Analytics is off for this workspace. Nothing is requested from the stores until an owner or an admin turns it on.',
-  create_report_request:
-    'Apple makes analytics reports only after a report request exists for the app. Enabling it creates one request at Apple.',
-  role_required:
-    'The App Store Connect key may not create report requests (Apple lists the Admin role). Import a report file you download from App Store Connect, or ask an Apple admin.',
-  waiting_first_data:
-    'The request exists. Apple takes one to two days to produce the first reports.',
-  request_stopped:
-    'Apple stopped the request because nothing was read for a long time. Enable Apple analytics again.',
-  vendor_number_missing:
-    'Optional: add the Apple vendor number in the workspace settings to read daily units and proceeds, also by product.',
-  sales_forbidden:
-    'The key may not read Sales and Trends. It needs the Sales and Reports role or higher.',
-  play_sales_forbidden:
-    'In Play Console open Users and permissions, find the service account and give it the permission View financial data, set to Global (all apps). Then sync again. Without it the Play sales, earnings and subscription numbers stay off.',
-  bucket_id_missing:
-    'Add the Cloud Storage bucket of your Play Console reports (it is the same for every app of the Play account) to read installs and ratings, and sales, earnings and subscriptions when the service account may also view financial data.',
-  bucket_forbidden:
-    'The service account may not read the bucket of the Play Console reports. Grant it read access to the bucket.',
-  reporting_api_not_enabled:
-    'In Google Cloud console, open the project of the service account, find Google Play Developer Reporting API and click Enable. Then sync again.',
-  play_permission_missing:
-    'In Play Console open Users and permissions, invite the service account email address and give it access to this app with View app quality information (read-only). Then sync again.',
-  credential_problem: 'The saved credential could not be used. Check it under Credentials.',
-  first_sync_pending:
-    'Everything is set up and nothing has been read yet. Sync now, or wait for the next scheduled sync.',
+const setupKeys: Record<AnalyticsSetupCode, string> = {
+  turn_on_analytics: k('analytics:setup.turnOnAnalytics'),
+  create_report_request: k('analytics:setup.createReportRequest'),
+  role_required: k('analytics:setup.roleRequired'),
+  waiting_first_data: k('analytics:setup.waitingFirstData'),
+  request_stopped: k('analytics:setup.requestStopped'),
+  vendor_number_missing: k('analytics:setup.vendorNumberMissing'),
+  sales_forbidden: k('analytics:setup.salesForbidden'),
+  play_sales_forbidden: k('analytics:setup.playSalesForbidden'),
+  bucket_id_missing: k('analytics:setup.bucketIdMissing'),
+  bucket_forbidden: k('analytics:setup.bucketForbidden'),
+  reporting_api_not_enabled: k('analytics:setup.reportingApiNotEnabled'),
+  play_permission_missing: k('analytics:setup.playPermissionMissing'),
+  credential_problem: k('analytics:setup.credentialProblem'),
+  first_sync_pending: k('analytics:setup.firstSyncPending'),
 };
 
-export const setupSentence = (code: string): string =>
-  (setupText as Record<string, string>)[code] ??
-  'This source needs attention before it can deliver data.';
+export const setupSentence = (code: string): string => {
+  const key = (setupKeys as Record<string, string>)[code] ?? k('analytics:setup.unknown');
+  return t(key);
+};
 
-export const nextStepLabels: Record<AnalyticsNextStep, string> = {
-  turn_on_analytics: 'Turn on analytics',
-  enable_apple_analytics: 'Enable Apple analytics',
-  import_apple_report: 'Import a report file',
-  ask_apple_admin: 'Ask an Apple admin',
-  set_vendor_number: 'Set the vendor number',
-  set_bucket_id: 'Set the reports bucket',
-  grant_play_permission: 'Grant the Play permission',
-  grant_play_financial_permission: 'Grant View financial data',
-  enable_reporting_api: 'Enable the Reporting API',
-  fix_credential: 'Check the credential',
-  sync_now: 'Sync analytics now',
-  wait: 'Wait',
+const stepKeys: Record<AnalyticsNextStep, string> = {
+  turn_on_analytics: k('analytics:step.turnOnAnalytics'),
+  enable_apple_analytics: k('analytics:step.enableAppleAnalytics'),
+  import_apple_report: k('analytics:step.importAppleReport'),
+  ask_apple_admin: k('analytics:step.askAppleAdmin'),
+  set_vendor_number: k('analytics:step.setVendorNumber'),
+  set_bucket_id: k('analytics:step.setBucketId'),
+  grant_play_permission: k('analytics:step.grantPlayPermission'),
+  grant_play_financial_permission: k('analytics:step.grantPlayFinancialPermission'),
+  enable_reporting_api: k('analytics:step.enableReportingApi'),
+  fix_credential: k('analytics:step.fixCredential'),
+  sync_now: k('analytics:step.syncNow'),
+  wait: k('analytics:step.wait'),
 };
 
 /** What a next step does in this UI: a button that opens a flow, a link, or only words. */
@@ -715,7 +786,8 @@ export type StepAction =
   | { kind: 'text'; label: string; needs: 'none' };
 
 export function stepAction(step: string): StepAction {
-  const label = (nextStepLabels as Record<string, string>)[step] ?? 'Next step';
+  const labelKey = (stepKeys as Record<string, string>)[step] ?? k('analytics:step.next');
+  const label = t(labelKey);
   switch (step) {
     case 'turn_on_analytics':
       return { kind: 'turn_on', label, needs: 'manage' };
@@ -728,11 +800,11 @@ export function stepAction(step: string): StepAction {
     case 'set_bucket_id':
       return { kind: 'bucket', label, needs: 'manage' };
     case 'set_vendor_number':
-      return { kind: 'link', label: `${label} in Settings`, target: 'settings', needs: 'none' };
+      return { kind: 'link', label: t('analytics:step.inSettings', { label }), target: 'settings', needs: 'none' };
     case 'fix_credential':
       return {
         kind: 'link',
-        label: `${label} under Credentials`,
+        label: t('analytics:step.underCredentials', { label }),
         target: 'credentials',
         needs: 'none',
       };
@@ -748,17 +820,21 @@ export const stepAvailable = (action: StepAction, canManage: boolean): boolean =
 export const stateInfo: Record<
   SourceState,
   {
-    label: string;
+    /** A message key: draw it with `t(info.labelKey)`. */
+    labelKey: string;
     tone: 'neutral' | 'warn' | 'info' | 'bad' | 'ok';
     icon: 'check-circle' | 'clock' | 'alert-triangle' | 'x-circle' | 'info';
   }
 > = {
-  off: { label: 'Off', tone: 'neutral', icon: 'info' },
-  needs_setup: { label: 'Needs setup', tone: 'warn', icon: 'alert-triangle' },
-  waiting: { label: 'Waiting for the first data', tone: 'info', icon: 'clock' },
-  error: { label: 'Last read failed', tone: 'bad', icon: 'x-circle' },
-  ready: { label: 'Ready', tone: 'ok', icon: 'check-circle' },
+  off: { labelKey: k('analytics:state.off'), tone: 'neutral', icon: 'info' },
+  needs_setup: { labelKey: k('analytics:state.needsSetup'), tone: 'warn', icon: 'alert-triangle' },
+  waiting: { labelKey: k('analytics:state.waiting'), tone: 'info', icon: 'clock' },
+  error: { labelKey: k('analytics:state.error'), tone: 'bad', icon: 'x-circle' },
+  ready: { labelKey: k('analytics:state.ready'), tone: 'ok', icon: 'check-circle' },
 };
+
+/** The words of a source state. */
+export const stateLabel = (state: SourceState): string => t(stateInfo[state].labelKey);
 
 export const stateOf = (value: string): SourceState =>
   value in stateInfo ? (value as SourceState) : 'needs_setup';
@@ -789,25 +865,25 @@ export const needsPlayBucket = (status: Pick<AnalyticsStatus, 'google'> | null):
 export function playSourceLine(status: AnalyticsStatus): string {
   const word = (source: string, label: string, setUp: boolean): string => {
     const found = status.sources.find((s) => s.source === source);
-    if (!setUp) return `${label}: not set up`;
-    if (!found) return `${label}: not set up`;
+    if (!setUp) return t('analytics:playLine.notSetUp', { label });
+    if (!found) return t('analytics:playLine.notSetUp', { label });
     switch (stateOf(found.state)) {
       case 'ready':
-        return `${label}: connected`;
+        return t('analytics:playLine.connected', { label });
       case 'waiting':
-        return `${label}: waiting for data`;
+        return t('analytics:playLine.waiting', { label });
       case 'error':
-        return `${label}: last read failed`;
+        return t('analytics:playLine.error', { label });
       case 'off':
-        return `${label}: off`;
+        return t('analytics:playLine.off', { label });
       default:
-        return `${label}: needs setup`;
+        return t('analytics:playLine.needsSetup', { label });
     }
   };
   return [
-    word('play_vitals', 'Vitals', true),
-    word('play_reports', 'Installs', status.google?.bucketIdSet === true),
-    word('play_sales', 'Sales', status.google?.bucketIdSet === true),
+    word('play_vitals', t('analytics:playLine.vitals'), true),
+    word('play_reports', t('analytics:playLine.installs'), status.google?.bucketIdSet === true),
+    word('play_sales', t('analytics:playLine.sales'), status.google?.bucketIdSet === true),
   ].join(' · ');
 }
 
@@ -815,14 +891,14 @@ export function playSourceLine(status: AnalyticsStatus): string {
 export function bucketSourceText(view: Pick<PlayBucketView, 'source' | 'sharedWith'>): string {
   switch (view.source) {
     case 'app':
-      return 'Set for this app only.';
+      return t('analytics:bucket.appOnly');
     case 'account':
       return view.sharedWith > 1
-        ? `Shared by the ${view.sharedWith} Android apps of this Play account.`
-        : 'Saved for this Play account.';
+        ? t('analytics:bucket.sharedAccount', { count: view.sharedWith })
+        : t('analytics:bucket.savedAccount');
     case 'workspace':
-      return 'Set in the workspace settings.';
+      return t('analytics:bucket.workspace');
     default:
-      return 'Not set.';
+      return t('analytics:bucket.notSet');
   }
 }

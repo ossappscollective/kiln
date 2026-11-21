@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { analyticsErrorText } from '../../lib/analytics/analytics.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -20,7 +21,7 @@
     api,
     workspaceId,
     onchanged,
-    label = 'Turn on analytics',
+    label,
     variant = 'primary',
   }: { api: Api; workspaceId: string; onchanged: () => void; label?: string | undefined; variant?: 'primary' | 'secondary' | undefined } = $props();
 
@@ -35,7 +36,7 @@
     try {
       await confirmed((grant) => api.updateWorkspaceSettings(workspaceId, { 'analytics.enabled': true }, grant));
       open = false;
-      toast.success('Analytics is on. The first numbers arrive with the next sync.');
+      toast.success(t('analytics:turnOn.toast'));
       onchanged();
     } catch (e) {
       problem = analyticsErrorText(e);
@@ -45,25 +46,25 @@
   }
 </script>
 
-<Button {variant} icon="activity" onclick={() => { problem = ''; open = true; }}>{label}</Button>
+<Button {variant} icon="activity" onclick={() => { problem = ''; open = true; }}>{label ?? t('analytics:turnOn.button')}</Button>
 
-<Modal bind:open size="md" title="Turn on analytics for this workspace?" dismissible={!busy}>
+<Modal bind:open size="md" title={t('analytics:turnOn.title')} dismissible={!busy}>
   <div class="stack readable-card">
-    <p>Analytics reads daily numbers for your apps from the stores and keeps them on this server.</p>
-    <p class="warn-line">It only reads: the one write, an Apple report request, is a separate step with its own confirmation.</p>
-    <Disclosure summary="How it works">
+    <p>{t('analytics:turnOn.intro')}</p>
+    <p class="warn-line">{t('analytics:turnOn.onlyReads')}</p>
+    <Disclosure summary={t('analytics:turnOn.how')}>
       <ul class="points">
-        <li>For iOS and macOS apps: App Store analytics reports, and Sales and Trends (units and proceeds, also by product) when a vendor number is set.</li>
-        <li>For Android apps: Android vitals and the monthly Play Console reports, when the bucket id is set. Estimated sales (what buyers paid, not your proceeds), monthly earnings (net of Google's fees and taxes) and subscription statistics also need the Play Console permission View financial data.</li>
-        <li>Apple deletes its daily reports after 35 days, so the numbers this server reads are the only copy. They are not deleted.</li>
-        <li>You can turn it off again under Settings. Numbers already stored stay readable.</li>
+        <li>{t('analytics:turnOn.pointApple')}</li>
+        <li>{t('analytics:turnOn.pointGoogle')}</li>
+        <li>{t('analytics:turnOn.pointRetention')}</li>
+        <li>{t('analytics:turnOn.pointOff')}</li>
       </ul>
     </Disclosure>
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
   </div>
   {#snippet footer()}
-    <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>
-    <Button variant="primary" loading={busy} onclick={turnOn}>Turn on analytics</Button>
+    <Button disabled={busy} onclick={() => (open = false)}>{t('common:action.cancel')}</Button>
+    <Button variant="primary" loading={busy} onclick={turnOn}>{t('analytics:turnOn.button')}</Button>
   {/snippet}
 </Modal>
 

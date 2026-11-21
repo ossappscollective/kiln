@@ -18,6 +18,7 @@
     tableFor,
   } from '../../lib/analytics/view.ts';
   import { browserLocale, chosenCurrency, defaultCurrency, offeredCurrencies, rememberCurrency } from '../../lib/analytics/currency.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import InfoTip from '../ui/InfoTip.svelte';
   import Section from '../ui/Section.svelte';
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
@@ -59,7 +60,7 @@
 
 <Section title={card.title} key="chart.{card.id}" summary={fresh[0] ?? ''} edge>
   {#snippet actions()}
-    <InfoTip label="About the data of {card.title}" align="end" width="26rem">
+    <InfoTip label={t('analytics:chart.aboutLabel', { title: card.title })} align="end" width="26rem">
       <div class="about">
         {#each info as s (s.id)}
           <div class="series">
@@ -73,21 +74,21 @@
             {/if}
           </div>
         {/each}
-        <p class="muted key-note">Hatched days have no data from the store; they are not zero. Shaded days at the right edge may still change.</p>
+        <p class="muted key-note">{t('analytics:chart.keyNote')}</p>
       </div>
     </InfoTip>
   {/snippet}
   <div class="chart-card">
     {#if fresh[0]}<p class="fresh">{fresh[0]}</p>{/if}
     {#if asTabs}
-      <SegmentTabs tabs={currencies.map((c) => ({ id: c, label: c }))} bind:value={chosen} label="Currency of {card.title}" idPrefix="{uid}-cur" />
+      <SegmentTabs tabs={currencies.map((c) => ({ id: c, label: c }))} bind:value={chosen} label={t('analytics:chart.currencyLabel', { title: card.title })} idPrefix="{uid}-cur" />
     {:else if choose}
       <div class="currency-pick row">
-        <label for="{uid}-cur">Currency</label>
+        <label for="{uid}-cur">{t('analytics:chart.currency')}</label>
         <select id="{uid}-cur" value={currency} onchange={(event) => (chosen = event.currentTarget.value)}>
           {#each currencies as c (c)}<option value={c}>{c}</option>{/each}
         </select>
-        <span class="muted text-sm">{currencies.length} currencies: yours first, then the biggest. They are never added together.</span>
+        <span class="muted text-sm">{t('analytics:chart.currenciesNote', { count: currencies.length })}</span>
       </div>
     {/if}
     <div
@@ -101,7 +102,7 @@
         <Chart {panel} cardTitle={card.title} {dates} {today} bind:hover />
       {/each}
     </div>
-    {#if anyMissing}<p class="caption">Hatched days have no data from the store. They are not zero.</p>{/if}
+    {#if anyMissing}<p class="caption">{t('analytics:chart.hatchedCaption')}</p>{/if}
     {#if fresh.length > 1}
       {#each fresh.slice(1) as line (line)}<p class="fresh">{line}</p>{/each}
     {/if}
@@ -110,7 +111,7 @@
       <BarList bars={v} />
     {/each}
 
-    {#if table}<DataTable model={table} caption="{card.title}, one row per day" />{/if}
+    {#if table}<DataTable model={table} caption={t('analytics:chart.tableCaption', { title: card.title })} />{/if}
   </div>
 </Section>
 

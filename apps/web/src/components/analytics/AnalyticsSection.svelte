@@ -13,6 +13,7 @@
   import { type Role, can } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { type RangeChoice, parseRange, resolveRange, withRange } from '../../lib/analytics/analytics.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import AiSuggestions from '../ai/AiSuggestions.svelte';
@@ -46,7 +47,7 @@
       <span class="spacer"></span>
       <SectionsToggle />
       <button type="button" class="bare toggle" aria-pressed={showData} onclick={() => (showData = !showData)}>
-        {showData ? 'Hide data' : 'Show data'}
+        {showData ? t('analytics:section.hideData') : t('analytics:section.showData')}
       </button>
     </div>
 

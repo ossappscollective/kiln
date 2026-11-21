@@ -13,6 +13,7 @@
 <script lang="ts">
   import { formatDay, formatValue } from '../../lib/analytics/analytics.ts';
   import { floating } from '../../lib/floating.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { pointAnchor } from '../../lib/virtual-anchor.ts';
   import { indexAt, labelsCollide, plot, provisionalIndex, xTickIndexes } from '../../lib/analytics/chart.ts';
   import { type ChartPanel, describePanel, tooltipFor } from '../../lib/analytics/view.ts';
@@ -131,7 +132,7 @@
     <div class="head">
       {#if panel.title}<h4>{panel.title}</h4>{/if}
       {#if panel.series.length > 1}
-        <ul class="legend" aria-label="Series">
+        <ul class="legend" aria-label={t('analytics:chart.series')}>
           {#each panel.series as ps (ps.key)}
             <li>
               <span class="key s{ps.color}" class:col={!isLine} aria-hidden="true"></span>
@@ -254,7 +255,7 @@
               <span class="tip-label">{row.label}</span>
             </div>
           {/each}
-          {#if tip.provisional}<div class="tip-note">The store may still change this day.</div>{/if}
+          {#if tip.provisional}<div class="tip-note">{t('analytics:chart.provisional')}</div>{/if}
         </div>
       </div>
     {/if}
