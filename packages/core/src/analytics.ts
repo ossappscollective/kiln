@@ -14,6 +14,9 @@ export const analyticsSources = [
   'play_vitals',
   'play_reports',
   'play_sales',
+  'apple_subscriptions',
+  'play_earnings',
+  'play_subscriptions',
 ] as const;
 export type AnalyticsSource = (typeof analyticsSources)[number];
 export const isAnalyticsSource = (v: unknown): v is AnalyticsSource =>
@@ -25,6 +28,7 @@ export const analyticsDimensions = [
   'app_version',
   'currency',
   'product',
+  'duration',
 ] as const;
 export type AnalyticsDimension = (typeof analyticsDimensions)[number];
 
@@ -55,6 +59,23 @@ export const analyticsMetrics = [
   'sales_gross',
   'sales_refunds',
   'sales_orders',
+  // Google, Cloud Storage "Earnings" report (docs/adr/0042-earnings-and-subscription-metrics.md): monthly, from Google's own lines
+  'earnings_net',
+  'earnings_charges',
+  'earnings_taxes',
+  'earnings_fees',
+  'earnings_orders',
+  // Apple, Sales and Trends "Subscription" and "Subscription Event" reports (same vendor number as the sales summary)
+  'subscriptions_active',
+  'subscriptions_active_offer',
+  'subscriptions_active_trial',
+  'subscriptions_new',
+  'subscriptions_cancelled',
+  'subscriptions_trial_conversions',
+  // Google, Cloud Storage "financial-stats/subscriptions" statistics
+  'play_subscriptions_active',
+  'play_subscriptions_new',
+  'play_subscriptions_cancelled',
 ] as const;
 export type AnalyticsMetric = (typeof analyticsMetrics)[number];
 export const isAnalyticsMetric = (v: unknown): v is AnalyticsMetric =>
@@ -65,6 +86,11 @@ export type MetricAggregation = 'sum' | 'mean';
 
 export type MetricInfo = {
   source: AnalyticsSource;
+  /**
+   * `monthly`: the store publishes one figure per calendar month (the Play Earnings report). It is stored on the FIRST day of the month,
+   * is read at month granularity, and is never drawn as a day. Absent: a daily figure.
+   */
+  cadence?: 'monthly';
   unit: MetricUnit;
   /** How days combine into a week or a month. Counts add up, rates and ratings are averaged. */
   aggregation: MetricAggregation;
@@ -223,6 +249,114 @@ export const metricInfo: Record<AnalyticsMetric, MetricInfo> = {
     delayDays: 7,
     label: 'Orders',
   },
+  // Play Earnings: one figure per calendar month and currency, from the lines of the monthly report (Pacific Time days). Stored on the
+  // first day of the month. `delayDays` is the "posted by about the 5th of the next month" plus the month itself, as an upper bound.
+  earnings_net: {
+    source: 'play_earnings',
+    cadence: 'monthly',
+    unit: 'money',
+    aggregation: 'sum',
+    delayDays: 40,
+    label: 'Earnings, net (monthly)',
+  },
+  earnings_charges: {
+    source: 'play_earnings',
+    cadence: 'monthly',
+    unit: 'money',
+    aggregation: 'sum',
+    delayDays: 40,
+    label: 'Charge lines (monthly)',
+  },
+  earnings_taxes: {
+    source: 'play_earnings',
+    cadence: 'monthly',
+    unit: 'money',
+    aggregation: 'sum',
+    delayDays: 40,
+    label: 'Tax lines (monthly)',
+  },
+  earnings_fees: {
+    source: 'play_earnings',
+    cadence: 'monthly',
+    unit: 'money',
+    aggregation: 'sum',
+    delayDays: 40,
+    label: 'Google fee lines (monthly)',
+  },
+  earnings_orders: {
+    source: 'play_earnings',
+    cadence: 'monthly',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 40,
+    label: 'Charge lines, count (monthly)',
+  },
+  // Apple subscriptions: the Subscription report is a snapshot of the day (a LEVEL: averaged over a week or month, never added), the
+  // Subscription Event report counts events of the day. Counts of subscriptions, not of people.
+  subscriptions_active: {
+    source: 'apple_subscriptions',
+    unit: 'count',
+    aggregation: 'mean',
+    delayDays: 3,
+    label: 'Active subscriptions, standard price',
+  },
+  subscriptions_active_offer: {
+    source: 'apple_subscriptions',
+    unit: 'count',
+    aggregation: 'mean',
+    delayDays: 3,
+    label: 'Active subscriptions on a paid offer',
+  },
+  subscriptions_active_trial: {
+    source: 'apple_subscriptions',
+    unit: 'count',
+    aggregation: 'mean',
+    delayDays: 3,
+    label: 'Active free trials',
+  },
+  subscriptions_new: {
+    source: 'apple_subscriptions',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 3,
+    label: 'New subscriptions',
+  },
+  subscriptions_cancelled: {
+    source: 'apple_subscriptions',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 3,
+    label: 'Cancellations',
+  },
+  subscriptions_trial_conversions: {
+    source: 'apple_subscriptions',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 3,
+    label: 'Free trials converted to paid',
+  },
+  // Play subscription statistics (financial-stats/subscriptions): per product and day.
+  play_subscriptions_active: {
+    source: 'play_subscriptions',
+    unit: 'count',
+    aggregation: 'mean',
+    delayDays: 7,
+    label: 'Active subscriptions',
+  },
+  play_subscriptions_new: {
+    source: 'play_subscriptions',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 7,
+    label: 'New subscriptions',
+  },
+  play_subscriptions_cancelled: {
+    source: 'play_subscriptions',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 7,
+    label: 'Cancelled subscriptions',
+  },
 };
 
 /** The metrics that are money: one series per currency, never added across currencies. */
@@ -264,8 +398,8 @@ export const metricsOfSource = (source: AnalyticsSource): AnalyticsMetric[] =>
 /** Which sources can ever apply to an app of this platform. */
 export const sourcesForPlatform = (platform: Platform): AnalyticsSource[] => [
   ...byFamily(platform, {
-    apple: ['apple_analytics', 'apple_sales'],
-    google: ['play_vitals', 'play_reports', 'play_sales'],
+    apple: ['apple_analytics', 'apple_sales', 'apple_subscriptions'],
+    google: ['play_vitals', 'play_reports', 'play_sales', 'play_earnings', 'play_subscriptions'],
   }),
 ];
 
@@ -307,7 +441,7 @@ export const analyticsErrorCodes = [
   'bucket_not_found',
   'reports_not_found', // the bucket holds no file for the month
   'package_not_in_bucket', // the bucket can be read but holds no report of this package at all: usually the bucket of another Play account
-  'play_sales_forbidden', // the service account may not read the sales reports (Play Console "View financial data", Global)
+  'play_sales_forbidden', // the service account may not read the financial reports: estimated sales, earnings, subscription statistics (Play Console "View financial data", Global)
   // Both
   'store_auth', // the credential is unusable
   'store_forbidden',
@@ -333,7 +467,7 @@ export const analyticsSetupCodes = [
   'request_stopped', // Apple: stopped for inactivity
   'vendor_number_missing', // Apple Sales and Trends needs the vendor number
   'sales_forbidden',
-  'play_sales_forbidden', // Google: the service account lacks "View financial data" (Global): no sales reports
+  'play_sales_forbidden', // Google: the service account lacks "View financial data" (Global): no sales, earnings or subscription reports
   'bucket_id_missing', // Google Cloud Storage reports need the bucket id
   'bucket_forbidden',
   'reporting_api_not_enabled',
@@ -410,7 +544,7 @@ export const analyticsErrorMessages: Record<AnalyticsErrorCode, string> = {
   package_not_in_bucket:
     'This package is not in this bucket. The reports of an app are in the bucket of the Play account that owns it: check the bucket of this app.',
   play_sales_forbidden:
-    'Google refused the service account the Play Console sales reports. In Play Console, Users and permissions, give the service account the permission View financial data, set to Global (all apps), then sync again. If the whole bucket is refused, it also needs read access to the bucket.',
+    'Google refused the service account the Play Console financial reports (estimated sales, earnings, subscription statistics). In Play Console, Users and permissions, give the service account the permission View financial data, set to Global (all apps), then sync again. If the whole bucket is refused, it also needs read access to the bucket.',
   store_auth: 'The credential was refused by the store. Check the key and enter it again.',
   store_forbidden: 'The credential is not allowed to read this from the store.',
   store_not_found: 'The store has no such app for this credential.',
@@ -446,6 +580,13 @@ export const coverageNoteCodes = [
   'play_sales_per_currency', // amounts in the currency the buyer paid in, never converted
   'apple_product_sales_include_in_app', // by-product Apple numbers include in-app purchases and subscriptions; the total chart does not
   'sales_products_capped', // only the first products of the app are kept
+  'play_earnings_monthly', // one figure per calendar month, shown on the first of the month, posted about the 5th of the next month
+  'play_earnings_net', // the sum of every line of Google's Earnings report for the app, as Google signs the amounts
+  'play_earnings_per_currency', // amounts in the merchant (payout) currency of each line, per currency, never added
+  'play_earnings_pacific', // Google's Earnings report days run on Pacific Time; the month is the month of its file
+  'apple_subscription_counts', // counts of subscriptions on the day (a snapshot), not of people
+  'apple_subscription_events', // new, cancelled and converted are classified from the names of Apple's subscription events
+  'play_subscription_stats', // Google's subscription statistics: what Active includes is not stated
   'derived', // computed from other series, not a store number
   'imported', // some days came from an uploaded file, not from the API
   'recent_days_incomplete', // the newest days are still being completed by the store
@@ -492,6 +633,20 @@ export const coverageNoteMessages: Record<CoverageNoteCode, string> = {
     'Sales by product include in-app purchases and subscriptions of the app (UNVERIFIED matching by SKU). The total chart counts only the app itself, so products can add up to more than the total.',
   sales_products_capped:
     'Only the first 200 products of the app are kept. Sales of further products are not stored.',
+  play_earnings_monthly:
+    'Google Play earnings are one figure per calendar month, posted about the 5th of the next month. They are drawn per month, on the first day of it, never per day.',
+  play_earnings_net:
+    'Net is the sum of every line Google lists for this app in its monthly Earnings report (charges, taxes, Google fees, refunds, adjustments), exactly as Google signs the amounts. It is the report for accounting, not an estimate.',
+  play_earnings_per_currency:
+    'Amounts are in the merchant currency of each line (the currency you are paid in). They are shown per currency and never converted or added together.',
+  play_earnings_pacific:
+    'Google assigns the lines of the Earnings report to months on Pacific Time, which can differ from the UTC days of the estimated sales.',
+  apple_subscription_counts:
+    'These count subscriptions on the day, not people: one person with two subscriptions counts twice. Active figures are the day’s snapshot, so a week or a month shows their average.',
+  apple_subscription_events:
+    'New, cancelled and trial conversions are classified from the event names in Apple’s Subscription Event report (UNVERIFIED for events Apple adds later); other events are not counted.',
+  play_subscription_stats:
+    'Google’s subscription statistics: whether Active includes free trials or the grace period is not stated (UNVERIFIED). They need the Play Console permission View financial data.',
   derived: 'Derived from other series; it may not match the number the store console shows.',
   imported: 'Some days come from a file that was imported, not from the store API.',
   recent_days_incomplete: 'The newest days can still change while the store completes them.',

@@ -5,11 +5,17 @@ import {
   type AppleAnalyticsPort,
   appleReportKindFromName,
   mapAppleSalesTable,
+  mapAppleSubscriptionEventTable,
+  mapAppleSubscriptionTable,
   mapAppleTable,
+  PlayEarningsConnector,
+  type PlayEarningsPort,
   PlayReportsConnector,
   type PlayReportsPort,
   PlaySalesConnector,
   type PlaySalesPort,
+  PlaySubscriptionsConnector,
+  type PlaySubscriptionsPort,
   PlayVitalsConnector,
   type PlayVitalsPort,
   parseTable,
@@ -36,7 +42,12 @@ import { useCredentialSecret } from '../../services/credentials.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { getSettings } from '../../services/workspace-settings.ts';
-import { capProductPoints, storedProductIds, storedStoreProductIds } from './product-sales.ts';
+import {
+  capProductPoints,
+  storedProductIds,
+  storedStoreProductIds,
+  storedStoreRefs,
+} from './product-sales.ts';
 import {
   getAppConfig,
   listReportRequests,
@@ -79,6 +90,8 @@ export const analyticsWindows = {
   vitalsFirstDays: 90,
   vitalsOverlapDays: 7,
   playFirstMonths: 3,
+  /** The Earnings report is a monthly statement: a first read goes further back than the statistics. */
+  earningsFirstMonths: 6,
 } as const;
 
 export type AnalyticsConnectorFactory = {
@@ -97,6 +110,20 @@ export type AnalyticsConnectorFactory = {
     bucketId: string;
     fetch: typeof fetch;
   }): PlaySalesPort;
+  /** The monthly Earnings report of the same bucket (needs View financial data). docs/adr/0042-earnings-and-subscription-metrics.md */
+  playEarnings(input: {
+    secret: string;
+    packageName: string;
+    bucketId: string;
+    fetch: typeof fetch;
+  }): PlayEarningsPort;
+  /** The subscription statistics (`financial-stats/subscriptions`) of the same bucket (needs View financial data). */
+  playSubscriptions(input: {
+    secret: string;
+    packageName: string;
+    bucketId: string;
+    fetch: typeof fetch;
+  }): PlaySubscriptionsPort;
 };
 
 export const defaultAnalyticsConnectors: AnalyticsConnectorFactory = {
@@ -116,6 +143,20 @@ export const defaultAnalyticsConnectors: AnalyticsConnectorFactory = {
     }),
   playSales: (input) =>
     new PlaySalesConnector({
+      serviceAccount: input.secret,
+      packageName: input.packageName,
+      bucketId: input.bucketId,
+      fetch: input.fetch,
+    }),
+  playEarnings: (input) =>
+    new PlayEarningsConnector({
+      serviceAccount: input.secret,
+      packageName: input.packageName,
+      bucketId: input.bucketId,
+      fetch: input.fetch,
+    }),
+  playSubscriptions: (input) =>
+    new PlaySubscriptionsConnector({
       serviceAccount: input.secret,
       packageName: input.packageName,
       bucketId: input.bucketId,
@@ -470,6 +511,96 @@ async function readAppleSales(env: Env, newestDay: string | null): Promise<Outco
 }
 
 // ---------------------------------------------------------------------------------------------
+// Apple subscription reports (same vendor number as Sales and Trends; docs/adr/0042-earnings-and-subscription-metrics.md)
+
+/**
+ * The Subscription (snapshot of the day) and Subscription Event reports of Sales and Trends, one pair per day, for this app only.
+ * A day Apple has no report for is skipped (a 404 is "no report", not an error). The per-subscriber SUBSCRIBER report is never read.
+ */
+async function readAppleSubscriptions(env: Env, newestDay: string | null): Promise<Outcome> {
+  const { ctx, app, workspaceId } = env;
+  if (env.vendorNumber === '') return { kind: 'skip', setup: 'vendor_number_missing' };
+  if (!app.storeAppId) throw new AnalyticsError('app_not_synced');
+  const port = ctx.connectors.apple({ secret: env.secret, fetch: env.fetch });
+  const platform = platformOf(app);
+  const now = ctx.now();
+  const last = addDays(dateToDay(now), -1);
+  const first = newestDay
+    ? addDays(newestDay, -analyticsWindows.salesOverlapDays)
+    : addDays(dateToDay(now), -analyticsWindows.salesFirstDays);
+  const days: string[] = [];
+  for (
+    let day = first < last ? first : last;
+    day <= last && days.length < analyticsWindows.salesMaxDaysPerSync;
+    day = addDays(day, 1)
+  )
+    days.push(day);
+
+  // The Subscription Apple ID of a row is the `storeRef` of the stored product (the Products page snapshot; no store call).
+  const refs = await storedStoreRefs(ctx.db, workspaceId, app.id);
+  const stored = await storedProductIds(ctx.db, {
+    workspaceId,
+    appId: app.id,
+    platform: app.platform,
+    source: 'apple_subscriptions',
+  });
+  let points = 0;
+  let reports = 0;
+  let from: string | null = null;
+  let to: string | null = null;
+  for (const day of days) {
+    const options = {
+      appleId: app.storeAppId,
+      date: day,
+      ...(platform ? { platform } : {}),
+      productOf: (id: string) => refs.get(id),
+    };
+    const dayPoints: AnalyticsPoint[] = [];
+    for (const kind of ['subscription', 'subscription_event'] as const) {
+      const text = await port.fetchSubscriptionReport({
+        kind,
+        vendorNumber: env.vendorNumber,
+        date: day,
+      });
+      if (text === null) continue;
+      const table = parseTable(text, {
+        maxRows: analyticsLimits.maxRows,
+        maxColumns: analyticsLimits.maxColumns,
+      });
+      const read =
+        kind === 'subscription'
+          ? mapAppleSubscriptionTable(table, options)
+          : mapAppleSubscriptionEventTable(table, options);
+      dayPoints.push(...read.points);
+      reports++;
+    }
+    if (dayPoints.length === 0) continue;
+    const capped = capProductPoints(dayPoints, stored);
+    for (const p of capped.points)
+      if (p.dimension?.type === 'product')
+        stored.add(splitProductDimValue(p.dimension.value, false).productId);
+    const result = await upsertPoints(
+      ctx.db,
+      {
+        workspaceId,
+        appId: app.id,
+        platform: app.platform,
+        source: 'apple_subscriptions',
+        processingDate: dateToDay(ctx.now()),
+        origin: 'sync',
+        now: ctx.now(),
+      },
+      capped.points,
+    );
+    points += result.written;
+    const r = range(capped.points);
+    if (r.from !== null && (from === null || r.from < from)) from = r.from;
+    if (r.to !== null && (to === null || r.to > to)) to = r.to;
+  }
+  return { kind: 'done', status: 'ok', points, reports, dayFrom: from, dayTo: to };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Google Play: vitals (Reporting API) and the monthly Cloud Storage reports
 
 async function readPlayVitals(env: Env, newestDay: string | null): Promise<Outcome> {
@@ -623,6 +754,124 @@ async function readPlaySales(env: Env, firstRead: boolean): Promise<Outcome> {
         appId: app.id,
         platform: app.platform,
         source: 'play_sales',
+        processingDate: dateToDay(ctx.now()),
+        origin: 'sync',
+        now: ctx.now(),
+      },
+      capped.points,
+    );
+    points += written.written;
+    const r = range(capped.points);
+    if (r.from !== null && (from === null || r.from < from)) from = r.from;
+    if (r.to !== null && (to === null || r.to > to)) to = r.to;
+  }
+  return { kind: 'done', status: 'ok', points, reports, dayFrom: from, dayTo: to };
+}
+
+/**
+ * Google Play Earnings (docs/adr/0042-earnings-and-subscription-metrics.md): the monthly `earnings/earnings_YYYYMM*.zip` of the SAME
+ * bucket, for this package only, stored on the FIRST day of the month. A month with no file is "not available yet" (the report appears
+ * about the 5th of the next month; the current month never has one): skipped, not an error. A refused folder is `play_sales_forbidden`.
+ */
+async function readPlayEarnings(env: Env, firstRead: boolean): Promise<Outcome> {
+  const { ctx, app, workspaceId } = env;
+  if (env.bucketId === null) return { kind: 'skip', setup: 'bucket_id_missing' };
+  const port = ctx.connectors.playEarnings({
+    secret: env.secret,
+    packageName: app.identifier,
+    bucketId: env.bucketId,
+    fetch: env.fetch,
+  });
+  const months = monthsBack(ctx.now(), firstRead ? analyticsWindows.earningsFirstMonths : 2);
+  const stored = await storedProductIds(ctx.db, {
+    workspaceId,
+    appId: app.id,
+    platform: app.platform,
+    source: 'play_earnings',
+  });
+  let points = 0;
+  let reports = 0;
+  let from: string | null = null;
+  let to: string | null = null;
+  for (const month of months) {
+    let result: Awaited<ReturnType<typeof port.readMonth>>;
+    try {
+      result = await port.readMonth(month);
+    } catch (error) {
+      if (error instanceof AnalyticsError && error.code === 'reports_not_found') continue;
+      throw error;
+    }
+    reports++;
+    const capped = capProductPoints(result.points, stored);
+    for (const p of capped.points)
+      if (p.dimension?.type === 'product')
+        stored.add(splitProductDimValue(p.dimension.value, isMoneyMetric(p.metric)).productId);
+    const written = await upsertPoints(
+      ctx.db,
+      {
+        workspaceId,
+        appId: app.id,
+        platform: app.platform,
+        source: 'play_earnings',
+        processingDate: dateToDay(ctx.now()),
+        origin: 'sync',
+        now: ctx.now(),
+      },
+      capped.points,
+    );
+    points += written.written;
+    const r = range(capped.points);
+    if (r.from !== null && (from === null || r.from < from)) from = r.from;
+    if (r.to !== null && (to === null || r.to > to)) to = r.to;
+  }
+  return { kind: 'done', status: 'ok', points, reports, dayFrom: from, dayTo: to };
+}
+
+/**
+ * Google Play subscription statistics (docs/adr/0042-earnings-and-subscription-metrics.md): `financial-stats/subscriptions/` of the SAME
+ * bucket, per product and month, summed per day. A month with no file is expected (an app with no subscription); a refused folder is
+ * `play_sales_forbidden` (they also need View financial data).
+ */
+async function readPlaySubscriptions(env: Env, firstRead: boolean): Promise<Outcome> {
+  const { ctx, app, workspaceId } = env;
+  if (env.bucketId === null) return { kind: 'skip', setup: 'bucket_id_missing' };
+  const port = ctx.connectors.playSubscriptions({
+    secret: env.secret,
+    packageName: app.identifier,
+    bucketId: env.bucketId,
+    fetch: env.fetch,
+  });
+  const months = monthsBack(ctx.now(), firstRead ? analyticsWindows.playFirstMonths : 2);
+  const stored = await storedProductIds(ctx.db, {
+    workspaceId,
+    appId: app.id,
+    platform: app.platform,
+    source: 'play_subscriptions',
+  });
+  let points = 0;
+  let reports = 0;
+  let from: string | null = null;
+  let to: string | null = null;
+  for (const month of months) {
+    let result: Awaited<ReturnType<typeof port.readMonth>>;
+    try {
+      result = await port.readMonth(month);
+    } catch (error) {
+      if (error instanceof AnalyticsError && error.code === 'reports_not_found') continue;
+      throw error;
+    }
+    reports++;
+    const capped = capProductPoints(result.points, stored);
+    for (const p of capped.points)
+      if (p.dimension?.type === 'product')
+        stored.add(splitProductDimValue(p.dimension.value, false).productId);
+    const written = await upsertPoints(
+      ctx.db,
+      {
+        workspaceId,
+        appId: app.id,
+        platform: app.platform,
+        source: 'play_subscriptions',
         processingDate: dateToDay(ctx.now()),
         origin: 'sync',
         now: ctx.now(),
@@ -821,7 +1070,13 @@ async function run(
               ? readPlayVitals(env, newestDay)
               : source === 'play_sales'
                 ? readPlaySales(env, firstRead)
-                : readPlayReports(env, firstRead),
+                : source === 'play_earnings'
+                  ? readPlayEarnings(env, firstRead)
+                  : source === 'play_subscriptions'
+                    ? readPlaySubscriptions(env, firstRead)
+                    : source === 'apple_subscriptions'
+                      ? readAppleSubscriptions(env, newestDay)
+                      : readPlayReports(env, firstRead),
       );
       work.catch(() => undefined);
       const outcome = await Promise.race([work, timedOut]);

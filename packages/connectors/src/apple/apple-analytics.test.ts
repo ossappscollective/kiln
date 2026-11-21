@@ -309,3 +309,47 @@ test('sales: the documented query, gzip decoded; 404 is no report; 403 is sales_
   );
   assert.equal((invalid as AnalyticsError).code, 'vendor_number_invalid');
 });
+
+test('subscriptions: SUBSCRIPTION and SUBSCRIPTION_EVENT use version 1_3, SUMMARY and DAILY; 404 is no report; 403 is sales_forbidden', async () => {
+  const { fake, connector } = setup();
+  fake
+    .on('GET', (url) => url.pathname === '/v1/salesReports' && url.search.includes('2026-11-10'), {
+      bytes: ax.gz(ax.SALES_TSV),
+    })
+    .on('GET', (url) => url.pathname === '/v1/salesReports' && url.search.includes('2026-11-11'), {
+      status: 404,
+      json: { errors: [{ code: 'NOT_FOUND' }] },
+    })
+    .on('GET', (url) => url.pathname === '/v1/salesReports' && url.search.includes('2026-11-12'), {
+      status: 403,
+      json: { errors: [{ code: 'FORBIDDEN_ERROR' }] },
+    });
+  assert.equal(
+    await connector.fetchSubscriptionReport({ kind: 'subscription', vendorNumber: '85012345', date: '2026-11-10' }),
+    ax.SALES_TSV,
+  );
+  const q = fake.calls[0]?.url.searchParams;
+  assert.equal(q?.get('filter[reportType]'), 'SUBSCRIPTION');
+  assert.equal(q?.get('filter[reportSubType]'), 'SUMMARY');
+  assert.equal(q?.get('filter[frequency]'), 'DAILY');
+  assert.equal(q?.get('filter[version]'), '1_3');
+  assert.equal(q?.get('filter[vendorNumber]'), '85012345');
+  await connector.fetchSubscriptionReport({ kind: 'subscription_event', vendorNumber: '85012345', date: '2026-11-10' });
+  assert.equal(fake.calls[1]?.url.searchParams.get('filter[reportType]'), 'SUBSCRIPTION_EVENT');
+  assert.equal(fake.calls[1]?.url.searchParams.get('filter[version]'), '1_3');
+  assert.ok(
+    !fake.calls.some((c) => c.url.search.includes('SUBSCRIBER')),
+    'the per-subscriber report is never asked for',
+  );
+  assert.equal(
+    await connector.fetchSubscriptionReport({ kind: 'subscription', vendorNumber: '85012345', date: '2026-11-11' }),
+    null,
+  );
+  const forbidden = await captured(() =>
+    connector.fetchSubscriptionReport({ kind: 'subscription', vendorNumber: '85012345', date: '2026-11-12' }),
+  );
+  assert.equal((forbidden as AnalyticsError).code, 'sales_forbidden');
+  // The sales summary keeps its own report type and version.
+  await connector.fetchSalesReport({ vendorNumber: '85012345', date: '2026-11-10' });
+  assert.equal(fake.calls[fake.calls.length - 1]?.url.searchParams.get('filter[version]'), '1_0');
+});

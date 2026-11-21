@@ -8,9 +8,13 @@ import {
   type AppleInstanceRef,
   type AppleReportRef,
   type AppleReportRequest,
+  type PlayEarningsPort,
+  type PlayEarningsResult,
   type PlayReportsPort,
   type PlaySalesPort,
   type PlaySalesResult,
+  type PlaySubscriptionsPort,
+  type PlaySubscriptionsResult,
   type PlayReportsResult,
   type PlayVitalsPort,
   type PlayVitalsResult,
@@ -287,6 +291,9 @@ export class FakeApple implements AppleAnalyticsPort {
   /** The segment texts of an instance, or the error that reading it gives. */
   texts = new Map<string, string[] | Error>();
   sales = new Map<string, string | null | Error>();
+  /** The subscription reports by `<kind>:<day>`. A day without an entry has no report (null). */
+  subscriptions = new Map<string, string | null | Error>();
+  subscriptionsAsked: string[] = [];
   reads: string[] = [];
   salesAsked: string[] = [];
   #n = 0;
@@ -323,6 +330,16 @@ export class FakeApple implements AppleAnalyticsPort {
   async fetchSalesReport(input: { vendorNumber: string; date: string }): Promise<string | null> {
     this.salesAsked.push(`${input.vendorNumber}:${input.date}`);
     const got = this.sales.get(input.date);
+    if (got instanceof Error) throw got;
+    return got ?? null;
+  }
+  async fetchSubscriptionReport(input: {
+    kind: 'subscription' | 'subscription_event';
+    vendorNumber: string;
+    date: string;
+  }): Promise<string | null> {
+    this.subscriptionsAsked.push(`${input.kind}:${input.date}`);
+    const got = this.subscriptions.get(`${input.kind}:${input.date}`);
     if (got instanceof Error) throw got;
     return got ?? null;
   }
@@ -391,6 +408,42 @@ export class FakeReports implements PlayReportsPort {
   }
 }
 
+export class FakeEarnings implements PlayEarningsPort {
+  /** By month (YYYYMM). A month without an entry has no file. */
+  months = new Map<string, AnalyticsPoint[]>();
+  error: unknown;
+  asked: string[] = [];
+  async readMonth(month: string): Promise<PlayEarningsResult> {
+    this.asked.push(month);
+    if (this.error) throw this.error;
+    const points = this.months.get(month);
+    if (!points) throw new AnalyticsError('reports_not_found');
+    return {
+      points,
+      files: [`earnings/earnings_${month}.zip`],
+      stats: { rowsRead: points.length, rowsUsed: points.length, rowsUnreadable: 0, rowsFiltered: 0 },
+    };
+  }
+}
+
+export class FakeSubscriptions implements PlaySubscriptionsPort {
+  months = new Map<string, AnalyticsPoint[]>();
+  error: unknown;
+  asked: string[] = [];
+  async readMonth(month: string): Promise<PlaySubscriptionsResult> {
+    this.asked.push(month);
+    if (this.error) throw this.error;
+    const points = this.months.get(month);
+    if (!points) throw new AnalyticsError('reports_not_found');
+    return {
+      points,
+      files: [`financial-stats/subscriptions/subscriptions_x_${month}_country.csv`],
+      products: 1,
+      stats: { rowsRead: points.length, rowsUsed: points.length, rowsUnreadable: 0, rowsFiltered: 0 },
+    };
+  }
+}
+
 export class FakeSales implements PlaySalesPort {
   /** By month (YYYYMM). A month without an entry has no file. */
   months = new Map<string, AnalyticsPoint[]>();
@@ -410,7 +463,7 @@ export class FakeSales implements PlaySalesPort {
 }
 
 export type BuiltInput = {
-  kind: 'apple' | 'vitals' | 'reports' | 'sales';
+  kind: 'apple' | 'vitals' | 'reports' | 'sales' | 'earnings' | 'subscriptions';
   secret: string;
   packageName?: string;
   bucketId?: string;
@@ -426,6 +479,8 @@ export async function bootAnalytics(
   const vitals = new FakeVitals();
   const reports = new FakeReports();
   const sales = new FakeSales();
+  const earnings = new FakeEarnings();
+  const subscriptions = new FakeSubscriptions();
   const built: BuiltInput[] = [];
   const connectors: AnalyticsConnectorFactory = {
     apple: (input) => (built.push({ kind: 'apple', secret: input.secret }), apple),
@@ -449,6 +504,24 @@ export async function bootAnalytics(
         bucketId: input.bucketId,
       }),
       sales
+    ),
+    playEarnings: (input) => (
+      built.push({
+        kind: 'earnings',
+        secret: input.secret,
+        packageName: input.packageName,
+        bucketId: input.bucketId,
+      }),
+      earnings
+    ),
+    playSubscriptions: (input) => (
+      built.push({
+        kind: 'subscriptions',
+        secret: input.secret,
+        packageName: input.packageName,
+        bucketId: input.bucketId,
+      }),
+      subscriptions
     ),
   };
   // The fixed point of the clock is "today"; every table the tests make is dated relative to it.
@@ -557,6 +630,8 @@ export async function bootAnalytics(
     vitals,
     reports,
     sales,
+    earnings,
+    subscriptions,
     built,
     now,
     today,

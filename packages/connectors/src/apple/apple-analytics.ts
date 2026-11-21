@@ -80,6 +80,15 @@ export interface AppleAnalyticsPort {
   readInstance(instanceId: string): Promise<{ texts: string[]; segments: number; bytes: number }>;
   /** The daily Sales and Trends summary of a day (YYYY-MM-DD), as text; null when Apple has no report for it. */
   fetchSalesReport(input: { vendorNumber: string; date: string }): Promise<string | null>;
+  /**
+   * The daily Subscription (`subscription`) or Subscription Event (`subscription_event`) report of Sales and Trends of a day
+   * (version 1_3, docs/adr/0042-earnings-and-subscription-metrics.md), as text; null when Apple has no report for the day.
+   */
+  fetchSubscriptionReport(input: {
+    kind: 'subscription' | 'subscription_event';
+    vendorNumber: string;
+    date: string;
+  }): Promise<string | null>;
 }
 
 const DEFAULT_BASE = 'https://api.appstoreconnect.apple.com';
@@ -337,7 +346,30 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
     );
   }
 
-  async fetchSalesReport(input: { vendorNumber: string; date: string }): Promise<string | null> {
+  fetchSalesReport(input: { vendorNumber: string; date: string }): Promise<string | null> {
+    return this.#fetchSalesApi(input, 'SALES', '1_0', 'the Sales and Trends report');
+  }
+
+  fetchSubscriptionReport(input: {
+    kind: 'subscription' | 'subscription_event';
+    vendorNumber: string;
+    date: string;
+  }): Promise<string | null> {
+    // Apple's table of allowed values: SUBSCRIPTION and SUBSCRIPTION_EVENT are SUMMARY / DAILY / 1_3 (1_2 is no longer available).
+    return this.#fetchSalesApi(
+      input,
+      input.kind === 'subscription' ? 'SUBSCRIPTION' : 'SUBSCRIPTION_EVENT',
+      '1_3',
+      'the Sales and Trends subscription report',
+    );
+  }
+
+  async #fetchSalesApi(
+    input: { vendorNumber: string; date: string },
+    reportType: string,
+    version: string,
+    what: string,
+  ): Promise<string | null> {
     if (!/^[0-9]{5,12}$/.test(input.vendorNumber))
       throw new AnalyticsError('vendor_number_invalid');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date))
@@ -346,9 +378,9 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
       'filter[frequency]=DAILY',
       `filter[reportDate]=${input.date}`,
       'filter[reportSubType]=SUMMARY',
-      'filter[reportType]=SALES',
+      `filter[reportType]=${reportType}`,
       `filter[vendorNumber]=${input.vendorNumber}`,
-      'filter[version]=1_0',
+      `filter[version]=${version}`,
     ].join('&');
     const token = this.#tokens.token();
     this.#http.known.add(token);
@@ -365,7 +397,7 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
     if (reply.status === 404) return null;
     if (reply.status === 401) this.#tokens.invalidate();
     if (reply.status === 403) throw new AnalyticsError('sales_forbidden', undefined, 403);
-    throw this.#mapError(this.#toStoreReply(reply), 'reading the Sales and Trends report');
+    throw this.#mapError(this.#toStoreReply(reply), `reading ${what}`);
   }
 
   // ---- plumbing -----------------------------------------------------------------------------

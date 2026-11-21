@@ -86,6 +86,22 @@ export async function storedStoreProductIds(
   return new Set(rows.map((r) => String(r.product_id)));
 }
 
+/**
+ * Apple's resource id of each stored product (`store_products.store_ref`) to its product id. The Subscription reports name a subscription
+ * by its Subscription Apple ID, which is that resource id (UNVERIFIED, docs/adr/0042-earnings-and-subscription-metrics.md).
+ */
+export async function storedStoreRefs(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<Map<string, string>> {
+  const rows = await sql.query(
+    'SELECT store_ref, product_id FROM store_products WHERE app_id = ? AND workspace_id = ? AND store_ref IS NOT NULL',
+    [appId, workspaceId],
+  );
+  return new Map(rows.map((r) => [String(r.store_ref), String(r.product_id)]));
+}
+
 // ---------------------------------------------------------------------------------------------
 // The read side
 

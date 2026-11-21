@@ -36,9 +36,16 @@ test('every metric belongs to one source and has a label, a unit and a delay', (
     assert.ok(info.label.length > 0 && info.delayDays >= 0, metric);
     assert.ok(metricsOfSource(info.source).includes(metric), metric);
   }
-  assert.deepEqual(sourcesForPlatform('ios'), ['apple_analytics', 'apple_sales']);
-  assert.deepEqual(sourcesForPlatform('macos'), ['apple_analytics', 'apple_sales']);
-  assert.deepEqual(sourcesForPlatform('android'), ['play_vitals', 'play_reports', 'play_sales']);
+  const apple = ['apple_analytics', 'apple_sales', 'apple_subscriptions'];
+  assert.deepEqual(sourcesForPlatform('ios'), apple);
+  assert.deepEqual(sourcesForPlatform('macos'), apple);
+  assert.deepEqual(sourcesForPlatform('android'), [
+    'play_vitals',
+    'play_reports',
+    'play_sales',
+    'play_earnings',
+    'play_subscriptions',
+  ]);
 });
 
 test('counts and money add up; rates and ratings are averaged', () => {

@@ -204,7 +204,7 @@ export const settingDefinitions = {
     },
   } satisfies Definition<string>,
   'analytics.playBucketId': {
-    doc: 'The Cloud Storage bucket of your Google Play reports (shown in Play Console under Download reports, like pubsite_prod_rev_01234567890123456789). Optional: with it the monthly installs, ratings and store performance files are read. Empty means none. The service account needs the Cloud Storage read-only scope and access to the bucket.',
+    doc: 'The Cloud Storage bucket of your Google Play reports (shown in Play Console under Download reports, like pubsite_prod_rev_01234567890123456789). Optional: with it the monthly installs, ratings and store performance files are read. Empty means none. The service account needs the Cloud Storage read-only scope and access to the bucket. The estimated sales, monthly earnings and subscription statistics files are in the same bucket and also need the Play Console permission View financial data (Global).',
     default: '',
     writeAction: 'analytics.manage',
     parse: (raw: unknown): Parsed<string> => {

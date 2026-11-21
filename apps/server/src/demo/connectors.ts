@@ -8,8 +8,10 @@ import type {
   InternalSharingConnector,
   InternalSharingKind,
   InternalSharingUpload,
+  PlayEarningsPort,
   PlayReportsPort,
   PlaySalesPort,
+  PlaySubscriptionsPort,
   PlayVitalsPort,
   ReadStoreListingOptions,
   StoreApp,
@@ -638,6 +640,94 @@ class DemoApple implements AppleAnalyticsPort {
     }
     return tsv(rows);
   }
+  /** Invented subscription figures: a snapshot of the day and the day's events, for the demo apps that exist on Apple. */
+  async fetchSubscriptionReport(input: {
+    kind: 'subscription' | 'subscription_event';
+    vendorNumber: string;
+    date: string;
+  }): Promise<string | null> {
+    const r = rng(`subs:${input.kind}:${input.date}`);
+    const apps = DEMO_APPS.filter((a) => a.platforms.some((p) => p !== 'android'));
+    if (input.kind === 'subscription') {
+      const rows: (string | number)[][] = [
+        [
+          'App Name',
+          'App Apple ID',
+          'Subscription Name',
+          'Subscription Apple ID',
+          'Standard Subscription Duration',
+          'Device',
+          'Country',
+          'Active Standard Price Subscriptions',
+          'Active Free Trial Introductory Offer Subscriptions',
+          'Active Pay Up Front Introductory Offer Subscriptions',
+          'Marketing Opt-Ins',
+          'Billing Retry',
+          'Grace Period',
+          'Subscribers',
+        ],
+      ];
+      for (const app of apps)
+        for (const [id, duration, base] of [
+          ['9100', '1 Month', 180],
+          ['9101', '1 Year', 90],
+        ] as const)
+          rows.push([
+            app.name,
+            app.appleId,
+            `Demo ${duration}`,
+            id,
+            duration,
+            'iPhone',
+            'US',
+            Math.round(base + r() * 12),
+            Math.round(6 + r() * 4),
+            Math.round(r() * 3),
+            0,
+            Math.round(r() * 2),
+            Math.round(r() * 2),
+            0,
+          ]);
+      return tsv(rows);
+    }
+    const rows: (string | number)[][] = [
+      [
+        'Event Date',
+        'Event',
+        'App Name',
+        'App Apple ID',
+        'Subscription Name',
+        'Subscription Apple ID',
+        'Standard Subscription Duration',
+        'Subscription Offer Type',
+        'Device',
+        'Country',
+        'Quantity',
+      ],
+    ];
+    for (const app of apps)
+      for (const [event, offer, n] of [
+        ['Subscribe', '', 4],
+        ['Start Introductory Offer', 'Free Trial', 6],
+        ['Cancel', '', 3],
+        ['Paid Subscription from Introductory Offer', 'Free Trial', 2],
+        ['Renew', '', 40],
+      ] as const)
+        rows.push([
+          input.date,
+          event,
+          app.name,
+          app.appleId,
+          'Demo 1 Month',
+          '9100',
+          '1 Month',
+          offer,
+          'iPhone',
+          'US',
+          Math.max(1, Math.round(n * (0.6 + r() * 0.8))),
+        ]);
+    return tsv(rows);
+  }
 }
 
 function playPoints(
@@ -760,6 +850,60 @@ function playSalesPoints(app: (typeof DEMO_APPS)[number]): AnalyticsPoint[] {
   return [...merged.values()];
 }
 
+/**
+ * Demo Play Earnings: one statement per past month on its first day, net of an invented fee, in two merchant currencies. Dated like the
+ * real report (the month's first day), so the demo shows the monthly card the way a real account would.
+ */
+function playEarningsPoints(app: (typeof DEMO_APPS)[number], month: string): AnalyticsPoint[] {
+  const date = `${month.slice(0, 4)}-${month.slice(4)}-01`;
+  const r = rng(`${app.key}:earnings:${month}`);
+  const out: AnalyticsPoint[] = [];
+  for (const [cur, base] of [
+    ['EUR', 180],
+    ['USD', 95],
+  ] as const) {
+    const charges = Math.round((base + r() * 40) * 100) / 100;
+    const taxes = -Math.round(charges * 0.16 * 100) / 100;
+    const fees = -Math.round(charges * 0.15 * 100) / 100;
+    for (const [metric, value] of [
+      ['earnings_charges', charges],
+      ['earnings_taxes', taxes],
+      ['earnings_fees', fees],
+      ['earnings_net', Math.round((charges + taxes + fees) * 100) / 100],
+    ] as const)
+      out.push({ date, metric, value, dimension: { type: 'currency', value: cur } });
+    out.push({
+      date,
+      metric: 'earnings_net',
+      value: Math.round((charges + taxes + fees) * 100) / 100,
+      dimension: { type: 'product', value: `${cur}:premium_unlock` },
+    });
+  }
+  out.push({ date, metric: 'earnings_orders', value: Math.round(40 + r() * 20) });
+  return out;
+}
+
+/** Demo Play subscription statistics: one product, daily counts. Invented numbers. */
+function playSubscriptionPoints(app: (typeof DEMO_APPS)[number]): AnalyticsPoint[] {
+  const out: AnalyticsPoint[] = [];
+  const nw = dailySeries(`${app.key}:subs-new`, 90, 5, { trend: 0.2 });
+  const cancelled = dailySeries(`${app.key}:subs-cancel`, 90, 3, { trend: 0.1 });
+  let active = 220;
+  nw.forEach((n, i) => {
+    const c = (cancelled[i] as { value: number }).value;
+    active += Math.round(n.value) - Math.round(c);
+    for (const [metric, value] of [
+      ['play_subscriptions_new', Math.round(n.value)],
+      ['play_subscriptions_cancelled', Math.round(c)],
+      ['play_subscriptions_active', active],
+    ] as const) {
+      out.push({ date: n.date, metric, value });
+      out.push({ date: n.date, metric, value, dimension: { type: 'product', value: 'premium_monthly' } });
+    }
+  });
+  return out;
+}
+
 function createAnalytics(world: DemoWorld): AnalyticsConnectorFactory {
   const apple = failing(new DemoApple(), world.failures, 'analytics');
   const appOf = (packageName: string) =>
@@ -838,6 +982,51 @@ function createAnalytics(world: DemoWorld): AnalyticsConnectorFactory {
             };
           },
         } satisfies PlaySalesPort,
+        world.failures,
+        'analytics',
+      ),
+    playEarnings: (input) =>
+      failing(
+        {
+          async readMonth(month: string) {
+            const app = appOf(input.packageName);
+            // A statement exists for a month that is over; the current month has none yet.
+            const current = new Date(world.now()).toISOString().slice(0, 7).replace('-', '');
+            if (month >= current)
+              throw Object.assign(new Error('reports_not_found'), {
+                name: 'AnalyticsError',
+                code: 'reports_not_found',
+              });
+            const points = playEarningsPoints(app, month);
+            return {
+              points,
+              files: [`earnings/earnings_${month}.zip`],
+              stats: { rowsRead: points.length, rowsUsed: points.length, rowsUnreadable: 0, rowsFiltered: 0 },
+            };
+          },
+        } satisfies PlayEarningsPort,
+        world.failures,
+        'analytics',
+      ),
+    playSubscriptions: (input) =>
+      failing(
+        {
+          async readMonth(month: string) {
+            const all = playSubscriptionPoints(appOf(input.packageName));
+            const points = all.filter((p) => p.date.slice(0, 4) + p.date.slice(5, 7) === month);
+            if (points.length === 0)
+              throw Object.assign(new Error('reports_not_found'), {
+                name: 'AnalyticsError',
+                code: 'reports_not_found',
+              });
+            return {
+              points,
+              files: [`financial-stats/subscriptions/subscriptions_${input.packageName}_premium_monthly_${month}_country.csv`],
+              products: 1,
+              stats: { rowsRead: points.length, rowsUsed: points.length, rowsUnreadable: 0, rowsFiltered: 0 },
+            };
+          },
+        } satisfies PlaySubscriptionsPort,
         world.failures,
         'analytics',
       ),

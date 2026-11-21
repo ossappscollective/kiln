@@ -75,7 +75,7 @@ export type SeriesCoverage = {
   lastDay: string | null;
   /** Days with a value in the range. */
   days: number;
-  /** Days between the first and last day with no value. */
+  /** Days between the first and last day with no value (months, for a series with `cadence: 'monthly'`). */
   gapDays: number;
   notes: Note[];
 };
@@ -89,6 +89,11 @@ export type Series = {
   aggregation: MetricAggregation;
   /** The store source this series comes from (the numerator's source for a derived series). */
   source: AnalyticsSource;
+  /**
+   * `monthly`: one figure per calendar month, stored on the first day of the month (the Play Earnings report). Read it with
+   * `granularity=month`; the coverage then counts months, not days. Absent for a daily series.
+   */
+  cadence?: 'monthly';
   derived: boolean;
   currency: string | null;
   /** Days after a date that the store may still change that day's value. */
@@ -133,6 +138,25 @@ const staticNotes: Record<AnalyticsMetric, CoverageNoteCode[]> = {
     'play_sales_utc',
   ],
   sales_orders: ['play_estimated_sales_gross', 'play_sales_latency', 'play_sales_utc'],
+  earnings_net: [
+    'play_earnings_monthly',
+    'play_earnings_net',
+    'play_earnings_per_currency',
+    'play_earnings_pacific',
+  ],
+  earnings_charges: ['play_earnings_monthly', 'play_earnings_per_currency', 'play_earnings_pacific'],
+  earnings_taxes: ['play_earnings_monthly', 'play_earnings_per_currency', 'play_earnings_pacific'],
+  earnings_fees: ['play_earnings_monthly', 'play_earnings_per_currency', 'play_earnings_pacific'],
+  earnings_orders: ['play_earnings_monthly', 'play_earnings_pacific'],
+  subscriptions_active: ['apple_subscription_counts'],
+  subscriptions_active_offer: ['apple_subscription_counts'],
+  subscriptions_active_trial: ['apple_subscription_counts'],
+  subscriptions_new: ['apple_subscription_counts', 'apple_subscription_events'],
+  subscriptions_cancelled: ['apple_subscription_counts', 'apple_subscription_events'],
+  subscriptions_trial_conversions: ['apple_subscription_counts', 'apple_subscription_events'],
+  play_subscriptions_active: ['play_subscription_stats', 'google_monthly_files'],
+  play_subscriptions_new: ['play_subscription_stats', 'google_monthly_files'],
+  play_subscriptions_cancelled: ['play_subscription_stats', 'google_monthly_files'],
   crash_rate: ['google_unit_unverified'],
   anr_rate: ['google_unit_unverified'],
   installs_user: ['google_monthly_files'],
@@ -227,25 +251,52 @@ type CoverageInput = {
   imported: boolean;
   notes: CoverageNoteCode[];
   sourceOldestDay: string | null;
+  /** One figure per calendar month, on its first day: gaps and freshness are counted in months. */
+  monthly?: boolean;
 };
+
+const monthIndex = (day: string): number => Number(day.slice(0, 4)) * 12 + Number(day.slice(5, 7));
+
+/**
+ * The first day of the newest month whose Earnings report should be out by `today`: Google posts a month's report "by the 5th of the
+ * following month", so the report of month M is expected from about the 6th of month M+1.
+ */
+export function newestExpectedMonth(today: string): string {
+  const current = bucketStart(addDays(today, -6), 'month');
+  const y = Number(current.slice(0, 4));
+  const m = Number(current.slice(5, 7));
+  return m === 1 ? `${y - 1}-12-01` : `${y}-${String(m - 1).padStart(2, '0')}-01`;
+}
 
 function coverageOf(input: CoverageInput): SeriesCoverage {
   const notes: CoverageNoteCode[] = [...input.notes];
   const sorted = [...input.days.keys()].sort();
   const firstDay = sorted[0] ?? null;
   const lastDay = sorted[sorted.length - 1] ?? null;
-  const gapDays = firstDay && lastDay ? daysBetween(firstDay, lastDay) + 1 - sorted.length : 0;
+  const gapDays =
+    firstDay && lastDay
+      ? (input.monthly
+          ? monthIndex(lastDay) - monthIndex(firstDay)
+          : daysBetween(firstDay, lastDay)) +
+        1 -
+        sorted.length
+      : 0;
   let state: SeriesCoverage['state'] = 'none';
   if (sorted.length > 0) {
-    const fresh = lastDay !== null && lastDay >= addDays(input.to, -input.delayDays);
+    const fresh = input.monthly
+      ? lastDay !== null &&
+        lastDay >=
+          [newestExpectedMonth(input.today), bucketStart(input.to, 'month')].sort()[0]!
+      : lastDay !== null && lastDay >= addDays(input.to, -input.delayDays);
     state = gapDays === 0 && fresh ? 'complete' : 'partial';
-    if (gapDays > 0) notes.push('gaps');
+    if (gapDays > 0 && !input.monthly) notes.push('gaps');
     if (input.imported) notes.push('imported');
     if (input.sourceOldestDay !== null && input.from < input.sourceOldestDay)
       notes.push('only_since_connected');
   } else if (!input.connected && !input.hasHistory) notes.push('source_not_connected');
   else notes.push('no_data_yet');
-  if (addDays(input.today, -input.delayDays) < input.to) notes.push('recent_days_incomplete');
+  if (!input.monthly && addDays(input.today, -input.delayDays) < input.to)
+    notes.push('recent_days_incomplete');
   return {
     state,
     firstDay,
@@ -322,6 +373,7 @@ export async function overview(
       unit: info.unit,
       aggregation: info.aggregation,
       source: info.source,
+      ...(info.cadence ? { cadence: info.cadence } : {}),
       derived: false,
       currency: cur,
       delayDays: info.delayDays,
@@ -338,6 +390,7 @@ export async function overview(
         imported: rows.some((r) => r.origin === 'import'),
         notes: staticNotes[metric],
         sourceOldestDay: state?.oldestDay ?? null,
+        ...(info.cadence === 'monthly' ? { monthly: true } : {}),
       }),
     };
     const dim = brokenRows.get(metric);
@@ -534,6 +587,9 @@ const sourceLabels: Record<AnalyticsSource, string> = {
   play_vitals: 'Android vitals',
   play_reports: 'Play Console reports',
   play_sales: 'Play Console sales reports',
+  apple_subscriptions: 'Subscription reports',
+  play_earnings: 'Play Console earnings reports',
+  play_subscriptions: 'Play Console subscription statistics',
 };
 
 export async function status(

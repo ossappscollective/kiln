@@ -49,6 +49,12 @@ const seriesSchema = z.object({
     .describe(
       'Only for money series: the payout currency (Apple proceeds) or the currency of sale (Google estimated sales). Money is never converted or added across currencies.',
     ),
+  cadence: z
+    .literal('monthly')
+    .optional()
+    .describe(
+      'Present as `monthly` for a figure the store reports once a month (Google Play earnings, `earnings_*`): each point is a month, dated the first of it, and the coverage counts months. Read these with `granularity=month`; a daily or weekly read of them is mostly gaps. Absent for a daily series.',
+    ),
   delayDays: z
     .number()
     .int()
@@ -302,7 +308,7 @@ export const analyticsOperations: Operation[] = [
     tags: ['analytics'],
     summary: 'Daily metrics of an app as series, each with its source, delay and coverage',
     description:
-      'Read-only, from what is stored (no store is contacted). `platform` may be left out; if given it must be the app’s platform. `from` and `to` are days (default: the last 28 days up to yesterday; at most 400 days). `granularity` is `day`, `week` (Monday) or `month`. `breakdown` adds the top 10 values of one dimension to the series that have it (`product`: the sales metrics by store product id). Every series says where it comes from (`source`), how late the store may still change a day (`delayDays`), and what limits it (`coverage.notes`, a fixed vocabulary). Apple counts are not unique users; Apple usage data is a sample; Apple proceeds and Google estimated sales (`sales_gross`, `sales_refunds`, `sales_orders`) are per currency and never converted, and the two are different things (proceeds are net of Apple’s commission and tax, Google estimated sales are buyer-paid); Google offers no impressions.',
+      'Read-only, from what is stored (no store is contacted). `platform` may be left out; if given it must be the app’s platform. `from` and `to` are days (default: the last 28 days up to yesterday; at most 400 days). `granularity` is `day`, `week` (Monday) or `month`. `breakdown` adds the top 10 values of one dimension to the series that have it (`product`: the sales metrics by store product id). Every series says where it comes from (`source`), how late the store may still change a day (`delayDays`), and what limits it (`coverage.notes`, a fixed vocabulary). Apple counts are not unique users; Apple usage data is a sample; Apple proceeds and Google estimated sales (`sales_gross`, `sales_refunds`, `sales_orders`) are per currency and never converted, and the two are different things (proceeds are net of Apple’s commission and tax, Google estimated sales are buyer-paid); Google offers no impressions. Google Play earnings (`earnings_net`, `earnings_charges`, `earnings_taxes`, `earnings_fees`, per currency; `earnings_orders`) are monthly (`cadence: "monthly"`) and NET of Google’s fees and taxes in `earnings_net`; subscription counts (`subscriptions_*` from Apple, `play_subscriptions_*` from Google Play) are unitless counts of subscriptions, not people and not money (docs/api/analytics.md).',
     risk: 'read',
     access: { action: 'analytics.read' },
     appScope: { kind: 'param', name: 'id' },
@@ -379,7 +385,7 @@ export const analyticsOperations: Operation[] = [
     summary:
       'The Google Play reports bucket an Android app reads (its override, its Play developer account, or the workspace setting)',
     description:
-      'Google keeps ONE private Cloud Storage bucket per Play developer account and organises the reports by package name, and one workspace can hold apps of several accounts, so a workspace default (`analytics.playBucketId`) is overridden per app (or, optionally, per Play credential). Installs and ratings come only from monthly CSV reports in that bucket (the Reporting API has crash and ANR data only). `422 not_an_android_app` for iOS and macOS apps.',
+      'Google keeps ONE private Cloud Storage bucket per Play developer account and organises the reports by package name, and one workspace can hold apps of several accounts, so a workspace default (`analytics.playBucketId`) is overridden per app (or, optionally, per Play credential). Installs and ratings come only from monthly CSV reports in that bucket (the Reporting API has crash and ANR data only). The same bucket holds the estimated sales, the monthly earnings and the subscription statistics, which also need the Play Console permission View financial data (Global) for the service account. `422 not_an_android_app` for iOS and macOS apps.',
     risk: 'read',
     access: { action: 'analytics.read' },
     appScope: { kind: 'param', name: 'id' },

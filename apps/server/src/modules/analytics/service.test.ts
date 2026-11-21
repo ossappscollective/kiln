@@ -196,7 +196,7 @@ dbTest(
     assert.equal(off.schedule.intervalMinutes, 360);
     assert.deepEqual(
       off.sources.map((s: { source: string }) => s.source),
-      ['apple_analytics', 'apple_sales'],
+      ['apple_analytics', 'apple_sales', 'apple_subscriptions'],
     );
     assert.deepEqual(
       [off.sources[0].state, off.sources[0].setup.code, off.sources[0].setup.nextStep],
