@@ -1,8 +1,7 @@
-import { accessSync, closeSync, constants, existsSync, openSync, readSync, statSync } from 'node:fs';
+import { accessSync, closeSync, constants, openSync, readSync, statSync } from 'node:fs';
 import { delimiter, isAbsolute, join, parse as parsePath, resolve } from 'node:path';
 import { parseMasterKey } from '@kiln/vault';
 import { z } from 'zod';
-import { defaultDataDir, type PathExists, sqliteUrlInUse } from './legacy-data.ts';
 import type { GitSigning } from './services/local-git.ts';
 import { parseExtraHosts } from './single-user.ts';
 
@@ -33,8 +32,11 @@ const byteSize = (name: string) =>
     return bytes;
   });
 
+/** The data folder when none is configured; the SQLite database is `kiln.db` inside it. */
+const DATA_DIR_DEFAULT = './.kiln-data';
+
 const schema = z.object({
-  // SQLite by default so a bare `pnpm dev` works (`file:<default data folder>/kiln.db`, see legacy-data.ts). Compose sets Postgres.
+  // SQLite by default so a bare `pnpm dev` works (`file:./.kiln-data/kiln.db`). Compose sets Postgres.
   DATABASE_URL: z.string().min(1).optional(),
   KILN_MASTER_KEY: z.string().optional(),
   PORT: z.coerce.number().int().min(1).max(65535).default(8787),
@@ -691,10 +693,7 @@ export type Config = {
   gitSigning?: GitSigning | undefined;
 };
 
-export function loadConfig(
-  env: Record<string, string | undefined> = process.env,
-  exists: PathExists = existsSync,
-): Config {
+export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   if (!env.KILN_MASTER_KEY?.trim()) {
     throw new Error(
       'Invalid configuration:\n  KILN_MASTER_KEY is required. Generate one with: openssl rand -base64 32',
@@ -706,9 +705,7 @@ export function loadConfig(
     throw new Error(`Invalid configuration:\n  ${problems.join('\n  ')}`);
   }
   const data = parsed.data;
-  // The default folder is `./.kiln-data`; an existing `./.kiln-data` from before the rename is kept in use.
-  const defaultDir = defaultDataDir(exists);
-  const dataDir = data.KILN_DATA_DIR ?? defaultDir;
+  const dataDir = data.KILN_DATA_DIR ?? DATA_DIR_DEFAULT;
   // Ignored in multi-user mode: nothing there consumes it.
   const launchSecret =
     data.KILN_MODE === 'single_user' ? checkLaunchSecret(data.KILN_LAUNCH_SECRET) : undefined;
@@ -717,7 +714,7 @@ export function loadConfig(
   const allowedHosts =
     data.KILN_MODE === 'single_user' ? parseExtraHosts(data.KILN_ALLOWED_HOSTS) : [];
   return {
-    databaseUrl: sqliteUrlInUse(data.DATABASE_URL ?? `file:${defaultDir}/kiln.db`, exists),
+    databaseUrl: data.DATABASE_URL ?? `file:${DATA_DIR_DEFAULT}/kiln.db`,
     masterKey: parseMasterKey(env.KILN_MASTER_KEY),
     port: data.PORT,
     dataDir,

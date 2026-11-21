@@ -190,17 +190,12 @@ type RefData = {
 };
 
 const REFERENCE_PREFIX = 'kiln:sha256:';
-/** Images uploaded before the rename to Kiln carry this name on Apple's side; they are still recognised (never rewritten). */
-const LEGACY_REFERENCE_PREFIX = 'mrm:sha256:';
 const REFERENCE_HEX = 32;
 const referenceName = (sha256: string): string =>
   `${REFERENCE_PREFIX}${sha256.slice(0, REFERENCE_HEX)}`;
-const legacyReferenceName = (sha256: string): string =>
-  `${LEGACY_REFERENCE_PREFIX}${sha256.slice(0, REFERENCE_HEX)}`;
 const hashOfReference = (name: string | undefined): string | null => {
-  const prefix = [REFERENCE_PREFIX, LEGACY_REFERENCE_PREFIX].find((p) => name?.startsWith(p));
-  if (name === undefined || prefix === undefined) return null;
-  const hex = name.slice(prefix.length).toLowerCase();
+  if (name === undefined || !name.startsWith(REFERENCE_PREFIX)) return null;
+  const hex = name.slice(REFERENCE_PREFIX.length).toLowerCase();
   return /^[0-9a-f]{32}$/.test(hex) ? hex : null;
 };
 const num = (v: unknown): number | undefined =>
@@ -1689,27 +1684,13 @@ export class AppleDraftConnector
     return { ...base, outcome: 'applied', uploaded, removed };
   }
 
-  /**
-   * An image of the library that already is this file and is processed, or undefined. A failed lookup is just "not found".
-   * Images uploaded before the rename to Kiln are named with the old prefix; they are found too, so nothing is uploaded twice.
-   */
+  /** An image of the library that already is this file and is processed, or undefined. A failed lookup is just "not found". */
   async #libraryImage(
     file: DraftAssetWrite['files'][number],
     group: string,
     ref: RefData,
   ): Promise<string | undefined> {
-    return (
-      (await this.#libraryImageNamed(file, group, ref, referenceName(file.sha256))) ??
-      (await this.#libraryImageNamed(file, group, ref, legacyReferenceName(file.sha256)))
-    );
-  }
-
-  async #libraryImageNamed(
-    file: DraftAssetWrite['files'][number],
-    group: string,
-    ref: RefData,
-    name: string,
-  ): Promise<string | undefined> {
+    const name = referenceName(file.sha256);
     const library = await this.#libraryId();
     let body: Json;
     try {

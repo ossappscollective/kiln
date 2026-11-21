@@ -144,16 +144,14 @@ export async function validateLocalPath(input: unknown, cfg: LocalRoots): Promis
       return bad('data_folder', 'That folder is part of the server’s own data and cannot be used.');
     }
   }
-  // A managed clone has a marker file; clones made before the rename to Kiln have the old name.
-  for (const marker of ['kiln-clone.json', 'mrm-clone.json']) {
-    if (
-      await lstat(join(real, marker)).then(
-        () => true,
-        () => false,
-      )
-    ) {
-      return bad('data_folder', 'That folder is a clone managed by this server and cannot be used.');
-    }
+  // A managed clone has a marker file.
+  if (
+    await lstat(join(real, 'kiln-clone.json')).then(
+      () => true,
+      () => false,
+    )
+  ) {
+    return bad('data_folder', 'That folder is a clone managed by this server and cannot be used.');
   }
 
   const dotGit = await lstat(join(real, '.git')).catch(() => undefined);

@@ -1,7 +1,6 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
-import { applyLegacyEnv } from '../legacy-env.ts';
 import { createDemoRuntime, wipe } from './boot.ts';
 import { demoRequested, loadDemoConfig } from './config.ts';
 
@@ -62,6 +61,5 @@ export async function runDemo(
 
 // Started directly: `node src/demo/main.ts`.
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  applyLegacyEnv(process.env);
   await runDemo({ ...process.env, KILN_DEMO: 'true' });
 }

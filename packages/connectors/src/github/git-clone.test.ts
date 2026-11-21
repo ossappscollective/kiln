@@ -7,7 +7,6 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
-  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -1070,47 +1069,6 @@ test('listClones lists managed clones with size and last use, and refuses links 
   await assert.rejects(() => listClones(base, { workspaceId: '../etc' }), GithubError);
   // The stranger and the outside folder are untouched.
   assert.equal(readFileSync(join(base, 'w1', 'stranger', 'file'), 'utf8'), 'not ours');
-});
-
-test('a clone made before the rename to Kiln (mrm-clone.json, refs/mrm) is still managed: read, listed, touched and removable, and no second marker appears', async () => {
-  const source = makeSource({ 'a.txt': 'x' });
-  const base = join(scratch(), 'clones');
-  const make = () =>
-    new GitCloneReader({
-      baseDir: base,
-      workspaceId: 'w1',
-      repositoryId: 'old',
-      source: { type: 'local', path: source },
-      defaultBranch: 'main',
-    });
-  const first = make();
-  await first.refresh();
-  // Make it look like an earlier version made it: the old marker name and the old local ref namespace.
-  renameSync(join(first.dir, 'kiln-clone.json'), join(first.dir, 'mrm-clone.json'));
-  const head = execFileSync('git', ['rev-parse', 'refs/kiln/heads/main'], { cwd: first.dir })
-    .toString()
-    .trim();
-  execFileSync('git', ['update-ref', 'refs/mrm/heads/main', head], { cwd: first.dir });
-  execFileSync('git', ['update-ref', '-d', 'refs/kiln/heads/main'], { cwd: first.dir });
-
-  const again = make();
-  assert.equal(await again.readFile('a.txt'), 'x');
-  assert.equal(existsSync(join(first.dir, 'kiln-clone.json')), false, 'the old marker is kept, no new one');
-  const listed = await listClones(base);
-  assert.deepEqual(listed.clones.map((c) => `${c.workspaceId}/${c.cloneId}`), ['w1/old']);
-  assert.equal(listed.refused, 0);
-  // A reader that never fetches again (infinite tip cache) still finds the tip under the old ref.
-  const offline = new GitCloneReader({
-    baseDir: base,
-    workspaceId: 'w1',
-    repositoryId: 'old',
-    source: { type: 'local', path: source },
-    defaultBranch: 'main',
-    ttlMs: Number.POSITIVE_INFINITY,
-  });
-  assert.equal(await offline.resolve('main'), head);
-  assert.equal(await removeClone(base, 'w1', 'old'), true);
-  assert.equal(existsSync(first.dir), false);
 });
 
 test('reading touches the clone: its last use moves, at most every 30 seconds', async () => {

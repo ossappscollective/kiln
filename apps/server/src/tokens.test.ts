@@ -115,28 +115,7 @@ test('tokenHash and looksLikeToken', () => {
   assert.equal(looksLikeToken(`kiln_${'a'.repeat(43)}`), true);
   assert.equal(looksLikeToken(`kiln_${'a'.repeat(42)}`), false);
   assert.equal(looksLikeToken(`xrm_${'a'.repeat(43)}`), false);
-  // Tokens made before the rename to Kiln start with mrm_ and stay valid.
-  assert.equal(looksLikeToken(`mrm_${'a'.repeat(43)}`), true);
-  assert.equal(looksLikeToken(`mrm_${'a'.repeat(42)}`), false);
   assert.equal(looksLikeToken(`kiln_${'a'.repeat(43)}\n`), false);
-});
-
-dbTest('a token made before the rename (mrm_ prefix) still works, and new ones are kiln_', async (db) => {
-  const t = await boot(db);
-  const { token } = await makeToken(t, { name: 'Old CI', role: 'admin' });
-  assert.match(token, /^kiln_/);
-  // Rewrite the stored row the way an earlier version wrote it: the SHA-256 of an mrm_ token and its short prefix.
-  const old = `mrm_${'Q'.repeat(43)}`;
-  await db.execute('UPDATE api_tokens SET token_hash = ?, prefix = ?', [tokenHash(old), old.slice(0, 10)]);
-  assert.equal((await bearer(t, old, 'GET', '/apps')).status, 200);
-  assert.equal((await bearer(t, token, 'GET', '/apps')).status, 401, 'the replaced hash no longer matches');
-  assert.equal((await bearer(t, `mrm_${'R'.repeat(43)}`, 'GET', '/apps')).status, 401);
-  // It lists with the prefix it was stored with, and can be revoked like any other.
-  const list = await t.call(t.owner, 'GET', '/tokens');
-  assert.equal(list.body.tokens[0].prefix, 'mrm_QQQQQQ');
-  const id = list.body.tokens[0].id as string;
-  assert.equal((await t.call(t.owner, 'DELETE', `/tokens/${id}`)).status, 204);
-  assert.equal((await bearer(t, old, 'GET', '/apps')).status, 401);
 });
 
 dbTest('creating and revoking a token is audited, without the token', async (db) => {
@@ -521,11 +500,6 @@ test('isBearerOnly: a bearer header and no session cookie', () => {
   assert.equal(
     isBearerOnly(c({ authorization: 'Bearer kiln_abc', cookie: `x${SESSION_COOKIE}=1` })),
     true,
-  );
-  // The session cookie from before the rename counts as a cookie too (a browser is involved).
-  assert.equal(
-    isBearerOnly(c({ authorization: 'Bearer kiln_abc', cookie: 'mrm_session=abc' })),
-    false,
   );
   assert.equal(isBearerOnly(c({ authorization: 'Basic abc' })), false);
   assert.equal(isBearerOnly(c({})), false);

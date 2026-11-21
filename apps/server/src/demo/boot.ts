@@ -36,7 +36,7 @@ import { createTestLimiter } from '../services/credential-tests.ts';
 import { DEFAULT_REPO_TIMEOUT_MS } from '../services/repositories.ts';
 import { createWebhookHandler, WEBHOOK_QUEUE } from '../services/webhooks.ts';
 import { VERSION } from '../version.ts';
-import { DEMO_LEGACY_MARKER, DEMO_MARKER, type DemoConfig, hasDemoMarker } from './config.ts';
+import { DEMO_MARKER, type DemoConfig, hasDemoMarker } from './config.ts';
 import { createSeams } from './connectors.ts';
 import { createDemoRoutes } from './routes.ts';
 import { seedDemo } from './seed.ts';
@@ -69,7 +69,7 @@ async function prepareDir(config: DemoConfig) {
 
 export async function wipe(config: DemoConfig) {
   for (const name of await readdir(config.dataDir).catch(() => [] as string[])) {
-    if (name === DEMO_MARKER || name === DEMO_LEGACY_MARKER) continue;
+    if (name === DEMO_MARKER) continue;
     await rm(join(config.dataDir, name), { recursive: true, force: true });
   }
 }

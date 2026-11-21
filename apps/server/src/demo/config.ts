@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import type { PathExists } from '../legacy-data.ts';
 
 /**
  * Demo mode (docs/demo.md, docs/adr/0018-demo-mode.md). A separate entry point with its own data
@@ -10,11 +9,8 @@ import type { PathExists } from '../legacy-data.ts';
  */
 
 export const DEMO_DEFAULT_DIR = './.kiln-demo';
-/** The folder and marker the demo used before the rename to Kiln (docs/adr/0040-rename-to-kiln.md). */
-export const DEMO_LEGACY_DIR = './.mrm-demo';
 export const DEMO_DEFAULT_PORT = 8788;
 export const DEMO_MARKER = '.kiln-demo';
-export const DEMO_LEGACY_MARKER = '.mrm-demo';
 export const DEMO_DB_FILE = 'demo.db';
 export const DEMO_WORLD_FILE = 'world.json';
 export const DEMO_WORKSPACE_NAME = 'Demo Studio';
@@ -25,14 +21,8 @@ export function demoRequested(env: Record<string, string | undefined>): boolean 
   return v === 'true' || v === '1';
 }
 
-/** The marker of a demo folder: the current name, or the one from before the rename. */
-export const hasDemoMarker = (dir: string): boolean =>
-  existsSync(join(dir, DEMO_MARKER)) || existsSync(join(dir, DEMO_LEGACY_MARKER));
-
-/** The demo folder when none is configured: `./.kiln-demo`, or `./.mrm-demo` when only that exists. */
-export function defaultDemoDir(exists: PathExists = existsSync): string {
-  return !exists(DEMO_DEFAULT_DIR) && exists(DEMO_LEGACY_DIR) ? DEMO_LEGACY_DIR : DEMO_DEFAULT_DIR;
-}
+/** True when the folder carries the demo marker. */
+export const hasDemoMarker = (dir: string): boolean => existsSync(join(dir, DEMO_MARKER));
 
 const forced = (env: Record<string, string | undefined>) => {
   const v = env.KILN_DEMO_FORCE?.trim().toLowerCase();
@@ -61,7 +51,7 @@ export function demoProblems(
   if (env.KILN_MODE === 'single_user')
     soft.push('KILN_MODE=single_user is set. That is the desktop setup, not a demo.');
   const dir = resolve(dataDir);
-  if (basename(dir) === '.kiln-data' || basename(dir) === '.mrm-data')
+  if (basename(dir) === '.kiln-data')
     hard.push(
       `${dir} is the folder of the real server. The demo needs its own folder (default ${DEMO_DEFAULT_DIR}).`,
     );
@@ -98,7 +88,7 @@ export function loadDemoConfig(
   env: Record<string, string | undefined> = process.env,
   webDist = '',
 ): DemoConfig {
-  const dataDir = resolve(env.KILN_DEMO_DIR?.trim() || defaultDemoDir());
+  const dataDir = resolve(env.KILN_DEMO_DIR?.trim() || DEMO_DEFAULT_DIR);
   const { soft, hard } = demoProblems(env, dataDir);
   const problems = [...hard, ...(forced(env) ? [] : soft)];
   if (problems.length > 0) {

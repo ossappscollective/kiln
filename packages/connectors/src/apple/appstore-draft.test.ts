@@ -364,23 +364,6 @@ test('a set that already holds exactly these files in this order is left alone (
   assert.equal(api.placements.size, 2);
 });
 
-test('placed images that carry the old mrm:sha256: reference name still count as these files (nothing is re-uploaded after the rename)', async () => {
-  const a = file('01.png', 1);
-  const b = file('02.png', 9);
-  const { api, connector } = setup((fake) => {
-    fake.addPlacements('loc-en', GROUP, [
-      { name: '01.png', bytes: a.bytes, reference: 'legacy' },
-      { name: '02.png', bytes: b.bytes, reference: 'legacy' },
-    ]);
-  });
-  const result = await connector.applyDraft(input({ assets: [{ ...SLOT, files: [a, b] }] }));
-  assert.equal(result.steps[0]?.outcome, 'already_same');
-  assert.deepEqual(
-    api.seen.filter((s) => s.method !== 'GET'),
-    [],
-  );
-});
-
 test('replacing a set uploads the new files first, then places them, deletes the old PLACEMENTS and keeps the library images', async () => {
   const { api, connector } = setup((a) => {
     a.addPlacements('loc-en', GROUP, [
@@ -503,53 +486,6 @@ test('an image that already is in the library (found by its reference name) is p
   const { api, connector } = setup((a) => {
     // Uploaded by an earlier, interrupted push: processed, not placed anywhere.
     a.addPlacements('loc-en', 'SOMEWHERE_ELSE', [{ name: 'again.png', bytes }]);
-    for (const [id] of a.placements) a.placements.delete(id);
-    a.order.clear();
-    a.defaultSpec = 'spec-65';
-  });
-  const result = await connector.applyDraft(
-    input({
-      assets: [
-        {
-          ...SLOT,
-          files: [
-            {
-              name: 'again.png',
-              mime: 'image/png',
-              bytes,
-              md5: md5Of(bytes),
-              sha256: sha256(bytes),
-            },
-          ],
-        },
-      ],
-    }),
-  );
-  assert.deepEqual(result.steps[0], {
-    type: 'asset',
-    locale: 'en-US',
-    target: 'APP_IPHONE_65',
-    outcome: 'applied',
-    uploaded: 0,
-    removed: 0,
-  });
-  assert.deepEqual(
-    api.writes().map((w) => w.replace(/(img|pl)-\d+/g, '$1')),
-    ['POST /v1/appAssetLibraryPlacements'],
-  );
-  assert.equal(api.images.size, 1);
-  assert.equal(
-    api.seen.some((s) => s.method === 'POST' && s.path === '/v1/appAssetLibraryImages'),
-    false,
-    'nothing was uploaded',
-  );
-});
-
-test('an image uploaded before the rename to Kiln (old mrm:sha256: reference name) is found and placed without uploading again', async () => {
-  const bytes = new Uint8Array([4, 4, 4, 4, 4]);
-  const { api, connector } = setup((a) => {
-    // Uploaded by an earlier, interrupted push: processed, not placed anywhere.
-    a.addPlacements('loc-en', 'SOMEWHERE_ELSE', [{ name: 'again.png', bytes, reference: 'legacy' }]);
     for (const [id] of a.placements) a.placements.delete(id);
     a.order.clear();
     a.defaultSpec = 'spec-65';

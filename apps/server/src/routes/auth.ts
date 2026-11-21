@@ -5,11 +5,9 @@ import { z } from 'zod';
 import {
   type AppEnv,
   clientIp,
-  LEGACY_SESSION_COOKIE_NAME,
   parseBody,
   type Services,
   SESSION_COOKIE_NAME,
-  sessionToken,
 } from '../http.ts';
 import {
   countUsers,
@@ -49,8 +47,6 @@ export async function startLoginSession(services: Services, c: Context, userId: 
     path: '/',
     maxAge: Math.floor(SESSION_TTL_MS / 1000),
   });
-  // The new cookie replaces a session cookie from before the rename: drop the old one.
-  if (getCookie(c, LEGACY_SESSION_COOKIE_NAME)) deleteCookie(c, LEGACY_SESSION_COOKIE_NAME, { path: '/' });
 }
 
 export function authRoutes(services: Services) {
@@ -77,7 +73,7 @@ export function authRoutes(services: Services) {
 
   // Tells the UI which screen to show. Public, and reveals nothing beyond "is there an account".
   app.get('/status', async (c) => {
-    const token = sessionToken(c);
+    const token = getCookie(c, SESSION_COOKIE);
     const user = token ? await resolveSession(db, token, now()) : undefined;
     if (singleUser)
       return c.json({ mode: 'single_user', setupRequired: false, user: user ?? null });
@@ -171,12 +167,9 @@ export function authRoutes(services: Services) {
   });
 
   app.post('/logout', async (c) => {
-    // Both cookies can be present (a session from before the rename next to a new one): end both and clear both.
-    for (const name of [SESSION_COOKIE_NAME, LEGACY_SESSION_COOKIE_NAME]) {
-      const token = getCookie(c, name);
-      if (token) await endSession(db, token);
-      deleteCookie(c, name, { path: '/' });
-    }
+    const token = getCookie(c, SESSION_COOKIE);
+    if (token) await endSession(db, token);
+    deleteCookie(c, SESSION_COOKIE, { path: '/' });
     return c.body(null, 204);
   });
 
@@ -186,7 +179,7 @@ export function authRoutes(services: Services) {
 /** Resolves the session cookie to a user, or answers 401. */
 export function requireUser(services: Services) {
   return async (c: import('hono').Context<AppEnv>, next: import('hono').Next) => {
-    const token = sessionToken(c);
+    const token = getCookie(c, SESSION_COOKIE);
     const user = token ? await resolveSession(services.db, token, services.now()) : undefined;
     if (!user) return c.json({ error: 'unauthenticated' }, 401);
     c.set('user', user);

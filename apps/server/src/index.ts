@@ -6,7 +6,6 @@ import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { demoRequested } from './demo/config.ts';
 import { createWorker } from './jobs.ts';
-import { applyLegacyEnv } from './legacy-env.ts';
 import { createAlertDeliveryHandler } from './modules/alerts/delivery.ts';
 import { ALERT_PASS_INTERVAL_MS, createAlertRunner } from './modules/alerts/runner.ts';
 import { ALERT_QUEUE } from './modules/alerts/service.ts';
@@ -68,8 +67,6 @@ import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/rep
 import { createWebhookHandler, pruneDeliveries, WEBHOOK_QUEUE } from './services/webhooks.ts';
 import { VERSION } from './version.ts';
 
-// The old MRM_* names still work: copy them to KILN_* before anything reads the environment.
-applyLegacyEnv(process.env);
 
 // Demo mode (KILN_DEMO=true) is a separate, self-contained server: it never reads the real configuration, database or master key.
 if (demoRequested(process.env)) {

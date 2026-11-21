@@ -9,7 +9,6 @@
  * It refuses a plain `http` address unless it is this machine (the token must not cross a network unencrypted).
  */
 import { pathToFileURL } from 'node:url';
-import { applyLegacyEnv } from '../legacy-env.ts';
 
 export type BridgeOptions = {
   url: string;
@@ -162,7 +161,6 @@ export async function runBridge(options: BridgeOptions): Promise<void> {
 const isMain =
   typeof process.argv[1] === 'string' && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
-  applyLegacyEnv(process.env);
   const url = process.env.KILN_URL ?? '';
   const token = process.env.KILN_TOKEN ?? '';
   if (!url || !token) {

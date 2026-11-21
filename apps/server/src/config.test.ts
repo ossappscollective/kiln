@@ -14,44 +14,28 @@ import {
 
 const key = randomBytes(32).toString('base64');
 
-// The defaults depend on which folders exist in the working directory (an old `.kiln-data` is kept in use), so tests that
-// assert them say what exists.
-const nothing = () => false;
-
 test('defaults are usable with only a master key', () => {
-  const config = loadConfig({ KILN_MASTER_KEY: key }, nothing);
+  const config = loadConfig({ KILN_MASTER_KEY: key });
   assert.equal(config.port, 8787);
   assert.equal(config.databaseUrl, 'file:./.kiln-data/kiln.db');
   assert.equal(config.masterKey.length, 32);
 });
 
-test('an existing ./.mrm-data keeps being the default data folder and database; ./.kiln-data wins when it exists', () => {
-  const only = (...paths: string[]) => (p: string) => paths.includes(p);
-  const old = loadConfig({ KILN_MASTER_KEY: key }, only('./.mrm-data', './.mrm-data/mrm.db'));
-  assert.equal(old.dataDir, './.mrm-data');
-  assert.equal(old.databaseUrl, 'file:./.mrm-data/mrm.db');
-  assert.equal(old.cloneDir, join('./.mrm-data', 'clones'));
-  const both = loadConfig({ KILN_MASTER_KEY: key }, only('./.mrm-data', './.kiln-data'));
-  assert.equal(both.dataDir, './.kiln-data');
-  assert.equal(both.databaseUrl, 'file:./.kiln-data/kiln.db');
-  // A configured folder is used as it is, whatever exists.
-  const set = loadConfig({ KILN_MASTER_KEY: key, KILN_DATA_DIR: '/data' }, only('./.mrm-data'));
+test('the data folder defaults to ./.kiln-data (clones under it); KILN_DATA_DIR sets it', () => {
+  const config = loadConfig({ KILN_MASTER_KEY: key });
+  assert.equal(config.dataDir, './.kiln-data');
+  assert.equal(config.cloneDir, join('./.kiln-data', 'clones'));
+  const set = loadConfig({ KILN_MASTER_KEY: key, KILN_DATA_DIR: '/data' });
   assert.equal(set.dataDir, '/data');
+  assert.equal(set.databaseUrl, 'file:./.kiln-data/kiln.db');
   assert.equal(set.cloneDir, '/data/clones');
 });
 
-test('a database URL naming kiln.db keeps using an existing mrm.db next to it', () => {
+test('DATABASE_URL is used as it is', () => {
   const url = 'file:/data/kiln.db';
-  const earlier = loadConfig({ KILN_MASTER_KEY: key, DATABASE_URL: url }, (p) => p === '/data/mrm.db');
-  assert.equal(earlier.databaseUrl, 'file:/data/mrm.db');
-  const both = loadConfig(
-    { KILN_MASTER_KEY: key, DATABASE_URL: url },
-    (p) => p === '/data/mrm.db' || p === '/data/kiln.db',
-  );
-  assert.equal(both.databaseUrl, url);
-  assert.equal(loadConfig({ KILN_MASTER_KEY: key, DATABASE_URL: url }, nothing).databaseUrl, url);
+  assert.equal(loadConfig({ KILN_MASTER_KEY: key, DATABASE_URL: url }).databaseUrl, url);
   const pg = 'postgres://u:p@db.example.com/kiln';
-  assert.equal(loadConfig({ KILN_MASTER_KEY: key, DATABASE_URL: pg }, () => true).databaseUrl, pg);
+  assert.equal(loadConfig({ KILN_MASTER_KEY: key, DATABASE_URL: pg }).databaseUrl, pg);
 });
 
 test('a missing master key explains how to make one', () => {
@@ -91,7 +75,7 @@ test('KILN_TRUST_PROXY is off by default and only 0 or 1 are accepted', () => {
 });
 
 test('reads default to auto, with the clone folder under the data folder and a 60 second tip cache', () => {
-  const config = loadConfig({ KILN_MASTER_KEY: key }, nothing);
+  const config = loadConfig({ KILN_MASTER_KEY: key });
   assert.equal(config.reads, 'auto');
   assert.equal(config.cloneDir, join('./.kiln-data', 'clones'));
   assert.equal(config.cloneTtlMs, 60_000);
@@ -136,7 +120,6 @@ test('bad clone settings are rejected, and blank ones mean the default', () => {
       KILN_GIT_PATH: '',
       KILN_READS: '',
     },
-    nothing,
   );
   assert.equal(blank.cloneDir, join('./.kiln-data', 'clones'));
   assert.equal(blank.cloneTtlMs, 60_000);

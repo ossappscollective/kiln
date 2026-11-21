@@ -7,8 +7,6 @@ import { createDatabase, migrate } from '@kiln/db';
 import { createApp } from '../app.ts';
 import { createDemoRuntime, type DemoRuntime, wipe } from './boot.ts';
 import {
-  defaultDemoDir,
-  DEMO_LEGACY_MARKER,
   DEMO_MARKER,
   demoMasterKey,
   demoProblems,
@@ -117,10 +115,6 @@ test('it refuses Postgres, production and real-looking setups unless KILN_DEMO_F
     /folder of the real server/,
   );
   assert.throws(
-    () => loadDemoConfig({ ...base, KILN_DEMO_DIR: join(dir, '.mrm-data'), KILN_DEMO_FORCE: 'true' }),
-    /folder of the real server/,
-  );
-  assert.throws(
     () => loadDemoConfig({ KILN_DEMO: 'true', KILN_DEMO_DIR: tmpdir(), KILN_DEMO_FORCE: 'true' }),
     /not a demo/,
   );
@@ -128,27 +122,14 @@ test('it refuses Postgres, production and real-looking setups unless KILN_DEMO_F
   assert.throws(() => loadDemoConfig({ ...base, KILN_DEMO_PORT: 'abc' }), /KILN_DEMO_PORT/);
 });
 
-test('a demo folder made before the rename (marker .mrm-demo) is still a demo folder, and keeps its marker', async () => {
+test('a demo folder is recognised by its .kiln-demo marker, and wiping keeps only the marker', async () => {
   const dir = freshDir();
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, DEMO_LEGACY_MARKER), '{}\n');
+  writeFileSync(join(dir, DEMO_MARKER), '{}\n');
   writeFileSync(join(dir, 'world.json'), '{}');
   assert.deepEqual(demoProblems({}, dir).hard, []);
-  const config = loadDemoConfig({ KILN_DEMO: 'true', KILN_DEMO_DIR: dir });
-  await wipe(config);
-  assert.deepEqual(readdirSync(dir), [DEMO_LEGACY_MARKER]);
-  const rt = await start(dir);
-  await rt.save();
-  const names = readdirSync(dir).filter((n) => !n.startsWith('demo.db-'));
-  assert.deepEqual(names.sort(), [DEMO_LEGACY_MARKER, 'demo.db', 'world.json'].sort());
-  await rt.close();
-});
-
-test('the default demo folder is ./.kiln-demo, or ./.mrm-demo when only that exists', () => {
-  const only = (...paths: string[]) => (p: string) => paths.includes(p);
-  assert.equal(defaultDemoDir(only()), './.kiln-demo');
-  assert.equal(defaultDemoDir(only('./.mrm-demo')), './.mrm-demo');
-  assert.equal(defaultDemoDir(only('./.mrm-demo', './.kiln-demo')), './.kiln-demo');
+  await wipe(loadDemoConfig({ KILN_DEMO: 'true', KILN_DEMO_DIR: dir }));
+  assert.deepEqual(readdirSync(dir), [DEMO_MARKER]);
 });
 
 test('the demo uses its own key, port and folder, and listens on loopback only', () => {

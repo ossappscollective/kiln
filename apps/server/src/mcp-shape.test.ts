@@ -64,8 +64,6 @@ test('secrets are removed by key and by shape', () => {
     assert.ok(!text.includes(leak), leak);
   assert.equal((value as { name: string }).name, 'ok');
   assert.equal(redactString('x kiln_abcdefghijklmnopqrstuvwxyz0123 y'), 'x [redacted] y');
-  // A token made before the rename to Kiln starts with mrm_ and is redacted the same way.
-  assert.equal(redactString('x mrm_abcdefghijklmnopqrstuvwxyz0123 y'), 'x [redacted] y');
 });
 
 test('strings, arrays and depth are capped and the cuts are reported', () => {

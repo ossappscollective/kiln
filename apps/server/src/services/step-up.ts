@@ -1,7 +1,8 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Database, Sql } from '@kiln/db';
 import type { Context } from 'hono';
-import { type AppEnv, sessionToken } from '../http.ts';
+import { getCookie } from 'hono/cookie';
+import { type AppEnv, SESSION_COOKIE_NAME } from '../http.ts';
 import { hashPassword, type ScryptCost, verifyPassword } from '../passwords.ts';
 import { recordAudit } from './audit.ts';
 import { activeEmail, checkMailCode, checkTotpCode, hasActiveTotp } from './two-factor.ts';
@@ -406,7 +407,7 @@ export function relyingParty(
 // Sessions and challenges
 
 export function sessionIdOf(c: Context): string | undefined {
-  const token = sessionToken(c);
+  const token = getCookie(c, SESSION_COOKIE_NAME);
   return token ? sha256hex(token) : undefined;
 }
 

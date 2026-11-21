@@ -146,7 +146,7 @@ dbTest('login, logout, and a session that no longer works afterwards', async (db
   assert.equal((await app.request('/api/me', { headers: { cookie } })).status, 401);
 });
 
-dbTest('the session cookie is kiln_session, and a session cookie from before the rename still works', async (db) => {
+dbTest('the session cookie is kiln_session, and the old mrm_session name is not read', async (db) => {
   const { app } = await boot(db);
   await register(app);
   const login = await app.request(
@@ -158,34 +158,15 @@ dbTest('the session cookie is kiln_session, and a session cookie from before the
   const token = cookie.slice('kiln_session='.length);
   const me = (headers: Record<string, string>) => app.request('/api/me', { headers });
 
-  // A session made before the upgrade lives in the old cookie: accepted while the new cookie is absent.
-  assert.equal((await me({ cookie: `mrm_session=${token}` })).status, 200);
-  assert.equal(
-    (await app.request('/api/auth/status', { headers: { cookie: `mrm_session=${token}` } })).status,
-    200,
-  );
-  // The new cookie wins when both are sent, so a stale old cookie never overrides it.
-  assert.equal((await me({ cookie: `kiln_session=${token}; mrm_session=stale` })).status, 200);
-  assert.equal((await me({ cookie: `kiln_session=stale; mrm_session=${token}` })).status, 401);
-
-  // Logging in again over an old cookie drops the old one.
-  const again = await app.request(
-    '/api/auth/login',
-    json({ email: 'ada@example.com', password: PASSWORD }, { cookie: `mrm_session=${token}` }),
-  );
-  const cleared = again.headers.getSetCookie();
-  assert.ok(cleared.some((c) => /^kiln_session=[^;]+/.test(c)));
-  assert.ok(cleared.some((c) => /^mrm_session=;/.test(c)));
-
-  // Sign-out ends a session that is only in the old cookie, and clears both names.
-  const out = await app.request('/api/auth/logout', {
-    method: 'POST',
-    headers: { cookie: `mrm_session=${token}` },
-  });
-  assert.equal(out.status, 204);
-  const names = out.headers.getSetCookie().map((c) => c.split('=')[0]);
-  assert.deepEqual(names.sort(), ['kiln_session', 'mrm_session']);
+  assert.equal((await me({ cookie: `kiln_session=${token}` })).status, 200);
   assert.equal((await me({ cookie: `mrm_session=${token}` })).status, 401);
+
+  const out = await app.request('/api/auth/logout', { method: 'POST', headers: { cookie } });
+  assert.equal(out.status, 204);
+  assert.deepEqual(
+    out.headers.getSetCookie().map((c) => c.split('=')[0]),
+    ['kiln_session'],
+  );
   assert.equal((await me({ cookie })).status, 401);
 });
 
