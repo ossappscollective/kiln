@@ -66,6 +66,8 @@
 <style>
   .segments {
     display: inline-flex;
+    flex-wrap: wrap;
+    max-width: 100%;
     padding: 2px;
     background: var(--surface-sunken);
     border: 1px solid var(--line);
@@ -85,8 +87,13 @@
     border-radius: calc(var(--radius-md) - 2px);
   }
 
+  /* surface-hover is nearly the colour of the track, so the hover is a tint of the ink: visible in both themes. */
   .seg:hover {
     color: var(--ink);
+  }
+
+  .seg:not([aria-selected='true']):hover {
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
   }
 
   .seg[aria-selected='true'] {

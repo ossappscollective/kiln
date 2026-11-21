@@ -3,7 +3,7 @@
   quiet line), an "About this data" popover (per series: source, how many days have data, the coverage notes of the API), the
   panels (Chart), a ranked list by app version when the source has one, and the table twin when "Show data" is on.
   The panels of a card share one hover position, so their crosshairs move together.
-  A card with money in several currencies (sales, proceeds) shows one currency at a time under tabs, the biggest first: currencies are never added up.
+  A card with money in several currencies (sales, proceeds) shows one currency at a time, the biggest first (tabs up to six, a list beyond): currencies are never added up.
   Props: card (ChartCard from lib/analytics-view.ts), today (UTC day), showData.
   Missing days are hatched, not zero: a caption says so when any day of the card is missing.
 -->
@@ -33,6 +33,8 @@
   // Money is never added across currencies. A card with several currencies shows one at a time, the biggest first, instead of one chart each.
   const currencies = $derived(cardCurrencies(card));
   const choose = $derived(currencies.length > 1);
+  // A handful fit as tabs; Apple can pay in twenty currencies, which would run off the card: those get a list.
+  const asTabs = $derived(choose && currencies.length <= 6);
   const currency = $derived(chosen !== undefined && currencies.includes(chosen) ? chosen : (currencies[0] ?? ''));
   const shown = $derived(choose ? panelsForCurrency(card, currency) : card.panels);
 
@@ -65,15 +67,23 @@
   {/snippet}
   <div class="chart-card">
     {#if fresh[0]}<p class="fresh">{fresh[0]}</p>{/if}
-    {#if choose}
+    {#if asTabs}
       <SegmentTabs tabs={currencies.map((c) => ({ id: c, label: c }))} bind:value={chosen} label="Currency of {card.title}" idPrefix="{uid}-cur" />
+    {:else if choose}
+      <div class="currency-pick row">
+        <label for="{uid}-cur">Currency</label>
+        <select id="{uid}-cur" value={currency} onchange={(event) => (chosen = event.currentTarget.value)}>
+          {#each currencies as c (c)}<option value={c}>{c}</option>{/each}
+        </select>
+        <span class="muted text-sm">{currencies.length} currencies, the biggest first. They are never added together.</span>
+      </div>
     {/if}
     <div
       class="panels"
       class:multi={shown.length > 1}
-      role={choose ? 'tabpanel' : undefined}
-      id={choose ? segmentIds(`${uid}-cur`, currency).panel : undefined}
-      aria-labelledby={choose ? segmentIds(`${uid}-cur`, currency).tab : undefined}
+      role={asTabs ? 'tabpanel' : undefined}
+      id={asTabs ? segmentIds(`${uid}-cur`, currency).panel : undefined}
+      aria-labelledby={asTabs ? segmentIds(`${uid}-cur`, currency).tab : undefined}
     >
       {#each shown as panel (panel.id)}
         <Chart {panel} cardTitle={card.title} {dates} {today} bind:hover />
@@ -111,6 +121,16 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
+  }
+
+  .currency-pick {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .currency-pick select {
+    min-width: 6rem;
   }
 
   .about {
