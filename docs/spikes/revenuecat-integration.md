@@ -2,7 +2,8 @@
 
 **Question:** how should RevenueCat appear on the Products page ([ADR 0034](../adr/0034-in-app-products.md))?
 
-**Status:** proposal, nothing built. RevenueCat's REST API v2 docs were read on 2026-11-21 (pages under
+**Status:** v1 built, see [ADR 0039](../adr/0039-revenuecat.md) and [api/revenuecat](../api/revenuecat.md) (the overview and metrics strip of
+sections 1 and 5 is v2 and not built; no store price writes, section 6). The spike below is the proposal as approved, written from RevenueCat's REST API v2 docs read on 2026-11-21 (pages under
 https://www.revenuecat.com/docs/api-v2/ and the guides cited below). Everything not on a page I read is marked **UNVERIFIED** and
 collected in section 8. Like ADR 0034, nothing here has run against a real RevenueCat project.
 

@@ -55,6 +55,10 @@ warnings, syncedAt } }`. Not behind the write switch.
 - A read that hit a cap or a missing sub-resource is `complete: false` with `warnings`; it replaces only the products it listed.
 - A failed read keeps the previous snapshot and records `lastError` and `failures` (the message has no secret in it).
 - Audit `monetization.synced` (counts only). Timeout 180 s (`504 timeout`).
+- **Second step, RevenueCat.** When the app is linked to a RevenueCat project ([api/revenuecat](revenuecat.md)), the sync then reads RevenueCat and
+  the answer also carries `revenuecat` (`null` without a link, `{ ok: true, ... }` or `{ ok: false, code, message }`). The steps are independent: a RevenueCat
+  failure never touches the store snapshot or the status of this call, and a store failure does not stop the RevenueCat step (its result is in the error
+  body). The joined view is `GET /apps/{appId}/revenuecat/products`; this page's list is unchanged.
 
 ## `PUT /apps/{appId}/products/{productId}/localizations/{locale}`
 

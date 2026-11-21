@@ -171,6 +171,19 @@ connection test asks Expo who the token belongs to and which accounts it can see
 [spikes/credential-guides-unverified.md](spikes/credential-guides-unverified.md)). The tool only reads project details with it for
 now, but the token can do whatever its role can, so keep it private. Docs: https://docs.expo.dev/accounts/programmatic-access/
 
+## RevenueCat secret API key
+
+RevenueCat ([api/revenuecat](api/revenuecat.md), [ADR 0039](adr/0039-revenuecat.md)) needs a **V2 secret API key** of the kind **RevenueCat
+secret key** (`revenuecat`), made by a project Admin in the RevenueCat dashboard (the project, API keys, Secret API keys, New secret API
+key, version V2). Allow **read only** on the project configuration (projects, apps, products, entitlements, offerings, packages) and
+nothing else: no write permission, no customer information, no charts or metrics. The key is shown once, is stored encrypted and is never
+returned. The connection test asks which projects the key sees and how many apps each has. A key belongs to one project, so a workspace
+with several RevenueCat projects saves one credential each. Version 1 keys and the public SDK keys do not work with this API. RevenueCat
+allows 60 reads a minute for the project configuration, shared by everything that uses the same key. How the dashboard groups the
+permissions is **unverified** (see the ADR); if it offers only a whole domain, choose read only for it. The tool only reads configuration
+with it, but a leaked secret key is high value, so keep it private and revoke it when someone who knew it leaves. Docs:
+https://www.revenuecat.com/docs/projects/authentication
+
 ## Analytics (what the same credentials need)
 
 Analytics ([api/analytics](api/analytics.md)) reads numbers only. **None of this was tried against a real store; check each item with your account** ([research](research/analytics-apis.md)).
