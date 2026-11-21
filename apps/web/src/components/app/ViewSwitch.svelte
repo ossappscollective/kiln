@@ -49,6 +49,6 @@
   a[aria-current='page'] {
     color: var(--ink);
     background: var(--surface);
-    box-shadow: var(--shadow-sm, 0 1px 2px rgb(0 0 0 / 8%));
+    box-shadow: var(--shadow-sm);
   }
 </style>

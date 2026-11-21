@@ -1,140 +1,13 @@
 /*
- * Design tokens and global styles. Color values mirror src/lib/tokens.ts (a test checks it).
+ * Global styles: reset, type, forms, buttons, tables and the other shared classes of the web app.
+ * Every color, radius, shadow, font and glow below is a token from styles/theme.css (the one place to retheme).
+ * The brand-gradient accents (primary button, page header, summary-card edge) are in styles/accents.css, loaded after
+ * this file (main.ts), because they refine the buttons and the page header defined here.
  * Spacing follows a 4px grid. See docs/design-system.md.
  */
+@import "./styles/theme.css";
 
-/* ---------- Tokens: light (default) ---------- */
 :root {
-  color-scheme: light;
-
-  /* surfaces */
-  --ground: #f6f7f9;
-  --surface: #ffffff;
-  --surface-sunken: #f0f2f5;
-  --surface-hover: #f3f4f7;
-  --surface-active: #e8ebf0;
-  /* text */
-  --ink: #151922;
-  --muted: #566074;
-  --faint: #626c7f;
-  /* borders */
-  --line: #e1e4ea;
-  --line-strong: #c9ced8;
-  --line-hover: #aeb5c2;
-  /* accent */
-  --accent: #3453d4;
-  --accent-hover: #2a44b3;
-  --accent-ink: #ffffff;
-  --accent-bg: #edf0fc;
-  /* success */
-  --ok-bg: #e6f5ec;
-  --ok-ink: #14612f;
-  --ok: #1f8a4c;
-  --ok-line: #b9e2c7;
-  /* danger */
-  --bad-bg: #fdecea;
-  --bad-ink: #9b1c14;
-  --bad: #d92d20;
-  --bad-line: #f7c1bb;
-  --danger-solid: #c8281c;
-  --danger-solid-hover: #a81f15;
-  --danger-solid-ink: #ffffff;
-  /* warning */
-  --warn-bg: #fdf3da;
-  --warn-ink: #6b4700;
-  --warn: #b45309;
-  --warn-line: #f1d58a;
-  /* info */
-  --info-bg: #e8f1fd;
-  --info-ink: #164a8a;
-  --info: #2f6fd0;
-  --info-line: #bcd5f5;
-  /* platform tints: one hue per platform, so iOS, macOS and Android never look alike */
-  --platform-ios-bg: #e1f1fc;
-  --platform-ios-ink: #0b4f80;
-  --platform-ios-line: #b3d6ee;
-  --platform-macos-bg: #efe9fb;
-  --platform-macos-ink: #4a2f94;
-  --platform-macos-line: #d0c3f0;
-  --platform-android-bg: #e4f5dc;
-  --platform-android-ink: #2f5d10;
-  --platform-android-line: #c0e0ae;
-
-  --scrim: rgb(16 24 40 / 0.5);
-  --focus-soft: rgb(52 83 212 / 0.24);
-  --shadow-xs: 0 1px 2px rgb(16 24 40 / 0.05);
-  --shadow-sm: 0 1px 3px rgb(16 24 40 / 0.08), 0 1px 2px rgb(16 24 40 / 0.05);
-  --shadow-md: 0 4px 12px rgb(16 24 40 / 0.08), 0 2px 4px rgb(16 24 40 / 0.05);
-  --shadow-lg: 0 16px 40px rgb(16 24 40 / 0.16), 0 4px 10px rgb(16 24 40 / 0.06);
-  --skeleton-from: #eceff3;
-  --skeleton-to: #f6f7f9;
-
-  /* Type */
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    "Noto Sans", sans-serif;
-  --font-mono:
-    ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  --text-xs: 0.75rem;
-  --text-sm: 0.8125rem;
-  --text-base: 0.875rem;
-  --text-md: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.25rem;
-  --text-2xl: 1.5rem;
-  --text-3xl: 1.875rem;
-  --leading-tight: 1.25;
-  --leading-snug: 1.4;
-  --leading-normal: 1.5;
-  --weight-regular: 400;
-  --weight-medium: 500;
-  --weight-semibold: 600;
-
-  /* Spacing: a 4px grid */
-  --space-0: 0;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 48px;
-  --space-16: 64px;
-
-  /* Radii */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
-  --radius-full: 999px;
-
-  /* Control heights */
-  --control-sm: 28px;
-  --control-md: 36px;
-  --control-lg: 40px;
-
-  /* Layout */
-  --sidebar-width: 248px;
-  --topbar-height: 56px;
-  --content-width: 1120px;
-
-  /* Motion */
-  --duration-fast: 100ms;
-  --duration-base: 160ms;
-  --duration-slow: 240ms;
-  --ease: cubic-bezier(0.2, 0, 0, 1);
-
-  /* Layers */
-  --z-sticky: 10;
-  --z-sidebar: 20;
-  --z-dropdown: 30;
-  --z-overlay: 40;
-  --z-modal: 50;
-  --z-toast: 60;
-  --z-tooltip: 70;
-
   font-family: var(--font-sans);
   font-size: 16px;
   line-height: var(--leading-normal);
@@ -142,140 +15,6 @@
   background: var(--ground);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-}
-
-/* ---------- Tokens: dark, chosen by the person ---------- */
-:root[data-theme="dark"] {
-  color-scheme: dark;
-
-  /* surfaces */
-  --ground: #0e1116;
-  --surface: #151921;
-  --surface-sunken: #1a1f28;
-  --surface-hover: #1b202a;
-  --surface-active: #232936;
-  /* text */
-  --ink: #e9ebf0;
-  --muted: #9ba3b2;
-  --faint: #8c95a5;
-  /* borders */
-  --line: #262c37;
-  --line-strong: #363e4c;
-  --line-hover: #4b5566;
-  /* accent */
-  --accent: #8da2f7;
-  --accent-hover: #a6b6fa;
-  --accent-ink: #0b1020;
-  --accent-bg: #1c2446;
-  /* success */
-  --ok-bg: #12301f;
-  --ok-ink: #86dfa4;
-  --ok: #3fb870;
-  --ok-line: #1f4d33;
-  /* danger */
-  --bad-bg: #3a1714;
-  --bad-ink: #ffaca3;
-  --bad: #f2685c;
-  --bad-line: #5c2621;
-  --danger-solid: #e5584c;
-  --danger-solid-hover: #ef7a70;
-  --danger-solid-ink: #1a0603;
-  /* warning */
-  --warn-bg: #35290a;
-  --warn-ink: #f3cf78;
-  --warn: #e3a834;
-  --warn-line: #574411;
-  /* info */
-  --info-bg: #14284a;
-  --info-ink: #a7c8f8;
-  --info: #5b9be8;
-  --info-line: #213f70;
-  --platform-ios-bg: #0f2b40;
-  --platform-ios-ink: #9fd2f5;
-  --platform-ios-line: #1d4a6c;
-  --platform-macos-bg: #261c47;
-  --platform-macos-ink: #cbb9f7;
-  --platform-macos-line: #43347a;
-  --platform-android-bg: #1f3112;
-  --platform-android-ink: #b5e08f;
-  --platform-android-line: #35521f;
-
-  --scrim: rgb(2 4 8 / 0.64);
-  --focus-soft: rgb(141 162 247 / 0.32);
-  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.5), 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.5), 0 2px 4px rgb(0 0 0 / 0.4);
-  --shadow-lg: 0 16px 40px rgb(0 0 0 / 0.6), 0 4px 10px rgb(0 0 0 / 0.4);
-  --skeleton-from: #1d222c;
-  --skeleton-to: #262c38;
-}
-
-/* ---------- Tokens: dark, from the system setting unless the person chose light ---------- */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-
-    /* surfaces */
-    --ground: #0e1116;
-    --surface: #151921;
-    --surface-sunken: #1a1f28;
-    --surface-hover: #1b202a;
-    --surface-active: #232936;
-    /* text */
-    --ink: #e9ebf0;
-    --muted: #9ba3b2;
-    --faint: #8c95a5;
-    /* borders */
-    --line: #262c37;
-    --line-strong: #363e4c;
-    --line-hover: #4b5566;
-    /* accent */
-    --accent: #8da2f7;
-    --accent-hover: #a6b6fa;
-    --accent-ink: #0b1020;
-    --accent-bg: #1c2446;
-    /* success */
-    --ok-bg: #12301f;
-    --ok-ink: #86dfa4;
-    --ok: #3fb870;
-    --ok-line: #1f4d33;
-    /* danger */
-    --bad-bg: #3a1714;
-    --bad-ink: #ffaca3;
-    --bad: #f2685c;
-    --bad-line: #5c2621;
-    --danger-solid: #e5584c;
-    --danger-solid-hover: #ef7a70;
-    --danger-solid-ink: #1a0603;
-    /* warning */
-    --warn-bg: #35290a;
-    --warn-ink: #f3cf78;
-    --warn: #e3a834;
-    --warn-line: #574411;
-    /* info */
-    --info-bg: #14284a;
-    --info-ink: #a7c8f8;
-    --info: #5b9be8;
-    --info-line: #213f70;
-    --platform-ios-bg: #0f2b40;
-    --platform-ios-ink: #9fd2f5;
-    --platform-ios-line: #1d4a6c;
-    --platform-macos-bg: #261c47;
-    --platform-macos-ink: #cbb9f7;
-    --platform-macos-line: #43347a;
-    --platform-android-bg: #1f3112;
-    --platform-android-ink: #b5e08f;
-    --platform-android-line: #35521f;
-
-    --scrim: rgb(2 4 8 / 0.64);
-    --focus-soft: rgb(141 162 247 / 0.32);
-    --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.5), 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-md: 0 4px 12px rgb(0 0 0 / 0.5), 0 2px 4px rgb(0 0 0 / 0.4);
-    --shadow-lg: 0 16px 40px rgb(0 0 0 / 0.6), 0 4px 10px rgb(0 0 0 / 0.4);
-    --skeleton-from: #1d222c;
-    --skeleton-to: #262c38;
-  }
 }
 
 /* ---------- Reset and base ---------- */
@@ -331,6 +70,16 @@ h4 {
   font-weight: var(--weight-semibold);
   color: var(--ink);
   text-wrap: balance;
+}
+
+/* Headings and figures use the display face (Space Grotesk when installed). */
+h1,
+h2,
+h3,
+.display,
+.stat-value {
+  font-family: var(--font-display);
+  font-weight: var(--weight-display);
 }
 
 h1 {
@@ -398,6 +147,12 @@ td,
   font-variant-numeric: tabular-nums;
 }
 
+/* A big figure (a stat, a total): display face, tabular, tight. */
+.stat-value {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
 code,
 kbd,
 samp,
@@ -453,8 +208,15 @@ a:hover {
 
 /* ---------- Focus ---------- */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--ring);
   outline-offset: 2px;
+}
+
+/* The halo (decorative) comes with the ring on controls that have no shadow of their own to keep. */
+button:focus-visible,
+.btn:focus-visible,
+a:focus-visible {
+  box-shadow: var(--halo);
 }
 
 :focus:not(:focus-visible) {
@@ -479,7 +241,7 @@ textarea {
   padding: 0 var(--space-3);
   font: inherit;
   color: var(--ink);
-  background-color: var(--surface);
+  background-color: var(--field-bg);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-xs);
@@ -502,7 +264,7 @@ select {
   padding-right: var(--space-8);
   appearance: none;
   cursor: pointer;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a93a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a82b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right var(--space-2) center;
   background-size: 16px;
@@ -523,9 +285,9 @@ textarea:hover:not(:disabled):not(:focus) {
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--accent);
+  border-color: var(--focus);
   outline: 2px solid transparent;
-  box-shadow: 0 0 0 3px var(--focus-soft);
+  box-shadow: var(--halo);
 }
 
 input:disabled,
@@ -548,7 +310,7 @@ input[aria-invalid="true"]:focus,
 select[aria-invalid="true"]:focus,
 textarea[aria-invalid="true"]:focus {
   border-color: var(--bad);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 24%, transparent);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--bad) 24%, transparent);
 }
 
 input:user-invalid {
@@ -694,13 +456,13 @@ button.primary,
 .btn.primary {
   color: var(--accent-ink);
   background: var(--accent);
-  border-color: var(--accent);
+  border-color: transparent;
 }
 
 button.primary:hover:not(:disabled),
 .btn.primary:hover {
   background: var(--accent-hover);
-  border-color: var(--accent-hover);
+  border-color: transparent;
 }
 
 button.primary:active:not(:disabled),
@@ -950,7 +712,7 @@ button.link.loading::before {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--shadow-card);
 }
 
 .card.flush {
@@ -959,6 +721,7 @@ button.link.loading::before {
 }
 
 .card.raised {
+  background: var(--raised);
   box-shadow: var(--shadow-md);
 }
 
@@ -1000,9 +763,9 @@ button.link.loading::before {
   width: 6px;
   height: 6px;
   content: "";
-  background: currentColor;
+  background: var(--dot-color, currentColor);
   border-radius: 50%;
-  opacity: 0.9;
+  box-shadow: 0 0 var(--dot-glow-blur) var(--dot-color, transparent);
 }
 
 .badge.ok,
@@ -1033,29 +796,29 @@ button.link.loading::before {
 }
 
 .badge.accent {
-  color: var(--accent);
-  background: var(--accent-bg);
+  color: var(--chip-ink);
+  background: var(--chip-bg);
   border-color: transparent;
 }
 
 /* The dot keeps the solid status color even when the text is the darker ink. */
-.badge.ok.dot::before,
-.badge.success.dot::before {
-  background: var(--ok);
+.badge.ok.dot,
+.badge.success.dot {
+  --dot-color: var(--ok);
 }
 
-.badge.bad.dot::before,
-.badge.danger.dot::before {
-  background: var(--bad);
+.badge.bad.dot,
+.badge.danger.dot {
+  --dot-color: var(--bad);
 }
 
-.badge.warn.dot::before,
-.badge.warning.dot::before {
-  background: var(--warn);
+.badge.warn.dot,
+.badge.warning.dot {
+  --dot-color: var(--warn);
 }
 
-.badge.info.dot::before {
-  background: var(--info);
+.badge.info.dot {
+  --dot-color: var(--info);
 }
 
 /* ---------- Alert ---------- */
@@ -1184,9 +947,14 @@ th {
   background: var(--surface-sunken);
 }
 
+/* Column headers: small, uppercase, quiet, on the card itself. */
 thead th {
   padding-top: var(--space-2);
   padding-bottom: var(--space-2);
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: transparent;
 }
 
 tbody tr {
@@ -1209,6 +977,7 @@ tbody tr:last-child > th {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }
 
 .card > table {
@@ -1224,6 +993,7 @@ table.sticky thead th {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
+  background: var(--surface);
   box-shadow: 0 1px 0 var(--line);
 }
 
@@ -1240,6 +1010,25 @@ th.num {
 
 td.actions {
   text-align: right;
+}
+
+/* ---------- Sidebar navigation: the current item ---------- */
+/* A soft gradient wash and a 4px gradient bar with a violet glow on the left edge (decorative: a pseudo-element).
+   Shared by Shell.svelte and app/AppNav.svelte, which keep the colour and weight of the item. */
+.sidebar nav a[aria-current="page"] {
+  position: relative;
+  background: var(--nav-active-bg);
+}
+
+.sidebar nav a[aria-current="page"]::before {
+  position: absolute;
+  inset: 6px auto 6px 0;
+  width: 4px;
+  pointer-events: none;
+  content: "";
+  background: var(--brand-gradient-vertical);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  box-shadow: var(--nav-bar-glow);
 }
 
 /* ---------- Skeleton and spinner ---------- */

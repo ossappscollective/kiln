@@ -1,5 +1,5 @@
 <!--
-  Logo: the Kiln mark, two nested arches (a kiln door) with a glow, on a dark rounded square. The colours are the mark's own and do not follow the theme.
+  Logo: the Kiln mark, two nested arches (a kiln door) with a glow, on a dark rounded square. The colours are the brand gradient tokens (--brand-*, --brand-mark-* in styles/theme.css), the same in both themes.
   Props: size = 32 (px), wordmark (shows the product name beside the mark), title? (accessible
   name when the mark stands alone; without it the mark is decorative).
 -->
@@ -27,9 +27,9 @@
   >
     {#if title && !wordmark}<title>{title}</title>{/if}
     <defs>
-      <linearGradient id="{uid}-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#171b3d" /><stop offset="1" stop-color="#0b0d22" /></linearGradient>
+      <linearGradient id="{uid}-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color: var(--brand-mark-top)" /><stop offset="1" style="stop-color: var(--brand-mark-bottom)" /></linearGradient>
       <linearGradient id="{uid}-fg" gradientUnits="userSpaceOnUse" x1="0" y1="20" x2="0" y2="100">
-        <stop offset="0" stop-color="#7f99ff" /><stop offset="0.55" stop-color="#a98bff" /><stop offset="1" stop-color="#ffb04a" />
+        <stop offset="0" style="stop-color: var(--brand-blue)" /><stop offset="0.55" style="stop-color: var(--brand-violet)" /><stop offset="1" style="stop-color: var(--brand-ember)" />
       </linearGradient>
     </defs>
     <rect width="120" height="120" rx="30" fill="url(#{uid}-bg)" />
@@ -53,7 +53,8 @@
 
   .name {
     overflow: hidden;
-    font-weight: var(--weight-semibold);
+    font-family: var(--font-display);
+    font-weight: var(--weight-display);
     color: var(--ink);
     text-overflow: ellipsis;
     letter-spacing: -0.01em;

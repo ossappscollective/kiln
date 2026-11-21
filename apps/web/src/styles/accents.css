@@ -1,0 +1,114 @@
+/*
+ * The brand-gradient accents, and only these (docs/design-system.md, "Where the gradient is used"):
+ *   primary button . page title (h1.page-title, .gradient-title) and header glow . top edge of summary cards (.accent-edge)
+ * The other accents are token-driven in their own components: the logo (Logo.svelte), the active navigation item
+ * (--nav-active-bg, --brand-gradient-vertical, --nav-bar-glow), the selected segment (--seg-selected-ring), the focus
+ * ring (--ring, --halo) and the chart line (--viz-*). Every value here is a token from theme.css.
+ * Loaded after app.css (main.ts), so these rules refine the shared button and page-header classes.
+ * Glows are decorative: pseudo-elements and backgrounds only, never content, and cut under reduced motion where animated.
+ */
+
+/* ---------- Primary button: a blue to violet gradient with a glow ---------- */
+button.primary,
+.btn.primary {
+  color: var(--accent-ink);
+  background: var(--primary-gradient);
+  border-color: transparent;
+  box-shadow: var(--btn-glow);
+}
+
+button.primary:hover:not(:disabled),
+.btn.primary:hover {
+  background: var(--primary-gradient);
+  filter: brightness(1.08);
+}
+
+button.primary:active:not(:disabled),
+.btn.primary:active {
+  background: var(--primary-gradient);
+  filter: brightness(0.95);
+}
+
+button.primary:focus-visible,
+.btn.primary:focus-visible {
+  box-shadow: var(--halo), var(--btn-glow);
+}
+
+button.primary:disabled,
+.btn.primary[aria-disabled="true"] {
+  box-shadow: none;
+}
+
+/* A solid destructive button keeps its own color and has no gradient. */
+button.primary.danger,
+.btn.primary.danger {
+  background: var(--danger-solid);
+  box-shadow: none;
+}
+
+button.primary.danger:hover:not(:disabled),
+.btn.primary.danger:hover {
+  background: var(--danger-solid-hover);
+  filter: none;
+}
+
+button.primary.danger:active:not(:disabled),
+.btn.primary.danger:active {
+  background: var(--danger-solid-hover);
+  filter: none;
+}
+
+/* ---------- Page header: an ambient glow at the top right, and a gradient page title ---------- */
+.page-header {
+  position: relative;
+  isolation: isolate;
+}
+
+.page-header:has(h1.page-title)::before {
+  position: absolute;
+  inset: calc(var(--space-6) * -1) calc(var(--space-4) * -1) calc(var(--space-2) * -1) 30%;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  background: var(--ambient);
+}
+
+h1.page-title,
+.gradient-title {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--ink);
+}
+
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  h1.page-title,
+  .gradient-title {
+    color: transparent;
+    background: var(--title-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+}
+
+@media (forced-colors: active) {
+  h1.page-title,
+  .gradient-title {
+    color: CanvasText;
+    background: none;
+  }
+}
+
+/* ---------- Summary cards: a 2px gradient edge along the top ---------- */
+.accent-edge {
+  position: relative;
+}
+
+.accent-edge::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  pointer-events: none;
+  content: "";
+  background: var(--brand-gradient-horizontal);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}

@@ -1,46 +1,55 @@
 /**
- * Color tokens for both themes. `app.css` mirrors these hex values exactly (a test enforces it),
+ * Solid color tokens for both themes. `styles/theme.css` mirrors these hex values exactly (a test enforces it)
  * and `contrast.test.ts` checks the text and graphic pairs below against WCAG 2.2 AA.
- * Edit a color here and in `app.css` together. Shadows, radii, spacing and type live in
- * `app.css` only because they are not colors.
+ * Edit a color here and in `styles/theme.css` together. Everything else of the look (translucent borders, shadows,
+ * glows, gradients, radii, spacing, type) lives in `styles/theme.css` only because it is not a solid color.
  */
 
 export const themeNames = ['light', 'dark'] as const;
 export type ThemeName = (typeof themeNames)[number];
 
 const light = {
-  // Surfaces, from the page background up to raised and interactive layers.
-  ground: '#f6f7f9',
+  // Surfaces: the page, the sidebar, then cards and the raised, sunken (a segmented-control track, a code block) and pressed layers.
+  ground: '#f5f6fd',
+  sidebar: '#ffffff',
   surface: '#ffffff',
-  'surface-sunken': '#f0f2f5',
-  'surface-hover': '#f3f4f7',
-  'surface-active': '#e8ebf0',
+  'surface-sunken': '#eceefb',
+  'surface-hover': '#f7f8ff',
+  'surface-active': '#e2e5f8',
   // Text.
-  ink: '#151922',
-  muted: '#566074',
-  faint: '#626c7f',
-  // Borders.
-  line: '#e1e4ea',
-  'line-strong': '#c9ced8',
-  'line-hover': '#aeb5c2',
-  // The one accent.
-  accent: '#3453d4',
-  'accent-hover': '#2a44b3',
+  ink: '#14173a',
+  muted: '#545a8c',
+  faint: '#5f6596',
+  // The accent: links, focus and selected tints. `chip-ink` is the text on `accent-bg`; `focus` is the ring.
+  accent: '#4552d9',
+  'accent-hover': '#3640b8',
   'accent-ink': '#ffffff',
-  'accent-bg': '#edf0fc',
+  'accent-bg': '#eff0fd',
+  'chip-ink': '#3a45b8',
+  focus: '#6d4bdc',
+  // The primary button gradient runs from `primary-from` to `primary-to` (the text on it is `accent-ink`); `title-end` is where the page-title gradient ends.
+  'primary-from': '#4552d9',
+  'primary-to': '#6a4fe0',
+  'title-end': '#5b3fd0',
   // Semantic: a tint for backgrounds, ink for text on it, a solid for dots and icons, a border.
-  'ok-bg': '#e6f5ec',
-  'ok-ink': '#14612f',
-  ok: '#1f8a4c',
-  'ok-line': '#b9e2c7',
+  'ok-bg': '#e3f5ee',
+  'ok-ink': '#0b6e4f',
+  ok: '#0b7a57',
+  'ok-line': '#b5e3d0',
+  // Danger, with the solid destructive button.
   'bad-bg': '#fdecea',
   'bad-ink': '#9b1c14',
   bad: '#d92d20',
   'bad-line': '#f7c1bb',
+  'danger-solid': '#c8281c',
+  'danger-solid-hover': '#a81f15',
+  'danger-solid-ink': '#ffffff',
+  // Warning.
   'warn-bg': '#fdf3da',
-  'warn-ink': '#6b4700',
+  'warn-ink': '#8a5200',
   warn: '#b45309',
   'warn-line': '#f1d58a',
+  // Info.
   'info-bg': '#e8f1fd',
   'info-ink': '#164a8a',
   info: '#2f6fd0',
@@ -55,47 +64,63 @@ const light = {
   'platform-android-bg': '#e4f5dc',
   'platform-android-ink': '#2f5d10',
   'platform-android-line': '#c0e0ae',
-  // Solid destructive button.
-  'danger-solid': '#c8281c',
-  'danger-solid-hover': '#a81f15',
-  'danger-solid-ink': '#ffffff',
+  // Chart marks: series 1 and 2, and the middle and end of the single-series line gradient.
+  'viz-1': '#4552d9',
+  'viz-2': '#c96a00',
+  'viz-mid': '#7a54e6',
+  'viz-end': '#c96a00',
   // Loading placeholders.
-  'skeleton-from': '#eceff3',
-  'skeleton-to': '#f6f7f9',
+  'skeleton-from': '#eceefb',
+  'skeleton-to': '#f5f6fd',
 } as const;
 
 const dark: Record<keyof typeof light, string> = {
-  ground: '#0e1116',
-  surface: '#151921',
-  'surface-sunken': '#1a1f28',
-  'surface-hover': '#1b202a',
-  'surface-active': '#232936',
-  ink: '#e9ebf0',
-  muted: '#9ba3b2',
-  faint: '#8c95a5',
-  line: '#262c37',
-  'line-strong': '#363e4c',
-  'line-hover': '#4b5566',
-  accent: '#8da2f7',
-  'accent-hover': '#a6b6fa',
-  'accent-ink': '#0b1020',
-  'accent-bg': '#1c2446',
-  'ok-bg': '#12301f',
-  'ok-ink': '#86dfa4',
-  ok: '#3fb870',
-  'ok-line': '#1f4d33',
-  'bad-bg': '#3a1714',
-  'bad-ink': '#ffaca3',
-  bad: '#f2685c',
-  'bad-line': '#5c2621',
-  'warn-bg': '#35290a',
-  'warn-ink': '#f3cf78',
-  warn: '#e3a834',
-  'warn-line': '#574411',
-  'info-bg': '#14284a',
-  'info-ink': '#a7c8f8',
-  info: '#5b9be8',
-  'info-line': '#213f70',
+  // Surfaces: the page, the sidebar, then cards and the raised, sunken (a segmented-control track, a code block) and pressed layers.
+  ground: '#0b0d22',
+  sidebar: '#0d1029',
+  surface: '#141838',
+  'surface-sunken': '#0e1130',
+  'surface-hover': '#181d45',
+  'surface-active': '#232a63',
+  // Text.
+  ink: '#eceeff',
+  muted: '#a3a9d6',
+  faint: '#8f96c9',
+  // The accent: links, focus and selected tints. `chip-ink` is the text on `accent-bg`; `focus` is the ring.
+  accent: '#7f99ff',
+  'accent-hover': '#9bb0ff',
+  'accent-ink': '#0b0d22',
+  'accent-bg': '#232a54',
+  'chip-ink': '#b9c6ff',
+  focus: '#a98bff',
+  // The primary button gradient runs from `primary-from` to `primary-to` (the text on it is `accent-ink`); `title-end` is where the page-title gradient ends.
+  'primary-from': '#7f99ff',
+  'primary-to': '#a98bff',
+  'title-end': '#a98bff',
+  // Semantic: a tint for backgrounds, ink for text on it, a solid for dots and icons, a border.
+  'ok-bg': '#1e3449',
+  'ok-ink': '#5ee0b0',
+  ok: '#5ee0b0',
+  'ok-line': '#2a545c',
+  // Danger, with the solid destructive button.
+  'bad-bg': '#352644',
+  'bad-ink': '#ff9aa6',
+  bad: '#ff7a8a',
+  'bad-line': '#5a3551',
+  'danger-solid': '#ff6b7d',
+  'danger-solid-hover': '#ff8e9b',
+  'danger-solid-ink': '#1c0610',
+  // Warning.
+  'warn-bg': '#352d3a',
+  'warn-ink': '#ffb04a',
+  warn: '#ffb04a',
+  'warn-line': '#5a463d',
+  // Info.
+  'info-bg': '#1f3252',
+  'info-ink': '#8fe0f7',
+  info: '#5fd0f0',
+  'info-line': '#2a4f6f',
+  // Platform tints (iOS sky, macOS violet, Android lime): the glyph and the name still say which.
   'platform-ios-bg': '#0f2b40',
   'platform-ios-ink': '#9fd2f5',
   'platform-ios-line': '#1d4a6c',
@@ -105,11 +130,14 @@ const dark: Record<keyof typeof light, string> = {
   'platform-android-bg': '#1f3112',
   'platform-android-ink': '#b5e08f',
   'platform-android-line': '#35521f',
-  'danger-solid': '#e5584c',
-  'danger-solid-hover': '#ef7a70',
-  'danger-solid-ink': '#1a0603',
-  'skeleton-from': '#1d222c',
-  'skeleton-to': '#262c38',
+  // Chart marks: series 1 and 2, and the middle and end of the single-series line gradient.
+  'viz-1': '#7f99ff',
+  'viz-2': '#ffb04a',
+  'viz-mid': '#a98bff',
+  'viz-end': '#ffb04a',
+  // Loading placeholders.
+  'skeleton-from': '#181d45',
+  'skeleton-to': '#232a63',
 };
 
 export type TokenName = keyof typeof light;
@@ -119,25 +147,36 @@ export const palette: Record<ThemeName, Record<TokenName, string>> = { light, da
 export const textPairs: ReadonlyArray<readonly [TokenName, TokenName, number]> = [
   ['ink', 'surface', 7],
   ['ink', 'ground', 7],
+  ['ink', 'sidebar', 7],
   ['ink', 'surface-sunken', 7],
   ['ink', 'surface-hover', 7],
   ['ink', 'surface-active', 7],
   ['ink', 'accent-bg', 7],
   ['muted', 'surface', 4.5],
   ['muted', 'ground', 4.5],
+  ['muted', 'sidebar', 4.5],
   ['muted', 'surface-sunken', 4.5],
   ['muted', 'surface-hover', 4.5],
   ['muted', 'surface-active', 4.5],
   ['faint', 'surface', 4.5],
   ['faint', 'ground', 4.5],
+  ['faint', 'sidebar', 4.5],
   ['faint', 'surface-sunken', 4.5],
+  ['faint', 'surface-hover', 4.5],
   ['accent', 'surface', 4.5],
   ['accent', 'ground', 4.5],
+  ['accent', 'sidebar', 4.5],
   ['accent', 'surface-sunken', 4.5],
   ['accent', 'surface-hover', 4.5],
   ['accent', 'accent-bg', 4.5],
   ['accent-ink', 'accent', 4.5],
   ['accent-ink', 'accent-hover', 4.5],
+  ['accent-ink', 'primary-from', 4.5],
+  ['accent-ink', 'primary-to', 4.5],
+  ['chip-ink', 'accent-bg', 4.5],
+  ['chip-ink', 'surface', 4.5],
+  ['title-end', 'ground', 4.5],
+  ['title-end', 'surface', 4.5],
   ['ok-ink', 'ok-bg', 4.5],
   ['ok-ink', 'surface', 4.5],
   ['bad-ink', 'bad-bg', 4.5],
@@ -157,8 +196,11 @@ export const textPairs: ReadonlyArray<readonly [TokenName, TokenName, number]> =
   ['danger-solid-ink', 'danger-solid-hover', 4.5],
 ];
 
-/** Graphics that need 3:1 (WCAG 1.4.11): the focus ring and the status dots and icons. */
+/** Graphics that need 3:1 (WCAG 1.4.11): the focus ring, the status dots and icons, the chart marks. */
 export const graphicPairs: ReadonlyArray<readonly [TokenName, TokenName, number]> = [
+  ['focus', 'surface', 3],
+  ['focus', 'ground', 3],
+  ['focus', 'sidebar', 3],
   ['accent', 'surface', 3],
   ['accent', 'ground', 3],
   ['ok', 'surface', 3],
@@ -169,6 +211,10 @@ export const graphicPairs: ReadonlyArray<readonly [TokenName, TokenName, number]
   ['bad', 'bad-bg', 3],
   ['warn', 'warn-bg', 3],
   ['info', 'info-bg', 3],
+  ['viz-1', 'surface', 3],
+  ['viz-2', 'surface', 3],
+  ['viz-mid', 'surface', 3],
+  ['viz-end', 'surface', 3],
 ];
 
 function channel(value: number): number {

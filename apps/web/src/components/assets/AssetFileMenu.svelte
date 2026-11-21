@@ -106,7 +106,7 @@
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-md, 0 8px 24px rgb(0 0 0 / 0.18));
+    box-shadow: var(--shadow-md);
   }
   .list button {
     display: flex;

@@ -1,0 +1,450 @@
+/*
+ * Kiln theme: THE ONE PLACE where the look of the web app is defined. Tokens only, no selectors for components.
+ * To change the look, edit this file (see docs/design-system.md, "How to retheme").
+ *
+ *   1. Themed colors      the first three blocks below: light, dark by choice, dark from the system setting.
+ *                         Solid #rrggbb values are mirrored in src/lib/tokens.ts and contrast checked
+ *                         (src/lib/contrast.test.ts fails if the two differ or a text pair drops below WCAG AA).
+ *                         Keep the dark block and the dark media block identical.
+ *   2. Shared tokens      the last block: brand gradient stops, fonts, radii, spacing, motion, layers, chart
+ *                         helpers. The same in both themes.
+ *
+ * Rules: components read these variables and never hard-code a color. The brand gradient is used only on the
+ * accents listed in docs/design-system.md (logo, primary button, active nav item, top edge of summary cards,
+ * chart line, selected segment, focus ring, page-header glow, page title). Text pairs need 4.5:1.
+ *
+ * Which theme applies: `data-theme="light|dark"` on <html> (the Theme setting) wins; without it the system
+ * setting (prefers-color-scheme) decides, and light is used when the system has no preference.
+ */
+
+/* ---------- 1. Themed colors: light ---------- */
+
+:root {
+  color-scheme: light;
+
+  /* surfaces */
+  --ground: #f5f6fd;
+  --sidebar: #ffffff;
+  --surface: #ffffff;
+  --surface-sunken: #eceefb;
+  --surface-hover: #f7f8ff;
+  --surface-active: #e2e5f8;
+  /* text */
+  --ink: #14173a;
+  --muted: #545a8c;
+  --faint: #5f6596;
+  /* accent: links, focus, selected tint, text on chips */
+  --accent: #4552d9;
+  --accent-hover: #3640b8;
+  --accent-ink: #ffffff;
+  --accent-bg: #eff0fd;
+  --chip-ink: #3a45b8;
+  --focus: #6d4bdc;
+  /* primary button gradient ends, and the end of the page-title gradient */
+  --primary-from: #4552d9;
+  --primary-to: #6a4fe0;
+  --title-end: #5b3fd0;
+  /* success */
+  --ok-bg: #e3f5ee;
+  --ok-ink: #0b6e4f;
+  --ok: #0b7a57;
+  --ok-line: #b5e3d0;
+  /* danger */
+  --bad-bg: #fdecea;
+  --bad-ink: #9b1c14;
+  --bad: #d92d20;
+  --bad-line: #f7c1bb;
+  --danger-solid: #c8281c;
+  --danger-solid-hover: #a81f15;
+  --danger-solid-ink: #ffffff;
+  /* warning */
+  --warn-bg: #fdf3da;
+  --warn-ink: #8a5200;
+  --warn: #b45309;
+  --warn-line: #f1d58a;
+  /* info */
+  --info-bg: #e8f1fd;
+  --info-ink: #164a8a;
+  --info: #2f6fd0;
+  --info-line: #bcd5f5;
+  /* platform tints: one hue per platform, so iOS, macOS and Android never look alike */
+  --platform-ios-bg: #e1f1fc;
+  --platform-ios-ink: #0b4f80;
+  --platform-ios-line: #b3d6ee;
+  --platform-macos-bg: #efe9fb;
+  --platform-macos-ink: #4a2f94;
+  --platform-macos-line: #d0c3f0;
+  --platform-android-bg: #e4f5dc;
+  --platform-android-ink: #2f5d10;
+  --platform-android-line: #c0e0ae;
+  /* chart marks (also the line gradient) */
+  --viz-1: #4552d9;
+  --viz-2: #c96a00;
+  --viz-mid: #7a54e6;
+  --viz-end: #c96a00;
+  /* loading shimmer */
+  --skeleton-from: #eceefb;
+  --skeleton-to: #f5f6fd;
+
+  /* borders: translucent, so they sit well on every surface (and on glows) */
+  --line: rgb(60 70 160 / 0.14);
+  --line-strong: rgb(60 70 160 / 0.26);
+  --line-hover: rgb(60 70 160 / 0.42);
+  /* the fill of inputs and selects */
+  --field-bg: var(--surface);
+  /* selected segment: white on the light track */
+  --seg-selected: var(--surface);
+  --scrim: rgb(20 23 58 / 0.45);
+  --focus-soft: rgb(109 75 220 / 0.22);
+  /* elevation (a card is the hairline border plus --shadow-card) */
+  --shadow-xs: 0 1px 2px rgb(40 50 140 / 0.06);
+  --shadow-sm: 0 2px 8px rgb(40 50 140 / 0.08);
+  --shadow-md: 0 6px 20px rgb(40 50 140 / 0.1);
+  --shadow-lg: 0 16px 44px rgb(40 50 140 / 0.18);
+  --shadow-card: 0 8px 28px rgb(40 50 140 / 0.1);
+  /* glows: decorative only, softer than in dark */
+  --btn-glow: 0 6px 20px rgb(69 82 217 / 0.32);
+  --nav-active-bg: linear-gradient(90deg, rgb(94 107 230 / 0.14), rgb(124 92 230 / 0.04));
+  --nav-bar-glow: 0 0 10px rgb(124 92 230 / 0.4);
+  --seg-selected-ring: 0 0 0 1px rgb(109 75 220 / 0.45), 0 1px 8px rgb(109 75 220 / 0.18);
+  --dot-glow-blur: 0px;
+  --ambient:
+    radial-gradient(60% 130% at 100% 0%, rgb(127 153 255 / 0.16), transparent 60%),
+    radial-gradient(45% 110% at 78% 0%, rgb(169 139 255 / 0.12), transparent 65%),
+    radial-gradient(30% 90% at 96% 35%, rgb(255 176 74 / 0.06), transparent 70%);
+  --viz-area-opacity: 0.16;
+  --viz-glow-opacity: 0.22;
+}
+
+/* ---------- 1. Themed colors: dark, chosen by the person ---------- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* surfaces */
+  --ground: #0b0d22;
+  --sidebar: #0d1029;
+  --surface: #141838;
+  --surface-sunken: #0e1130;
+  --surface-hover: #181d45;
+  --surface-active: #232a63;
+  /* text */
+  --ink: #eceeff;
+  --muted: #a3a9d6;
+  --faint: #8f96c9;
+  /* accent: links, focus, selected tint, text on chips */
+  --accent: #7f99ff;
+  --accent-hover: #9bb0ff;
+  --accent-ink: #0b0d22;
+  --accent-bg: #232a54;
+  --chip-ink: #b9c6ff;
+  --focus: #a98bff;
+  /* primary button gradient ends, and the end of the page-title gradient */
+  --primary-from: #7f99ff;
+  --primary-to: #a98bff;
+  --title-end: #a98bff;
+  /* success */
+  --ok-bg: #1e3449;
+  --ok-ink: #5ee0b0;
+  --ok: #5ee0b0;
+  --ok-line: #2a545c;
+  /* danger */
+  --bad-bg: #352644;
+  --bad-ink: #ff9aa6;
+  --bad: #ff7a8a;
+  --bad-line: #5a3551;
+  --danger-solid: #ff6b7d;
+  --danger-solid-hover: #ff8e9b;
+  --danger-solid-ink: #1c0610;
+  /* warning */
+  --warn-bg: #352d3a;
+  --warn-ink: #ffb04a;
+  --warn: #ffb04a;
+  --warn-line: #5a463d;
+  /* info */
+  --info-bg: #1f3252;
+  --info-ink: #8fe0f7;
+  --info: #5fd0f0;
+  --info-line: #2a4f6f;
+  /* platform tints: one hue per platform, so iOS, macOS and Android never look alike */
+  --platform-ios-bg: #0f2b40;
+  --platform-ios-ink: #9fd2f5;
+  --platform-ios-line: #1d4a6c;
+  --platform-macos-bg: #261c47;
+  --platform-macos-ink: #cbb9f7;
+  --platform-macos-line: #43347a;
+  --platform-android-bg: #1f3112;
+  --platform-android-ink: #b5e08f;
+  --platform-android-line: #35521f;
+  /* chart marks (also the line gradient) */
+  --viz-1: #7f99ff;
+  --viz-2: #ffb04a;
+  --viz-mid: #a98bff;
+  --viz-end: #ffb04a;
+  /* loading shimmer */
+  --skeleton-from: #181d45;
+  --skeleton-to: #232a63;
+
+  /* borders: translucent, so they sit well on every surface (and on glows) */
+  --line: rgb(140 150 255 / 0.16);
+  --line-strong: rgb(140 150 255 / 0.3);
+  --line-hover: rgb(160 170 255 / 0.5);
+  /* the fill of inputs and selects: sunken, like the track of a segmented control */
+  --field-bg: var(--surface-sunken);
+  /* selected segment: raised indigo on the dark track */
+  --seg-selected: var(--surface-active);
+  --scrim: rgb(5 6 25 / 0.7);
+  --focus-soft: rgb(169 139 255 / 0.25);
+  /* elevation (a card is the hairline border plus --shadow-card) */
+  --shadow-xs: 0 1px 2px rgb(5 6 25 / 0.5);
+  --shadow-sm: 0 2px 8px rgb(5 6 25 / 0.5);
+  --shadow-md: 0 8px 24px rgb(5 6 25 / 0.55);
+  --shadow-lg: 0 16px 48px rgb(5 6 25 / 0.7), 0 0 0 1px rgb(140 150 255 / 0.12);
+  --shadow-card: 0 12px 40px rgb(5 6 25 / 0.55);
+  /* glows: decorative only */
+  --btn-glow: 0 6px 24px rgb(127 153 255 / 0.45);
+  --nav-active-bg: linear-gradient(90deg, rgb(127 153 255 / 0.2), rgb(169 139 255 / 0.06));
+  --nav-bar-glow: 0 0 12px rgb(169 139 255 / 0.6);
+  --seg-selected-ring: 0 0 0 1px rgb(169 139 255 / 0.55), 0 0 14px rgb(169 139 255 / 0.28);
+  --dot-glow-blur: 8px;
+  --ambient:
+    radial-gradient(60% 130% at 100% 0%, rgb(127 153 255 / 0.22), transparent 60%),
+    radial-gradient(45% 110% at 78% 0%, rgb(169 139 255 / 0.16), transparent 65%),
+    radial-gradient(30% 90% at 96% 35%, rgb(255 176 74 / 0.07), transparent 70%);
+  --viz-area-opacity: 0.3;
+  --viz-glow-opacity: 0.55;
+}
+
+/* ---------- 1. Themed colors: dark, from the system setting unless the person chose light (keep identical to the block above) ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    /* surfaces */
+    --ground: #0b0d22;
+    --sidebar: #0d1029;
+    --surface: #141838;
+    --surface-sunken: #0e1130;
+    --surface-hover: #181d45;
+    --surface-active: #232a63;
+    /* text */
+    --ink: #eceeff;
+    --muted: #a3a9d6;
+    --faint: #8f96c9;
+    /* accent: links, focus, selected tint, text on chips */
+    --accent: #7f99ff;
+    --accent-hover: #9bb0ff;
+    --accent-ink: #0b0d22;
+    --accent-bg: #232a54;
+    --chip-ink: #b9c6ff;
+    --focus: #a98bff;
+    /* primary button gradient ends, and the end of the page-title gradient */
+    --primary-from: #7f99ff;
+    --primary-to: #a98bff;
+    --title-end: #a98bff;
+    /* success */
+    --ok-bg: #1e3449;
+    --ok-ink: #5ee0b0;
+    --ok: #5ee0b0;
+    --ok-line: #2a545c;
+    /* danger */
+    --bad-bg: #352644;
+    --bad-ink: #ff9aa6;
+    --bad: #ff7a8a;
+    --bad-line: #5a3551;
+    --danger-solid: #ff6b7d;
+    --danger-solid-hover: #ff8e9b;
+    --danger-solid-ink: #1c0610;
+    /* warning */
+    --warn-bg: #352d3a;
+    --warn-ink: #ffb04a;
+    --warn: #ffb04a;
+    --warn-line: #5a463d;
+    /* info */
+    --info-bg: #1f3252;
+    --info-ink: #8fe0f7;
+    --info: #5fd0f0;
+    --info-line: #2a4f6f;
+    /* platform tints: one hue per platform, so iOS, macOS and Android never look alike */
+    --platform-ios-bg: #0f2b40;
+    --platform-ios-ink: #9fd2f5;
+    --platform-ios-line: #1d4a6c;
+    --platform-macos-bg: #261c47;
+    --platform-macos-ink: #cbb9f7;
+    --platform-macos-line: #43347a;
+    --platform-android-bg: #1f3112;
+    --platform-android-ink: #b5e08f;
+    --platform-android-line: #35521f;
+    /* chart marks (also the line gradient) */
+    --viz-1: #7f99ff;
+    --viz-2: #ffb04a;
+    --viz-mid: #a98bff;
+    --viz-end: #ffb04a;
+    /* loading shimmer */
+    --skeleton-from: #181d45;
+    --skeleton-to: #232a63;
+
+    /* borders: translucent, so they sit well on every surface (and on glows) */
+    --line: rgb(140 150 255 / 0.16);
+    --line-strong: rgb(140 150 255 / 0.3);
+    --line-hover: rgb(160 170 255 / 0.5);
+    /* the fill of inputs and selects: sunken, like the track of a segmented control */
+    --field-bg: var(--surface-sunken);
+    /* selected segment: raised indigo on the dark track */
+    --seg-selected: var(--surface-active);
+    --scrim: rgb(5 6 25 / 0.7);
+    --focus-soft: rgb(169 139 255 / 0.25);
+    /* elevation (a card is the hairline border plus --shadow-card) */
+    --shadow-xs: 0 1px 2px rgb(5 6 25 / 0.5);
+    --shadow-sm: 0 2px 8px rgb(5 6 25 / 0.5);
+    --shadow-md: 0 8px 24px rgb(5 6 25 / 0.55);
+    --shadow-lg: 0 16px 48px rgb(5 6 25 / 0.7), 0 0 0 1px rgb(140 150 255 / 0.12);
+    --shadow-card: 0 12px 40px rgb(5 6 25 / 0.55);
+    /* glows: decorative only */
+    --btn-glow: 0 6px 24px rgb(127 153 255 / 0.45);
+    --nav-active-bg: linear-gradient(90deg, rgb(127 153 255 / 0.2), rgb(169 139 255 / 0.06));
+    --nav-bar-glow: 0 0 12px rgb(169 139 255 / 0.6);
+    --seg-selected-ring: 0 0 0 1px rgb(169 139 255 / 0.55), 0 0 14px rgb(169 139 255 / 0.28);
+    --dot-glow-blur: 8px;
+    --ambient:
+      radial-gradient(60% 130% at 100% 0%, rgb(127 153 255 / 0.22), transparent 60%),
+      radial-gradient(45% 110% at 78% 0%, rgb(169 139 255 / 0.16), transparent 65%),
+      radial-gradient(30% 90% at 96% 35%, rgb(255 176 74 / 0.07), transparent 70%);
+    --viz-area-opacity: 0.3;
+    --viz-glow-opacity: 0.55;
+  }
+}
+
+/* ---------- 2. Shared tokens (same in both themes) ---------- */
+:root {
+  /* Brand: the three stops of the gradient. Used only for the accents listed at the top of this file.
+     The logo is drawn in these colors in both themes (src/components/ui/Logo.svelte). */
+  --brand-blue: #7f99ff;
+  --brand-violet: #a98bff;
+  --brand-ember: #ffb04a;
+  /* The mark's own background (a dark rounded square), used by Logo.svelte in both themes. */
+  --brand-mark-top: #171b3d;
+  --brand-mark-bottom: #0b0d22;
+  --brand-gradient-full: linear-gradient(
+    135deg,
+    var(--brand-blue),
+    var(--brand-violet) 55%,
+    var(--brand-ember)
+  );
+  --brand-gradient-vertical: linear-gradient(
+    180deg,
+    var(--brand-blue),
+    var(--brand-violet) 55%,
+    var(--brand-ember)
+  );
+  --brand-gradient-horizontal: linear-gradient(
+    90deg,
+    var(--brand-blue),
+    var(--brand-violet) 55%,
+    var(--brand-ember)
+  );
+  /* The primary button: a themed pair, so the text on it keeps 4.5:1 in both themes. */
+  --primary-gradient: linear-gradient(135deg, var(--primary-from), var(--primary-to));
+  /* Page title: ink fading into violet. */
+  --title-gradient: linear-gradient(100deg, var(--ink) 25%, var(--title-end));
+
+  /* Aliases that name a role (a component asks for the role, a theme decides the color) */
+  --chip-bg: var(--accent-bg);
+  --track: var(--surface-sunken);
+  --raised: var(--surface-hover);
+
+  /* Names a few older components use. They map to the tokens above, so those components follow the theme too. */
+  --border: var(--line);
+  --text: var(--ink);
+  --text-muted: var(--muted);
+  --danger: var(--bad);
+  --danger-text: var(--bad-ink);
+  --surface-2: var(--surface-sunken);
+  --accent-soft: var(--accent-bg);
+  --radius-2: var(--radius-sm);
+  --weight-bold: 700;
+
+  /* Focus: a 2px ring plus a soft halo (--focus-soft, themed). */
+  --ring: 2px solid var(--focus);
+  --halo: 0 0 0 5px var(--focus-soft);
+
+  /* Type. Space Grotesk (headings, figures, wordmark) and Inter (UI text) are used when installed; nothing is
+     downloaded (the server sends a CSP of default-src 'self'), so the fallback is the system UI stack.
+     To ship the fonts, self-host the files (apps/web/public/fonts) and add @font-face rules; see
+     docs/design-system.md. */
+  --font-sans:
+    Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans", sans-serif;
+  --font-display: "Space Grotesk", var(--font-sans);
+  --font-mono:
+    ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --leading-tight: 1.25;
+  --leading-snug: 1.4;
+  --leading-normal: 1.5;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-display: 600;
+
+  /* Spacing: a 4px grid */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radii: small parts, controls (buttons, inputs, segments), cards and panels, dialogs. Chips are pills. */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+
+  /* Control heights */
+  --control-sm: 28px;
+  --control-md: 36px;
+  --control-lg: 40px;
+
+  /* Layout */
+  --sidebar-width: 248px;
+  --topbar-height: 56px;
+  --content-width: 1120px;
+
+  /* Motion */
+  --duration-fast: 100ms;
+  --duration-base: 160ms;
+  --duration-slow: 240ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Layers */
+  --z-sticky: 10;
+  --z-sidebar: 20;
+  --z-dropdown: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+  --z-tooltip: 70;
+
+  /* Charts (components/analytics). A line of a single series is drawn with the gradient --viz-1 to --viz-mid to
+     --viz-end, with a blurred copy as glow and a --viz-mid area fill below. With two series, each keeps its own
+     solid color (--viz-1, --viz-2). Grid, axis and hatching follow the borders. */
+  --viz-grid: var(--line);
+  --viz-axis: var(--line-strong);
+  --viz-hatch: var(--line-strong);
+  --viz-wash: var(--surface-sunken);
+  --viz-line-width: 3px;
+  --viz-glow-blur: 4px;
+}

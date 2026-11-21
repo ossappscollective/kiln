@@ -56,7 +56,7 @@
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm, 0 1px 2px rgb(0 0 0 / 8%));
+    box-shadow: var(--shadow-sm);
   }
 
   .savebar.pending {
