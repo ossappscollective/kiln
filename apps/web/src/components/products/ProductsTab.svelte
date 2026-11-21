@@ -195,37 +195,40 @@
                 <td class="actions">
                   <Button
                     size="sm"
-                    icon={openId === p.productId ? 'chevron-up' : 'edit'}
+                    icon={openId === p.productId ? 'chevron-up' : 'chevron-down'}
                     aria-expanded={openId === p.productId}
                     aria-controls="product-detail-{p.productId}"
                     onclick={() => (openId = openId === p.productId ? null : p.productId)}
                   >
-                    {openId === p.productId ? 'Close' : 'Open'}<span class="visually-hidden"> {p.name ?? p.referenceName}</span>
+                    {openId === p.productId ? 'Hide' : 'Details'}<span class="visually-hidden"> {p.name ?? p.referenceName}</span>
                   </Button>
                 </td>
               </tr>
+              {#if openId === p.productId}
+                <tr class="detail-row">
+                  <td colspan="6" id="product-detail-{p.productId}">
+                    <ProductDetail
+                      {api}
+                      {workspaceId}
+                      {role}
+                      {app}
+                      productId={p.productId}
+                      writeEnabled={view.write.enabled}
+                      refreshKey={detailKey}
+                      embedded
+                      onsaved={() => void load()}
+                      onclose={() => (openId = null)}
+                      onswitchoff={() => {
+                        if (view) view = { ...view, write: { ...view.write, enabled: false } };
+                      }}
+                    />
+                  </td>
+                </tr>
+              {/if}
             {/each}
           </tbody>
         </table>
       </div>
-      {#if openId !== null}
-        <div id="product-detail-{openId}">
-          <ProductDetail
-            {api}
-            {workspaceId}
-            {role}
-            {app}
-            productId={openId}
-            writeEnabled={view.write.enabled}
-            refreshKey={detailKey}
-            onsaved={() => void load()}
-            onclose={() => (openId = null)}
-            onswitchoff={() => {
-              if (view) view = { ...view, write: { ...view.write, enabled: false } };
-            }}
-          />
-        </div>
-      {/if}
     {/if}
   {/if}
 </div>
@@ -259,5 +262,10 @@
 
   tr.open {
     background: var(--accent-bg);
+  }
+
+  .detail-row > td {
+    padding: 0;
+    border-top: 1px solid var(--line);
   }
 </style>

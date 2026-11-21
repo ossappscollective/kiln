@@ -2,8 +2,8 @@
   ProductDetail: one in-app purchase or subscription as the last sync read it: its status, period and group, the price of every territory
   (read only, in the currency's own units), where it is on sale, and the editor of its display name and description per language.
   Reads the stored copy only (`GET .../products/<id>`); nothing here asks a store until the person previews a text change.
-  Props: api, workspaceId, role, app, productId, writeEnabled, refreshKey (changes after a sync, so this reads again), onsaved (a text was
-  changed: the list reads again), onclose, onswitchoff.
+  Props: api, workspaceId, role, app, productId, writeEnabled, refreshKey (changes after a sync, so this reads again), embedded (inside the
+  table row of the product), onsaved (a text was changed: the list reads again), onclose, onswitchoff.
 -->
 <script lang="ts">
   import type { Role } from '@mrm/core';
@@ -35,6 +35,7 @@
     productId,
     writeEnabled,
     refreshKey,
+    embedded = false,
     onsaved,
     onclose,
     onswitchoff,
@@ -46,6 +47,8 @@
     productId: string;
     writeEnabled: boolean;
     refreshKey: number;
+    /** Drawn inside the table row of the product: no card of its own and no Close (the row's button hides it). */
+    embedded?: boolean | undefined;
     onsaved: () => void;
     onclose: () => void;
     onswitchoff: () => void;
@@ -92,14 +95,16 @@
   }
 </script>
 
-<section class="detail stack" aria-label="Product {productId}" data-testid="product-detail">
+<section class="detail stack" class:embedded aria-label="Product {productId}" data-testid="product-detail">
   <div class="head row">
     <div class="titles">
       <h3 class="name">{product?.name ?? productId}</h3>
       <p class="muted text-sm"><span class="mono">{productId}</span></p>
     </div>
-    <span class="spacer"></span>
-    <Button size="sm" icon="x" onclick={onclose}>Close</Button>
+    {#if !embedded}
+      <span class="spacer"></span>
+      <Button size="sm" icon="x" onclick={onclose}>Close</Button>
+    {/if}
   </div>
 
   {#if loading && !data}
@@ -179,6 +184,13 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
     background: var(--surface);
+  }
+
+  .detail.embedded {
+    border: 0;
+    border-radius: 0;
+    background: var(--surface-sunken);
+    padding: var(--space-4) var(--space-5);
   }
 
   .head {

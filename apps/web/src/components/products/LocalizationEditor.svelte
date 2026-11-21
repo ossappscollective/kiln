@@ -6,7 +6,7 @@
   preview is shown read only: what is applied is exactly what was previewed. If the store changed meanwhile, nothing is overwritten and the
   preview is read again. Never retried by this app.
   Disabled states: a role below admin sees the texts read only with the reason; while the server's switch is off the texts are read only and
-  the page names MRM_STORE_PRODUCT_WRITE_ENABLED.
+  the page names MRM_STORE_PRODUCT_WRITE_ENABLED. Read only means plain text for every language, never disabled inputs.
   Props: api, workspaceId, role, app ({ id, platform }), product (the detail), writeEnabled (the server's switch, from the list), onsaved
   (the texts were changed: read the product and the list again), onswitchoff (the server said the switch is off).
 -->
@@ -187,6 +187,17 @@
 
   {#if product.localizations.length === 0}
     <p class="muted text-sm">The store has no texts for this product. Add a language in the store's console, then sync the app.</p>
+  {:else if !editable}
+    <!-- Nothing can be changed (the role, or the server's switch): the texts are shown as text, not as inputs that look editable. -->
+    <dl class="texts" data-testid="localization-readonly">
+      {#each product.localizations as l (l.locale)}
+        <div class="text-block">
+          <dt><span class="mono">{l.locale}</span></dt>
+          <dd class="text-name">{l.name === '' ? 'No display name' : l.name}</dd>
+          <dd class="desc muted">{l.description === '' ? 'No description' : l.description}</dd>
+        </div>
+      {/each}
+    </dl>
   {:else}
     <div class="field locale">
       <label for="{uid}-locale">Language</label>
@@ -333,6 +344,31 @@
 
   .desc {
     white-space: pre-wrap;
+  }
+
+  .texts {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .text-block {
+    display: grid;
+    gap: var(--space-1);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .text-block:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .text-block dd {
+    margin: 0;
+  }
+
+  .text-name {
+    font-weight: 500;
   }
 
   .actions {
