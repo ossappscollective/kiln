@@ -37,6 +37,7 @@ export * from './google/play-public.ts';
 export * from './google/play-release.ts';
 export * from './google/play-reviews.ts';
 export * from './google/play-rollout.ts';
+export * from './google/play-sales.ts';
 export * from './google/play-search-terms.ts';
 export * from './google/play-submit.ts';
 export * from './mappings.ts';

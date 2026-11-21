@@ -3,6 +3,7 @@ import {
   type AnalyticsMetric,
   type AnalyticsSource,
   analyticsLimits,
+  productDimValue,
 } from '@mrm/core';
 import { AnalyticsError, type AnalyticsPoint, type ParseStats } from '../analytics-types.ts';
 import { columnIndex, normalizeHeader, parseDay, parseNumber, type Table } from '../delimited.ts';
@@ -302,6 +303,11 @@ export type ParsedAppleSales = {
 const notAnApp = (productType: string) =>
   /^(7|7F|7T|F7|IA[0-9A-Z]*|FI[0-9A-Z]*)$/i.test(productType);
 
+/** In-app purchases and subscriptions (Apple's table of product type identifiers: IA1, IA3, IA9, IAY, FI1 and their `-M` forms). */
+const isInApp = (productType: string) => /^(IA[0-9A-Z]*|FI[0-9A-Z]*)(-M)?$/i.test(productType);
+/** App updates: not a sale, but their SKU is the app's own SKU. */
+const isUpdate = (productType: string) => /^(7|7F|7T|F7)$/i.test(productType);
+
 /**
  * Reads a Sales and Trends daily summary for ONE app (`appleId` is its numeric App Store id). Units are negative for refunds, and
  * proceeds are `units * Developer Proceeds` in the `Currency of Proceeds` of the row (never converted). Rows of other apps, updates
@@ -309,7 +315,16 @@ const notAnApp = (productType: string) =>
  */
 export function mapAppleSalesTable(
   table: Table,
-  options: { appleId: string; platform?: 'ios' | 'macos' },
+  options: {
+    appleId: string;
+    platform?: 'ios' | 'macos';
+    /**
+     * SKUs of the app's in-app products as the Products page has them. An in-app row is matched to the app when its `Parent
+     * Identifier` (the SKU of the app, per Apple's field table) is one of the app's own SKUs read from the same report, or when
+     * its `SKU` is in this set. UNVERIFIED: that the SKU of an in-app row is the product id of the store product.
+     */
+    knownSkus?: ReadonlySet<string> | undefined;
+  },
 ): ParsedAppleSales {
   const cols = columnIndex(table.header);
   for (const name of ['units', 'developer proceeds', 'apple identifier', 'begin date']) {
@@ -326,6 +341,14 @@ export function mapAppleSalesTable(
     rowsFiltered: 0,
   };
   const acc: Acc = new Map();
+  // The app's own SKU(s): rows of the app (and its updates) carry its Apple Identifier. In-app rows name it as `Parent Identifier`.
+  const appSkus = new Set<string>();
+  for (const row of table.rows) {
+    if ((at(row, 'apple identifier') ?? '').trim() !== options.appleId) continue;
+    const type = (at(row, 'product type identifier') ?? '').trim();
+    const sku = (at(row, 'sku') ?? '').trim();
+    if (sku !== '' && !isInApp(type)) appSkus.add(sku);
+  }
   for (const row of table.rows) {
     const date = parseDay(at(row, 'begin date'));
     const units = parseNumber(at(row, 'units'));
@@ -334,12 +357,16 @@ export function mapAppleSalesTable(
       stats.rowsUnreadable++;
       continue;
     }
-    if ((at(row, 'apple identifier') ?? '').trim() !== options.appleId) {
-      stats.rowsFiltered++;
-      continue;
-    }
     const type = (at(row, 'product type identifier') ?? '').trim();
-    if (type !== '' && notAnApp(type)) {
+    const sku = (at(row, 'sku') ?? '').trim();
+    const own = (at(row, 'apple identifier') ?? '').trim() === options.appleId;
+    // An in-app row belongs to the app by its parent SKU or its own SKU; it feeds the per-product numbers only.
+    const inApp =
+      isInApp(type) &&
+      (own ||
+        appSkus.has((at(row, 'parent identifier') ?? '').trim()) ||
+        (sku !== '' && options.knownSkus?.has(sku) === true));
+    if (!inApp && (!own || (type !== '' && notAnApp(type)))) {
       stats.rowsFiltered++;
       continue;
     }
@@ -350,10 +377,21 @@ export function mapAppleSalesTable(
     }
     const country = clip(at(row, 'country code') ?? '');
     const currency = clip(at(row, 'currency of proceeds') ?? '');
-    add(acc, date, 'sales_units', units);
-    if (country !== '') add(acc, date, 'sales_units', units, { type: 'territory', value: country });
-    if (each !== undefined && currency !== '') {
-      add(acc, date, 'sales_proceeds', units * each, { type: 'currency', value: currency });
+    if (!inApp) {
+      add(acc, date, 'sales_units', units);
+      if (country !== '')
+        add(acc, date, 'sales_units', units, { type: 'territory', value: country });
+      if (each !== undefined && currency !== '') {
+        add(acc, date, 'sales_proceeds', units * each, { type: 'currency', value: currency });
+      }
+    }
+    // Per product (SKU), the same facts under the `product` dimension; the currency is part of the key of a money value.
+    const productId = productDimValue(sku, null);
+    if (productId && !isUpdate(type)) {
+      add(acc, date, 'sales_units', units, { type: 'product', value: productId });
+      const byCurrency = each !== undefined ? productDimValue(sku, currency) : undefined;
+      if (byCurrency && each !== undefined)
+        add(acc, date, 'sales_proceeds', units * each, { type: 'product', value: byCurrency });
     }
     stats.rowsUsed++;
   }

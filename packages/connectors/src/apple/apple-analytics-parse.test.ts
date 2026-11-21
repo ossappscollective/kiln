@@ -217,3 +217,66 @@ test('sales: a missing column is refused, a day without rows for the app is an e
   assert.deepEqual(none.points, []);
   assert.equal(none.stats.rowsFiltered, 7);
 });
+
+test('sales by product: the app and its in-app products by SKU, the currency kept in the key; the totals stay the app alone', () => {
+  const header = fx.SALES_HEADER;
+  const line = (
+    sku: string,
+    type: string,
+    units: string,
+    each: string,
+    currency: string,
+    id: string,
+    parent = '',
+  ) => {
+    const row = header.map(() => '');
+    const set = (name: string, value: string) => {
+      row[header.indexOf(name)] = value;
+    };
+    set('SKU', sku);
+    set('Product Type Identifier', type);
+    set('Units', units);
+    set('Developer Proceeds', each);
+    set('Begin Date', '11/10/2026');
+    set('Country Code', 'US');
+    set('Currency of Proceeds', currency);
+    set('Apple Identifier', id);
+    set('Parent Identifier', parent);
+    set('Device', 'iPhone');
+    return row.join('\t');
+  };
+  const text = [
+    header.join('\t'),
+    line('coffee-sku', '1', '10', '2.99', 'USD', fx.APPLE_APP_ID),
+    line('coffee-sku', '7', '500', '0', 'USD', fx.APPLE_APP_ID),
+    line('coins_100', 'IA1', '3', '0.99', 'USD', '987654321', 'coffee-sku'),
+    line('coins_100', 'IA1', '2', '0.89', 'EUR', '987654321', 'coffee-sku'),
+    line('pro_yearly', 'IAY', '1', '29.99', 'USD', '987654322', 'coffee-sku'),
+    line('other_iap', 'IA1', '7', '1.00', 'USD', '111', 'someone-elses-app'),
+    line('known_by_sku', 'IA1', '2', '1.00', 'USD', '222', ''),
+  ].join('\n');
+  const r = mapAppleSalesTable(parseTable(text), {
+    appleId: fx.APPLE_APP_ID,
+    knownSkus: new Set(['known_by_sku']),
+  });
+  const at = (metric: string, dim?: string) =>
+    r.points.find(
+      (p) =>
+        p.metric === metric &&
+        (dim === undefined
+          ? p.dimension === undefined
+          : `${p.dimension?.type}:${p.dimension?.value}` === dim),
+    )?.value;
+  // The total is the app alone, as before (in-app rows do not enter it).
+  assert.equal(at('sales_units'), 10);
+  assert.ok(Math.abs((at('sales_proceeds', 'currency:USD') ?? 0) - 29.9) < 1e-9);
+  // Per product: the app, two in-app products matched by the parent SKU, one by its own SKU; the update is not a sale.
+  assert.equal(at('sales_units', 'product:coffee-sku'), 10);
+  assert.equal(at('sales_units', 'product:coins_100'), 5);
+  assert.ok(Math.abs((at('sales_proceeds', 'product:USD:coins_100') ?? 0) - 2.97) < 1e-9);
+  assert.ok(Math.abs((at('sales_proceeds', 'product:EUR:coins_100') ?? 0) - 1.78) < 1e-9);
+  assert.equal(at('sales_units', 'product:pro_yearly'), 1);
+  assert.equal(at('sales_units', 'product:known_by_sku'), 2);
+  assert.equal(at('sales_units', 'product:other_iap'), undefined, 'another app\'s in-app purchase is left out');
+  assert.equal(r.stats.rowsFiltered, 2, 'the update and the other app in-app row');
+});

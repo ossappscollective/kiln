@@ -537,6 +537,19 @@ export class PlayReportsConnector implements PlayReportsPort {
     return { points, files, missing, unmapped, stats };
   }
 
+  /**
+   * Object names under a prefix of the account's bucket, for readers of OTHER folders of the same bucket (the sales reports,
+   * docs/adr/0038-sales-analytics.md). Same token, limits and error mapping as the statistics reports.
+   */
+  listObjects(prefix: string): Promise<string[]> {
+    return this.#list(prefix);
+  }
+
+  /** The bytes of one object of the bucket (`reports_not_found` when it is not there). */
+  downloadObject(name: string): Promise<Uint8Array> {
+    return this.#download(name);
+  }
+
   async #list(prefix: string, maxResults = 100): Promise<string[]> {
     const names: string[] = [];
     let pageToken: string | undefined;
