@@ -27,7 +27,6 @@ test('a passing test is Working with a relative time', () => {
   const status = testStatus(
     { at: now - 5 * 60_000, ok: true, message: 'Connected.' },
     now,
-    'en-US',
   );
   assert.equal(status.state, 'working');
   assert.equal(status.label, 'Working');
@@ -138,12 +137,12 @@ test('a filled-in guide shows the sections that have content', () => {
 });
 
 test('the checked date is formatted without shifting by time zone, and bad dates are ignored', () => {
-  assert.equal(formatCheckedOn('2026-11-18', 'en-US'), 'November 18, 2026');
-  assert.equal(formatCheckedOn('2026-01-01', 'en-US'), 'January 1, 2026');
-  assert.equal(formatCheckedOn('', 'en-US'), '');
-  assert.equal(formatCheckedOn('2026-13-40', 'en-US'), '');
-  assert.equal(formatCheckedOn('2026-02-31', 'en-US'), '');
-  assert.equal(formatCheckedOn('November 2026', 'en-US'), '');
+  assert.equal(formatCheckedOn('2026-11-18'), 'November 18, 2026');
+  assert.equal(formatCheckedOn('2026-01-01'), 'January 1, 2026');
+  assert.equal(formatCheckedOn(''), '');
+  assert.equal(formatCheckedOn('2026-13-40'), '');
+  assert.equal(formatCheckedOn('2026-02-31'), '');
+  assert.equal(formatCheckedOn('November 2026'), '');
 });
 
 test('only web addresses count as links', () => {

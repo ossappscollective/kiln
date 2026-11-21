@@ -1,6 +1,7 @@
 import type { CredentialGuide } from '@kiln/core';
 import { ApiError } from './api.ts';
-import { fullTime, timeAgo } from './format.ts';
+import { formatDate, formatDateTime, formatRelativeTime } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import type { LastTest, TestResult } from './types.ts';
 
 export type TestTone = 'ok' | 'bad' | 'none';
@@ -20,27 +21,34 @@ export type TestStatus = {
 export function testStatus(
   lastTest: LastTest | null | undefined,
   now: number = Date.now(),
-  locale?: string,
 ): TestStatus {
   if (!lastTest) {
     return {
       state: 'untested',
-      label: 'Never tested',
+      label: t('credentials:status.neverTested'),
       tone: 'none',
       when: '',
-      title: 'This credential has not been tested yet.',
+      title: t('credentials:status.titleUntested'),
     };
   }
   const state = lastTest.ok ? 'working' : 'failed';
-  const label = lastTest.ok ? 'Working' : 'Failed';
-  const when = timeAgo(lastTest.at, now, locale);
+  const label = lastTest.ok ? t('credentials:status.working') : t('credentials:status.failed');
+  const when = formatRelativeTime(lastTest.at, { now });
   const message = lastTest.message.trim();
+  const params = { when: formatDateTime(lastTest.at), message };
+  const titleKey = lastTest.ok
+    ? message
+      ? k('credentials:status.titleWorkingMessage')
+      : k('credentials:status.titleWorking')
+    : message
+      ? k('credentials:status.titleFailedMessage')
+      : k('credentials:status.titleFailed');
   return {
     state,
     label,
     tone: lastTest.ok ? 'ok' : 'bad',
     when,
-    title: `${label}, tested ${fullTime(lastTest.at, locale)}.${message ? ` ${message}` : ''}`,
+    title: t(titleKey, params),
   };
 }
 
@@ -70,23 +78,25 @@ export function summarizeTest(result: TestResult): TestSummary {
   return {
     ok: result.ok,
     tone: result.ok ? 'ok' : 'bad',
-    message: message ? clip(message) : result.ok ? 'The connection works.' : 'The test failed.',
+    message: message
+      ? clip(message)
+      : result.ok
+        ? t('credentials:test.defaultOk')
+        : t('credentials:test.defaultFailed'),
     details,
   };
 }
 
 /** The sentence to show when the test could not run at all: no network, rate limit, or a refusal. */
-export function testErrorMessage(
-  error: unknown,
-  fallback = 'Could not run the test. Try again.',
-): string {
-  return error instanceof ApiError ? error.message : fallback;
+export function testErrorMessage(error: unknown, fallback?: string): string {
+  return error instanceof ApiError ? error.message : (fallback ?? t('credentials:test.couldNotRunRetry'));
 }
 
 /** What to announce to a screen reader when a saved credential's test finishes. */
 export function announceTest(label: string, result: TestResult): string {
   const { ok, message } = summarizeTest(result);
-  return `${label}: ${ok ? 'test passed' : 'test failed'}. ${message}`;
+  const key = ok ? k('credentials:announce.passed') : k('credentials:announce.failed');
+  return t(key, { label, message });
 }
 
 /** Which parts of a guide have content. Empty parts are hidden, so a draft guide stays tidy. */
@@ -101,7 +111,7 @@ export function guideSections(guide: CredentialGuide) {
 }
 
 /** "18 November 2026" from "2026-11-18", or an empty string when the date is missing or malformed. */
-export function formatCheckedOn(iso: string, locale?: string): string {
+export function formatCheckedOn(iso: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!match) return '';
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
@@ -112,7 +122,7 @@ export function formatCheckedOn(iso: string, locale?: string): string {
     date.getUTCDate() !== day
   )
     return '';
-  return date.toLocaleDateString(locale, {
+  return formatDate(date, {
     timeZone: 'UTC',
     year: 'numeric',
     month: 'long',

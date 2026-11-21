@@ -1,5 +1,6 @@
 <script lang="ts">
   import { isWebUrl } from '../../lib/credentials.ts';
+  import { t } from '../../lib/i18n/t.ts';
 
   let { href, label }: { href: string; label: string } = $props();
 </script>
@@ -15,7 +16,7 @@
         stroke-linecap="round"
         stroke-linejoin="round"
       /></svg
-    ><span class="visually-hidden"> (opens in a new tab)</span></a
+    ><span class="visually-hidden"> {t('credentials:link.newTab')}</span></a
   >
 {:else}
   <span>{label}</span>

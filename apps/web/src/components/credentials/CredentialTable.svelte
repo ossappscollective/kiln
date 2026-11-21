@@ -2,9 +2,10 @@
   import { credentialKindInfo, isCredentialKind } from '@kiln/core';
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { announceTest, summarizeTest, testErrorMessage, testStatus } from '../../lib/credentials.ts';
-  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
   import { storeForCredentialKind } from '../../lib/stores.ts';
   import type { CredentialSummary, LastTest } from '../../lib/types.ts';
   import Icon from '../ui/Icon.svelte';
@@ -47,7 +48,7 @@
   async function testRow(item: CredentialSummary) {
     if (rowTests[item.id]?.busy) return;
     rowTests[item.id] = { busy: true, error: '', details: [] };
-    announcement = `Testing ${item.label}…`;
+    announcement = t('credentials:announce.testing', { label: item.label });
     try {
       const result = await api.testCredential(workspaceId, item.id);
       const summary = summarizeTest(result);
@@ -57,7 +58,7 @@
     } catch (e) {
       const message = testErrorMessage(e);
       rowTests[item.id] = { busy: false, error: message, details: [] };
-      announcement = `${item.label}: could not run the test. ${message}`;
+      announcement = t('credentials:announce.couldNotRun', { label: item.label, message });
     }
   }
 
@@ -66,9 +67,9 @@
     try {
       await confirmed((grant) => api.deleteCredential(workspaceId, item.id, grant));
       confirmingDelete = null;
-      onChanged(`Deleted “${item.label}”.`);
+      onChanged(t('credentials:page.deleted', { label: item.label }));
     } catch (e) {
-      onError(e instanceof ApiError ? e.message : 'Could not delete the credential.');
+      onError(e instanceof ApiError ? e.message : t('credentials:table.deleteFailed'));
     } finally {
       deleting = false;
     }
@@ -99,12 +100,12 @@
   <table>
     <thead>
       <tr>
-        <th>Name</th>
-        <th>Type</th>
-        <th>Status</th>
-        <th>Added</th>
-        <th>Secret replaced</th>
-        {#if canWrite}<th><span class="visually-hidden">Actions</span></th>{/if}
+        <th>{t('credentials:table.name')}</th>
+        <th>{t('credentials:table.type')}</th>
+        <th>{t('credentials:table.status')}</th>
+        <th>{t('credentials:table.added')}</th>
+        <th>{t('credentials:table.rotated')}</th>
+        {#if canWrite}<th><span class="visually-hidden">{t('credentials:table.actions')}</span></th>{/if}
       </tr>
     </thead>
     <tbody>
@@ -121,18 +122,18 @@
           <td class="kind"><Icon name={storeForCredentialKind(item.kind).icon} /> {kindLabel(item.kind)}</td>
           <td class="status">
             {#if run?.busy}
-              <span class="muted"><Spinner /> Testing…</span>
+              <span class="muted"><Spinner /> {t('credentials:test.testing')}</span>
             {:else}
               <span class="badge {status.tone}" class:none={status.tone === 'none'} title={status.title}><Icon name={status.state === 'working' ? 'check-circle' : status.state === 'failed' ? 'x-circle' : 'help'} size={12} />{status.label}</span>
               {#if status.when}
-                <span class="when muted" title={item.lastTest ? fullTime(item.lastTest.at) : ''}>{status.when}</span>
+                <span class="when muted" title={item.lastTest ? formatDateTime(item.lastTest.at) : ''}>{status.when}</span>
               {/if}
               {#if item.lastTest?.ok && item.lastTest.message}
                 <p class="note muted">{item.lastTest.message}</p>
               {/if}
               {#if run && run.details.length > 0}
                 <details class="more">
-                  <summary>What was checked</summary>
+                  <summary>{t('credentials:table.whatWasChecked')}</summary>
                   <ul>
                     {#each run.details as line (line)}<li>{line}</li>{/each}
                   </ul>
@@ -141,24 +142,24 @@
               {#if run?.error}<p class="failure">{run.error}</p>{/if}
             {/if}
           </td>
-          <td title={fullTime(item.createdAt)}>{timeAgo(item.createdAt)}</td>
-          <td title={item.rotatedAt ? fullTime(item.rotatedAt) : ''}>
-            {item.rotatedAt ? timeAgo(item.rotatedAt) : 'Never'}
+          <td title={formatDateTime(item.createdAt)}>{formatRelativeTime(item.createdAt)}</td>
+          <td title={item.rotatedAt ? formatDateTime(item.rotatedAt) : ''}>
+            {item.rotatedAt ? formatRelativeTime(item.rotatedAt) : t('credentials:table.never')}
           </td>
           {#if canWrite}
             <td class="actions">
               {#if confirmingDelete === item.id}
-                <span>Delete “{item.label}”?</span>
-                <button class="danger" disabled={deleting} onclick={() => remove(item)}>Delete</button>
-                <button id="delete-keep-{item.id}" disabled={deleting} onclick={() => cancelDelete(item.id)}>Keep</button>
+                <span>{t('credentials:table.confirmDelete', { label: item.label })}</span>
+                <button class="danger" disabled={deleting} onclick={() => remove(item)}>{t('credentials:table.delete')}</button>
+                <button id="delete-keep-{item.id}" disabled={deleting} onclick={() => cancelDelete(item.id)}>{t('credentials:table.keep')}</button>
               {:else}
                 <button
                   class="link test"
-                  aria-label="Test connection for {item.label}"
+                  aria-label={t('credentials:table.testAria', { label: item.label })}
                   aria-disabled={run?.busy === true}
                   onclick={() => testRow(item)}
                 >
-                  {#if run?.busy}<Spinner /> Testing…{:else}Test{/if}
+                  {#if run?.busy}<Spinner /> {t('credentials:test.testing')}{:else}{t('credentials:table.test')}{/if}
                 </button>
                 <button
                   id="replace-btn-{item.id}"
@@ -167,9 +168,9 @@
                   onclick={() => {
                     replacing = item.id;
                     confirmingDelete = null;
-                  }}>Replace secret</button
+                  }}>{t('credentials:table.replace')}</button
                 >
-                <button id="delete-btn-{item.id}" class="link danger" onclick={() => askDelete(item.id)}>Delete</button>
+                <button id="delete-btn-{item.id}" class="link danger" onclick={() => askDelete(item.id)}>{t('credentials:table.delete')}</button>
               {/if}
             </td>
           {/if}
@@ -185,7 +186,7 @@
                 kind={item.kind}
                 onReplaced={() => {
                   replacing = null;
-                  onChanged(`Replaced the secret of “${item.label}”.`);
+                  onChanged(t('credentials:page.replaced', { label: item.label }));
                 }}
                 onCancel={() => closeReplace(item.id)}
               />

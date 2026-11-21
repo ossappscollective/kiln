@@ -2,6 +2,7 @@
   import { type CredentialKind, buildSecret, checkSecret, credentialGuides } from '@kiln/core';
   import { onMount } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import SecretFields from '../SecretFields.svelte';
   import Icon from '../ui/Icon.svelte';
   import GuidePanel from './GuidePanel.svelte';
@@ -62,7 +63,7 @@
       await api.replaceSecret(workspaceId, id, secret);
       onReplaced();
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not replace the secret.';
+      error = e instanceof ApiError ? e.message : t('credentials:replace.failed');
     } finally {
       busy = false;
     }
@@ -70,7 +71,7 @@
 </script>
 
 <form class="replace" bind:this={root} onsubmit={replace}>
-  <h3>Replace the secret of “{label}”</h3>
+  <h3>{t('credentials:replace.title', { label })}</h3>
   <div class="guide"><GuidePanel {kind} collapsible bind:this={guide} /></div>
   <SecretFields {kind} bind:values disabled={busy} idPrefix="replace-{id}" />
 
@@ -84,11 +85,11 @@
       aria-disabled={testing}
       onclick={test}
     >
-      {#if testing}<Spinner /> Testing…{:else}Test connection{/if}
+      {#if testing}<Spinner /> {t('credentials:test.testing')}{:else}{t('credentials:test.button')}{/if}
     </button>
-    <button class="primary" disabled={busy}>{busy ? 'Saving…' : 'Replace secret'}</button>
-    <button type="button" disabled={busy} onclick={onCancel}>Cancel</button>
-    <span class="tested" class:on={testedOk}><Icon name="check" size="sm" /> Tested OK</span>
+    <button class="primary" disabled={busy}>{busy ? t('credentials:replace.saving') : t('credentials:replace.submit')}</button>
+    <button type="button" disabled={busy} onclick={onCancel}>{t('credentials:replace.cancel')}</button>
+    <span class="tested" class:on={testedOk}><Icon name="check" size="sm" /> {t('credentials:test.testedOk')}</span>
   </div>
 
   <TestResult

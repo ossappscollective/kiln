@@ -2,6 +2,7 @@
   import { type Role, can } from '@kiln/core';
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../lib/api.ts';
+  import { t } from '../lib/i18n/t.ts';
   import type { CredentialSummary, LastTest } from '../lib/types.ts';
   import CredentialForm from './credentials/CredentialForm.svelte';
   import CredentialTable from './credentials/CredentialTable.svelte';
@@ -30,7 +31,7 @@
       items = (await api.credentials(workspaceId)).credentials;
     } catch (e) {
       items = null;
-      loadError = e instanceof ApiError ? e.message : 'Could not load credentials.';
+      loadError = e instanceof ApiError ? e.message : t('credentials:page.loadFailed');
     }
   }
 
@@ -56,7 +57,7 @@
 
   async function saved(label: string) {
     adding = false;
-    await changed(`Saved “${label}”. You can test it from the list.`);
+    await changed(t('credentials:page.saved', { label }));
   }
 
   async function cancelAdd() {
@@ -71,7 +72,7 @@
 </script>
 
 <section>
-  <PageHeader title="Credentials" description="The store and repository keys this workspace uses. They are encrypted, and a secret is never shown again after saving.">
+  <PageHeader title={t('credentials:page.title')} description={t('credentials:page.description')}>
     {#snippet actions()}
       {#if canWrite && !adding}
         <Button
@@ -81,14 +82,14 @@
           onclick={() => {
             adding = true;
             notice = '';
-          }}>Add credential</Button
+          }}>{t('credentials:page.add')}</Button
         >
       {/if}
     {/snippet}
   </PageHeader>
 
   {#if !canRead}
-    <Alert tone="info">Your role does not include viewing credentials.</Alert>
+    <Alert tone="info">{t('credentials:page.noAccess')}</Alert>
   {:else}
     <p class="notice" class:shown={notice} bind:this={noticeEl} role="status" tabindex="-1">{notice}</p>
 
@@ -99,16 +100,16 @@
     {#if loadError}<Alert tone="error">{loadError}</Alert>{/if}
 
     {#if items === null && !loadError}
-      <p class="muted">Loading…</p>
+      <p class="muted">{t('credentials:page.loading')}</p>
     {:else if items && items.length === 0 && !adding}
       <div class="card empty">
         <EmptyState
           icon="key"
-          title="No credentials yet"
-          description={canWrite ? 'Add the key that connects your App Store Connect, Google Play or GitHub account. Each type has a step-by-step guide.' : 'An admin or owner adds the keys that connect the stores and repositories.'}
+          title={t('credentials:empty.title')}
+          description={canWrite ? t('credentials:empty.descriptionWrite') : t('credentials:empty.descriptionRead')}
         >
           {#snippet actions()}
-            {#if canWrite}<Button variant="primary" icon="plus" onclick={() => (adding = true)}>Add credential</Button>{/if}
+            {#if canWrite}<Button variant="primary" icon="plus" onclick={() => (adding = true)}>{t('credentials:page.add')}</Button>{/if}
           {/snippet}
         </EmptyState>
         <p class="row stores">
@@ -118,7 +119,7 @@
         </p>
       </div>
     {:else if items && items.length > 0}
-      <Section title="Saved credentials" key="saved" count={items.length} flush>
+      <Section title={t('credentials:list.title')} key="saved" count={items.length} flush>
         <CredentialTable
           {api}
           {workspaceId}

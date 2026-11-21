@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { TestResult } from '../../lib/types.ts';
   import { summarizeTest } from '../../lib/credentials.ts';
+  import { t } from '../../lib/i18n/t.ts';
+  import T from '../ui/T.svelte';
   import Icon from '../ui/Icon.svelte';
   import Spinner from './Spinner.svelte';
   import type { TesterStatus } from './tester.svelte.ts';
@@ -28,10 +30,10 @@
   <div class="clip">
     <div class="live" role="status" aria-live="polite" aria-atomic="true">
       {#if status === 'testing'}
-        <p class="box pending"><Spinner /> Testing the connection…</p>
+        <p class="box pending"><Spinner /> {t('credentials:test.testingConnection')}</p>
       {:else if summary}
         <div class="box {summary.tone}">
-          <p class="message"><Icon name={summary.ok ? 'check-circle' : 'x-circle'} /> <strong>{summary.ok ? 'Connection works.' : 'Test failed.'}</strong> {summary.message}</p>
+          <p class="message"><Icon name={summary.ok ? 'check-circle' : 'x-circle'} /> <strong>{summary.ok ? t('credentials:test.connectionWorks') : t('credentials:test.failed')}</strong> {summary.message}</p>
           {#if summary.details.length > 0}
             <ul>
               {#each summary.details as line (line)}<li>{line}</li>{/each}
@@ -39,17 +41,20 @@
           {/if}
           {#if !summary.ok && onTroubleshoot}
             <p class="next">
-              Check the details above, then
-              <button type="button" class="link" onclick={onTroubleshoot}>see what to try in “If something goes wrong”</button>.
+              <T key="credentials:test.next" tags={{ link: troubleshootLink }} />
             </p>
           {/if}
         </div>
       {:else if status === 'error'}
-        <p class="box bad"><Icon name="x-circle" /> <strong>Could not run the test.</strong> {error}</p>
+        <p class="box bad"><Icon name="x-circle" /> <strong>{t('credentials:test.couldNotRun')}</strong> {error}</p>
       {/if}
     </div>
   </div>
 </div>
+
+{#snippet troubleshootLink(text: string)}
+  <button type="button" class="link" onclick={onTroubleshoot}>{text}</button>
+{/snippet}
 
 <style>
   /* The result opens like a drawer, so nothing below it jumps. */

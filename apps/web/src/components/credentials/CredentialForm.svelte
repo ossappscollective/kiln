@@ -9,6 +9,7 @@
   } from '@kiln/core';
   import { onMount } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import SecretFields from '../SecretFields.svelte';
   import Icon from '../ui/Icon.svelte';
   import GuidePanel from './GuidePanel.svelte';
@@ -75,7 +76,7 @@
       await api.addCredential(workspaceId, { kind, label, secret });
       onSaved(label);
     } catch (e) {
-      formError = e instanceof ApiError ? e.message : 'Could not save the credential.';
+      formError = e instanceof ApiError ? e.message : t('credentials:form.saveFailed');
     } finally {
       saving = false;
     }
@@ -85,9 +86,9 @@
 <div class="wrap">
   <div class="layout">
     <form class="card form" onsubmit={save}>
-      <h3>Add a credential</h3>
+      <h3>{t('credentials:form.title')}</h3>
       <div class="field">
-        <label for="kind">Type</label>
+        <label for="kind">{t('credentials:form.type')}</label>
         <select
           id="kind"
           bind:this={kindSelect}
@@ -104,8 +105,8 @@
         <p class="hint">{credentialKindInfo[kind].description}</p>
       </div>
       <div class="field">
-        <label for="label">Name</label>
-        <input id="label" bind:value={label} placeholder="For example: Acme production" maxlength="100" required />
+        <label for="label">{t('credentials:form.name')}</label>
+        <input id="label" bind:value={label} placeholder={t('credentials:form.namePlaceholder')} maxlength="100" required />
       </div>
       <SecretFields {kind} bind:values disabled={saving} idPrefix="add" />
 
@@ -120,17 +121,17 @@
           aria-describedby="add-test-hint"
           onclick={test}
         >
-          {#if testing}<Spinner /> Testing…{:else}Test connection{/if}
+          {#if testing}<Spinner /> {t('credentials:test.testing')}{:else}{t('credentials:test.button')}{/if}
         </button>
-        <button class="primary" disabled={saving}>{saving ? 'Saving…' : 'Save credential'}</button>
-        <button type="button" disabled={saving} onclick={onCancel}>Cancel</button>
-        <span class="tested" class:on={testedOk}><Icon name="check" size="sm" /> Tested OK</span>
+        <button class="primary" disabled={saving}>{saving ? t('credentials:form.saving') : t('credentials:form.save')}</button>
+        <button type="button" disabled={saving} onclick={onCancel}>{t('credentials:form.cancel')}</button>
+        <span class="tested" class:on={testedOk}><Icon name="check" size="sm" /> {t('credentials:test.testedOk')}</span>
       </div>
       <p class="hint" id="add-test-hint">
         {#if problem}
-          Fill in every field to test the connection. Nothing is sent until you press the button.
+          {t('credentials:form.testHintIncomplete')}
         {:else}
-          Tests the secret with the provider without saving it. Saving does not require a test.
+          {t('credentials:form.testHint')}
         {/if}
       </p>
 

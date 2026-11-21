@@ -6,6 +6,7 @@
   import { type CredentialKind, credentialGuides, credentialKindInfo } from '@kiln/core';
   import { tick } from 'svelte';
   import { formatCheckedOn, guideSections } from '../../lib/credentials.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { storeForCredentialKind } from '../../lib/stores.ts';
   import Icon from '../ui/Icon.svelte';
   import ExternalLink from './ExternalLink.svelte';
@@ -47,7 +48,7 @@
 
   {#if sections.prerequisites}
     <div class="needs">
-      <h4>You will need</h4>
+      <h4>{t('credentials:guide.needs')}</h4>
       <ul>
         {#each guide.prerequisites as item}<li>{item}</li>{/each}
       </ul>
@@ -55,7 +56,7 @@
   {/if}
 
   {#if sections.steps}
-    <h4 id="{uid}-steps">Steps</h4>
+    <h4 id="{uid}-steps">{t('credentials:guide.steps')}</h4>
     <ol class="steps" aria-labelledby="{uid}-steps">
       {#each guide.steps as step}
         <li>
@@ -68,8 +69,8 @@
   {/if}
 
   {#if sections.permissions}
-    <h4>Access to grant</h4>
-    <p class="hint lead">Give it no more than this.</p>
+    <h4>{t('credentials:guide.permissions')}</h4>
+    <p class="hint lead">{t('credentials:guide.permissionsHint')}</p>
     <ul class="plain">
       {#each guide.permissions as item}<li>{item}</li>{/each}
     </ul>
@@ -77,7 +78,7 @@
 
   {#if sections.troubleshooting}
     <details class="trouble" bind:open={troubleOpen}>
-      <summary bind:this={troubleSummary}>If something goes wrong</summary>
+      <summary bind:this={troubleSummary}>{t('credentials:guide.troubleshooting')}</summary>
       <ul>
         {#each guide.troubleshooting as item}
           <li>
@@ -90,7 +91,7 @@
   {/if}
 
   {#if sections.links}
-    <h4>Official documentation</h4>
+    <h4>{t('credentials:guide.docs')}</h4>
     <ul class="plain">
       {#each guide.links as link}
         <li><ExternalLink href={link.url} label={link.label} /></li>
@@ -98,17 +99,17 @@
     </ul>
   {/if}
 
-  {#if checked}<p class="hint checked">Last checked {checked}</p>{/if}
+  {#if checked}<p class="hint checked">{t('credentials:guide.checked', { date: checked })}</p>{/if}
 {/snippet}
 
 {#if collapsible}
   <details class="panel outer" bind:open={outerOpen}>
-    <summary>How to get this credential</summary>
+    <summary>{t('credentials:guide.collapsedTitle')}</summary>
     <div class="inner">{@render body()}</div>
   </details>
 {:else}
   <section class="panel" aria-labelledby="{uid}-title">
-    <h3 id="{uid}-title">How to get this</h3>
+    <h3 id="{uid}-title">{t('credentials:guide.title')}</h3>
     <p class="kind muted"><Icon name={storeForCredentialKind(kind).icon} /> {credentialKindInfo[kind].label}</p>
     {@render body()}
   </section>
