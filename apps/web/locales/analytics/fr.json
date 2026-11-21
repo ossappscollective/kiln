@@ -88,6 +88,7 @@
   "coverage.noDays": "Aucun jour avec des données sur cette période",
   "coverage.noMonths": "Aucun mois avec des données sur cette période",
   "delta.notEnough": "Pas assez de données pour comparer",
+  "delta.points": "{{value}} pts",
   "delta.same_one": "À peu près identique au jour précédent",
   "delta.same_other": "À peu près identique aux {{count}} jours précédents",
   "delta.spokenDown_one": "En baisse de {{text}} par rapport au jour précédent",

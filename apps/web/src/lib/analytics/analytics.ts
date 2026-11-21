@@ -340,7 +340,7 @@ export function formatExact(
     case 'money':
       return formatMoney(value, currency, true);
     default:
-      return Number.isInteger(value) ? formatCountExact(value) : value.toFixed(2);
+      return Number.isInteger(value) ? formatCountExact(value) : formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 }
 
@@ -457,14 +457,16 @@ export const MIN_COVERAGE = 0.6;
 export const MAX_COVERAGE_DIFFERENCE = 0.15;
 
 function deltaOfValues(unit: MetricUnit, current: number, previous: number): Delta {
-  const sign = (n: number) => (n > 0 ? '+' : '-');
+  // The sign is written by the language's own number format ("+1.0", "-0.5"); it is left out of the spoken form.
+  const signed = (n: number, digits: number): string =>
+    formatNumber(n, { minimumFractionDigits: digits, maximumFractionDigits: digits, signDisplay: 'always' });
   if (unit === 'ratio') {
     const points = (current - previous) * 100;
     if (Math.abs(points) < 0.05) return { kind: 'flat' };
     return {
       kind: 'change',
       direction: points > 0 ? 'up' : 'down',
-      text: `${sign(points)}${Math.abs(points).toFixed(1)} pts`,
+      text: t('analytics:delta.points', { value: signed(points, 1) }),
     };
   }
   if (unit === 'rating') {
@@ -473,7 +475,7 @@ function deltaOfValues(unit: MetricUnit, current: number, previous: number): Del
     return {
       kind: 'change',
       direction: diff > 0 ? 'up' : 'down',
-      text: `${sign(diff)}${Math.abs(diff).toFixed(2)}`,
+      text: signed(diff, 2),
     };
   }
   if (previous === 0) return { kind: 'none', reason: 'no_previous' };
@@ -483,7 +485,7 @@ function deltaOfValues(unit: MetricUnit, current: number, previous: number): Del
   return {
     kind: 'change',
     direction: pct > 0 ? 'up' : 'down',
-    text: `${sign(pct)}${a < 10 ? a.toFixed(1) : String(Math.round(a))}%`,
+    text: formatPercentOf(pct / 100, { minimumFractionDigits: a < 10 ? 1 : 0, maximumFractionDigits: a < 10 ? 1 : 0, signDisplay: 'always' }),
   };
 }
 
@@ -545,8 +547,8 @@ export function deltaLine(delta: Delta, days: number): string {
 export function deltaSpoken(delta: Delta, days: number): string {
   if (delta.kind === 'change')
     return delta.direction === 'up'
-      ? t('analytics:delta.spokenUp', { text: delta.text.replace(/^[+-]/, ''), count: days })
-      : t('analytics:delta.spokenDown', { text: delta.text.replace(/^[+-]/, ''), count: days });
+      ? t('analytics:delta.spokenUp', { text: delta.text.replace(/^[+\-\u2212]/, ''), count: days })
+      : t('analytics:delta.spokenDown', { text: delta.text.replace(/^[+\-\u2212]/, ''), count: days });
   return deltaLine(delta, days);
 }
 
