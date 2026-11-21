@@ -134,14 +134,14 @@ test('macOS is Apple on every store rule: steps, rollout actions, submit wording
   assert.deepEqual(actionsFor(config, 'macos'), ['pause', 'resume']);
   assert.equal(actionLabel('resume', 'macos'), 'Resume phased release');
   assert.ok(releaseStatement('macos').includes('App Review'));
-  assert.match(limitNote('macos'), /Mac App Store allows 4000/);
+  assert.match(limitNote('macos'), /Mac App Store allows 4,000/);
   assert.equal(
     limitText({ platforms: ['ios', 'macos'], limits: { ios: 30, macos: 30 } }),
     'max 30',
   );
   assert.equal(
     limitText({ platforms: ['ios', 'macos'], limits: { ios: 4000, macos: 2000 } }),
-    'iOS 4000 / macOS 2000',
+    'iOS 4,000 / macOS 2,000',
   );
 });
 

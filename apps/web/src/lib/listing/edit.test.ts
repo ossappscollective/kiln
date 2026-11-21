@@ -62,7 +62,7 @@ test('where a keyword appears is said in words, the same on both stores', () => 
   assert.equal(whereText(['title', 'keywords']), 'In the title and keyword field');
   assert.equal(
     whereText(['title', 'subtitle', 'keywords']),
-    'In the title, subtitle and keyword field',
+    'In the title, subtitle, and keyword field',
   );
   assert.equal(whereText([]), 'Not in the listing');
   assert.equal(sourceWord('shortDescription'), 'short description');

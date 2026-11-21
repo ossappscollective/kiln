@@ -1,4 +1,6 @@
 import { type Platform, platformLabel } from '@kiln/core';
+import { formatList, formatNumber } from '../i18n/format.ts';
+import { t } from '../i18n/t.ts';
 import type { DriftField } from '../types.ts';
 import { usage, usageText } from './drift.ts';
 import { type CellStatus, cellStatus } from './matrix.ts';
@@ -15,19 +17,19 @@ export type LeadTone = 'neutral' | 'ok' | 'warn' | 'bad';
 export function fieldWord(status: CellStatus): string {
   switch (status) {
     case 'sync':
-      return 'In sync';
+      return t('listing:drawer.word.sync');
     case 'repo-differs':
-      return 'Store ahead';
+      return t('listing:drawer.word.storeAhead');
     case 'store-differs':
-      return 'Repo ahead';
+      return t('listing:drawer.word.repoAhead');
     case 'diverged':
-      return 'Diverged';
+      return t('listing:drawer.word.diverged');
     case 'missing':
-      return 'Missing';
+      return t('listing:drawer.word.missing');
     case 'over':
-      return 'Over limit';
+      return t('listing:drawer.word.over');
     default:
-      return 'Not here';
+      return t('listing:drawer.word.na');
   }
 }
 
@@ -61,9 +63,6 @@ export function splitFields(fields: readonly DriftField[]): {
   };
 }
 
-const unitWord = (unit: 'characters' | 'bytes', n: number): string =>
-  unit === 'bytes' ? (n === 1 ? 'byte' : 'bytes') : n === 1 ? 'character' : 'characters';
-
 /**
  * The quiet counter of a field ("27 / 30 characters": the larger of the two sides) and, when a side is over the limit, the one sentence
  * that says so. Null when the field has no limit or no value.
@@ -76,12 +75,12 @@ export function fieldLimitNote(field: DriftField): {
   if (field.limit === null) return null;
   const sides = [
     {
-      name: 'The repository',
+      side: 'repo' as const,
       u: usage(field.repo.value, field.limit, field.unit),
       has: field.repo.value !== null,
     },
     {
-      name: 'The store',
+      side: 'store' as const,
       u: usage(field.live.value, field.limit, field.unit),
       has: field.live.value !== null,
     },
@@ -93,9 +92,20 @@ export function fieldLimitNote(field: DriftField): {
   let message: string | null = null;
   if (over.length === 1 && over[0] !== undefined) {
     const by = over[0].u.count - field.limit;
-    message = `${over[0].name} is ${by} ${unitWord(field.unit, by)} over the limit of ${field.limit}.`;
+    const params = { count: by, limit: formatNumber(field.limit) };
+    message =
+      over[0].side === 'repo'
+        ? field.unit === 'bytes'
+          ? t('listing:drawer.limit.repoOverBytes', params)
+          : t('listing:drawer.limit.repoOverCharacters', params)
+        : field.unit === 'bytes'
+          ? t('listing:drawer.limit.storeOverBytes', params)
+          : t('listing:drawer.limit.storeOverCharacters', params);
   } else if (over.length > 1) {
-    message = `The repository and the store are over the limit of ${field.limit} ${unitWord(field.unit, field.limit)}.`;
+    message =
+      field.unit === 'bytes'
+        ? t('listing:drawer.limit.bothOverBytes', { count: field.limit })
+        : t('listing:drawer.limit.bothOverCharacters', { count: field.limit });
   }
   return { text: usageText(biggest.u), over: over.length > 0, message };
 }
@@ -106,8 +116,8 @@ export function fieldLimitNote(field: DriftField): {
  */
 export function blockingLines(field: DriftField): string[] {
   const lines = [
-    ...field.problems.repo.map((p) => `Repository: ${p.message}`),
-    ...field.problems.live.map((p) => `Store: ${p.message}`),
+    ...field.problems.repo.map((p) => t('listing:drawer.problem.repo', { message: p.message })),
+    ...field.problems.live.map((p) => t('listing:drawer.problem.store', { message: p.message })),
   ];
   const tooLong = [...field.problems.repo, ...field.problems.live].some(
     (p) => p.code === 'too_long',
@@ -128,8 +138,8 @@ export function localeLead(platforms: readonly { fields: readonly DriftField[] }
   const all = platforms.flatMap((p) => p.fields);
   if (all.length === 0)
     return {
-      headline: 'This locale has no fields',
-      hint: 'None of the stores in scope has a field for it.',
+      headline: t('listing:drawer.lead.noFields'),
+      hint: t('listing:drawer.lead.noFieldsHint'),
       tone: 'neutral',
       differ: 0,
       over: 0,
@@ -140,36 +150,33 @@ export function localeLead(platforms: readonly { fields: readonly DriftField[] }
   const differ = status.filter((s) => s !== 'sync').length;
   if (differ === 0)
     return {
-      headline: 'Everything is in sync',
-      hint: 'The repository and the store have the same text in every field.',
+      headline: t('listing:drawer.lead.allInSync'),
+      hint: t('listing:drawer.lead.allInSyncHint'),
       tone: 'ok',
       differ,
       over,
     };
-  const parts = [
-    [count('store-differs'), 'changed in the repository'],
-    [count('repo-differs'), 'changed in the store'],
-    [count('diverged'), 'changed on both sides'],
-    [count('missing'), 'missing a value'],
-  ]
-    .filter(([n]) => (n as number) > 0)
-    .map(([n, text]) => `${n} ${text}`);
+  const parts: string[] = [];
+  if (count('store-differs') > 0) parts.push(t('listing:drawer.lead.changedInRepo', { count: count('store-differs') }));
+  if (count('repo-differs') > 0) parts.push(t('listing:drawer.lead.changedInStore', { count: count('repo-differs') }));
+  if (count('diverged') > 0) parts.push(t('listing:drawer.lead.changedBoth', { count: count('diverged') }));
+  if (count('missing') > 0) parts.push(t('listing:drawer.lead.missingValue', { count: count('missing') }));
   if (over > 0) {
     const rest = differ - over;
     return {
-      headline: `${over} ${over === 1 ? 'field is' : 'fields are'} over the store's limit`,
+      headline: t('listing:drawer.lead.overLimit', { count: over }),
       hint:
         rest > 0
-          ? `Shorten the text before it can be pushed. ${rest} more ${rest === 1 ? 'differs' : 'differ'} from the store.`
-          : 'Shorten the text before it can be pushed.',
+          ? t('listing:drawer.lead.overLimitMore', { count: rest })
+          : t('listing:drawer.lead.overLimitHint'),
       tone: 'bad',
       differ,
       over,
     };
   }
   return {
-    headline: `${differ} ${differ === 1 ? 'field differs' : 'fields differ'} from the store`,
-    hint: parts.length > 0 ? `${parts.join(', ')}.` : 'Look at each one below.',
+    headline: t('listing:drawer.lead.differ', { count: differ }),
+    hint: parts.length > 0 ? t('listing:drawer.lead.partsHint', { parts: formatList(parts, { type: 'unit' }) }) : t('listing:drawer.lead.lookBelow'),
     tone: 'warn',
     differ,
     over,
@@ -205,7 +212,9 @@ export function leadAction(platforms: readonly LeadActionInput[]): LeadAction | 
         kind: 'edit',
         platform: p.platform,
         field: found,
-        label: `Shorten ${many ? `${platformLabel(p.platform)} ` : ''}${found.label.toLowerCase()}`,
+        label: many
+          ? t('listing:drawer.action.shortenOn', { platform: platformLabel(p.platform), field: found.label.toLowerCase() })
+          : t('listing:drawer.action.shorten', { field: found.label.toLowerCase() }),
       };
   }
   for (const p of platforms) {
@@ -215,7 +224,7 @@ export function leadAction(platforms: readonly LeadActionInput[]): LeadAction | 
         kind: 'pull',
         platform: p.platform,
         count: n,
-        label: `Pull ${n} ${platformLabel(p.platform)} ${n === 1 ? 'change' : 'changes'} into the repository`,
+        label: t('listing:drawer.action.pull', { count: n, platform: platformLabel(p.platform) }),
       };
     }
   }
@@ -226,7 +235,9 @@ export function leadAction(platforms: readonly LeadActionInput[]): LeadAction | 
         kind: 'stage',
         platform: p.platform,
         field: found,
-        label: `Stage ${many ? `${platformLabel(p.platform)} ` : ''}${found.label.toLowerCase()} from the repository`,
+        label: many
+          ? t('listing:drawer.action.stageOn', { platform: platformLabel(p.platform), field: found.label.toLowerCase() })
+          : t('listing:drawer.action.stage', { field: found.label.toLowerCase() }),
       };
   }
   return null;

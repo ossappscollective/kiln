@@ -1,3 +1,4 @@
+import { t } from '../i18n/t.ts';
 import { cleanWarnings } from './sections.ts';
 
 /**
@@ -31,24 +32,24 @@ export function warningGroups(sources: readonly WarningSource[]): WarningGroup[]
     if (s.storeError) {
       out.push({
         id: `${s.appId}:store-error`,
-        title: `The last read of the ${s.platform} store listing failed`,
+        title: t('listing:warnings.storeError', { platform: s.platform }),
         lines: [s.storeError],
-        note: 'The values are from the last successful read. The release sync is not affected.',
+        note: t('listing:warnings.storeErrorNote'),
       });
     }
     const warnings = cleanWarnings(s.warnings ?? undefined);
     if (warnings.length > 0) {
       out.push({
         id: `${s.appId}:store-warnings`,
-        title: `The ${s.platform} store read had warnings`,
+        title: t('listing:warnings.storeWarnings', { platform: s.platform }),
         lines: warnings,
-        note: 'Parts of the listing that could not be read are left out, not shown as empty.',
+        note: t('listing:warnings.storeWarningsNote'),
       });
     }
     if (s.repoError) {
       out.push({
         id: `${s.appId}:repo-error`,
-        title: `The last read of the ${s.platform} repository listing failed`,
+        title: t('listing:warnings.repoError', { platform: s.platform }),
         lines: [s.repoError],
         note: null,
       });

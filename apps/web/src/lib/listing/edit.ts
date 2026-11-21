@@ -14,6 +14,8 @@ import {
   type PlayField,
   type TermSource,
 } from '@kiln/core';
+import { formatList, formatNumber } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 
 /**
  * Editing a listing text from the web, pure parts: which main text fields a store has, their limits, whether a draft push can
@@ -27,7 +29,7 @@ export type FieldInfo = {
   id: string;
   /** The name in the screen ("Name", "Keyword field", "Short description"). */
   label: string;
-  /** The label in the middle of a sentence ("keyword field"). */
+  /** The label in the middle of a sentence ("keyword field"), written for the active language. */
   lower: string;
   limit: number | null;
   unit: 'characters' | 'bytes';
@@ -45,19 +47,29 @@ const APPLE_ORDER: readonly string[] = [
 ];
 const PLAY_ORDER: readonly string[] = ['title', 'short_description', 'full_description'];
 
+/** Message keys of the field names (translated by `fieldInfo`). */
 const LABELS: Record<string, string> = {
-  name: 'Title (App Store name)',
-  title: 'Title',
-  subtitle: 'Subtitle',
-  keywords: 'Keyword field',
-  promotional_text: 'Promotional text',
-  description: 'Description',
-  short_description: 'Short description',
-  full_description: 'Full description',
+  name: k('listing:edit.label.name'),
+  title: k('listing:edit.label.title'),
+  subtitle: k('listing:edit.label.subtitle'),
+  keywords: k('listing:edit.label.keywords'),
+  promotional_text: k('listing:edit.label.promotionalText'),
+  description: k('listing:edit.label.description'),
+  short_description: k('listing:edit.label.shortDescription'),
+  full_description: k('listing:edit.label.fullDescription'),
 };
 
-/** The label in the middle of a sentence, where it is not just the label in lower case. */
-const LOWER: Record<string, string> = { name: 'title' };
+/** Message keys of the field names inside a sentence ("keyword field"). */
+const LOWER: Record<string, string> = {
+  name: k('listing:edit.lower.name'),
+  title: k('listing:edit.lower.title'),
+  subtitle: k('listing:edit.lower.subtitle'),
+  keywords: k('listing:edit.lower.keywords'),
+  promotional_text: k('listing:edit.lower.promotionalText'),
+  description: k('listing:edit.lower.description'),
+  short_description: k('listing:edit.lower.shortDescription'),
+  full_description: k('listing:edit.lower.fullDescription'),
+};
 
 const MULTILINE: Record<string, boolean> = {
   description: true,
@@ -81,11 +93,11 @@ export function editableFieldIds(platform: Platform): readonly string[] {
 export function fieldInfo(platform: Platform, id: string): FieldInfo | null {
   if (editableFieldIds(platform).indexOf(id) < 0) return null;
   const spec = specOf(platform, id);
-  const label = LABELS[id] ?? spec?.label ?? id;
+  const label = LABELS[id] ? t(LABELS[id]) : (spec?.label ?? id);
   return {
     id,
     label,
-    lower: LOWER[id] ?? label.toLowerCase(),
+    lower: LOWER[id] ? t(LOWER[id]) : label.toLowerCase(),
     limit: spec?.maxLength ?? null,
     unit: spec?.unit ?? 'characters',
     multiline: MULTILINE[id] === true || spec?.kind === 'multiline',
@@ -106,8 +118,8 @@ export function editableFields(platform: Platform): FieldInfo[] {
 export function notStageableReason(platform: Platform, id: string): string | null {
   if (isStageableTextField(platform, id)) return null;
   return listingStoreOf(platform) === 'app_store'
-    ? 'The App Store keeps the name and subtitle on the app information, not on the version, so a draft push cannot write them. You can work out the text here and copy it, then change it in App Store Connect. Nothing is saved from here.'
-    : 'A draft push cannot write this field. You can work out the text here and copy it. Nothing is saved from here.';
+    ? t('listing:edit.notStageableApple')
+    : t('listing:edit.notStageableOther');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -120,7 +132,7 @@ export type FieldMeter = {
   over: boolean;
   unit: 'characters' | 'bytes';
   percent: number;
-  /** "18 of 30 characters, 12 left" or "3 over the limit of 30 characters". */
+  /** "18 of 30 characters, 12 left" or "3 over the limit of 30 characters" (in the active language). */
   text: string;
 };
 
@@ -137,9 +149,13 @@ export function measureField(info: Pick<FieldInfo, 'limit' | 'unit'>, text: stri
       over: false,
       unit: info.unit,
       percent: 0,
-      text: `${used} ${info.unit}`,
+      text:
+        info.unit === 'bytes'
+          ? t('listing:edit.meter.bytes', { count: used })
+          : t('listing:edit.meter.characters', { count: used }),
     };
   }
+  const bytes = info.unit === 'bytes';
   const remaining = info.limit - used;
   const over = remaining < 0;
   return {
@@ -150,8 +166,12 @@ export function measureField(info: Pick<FieldInfo, 'limit' | 'unit'>, text: stri
     unit: info.unit,
     percent: info.limit === 0 ? 100 : Math.min(100, Math.round((used / info.limit) * 100)),
     text: over
-      ? `${-remaining} over the limit of ${info.limit} ${info.unit}`
-      : `${used} of ${info.limit} ${info.unit}, ${remaining} left`,
+      ? bytes
+        ? t('listing:edit.meter.overBytes', { count: info.limit, over: formatNumber(-remaining) })
+        : t('listing:edit.meter.overCharacters', { count: info.limit, over: formatNumber(-remaining) })
+      : bytes
+        ? t('listing:edit.meter.leftBytes', { count: info.limit, used: formatNumber(used), left: formatNumber(remaining) })
+        : t('listing:edit.meter.leftCharacters', { count: info.limit, used: formatNumber(used), left: formatNumber(remaining) }),
   };
 }
 
@@ -178,27 +198,22 @@ export function fieldIdForSource(platform: Platform, source: TermSource): string
 export function sourceWord(source: TermSource): string {
   switch (source) {
     case 'title':
-      return 'title';
+      return t('listing:edit.source.title');
     case 'subtitle':
-      return 'subtitle';
+      return t('listing:edit.source.subtitle');
     case 'keywords':
-      return 'keyword field';
+      return t('listing:edit.source.keywords');
     case 'shortDescription':
-      return 'short description';
+      return t('listing:edit.source.shortDescription');
     default:
-      return 'description';
+      return t('listing:edit.source.description');
   }
 }
 
 /** "In the title and keyword field". */
 export function whereText(sources: readonly TermSource[]): string {
-  const names = sources.map(sourceWord);
-  if (names.length === 0) return 'Not in the listing';
-  const joined =
-    names.length === 1
-      ? (names[0] as string)
-      : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-  return `In the ${joined}`;
+  if (sources.length === 0) return t('listing:edit.where.none');
+  return t('listing:edit.where.in', { list: formatList(sources.map(sourceWord)) });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -219,7 +234,7 @@ export function addTargets(platform: Platform): FieldInfo[] {
 }
 
 /** "Add to keyword field", "Add to title". */
-export const addLabel = (info: Pick<FieldInfo, 'lower'>): string => `Add to ${info.lower}`;
+export const addLabel = (info: Pick<FieldInfo, 'lower'>): string => t('listing:edit.addTo', { field: info.lower });
 
 export type AddResult = {
   /** The text to start the editor with. The person edits it before staging. */
@@ -244,18 +259,18 @@ export function addTermToText(
 ): AddResult {
   const clean = term.replace(/\s+/g, ' ').trim();
   const language = languageOf(locale);
-  if (clean === '') return { text: current, changed: false, note: 'There is no keyword to add.' };
+  if (clean === '') return { text: current, changed: false, note: t('listing:edit.add.noKeyword') };
   const needle = Array.from(new Set(matchWords(clean, language)));
   if (info.id === 'keywords') {
     const entries = current.split(',').map((e) => keyOf(e, language));
     if (entries.indexOf(keyOf(clean, language)) >= 0) {
-      return { text: current, changed: false, note: `“${clean}” is already in the keyword field.` };
+      return { text: current, changed: false, note: t('listing:edit.add.alreadyInKeywords', { term: clean }) };
     }
     const base = current.replace(/[\s,]+$/, '');
     return {
       text: base === '' ? clean : `${base},${clean}`,
       changed: true,
-      note: 'Added at the end, after a comma. Remove an entry you can spare if it does not fit.',
+      note: t('listing:edit.add.keywordsAdded'),
     };
   }
   const have = new Set(matchWords(current, language));
@@ -263,14 +278,14 @@ export function addTermToText(
     return {
       text: current,
       changed: false,
-      note: `“${clean}” is already in the ${info.lower}.`,
+      note: t('listing:edit.add.alreadyIn', { term: clean, field: info.lower }),
     };
   }
   if (current.trim() === '') {
     return {
       text: clean,
       changed: true,
-      note: 'The field is empty, so it starts with the keyword.',
+      note: t('listing:edit.add.emptyField'),
     };
   }
   const base = current.replace(/\s+$/, '');
@@ -282,7 +297,7 @@ export function addTermToText(
   return {
     text,
     changed: true,
-    note: 'Added at the end as a starting point. Reword it so it reads well before you stage it.',
+    note: t('listing:edit.add.added'),
   };
 }
 
@@ -307,9 +322,9 @@ export function stageBlockedReason(input: {
 }): string | null {
   const notStageable = notStageableReason(input.platform, input.field);
   if (notStageable !== null) return notStageable;
-  if (!input.canStage) return 'Your role cannot stage changes. A member, admin or owner can.';
-  if (input.empty) return 'The text is empty. A draft push does not write an empty text.';
-  if (input.over) return 'The text is over the limit. Shorten it first.';
-  if (input.unchanged) return 'The text is the same as the one in the store.';
+  if (!input.canStage) return t('listing:edit.blocked.role');
+  if (input.empty) return t('listing:edit.blocked.empty');
+  if (input.over) return t('listing:edit.blocked.over');
+  if (input.unchanged) return t('listing:edit.blocked.unchanged');
   return null;
 }

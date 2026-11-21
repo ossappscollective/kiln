@@ -1,5 +1,7 @@
 import { PLATFORMS, type Platform, platformLabel, sortPlatforms } from '@kiln/core';
+import { formatList, formatNumber } from '../i18n/format.ts';
 import type { IconName } from '../icons.ts';
+import { k, t } from '../i18n/t.ts';
 import type { BadgeTone } from '../portfolio.ts';
 import type { DriftField, ListingDrift } from '../types.ts';
 import { localeName, usage } from './drift.ts';
@@ -34,37 +36,44 @@ export type CellStatus =
 
 export type CellInfo = { label: string; short: string; tone: BadgeTone; icon: IconName };
 
+/** `label` and `short` are message keys here; `cellInfo` translates them. */
 const INFO: Record<CellStatus, CellInfo> = {
-  sync: { label: 'In sync', short: 'In sync', tone: 'ok', icon: 'check' },
+  sync: { label: k('listing:matrix.cell.sync'), short: k('listing:matrix.cellShort.sync'), tone: 'ok', icon: 'check' },
   'repo-differs': {
-    label: 'Differs from repo: the store is ahead',
-    short: 'Differs from repo',
+    label: k('listing:matrix.cell.repoDiffers'),
+    short: k('listing:matrix.cellShort.repoDiffers'),
     tone: 'warn',
     icon: 'arrow-down',
   },
   'store-differs': {
-    label: 'Differs from store: the repository is ahead',
-    short: 'Differs from store',
+    label: k('listing:matrix.cell.storeDiffers'),
+    short: k('listing:matrix.cellShort.storeDiffers'),
     tone: 'info',
     icon: 'arrow-up',
   },
   diverged: {
-    label: 'Differs from both: the repository and the store diverged',
-    short: 'Diverged',
+    label: k('listing:matrix.cell.diverged'),
+    short: k('listing:matrix.cellShort.diverged'),
     tone: 'bad',
     icon: 'alert-triangle',
   },
   missing: {
-    label: 'Missing: one side has no value',
-    short: 'Missing',
+    label: k('listing:matrix.cell.missing'),
+    short: k('listing:matrix.cellShort.missing'),
     tone: 'neutral',
     icon: 'minus',
   },
-  over: { label: 'Over the limit', short: 'Over limit', tone: 'bad', icon: 'alert' },
-  na: { label: 'Not on this platform', short: 'n/a', tone: 'neutral', icon: 'minus' },
+  over: { label: k('listing:matrix.cell.over'), short: k('listing:matrix.cellShort.over'), tone: 'bad', icon: 'alert' },
+  na: { label: k('listing:matrix.cell.na'), short: k('listing:matrix.cellShort.na'), tone: 'neutral', icon: 'minus' },
 };
 
-export const cellInfo = (status: CellStatus): CellInfo => INFO[status];
+export const cellInfo = (status: CellStatus): CellInfo => ({
+  ...INFO[status],
+  label: t(INFO[status].label),
+  short: t(INFO[status].short),
+});
+
+const cellLabel = (status: CellStatus): string => t(INFO[status].label);
 
 /** The statuses shown in the legend, in the order a person scans them. */
 export const LEGEND_ORDER: readonly CellStatus[] = [
@@ -275,7 +284,7 @@ export function columnScopeNote(
 ): string | null {
   if (shown.length < 2 || column.platforms.length === 0 || column.platforms.length >= shown.length)
     return null;
-  return `${sortPlatforms(column.platforms).map(platformLabel).join(' and ')} only`;
+  return t('listing:matrix.scopeOnly', { platforms: formatList(sortPlatforms(column.platforms).map(platformLabel)) });
 }
 
 /** "30 characters" or "iOS 4000 / Android 500 characters" for the limit line of a column header. */
@@ -287,8 +296,8 @@ export function limitText(column: Pick<MatrixColumn, 'limits' | 'platforms'>): s
   }
   if (parts.length === 0) return '';
   const first = parts[0] as { limit: number };
-  if (parts.every((p) => p.limit === first.limit)) return `max ${first.limit}`;
-  return parts.map((p) => `${platformLabel(p.platform)} ${p.limit}`).join(' / ');
+  if (parts.every((p) => p.limit === first.limit)) return t('listing:matrix.limitMax', { limit: formatNumber(first.limit) });
+  return parts.map((p) => `${platformLabel(p.platform)} ${formatNumber(p.limit)}`).join(' / ');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -300,11 +309,12 @@ export type MatrixFilter = { mode: MatrixMode; query: string };
 
 export const defaultMatrixFilter = (): MatrixFilter => ({ mode: 'all', query: '' });
 
+/** Message keys by mode: translate with `t(MODE_LABELS[mode])`. */
 export const MODE_LABELS: Record<MatrixMode, string> = {
-  all: 'All locales',
-  differing: 'Needs attention',
-  missing: 'Missing only',
-  over: 'Over limit',
+  all: k('listing:matrix.mode.all'),
+  differing: k('listing:matrix.mode.differing'),
+  missing: k('listing:matrix.mode.missing'),
+  over: k('listing:matrix.mode.over'),
 };
 
 export const MODE_ORDER: readonly MatrixMode[] = ['all', 'differing', 'missing', 'over'];
@@ -368,14 +378,14 @@ export function modeCounts(rows: readonly MatrixRow[]): Record<MatrixMode, numbe
 
 /** "12 locales, 3 need attention, 2 with missing fields". */
 export function matrixSummary(rows: readonly MatrixRow[]): string {
-  if (rows.length === 0) return 'No locales yet';
+  if (rows.length === 0) return t('listing:matrix.summary.none');
   const counts = modeCounts(rows);
-  const parts = [`${rows.length} ${rows.length === 1 ? 'locale' : 'locales'}`];
-  if (counts.differing === 0) parts.push('all in sync');
-  else parts.push(`${counts.differing} ${counts.differing === 1 ? 'needs' : 'need'} attention`);
-  if (counts.missing > 0) parts.push(`${counts.missing} with missing fields`);
-  if (counts.over > 0) parts.push(`${counts.over} over a limit`);
-  return parts.join(', ');
+  const parts = [t('listing:matrix.localesCount', { count: rows.length })];
+  if (counts.differing === 0) parts.push(t('listing:matrix.summary.allInSync'));
+  else parts.push(t('listing:matrix.summary.needAttention', { count: counts.differing }));
+  if (counts.missing > 0) parts.push(t('listing:matrix.summary.withMissing', { count: counts.missing }));
+  if (counts.over > 0) parts.push(t('listing:matrix.summary.overLimit', { count: counts.over }));
+  return formatList(parts, { type: 'unit' });
 }
 
 export type ListingStatusLine = {
@@ -392,27 +402,25 @@ export type ListingStatusLine = {
  */
 export function listingStatusLine(rows: readonly MatrixRow[]): ListingStatusLine {
   if (rows.length === 0)
-    return { tone: 'info', text: 'No listing values to compare yet', attention: 0 };
+    return { tone: 'info', text: t('listing:matrix.status.none'), attention: 0 };
   const counts = modeCounts(rows);
   if (counts.differing === 0)
     return {
       tone: 'ok',
-      text: rows.length === 1 ? 'The locale is in sync' : 'All locales are in sync',
+      text: rows.length === 1 ? t('listing:matrix.status.oneInSync') : t('listing:matrix.status.allInSync'),
       attention: 0,
     };
-  const parts = [
-    `${counts.differing} ${counts.differing === 1 ? 'locale needs' : 'locales need'} attention`,
-  ];
-  if (counts.missing > 0) parts.push(`${counts.missing} with missing fields`);
-  if (counts.over > 0) parts.push(`${counts.over} over a limit`);
-  return { tone: 'warn', text: parts.join(', '), attention: counts.differing };
+  const parts = [t('listing:matrix.status.needAttention', { count: counts.differing })];
+  if (counts.missing > 0) parts.push(t('listing:matrix.summary.withMissing', { count: counts.missing }));
+  if (counts.over > 0) parts.push(t('listing:matrix.summary.overLimit', { count: counts.over }));
+  return { tone: 'warn', text: formatList(parts, { type: 'unit' }), attention: counts.differing };
 }
 
 /** "iOS and Android, 12 locales": the stores in scope and how many locales the grid holds. */
 export function listingContext(platforms: readonly Platform[], localeCount: number): string {
-  const stores = platforms.map(platformLabel).join(' and ');
-  const locales = `${localeCount} ${localeCount === 1 ? 'locale' : 'locales'}`;
-  return stores === '' ? locales : `${stores}, ${locales}`;
+  const stores = formatList(platforms.map(platformLabel));
+  const locales = t('listing:matrix.localesCount', { count: localeCount });
+  return stores === '' ? locales : formatList([stores, locales], { type: 'unit' });
 }
 
 /** The words for one cell, for a tooltip and for assistive technology: "iOS, Name: Differs from repo". */
@@ -422,8 +430,8 @@ export function cellText(
   withPlatform: boolean,
 ): string {
   const platform = platformLabel(cell.platform);
-  const text = `${column.label}: ${INFO[cell.status].label}`;
-  return withPlatform ? `${platform}, ${text}` : text;
+  const text = t('listing:matrix.cellText', { field: column.label, status: cellLabel(cell.status) });
+  return withPlatform ? t('listing:matrix.cellTextOn', { platform, text }) : text;
 }
 
 /** "iOS: In sync; Android: Differs from store: the repository is ahead", without the stores that do not have the field. */
@@ -432,10 +440,10 @@ export function cellsSummary(
   withPlatform: boolean,
 ): string {
   const live = cells.filter((c) => c.status !== 'na');
-  if (live.length === 0) return INFO.na.label;
+  if (live.length === 0) return cellLabel('na');
   return live
     .map((c) =>
-      withPlatform ? `${platformLabel(c.platform)}: ${INFO[c.status].label}` : INFO[c.status].label,
+      withPlatform ? t('listing:matrix.platformStatus', { platform: platformLabel(c.platform), status: cellLabel(c.status) }) : cellLabel(c.status),
     )
     .join('; ');
 }

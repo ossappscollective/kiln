@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { t } from '../i18n/t.ts';
 import type { ListingSchedule, SectionDrift } from '../types.ts';
 import {
   ageRatingLabel,
@@ -66,10 +67,10 @@ test('the status words say what they mean, and every status has a tone', () => {
 });
 
 test('the notes say read-only and never pulled, and that Google Play has no categories', () => {
-  assert.match(READ_ONLY_NOTE, /read-only/i);
-  assert.match(READ_ONLY_NOTE, /never pulled into the repository/);
-  assert.match(READ_ONLY_NOTE, /nothing on this tab changes a store/);
-  assert.match(PLAY_LIMITS_NOTE, /no categories or age rating/);
+  assert.match(t(READ_ONLY_NOTE), /read-only/i);
+  assert.match(t(READ_ONLY_NOTE), /never pulled into the repository/);
+  assert.match(t(READ_ONLY_NOTE), /nothing on this tab changes a store/);
+  assert.match(t(PLAY_LIMITS_NOTE), /no categories or age rating/);
 });
 
 test('orderedSections puts the sections in reading order and keeps a name it does not know last', () => {
@@ -388,11 +389,11 @@ test('releaseNoteRows: per track, with the notes per language, long notes cut', 
 });
 
 test('intervalText and timeAhead', () => {
-  assert.equal(intervalText(30), '30 minutes');
-  assert.equal(intervalText(60), 'hour');
-  assert.equal(intervalText(180), '3 hours');
-  assert.equal(intervalText(1440), 'day');
-  assert.equal(intervalText(2880), '2 days');
+  assert.equal(intervalText(30), 'Read automatically every 30 minutes');
+  assert.equal(intervalText(60), 'Read automatically every hour');
+  assert.equal(intervalText(180), 'Read automatically every 3 hours');
+  assert.equal(intervalText(1440), 'Read automatically every day');
+  assert.equal(intervalText(2880), 'Read automatically every 2 days');
   assert.equal(timeAhead(NOW + 10_000, NOW), 'in under a minute');
   assert.equal(timeAhead(NOW - 10_000, NOW), 'in under a minute');
   assert.equal(timeAhead(NOW + 12 * MINUTE, NOW), 'in 12 minutes');

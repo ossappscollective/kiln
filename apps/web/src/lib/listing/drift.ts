@@ -1,4 +1,6 @@
 import { countBytes, countCharacters } from '@kiln/core';
+import { formatDisplayName, formatList, formatNumber } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 import type { BadgeTone } from '../portfolio.ts';
 import type {
   DriftField,
@@ -20,50 +22,54 @@ export const DRIFT_ORDER: readonly DriftStatus[] = [
   'identical',
 ];
 
-type StatusInfo = { label: string; tone: BadgeTone; explain: string };
+/** `label` and `explain` are message keys; `count` is the key of the "3 identical" phrase of the summary line. */
+type StatusInfo = { label: string; tone: BadgeTone; explain: string; count: string };
 
 const STATUS: Record<DriftStatus, StatusInfo> = {
   identical: {
-    label: 'Identical',
+    label: k('listing:drift.status.identical'),
     tone: 'ok',
-    explain: 'The repository and the live store have the same value.',
+    explain: k('listing:drift.statusExplain.identical'),
+    count: k('listing:drift.count.identical'),
   },
   'repo-ahead': {
-    label: 'Repository ahead',
+    label: k('listing:drift.status.repoAhead'),
     tone: 'info',
-    explain:
-      'The repository changed since the store had this value. It has not reached the store yet.',
+    explain: k('listing:drift.statusExplain.repoAhead'),
+    count: k('listing:drift.count.repoAhead'),
   },
   'store-ahead': {
-    label: 'Store ahead',
+    label: k('listing:drift.status.storeAhead'),
     tone: 'warn',
-    explain:
-      'The store changed since the repository had this value. Someone edited it in the store console.',
+    explain: k('listing:drift.statusExplain.storeAhead'),
+    count: k('listing:drift.count.storeAhead'),
   },
   diverged: {
-    label: 'Diverged',
+    label: k('listing:drift.status.diverged'),
     tone: 'bad',
-    explain: 'Both sides changed, or the history cannot tell which one is newer.',
+    explain: k('listing:drift.statusExplain.diverged'),
+    count: k('listing:drift.count.diverged'),
   },
   'missing-in-one': {
-    label: 'Missing on one side',
+    label: k('listing:drift.status.missingInOne'),
     tone: 'neutral',
-    explain: 'Only one of the repository and the store has a value.',
+    explain: k('listing:drift.statusExplain.missingInOne'),
+    count: k('listing:drift.count.missingInOne'),
   },
 };
 
-export const statusLabel = (status: DriftStatus): string => STATUS[status].label;
+export const statusLabel = (status: DriftStatus): string => t(STATUS[status].label);
 
 export const statusTone = (status: DriftStatus): BadgeTone => STATUS[status].tone;
 
-export const statusExplanation = (status: DriftStatus): string => STATUS[status].explain;
+export const statusExplanation = (status: DriftStatus): string => t(STATUS[status].explain);
 
 /** "Missing in the repository" or "Missing in the store": which side has no value. */
 export function statusDetail(field: Pick<DriftField, 'status' | 'missingIn'>): string {
-  if (field.status !== 'missing-in-one') return STATUS[field.status].label;
-  if (field.missingIn === 'repo') return 'Missing in the repository';
-  if (field.missingIn === 'store') return 'Missing in the store';
-  return STATUS['missing-in-one'].label;
+  if (field.status !== 'missing-in-one') return t(STATUS[field.status].label);
+  if (field.missingIn === 'repo') return t('listing:drift.missingInRepo');
+  if (field.missingIn === 'store') return t('listing:drift.missingInStore');
+  return t(STATUS['missing-in-one'].label);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -88,8 +94,16 @@ export function usage(
 
 /** "27 / 30 characters", "12 characters" without a limit. */
 export function usageText(u: Usage): string {
-  const unit = u.unit === 'bytes' ? 'bytes' : 'characters';
-  return u.limit === null ? `${u.count} ${unit}` : `${u.count} / ${u.limit} ${unit}`;
+  const bytes = u.unit === 'bytes';
+  if (u.limit === null) {
+    return bytes
+      ? t('listing:drift.usage.bytes', { count: u.count })
+      : t('listing:drift.usage.characters', { count: u.count });
+  }
+  const used = formatNumber(u.count);
+  return bytes
+    ? t('listing:drift.usage.bytesOf', { count: u.limit, used })
+    : t('listing:drift.usage.charactersOf', { count: u.limit, used });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -230,20 +244,9 @@ export function filterLocales(locales: readonly DriftLocale[], filter: DriftFilt
 
 /** "German (Germany)" for `de-DE`; the code itself when the runtime cannot name it. */
 export function localeName(code: string): string {
-  if (code === 'default') return 'Default (fallback for locales without their own)';
-  // `Intl.DisplayNames` is missing from the TypeScript library level this project compiles with.
-  type DisplayNames = new (
-    locales: string[],
-    options: { type: 'language' },
-  ) => { of(code: string): string | undefined };
-  const DisplayNames = (Intl as unknown as { DisplayNames?: DisplayNames }).DisplayNames;
-  if (!DisplayNames) return code;
-  try {
-    const name = new DisplayNames(['en'], { type: 'language' }).of(code.replace('_', '-'));
-    return name && name !== code ? name : code;
-  } catch {
-    return code;
-  }
+  if (code === 'default') return t('listing:drift.localeDefault');
+  const name = formatDisplayName(code.replace('_', '-'), 'language');
+  return name && name !== code ? name : code;
 }
 
 /** How many fields differ (are not identical) in a locale. */
@@ -253,7 +256,7 @@ export const differingCount = (locale: DriftLocale): number =>
 /** "3 differ" or "All identical", for a locale heading. */
 export function localeSummary(locale: DriftLocale): string {
   const n = differingCount(locale);
-  return n === 0 ? 'All identical' : `${n} ${n === 1 ? 'field differs' : 'fields differ'}`;
+  return n === 0 ? t('listing:drift.allIdentical') : t('listing:drift.fieldsDiffer', { count: n });
 }
 
 /** A one-line summary of the whole drift view. */
@@ -261,9 +264,9 @@ export function driftSummaryText(drift: ListingDrift): string {
   const parts: string[] = [];
   for (const status of DRIFT_ORDER) {
     const n = drift.summary[status];
-    if (n > 0) parts.push(`${n} ${statusLabel(status).toLowerCase()}`);
+    if (n > 0) parts.push(t(STATUS[status].count, { count: n }));
   }
-  return parts.length === 0 ? 'No listing values yet' : parts.join(', ');
+  return parts.length === 0 ? t('listing:drift.noValues') : formatList(parts, { type: 'unit' });
 }
 
 /** True when neither the repository nor the store has anything to compare. */
@@ -273,12 +276,13 @@ export const isEmptyDrift = (drift: ListingDrift): boolean => drift.locales.leng
 // History
 
 const SOURCE_LABELS: Record<ListingValueSource, string> = {
-  store: 'Store',
-  repo: 'Repository',
-  change_set: 'Change set',
+  store: k('listing:drift.source.store'),
+  repo: k('listing:drift.source.repo'),
+  change_set: k('listing:drift.source.changeSet'),
 };
 
-export const sourceLabel = (source: ListingValueSource): string => SOURCE_LABELS[source] ?? source;
+export const sourceLabel = (source: ListingValueSource): string =>
+  SOURCE_LABELS[source] ? t(SOURCE_LABELS[source]) : source;
 
 /** A commit sha shortened; other references (store versions, change set ids) are shown as they are. */
 export function shortRef(source: ListingValueSource, ref: string | null): string | null {
@@ -294,7 +298,7 @@ export function describeSource(
 ): string {
   const parts: string[] = [sourceLabel(entry.source)];
   if (entry.source === 'store' && entry.channel !== '')
-    parts.push(entry.channel === 'editable' ? 'editable version' : 'live version');
+    parts.push(entry.channel === 'editable' ? t('listing:drift.channel.editable') : t('listing:drift.channel.live'));
   const ref = shortRef(entry.source, entry.sourceRef);
   if (ref) parts.push(ref);
   return parts.join(' · ');
@@ -303,9 +307,9 @@ export function describeSource(
 /** Who recorded an entry, in words. A sync or a repository read by a person is theirs; scheduled reads are the system's. */
 export function actorText(actor: ListingHistoryEntry['actor']): string {
   if (actor === null) return '';
-  if (actor.type === 'user') return 'by a workspace member';
-  if (actor.type === 'system') return 'by the system';
-  return `by ${actor.type}`;
+  if (actor.type === 'user') return t('listing:drift.actor.user');
+  if (actor.type === 'system') return t('listing:drift.actor.system');
+  return t('listing:drift.actor.other', { type: actor.type });
 }
 
 export type HistoryStep = {

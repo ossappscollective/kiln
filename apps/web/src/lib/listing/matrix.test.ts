@@ -210,11 +210,11 @@ test('limitText shows one limit, or one per store when they differ', () => {
       ]),
     },
   ]);
-  assert.equal(limitText(notes.columns[0] as never), 'max 4000');
+  assert.equal(limitText(notes.columns[0] as never), 'max 4,000');
   const differing = { platforms: ['ios', 'android'] as const, limits: { ios: 4000, android: 500 } };
   assert.equal(
     limitText({ ...differing, platforms: ['ios', 'android'] }),
-    'iOS 4000 / Android 500',
+    'iOS 4,000 / Android 500',
   );
   assert.equal(limitText({ platforms: ['ios'], limits: { ios: null } }), '');
 });

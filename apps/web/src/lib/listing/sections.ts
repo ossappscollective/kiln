@@ -15,6 +15,8 @@ import {
   supports,
 } from '@kiln/core';
 import { timeAgo } from '../format.ts';
+import { formatList } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 import type { BadgeTone } from '../portfolio.ts';
 import type { ListingSchedule, SectionDrift } from '../types.ts';
 
@@ -25,69 +27,69 @@ import type { ListingSchedule, SectionDrift } from '../types.ts';
  * read-only: nothing is pulled into the repository, nothing is written to a store.
  */
 
-export const READ_ONLY_NOTE =
-  'Read-only. These sections are shown as the store has them and compared with the repository by name, URL and count. ' +
-  'They are never pulled into the repository, and nothing on this tab changes a store.';
+/** Message keys: translate them where they are drawn (`t(READ_ONLY_NOTE)`). */
+export const READ_ONLY_NOTE = k('listing:sections.note.readOnly');
 
-export const PLAY_LIMITS_NOTE =
-  "Google Play's API has no categories or age rating, so they are not shown for this app. Screenshots are counted per image type.";
+export const PLAY_LIMITS_NOTE = k('listing:sections.note.playLimits');
 
 // ---------------------------------------------------------------------------------------------
 // Status
 
 type StatusInfo = { label: string; tone: BadgeTone; explain: string };
 
+/** Keys, translated by the accessors below. */
 const STATUS: Record<SectionStatus, StatusInfo> = {
   identical: {
-    label: 'Identical',
+    label: k('listing:sections.status.identical'),
     tone: 'ok',
-    explain: 'The repository and the store say the same.',
+    explain: k('listing:sections.statusExplain.identical'),
   },
   differs: {
-    label: 'Differs',
+    label: k('listing:sections.status.differs'),
     tone: 'warn',
-    explain: 'The repository and the store disagree. See the rows marked as different.',
+    explain: k('listing:sections.statusExplain.differs'),
   },
   'missing-in-repo': {
-    label: 'Not in the repository',
+    label: k('listing:sections.status.missingInRepo'),
     tone: 'neutral',
-    explain: 'The store has a value and the repository files say nothing about it.',
+    explain: k('listing:sections.statusExplain.missingInRepo'),
   },
   'missing-in-store': {
-    label: 'Not in the store',
+    label: k('listing:sections.status.missingInStore'),
     tone: 'neutral',
-    explain: 'The repository has a value and the store has nothing.',
+    explain: k('listing:sections.statusExplain.missingInStore'),
   },
   'not-comparable': {
-    label: 'Not comparable',
+    label: k('listing:sections.status.notComparable'),
     tone: 'neutral',
-    explain:
-      'The repository cannot say this faithfully (or has not been read), so the store value is shown without a comparison.',
+    explain: k('listing:sections.statusExplain.notComparable'),
   },
   'not-read': {
-    label: 'Not read yet',
+    label: k('listing:sections.status.notRead'),
     tone: 'neutral',
-    explain: 'This has not been read from the store yet.',
+    explain: k('listing:sections.statusExplain.notRead'),
   },
 };
 
 export const sectionStatusLabel = (status: SectionStatus): string =>
-  STATUS[status]?.label ?? status;
+  STATUS[status] ? t(STATUS[status].label) : status;
 export const sectionStatusTone = (status: SectionStatus): BadgeTone =>
   STATUS[status]?.tone ?? 'neutral';
 export const sectionStatusExplanation = (status: SectionStatus): string =>
-  STATUS[status]?.explain ?? '';
+  STATUS[status] ? t(STATUS[status].explain) : '';
 
+/** Message keys by section; `sectionTitle` translates. */
 export const SECTION_TITLES: Record<ListingSectionName, string> = {
-  categories: 'Categories',
-  ageRating: 'Age rating',
-  privacy: 'Privacy choices URL',
-  details: 'App details',
-  media: 'Screenshots and previews',
-  releaseNotes: 'Release notes',
+  categories: k('listing:sections.title.categories'),
+  ageRating: k('listing:sections.title.ageRating'),
+  privacy: k('listing:sections.title.privacy'),
+  details: k('listing:sections.title.details'),
+  media: k('listing:sections.title.media'),
+  releaseNotes: k('listing:sections.title.releaseNotes'),
 };
 
-export const sectionTitle = (name: ListingSectionName): string => SECTION_TITLES[name] ?? name;
+export const sectionTitle = (name: ListingSectionName): string =>
+  SECTION_TITLES[name] ? t(SECTION_TITLES[name]) : name;
 
 /** The sections in the order the tab shows them; a name this client does not know is kept last. */
 export function orderedSections(sections: readonly SectionDrift[] | undefined): SectionDrift[] {
@@ -102,12 +104,12 @@ export function orderedSections(sections: readonly SectionDrift[] | undefined): 
 /** How many sections have a store value, and how many of those differ: for a one-line summary. */
 export function sectionsSummary(sections: readonly SectionDrift[] | undefined): string {
   const list = sections ?? [];
-  if (list.length === 0) return 'No sections read yet';
+  if (list.length === 0) return t('listing:sections.summary.none');
   const read = list.filter((s) => s.compare.status !== 'not-read').length;
   const differ = list.filter((s) => s.compare.status === 'differs').length;
-  if (read === 0) return 'Not read yet';
-  const base = `${read} of ${list.length} read`;
-  return differ > 0 ? `${base}, ${differ} ${differ === 1 ? 'differs' : 'differ'}` : base;
+  if (read === 0) return t('listing:sections.summary.notRead');
+  const base = t('listing:sections.summary.read', { read, total: list.length });
+  return differ > 0 ? formatList([base, t('listing:sections.summary.differ', { count: differ })], { type: 'unit' }) : base;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -139,7 +141,7 @@ export function ageRatingLabel(rating: string | undefined): string | null {
 
 const answerText = (value: string | boolean | undefined): string | null => {
   if (value === undefined) return null;
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'boolean') return value ? t('listing:sections.answer.yes') : t('listing:sections.answer.no');
   return humanize(value);
 };
 
@@ -158,19 +160,20 @@ export function deviceLabel(type: string): string {
     return `iPad Pro ${size}"`;
   }
   const play: Record<string, string> = {
-    phoneScreenshots: 'Phone',
-    sevenInchScreenshots: '7-inch tablet',
-    tenInchScreenshots: '10-inch tablet',
-    tvScreenshots: 'TV',
-    wearScreenshots: 'Wear OS',
-    icon: 'Icon',
-    featureGraphic: 'Feature graphic',
-    tvBanner: 'TV banner',
-    promoGraphic: 'Promo graphic',
-    all: 'All device types',
+    phoneScreenshots: k('listing:sections.device.phone'),
+    sevenInchScreenshots: k('listing:sections.device.tablet7'),
+    tenInchScreenshots: k('listing:sections.device.tablet10'),
+    tvScreenshots: k('listing:sections.device.tv'),
+    wearScreenshots: k('listing:sections.device.wear'),
+    icon: k('listing:sections.device.icon'),
+    featureGraphic: k('listing:sections.device.featureGraphic'),
+    tvBanner: k('listing:sections.device.tvBanner'),
+    promoGraphic: k('listing:sections.device.promoGraphic'),
+    all: k('listing:sections.device.all'),
   };
   if (type === 'APP_DESKTOP') return 'Mac';
-  if (play[type]) return play[type] as string;
+  const playKey = play[type];
+  if (playKey) return t(playKey);
   return humanize(type.replace(/^APP_/, ''));
 }
 
@@ -212,12 +215,12 @@ export function categoryRows(
 ): ValueRow[] {
   const get = (c: ListingCategories | undefined) =>
     [
-      ['Primary category', c?.primary],
-      ['Secondary category', c?.secondary],
-      ['Primary subcategory 1', c?.primarySubcategories?.[0]],
-      ['Primary subcategory 2', c?.primarySubcategories?.[1]],
-      ['Secondary subcategory 1', c?.secondarySubcategories?.[0]],
-      ['Secondary subcategory 2', c?.secondarySubcategories?.[1]],
+      [t('listing:sections.row.primaryCategory'), c?.primary],
+      [t('listing:sections.row.secondaryCategory'), c?.secondary],
+      [t('listing:sections.row.primarySub', { n: 1 }), c?.primarySubcategories?.[0]],
+      [t('listing:sections.row.primarySub', { n: 2 }), c?.primarySubcategories?.[1]],
+      [t('listing:sections.row.secondarySub', { n: 1 }), c?.secondarySubcategories?.[0]],
+      [t('listing:sections.row.secondarySub', { n: 2 }), c?.secondarySubcategories?.[1]],
     ] as const;
   const a = get(store);
   const b = get(repo);
@@ -248,7 +251,7 @@ export function ageRatingRows(
 ): ValueRow[] {
   const rows: ValueRow[] = [];
   const label = ageRatingLabel(store?.rating);
-  if (label !== null) rows.push(row('Rating', label, null, false, store?.rating));
+  if (label !== null) rows.push(row(t('listing:sections.row.rating'), label, null, false, store?.rating));
   const keys = [
     ...new Set([...Object.keys(store?.answers ?? {}), ...Object.keys(repo?.answers ?? {})]),
   ].sort();
@@ -285,10 +288,10 @@ export function detailRows(
   repo: ListingDetails | undefined,
 ): ValueRow[] {
   const fields = [
-    ['copyright', 'Copyright'],
-    ['defaultLanguage', 'Default language'],
-    ['contactEmail', 'Contact email'],
-    ['contactWebsite', 'Contact website'],
+    ['copyright', t('listing:sections.row.copyright')],
+    ['defaultLanguage', t('listing:sections.row.defaultLanguage')],
+    ['contactEmail', t('listing:sections.row.contactEmail')],
+    ['contactWebsite', t('listing:sections.row.contactWebsite')],
   ] as const;
   const rows: ValueRow[] = [];
   for (const [key, label] of fields) {
@@ -327,9 +330,19 @@ export function valueRows(
 // ---------------------------------------------------------------------------------------------
 // Media: counts per locale and device type
 
+/** The kind of a media row: an identifier; `mediaKindLabel` says it in the reader's language. */
+export type MediaKind = 'Screenshots' | 'Previews' | 'Graphics';
+
+export const mediaKindLabel = (kind: MediaKind): string =>
+  kind === 'Screenshots'
+    ? t('listing:sections.media.kindScreenshots')
+    : kind === 'Previews'
+      ? t('listing:sections.media.kindPreviews')
+      : t('listing:sections.media.kindGraphics');
+
 export type MediaRow = {
   locale: string;
-  kind: 'Screenshots' | 'Previews' | 'Graphics';
+  kind: MediaKind;
   /** "iPhone 6.7"", "Phone", or "All device types" for a total. */
   device: string;
   /** The store's own id, for a tooltip. */
@@ -397,7 +410,7 @@ export function mediaRows(
         rows.push({
           locale,
           kind: 'Screenshots',
-          device: 'All device types',
+          device: t('listing:sections.device.all'),
           type: 'all',
           store: storeHas ? s : null,
           repo: r,
@@ -464,7 +477,7 @@ export function mediaRows(
 
 /** "12 screenshots and 3 previews in 4 locales", for the header of the media block. */
 export function mediaSummary(store: ListingMedia | undefined): string {
-  if (store === undefined) return 'Not read yet';
+  if (store === undefined) return t('listing:sections.summary.notRead');
   const sum = (map: Record<string, MediaSet[]> | undefined) =>
     Object.values(map ?? {}).reduce((n, sets) => n + total(sets), 0);
   const screenshots = sum(store.screenshots);
@@ -475,16 +488,14 @@ export function mediaSummary(store: ListingMedia | undefined): string {
     ...Object.keys(store.previews ?? {}),
     ...Object.keys(store.graphics ?? {}),
   ]);
-  const parts = [`${screenshots} ${screenshots === 1 ? 'screenshot' : 'screenshots'}`];
-  if (store.previews !== undefined)
-    parts.push(`${previews} ${previews === 1 ? 'preview' : 'previews'}`);
-  if (store.graphics !== undefined)
-    parts.push(`${graphics} ${graphics === 1 ? 'graphic' : 'graphics'}`);
-  const where = `${locales.size} ${locales.size === 1 ? 'locale' : 'locales'}`;
-  const text = `${parts.join(', ')} in ${where}`;
-  return store.truncated === true
-    ? `${text} (some locales were left out to stay within the read limits)`
-    : text;
+  const parts = [t('listing:sections.media.screenshots', { count: screenshots })];
+  if (store.previews !== undefined) parts.push(t('listing:sections.media.previews', { count: previews }));
+  if (store.graphics !== undefined) parts.push(t('listing:sections.media.graphics', { count: graphics }));
+  const text = t('listing:sections.media.summary', {
+    parts: formatList(parts, { type: 'unit' }),
+    count: locales.size,
+  });
+  return store.truncated === true ? t('listing:sections.media.truncated', { text }) : text;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -503,18 +514,20 @@ export function releaseNoteRows(releaseNotes: ListingReleaseNotes | undefined): 
   return Object.keys(releaseNotes.tracks)
     .sort()
     .map((track) => {
-      const t = releaseNotes.tracks[track] as ListingReleaseNotes['tracks'][string];
+      const entry = releaseNotes.tracks[track] as ListingReleaseNotes['tracks'][string];
       const meta = [
-        t.name !== undefined && t.name !== track ? t.name : null,
-        t.status ? humanize(t.status) : null,
-        t.versionCodes.length > 0 ? `version ${t.versionCodes.join(', ')}` : null,
+        entry.name !== undefined && entry.name !== track ? entry.name : null,
+        entry.status ? humanize(entry.status) : null,
+        entry.versionCodes.length > 0
+          ? t('listing:sections.notes.version', { codes: formatList(entry.versionCodes, { type: 'unit' }) })
+          : null,
       ]
         .filter((x): x is string => x !== null)
         .join(' · ');
-      const notes = Object.keys(t.notes)
+      const notes = Object.keys(entry.notes)
         .sort()
         .map((language) => {
-          const text = t.notes[language] as string;
+          const text = entry.notes[language] as string;
           return { language, text: text.length > NOTE_CAP ? `${text.slice(0, NOTE_CAP)}…` : text };
         });
       return { track, meta, notes };
@@ -530,62 +543,61 @@ export type ScheduleView = {
   detail: string;
 };
 
-/** "1 hour", "90 minutes", "2 days": the interval as a person says it. */
+/** "Read automatically every hour", "... every 90 minutes", "... every 2 days": the interval as a person says it. */
 export function intervalText(minutes: number): string {
   if (minutes > 0 && minutes % 1440 === 0) {
     const d = minutes / 1440;
-    return d === 1 ? 'day' : `${d} days`;
+    return d === 1 ? t('listing:sections.schedule.everyDay') : t('listing:sections.schedule.everyDays', { count: d });
   }
   if (minutes > 0 && minutes % 60 === 0) {
     const h = minutes / 60;
-    return h === 1 ? 'hour' : `${h} hours`;
+    return h === 1 ? t('listing:sections.schedule.everyHour') : t('listing:sections.schedule.everyHours', { count: h });
   }
-  return `${minutes} minutes`;
+  return t('listing:sections.schedule.everyMinutes', { count: minutes });
 }
 
 export function scheduleView(schedule: ListingSchedule | undefined, now: number): ScheduleView {
   if (schedule === undefined) {
     return {
       state: 'unknown',
-      headline: 'Scheduled reads: unknown',
-      detail: 'This server does not report whether the listing is read on a schedule.',
+      headline: t('listing:sections.schedule.unknownHeadline'),
+      detail: t('listing:sections.schedule.unknownDetail'),
     };
   }
   if (!schedule.enabled) {
     return {
       state: 'off',
-      headline: 'Scheduled reads are off',
-      detail:
-        'The listing is read when the app is synced or refreshed from the store. The server owner can turn scheduled reads on (KILN_LISTING_INTERVAL_MINUTES).',
+      headline: t('listing:sections.schedule.offHeadline'),
+      detail: t('listing:sections.schedule.offDetail'),
     };
   }
-  const every = `Read automatically every ${intervalText(schedule.intervalMinutes)}`;
+  const every = intervalText(schedule.intervalMinutes);
   const next =
     schedule.nextReadAt === null
-      ? 'the next scheduler pass'
+      ? t('listing:sections.schedule.nextPass')
       : schedule.nextReadAt <= now
-        ? 'the next scheduler pass'
+        ? t('listing:sections.schedule.nextPass')
         : timeAhead(schedule.nextReadAt, now);
   if (schedule.failures > 0) {
     return {
       state: 'backing-off',
       headline: every,
-      detail: `The last ${schedule.failures === 1 ? 'attempt' : `${schedule.failures} attempts`} failed, so the next one waits: ${next}.`,
+      detail: t('listing:sections.schedule.backoff', { count: schedule.failures, next }),
     };
   }
-  return { state: 'on', headline: every, detail: `Next read: ${next}.` };
+  return { state: 'on', headline: every, detail: t('listing:sections.schedule.next', { next }) };
 }
 
 /** "in 12 minutes", "in 3 hours": a future time, for the next scheduled read. */
 export function timeAhead(at: number, now: number): string {
   const seconds = Math.max(0, Math.round((at - now) / 1000));
-  if (seconds < 60) return 'in under a minute';
+  if (seconds < 60) return t('listing:sections.ahead.underMinute');
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+  if (minutes < 60) return t('listing:sections.ahead.minutes', { count: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 48) return `in ${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  if (hours < 48) return t('listing:sections.ahead.hours', { count: hours });
   const days = Math.round(hours / 24);
-  return `in ${days} days`;
+  return t('listing:sections.ahead.days', { count: days });
 }
 
 /** When the store listing was last attempted, for the status strip. */

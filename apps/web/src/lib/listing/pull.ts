@@ -1,5 +1,6 @@
 import { can, listingStoreOf, type Platform, platformMeta, type Role } from '@kiln/core';
 import type { ApiError } from '../api.ts';
+import { k, t } from '../i18n/t.ts';
 import type {
   DriftField,
   DriftLocale,
@@ -83,13 +84,13 @@ export type PullAvailability = {
 /** The reason the pull actions are disabled, in a sentence, or null when they are available. */
 export function pullDisabledReason(input: PullAvailability): string | null {
   if (!can(input.role, 'changesets.write')) {
-    return 'Your role cannot create change sets. A member, admin or owner can pull the listing into the repository.';
+    return t('listing:pull.disabled.role');
   }
   if (input.repositoryId === null) {
-    return 'This app is not linked to a repository. Link it to a repository to pull the store listing into its files.';
+    return t('listing:pull.disabled.noRepository');
   }
   if (!input.storeRead) {
-    return 'Nothing has been read from the store yet. Refresh from the store first.';
+    return t('listing:pull.disabled.notRead');
   }
   return null;
 }
@@ -124,25 +125,22 @@ export function buildPullRequest(
 /** "3 fields in 2 locales". */
 export function selectionText(fields: readonly Pick<DriftField, 'locale'>[]): string {
   const locales = new Set(fields.map((f) => f.locale)).size;
-  const n = fields.length;
-  return `${n} ${n === 1 ? 'field' : 'fields'} in ${locales} ${locales === 1 ? 'locale' : 'locales'}`;
+  return t('listing:pull.selection', {
+    count: fields.length,
+    locales: t('listing:pull.localesCount', { count: locales }),
+  });
 }
 
 /** The suggested summary of the change set, which the person may edit. */
 export function defaultPullSummary(appName: string, platform: Platform): string {
-  return `Pull the ${platformMeta(platform).storeName} listing of ${appName} into the repository`.slice(
-    0,
-    200,
-  );
+  return t('listing:pull.defaultSummary', { store: platformMeta(platform).storeName, app: appName }).slice(0, 200);
 }
 
 // ---------------------------------------------------------------------------------------------
 // The target, in words
 
 export const sourceKindLabel = (source: ListingSourceKind): string =>
-  source === 'expo-store-config'
-    ? 'Expo store config (store.config.json)'
-    : 'fastlane metadata files';
+  source === 'expo-store-config' ? t('listing:pull.source.expo') : t('listing:pull.source.fastlane');
 
 /**
  * Where the listing would be written, judged from a stored scan (the real choice is made when the
@@ -167,25 +165,26 @@ export function detectedPullSource(
 
 /** "acme/app, branch main, store.config.json". */
 export function targetText(target: { repository: string; branch: string; path: string }): string {
-  return `${target.repository}, branch ${target.branch}, ${target.path}`;
+  return t('listing:pull.target', { repository: target.repository, branch: target.branch, path: target.path });
 }
 
 // ---------------------------------------------------------------------------------------------
 // The answer
 
 const SKIP_LABELS: Record<PullSkipReason, string> = {
-  repo_ahead: 'Repository is ahead of the store',
-  missing_in_store: 'The store has no value',
-  identical: 'Already the same',
-  over_limit: 'Over the store limit',
-  locale_not_in_repo: 'Locale is not in the repository',
-  locale_ambiguous: 'Locale matches several folders',
-  locale_invalid: 'Not a usable locale folder name',
-  locale_unsupported: 'Locale not supported by the Expo store config',
-  locale_conflict: 'Two locales for one folder',
+  repo_ahead: k('listing:pull.skip.repoAhead'),
+  missing_in_store: k('listing:pull.skip.missingInStore'),
+  identical: k('listing:pull.skip.identical'),
+  over_limit: k('listing:pull.skip.overLimit'),
+  locale_not_in_repo: k('listing:pull.skip.localeNotInRepo'),
+  locale_ambiguous: k('listing:pull.skip.localeAmbiguous'),
+  locale_invalid: k('listing:pull.skip.localeInvalid'),
+  locale_unsupported: k('listing:pull.skip.localeUnsupported'),
+  locale_conflict: k('listing:pull.skip.localeConflict'),
 };
 
-export const skipReasonLabel = (reason: PullSkipReason): string => SKIP_LABELS[reason] ?? reason;
+export const skipReasonLabel = (reason: PullSkipReason): string =>
+  SKIP_LABELS[reason] ? t(SKIP_LABELS[reason]) : reason;
 
 export type SkipGroup = { reason: PullSkipReason; label: string; items: PullSkip[] };
 
@@ -204,7 +203,8 @@ export function groupSkipped(skipped: readonly PullSkip[]): SkipGroup[] {
 export const skipSubject = (
   skip: Pick<PullSkip, 'locale' | 'field'>,
   labelOf: (field: string) => string,
-): string => (skip.field === undefined ? skip.locale : `${skip.locale}, ${labelOf(skip.field)}`);
+): string =>
+  skip.field === undefined ? skip.locale : t('listing:pull.skipSubject', { locale: skip.locale, field: labelOf(skip.field) });
 
 export type PullSummary = {
   tone: 'ok' | 'info' | 'warn';
@@ -218,23 +218,25 @@ export function summarizePull(result: PullResult): PullSummary {
   const details: string[] = [];
   const skipped = result.skipped.length;
   if (skipped > 0) {
-    details.push(
-      `${skipped} ${skipped === 1 ? 'field was' : 'fields were'} left out. See why below.`,
-    );
+    details.push(t('listing:pull.leftOut', { count: skipped }));
   }
   if (result.changeSet === null) {
     return {
       tone: 'info',
-      headline: result.explanation ?? 'Nothing to pull.',
+      headline: result.explanation ?? t('listing:pull.nothing'),
       details,
     };
   }
   const fields = result.changes.length;
   const files = result.changeSet.filesChanged;
   const locales = new Set(result.changes.map((c) => c.repoLocale)).size;
-  const headline = `Created a draft change set: ${fields} ${fields === 1 ? 'field' : 'fields'} in ${locales} ${locales === 1 ? 'locale' : 'locales'}, ${files} ${files === 1 ? 'file' : 'files'}.`;
+  const headline = t('listing:pull.created', {
+    count: fields,
+    locales: t('listing:pull.localesCount', { count: locales }),
+    files: t('listing:pull.filesCount', { count: files }),
+  });
   if (result.problems.some((p) => p.severity === 'warning')) {
-    details.push('Some pulled values have limit warnings. Review them in the change set.');
+    details.push(t('listing:pull.limitWarnings'));
   }
   for (const warning of result.warnings) details.push(warning);
   return { tone: skipped > 0 || result.warnings.length > 0 ? 'warn' : 'ok', headline, details };
@@ -261,21 +263,19 @@ export function pullErrorMessage(
 ): string {
   switch (error.code) {
     case 'no_repository':
-      return 'This app is not linked to a repository, or the repository was disconnected.';
+      return t('listing:pull.error.noRepository');
     case 'no_store_listing':
-      return 'No store listing has been read for this app yet. Refresh from the store, then try again.';
+      return t('listing:pull.error.noStoreListing');
     case 'target_required':
-      return 'This repository has more than one place this listing could be. Choose where to pull it into.';
+      return t('listing:pull.error.targetRequired');
     case 'no_target_folder':
       return error.message;
     case 'rate_limited': {
       const wait = error.retryAfter;
-      return wait === undefined
-        ? 'Reads are limited to 10 a minute for the workspace. Try again in a minute.'
-        : `Reads are limited to 10 a minute for the workspace. Try again in ${wait} ${wait === 1 ? 'second' : 'seconds'}.`;
+      return wait === undefined ? t('listing:pull.error.rateLimited') : t('listing:pull.error.rateLimitedWait', { count: wait });
     }
     case 'sync_in_progress':
-      return 'A sync of this app is already running. Wait for it to finish, then try again.';
+      return t('listing:pull.error.syncInProgress');
     case 'invalid_field':
       return error.message;
     default:
