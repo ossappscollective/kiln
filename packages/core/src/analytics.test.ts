@@ -21,7 +21,10 @@ import {
   metricsOfSource,
   normalizeBucketId,
   normalizeVendorNumber,
+  productDimValue,
+  productSalesLimits,
   safeRatio,
+  splitProductDimValue,
   sourcesForPlatform,
   toMicro,
 } from './analytics.ts';
@@ -35,7 +38,7 @@ test('every metric belongs to one source and has a label, a unit and a delay', (
   }
   assert.deepEqual(sourcesForPlatform('ios'), ['apple_analytics', 'apple_sales']);
   assert.deepEqual(sourcesForPlatform('macos'), ['apple_analytics', 'apple_sales']);
-  assert.deepEqual(sourcesForPlatform('android'), ['play_vitals', 'play_reports']);
+  assert.deepEqual(sourcesForPlatform('android'), ['play_vitals', 'play_reports', 'play_sales']);
 });
 
 test('counts and money add up; rates and ratings are averaged', () => {
@@ -143,4 +146,19 @@ test('a vendor number is digits; a bucket id is pubsite_prod_rev_ and digits, wi
   ]) {
     assert.equal(normalizeBucketId(bad), undefined, bad);
   }
+});
+
+test('a money metric is one series per currency; the product dimension keeps the currency in its key', () => {
+  assert.equal(metricInfo.sales_gross.source, 'play_sales');
+  assert.equal(metricInfo.sales_gross.unit, 'money');
+  assert.notEqual(metricInfo.sales_gross.label, metricInfo.sales_proceeds.label, 'estimates are not proceeds');
+  assert.ok(!/proceeds/i.test(metricInfo.sales_gross.label));
+  assert.equal(productDimValue('coins_100', 'EUR'), 'EUR:coins_100');
+  assert.equal(productDimValue('coins_100', null), 'coins_100');
+  assert.equal(productDimValue('coins_100', 'eur'), undefined, 'a currency is three capital letters');
+  assert.equal(productDimValue('  ', null), undefined);
+  assert.equal(productDimValue('x'.repeat(productSalesLimits.maxProductIdLength + 1), null), undefined);
+  assert.deepEqual(splitProductDimValue('EUR:a:b', true), { productId: 'a:b', currency: 'EUR' });
+  assert.deepEqual(splitProductDimValue('a:b', false), { productId: 'a:b', currency: null });
+  assert.deepEqual(splitProductDimValue('nocurrency', true), { productId: 'nocurrency', currency: null });
 });

@@ -13,12 +13,19 @@ export const analyticsSources = [
   'apple_sales',
   'play_vitals',
   'play_reports',
+  'play_sales',
 ] as const;
 export type AnalyticsSource = (typeof analyticsSources)[number];
 export const isAnalyticsSource = (v: unknown): v is AnalyticsSource =>
   typeof v === 'string' && (analyticsSources as readonly string[]).includes(v);
 
-export const analyticsDimensions = ['territory', 'source_type', 'app_version', 'currency'] as const;
+export const analyticsDimensions = [
+  'territory',
+  'source_type',
+  'app_version',
+  'currency',
+  'product',
+] as const;
 export type AnalyticsDimension = (typeof analyticsDimensions)[number];
 
 export const analyticsMetrics = [
@@ -44,6 +51,10 @@ export const analyticsMetrics = [
   'rating_average_total',
   'store_listing_visitors',
   'store_listing_acquisitions',
+  // Google, Cloud Storage "Estimated sales" reports (docs/adr/0038-sales-analytics.md): what buyers paid, NOT developer proceeds
+  'sales_gross',
+  'sales_refunds',
+  'sales_orders',
 ] as const;
 export type AnalyticsMetric = (typeof analyticsMetrics)[number];
 export const isAnalyticsMetric = (v: unknown): v is AnalyticsMetric =>
@@ -189,7 +200,62 @@ export const metricInfo: Record<AnalyticsMetric, MetricInfo> = {
     delayDays: 7,
     label: 'Store listing acquisitions',
   },
+  // Estimated sales: buyer-paid amounts (tax included, Google's fee NOT deducted), per currency of sale, UTC days. Posted with a
+  // delay of up to a few days (the 3 to 7 days Google gives for its Cloud Storage exports is the upper bound used here).
+  sales_gross: {
+    source: 'play_sales',
+    unit: 'money',
+    aggregation: 'sum',
+    delayDays: 7,
+    label: 'Sales, buyer-paid estimate',
+  },
+  sales_refunds: {
+    source: 'play_sales',
+    unit: 'money',
+    aggregation: 'sum',
+    delayDays: 7,
+    label: 'Refunds, buyer-paid estimate',
+  },
+  sales_orders: {
+    source: 'play_sales',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 7,
+    label: 'Orders',
+  },
 };
+
+/** The metrics that are money: one series per currency, never added across currencies. */
+export const moneyMetrics: readonly AnalyticsMetric[] = analyticsMetrics.filter(
+  (m) => metricInfo[m].unit === 'money',
+);
+
+/**
+ * Per-product sales (docs/adr/0038-sales-analytics.md): the daily facts of the sales metrics are also stored under the dimension
+ * `product`. The value is the store's product id (Apple SKU, Google Play SKU ID); for a MONEY metric it is `<CUR>:<product id>`, so
+ * the currency stays part of the key and two currencies are never mixed. The table is bounded: at most `maxProductsPerApp` distinct
+ * products per app and source, and an id longer than `maxProductIdLength` is not stored.
+ */
+export const productSalesLimits = { maxProductsPerApp: 200, maxProductIdLength: 90 } as const;
+
+export function productDimValue(productId: string, currency: string | null): string | undefined {
+  const id = productId.trim();
+  if (id === '' || id.length > productSalesLimits.maxProductIdLength) return undefined;
+  if (currency === null) return id;
+  return /^[A-Z]{3}$/.test(currency) ? `${currency}:${id}` : undefined;
+}
+
+/** The inverse of `productDimValue`: the product id and, for a money metric, its currency. */
+export function splitProductDimValue(
+  value: string,
+  money: boolean,
+): { productId: string; currency: string | null } {
+  if (!money) return { productId: value, currency: null };
+  const at = value.indexOf(':');
+  return at === 3
+    ? { productId: value.slice(4), currency: value.slice(0, 3) }
+    : { productId: value, currency: null };
+}
 
 /** Which source reads which metrics, in a stable order. */
 export const metricsOfSource = (source: AnalyticsSource): AnalyticsMetric[] =>
@@ -199,7 +265,7 @@ export const metricsOfSource = (source: AnalyticsSource): AnalyticsMetric[] =>
 export const sourcesForPlatform = (platform: Platform): AnalyticsSource[] => [
   ...byFamily(platform, {
     apple: ['apple_analytics', 'apple_sales'],
-    google: ['play_vitals', 'play_reports'],
+    google: ['play_vitals', 'play_reports', 'play_sales'],
   }),
 ];
 
@@ -241,6 +307,7 @@ export const analyticsErrorCodes = [
   'bucket_not_found',
   'reports_not_found', // the bucket holds no file for the month
   'package_not_in_bucket', // the bucket can be read but holds no report of this package at all: usually the bucket of another Play account
+  'play_sales_forbidden', // the service account may not read the sales reports (Play Console "View financial data", Global)
   // Both
   'store_auth', // the credential is unusable
   'store_forbidden',
@@ -266,6 +333,7 @@ export const analyticsSetupCodes = [
   'request_stopped', // Apple: stopped for inactivity
   'vendor_number_missing', // Apple Sales and Trends needs the vendor number
   'sales_forbidden',
+  'play_sales_forbidden', // Google: the service account lacks "View financial data" (Global): no sales reports
   'bucket_id_missing', // Google Cloud Storage reports need the bucket id
   'bucket_forbidden',
   'reporting_api_not_enabled',
@@ -284,6 +352,7 @@ export const analyticsNextSteps = [
   'set_vendor_number', // the workspace setting analytics.appleVendorNumber (PUT /settings)
   'set_bucket_id', // the workspace setting analytics.playBucketId (PUT /settings)
   'grant_play_permission',
+  'grant_play_financial_permission', // Play Console: View financial data, set to Global
   'enable_reporting_api',
   'fix_credential',
   'sync_now',
@@ -340,6 +409,8 @@ export const analyticsErrorMessages: Record<AnalyticsErrorCode, string> = {
   reports_not_found: 'The bucket holds no report file for this app and month yet.',
   package_not_in_bucket:
     'This package is not in this bucket. The reports of an app are in the bucket of the Play account that owns it: check the bucket of this app.',
+  play_sales_forbidden:
+    'Google refused the service account the Play Console sales reports. In Play Console, Users and permissions, give the service account the permission View financial data, set to Global (all apps), then sync again. If the whole bucket is refused, it also needs read access to the bucket.',
   store_auth: 'The credential was refused by the store. Check the key and enter it again.',
   store_forbidden: 'The credential is not allowed to read this from the store.',
   store_not_found: 'The store has no such app for this credential.',
@@ -369,6 +440,12 @@ export const coverageNoteCodes = [
   'google_no_impressions', // Google offers no impressions in any API or export
   'google_rating_average_only', // the average only, no count or histogram
   'google_monthly_files', // reports are monthly files posted 3 to 7 days late
+  'play_estimated_sales_gross', // Google estimated sales are what buyers paid, tax included, no Google fee deducted: not proceeds
+  'play_sales_latency', // the sales file is extended daily, up to a few days late; refunds change earlier days
+  'play_sales_utc', // Google sales days run on UTC
+  'play_sales_per_currency', // amounts in the currency the buyer paid in, never converted
+  'apple_product_sales_include_in_app', // by-product Apple numbers include in-app purchases and subscriptions; the total chart does not
+  'sales_products_capped', // only the first products of the app are kept
   'derived', // computed from other series, not a store number
   'imported', // some days came from an uploaded file, not from the API
   'recent_days_incomplete', // the newest days are still being completed by the store
@@ -404,6 +481,17 @@ export const coverageNoteMessages: Record<CoverageNoteCode, string> = {
   google_no_impressions: 'Google Play offers no impressions in any API or export.',
   google_rating_average_only: 'Only the average rating is available, not the number of ratings.',
   google_monthly_files: 'Google posts these reports as monthly files, usually 3 to 7 days late.',
+  play_estimated_sales_gross:
+    'Google Play estimated sales are what buyers paid, taxes included and before Google deducts its fee. They are not your proceeds and not meant for accounting (the monthly Earnings report is).',
+  play_sales_latency:
+    'Google adds charged and refunded orders to the month file every day, up to a few days late. Recent days and refunds can still change.',
+  play_sales_utc: 'Google Play sales days run on UTC.',
+  play_sales_per_currency:
+    'Amounts are in the currency the buyer paid in (Currency of Sale). They are shown per currency and never converted.',
+  apple_product_sales_include_in_app:
+    'Sales by product include in-app purchases and subscriptions of the app (UNVERIFIED matching by SKU). The total chart counts only the app itself, so products can add up to more than the total.',
+  sales_products_capped:
+    'Only the first 200 products of the app are kept. Sales of further products are not stored.',
   derived: 'Derived from other series; it may not match the number the store console shows.',
   imported: 'Some days come from a file that was imported, not from the store API.',
   recent_days_incomplete: 'The newest days can still change while the store completes them.',
