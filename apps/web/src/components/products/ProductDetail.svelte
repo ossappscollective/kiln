@@ -19,12 +19,14 @@
     salesMeasureText,
   } from '../../lib/analytics/product-sales.ts';
   import { type Api, ApiError } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import {
     groupPrices,
     guessedKindNote,
     kindLabel,
     periodLabel,
     priceCountText,
+    priceDisplay,
     READ_ONLY_NOTE,
     stateBadge,
   } from '../../lib/products.ts';
@@ -36,6 +38,7 @@
   import Disclosure from '../ui/Disclosure.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import T from '../ui/T.svelte';
   import RevenueCatDetail from '../revenuecat/RevenueCatDetail.svelte';
   import LocalizationEditor from './LocalizationEditor.svelte';
 
@@ -88,7 +91,7 @@
     } catch (e) {
       if (mine !== generation) return;
       data = null;
-      problem = e instanceof ApiError ? e.message : 'Could not load the product.';
+      problem = e instanceof ApiError ? e.message : t('products:detail.loadError');
     } finally {
       if (mine === generation) loading = false;
     }
@@ -115,7 +118,7 @@
   }
 </script>
 
-<section class="detail stack" class:embedded aria-label="Product {productId}" data-testid="product-detail">
+<section class="detail stack" class:embedded aria-label={t('products:detail.aria', { id: productId })} data-testid="product-detail">
   <div class="head row">
     <div class="titles">
       <h3 class="name">{product?.name ?? productId}</h3>
@@ -123,45 +126,45 @@
     </div>
     {#if !embedded}
       <span class="spacer"></span>
-      <Button size="sm" icon="x" onclick={onclose}>Close</Button>
+      <Button size="sm" icon="x" onclick={onclose}>{t('products:detail.close')}</Button>
     {/if}
   </div>
 
   {#if loading && !data}
-    <div role="status" aria-label="Reading the product" class="stack">
+    <div role="status" aria-label={t('products:detail.reading')} class="stack">
       <Skeleton width="100%" height="2rem" /><Skeleton width="100%" height="6rem" />
     </div>
   {:else if problem !== ''}
-    <Alert tone="error" title="Could not load the product">
+    <Alert tone="error" title={t('products:detail.loadErrorTitle')}>
       {problem}
-      <div class="retry"><Button size="sm" icon="refresh" onclick={() => void load()}>Try again</Button></div>
+      <div class="retry"><Button size="sm" icon="refresh" onclick={() => void load()}>{t('common:action.tryAgain')}</Button></div>
     </Alert>
   {:else if product && status}
     <div class="row badges">
       <Badge tone="neutral">{kindLabel(product.kind)}</Badge>
       <Badge tone={status.tone} dot>{status.label}</Badge>
       {#if product.rawState !== null && product.rawState.toLowerCase().replace(/_/g, ' ') !== status.label.toLowerCase()}
-        <span class="muted text-sm">Store status: <span class="mono">{product.rawState}</span></span>
+        <span class="muted text-sm"><T key="products:detail.storeStatus" params={{ status: product.rawState }} tags={{ code: mono }} /></span>
       {/if}
       {#if periodLabel(product.period)}<span class="muted text-sm">{periodLabel(product.period)}</span>{/if}
-      {#if product.group}<span class="muted text-sm">Group: {product.group}</span>{/if}
-      {#if guessed}<InfoTip label="About the type" text={guessedKindNote} />{/if}
+      {#if product.group}<span class="muted text-sm">{t('products:detail.group', { group: product.group })}</span>{/if}
+      {#if guessed}<InfoTip label={t('products:detail.aboutType')} text={t(guessedKindNote)} />{/if}
     </div>
 
     {#if sales}
       <div class="stack" data-testid="product-sales-section">
         <div class="row">
-          <h4>Sales, last 28 days</h4>
-          <InfoTip label="About the sales numbers" text={salesMeasureText(sales)} />
+          <h4>{t('products:detail.salesTitle')}</h4>
+          <InfoTip label={t('products:detail.aboutSales')} text={salesMeasureText(sales)} />
         </div>
         {#if salesLines[0] === '—'}
-          <p class="muted text-sm">No sales of this product in the last 28 days.</p>
+          <p class="muted text-sm">{t('products:detail.noSales')}</p>
         {:else}
           <p class="text-sm sales-lines">
             {#each salesLines as line, i (line)}{i > 0 ? ' · ' : ''}<span>{line}</span>{/each}
           </p>
         {/if}
-        <p class="muted text-sm">{sales.measure === 'apple_proceeds' ? 'Developer proceeds' : 'Estimated: what buyers paid, not your proceeds'}. Per currency, never added across currencies.</p>
+        <p class="muted text-sm">{sales.measure === 'apple_proceeds' ? t('products:detail.measureApple') : t('products:detail.measureGoogle')}</p>
       </div>
     {/if}
 
@@ -170,30 +173,30 @@
     {/if}
 
     <div class="stack">
-      <h4>Texts</h4>
+      <h4>{t('products:detail.texts')}</h4>
       <LocalizationEditor {api} {workspaceId} {role} {app} {product} {writeEnabled} onsaved={saved} {onswitchoff} />
     </div>
 
     <div class="stack">
       <div class="row">
-        <h4>Prices and availability</h4>
-        <InfoTip label="About prices" text={READ_ONLY_NOTE} />
+        <h4>{t('products:detail.pricesTitle')}</h4>
+        <InfoTip label={t('products:detail.aboutPrices')} text={t(READ_ONLY_NOTE)} />
       </div>
       {#if product.prices.length === 0}
-        <p class="muted text-sm">The store has no price for this product yet.</p>
+        <p class="muted text-sm">{t('products:detail.noPrice')}</p>
       {:else}
         {#each groups as group (group.planId ?? '')}
-          <Disclosure summary="{group.label}: {priceCountText(group.prices.length)}" stateKey="product-prices-{app.id}-{product.productId}-{group.planId ?? ''}">
+          <Disclosure summary={t('products:detail.priceGroup', { label: group.label, territories: priceCountText(group.prices.length) })} stateKey="product-prices-{app.id}-{product.productId}-{group.planId ?? ''}">
             <div class="table-wrap">
               <table class="compact">
                 <thead>
-                  <tr><th scope="col">Territory</th><th scope="col" class="num">Price</th></tr>
+                  <tr><th scope="col">{t('products:detail.colTerritory')}</th><th scope="col" class="num">{t('products:detail.colPrice')}</th></tr>
                 </thead>
                 <tbody>
                   {#each group.prices as p (p.territory)}
                     <tr>
-                      <td><span class="mono">{p.territory}</span>{#if p.territory === product.baseTerritory} <span class="muted text-sm">(base)</span>{/if}</td>
-                      <td class="num">{p.display} {p.currency}</td>
+                      <td><span class="mono">{p.territory}</span>{#if p.territory === product.baseTerritory} <span class="muted text-sm">{t('products:detail.base')}</span>{/if}</td>
+                      <td class="num">{priceDisplay(p)}</td>
                     </tr>
                   {/each}
                 </tbody>
@@ -204,20 +207,26 @@
       {/if}
       {#if product.availability}
         <p class="text-sm">
-          On sale in {product.availability.territories.length} {product.availability.territories.length === 1 ? 'territory' : 'territories'}{#if product.availability.availableInNewTerritories === true}, and in territories the store adds later{:else if product.availability.availableInNewTerritories === false}, not in territories the store adds later{/if}.
+          {product.availability.availableInNewTerritories === true
+            ? t('products:detail.onSaleAndNew', { count: product.availability.territories.length })
+            : product.availability.availableInNewTerritories === false
+              ? t('products:detail.onSaleNotNew', { count: product.availability.territories.length })
+              : t('products:detail.onSale', { count: product.availability.territories.length })}
         </p>
       {:else}
-        <p class="muted text-sm">The store gave no availability for this product.</p>
+        <p class="muted text-sm">{t('products:detail.noAvailability')}</p>
       {/if}
       {#if product.plans.length > 0}
         <p class="muted text-sm">
-          {product.plans.length === 1 ? 'Plan' : 'Plans'}:
-          {#each product.plans as plan, i (plan.id)}{i > 0 ? ', ' : ''}<span class="mono">{plan.id}</span> ({plan.state.toLowerCase()}){/each}{#if product.offers.length > 0}. {product.offers.length} {product.offers.length === 1 ? 'offer' : 'offers'}.{/if}
+          {t('products:detail.plans', { count: product.plans.length })}
+          {#each product.plans as plan, i (plan.id)}{i > 0 ? ', ' : ''}<span class="mono">{plan.id}</span> ({plan.state.toLowerCase()}){/each}{#if product.offers.length > 0}. {t('products:detail.offers', { count: product.offers.length })}{/if}
         </p>
       {/if}
     </div>
   {/if}
 </section>
+
+{#snippet mono(text: string)}<span class="mono">{text}</span>{/snippet}
 
 <style>
   .detail {

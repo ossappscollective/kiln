@@ -6,7 +6,8 @@
   Props: warnings (the list of the joined view).
 -->
 <script lang="ts">
-  import { type RevenueCatWarning, sortedWarnings, warningsSummary } from '../../lib/revenuecat/revenuecat.ts';
+  import { t } from '../../lib/i18n/t.ts';
+  import { type RevenueCatWarning, severityLabel, sortedWarnings, warningsSummary } from '../../lib/revenuecat/revenuecat.ts';
   import Badge from '../ui/Badge.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
 
@@ -18,10 +19,10 @@
 
 {#if summary}
   <Disclosure summary={summary.text} stateKey="revenuecat-warnings-{appId}" variant="boxed">
-    <ul class="plain list" aria-label="Things to check in RevenueCat">
+    <ul class="plain list" aria-label={t('products:rc.warnings.label')}>
       {#each sorted as w, i (i)}
         <li class="text-sm">
-          <Badge tone={w.severity === 'info' ? 'info' : w.severity}>{w.severity === 'bad' ? 'Problem' : w.severity === 'warn' ? 'Check' : 'Note'}</Badge>
+          <Badge tone={w.severity === 'info' ? 'info' : w.severity}>{severityLabel(w.severity)}</Badge>
           {w.message}
         </li>
       {/each}

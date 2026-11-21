@@ -17,6 +17,7 @@
     stripTiles,
     stripVisible,
   } from '../../lib/revenuecat/metrics.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import InfoTip from '../ui/InfoTip.svelte';
 
   let { read, now }: { read: RevenueCatMetricsRead | null; now: number } = $props();
@@ -26,7 +27,7 @@
 </script>
 
 {#if stripVisible(read)}
-  <section class="strip" aria-label="RevenueCat figures" data-testid="revenuecat-metrics">
+  <section class="strip" aria-label={t('products:metrics.aria')} data-testid="revenuecat-metrics">
     {#if tiles.length > 0}
       <ul class="tiles">
         {#each tiles as tile (tile.id)}
@@ -38,9 +39,9 @@
       </ul>
     {/if}
     <p class="scope text-sm muted">
-      <span>{STRIP_SCOPE}</span>
+      <span>{t(STRIP_SCOPE)}</span>
       {#if tiles.length > 0}<span aria-hidden="true">·</span> <span data-testid="revenuecat-metrics-asof">{asOf(read, now)}</span>{/if}
-      <InfoTip label="About the RevenueCat figures" text={STRIP_SCOPE_DETAIL} align="end" width="24rem" />
+      <InfoTip label={t('products:metrics.about')} text={t(STRIP_SCOPE_DETAIL)} align="end" width="24rem" />
     </p>
     {#if problem !== ''}<p class="problem text-sm" role="status" data-testid="revenuecat-metrics-problem">{problem}</p>{/if}
   </section>

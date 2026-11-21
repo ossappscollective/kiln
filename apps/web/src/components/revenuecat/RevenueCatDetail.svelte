@@ -13,10 +13,14 @@
     matchedTitle,
     type RevenueCatProductsView,
     revenueCatCell,
+    severityLabel,
     syncLine,
     warningsOf,
   } from '../../lib/revenuecat/revenuecat.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Badge from '../ui/Badge.svelte';
+  import T from '../ui/T.svelte';
 
   let { view, productId, now }: { view: RevenueCatProductsView; productId: string; now: number } = $props();
 
@@ -38,22 +42,22 @@
     <p class="muted text-sm">{line.text}</p>
   {:else}
     {#if entry.status === 'not_in_revenuecat'}
-      <p class="text-sm">No product in RevenueCat has the store id <span class="mono">{productId}</span>. Add it in the RevenueCat dashboard, under Products, if this product should be sold through RevenueCat. This tool changes nothing there.</p>
+      <p class="text-sm"><T key="products:rc.detail.notIn" params={{ id: productId }} tags={{ code: mono }} /></p>
     {:else if entry.status === 'id_not_matched'}
-      <p class="text-sm">A RevenueCat product has this id with different letter case, so it is not matched. Store ids are compared exactly.</p>
+      <p class="text-sm">{t('products:rc.detail.idDiffers')}</p>
     {:else if entry.status === 'archived'}
-      <p class="text-sm">RevenueCat has this product, but it is archived there.</p>
+      <p class="text-sm">{t('products:rc.detail.archived')}</p>
     {/if}
 
     {#if entry.products.length > 0}
       <div class="stack tight">
-        <h5>{entry.products.length === 1 ? 'RevenueCat product' : 'RevenueCat products'}</h5>
+        <h5>{t('products:rc.detail.productsHeading', { count: entry.products.length })}</h5>
         <ul class="plain list">
           {#each entry.products as p (p.rcProductId)}
             <li class="text-sm">
               <span class="mono">{matchedTitle(p)}</span>{#if p.displayName} · {p.displayName}{/if}
-              <span class="muted">: {matchedLine(p)}{p.state === 'archived' ? ', archived' : ''}</span>
-              {#if p.planInStore === false}<span class="muted"> (this base plan is not in the store snapshot)</span>{/if}
+              <span class="muted">{p.state === 'archived' ? t('products:rc.detail.matchedArchived', { line: matchedLine(p) }) : t('products:rc.detail.matched', { line: matchedLine(p) })}</span>
+              {#if p.planInStore === false}<span class="muted"> {t('products:rc.detail.planNotInStore')}</span>{/if}
             </li>
           {/each}
         </ul>
@@ -62,45 +66,47 @@
 
     {#if entry.entitlements.length > 0}
       <div class="stack tight">
-        <h5>Entitlements</h5>
+        <h5>{t('products:rc.detail.entitlements')}</h5>
         <ul class="plain list">
           {#each entry.entitlements as e (e.id)}
             <li class="text-sm">
-              {e.displayName ?? e.lookupKey} <span class="muted">(<span class="mono">{e.lookupKey}</span>{e.state === 'archived' ? ', archived' : ''})</span>
+              {e.displayName ?? e.lookupKey} <span class="muted">{#if e.state === 'archived'}<T key="products:rc.detail.keyArchived" params={{ key: e.lookupKey }} tags={{ code: mono }} />{:else}<T key="products:rc.detail.key" params={{ key: e.lookupKey }} tags={{ code: mono }} />{/if}</span>
             </li>
           {/each}
         </ul>
       </div>
     {:else if entry.products.length > 0}
-      <p class="muted text-sm">No entitlement is unlocked by this product.</p>
+      <p class="muted text-sm">{t('products:rc.detail.noEntitlement')}</p>
     {/if}
 
     {#if entry.offerings.length > 0}
       <div class="stack tight">
-        <h5>Offerings</h5>
+        <h5>{t('products:rc.detail.offerings')}</h5>
         <ul class="plain list">
           {#each entry.offerings as o (o.id)}
             <li class="text-sm">
-              <span class="mono">{o.lookupKey}</span>{#if o.isCurrent} <span class="muted">(current offering)</span>{/if}{#if o.state === 'archived'} <span class="muted">(archived)</span>{/if}
-              <span class="muted">: {o.packages.map((p) => `package ${p.lookupKey} (${eligibilityText(p.eligibility)})`).join(', ')}</span>
+              <span class="mono">{o.lookupKey}</span>{#if o.isCurrent} <span class="muted">{t('products:rc.detail.currentOffering')}</span>{/if}{#if o.state === 'archived'} <span class="muted">{t('products:rc.detail.archivedMark')}</span>{/if}
+              <span class="muted">{t('products:rc.detail.packages', { list: formatList(o.packages.map((p) => t('products:rc.detail.package', { key: p.lookupKey, eligibility: eligibilityText(p.eligibility) })), { type: 'unit' }) })}</span>
             </li>
           {/each}
         </ul>
       </div>
     {:else if entry.products.length > 0}
-      <p class="muted text-sm">This product is in no offering.</p>
+      <p class="muted text-sm">{t('products:rc.detail.noOffering')}</p>
     {/if}
 
     {#if warnings.length > 0}
-      <ul class="plain list" aria-label="Things to check for this product">
+      <ul class="plain list" aria-label={t('products:rc.detail.warningsLabel')}>
         {#each warnings as w, i (i)}
-          <li class="text-sm"><Badge tone={w.severity === 'info' ? 'info' : w.severity}>{w.severity === 'bad' ? 'Problem' : w.severity === 'warn' ? 'Check' : 'Note'}</Badge> {w.message}</li>
+          <li class="text-sm"><Badge tone={w.severity === 'info' ? 'info' : w.severity}>{severityLabel(w.severity)}</Badge> {w.message}</li>
         {/each}
       </ul>
     {/if}
     <p class="muted text-sm">{line.text}</p>
   {/if}
 </div>
+
+{#snippet mono(text: string)}<span class="mono">{text}</span>{/snippet}
 
 <style>
   h4,

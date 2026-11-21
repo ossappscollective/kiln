@@ -75,7 +75,7 @@ test('billing periods read as words from both stores; an unknown one is shown as
 });
 
 test('prices read with their currency, and no price says so', () => {
-  assert.equal(priceText(price()), '4.99 USD');
+  assert.equal(priceText(price()), '$4.99');
   assert.equal(priceText(null), 'No price yet');
   assert.equal(priceCountText(0), 'No territories');
   assert.equal(priceCountText(1), '1 territory');

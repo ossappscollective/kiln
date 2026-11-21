@@ -6,6 +6,8 @@
 -->
 <script lang="ts">
   import { basePlanCount, entitlementNames, type RevenueCatProductsView, revenueCatCell } from '../../lib/revenuecat/revenuecat.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Badge from '../ui/Badge.svelte';
 
   let { view, productId }: { view: RevenueCatProductsView; productId: string } = $props();
@@ -18,5 +20,5 @@
 <Badge tone={cell.tone} dot>{cell.label}</Badge>
 {#if plans}<div class="muted text-sm">{plans}</div>{/if}
 {#if names.shown.length > 0}
-  <div class="muted text-sm" data-testid="product-entitlements">{names.shown.join(', ')}{names.more > 0 ? ` and ${names.more} more` : ''}</div>
+  <div class="muted text-sm" data-testid="product-entitlements">{names.more > 0 ? t('products:rc.cell.more', { list: formatList(names.shown, { type: 'unit' }), count: names.more }) : formatList(names.shown, { type: 'unit' })}</div>
 {/if}

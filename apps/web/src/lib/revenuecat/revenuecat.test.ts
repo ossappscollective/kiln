@@ -211,7 +211,7 @@ test('the sync line says what was read, what failed, and what is incomplete', ()
 
 test('the RevenueCat step of the sync is said beside the store result, and a failure never blames the store', () => {
   const ok = { ok: true as const, products: 1, entitlements: 2, offerings: 3, otherAppProducts: 0, complete: true, warnings: [], syncedAt: NOW };
-  assert.deepEqual(stepResult(ok), { text: 'Read 1 product, 2 entitlements and 3 offerings from RevenueCat.', tone: 'ok' });
+  assert.deepEqual(stepResult(ok), { text: 'Read 1 product, 2 entitlements, and 3 offerings from RevenueCat.', tone: 'ok' });
   assert.equal(stepResult({ ...ok, complete: false }).tone, 'warn');
   const failed = stepResult({ ok: false, code: 'revenuecat_auth', message: 'RevenueCat did not accept the key.' });
   assert.equal(failed.tone, 'bad');
@@ -328,6 +328,6 @@ test('a failed metrics read is said beside the configuration read and never turn
   const base = { ok: true as const, products: 1, entitlements: 1, offerings: 1, otherAppProducts: 0, complete: true, warnings: [], syncedAt: 1 };
   const failed = stepResult({ ...base, metrics: { ok: false, code: 'revenuecat_forbidden', message: 'Give the key the Charts & Metrics permission.' } });
   assert.equal(failed.tone, 'warn');
-  assert.match(failed.text, /^Read 1 product, 1 entitlement and 1 offering from RevenueCat\. The RevenueCat figures could not be read: Give the key/);
+  assert.match(failed.text, /^Read 1 product, 1 entitlement, and 1 offering from RevenueCat\. The RevenueCat figures could not be read: Give the key/);
   assert.equal(stepResult({ ...base, metrics: { ok: true, metrics: 5, fetchedAt: 1 } }).tone, 'ok');
 });

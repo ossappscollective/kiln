@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { t } from '../i18n/t.ts';
 import { asOf, metricValue, type RevenueCatMetric, type RevenueCatMetricsRead, STRIP_SCOPE, stripProblem, stripTiles, stripVisible } from './metrics.ts';
 
 const metric = (over: Partial<RevenueCatMetric>): RevenueCatMetric => ({
@@ -47,7 +48,7 @@ test('the four tiles, in order; revenue names its window, counts and money are t
     ],
   );
   assert.match(tiles[3]?.title ?? '', /before store fees and taxes/);
-  assert.equal(STRIP_SCOPE, 'RevenueCat figures, all stores');
+  assert.equal(t(STRIP_SCOPE), 'RevenueCat figures, all stores');
 });
 
 test('money keeps the currency RevenueCat reported; without one it is not dressed up as money', () => {

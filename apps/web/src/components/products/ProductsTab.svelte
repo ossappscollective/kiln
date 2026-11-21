@@ -28,6 +28,8 @@
     salesVisible,
   } from '../../lib/analytics/product-sales.ts';
   import { type Api, ApiError } from '../../lib/api.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import {
     classifyProductFailure,
     kindLabel,
@@ -142,7 +144,7 @@
     } catch (e) {
       if (mine !== generation) return;
       view = null;
-      problem = e instanceof ApiError ? e.message : 'Could not load the products.';
+      problem = e instanceof ApiError ? e.message : t('products:tab.loadError');
     } finally {
       if (mine === generation) loading = false;
     }
@@ -169,7 +171,7 @@
     try {
       const done = await api.syncAppProducts(workspaceId, app.id);
       const n = done.sync.products;
-      toast.success(`Read ${n} ${n === 1 ? 'product' : 'products'} from ${storeName}.`);
+      toast.success(t('products:tab.syncDone', { count: n, store: storeName }));
       revenueCatStep = done.revenuecat ?? null;
       detailKey += 1;
       await load();
@@ -192,44 +194,44 @@
   const line = $derived(view ? syncLine(view.sync, now) : null);
   const headline = $derived(
     view === null
-      ? 'In-app purchases and subscriptions'
+      ? t('products:tab.headlineDefault')
       : products.length === 0
-        ? 'No products read yet'
-        : `${products.length} ${products.length === 1 ? 'product' : 'products'} in ${storeName}`,
+        ? t('products:tab.headlineNone')
+        : t('products:tab.headlineCount', { count: products.length, store: storeName }),
   );
 </script>
 
 <div class="stack">
-  <PageLead {headline} hint="What the store sells in this app, as of the last sync. Prices are read only; display texts can be changed here by an admin.">
+  <PageLead {headline} hint={t('products:tab.leadHint')}>
     {#snippet aside()}
-      <InfoTip label="About products" buttonText="About products" width="26rem">
-        <p>{READ_ONLY_NOTE}</p>
-        <p>Subscriptions and in-app purchases are read from {storeName} with the credential of this app. Reading and syncing change nothing in the store.</p>
+      <InfoTip label={t('products:tab.aboutProducts')} buttonText={t('products:tab.aboutProducts')} width="26rem">
+        <p>{t(READ_ONLY_NOTE)}</p>
+        <p>{t('products:tab.aboutBody', { store: storeName })}</p>
       </InfoTip>
     {/snippet}
     {#snippet actions()}
       {#if maySync && view?.supported !== false}
-        <Button variant={products.length === 0 ? 'primary' : 'secondary'} icon="refresh" loading={syncing} onclick={() => void sync()}>Sync products</Button>
+        <Button variant={products.length === 0 ? 'primary' : 'secondary'} icon="refresh" loading={syncing} onclick={() => void sync()}>{t('products:tab.sync')}</Button>
       {/if}
     {/snippet}
   </PageLead>
 
   <RevenueCatMetricsStrip read={metrics} {now} />
 
-  {#if syncProblem !== ''}<Alert tone="error" title="The sync did not finish">{syncProblem}</Alert>{/if}
+  {#if syncProblem !== ''}<Alert tone="error" title={t('products:tab.syncFailedTitle')}>{syncProblem}</Alert>{/if}
   {#if revenueCatStep}
     {@const step = stepResult(revenueCatStep)}
     <Alert tone={step.tone === 'bad' ? 'error' : step.tone === 'warn' ? 'warn' : 'ok'} title="RevenueCat">{step.text}</Alert>
   {/if}
 
   {#if loading && !view}
-    <div role="status" aria-label="Reading the products" class="stack">
+    <div role="status" aria-label={t('products:tab.reading')} class="stack">
       <Skeleton width="100%" height="2.5rem" /><Skeleton width="100%" height="2.5rem" /><Skeleton width="100%" height="2.5rem" />
     </div>
   {:else if problem !== ''}
-    <Alert tone="error" title="Could not load the products">
+    <Alert tone="error" title={t('products:tab.loadErrorTitle')}>
       {problem}
-      <div class="retry"><Button size="sm" icon="refresh" onclick={() => void load()}>Try again</Button></div>
+      <div class="retry"><Button size="sm" icon="refresh" onclick={() => void load()}>{t('common:action.tryAgain')}</Button></div>
     </Alert>
   {:else if view}
     {#if line && view.sync !== null}
@@ -238,7 +240,7 @@
       </p>
     {/if}
     {#if view.sync && view.sync.warnings.length > 0}
-      <Alert tone="warn" title="Some parts could not be read">
+      <Alert tone="warn" title={t('products:tab.partsTitle')}>
         <ul class="warnings">
           {#each view.sync.warnings as warning (warning)}<li>{warning}</li>{/each}
         </ul>
@@ -253,40 +255,40 @@
     {/if}
 
     {#if !view.supported}
-      <EmptyState icon="tag" title="No in-app purchases for this store" description="This app's store has no in-app purchases or subscriptions that this tool reads." />
+      <EmptyState icon="tag" title={t('products:tab.unsupportedTitle')} description={t('products:tab.unsupportedDescription')} />
     {:else if products.length === 0}
       <EmptyState
         icon="tag"
-        title={view.sync === null || view.sync.lastSyncedAt === null ? 'Nothing read from the store yet' : 'No in-app purchases or subscriptions'}
+        title={view.sync === null || view.sync.lastSyncedAt === null ? t('products:tab.emptyNeverTitle') : t('products:tab.emptyTitle')}
         description={view.sync === null || view.sync.lastSyncedAt === null
-          ? `Sync to read the in-app purchases and subscriptions of this app from ${storeName}. Nothing is changed in the store.`
-          : `${storeName} lists no in-app purchases or subscriptions for this app. If that is wrong, check that the credential may read them, then sync again.`}
+          ? t('products:tab.emptyNeverDescription', { store: storeName })
+          : t('products:tab.emptyDescription', { store: storeName })}
       >
         {#snippet actions()}
           {#if maySync}
-            <Button variant="primary" icon="refresh" loading={syncing} onclick={() => void sync()}>Sync products</Button>
+            <Button variant="primary" icon="refresh" loading={syncing} onclick={() => void sync()}>{t('products:tab.sync')}</Button>
           {:else}
-            <span class="muted text-sm">Ask a member to sync this app's products.</span>
+            <span class="muted text-sm">{t('products:tab.askMemberSync')}</span>
           {/if}
         {/snippet}
       </EmptyState>
     {:else}
       <div class="table-wrap card flush">
-        <table aria-label="In-app purchases and subscriptions of {app.name}">
+        <table aria-label={t('products:table.aria', { app: app.name })}>
           <thead>
             <tr>
-              <th scope="col">Product</th>
-              <th scope="col">Type</th>
-              <th scope="col">Status</th>
-              <th scope="col" class="num">Price</th>
+              <th scope="col">{t('products:table.colProduct')}</th>
+              <th scope="col">{t('products:table.colType')}</th>
+              <th scope="col">{t('products:table.colStatus')}</th>
+              <th scope="col" class="num">{t('products:table.colPrice')}</th>
               {#if showSales && sales}
                 <th scope="col" class="num">
-                  <span class="sales-head">{salesColumnTitle}<InfoTip label="About the sales numbers" text={salesMeasureText(sales)} align="end" width="24rem" /></span>
+                  <span class="sales-head">{salesColumnTitle}<InfoTip label={t('products:detail.aboutSales')} text={salesMeasureText(sales)} align="end" width="24rem" /></span>
                 </th>
               {/if}
               {#if showRevenueCat}<th scope="col">RevenueCat</th>{/if}
-              <th scope="col">Languages</th>
-              <th scope="col"><span class="visually-hidden">Actions</span></th>
+              <th scope="col">{t('products:table.colLanguages')}</th>
+              <th scope="col"><span class="visually-hidden">{t('products:table.colActions')}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -315,7 +317,7 @@
                 {#if showRevenueCat && revenueCat}
                   <td data-testid="product-revenuecat"><RevenueCatCell view={revenueCat} productId={p.productId} /></td>
                 {/if}
-                <td class="muted text-sm">{p.locales.length === 0 ? 'None' : p.locales.length <= 3 ? p.locales.join(', ') : `${p.locales.slice(0, 3).join(', ')} and ${p.locales.length - 3} more`}</td>
+                <td class="muted text-sm">{p.locales.length === 0 ? t('products:table.none') : p.locales.length <= 3 ? formatList(p.locales, { type: 'unit' }) : t('products:table.localesMore', { list: formatList(p.locales.slice(0, 3), { type: 'unit' }), count: p.locales.length - 3 })}</td>
                 <td class="actions">
                   <Button
                     size="sm"
@@ -324,7 +326,7 @@
                     aria-controls="product-detail-{p.productId}"
                     onclick={() => (openId = openId === p.productId ? null : p.productId)}
                   >
-                    {openId === p.productId ? 'Hide' : 'Details'}<span class="visually-hidden"> {p.name ?? p.referenceName}</span>
+                    {openId === p.productId ? t('products:table.hide') : t('products:table.details')}<span class="visually-hidden"> {p.name ?? p.referenceName}</span>
                   </Button>
                 </td>
               </tr>
@@ -361,7 +363,7 @@
       {#if showRevenueCat && revenueCat}
         <RevenueCatWarnings warnings={revenueCat.warnings} appId={app.id} />
         {#if !revenueCatRead(revenueCat)}
-          <p class="muted text-sm" data-testid="revenuecat-unread-hint">This app is linked to RevenueCat, but RevenueCat has not been read yet. {maySync ? 'Use "Sync products" to read it.' : 'Ask a member to sync this app\'s products.'}</p>
+          <p class="muted text-sm" data-testid="revenuecat-unread-hint">{maySync ? t('products:tab.rcUnreadSync') : t('products:tab.rcUnreadAsk')}</p>
         {/if}
       {:else if connectHint(revenueCat, can(role, 'apps.write')) !== ''}
         <p class="muted text-sm" data-testid="revenuecat-connect-hint">{connectHint(revenueCat, can(role, 'apps.write'))}</p>

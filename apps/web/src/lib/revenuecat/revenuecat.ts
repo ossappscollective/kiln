@@ -1,5 +1,7 @@
 import { ApiError, waitPhrase } from '../api.ts';
 import { timeAgo } from '../format.ts';
+import { formatList } from '../i18n/format.ts';
+import { t } from '../i18n/t.ts';
 import type { CredentialSummary } from '../types.ts';
 
 /**
@@ -149,8 +151,6 @@ export type MetricsStep =
 // ---------------------------------------------------------------------------------------------
 // Words
 
-const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
-
 /** The credentials of the workspace that are RevenueCat secret keys, in the order given. */
 export const revenueCatCredentials = (list: readonly CredentialSummary[] | null): CredentialSummary[] =>
   (list || []).filter((c) => c.kind === 'revenuecat');
@@ -183,15 +183,19 @@ export function appTypeLabel(type: string): string {
 export function statusBadge(status: RevenueCatStatus): { label: string; tone: Tone } {
   switch (status) {
     case 'in_revenuecat':
-      return { label: 'In RevenueCat', tone: 'ok' };
+      return { label: t('products:rc.status.inRevenueCat'), tone: 'ok' };
     case 'archived':
-      return { label: 'Archived there', tone: 'neutral' };
+      return { label: t('products:rc.status.archived'), tone: 'neutral' };
     case 'id_not_matched':
-      return { label: 'Id differs', tone: 'warn' };
+      return { label: t('products:rc.status.idDiffers'), tone: 'warn' };
     default:
-      return { label: 'Not in RevenueCat', tone: 'warn' };
+      return { label: t('products:rc.status.notInRevenueCat'), tone: 'warn' };
   }
 }
+
+/** The word beside a warning of the set-up: how serious it is. */
+export const severityLabel = (severity: RevenueCatWarning['severity']): string =>
+  severity === 'bad' ? t('products:rc.severity.bad') : severity === 'warn' ? t('products:rc.severity.warn') : t('products:rc.severity.info');
 
 /** The names of the entitlements, the first `max` of them and "+n" for the rest. Archived ones are left out. */
 export function entitlementNames(entry: RevenueCatProductEntry, max = 2): { shown: string[]; more: number } {
@@ -213,23 +217,20 @@ export function revenueCatCell(
   productId: string,
 ): { label: string; tone: Tone; entry: RevenueCatProductEntry | null } {
   const entry = view !== null && revenueCatRead(view) ? view.products[productId] || null : null;
-  if (entry === null) return { label: 'Not read yet', tone: 'neutral', entry: null };
+  if (entry === null) return { label: t('products:rc.status.notRead'), tone: 'neutral', entry: null };
   return { ...statusBadge(entry.status), entry };
 }
 
 /** "3 base plans" for a Google Play subscription that RevenueCat holds as several products, else ''. */
 export function basePlanCount(entry: RevenueCatProductEntry): string {
   const plans = entry.products.filter((p) => p.planId !== null).length;
-  return plans > 1 ? plural(plans, 'base plan', 'base plans') : '';
+  return plans > 1 ? t('products:rc.basePlans', { count: plans }) : '';
 }
 
 /** What to say about RevenueCat where there is no link (or none can be). Empty when the store has no RevenueCat support. */
 export function connectHint(view: RevenueCatProductsView | null, mayLink: boolean): string {
   if (view === null || !view.supported || view.link !== null) return '';
-  const what = 'to see which of these products RevenueCat sells, and the entitlements and offerings that use them';
-  return mayLink
-    ? `Link this app to its RevenueCat project in the app settings (Settings, RevenueCat) ${what}. Nothing is changed in RevenueCat.`
-    : `Ask an owner or an admin to link this app to its RevenueCat project ${what}.`;
+  return mayLink ? t('products:rc.connect.mayLink') : t('products:rc.connect.askAdmin');
 }
 
 /** An ISO 8601 duration in words (`P1M` is "1 month", `P1W` "1 week", `P3D` "3 days"). Anything else is shown as it is. */
@@ -238,27 +239,24 @@ export function durationText(value: string | null): string {
   const m = /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?$/.exec(value);
   if (!m || value === 'P') return value;
   const parts: string[] = [];
-  const units: [string, string, string][] = [
-    [m[1] || '', 'year', 'years'],
-    [m[2] || '', 'month', 'months'],
-    [m[3] || '', 'week', 'weeks'],
-    [m[4] || '', 'day', 'days'],
-  ];
-  for (const [n, one, many] of units) if (n !== '') parts.push(plural(Number(n), one, many));
-  return parts.join(' ');
+  if (m[1]) parts.push(t('products:rc.duration.years', { count: Number(m[1]) }));
+  if (m[2]) parts.push(t('products:rc.duration.months', { count: Number(m[2]) }));
+  if (m[3]) parts.push(t('products:rc.duration.weeks', { count: Number(m[3]) }));
+  if (m[4]) parts.push(t('products:rc.duration.days', { count: Number(m[4]) }));
+  return formatList(parts, { type: 'unit', style: 'narrow' });
 }
 
 /** The one line of a matched RevenueCat product: its type and what RevenueCat holds of its durations. */
 export function matchedLine(p: RevenueCatMatchedProduct): string {
   const bits: string[] = [p.type.replace(/_/g, ' ')];
   if (p.duration !== null) bits.push(durationText(p.duration));
-  if (p.trialDuration !== null) bits.push(`${durationText(p.trialDuration)} trial`);
-  if (p.gracePeriod !== null) bits.push(`${durationText(p.gracePeriod)} grace period`);
-  return bits.join(', ');
+  if (p.trialDuration !== null) bits.push(t('products:rc.matched.trial', { duration: durationText(p.trialDuration) }));
+  if (p.gracePeriod !== null) bits.push(t('products:rc.matched.grace', { duration: durationText(p.gracePeriod) }));
+  return formatList(bits, { type: 'unit' });
 }
 
 /** What a package's eligibility value says; RevenueCat's own words, with the underscores taken out. */
-export const eligibilityText = (value: string): string => (value === '' ? 'not given' : value.replace(/_/g, ' '));
+export const eligibilityText = (value: string): string => (value === '' ? t('products:rc.eligibility.notGiven') : value.replace(/_/g, ' '));
 
 /** The store id of a Google Play base plan product, shown as `subscription:base plan`. Apple and bare ids are shown as they are. */
 export const matchedTitle = (p: RevenueCatMatchedProduct): string =>
@@ -278,7 +276,7 @@ export function warningsSummary(list: readonly RevenueCatWarning[]): { text: str
   if (list.length === 0) return null;
   const worst = sortedWarnings(list)[0];
   const tone: Tone = worst && worst.severity === 'bad' ? 'bad' : worst && worst.severity === 'warn' ? 'warn' : 'info';
-  return { text: `${plural(list.length, 'thing to check', 'things to check')} in the RevenueCat set-up`, tone };
+  return { text: t('products:rc.warnings.summary', { count: list.length }), tone };
 }
 
 /** The warnings of one store product (they are also in the page list). */
@@ -288,37 +286,49 @@ export const warningsOf = (list: readonly RevenueCatWarning[], productId: string
 /** How the last RevenueCat read went, in one line, and how it should look. */
 export function syncLine(sync: RevenueCatSyncStatus | null, now: number): { text: string; tone: 'neutral' | 'warn' | 'bad' } {
   if (sync === null || (sync.lastSyncedAt === null && sync.lastError === null))
-    return { text: 'Not read from RevenueCat yet. Use "Sync products" to read it.', tone: 'neutral' };
+    return { text: t('products:rc.sync.never'), tone: 'neutral' };
   if (sync.lastError !== null) {
-    const kept = sync.lastSyncedAt === null ? 'Nothing was read yet.' : `Showing what was read ${timeAgo(sync.lastSyncedAt, now)}.`;
-    const times = sync.failures > 1 ? ` (${sync.failures} reads in a row failed)` : '';
-    return { text: `The last RevenueCat read failed${times}. ${kept} ${sync.lastError}`, tone: 'bad' };
+    const error = sync.lastError;
+    const many = sync.failures > 1;
+    if (sync.lastSyncedAt === null)
+      return {
+        text: many
+          ? t('products:rc.sync.failedManyNothing', { count: sync.failures, error })
+          : t('products:rc.sync.failedNothing', { error }),
+        tone: 'bad',
+      };
+    const ago = timeAgo(sync.lastSyncedAt, now);
+    return {
+      text: many
+        ? t('products:rc.sync.failedManyKept', { count: sync.failures, ago, error })
+        : t('products:rc.sync.failedKept', { ago, error }),
+      tone: 'bad',
+    };
   }
-  const when = sync.lastSyncedAt === null ? '' : ` ${timeAgo(sync.lastSyncedAt, now)}`;
-  const count = plural(sync.productCount, 'product', 'products');
-  if (!sync.complete)
-    return { text: `RevenueCat read${when}: ${count}, but RevenueCat has more than were read. The picture is not complete.`, tone: 'warn' };
+  // Past the checks above a sync with no error has been read at least once.
+  const ago = timeAgo(sync.lastSyncedAt ?? now, now);
+  if (!sync.complete) return { text: t('products:rc.sync.partial', { count: sync.productCount, ago }), tone: 'warn' };
+  const read = t('products:rc.sync.read', { count: sync.productCount, ago });
   const others =
-    sync.otherAppProductCount > 0
-      ? ` ${plural(sync.otherAppProductCount, 'product', 'products')} of the other apps of the project ${sync.otherAppProductCount === 1 ? 'is' : 'are'} left out.`
-      : '';
-  return { text: `RevenueCat read${when}: ${count} of this app.${others}`, tone: 'neutral' };
+    sync.otherAppProductCount > 0 ? ` ${t('products:rc.sync.others', { count: sync.otherAppProductCount })}` : '';
+  return { text: `${read}${others}`, tone: 'neutral' };
 }
 
 /** What the RevenueCat step of "Sync products" says, next to the result of the store step. A failure here never says the store failed. */
 export function stepResult(step: RevenueCatStep): { text: string; tone: 'ok' | 'warn' | 'bad' } {
   if (!step.ok) {
-    return {
-      text: `RevenueCat could not be read: ${step.message} The products read from the store are not affected.`,
-      tone: 'bad',
-    };
+    return { text: t('products:rc.step.failed', { message: step.message }), tone: 'bad' };
   }
-  const what = `${plural(step.products, 'product', 'products')}, ${plural(step.entitlements, 'entitlement', 'entitlements')} and ${plural(step.offerings, 'offering', 'offerings')}`;
+  const what = formatList([
+    t('products:rc.step.products', { count: step.products }),
+    t('products:rc.step.entitlements', { count: step.entitlements }),
+    t('products:rc.step.offerings', { count: step.offerings }),
+  ]);
   // The figures strip has its own result: a failure there is said, and never turns the configuration read into a failure.
-  const figures = step.metrics && !step.metrics.ok ? ` The RevenueCat figures could not be read: ${step.metrics.message}` : '';
+  const figures = step.metrics && !step.metrics.ok ? ` ${t('products:rc.step.figuresFailed', { message: step.metrics.message })}` : '';
   return step.complete
-    ? { text: `Read ${what} from RevenueCat.${figures}`, tone: figures === '' ? 'ok' : 'warn' }
-    : { text: `Read ${what} from RevenueCat, but it has more than were read. The picture is not complete.${figures}`, tone: 'warn' };
+    ? { text: `${t('products:rc.step.read', { what })}${figures}`, tone: figures === '' ? 'ok' : 'warn' }
+    : { text: `${t('products:rc.step.readPartial', { what })}${figures}`, tone: 'warn' };
 }
 
 /** The RevenueCat step in the body of a failed store sync, or null. */
@@ -337,23 +347,23 @@ export function stepFromBody(body: Record<string, unknown>): RevenueCatStep | nu
 /** The one line of the collapsed card. */
 export function revenueCatSummary(links: readonly (RevenueCatLinkView | null)[]): string {
   const linked = links.filter((l): l is RevenueCatLinkView => l !== null);
-  if (linked.length === 0) return 'Not linked';
+  if (linked.length === 0) return t('products:rc.summary.notLinked');
   const names = linked.map((l) => l.projectName).filter((n, i, all) => all.indexOf(n) === i);
-  return names.length === 1 ? names[0] || '' : `${names.length} projects`;
+  return names.length === 1 ? names[0] || '' : t('products:rc.summary.projects', { count: names.length });
 }
 
 /** "Confirmed with RevenueCat 3 minutes ago.", or what is wrong with the credential. */
 export function linkStatus(link: RevenueCatLinkView, now: number): { tone: 'ok' | 'warn'; text: string } {
   if (!link.credentialAvailable) {
-    return { tone: 'warn', text: 'The RevenueCat credential of this link was deleted. Choose another and save.' };
+    return { tone: 'warn', text: t('products:rc.link.credentialDeleted') };
   }
-  return { tone: 'ok', text: `Confirmed with RevenueCat ${timeAgo(link.verifiedAt, now)}.` };
+  return { tone: 'ok', text: t('products:rc.link.confirmed', { ago: timeAgo(link.verifiedAt, now) }) };
 }
 
 /** A sentence when the RevenueCat app's identifier is not this app's own; '' when it is, or RevenueCat gave none. */
 export function identifierNote(link: RevenueCatLinkView): string {
   if (link.identifierMatches !== false || link.revenueCatIdentifier === null) return '';
-  return `RevenueCat holds ${link.revenueCatIdentifier} for this app, which differs from the identifier of this app. That is expected for a universal purchase shared with another app; otherwise check that the right RevenueCat app is linked.`;
+  return t('products:rc.link.identifierDiffers', { identifier: link.revenueCatIdentifier });
 }
 
 /** The one choice to start from: the suggested app, else the only linkable one, else nothing. */
@@ -368,16 +378,19 @@ export function startingChoice(apps: readonly RevenueCatAppChoice[] | null): str
 /** What to say under the list of apps: how many are listed, and that the others are ignored. */
 export function appsNote(apps: readonly RevenueCatAppChoice[]): string {
   const ignored = apps.filter((a) => !a.mapped).length;
-  if (apps.length === 0) return 'This RevenueCat project has no apps.';
+  if (apps.length === 0) return t('products:rc.apps.none');
   if (ignored === 0) return '';
-  return `${plural(ignored, 'app', 'apps')} of other stores (Amazon, Stripe, Paddle, Web Billing, Roku) ${ignored === 1 ? 'is' : 'are'} not mapped and cannot be linked.`;
+  return t('products:rc.apps.ignored', { count: ignored });
 }
 
 /** The text of one option of the app list. */
 export function appChoiceLabel(a: RevenueCatAppChoice): string {
-  const id = a.identifier === null ? '' : `, ${a.identifier}`;
-  const hint = a.suggested ? ' (suggested)' : !a.mapped ? ' (not mapped)' : !a.linkable ? ' (other store)' : '';
-  return `${a.name} (${appTypeLabel(a.type)}${id})${hint}`;
+  const details = a.identifier === null ? appTypeLabel(a.type) : `${appTypeLabel(a.type)}, ${a.identifier}`;
+  const params = { name: a.name, details };
+  if (a.suggested) return t('products:rc.choice.suggested', params);
+  if (!a.mapped) return t('products:rc.choice.notMapped', params);
+  if (!a.linkable) return t('products:rc.choice.otherStore', params);
+  return t('products:rc.choice.plain', params);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -385,22 +398,22 @@ export function appChoiceLabel(a: RevenueCatAppChoice): string {
 
 /** A sentence for what the API said. The generic messages of the API client are written for GitHub, so these codes are said here. */
 export function revenueCatErrorText(error: unknown): string {
-  if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
+  if (!(error instanceof ApiError)) return t('common:error.genericRetry');
   const own = typeof error.body.message === 'string' ? error.body.message : '';
   switch (error.code) {
     case 'forbidden':
-      return 'Only an owner or an admin can change the RevenueCat link of an app.';
+      return t('products:rc.error.forbidden');
     case 'not_found':
-      return 'That app or link no longer exists. Reload the page.';
+      return t('products:rc.error.notFound');
     case 'credential_not_found':
-      return 'That credential no longer exists. Choose another one.';
+      return t('products:rc.error.credentialNotFound');
     case 'credential_kind':
-      return 'Choose a credential of the RevenueCat secret key kind.';
+      return t('products:rc.error.credentialKind');
     case 'credential_unreadable':
-      return 'The credential could not be decrypted. Enter its key again under Credentials.';
+      return t('products:rc.error.credentialUnreadable');
     case 'invalid_request':
     case 'invalid_reference':
-      return own || 'Choose a credential, a project and an app.';
+      return own || t('products:rc.error.invalidRequest');
     case 'revenuecat_not_supported':
     case 'revenuecat_app_not_mapped':
     case 'revenuecat_app_missing':
@@ -408,13 +421,13 @@ export function revenueCatErrorText(error: unknown): string {
     case 'revenuecat_forbidden':
     case 'revenuecat_not_found':
     case 'revenuecat_unavailable':
-      return own || 'RevenueCat could not be asked. Try again in a moment.';
+      return own || t('products:rc.error.unavailable');
     case 'rate_limited':
-      return `Too many requests. Try again in ${waitPhrase(error.retryAfter || 60)}.`;
+      return t('products:rc.error.rateLimited', { wait: waitPhrase(error.retryAfter || 60) });
     case 'timeout':
-      return 'RevenueCat took too long to answer. Try again.';
+      return t('products:rc.error.timeout');
     default:
-      return error.status >= 500 ? 'The server had a problem. Try again.' : error.message;
+      return error.status >= 500 ? t('products:rc.error.server') : error.message;
   }
 }
 

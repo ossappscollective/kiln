@@ -1,5 +1,6 @@
 import { formatCountExact, formatMoney } from '../analytics/analytics.ts';
 import { timeAgo } from '../format.ts';
+import { k, t } from '../i18n/t.ts';
 
 /**
  * The RevenueCat figures strip at the top of the Products page (docs/adr/0043-revenuecat-metrics.md): RevenueCat's own overview of the
@@ -40,21 +41,22 @@ export type RevenueCatMetricsRead = {
 };
 
 /** The words next to every strip: whose numbers these are and what they cover. */
-export const STRIP_SCOPE = 'RevenueCat figures, all stores';
+/** Message keys: translate them where they are drawn (`t(STRIP_SCOPE)`). */
+export const STRIP_SCOPE = k('products:metrics.scope');
 
-export const STRIP_SCOPE_DETAIL =
-  'These are RevenueCat’s own figures for the whole RevenueCat project, every app and every store it knows, not only this app and not the store consoles’ numbers. Revenue is RevenueCat’s gross, before store fees and taxes. They are read with “Sync products”.';
+export const STRIP_SCOPE_DETAIL = k('products:metrics.scopeDetail');
 
 export type StripTile = { id: string; label: string; value: string; title: string };
 
 /** "$1,235" or "1,235" with no currency named: an amount whose currency RevenueCat did not say is never dressed up as money. */
 export function metricValue(metric: RevenueCatMetric): string {
   if (metric.kind === 'count') return formatCountExact(metric.value);
-  if (metric.currency === null) return `${formatMoney(metric.value, null)} (currency not reported)`;
+  if (metric.currency === null) return t('products:metrics.currencyNotReported', { amount: formatMoney(metric.value, null) });
   return formatMoney(metric.value, metric.currency);
 }
 
-const windowWords = (days: number | null): string => (days === null || days === 0 ? '' : ` (${days}d)`);
+const windowWords = (days: number | null): string =>
+  days === null || days === 0 ? '' : ` ${t('products:metrics.window', { count: days })}`;
 
 /** The four figures, in the order of the strip; one RevenueCat did not report is left out. */
 export function stripTiles(read: RevenueCatMetricsRead | null): StripTile[] {
@@ -68,20 +70,20 @@ export function stripTiles(read: RevenueCatMetricsRead | null): StripTile[] {
             id,
             label: `${label}${windowWords(m.windowDays)}`,
             value: metricValue(m),
-            title: `${m.name}${m.period ? `, RevenueCat period ${m.period}` : ''}.${extra}`,
+            title: `${m.period ? t('products:metrics.titlePeriod', { name: m.name, period: m.period }) : t('products:metrics.title', { name: m.name })}${extra}`,
           },
         ];
   return [
-    ...tile('active_subscriptions', 'Active subscriptions', figures.activeSubscriptions),
-    ...tile('active_trials', 'Active trials', figures.activeTrials),
-    ...tile('mrr', 'MRR', figures.mrr, ' Monthly recurring revenue as RevenueCat computes it.'),
-    ...tile('revenue', 'Revenue', figures.revenue, ' Gross, before store fees and taxes.'),
+    ...tile('active_subscriptions', t('products:metrics.activeSubscriptions'), figures.activeSubscriptions),
+    ...tile('active_trials', t('products:metrics.activeTrials'), figures.activeTrials),
+    ...tile('mrr', t('products:metrics.mrr'), figures.mrr, ` ${t('products:metrics.mrrNote')}`),
+    ...tile('revenue', t('products:metrics.revenue'), figures.revenue, ` ${t('products:metrics.revenueNote')}`),
   ];
 }
 
 /** "As of 3 minutes ago", from the time of the read. */
 export const asOf = (read: RevenueCatMetricsRead | null, now: number): string =>
-  read?.metrics ? `As of ${timeAgo(read.metrics.fetchedAt, now)}` : '';
+  read?.metrics ? t('products:metrics.asOf', { ago: timeAgo(read.metrics.fetchedAt, now) }) : '';
 
 /** Whether the strip is drawn at all: only for a linked app, and only when there is something to say (figures, or why there are none). */
 export function stripVisible(read: RevenueCatMetricsRead | null): boolean {
@@ -93,5 +95,5 @@ export function stripVisible(read: RevenueCatMetricsRead | null): boolean {
 export function stripProblem(read: RevenueCatMetricsRead | null): string {
   const error = read?.status?.lastError ?? null;
   if (error === null) return '';
-  return read?.metrics ? `The last read of the RevenueCat figures failed, so these are older. ${error}` : error;
+  return read?.metrics ? t('products:metrics.staleProblem', { error }) : error;
 }

@@ -23,6 +23,8 @@
     textsDiffer,
     validateTexts,
   } from '../../lib/products.ts';
+  import { formatNumber } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { storeForPlatform } from '../../lib/stores.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -30,6 +32,7 @@
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
+  import T from '../ui/T.svelte';
   import TextField from '../ui/TextField.svelte';
 
   let {
@@ -150,8 +153,8 @@
       // The only call that writes to the store. Sent once per click, with the hash of the preview, exactly the texts that were previewed.
       const done = await confirmed((grant) => api.applyProductLocalization(workspaceId, app.id, product.productId, shown.locale, body, grant), body.previewHash);
       const text = done.result.confirmedByReread
-        ? `The ${shown.locale} texts were changed in ${storeName} (the answer was lost, and reading the store back confirmed it).`
-        : `The ${shown.locale} texts were changed in ${storeName}.`;
+        ? t('products:editor.appliedConfirmed', { locale: shown.locale, store: storeName })
+        : t('products:editor.applied', { locale: shown.locale, store: storeName });
       toast.success(text);
       announcement = text;
       touched = false;
@@ -167,8 +170,9 @@
       preview = null;
       if (failure.kind === 'state_changed') {
         // Nothing was written. Read the store again so the person sees what is there now and can apply that.
-        say(`${failure.message} The preview below is read again.`);
-        await runPreview(`${failure.message} The preview below is read again.`);
+        const again = t('products:editor.previewReread', { message: failure.message });
+        say(again);
+        await runPreview(again);
       } else {
         say(failure.message);
       }
@@ -178,57 +182,57 @@
 
 <div class="stack" data-testid="localization-editor">
   {#if !mayWrite}
-    <Alert tone="info" title="You can read these texts, not change them">{PRODUCT_WRITE_ROLE_REASON}</Alert>
+    <Alert tone="info" title={t('products:editor.readOnlyTitle')}>{t(PRODUCT_WRITE_ROLE_REASON)}</Alert>
   {:else if !writeEnabled}
-    <Alert tone="info" title="Changing texts is switched off on this server">
-      Someone who runs the server sets <code>{PRODUCT_WRITE_ENV}=true</code> and restarts it. Until then the texts are read only.
+    <Alert tone="info" title={t('products:editor.switchedOffTitle')}>
+      <T key="products:editor.switchedOffBody" params={{ env: PRODUCT_WRITE_ENV }} />
     </Alert>
   {/if}
 
   {#if product.localizations.length === 0}
-    <p class="muted text-sm">The store has no texts for this product. Add a language in the store's console, then sync the app.</p>
+    <p class="muted text-sm">{t('products:editor.noTexts')}</p>
   {:else if !editable}
     <!-- Nothing can be changed (the role, or the server's switch): the texts are shown as text, not as inputs that look editable. -->
     <dl class="texts" data-testid="localization-readonly">
       {#each product.localizations as l (l.locale)}
         <div class="text-block">
           <dt><span class="mono">{l.locale}</span></dt>
-          <dd class="text-name">{l.name === '' ? 'No display name' : l.name}</dd>
-          <dd class="desc muted">{l.description === '' ? 'No description' : l.description}</dd>
+          <dd class="text-name">{l.name === '' ? t('products:editor.noDisplayName') : l.name}</dd>
+          <dd class="desc muted">{l.description === '' ? t('products:editor.noDescription') : l.description}</dd>
         </div>
       {/each}
     </dl>
   {:else}
     <div class="field locale">
-      <label for="{uid}-locale">Language</label>
+      <label for="{uid}-locale">{t('products:editor.language')}</label>
       <select id="{uid}-locale" value={locale} disabled={busy} onchange={(event) => chooseLocale(event.currentTarget.value)}>
         {#each product.localizations as l (l.locale)}
           <option value={l.locale}>{l.locale}</option>
         {/each}
       </select>
-      <p class="hint">Adding a language is not built: add it in the store's console, then sync.</p>
+      <p class="hint">{t('products:editor.addLanguageHint')}</p>
     </div>
 
     {#if (phase === 'preview' || phase === 'applying') && preview}
-      <section class="preview" aria-label="Preview of the change" data-testid="localization-preview">
+      <section class="preview" aria-label={t('products:editor.previewLabel')} data-testid="localization-preview">
         <p class="summary"><strong>{changeSummary(preview)}</strong></p>
         <div class="compare">
           <div>
-            <h4>In {storeName} now</h4>
+            <h4>{t('products:editor.inStoreNow', { store: storeName })}</h4>
             <dl>
-              <dt>Display name</dt>
+              <dt>{t('products:editor.displayName')}</dt>
               <dd>{preview.current.name}</dd>
-              <dt>Description</dt>
-              <dd class="desc">{preview.current.description === '' ? 'Empty' : preview.current.description}</dd>
+              <dt>{t('products:editor.description')}</dt>
+              <dd class="desc">{preview.current.description === '' ? t('products:editor.empty') : preview.current.description}</dd>
             </dl>
           </div>
           <div>
-            <h4>After the change</h4>
+            <h4>{t('products:editor.afterChange')}</h4>
             <dl>
-              <dt>Display name {#if preview.changes.name}<Badge tone="info">Changed</Badge>{/if}</dt>
+              <dt>{t('products:editor.displayName')} {#if preview.changes.name}<Badge tone="info">{t('products:editor.changed')}</Badge>{/if}</dt>
               <dd>{preview.proposed.name}</dd>
-              <dt>Description {#if preview.changes.description}<Badge tone="info">Changed</Badge>{/if}</dt>
-              <dd class="desc">{preview.proposed.description === '' ? 'Empty' : preview.proposed.description}</dd>
+              <dt>{t('products:editor.description')} {#if preview.changes.description}<Badge tone="info">{t('products:editor.changed')}</Badge>{/if}</dt>
+              <dd class="desc">{preview.proposed.description === '' ? t('products:editor.empty') : preview.proposed.description}</dd>
             </dl>
           </div>
         </div>
@@ -236,13 +240,13 @@
           <p class="muted text-sm">{warning}</p>
         {/each}
         {#if preview.unchanged}
-          <Alert tone="info">{storeName} already shows these texts. There is nothing to apply.</Alert>
+          <Alert tone="info">{t('products:editor.alreadyShown', { store: storeName })}</Alert>
         {/if}
         <div class="row actions">
-          <Button onclick={() => (phase = 'edit')} disabled={busy}>Back to editing</Button>
+          <Button onclick={() => (phase = 'edit')} disabled={busy}>{t('products:editor.backToEditing')}</Button>
           <span class="spacer"></span>
           <Button variant="primary" loading={phase === 'applying'} disabled={!editable || preview.unchanged} onclick={() => void apply()}>
-            Apply to {storeName}
+            {t('products:editor.apply', { store: storeName })}
           </Button>
         </div>
       </section>
@@ -255,7 +259,7 @@
         }}
       >
         <TextField
-          label="Display name"
+          label={t('products:editor.displayName')}
           bind:value={name}
           oninput={() => (touched = true)}
           readonly={!editable}
@@ -263,10 +267,10 @@
           autocomplete="off"
           maxlength={MAX_PRODUCT_NAME + 50}
           error={touched ? problems.name : undefined}
-          hint="What customers see as the name of this product."
+          hint={t('products:editor.nameHint')}
         />
         <div class="field">
-          <label for="{uid}-description">Description</label>
+          <label for="{uid}-description">{t('products:editor.description')}</label>
           <textarea
             id="{uid}-description"
             rows="4"
@@ -278,15 +282,15 @@
             aria-invalid={touched && problems.description ? 'true' : undefined}
             aria-describedby="{uid}-description-hint"
           ></textarea>
-          <p id="{uid}-description-hint" class="hint">{description.length} of {MAX_PRODUCT_DESCRIPTION} characters. The store may have a shorter limit and says so if it refuses.</p>
+          <p id="{uid}-description-hint" class="hint">{t('products:editor.descriptionCount', { length: formatNumber(description.length), max: formatNumber(MAX_PRODUCT_DESCRIPTION) })}</p>
           {#if touched && problems.description}<p class="field-error" role="alert">{problems.description}</p>{/if}
         </div>
         <div class="row actions">
-          {#if changed}<Button onclick={resetDraft} disabled={busy}>Discard changes</Button>{/if}
+          {#if changed}<Button onclick={resetDraft} disabled={busy}>{t('products:editor.discard')}</Button>{/if}
           <span class="spacer"></span>
-          <Button type="submit" variant="primary" loading={phase === 'previewing'} disabled={!editable || !changed || invalid}>Preview change</Button>
+          <Button type="submit" variant="primary" loading={phase === 'previewing'} disabled={!editable || !changed || invalid}>{t('products:editor.preview')}</Button>
         </div>
-        {#if editable && !changed}<p class="muted text-sm">Change the name or the description to preview the change. Nothing is sent to {storeName} until you apply it.</p>{/if}
+        {#if editable && !changed}<p class="muted text-sm">{t('products:editor.previewHint', { store: storeName })}</p>{/if}
       </form>
     {/if}
   {/if}

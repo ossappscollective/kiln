@@ -10,6 +10,7 @@
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { type RevenueCatLinkView, revenueCatSummary } from '../../lib/revenuecat/revenuecat.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { AppSummary, CredentialSummary } from '../../lib/types.ts';
   import SettingsCard from '../app/settings/SettingsCard.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
@@ -66,13 +67,13 @@
 
 {#if served.length > 0 && loaded}
   <SettingsCard
-    title="RevenueCat project"
+    title={t('products:rc.section.title')}
     icon="tag"
-    description="The RevenueCat project and app this app's purchases are set up in. Linking only lets this tool read its configuration (products, entitlements, offerings); nothing in RevenueCat is changed."
+    description={t('products:rc.section.description')}
     summary={revenueCatSummary(allLinks)}
   >
     {#each served as app (app.id)}
-      <section class="stack tight" aria-label="{app.platform} RevenueCat project">
+      <section class="stack tight" aria-label={t('products:rc.section.aria', { platform: app.platform })}>
         {#if served.length > 1}<PlatformBadge platform={app.platform} />{/if}
         <RevenueCatLinkField
           {api}

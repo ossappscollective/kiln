@@ -25,11 +25,13 @@
     revenueCatLinks,
     startingChoice,
   } from '../../lib/revenuecat/revenuecat.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { CredentialSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
+  import T from '../ui/T.svelte';
   import '../readable-card.css';
 
   let {
@@ -118,7 +120,7 @@
     try {
       const out = await api.setRevenueCatLink(workspaceId, app.id, { credentialId, projectId, revenueCatAppId: appId });
       onchanged(out.link);
-      toast.success(`Linked to ${out.link.projectName}. Nothing in RevenueCat was changed. Use "Sync products" to read it.`);
+      toast.success(t('products:rc.link.linked', { project: out.link.projectName }));
     } catch (e) {
       problem = revenueCatErrorText(e);
     } finally {
@@ -133,7 +135,7 @@
     try {
       await api.removeRevenueCatLink(workspaceId, app.id);
       onchanged(null);
-      toast.success('Removed the link and what was read from RevenueCat. Nothing in RevenueCat was changed.');
+      toast.success(t('products:rc.link.removed'));
     } catch (e) {
       problem = revenueCatErrorText(e);
     } finally {
@@ -146,34 +148,34 @@
   {#if link}
     <dl class="facts">
       <div>
-        <dt>Project</dt>
+        <dt>{t('products:rc.link.project')}</dt>
         <dd>{link.projectName}</dd>
       </div>
       <div>
-        <dt>RevenueCat app</dt>
+        <dt>{t('products:rc.link.app')}</dt>
         <dd>{link.revenueCatAppName} <span class="muted">({appTypeLabel(link.revenueCatAppType)}{link.revenueCatIdentifier ? `, ${link.revenueCatIdentifier}` : ''})</span></dd>
       </div>
       <div>
-        <dt>Credential</dt>
-        <dd>{link.credentialLabel ?? 'Deleted'}</dd>
+        <dt>{t('products:rc.link.credential')}</dt>
+        <dd>{link.credentialLabel ?? t('products:rc.link.deleted')}</dd>
       </div>
     </dl>
-    {#if status}<p class="row"><Badge tone={status.tone} icon={status.tone === 'ok' ? 'check' : 'alert'}>{status.tone === 'ok' ? 'Linked' : 'Needs a credential'}</Badge> <span class="muted">{status.text}</span></p>{/if}
+    {#if status}<p class="row"><Badge tone={status.tone} icon={status.tone === 'ok' ? 'check' : 'alert'}>{status.tone === 'ok' ? t('products:rc.link.badgeLinked') : t('products:rc.link.badgeNeedsCredential')}</Badge> <span class="muted">{status.text}</span></p>{/if}
     {#if note}<p class="muted">{note}</p>{/if}
   {:else}
-    <p class="muted">This app is not linked to a RevenueCat project. Linking shows, in the Products table, which products RevenueCat sells and the entitlements and offerings that use them.</p>
+    <p class="muted">{t('products:rc.link.notLinked')}</p>
   {/if}
 
   {#if canWrite}
     {#if choices.length === 0}
       <Alert tone="info">
-        Add a RevenueCat secret key first. In <a href={revenueCatLinks.credentials}>Credentials</a>, choose “RevenueCat secret key”; the guide there explains how to create a read-only key.
+        <T key="products:rc.link.addKey" tags={{ link: credentialsLink }} />
       </Alert>
     {:else}
       <div class="field">
-        <label for="{uid}-credential">RevenueCat credential</label>
+        <label for="{uid}-credential">{t('products:rc.link.credentialLabel')}</label>
         <select id="{uid}-credential" bind:value={credentialId} disabled={saving || looking} onchange={() => (options = null)}>
-          <option value="">Choose a credential</option>
+          <option value="">{t('products:rc.link.chooseCredential')}</option>
           {#each choices as c (c.id)}
             <option value={c.id}>{c.label}</option>
           {/each}
@@ -181,31 +183,31 @@
       </div>
       <div class="row">
         <Button size="sm" icon="search" loading={looking} disabled={credentialId === '' || looking || saving} onclick={() => void lookUp()}>
-          {options ? 'Look up again' : 'Look up projects and apps'}
+          {options ? t('products:rc.link.lookUpAgain') : t('products:rc.link.lookUp')}
         </Button>
-        <span class="muted">RevenueCat is asked with this credential; nothing is saved yet.</span>
+        <span class="muted">{t('products:rc.link.lookUpHint')}</span>
       </div>
       {#if options}
         {#if options.projects.length === 0}
-          <Alert tone="info">This key sees no RevenueCat project. Check that the key belongs to the project of this app.</Alert>
+          <Alert tone="info">{t('products:rc.link.noProject')}</Alert>
         {:else if options.projects.length > 1}
           <div class="field">
-            <label for="{uid}-project">RevenueCat project</label>
+            <label for="{uid}-project">{t('products:rc.link.projectLabel')}</label>
             <select id="{uid}-project" bind:value={projectId} disabled={saving || looking} onchange={() => void lookUp(projectId)}>
-              <option value="">Choose a project</option>
+              <option value="">{t('products:rc.link.chooseProject')}</option>
               {#each options.projects as p (p.id)}
                 <option value={p.id}>{p.name}</option>
               {/each}
             </select>
-            <p class="hint">A V2 secret key belongs to one project; this one sees several.</p>
+            <p class="hint">{t('products:rc.link.severalProjects')}</p>
           </div>
         {/if}
         {#if options.apps !== null}
           {#if options.apps.length > 0}
             <div class="field">
-              <label for="{uid}-app">RevenueCat app</label>
+              <label for="{uid}-app">{t('products:rc.link.appLabel')}</label>
               <select id="{uid}-app" bind:value={appId} disabled={saving || looking}>
-                <option value="">Choose an app</option>
+                <option value="">{t('products:rc.link.chooseApp')}</option>
                 {#each options.apps as a (a.id)}
                   <option value={a.id} disabled={!a.linkable}>{appChoiceLabel(a)}</option>
                 {/each}
@@ -213,28 +215,30 @@
               {#if picked && picked.note}
                 <p class="hint">{picked.note}</p>
               {:else if picked && picked.identifier !== null && !picked.matches}
-                <p class="hint">RevenueCat holds {picked.identifier} for this app, which differs from the identifier of this app. You can still link it (a universal purchase may differ).</p>
+                <p class="hint">{t('products:rc.link.pickedDiffers', { identifier: picked.identifier })}</p>
               {:else}
-                <p class="hint">The app whose bundle id or package name is this app's is suggested.</p>
+                <p class="hint">{t('products:rc.link.suggestedHint')}</p>
               {/if}
             </div>
           {/if}
           {#if appsNote(options.apps) !== ''}<p class="muted">{appsNote(options.apps)}</p>{/if}
-          {#if !options.complete}<p class="muted">RevenueCat has more apps than were listed; if yours is missing, link it by choosing another project.</p>{/if}
+          {#if !options.complete}<p class="muted">{t('products:rc.link.moreApps')}</p>{/if}
         {/if}
       {/if}
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}
       <div class="row">
-        <Button variant="primary" loading={saving} disabled={!canSave} onclick={() => void save()}>{link ? 'Save changes' : 'Link project'}</Button>
+        <Button variant="primary" loading={saving} disabled={!canSave} onclick={() => void save()}>{link ? t('products:rc.link.save') : t('products:rc.link.linkProject')}</Button>
         {#if link}
-          <Button size="sm" variant="ghost" icon="trash" loading={removing} disabled={removing || saving} onclick={() => void remove()}>Remove the link</Button>
+          <Button size="sm" variant="ghost" icon="trash" loading={removing} disabled={removing || saving} onclick={() => void remove()}>{t('products:rc.link.remove')}</Button>
         {/if}
       </div>
     {/if}
   {:else if link === null}
-    <p class="muted">Ask an owner or an admin to link it.</p>
+    <p class="muted">{t('products:rc.link.askAdmin')}</p>
   {/if}
 </div>
+
+{#snippet credentialsLink(text: string)}<a href={revenueCatLinks.credentials}>{text}</a>{/snippet}
 
 <style>
   .field {
