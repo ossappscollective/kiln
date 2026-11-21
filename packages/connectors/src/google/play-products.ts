@@ -217,7 +217,7 @@ export class PlayProductsConnector implements StoreProductsConnector {
     let token: string | undefined;
     for (let page = 1; ; page++) {
       const url = `${this.#api.url(path)}?pageSize=${this.#pageSize}${token ? `&pageToken=${encodeURIComponent(token)}` : ''}`;
-      const body = (await this.#api.get(url, what)) as Json;
+      const body = (await this.#api.get(url, what, false, true)) as Json;
       items.push(...records(body[key]));
       token = text(body.nextPageToken);
       if (!token) return { items, truncated: false };
@@ -230,7 +230,16 @@ export class PlayProductsConnector implements StoreProductsConnector {
     let complete = true;
 
     const subscriptions = await this.#pages('/subscriptions', 'subscriptions', 'reading the subscriptions');
-    const oneTime = await this.#pages('/oneTimeProducts', 'oneTimeProducts', 'reading the one-time products');
+    // The one-time products are read apart: an app that was never moved to the new product model, or an answer that is not JSON, must not
+    // cost the app its subscriptions. The list is then marked incomplete so nothing is taken to be gone.
+    let oneTime: { items: Json[]; truncated: boolean } = { items: [], truncated: false };
+    try {
+      oneTime = await this.#pages('/oneTimeProducts', 'oneTimeProducts', 'reading the one-time products');
+    } catch (error) {
+      if (!(error instanceof StoreError) || error.kind !== 'unexpected') throw error;
+      complete = false;
+      warnings.push(`The one-time products could not be read: ${error.message}`);
+    }
     if (subscriptions.truncated || oneTime.truncated) complete = false;
 
     const offers = new Map<string, StoreProductOffer[]>();

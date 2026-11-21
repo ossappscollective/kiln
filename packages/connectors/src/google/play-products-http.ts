@@ -65,8 +65,16 @@ export class PlayProductsHttp {
     return new StoreError('googleplay', error.kind, this.#http.redact(error.message), error.status);
   }
 
-  /** A GET. A 404 is `undefined` when `optional`. */
-  async get(url: string, what: string, optional = false): Promise<Json | undefined> {
+  /**
+   * A GET. A 404 is `undefined` when `optional`. With `allowEmpty` a successful answer without a body counts as `{}` (a list with nothing
+   * in it: Google Play may answer an empty list that way); an answer that is not JSON is still an error.
+   */
+  async get(
+    url: string,
+    what: string,
+    optional = false,
+    allowEmpty = false,
+  ): Promise<Json | undefined> {
     for (let attempt = 0; ; attempt++) {
       const token = await this.#tokens.token();
       this.#writeHttp.known.add(token);
@@ -78,11 +86,14 @@ export class PlayProductsHttp {
         continue;
       }
       if (reply.status >= 200 && reply.status < 300) {
+        if (allowEmpty && !reply.malformed && reply.json === undefined) return {};
         if (reply.malformed || !isRecord(reply.json)) {
+          // The content type is the one detail that says what came back (an HTML page from a proxy, say); the body itself is never quoted.
+          const type = reply.headers.get('content-type')?.split(';')[0]?.trim().slice(0, 60);
           throw new StoreError(
             'googleplay',
             'unexpected',
-            `Google Play answered ${what} with a response that could not be read.`,
+            `Google Play answered ${what} with a response that could not be read${type ? ` (${type})` : ''}.`,
             reply.status,
           );
         }

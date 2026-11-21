@@ -168,3 +168,37 @@ test('a package name that is not one is refused before any call', () => {
     /Not a valid Android package name/,
   );
 });
+
+test('an empty answer to a list is an empty list; one that is not JSON costs only the one-time products', async () => {
+  const empty = pf.playProductsFake();
+  empty.clear('GET', `${pf.ONE_TIME}?pageSize=100`);
+  empty.on({ method: 'GET', match: `${pf.ONE_TIME}?pageSize=100`, raw: '' });
+  const none = await connector(empty).listProducts();
+  assert.equal(none.complete, true);
+  assert.deepEqual(none.warnings, []);
+  assert.deepEqual(none.products.map((p) => p.productId), ['premium_monthly']);
+
+  const html = pf.playProductsFake();
+  html.clear('GET', `${pf.ONE_TIME}?pageSize=100`);
+  html.on({
+    method: 'GET',
+    match: `${pf.ONE_TIME}?pageSize=100`,
+    raw: '<html>blocked</html>',
+    headers: { 'content-type': 'text/html; charset=utf-8' },
+  });
+  const partial = await connector(html).listProducts();
+  assert.equal(partial.complete, false, 'nothing may be taken to be gone');
+  assert.deepEqual(partial.products.map((p) => p.productId), ['premium_monthly']);
+  assert.equal(partial.warnings.length, 1);
+  assert.match(partial.warnings[0] ?? '', /one-time products could not be read.*\(text\/html\)/);
+  assert.ok(!(partial.warnings[0] ?? '').includes('blocked'), 'the body is never quoted');
+
+  const subs = pf.playProductsFake();
+  subs.clear('GET', `${pf.SUBS}?pageSize=100`);
+  subs.on({ method: 'GET', match: `${pf.SUBS}?pageSize=100`, raw: '<html>x</html>' });
+  await assert.rejects(connector(subs).listProducts(), (error: unknown) => {
+    assert.ok(error instanceof StoreError);
+    assert.equal(error.kind, 'unexpected');
+    return true;
+  });
+});
