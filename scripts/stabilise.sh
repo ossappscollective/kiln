@@ -7,7 +7,7 @@
 #   ./scripts/stabilise.sh quick      # skip Docker image and Tauri
 #
 # Needs: pnpm. Optional: docker (Postgres tests, image build), cargo (Tauri shell check). Missing tools are reported as SKIP.
-# It never reads .env or the dev database (apps/server/.kiln-data, or .mrm-data from before the rename) and starts only a throwaway Postgres (docker-compose.test.yml).
+# It never reads .env or the dev database (apps/server/.kiln-data) and starts only a throwaway Postgres (docker-compose.test.yml).
 set -u
 cd "$(dirname "$0")/.."
 MODE="${1:-all}"

@@ -7,9 +7,6 @@ target/
 .DS_Store
 .kiln-data/
 .kiln-demo/
-# folders of versions from before the rename to Kiln, still used when they exist
-.mrm-data/
-.mrm-demo/
 apps/desktop/src-tauri/gen/
 apps/desktop/src-tauri/binaries/
 *.bak

@@ -1,14 +1,13 @@
 # One command: cp .env.example .env, set KILN_MASTER_KEY, then `docker compose up --build`.
-# MRM_MASTER_KEY and MRM_BIND from before the rename to Kiln are still read here; the server reads every other MRM_* too.
-# The Postgres user, database and the volume names below keep their old `mrm` names on purpose: they are
-# what an existing installation's data lives under (docs/deployment.md, "Upgrading from the working-title names").
+# The Postgres user, database and the volume names below are `mrm` on purpose: they are what the data lives
+# under, and renaming them would start an empty database (docs/adr/0040-rename-to-kiln.md).
 services:
   app:
     build: .
     ports:
       # Loopback only by default: the server speaks plain HTTP. Put a TLS-terminating reverse proxy
       # in front (docs/deployment.md). Set KILN_BIND=0.0.0.0 to publish on every interface.
-      - "${KILN_BIND:-${MRM_BIND:-127.0.0.1}}:8787:8787"
+      - "${KILN_BIND:-127.0.0.1}:8787:8787"
     # Every KILN_* switch in .env (feature flags, AI, analytics, translation, KILN_SMTP_* mail...) reaches the container. The values under
     # `environment:` below win over the file.
     env_file:
@@ -16,7 +15,7 @@ services:
         required: false
     environment:
       DATABASE_URL: postgres://mrm:mrm@db:5432/mrm
-      KILN_MASTER_KEY: ${KILN_MASTER_KEY:-${MRM_MASTER_KEY:?Set KILN_MASTER_KEY in .env (openssl rand -base64 32)}}
+      KILN_MASTER_KEY: ${KILN_MASTER_KEY:?Set KILN_MASTER_KEY in .env (openssl rand -base64 32)}
       KILN_DATA_DIR: /data
       KILN_WEB_DIST: apps/web/dist
     volumes:
