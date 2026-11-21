@@ -213,7 +213,7 @@ Endpoints (`/repositories/:id/listing-targets`), for the saved ones:
 ```json
 { "mode": "local_branch",
   "base": { "branch": "main", "commit": "…" },
-  "commit": { "branch": "mrm/update-german-subtitle-1a2b3c4d", "sha": "…", "at": 0 },
+  "commit": { "branch": "kiln/update-german-subtitle-1a2b3c4d", "sha": "…", "at": 0 },
   "requested": { "push": true, "openPr": true },
   "signature": { "status": "signed", "format": "ssh" | "gpg" },
   "push": { "status": "not_requested" | "pushed" | "failed", "at": 0, "code": "push_rejected", "error": "…" },
@@ -278,7 +278,7 @@ exists puts the change set back to `approved`, with nothing written.
 - `POST /change-sets/:id/apply` (approved only) claims the change set atomically, then applies it.
   The body is optional (empty, or `{}` with no `mode`, means `github_pr`):
   `{ mode?: "github_pr" | "local_branch", branch?, push?, openPr? }`.
-  - **`github_pr`** (default; the only mode before): opens branch `mrm/<first 8 of id>-<slug>` and a
+  - **`github_pr`** (default; the only mode before): opens branch `kiln/<first 8 of id>-<slug>` and a
     pull request through the GitHub API. `200 { changeSet }` with `branch`, `prUrl`, `prNumber`,
     `commitSha`. `branch`, `push` and `openPr` with this mode are `400 invalid_request`. A
     local-only repository answers `409 local_only` before the change set is touched (it stays
@@ -289,7 +289,7 @@ exists puts the change set back to `approved`, with nothing written.
     `KILN_LOCAL_REPO_WRITE=true`, an attached local clone, and the right `changesets.approve`.
     `branch` (optional) is a new branch name: ASCII letters, digits and `. _ - /`, starting with a
     letter, digit or `_`, at most 200 characters, no `..`, `//`, `@{`, `/.`, trailing `/` or `.`,
-    no `.lock`, not `HEAD` or `refs/…`; the default is `mrm/<slug of the summary>-<first 8 of id>`.
+    no `.lock`, not `HEAD` or `refs/…`; the default is `kiln/<slug of the summary>-<first 8 of id>`.
     `push: true` then pushes that branch to `https://github.com/<owner>/<repo>.git` with the
     repository's credential (a repository with a GitHub connection only), and `openPr: true` (which
     needs `push: true`) opens the pull request into the branch the commit was made on.
@@ -369,7 +369,7 @@ to `approved` (nothing was written) so it can be retried:
 **Timeout of apply.** After the timeout the server aborts the connector: no further request is
 sent and the one in flight is cancelled (the pull request step is finished once a branch exists,
 so a branch is not stranded without a PR). It cannot take back what GitHub already accepted, so
-the branch `mrm/<id>-<slug>`, even its pull request, may exist. The change set is therefore
+the branch `kiln/<id>-<slug>`, even its pull request, may exist. The change set is therefore
 **not** marked `failed` (that would say nothing was applied and invite a retry that collides with
 the branch). It stays `applying` with `error` saying what happened; it cannot be approved,
 applied again or discarded meanwhile (`409 apply_in_progress` / `invalid_state`). The note and

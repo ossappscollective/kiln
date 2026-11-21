@@ -31,7 +31,7 @@ Three facts shape the design:
 
 ## Decision (summary)
 
-1. **A device agent, `mrm-agent`**, in a new package that runs as a **separate process** on the
+1. **A device agent, `kiln-agent`**, in a new package that runs as a **separate process** on the
    machine that has the devices: as a standalone Node CLI, or as a second sidecar of the desktop
    app. It only makes **outbound** HTTPS calls, pairs once with a code, and then holds a token that
    can do nothing except `devices.agent` actions. Same protocol on the desktop and on a headless
@@ -138,13 +138,13 @@ seam in "Test part" is written against the idea as described in the task, not ag
 
 ## Design
 
-### 1. The device agent (`mrm-agent`)
+### 1. The device agent (`kiln-agent`)
 
 **What it is.** A Node program in a new workspace package (proposed name `@kiln/agent`), written in
 the same TypeScript as the server so it can share types from `@kiln/core` (device and job shapes,
 failure classes). Two ways to start it, one code path:
 
-- **Standalone CLI:** `mrm-agent pair <server-url> <code>` once, then `mrm-agent run`. For a Mac
+- **Standalone CLI:** `kiln-agent pair <server-url> <code>` once, then `kiln-agent run`. For a Mac
   mini on a shelf, a Linux box with an Android lab, or a developer who only uses the hosted server.
 - **Desktop sidecar:** the Tauri shell starts it next to the server, as it starts the server today
   ([ADR 0004](0004-desktop-sidecar.md): `std::process::Command`, secrets in the environment never
@@ -534,7 +534,7 @@ model and OS, connection (USB, Wi-Fi, local), state as a badge (`ready`, `unauth
 `developer mode off`, `offline`, `locked`), agent, last seen, source. Filters for platform and state.
 Rows from an offline agent are greyed with "last seen 2 hours ago". Empty state: "No devices yet.
 Pair an agent on the computer your phone is plugged into" and a primary button, **Pair an agent**
-(admin), which shows the one-time code and the exact `mrm-agent pair` command with a copy button, and
+(admin), which shows the one-time code and the exact `kiln-agent pair` command with a copy button, and
 a live "waiting for agent" line that turns into the agent's name when it pairs. A second tab, Agents,
 lists agents with version, tool versions (adb, Xcode, bundletool), last seen, and **Revoke**. Admin
 only: **Add device manually** (platform, name, identifier) and **Import from App Store Connect**
@@ -719,5 +719,5 @@ Until someone runs these on a phone, treat them as **unverified**:
 11. **Non-Mac iOS (P3):** pursue it, or state that physical iOS installs need a Mac agent for good.
 12. **Over-the-air pages (P4):** is the hosted server allowed to store IPAs and APKs, or should it only
     link to EAS pages and CI artifacts? If it stores them, the retention policy.
-13. **Naming:** `mrm-agent` and `@kiln/agent` follow the project's placeholder scope; they change with
+13. **Naming:** `kiln-agent` and `@kiln/agent` follow the project's placeholder scope; they change with
     the project name ([phase-0.md](../phase-0.md)).

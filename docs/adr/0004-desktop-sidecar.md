@@ -56,7 +56,7 @@ has its own SQLite module, so it would reopen ADR 0002.
 
 ## Decision
 
-Adopt **B**. Ship the official Node binary as the Tauri sidecar `mrm-node`, and the server as a
+Adopt **B**. Ship the official Node binary as the Tauri sidecar `kiln-node`, and the server as a
 `server/` resource folder, both staged by `apps/desktop/scripts/prepare-sidecar.mjs`.
 
 Reasons: it uses only documented, stable Tauri features; it runs exactly the code CI tests; it
@@ -68,7 +68,7 @@ bundler to ship the same 117 MB binary. Revisit C once `esbuild` is added for an
 
 ```
 src-tauri/binaries/                      git-ignored, made by prepare-sidecar.mjs
-  mrm-node-<target-triple>[.exe]         externalBin "binaries/mrm-node"
+  kiln-node-<target-triple>[.exe]         externalBin "binaries/kiln-node"
   server/                                resources {"binaries/server/": "server/"}
     launcher.mjs  workspace-resolve.mjs  registers the hook, imports apps/server/src/index.ts
     apps/server/{package.json,src/}      tests and test helpers left out
@@ -83,14 +83,14 @@ startup, the smoke test fails and the skip list in the script changes.
 
 ### Tauri wiring
 
-- `tauri.conf.json`: `bundle.externalBin: ["binaries/mrm-node"]`,
+- `tauri.conf.json`: `bundle.externalBin: ["binaries/kiln-node"]`,
   `bundle.resources: {"binaries/server/": "server/"}`,
   `bundle.macOS.entitlements: "entitlements.plist"`.
-- Tauri needs a file named `mrm-node-<target-triple>` (plus `.exe` on Windows) for each target,
+- Tauri needs a file named `kiln-node-<target-triple>` (plus `.exe` on Windows) for each target,
   and `tauri-build` is expected to fail when it is missing, so `tauri dev` also needs the staging step. The
   `dev` and `build` scripts in `apps/desktop/package.json` run it first.
 - At run time the bundler puts the sidecar next to the app executable with the triple removed
-  (`Contents/MacOS/mrm-node` on macOS) and the resources in the resource directory.
+  (`Contents/MacOS/kiln-node` on macOS) and the resources in the resource directory.
 - **No shell plugin and no capability change.** `main.rs` starts the sidecar with
   `std::process::Command`, as it does today. Capabilities restrict what the web view can call; a
   Rust `Command` is outside them. Not adding `tauri-plugin-shell` means no `shell:allow-*`
@@ -98,7 +98,7 @@ startup, the smoke test fails and the skip list in the script changes.
   but no way to close stdin, which the server's `KILN_EXIT_WITH_PARENT` shutdown (ADR 0003) needs.
   The window loads a remote origin and `capabilities/default.json` grants that origin nothing;
   that does not change. If the shell plugin is ever added, the capability must allow only
-  `{ "name": "binaries/mrm-node", "sidecar": true }` with fixed arguments.
+  `{ "name": "binaries/kiln-node", "sidecar": true }` with fixed arguments.
 - The secret, port, master key and data folder still go in the environment, never argv.
   `NODE_OPTIONS` is removed from the child's environment so a user's shell cannot inject code.
 

@@ -332,7 +332,7 @@ one was reached:
 
 1. Token exchange succeeds: the key is valid and the clock is right. Any service account of any
    project gets this token, so it says nothing about Play.
-2. Without a package name, one `edits.insert` for `com.example.mrm.credentialcheck` (a `com.example`
+2. Without a package name, one `edits.insert` for `com.example.kiln.credentialcheck` (a `com.example`
    package cannot be a real Play app, so nothing is created or touched). If the API is enabled and the
    token is accepted, Google answers 403 or 404 for it, and the code reports "API reachable, access to
    apps **not proven**". A 403 "API not enabled", a 401 or `projectNotLinked` is a failure.

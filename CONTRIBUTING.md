@@ -20,7 +20,7 @@ To run both locally:
 
 ```sh
 docker compose -f docker-compose.test.yml up -d --wait
-KILN_TEST_POSTGRES_URL=postgres://mrm_test:mrm_test@localhost:55432/mrm_test pnpm test
+KILN_TEST_POSTGRES_URL=postgres://kiln_test:kiln_test@localhost:55432/kiln_test pnpm test
 docker compose -f docker-compose.test.yml down
 ```
 

@@ -9,7 +9,7 @@ Design: [ADR 0023](../adr/0023-mcp-server.md). It is not part of `/api` and not 
 
 ## Request
 
-- `Authorization: Bearer mrm_...` is required (an [API token](tokens.md)); the session cookie is ignored. Missing or bad: `401 invalid_token`.
+- `Authorization: Bearer kiln_...` is required (an [API token](tokens.md)); the session cookie is ignored. Missing or bad: `401 invalid_token`.
   Bad tokens from one address: `429 too_many_attempts`.
 - `Content-Type: application/json` (else `415`), body at most 256 KiB (else `413`). One message, or a batch of at most 16 (`400` otherwise).
 - `Origin`, if present, must be `KILN_PUBLIC_ORIGIN` or in `KILN_TRUSTED_ORIGINS` (else `403 bad_origin`). MCP clients send none.
@@ -51,7 +51,7 @@ Only the tools this token may use: its role ceiling, its `actions` list, its app
 
 ### Resources
 
-`mrm://apps/{appId}/overview`, `mrm://apps/{appId}/release-state`, `mrm://apps/{appId}/listing/{locale}`; `application/json`. They are composed from tools and gated
+`kiln://apps/{appId}/overview`, `kiln://apps/{appId}/release-state`, `kiln://apps/{appId}/listing/{locale}`; `application/json`. They are composed from tools and gated
 like them.
 
 ### Prompts

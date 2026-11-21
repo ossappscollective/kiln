@@ -80,7 +80,8 @@ in-process client, the migrations and the job queue on SQLite.
 - [ ] Sidecar spike outcome: ADR 0004 proposes the Node sidecar; accepted only after the first real
       bundle on macOS ([docs/spikes/sidecar.md](spikes/sidecar.md))
 - [ ] Dual-dialect spike: needs a green Postgres run ([docs/spikes/dual-dialect.md](spikes/dual-dialect.md))
-- [ ] Choose the project name, then rename the `@kiln` scope, the Tauri identifier and the title
+- [x] Choose the project name (Kiln) and rename the `@kiln` scope, the Tauri identifier and the title
+      ([ADR 0040](adr/0040-rename-to-kiln.md))
 - [ ] Desktop icons
 - [ ] First-run owner claim on a fresh hosted instance: see [open-decisions.md](open-decisions.md)
 

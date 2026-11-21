@@ -29,7 +29,7 @@ An API token holds `store.push_draft` only when its list of actions **names it**
 token with no list never gets it, and its role must be admin or owner (`400 action_above_role`
 otherwise). A token limited to some apps reaches those apps only (404 for others). A push by a token is
 audited with `actor_type = token`. All routes are in the [OpenAPI description](openapi.md) (tag
-`staged-changes`); the push is `x-mrm-risk: destructive`.
+`staged-changes`); the push is `x-kiln-risk: destructive`.
 
 ## Switching it on
 
@@ -201,7 +201,7 @@ Not verified (nothing was run):
 - App Store: the request bodies of the PATCH and POST of version localizations, the `screenshotDisplayType` names
   that `target` shows (the placement group is found from the reference data, not from these names), the states in
   which a version can be edited, which key role is needed, and the **checksum**: the library has none, so this server
-  writes the SHA-256 (first 32 hex characters) into the image's `referenceName` (`mrm:sha256:<hex>`) to tell "the same
+  writes the SHA-256 (first 32 hex characters) into the image's `referenceName` (`kiln:sha256:<hex>`) to tell "the same
   file"; whether Apple accepts that text, the `filter[referenceName]` semantics and the `limit` / `fields` parameters
   of the placements list, and the `deviceFamily` strings of the display classes. Images of the library are never
   deleted except one that failed processing here: replacing a set deletes its placements only.

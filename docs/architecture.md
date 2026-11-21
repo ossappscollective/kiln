@@ -108,13 +108,21 @@ Summary; the operator-facing detail is in [docs/deployment.md](deployment.md).
 - **Desktop**: single-user mode adds loopback bind, a Host allowlist and a single-use launch secret
   ([ADR 0003](adr/0003-single-user-mode.md)).
 
+## Naming
+
+The product is **Kiln**: packages are `@kiln/*`, environment variables `KILN_*`, the session cookie
+`kiln_session`, API tokens `kiln_...`, local data `.kiln-data` and `kiln.db`. It was first called MRM;
+the old names are still read where an upgrade would otherwise break data or sessions, and are written
+nowhere. The rules and what is deliberately kept are in [ADR 0040](adr/0040-rename-to-kiln.md); the
+operator's list is in [deployment](deployment.md#upgrading-from-the-working-title-names-mrm_).
+
 ## Automation surface
 
 How scripts, CI and assistants use the server. Details: [tokens](api/tokens.md),
 [events](api/events.md), [webhooks](api/webhooks.md), [OpenAPI](api/openapi.md).
 
 - **Authentication** (`apps/server/src/bearer.ts`): `/api/workspaces/*` and `/api/openapi.json` take
-  a session cookie, or `Authorization: Bearer mrm_...` when there is no cookie. A token is looked up
+  a session cookie, or `Authorization: Bearer kiln_...` when there is no cookie. A token is looked up
   by the SHA-256 of what was presented, belongs to one workspace, and acts for its creator with a
   role ceiling (never owner), optionally some apps and some actions. Token requests carry no cookie,
   so they skip the same-origin check that guards cookie writes; they have their own rate limit.

@@ -21,13 +21,13 @@ newer; use the real path of this repository).
 Claude Code, HTTP:
 
 ```sh
-claude mcp add --transport http kiln https://mrm.example.com/mcp --header 'Authorization: Bearer mrm_...'
+claude mcp add --transport http kiln https://kiln.example.com/mcp --header 'Authorization: Bearer kiln_...'
 ```
 
 Claude Code, stdio:
 
 ```sh
-claude mcp add kiln --env KILN_URL=https://mrm.example.com --env KILN_TOKEN=mrm_... -- node /path/to/kiln/apps/server/src/mcp/stdio.ts
+claude mcp add kiln --env KILN_URL=https://kiln.example.com --env KILN_TOKEN=kiln_... -- node /path/to/kiln/apps/server/src/mcp/stdio.ts
 ```
 
 Claude Desktop, `claude_desktop_config.json` (stdio):
@@ -38,7 +38,7 @@ Claude Desktop, `claude_desktop_config.json` (stdio):
     "kiln": {
       "command": "node",
       "args": ["/path/to/kiln/apps/server/src/mcp/stdio.ts"],
-      "env": { "KILN_URL": "https://mrm.example.com", "KILN_TOKEN": "mrm_..." }
+      "env": { "KILN_URL": "https://kiln.example.com", "KILN_TOKEN": "kiln_..." }
     }
   }
 }
@@ -50,8 +50,8 @@ Cursor, `~/.cursor/mcp.json` (HTTP; the stdio form is the same as Claude Desktop
 {
   "mcpServers": {
     "kiln": {
-      "url": "https://mrm.example.com/mcp",
-      "headers": { "Authorization": "Bearer mrm_..." }
+      "url": "https://kiln.example.com/mcp",
+      "headers": { "Authorization": "Bearer kiln_..." }
     }
   }
 }
@@ -94,7 +94,7 @@ there will not be one**: confirming needs a passkey or password ([ADR 0019](adr/
 the link, read the preview and confirm in the app. To let an assistant preview, make a token under **API tokens** whose actions name the preview's
 action (an admin token without a list never gets one).
 
-**Resources:** `mrm://apps/{appId}/overview`, `mrm://apps/{appId}/release-state`, `mrm://apps/{appId}/listing/{locale}` (listing and template listing
+**Resources:** `kiln://apps/{appId}/overview`, `kiln://apps/{appId}/release-state`, `kiln://apps/{appId}/listing/{locale}` (listing and template listing
 available through `resources/list` and `resources/templates/list`).
 **Prompts:** `release_readiness_check`, `summarise_new_reviews`, `aso_review`.
 

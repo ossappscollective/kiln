@@ -11,7 +11,7 @@ answer 404; a member without the right answers 403.
 ## Using a token
 
 ```sh
-curl -H "Authorization: Bearer mrm_..." https://mrm.example.com/api/workspaces/<workspaceId>/apps
+curl -H "Authorization: Bearer kiln_..." https://kiln.example.com/api/workspaces/<workspaceId>/apps
 ```
 
 - A token works in exactly one workspace. Another workspace answers 404, as if it did not exist.
@@ -32,7 +32,7 @@ curl -H "Authorization: Bearer mrm_..." https://mrm.example.com/api/workspaces/<
 
 A token may do an operation when **all** of these hold:
 
-1. The operation is open to tokens (`x-mrm-token-access: true` in
+1. The operation is open to tokens (`x-kiln-token-access: true` in
    [the OpenAPI document](openapi.md)). Anything not listed there, including every route added later
    without an entry, is closed to tokens until someone lists it. **Tokens can never**: manage
    tokens (`tokens.read`, `tokens.manage`), manage members and invitations (`members.manage`),
@@ -90,11 +90,11 @@ Body (16 KB at most):
 
 ```json
 {
-  "token": "mrm_...",
+  "token": "kiln_...",
   "summary": {
     "id": "...",
     "name": "Release CI",
-    "prefix": "mrm_ab12cd",
+    "prefix": "kiln_ab12cd",
     "role": "member",
     "appIds": ["..."],
     "actions": ["apps.read", "apps.sync"],
@@ -108,8 +108,10 @@ Body (16 KB at most):
 }
 ```
 
-The `token` is in this response and nowhere else, ever (`Cache-Control: no-store`). It is `mrm_`
-plus 256 random bits, base64url. Only its SHA-256 is stored.
+The `token` is in this response and nowhere else, ever (`Cache-Control: no-store`). It is `kiln_`
+plus 256 random bits, base64url. Only its SHA-256 is stored. Tokens made before the product was
+renamed start with `mrm_` instead; they stay valid and are not rewritten (the stored hash covers the
+whole string), and the list shows the prefix they were made with.
 
 Errors: 400 `invalid_request` (validation, or an expiry in the past), 400 `action_not_allowed`
 (an action tokens can never hold), 400 `action_above_role` (an action the role does not include),
@@ -119,7 +121,7 @@ Errors: 400 `invalid_request` (validation, or an expiry in the past), 400 `actio
 ### `GET /api/workspaces/:wid/tokens`
 
 `{ "tokens": [summary] }`, newest first, revoked and expired ones included with their `status`
-(`active`, `revoked`, `expired`). Never the token or its hash. `prefix` is `mrm_` and six
+(`active`, `revoked`, `expired`). Never the token or its hash. `prefix` is `kiln_` and six
 characters, enough to tell tokens apart. `lastUsedAt` is updated at most once a minute.
 
 ### `DELETE /api/workspaces/:wid/tokens/:id`

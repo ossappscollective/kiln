@@ -40,6 +40,50 @@ Referrer-Policy. The policy only allows the web UI's own scripts, styles, images
 The image runs as the unprivileged `node` user. The only writable path is `/data`
 (`KILN_DATA_DIR`). The image still contains the development dependencies that the web build needs.
 
+## Upgrading from the working-title names (MRM_*)
+
+The product was first called MRM (Mobile Release Manager) and is now **Kiln**. Nothing needs to be
+changed to start the new version on existing data; these are the compatibility rules
+([ADR 0040](adr/0040-rename-to-kiln.md)), and what to rename when you have time.
+
+- **Environment variables**: `MRM_X` is now `KILN_X` for every variable. At start the server copies
+  each `MRM_X` that is set to `KILN_X` when `KILN_X` is not set (it never overwrites a `KILN_`
+  variable) and logs one line that lists the names it took from the old prefix, never the values.
+  The MCP bridge and the demo do the same. Rename the variables in your `.env`, compose file or
+  service definition and the line goes away. `docker-compose.yml` also reads `MRM_MASTER_KEY` and
+  `MRM_BIND` for its own substitutions.
+- **Session cookie**: new sign-ins set `kiln_session`. A session in the old `mrm_session` cookie keeps
+  working while the new cookie is absent, so nobody is signed out by the upgrade. Signing out clears
+  both.
+- **API tokens**: tokens you create now start with `kiln_`. Existing `mrm_...` tokens keep working
+  unchanged (they are stored as a hash of the whole string and are not rewritten), so scripts and CI
+  need no change. The list shows the prefix each token was made with.
+- **Data folder and database file**: the defaults are `./.kiln-data`, `./.kiln-data/kiln.db` and
+  `./.kiln-demo` (the image uses `/data/kiln.db`). When the old name exists and the new one does not
+  (`./.mrm-data`, `mrm.db` next to where `kiln.db` would be, `./.mrm-demo`), the old one stays in use.
+  Nothing is moved, copied or deleted; rename the folder or file yourself if you want the new name
+  (stop the server first). A folder you set with `KILN_DATA_DIR` is used as you wrote it.
+- **Clone markers and refs**: clones made before the rename keep their `mrm-clone.json` marker and
+  `refs/mrm/*` refs and keep working; new clones write `kiln-clone.json` and `refs/kiln/*`.
+- **Webhook headers** changed: `X-MRM-Event`, `X-MRM-Delivery`, `X-MRM-Timestamp` and
+  `X-MRM-Signature` are now `X-Kiln-Event`, `X-Kiln-Delivery`, `X-Kiln-Timestamp` and
+  `X-Kiln-Signature`. The signature algorithm and the signed string are unchanged. This is a break
+  with no fallback: update receivers that read the headers ([webhooks](api/webhooks.md)).
+- **Other names that changed** and have no fallback: the OpenAPI extensions (`x-mrm-*` is
+  `x-kiln-*`), the MCP resource addresses (`mrm://apps/...` is `kiln://apps/...`), and the default
+  branch name for change sets (`mrm/...` is `kiln/...`).
+- **Browser settings** (theme, remembered workspace, collapsed sections, and so on) are copied from
+  their old `mrm.*` browser storage keys the first time they are read.
+- **Docker compose**: the Postgres user, database and the volume names in `docker-compose.yml` are
+  still `mrm` on purpose; they are where an existing installation's data lives, and renaming them
+  would start an empty database. Leave them as they are, or migrate the data yourself.
+- **Desktop app**: it looks for its data in the new app folder first and uses the folder of the
+  earlier identifier (`dev.example.mobilereleasemanager`) when only that exists; `mrm.db` is used when
+  `kiln.db` does not exist. `KILN_NODE` and `KILN_USE_PACKAGED_SERVER` also read their `MRM_` names.
+- **Unchanged on purpose**: the single-user address `local-user@mrm.invalid`, the labels that key
+  recovery codes, passkey user handles, mail codes and build download links, and the demo's built-in
+  key. They are part of stored or derived data; changing them would break existing accounts.
+
 ## Reading repositories: git and local clones
 
 Scans, listings and change set creation read the repository from a local clone instead of one
@@ -118,7 +162,7 @@ nothing with `KILN_READS=api` (git is never run in that mode) and needs git on t
 - It has a `.git` directory with a `HEAD`, or a `.git` file (a worktree) whose git directory is also
   inside a root. A symlinked `.git` and a bare repository are refused.
 - It is not the server's own data or clone folder (`KILN_DATA_DIR`, `KILN_CLONE_DIR`) and holds no
-  `mrm-clone.json`.
+  `kiln-clone.json`.
 - The person has the right `repositories.write` (admin or owner). Members and viewers can see which
   repository reads from a folder, but cannot check, attach, change or detach one.
 
@@ -221,16 +265,16 @@ one you configured (or found in `PATH` at start), never one named by a repositor
 
 **ssh, with a key file.** The simplest setup, and the only one that does not depend on an agent:
 
-    ssh-keygen -t ed25519 -N '' -C "mrm release bot" -f ~/.ssh/mrm_signing   # no passphrase
-    chmod 600 ~/.ssh/mrm_signing
+    ssh-keygen -t ed25519 -N '' -C "kiln release bot" -f ~/.ssh/kiln_signing   # no passphrase
+    chmod 600 ~/.ssh/kiln_signing
     KILN_GIT_SIGN=ssh
-    KILN_GIT_SIGNING_KEY=/Users/you/.ssh/mrm_signing
+    KILN_GIT_SIGNING_KEY=/Users/you/.ssh/kiln_signing
 
 The server cannot ask for a passphrase. A key file with a passphrase fails with `signing_failed`
 (`reason: locked`) unless an agent holds it unlocked, which is the next setup.
 
 **ssh, with a passphrase and `ssh-agent`.** Point `KILN_GIT_SIGNING_KEY` at the **`.pub`** file, load
-the key into the agent (on macOS `ssh-add --apple-use-keychain ~/.ssh/mrm_signing`), and start the
+the key into the agent (on macOS `ssh-add --apple-use-keychain ~/.ssh/kiln_signing`), and start the
 server from an environment that has the agent's `SSH_AUTH_SOCK` (it is passed on to `ssh-keygen`,
 for a `.pub` key only, and read once at start). From a terminal that is your normal shell; from
 `launchd` or a service manager it usually is not, so set it explicitly. The agent must hold the
@@ -240,7 +284,7 @@ unlocked key at the time of the apply.
 `gpg --batch --no-tty --pinentry-mode error`, so a passphrase that is not cached fails at once
 instead of opening a `pinentry` window.
 
-    gpg --quick-generate-key "MRM Release Bot <release-bot@example.com>" ed25519 sign never
+    gpg --quick-generate-key "Kiln Release Bot <release-bot@example.com>" ed25519 sign never
     gpg --list-secret-keys --keyid-format long      # copy the 40-character fingerprint
     KILN_GIT_SIGN=gpg
     KILN_GIT_SIGNING_KEY=<fingerprint>
@@ -258,7 +302,7 @@ signature, not that anything has verified it.
 **Docker.** The image includes `openssh-client` (`ssh-keygen`) and `gnupg` for this. In
 `docker-compose.yml` the key must be mounted into
 the container (read-only, readable by the `node` user, mode `600`, for example
-`- ./secrets/mrm_signing:/run/secrets/mrm_signing:ro`) and `KILN_GIT_SIGNING_KEY` must name the path
+`- ./secrets/kiln_signing:/run/secrets/kiln_signing:ro`) and `KILN_GIT_SIGNING_KEY` must name the path
 **inside** the container; for an agent, mount its socket and set `SSH_AUTH_SOCK` for the service. A
 `gpg` setup needs the keyring folder mounted and writable enough for `gpg-agent`.
 

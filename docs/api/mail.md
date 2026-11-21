@@ -15,7 +15,7 @@ Without a mail server nothing breaks: every feature that needs mail says "No mai
 | `KILN_SMTP_PORT`                      | 1 to 65535. Default 587 for `starttls`, 465 for `tls`, 25 for `none`.                                          |
 | `KILN_SMTP_SECURE`                    | `starttls` (default), `tls` (TLS from the first byte) or `none`.                                               |
 | `KILN_SMTP_USER`, `KILN_SMTP_PASSWORD` | Optional login (AUTH PLAIN or LOGIN). The password is only ever sent over TLS, or to a server on this machine. |
-| `KILN_SMTP_FROM`                      | Required with the host. `mrm@example.com` or `Release Manager <mrm@example.com>`.                              |
+| `KILN_SMTP_FROM`                      | Required with the host. `kiln@example.com` or `Kiln <kiln@example.com>`.                              |
 | `KILN_SMTP_ALLOW_PRIVATE_HOSTS`       | `true` to allow a mail host on a private, loopback or link-local address. Default `false`.                     |
 
 A wrong value stops the server at start with one plain sentence naming the variable.

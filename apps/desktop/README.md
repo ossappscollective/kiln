@@ -15,7 +15,7 @@ Needs Rust, and (for the build) the web UI built with `pnpm build` from the repo
 
 | Output                           | Used as                                                                                                                                                   |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mrm-node-<target-triple>[.exe]` | Tauri `externalBin` `binaries/mrm-node`: the Node binary                                                                                                  |
+| `kiln-node-<target-triple>[.exe]` | Tauri `externalBin` `binaries/kiln-node`: the Node binary                                                                                                  |
 | `server/`                        | Tauri `resources`, installed as `server/`: server sources, `@kiln/*` packages, `hono`, `zod`, `@hono/node-server`, the launcher, and `web/` (the built UI) |
 
 The Node binary is the one running the script, so run it with the official Node 22.18 or newer
@@ -70,7 +70,7 @@ run a Node for another platform, so for a cross target it does not check the ver
 
 Set `APPLE_SIGNING_IDENTITY` and either `APPLE_ID`, `APPLE_PASSWORD` and `APPLE_TEAM_ID`, or
 `APPLE_API_ISSUER`, `APPLE_API_KEY` and `APPLE_API_KEY_PATH`, then run the build. Tauri signs
-`mrm-node` and the app with the hardened runtime and `src-tauri/entitlements.plist` (JIT for V8).
+`kiln-node` and the app with the hardened runtime and `src-tauri/entitlements.plist` (JIT for V8).
 Not yet tried; see the ADR.
 
 ## Files

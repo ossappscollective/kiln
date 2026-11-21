@@ -29,7 +29,7 @@ sessions; single-user mode only changes how the one session starts.
    rejects repetitive values. That is a sanity check; the shell is responsible for real randomness.
 4. **`GET /api/auth/launch?secret=...`** compares the secret in constant time (SHA-256 of both
    sides, then `timingSafeEqual`), creates the local user and workspace on first use (role `owner`,
-   no password hash, so it can never log in), starts a normal `mrm_session` cookie (`HttpOnly`,
+   no password hash, so it can never log in), starts a normal `kiln_session` cookie (`HttpOnly`,
    `SameSite=Lax`) and redirects to `/`. The route exists only in single-user mode; in multi mode it
    is an ordinary 404. The response is `no-store` with `Referrer-Policy: no-referrer`, and the
    redirect keeps the secret out of the address bar. The server never logs request URLs or the
@@ -73,7 +73,7 @@ Explicitly out of scope:
 
 - Malware or a hostile browser extension running as the user, and anyone with the unlocked disk.
 - Cookie scope across ports: cookies are shared by every port on `localhost`, so another local web
-  app can overwrite or clear `mrm_session`. It cannot read it (`HttpOnly`) or forge one, so the
+  app can overwrite or clear `kiln_session`. It cannot read it (`HttpOnly`) or forge one, so the
   effect is a nuisance, not access.
 - Multiple local instances at once, and running single-user mode behind a reverse proxy or on a
   network. Both are unsupported; the Host guard refuses the proxy case on purpose.

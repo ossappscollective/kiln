@@ -36,7 +36,7 @@ An alert email has an HTML part and a plain text twin. It says what happened, gi
 If the test fails, add a new one") and a button that opens the screen that does it: the app, its releases, reviews or listing, the
 Credentials screen, the repositories, the security settings. The digest links each alert the same way. The table of where each type
 leads is `guides` in `apps/server/src/modules/alerts/email.ts`; the frame is shared with the sign-in code and test emails (`services/mail-template.ts`). The links are built on `KILN_PUBLIC_ORIGIN` (for example
-`https://mrm.example.com`): a background job cannot know the address you reach the server at. Without it the email still names the
+`https://kiln.example.com`): a background job cannot know the address you reach the server at. Without it the email still names the
 screen ("open Kiln, Credentials") but has no link, so set it when you run the server for a team.
 
 The webhook channel is a workspace choice, not a personal one: when it is on for a type and an enabled webhook listens for `alert.raised` (or for everything), the event is
@@ -149,7 +149,7 @@ and nothing else** (for example "Weather 3.1.1 is in store review"): no body, no
 Where to turn it on: **Alerts, Settings, "Desktop notifications"**.
 
 1. **A switch for this device.** Permission is per browser or desktop app, so the switch is too (kept in this browser's local storage, key
-   `mrm.alerts.desktop`). Turning it on is what asks the system for permission, from that click; the app never asks on load. Without an
+   `kiln.alerts.desktop`). Turning it on is what asks the system for permission, from that click; the app never asks on load. Without an
    explicit choice the device follows its permission, so someone who allowed notifications before the switch existed keeps getting them.
    When it is off, the alerts that would have notified are marked as handled, so turning it on later does not replay them.
 2. **The kinds.** A list of checkboxes (release in review, approved, rejected, halted, live, stalled, store sync failed, review sync failed,

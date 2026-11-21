@@ -112,7 +112,7 @@ Events `stepup.verified`, `stepup.failed` and `stepup.recovery_used` ([events](e
 
 ## Origin
 
-Passkeys are bound to the origin: `KILN_PUBLIC_ORIGIN` if set (for example `https://mrm.example.com`), else the origin
+Passkeys are bound to the origin: `KILN_PUBLIC_ORIGIN` if set (for example `https://kiln.example.com`), else the origin
 of the request (`Host`, or `X-Forwarded-Host` with `KILN_TRUST_PROXY=1`). `https` or `http://localhost`, and a host name.
 Origins in `KILN_TRUSTED_ORIGINS` with the same host name (a dev server on another port) are accepted too.
 

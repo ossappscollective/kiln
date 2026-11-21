@@ -1,67 +1,118 @@
 # Design system
 
-A restrained, enterprise-style system for the web UI (`apps/web`). Quiet surfaces, one accent,
-clear type, a strict 4px grid. Nothing here has been rendered in a browser yet; check the screens
-by eye when you first run `pnpm --filter @kiln/web dev`.
+A dark-first, indigo-and-violet system for the web UI (`apps/web`): deep indigo surfaces, one brand gradient
+(blue to violet to ember, the colors of the Kiln mark) used sparingly, Space Grotesk for headings and figures, Inter
+for text, rounded cards and controls, a strict 4px grid. The whole look is a set of CSS custom properties in one
+file, so it can be changed in one place. Nothing here has been checked on rendered pages yet; look at the screens by
+eye when you first run `pnpm --filter @kiln/web dev`, in both themes.
 
 ## Principles
 
-- Content first. Borders and spacing carry the structure; shadows are small and rare.
-- One accent. Color means something: blue for action and selection, green, amber, red and blue
-  tints for status. Never use color alone; the text or an icon must say the same thing.
+- Content first. Borders and spacing carry the structure; glows and the gradient are accents, never the layout.
+- One accent. Color means something: blue for action and selection, green, amber, red and cyan tints for status.
+  Never use color alone; the text or an icon must say the same thing.
 - Sentence case, plain words, no exclamation marks, no emoji.
-- Keyboard first. Every control has a visible focus ring, a real element and an accessible name.
+- Keyboard first. Every control has a visible focus ring (a 2px violet ring and a soft halo), a real element and an
+  accessible name.
+- Decorative effects (glows, the ambient light, the gradient bar) live in backgrounds and pseudo-elements, so a
+  screen reader never meets them, and animation stops under `prefers-reduced-motion`.
 
 ## Where things live
 
-| What                                                           | File                               |
-| -------------------------------------------------------------- | ---------------------------------- |
-| Color tokens (both themes), as TypeScript                      | `apps/web/src/lib/tokens.ts`       |
-| Every token as CSS, plus global styles                         | `apps/web/src/app.css`             |
-| Theme choice (Auto, Light, Dark), remembered in `localStorage` | `apps/web/src/lib/theme.ts`        |
-| Components                                                     | `apps/web/src/components/ui/`      |
-| Toast store                                                    | `apps/web/src/lib/toast.svelte.ts` |
+| What                                                                                                    | File                                    |
+| ------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| **Every token**: colors (light and dark), borders, shadows, glows, gradients, fonts, radii, space, motion | `apps/web/src/styles/theme.css`         |
+| Solid colors as TypeScript, for the contrast test (mirrors `theme.css`)                                 | `apps/web/src/lib/tokens.ts`            |
+| The brand-gradient accents: primary button, page title and header glow, `.accent-edge`                  | `apps/web/src/styles/accents.css`       |
+| Reset, type, forms, buttons, cards, tables, badges, alerts, sidebar navigation (global classes)         | `apps/web/src/app.css`                  |
+| Theme choice (Auto, Light, Dark), remembered in `localStorage`                                          | `apps/web/src/lib/theme.ts`             |
+| Components                                                                                              | `apps/web/src/components/ui/`           |
+| Toast store                                                                                             | `apps/web/src/lib/toast.svelte.ts`      |
 
-`app.css` repeats the hex values of `tokens.ts`. `lib/contrast.test.ts` fails if the two differ, and
-checks WCAG AA contrast of the text and graphic pairs listed in `tokens.ts` in both themes. Change a
-color in both files, then run `pnpm --filter @kiln/web test`.
+`app.css` imports `theme.css`; `main.ts` loads `app.css` and then `accents.css`. `lib/contrast.test.ts` fails if the
+solid hex values of `theme.css` and `tokens.ts` differ, if the two dark blocks differ, if a text or graphic pair
+listed in `tokens.ts` falls below WCAG AA in either theme, or if a component or stylesheet hard-codes a color.
+
+## How to retheme
+
+Edit `apps/web/src/styles/theme.css`, and for a solid color the same line in `apps/web/src/lib/tokens.ts`, then run
+`pnpm --filter @kiln/web test`.
+
+| To change                                  | Edit                                                                                                             |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| The brand gradient (logo, bars, glows)     | `--brand-blue`, `--brand-violet`, `--brand-ember` (shared block); the primary button uses `--primary-from/-to`   |
+| The primary button                         | `--primary-from`, `--primary-to` (themed, keep `--accent-ink` readable on both), `--btn-glow`                    |
+| Surfaces, text, accent, status colors      | The themed blocks: light (`:root`), dark (`:root[data-theme="dark"]`, repeated in the `prefers-color-scheme` block) |
+| Corner radii                               | `--radius-sm` (small parts), `-md` (controls), `-lg` (cards), `-xl` (dialogs), `-full` (chips)                    |
+| Fonts                                      | `--font-sans`, `--font-display`, `--font-mono`; weights `--weight-*`                                             |
+| Shadows and glows                          | `--shadow-xs` to `-lg`, `--shadow-card`, `--btn-glow`, `--nav-bar-glow`, `--seg-selected-ring`, `--dot-glow-blur` |
+| The ambient light behind page titles       | `--ambient` (three radial gradients)                                                                             |
+| Focus ring                                 | `--ring`, `--halo`, `--focus`, `--focus-soft`                                                                    |
+| Chart colors, line width, glow and area    | `--viz-1`, `--viz-2`, `--viz-mid`, `--viz-end`, `--viz-line-width`, `--viz-glow-blur`, `--viz-area-opacity`      |
+
+The dark colors are written twice, once for `data-theme="dark"` and once for the system setting; keep the two blocks
+identical (a test checks it). The fonts are not downloaded: the server sends `default-src 'self'`, and Kiln avoids
+third-party requests. Space Grotesk and Inter are used when they are installed; otherwise the system UI font takes
+over. To ship them, put the `woff2` files in `apps/web/public/fonts/`, add `@font-face` rules at the top of
+`theme.css` (a same-origin `url()` is allowed by the CSP), and add the OFL licenses to `THIRD_PARTY_NOTICES.md`.
+
+## Where the gradient is used
+
+Only on these accents (decorative or redundant with text or an icon):
+
+1. the logo (`Logo.svelte`) and nothing else that is a "brand" mark;
+2. the primary button (`--primary-gradient`, with `--btn-glow`);
+3. the current item in the sidebar: a soft wash (`--nav-active-bg`) and a 4px bar (`--brand-gradient-vertical`, `--nav-bar-glow`);
+4. the 2px top edge of summary cards (`.accent-edge`: chart cards, the figures above them);
+5. the line of a single-series chart (with a blurred glow copy and a fading area);
+6. the selected segment of a segmented control (violet ring and glow, `--seg-selected-ring`);
+7. the focus ring and halo;
+8. the ambient light behind a page title (`--ambient`) and the title text (`--title-gradient`, ink fading into violet).
+
+Do not add it to body text, table rows, badges, borders or backgrounds of content.
 
 ## Themes
 
-Light is the default. Dark follows `prefers-color-scheme: dark`. A person can override it with the
-theme toggle (Auto, Light, Dark); the choice sets `data-theme="light|dark"` on `<html>` and is saved
-under `mrm.theme` (a failure to save is ignored). Write components against the variables below and
-they work in both. Never hard-code a color.
+Dark is the look of the product. `data-theme="light|dark"` on `<html>` (the Theme setting in the account menu) wins;
+with the setting on Auto the system decides (`prefers-color-scheme`), and light is used when the system has no
+preference. Light keeps the same structure with softer tints, a white sidebar and card, and deeper gradient ends so
+text and marks stay readable. The choice is saved under the theme key in `localStorage` (a failure to save is
+ignored). Write components against the variables below and they work in both. Never hard-code a color.
 
 ## Color tokens
 
-| Group        | Variables                                                                      | Use                                                            |
-| ------------ | ------------------------------------------------------------------------------ | -------------------------------------------------------------- |
-| Surfaces     | `--ground` `--surface` `--surface-sunken` `--surface-hover` `--surface-active` | Page, cards and inputs, table headers and code, hover, pressed |
-| Text         | `--ink` `--muted` `--faint`                                                    | Body, secondary text and labels, placeholders                  |
-| Borders      | `--line` `--line-strong` `--line-hover`                                        | Dividers and cards, control borders, hovered control borders   |
-| Accent       | `--accent` `--accent-hover` `--accent-ink` `--accent-bg`                       | Primary action, links and focus; text on accent; selected tint |
-| Success      | `--ok-bg` `--ok-ink` `--ok` `--ok-line`                                        | Tint, text on tint, dot or icon, border                        |
-| Danger       | `--bad-bg` `--bad-ink` `--bad` `--bad-line`                                    | Same, for errors and destructive actions                       |
-| Warning      | `--warn-bg` `--warn-ink` `--warn` `--warn-line`                                | Same                                                           |
-| Info         | `--info-bg` `--info-ink` `--info` `--info-line`                                | Same                                                           |
-| Solid danger | `--danger-solid` `--danger-solid-hover` `--danger-solid-ink`                   | The destructive confirm button                                 |
-| Misc         | `--scrim` `--focus-soft` `--skeleton-from` `--skeleton-to`                     | Modal backdrop, focus halo, loading shimmer                    |
+| Group        | Variables                                                                      | Use                                                                      |
+| ------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| Surfaces     | `--ground` `--sidebar` `--surface` `--surface-sunken` `--surface-hover` `--surface-active` | Page, sidebar, cards, track and code, raised or hovered, pressed or selected |
+| Roles        | `--chip-bg` `--track` `--raised` `--field-bg` `--seg-selected`                 | Names for a role: chip fill, segmented track, raised card, input fill, selected segment |
+| Text         | `--ink` `--muted` `--faint`                                                    | Body, secondary text and labels, placeholders and table headers          |
+| Borders      | `--line` `--line-strong` `--line-hover`                                        | Hairlines and cards, control borders, hovered control borders (translucent) |
+| Accent       | `--accent` `--accent-hover` `--accent-ink` `--accent-bg` `--chip-ink` `--focus` | Links and selection; text on a solid accent; chip fill and its text; focus ring |
+| Primary      | `--primary-from` `--primary-to` `--title-end`                                  | Ends of the primary button gradient; end of the page-title gradient      |
+| Success      | `--ok-bg` `--ok-ink` `--ok` `--ok-line`                                        | Tint, text on tint, dot or icon, border                                  |
+| Danger       | `--bad-bg` `--bad-ink` `--bad` `--bad-line`                                    | Same, for errors and destructive actions                                 |
+| Warning      | `--warn-bg` `--warn-ink` `--warn` `--warn-line`                                | Same                                                                     |
+| Info         | `--info-bg` `--info-ink` `--info` `--info-line`                                | Same                                                                     |
+| Solid danger | `--danger-solid` `--danger-solid-hover` `--danger-solid-ink`                   | The destructive confirm button                                           |
+| Charts       | `--viz-1` `--viz-2` `--viz-mid` `--viz-end` `--viz-grid` `--viz-axis`          | Chart marks, grid and axis                                               |
+| Misc         | `--scrim` `--focus-soft` `--skeleton-from` `--skeleton-to`                     | Modal backdrop, focus halo, loading shimmer                              |
 
-Text on a tint uses the matching `-ink` variable. The solid (`--ok`, `--bad`, `--warn`, `--info`) is
-for dots, icons and borders only, never for body text.
+Text on a tint uses the matching `-ink` variable. The solid (`--ok`, `--bad`, `--warn`, `--info`) is for dots, icons
+and borders only, never for body text. Every text pair is at least 4.5:1 (ink on surfaces 7:1) in both themes.
 
 ## Type, space, shape, motion, layers
 
-- Fonts: `--font-sans` (system UI stack) and `--font-mono` (secrets, ids, code). Numbers in tables
-  and times use tabular figures automatically (`td`, `time`, `.num`).
+- Fonts: `--font-sans` (Inter, then the system UI stack), `--font-display` (Space Grotesk, then `--font-sans`; used
+  by `h1`-`h3`, `.stat-value`, `.display`, the wordmark and stat figures) and `--font-mono` (secrets, ids, code).
+  Numbers in tables and times use tabular figures automatically (`td`, `time`, `.num`).
 - Sizes: `--text-xs` 12, `--text-sm` 13, `--text-base` 14 (body), `--text-md` 16, `--text-lg` 18,
-  `--text-xl` 20 (page title), `--text-2xl` 24, `--text-3xl` 30. Weights: 400, 500, 600.
+  `--text-xl` 20, `--text-2xl` 24 (page title), `--text-3xl` 30. Weights: 400, 500, 600 (`--weight-display` for headings).
 - Space, on a 4px grid: `--space-1` 4, `-2` 8, `-3` 12, `-4` 16, `-5` 20, `-6` 24, `-8` 32, `-10` 40,
   `-12` 48, `-16` 64. Use only these.
-- Radii: `--radius-sm` 4, `-md` 6 (controls), `-lg` 8 (cards), `-xl` 12 (dialogs), `-full`.
+- Radii: `--radius-sm` 6 (small parts), `-md` 12 (buttons, inputs, segments), `-lg` 18 (cards, panels), `-xl` 20
+  (dialogs), `-full` (chips and pills).
 - Control heights: `--control-sm` 28, `--control-md` 36, `--control-lg` 40.
-- Shadows: `--shadow-xs` (controls, cards), `-sm`, `-md` (menus), `-lg` (dialogs, toasts).
+- Shadows: `--shadow-xs` (controls), `-sm`, `-md` (menus), `-lg` (dialogs, toasts), `--shadow-card` (cards).
 - Motion: `--duration-fast` 100ms, `-base` 160ms, `-slow` 240ms, `--ease`. Under
   `prefers-reduced-motion` all animation and transition is cut to nothing.
 - Layers: `--z-sticky` 10, `-sidebar` 20, `-dropdown` 30, `-overlay` 40, `-modal` 50, `-toast` 60,
@@ -250,10 +301,11 @@ confirmations, typed phrases) is never shortened; only its idle state is.
 
 ## Don't
 
-- Don't hard-code colors, pixel sizes off the grid, or shadows. Use tokens.
+- Don't hard-code colors, pixel sizes off the grid, or shadows. Use tokens (a test fails on a hard-coded color).
 - Don't use color alone for status. Pair a badge or alert with words.
 - Don't use `--ok`, `--bad`, `--warn` or `--info` as text color; use the `-ink` variants.
 - Don't style a `div` as a button or a link. Use the element.
 - Don't add exclamation marks, emoji or title case ("Add credential", not "Add Credential!").
 - Don't disable animation by hand; `prefers-reduced-motion` already does it.
 - Don't put a second accent color in a screen. Add a neutral or a status color instead.
+- Don't use the brand gradient outside the accents listed under "Where the gradient is used".

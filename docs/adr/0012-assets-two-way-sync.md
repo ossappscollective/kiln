@@ -25,7 +25,7 @@ changing the repository. Users asked for the full set: pull, diff, add, replace,
    files, 120 s), and identifies the bytes with the same header parsers as the index. A thumbnail is the original,
    cached in an LRU (24 MiB) with an `ETag` from the ref.
 3. **Checksums.** Google Play gives a SHA-256: a mismatching file is skipped. App Store Connect gives none for the
-   image (the only mark is this server's own `mrm:sha256:` reference name), so Apple images are taken and flagged
+   image (the only mark is this server's own `kiln:sha256:` reference name), so Apple images are taken and flagged
    `unverified`, and the comparison says "probably the same" when only sizes agree.
 4. **Platform generic keys.** A set is `platform/locale/slotKey`, an image is the set plus `#position`. macOS is a
    later value of `ASSET_PLATFORMS`, a connector reader and a slot map; it is not implemented.

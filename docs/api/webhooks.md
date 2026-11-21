@@ -1,5 +1,12 @@
 # Webhooks
 
+> **Renamed.** The delivery headers were renamed with the product: `X-MRM-Event`, `X-MRM-Delivery`,
+> `X-MRM-Timestamp` and `X-MRM-Signature` are now `X-Kiln-Event`, `X-Kiln-Delivery`,
+> `X-Kiln-Timestamp` and `X-Kiln-Signature`. Receivers must read the new names; the old ones are no
+> longer sent (a deliberate break in a pre-release product). Nothing else changed: the body, the
+> `v1=` signature and the signed string `<timestamp>.<raw body>` are exactly as before, so an existing
+> verification only needs the header names updated.
+
 A webhook sends a signed HTTP POST to your server when an [event](events.md) happens. Owners and
 admins manage them in the web app (**Webhooks**) or through the endpoints below. Session cookie
 only: an API token can never manage webhooks (see [tokens](tokens.md)).
@@ -10,13 +17,13 @@ member without the right gets 403. Errors are `{ "error": "<code>", "message"?: 
 ## What is sent
 
 ```
-POST /hooks/mrm HTTP/1.1
+POST /hooks/kiln HTTP/1.1
 Content-Type: application/json
 User-Agent: Kiln-Webhooks/1
-X-MRM-Event: changeset.applied
-X-MRM-Delivery: 7f0c5d0e-...
-X-MRM-Timestamp: 1766000000
-X-MRM-Signature: v1=3b5e...
+X-Kiln-Event: changeset.applied
+X-Kiln-Delivery: 7f0c5d0e-...
+X-Kiln-Timestamp: 1766000000
+X-Kiln-Signature: v1=3b5e...
 
 {"id":1043,"type":"changeset.applied","workspaceId":"...","createdAt":1766000000000,
  "subject":{"repositoryId":"..."},"data":{"changeSetId":"...","prUrl":"https://github.com/..."}}
@@ -24,9 +31,9 @@ X-MRM-Signature: v1=3b5e...
 
 - The body is the event: `id` (null for a test), `type`, `workspaceId`, `createdAt`, `subject`, and
   the event's payload as `data`. See [events](events.md) for each type.
-- `X-MRM-Delivery` is the id of the delivery; it stays the same across retries of one delivery, so
+- `X-Kiln-Delivery` is the id of the delivery; it stays the same across retries of one delivery, so
   use it to ignore duplicates. A redelivery is a new delivery with a new id and the same body.
-- `X-MRM-Timestamp` is seconds since the epoch, set for each attempt.
+- `X-Kiln-Timestamp` is seconds since the epoch, set for each attempt.
 
 ## Verifying the signature
 
@@ -37,8 +44,8 @@ The signature is `v1=` followed by the hex HMAC-SHA256, keyed with the endpoint'
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 function verify(secret, headers, rawBody) {
-  const timestamp = headers['x-mrm-timestamp'];
-  const given = (headers['x-mrm-signature'] ?? '').replace(/^v1=/, '');
+  const timestamp = headers['x-kiln-timestamp'];
+  const given = (headers['x-kiln-signature'] ?? '').replace(/^v1=/, '');
   const expected = createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex');
   const fresh = Math.abs(Date.now() / 1000 - Number(timestamp)) < 300; // reject replays
   return (

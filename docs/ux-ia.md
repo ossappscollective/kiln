@@ -116,7 +116,7 @@ Pure logic: `section-state.ts`, `scroll-keep.ts`, `app-switcher.ts` (`appSwitchH
 
 - **Collapsible sections** (`ui/Section.svelte`, one primitive; `Card` and `SettingsCard` take it with `collapseKey`): the head is a button
   inside the heading (`aria-expanded`, Enter and Space), with a count chip and, while collapsed, a one-line summary ("12 locales · 3 need
-  attention"). The state is remembered per workspace, person, page and section key in `localStorage` (`mrm.sections.v1:...`, in a
+  attention"). The state is remembered per workspace, person, page and section key in `localStorage` (`kiln.sections.v1:...`, in a
   try/catch; storage that refuses means the default). A page is `listing.text`, `insights.keywords`, `reviews`... not the app, so a choice
   holds for every app. `SectionsToggle` ("Collapse all" or "Expand all") appears from three sections on a page. The body is not drawn while
   collapsed. Applied to: Store listing (locales grid, the sections beyond the texts, graphics per locale, problems, checks), Releases

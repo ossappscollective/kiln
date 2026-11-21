@@ -12,7 +12,7 @@ build-linking features, which are in progress.
 
 ## Shape in five lines
 
-1. A device agent (`mrm-agent`) runs on the machine that has the devices, as a CLI or as a desktop
+1. A device agent (`kiln-agent`) runs on the machine that has the devices, as a CLI or as a desktop
    sidecar. It pairs once with a code, holds a token that can only do agent work, and only makes
    outbound calls. A hosted server never touches USB.
 2. Jobs are a closed set (install, launch, collect logs), run as fixed commands on an artifact whose

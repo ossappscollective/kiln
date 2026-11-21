@@ -23,7 +23,7 @@ An API token holds `releases.rollout` only when its list of actions **names it**
 `reviews.reply`): a token with no list never gets it, and its role must be admin or owner. A token
 limited to some apps reaches those apps only (404 for others). A change made with a token is audited
 with `actor_type = token`. All four routes are in the [OpenAPI description](openapi.md) (tag
-`rollout`); the apply is `x-mrm-risk: destructive`.
+`rollout`); the apply is `x-kiln-risk: destructive`.
 
 ## Routes
 

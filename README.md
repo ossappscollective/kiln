@@ -136,7 +136,7 @@ pnpm dev                      # API on :8787, web UI on :5173
 
 - `.env` is git-ignored. `KILN_MASTER_KEY` is required; losing it means re-entering every stored
   credential.
-- With no `DATABASE_URL`, the server uses SQLite at `./.mrm-data/mrm.db`. Postgres is opt-in:
+- With no `DATABASE_URL`, the server uses SQLite at `./.kiln-data/kiln.db`. Postgres is opt-in:
   set `DATABASE_URL=postgres://...` (but note it has never been tested here, see above).
 
 Open http://localhost:5173. The first visit asks you to create the owner account and a workspace;

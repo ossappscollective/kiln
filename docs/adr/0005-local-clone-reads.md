@@ -36,12 +36,12 @@ clone. The GitHub API stays for connecting a repository, credential tests, apply
 
 - Location: `<KILN_CLONE_DIR>/<workspace id>/<repository id>`, default
   `<KILN_DATA_DIR>/clones/...`. Ids are checked (letters, digits, `-`, `_`), so they cannot
-  traverse. The folder holds `mrm-clone.json` (a marker and the source URL, no secret); the
+  traverse. The folder holds `kiln-clone.json` (a marker and the source URL, no secret); the
   marker is what allows deleting it.
 - A bare repository made with `git init --bare --template=` (the empty template: no sample
-  hooks), then `git fetch --depth 1 --filter=blob:none origin +refs/heads/<branch>:refs/mrm/heads/<branch>`.
-  Branches are kept under `refs/mrm/heads`, tags under `refs/mrm/tags`, a commit fetched by sha under
-  `refs/mrm/commits`. No working tree exists, so there is nothing to check out.
+  hooks), then `git fetch --depth 1 --filter=blob:none origin +refs/heads/<branch>:refs/kiln/heads/<branch>`.
+  Branches are kept under `refs/kiln/heads`, tags under `refs/kiln/tags`, a commit fetched by sha under
+  `refs/kiln/commits`. No working tree exists, so there is nothing to check out.
 - Shallow (depth 1) and partial (no blobs). Measured on a throwaway repository of 4,120 files
   (4 MB of content): 112 KiB on disk after listing, 321 KiB after the 120 listing files were read.
 - A tag or branch name is tried as a branch first, then as a tag (as `GithubRepoConnector` does).
@@ -195,7 +195,7 @@ A clone is a cache: it can be deleted at any time and is made again on demand.
 it every `KILN_CLONE_SWEEP_INTERVAL_MINUTES` (default 360, `0` = off; the first run is at the first
 scheduler tick after start, not at start itself).
 
-- **Last use.** The marker `mrm-clone.json` has its mtime touched when a clone is resolved or
+- **Last use.** The marker `kiln-clone.json` has its mtime touched when a clone is resolved or
   verified for a read (`GitCloneReader.#touch`, at most once every 30 s per clone), so the marker is
   the clock. A clone with no marker is not a clone and is not touched.
 - **Idle phase.** Clones unused for `KILN_CLONE_IDLE_DAYS` (default 30, `0` = never) are removed.
@@ -293,7 +293,7 @@ untrusted (a cloned repository carries its own config), and the _path_ is attack
 | Reading any folder on the machine                                                                                                                      | allowed roots from the environment only; the real path must be inside one; `/` is refused as a root                                                                                                                                                                              | yes                                                                               |
 | Traversal, symlink out of a root, NUL bytes, long paths                                                                                                | text rules (absolute, no `..`, no control characters, 4096 bytes); `realpath` before the root test; a symlinked `.git` is refused; a `.git` file's git directory (and `commondir`) must be inside a root too                                                                     | yes                                                                               |
 | Swapping a folder for a symlink after it was attached                                                                                                  | the real path is validated again at every read, not only when attached                                                                                                                                                                                                           | yes                                                                               |
-| Reading the server's own data or clones                                                                                                                | `KILN_DATA_DIR`, `KILN_CLONE_DIR` and any folder with `mrm-clone.json` are refused                                                                                                                                                                                                 | yes                                                                               |
+| Reading the server's own data or clones                                                                                                                | `KILN_DATA_DIR`, `KILN_CLONE_DIR` and any folder with `kiln-clone.json` are refused                                                                                                                                                                                                 | yes                                                                               |
 | Bare repositories and non-repositories                                                                                                                 | need a `.git` directory with `HEAD` or a worktree `.git` file                                                                                                                                                                                                                    | yes                                                                               |
 | Code execution through the repository's own config (`core.fsmonitor`, hooks, `core.sshCommand`, `diff.external`, filters, `core.alternateRefsCommand`) | every git call gets `--no-pager` and `-c` overrides that empty them; `status` also empties configured `filter.<name>.*` drivers; `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_NOSYSTEM`, an allowlisted environment, `GIT_OPTIONAL_LOCKS=0`, lazy fetch and all transports blocked | yes, with a hostile repository config and a control showing plain git does run it |
 | A person without the right                                                                                                                             | `repositories.write` (admin, owner) for check, connect, attach, detach; config shows the roots only to them; non-members get 404                                                                                                                                                 | yes                                                                               |
@@ -365,7 +365,7 @@ git path.
   the local clone. A local-only repository can use `local_branch` only; `github_pr` stays `409
   local_only`. `branch`, `push` and `openPr` with `github_pr` are `400`.
 - **A commit, not a checkout.** The base is the tip of the branch the clone is read from. The new
-  branch is `refs/heads/<name>` (default `mrm/<slug of the summary>-<first 8 of the id>`). The
+  branch is `refs/heads/<name>` (default `kiln/<slug of the summary>-<first 8 of the id>`). The
   checked out branch, the working folder, the index and HEAD are not touched, so nothing the person
   has open changes. The UI shows `git switch <branch>` to look at it.
 - **Each step reports on its own.** The result and the stored outcome carry three steps: commit,

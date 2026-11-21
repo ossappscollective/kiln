@@ -234,7 +234,7 @@ change set that a person (or an admin token) approves. Docs: [tokens](api/tokens
 [events](api/events.md), [webhooks](api/webhooks.md), [OpenAPI](api/openapi.md);
 design: [architecture.md](architecture.md#automation-surface).
 
-- [x] API tokens: `mrm_` plus 256 bits, only the SHA-256 stored, shown once, last-used time, optional
+- [x] API tokens: `kiln_` plus 256 bits, only the SHA-256 stored, shown once, last-used time, optional
       expiry, revocation, a role ceiling (viewer, member or admin; never owner, never above the
       creator), optional app list and action list, Bearer next to cookies with a per-token rate limit
       and a bad-token limiter. Tokens can never manage tokens, members, credential values or webhooks.

@@ -25,7 +25,7 @@ and notarization, and Windows and Linux behaviour. Build a throwaway sidecar tha
 ## Wiring it into Tauri
 
 This was the plan before the research below. What was built instead (ADR 0004): the sidecar is the
-Node binary (`binaries/mrm-node-<target-triple>`, `externalBin` `binaries/mrm-node`), the server is
+Node binary (`binaries/kiln-node-<target-triple>`, `externalBin` `binaries/kiln-node`), the server is
 a resource folder, and `main.rs` starts it with `std::process::Command`, so there is no
 `tauri-plugin-shell` and no `shell:*` capability.
 
@@ -103,7 +103,7 @@ Tauri v2:
 Verified on this repository (Linux arm64, Node v22.23.4, `apps/desktop/scripts/prepare-sidecar.mjs
 --smoke` into a temporary folder):
 
-- The staged tree runs with `mrm-node launcher.mjs`: types stripped by Node alone (no tsx), `@kiln/*`
+- The staged tree runs with `kiln-node launcher.mjs`: types stripped by Node alone (no tsx), `@kiln/*`
   resolved by the hook, migrations applied on SQLite through `node:sqlite`, `/api/health` 200, a
   foreign `Host` gets 403, the launch URL answers 302 and the process exits 0 when stdin closes.
 - With an absolute `KILN_WEB_DIST` pointing at a stub UI, `/` and an unknown route both answer 200.
@@ -130,7 +130,7 @@ Not verified:
 ## Still open
 
 1. First `cargo check` and `pnpm --filter @kiln/desktop build` on a Mac with the web UI built.
-2. Check `Contents/Resources/server` and `Contents/MacOS/mrm-node` in the `.app`, then run it from
+2. Check `Contents/Resources/server` and `Contents/MacOS/kiln-node` in the `.app`, then run it from
    Finder.
 3. Notarize with a paid account; try dropping `allow-unsigned-executable-memory`.
 4. Decide the Node major to ship, and where releases fetch the verified Node binary per target.
