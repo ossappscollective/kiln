@@ -4,7 +4,7 @@
   period (for the comparison). Four states, in this order:
   - analytics off and nothing stored: one card that says what turning it on does (AnalyticsOff);
   - on, nothing stored yet: one quiet line, and the sources with their next steps, open;
-  - data: the row of figures, the small-multiple charts, for an Android app without a reports bucket the "Downloads need your Play reports bucket" section (PlayReportsSetup), the notes on how to read them, "Rank versus downloads" (collapsed; it reads
+  - data: the row of figures, the small-multiple charts, the "Subscriptions" card and (Android) the monthly "Earnings (net, monthly)" card when those sources have stored data (lib/analytics/extras.ts; each has its own read), for an Android app without a reports bucket the "Downloads need your Play reports bucket" section (PlayReportsSetup), the notes on how to read them, "Rank versus downloads" (collapsed; it reads
     only when opened) and the sources under a disclosure;
   - a failed read: an alert with a retry. A failed previous-period read only drops the comparison.
   While it reloads the previous render stays at reduced opacity (no skeleton, no jump). Reading never reaches a store.
@@ -18,6 +18,7 @@
   import { type AnalyticsStatus, type ResolvedRange, analyticsErrorText, needsPlayBucket, stateInfo } from '../../lib/analytics/analytics.ts';
   import { type Loaded, loadOverviews } from '../../lib/analytics/load.ts';
   import { buildCards, buildChips, hasStoredData, lastReadAt, noRatingHistory, overallState, pageNotes, platformNotes, splitHeadline } from '../../lib/analytics/view.ts';
+  import { buildEarningsCard, buildSubscriptionsCard, earningsWaitingLine, type Extras, loadExtras } from '../../lib/analytics/extras.ts';
   import { asoViewHref } from '../../lib/aso/aso.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
@@ -29,6 +30,7 @@
   import Skeleton from '../ui/Skeleton.svelte';
   import AnalyticsOff from './AnalyticsOff.svelte';
   import ChartCard from './ChartCard.svelte';
+  import EarningsCard from './EarningsCard.svelte';
   import PlayReportsSetup from './PlayReportsSetup.svelte';
   import SourcesPanel from './SourcesPanel.svelte';
   import StatRow from './StatRow.svelte';
@@ -61,6 +63,8 @@
 
   let status = $state<AnalyticsStatus | null>(null);
   let loaded = $state<Loaded | null>(null);
+  /** The monthly earnings and the subscriptions, read only when those sources have stored data (lib/analytics/extras.ts). */
+  let extra = $state<Extras>({ earnings: null, subscriptions: null });
   let statusError = $state('');
   let overviewError = $state('');
   let loading = $state(true);
@@ -75,6 +79,9 @@
   });
   const cards = $derived(buildCards(loaded?.current ?? null));
   const split = $derived(splitHeadline(cards));
+  const earningsCard = $derived(buildEarningsCard(extra.earnings));
+  const subscriptionsCard = $derived(buildSubscriptionsCard(extra.subscriptions));
+  const waitingForEarnings = $derived(earningsCard === null ? earningsWaitingLine(status) : '');
   const chips = $derived(buildChips(app.platform, loaded?.current ?? null, loaded?.previous ?? null, range.days));
   const notes = $derived([...pageNotes(loaded?.current ?? null), ...platformNotes(loaded?.current ?? null)].filter((n, i, all) => all.indexOf(n) === i));
   const overall = $derived(status ? overallState(status) : 'ready');
@@ -85,6 +92,7 @@
     if (!keepFrame) {
       status = null;
       loaded = null;
+      extra = { earnings: null, subscriptions: null };
     }
     loading = !keepFrame;
     refreshing = true;
@@ -99,12 +107,17 @@
           const both = await loadOverviews(api, workspaceId, app, range);
           if (mine !== generation) return;
           loaded = both;
+          // The two extra cards have their own reads; a failed one only drops its card.
+          const more = await loadExtras(api, workspaceId, app, next, range, now);
+          if (mine !== generation) return;
+          extra = more;
         } catch (e) {
           if (mine !== generation) return;
           overviewError = analyticsErrorText(e);
         }
       } else {
         loaded = null;
+        extra = { earnings: null, subscriptions: null };
       }
     } catch (e) {
       if (mine !== generation) return;
@@ -198,6 +211,15 @@
               {/each}
             </div>
           </Section>
+        {/if}
+
+        {#if subscriptionsCard}
+          <ChartCard card={subscriptionsCard} {today} {showData} />
+        {/if}
+        {#if earningsCard}
+          <EarningsCard card={earningsCard} {today} {showData} />
+        {:else if waitingForEarnings !== ''}
+          <p class="quiet" data-testid="earnings-waiting">{waitingForEarnings}</p>
         {/if}
 
         {#if needsPlayBucket(status)}<PlayReportsSetup {api} {workspaceId} {role} {app} {status} onchanged={reload} />{/if}

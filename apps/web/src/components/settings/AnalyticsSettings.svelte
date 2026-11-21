@@ -67,7 +67,7 @@
       aria-describedby="{uid}-bucket-hint"
       aria-invalid={errors.analyticsBucketId ? 'true' : undefined}
     />
-    <p class="hint" id="{uid}-bucket-hint">The bucket of the monthly Play Console reports, like pubsite_prod_rev_01234567890123456789. Sales (estimated, what buyers paid) come from the same bucket and also need the Play Console permission View financial data, set to Global.</p>
+    <p class="hint" id="{uid}-bucket-hint">The bucket of the monthly Play Console reports, like pubsite_prod_rev_01234567890123456789. Sales (estimated, what buyers paid), monthly earnings (net of Google's fees and taxes) and subscription statistics come from the same bucket and also need the Play Console permission View financial data, set to Global.</p>
     {#if errors.analyticsBucketId}<p class="field-error" role="alert">{errors.analyticsBucketId}</p>{/if}
   </div>
   <Disclosure summary="About the bucket and the sync">

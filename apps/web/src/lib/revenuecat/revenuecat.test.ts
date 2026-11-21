@@ -323,3 +323,11 @@ test('no money or customer word exists in what the RevenueCat helpers say', () =
   ].join(' ');
   assert.doesNotMatch(said, /revenue(?!cat)|subscriber|customer|\$|€|MRR/i);
 });
+
+test('a failed metrics read is said beside the configuration read and never turns it into a failure', () => {
+  const base = { ok: true as const, products: 1, entitlements: 1, offerings: 1, otherAppProducts: 0, complete: true, warnings: [], syncedAt: 1 };
+  const failed = stepResult({ ...base, metrics: { ok: false, code: 'revenuecat_forbidden', message: 'Give the key the Charts & Metrics permission.' } });
+  assert.equal(failed.tone, 'warn');
+  assert.match(failed.text, /^Read 1 product, 1 entitlement and 1 offering from RevenueCat\. The RevenueCat figures could not be read: Give the key/);
+  assert.equal(stepResult({ ...base, metrics: { ok: true, metrics: 5, fetchedAt: 1 } }).tone, 'ok');
+});

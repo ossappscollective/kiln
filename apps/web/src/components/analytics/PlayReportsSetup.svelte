@@ -55,8 +55,8 @@
         </li>
         <li>Paste it as the bucket of this app. Apps of another Play account get their own.</li>
         <li>
-          Optional, for estimated sales (what buyers paid, not your proceeds): in Play Console, Users and permissions, give the service account
-          <strong>View financial data</strong>, set to Global. The sales files are in the same bucket.
+          Optional, for estimated sales (what buyers paid, not your proceeds), monthly earnings (net of Google's fees and taxes) and subscription statistics: in Play Console, Users and permissions, give the service account
+          <strong>View financial data</strong>, set to Global. These files are in the same bucket.
         </li>
       </ol>
     </Disclosure>

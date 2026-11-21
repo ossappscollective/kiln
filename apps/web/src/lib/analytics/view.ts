@@ -523,6 +523,12 @@ export type CardSeriesInfo = {
 };
 
 const coverageWords = (s: AnalyticsSeries): string => {
+  // A monthly figure counts months: a day-count would say "1 day with data" for a month.
+  if (s.cadence === 'monthly') {
+    if (s.coverage.state === 'none') return 'No months with data in this range';
+    const gap = s.coverage.gapDays > 0 ? `, ${s.coverage.gapDays} ${s.coverage.gapDays === 1 ? 'month' : 'months'} missing between the first and the last` : '';
+    return `${s.coverage.days} ${s.coverage.days === 1 ? 'month' : 'months'} with data${gap}`;
+  }
   if (s.coverage.state === 'none') return 'No days with data in this range';
   const gap =
     s.coverage.gapDays > 0

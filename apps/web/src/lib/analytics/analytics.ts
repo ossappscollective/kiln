@@ -59,6 +59,8 @@ export type AnalyticsSeries = {
   points: SeriesPoint[];
   coverage: SeriesCoverage;
   breakdown?: SeriesBreakdown;
+  /** `monthly` for a figure the store reports once a month (Google Play earnings): each point is a month, dated the first of it. Absent for a daily series. */
+  cadence?: 'monthly';
 };
 
 export type AnalyticsOverview = {
@@ -267,6 +269,8 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 /** "Nov 17", or "Nov 17, 2026" with `withYear`. From the text of the date, so no time zone can move it. */
 export function formatDay(day: string, withYear = false): string {
+  // A month ("2026-10", from `monthKey`) is named as one: "Oct 2026". It is never shown as a day.
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(day)) return `${MONTHS[Number(day.slice(5, 7)) - 1] ?? ''} ${day.slice(0, 4)}`;
   if (!isIsoDate(day)) return day;
   const month = MONTHS[Number(day.slice(5, 7)) - 1] ?? '';
   const d = Number(day.slice(8, 10));
@@ -576,6 +580,9 @@ export const sourceLabels: Record<string, string> = {
   play_vitals: 'Android vitals',
   play_reports: 'Play Console reports',
   play_sales: 'Play Console sales reports',
+  play_earnings: 'Play Console earnings reports',
+  apple_subscriptions: 'Apple subscription reports',
+  play_subscriptions: 'Play Console subscription statistics',
 };
 
 export const sourceLabel = (source: string): string => sourceLabels[source] ?? 'Store data';
@@ -594,6 +601,12 @@ export function lagText(source: string, delayDays: number): string {
       return 'Play monthly reports are posted 3 to 7 days late';
     case 'play_sales':
       return 'Play sales are added to the month file every day, up to a few days late, on UTC';
+    case 'play_earnings':
+      return 'Google posts the earnings report of a month in the first days of the next month, so the newest month is the one before this';
+    case 'apple_subscriptions':
+      return `Apple subscription reports are posted a day or more late, up to ${days}, on Pacific Time`;
+    case 'play_subscriptions':
+      return `Play subscription statistics lag up to ${days}`;
     default:
       return `The store can lag up to ${days}`;
   }
@@ -601,13 +614,18 @@ export function lagText(source: string, delayDays: number): string {
 
 /** "Data up to Nov 17. Apple reports can lag up to 3 days." */
 export function freshnessLine(
-  series: Pick<AnalyticsSeries, 'source' | 'delayDays' | 'coverage'>,
+  series: Pick<AnalyticsSeries, 'source' | 'delayDays' | 'coverage'> & { cadence?: 'monthly' | undefined },
 ): string {
   const lag = lagText(series.source, series.delayDays);
-  return series.coverage.lastDay
-    ? `Data up to ${formatDay(series.coverage.lastDay)}. ${lag}.`
+  // A monthly figure is named by its month, never by the first day it is stored on.
+  const last = series.coverage.lastDay;
+  return last
+    ? `Data up to ${series.cadence === 'monthly' ? formatDay(monthKey(last), true) : formatDay(last)}. ${lag}.`
     : `No data yet. ${lag}.`;
 }
+
+/** "2026-10-01" to "2026-10": the key of the month a monthly figure is about. Anything else is returned as it is. */
+export const monthKey = (day: string): string => (isIsoDate(day) ? day.slice(0, 7) : day);
 
 /** The sentence of a coverage note, from the fixed vocabulary; an unknown code gets a generic one (the API's own text is not shown). */
 export function noteText(note: AnalyticsNote): string {
@@ -678,9 +696,9 @@ export const setupText: Record<AnalyticsSetupCode, string> = {
   sales_forbidden:
     'The key may not read Sales and Trends. It needs the Sales and Reports role or higher.',
   play_sales_forbidden:
-    'In Play Console open Users and permissions, find the service account and give it the permission View financial data, set to Global (all apps). Then sync again. Without it the Play sales numbers stay off.',
+    'In Play Console open Users and permissions, find the service account and give it the permission View financial data, set to Global (all apps). Then sync again. Without it the Play sales, earnings and subscription numbers stay off.',
   bucket_id_missing:
-    'Add the Cloud Storage bucket of your Play Console reports (it is the same for every app of the Play account) to read installs and ratings, and sales when the service account may also view financial data.',
+    'Add the Cloud Storage bucket of your Play Console reports (it is the same for every app of the Play account) to read installs and ratings, and sales, earnings and subscriptions when the service account may also view financial data.',
   bucket_forbidden:
     'The service account may not read the bucket of the Play Console reports. Grant it read access to the bucket.',
   reporting_api_not_enabled:

@@ -137,7 +137,13 @@ export type RevenueCatStep =
       complete: boolean;
       warnings: string[];
       syncedAt: number;
+      /** The metrics overview read after the configuration, with its own result (docs/adr/0043-revenuecat-metrics.md). */
+      metrics?: MetricsStep | undefined;
     }
+  | { ok: false; code: string; message: string; retryAfterSeconds?: number | undefined };
+
+export type MetricsStep =
+  | { ok: true; metrics: number; fetchedAt: number }
   | { ok: false; code: string; message: string; retryAfterSeconds?: number | undefined };
 
 // ---------------------------------------------------------------------------------------------
@@ -308,9 +314,11 @@ export function stepResult(step: RevenueCatStep): { text: string; tone: 'ok' | '
     };
   }
   const what = `${plural(step.products, 'product', 'products')}, ${plural(step.entitlements, 'entitlement', 'entitlements')} and ${plural(step.offerings, 'offering', 'offerings')}`;
+  // The figures strip has its own result: a failure there is said, and never turns the configuration read into a failure.
+  const figures = step.metrics && !step.metrics.ok ? ` The RevenueCat figures could not be read: ${step.metrics.message}` : '';
   return step.complete
-    ? { text: `Read ${what} from RevenueCat.`, tone: 'ok' }
-    : { text: `Read ${what} from RevenueCat, but it has more than were read. The picture is not complete.`, tone: 'warn' };
+    ? { text: `Read ${what} from RevenueCat.${figures}`, tone: figures === '' ? 'ok' : 'warn' }
+    : { text: `Read ${what} from RevenueCat, but it has more than were read. The picture is not complete.${figures}`, tone: 'warn' };
 }
 
 /** The RevenueCat step in the body of a failed store sync, or null. */

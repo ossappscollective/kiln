@@ -123,6 +123,7 @@ import type {
   RevenueCatProductsView,
   SetRevenueCatLinkBody,
 } from './revenuecat/revenuecat.ts';
+import type { RevenueCatMetricsRead } from './revenuecat/metrics.ts';
 import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './reviews/reply.ts';
 import type {
   InboxPage,
@@ -2462,6 +2463,12 @@ export function createApi(options: ApiOptions = {}) {
       request<RevenueCatProductsView>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/revenuecat/products`,
+      ),
+    // RevenueCat's overview figures of the linked project (docs/adr/0043-revenuecat-metrics.md): the stored copy, no RevenueCat call. `apps.read`.
+    revenueCatMetrics: (workspaceId: string, appId: string) =>
+      request<RevenueCatMetricsRead>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/revenuecat/metrics`,
       ),
     detectRevenueCat: (workspaceId: string, appId: string, credentialId: string, projectId?: string) =>
       request<{ options: RevenueCatOptions }>(
