@@ -223,6 +223,11 @@
     font-size: 0.8125rem;
   }
 
+  .status .badge,
+  .status .when {
+    vertical-align: middle;
+  }
+
   p.failure,
   p.note {
     margin: 4px 0 0;
@@ -250,12 +255,20 @@
     padding-left: 18px;
   }
 
-  .actions {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    justify-content: flex-end;
+  /* One line per cell, so the table scrolls sideways before it wraps a type, a date or an action; notes below still wrap. */
+  .table td:not(:first-child) {
     white-space: nowrap;
+  }
+
+  .table td p.failure,
+  .table td p.note,
+  .table td .more {
+    max-width: 28rem;
+    white-space: normal;
+  }
+
+  .actions :global(.link) {
+    vertical-align: baseline;
   }
 
   button.test {

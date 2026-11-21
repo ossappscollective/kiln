@@ -104,14 +104,16 @@
   --shadow-card: 0 8px 28px rgb(40 50 140 / 0.1);
   /* glows: decorative only, softer than in dark */
   --btn-glow: 0 6px 20px rgb(69 82 217 / 0.32);
-  --nav-active-bg: linear-gradient(90deg, rgb(94 107 230 / 0.14), rgb(124 92 230 / 0.04));
+  --nav-active-bg: linear-gradient(90deg, rgb(94 107 230 / 0.16), rgb(124 92 230 / 0.06) 55%, transparent);
   --nav-bar-glow: 0 0 10px rgb(124 92 230 / 0.4);
-  --seg-selected-ring: 0 0 0 1px rgb(109 75 220 / 0.45), 0 1px 8px rgb(109 75 220 / 0.18);
+  --seg-selected-ring: 0 1px 3px rgb(40 50 140 / 0.16), 0 0 0 1px rgb(109 75 220 / 0.14), 0 2px 10px rgb(109 75 220 / 0.14);
   --dot-glow-blur: 0px;
+  /* ambient light: pixel-sized ellipses anchored to the top right that reach transparent well inside the layer
+     they are painted on (Shell .column, the login page), so no edge of the layer is ever visible */
   --ambient:
-    radial-gradient(60% 130% at 100% 0%, rgb(127 153 255 / 0.16), transparent 60%),
-    radial-gradient(45% 110% at 78% 0%, rgb(169 139 255 / 0.12), transparent 65%),
-    radial-gradient(30% 90% at 96% 35%, rgb(255 176 74 / 0.06), transparent 70%);
+    radial-gradient(ellipse 620px 320px at calc(100% - 140px) 0, rgb(127 153 255 / 0.15), transparent 70%),
+    radial-gradient(ellipse 460px 260px at calc(100% - 420px) 0, rgb(169 139 255 / 0.11), transparent 70%),
+    radial-gradient(ellipse 280px 190px at calc(100% - 60px) 110px, rgb(255 176 74 / 0.05), transparent 70%);
   --viz-area-opacity: 0.16;
   --viz-glow-opacity: 0.22;
 }
@@ -202,14 +204,16 @@
   --shadow-card: 0 12px 40px rgb(5 6 25 / 0.55);
   /* glows: decorative only */
   --btn-glow: 0 6px 24px rgb(127 153 255 / 0.45);
-  --nav-active-bg: linear-gradient(90deg, rgb(127 153 255 / 0.2), rgb(169 139 255 / 0.06));
+  --nav-active-bg: linear-gradient(90deg, rgb(127 153 255 / 0.22), rgb(169 139 255 / 0.08) 55%, transparent);
   --nav-bar-glow: 0 0 12px rgb(169 139 255 / 0.6);
-  --seg-selected-ring: 0 0 0 1px rgb(169 139 255 / 0.55), 0 0 14px rgb(169 139 255 / 0.28);
+  --seg-selected-ring: 0 0 0 1px rgb(169 139 255 / 0.4), 0 0 14px rgb(169 139 255 / 0.26);
   --dot-glow-blur: 8px;
+  /* ambient light: pixel-sized ellipses anchored to the top right that reach transparent well inside the layer
+     they are painted on (Shell .column, the login page), so no edge of the layer is ever visible */
   --ambient:
-    radial-gradient(60% 130% at 100% 0%, rgb(127 153 255 / 0.22), transparent 60%),
-    radial-gradient(45% 110% at 78% 0%, rgb(169 139 255 / 0.16), transparent 65%),
-    radial-gradient(30% 90% at 96% 35%, rgb(255 176 74 / 0.07), transparent 70%);
+    radial-gradient(ellipse 620px 320px at calc(100% - 140px) 0, rgb(127 153 255 / 0.22), transparent 70%),
+    radial-gradient(ellipse 460px 260px at calc(100% - 420px) 0, rgb(169 139 255 / 0.15), transparent 70%),
+    radial-gradient(ellipse 280px 190px at calc(100% - 60px) 110px, rgb(255 176 74 / 0.07), transparent 70%);
   --viz-area-opacity: 0.3;
   --viz-glow-opacity: 0.55;
 }
@@ -301,14 +305,16 @@
     --shadow-card: 0 12px 40px rgb(5 6 25 / 0.55);
     /* glows: decorative only */
     --btn-glow: 0 6px 24px rgb(127 153 255 / 0.45);
-    --nav-active-bg: linear-gradient(90deg, rgb(127 153 255 / 0.2), rgb(169 139 255 / 0.06));
+    --nav-active-bg: linear-gradient(90deg, rgb(127 153 255 / 0.22), rgb(169 139 255 / 0.08) 55%, transparent);
     --nav-bar-glow: 0 0 12px rgb(169 139 255 / 0.6);
-    --seg-selected-ring: 0 0 0 1px rgb(169 139 255 / 0.55), 0 0 14px rgb(169 139 255 / 0.28);
+    --seg-selected-ring: 0 0 0 1px rgb(169 139 255 / 0.4), 0 0 14px rgb(169 139 255 / 0.26);
     --dot-glow-blur: 8px;
+    /* ambient light: pixel-sized ellipses anchored to the top right that reach transparent well inside the layer
+       they are painted on (Shell .column, the login page), so no edge of the layer is ever visible */
     --ambient:
-      radial-gradient(60% 130% at 100% 0%, rgb(127 153 255 / 0.22), transparent 60%),
-      radial-gradient(45% 110% at 78% 0%, rgb(169 139 255 / 0.16), transparent 65%),
-      radial-gradient(30% 90% at 96% 35%, rgb(255 176 74 / 0.07), transparent 70%);
+      radial-gradient(ellipse 620px 320px at calc(100% - 140px) 0, rgb(127 153 255 / 0.22), transparent 70%),
+      radial-gradient(ellipse 460px 260px at calc(100% - 420px) 0, rgb(169 139 255 / 0.15), transparent 70%),
+      radial-gradient(ellipse 280px 190px at calc(100% - 60px) 110px, rgb(255 176 74 / 0.07), transparent 70%);
     --viz-area-opacity: 0.3;
     --viz-glow-opacity: 0.55;
   }
@@ -351,6 +357,7 @@
   --chip-bg: var(--accent-bg);
   --track: var(--surface-sunken);
   --raised: var(--surface-hover);
+  --seg-track: var(--surface-sunken);
 
   /* Names a few older components use. They map to the tokens above, so those components follow the theme too. */
   --border: var(--line);

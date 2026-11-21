@@ -1,6 +1,6 @@
 /*
  * The brand-gradient accents, and only these (docs/design-system.md, "Where the gradient is used"):
- *   primary button . page title (h1.page-title, .gradient-title) and header glow . top edge of summary cards (.accent-edge)
+ *   primary button . page title (h1.page-title, .gradient-title) . top edge of summary cards (.accent-edge)
  * The other accents are token-driven in their own components: the logo (Logo.svelte), the active navigation item
  * (--nav-active-bg, --brand-gradient-vertical, --nav-bar-glow), the selected segment (--seg-selected-ring), the focus
  * ring (--ring, --halo) and the chart line (--viz-*). Every value here is a token from theme.css.
@@ -58,21 +58,7 @@ button.primary.danger:active:not(:disabled),
   filter: none;
 }
 
-/* ---------- Page header: an ambient glow at the top right, and a gradient page title ---------- */
-.page-header {
-  position: relative;
-  isolation: isolate;
-}
-
-.page-header:has(h1.page-title)::before {
-  position: absolute;
-  inset: calc(var(--space-6) * -1) calc(var(--space-4) * -1) calc(var(--space-2) * -1) 30%;
-  z-index: -1;
-  pointer-events: none;
-  content: "";
-  background: var(--ambient);
-}
-
+/* ---------- Page title: a gradient text fill (the ambient light behind it is a page layer, see Shell .column) ---------- */
 h1.page-title,
 .gradient-title {
   width: fit-content;

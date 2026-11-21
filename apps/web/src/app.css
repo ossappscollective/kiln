@@ -934,7 +934,7 @@ th,
 td {
   padding: var(--space-3) var(--space-4);
   text-align: left;
-  vertical-align: top;
+  vertical-align: middle;
   border-bottom: 1px solid var(--line);
 }
 
@@ -989,6 +989,24 @@ tbody tr:last-child > th {
   border: 0;
 }
 
+/* Tables are flush inside cards and sections: no second border, radius, shadow or fill. A table wrapper (a .table-wrap, or a
+   .card that holds only a table) inside a .card or a Section card is just the table, with a top hairline where nothing above
+   it draws one (a Section body already does). It scrolls sideways instead of squashing. */
+.card .table-wrap,
+.card .card:has(> table) {
+  padding: 0;
+  overflow-x: auto;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.card:not(.section) > .table-wrap,
+.card:not(.section) > .card:has(> table) {
+  border-top: 1px solid var(--line);
+}
+
 table.sticky thead th {
   position: sticky;
   top: 0;
@@ -1008,26 +1026,35 @@ th.num {
   text-align: right;
 }
 
+/* Row actions (Test, Replace secret, Delete): one line, on the middle of the row, whatever else the row holds. Keep the cell a
+   table cell (no display: flex on it); space the buttons with a gap on the content. */
 td.actions {
   text-align: right;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+td.actions > * + * {
+  margin-left: var(--space-3);
 }
 
 /* ---------- Sidebar navigation: the current item ---------- */
-/* A soft gradient wash and a 4px gradient bar with a violet glow on the left edge (decorative: a pseudo-element).
-   Shared by Shell.svelte and app/AppNav.svelte, which keep the colour and weight of the item. */
+/* One shape: the item is square on the left where a 4px gradient bar (violet glow) sits flush, full height, and a wash that
+   fades to nothing toward the right. Decorative: a pseudo-element. Shared by Shell.svelte and app/AppNav.svelte, which keep
+   the colour and weight of the item. */
 .sidebar nav a[aria-current="page"] {
   position: relative;
   background: var(--nav-active-bg);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
 .sidebar nav a[aria-current="page"]::before {
   position: absolute;
-  inset: 6px auto 6px 0;
+  inset: 0 auto 0 0;
   width: 4px;
   pointer-events: none;
   content: "";
   background: var(--brand-gradient-vertical);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   box-shadow: var(--nav-bar-glow);
 }
 

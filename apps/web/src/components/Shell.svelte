@@ -786,9 +786,29 @@
 
   /* ---- Top bar ---- */
   .column {
+    position: relative;
     display: flex;
     flex-direction: column;
     min-width: 0;
+    isolation: isolate;
+  }
+
+  /* The ambient light of the page: one soft layer behind the top bar and the page title, anchored to the top right corner.
+     It is made of ellipses that reach transparent well inside the layer (--ambient), so no edge of it shows. Decorative only. */
+  .column::before {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: -1;
+    height: 360px;
+    pointer-events: none;
+    content: '';
+    background: var(--ambient);
+  }
+
+  @media print {
+    .column::before {
+      display: none;
+    }
   }
 
   .topbar {

@@ -74,8 +74,7 @@
   .seg-group {
     display: inline-flex;
     padding: 2px;
-    background: var(--surface-sunken);
-    border: 1px solid var(--line);
+    background: var(--seg-track);
     border-radius: var(--radius-md);
   }
 
@@ -94,8 +93,8 @@
 
   .seg[aria-pressed='true'] {
     color: var(--ink);
-    background: var(--surface);
-    box-shadow: var(--shadow-xs);
+    background: var(--seg-selected);
+    box-shadow: var(--seg-selected-ring);
   }
 
   .seg:focus-visible {

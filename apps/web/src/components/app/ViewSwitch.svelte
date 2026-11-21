@@ -25,8 +25,7 @@
     flex-wrap: wrap;
     gap: 2px;
     padding: 2px;
-    background: var(--surface-sunken);
-    border: 1px solid var(--line);
+    background: var(--seg-track);
     border-radius: var(--radius-md);
   }
 
@@ -39,7 +38,7 @@
     font-weight: var(--weight-medium);
     color: var(--muted);
     text-decoration: none;
-    border-radius: var(--radius-sm);
+    border-radius: calc(var(--radius-md) - 2px);
   }
 
   a:hover {
@@ -48,7 +47,7 @@
 
   a[aria-current='page'] {
     color: var(--ink);
-    background: var(--surface);
-    box-shadow: var(--shadow-sm);
+    background: var(--seg-selected);
+    box-shadow: var(--seg-selected-ring);
   }
 </style>

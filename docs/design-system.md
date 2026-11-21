@@ -71,6 +71,22 @@ Only on these accents (decorative or redundant with text or an icon):
 
 Do not add it to body text, table rows, badges, borders or backgrounds of content.
 
+## Surfaces, tables and glows: rules that avoid "a box in a box"
+
+- **Tables are flush inside cards and sections.** A `.table-wrap`, or a `.card` that holds only a table, inside a `.card` or a
+  Section has no border, radius, shadow or fill of its own (one rule in `app.css`); it is the table, with a top hairline where the
+  card above draws none, and it scrolls sideways instead of squashing. Only a table that stands alone on the page keeps its own
+  bordered, rounded wrapper. Never put a second rounded border directly under a section header.
+- **Row actions** are `td.actions`: a real table cell (never `display: flex` on the `td`), one line (`nowrap`), centered on the
+  row. Cells are vertically centered, so a chip, a date and an action stay on one line.
+- **The ambient glow is a fading page layer, not a box.** It is painted once, behind the top bar and the page title (Shell
+  `.column::before`, and the login page), from pixel-sized ellipses anchored to the top right that reach transparent well inside the
+  layer (`--ambient`). Do not paint it on a header or card element: an element's edge would clip it into a visible rectangle.
+- **The current navigation item is one shape:** square on the left, where the 4px gradient bar sits flush and full height, with a
+  wash that fades to nothing to the right.
+- **Segmented controls** (`SegmentTabs`, the theme toggle, List | Board, scope and range controls) use a borderless `--seg-track`
+  and a raised `--seg-selected` pill with `--seg-selected-ring` (a soft shadow and a faint violet ring); no dark outline.
+
 ## Themes
 
 Dark is the look of the product. `data-theme="light|dark"` on `<html>` (the Theme setting in the account menu) wins;

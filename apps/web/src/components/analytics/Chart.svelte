@@ -174,7 +174,7 @@
             <stop offset="0" class="stop-area" />
             <stop offset="1" class="stop-area end" />
           </linearGradient>
-          <filter id="{uid}-glow" filterUnits="userSpaceOnUse" x="0" y="0" {width} {height}>
+          <filter id="{uid}-glow" filterUnits="userSpaceOnUse" x="-16" y="-16" width={width + 32} height={height + 32}>
             <feGaussianBlur stdDeviation="4" />
           </filter>
         {/if}

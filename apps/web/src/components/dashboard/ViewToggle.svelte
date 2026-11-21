@@ -30,8 +30,7 @@
   .toggle {
     display: inline-flex;
     padding: 2px;
-    background: var(--surface-sunken);
-    border: 1px solid var(--line-strong);
+    background: var(--seg-track);
     border-radius: var(--radius-md);
   }
 
@@ -43,18 +42,28 @@
     color: var(--muted);
     cursor: pointer;
     background: transparent;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
+    border: 0;
+    border-radius: calc(var(--radius-md) - 2px);
   }
 
   .option:hover {
     color: var(--ink);
   }
 
+  /* As specific as the global `button.bare:hover:not(:disabled)`, which clears backgrounds and would otherwise win. */
+  .toggle button.option.bare:not(.active):hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ink) 10%, transparent);
+  }
+
+  .toggle button.option.bare.active:hover:not(:disabled) {
+    background: var(--seg-selected);
+  }
+
+  /* The selected option: the raised pill with a soft violet ring (--seg-selected-ring), like every segmented control. */
   .option.active {
-    color: var(--accent);
-    background: var(--surface);
-    border-color: var(--accent);
+    color: var(--ink);
+    background: var(--seg-selected);
+    box-shadow: var(--seg-selected-ring);
   }
 
   .option:focus-visible {

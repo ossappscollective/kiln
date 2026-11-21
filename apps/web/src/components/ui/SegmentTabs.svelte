@@ -69,8 +69,7 @@
     flex-wrap: wrap;
     max-width: 100%;
     padding: 2px;
-    background: var(--track);
-    border: 1px solid var(--line);
+    background: var(--seg-track);
     border-radius: var(--radius-md);
   }
 

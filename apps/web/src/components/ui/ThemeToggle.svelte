@@ -44,8 +44,7 @@
     display: inline-flex;
     gap: 2px;
     padding: 2px;
-    background: var(--track);
-    border: 1px solid var(--line);
+    background: var(--seg-track);
     border-radius: var(--radius-md);
   }
 
