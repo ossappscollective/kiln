@@ -45,6 +45,7 @@ export * from './release-eligibility.ts';
 export * from './release-types.ts';
 export * from './repo-sections.ts';
 export * from './review-types.ts';
+export * from './revenuecat/index.ts';
 export * from './rollout-types.ts';
 export * from './store-draft-types.ts';
 export * from './store-products-types.ts';
