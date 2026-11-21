@@ -16,7 +16,7 @@
 {#if chips.length > 0}
   <ul class="stats" aria-label="Key figures">
     {#each chips as chip (chip.id)}
-      <li title={chip.title}>
+      <li class="accent-edge" title={chip.title}>
         <StatChip label={chip.label} value={chip.value} />
         {#if chip.line}
           <span class="delta {chip.tone}" aria-label={chip.spoken}>
@@ -40,12 +40,20 @@
     list-style: none;
   }
 
+  /* Each figure is a small summary card with the gradient edge (.accent-edge, styles/accents.css). */
   li {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
     align-items: flex-start;
+    min-width: 9rem;
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
   }
+
 
   .delta {
     display: inline-flex;

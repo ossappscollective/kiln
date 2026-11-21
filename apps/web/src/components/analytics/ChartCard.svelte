@@ -57,7 +57,7 @@
   const table = $derived(showData ? tableFor(card) : null);
 </script>
 
-<Section title={card.title} key="chart.{card.id}" summary={fresh[0] ?? ''}>
+<Section title={card.title} key="chart.{card.id}" summary={fresh[0] ?? ''} edge>
   {#snippet actions()}
     <InfoTip label="About the data of {card.title}" align="end" width="26rem">
       <div class="about">

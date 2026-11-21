@@ -6,7 +6,9 @@
   The tooltip never gates a value: the end of each line is labelled, and the "Show data" table has every number.
   Props: panel (ChartPanel), cardTitle, dates (one per position), today (UTC day), hover (bindable index or null, shared by the
   panels of a card so their crosshairs move together), height = 168 (the plot and the date axis together).
-  The geometry is lib/analytics-chart.ts; the words are lib/analytics-view.ts. Colors come from VizScope.
+  A line of a single series is drawn with the brand gradient (--viz-1, --viz-mid, --viz-end), a blurred copy of it as glow, and a fading
+  area under it; with two series each line keeps its own solid color. The geometry is lib/analytics-chart.ts; the words are
+  lib/analytics-view.ts. Colors come from the --viz-* tokens (styles/theme.css; see VizScope).
 -->
 <script lang="ts">
   import { formatDay, formatValue } from '../../lib/analytics/analytics.ts';
@@ -70,6 +72,13 @@
   const name = $derived(describePanel(panel, cardTitle));
   const spoken = $derived(tip ? `${tip.heading}. ${tip.rows.map((r) => `${r.label}: ${r.text}`).join('. ')}${tip.provisional ? '. May still change.' : ''}` : '');
   const isLine = $derived(panel.kind === 'line');
+  /** One line gets the gradient, the glow and the area; two lines stay solid so the legend can tell them apart. */
+  const fancy = $derived(isLine && panel.series.length === 1);
+  const areaPath = (run: { d: string; points: { x: number }[] }) => {
+    const first = run.points[0];
+    const last = run.points[run.points.length - 1];
+    return first && last ? `${run.d}L${last.x},${geo.baseline}L${first.x},${geo.baseline}Z` : '';
+  };
 
   // End labels of lines: the newest value, left of the end dot, and a second one only when it would not overlap.
   const endLabels = $derived.by(() => {
@@ -155,6 +164,20 @@
         <pattern id="{uid}-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <line x1="0" y1="0" x2="0" y2="6" class="hatch" />
         </pattern>
+        {#if fancy}
+          <linearGradient id="{uid}-line" gradientUnits="userSpaceOnUse" x1={geo.box.left} x2={Math.max(geo.box.left + 1, geo.box.width - geo.box.right)} y1="0" y2="0">
+            <stop offset="0" class="stop-a" />
+            <stop offset="0.55" class="stop-b" />
+            <stop offset="1" class="stop-c" />
+          </linearGradient>
+          <linearGradient id="{uid}-area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" class="stop-area" />
+            <stop offset="1" class="stop-area end" />
+          </linearGradient>
+          <filter id="{uid}-glow" filterUnits="userSpaceOnUse" x="0" y="0" {width} {height}>
+            <feGaussianBlur stdDeviation="4" />
+          </filter>
+        {/if}
       </defs>
 
       {#if geo.provisional}
@@ -189,13 +212,17 @@
       {#each geo.lines as line (line.key)}
         {#each line.runs as run, r (r)}
           {#if run.points.length > 1}
-            <path d={run.d} class="line s{line.color}" />
+            {#if fancy}
+              <path d={areaPath(run)} class="area" fill="url(#{uid}-area)" />
+              <path d={run.d} class="line glow" style="stroke: url(#{uid}-line)" filter="url(#{uid}-glow)" aria-hidden="true" />
+            {/if}
+            <path d={run.d} class="line s{line.color}" style={fancy ? `stroke: url(#${uid}-line)` : undefined} />
           {:else if run.points[0]}
-            <circle class="dot s{line.color}" cx={run.points[0].x} cy={run.points[0].y} r="4" />
+            <circle class="dot s{line.color}" class:fancy cx={run.points[0].x} cy={run.points[0].y} r="4" />
           {/if}
         {/each}
         {#if line.last && hover === null}
-          <circle class="dot s{line.color}" cx={line.last.x} cy={line.last.y} r="4" />
+          <circle class="dot s{line.color}" class:fancy cx={line.last.x} cy={line.last.y} r="4" />
         {/if}
       {/each}
 
@@ -203,7 +230,7 @@
         {#each geo.lines as line (line.key)}
           {#each line.runs as run (run.d)}
             {#each run.points.filter((p) => p.i === hover) as p (p.i)}
-              <circle class="dot s{line.color}" cx={p.x} cy={p.y} r="4" />
+              <circle class="dot s{line.color}" class:fancy cx={p.x} cy={p.y} r="4" />
             {/each}
           {/each}
         {/each}
@@ -314,7 +341,7 @@
   }
 
   svg:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: var(--ring);
     outline-offset: 2px;
   }
 
@@ -366,9 +393,46 @@
 
   .line {
     fill: none;
-    stroke-width: 2;
+    stroke-width: var(--viz-line-width);
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+
+  /* The gradient line: stops, the blurred glow copy and the area below it. All values are tokens. */
+  .stop-a {
+    stop-color: var(--viz-1);
+  }
+
+  .stop-b {
+    stop-color: var(--viz-mid);
+  }
+
+  .stop-c {
+    stop-color: var(--viz-end);
+  }
+
+  .stop-area {
+    stop-color: var(--viz-mid);
+    stop-opacity: var(--viz-area-opacity);
+  }
+
+  .stop-area.end {
+    stop-opacity: 0;
+  }
+
+  .line.glow {
+    stroke-width: calc(var(--viz-line-width) + var(--viz-glow-blur));
+    opacity: var(--viz-glow-opacity);
+    pointer-events: none;
+  }
+
+  .area {
+    stroke: none;
+    pointer-events: none;
+  }
+
+  .dot.s1.fancy {
+    fill: var(--viz-mid);
   }
 
   .line.s1 {
@@ -455,8 +519,13 @@
   }
 
   @media (forced-colors: active) {
+    .line.glow,
+    .area {
+      display: none;
+    }
+
     .line.s1 {
-      stroke: CanvasText;
+      stroke: CanvasText !important;
     }
 
     .line.s2 {
@@ -465,7 +534,8 @@
     }
 
     .bar.s1,
-    .dot.s1 {
+    .dot.s1,
+    .dot.s1.fancy {
       fill: CanvasText;
     }
 
