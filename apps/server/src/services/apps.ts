@@ -516,6 +516,19 @@ export async function deleteApp(
         input.workspaceId,
       ]);
     }
+    // The link to the app's RevenueCat project and the cached RevenueCat configuration (modules/revenuecat).
+    for (const table of [
+      'app_revenuecat_links',
+      'revenuecat_products',
+      'revenuecat_entitlements',
+      'revenuecat_offerings',
+      'revenuecat_sync',
+    ]) {
+      await tx.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
+        input.id,
+        input.workspaceId,
+      ]);
+    }
     await tx.execute('DELETE FROM apps WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,

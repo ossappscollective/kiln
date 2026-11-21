@@ -19,6 +19,7 @@ import { type CiContext, createCiContext } from './modules/ci/service.ts';
 import { type EasDeps, easModule } from './modules/eas/index.ts';
 import { type ListingDeps, listingModule } from './modules/listing/index.ts';
 import { type MonetizationDeps, monetizationModule } from './modules/monetization/index.ts';
+import { type RevenueCatDeps, revenuecatModule } from './modules/revenuecat/index.ts';
 import type { ModuleShared } from './modules/module.ts';
 import { planningModule } from './modules/planning/index.ts';
 import { type PublishDeps, publishModule } from './modules/publish/index.ts';
@@ -212,6 +213,8 @@ export type AppDeps = {
   eas?: EasDeps | undefined;
   /** In-app purchases and subscriptions (docs/adr/0034-in-app-products.md): see `MonetizationDeps` in modules/monetization. */
   monetization?: MonetizationDeps | undefined;
+  /** RevenueCat next to the store products (docs/adr/0039-revenuecat.md): see `RevenueCatDeps` in modules/revenuecat. */
+  revenuecat?: RevenueCatDeps | undefined;
   /**
    * Changing a live rollout in a store (docs/api/rollout.md), a store write that is OFF unless `enabled`
    * (MRM_STORE_ROLLOUT_ENABLED). `connectorFactory` builds the connector that can read and change a
@@ -467,7 +470,9 @@ export function createApp(deps: AppDeps) {
   analyticsModule.mount(app, services, deps.analytics, shared);
   reviewsModule.mount(app, services, deps.reviews, shared);
   easModule.mount(app, services, deps.eas, shared);
-  monetizationModule.mount(app, services, deps.monetization, shared);
+  // The products sync runs the RevenueCat read as its second step, so the monetization module gets the RevenueCat seams too.
+  monetizationModule.mount(app, services, { ...deps.monetization, revenueCat: deps.revenuecat }, shared);
+  revenuecatModule.mount(app, services, deps.revenuecat, shared);
   publishModule.mount(
     app,
     services,

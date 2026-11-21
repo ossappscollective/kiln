@@ -18,6 +18,7 @@ import { credentialKindFor, type ManagedApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
+import type { RevenueCatStep } from '../revenuecat/index.ts';
 
 /**
  * What the sync, the reads and the localization write of in-app products share: the context, the connectors that are built from a
@@ -83,6 +84,11 @@ export type MonetizationContext = {
   writeFactory: ProductWriteConnectorFactory;
   writeTimeoutMs: number;
   claimTtlMs: number;
+  /**
+   * The RevenueCat read that follows the store read of a sync (docs/adr/0039-revenuecat.md): null when the app has no link. It never throws,
+   * never touches the store snapshot, and runs whether or not the store step worked.
+   */
+  revenueCatStep: (input: { workspaceId: string; appId: string; actor: Actor }) => Promise<RevenueCatStep | null>;
 };
 
 // ---------------------------------------------------------------------------------------------

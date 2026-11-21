@@ -84,6 +84,22 @@ const syncStatusSchema = z.object({
   warnings: z.array(z.string()),
 });
 
+const revenueCatStepSchema = z
+  .union([
+    z.object({
+      ok: z.literal(true),
+      products: z.number().int(),
+      entitlements: z.number().int(),
+      offerings: z.number().int(),
+      otherAppProducts: z.number().int(),
+      complete: z.boolean(),
+      warnings: z.array(z.string()),
+      syncedAt: timestamp,
+    }),
+    z.object({ ok: z.literal(false), code: z.string(), message: z.string(), retryAfterSeconds: z.number().int().optional() }),
+  ])
+  .nullable();
+
 const productsViewSchema = z.object({
   app: appViewSchema,
   supported: z.boolean().describe('False for a platform whose store has no in-app purchases here.'),
@@ -172,7 +188,7 @@ export const monetizationOperations: Draft[] = [
     tags: ['products'],
     summary: 'Read the products from the store and replace the stored copy',
     description:
-      'Read-only toward the store: lists in-app purchases (App Store: in-app purchases v2, subscription groups and subscriptions, price schedules; Google Play: subscriptions and one-time products) and changes nothing there. If any part of the read fails the whole sync fails and the last good copy stays (`lastError` on the list). Rate limited per workspace, with the budget of the app sync. `422 products_not_supported` for a platform without in-app purchases, `422 app_not_synced` before an App Store app has its store id.',
+      'Read-only toward the store, and then toward RevenueCat when the app is linked to a RevenueCat project (ADR 0039; the second step, reported in `revenuecat`). Lists in-app purchases (App Store: in-app purchases v2, subscription groups and subscriptions, price schedules; Google Play: subscriptions and one-time products) and changes nothing there. If any part of the read fails the whole sync fails and the last good copy stays (`lastError` on the list). Rate limited per workspace, with the budget of the app sync. `422 products_not_supported` for a platform without in-app purchases, `422 app_not_synced` before an App Store app has its store id.',
     risk: 'write',
     access: { action: 'apps.sync' },
     appScope: { kind: 'param', name: 'appId' },
@@ -188,6 +204,9 @@ export const monetizationOperations: Draft[] = [
             warnings: z.array(z.string()),
             syncedAt: timestamp,
           }),
+          revenuecat: revenueCatStepSchema.describe(
+            'The RevenueCat read that follows the store read when the app is linked to a RevenueCat project (null when it is not). It has its own result: `ok: false` here never changes the store copy or the store answer. A store failure is a 4xx/5xx with this same field in the body.',
+          ),
         }),
       },
     },

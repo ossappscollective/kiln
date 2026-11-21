@@ -8,6 +8,7 @@ import { ciOperations } from '../modules/ci/operations.ts';
 import { easOperations } from '../modules/eas/operations.ts';
 import { listingOperations } from '../modules/listing/operations.ts';
 import { monetizationOperations } from '../modules/monetization/operations.ts';
+import { revenueCatOperations } from '../modules/revenuecat/operations.ts';
 import { planningOperations } from '../modules/planning/operations.ts';
 import { publishOperations } from '../modules/publish/operations.ts';
 import { reviewsOperations } from '../modules/reviews/operations.ts';
@@ -43,6 +44,7 @@ const drafts: Draft[] = [
   ...listingOperations,
   ...easOperations,
   ...monetizationOperations,
+  ...revenueCatOperations,
   ...publishOperations,
   ...releasesOperations,
   ...buildsOperations,

@@ -1,4 +1,5 @@
 import type { ServerModule } from '../module.ts';
+import { type RevenueCatDeps, revenueCatStep } from '../revenuecat/index.ts';
 import { monetizationRoutes } from './routes.ts';
 import {
   DEFAULT_PRODUCT_CLAIM_TTL_MS,
@@ -41,6 +42,8 @@ export type MonetizationDeps = {
         claimTtlMs?: number | undefined;
       }
     | undefined;
+  /** The seams of the RevenueCat read that follows the store read of a sync (the same as `AppDeps.revenuecat`). */
+  revenueCat?: RevenueCatDeps | undefined;
 };
 
 export const monetizationModule: ServerModule<MonetizationDeps> = {
@@ -61,6 +64,7 @@ export const monetizationModule: ServerModule<MonetizationDeps> = {
         writeFactory: deps?.write?.connectorFactory ?? defaultProductWriteConnectorFactory,
         writeTimeoutMs: deps?.write?.timeoutMs ?? DEFAULT_PRODUCT_WRITE_TIMEOUT_MS,
         claimTtlMs: deps?.write?.claimTtlMs ?? DEFAULT_PRODUCT_CLAIM_TTL_MS,
+        revenueCatStep: (input) => revenueCatStep({ db, masterKey, now, deps: deps?.revenueCat }, input),
       }),
     );
   },

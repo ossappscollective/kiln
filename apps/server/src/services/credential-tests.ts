@@ -35,6 +35,8 @@ const verifierNames: Record<CredentialKind, string> = {
   ai_openai_compatible: 'verifyAiOpenaiCompatibleCredential',
   // The token is checked by asking Expo who it belongs to (`meActor`, a read): packages/connectors/src/expo/verify-expo.ts.
   expo: 'verifyExpoCredential',
+  // The key is checked by asking RevenueCat which projects it sees and how many apps each has (reads only): packages/connectors/src/revenuecat/verify-revenuecat.ts.
+  revenuecat: 'verifyRevenueCatCredential',
 };
 
 /**

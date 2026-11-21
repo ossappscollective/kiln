@@ -74,7 +74,12 @@ export function monetizationRoutes(ctx: MonetizationContext) {
       );
     }
     const done = await syncProducts(ctx, { workspaceId: ws(c), appId, actor: actor(c) });
-    return done.ok ? c.json({ sync: done.result }) : respond(c, done);
+    // The second step (docs/adr/0039-revenuecat.md): the RevenueCat read of a linked app, whether or not the store step worked. It has its
+    // own result; its failure never changes the store snapshot or the store answer, and null means the app has no link.
+    const revenuecat = await ctx.revenueCatStep({ workspaceId: ws(c), appId, actor: actor(c) });
+    return done.ok
+      ? c.json({ sync: done.result, revenuecat })
+      : respond(c, revenuecat ? { ...done, body: { ...done.body, revenuecat } } : done);
   });
 
   routes.get('/:workspaceId/apps/:appId/products/:productId', needs('apps.read'), async (c) => {
