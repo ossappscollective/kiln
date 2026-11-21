@@ -444,7 +444,7 @@ dbTest(
       const got = server.messages[0];
       assert.deepEqual(got?.to, ['ada@example.com']);
       assert.equal(got?.user, 'mrm');
-      assert.match(got?.data ?? '', /Subject: Test message from Mobile Release Manager/);
+      assert.match(got?.data ?? '', /Subject: Test message from Kiln/);
       assert.match(got?.data ?? '', /multipart\/alternative/);
       // Anyone else's address: refused (this is not a relay).
       const other = await test({ to: 'victim@example.com' });

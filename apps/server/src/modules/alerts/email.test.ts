@@ -39,7 +39,7 @@ test('without an origin the email names the screen and has no link', () => {
   const mail = renderAlertEmail(d, { title: 'T', body: 'B', severity: 'critical', data });
   assert.doesNotMatch(mail.html, /href=/);
   assert.match(mail.html, /go to <strong>Credentials<\/strong>/);
-  assert.match(mail.text, /Fix the credential: open Mobile Release Manager, Credentials\./);
+  assert.match(mail.text, /Fix the credential: open Kiln, Credentials\./);
   assert.doesNotMatch(mail.text, /https?:\/\//);
 });
 

@@ -523,7 +523,7 @@ export function creationOptions(input: {
   exclude: string[];
 }) {
   return {
-    rp: { id: input.rp.rpId, name: 'Mobile Release Manager' },
+    rp: { id: input.rp.rpId, name: 'Kiln' },
     user: {
       id: b64u(createHash('sha256').update(`mrm-step-up:${input.userId}`).digest()),
       name: input.email,

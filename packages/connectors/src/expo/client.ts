@@ -157,7 +157,7 @@ export function createExpoClient(options: ExpoClientOptions): ExpoClient {
   const apiOrigin = normalizeExpoOrigin(options.apiOrigin);
   const timeoutMs = options.timeoutMs ?? DEFAULT_EXPO_TIMEOUT_MS;
   const maxBytes = options.maxResponseBytes ?? DEFAULT_EXPO_MAX_RESPONSE_BYTES;
-  const userAgent = options.userAgent ?? 'mobile-release-manager';
+  const userAgent = options.userAgent ?? 'kiln';
   const fail = (kind: ExpoErrorKind, extra: ConstructorParameters<typeof ExpoError>[1] = {}) =>
     new ExpoError(kind, { ...extra, known });
 

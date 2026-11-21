@@ -343,9 +343,9 @@ export function buildOpenApiDocument(
   return {
     openapi: OPENAPI_VERSION,
     info: {
-      title: 'Mobile Release Manager API',
+      title: 'Kiln API',
       version: info.version,
-      summary: 'The HTTP API of one Mobile Release Manager server.',
+      summary: 'The HTTP API of one Kiln server.',
       description: INFO_DESCRIPTION,
       license: { name: 'Apache-2.0', identifier: 'Apache-2.0' },
     },

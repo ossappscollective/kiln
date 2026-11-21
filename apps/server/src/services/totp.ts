@@ -115,7 +115,7 @@ export function checkTotp(
 
 /** The `otpauth://` link an authenticator app reads from a QR code (Key URI Format). */
 export function otpauthUri(input: { issuer: string; account: string; secret: Uint8Array }): string {
-  const issuer = input.issuer.replace(/[:\r\n]+/g, ' ').trim() || 'Mobile Release Manager';
+  const issuer = input.issuer.replace(/[:\r\n]+/g, ' ').trim() || 'Kiln';
   const account = input.account.replace(/[:\r\n]+/g, ' ').trim() || 'account';
   const label = `${encodeURIComponent(issuer)}:${encodeURIComponent(account)}`;
   const query = `secret=${base32Encode(input.secret)}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=${TOTP_DIGITS}&period=${TOTP_STEP_SECONDS}`;

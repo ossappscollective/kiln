@@ -165,7 +165,7 @@ if (isMain) {
   const token = process.env.MRM_TOKEN ?? '';
   if (!url || !token) {
     process.stderr.write(
-      'Set MRM_URL (the address of Mobile Release Manager) and MRM_TOKEN (an API token).\n',
+      'Set MRM_URL (the address of Kiln) and MRM_TOKEN (an API token).\n',
     );
     process.exit(2);
   }

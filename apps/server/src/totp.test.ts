@@ -96,13 +96,13 @@ test('typing: spaces and a dash are fine; anything that is not six digits is mal
 
 test('the otpauth link is the Key URI Format an authenticator app reads', () => {
   const uri = otpauthUri({
-    issuer: 'Mobile Release Manager',
+    issuer: 'Kiln',
     account: 'ada@example.com',
     secret: SECRET,
   });
   assert.equal(
     uri,
-    'otpauth://totp/Mobile%20Release%20Manager:ada%40example.com?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Mobile%20Release%20Manager&algorithm=SHA1&digits=6&period=30',
+    'otpauth://totp/Kiln:ada%40example.com?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Kiln&algorithm=SHA1&digits=6&period=30',
   );
   const hostile = otpauthUri({ issuer: 'A:B\r\nC', account: 'x:y&z=1', secret: SECRET });
   assert.ok(!/[\r\n]/.test(hostile));

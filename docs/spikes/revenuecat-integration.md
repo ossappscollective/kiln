@@ -95,7 +95,7 @@ truth (country and rounding unclear; use it only as a hint in a mismatch warning
   (`auth`, `forbidden`, `rate_limited`, `server`, `network`) with fixed sentences, never RevenueCat's text, as `ExpoError` does.
   UNVERIFIED: the HTTP statuses used for `authentication_error` and `authorization_error` (assume 401 and 403).
 - **Guide text** (`credential-guides.ts`, `docs/credentials.md`): steps: (1) open the RevenueCat dashboard, pick the project;
-  (2) API keys, then **+ New secret API key**; (3) choose version V2, name it "Mobile Release Manager", enable only the read
+  (2) API keys, then **+ New secret API key**; (3) choose version V2, name it "Kiln", enable only the read
   permissions listed above, nothing with write; (4) copy the key, it starts `sk_`; (5) paste and Test connection.
   Warnings: do not use the public SDK key (it is not a credential for this API); the key is project-wide so keep it out of the
   app; rotate when someone who knew it leaves (RevenueCat: a revoked key is invalid immediately). Troubleshooting rows: "not

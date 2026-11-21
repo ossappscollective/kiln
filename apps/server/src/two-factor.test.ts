@@ -38,7 +38,7 @@ dbTest(
     assert.match(secret, /^[A-Z2-7]{32}$/);
     assert.match(
       begun.body.uri,
-      /^otpauth:\/\/totp\/Mobile%20Release%20Manager:ada%40example\.com\?secret=[A-Z2-7]{32}&issuer=Mobile%20Release%20Manager&algorithm=SHA1&digits=6&period=30$/,
+      /^otpauth:\/\/totp\/Kiln:ada%40example\.com\?secret=[A-Z2-7]{32}&issuer=Kiln&algorithm=SHA1&digits=6&period=30$/,
     );
     assert.ok(begun.body.uri.includes(secret));
     // Pending: it does not count as a factor yet.
@@ -416,7 +416,7 @@ dbTest(
     // The first factor needs no confirmation (nothing to confirm with yet): an authenticator app.
     const begun = await call('POST', '/two-factor/totp/begin', {});
     assert.equal(begun.status, 201);
-    assert.match(begun.body.uri, /^otpauth:\/\/totp\/Mobile%20Release%20Manager:This%20computer\?/);
+    assert.match(begun.body.uri, /^otpauth:\/\/totp\/Kiln:This%20computer\?/);
     const secret = begun.body.secret as string;
     assert.equal(
       (

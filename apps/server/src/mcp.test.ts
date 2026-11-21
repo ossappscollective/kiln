@@ -342,7 +342,7 @@ dbTest(
       clientInfo: { name: 'fake', version: '1' },
     });
     assert.equal(init.body.result.protocolVersion, '2025-03-26');
-    assert.equal(init.body.result.serverInfo.name, 'mobile-release-manager');
+    assert.equal(init.body.result.serverInfo.name, 'kiln');
     assert.deepEqual(Object.keys(init.body.result.capabilities).sort(), [
       'prompts',
       'resources',

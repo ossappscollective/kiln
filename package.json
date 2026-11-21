@@ -1,5 +1,5 @@
 {
-  "name": "mobile-release-manager",
+  "name": "kiln",
   "private": true,
   "version": "0.0.0",
   "description": "Self-hostable manager for iOS and Android app releases, store listings and ASO.",

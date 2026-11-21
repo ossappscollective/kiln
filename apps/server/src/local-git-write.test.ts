@@ -553,7 +553,7 @@ test('the author is cleaned: no angle brackets or line breaks, a fallback for a 
     email: 'ada@example.com',
   });
   assert.deepEqual(cleanIdentity({ name: '', email: 'not an email' }), {
-    name: 'Mobile Release Manager',
+    name: 'Kiln',
     email: 'noreply@localhost',
   });
   assert.deepEqual(cleanIdentity({ name: 'x', email: 'a@b>\n' }), {
@@ -561,7 +561,7 @@ test('the author is cleaned: no angle brackets or line breaks, a fallback for a 
     email: 'noreply@localhost',
   });
   assert.deepEqual(cleanIdentity(undefined), {
-    name: 'Mobile Release Manager',
+    name: 'Kiln',
     email: 'noreply@localhost',
   });
 });

@@ -176,7 +176,7 @@ export function createRevenueCatClient(options: RevenueCatClientOptions): Revenu
   const timeoutMs = options.timeoutMs ?? DEFAULT_REVENUECAT_TIMEOUT_MS;
   const maxBytes = options.maxResponseBytes ?? DEFAULT_REVENUECAT_MAX_RESPONSE_BYTES;
   const maxRequests = options.maxRequests ?? DEFAULT_REVENUECAT_MAX_REQUESTS;
-  const userAgent = options.userAgent ?? 'mobile-release-manager';
+  const userAgent = options.userAgent ?? 'kiln';
   const fail = (kind: RevenueCatErrorKind, extra: ConstructorParameters<typeof RevenueCatError>[1] = {}) =>
     new RevenueCatError(kind, { ...extra, known });
 

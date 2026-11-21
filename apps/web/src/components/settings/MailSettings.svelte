@@ -183,7 +183,7 @@
           placeholder={settings.passwordSet ? 'Saved. Leave empty to keep it.' : ''}
           disabled={!canEdit || busy}
         />
-        <TextField label="Send from" bind:value={from} type="text" placeholder="Mobile Release Manager <mrm@example.com>" autocomplete="off" disabled={!canEdit || busy} required />
+        <TextField label="Send from" bind:value={from} type="text" placeholder="Kiln <mrm@example.com>" autocomplete="off" disabled={!canEdit || busy} required />
         {#if secure === 'none'}
           <Alert tone="warn">Without TLS, messages cross the network as plain text. Use this only for a mail server on this machine.</Alert>
         {/if}

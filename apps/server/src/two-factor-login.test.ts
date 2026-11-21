@@ -299,7 +299,7 @@ dbTest(
     assert.equal(begun.status, 201);
     assert.match(
       begun.body.uri,
-      /^otpauth:\/\/totp\/Mobile%20Release%20Manager:cy%40example\.com\?secret=/,
+      /^otpauth:\/\/totp\/Kiln:cy%40example\.com\?secret=/,
     );
     const wrong = await t.raw('POST', '/api/auth/login/enroll/totp/confirm', {
       challenge: a.body.challenge,

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Mobile Release Manager",
+  "productName": "Kiln",
   "version": "0.0.0",
-  "identifier": "dev.example.mobilereleasemanager",
+  "identifier": "dev.example.kiln",
   "build": {
     "devUrl": "http://localhost:5173",
     "frontendDist": "../../web/dist"

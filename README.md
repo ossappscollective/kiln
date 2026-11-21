@@ -1,7 +1,7 @@
-# Mobile Release Manager
+# Kiln
 
-Working title. A self-hostable, Apache-2.0 tool for managing iOS and Android app releases,
-store listings and ASO from one place, with GitHub, fastlane and Expo integration.
+A self-hostable, Apache-2.0 mobile release manager: iOS, macOS and Android app releases,
+store listings and ASO from one place, with GitHub, fastlane and Expo (EAS) integration.
 
 **Status: early, pre-release. Phases 0 and 1 are mostly built, Phase 2 is under way.** Most of it
 has only run against SQLite, in-process tests and hand-written fixtures. Nothing has been run against

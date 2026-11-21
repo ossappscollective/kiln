@@ -30,7 +30,7 @@ export const mailShell = (rows: string, preheader: string): string => `<!doctype
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:10px;overflow:hidden;font-family:${FONT};color:#1f2933;">
 ${rows}
 </table>
-<p style="max-width:560px;margin:14px 0 0;font:12px/1.5 ${FONT};color:#7b8794;">Mobile Release Manager</p>
+<p style="max-width:560px;margin:14px 0 0;font:12px/1.5 ${FONT};color:#7b8794;">Kiln</p>
 </td></tr></table></body></html>`;
 
 /** The coloured bar at the top of the card. */
@@ -44,7 +44,7 @@ export const mailButton = (
 ): string =>
   a.href
     ? `<a href="${escapeHtml(a.href)}" style="display:inline-block;background:${color};color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:11px 20px;border-radius:8px;">${escapeHtml(a.label)}</a>`
-    : `<span style="font-size:14px;color:#52606d;">Open Mobile Release Manager and go to <strong>${escapeHtml(a.where)}</strong>.</span>`;
+    : `<span style="font-size:14px;color:#52606d;">Open Kiln and go to <strong>${escapeHtml(a.where)}</strong>.</span>`;
 
 /** The quiet last row: why the person gets this email (already HTML, built with `escapeHtml`). */
 export const mailFooter = (noteHtml: string): string =>

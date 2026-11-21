@@ -447,7 +447,7 @@ const server = serve(
   (info) => {
     const where = config.host ?? 'localhost';
     console.log(
-      `Mobile Release Manager ${VERSION} on http://${where}:${info.port} (${database.dialect}, ${config.mode})`,
+      `Kiln ${VERSION} on http://${where}:${info.port} (${database.dialect}, ${config.mode})`,
     );
   },
 );

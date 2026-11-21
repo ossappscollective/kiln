@@ -56,7 +56,7 @@ export class AsoError extends Error {
 }
 
 /** Sent as the User-Agent: says what this is and that it only reads public pages. No version, no address of a person. */
-export const ASO_USER_AGENT = 'mobile-release-manager (self-hosted ASO read of public store pages)';
+export const ASO_USER_AGENT = 'kiln (self-hosted ASO read of public store pages)';
 
 export const ASO_DEFAULT_TIMEOUT_MS = 10_000;
 

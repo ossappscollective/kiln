@@ -213,7 +213,7 @@ export function recoverySummary(recovery: RecoveryStatus | undefined): string {
 export function recoveryCodesText(codes: readonly string[], generatedAt: number): string {
   const day = new Date(generatedAt).toISOString().slice(0, 10);
   return [
-    'Mobile Release Manager recovery codes',
+    'Kiln recovery codes',
     `Made ${day}`,
     '',
     ...codes,

@@ -66,7 +66,7 @@ test('a search is one GET to the fixed host with the documented parameters, no c
   const headers = new Headers(seen[0]?.init?.headers);
   assert.equal(headers.get('authorization'), null);
   assert.equal(headers.get('cookie'), null);
-  assert.match(headers.get('user-agent') ?? '', /mobile-release-manager/);
+  assert.match(headers.get('user-agent') ?? '', /kiln/);
   assert.ok(seen[0]?.init?.signal, 'a timeout is set');
   assert.deepEqual(result.ids, [
     '1500000002',

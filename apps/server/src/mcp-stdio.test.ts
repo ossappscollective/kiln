@@ -114,7 +114,7 @@ dbTest(
     });
     const parsed = out.map((l) => JSON.parse(l));
     assert.equal(parsed.length, 3);
-    assert.equal(parsed[0].result.serverInfo.name, 'mobile-release-manager');
+    assert.equal(parsed[0].result.serverInfo.name, 'kiln');
     assert.ok(parsed[1].result.tools.some((x: { name: string }) => x.name === 'list_apps'));
     assert.deepEqual(JSON.parse(parsed[2].result.content[0].text).data, { apps: [] });
   },

@@ -117,7 +117,7 @@ export class StoreHttp {
     this.store = options.store;
     this.#fetch = options.fetch ?? globalThis.fetch;
     this.#timeoutMs = options.timeoutMs ?? 30_000;
-    this.#userAgent = options.userAgent ?? 'mobile-release-manager';
+    this.#userAgent = options.userAgent ?? 'kiln';
     this.now = options.now ?? Date.now;
     this.#retries = options.maxRateLimitRetries ?? 2;
     this.#maxWait = options.maxRetryWaitSeconds ?? 10;

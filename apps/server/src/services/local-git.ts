@@ -766,7 +766,7 @@ export function checkNewBranchName(
 export type CommitIdentity = { name: string; email: string };
 
 const IDENTITY_FALLBACK: CommitIdentity = {
-  name: 'Mobile Release Manager',
+  name: 'Kiln',
   email: 'noreply@localhost',
 };
 

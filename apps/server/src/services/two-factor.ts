@@ -87,7 +87,7 @@ export async function beginTotp(
   return {
     secret: base32Encode(secret),
     uri: otpauthUri({
-      issuer: input.issuer ?? 'Mobile Release Manager',
+      issuer: input.issuer ?? 'Kiln',
       account: input.account,
       secret,
     }),
@@ -286,14 +286,14 @@ ${mailFooter('This is an automatic message about your account. Please do not rep
     `${code} is your code to ${what}`,
   );
   return {
-    subject: `${code} is your Mobile Release Manager code`,
+    subject: `${code} is your Kiln code`,
     text: [
       `Your code to ${what} is ${code}.`,
       '',
       `${warning}`,
       ignore,
       '',
-      'Mobile Release Manager',
+      'Kiln',
     ].join('\n'),
     html,
   };

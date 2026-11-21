@@ -63,7 +63,7 @@
     {:else if link}
       {#if unreachable}
         <Alert tone="warn" title="A phone cannot open this address">
-          This page is open at <code>{location.host}</code>, which only this computer can reach. Open Mobile Release Manager at the computer's network address or a public address, then make the code again.
+          This page is open at <code>{location.host}</code>, which only this computer can reach. Open Kiln at the computer's network address or a public address, then make the code again.
         </Alert>
       {/if}
       {#if code}

@@ -359,7 +359,7 @@ function easGuide(b: EasBuildView): Guide {
         'A simulator build runs in the iOS Simulator on a Mac, not on a phone.',
         'Open the build on Expo to download it, then drag it onto a running simulator.',
       ],
-      caution: 'Mobile Release Manager does not download EAS builds; Expo does.',
+      caution: 'Kiln does not download EAS builds; Expo does.',
       downloads: false,
       qr: false,
       link,
@@ -374,7 +374,7 @@ function easGuide(b: EasBuildView): Guide {
           ? 'On Android the link installs the build (the phone asks to allow installing from this source, once).'
           : 'On iOS an internal build only runs on devices that are in its provisioning profile (registered by UDID, or an enterprise profile).',
       ],
-      caution: 'Mobile Release Manager does not download EAS builds and holds no install link of its own; Expo does.',
+      caution: 'Kiln does not download EAS builds and holds no install link of its own; Expo does.',
       downloads: false,
       qr: false,
       link,
@@ -574,7 +574,7 @@ export type TestFlightView =
     };
 
 export const TESTFLIGHT_NONE_TEXT =
-  'No TestFlight group has a public link. Mobile Release Manager only reads TestFlight and never creates or turns on a group or a link: set one up in App Store Connect (TestFlight, a group, Enable Public Link).';
+  'No TestFlight group has a public link. Kiln only reads TestFlight and never creates or turns on a group or a link: set one up in App Store Connect (TestFlight, a group, Enable Public Link).';
 
 /** The one line for a failed TestFlight read, in the fixed vocabulary of the server (never Apple's text). */
 const flightProblemText = (reason: TestFlightProblemReason): string => {

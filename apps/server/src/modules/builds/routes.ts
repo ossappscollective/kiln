@@ -133,7 +133,7 @@ export function publicBuildsRoutes(ctx: BuildsContext) {
       return c.json(
         {
           error: read.reason === 'expired' ? 'link_expired' : 'link_used',
-          message: 'Ask for a new link in Mobile Release Manager.',
+          message: 'Ask for a new link in Kiln.',
         },
         410,
       );
@@ -141,7 +141,7 @@ export function publicBuildsRoutes(ctx: BuildsContext) {
     const { payload } = read;
     if (!reserveLink(ctx, payload))
       return c.json(
-        { error: 'link_used', message: 'Ask for a new link in Mobile Release Manager.' },
+        { error: 'link_used', message: 'Ask for a new link in Kiln.' },
         410,
       );
     if (!(await linkStillAllowed(ctx, payload))) {

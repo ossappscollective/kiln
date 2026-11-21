@@ -149,7 +149,7 @@ export async function fetchRatingSummary(
   try {
     response = await doFetch(url, {
       method: 'GET',
-      headers: { accept: 'application/json', 'user-agent': 'mobile-release-manager' },
+      headers: { accept: 'application/json', 'user-agent': 'kiln' },
       redirect: 'error',
       signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });

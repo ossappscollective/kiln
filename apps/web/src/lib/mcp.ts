@@ -112,8 +112,8 @@ export type Snippet = {
 };
 
 export const TOKEN_PLACEHOLDER = '<your API token>';
-const SERVER_NAME = 'mobile-release-manager';
-const BRIDGE = '/path/to/mobile-release-manager/apps/server/src/mcp/stdio.ts';
+const SERVER_NAME = 'kiln';
+const BRIDGE = '/path/to/kiln/apps/server/src/mcp/stdio.ts';
 
 /** The address the assistants use for the HTTP transport. */
 export const mcpUrl = (origin: string, endpoint = '/mcp'): string =>

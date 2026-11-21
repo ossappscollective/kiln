@@ -1,4 +1,4 @@
-# ADR 0023: Mobile Release Manager as an MCP server
+# ADR 0023: Kiln as an MCP server
 
 Status: implemented and tested against a fake MCP client. **Never run against a real client** (Claude, Cursor): see
 [mcp](../mcp.md#unverified).

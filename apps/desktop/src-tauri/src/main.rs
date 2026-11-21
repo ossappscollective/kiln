@@ -271,7 +271,7 @@ fn main() {
                     .map_err(|e| e.to_string())
                     .and_then(|url| {
                         WebviewWindowBuilder::new(&handle, "main", WebviewUrl::External(url))
-                            .title("Mobile Release Manager")
+                            .title("Kiln")
                             .inner_size(1280.0, 800.0)
                             .build()
                             .map(|_| ())
@@ -285,7 +285,7 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building Mobile Release Manager");
+        .expect("error while building Kiln");
 
     app.run(|handle, event| {
         if let RunEvent::Exit = event {

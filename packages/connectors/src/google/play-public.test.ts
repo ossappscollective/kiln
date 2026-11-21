@@ -93,7 +93,7 @@ test('a search is one GET to the fixed host: no cookie, no login, redirects not 
   const headers = new Headers(seen[0]?.init?.headers);
   assert.equal(headers.get('cookie'), null);
   assert.equal(headers.get('authorization'), null);
-  assert.match(headers.get('user-agent') ?? '', /mobile-release-manager/);
+  assert.match(headers.get('user-agent') ?? '', /kiln/);
   assert.ok(seen[0]?.init?.signal);
 });
 

@@ -235,7 +235,7 @@ export function fixupMessageFor(
     `Changed files (${changes.length}):`,
     ...shown,
     '',
-    `Change set ${id}, fixed up in Mobile Release Manager.`,
+    `Change set ${id}, fixed up in Kiln.`,
   ].join('\n');
 }
 

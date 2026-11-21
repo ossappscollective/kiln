@@ -627,7 +627,7 @@ export function pullRequestBody(id: string, summary: string, files: FileChange[]
     `Changed files (${files.length}):`,
     ...shown,
     '',
-    `Change set ${id}, approved in Mobile Release Manager. Review the files before merging.`,
+    `Change set ${id}, approved in Kiln. Review the files before merging.`,
   ].join('\n');
 }
 

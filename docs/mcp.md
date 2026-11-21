@@ -1,6 +1,6 @@
 # Connect an AI assistant (MCP)
 
-Mobile Release Manager can act as an [MCP](https://modelcontextprotocol.io) server, so Claude, Cursor and other assistants can read a workspace:
+Kiln can act as an [MCP](https://modelcontextprotocol.io) server, so Claude, Cursor and other assistants can read a workspace:
 which apps are blocked, what the new reviews say, how keywords and downloads moved. Design and rules: [ADR 0023](adr/0023-mcp-server.md). Wire
 details: [api/mcp](api/mcp.md).
 
@@ -21,13 +21,13 @@ newer; use the real path of this repository).
 Claude Code, HTTP:
 
 ```sh
-claude mcp add --transport http mobile-release-manager https://mrm.example.com/mcp --header 'Authorization: Bearer mrm_...'
+claude mcp add --transport http kiln https://mrm.example.com/mcp --header 'Authorization: Bearer mrm_...'
 ```
 
 Claude Code, stdio:
 
 ```sh
-claude mcp add mobile-release-manager --env MRM_URL=https://mrm.example.com --env MRM_TOKEN=mrm_... -- node /path/to/mobile-release-manager/apps/server/src/mcp/stdio.ts
+claude mcp add kiln --env MRM_URL=https://mrm.example.com --env MRM_TOKEN=mrm_... -- node /path/to/kiln/apps/server/src/mcp/stdio.ts
 ```
 
 Claude Desktop, `claude_desktop_config.json` (stdio):
@@ -35,9 +35,9 @@ Claude Desktop, `claude_desktop_config.json` (stdio):
 ```json
 {
   "mcpServers": {
-    "mobile-release-manager": {
+    "kiln": {
       "command": "node",
-      "args": ["/path/to/mobile-release-manager/apps/server/src/mcp/stdio.ts"],
+      "args": ["/path/to/kiln/apps/server/src/mcp/stdio.ts"],
       "env": { "MRM_URL": "https://mrm.example.com", "MRM_TOKEN": "mrm_..." }
     }
   }
@@ -49,7 +49,7 @@ Cursor, `~/.cursor/mcp.json` (HTTP; the stdio form is the same as Claude Desktop
 ```json
 {
   "mcpServers": {
-    "mobile-release-manager": {
+    "kiln": {
       "url": "https://mrm.example.com/mcp",
       "headers": { "Authorization": "Bearer mrm_..." }
     }

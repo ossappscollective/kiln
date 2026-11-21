@@ -205,7 +205,7 @@ export function loginTwoFactorRoutes(ctx: LoginTwoFactorContext) {
       {
         secret: started.secret,
         uri: started.uri,
-        issuer: 'Mobile Release Manager',
+        issuer: 'Kiln',
         account: opened.user.email,
       },
       201,

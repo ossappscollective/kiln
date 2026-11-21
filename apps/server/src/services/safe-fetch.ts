@@ -55,7 +55,7 @@ export type SafeGetOptions = {
   timeoutMs?: number | undefined;
   maxRedirects?: number | undefined;
   accept?: string | undefined;
-  /** The User-Agent to send. Default `mobile-release-manager`. */
+  /** The User-Agent to send. Default `kiln`. */
   userAgent?: string | undefined;
   /** Development only (MRM_WEBHOOKS_ALLOW_PRIVATE): accept loopback and private addresses. */
   allowPrivate?: boolean | undefined;
@@ -216,7 +216,7 @@ export async function safeGet(rawUrl: string, options: SafeGetOptions): Promise<
           headers: {
             accept: options.accept ?? '*/*',
             'accept-encoding': 'identity',
-            'user-agent': options.userAgent ?? 'mobile-release-manager',
+            'user-agent': options.userAgent ?? 'kiln',
           },
           maxBytes: options.maxBytes,
           signal: controller.signal,

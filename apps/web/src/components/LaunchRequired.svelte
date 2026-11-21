@@ -11,7 +11,7 @@
 >
   <div class="stack">
     <p>
-      Start Mobile Release Manager from its desktop app. The app opens this page with a one-time
+      Start Kiln from its desktop app. The app opens this page with a one-time
       key that signs you in. A browser tab or a bookmark cannot do that.
     </p>
     <p class="quiet">If you just closed the window, quit the desktop app and start it again.</p>

@@ -1,7 +1,7 @@
 [package]
 name = "mrm-desktop"
 version = "0.0.0"
-description = "Tauri shell for Mobile Release Manager"
+description = "Tauri shell for Kiln"
 edition = "2021"
 license = "Apache-2.0"
 

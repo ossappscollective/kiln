@@ -177,7 +177,7 @@ export function mailRoutes(ctx: MailRoutesContext) {
     tests.set(user.id, recent);
     const sent = await mailer.send({
       to,
-      subject: 'Test message from Mobile Release Manager',
+      subject: 'Test message from Kiln',
       text: 'This is a test message. If you can read it, this server can send email.\n\nNo action is needed.',
       html: testMessageHtml(),
     });

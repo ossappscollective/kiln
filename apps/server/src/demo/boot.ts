@@ -64,7 +64,7 @@ async function prepareDir(config: DemoConfig) {
   if (!existsSync(marker))
     await writeFile(
       marker,
-      `${JSON.stringify({ kind: 'mobile-release-manager demo data', note: 'Safe to delete. Made by MRM_DEMO.' })}\n`,
+      `${JSON.stringify({ kind: 'kiln demo data', note: 'Safe to delete. Made by MRM_DEMO.' })}\n`,
     );
 }
 

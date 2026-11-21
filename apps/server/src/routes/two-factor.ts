@@ -191,7 +191,7 @@ export function twoFactorRoutes(ctx: TwoFactorRoutesContext) {
       {
         secret: started.secret,
         uri: started.uri,
-        issuer: 'Mobile Release Manager',
+        issuer: 'Kiln',
         account: accountLabel(c),
       },
       201,

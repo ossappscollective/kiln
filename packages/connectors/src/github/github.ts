@@ -183,7 +183,7 @@ export class GithubRepoConnector implements RepoConnector {
     this.#base = (options.apiBase ?? 'https://api.github.com').replace(/\/+$/, '');
     this.#now = options.now ?? Date.now;
     this.#timeoutMs = options.timeoutMs ?? 30_000;
-    this.#userAgent = options.userAgent ?? 'mobile-release-manager';
+    this.#userAgent = options.userAgent ?? 'kiln';
     this.#maxFileBytes = options.maxFileBytes ?? 10 * 1024 * 1024;
     this.#blocked = options.blockedPathPrefixes ?? ['.github/'];
     this.#runDetails = options.dispatchRunDetails ?? true;
@@ -1106,7 +1106,7 @@ export class GithubRepoConnector implements RepoConnector {
       changeSet.summary.trim(),
       `Changed files (${changes.length}):`,
       [...shown, ...more].join('\n'),
-      `Opened by Mobile Release Manager from change set \`${changeSet.id}\`.`,
+      `Opened by Kiln from change set \`${changeSet.id}\`.`,
     ]
       .filter(Boolean)
       .join('\n\n');

@@ -296,7 +296,7 @@ function previewOutcome(ctx: ToolContext, tool: ToolDef, json: Json, args: Json)
     confirmHash: confirmHashOf(json),
     confirmInApp: {
       url,
-      how: 'Open the link in the Mobile Release Manager web app, review this preview and confirm there with your passkey or password. An API token, and so this assistant, cannot confirm or apply it.',
+      how: 'Open the link in the Kiln web app, review this preview and confirm there with your passkey or password. An API token, and so this assistant, cannot confirm or apply it.',
     },
     previewNotice: 'This was a preview. Nothing was changed. There is no tool that applies it.',
   });

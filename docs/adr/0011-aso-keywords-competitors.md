@@ -71,7 +71,7 @@ How it is kept as unobtrusive as it can be:
 
 - **Public pages only.** Two kinds of GET (`/store/search`, `/store/apps/details`), no login, no cookie, no API key, no
   JavaScript, no form posts. A redirect (such as a consent page) is not followed: it is "unavailable".
-- **An identifying User-Agent** (`mobile-release-manager (self-hosted ASO read of public store pages)`), not a browser's.
+- **An identifying User-Agent** (`kiln (self-hosted ASO read of public store pages)`), not a browser's.
 - **Conservative rate** (default 4 calls a minute per process, at most 20), a cache (default an hour), a per workspace limit on manual
   refreshes, a cap on checks per run, and a **cool-down** after any `429`/`403` (the `Retry-After` is honoured when it is a number of seconds; otherwise 60 s).
   A page that asks for a robot check is "unavailable/blocked" and stops the run.

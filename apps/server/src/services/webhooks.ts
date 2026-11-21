@@ -507,7 +507,7 @@ export async function sendTestEvent(
       type: 'webhook.test',
       workspaceId: input.workspaceId,
       subject: {},
-      payload: { message: 'This is a test event from Mobile Release Manager.' },
+      payload: { message: 'This is a test event from Kiln.' },
       createdAt: at,
     });
     const deliveryId = await queueDelivery(tx, {
@@ -634,7 +634,7 @@ export function createWebhookHandler(ctx: WebhookContext): JobHandler {
       body,
       {
         'content-type': 'application/json',
-        'user-agent': 'MobileReleaseManager-Webhooks/1',
+        'user-agent': 'Kiln-Webhooks/1',
         'x-mrm-event': String(row.event_type),
         'x-mrm-delivery': deliveryId,
         'x-mrm-timestamp': String(timestamp),

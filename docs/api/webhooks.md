@@ -12,7 +12,7 @@ member without the right gets 403. Errors are `{ "error": "<code>", "message"?: 
 ```
 POST /hooks/mrm HTTP/1.1
 Content-Type: application/json
-User-Agent: MobileReleaseManager-Webhooks/1
+User-Agent: Kiln-Webhooks/1
 X-MRM-Event: changeset.applied
 X-MRM-Delivery: 7f0c5d0e-...
 X-MRM-Timestamp: 1766000000

@@ -103,7 +103,7 @@ export function commitMessageFor(
     `Changed files (${files.length}):`,
     ...shown,
     '',
-    `Change set ${id}, approved in Mobile Release Manager.`,
+    `Change set ${id}, approved in Kiln.`,
   ].join('\n');
 }
 

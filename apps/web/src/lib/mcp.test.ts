@@ -108,15 +108,15 @@ test('snippets: a placeholder without a token, the token when there is one, vali
   const cursor = JSON.parse(
     (real.find((s) => s.title === 'Cursor (HTTP)') as { text: string }).text,
   );
-  assert.equal(cursor.mcpServers['mobile-release-manager'].url, 'https://mrm.example.com/mcp');
+  assert.equal(cursor.mcpServers['kiln'].url, 'https://mrm.example.com/mcp');
   assert.equal(
-    cursor.mcpServers['mobile-release-manager'].headers.Authorization,
+    cursor.mcpServers['kiln'].headers.Authorization,
     "Bearer mrm_abc'def",
   );
   const desktop = JSON.parse(
     (real.find((s) => s.client === 'claude-desktop') as { text: string }).text,
   );
-  assert.equal(desktop.mcpServers['mobile-release-manager'].env.MRM_URL, 'https://mrm.example.com');
+  assert.equal(desktop.mcpServers['kiln'].env.MRM_URL, 'https://mrm.example.com');
   assert.ok(
     (real[0] as { text: string }).text.includes(`'Authorization: Bearer mrm_abc'\\''def'`),
     'a quote in the token cannot break out of the shell string',

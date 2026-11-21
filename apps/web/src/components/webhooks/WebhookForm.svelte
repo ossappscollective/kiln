@@ -78,7 +78,7 @@
     <div>
       <h3>{endpoint ? 'Edit webhook' : 'New webhook'}</h3>
       <p>
-        Mobile Release Manager sends a signed POST with a JSON body to this address when something
+        Kiln sends a signed POST with a JSON body to this address when something
         happens. Use an https address on the public internet.
       </p>
     </div>

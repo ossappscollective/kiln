@@ -80,7 +80,7 @@ export async function handleMessage(
             resources: { subscribe: false, listChanged: false },
             prompts: { listChanged: false },
           },
-          serverInfo: { name: SERVER_NAME, title: 'Mobile Release Manager', version: ctx.version },
+          serverInfo: { name: SERVER_NAME, title: 'Kiln', version: ctx.version },
           instructions: SERVER_INSTRUCTIONS,
         });
       }

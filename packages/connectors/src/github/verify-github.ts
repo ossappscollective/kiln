@@ -49,7 +49,7 @@ class Client {
     this.#fetch = options.fetch ?? globalThis.fetch;
     this.#base = (options.apiBase ?? 'https://api.github.com').replace(/\/+$/, '');
     this.#timeoutMs = options.timeoutMs ?? 10_000;
-    this.#userAgent = options.userAgent ?? 'mobile-release-manager';
+    this.#userAgent = options.userAgent ?? 'kiln';
     this.#now = options.now ?? Date.now;
     for (const value of known) this.known.add(value);
   }

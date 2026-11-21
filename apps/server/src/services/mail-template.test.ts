@@ -23,7 +23,7 @@ test('a button without a link says where to go; one with a link escapes it', () 
 test('the sign-in code email shows the code big in the HTML and keeps the plain text', () => {
   for (const purpose of ['login', 'verify_email', 'step_up'] as const) {
     const mail = codeMessage(purpose, '042917');
-    assert.equal(mail.subject, '042917 is your Mobile Release Manager code');
+    assert.equal(mail.subject, '042917 is your Kiln code');
     assert.match(mail.text, /Your code to .* is 042917\./);
     assert.match(mail.html, />042917</);
     assert.match(mail.html, /expires in \d+ minutes/);

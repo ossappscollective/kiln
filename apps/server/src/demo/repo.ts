@@ -188,7 +188,7 @@ export class DemoRepo extends BlobRepo {
     f('.github/workflows/build-android.yml', BUILD_ANDROID_YML);
     f(
       'README.md',
-      '# Demo Studio apps\n\nA made-up monorepo for the mobile-release-manager demo.\n',
+      '# Demo Studio apps\n\nA made-up monorepo for the kiln demo.\n',
     );
     for (const app of DEMO_APPS) this.#populateApp(app, f, b);
     for (const w of WORKFLOWS) this.ci.files.set(w.path, this.files.get(w.path) as string);

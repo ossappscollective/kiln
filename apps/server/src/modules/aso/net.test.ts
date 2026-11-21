@@ -49,14 +49,14 @@ test('the fetch goes to two hosts only, with the identifying User-Agent, and to 
   const s = scripted([reply({ body: body('{"resultCount":0,"results":[]}') })]);
   const doFetch = createAsoFetch({ resolve: publicResolve, exchange: s.exchange });
   const res = await doFetch('https://itunes.apple.com/search?term=a', {
-    headers: { 'User-Agent': 'mobile-release-manager (test)', Accept: 'application/json' },
+    headers: { 'User-Agent': 'kiln (test)', Accept: 'application/json' },
   });
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { resultCount: 0, results: [] });
   assert.equal(s.seen[0]?.address, '93.184.216.34');
   assert.equal(
     s.seen[0]?.headers['User-Agent'] ?? s.seen[0]?.headers['user-agent'],
-    'mobile-release-manager (test)',
+    'kiln (test)',
   );
   const sent = JSON.stringify(s.seen[0]?.headers).toLowerCase();
   assert.equal(sent.includes('cookie'), false);

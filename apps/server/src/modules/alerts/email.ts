@@ -209,7 +209,7 @@ export function renderAlertEmail(
     const href = linkTo(a);
     textLines.push(
       '',
-      href ? `${a.label}: ${href}` : `${a.label}: open Mobile Release Manager, ${a.where}.`,
+      href ? `${a.label}: ${href}` : `${a.label}: open Kiln, ${a.where}.`,
     );
   }
   const settingsHref = linkTo(alertsSettings);
@@ -219,7 +219,7 @@ export function renderAlertEmail(
     `Alert type: ${def.id}. Severity: ${severity}.`,
     settingsHref
       ? `You get this email because of your alert settings. ${alertsSettings.label}: ${settingsHref}`
-      : 'You get this email because of your alert settings in Mobile Release Manager. Change them in Alerts.',
+      : 'You get this email because of your alert settings in Kiln. Change them in Alerts.',
   );
 
   const secondary = (guide.secondary ?? [])
@@ -268,7 +268,7 @@ export function renderDigestEmail(
       return `- [${i.severity}] ${i.title}${i.count > 1 ? ` (${i.count} times)` : ''}${href ? `\n  ${i.action?.label}: ${href}` : ''}`;
     }),
     '',
-    'You get this digest because of your alert settings in Mobile Release Manager. Change them in Alerts.',
+    'You get this digest because of your alert settings in Kiln. Change them in Alerts.',
   ].join('\n');
   const rows = items
     .map((i) => {
