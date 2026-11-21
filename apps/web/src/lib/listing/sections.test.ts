@@ -413,7 +413,7 @@ test('scheduleView: unknown, off, on, and backing off after failures', () => {
   const offView = scheduleView(off, NOW);
   assert.equal(offView.state, 'off');
   assert.equal(offView.headline, 'Scheduled reads are off');
-  assert.match(offView.detail, /MRM_LISTING_INTERVAL_MINUTES/);
+  assert.match(offView.detail, /KILN_LISTING_INTERVAL_MINUTES/);
   assert.match(offView.detail, /synced or refreshed/);
 
   const on: ListingSchedule = {

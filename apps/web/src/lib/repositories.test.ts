@@ -782,15 +782,15 @@ test('the read summary says which commit and branch are read and what is left ou
 test('the disabled notice names the setting and its value, or says why else', () => {
   const off = localDisabledNotice({
     enabled: false,
-    envName: 'MRM_LOCAL_REPO_ROOTS',
+    envName: 'KILN_LOCAL_REPO_ROOTS',
     reason: 'no_roots',
   });
   assert.equal(off.title, 'Local clones are not enabled');
-  assert.match(off.body, /MRM_LOCAL_REPO_ROOTS=\/Volumes\/dev/);
-  assert.equal(off.envName, 'MRM_LOCAL_REPO_ROOTS');
+  assert.match(off.body, /KILN_LOCAL_REPO_ROOTS=\/Volumes\/dev/);
+  assert.equal(off.envName, 'KILN_LOCAL_REPO_ROOTS');
   assert.match(
     localDisabledNotice({ enabled: false, envName: 'X', reason: 'reads_api' }).title,
-    /MRM_READS=api/,
+    /KILN_READS=api/,
   );
   assert.match(
     localDisabledNotice({
@@ -917,8 +917,8 @@ test('the local clone error codes read as the server’s own message', () => {
     'Not inside an allowed folder.',
   );
   assert.equal(
-    m('local_not_enabled', 'Set MRM_LOCAL_REPO_ROOTS=/Volumes/dev'),
-    'Set MRM_LOCAL_REPO_ROOTS=/Volumes/dev',
+    m('local_not_enabled', 'Set KILN_LOCAL_REPO_ROOTS=/Volumes/dev'),
+    'Set KILN_LOCAL_REPO_ROOTS=/Volumes/dev',
   );
   assert.match(
     messageFor(409, { error: 'local_only', message: 'Applying is not available yet.' }),

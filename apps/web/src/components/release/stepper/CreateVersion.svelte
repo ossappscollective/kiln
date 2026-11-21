@@ -6,7 +6,7 @@
   a click previews (a store read), then creates once with the preview's hash, inside `confirmed(...)` so a workspace that
   covers the action with a step-up asks for the person's confirmation. Never retried by this app.
   Drawn for admin and up (`store.push_draft`); otherwise, and while the server's draft-write switch is off, the old sentence
-  stays, and the switch case names MRM_STORE_DRAFT_WRITE_ENABLED. docs/api/store-version.md, docs/adr/0031-create-app-store-version.md.
+  stays, and the switch case names KILN_STORE_DRAFT_WRITE_ENABLED. docs/api/store-version.md, docs/adr/0031-create-app-store-version.md.
   Props: api, workspaceId, role, app ({ id, platform }), onread (read the stepper's store state again after a create).
 -->
 <script lang="ts">

@@ -24,7 +24,7 @@ For Google Play there is no separate submit. A commit **without** `changesNotSen
    the older completed release when the proposal is completed), and commit **without** the hold-back. Google then reviews it and
    publishes after the review. A draft with these codes that already exists is released as it is (today's behaviour), with a warning.
    A release that already holds the codes, or codes Google does not list, **block**.
-2. **Gates unchanged, none weakened.** `MRM_STORE_RELEASE_ENABLED` (default off), `store.release` (admin and up, explicit-only on
+2. **Gates unchanged, none weakened.** `KILN_STORE_RELEASE_ENABLED` (default off), `store.release` (admin and up, explicit-only on
    tokens), preview with `confirmHash` and the typed phrase `release <identifier> <track> <percent>%`, a re-read right before the write
    and refusal on drift (`state_changed`), one write in flight per app (the release claim), never retried, a lost answer is read back,
    audit `store.released` with ids and counts only (`direct`, `created`; never a note) and the event `release.started`. The share is

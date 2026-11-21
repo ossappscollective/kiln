@@ -2,7 +2,7 @@
   ConnectForm: a dialog that connects a repository, in one of two ways. GitHub: pick a stored GitHub
   credential and enter owner/name; the server reads the repository with that credential before
   saving it. Local clone: a git folder on the server, attached to a connected repository or
-  connected as a local-only one (needs MRM_LOCAL_REPO_ROOTS on the server).
+  connected as a local-only one (needs KILN_LOCAL_REPO_ROOTS on the server).
   Props: api, workspaceId, open (bindable), onconnected (called with the saved GitHub repository),
   onlocal (called when a folder was attached or connected, with what happened).
 -->

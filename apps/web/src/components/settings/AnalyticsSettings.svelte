@@ -6,7 +6,7 @@
   - The Apple vendor number (`analytics.appleVendorNumber`, 5 to 12 digits): adds daily units and proceeds per currency.
   - The Play Console reports bucket (`analytics.playBucketId`): adds installs and ratings. Set for the whole workspace; a bucket
     per app has no route yet, so this screen does not offer one.
-  How often it syncs is the server's setting (MRM_ANALYTICS_INTERVAL_MINUTES), not a workspace setting; the Analytics section of an
+  How often it syncs is the server's setting (KILN_ANALYTICS_INTERVAL_MINUTES), not a workspace setting; the Analytics section of an
   app shows the interval in use.
   Props: form (bindable), editable, errors, writable (the keys the caller may write).
   Readable pass (docs/design/readability.md): 15px labels and hints (the global `.hint` is 12px), one sentence per hint; what it reads and
@@ -73,7 +73,7 @@
   <Disclosure summary="About the bucket and the sync">
     <p class="hint">
       The service account needs read access to the bucket. It is the default for every Android app; an app of another Play account sets its own under App
-      settings. How often it syncs is set by the server (MRM_ANALYTICS_INTERVAL_MINUTES, every 6 hours by default), not here.
+      settings. How often it syncs is set by the server (KILN_ANALYTICS_INTERVAL_MINUTES, every 6 hours by default), not here.
     </p>
   </Disclosure>
   </div>

@@ -39,7 +39,7 @@ import {
  * - READS of what a draft release is made of (processed builds, uploaded version codes, the draft's release fields). They look at
  *   the store with the credential of the app and change nothing, so they are not behind a switch (like the store images).
  * - The IRREVERSIBLE step: releasing an approved App Store version, or starting a Google Play draft release at an explicit share of
- *   users. OFF unless MRM_STORE_RELEASE_ENABLED=true, needing the `store.release` action (owner and admin; a token only when its
+ *   users. OFF unless KILN_STORE_RELEASE_ENABLED=true, needing the `store.release` action (owner and admin; a token only when its
  *   actions name it), a preview, its `confirmHash` and a typed phrase. One app per request: no bulk release.
  *
  * Mounted under /api/workspaces.
@@ -51,7 +51,7 @@ export type ReleaseRoutesContext = {
   /** Reads of the store (the connector the draft push uses; fakes in tests). */
   draft?: { connectorFactory?: DraftConnectorFactory; timeoutMs?: number };
   release?: {
-    /** MRM_STORE_RELEASE_ENABLED (default false). */
+    /** KILN_STORE_RELEASE_ENABLED (default false). */
     enabled?: boolean;
     /** Builds the connector that can read and release (fakes in tests). */
     connectorFactory?: ReleaseConnectorFactory;

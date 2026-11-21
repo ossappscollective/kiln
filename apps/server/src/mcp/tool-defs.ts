@@ -743,7 +743,7 @@ const readTools: ToolDef[] = [
       text: z.string().min(1).max(5_000).describe('The proposed reply.'),
     }),
     description:
-      'Save a SUGGESTED reply as a draft in the app. It is NOT sent: a person reviews it in the web app and sends it there. Needs the token to name reviews.triage and the server switch MRM_REVIEW_REPLY_ENABLED.',
+      'Save a SUGGESTED reply as a draft in the app. It is NOT sent: a person reviews it in the web app and sends it there. Needs the token to name reviews.triage and the server switch KILN_REVIEW_REPLY_ENABLED.',
     body: (a) => ({ text: a.text }),
     shape: (j) => ({
       draft: pick(j.draft ?? {}, [

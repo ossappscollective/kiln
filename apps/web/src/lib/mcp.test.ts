@@ -14,8 +14,8 @@ const status: McpStatus = {
   enabled: true,
   endpoint: '/mcp',
   protocolVersion: '2025-06-18',
-  envName: 'MRM_MCP_ENABLED',
-  switches: [{ env: 'MRM_STORE_RELEASE_ENABLED', enabled: false }],
+  envName: 'KILN_MCP_ENABLED',
+  switches: [{ env: 'KILN_STORE_RELEASE_ENABLED', enabled: false }],
   tools: [
     {
       name: 'list_apps',
@@ -32,7 +32,7 @@ const status: McpStatus = {
       description: 'd',
       kind: 'preview',
       action: 'store.release',
-      switch: 'MRM_STORE_RELEASE_ENABLED',
+      switch: 'KILN_STORE_RELEASE_ENABLED',
       switchOn: false,
     },
     {
@@ -57,7 +57,7 @@ test('the state says where to switch it on when it is off', () => {
   assert.equal(stateView(status).label, 'On');
   const off = stateView({ ...status, enabled: false });
   assert.equal(off.tone, 'warn');
-  assert.match(off.detail, /MRM_MCP_ENABLED=true/);
+  assert.match(off.detail, /KILN_MCP_ENABLED=true/);
   assert.match(off.detail, /404/);
 });
 
@@ -83,7 +83,7 @@ test('tools are grouped read, write, preview, and say what they need', () => {
   assert.equal(toolNeeds(status.tools[0] as McpStatus['tools'][number]), 'needs apps.read');
   assert.equal(
     toolNeeds(status.tools[1] as McpStatus['tools'][number]),
-    'token names store.release, MRM_STORE_RELEASE_ENABLED=true (off now)',
+    'token names store.release, KILN_STORE_RELEASE_ENABLED=true (off now)',
   );
 });
 
@@ -116,7 +116,7 @@ test('snippets: a placeholder without a token, the token when there is one, vali
   const desktop = JSON.parse(
     (real.find((s) => s.client === 'claude-desktop') as { text: string }).text,
   );
-  assert.equal(desktop.mcpServers['kiln'].env.MRM_URL, 'https://mrm.example.com');
+  assert.equal(desktop.mcpServers['kiln'].env.KILN_URL, 'https://mrm.example.com');
   assert.ok(
     (real[0] as { text: string }).text.includes(`'Authorization: Bearer mrm_abc'\\''def'`),
     'a quote in the token cannot break out of the shell string',

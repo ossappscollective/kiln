@@ -8,8 +8,8 @@ import { aiRoutes } from './routes.ts';
 import type { AiServices } from './service.ts';
 
 /**
- * AI provider settings (docs/api/ai.md). `enabled` is MRM_AI_ENABLED (default false: no provider is ever contacted),
- * `allowPrivateUrls` is MRM_AI_ALLOW_PRIVATE_URLS. `fetch` replaces the network for Anthropic and OpenAI, `resolve` and
+ * AI provider settings (docs/api/ai.md). `enabled` is KILN_AI_ENABLED (default false: no provider is ever contacted),
+ * `allowPrivateUrls` is KILN_AI_ALLOW_PRIVATE_URLS. `fetch` replaces the network for Anthropic and OpenAI, `resolve` and
  * `exchange` for an OpenAI compatible server, `clientFactory` hands in a whole client (tests use a fake). `limiter` is the
  * per workspace budget of runs a minute.
  */
@@ -40,7 +40,7 @@ export type AiDeps = {
 
 /**
  * AI assistance: suggestions for keywords, listing text and review replies, and translating the release notes. OFF unless
- * MRM_AI_ENABLED and the workspace turns it on. It only PROPOSES: accepting calls the keyword, staged text and reply draft
+ * KILN_AI_ENABLED and the workspace turns it on. It only PROPOSES: accepting calls the keyword, staged text and reply draft
  * services; nothing here can push, submit, publish, release or send. Mount it after the modules it hands proposals to.
  */
 export const aiModule: ServerModule<AiDeps> = {

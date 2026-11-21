@@ -11,7 +11,7 @@ import {
   recoverStale,
 } from './jobs.ts';
 
-// Every test runs once per database (SQLite, and Postgres when MRM_TEST_POSTGRES_URL is set).
+// Every test runs once per database (SQLite, and Postgres when KILN_TEST_POSTGRES_URL is set).
 
 dbTest('a queued job runs once and ends as done', async (db) => {
   await migrate(db);

@@ -14,7 +14,7 @@ connector ("nothing here creates a version"), so this needs its own decision.
 
 1. **A separate connector and service**, not a method on the draft connector. The draft interface still cannot create a
    version; `AppleVersionConnector` can create one and nothing else (no text, build, submission or release).
-2. **Gated like the draft push, with no new switch or right.** `MRM_STORE_DRAFT_WRITE_ENABLED` turns it on, `store.push_draft`
+2. **Gated like the draft push, with no new switch or right.** `KILN_STORE_DRAFT_WRITE_ENABLED` turns it on, `store.push_draft`
    is the right, and the step-up action is `store.push_draft`. A new version is a draft that App Store Connect lets a person delete
    in Prepare for Submission, so it belongs with the other reversible draft writes, not with submit or release.
 3. **Preview, then confirm with a hash; no typed phrase.** The hash covers the app, the request and the versions as read. The

@@ -6,8 +6,8 @@ hardening; they say what the defaults are.
 ## Network exposure and TLS
 
 - The server speaks **plain HTTP** on port 8787. It does not terminate TLS.
-- `docker-compose.yml` publishes 8787 on **127.0.0.1 by default** (`MRM_BIND`). Set
-  `MRM_BIND=0.0.0.0` to publish it on every interface. Doing so exposes plain HTTP to that
+- `docker-compose.yml` publishes 8787 on **127.0.0.1 by default** (`KILN_BIND`). Set
+  `KILN_BIND=0.0.0.0` to publish it on every interface. Doing so exposes plain HTTP to that
   network: sign-in passwords and session cookies would cross it unencrypted.
 - Put a **TLS-terminating reverse proxy** in front (Caddy, nginx, Traefik, a cloud load balancer)
   and send `X-Forwarded-Proto: https` with each request. The session cookie is marked `Secure`
@@ -21,7 +21,7 @@ hardening; they say what the defaults are.
 
 Sign-in is rate limited per email address and, more loosely, per client address. The client
 address is the socket address by default. Behind a reverse proxy every request would then come
-from the proxy, so set `MRM_TRUST_PROXY=1`: the address becomes the last `X-Forwarded-For` entry.
+from the proxy, so set `KILN_TRUST_PROXY=1`: the address becomes the last `X-Forwarded-For` entry.
 Only do that when exactly one proxy you control sits in front and appends the address it saw;
 otherwise anyone can pick their own address with a header. The limits are in memory and per
 process.
@@ -38,7 +38,7 @@ Referrer-Policy. The policy only allows the web UI's own scripts, styles, images
 ## Container
 
 The image runs as the unprivileged `node` user. The only writable path is `/data`
-(`MRM_DATA_DIR`). The image still contains the development dependencies that the web build needs.
+(`KILN_DATA_DIR`). The image still contains the development dependencies that the web build needs.
 
 ## Reading repositories: git and local clones
 
@@ -48,20 +48,20 @@ change set (branch, commit, pull request) and connecting a repository still use 
 
 | Variable                                      | Default                 | Meaning                                                                                                                                                               |
 | --------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MRM_READS`                                   | `auto`                  | `auto`: clone, and the GitHub API for a request when the clone cannot be used. `clone`: clone only, errors are shown. `api`: API only, git is never run.              |
-| `MRM_CLONE_DIR`                               | `<MRM_DATA_DIR>/clones` | Where clones live. Created with mode 0700 at start.                                                                                                                   |
-| `MRM_CLONE_TTL_SECONDS`                       | `60`                    | How long a fetched branch tip is reused. A scan always fetches.                                                                                                       |
-| `MRM_CLONE_MAX_BYTES`                         | `2g`                    | Disk budget for `MRM_CLONE_DIR`: `500m`, `2g`, `10 GiB` or plain bytes. When the folder is over it, the sweep removes the least recently used clones. `0` = no limit. |
-| `MRM_CLONE_IDLE_DAYS`                         | `30`                    | The sweep removes clones not used for this many days. `0` = never.                                                                                                    |
-| `MRM_CLONE_SWEEP_INTERVAL_MINUTES`            | `360`                   | How often the sweep runs (`0` = off, else 5 to 10080). Needs reads to use clones (`MRM_READS` other than `api`).                                                      |
-| `MRM_GIT_PATH`                                | `git`                   | The git program.                                                                                                                                                      |
-| `MRM_LOCAL_REPO_ROOTS`                        | unset (off)             | Folders that may hold local clones, absolute paths separated by `:` (`;` on Windows). See "Local clones" below.                                                       |
-| `MRM_LOCAL_REPO_WRITE`                        | `false`                 | `true` allows applying a change set as a commit on a new branch of a local clone, and pushing it. See "Writing to a local clone" below.                               |
-| `MRM_GIT_AUTHOR_NAME`, `MRM_GIT_AUTHOR_EMAIL` | unset                   | Author and committer of those commits; unset means the person who applied.                                                                                            |
-| `MRM_GIT_SIGN`                                | `off`                   | `ssh` or `gpg` signs those commits with the server's own key. See "Signing the commits" below.                                                                        |
+| `KILN_READS`                                   | `auto`                  | `auto`: clone, and the GitHub API for a request when the clone cannot be used. `clone`: clone only, errors are shown. `api`: API only, git is never run.              |
+| `KILN_CLONE_DIR`                               | `<KILN_DATA_DIR>/clones` | Where clones live. Created with mode 0700 at start.                                                                                                                   |
+| `KILN_CLONE_TTL_SECONDS`                       | `60`                    | How long a fetched branch tip is reused. A scan always fetches.                                                                                                       |
+| `KILN_CLONE_MAX_BYTES`                         | `2g`                    | Disk budget for `KILN_CLONE_DIR`: `500m`, `2g`, `10 GiB` or plain bytes. When the folder is over it, the sweep removes the least recently used clones. `0` = no limit. |
+| `KILN_CLONE_IDLE_DAYS`                         | `30`                    | The sweep removes clones not used for this many days. `0` = never.                                                                                                    |
+| `KILN_CLONE_SWEEP_INTERVAL_MINUTES`            | `360`                   | How often the sweep runs (`0` = off, else 5 to 10080). Needs reads to use clones (`KILN_READS` other than `api`).                                                      |
+| `KILN_GIT_PATH`                                | `git`                   | The git program.                                                                                                                                                      |
+| `KILN_LOCAL_REPO_ROOTS`                        | unset (off)             | Folders that may hold local clones, absolute paths separated by `:` (`;` on Windows). See "Local clones" below.                                                       |
+| `KILN_LOCAL_REPO_WRITE`                        | `false`                 | `true` allows applying a change set as a commit on a new branch of a local clone, and pushing it. See "Writing to a local clone" below.                               |
+| `KILN_GIT_AUTHOR_NAME`, `KILN_GIT_AUTHOR_EMAIL` | unset                   | Author and committer of those commits; unset means the person who applied.                                                                                            |
+| `KILN_GIT_SIGN`                                | `off`                   | `ssh` or `gpg` signs those commits with the server's own key. See "Signing the commits" below.                                                                        |
 
 - **git 2.34 or newer** must be on the server. The Docker image installs it (Debian 12 ships 2.39).
-  At start, unless `MRM_READS=api`, the server runs `git --version` once and logs one line. If git is
+  At start, unless `KILN_READS=api`, the server runs `git --version` once and logs one line. If git is
   missing, `auto` reads through the API (the log line says so) and `clone` fails every read with an
   error that names git.
 - **Fall back (`auto`).** When git is missing, a clone is not managed by us, or git fails in a way
@@ -74,8 +74,8 @@ change set (branch, commit, pull request) and connecting a repository still use 
   read (shallow and partial: for a 4,000 file repository measured at about 0.1 to 0.3 MiB). It is a
   cache. Disconnecting a repository deletes its clone; you can delete the folder at any time and it
   is made again on demand. Old objects stay until the clone is removed. A scheduled sweep (see the
-  three `MRM_CLONE_*` settings above) removes clones idle for `MRM_CLONE_IDLE_DAYS`, then the least
-  recently used until the folder fits `MRM_CLONE_MAX_BYTES`; it never removes a clone that is being
+  three `KILN_CLONE_*` settings above) removes clones idle for `KILN_CLONE_IDLE_DAYS`, then the least
+  recently used until the folder fits `KILN_CLONE_MAX_BYTES`; it never removes a clone that is being
   read, logs one line when it removed something, and an admin can free one clone from the repository
   page. The budget is checked at each sweep, so the folder can exceed it between sweeps.
 - **Docker.** `/data/clones` is under the `/data` volume and owned by the unprivileged `node` user.
@@ -85,7 +85,7 @@ change set (branch, commit, pull request) and connecting a repository still use 
   the server needs a proxy, `HTTPS_PROXY`, `NO_PROXY` and CA variables (`SSL_CERT_FILE`) are passed
   to git. GitHub Enterprise Server is not wired up.
 - **Not verified against real GitHub yet** (HTTPS fetch with a PAT or installation token, fetch by
-  commit id): keep `MRM_READS=api` if you need the proven path.
+  commit id): keep `KILN_READS=api` if you need the proven path.
 
 ## Local clones: read a folder on the server
 
@@ -100,24 +100,24 @@ A repository can be read from a git clone that already exists on the machine the
   request needs GitHub, so `github_pr` is refused with `409 local_only`. See
   [ADR 0005](adr/0005-local-clone-reads.md).
 
-The feature is **off unless `MRM_LOCAL_REPO_ROOTS` is set**, in every mode (hosted, and
+The feature is **off unless `KILN_LOCAL_REPO_ROOTS` is set**, in every mode (hosted, and
 `single_user` too):
 
-    MRM_LOCAL_REPO_ROOTS=/Volumes/dev                # one folder
-    MRM_LOCAL_REPO_ROOTS=/Volumes/dev:/Users/me/src  # several, separated by ':'
+    KILN_LOCAL_REPO_ROOTS=/Volumes/dev                # one folder
+    KILN_LOCAL_REPO_ROOTS=/Volumes/dev:/Users/me/src  # several, separated by ':'
 
 Each entry must be an absolute path with no `..` and no control characters, and `/` itself is
 refused. At most 20 entries. A bad value stops the server at start with a message naming the
 entry. With nothing set, the web app shows "Local clones are not enabled: set
-`MRM_LOCAL_REPO_ROOTS=/Volumes/dev`"; with it set, the Connect dialog lists the roots. It does
-nothing with `MRM_READS=api` (git is never run in that mode) and needs git on the server.
+`KILN_LOCAL_REPO_ROOTS=/Volumes/dev`"; with it set, the Connect dialog lists the roots. It does
+nothing with `KILN_READS=api` (git is never run in that mode) and needs git on the server.
 
 **What a folder must be, checked when it is attached and again before every read:**
 
 - Its real path (symbolic links resolved) is inside one of the roots, and it is a directory.
 - It has a `.git` directory with a `HEAD`, or a `.git` file (a worktree) whose git directory is also
   inside a root. A symlinked `.git` and a bare repository are refused.
-- It is not the server's own data or clone folder (`MRM_DATA_DIR`, `MRM_CLONE_DIR`) and holds no
+- It is not the server's own data or clone folder (`KILN_DATA_DIR`, `KILN_CLONE_DIR`) and holds no
   `mrm-clone.json`.
 - The person has the right `repositories.write` (admin or owner). Members and viewers can see which
   repository reads from a folder, but cannot check, attach, change or detach one.
@@ -132,7 +132,7 @@ runs with hooks, `fsmonitor`, external diff, credential helpers, askpass and `ss
 off on the command line, with `filter.*` drivers emptied for `status`, with global and system
 config ignored, an allowlisted environment, optional locks off (so `git status` does not write the
 index), lazy fetching and all network transports blocked, and a timeout. Reading goes through the
-same hardened reader as GitHub clones, over a managed copy in `MRM_CLONE_DIR`. The origin URL is
+same hardened reader as GitHub clones, over a managed copy in `KILN_CLONE_DIR`. The origin URL is
 shown as host, owner and name only; credentials in a URL are never returned or logged.
 
 **Ownership.** Newer git refuses a repository owned by another user ("dubious ownership"). The
@@ -153,24 +153,24 @@ followed by git). Do not put a root over a folder that other people can write to
 
 Applying an approved change set can also **commit it to a new branch of the local clone**, with an
 optional push of that branch to GitHub and an optional pull request. It is **off unless
-`MRM_LOCAL_REPO_WRITE=true`**, and it needs `MRM_LOCAL_REPO_ROOTS` to name the folder. Without it,
+`KILN_LOCAL_REPO_WRITE=true`**, and it needs `KILN_LOCAL_REPO_ROOTS` to name the folder. Without it,
 `POST /change-sets/:id/apply` with `mode: "local_branch"` answers `409 local_write_disabled`, the web
 app shows the option disabled with the reason, and nothing is written to any folder.
 
-    MRM_LOCAL_REPO_WRITE=true
-    MRM_GIT_AUTHOR_NAME="Release Bot"          # optional
-    MRM_GIT_AUTHOR_EMAIL=release-bot@example.com   # optional
+    KILN_LOCAL_REPO_WRITE=true
+    KILN_GIT_AUTHOR_NAME="Release Bot"          # optional
+    KILN_GIT_AUTHOR_EMAIL=release-bot@example.com   # optional
 
 | Variable                                      | Default | Meaning                                                                                                                                                                |
 | --------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MRM_LOCAL_REPO_WRITE`                        | `false` | `true` allows a commit on a new branch of a local clone, and its push. Anything other than `true` or `false` stops the server at start.                                |
-| `MRM_GIT_AUTHOR_NAME`, `MRM_GIT_AUTHOR_EMAIL` | unset   | Author and committer of those commits. Unset means the name and email of the person who applied. One line, no `<` or `>`; the email must look like `name@example.com`. |
+| `KILN_LOCAL_REPO_WRITE`                        | `false` | `true` allows a commit on a new branch of a local clone, and its push. Anything other than `true` or `false` stops the server at start.                                |
+| `KILN_GIT_AUTHOR_NAME`, `KILN_GIT_AUTHOR_EMAIL` | unset   | Author and committer of those commits. Unset means the name and email of the person who applied. One line, no `<` or `>`; the email must look like `name@example.com`. |
 
 What you are allowing:
 
 - **A new branch and one commit, nothing else.** The commit is made from git objects: the folder's
   checked out branch, working files, index and `HEAD` are never touched, no hook runs, the commit is
-  signed only if you turn on `MRM_GIT_SIGN` (below, whatever `commit.gpgsign` says) and no filter or
+  signed only if you turn on `KILN_GIT_SIGN` (below, whatever `commit.gpgsign` says) and no filter or
   line-ending conversion is applied. The branch must not exist (it is never moved or overwritten), and every file
   must still match what the change set was drafted from (otherwise `base_changed`, nothing written).
   Look at it later with `git switch <branch>`; delete it with `git branch -D <branch>`.
@@ -196,16 +196,16 @@ What you are allowing:
 ### Signing the commits
 
 Off by default: the commits are then unsigned, exactly as before. To have the server sign them, set
-`MRM_GIT_SIGN` and a key. The signing setup is **only** what you put in the server's environment; the
+`KILN_GIT_SIGN` and a key. The signing setup is **only** what you put in the server's environment; the
 clone's git config and the user's global config are ignored (a repository that sets `gpg.program` or
 `user.signingkey` changes nothing).
 
 | Variable                  | Meaning                                                                                                                                                                               |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MRM_GIT_SIGN`            | `off` (default), `ssh` or `gpg`.                                                                                                                                                      |
-| `MRM_GIT_SIGNING_KEY`     | `ssh`: absolute path of a private key file (mode `600`), or of the `.pub` of a key held by `ssh-agent`. `gpg`: the key id or fingerprint (hexadecimal; not a name or e-mail address). |
-| `MRM_GIT_SIGNING_PROGRAM` | Optional. Absolute path of `ssh-keygen` or `gpg`. Unset: found in `PATH` once at start and kept.                                                                                      |
-| `MRM_GIT_GNUPGHOME`       | `gpg` only, required: the keyring folder (usually `~/.gnupg` of the user who owns the key).                                                                                           |
+| `KILN_GIT_SIGN`            | `off` (default), `ssh` or `gpg`.                                                                                                                                                      |
+| `KILN_GIT_SIGNING_KEY`     | `ssh`: absolute path of a private key file (mode `600`), or of the `.pub` of a key held by `ssh-agent`. `gpg`: the key id or fingerprint (hexadecimal; not a name or e-mail address). |
+| `KILN_GIT_SIGNING_PROGRAM` | Optional. Absolute path of `ssh-keygen` or `gpg`. Unset: found in `PATH` once at start and kept.                                                                                      |
+| `KILN_GIT_GNUPGHOME`       | `gpg` only, required: the keyring folder (usually `~/.gnupg` of the user who owns the key).                                                                                           |
 
 A wrong value stops the server at start with a message that names the variable (never the key's
 path). The start-up log says `signing: ssh` (with the key's public fingerprint when it can be read
@@ -216,20 +216,20 @@ available for gpg on Windows.
 
 **Use a key meant for this.** Anyone who may apply change sets (admin, owner) can have the server
 sign a commit with it. Prefer a dedicated key (and a dedicated committer address in
-`MRM_GIT_AUTHOR_EMAIL`) over a person's everyday key. The server runs your signing program: it is the
+`KILN_GIT_AUTHOR_EMAIL`) over a person's everyday key. The server runs your signing program: it is the
 one you configured (or found in `PATH` at start), never one named by a repository.
 
 **ssh, with a key file.** The simplest setup, and the only one that does not depend on an agent:
 
     ssh-keygen -t ed25519 -N '' -C "mrm release bot" -f ~/.ssh/mrm_signing   # no passphrase
     chmod 600 ~/.ssh/mrm_signing
-    MRM_GIT_SIGN=ssh
-    MRM_GIT_SIGNING_KEY=/Users/you/.ssh/mrm_signing
+    KILN_GIT_SIGN=ssh
+    KILN_GIT_SIGNING_KEY=/Users/you/.ssh/mrm_signing
 
 The server cannot ask for a passphrase. A key file with a passphrase fails with `signing_failed`
 (`reason: locked`) unless an agent holds it unlocked, which is the next setup.
 
-**ssh, with a passphrase and `ssh-agent`.** Point `MRM_GIT_SIGNING_KEY` at the **`.pub`** file, load
+**ssh, with a passphrase and `ssh-agent`.** Point `KILN_GIT_SIGNING_KEY` at the **`.pub`** file, load
 the key into the agent (on macOS `ssh-add --apple-use-keychain ~/.ssh/mrm_signing`), and start the
 server from an environment that has the agent's `SSH_AUTH_SOCK` (it is passed on to `ssh-keygen`,
 for a `.pub` key only, and read once at start). From a terminal that is your normal shell; from
@@ -242,15 +242,15 @@ instead of opening a `pinentry` window.
 
     gpg --quick-generate-key "MRM Release Bot <release-bot@example.com>" ed25519 sign never
     gpg --list-secret-keys --keyid-format long      # copy the 40-character fingerprint
-    MRM_GIT_SIGN=gpg
-    MRM_GIT_SIGNING_KEY=<fingerprint>
-    MRM_GIT_GNUPGHOME=/Users/you/.gnupg
+    KILN_GIT_SIGN=gpg
+    KILN_GIT_SIGNING_KEY=<fingerprint>
+    KILN_GIT_GNUPGHOME=/Users/you/.gnupg
 
 On macOS, GnuPG usually comes from Homebrew (`/opt/homebrew/bin/gpg`); if `PATH` of the server does
-not include it, set `MRM_GIT_SIGNING_PROGRAM`.
+not include it, set `KILN_GIT_SIGNING_PROGRAM`.
 
 **Show "Verified" on GitHub.** Add the **public** key to the GitHub account whose verified e-mail
-address is the commit's committer address (`MRM_GIT_AUTHOR_EMAIL`, or the person who applied):
+address is the commit's committer address (`KILN_GIT_AUTHOR_EMAIL`, or the person who applied):
 Settings, SSH and GPG keys; for an ssh key choose the type "Signing Key" (an authentication key is
 not enough). The web app shows "Signed (ssh)" on the change set: that means the commit holds a
 signature, not that anything has verified it.
@@ -258,7 +258,7 @@ signature, not that anything has verified it.
 **Docker.** The image includes `openssh-client` (`ssh-keygen`) and `gnupg` for this. In
 `docker-compose.yml` the key must be mounted into
 the container (read-only, readable by the `node` user, mode `600`, for example
-`- ./secrets/mrm_signing:/run/secrets/mrm_signing:ro`) and `MRM_GIT_SIGNING_KEY` must name the path
+`- ./secrets/mrm_signing:/run/secrets/mrm_signing:ro`) and `KILN_GIT_SIGNING_KEY` must name the path
 **inside** the container; for an agent, mount its socket and set `SSH_AUTH_SOCK` for the service. A
 `gpg` setup needs the keyring folder mounted and writable enough for `gpg-agent`.
 
@@ -272,9 +272,9 @@ the first place to look; the program's own error text is deliberately not shown.
 
 The scheduler sends **plan reminders** as events (a plan's target date due soon or passed, a rollout
 step whose planned time passed): they reach the event stream and [webhooks](api/webhooks.md), **not
-email and not push**. `MRM_REMINDER_INTERVAL_MINUTES` sets how often it looks (default 15; `0` turns
+email and not push**. `KILN_REMINDER_INTERVAL_MINUTES` sets how often it looks (default 15; `0` turns
 reminders off; otherwise 5 to 10080). They run in the process that runs the background worker
-(`MRM_WORKER=inline`, the default); with `MRM_WORKER=off` nothing is sent from that process. Each
+(`KILN_WORKER=inline`, the default); with `KILN_WORKER=off` nothing is sent from that process. Each
 reminder is recorded in the table `plan_reminders` under a unique key in the same transaction as its
 event, so a restart or several server instances sharing one Postgres database send it once (the
 Postgres path was **not** run). The first run after an upgrade sends one overdue reminder for each
@@ -287,7 +287,7 @@ The same scheduler runs the **release watch**, again as events only (never email
 `release.stalled` when the release of an app has stood still for longer than the workspace setting
 `release.stalledAfterHours` (default 6; `0` turns it off for the workspace), and `review.unanswered`,
 a digest of reviews that wait for an answer (workspace setting `reviews.unansweredReminderHours`,
-default `0` = off). `MRM_RELEASE_WATCH_INTERVAL_MINUTES` sets how often it looks (default 15; `0`
+default `0` = off). `KILN_RELEASE_WATCH_INTERVAL_MINUTES` sets how often it looks (default 15; `0`
 turns the watch off; otherwise 5 to 10080). It reads only this server's own tables, so it calls neither
 GitHub nor a store. A stall is reminded once per episode and again only after
 `release.stalledRepeatHours` (default 24; `0` never repeats); the episode is kept in
@@ -302,12 +302,12 @@ first if you do not want that. See [events](api/events.md#release-watch) and
 
 The store listing of an app (texts, categories, age rating, privacy choices URL, screenshot and
 preview counts; see [listing](api/listing.md)) is read when the app is synced. To also read it on a
-schedule, set `MRM_LISTING_INTERVAL_MINUTES` (default `0`, off; otherwise 30 to 10080). The scheduler
+schedule, set `KILN_LISTING_INTERVAL_MINUTES` (default `0`, off; otherwise 30 to 10080). The scheduler
 only queues `app.listing` jobs, at most 3 per pass and 2 per workspace, 15 seconds apart plus a random
 delay, one per store credential at a time, never for an app that already has a sync or a listing read
 queued or running, and with a growing wait after failures (doubling, at most a day). It shares the
 per workspace store rate limit of the app sync and runs where the background worker runs
-(`MRM_WORKER=inline`). With several server instances on one database an app is still read once (the
+(`KILN_WORKER=inline`). With several server instances on one database an app is still read once (the
 job claims it with a compare-and-set on `app_listing_status.listing_attempt_at`).
 
 - **Request volume.** One read of a large listing is roughly 100 to 200 store requests (up to 30
@@ -323,10 +323,10 @@ job claims it with a compare-and-set on `app_listing_status.listing_attempt_at`)
 ## Customer reviews and data protection
 
 The reviews of an app are read from its store (read-only; replying is a separate, off by default feature, see below) by hand from the
-Reviews tab, and on a schedule when `MRM_REVIEW_SYNC_INTERVAL_MINUTES` is set (default `0`, off;
+Reviews tab, and on a schedule when `KILN_REVIEW_SYNC_INTERVAL_MINUTES` is set (default `0`, off;
 otherwise 15 to 10080). The scheduler only queues `review.sync` jobs, a few per run and spread out,
 and shares the per workspace rate limit of the app sync. It runs in the process that runs the
-background worker (`MRM_WORKER=inline`, the default).
+background worker (`KILN_WORKER=inline`, the default).
 
 - **Google Play returns only the last 7 days of reviews.** Set the interval to **360 (6 hours) or
   less** if you have Android apps. If nothing reads for more than 7 days, the reviews written in
@@ -337,7 +337,7 @@ background worker (`MRM_WORKER=inline`, the default).
 - **Personal data.** Review text and display names are written by people who are not users of this
   server. They are stored in the database (`app_reviews`) in plain text, shown only to workspace
   members with `reviews.read`, and are never put in events, webhooks, audit entries or URLs.
-  `MRM_REVIEW_RETENTION_DAYS` (default `365`; `0` keeps everything; at most `3650`) deletes older
+  `KILN_REVIEW_RETENTION_DAYS` (default `365`; `0` keeps everything; at most `3650`) deletes older
   reviews by the store's date, at most 1000 per run and once an hour. Deleting an app deletes its
   reviews. Decide a retention that fits your privacy policy, include the database in your backups
   accordingly, and note that a backup keeps deleted reviews until it expires.
@@ -347,7 +347,7 @@ background worker (`MRM_WORKER=inline`, the default).
 
 ### Replying to reviews (a store write, off by default)
 
-`MRM_REVIEW_REPLY_ENABLED` (default `false`) is the kill switch for answering reviews from this tool.
+`KILN_REVIEW_REPLY_ENABLED` (default `false`) is the kill switch for answering reviews from this tool.
 While it is `false`, every reply route answers `409 reply_disabled` and the Reviews screens say that
 this variable enables replying; reading, syncing and triaging are not affected. Set it to `true` only
 when you want people to publish replies **publicly in the App Store and Google Play, in your
@@ -367,7 +367,7 @@ See [adr/0007-review-replies](adr/0007-review-replies.md).
 
 ### Changing the texts of in-app products (a store write, off by default)
 
-`MRM_STORE_PRODUCT_WRITE_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill switch for changing the display
+`KILN_STORE_PRODUCT_WRITE_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill switch for changing the display
 name and description of an in-app purchase or subscription from this tool. While `false` the localization route answers
 `409 store_product_write_disabled`; listing, syncing and reading products are not affected. Only owners and admins can write
 (`monetization.write`; an API token only when its actions name it), an apply asks for the person's confirmation when the workspace's
@@ -377,7 +377,7 @@ document which key role or permission allows it. See [adr/0034-in-app-products](
 
 ### Changing a store rollout (a store write, off by default)
 
-`MRM_STORE_ROLLOUT_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill
+`KILN_STORE_ROLLOUT_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill
 switch for changing the staged rollout of Google Play and the phased release of the App Store from
 this tool. While `false`, the rollout state, preview and apply routes answer `409 rollout_disabled`;
 reading, syncing and planning are not affected. Set it to `true` only when you want people to change
@@ -395,7 +395,7 @@ See [adr/0008-store-rollout-writes](adr/0008-store-rollout-writes.md) and [api/r
 
 ### Raising an EAS Update rollout (an Expo write, off by default)
 
-`MRM_EAS_UPDATE_ROLLOUT_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill switch for raising the rollout
+`KILN_EAS_UPDATE_ROLLOUT_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill switch for raising the rollout
 percentage of an over-the-air update at Expo from this tool. While `false`, the preview and apply routes answer `409 eas_update_write_disabled`;
 reading channels, updates and insights is not affected and needs no switch. It changes what the clients of an app receive and cannot be
 lowered from here, so settle first: only owners and admins can do it (`releases.rollout`); the workspace's step-up policy applies (the
@@ -404,7 +404,7 @@ an unknown outcome. No table is created. See [adr/0037-eas-update](adr/0037-eas-
 
 ### Writing listing drafts to a store (a store write, off by default)
 
-`MRM_STORE_DRAFT_WRITE_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill
+`KILN_STORE_DRAFT_WRITE_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill
 switch for writing staged listing texts and graphics to the **draft** of an app in App Store Connect or
 Google Play. While `false`, the preview and push routes answer `409 store_draft_disabled`; staging and
 viewing are not affected, and nothing is ever submitted, sent for review or published by this server.
@@ -424,9 +424,9 @@ See [adr/0009-staged-store-drafts](adr/0009-staged-store-drafts.md) and [api/sta
 
 ### Submitting a draft for store review (a store write, off by default)
 
-`MRM_STORE_SUBMIT_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill switch for handing
+`KILN_STORE_SUBMIT_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill switch for handing
 the **pushed** draft of an app to App Review or to Google Play review. It is independent of
-`MRM_STORE_DRAFT_WRITE_ENABLED`. While `false`, the preview and submit routes answer `409 store_submit_disabled`; the
+`KILN_STORE_DRAFT_WRITE_ENABLED`. While `false`, the preview and submit routes answer `409 store_submit_disabled`; the
 state and config routes still work. Things to settle first:
 
 - **It cannot be taken back from this server.** A submission is cancelled only in App Store Connect, a Google Play
@@ -448,9 +448,9 @@ See [api/reviews](api/reviews.md) and [phase-3-reviews](phase-3-reviews.md).
 
 ### Releasing (a store write, off by default)
 
-`MRM_STORE_RELEASE_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill switch for **releasing**: making
+`KILN_STORE_RELEASE_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill switch for **releasing**: making
 an approved App Store version available (`POST appStoreVersionReleaseRequests`), or starting a Google Play draft release at a share of
-users you name. It is independent of `MRM_STORE_DRAFT_WRITE_ENABLED` and `MRM_STORE_SUBMIT_ENABLED`. While `false`, the preview and
+users you name. It is independent of `KILN_STORE_DRAFT_WRITE_ENABLED` and `KILN_STORE_SUBMIT_ENABLED`. While `false`, the preview and
 release routes answer `409 store_release_disabled`; the config and state routes work, and so do the **reads** of builds and version
 codes (they change nothing). Things to settle first:
 
@@ -466,10 +466,10 @@ codes (they change nothing). Things to settle first:
 
 ### Publishing several steps at once (a store write, off by default)
 
-`MRM_STORE_PUBLISH_BATCH_ENABLED` (default `false`; only `true` and `false`; blank means off) is the master switch of the **batch publish**:
+`KILN_STORE_PUBLISH_BATCH_ENABLED` (default `false`; only `true` and `false`; blank means off) is the master switch of the **batch publish**:
 one preview and one typed confirmation for several gated steps of an app (push the draft, submit, release, rollout). **It turns no step on**:
-every step in a batch still needs its own switch (`MRM_STORE_DRAFT_WRITE_ENABLED`, `MRM_STORE_SUBMIT_ENABLED`, `MRM_STORE_RELEASE_ENABLED`,
-`MRM_STORE_ROLLOUT_ENABLED`), its own role right and its own hash; a step whose switch is off is shown as unavailable in the plan, and a
+every step in a batch still needs its own switch (`KILN_STORE_DRAFT_WRITE_ENABLED`, `KILN_STORE_SUBMIT_ENABLED`, `KILN_STORE_RELEASE_ENABLED`,
+`KILN_STORE_ROLLOUT_ENABLED`), its own role right and its own hash; a step whose switch is off is shown as unavailable in the plan, and a
 request that includes it is refused. While `false`, the two batch routes answer `409 publish_batch_disabled` (after the rights check); the
 pending view (`GET /apps/{id}/pending`, `GET /pending/summary`) reads this server's own database only and works either way. Only owners and
 admins (`store.publish`); an API token only when its list of actions names `store.publish` **and** the action of every step in the batch.
@@ -494,7 +494,7 @@ the provider as well as the workspace's daily character limit (`translation.dail
   connection is pinned to the checked address, redirects are not followed, the answer is limited to
   2 MiB and the call to 15 seconds, and private, loopback and link-local addresses are refused. Cloud
   metadata addresses (169.254.169.254, 100.100.100.200, fd00:ec2::254) are always refused.
-- `MRM_TRANSLATE_ALLOW_PRIVATE_URLS` (default `false`; only `true` or `false`). **Warning:** set it
+- `KILN_TRANSLATE_ALLOW_PRIVATE_URLS` (default `false`; only `true` or `false`). **Warning:** set it
   to `true` only to use a LibreTranslate on your own network (or `http://localhost`). It lets anyone
   who can change workspace settings (admins and owners) make this server send requests, carrying
   review text, to any host it can reach, such as internal services. Plain `http` is then accepted for
@@ -511,46 +511,46 @@ AI assistance ([api/ai](api/ai.md), [ADR 0016](adr/0016-ai-foundation.md)) sugge
 **proposes**: a person accepts a suggestion, and accepting calls the existing keyword, staged text or reply draft service with its own right. Nothing
 here pushes, submits, publishes, releases or sends a reply.
 
-- `MRM_AI_ENABLED` (default `false`; only `true` or `false`). While `false`, nothing is ever sent to an AI provider, whatever a workspace has set.
+- `KILN_AI_ENABLED` (default `false`; only `true` or `false`). While `false`, nothing is ever sent to an AI provider, whatever a workspace has set.
   A workspace must also turn it on (an admin, in the AI settings), choose a provider and a model, and add a key (a vault credential, see
   [credentials](credentials.md#ai-provider-keys)); a local model server that needs no key needs no credential.
 - **Privacy.** When on, the data listed for a task (listing text, tracked keywords, competitor names and titles, one review's text and rating) goes to the
   provider the workspace chose. Anthropic and OpenAI are third parties: check their terms for your account. A model you run yourself (Ollama, LM Studio, vLLM
   through the `openai_compatible` provider) keeps it on your own network. The API returns each task's disclosure so a screen can show it before first use.
   Review text is never logged or audited; the audit log has ids, versions, token counts and a hash of the data sent.
-- `MRM_AI_ALLOW_PRIVATE_URLS` (default `false`; only `true` or `false`). The address of an OpenAI compatible server is a workspace setting. By default it must be
+- `KILN_AI_ALLOW_PRIVATE_URLS` (default `false`; only `true` or `false`). The address of an OpenAI compatible server is a workspace setting. By default it must be
   `https` to a public host, is checked when saved and at every call, is not redirected, and the connection is pinned to the checked address. **Warning:** `true`
   lets anyone who can change the AI settings (admins and owners) make this server send requests, carrying listing and review text, to any host it can reach; plain
   `http` is then accepted for loopback only. Turn it on only to reach a model on your own network or machine, and only when you trust every admin.
   Cloud metadata addresses stay refused either way. When an address is refused the settings screen says why (`private_address_blocked`: this switch is off; `plain_http_not_allowed`: plain `http`
   works to `localhost` only, so a model on another machine needs `https`). Changing it needs a restart. **Docker:** `localhost` inside the container is the container, not the host, and `docker compose`
-  passes the container only the variables listed under `environment:` in `docker-compose.yml`, not every line of `.env`: add `MRM_AI_ENABLED` and `MRM_AI_ALLOW_PRIVATE_URLS` there (or use `env_file`) for
+  passes the container only the variables listed under `environment:` in `docker-compose.yml`, not every line of `.env`: add `KILN_AI_ENABLED` and `KILN_AI_ALLOW_PRIVATE_URLS` there (or use `env_file`) for
   them to take effect, and reach a model on the host through an `https` address.
 - **Cost.** Each workspace has a monthly token budget (UTC month, input plus output, default 500,000, `0` means no limit here), a cap on the input and on the
   output of one run, two runs at a time and ten runs a minute. The token counts are estimates before a call and the provider's own numbers after it. Also set a
   spending limit with the provider.
 - Suggestions are kept 90 days (and deleted with their app); usage rows (counts only) 400 days.
-- Upgrade: migration 30 adds `ai_usage` and `ai_suggestions`. Nothing changes until `MRM_AI_ENABLED=true` and a workspace turns it on.
+- Upgrade: migration 30 adds `ai_usage` and `ai_suggestions`. Nothing changes until `KILN_AI_ENABLED=true` and a workspace turns it on.
 
 ## ASO: keyword ranks and competitors (public store data)
 
 The ASO feature ([api/aso](api/aso.md), [ADR 0011](adr/0011-aso-keywords-competitors.md)) reads the **public** search results and
 listings of the stores to track where an app ranks for a keyword and what competitors change. It uses no credential and writes
-nothing to a store. By hand from the ASO screens or the API, and on a schedule when `MRM_ASO_INTERVAL_MINUTES` is set (default `0`, off;
+nothing to a store. By hand from the ASO screens or the API, and on a schedule when `KILN_ASO_INTERVAL_MINUTES` is set (default `0`, off;
 otherwise 60 to 10080). The scheduler only queues `aso.refresh` jobs, a few per pass and spread out, and runs where the worker runs
-(`MRM_WORKER=inline`, the default).
+(`KILN_WORKER=inline`, the default).
 
 - **Apple** is read through the documented iTunes Search and Lookup APIs (`itunes.apple.com`). Apple states about 20 calls per minute
-  (subject to change) and asks for caching, so the defaults are 10 calls per minute per process (`MRM_ASO_APPLE_CALLS_PER_MINUTE`, at most 20)
-  and a one hour cache (`MRM_ASO_CACHE_MINUTES`). Several server processes each have their own limit: with more than one, lower it.
-- **Google Play is unofficial and off by default.** `MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true` makes the server read the public pages of
+  (subject to change) and asks for caching, so the defaults are 10 calls per minute per process (`KILN_ASO_APPLE_CALLS_PER_MINUTE`, at most 20)
+  and a one hour cache (`KILN_ASO_CACHE_MINUTES`). Several server processes each have their own limit: with more than one, lower it.
+- **Google Play is unofficial and off by default.** `KILN_ASO_PLAY_UNOFFICIAL_ENABLED=true` makes the server read the public pages of
   `play.google.com`. Google Play has no official API for this, reading its pages from a program **may be against the Google Play Terms of Service
   or Google's Terms of Service**, and it breaks when Google changes its markup. This was not reviewed by a lawyer; it is your decision and
   your risk. While it is off, no request to Google is ever made and the Play routes answer `409 play_unofficial_disabled`. When it is on the server logs
-  a warning at start, uses an identifying User-Agent, no cookie and no login, 4 calls per minute (`MRM_ASO_PLAY_CALLS_PER_MINUTE`), and stops on a refusal or a robot check.
-- **Limits.** `MRM_ASO_MAX_KEYWORDS_PER_APP` (50), `MRM_ASO_MAX_COMPETITORS_PER_APP` (10), `MRM_ASO_MAX_CHECKS_PER_RUN` (25 keyword checks in one refresh, the rest stays due),
-  `MRM_ASO_RANK_DEPTH` (50 results read per search; Google Play at most 50), `MRM_ASO_HEARTBEAT_DAYS` (7: a quiet competitor still gets a snapshot).
-- **Retention.** `MRM_ASO_RETENTION_DAYS` (default `365`; `0` keeps everything; at most `3650`) deletes older rank checks and competitor snapshots, at most 2000 of each per run and
+  a warning at start, uses an identifying User-Agent, no cookie and no login, 4 calls per minute (`KILN_ASO_PLAY_CALLS_PER_MINUTE`), and stops on a refusal or a robot check.
+- **Limits.** `KILN_ASO_MAX_KEYWORDS_PER_APP` (50), `KILN_ASO_MAX_COMPETITORS_PER_APP` (10), `KILN_ASO_MAX_CHECKS_PER_RUN` (25 keyword checks in one refresh, the rest stays due),
+  `KILN_ASO_RANK_DEPTH` (50 results read per search; Google Play at most 50), `KILN_ASO_HEARTBEAT_DAYS` (7: a quiet competitor still gets a snapshot).
+- **Retention.** `KILN_ASO_RETENTION_DAYS` (default `365`; `0` keeps everything; at most `3650`) deletes older rank checks and competitor snapshots, at most 2000 of each per run and
   once an hour; the newest snapshot of each competitor is kept. Deleting an app deletes its ASO data. What is stored is the terms and notes your team typed, ranks, and
   public data about other apps (including the first 1000 characters of a competitor's description): no customer data. A backup keeps deleted rows until it expires.
 - **Network.** Outbound https to `itunes.apple.com` and, only when Google Play is switched on, `play.google.com`. Requests go through the same address checks as the app icon
@@ -561,7 +561,7 @@ otherwise 60 to 10080). The scheduler only queues `aso.refresh` jobs, a few per 
 
 An app linked to an Expo project ([api/eas](api/eas.md)) shows that project's EAS builds and submissions in "Builds to test" ([api/eas-builds](api/eas-builds.md), [ADR 0036](adr/0036-eas-build-submit-status.md)). Nothing is created, cancelled or resubmitted at Expo, and a workspace without an Expo credential costs nothing.
 
-- `MRM_EAS_STATUS_INTERVAL_MINUTES` (default 30; `0` turns the scheduled read off; otherwise 5 to 10080): how often the scheduler queues one read per linked app record. A record with a build or a submission still running is read again every three minutes. Reads are spaced out, bounded and backed off after a failure; a manual read is `POST .../eas/status/refresh`.
+- `KILN_EAS_STATUS_INTERVAL_MINUTES` (default 30; `0` turns the scheduled read off; otherwise 5 to 10080): how often the scheduler queues one read per linked app record. A record with a build or a submission still running is read again every three minutes. Reads are spaced out, bounded and backed off after a failure; a manual read is `POST .../eas/status/refresh`.
 - **Upgrade:** migration 47 adds three tables (`eas_builds`, `eas_submissions`, `eas_status_sync`). Nothing is read until an app is linked.
 - **What is stored:** per build and submission: ids, status, profile, channel, versions, runtime, distribution, the first line of the commit message and, for a failure, Expo's error text (at most 500 characters). **The address of a build file is not stored.** Rows are deleted when the link is removed or changed and with the app.
 - **Not checked against a live Expo account:** see the UNVERIFIED list in the ADR (page size limit, rate limits, how Expo words errors).
@@ -570,7 +570,7 @@ An app linked to an Expo project ([api/eas](api/eas.md)) shows that project's EA
 
 Analytics ([api/analytics](api/analytics.md), [ADR 0017](adr/0017-analytics-foundation.md)) reads daily numbers of your apps from App Store Connect (analytics reports, sales) and Google Play (vitals, monthly reports) into the database. A workspace admin turns it on with the setting `analytics.enabled` (default `false`); until then nothing is requested from a store. Reading stored numbers and importing an Apple report file always work.
 
-- `MRM_ANALYTICS_INTERVAL_MINUTES` (default 360; `0` turns the scheduled job off; otherwise 15 to 10080): how often the scheduler queues one sync per app that has something to read. Syncs are spaced out and bounded; a manual sync is `POST .../analytics/sync`.
+- `KILN_ANALYTICS_INTERVAL_MINUTES` (default 360; `0` turns the scheduled job off; otherwise 15 to 10080): how often the scheduler queues one sync per app that has something to read. Syncs are spaced out and bounded; a manual sync is `POST .../analytics/sync`.
 - **Upgrade:** migration 31 adds six tables (`analytics_*`). Nothing changes until the setting is on.
 - **What is stored:** daily facts per app (counts, rates, Apple proceeds and Google Play estimated sales per currency, an optional territory, source type, app version, currency or store product; at most 200 products per app). No user, device or review data. Daily facts are **kept for ever** (Apple deletes its report instances after 35 days, so this copy is the history) and are deleted with the app. Run records are pruned after 90 days and instance bookkeeping after 120.
 - **Download links:** Apple's report links last about five minutes. They are fetched at once without the API token, and never logged, stored or returned.
@@ -579,12 +579,12 @@ Analytics ([api/analytics](api/analytics.md), [ADR 0017](adr/0017-analytics-foun
 
 ## Outgoing mail and two-factor codes
 
-Emailed codes and alert emails need a mail server: `MRM_SMTP_HOST`, `MRM_SMTP_PORT`, `MRM_SMTP_SECURE`, `MRM_SMTP_USER`, `MRM_SMTP_PASSWORD`,
-`MRM_SMTP_FROM` in `.env`, or an admin enters it under Settings, Mail. See [mail](api/mail.md).
+Emailed codes and alert emails need a mail server: `KILN_SMTP_HOST`, `KILN_SMTP_PORT`, `KILN_SMTP_SECURE`, `KILN_SMTP_USER`, `KILN_SMTP_PASSWORD`,
+`KILN_SMTP_FROM` in `.env`, or an admin enters it under Settings, Mail. See [mail](api/mail.md).
 
 - Allow outbound TCP from the server to the mail host and port (587 or 465). A network that blocks it shows as "could not be reached".
 - Inside Docker, `localhost` is the container. A relay on the host or on your network is a **private address** and is refused until you set
-  `MRM_SMTP_ALLOW_PRIVATE_HOSTS=true`; only the operator can, on purpose (the setting screen cannot).
+  `KILN_SMTP_ALLOW_PRIVATE_HOSTS=true`; only the operator can, on purpose (the setting screen cannot).
 - Certificates are verified. For a relay with a private CA, add the CA to the container with `NODE_EXTRA_CA_CERTS`.
 - The authenticator app needs the server clock to be right (NTP); codes are accepted 30 seconds either side.
 - An authenticator app and email codes confirm hard actions with no mail server for the app. A sign-in second step
@@ -600,6 +600,6 @@ Emailed codes and alert emails need a mail server: `MRM_SMTP_HOST`, `MRM_SMTP_PO
   every 15 seconds and `X-Accel-Buffering: no`). For nginx add `proxy_read_timeout 1h;` for that
   path. Each person may hold 5 streams. Never tested through a real proxy.
 - **Webhooks** make requests from the server. They go to public https addresses only, so a webhook
-  cannot be pointed at your internal network. `MRM_WEBHOOKS_ALLOW_PRIVATE=1` lifts that for
+  cannot be pointed at your internal network. `KILN_WEBHOOKS_ALLOW_PRIVATE=1` lifts that for
   development; leave it off on a shared host. Allow outbound https from the server to the receivers.
   See [webhooks](api/webhooks.md).

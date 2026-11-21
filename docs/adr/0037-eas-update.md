@@ -30,7 +30,7 @@ change shows the state and says so.
 4. **One write, gated like a store write: raise the rollout of an update.** Expo's per-update rollout (`eas update --rollout-percentage`,
    `eas update:edit`) is changed with the mutation `update { setRolloutPercentage(updateId, percentage) }`, which eas-cli itself calls.
    `POST .../expo/updates/rollout/preview` reads Expo and returns the current and new share and a `confirmHash`; `.../apply` needs
-   `MRM_EAS_UPDATE_ROLLOUT_ENABLED=true` (off by default, separate from the store switches), the right `releases.rollout` (owners and
+   `KILN_EAS_UPDATE_ROLLOUT_ENABLED=true` (off by default, separate from the store switches), the right `releases.rollout` (owners and
    admins), a step-up grant when the workspace policy covers the existing action class `rollout` (bound to the app and the hash), re-reads
    Expo and refuses with `409 state_changed` when the rollout is not what was previewed, writes once, never retries (after a lost answer it
    reads the update back: `confirmedByReread`, `502 write_failed` or `409 outcome_unknown`), and audits `eas.update_rollout_changed` /

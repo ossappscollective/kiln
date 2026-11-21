@@ -25,11 +25,11 @@ type Script =
   | ((request: Parameters<FakeAiClient['complete']>[0], index: number) => FakeAnswer);
 
 export type AiBootOptions = {
-  /** MRM_AI_ENABLED. Default true. */
+  /** KILN_AI_ENABLED. Default true. */
   enabled?: boolean;
-  /** MRM_AI_ALLOW_PRIVATE_URLS. Default false. */
+  /** KILN_AI_ALLOW_PRIVATE_URLS. Default false. */
   allowPrivateUrls?: boolean;
-  /** MRM_REVIEW_REPLY_ENABLED. Default true. */
+  /** KILN_REVIEW_REPLY_ENABLED. Default true. */
   replyEnabled?: boolean;
   /** Runs a minute per workspace. Default 1000 (the tests that look at it set their own). */
   limiterLimit?: number;

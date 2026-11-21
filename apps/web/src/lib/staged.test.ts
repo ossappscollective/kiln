@@ -211,13 +211,13 @@ test('the push is unavailable below admin, when the switch is off, unread or fai
   assert.equal(pushAvailability('admin', config(), false).state, 'ready');
   const off = pushAvailability('admin', config({ enabled: false }), false);
   assert.equal(off.state, 'off');
-  if (off.state === 'off') assert.match(off.message, /MRM_STORE_DRAFT_WRITE_ENABLED=true/);
+  if (off.state === 'off') assert.match(off.message, /KILN_STORE_DRAFT_WRITE_ENABLED=true/);
 });
 
 test('a role check beats a switch that is off, and a blank env name falls back to the constant', () => {
   assert.equal(pushAvailability('viewer', config({ enabled: false }), false).state, 'role');
   const off = pushAvailability('owner', config({ enabled: false, envName: '' }), false);
-  if (off.state === 'off') assert.match(off.message, /MRM_STORE_DRAFT_WRITE_ENABLED/);
+  if (off.state === 'off') assert.match(off.message, /KILN_STORE_DRAFT_WRITE_ENABLED/);
 });
 
 // --- the tray -------------------------------------------------------------------------------
@@ -470,7 +470,7 @@ test('staging errors name what to do', () => {
 test('store_draft_disabled names the switch', () => {
   const f = classifyPushFailure(apiError('store_draft_disabled'));
   assert.equal(f.kind, 'disabled');
-  assert.match(f.message, /MRM_STORE_DRAFT_WRITE_ENABLED/);
+  assert.match(f.message, /KILN_STORE_DRAFT_WRITE_ENABLED/);
 });
 
 test('state_changed carries the new preview, and nothing is written', () => {

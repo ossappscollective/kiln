@@ -1014,16 +1014,16 @@ export function localDisabledNotice(
   const reason = config.reason;
   if (reason === 'reads_api') {
     return {
-      title: 'Local clones are off: MRM_READS=api',
+      title: 'Local clones are off: KILN_READS=api',
       body:
-        config.message ?? 'MRM_READS=api means git is never run, so local clones cannot be read.',
+        config.message ?? 'KILN_READS=api means git is never run, so local clones cannot be read.',
       envName: config.envName,
     };
   }
   if (reason === 'git_missing') {
     return {
       title: 'git is not available on the server',
-      body: config.message ?? 'Install git or set MRM_GIT_PATH.',
+      body: config.message ?? 'Install git or set KILN_GIT_PATH.',
       envName: config.envName,
     };
   }

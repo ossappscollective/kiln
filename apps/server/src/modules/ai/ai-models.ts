@@ -31,10 +31,10 @@ import {
  *
  * - The key comes from the body for this one call (a person who has typed it but not saved it yet), else from the stored credential. A typed key is
  *   used for this call only: never stored, logged, audited or put in an error.
- * - The address rules are the ones of a run: the guarded fetch, https to a public host unless MRM_AI_ALLOW_PRIVATE_URLS (see ai-config.ts).
+ * - The address rules are the ones of a run: the guarded fetch, https to a public host unless KILN_AI_ALLOW_PRIVATE_URLS (see ai-config.ts).
  * - A server that does not answer a list (404, 405, 501, an answer that is not a list) is not an error: the answer is a FIXED list of well known
  *   ids with `source: 'fallback'` (none for an OpenAI compatible server), so the screen can say it could not read the list.
- * - Needs the server switch (MRM_AI_ENABLED) but not the workspace's: this is part of setting AI up. Audited as `ai.models_list` with the provider,
+ * - Needs the server switch (KILN_AI_ENABLED) but not the workspace's: this is part of setting AI up. Audited as `ai.models_list` with the provider,
  *   the source and a count; never an address, a key or a model name list.
  */
 

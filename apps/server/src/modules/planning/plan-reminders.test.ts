@@ -422,30 +422,30 @@ test('reminderIntervalMs: off, or whole minutes between 5 and a week', () => {
     assert.throws(() => reminderIntervalMs(bad), /reminder interval/, String(bad));
 });
 
-test('MRM_REMINDER_INTERVAL_MINUTES defaults to 15, 0 or blank is off-or-default, and the range is checked', () => {
+test('KILN_REMINDER_INTERVAL_MINUTES defaults to 15, 0 or blank is off-or-default, and the range is checked', () => {
   const key = Buffer.alloc(32, 7).toString('base64');
-  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).reminderIntervalMinutes, 15);
+  assert.equal(loadConfig({ KILN_MASTER_KEY: key }).reminderIntervalMinutes, 15);
   assert.equal(
-    loadConfig({ MRM_MASTER_KEY: key, MRM_REMINDER_INTERVAL_MINUTES: '' }).reminderIntervalMinutes,
+    loadConfig({ KILN_MASTER_KEY: key, KILN_REMINDER_INTERVAL_MINUTES: '' }).reminderIntervalMinutes,
     15,
   );
   assert.equal(
-    loadConfig({ MRM_MASTER_KEY: key, MRM_REMINDER_INTERVAL_MINUTES: '0' }).reminderIntervalMinutes,
+    loadConfig({ KILN_MASTER_KEY: key, KILN_REMINDER_INTERVAL_MINUTES: '0' }).reminderIntervalMinutes,
     0,
   );
   assert.equal(
-    loadConfig({ MRM_MASTER_KEY: key, MRM_REMINDER_INTERVAL_MINUTES: '5' }).reminderIntervalMinutes,
+    loadConfig({ KILN_MASTER_KEY: key, KILN_REMINDER_INTERVAL_MINUTES: '5' }).reminderIntervalMinutes,
     5,
   );
   assert.equal(
-    loadConfig({ MRM_MASTER_KEY: key, MRM_REMINDER_INTERVAL_MINUTES: '10080' })
+    loadConfig({ KILN_MASTER_KEY: key, KILN_REMINDER_INTERVAL_MINUTES: '10080' })
       .reminderIntervalMinutes,
     10_080,
   );
   for (const bad of ['1', '4', '10081', '-1', '2.5', 'soon']) {
     assert.throws(
-      () => loadConfig({ MRM_MASTER_KEY: key, MRM_REMINDER_INTERVAL_MINUTES: bad }),
-      /MRM_REMINDER_INTERVAL_MINUTES/,
+      () => loadConfig({ KILN_MASTER_KEY: key, KILN_REMINDER_INTERVAL_MINUTES: bad }),
+      /KILN_REMINDER_INTERVAL_MINUTES/,
       bad,
     );
   }

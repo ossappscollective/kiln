@@ -13,14 +13,14 @@ import type { CloneReads } from './clone-reads.ts';
 import { localCloneId } from './local-reads.ts';
 
 /**
- * Upkeep of the managed clone folder (MRM_CLONE_DIR, docs/adr/0005-local-clone-reads.md, "Clone
+ * Upkeep of the managed clone folder (KILN_CLONE_DIR, docs/adr/0005-local-clone-reads.md, "Clone
  * upkeep"). The clones are a cache of what GitHub (or an attached local folder) holds: removing
  * one costs a fetch on its next read, which happens by itself (a reader makes a missing clone
  * again), so nothing here can lose data.
  *
  * A sweep removes
- *   1. clones unused for longer than `idleDays` (MRM_CLONE_IDLE_DAYS, 0 never), then
- *   2. the least recently used ones until the folder is within `maxBytes` (MRM_CLONE_MAX_BYTES, 0
+ *   1. clones unused for longer than `idleDays` (KILN_CLONE_IDLE_DAYS, 0 never), then
+ *   2. the least recently used ones until the folder is within `maxBytes` (KILN_CLONE_MAX_BYTES, 0
  *      no limit),
  * never a clone that is in use (its lock is held or waited for in this process, or it was used in
  * the last `IN_USE_GRACE_MS`, which covers the time between two git calls of one request), and
@@ -36,7 +36,7 @@ const DAY_MS = 24 * 3600_000;
 /** How long a measured size is reused by the read-only listing. A sweep always measures again. */
 export const SIZE_TTL_MS = 10 * 60_000;
 
-/** Defaults of MRM_CLONE_MAX_BYTES and MRM_CLONE_IDLE_DAYS (config.ts reads the same numbers). */
+/** Defaults of KILN_CLONE_MAX_BYTES and KILN_CLONE_IDLE_DAYS (config.ts reads the same numbers). */
 export const DEFAULT_CLONE_MAX_BYTES = 2 * 1024 ** 3;
 export const DEFAULT_CLONE_IDLE_DAYS = 30;
 
@@ -84,7 +84,7 @@ export type CloneView = {
 };
 
 export type CloneReport = {
-  /** False when reads do not use clones (MRM_READS=api): nothing is kept on disk. */
+  /** False when reads do not use clones (KILN_READS=api): nothing is kept on disk. */
   enabled: boolean;
   clones: CloneView[];
   /** The bytes of these clones (this workspace's). The limit below is for the whole folder. */
@@ -303,7 +303,7 @@ export function createCloneUpkeep(options: CloneUpkeepOptions): CloneUpkeep {
       if (summary.removed > 0 || summary.overBudget || summary.failed > 0) {
         log(
           `Clones: removed ${summary.removed} (${summary.idle} idle, ${summary.budget} over the limit), freed ${summary.freedBytes} bytes, ${summary.bytesAfter} bytes left` +
-            `${summary.skippedInUse > 0 ? `, ${summary.skippedInUse} in use` : ''}${summary.failed > 0 ? `, ${summary.failed} could not be removed` : ''}${summary.overBudget ? '. Still over MRM_CLONE_MAX_BYTES.' : '.'}`,
+            `${summary.skippedInUse > 0 ? `, ${summary.skippedInUse} in use` : ''}${summary.failed > 0 ? `, ${summary.failed} could not be removed` : ''}${summary.overBudget ? '. Still over KILN_CLONE_MAX_BYTES.' : '.'}`,
         );
       }
     } catch (error) {

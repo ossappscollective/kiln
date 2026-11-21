@@ -141,14 +141,14 @@ export type RepositorySummary = {
   local: LocalCheckoutSummary | null;
 };
 
-/** Whether local clones are on (MRM_LOCAL_REPO_ROOTS). `roots` only for people who may attach one. */
+/** Whether local clones are on (KILN_LOCAL_REPO_ROOTS). `roots` only for people who may attach one. */
 export type LocalConfig = {
   enabled: boolean;
   envName: string;
   reason?: string;
   message?: string;
   roots?: string[];
-  /** Whether a change set may be committed to a new branch of a local clone (MRM_LOCAL_REPO_WRITE), and if not, why not. */
+  /** Whether a change set may be committed to a new branch of a local clone (KILN_LOCAL_REPO_WRITE), and if not, why not. */
   write: LocalWriteConfig;
   /** Absent from an older server. */
   signing?: LocalSigningConfig;
@@ -156,7 +156,7 @@ export type LocalConfig = {
 
 export type LocalWriteConfig = { enabled: boolean; envName: string; message?: string };
 
-/** Whether the server signs the commits it makes in a local clone (MRM_GIT_SIGN), and how. Never the key or where it is. */
+/** Whether the server signs the commits it makes in a local clone (KILN_GIT_SIGN), and how. Never the key or where it is. */
 export type LocalSigningConfig = { enabled: boolean; format?: 'ssh' | 'gpg' };
 
 /** What `POST /repositories/local/check` found in a folder. */
@@ -729,7 +729,7 @@ export type LiveListingChannel = {
   sections?: ListingSections;
 };
 
-/** The scheduled listing read (MRM_LISTING_INTERVAL_MINUTES). */
+/** The scheduled listing read (KILN_LISTING_INTERVAL_MINUTES). */
 export type ListingSchedule = {
   enabled: boolean;
   intervalMinutes: number;

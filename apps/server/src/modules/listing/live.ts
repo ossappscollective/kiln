@@ -670,7 +670,7 @@ export type LiveChannel = {
   sections?: ListingSections;
 };
 
-/** The scheduled read of the listing (MRM_LISTING_INTERVAL_MINUTES) as it stands for one app. */
+/** The scheduled read of the listing (KILN_LISTING_INTERVAL_MINUTES) as it stands for one app. */
 export type ListingSchedule = {
   enabled: boolean;
   intervalMinutes: number;
@@ -696,7 +696,7 @@ export type LiveListing = {
 };
 
 export type LiveOptions = {
-  /** MRM_LISTING_INTERVAL_MINUTES in milliseconds; 0 or absent: scheduled reads are off. */
+  /** KILN_LISTING_INTERVAL_MINUTES in milliseconds; 0 or absent: scheduled reads are off. */
   intervalMs?: number;
 };
 

@@ -138,7 +138,7 @@
         spellcheck="false"
       />
       <Disclosure summary="About a server on a private network">
-        <p class="hint">A server on a private network needs MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true on this server.</p>
+        <p class="hint">A server on a private network needs KILN_TRANSLATE_ALLOW_PRIVATE_URLS=true on this server.</p>
       </Disclosure>
     {/if}
 

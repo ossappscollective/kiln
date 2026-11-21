@@ -50,7 +50,7 @@ export type MailResult = { ok: true } | { ok: false; code: MailErrorCode; hint?:
 /** One plain sentence per code, for the UI and the API. Never includes anything a mail server said. */
 export const MAIL_ERROR_MESSAGES: Record<MailErrorCode, string> = {
   smtp_not_configured:
-    'No mail server is set up. An admin can add one in Settings, Mail, or the person who runs this server sets MRM_SMTP_HOST.',
+    'No mail server is set up. An admin can add one in Settings, Mail, or the person who runs this server sets KILN_SMTP_HOST.',
   smtp_connection_failed: 'The mail server could not be reached. Check the host name and the port.',
   smtp_auth_failed: 'The mail server refused the user name or password.',
   smtp_tls_failed:

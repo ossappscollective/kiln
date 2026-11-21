@@ -46,7 +46,7 @@ dbTest(
     assert.equal(config.status, 200);
     assert.deepEqual(
       [config.body.enabled, config.body.envName],
-      [false, 'MRM_REVIEW_REPLY_ENABLED'],
+      [false, 'KILN_REVIEW_REPLY_ENABLED'],
     );
     assert.deepEqual(config.body.limits, { appstoreconnect: 5000, googleplay: 350 });
     const calls: [string, string, unknown?][] = [
@@ -62,7 +62,7 @@ dbTest(
       const res = await t.call(t.owner, method, path, body);
       assert.equal(res.status, 409, `${method} ${path}`);
       assert.equal(res.body.error, 'reply_disabled');
-      assert.match(res.body.message, /MRM_REVIEW_REPLY_ENABLED=true/);
+      assert.match(res.body.message, /KILN_REVIEW_REPLY_ENABLED=true/);
     }
     assert.equal(t.built.length, 0, 'no store was reached');
     // Reading is unaffected, and the review view carries no draft.

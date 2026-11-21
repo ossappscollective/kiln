@@ -71,7 +71,7 @@ export type IconsContext = {
   repo: RepoContext;
   /** Looks at the App Store per workspace. Default: 6 a minute. */
   limiter?: TestLimiter;
-  /** Seams of the outbound GET, for tests and for MRM_WEBHOOKS_ALLOW_PRIVATE-style development. */
+  /** Seams of the outbound GET, for tests and for KILN_WEBHOOKS_ALLOW_PRIVATE-style development. */
   net?: { resolve?: Resolver; exchange?: Exchange; allowPrivate?: boolean; timeoutMs?: number };
 };
 

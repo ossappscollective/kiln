@@ -6,7 +6,7 @@ const submitConfigSchema = z.object({
   enabled: z
     .boolean()
     .describe(
-      'MRM_STORE_SUBMIT_ENABLED (default false). While false the preview and submit routes answer `409 store_submit_disabled`.',
+      'KILN_STORE_SUBMIT_ENABLED (default false). While false the preview and submit routes answer `409 store_submit_disabled`.',
     ),
   envName: z.string(),
   action: z.literal('store.submit'),
@@ -216,7 +216,7 @@ export const submitOperations: Draft[] = [
     tags: ['submit'],
     summary: 'Preview a submit for review: what goes, checks, a confirmHash and the text to type',
     description:
-      'Needs `store.submit` and `MRM_STORE_SUBMIT_ENABLED=true`. READS the store, writes nothing, and settles an earlier unknown outcome (a successful read). `409 nothing_pushed` when no successful draft push is recorded. `checks.blocking` stops a submit (the store’s draft no longer holds what was pushed, no or an expired build, a version that would release by itself, a version already in review, no locales or screenshots, a documented spec broken, an image not processed); `checks.warnings` do not. While anything blocks, `confirmHash` and `confirmation` are null.',
+      'Needs `store.submit` and `KILN_STORE_SUBMIT_ENABLED=true`. READS the store, writes nothing, and settles an earlier unknown outcome (a successful read). `409 nothing_pushed` when no successful draft push is recorded. `checks.blocking` stops a submit (the store’s draft no longer holds what was pushed, no or an expired build, a version that would release by itself, a version already in review, no locales or screenshots, a documented spec broken, an image not processed); `checks.warnings` do not. While anything blocks, `confirmHash` and `confirmation` are null.',
     risk: 'read',
     access: { action: 'store.submit' },
     appScope: { kind: 'param', name: 'id' },
@@ -233,7 +233,7 @@ export const submitOperations: Draft[] = [
     summary:
       'Hand the pushed draft to store REVIEW (irreversible; never releases or changes a rollout)',
     description:
-      'A STORE WRITE THAT CANNOT BE TAKEN BACK from this server. Needs `store.submit` (owner and admin; a token only when its actions name it; `403` otherwise) and `MRM_STORE_SUBMIT_ENABLED=true` (`409 store_submit_disabled`). `confirmHash` must come from a preview of the same state and `confirmation` must be its `confirmation.phrase` (`422 confirmation_mismatch`). The store is READ AGAIN right before the write: if it is not the one previewed nothing is written (`409 state_changed`, with a new `preview`); if a check blocks, nothing is written (`409 blocked`, with `checks`). One submit per app and platform at a time (`409 write_in_progress`); a draft push in flight or with an unknown outcome blocks it. App Store: a review submission with the editable version as its item, then submitted; only that last request cannot be undone here; a version that would release by itself is blocked. Google Play: an edit committed without `changesNotSentForReview` and with `changesInReviewBehavior=ERROR_IF_IN_REVIEW` (`409 changes_in_review` when changes are in review); no track is written. Never retried: after a timeout or a 5xx the store is read back. App Store: `200` with `confirmedByReread: true`, `502 write_failed` (`outcome: not_applied`), or `409 outcome_unknown`. Google Play shows no review state, so it is `409 outcome_unknown` until the person has looked in Play Console and previews again. Audited as `listing.submitted` / `listing.submit_failed` (ids, hashes and outcomes, never a text or a credential) and emitted as the event `listing.submitted`.',
+      'A STORE WRITE THAT CANNOT BE TAKEN BACK from this server. Needs `store.submit` (owner and admin; a token only when its actions name it; `403` otherwise) and `KILN_STORE_SUBMIT_ENABLED=true` (`409 store_submit_disabled`). `confirmHash` must come from a preview of the same state and `confirmation` must be its `confirmation.phrase` (`422 confirmation_mismatch`). The store is READ AGAIN right before the write: if it is not the one previewed nothing is written (`409 state_changed`, with a new `preview`); if a check blocks, nothing is written (`409 blocked`, with `checks`). One submit per app and platform at a time (`409 write_in_progress`); a draft push in flight or with an unknown outcome blocks it. App Store: a review submission with the editable version as its item, then submitted; only that last request cannot be undone here; a version that would release by itself is blocked. Google Play: an edit committed without `changesNotSentForReview` and with `changesInReviewBehavior=ERROR_IF_IN_REVIEW` (`409 changes_in_review` when changes are in review); no track is written. Never retried: after a timeout or a 5xx the store is read back. App Store: `200` with `confirmedByReread: true`, `502 write_failed` (`outcome: not_applied`), or `409 outcome_unknown`. Google Play shows no review state, so it is `409 outcome_unknown` until the person has looked in Play Console and previews again. Audited as `listing.submitted` / `listing.submit_failed` (ids, hashes and outcomes, never a text or a credential) and emitted as the event `listing.submitted`.',
     risk: 'destructive',
     access: { action: 'store.submit' },
     appScope: { kind: 'param', name: 'id' },

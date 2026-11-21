@@ -74,7 +74,7 @@ import { fileEntry, type PushedManifest, recordPush, textEntry } from './store-d
  * review replies and rollout changes (docs/adr/0007-review-replies.md, docs/adr/0008-store-rollout-writes.md)
  * and is written down in docs/adr/0009-staged-store-drafts.md and docs/api/staged-changes.md:
  *
- * - Off unless `draftEnabled` (MRM_STORE_DRAFT_WRITE_ENABLED): every function here answers
+ * - Off unless `draftEnabled` (KILN_STORE_DRAFT_WRITE_ENABLED): every function here answers
  *   `409 store_draft_disabled` and no connector is ever built.
  * - A DRAFT, never a submission. App Store: the editable version's localizations and screenshots.
  *   Google Play: an edit committed with `changesNotSentForReview=true`. Nothing here submits for review,
@@ -105,7 +105,7 @@ import { fileEntry, type PushedManifest, recordPush, textEntry } from './store-d
 
 type Actor = { type: 'user' | 'token' | 'system'; id: string };
 
-export const DRAFT_ENV = 'MRM_STORE_DRAFT_WRITE_ENABLED';
+export const DRAFT_ENV = 'KILN_STORE_DRAFT_WRITE_ENABLED';
 export const DRAFT_PURPOSE = 'store.draft_push';
 /** A whole push, uploads included. Longer than a rollout change: screenshots are uploaded and processed. */
 export const DEFAULT_DRAFT_TIMEOUT_MS = 240_000;
@@ -148,7 +148,7 @@ export type DraftContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
-  /** MRM_STORE_DRAFT_WRITE_ENABLED. */
+  /** KILN_STORE_DRAFT_WRITE_ENABLED. */
   draftEnabled: boolean;
   draftConnectorFactory: DraftConnectorFactory;
   /** Reads the bytes of the staged files (the asset index of the repository). */

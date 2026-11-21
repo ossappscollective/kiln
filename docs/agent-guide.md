@@ -18,7 +18,7 @@ Short on purpose: read this once instead of repeating it in every brief.
   `packages/connectors`, `apps/server`.
 - One test file: `node --test path/to/file.test.ts` from the package directory. Prefer this while working.
 - Full suites: `node --test "src/**/*.test.ts"` in each package (Postgres cases skip without
-  `MRM_TEST_POSTGRES_URL`). One known flaky test: webhooks "a disabled webhook, or a secret that cannot
+  `KILN_TEST_POSTGRES_URL`). One known flaky test: webhooks "a disabled webhook, or a secret that cannot
   be read...".
 - Web: copy `apps/web/src` to `$HOME/webcheck/src`, then
   `node_modules/.bin/svelte-check --tsconfig ./tsconfig.json` and `compile-check.mjs` there.

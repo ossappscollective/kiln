@@ -21,7 +21,7 @@ Workspace settings (see [settings](settings.md)), all written with `analytics.ma
   The same bucket also holds the Google Play **estimated sales** reports: they turn on `play_sales` with no further setting, but need the Play Console permission
   **View financial data** (set to Global) for the service account. See [Sales](#sales).
 
-`MRM_ANALYTICS_INTERVAL_MINUTES` (default 360; `0` off; 15 to 10080) sets how often the scheduler queues a sync. See [deployment](../deployment.md).
+`KILN_ANALYTICS_INTERVAL_MINUTES` (default 360; `0` off; 15 to 10080) sets how often the scheduler queues a sync. See [deployment](../deployment.md).
 
 ## Endpoints
 

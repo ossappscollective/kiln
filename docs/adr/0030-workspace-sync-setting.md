@@ -4,7 +4,7 @@ Status: implemented and tested (server, web library). The screen has not been se
 
 ## Context
 
-The scheduler (`apps/server/src/scheduler.ts`) reads the stores of every app on an interval (`MRM_SYNC_INTERVAL_MINUTES`, 30 by default,
+The scheduler (`apps/server/src/scheduler.ts`) reads the stores of every app on an interval (`KILN_SYNC_INTERVAL_MINUTES`, 30 by default,
 0 is off) so a change of state, for example an App Store version going from "in review" to approved, raises the usual events and alerts.
 The interval was a server environment variable only: nobody using the app could see that the refresh existed, turn it off for their
 workspace or choose how often it runs.
@@ -14,7 +14,7 @@ workspace or choose how often it runs.
 1. **Two workspace settings** (`workspace_settings`, like `release.stalledAfterHours`; written with `settings.write`, so admins and owners;
    read by every member): `sync.enabled` (boolean, **on by default**) and `sync.intervalMinutes` (whole minutes, 5 to 10080; the screen
    offers 15 minutes, 30 minutes, 1 hour, 6 hours and daily).
-2. **The environment stays the server-wide switch.** `MRM_SYNC_INTERVAL_MINUTES=0` turns scheduled syncs off for every workspace and
+2. **The environment stays the server-wide switch.** `KILN_SYNC_INTERVAL_MINUTES=0` turns scheduled syncs off for every workspace and
    the workspace settings then have no effect (the screen says so). Otherwise a workspace that chose an interval uses it (it may be
    shorter or longer than the server's; the shared rate limit and the per-tick caps still apply), and one that chose nothing uses the
    server's interval.

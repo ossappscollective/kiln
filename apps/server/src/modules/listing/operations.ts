@@ -59,7 +59,7 @@ export const listingOperations: Draft[] = [
     tags: ['listing'],
     summary: 'The listing as the store has it (from the last listing read)',
     description:
-      'Reads the database. Nothing is sent to a store. Besides the texts per channel and locale it returns `warnings` (what the connector noticed in the last read), `schedule` (the scheduled listing read, MRM_LISTING_INTERVAL_MINUTES) and, per channel, `sections` (categories, ageRating, privacy, media, details, releaseNotes): a section that is missing was not read, one that is present and empty was read and is empty. Read-only; never pulled into a repository.',
+      'Reads the database. Nothing is sent to a store. Besides the texts per channel and locale it returns `warnings` (what the connector noticed in the last read), `schedule` (the scheduled listing read, KILN_LISTING_INTERVAL_MINUTES) and, per channel, `sections` (categories, ageRating, privacy, media, details, releaseNotes): a section that is missing was not read, one that is present and empty was read and is empty. Read-only; never pulled into a repository.',
     risk: 'read',
     access: { action: 'listing.read' },
     appScope: { kind: 'param', name: 'id' },

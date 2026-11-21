@@ -12,7 +12,7 @@ import {
  * Same rules as a webhook (webhook-transport.ts) and the safe GET (safe-fetch.ts):
  *
  * - https only; plain http only to a loopback address and only when `allowPrivate`
- *   (MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true).
+ *   (KILN_TRANSLATE_ALLOW_PRIVATE_URLS=true).
  * - No user name or password in the URL; no query string or fragment (the key goes in the body).
  * - The host name is resolved here and every answer must be public (or private when allowed); the
  *   connection goes to the checked address, not the name (DNS rebinding), and the socket's peer is

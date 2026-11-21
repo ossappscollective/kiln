@@ -103,9 +103,9 @@ only those apps.
 
 ## Publishing
 
-`MRM_STORE_PUBLISH_BATCH_ENABLED=true` turns the batch on (default `false`). It turns **no step on**: every included step needs its
-own switch (`MRM_STORE_DRAFT_WRITE_ENABLED`, `MRM_STORE_SUBMIT_ENABLED`, `MRM_STORE_RELEASE_ENABLED`,
-`MRM_STORE_ROLLOUT_ENABLED`) and its own role right. While the batch is off, preview and publish answer `409 publish_batch_disabled`
+`KILN_STORE_PUBLISH_BATCH_ENABLED=true` turns the batch on (default `false`). It turns **no step on**: every included step needs its
+own switch (`KILN_STORE_DRAFT_WRITE_ENABLED`, `KILN_STORE_SUBMIT_ENABLED`, `KILN_STORE_RELEASE_ENABLED`,
+`KILN_STORE_ROLLOUT_ENABLED`) and its own role right. While the batch is off, preview and publish answer `409 publish_batch_disabled`
 after the rights check; no store is reached.
 
 | Right                                                                   | Who                                                                                                                 |
@@ -146,7 +146,7 @@ needs input, so it is only included when named).
         "reason": null,
         "requires": {
           "action": "store.push_draft",
-          "envName": "MRM_STORE_DRAFT_WRITE_ENABLED",
+          "envName": "KILN_STORE_DRAFT_WRITE_ENABLED",
           "enabled": true,
           "allowed": true
         },

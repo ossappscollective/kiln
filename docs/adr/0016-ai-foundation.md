@@ -1,7 +1,7 @@
 # ADR 0016: AI assistance, as a foundation that only proposes
 
 Status: server, connectors and database implemented and tested against fakes on SQLite (the Postgres variants run when
-`MRM_TEST_POSTGRES_URL` is set). **No provider was ever contacted: the request shapes of the three adapters are written from the
+`KILN_TEST_POSTGRES_URL` is set). **No provider was ever contacted: the request shapes of the three adapters are written from the
 vendors' current documentation and are UNVERIFIED against live accounts** (see [Not verified](#not-verified-unverified)). No screens
 yet. API: [api/ai](../api/ai.md). Migration 30.
 
@@ -37,7 +37,7 @@ proposal, and a person accepts it through a mechanism that already exists.** New
    structured output feature where there is one and **validates the answer itself** (`validateJson`: unknown schema keywords are an
    error, so a schema cannot silently stop being enforced). An answer that does not match is `invalid_output`; tokens it used still
    count, and nothing is stored. Unit tests require every task schema to be accepted by strict structured outputs.
-3. **Two switches, off by default.** `MRM_AI_ENABLED` (server, default `false`) and the workspace setting `ai.enabled` (default
+3. **Two switches, off by default.** `KILN_AI_ENABLED` (server, default `false`) and the workspace setting `ai.enabled` (default
    `false`). Either off: no client is built, no key decrypted, nothing sent. A provider, a model name (no default: it would go stale)
    and a key must also be set (`409 ai_not_enabled`, `422 ai_not_configured` with a `reason`).
 4. **Rights.** `ai.use` (members and up: run tasks, read suggestions, accept or dismiss) and `ai.manage` (admins and owners: settings, test).
@@ -50,9 +50,9 @@ proposal, and a person accepts it through a mechanism that already exists.** New
    generic settings registry: they have their own validation, their own right and their own audit entry.
 6. **Addresses are guarded like the translation server.** The base URL of an `openai_compatible` server is checked when saved and
    **again at every call**; the call goes through the same guarded fetch (https only, name resolved and pinned, no redirects, size and
-   time limits, metadata addresses always refused). `MRM_AI_ALLOW_PRIVATE_URLS` (default `false`) allows loopback and private
+   time limits, metadata addresses always refused). `KILN_AI_ALLOW_PRIVATE_URLS` (default `false`) allows loopback and private
    addresses, which is how a local model is reached; plain `http` is then accepted for loopback only. Whoever can change the settings
-   can aim this server's requests at the network when it is on: documented as a warning, like `MRM_TRANSLATE_ALLOW_PRIVATE_URLS`.
+   can aim this server's requests at the network when it is on: documented as a warning, like `KILN_TRANSLATE_ALLOW_PRIVATE_URLS`.
 7. **Budgets and caps.** A monthly token budget per workspace (UTC month, input plus output), default **500,000**, `0` means no limit
    here. A run **reserves** `estimated input + output cap` in `ai_usage` in the same transaction that checks the budget, so a run in
    flight is already counted, and is then settled with the tokens the provider reported. Per request: an input cap (estimated at 3
@@ -96,7 +96,7 @@ proposal, and a person accepts it through a mechanism that already exists.** New
   the same guarded fetch, limits and fixed errors as `complete`. `POST /ai/models` (`ai.manage`) exposes it; a key typed in the form is used for that call only, otherwise the
   stored credential. A server without a list (404 and the like) is not an error: a fixed `fallback` list per provider (none for a compatible server) says "could not read the
   list". The choice is still free text: a list is an offer, never a restriction.
-- **Why `http://localhost:11234/v1` was refused.** `MRM_AI_ALLOW_PRIVATE_URLS` is `false` by default, and with it off `checkWebhookUrl` answered _"Use an https URL."_ for any `http`
+- **Why `http://localhost:11234/v1` was refused.** `KILN_AI_ALLOW_PRIVATE_URLS` is `false` by default, and with it off `checkWebhookUrl` answered _"Use an https URL."_ for any `http`
   address, which hid the real reason. The policy is unchanged; the refusal now carries a fixed code (`private_address_blocked`, `plain_http_not_allowed`), `GET /ai/config` already
   said `server.allowPrivateUrls`, and the screen explains it before the failure. Plain `http` stays limited to localhost even with the switch on: a model on another machine (or on
   the host, from inside Docker, as `host.docker.internal`) needs `https`. Under `docker compose` the container only receives the variables the compose file lists under
@@ -131,7 +131,7 @@ nothing is sent without a person, and why `review_reply_draft` is the most conse
   screen to show before first use.
 - The monthly token budget (default 500,000, a few hundred runs of the built-in tasks) and the provider-side spending limit (set one
   there as well: the token count is an estimate and the budget is per workspace, not per provider account).
-- Whether `MRM_AI_ALLOW_PRIVATE_URLS` should ever be `true` on a shared server (it is how Ollama on a LAN is reached).
+- Whether `KILN_AI_ALLOW_PRIVATE_URLS` should ever be `true` on a shared server (it is how Ollama on a LAN is reached).
 
 ## Consequences
 

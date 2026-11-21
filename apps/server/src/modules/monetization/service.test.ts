@@ -16,7 +16,7 @@ dbTest('before a sync there is nothing: an empty list, no sync status', async (d
   assert.deepEqual(res.body.products, []);
   assert.equal(res.body.sync, null);
   assert.equal(res.body.supported, true);
-  assert.deepEqual(res.body.write, { enabled: true, envName: 'MRM_STORE_PRODUCT_WRITE_ENABLED' });
+  assert.deepEqual(res.body.write, { enabled: true, envName: 'KILN_STORE_PRODUCT_WRITE_ENABLED' });
   assert.equal(res.body.app.store, 'appstoreconnect');
   assert.equal(t.stores.ios.listReads, 0, 'reading the list asks no store');
   assert.equal((await t.call(t.owner, 'GET', t.pp(appId, '/com.acme.coins100'))).status, 404);

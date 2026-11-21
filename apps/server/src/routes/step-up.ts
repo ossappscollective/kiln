@@ -39,7 +39,7 @@ import {
  */
 export type StepUpRoutesContext = {
   services: Services;
-  /** MRM_PUBLIC_ORIGIN: the origin passkeys are bound to. Default: the origin of the request. */
+  /** KILN_PUBLIC_ORIGIN: the origin passkeys are bound to. Default: the origin of the request. */
   publicOrigin?: string | undefined;
   trustedOrigins?: string[] | undefined;
 };

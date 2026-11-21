@@ -128,8 +128,8 @@ test('ssh: the signing program sees a private HOME, only the variables we chose,
   const s = setup();
   const k = sshKey();
   const spy = fakeProgram('ssh-keygen', SSH_KEYGEN);
-  const previous = { secret: process.env.MRM_MASTER_KEY, sock: process.env.SSH_AUTH_SOCK };
-  process.env.MRM_MASTER_KEY = 'sentinel-master-key';
+  const previous = { secret: process.env.KILN_MASTER_KEY, sock: process.env.SSH_AUTH_SOCK };
+  process.env.KILN_MASTER_KEY = 'sentinel-master-key';
   process.env.SSH_AUTH_SOCK = '/tmp/should-not-pass.sock';
   try {
     const done = await withPrivateTmp(async (tmp) => {
@@ -141,8 +141,8 @@ test('ssh: the signing program sees a private HOME, only the variables we chose,
     });
     assert.equal(done.ok, true, JSON.stringify(done));
   } finally {
-    if (previous.secret === undefined) delete process.env.MRM_MASTER_KEY;
-    else process.env.MRM_MASTER_KEY = previous.secret;
+    if (previous.secret === undefined) delete process.env.KILN_MASTER_KEY;
+    else process.env.KILN_MASTER_KEY = previous.secret;
     if (previous.sock === undefined) delete process.env.SSH_AUTH_SOCK;
     else process.env.SSH_AUTH_SOCK = previous.sock;
   }

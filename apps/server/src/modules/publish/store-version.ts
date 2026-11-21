@@ -30,7 +30,7 @@ import { connect, DRAFT_ENV, mapStoreError } from './store-draft.ts';
  * release stepper ("no version a build can be attached to"). A STORE WRITE, but a reversible one: the version starts in
  * `PREPARE_FOR_SUBMISSION` and App Store Connect lets a person delete it there. It is gated like the draft push it prepares for:
  *
- * - Off unless `versionEnabled`, which is the draft-write switch (MRM_STORE_DRAFT_WRITE_ENABLED): `409 store_draft_disabled`, no
+ * - Off unless `versionEnabled`, which is the draft-write switch (KILN_STORE_DRAFT_WRITE_ENABLED): `409 store_draft_disabled`, no
  *   connector built. The right is `store.push_draft` (checked by the route, with the step-up of that action).
  * - Preview (a store read: the versions of the platform, the checks), then create with the preview's `confirmHash`. The versions are
  *   READ AGAIN right before the write (the guard of the connector): a different list is `409 state_changed` with a new preview, a
@@ -78,7 +78,7 @@ export type VersionContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
-  /** MRM_STORE_DRAFT_WRITE_ENABLED. */
+  /** KILN_STORE_DRAFT_WRITE_ENABLED. */
   versionEnabled: boolean;
   versionConnectorFactory: VersionConnectorFactory;
   versionTimeoutMs?: number;

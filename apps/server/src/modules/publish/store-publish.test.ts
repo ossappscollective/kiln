@@ -361,7 +361,7 @@ dbTest(
     assert.equal(config.status, 200);
     assert.deepEqual(
       [config.body.enabled, config.body.envName, config.body.action, config.body.minimumRole],
-      [false, 'MRM_STORE_PUBLISH_BATCH_ENABLED', 'store.publish', 'admin'],
+      [false, 'KILN_STORE_PUBLISH_BATCH_ENABLED', 'store.publish', 'admin'],
     );
     assert.equal(config.body.steps.push_draft.enabled, true, 'the steps keep their own switches');
     for (const res of [
@@ -370,7 +370,7 @@ dbTest(
     ]) {
       assert.equal(res.status, 409);
       assert.equal(res.body.error, 'publish_batch_disabled');
-      assert.match(res.body.message, /MRM_STORE_PUBLISH_BATCH_ENABLED=true/);
+      assert.match(res.body.message, /KILN_STORE_PUBLISH_BATCH_ENABLED=true/);
     }
     noStoreIo(t);
     assert.equal(await t.publishClaim(app), undefined);
@@ -404,7 +404,7 @@ dbTest(
     );
     assert.equal(plan.confirmable, true, 'what was not asked for does not block');
     assert.equal(plan.confirmationRequired, false, 'a push alone is not irreversible');
-    assert.equal(stepOf(all.body, 'submit').requires.envName, 'MRM_STORE_SUBMIT_ENABLED');
+    assert.equal(stepOf(all.body, 'submit').requires.envName, 'KILN_STORE_SUBMIT_ENABLED');
     const asked = await t.plan(app, [{ type: 'push_draft' }, { type: 'submit' }]);
     assert.equal(
       asked.body.plan.confirmable,
@@ -419,7 +419,7 @@ dbTest(
     });
     assert.equal(res.status, 409);
     assert.equal(res.body.error, 'step_disabled');
-    assert.deepEqual(res.body.disabled, [{ step: 'submit', envName: 'MRM_STORE_SUBMIT_ENABLED' }]);
+    assert.deepEqual(res.body.disabled, [{ step: 'submit', envName: 'KILN_STORE_SUBMIT_ENABLED' }]);
     assert.equal(t.stores.ios.applyCalls, 0, 'nothing was pushed');
   },
 );

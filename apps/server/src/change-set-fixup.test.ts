@@ -476,7 +476,7 @@ dbTest('invalid_state, no_branch, the rights, isolation and a bad body', async (
   assert.equal((await fixup(b, 'no-such-id')).status, 404);
 });
 
-dbTest('without MRM_LOCAL_REPO_WRITE a local fixup is refused and nothing changes', async (db) => {
+dbTest('without KILN_LOCAL_REPO_WRITE a local fixup is refused and nothing changes', async (db) => {
   const b = await boot(db, { write: false });
   const { dir, repositoryId } = await attached(b);
   const id = await approvedSet(b, repositoryId);
@@ -498,7 +498,7 @@ dbTest('without MRM_LOCAL_REPO_WRITE a local fixup is refused and nothing change
   const res = await fixup(b, id);
   assert.equal(res.status, 409, res.text);
   assert.equal(res.body.error, 'local_write_disabled');
-  assert.equal(res.body.envName, 'MRM_LOCAL_REPO_WRITE');
+  assert.equal(res.body.envName, 'KILN_LOCAL_REPO_WRITE');
   assert.equal(git(dir, 'for-each-ref'), refs);
 });
 

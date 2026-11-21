@@ -43,7 +43,7 @@ import {
  * back. It is written down in docs/adr/0010-store-submit.md and docs/api/submit.md. The design copies the other store
  * writes (ADR 0007, 0008, 0009) and adds what an irreversible step needs:
  *
- * - Off unless `submitEnabled` (MRM_STORE_SUBMIT_ENABLED, default false), separately from the draft switch: every function
+ * - Off unless `submitEnabled` (KILN_STORE_SUBMIT_ENABLED, default false), separately from the draft switch: every function
  *   answers `409 store_submit_disabled` and no connector is built.
  * - A role action of its own, `store.submit` (owner and admin; a token only when its actions name it), checked by the route.
  * - It needs a prior SUCCESSFUL draft push of this app (`store_draft_pushes`: hashes and ids of what was written) and
@@ -65,7 +65,7 @@ import {
 
 type Actor = { type: 'user' | 'token' | 'system'; id: string };
 
-export const SUBMIT_ENV = 'MRM_STORE_SUBMIT_ENABLED';
+export const SUBMIT_ENV = 'KILN_STORE_SUBMIT_ENABLED';
 export const SUBMIT_PURPOSE = 'store.submit';
 /** Two to four requests to a store. */
 export const DEFAULT_SUBMIT_TIMEOUT_MS = 120_000;
@@ -100,7 +100,7 @@ export type SubmitContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
-  /** MRM_STORE_SUBMIT_ENABLED. */
+  /** KILN_STORE_SUBMIT_ENABLED. */
   submitEnabled: boolean;
   submitConnectorFactory: SubmitConnectorFactory;
   submitTimeoutMs?: number;

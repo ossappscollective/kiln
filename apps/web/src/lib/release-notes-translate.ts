@@ -161,7 +161,7 @@ export function aiEngine(input: {
       visible: true,
       enabled: false,
       reason:
-        'AI assistance is switched off on this server. Whoever runs the server turns it on with MRM_AI_ENABLED=true.',
+        'AI assistance is switched off on this server. Whoever runs the server turns it on with KILN_AI_ENABLED=true.',
       href: null,
       sends: '',
     };

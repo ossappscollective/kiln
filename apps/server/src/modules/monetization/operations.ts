@@ -106,7 +106,7 @@ const productsViewSchema = z.object({
   products: z.array(summarySchema),
   sync: syncStatusSchema.nullable().describe('Null before the first sync.'),
   write: z.object({
-    enabled: z.boolean().describe('MRM_STORE_PRODUCT_WRITE_ENABLED.'),
+    enabled: z.boolean().describe('KILN_STORE_PRODUCT_WRITE_ENABLED.'),
     envName: z.string(),
   }),
 });
@@ -154,7 +154,7 @@ export const monetizationOperations: Draft[] = [
     tags: ['products'],
     summary: 'List the in-app purchases and subscriptions of an app, as of the last sync',
     description:
-      'Reads the stored copy; asks no store. `sync` says when the last sync ran and whether it failed. `write.enabled` is whether changing a text is switched on (`MRM_STORE_PRODUCT_WRITE_ENABLED`). Prices are in minor units, read only.',
+      'Reads the stored copy; asks no store. `sync` says when the last sync ran and whether it failed. `write.enabled` is whether changing a text is switched on (`KILN_STORE_PRODUCT_WRITE_ENABLED`). Prices are in minor units, read only.',
     risk: 'read',
     access: { action: 'apps.read' },
     appScope: { kind: 'param', name: 'appId' },
@@ -218,7 +218,7 @@ export const monetizationOperations: Draft[] = [
     tags: ['products'],
     summary: 'Preview or change the display name and description of a product in one locale',
     description:
-      'The ONLY write of in-app products: the localized display name and description of a locale the product already has. Prices, availability, state and the products themselves are never written. Needs `monetization.write` (owner and admin; a token only when its actions name it) and `MRM_STORE_PRODUCT_WRITE_ENABLED=true` (`409 store_product_write_disabled` otherwise). `apply: false` READS THE STORE and returns a preview with `previewHash`; writes nothing. `apply: true` needs the `previewHash` of a preview of exactly these texts, and a step-up confirmation where the workspace policy covers `store.push_draft`. The store is READ AGAIN right before the write: other texts than the previewed ones are not overwritten (`409 state_changed`, with the new `previewHash`). One write per app at a time (`409 write_in_progress`). Never retried: after a lost answer the store is read back (`200` with `confirmedByReread: true`, or `409 outcome_unknown`, cleared by a new preview). A locale the product does not have is `422 locale_not_found`. Audited as `monetization.localization_changed` / `monetization.localization_failed` (ids and hashes, never the texts).',
+      'The ONLY write of in-app products: the localized display name and description of a locale the product already has. Prices, availability, state and the products themselves are never written. Needs `monetization.write` (owner and admin; a token only when its actions name it) and `KILN_STORE_PRODUCT_WRITE_ENABLED=true` (`409 store_product_write_disabled` otherwise). `apply: false` READS THE STORE and returns a preview with `previewHash`; writes nothing. `apply: true` needs the `previewHash` of a preview of exactly these texts, and a step-up confirmation where the workspace policy covers `store.push_draft`. The store is READ AGAIN right before the write: other texts than the previewed ones are not overwritten (`409 state_changed`, with the new `previewHash`). One write per app at a time (`409 write_in_progress`). Never retried: after a lost answer the store is read back (`200` with `confirmedByReread: true`, or `409 outcome_unknown`, cleared by a new preview). A locale the product does not have is `422 locale_not_found`. Audited as `monetization.localization_changed` / `monetization.localization_failed` (ids and hashes, never the texts).',
     risk: 'write',
     access: { action: 'monetization.write' },
     appScope: { kind: 'param', name: 'appId' },

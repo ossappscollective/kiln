@@ -45,7 +45,7 @@ import {
  * - `GET /apps/:id/pending` and `GET /pending/summary` read STORED state only (no store, no repository) and need `listing.read`.
  * - `POST /apps/:id/publish/preview` and `POST /apps/:id/publish` need `store.publish` (owner and admin; a token only when its
  *   actions name it) AND, for every step they include, that step's own right (`store.push_draft`, `store.submit`, `store.release`,
- *   `releases.rollout`) and switch. The batch is OFF unless MRM_STORE_PUBLISH_BATCH_ENABLED=true and turns no step on by itself.
+ *   `releases.rollout`) and switch. The batch is OFF unless KILN_STORE_PUBLISH_BATCH_ENABLED=true and turns no step on by itself.
  *
  * Mounted under /api/workspaces.
  */
@@ -56,7 +56,7 @@ export type PendingRoutesContext = {
   /** The repository seam the staged files are read through (the same the staged routes use). */
   repo: AssetsContext['repo'];
   publish?: {
-    /** MRM_STORE_PUBLISH_BATCH_ENABLED (default false). */
+    /** KILN_STORE_PUBLISH_BATCH_ENABLED (default false). */
     enabled?: boolean;
     claimTtlMs?: number;
   };

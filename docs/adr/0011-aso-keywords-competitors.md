@@ -36,7 +36,7 @@ credential is used, nothing is ever written to a store, nothing is scraped behin
 | Coverage gaps          | What competitors put in their names that the own listing does not have.                                                                                                  | core `coverageGaps`                           |
 | Competitor suggestions | Apps that appear in the top results of several tracked keywords, for a person to confirm. Nothing is followed automatically.                                             | core `suggestCompetitors`                     |
 | Per market view        | The same term in several countries and locales as one row.                                                                                                               | core `termsAcrossMarkets`                     |
-| Caching                | A search or lookup is reused for `MRM_ASO_CACHE_MINUTES` and a call in flight is shared.                                                                                 | `services/aso-net.ts`                         |
+| Caching                | A search or lookup is reused for `KILN_ASO_CACHE_MINUTES` and a call in flight is shared.                                                                                 | `services/aso-net.ts`                         |
 
 Pure logic lives in `packages/core/src/aso/aso.ts` (ES2017-safe so the web can share it), the two sources in
 `packages/connectors` (`apple-search.ts`, `play-public.ts`), the services and routes in `apps/server`.
@@ -45,7 +45,7 @@ Pure logic lives in `packages/core/src/aso/aso.ts` (ES2017-safe so the web can s
 
 Read through `GET https://itunes.apple.com/search` and `/lookup`. The parameters (`term`, `country`, `media`,
 `entity`, `limit` 1 to 200, `lang`) and the rate statement are on Apple's pages and were checked on 2026-11-18. The
-connector keeps the server **below** the documented rate (default 10 calls a minute per process, `MRM_ASO_APPLE_CALLS_PER_MINUTE`, at most 20),
+connector keeps the server **below** the documented rate (default 10 calls a minute per process, `KILN_ASO_APPLE_CALLS_PER_MINUTE`, at most 20),
 caches, and backs off.
 
 Not on those pages, and therefore UNVERIFIED: that the order of the results is the order of the App Store's own
@@ -58,7 +58,7 @@ mean relying on an undocumented service. It stays off the list until Apple docum
 
 ### 3. Google Play: unofficial, opt-in, quiet
 
-`MRM_ASO_PLAY_UNOFFICIAL_ENABLED`, default **`false`**. While it is off, no Play request is ever made: refresh and
+`KILN_ASO_PLAY_UNOFFICIAL_ENABLED`, default **`false`**. While it is off, no Play request is ever made: refresh and
 competitor routes answer `409 play_unofficial_disabled`, the scheduler skips Android apps, and keywords can still be kept.
 The warning is shown in this ADR, in [api/aso](../api/aso.md#google-play-is-unofficial), in the startup log when it is on, and in
 `GET /aso/config` (`play.notice`) for the web to show next to the switch.
@@ -90,16 +90,16 @@ the UI. Nothing here is ever sorted by a made-up importance except what the pers
 
 | Variable                                                           | Default    | Meaning                                                                                                                                                  |
 | ------------------------------------------------------------------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MRM_ASO_INTERVAL_MINUTES`                                         | `0` (off)  | Scheduled refresh of every app; 0 or 60 to 10080.                                                                                                        |
-| `MRM_ASO_RETENTION_DAYS`                                           | `365`      | Rank checks and competitor snapshots older than this are deleted, bounded per run; `0` keeps them. The newest snapshot of a competitor is never deleted. |
-| `MRM_ASO_MAX_KEYWORDS_PER_APP`                                     | `50`       | 1 to 500.                                                                                                                                                |
-| `MRM_ASO_MAX_COMPETITORS_PER_APP`                                  | `10`       | 1 to 50.                                                                                                                                                 |
-| `MRM_ASO_MAX_CHECKS_PER_RUN`                                       | `25`       | Keyword checks in one refresh, the oldest first; the rest stays due.                                                                                     |
-| `MRM_ASO_RANK_DEPTH`                                               | `50`       | Results read to find the app (Apple up to 200, Google Play at most 50).                                                                                  |
-| `MRM_ASO_CACHE_MINUTES`                                            | `60`       | 0 turns the cache off.                                                                                                                                   |
-| `MRM_ASO_APPLE_CALLS_PER_MINUTE` / `MRM_ASO_PLAY_CALLS_PER_MINUTE` | `10` / `4` | Per process; Apple documents about 20.                                                                                                                   |
-| `MRM_ASO_HEARTBEAT_DAYS`                                           | `7`        | A competitor with no stored snapshot for this long gets one anyway.                                                                                      |
-| `MRM_ASO_PLAY_UNOFFICIAL_ENABLED`                                  | `false`    | See above.                                                                                                                                               |
+| `KILN_ASO_INTERVAL_MINUTES`                                         | `0` (off)  | Scheduled refresh of every app; 0 or 60 to 10080.                                                                                                        |
+| `KILN_ASO_RETENTION_DAYS`                                           | `365`      | Rank checks and competitor snapshots older than this are deleted, bounded per run; `0` keeps them. The newest snapshot of a competitor is never deleted. |
+| `KILN_ASO_MAX_KEYWORDS_PER_APP`                                     | `50`       | 1 to 500.                                                                                                                                                |
+| `KILN_ASO_MAX_COMPETITORS_PER_APP`                                  | `10`       | 1 to 50.                                                                                                                                                 |
+| `KILN_ASO_MAX_CHECKS_PER_RUN`                                       | `25`       | Keyword checks in one refresh, the oldest first; the rest stays due.                                                                                     |
+| `KILN_ASO_RANK_DEPTH`                                               | `50`       | Results read to find the app (Apple up to 200, Google Play at most 50).                                                                                  |
+| `KILN_ASO_CACHE_MINUTES`                                            | `60`       | 0 turns the cache off.                                                                                                                                   |
+| `KILN_ASO_APPLE_CALLS_PER_MINUTE` / `KILN_ASO_PLAY_CALLS_PER_MINUTE` | `10` / `4` | Per process; Apple documents about 20.                                                                                                                   |
+| `KILN_ASO_HEARTBEAT_DAYS`                                           | `7`        | A competitor with no stored snapshot for this long gets one anyway.                                                                                      |
+| `KILN_ASO_PLAY_UNOFFICIAL_ENABLED`                                  | `false`    | See above.                                                                                                                                               |
 
 What is stored is **public data about apps and the team's own choices**: a term, a rank, the public name, version, price, rating,
 the first 1000 characters of a competitor's description (written by its developer, so untrusted text that the web must show as
@@ -174,5 +174,5 @@ Everything below is either not stated on an official page that was checked, or n
 - **Which fields a store searches** (iOS name, subtitle and the keyword field and not the description; Google Play title, short and full description): widely documented by the
   community, not checked on a store page. The fit result carries these as `assumptions`; `description_only` on iOS depends on it. The 100 byte budget of the iOS keyword field is likewise unchecked.
 - **Text handling**: plural folding is English only; stop words exist for seven languages; CJK is split by character class and not by a word list.
-- **Postgres**: the migration and queries were written for both dialects and the drift tests pass, but the ASO tests ran on SQLite only (`MRM_TEST_POSTGRES_URL` was not set).
+- **Postgres**: the migration and queries were written for both dialects and the drift tests pass, but the ASO tests ran on SQLite only (`KILN_TEST_POSTGRES_URL` was not set).
 - **A legal reading of any terms of service.** Apple's terms for the Search API were not checked beyond its published rate and caching advice.

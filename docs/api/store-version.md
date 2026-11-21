@@ -13,7 +13,7 @@ Routes are under `/api/workspaces/{workspaceId}`. A non-member gets 404, a membe
 
 ## The gate
 
-- **Switch**: the same one as the draft push, `MRM_STORE_DRAFT_WRITE_ENABLED=true` (default `false`). While it is off both routes
+- **Switch**: the same one as the draft push, `KILN_STORE_DRAFT_WRITE_ENABLED=true` (default `false`). While it is off both routes
   answer `409 store_draft_disabled` after the rights check, and no store is contacted. There is no new variable.
 - **Right**: `store.push_draft` (owner and admin; a token only when its actions name it).
 - **Step-up**: the create is the `store.push_draft` action of [step-up](step-up.md). A workspace that covers it asks for the

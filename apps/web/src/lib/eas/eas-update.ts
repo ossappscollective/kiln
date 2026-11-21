@@ -258,7 +258,7 @@ export function rolloutFailure(error: unknown): RolloutFailure {
   if (!(error instanceof ApiError)) return { kind: 'other', message: 'Something went wrong. Nothing was confirmed as changed; read the state again.' };
   switch (error.code) {
     case 'eas_update_write_disabled':
-      return { kind: 'off', message: 'Raising a rollout is switched off on this server (MRM_EAS_UPDATE_ROLLOUT_ENABLED).' };
+      return { kind: 'off', message: 'Raising a rollout is switched off on this server (KILN_EAS_UPDATE_ROLLOUT_ENABLED).' };
     case 'state_changed':
       return { kind: 'changed', message: 'The rollout changed at Expo since it was previewed. Nothing was changed. Review the new state and preview again.' };
     case 'rollout_not_found':

@@ -50,7 +50,7 @@ const smtpView = z.object({
   configured: z.boolean(),
   locked: z
     .boolean()
-    .describe('The server environment decides (MRM_SMTP_HOST): the screen cannot change it.'),
+    .describe('The server environment decides (KILN_SMTP_HOST): the screen cannot change it.'),
   host: z.string().nullable(),
   port: z.number().int().nullable(),
   secure: z.enum(['none', 'starttls', 'tls']).nullable(),
@@ -235,7 +235,7 @@ export const twoFactorOperations: Operation[] = [
     tags: ['mail'],
     summary: 'The SMTP settings in force (never the password)',
     description:
-      'Owner and admin (`settings.write`). The setting is for the whole server. `source` is `env` (MRM_SMTP_HOST; read only), `settings` or `none`.',
+      'Owner and admin (`settings.write`). The setting is for the whole server. `source` is `env` (KILN_SMTP_HOST; read only), `settings` or `none`.',
     risk: 'read',
     access: { action: 'settings.write' },
     ...noToken,
@@ -247,7 +247,7 @@ export const twoFactorOperations: Operation[] = [
     path: `${W}/mail/settings`,
     tags: ['mail'],
     summary: 'Save the SMTP settings (encrypted at rest)',
-    description: `Owner and admin. ${grantNote} \`password\` omitted keeps the saved one only while host, port and user are unchanged (\`400 password_required\` otherwise); an empty string removes it. \`400 address_not_allowed\` with \`hint: private_address_blocked\` for a loopback or private host unless MRM_SMTP_ALLOW_PRIVATE_HOSTS=true; \`409 smtp_locked\` when the environment decides.`,
+    description: `Owner and admin. ${grantNote} \`password\` omitted keeps the saved one only while host, port and user are unchanged (\`400 password_required\` otherwise); an empty string removes it. \`400 address_not_allowed\` with \`hint: private_address_blocked\` for a loopback or private host unless KILN_SMTP_ALLOW_PRIVATE_HOSTS=true; \`409 smtp_locked\` when the environment decides.`,
     risk: 'write',
     access: { action: 'settings.write' },
     ...noToken,

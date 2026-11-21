@@ -76,7 +76,7 @@ dbTest(
         config.body.irreversible,
         config.body.releases,
       ],
-      [false, 'MRM_STORE_SUBMIT_ENABLED', 'store.submit', 'admin', true, false],
+      [false, 'KILN_STORE_SUBMIT_ENABLED', 'store.submit', 'admin', true, false],
     );
     for (const res of [
       await t.submitPreview(app),
@@ -84,7 +84,7 @@ dbTest(
     ]) {
       assert.equal(res.status, 409);
       assert.equal(res.body.error, 'store_submit_disabled');
-      assert.match(res.body.message, /MRM_STORE_SUBMIT_ENABLED=true/);
+      assert.match(res.body.message, /KILN_STORE_SUBMIT_ENABLED=true/);
     }
     noSubmitIo(t);
     const state = await t.submitState(app);

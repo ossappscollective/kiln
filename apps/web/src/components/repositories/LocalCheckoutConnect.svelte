@@ -243,7 +243,7 @@
             <Alert tone="info" title="What a local-only repository can do">
               The tool reads it and builds change sets from the committed files. There is no GitHub repository to open a pull
               request on, so a change set is applied as a commit on a new branch of the folder, which you merge yourself. That
-              needs MRM_LOCAL_REPO_WRITE=true on the server.
+              needs KILN_LOCAL_REPO_WRITE=true on the server.
             </Alert>
           {/if}
         {/if}

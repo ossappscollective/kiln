@@ -221,7 +221,7 @@ Endpoints (`/repositories/:id/listing-targets`), for the saved ones:
           "code": "…", "error": "…" } }
 ```
 
-`signature` is present only when the server signed the commit (`MRM_GIT_SIGN`, see Signing below): the
+`signature` is present only when the server signed the commit (`KILN_GIT_SIGN`, see Signing below): the
 commit object holds a signature header of that format. It means **signed**, not verified. Nothing
 about the key (its path, its content) is ever part of a response.
 
@@ -286,14 +286,14 @@ exists puts the change set back to `approved`, with nothing written.
   - **`local_branch`**: one commit on a **new branch of the repository's local clone**, made with
     git plumbing (no checkout, no hooks, no signing; the checked out branch, the working folder and
     the index are not touched), on top of the tip of the branch the clone is read from. It needs
-    `MRM_LOCAL_REPO_WRITE=true`, an attached local clone, and the right `changesets.approve`.
+    `KILN_LOCAL_REPO_WRITE=true`, an attached local clone, and the right `changesets.approve`.
     `branch` (optional) is a new branch name: ASCII letters, digits and `. _ - /`, starting with a
     letter, digit or `_`, at most 200 characters, no `..`, `//`, `@{`, `/.`, trailing `/` or `.`,
     no `.lock`, not `HEAD` or `refs/…`; the default is `mrm/<slug of the summary>-<first 8 of id>`.
     `push: true` then pushes that branch to `https://github.com/<owner>/<repo>.git` with the
     repository's credential (a repository with a GitHub connection only), and `openPr: true` (which
     needs `push: true`) opens the pull request into the branch the commit was made on.
-    The commit's author and committer are `MRM_GIT_AUTHOR_NAME`/`MRM_GIT_AUTHOR_EMAIL`, or the
+    The commit's author and committer are `KILN_GIT_AUTHOR_NAME`/`KILN_GIT_AUTHOR_EMAIL`, or the
     person who applied. See [ADR 0005](../adr/0005-local-clone-reads.md) for the design.
 
   A second apply while the first runs returns `409 apply_in_progress`; after it finished it returns
@@ -303,7 +303,7 @@ exists puts the change set back to `approved`, with nothing written.
   was **applied as a local commit** and, with `openPr: true`, opens the pull request. It finishes
   what is left: a push that is done is not repeated, a pull request that is open is not opened again,
   and `200 { changeSet, alreadyDone: true }` when there is nothing left. Needs
-  `changesets.approve`, `MRM_LOCAL_REPO_WRITE=true` and a repository with a GitHub connection whose
+  `changesets.approve`, `KILN_LOCAL_REPO_WRITE=true` and a repository with a GitHub connection whose
   local clone's `origin` is that repository. Two at once: `409 publish_in_progress`. A step that
   fails answers `502 { error, message, step: "push" | "pr", changeSet }`; the commit and the other
   step are kept and it can be called again. `409 not_local_commit` for a change set that was applied
@@ -322,7 +322,7 @@ change set stays `approved`):
 
 | When                                                                                                  | HTTP                   | `error`                                                                              |
 | ----------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------ |
-| `MRM_LOCAL_REPO_WRITE` is not `true`                                                                  | 409                    | `local_write_disabled` (with `envName`)                                              |
+| `KILN_LOCAL_REPO_WRITE` is not `true`                                                                  | 409                    | `local_write_disabled` (with `envName`)                                              |
 | no local clone attached                                                                               | 409                    | `no_local_checkout`                                                                  |
 | `github_pr`, or `push` / `openPr`, on a local-only repository (no GitHub connection)                  | 409                    | `local_only`                                                                         |
 | the clone's `origin` is not the connected GitHub repository (push only)                               | 409                    | `remote_mismatch` with `origin` and `repository`                                     |
@@ -331,13 +331,13 @@ change set stays `approved`):
 | a file changed in the clone since the draft                                                           | 409                    | `base_changed` with `paths` (discard and read again)                                 |
 | nothing would change; a path the rules refuse; a symlink or submodule in the way; a file too large    | 422                    | `no_changes`, `invalid_file_path`, `path_conflict`, `unsupported_entry`, `too_large` |
 | the folder cannot be used (outside the roots, moved, not a repository, branch deleted, detached HEAD) | 422                    | `local_` plus the code, `local_branch_missing` (see Local clones)                    |
-| `MRM_LOCAL_REPO_ROOTS` unset, or `MRM_READS=api`, or git missing                                      | 409                    | `local_not_enabled`, `local_reads_disabled`, `local_git_missing`                     |
+| `KILN_LOCAL_REPO_ROOTS` unset, or `KILN_READS=api`, or git missing                                      | 409                    | `local_not_enabled`, `local_reads_disabled`, `local_git_missing`                     |
 | git ran too long                                                                                      | 504                    | `timeout`                                                                            |
-| signing is on (`MRM_GIT_SIGN`) and failed: no key, key locked, program missing, no answer in time     | 502 (504 on a timeout) | `signing_failed` with `reason`: `timeout`, `locked`, `key`, `program` or `failed`    |
+| signing is on (`KILN_GIT_SIGN`) and failed: no key, key locked, program missing, no answer in time     | 502 (504 on a timeout) | `signing_failed` with `reason`: `timeout`, `locked`, `key`, `program` or `failed`    |
 | another apply is running                                                                              | 409                    | `apply_in_progress`                                                                  |
 | git failed in a way that was not expected                                                             | 502                    | `local_git_failed`                                                                   |
 
-**Signing.** With `MRM_GIT_SIGN=ssh` or `gpg` the server signs the commit with its own key (set at
+**Signing.** With `KILN_GIT_SIGN=ssh` or `gpg` the server signs the commit with its own key (set at
 start, never read from the clone or the user's git config). A failure to sign is **not** answered by
 an unsigned commit: no branch is created, the change set returns to `approved` with `error` set to
 the (fixed, sanitised) message, and the answer is `signing_failed`; `reason` is one of `timeout`,
@@ -473,12 +473,12 @@ nothing written), `422 unknown_path`, `409 invalid_state`, `409 no_branch`, `409
 `409 branch_checked_out` (local; the branch is checked out or being rebased), `409 branch_missing`,
 `409 pr_closed` (merged or closed pull request), `409 remote_diverged` (push; the commit stays local),
 `409 fixup_in_progress` (the claim), `409 changed_meanwhile`, `409 local_write_disabled`
-(`MRM_LOCAL_REPO_WRITE`), `422 fixup_unsupported`, `422 not_text`, `502`/`504`. Audit `changeset.fixup`,
+(`KILN_LOCAL_REPO_WRITE`), `422 fixup_unsupported`, `422 not_text`, `502`/`504`. Audit `changeset.fixup`,
 `changeset.fixup_failed`, `changeset.pr_open`: counts and commit ids only.
 
 ## Clones on the server
 
-A clone is a cache (see "How a read stays fast"). Upkeep keeps `MRM_CLONE_DIR` bounded.
+A clone is a cache (see "How a read stays fast"). Upkeep keeps `KILN_CLONE_DIR` bounded.
 
 - `GET /clones` (`repositories.write`) lists this workspace's clones: `{ enabled, clones: [{ repositoryId,
   name, kind, bytes, sizeIsLowerBound, lastUsedAt, createdAt, inUse }], totalBytes, limits: {
@@ -489,9 +489,9 @@ A clone is a cache (see "How a read stays fast"). Upkeep keeps `MRM_CLONE_DIR` b
 - `POST /repositories/:id/clone/purge` (`repositories.write`) removes it now: `200 { removed,
   freedBytes }`. `409 clone_busy` while a read is running. The next read clones again. Audit `clone.purge`
   with counts.
-- The sweep (`MRM_CLONE_SWEEP_INTERVAL_MINUTES`, in the scheduler) removes clones unused for
-  `MRM_CLONE_IDLE_DAYS`, then the least recently used until the folder is under `MRM_CLONE_MAX_BYTES`. It never
-  removes a clone that is in use, symlinks, or anything that does not resolve inside `MRM_CLONE_DIR`.
+- The sweep (`KILN_CLONE_SWEEP_INTERVAL_MINUTES`, in the scheduler) removes clones unused for
+  `KILN_CLONE_IDLE_DAYS`, then the least recently used until the folder is under `KILN_CLONE_MAX_BYTES`. It never
+  removes a clone that is in use, symlinks, or anything that does not resolve inside `KILN_CLONE_DIR`.
   Audit `clone.prune` (once per workspace, counts only). See
   [ADR 0005](../adr/0005-local-clone-reads.md).
 
@@ -525,7 +525,7 @@ draft was made; it does not look at the sources again. A store config that chang
 ## Reads
 
 Scan, listing and change set creation read the repository either through the GitHub API or from
-a local git clone kept on the server (`MRM_READS`, [ADR 0005](../adr/0005-local-clone-reads.md),
+a local git clone kept on the server (`KILN_READS`, [ADR 0005](../adr/0005-local-clone-reads.md),
 [deployment.md](../deployment.md)). The responses are the same either way; the clone only makes
 reading faster and spends no rate limit.
 
@@ -545,12 +545,12 @@ reading faster and spends no rate limit.
   works on the folder (it reads the tip of the branch and writes one commit); only its optional
   push and pull request go to GitHub.
 - **Freshness.** A scan always fetches the newest commit of the default branch. A listing, and the
-  change set made from it, reuse the last fetched tip for `MRM_CLONE_TTL_SECONDS` (default 60),
+  change set made from it, reuse the last fetched tip for `KILN_CLONE_TTL_SECONDS` (default 60),
   so a commit pushed a few seconds ago may appear one minute later; a scan makes it visible at
   once. The commit sha is what the cache described above is keyed on, so a scan, a listing and a
   change set still read one commit.
 - **What is cached.** In memory, per commit (above). On disk, a shallow, partial clone per
-  repository under `MRM_CLONE_DIR`: the trees of the commits read and the files that were read. It
+  repository under `KILN_CLONE_DIR`: the trees of the commits read and the files that were read. It
   is only a cache; `DELETE /repositories/:id` removes it after the repository is deleted (a
   failure to remove it is logged and does not fail the request).
 - **Cancelling.** The 90 second request timeout also stops a running git.
@@ -559,13 +559,13 @@ reading faster and spends no rate limit.
 
 A repository can be read from a git folder on the server instead of GitHub. Design, threat model and
 limits: [ADR 0005](../adr/0005-local-clone-reads.md); server settings: [deployment.md](../deployment.md).
-It is **off unless `MRM_LOCAL_REPO_ROOTS` is set** (and needs git, so not with `MRM_READS=api`).
+It is **off unless `KILN_LOCAL_REPO_ROOTS` is set** (and needs git, so not with `KILN_READS=api`).
 
 Two uses, one folder per repository, one repository per folder (compared by real path):
 
 - **Existing repository**: attach a folder to a GitHub repository. Scan, listing and change set
   creation read the folder; applying opens a pull request on GitHub by default, or, with
-  `mode: "local_branch"` and `MRM_LOCAL_REPO_WRITE=true`, commits to a new branch of the folder
+  `mode: "local_branch"` and `KILN_LOCAL_REPO_WRITE=true`, commits to a new branch of the folder
   (optionally pushing it and opening the pull request).
 - **Local-only repository**: no credential and no `owner/repo`. Reads come from the folder.
   A change set is applied with `mode: "local_branch"` (a commit on a new branch of the folder, no
@@ -573,7 +573,7 @@ Two uses, one folder per repository, one repository per folder (compared by real
   set is touched (it stays approved), and anything else that needs GitHub (CI) answers the same.
 
 Only the **committed** tip of the chosen branch is read, never the working files. Writing is a
-separate, opt-in switch (`MRM_LOCAL_REPO_WRITE`): a commit is added on a new branch and nothing in
+separate, opt-in switch (`KILN_LOCAL_REPO_WRITE`): a commit is added on a new branch and nothing in
 the working folder changes. All five routes
 need `repositories.write` (admin, owner) except the config; a non-member gets `404`, a member or
 viewer `403`.
@@ -588,17 +588,17 @@ The `local` object of a repository:
 
 `path` is the real path as stored. `headSha` and `lastReadAt` are the commit of the last read.
 `status` is checked now, from the file system only (no git): `ok`, `not_enabled` (the setting is
-off), `reads_api` (`MRM_READS=api`), `git_missing`, `invalid_path`, `not_found`, `not_accessible`,
+off), `reads_api` (`KILN_READS=api`), `git_missing`, `invalid_path`, `not_found`, `not_accessible`,
 `not_directory`, `outside_roots`, `data_folder`, `bare_repository`, `not_a_repository`. A GitHub
 repository whose status is not `ok` is read from GitHub meanwhile; a local-only one cannot be read
 (`409 local_not_enabled`, `local_reads_disabled` or the path error).
 
 - `GET /repositories/local/config` (`repositories.read`) returns `{ local: { enabled, envName, write, signing } }`;
   with it off also `reason` (`no_roots`, `reads_api`, `git_missing`) and `message` (names
-  `MRM_LOCAL_REPO_ROOTS`). `roots` (the allowed folders) is included only for `repositories.write`.
-  `write` is `{ enabled, envName }`, with a `message` that names `MRM_LOCAL_REPO_WRITE` when it is
+  `KILN_LOCAL_REPO_ROOTS`). `roots` (the allowed folders) is included only for `repositories.write`.
+  `write` is `{ enabled, envName }`, with a `message` that names `KILN_LOCAL_REPO_WRITE` when it is
   off: whether a change set may be committed to the clone. `signing` is `{ enabled, format? }`:
-  `enabled: true` with `format` `ssh` or `gpg` when the server signs those commits (`MRM_GIT_SIGN`),
+  `enabled: true` with `format` `ssh` or `gpg` when the server signs those commits (`KILN_GIT_SIGN`),
   `{ enabled: false }` otherwise. It never includes the key or where it is.
 - `POST /repositories/local/check` with `{ path, branch? }` reads nothing into the tool and saves
   nothing. It returns `{ check }`: `realPath`, `folderName`, `worktree`, `checkedOutBranch` (null
@@ -630,7 +630,7 @@ Path errors, all `422` with a `message` written to be shown (`local_` plus the c
 `not_found`, `not_directory`, `not_a_repository`, `bare_repository`, `data_folder`; and `local_no_commits`,
 `local_detached_head` (choose a branch), `local_branch_not_found`, `local_invalid_branch`,
 `local_path_required`. Others: `409 local_not_enabled`, `409 local_reads_disabled` (a local-only
-repository with `MRM_READS=api`), `422 dubious_ownership` (git refuses a folder owned by another
+repository with `KILN_READS=api`), `422 dubious_ownership` (git refuses a folder owned by another
 user; the server never sets `safe.directory`), `409 local_git_missing`, `422 local_missing`
 (the folder is gone) and `422 local_branch_missing` (the branch was deleted), both found when a read
 runs.

@@ -24,7 +24,7 @@ export type Services = {
   ipLimiter: import('./limiter.ts').LoginLimiter;
   /** Bad attempts per invitation link. Its own instance: unknown tokens must not push out login lockouts. */
   inviteLimiter: import('./limiter.ts').LoginLimiter;
-  /** Believe X-Forwarded-For (MRM_TRUST_PROXY=1). Only safe behind a proxy that sets it. */
+  /** Believe X-Forwarded-For (KILN_TRUST_PROXY=1). Only safe behind a proxy that sets it. */
   trustProxy?: boolean | undefined;
   cost?: import('./passwords.ts').ScryptCost | undefined;
   /** Present only in single-user mode. Its absence is what keeps multi-user mode unchanged. */
@@ -97,7 +97,7 @@ export function isBearerOnly(c: Context): boolean {
 
 /**
  * The address of the client, for rate limiting. It is the socket address, unless `trustProxy` is
- * set (MRM_TRUST_PROXY=1): then the last X-Forwarded-For entry, which is the one the single
+ * set (KILN_TRUST_PROXY=1): then the last X-Forwarded-For entry, which is the one the single
  * trusted proxy appended itself. Earlier entries are written by the client and are ignored.
  * Undefined when there is no socket (in-process tests): callers then skip address limiting.
  */

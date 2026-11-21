@@ -14,23 +14,23 @@ import { storeVersionRoutes, type VersionRoutesContext } from './version-routes.
  */
 export type PublishDeps = {
   /**
-   * Changing a live rollout (MRM_STORE_ROLLOUT_ENABLED). `connectorFactory` builds the connector that can read and change a
+   * Changing a live rollout (KILN_STORE_ROLLOUT_ENABLED). `connectorFactory` builds the connector that can read and change a
    * rollout (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
   rollout?: RolloutRoutesContext['rollout'] | undefined;
   /**
    * Staged listing text and graphics, and writing them to the store as a DRAFT: a store write that is OFF unless `enabled`
-   * (MRM_STORE_DRAFT_WRITE_ENABLED). `connectorFactory` builds the connector that can read and write a draft (fakes in
+   * (KILN_STORE_DRAFT_WRITE_ENABLED). `connectorFactory` builds the connector that can read and write a draft (fakes in
    * tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
   draft?: StagedRoutesContext['draft'] | undefined;
   /**
-   * Submitting the draft for review (docs/adr/0010-store-submit.md): OFF unless `enabled` (MRM_STORE_SUBMIT_ENABLED).
+   * Submitting the draft for review (docs/adr/0010-store-submit.md): OFF unless `enabled` (KILN_STORE_SUBMIT_ENABLED).
    * `connectorFactory` builds the connector that can read and submit (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
   submit?: SubmitRoutesContext['submit'] | undefined;
   /**
-   * Releasing (docs/adr/0014-release-management.md): OFF unless `enabled` (MRM_STORE_RELEASE_ENABLED). The reads of builds and
+   * Releasing (docs/adr/0014-release-management.md): OFF unless `enabled` (KILN_STORE_RELEASE_ENABLED). The reads of builds and
    * version codes use the draft connector (`draft.connectorFactory`) and no switch.
    */
   release?: ReleaseRoutesContext['release'] | undefined;
@@ -41,7 +41,7 @@ export type PublishDeps = {
   version?: Pick<NonNullable<VersionRoutesContext['version']>, 'connectorFactory'> | undefined;
   /**
    * Publishing everything an app has pending in one go (docs/adr/0015-pending-and-batch-publish.md): OFF unless `enabled`
-   * (MRM_STORE_PUBLISH_BATCH_ENABLED). It turns no step on: the steps keep the switches and seams above. `claimTtlMs` is for tests.
+   * (KILN_STORE_PUBLISH_BATCH_ENABLED). It turns no step on: the steps keep the switches and seams above. `claimTtlMs` is for tests.
    */
   publish?: PendingRoutesContext['publish'] | undefined;
 };

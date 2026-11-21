@@ -27,7 +27,7 @@ import type { RevenueCatStep } from '../revenuecat/index.ts';
 
 export type Actor = { type: ActorType; id: string };
 
-export const PRODUCT_WRITE_ENV = 'MRM_STORE_PRODUCT_WRITE_ENABLED';
+export const PRODUCT_WRITE_ENV = 'KILN_STORE_PRODUCT_WRITE_ENABLED';
 /** The purpose recorded when a credential is used (the audit row `credential.use`). */
 export const PRODUCT_SYNC_PURPOSE = 'products.sync';
 export const PRODUCT_WRITE_PURPOSE = 'monetization.write';
@@ -79,7 +79,7 @@ export type MonetizationContext = {
   limiter: TestLimiter;
   readFactory: ProductsConnectorFactory;
   readTimeoutMs: number;
-  /** MRM_STORE_PRODUCT_WRITE_ENABLED. */
+  /** KILN_STORE_PRODUCT_WRITE_ENABLED. */
   writeEnabled: boolean;
   writeFactory: ProductWriteConnectorFactory;
   writeTimeoutMs: number;

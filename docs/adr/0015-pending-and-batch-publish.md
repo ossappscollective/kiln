@@ -1,6 +1,6 @@
 # ADR 0015: One place for everything pending, and publishing it in one go
 
-Status: implemented and tested against fakes on SQLite (the Postgres variants run when `MRM_TEST_POSTGRES_URL` is set); **never
+Status: implemented and tested against fakes on SQLite (the Postgres variants run when `KILN_TEST_POSTGRES_URL` is set); **never
 run against App Store Connect or Google Play**. API: [api/pending](../api/pending.md). Migration 29.
 
 ## Context
@@ -25,7 +25,7 @@ and app lists also have to show which apps have something pending.
    services that already run them (`applyDraftPush`, `applySubmit`, `applyRelease`, `applyRollout`). Each step keeps its switch,
    its role right, its claim, its own re-read of the store right before the write, its refusal on drift (`state_changed`), its
    never-retry rule and its read-back of a lost answer. The plan only combines their previews.
-4. **Off by default, behind a master switch that turns nothing else on.** `MRM_STORE_PUBLISH_BATCH_ENABLED` (default `false`).
+4. **Off by default, behind a master switch that turns nothing else on.** `KILN_STORE_PUBLISH_BATCH_ENABLED` (default `false`).
    Every included step also needs its own switch (`409 step_disabled`; in the plan `feature_disabled`) and its own right. The
    batch is `store.publish` (owner and admin; **explicit-only on tokens**). A token needs `store.publish` AND the right of every
    step it includes; the registry checks `store.publish` only, so the handler checks the rest and names what is missing (`403`).

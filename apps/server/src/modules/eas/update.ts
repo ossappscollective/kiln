@@ -25,7 +25,7 @@ import { type ExpoLinkView, getExpoLink, type LinkContext } from './link.ts';
  * EAS Update of the Expo project an app is linked to (docs/adr/0037-eas-update.md, docs/api/eas-update.md): channels, the branch each
  * channel points to, the newest updates of every branch, per-update rollouts, insights of an update group, and a check that the newest
  * update of a channel has the runtime version of a binary that was shipped. Reads are live (no table). The ONE write is raising the
- * rollout percentage of an update that is mid-rollout: gated by MRM_EAS_UPDATE_ROLLOUT_ENABLED, a preview with a confirmHash, step-up
+ * rollout percentage of an update that is mid-rollout: gated by KILN_EAS_UPDATE_ROLLOUT_ENABLED, a preview with a confirmHash, step-up
  * and an audit row. Publishing an update, rolling back and changing the branch of a channel are not implemented (the ADR says why).
  */
 
@@ -34,7 +34,7 @@ type Actor = { type: ActorType; id: string };
 export const EXPO_UPDATE_PURPOSE = 'eas.update';
 export const EXPO_UPDATE_INSIGHTS_PURPOSE = 'eas.update_insights';
 export const EXPO_UPDATE_ROLLOUT_PURPOSE = 'eas.update_rollout';
-export const EXPO_UPDATE_ROLLOUT_ENV = 'MRM_EAS_UPDATE_ROLLOUT_ENABLED';
+export const EXPO_UPDATE_ROLLOUT_ENV = 'KILN_EAS_UPDATE_ROLLOUT_ENABLED';
 
 /** The key Expo uses for the platform of an app record; null when EAS does not build or update it. A table, not a check on a name. */
 const EXPO_PLATFORM: Record<Platform, 'ios' | 'android' | null> = {
@@ -50,7 +50,7 @@ export const INSIGHTS_MAX_DAYS = 30;
 export const INSIGHTS_DEFAULT_DAYS = 7;
 
 export type UpdateContext = LinkContext & {
-  /** MRM_EAS_UPDATE_ROLLOUT_ENABLED (default false). */
+  /** KILN_EAS_UPDATE_ROLLOUT_ENABLED (default false). */
   rolloutEnabled: boolean;
 };
 
@@ -120,7 +120,7 @@ export type UpdateStateView = {
     channel: string | null;
     createdAt: number | null;
   }[];
-  /** Raising a rollout is switched on (MRM_EAS_UPDATE_ROLLOUT_ENABLED). */
+  /** Raising a rollout is switched on (KILN_EAS_UPDATE_ROLLOUT_ENABLED). */
   rolloutWriteEnabled: boolean;
   readAt: number;
 };

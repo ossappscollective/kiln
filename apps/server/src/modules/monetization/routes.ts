@@ -12,7 +12,7 @@ import { applyLocalization, previewLocalization } from './write.ts';
 
 /**
  * In-app purchases and subscriptions of an app (docs/api/products.md). Reads and the sync are read-only toward the store. The one write,
- * the localization of a product, is OFF unless MRM_STORE_PRODUCT_WRITE_ENABLED=true. Mounted under /api/workspaces.
+ * the localization of a product, is OFF unless KILN_STORE_PRODUCT_WRITE_ENABLED=true. Mounted under /api/workspaces.
  */
 
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';

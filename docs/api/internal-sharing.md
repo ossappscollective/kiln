@@ -5,13 +5,13 @@ is a **store write** (a binary leaves this server for Google under your develope
 but it cannot be taken back from here: Google's API has no delete or list call for it. So it is gated like the other store writes.
 Design and reasons: [ADR 0020](../adr/0020-play-internal-sharing.md). Where builds come from: [builds](builds.md).
 
-Switched **off by default**: `MRM_PLAY_INTERNAL_SHARING_ENABLED=true` turns it on. Android apps only (`422 not_android`).
+Switched **off by default**: `KILN_PLAY_INTERNAL_SHARING_ENABLED=true` turns it on. Android apps only (`422 not_android`).
 
 ## The gates
 
 | Gate             | What                                                                                                                                                                                                                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Server switch    | `MRM_PLAY_INTERNAL_SHARING_ENABLED` (default `false`). Off: every route but the config answers `409 internal_sharing_disabled`, no GitHub or Google call is made. It does **not** need `MRM_BUILDS_DOWNLOAD_ENABLED`; it uses the same size limit `MRM_BUILDS_DOWNLOAD_MAX_MB`. |
+| Server switch    | `KILN_PLAY_INTERNAL_SHARING_ENABLED` (default `false`). Off: every route but the config answers `409 internal_sharing_disabled`, no GitHub or Google call is made. It does **not** need `KILN_BUILDS_DOWNLOAD_ENABLED`; it uses the same size limit `KILN_BUILDS_DOWNLOAD_MAX_MB`. |
 | Role             | `builds.share`: **owner and admin**. A member can download builds and cannot share them. **Explicit-only for API tokens**: a token that does not name `builds.share` in its actions never gets it.                                                                              |
 | Preview and hash | The apply needs the `confirmHash` of a preview of the same artifact (`409 state_changed`, with a new `preview`, when the artifact changed).                                                                                                                                     |
 | Typed phrase     | `SHARE <package>` exactly (`422 confirmation_mismatch`).                                                                                                                                                                                                                        |
@@ -93,7 +93,7 @@ Read on 2026-11-19 from Google's pages, **not run against Google**:
   Google recommends a 2 minute timeout for the call. The help page says "Download links expire 60 days after the upload date".
 - **Unverified:** that `?uploadType=media` with `Content-Type: application/octet-stream` is what Google accepts (the reference page does not name the parameter; it is the
   standard simple media upload); the exact shape of `downloadUrl`; whether Google checks the package name inside the file against the path; the largest file Google
-  accepts (no figure found; the limit here is `MRM_BUILDS_DOWNLOAD_MAX_MB`); whether the app must already exist in Play Console; Google's real error bodies for 400/403/404 (this server
+  accepts (no figure found; the limit here is `KILN_BUILDS_DOWNLOAD_MAX_MB`); whether the app must already exist in Play Console; Google's real error bodies for 400/403/404 (this server
   maps the HTTP status, not the wording); whether the 60 day expiry holds for API uploads; that the link works for the testers you expect (they must turn on internal app
   sharing in the Play Store app and be allowed in Play Console).
 - The version code of the build is **not shown** (it would need the binary manifest of the file to be read).

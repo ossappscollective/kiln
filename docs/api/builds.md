@@ -7,7 +7,7 @@ run against live GitHub. See [../research/test-builds.md](../research/test-build
 | Route                                                 | Right                            | Notes                                                                                                                                                                                                                                             |
 | ----------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /apps/:id/builds/artifacts`                      | `builds.read` (member and above) | CI artifacts of the runs that count for the app, the store builds of the last sync, and (iOS and macOS) the TestFlight public links (a read-only App Store Connect call). Kept 30 s, ETag read, shared between callers; 60 a minute per workspace |
-| `GET /apps/:id/builds/artifacts/:artifactId/download` | `builds.download`                | Streams the zip through the server. `409 builds_download_disabled` unless `MRM_BUILDS_DOWNLOAD_ENABLED=true`                                                                                                                                      |
+| `GET /apps/:id/builds/artifacts/:artifactId/download` | `builds.download`                | Streams the zip through the server. `409 builds_download_disabled` unless `KILN_BUILDS_DOWNLOAD_ENABLED=true`                                                                                                                                      |
 | `POST /apps/:id/builds/artifacts/:artifactId/link`    | `builds.download`                | `{ path, expiresAt, filename }`: `/api/builds/dl/<token>`                                                                                                                                                                                         |
 | `GET /api/builds/dl/:token`                           | none (the token)                 | Public, for a phone. Single use, 10 minutes                                                                                                                                                                                                       |
 
@@ -43,7 +43,7 @@ changes a group or a link.
 
 - The GitHub token never leaves the server. The `302` of `GET /actions/artifacts/:id/zip` is followed here, without the token, over
   https to a public host only (no address literal, `localhost`, `.internal`, no dot), at most three hops.
-- Limits: `MRM_BUILDS_DOWNLOAD_MAX_MB` (default 500; refused with `413` before any byte moves, and enforced while streaming), 20 a
+- Limits: `KILN_BUILDS_DOWNLOAD_MAX_MB` (default 500; refused with `413` before any byte moves, and enforced while streaming), 20 a
   minute per workspace, 3 at a time (`429`), 10 minutes of transfer. `410 artifact_expired`, `404` for an artifact that is not one
   of this app's.
 - Headers: `application/zip`, `Content-Disposition: attachment` with a sanitised `.zip` name, `no-store`, `nosniff`.

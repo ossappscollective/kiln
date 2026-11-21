@@ -203,7 +203,7 @@ dbTest('settings: the LibreTranslate address is checked when it is saved', async
 });
 
 dbTest(
-  'settings: a private or loopback address needs MRM_TRANSLATE_ALLOW_PRIVATE_URLS, metadata never',
+  'settings: a private or loopback address needs KILN_TRANSLATE_ALLOW_PRIVATE_URLS, metadata never',
   async (db) => {
     const t = await bootTranslation(db, { translation: { resolve, allowPrivateUrls: true } });
     for (const url of [

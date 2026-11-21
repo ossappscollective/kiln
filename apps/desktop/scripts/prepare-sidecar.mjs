@@ -408,15 +408,15 @@ async function smoke(nodeBinary, serverDir, hasWeb) {
     stdio: ['pipe', 'pipe', 'pipe'],
     env: {
       ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
-      MRM_MODE: 'single_user',
-      MRM_LAUNCH_SECRET: randomBytes(32).toString('hex'),
-      MRM_MASTER_KEY: randomBytes(32).toString('base64'),
+      KILN_MODE: 'single_user',
+      KILN_LAUNCH_SECRET: randomBytes(32).toString('hex'),
+      KILN_MASTER_KEY: randomBytes(32).toString('base64'),
       PORT: String(port),
-      MRM_DATA_DIR: dataDir,
+      KILN_DATA_DIR: dataDir,
       DATABASE_URL: `file:${join(dataDir, 'mrm.db')}`,
-      MRM_WEB_DIST: join(serverDir, 'web'),
-      MRM_WORKER: 'inline',
-      MRM_EXIT_WITH_PARENT: '1',
+      KILN_WEB_DIST: join(serverDir, 'web'),
+      KILN_WORKER: 'inline',
+      KILN_EXIT_WITH_PARENT: '1',
     },
   });
   let output = '';

@@ -86,7 +86,7 @@ export function mailRoutes(ctx: MailRoutesContext) {
           {
             error: 'smtp_locked',
             message:
-              'The mail server is set by the server environment (MRM_SMTP_HOST). Change it there.',
+              'The mail server is set by the server environment (KILN_SMTP_HOST). Change it there.',
           },
           409,
         );
@@ -104,7 +104,7 @@ export function mailRoutes(ctx: MailRoutesContext) {
           hint: done.hint,
           message:
             done.hint === 'private_address_blocked'
-              ? 'This server only sends mail to public addresses. For a mail server on this machine or your network, the person who runs this server sets MRM_SMTP_ALLOW_PRIVATE_HOSTS=true and restarts it.'
+              ? 'This server only sends mail to public addresses. For a mail server on this machine or your network, the person who runs this server sets KILN_SMTP_ALLOW_PRIVATE_HOSTS=true and restarts it.'
               : 'That address cannot be used for mail.',
         },
         400,
@@ -127,7 +127,7 @@ export function mailRoutes(ctx: MailRoutesContext) {
         {
           error: 'smtp_locked',
           message:
-            'The mail server is set by the server environment (MRM_SMTP_HOST). Change it there.',
+            'The mail server is set by the server environment (KILN_SMTP_HOST). Change it there.',
         },
         409,
       );

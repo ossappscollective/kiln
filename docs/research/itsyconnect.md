@@ -152,7 +152,7 @@ confirm (Android rollout value), push.
 - Itsyconnect: Review center across apps, red badge, "Mark all as seen", Hide responded, filters, inline
   developer response with edit and delete, reply dialog with AI help, translate.
 - We have: reviews inbox with j/k/t/r keys and search, triage status, assignee, notes, rating overview,
-  reply dialog and translation (reply gated by `MRM_REVIEW_REPLY_ENABLED`), attention item for new reviews.
+  reply dialog and translation (reply gated by `KILN_REVIEW_REPLY_ENABLED`), attention item for new reviews.
 - Gap: we are ahead on triage; behind on a persistent badge and a default "needs answer" view that mixes
   stores; "Hide responded" as a one-click default.
 - Recommend: sidebar badge of unanswered reviews (per store and total), a default filter "unanswered, newest

@@ -93,7 +93,7 @@ dbTest('logins are also limited per client address, across different emails', as
   );
 });
 
-dbTest('X-Forwarded-For is ignored unless MRM_TRUST_PROXY is set', async (db) => {
+dbTest('X-Forwarded-For is ignored unless KILN_TRUST_PROXY is set', async (db) => {
   const { app } = await boot(db, { ipLimiter: createLoginLimiter({ max: 2 }) });
   const from = socket('198.51.100.7');
   for (let i = 0; i < 2; i++)

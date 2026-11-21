@@ -9,7 +9,7 @@ import { stepUpMessage } from './step-up.ts';
  * fromEntries.
  */
 
-export const VERSION_ENV = 'MRM_STORE_DRAFT_WRITE_ENABLED';
+export const VERSION_ENV = 'KILN_STORE_DRAFT_WRITE_ENABLED';
 export const VERSION_ROLE_REASON = 'Creating a version needs the admin or owner role.';
 export const VERSION_NOTE =
   'Creates an editable draft version in App Store Connect. Nothing is submitted.';

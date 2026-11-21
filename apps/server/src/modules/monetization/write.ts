@@ -34,7 +34,7 @@ import { readStoredProductRef, storeLocalizationText } from './snapshot.ts';
  * Changing the localized display name and description of ONE in-app purchase or subscription in ONE locale: the only store write of this feature,
  * written down in docs/adr/0034-in-app-products.md and docs/api/products.md. The design copies the store writes before it (ADR 0007, 0008, 0009):
  *
- * - Off unless `writeEnabled` (MRM_STORE_PRODUCT_WRITE_ENABLED, default false): preview and apply answer `409 store_product_write_disabled` and
+ * - Off unless `writeEnabled` (KILN_STORE_PRODUCT_WRITE_ENABLED, default false): preview and apply answer `409 store_product_write_disabled` and
  *   no connector is built. The route checks the role action `monetization.write` (owner and admin) before it looks at the switch.
  * - Preview reads the store's localization NOW and returns it with the proposed texts and `previewHash`, a SHA-256 over the app, the product,
  *   the locale, the texts that were read and the texts proposed. Apply needs that hash and the connector READS THE STORE AGAIN right before

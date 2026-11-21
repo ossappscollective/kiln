@@ -12,7 +12,7 @@ import type { Review, ReviewStore } from './reviews.ts';
  * file only explain things before a request; they never decide. Written for the ES2017 web build.
  */
 
-export const REPLY_ENV = 'MRM_REVIEW_REPLY_ENABLED';
+export const REPLY_ENV = 'KILN_REVIEW_REPLY_ENABLED';
 
 /** The sentence the confirmation must show, word for word. */
 export const PUBLIC_WARNING =

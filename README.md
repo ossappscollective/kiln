@@ -46,7 +46,7 @@ production.
 - A database-backed job queue with retries; SQLite through `node:sqlite` or Postgres.
 - Security hardening of the hosted server: login rate limits, request body caps, security headers,
   non-root container, loopback-only default publish ([docs/deployment.md](docs/deployment.md)).
-- An MCP server (off by default, `MRM_MCP_ENABLED`) so AI assistants such as Claude and Cursor can read a workspace through an API token and
+- An MCP server (off by default, `KILN_MCP_ENABLED`) so AI assistants such as Claude and Cursor can read a workspace through an API token and
   preview, never apply, store actions; "Connect an AI assistant" under Settings, AI, shows how ([docs/mcp.md](docs/mcp.md),
   [docs/api/mcp.md](docs/api/mcp.md)). Tested against a fake client only.
 - Two-factor confirmation: an authenticator app (TOTP) or an emailed code as extra ways to confirm hard actions and, optionally, to
@@ -90,7 +90,7 @@ Last run in a Linux arm64 development environment, Node 22.23: `tsc` is clean fo
 
 Not verified, so treat as unknown:
 
-- **Postgres.** The cases exist (`MRM_TEST_POSTGRES_URL`, [CONTRIBUTING.md](CONTRIBUTING.md)) but
+- **Postgres.** The cases exist (`KILN_TEST_POSTGRES_URL`, [CONTRIBUTING.md](CONTRIBUTING.md)) but
   have never run.
 - **Live services.** Every App Store Connect, Google Play and GitHub call is tested against
   hand-written fixtures. Several error bodies and enum values are from memory
@@ -117,7 +117,7 @@ packages/
   db/         Portable SQL migrations, SQLite (node:sqlite) and Postgres adapters, Drizzle schemas
   connectors/ GitHub, App Store Connect, Google Play, fastlane and Expo store config files,
               translation providers. Store reads by default; every store write (review replies,
-              rollout, staged draft push, submit) is off until its MRM_*_ENABLED flag is set
+              rollout, staged draft push, submit) is off until its KILN_*_ENABLED flag is set
 docs/         Architecture, ADRs, spikes, API notes, phase checklists, open decisions
 ```
 
@@ -129,12 +129,12 @@ stripping, so there is no build step for the server. `pnpm-lock.yaml` is committ
 **Development (SQLite, nothing else to install)**
 
 ```sh
-cp .env.example .env          # then set MRM_MASTER_KEY: openssl rand -base64 32
+cp .env.example .env          # then set KILN_MASTER_KEY: openssl rand -base64 32
 pnpm install
 pnpm dev                      # API on :8787, web UI on :5173
 ```
 
-- `.env` is git-ignored. `MRM_MASTER_KEY` is required; losing it means re-entering every stored
+- `.env` is git-ignored. `KILN_MASTER_KEY` is required; losing it means re-entering every stored
   credential.
 - With no `DATABASE_URL`, the server uses SQLite at `./.mrm-data/mrm.db`. Postgres is opt-in:
   set `DATABASE_URL=postgres://...` (but note it has never been tested here, see above).
@@ -148,16 +148,16 @@ For scripting, the same steps are `POST /api/auth/register` and `POST /api/auth/
 **Hosted (Docker Compose, Postgres)**
 
 ```sh
-cp .env.example .env          # set MRM_MASTER_KEY
+cp .env.example .env          # set KILN_MASTER_KEY
 docker compose up --build     # http://localhost:8787
 ```
 
 - The compose file runs the app against its own Postgres container.
-- Port 8787 is published on **127.0.0.1 only** by default (`MRM_BIND`). The server speaks plain
+- Port 8787 is published on **127.0.0.1 only** by default (`KILN_BIND`). The server speaks plain
   HTTP; put a TLS-terminating reverse proxy in front before exposing it, and read
-  [docs/deployment.md](docs/deployment.md) first. Setting `MRM_BIND=0.0.0.0` sends passwords and
+  [docs/deployment.md](docs/deployment.md) first. Setting `KILN_BIND=0.0.0.0` sends passwords and
   session cookies unencrypted unless something else terminates TLS.
-- Behind a reverse proxy you control, set `MRM_TRUST_PROXY=1` so login rate limits see the real
+- Behind a reverse proxy you control, set `KILN_TRUST_PROXY=1` so login rate limits see the real
   client address (details and the risk of setting it wrongly are in the deployment notes).
 - The image runs as the unprivileged `node` user and writes only to `/data`.
 
@@ -183,7 +183,7 @@ pnpm typecheck
 pnpm lint        # Biome
 ```
 
-Postgres cases run only when `MRM_TEST_POSTGRES_URL` is set; otherwise they show as skipped. See
+Postgres cases run only when `KILN_TEST_POSTGRES_URL` is set; otherwise they show as skipped. See
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Security notes

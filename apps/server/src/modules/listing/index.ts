@@ -12,7 +12,7 @@ import { listingRoutes } from './routes.ts';
  * writes to a store. Staging and pushing a draft are a different feature (the staged routes) that shares `shared.repo` and
  * `shared.assetsLimiter`.
  *
- * `listing.intervalMs` is MRM_LISTING_INTERVAL_MINUTES in milliseconds, shown so the Listing tab can say when the next read is due.
+ * `listing.intervalMs` is KILN_LISTING_INTERVAL_MINUTES in milliseconds, shown so the Listing tab can say when the next read is due.
  * `assets.limiter` is the per workspace limit of index reads that miss the cache (default 30 a minute), `assets.icons` the icon
  * lookup's limiter and network seam. `assetSync` replaces the CDN exchange and the limiters of the graphics sync (tests).
  * `draft` is the store draft's connector, which the graphics sync reads.

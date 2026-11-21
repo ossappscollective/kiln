@@ -71,7 +71,7 @@ that the person at the keyboard is the owner right now.
 ## Consequences
 
 - With the policy off, every route and every existing test behaves as before.
-- Passkeys need `https` or `http://localhost` and a host name (not an IP address). `MRM_PUBLIC_ORIGIN` pins the
+- Passkeys need `https` or `http://localhost` and a host name (not an IP address). `KILN_PUBLIC_ORIGIN` pins the
   origin behind a proxy; otherwise the origin of the request is used.
 - Losing the only factor with the policy on is recoverable only with a recovery code (decision 10). Without codes it locks hard actions
   and policy changes until someone with database access removes the rows of `step_up_users` / `step_up_credentials` or the `security.stepUp` setting.

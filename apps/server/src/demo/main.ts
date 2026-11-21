@@ -1,18 +1,19 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
+import { applyLegacyEnv } from '../legacy-env.ts';
 import { createDemoRuntime, wipe } from './boot.ts';
 import { demoRequested, loadDemoConfig } from './config.ts';
 
 /**
- * Entry point of demo mode (`pnpm demo`, or `MRM_DEMO=true` with the normal start script): see docs/demo.md.
- * Reads only MRM_DEMO, MRM_DEMO_DIR, MRM_DEMO_PORT, MRM_DEMO_FORCE and the safety checks of config.ts. Never reads `.env`.
+ * Entry point of demo mode (`pnpm demo`, or `KILN_DEMO=true` with the normal start script): see docs/demo.md.
+ * Reads only KILN_DEMO, KILN_DEMO_DIR, KILN_DEMO_PORT, KILN_DEMO_FORCE and the safety checks of config.ts. Never reads `.env`.
  */
 export async function runDemo(
   env: Record<string, string | undefined> = process.env,
 ): Promise<void> {
-  if (!demoRequested(env) && env.MRM_DEMO_ENTRY !== '1')
-    throw new Error('Demo mode is off. Set MRM_DEMO=true.');
+  if (!demoRequested(env) && env.KILN_DEMO_ENTRY !== '1')
+    throw new Error('Demo mode is off. Set KILN_DEMO=true.');
   const webDist = fileURLToPath(new URL('../../../web/dist', import.meta.url));
   let config: ReturnType<typeof loadDemoConfig>;
   try {
@@ -24,7 +25,7 @@ export async function runDemo(
   console.log(
     `Demo mode: data in ${config.dataDir} (its own SQLite file; the real database and master key are never read).`,
   );
-  if (process.argv.includes('--reset') || env.MRM_DEMO_RESET === '1') {
+  if (process.argv.includes('--reset') || env.KILN_DEMO_RESET === '1') {
     if (existsSync(config.dataDir)) await wipe(config);
     console.log('Demo data reset: starting from a freshly seeded workspace.');
   }
@@ -61,5 +62,6 @@ export async function runDemo(
 
 // Started directly: `node src/demo/main.ts`.
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  await runDemo({ ...process.env, MRM_DEMO: 'true' });
+  applyLegacyEnv(process.env);
+  await runDemo({ ...process.env, KILN_DEMO: 'true' });
 }

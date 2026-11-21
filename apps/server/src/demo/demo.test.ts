@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createDatabase, migrate } from '@kiln/db';
 import { createApp } from '../app.ts';
-import { createDemoRuntime, type DemoRuntime } from './boot.ts';
+import { createDemoRuntime, type DemoRuntime, wipe } from './boot.ts';
 import {
+  DEMO_LEGACY_MARKER,
   DEMO_MARKER,
+  defaultDemoDir,
   demoMasterKey,
   demoProblems,
   demoRequested,
@@ -30,7 +32,7 @@ after(async () => {
 });
 
 const start = (dir = freshDir()) =>
-  createDemoRuntime(loadDemoConfig({ MRM_DEMO: 'true', MRM_DEMO_DIR: dir }, ''), { worker: false });
+  createDemoRuntime(loadDemoConfig({ KILN_DEMO: 'true', KILN_DEMO_DIR: dir }, ''), { worker: false });
 
 type Json = Record<string, any>;
 async function session(rt: DemoRuntime, as = 'owner') {
@@ -82,22 +84,22 @@ const seeded = () => {
 };
 // ----- off by default, refuses unsafe setups ----------------------------------------------------------------------------
 
-test('demo mode is off unless MRM_DEMO is true or 1', async () => {
+test('demo mode is off unless KILN_DEMO is true or 1', async () => {
   for (const v of [undefined, '', 'false', '0', 'no', 'yes', 'TRUEISH'])
-    assert.equal(demoRequested({ MRM_DEMO: v }), false, String(v));
-  for (const v of ['true', 'TRUE', ' 1 ']) assert.equal(demoRequested({ MRM_DEMO: v }), true, v);
+    assert.equal(demoRequested({ KILN_DEMO: v }), false, String(v));
+  for (const v of ['true', 'TRUE', ' 1 ']) assert.equal(demoRequested({ KILN_DEMO: v }), true, v);
   await assert.rejects(runDemo({}), /Demo mode is off/);
 });
 
-test('it refuses Postgres, production and real-looking setups unless MRM_DEMO_FORCE; never the real folder', () => {
+test('it refuses Postgres, production and real-looking setups unless KILN_DEMO_FORCE; never the real folder', () => {
   const dir = freshDir();
-  const base = { MRM_DEMO: 'true', MRM_DEMO_DIR: dir };
+  const base = { KILN_DEMO: 'true', KILN_DEMO_DIR: dir };
   assert.doesNotThrow(() => loadDemoConfig(base));
   for (const env of [
     { DATABASE_URL: 'postgres://u:p@db.example.com/mrm' },
     { NODE_ENV: 'production' },
-    { MRM_MASTER_KEY: 'abc' },
-    { MRM_MODE: 'single_user' },
+    { KILN_MASTER_KEY: 'abc' },
+    { KILN_MODE: 'single_user' },
   ]) {
     assert.throws(
       () => loadDemoConfig({ ...base, ...env }),
@@ -105,31 +107,58 @@ test('it refuses Postgres, production and real-looking setups unless MRM_DEMO_FO
       JSON.stringify(Object.keys(env)),
     );
     assert.doesNotThrow(
-      () => loadDemoConfig({ ...base, ...env, MRM_DEMO_FORCE: 'true' }),
+      () => loadDemoConfig({ ...base, ...env, KILN_DEMO_FORCE: 'true' }),
       JSON.stringify(env),
     );
   }
   // The hard problems cannot be forced: the real server's folder, and a folder that holds something else.
   assert.throws(
-    () => loadDemoConfig({ ...base, MRM_DEMO_DIR: join(dir, '.mrm-data'), MRM_DEMO_FORCE: 'true' }),
+    () => loadDemoConfig({ ...base, KILN_DEMO_DIR: join(dir, '.kiln-data'), KILN_DEMO_FORCE: 'true' }),
     /folder of the real server/,
   );
   assert.throws(
-    () => loadDemoConfig({ MRM_DEMO: 'true', MRM_DEMO_DIR: tmpdir(), MRM_DEMO_FORCE: 'true' }),
+    () => loadDemoConfig({ ...base, KILN_DEMO_DIR: join(dir, '.mrm-data'), KILN_DEMO_FORCE: 'true' }),
+    /folder of the real server/,
+  );
+  assert.throws(
+    () => loadDemoConfig({ KILN_DEMO: 'true', KILN_DEMO_DIR: tmpdir(), KILN_DEMO_FORCE: 'true' }),
     /not a demo/,
   );
   assert.deepEqual(demoProblems({}, join(dir, 'nested')).hard, []);
-  assert.throws(() => loadDemoConfig({ ...base, MRM_DEMO_PORT: 'abc' }), /MRM_DEMO_PORT/);
+  assert.throws(() => loadDemoConfig({ ...base, KILN_DEMO_PORT: 'abc' }), /KILN_DEMO_PORT/);
+});
+
+test('a demo folder made before the rename (marker .mrm-demo) is still a demo folder, and keeps its marker', async () => {
+  const dir = freshDir();
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, DEMO_LEGACY_MARKER), '{}\n');
+  writeFileSync(join(dir, 'world.json'), '{}');
+  assert.deepEqual(demoProblems({}, dir).hard, []);
+  const config = loadDemoConfig({ KILN_DEMO: 'true', KILN_DEMO_DIR: dir });
+  await wipe(config);
+  assert.deepEqual(readdirSync(dir), [DEMO_LEGACY_MARKER]);
+  const rt = await start(dir);
+  await rt.save();
+  const names = readdirSync(dir).filter((n) => !n.startsWith('demo.db-'));
+  assert.deepEqual(names.sort(), [DEMO_LEGACY_MARKER, 'demo.db', 'world.json'].sort());
+  await rt.close();
+});
+
+test('the default demo folder is ./.kiln-demo, or ./.mrm-demo when only that exists', () => {
+  const only = (...paths: string[]) => (p: string) => paths.includes(p);
+  assert.equal(defaultDemoDir(only()), './.kiln-demo');
+  assert.equal(defaultDemoDir(only('./.mrm-demo')), './.mrm-demo');
+  assert.equal(defaultDemoDir(only('./.mrm-demo', './.kiln-demo')), './.kiln-demo');
 });
 
 test('the demo uses its own key, port and folder, and listens on loopback only', () => {
-  const config = loadDemoConfig({ MRM_DEMO: 'true', MRM_DEMO_DIR: freshDir() });
+  const config = loadDemoConfig({ KILN_DEMO: 'true', KILN_DEMO_DIR: freshDir() });
   assert.equal(config.port, 8788);
   assert.equal(config.host, '127.0.0.1');
   assert.deepEqual(config.masterKey, demoMasterKey());
   assert.match(config.databaseUrl, /demo\.db$/);
   assert.equal(
-    loadDemoConfig({ MRM_DEMO: 'true', MRM_DEMO_DIR: freshDir(), MRM_DEMO_PORT: '9001' }).port,
+    loadDemoConfig({ KILN_DEMO: 'true', KILN_DEMO_DIR: freshDir(), KILN_DEMO_PORT: '9001' }).port,
     9001,
   );
 });

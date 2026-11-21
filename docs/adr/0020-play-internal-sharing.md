@@ -17,7 +17,7 @@ product. [ADR 0019](0019-step-up-confirmation.md) already named a step-up class 
 ## Decision
 
 1. **Same shape as the other store writes** ([0008](0008-store-rollout-writes.md), [0010](0010-store-submit.md), [0014](0014-release-management.md)):
-   a server switch (`MRM_PLAY_INTERNAL_SHARING_ENABLED`, default off, separate from the download switch), a role action of its own
+   a server switch (`KILN_PLAY_INTERNAL_SHARING_ENABLED`, default off, separate from the download switch), a role action of its own
    (`builds.share`: owner and admin; **explicit-only for tokens**), a preview with a `confirmHash`, a typed phrase (`SHARE <package>`), the step-up
    class `internal_sharing` through `requireStepUp` (first thing after the switch), one upload in flight per app, never retried.
 2. **The source is a CI artifact**, the same zips the Test builds panel lists. The preview reads only the artifact list (no download, no Google call), so it
@@ -26,7 +26,7 @@ product. [ADR 0019](0019-step-up-confirmation.md) already named a step-up class 
    the SHA-256 of the file that was sent. The `confirmHash` covers the app, package, artifact (id, name, size, digest, run, commit) and the entry chosen.
 3. **One file, chosen explicitly when ambiguous.** The only `.aab` or `.apk` in the zip, or the one the caller names (`entry`); several without a name is
    `422 entry_required` with the names, never a guess.
-4. **The zip is held in memory** (the download limit, `MRM_BUILDS_DOWNLOAD_MAX_MB`, applies to the zip and to the file inside it), read through the same
+4. **The zip is held in memory** (the download limit, `KILN_BUILDS_DOWNLOAD_MAX_MB`, applies to the zip and to the file inside it), read through the same
    guarded stream as a build download. A streaming zip reader is not written. Cost: up to twice the limit in memory for one upload; the limit is the
    administrator's lever.
 5. **Unknown outcomes are reported.** Google has no read-back for this resource, so a lost answer cannot be settled the way a release is. The answer is

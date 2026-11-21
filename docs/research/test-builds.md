@@ -89,7 +89,7 @@ ranged central-directory read is a follow-up (needs a decision, see the report).
   last sync (no store call): `builds.read`, member and above.
 - `GET .../artifacts/:artifactId/download`: streamed through the server, GitHub token never leaves it.
   `builds.download`, member and above, explicit-only for API tokens, off unless
-  `MRM_BUILDS_DOWNLOAD_ENABLED=true` (a build binary is the product's source of truth and often unreleased:
+  `KILN_BUILDS_DOWNLOAD_ENABLED=true` (a build binary is the product's source of truth and often unreleased:
   the exfiltration surface the other switches also guard).
 - `POST .../artifacts/:artifactId/link` and public `GET /api/builds/dl/:token`: a 10 minute, single use,
   HMAC signed link (47 character token; the claims live in memory) for a phone (QR). The link holds ids only, never a GitHub URL.

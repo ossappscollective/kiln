@@ -240,7 +240,7 @@ const draftConfigSchema = z.object({
   enabled: z
     .boolean()
     .describe(
-      'MRM_STORE_DRAFT_WRITE_ENABLED. While false the push routes answer `409 store_draft_disabled`; staging and the staged view work.',
+      'KILN_STORE_DRAFT_WRITE_ENABLED. While false the push routes answer `409 store_draft_disabled`; staging and the staged view work.',
     ),
   envName: z.string(),
   submit: z
@@ -687,7 +687,7 @@ export const stagedChangesOperations: Draft[] = [
     summary:
       'Preview pushing the staged changes to the store as a draft: per item before and after, and a confirmHash',
     description:
-      'READS THE STORE (the draft; Google Play opens and deletes an edit, which invalidates other open edits of the same service account) and the bytes of the staged files from the repository. Writes nothing. `422 nothing_staged`, `422 staged_invalid` (items with errors), `422 asset_changed`, `422 no_editable_version` (App Store: no version in Prepare for Submission). Needs `store.push_draft` and `MRM_STORE_DRAFT_WRITE_ENABLED=true` (`409 store_draft_disabled` otherwise).',
+      'READS THE STORE (the draft; Google Play opens and deletes an edit, which invalidates other open edits of the same service account) and the bytes of the staged files from the repository. Writes nothing. `422 nothing_staged`, `422 staged_invalid` (items with errors), `422 asset_changed`, `422 no_editable_version` (App Store: no version in Prepare for Submission). Needs `store.push_draft` and `KILN_STORE_DRAFT_WRITE_ENABLED=true` (`409 store_draft_disabled` otherwise).',
     risk: 'read',
     access: { action: 'store.push_draft' },
     appScope: { kind: 'param', name: 'id' },
@@ -705,7 +705,7 @@ export const stagedChangesOperations: Draft[] = [
     summary:
       'Write the staged changes to the store as a DRAFT (never submits, sends for review or publishes)',
     description:
-      'A STORE WRITE. Needs `store.push_draft` (owner and admin; a token only when its actions name it) and `MRM_STORE_DRAFT_WRITE_ENABLED=true`. `confirmHash` must come from a preview of the same staged items. The store’s draft is READ AGAIN right before the first write: if it is not the one previewed, or the staged items changed, nothing is written (`409 state_changed`, with a new `preview`). One write per app at a time (`409 write_in_progress`). App Store: the editable version’s localizations and screenshots change one request at a time (a refusal part way is `502 draft_partial`, with `completed` and `failed`). Google Play: one edit, committed with `changesNotSentForReview=true` (`409 draft_not_allowed` when Google refuses that, `409 changes_in_review` when changes are in review: nothing is committed). Never retried: after a timeout or a 5xx the draft is read back and the answer is `200` with `confirmedByReread: true`, `502 write_failed` (`outcome: not_applied`), `409 draft_partial`, or `409 outcome_unknown` (then preview again). Audited as `listing.draft_pushed` / `listing.draft_push_failed` (ids, counts and hashes, never a text or a credential) and emitted as the event `listing.draft_pushed`.',
+      'A STORE WRITE. Needs `store.push_draft` (owner and admin; a token only when its actions name it) and `KILN_STORE_DRAFT_WRITE_ENABLED=true`. `confirmHash` must come from a preview of the same staged items. The store’s draft is READ AGAIN right before the first write: if it is not the one previewed, or the staged items changed, nothing is written (`409 state_changed`, with a new `preview`). One write per app at a time (`409 write_in_progress`). App Store: the editable version’s localizations and screenshots change one request at a time (a refusal part way is `502 draft_partial`, with `completed` and `failed`). Google Play: one edit, committed with `changesNotSentForReview=true` (`409 draft_not_allowed` when Google refuses that, `409 changes_in_review` when changes are in review: nothing is committed). Never retried: after a timeout or a 5xx the draft is read back and the answer is `200` with `confirmedByReread: true`, `502 write_failed` (`outcome: not_applied`), `409 draft_partial`, or `409 outcome_unknown` (then preview again). Audited as `listing.draft_pushed` / `listing.draft_push_failed` (ids, counts and hashes, never a text or a credential) and emitted as the event `listing.draft_pushed`.',
     risk: 'destructive',
     access: { action: 'store.push_draft' },
     appScope: { kind: 'param', name: 'id' },

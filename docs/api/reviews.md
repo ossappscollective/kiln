@@ -3,7 +3,7 @@
 An inbox of the customer reviews and ratings of every app, with internal triage (status, assignee,
 a note), a workspace-wide inbox and summary, replies to reviews, and three events. Reading, syncing
 and triage **send nothing to a store**. **Replying is the one store write, and it is off by default**
-(`MRM_REVIEW_REPLY_ENABLED`, see [Replying](#replying-to-reviews) and
+(`KILN_REVIEW_REPLY_ENABLED`, see [Replying](#replying-to-reviews) and
 [ADR 0007](../adr/0007-review-replies.md)): a reply is published publicly in the store and this tool
 cannot recall it.
 
@@ -240,7 +240,7 @@ summary for that).
 
 ## Replying to reviews
 
-**Off by default.** With `MRM_REVIEW_REPLY_ENABLED` not `true`, every route below except the reads
+**Off by default.** With `KILN_REVIEW_REPLY_ENABLED` not `true`, every route below except the reads
 answers `409 reply_disabled` (`envName` names the variable) and nothing can reach a store. Reading
 the review view and the settings keeps working.
 
@@ -330,7 +330,7 @@ Review text and display names are personal data of people who are not users of t
 
 - Stored only to show them to your team. They are not sent to webhooks, not put in audit entries,
   and not used to build any URL.
-- `MRM_REVIEW_RETENTION_DAYS` (default 365, `0` keeps everything) deletes reviews older than that by
+- `KILN_REVIEW_RETENTION_DAYS` (default 365, `0` keeps everything) deletes reviews older than that by
   the store's date, 1000 at most per run, at most once an hour in the scheduler's process.
 - Deleting the app deletes its reviews, sync state and rating snapshots in the same transaction.
 - Reviews are not encrypted at rest beyond what your database and disk provide.

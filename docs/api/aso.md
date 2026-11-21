@@ -28,7 +28,7 @@ Writes are audited with ids and counts only (`aso.keyword_add`, `aso.keyword_upd
 
 ## Google Play is unofficial
 
-Google Play has no official API for search results or for the public data of an app. When the operator sets `MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true` the server reads the **public pages** of
+Google Play has no official API for search results or for the public data of an app. When the operator sets `KILN_ASO_PLAY_UNOFFICIAL_ENABLED=true` the server reads the **public pages** of
 `play.google.com`. That **may be against the Google Play Terms of Service or Google's Terms of Service**, was not checked by a lawyer, can stop working whenever Google changes its pages,
 and is the operator's decision and risk. It is quiet by design: no login, no cookie, an identifying User-Agent, 4 calls a minute per process, a one hour cache, a cool-down after a refusal.
 While it is off, an Android app's keywords can be kept, but refresh and competitor routes answer `409 play_unofficial_disabled` and **no request is made**.
@@ -47,7 +47,7 @@ While it is off, an Android app's keywords can be kept, but refresh and competit
     "enabled": false,
     "unofficial": true,
     "notice": "Google Play has no official ...",
-    "howToEnable": "The operator sets MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true on the server."
+    "howToEnable": "The operator sets KILN_ASO_PLAY_UNOFFICIAL_ENABLED=true on the server."
   },
   "schedule": { "intervalMinutes": 0 },
   "retentionDays": 365,
@@ -117,7 +117,7 @@ attempt (`rate_limited`, `unavailable_layout_changed`, `server`, ...) and is cle
     {
       "index": 3,
       "status": "limit",
-      "message": "An app tracks at most 50 keywords (MRM_ASO_MAX_KEYWORDS_PER_APP)."
+      "message": "An app tracks at most 50 keywords (KILN_ASO_MAX_KEYWORDS_PER_APP)."
     }
   ],
   "summary": { "created": 1, "exists": 1, "invalid": 1, "limit": 1 }
@@ -172,7 +172,7 @@ attempt (`rate_limited`, `unavailable_layout_changed`, `server`, ...) and is cle
 | `DELETE /apps/{id}/aso/competitors/{competitorId}`             | `aso.write` | `204`; deletes its snapshots.                                                                                                                                                          |
 | `GET /apps/{id}/aso/competitors/{competitorId}/history?limit=` | `aso.read`  | `{ competitor, snapshots, diff }`, snapshots newest first (`limit` 1 to 500, default 50); `diff` is the newest snapshot that recorded changes: `{ from, to, at, changes }`, or `null`. |
 
-`externalId`: iOS accepts the numeric App Store id, `id123` or an `apps.apple.com` address; Android accepts a package name or a `play.google.com` address with `?id=`. A snapshot is stored on the first look, when something changed, and every `MRM_ASO_HEARTBEAT_DAYS` (7) as a heartbeat (`kind` is `first`, `change` or `heartbeat`).
+`externalId`: iOS accepts the numeric App Store id, `id123` or an `apps.apple.com` address; Android accepts a package name or a `play.google.com` address with `?id=`. A snapshot is stored on the first look, when something changed, and every `KILN_ASO_HEARTBEAT_DAYS` (7) as a heartbeat (`kind` is `first`, `change` or `heartbeat`).
 Errors: `422 invalid_external_id`, `invalid_country`, `own_app`, `not_found` (the store has no such app); `409 already_followed`, `limit_reached`, `play_unofficial_disabled`.
 
 ## Refreshing
@@ -181,7 +181,7 @@ Errors: `422 invalid_external_id`, `invalid_country`, `own_app`, `not_found` (th
 
 `aso.write`. Reads the public store: Apple Search API for iOS apps, the public pages for Android apps (only when switched on). **Read-only toward the stores.** What a refresh does:
 
-- checks up to `MRM_ASO_MAX_CHECKS_PER_RUN` keywords (the oldest first) and every followed competitor; **a person asking checks everything up to the cap**, the scheduler only what is due;
+- checks up to `KILN_ASO_MAX_CHECKS_PER_RUN` keywords (the oldest first) and every followed competitor; **a person asking checks everything up to the cap**, the scheduler only what is due;
 - shares one search per term and storefront and reuses cached answers;
 - stops early when a store says to slow down, is unavailable, fails three times in a row, or the time (4 minutes) is up. What is left stays due.
 
@@ -226,7 +226,7 @@ A run that tried and **got nothing** answers `502 refresh_failed` with `{ "resul
 
 ### Scheduling
 
-`MRM_ASO_INTERVAL_MINUTES` (default `0`, off; otherwise 60 to 10080) makes the scheduler queue `aso.refresh` jobs for apps that are due, a few per pass and spaced. An app is due an interval after its last attempt (30 minutes
+`KILN_ASO_INTERVAL_MINUTES` (default `0`, off; otherwise 60 to 10080) makes the scheduler queue `aso.refresh` jobs for apps that are due, a few per pass and spaced. An app is due an interval after its last attempt (30 minutes
 when the last run left work over), not while a backoff or a claim holds, not twice. Android apps are skipped while Google Play is off and iOS apps that were never synced (no App Store id) are skipped. The same service runs it as the route.
 
 ## Views worked out from stored data
@@ -342,7 +342,7 @@ The subject is the app (`subject.appId`). **Neither carries the term, a competit
 | ------ | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 400    | `invalid_request`                                                                                            | The body or a query parameter is wrong (`issues` lists them).                                                                                                    |
 | 404    | `not_found`                                                                                                  | No such app, keyword or competitor in this workspace.                                                                                                            |
-| 409    | `play_unofficial_disabled`                                                                                   | Google Play reading is off (`MRM_ASO_PLAY_UNOFFICIAL_ENABLED`). No request was made.                                                                             |
+| 409    | `play_unofficial_disabled`                                                                                   | Google Play reading is off (`KILN_ASO_PLAY_UNOFFICIAL_ENABLED`). No request was made.                                                                             |
 | 409    | `refresh_in_progress`                                                                                        | Another refresh of the app holds the claim.                                                                                                                      |
 | 409    | `already_followed`, `limit_reached`                                                                          | Competitors.                                                                                                                                                     |
 | 422    | `invalid_keyword` (PATCH), `invalid_external_id`, `invalid_country`, `own_app`, `not_found`, `invalid_input` | The value is not accepted.                                                                                                                                       |
@@ -355,7 +355,7 @@ Error messages never contain a search term or a store address.
 
 ## Data and retention
 
-Five tables (migration 25): `aso_keywords`, `aso_rank_checks`, `aso_competitors`, `aso_competitor_snapshots`, `aso_app_state`. Rank checks and snapshots older than `MRM_ASO_RETENTION_DAYS` (365; `0` keeps them) are deleted by the
+Five tables (migration 25): `aso_keywords`, `aso_rank_checks`, `aso_competitors`, `aso_competitor_snapshots`, `aso_app_state`. Rank checks and snapshots older than `KILN_ASO_RETENTION_DAYS` (365; `0` keeps them) are deleted by the
 scheduler, bounded per run and once an hour; the newest snapshot of each competitor is kept. Search terms imported from a Play Console file live in `play_search_terms` and `play_search_term_imports` (migration 32); they are not kept by the retention job and go with the app. Deleting an app deletes its ASO data. Stored: terms and notes the team typed, ranks, and public data of other apps; no customer data.
 Network: outbound https to `itunes.apple.com` and, only when switched on, `play.google.com`.
 

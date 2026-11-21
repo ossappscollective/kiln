@@ -22,7 +22,7 @@ import { type TranslationContext, testLibreTranslateSecret } from '../services/t
 export type CredentialTestDeps = CredentialTesterOptions & {
   /**
    * The LibreTranslate key is tested against the address saved in the workspace settings, through the
-   * same SSRF rules as translation (MRM_TRANSLATE_ALLOW_PRIVATE_URLS); these are the seams for it.
+   * same SSRF rules as translation (KILN_TRANSLATE_ALLOW_PRIVATE_URLS); these are the seams for it.
    */
   translate?: Pick<TranslationContext, 'allowPrivateUrls' | 'resolve' | 'exchange'>;
   /** Defaults to 10 tests per workspace per minute, on the app's clock. */

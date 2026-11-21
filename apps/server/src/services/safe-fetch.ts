@@ -57,7 +57,7 @@ export type SafeGetOptions = {
   accept?: string | undefined;
   /** The User-Agent to send. Default `kiln`. */
   userAgent?: string | undefined;
-  /** Development only (MRM_WEBHOOKS_ALLOW_PRIVATE): accept loopback and private addresses. */
+  /** Development only (KILN_WEBHOOKS_ALLOW_PRIVATE): accept loopback and private addresses. */
   allowPrivate?: boolean | undefined;
   resolve?: Resolver | undefined;
   exchange?: Exchange | undefined;

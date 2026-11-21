@@ -32,7 +32,7 @@ but it overwrites what is in the store's draft, which someone else may be editin
    publishes, and the result says `draft: true, submitted: false`. A successful push records what it wrote
    (hashes and ids, `store_draft_pushes`, migration 24) so that the separate submit step of
    [ADR 0010](0010-store-submit.md) can check the store against it.
-4. **A kill switch, off by default.** `MRM_STORE_DRAFT_WRITE_ENABLED=true` turns it on. While off,
+4. **A kill switch, off by default.** `KILN_STORE_DRAFT_WRITE_ENABLED=true` turns it on. While off,
    preview and push answer `409 store_draft_disabled` (after the rights check) and no connector is built.
    Staging, viewing and the config route work.
 5. **A separate right.** `store.push_draft`, admin and up, explicit-only on API tokens (the action

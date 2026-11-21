@@ -13,7 +13,7 @@ import { twoFactorRoutes } from './two-factor.ts';
  * only needs three lines. `MailDeps` is the optional `mail` entry of `AppDeps`.
  */
 export type MailDeps = {
-  /** The SMTP environment (MRM_SMTP_*), parsed by `parseSmtpEnv`. Default: none, and private mail hosts are refused. */
+  /** The SMTP environment (KILN_SMTP_*), parsed by `parseSmtpEnv`. Default: none, and private mail hosts are refused. */
   env?: SmtpEnv;
   /** Replaces the whole mailer (tests install `createFakeMailer()`). */
   mailer?: Mailer;

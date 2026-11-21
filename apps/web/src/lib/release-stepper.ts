@@ -69,7 +69,7 @@ export function releaseStepHref(
 // Which steps a person sees
 
 export type Switches = {
-  /** `MRM_STORE_DRAFT_WRITE_ENABLED`; null: not known (yet). */
+  /** `KILN_STORE_DRAFT_WRITE_ENABLED`; null: not known (yet). */
   draft: boolean | null;
   submit: boolean | null;
   release: boolean | null;

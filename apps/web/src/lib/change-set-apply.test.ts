@@ -24,12 +24,12 @@ import {
 } from './change-set-apply.ts';
 import type { ChangeSetView, LocalOutcome } from './types.ts';
 
-const ON = { enabled: true, envName: 'MRM_LOCAL_REPO_WRITE' };
+const ON = { enabled: true, envName: 'KILN_LOCAL_REPO_WRITE' };
 const OFF = {
   enabled: false,
-  envName: 'MRM_LOCAL_REPO_WRITE',
+  envName: 'KILN_LOCAL_REPO_WRITE',
   message:
-    'Writing to local clones is not enabled. Set MRM_LOCAL_REPO_WRITE=true and restart the server.',
+    'Writing to local clones is not enabled. Set KILN_LOCAL_REPO_WRITE=true and restart the server.',
 };
 const github: ApplyContext = { localOnly: false, hasLocalClone: true, write: ON };
 const localOnly: ApplyContext = { localOnly: true, hasLocalClone: true, write: ON };
@@ -61,21 +61,21 @@ test('a local commit needs a clone, a known setting and writing switched on; eac
   assert.match(localBranchAvailability({ ...github, write: null }).reason ?? '', /Reload/);
   assert.match(
     localBranchAvailability({ ...github, write: OFF }).reason ?? '',
-    /MRM_LOCAL_REPO_WRITE=true/,
+    /KILN_LOCAL_REPO_WRITE=true/,
   );
   assert.match(
     localBranchAvailability({
       ...github,
-      write: { enabled: false, envName: 'MRM_LOCAL_REPO_WRITE' },
+      write: { enabled: false, envName: 'KILN_LOCAL_REPO_WRITE' },
     }).reason ?? '',
-    /MRM_LOCAL_REPO_WRITE=true/,
+    /KILN_LOCAL_REPO_WRITE=true/,
   );
 });
 
 test('push and pull request: push needs GitHub and writing; the pull request needs the push chosen', () => {
   assert.equal(pushAvailability(github).available, true);
   assert.match(pushAvailability(localOnly).reason ?? '', /nowhere to push/);
-  assert.match(pushAvailability({ ...github, write: OFF }).reason ?? '', /MRM_LOCAL_REPO_WRITE/);
+  assert.match(pushAvailability({ ...github, write: OFF }).reason ?? '', /KILN_LOCAL_REPO_WRITE/);
   assert.equal(openPrAvailability(github, true).available, true);
   assert.match(openPrAvailability(github, false).reason ?? '', /Push the branch to GitHub/);
   assert.match(openPrAvailability(localOnly, true).reason ?? '', /nowhere to push/);
@@ -345,8 +345,8 @@ test('the local-only note says what apply does, and how to turn writing on when 
   assert.match(on.text, /commits the files to a new branch/);
   assert.doesNotMatch(on.text, /not enabled/);
   const off = localOnlyNotice(OFF);
-  assert.match(off.text, /MRM_LOCAL_REPO_WRITE=true/);
-  assert.match(localOnlyNotice(null).text, /MRM_LOCAL_REPO_WRITE=true/);
+  assert.match(off.text, /KILN_LOCAL_REPO_WRITE=true/);
+  assert.match(localOnlyNotice(null).text, /KILN_LOCAL_REPO_WRITE=true/);
   for (const note of [on, off])
     assert.doesNotMatch(`${note.title} ${note.text}`, /not available yet|cannot be applied yet/);
 });
@@ -365,7 +365,7 @@ test('the Apply dialog says whether the commit will be signed, and how; nothing 
   assert.equal(signingNote({ enabled: true })?.text, 'The commit will be signed.');
   assert.deepEqual(signingNote({ enabled: false }), {
     signed: false,
-    text: 'Commits are not signed (set MRM_GIT_SIGN to enable).',
+    text: 'Commits are not signed (set KILN_GIT_SIGN to enable).',
   });
   assert.equal(signingNote(null), null);
   assert.equal(signingNote(undefined), null, 'an older server has no signing field');

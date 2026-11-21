@@ -4,7 +4,7 @@ import { enqueue } from '../../jobs.ts';
 import { ANALYTICS_SYNC_QUEUE, type AnalyticsSyncPayload } from './sync.ts';
 
 /**
- * Scheduled analytics syncs (MRM_ANALYTICS_INTERVAL_MINUTES, default 360, 0 is off). The scheduler only queues `analytics.sync` jobs;
+ * Scheduled analytics syncs (KILN_ANALYTICS_INTERVAL_MINUTES, default 360, 0 is off). The scheduler only queues `analytics.sync` jobs;
  * the worker runs them through the same read-only sync as the route (services/analytics-sync.ts). Analytics is OFF per workspace
  * until the setting `analytics.enabled` is on, so the interval alone never contacts a store.
  *
@@ -21,7 +21,7 @@ export const DEFAULT_ANALYTICS_PER_WORKSPACE = 3;
 export const DEFAULT_ANALYTICS_SPACING_MS = 10_000;
 const MINUTE = 60_000;
 
-/** Minutes from MRM_ANALYTICS_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
+/** Minutes from KILN_ANALYTICS_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
 export function analyticsIntervalMs(minutes: number): number {
   if (minutes === 0) return 0;
   if (

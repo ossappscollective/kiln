@@ -68,7 +68,7 @@ export function limitsSentence(limits: CloneLimits): string {
 /** The card's line about the clone, or the reason there is none. */
 export function cloneSummary(state: Pick<RepositoryClone, 'enabled' | 'clone'>): string {
   if (!state.enabled)
-    return 'Reads use the GitHub API (MRM_READS=api), so nothing is kept on disk.';
+    return 'Reads use the GitHub API (KILN_READS=api), so nothing is kept on disk.';
   if (!state.clone) return 'No clone on disk yet. The next scan or listing makes one.';
   return `${formatBytes(state.clone.bytes, state.clone.sizeIsLowerBound)} on the server.`;
 }

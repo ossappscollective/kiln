@@ -167,7 +167,7 @@ withBoot(
     ]) {
       assert.equal(res.status, 409);
       assert.equal(res.body.error, 'store_draft_disabled');
-      assert.match(res.body.message, /MRM_STORE_DRAFT_WRITE_ENABLED=true/);
+      assert.match(res.body.message, /KILN_STORE_DRAFT_WRITE_ENABLED=true/);
     }
     noIo(b);
     assert.equal(await b.t.claim(app), undefined);

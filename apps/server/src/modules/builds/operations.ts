@@ -5,8 +5,8 @@ import { internalShareApplyBody, internalSharePreviewBody } from './internal-sha
 /**
  * The operations of "Builds to test" (docs/api/builds.md), in their own file and added to the registry in api-operations.ts.
  * Listing needs `builds.read`; downloading and handing a build to a phone need `builds.download` (explicit-only for tokens) and
- * `MRM_BUILDS_DOWNLOAD_ENABLED=true`. Sharing an Android build through Google Play internal app sharing (docs/api/internal-sharing.md) needs `builds.share`
- * (owner and admin; explicit-only for tokens), `MRM_PLAY_INTERNAL_SHARING_ENABLED=true` and, when the policy covers it, a step-up confirmation.
+ * `KILN_BUILDS_DOWNLOAD_ENABLED=true`. Sharing an Android build through Google Play internal app sharing (docs/api/internal-sharing.md) needs `builds.share`
+ * (owner and admin; explicit-only for tokens), `KILN_PLAY_INTERNAL_SHARING_ENABLED=true` and, when the policy covers it, a step-up confirmation.
  */
 
 const W = '/api/workspaces/{workspaceId}';
@@ -140,7 +140,7 @@ const shareConfig = z.object({
   enabled: z
     .boolean()
     .describe(
-      'MRM_PLAY_INTERNAL_SHARING_ENABLED (default false). While false every sharing route but this one answers `409 internal_sharing_disabled`.',
+      'KILN_PLAY_INTERNAL_SHARING_ENABLED (default false). While false every sharing route but this one answers `409 internal_sharing_disabled`.',
     ),
   envName: z.string(),
   action: z.literal('builds.share'),
@@ -175,7 +175,7 @@ export const buildsOperations: Operation[] = [
     tags: ['builds'],
     summary: 'Download the zip of a CI artifact through the server',
     description:
-      "Streams the artifact (a zip) from GitHub through this server: the GitHub credential and the short-lived storage address never reach the caller. Needs `builds.download` (explicit-only for tokens) and `MRM_BUILDS_DOWNLOAD_ENABLED=true` (`409 builds_download_disabled`). `404` for an artifact that is not one of this app's, `410 artifact_expired`, `413 artifact_too_large` (limit `MRM_BUILDS_DOWNLOAD_MAX_MB`), `429` (20 a minute per workspace, 3 at a time). Audited as `build.download` with ids and a size.",
+      "Streams the artifact (a zip) from GitHub through this server: the GitHub credential and the short-lived storage address never reach the caller. Needs `builds.download` (explicit-only for tokens) and `KILN_BUILDS_DOWNLOAD_ENABLED=true` (`409 builds_download_disabled`). `404` for an artifact that is not one of this app's, `410 artifact_expired`, `413 artifact_too_large` (limit `KILN_BUILDS_DOWNLOAD_MAX_MB`), `429` (20 a minute per workspace, 3 at a time). Audited as `build.download` with ids and a size.",
     risk: 'read',
     access: { action: 'builds.download' },
     appScope: { kind: 'param', name: 'id' },
@@ -239,7 +239,7 @@ export const buildsOperations: Operation[] = [
     summary:
       'Builds shared through Google Play internal app sharing for an app, newest first, WITHOUT links',
     description:
-      'Needs `builds.share` and `MRM_PLAY_INTERNAL_SHARING_ENABLED=true` (`409 internal_sharing_disabled`). Database only: no Google call. `hasLink` says whether this server still holds the link (24 hours); the link is not in the list, read it with `getInternalShareLink`. `inFlight` is an upload running now; `unknownOutcome` an upload whose result is not known (a preview clears it).',
+      'Needs `builds.share` and `KILN_PLAY_INTERNAL_SHARING_ENABLED=true` (`409 internal_sharing_disabled`). Database only: no Google call. `hasLink` says whether this server still holds the link (24 hours); the link is not in the list, read it with `getInternalShareLink`. `inFlight` is an upload running now; `unknownOutcome` an upload whose result is not known (a preview clears it).',
     risk: 'read',
     access: { action: 'builds.share' },
     appScope: { kind: 'param', name: 'id' },
@@ -281,7 +281,7 @@ export const buildsOperations: Operation[] = [
     summary:
       'Preview sharing a build through Google Play internal app sharing: what is uploaded, checks, confirmHash',
     description:
-      'Needs `builds.share` and `MRM_PLAY_INTERNAL_SHARING_ENABLED=true`. Android apps only (`422 not_android`). READS the artifact LIST of the repository (cached 30 seconds; nothing is downloaded and Google is not contacted) and writes nothing; it clears an earlier unknown outcome. The file inside the zip is read only when you confirm, so `upload.fileName` and `kind` are known only when the artifact name or `entry` says; `versionCode` and `sha256` are null (not known before upload). `checks.blocking` stops the share (an Apple build, an upload in flight); while anything blocks `confirmHash` and `confirmation` are null. `entry` names the .aab or .apk inside a zip that holds several.',
+      'Needs `builds.share` and `KILN_PLAY_INTERNAL_SHARING_ENABLED=true`. Android apps only (`422 not_android`). READS the artifact LIST of the repository (cached 30 seconds; nothing is downloaded and Google is not contacted) and writes nothing; it clears an earlier unknown outcome. The file inside the zip is read only when you confirm, so `upload.fileName` and `kind` are known only when the artifact name or `entry` says; `versionCode` and `sha256` are null (not known before upload). `checks.blocking` stops the share (an Apple build, an upload in flight); while anything blocks `confirmHash` and `confirmation` are null. `entry` names the .aab or .apk inside a zip that holds several.',
     risk: 'read',
     access: { action: 'builds.share' },
     appScope: { kind: 'param', name: 'id' },
@@ -300,7 +300,7 @@ export const buildsOperations: Operation[] = [
     summary:
       'UPLOAD a build to Google Play internal app sharing, get an install link (cannot be taken back)',
     description:
-      "A STORE WRITE that publishes nothing to users but puts a binary on Google under the developer account, which this server cannot delete. Needs `builds.share` (owner and admin; a token only when its actions name it; `403` otherwise), `MRM_PLAY_INTERNAL_SHARING_ENABLED=true` (`409 internal_sharing_disabled`) and, when the workspace's step-up policy covers the class `internal_sharing`, a fresh confirmation (`X-Step-Up-Grant`, target = the app id and the `confirmHash`; `403 step_up_required`, `step_up_not_enrolled`, `step_up_required_human` for a token). `confirmHash` must come from a preview of the same artifact (`409 state_changed` with a new `preview` otherwise) and `confirmation` must be its phrase `SHARE <package>` (`422 confirmation_mismatch`). Reads the zip THROUGH this server under the download limit (`MRM_BUILDS_DOWNLOAD_MAX_MB`, `413 artifact_too_large`; it does not need `MRM_BUILDS_DOWNLOAD_ENABLED`), picks the .aab or .apk (`422 entry_required` with the names when there are several, `422 no_android_build`, `422 bad_zip`), uses the Google credential of the app (audited as `credential.use`, purpose `builds.share`) and uploads ONCE. One upload per app at a time (`409 write_in_progress`). Never retried: a lost answer or a Google 5xx is `409 outcome_unknown` (Google cannot be asked what it stored; preview again to clear it). Google refusals: `422 store_auth`, `store_forbidden`, `store_not_found`, `artifact_rejected` (400), `413 artifact_too_large`, `429 rate_limited`. The answer carries the install link (`downloadUrl`: a secret). Audited as `build.shared` / `build.share_failed` with ids, sizes and hashes: never the link, a file name or a credential. No event is sent.",
+      "A STORE WRITE that publishes nothing to users but puts a binary on Google under the developer account, which this server cannot delete. Needs `builds.share` (owner and admin; a token only when its actions name it; `403` otherwise), `KILN_PLAY_INTERNAL_SHARING_ENABLED=true` (`409 internal_sharing_disabled`) and, when the workspace's step-up policy covers the class `internal_sharing`, a fresh confirmation (`X-Step-Up-Grant`, target = the app id and the `confirmHash`; `403 step_up_required`, `step_up_not_enrolled`, `step_up_required_human` for a token). `confirmHash` must come from a preview of the same artifact (`409 state_changed` with a new `preview` otherwise) and `confirmation` must be its phrase `SHARE <package>` (`422 confirmation_mismatch`). Reads the zip THROUGH this server under the download limit (`KILN_BUILDS_DOWNLOAD_MAX_MB`, `413 artifact_too_large`; it does not need `KILN_BUILDS_DOWNLOAD_ENABLED`), picks the .aab or .apk (`422 entry_required` with the names when there are several, `422 no_android_build`, `422 bad_zip`), uses the Google credential of the app (audited as `credential.use`, purpose `builds.share`) and uploads ONCE. One upload per app at a time (`409 write_in_progress`). Never retried: a lost answer or a Google 5xx is `409 outcome_unknown` (Google cannot be asked what it stored; preview again to clear it). Google refusals: `422 store_auth`, `store_forbidden`, `store_not_found`, `artifact_rejected` (400), `413 artifact_too_large`, `429 rate_limited`. The answer carries the install link (`downloadUrl`: a secret). Audited as `build.shared` / `build.share_failed` with ids, sizes and hashes: never the link, a file name or a credential. No event is sent.",
     risk: 'destructive',
     access: { action: 'builds.share' },
     appScope: { kind: 'param', name: 'id' },

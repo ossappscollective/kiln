@@ -255,7 +255,7 @@ export async function preflight(
   return undefined;
 }
 
-/** `MRM_GIT_AUTHOR_*`, else the acting person's name and email, else a fixed name. */
+/** `KILN_GIT_AUTHOR_*`, else the acting person's name and email, else a fixed name. */
 export async function identityFor(ctx: RepoContext, actor: Actor): Promise<CommitIdentity> {
   let name = ctx.localWrite?.authorName;
   let email = ctx.localWrite?.authorEmail;

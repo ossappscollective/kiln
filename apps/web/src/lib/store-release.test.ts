@@ -19,7 +19,7 @@ import {
 
 const config = (enabled: boolean): StoreReleaseConfig => ({
   enabled,
-  envName: 'MRM_STORE_RELEASE_ENABLED',
+  envName: 'KILN_STORE_RELEASE_ENABLED',
   action: 'store.release',
   minimumRole: 'admin',
   irreversible: true,

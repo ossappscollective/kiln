@@ -15,7 +15,7 @@ import { listingDueAt } from './drift.ts';
 import { recordListingFailure, syncListing } from './live.ts';
 
 /**
- * Scheduled reads of the store listing (MRM_LISTING_INTERVAL_MINUTES, off by default).
+ * Scheduled reads of the store listing (KILN_LISTING_INTERVAL_MINUTES, off by default).
  *
  * Without this a listing is read only when an app is synced (by hand, or by the `app.sync` job).
  * With it, the scheduler queues one `app.listing` job per app that is due, and the worker reads the
@@ -62,7 +62,7 @@ const DEFER_MS = 30_000;
 const MAX_DEFERRALS = 10;
 const MINUTE = 60_000;
 
-/** MRM_LISTING_INTERVAL_MINUTES to milliseconds; 0 stays 0 (off). Throws on a value out of range. */
+/** KILN_LISTING_INTERVAL_MINUTES to milliseconds; 0 stays 0 (off). Throws on a value out of range. */
 export function listingIntervalMs(minutes: number): number {
   if (minutes === 0) return 0;
   if (

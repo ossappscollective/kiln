@@ -685,7 +685,7 @@ export function statusLine(
 
 /** Shown instead of a download button while the server switch is off. */
 export const DOWNLOADS_OFF_TEXT =
-  'Downloads are switched off on this server. An administrator turns them on with MRM_BUILDS_DOWNLOAD_ENABLED=true, and the GitHub credential needs "Actions: read".';
+  'Downloads are switched off on this server. An administrator turns them on with KILN_BUILDS_DOWNLOAD_ENABLED=true, and the GitHub credential needs "Actions: read".';
 
 export const NO_RIGHT_TEXT = 'Downloading builds needs the member role or above.';
 

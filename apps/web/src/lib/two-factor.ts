@@ -147,7 +147,7 @@ export const mailFailureMessage = (code: string): string =>
 
 const HINTS: Record<string, string> = {
   private_address_blocked:
-    'This server only sends mail to public addresses. For a mail server on this machine or your network, the person who runs this server sets MRM_SMTP_ALLOW_PRIVATE_HOSTS=true and restarts it.',
+    'This server only sends mail to public addresses. For a mail server on this machine or your network, the person who runs this server sets KILN_SMTP_ALLOW_PRIVATE_HOSTS=true and restarts it.',
   host_not_allowed: 'That address cannot be used for mail.',
   host_not_found: 'The host name could not be found.',
   login_needs_tls:
@@ -200,7 +200,7 @@ export function twoFactorMessage(code: string, retryAfter?: number): string | un
     case 'single_user_mode':
       return 'Signing in with a second factor needs a server with accounts.';
     case 'smtp_locked':
-      return 'The mail server is set by the server environment (MRM_SMTP_HOST). Change it there.';
+      return 'The mail server is set by the server environment (KILN_SMTP_HOST). Change it there.';
     case 'password_required':
       return 'Type the password again when the host, the port or the user name changes.';
     case 'address_not_allowed':

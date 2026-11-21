@@ -32,7 +32,7 @@ import {
  * keep the install link for a day. A STORE WRITE (a binary leaves this server for Google under the developer's account) that publishes
  * nothing to users, and one this server cannot take back (Google has no delete call for it). Gated like the other store writes:
  *
- * - Off unless `internalSharingEnabled` (MRM_PLAY_INTERNAL_SHARING_ENABLED, default false): `409 internal_sharing_disabled`, no connector.
+ * - Off unless `internalSharingEnabled` (KILN_PLAY_INTERNAL_SHARING_ENABLED, default false): `409 internal_sharing_disabled`, no connector.
  * - The role action `builds.share` (owner and admin; a token only when its actions name it), checked by the route; the step-up class
  *   `internal_sharing` (the route calls `requireStepUp`, a token is `step_up_required_human` when the policy covers it).
  * - A preview (what is uploaded, to which package, the checks, a `confirmHash`) and an apply that carries that hash AND the typed phrase
@@ -46,7 +46,7 @@ import {
 
 type Actor = { type: 'user' | 'token' | 'assistant' | 'system'; id: string };
 
-export const SHARING_ENV = 'MRM_PLAY_INTERNAL_SHARING_ENABLED';
+export const SHARING_ENV = 'KILN_PLAY_INTERNAL_SHARING_ENABLED';
 export const SHARING_PURPOSE = 'builds.share';
 /** How long this server keeps a link. Google's own links last longer (60 days, its help page); ours is the short, encrypted copy. */
 export const LINK_RETENTION_MS = 24 * 60 * 60_000;

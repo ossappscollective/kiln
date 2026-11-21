@@ -23,7 +23,7 @@ import type { SubmitPreview } from './store-submit.ts';
  * Written for the ES2017 web build: no flatMap, no fromEntries.
  */
 
-export const PUBLISH_ENV = 'MRM_STORE_PUBLISH_BATCH_ENABLED';
+export const PUBLISH_ENV = 'KILN_STORE_PUBLISH_BATCH_ENABLED';
 
 // ---------------------------------------------------------------------------------------------
 // API shapes

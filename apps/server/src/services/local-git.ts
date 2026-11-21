@@ -20,7 +20,7 @@ import { redactSecrets, secretStrings } from '@kiln/connectors';
 /**
  * Local clones: checking a folder a person wants to attach, and asking its repository a few
  * read-only questions (docs/adr/0005-local-clone-reads.md). Nothing here is reached from a
- * request without the feature being on (MRM_LOCAL_REPO_ROOTS) and the role `repositories.write`.
+ * request without the feature being on (KILN_LOCAL_REPO_ROOTS) and the role `repositories.write`.
  *
  * The rules, in the order they are applied to a path:
  * 1. text only: no NUL or control character, absolute, no `..` segment, bounded length;
@@ -399,7 +399,7 @@ export function gitProblem(result: GitResult): { code: GitProblemCode; message: 
   if (result.failed === 'missing') {
     return {
       code: 'git_missing',
-      message: 'The git program was not found on the server (MRM_GIT_PATH).',
+      message: 'The git program was not found on the server (KILN_GIT_PATH).',
     };
   }
   if (result.failed === 'timeout')
@@ -811,7 +811,7 @@ export type BranchCommitInput = {
   now: number;
   /** Epoch milliseconds after which nothing more is started (checked before the ref is written). */
   deadline?: number;
-  /** Sign the commit with the server's own key (MRM_GIT_SIGN). Absent: the commit is not signed, as before. */
+  /** Sign the commit with the server's own key (KILN_GIT_SIGN). Absent: the commit is not signed, as before. */
   signing?: GitSigning;
 };
 
@@ -845,9 +845,9 @@ const SIGNING_MESSAGES: Record<SigningFailureReason, string> = {
     'Signing did not finish in time and was stopped. If the signing key has a passphrase, it must be unlocked in ssh-agent or gpg-agent: the server cannot ask for one.',
   locked:
     'The signing key is protected by a passphrase and is not unlocked. Load it into ssh-agent (or cache it in gpg-agent) in the environment the server runs in: the server cannot ask for a passphrase.',
-  key: 'The signing key could not be used: it is missing, unreadable or not a valid key. Check MRM_GIT_SIGNING_KEY on the server.',
+  key: 'The signing key could not be used: it is missing, unreadable or not a valid key. Check KILN_GIT_SIGNING_KEY on the server.',
   program:
-    'The signing program could not be started. Check MRM_GIT_SIGNING_PROGRAM on the server (and that the temporary folder allows running programs).',
+    'The signing program could not be started. Check KILN_GIT_SIGNING_PROGRAM on the server (and that the temporary folder allows running programs).',
   failed:
     'The commit could not be signed. The key may be missing, locked (its passphrase not cached in an agent), or the signing program failed. Nothing was committed.',
 };
@@ -1499,7 +1499,7 @@ export function classifyPush(result: RawGitResult): { code: PushProblemCode; mes
   if (result.failed === 'missing') {
     return {
       code: 'git_missing',
-      message: 'The git program was not found on the server (MRM_GIT_PATH).',
+      message: 'The git program was not found on the server (KILN_GIT_PATH).',
     };
   }
   const pick = (code: PushProblemCode) => ({

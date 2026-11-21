@@ -48,13 +48,13 @@ dbTest(
     const list = await t.list(appId);
     assert.deepEqual(list.body.write, {
       enabled: false,
-      envName: 'MRM_STORE_PRODUCT_WRITE_ENABLED',
+      envName: 'KILN_STORE_PRODUCT_WRITE_ENABLED',
     });
     assert.equal(list.body.products.length, 2, 'reading does not depend on it');
     const preview = await t.preview(appId, COINS, 'en-US', NEW_TEXTS);
     assert.equal(preview.status, 409);
     assert.equal(preview.body.error, 'store_product_write_disabled');
-    assert.equal(preview.body.envName, 'MRM_STORE_PRODUCT_WRITE_ENABLED');
+    assert.equal(preview.body.envName, 'KILN_STORE_PRODUCT_WRITE_ENABLED');
     const apply = await t.apply(appId, COINS, 'en-US', NEW_TEXTS, 'a'.repeat(64));
     assert.equal(apply.status, 409);
     assert.equal(apply.body.error, 'store_product_write_disabled');

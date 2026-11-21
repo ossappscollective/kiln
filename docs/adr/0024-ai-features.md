@@ -65,5 +65,5 @@ translate it, and know what it costs, all without it ever acting by itself and w
   and themes, and in how often a small model fails the shape. Try each task with the model you will use.
 - The redaction patterns are regular expressions for emails, links and phone-like numbers in common shapes, not a privacy guarantee.
 - The web screens were checked by the type checker and the compiler and by tests of their logic; they were not run in a browser.
-- The Postgres variants of the two migrations and their queries run only when `MRM_TEST_POSTGRES_URL` is set.
+- The Postgres variants of the two migrations and their queries run only when `KILN_TEST_POSTGRES_URL` is set.
 - Migration ids 40 and 41 were reserved for this work; the id sequence has a gap until the other work in flight lands its migrations (the contiguity test fails until then).

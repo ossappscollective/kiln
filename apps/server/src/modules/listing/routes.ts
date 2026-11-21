@@ -33,7 +33,7 @@ export type ListingRoutesContext = {
    * its own per workspace budget (the same instance the sync route uses). Without it, `refresh` is refused.
    */
   sync?: { apps: AppsContext; limiter: TestLimiter };
-  /** MRM_LISTING_INTERVAL_MINUTES in milliseconds (0 or absent: off), so the Listing tab can say when the next read is due. */
+  /** KILN_LISTING_INTERVAL_MINUTES in milliseconds (0 or absent: off), so the Listing tab can say when the next read is due. */
   listingIntervalMs?: number;
 };
 

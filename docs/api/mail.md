@@ -11,21 +11,21 @@ Without a mail server nothing breaks: every feature that needs mail says "No mai
 
 | Variable                             | Meaning                                                                                                        |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| `MRM_SMTP_HOST`                      | Host name or IP address, without `smtp://` or a port. Setting it turns the environment on.                     |
-| `MRM_SMTP_PORT`                      | 1 to 65535. Default 587 for `starttls`, 465 for `tls`, 25 for `none`.                                          |
-| `MRM_SMTP_SECURE`                    | `starttls` (default), `tls` (TLS from the first byte) or `none`.                                               |
-| `MRM_SMTP_USER`, `MRM_SMTP_PASSWORD` | Optional login (AUTH PLAIN or LOGIN). The password is only ever sent over TLS, or to a server on this machine. |
-| `MRM_SMTP_FROM`                      | Required with the host. `mrm@example.com` or `Release Manager <mrm@example.com>`.                              |
-| `MRM_SMTP_ALLOW_PRIVATE_HOSTS`       | `true` to allow a mail host on a private, loopback or link-local address. Default `false`.                     |
+| `KILN_SMTP_HOST`                      | Host name or IP address, without `smtp://` or a port. Setting it turns the environment on.                     |
+| `KILN_SMTP_PORT`                      | 1 to 65535. Default 587 for `starttls`, 465 for `tls`, 25 for `none`.                                          |
+| `KILN_SMTP_SECURE`                    | `starttls` (default), `tls` (TLS from the first byte) or `none`.                                               |
+| `KILN_SMTP_USER`, `KILN_SMTP_PASSWORD` | Optional login (AUTH PLAIN or LOGIN). The password is only ever sent over TLS, or to a server on this machine. |
+| `KILN_SMTP_FROM`                      | Required with the host. `mrm@example.com` or `Release Manager <mrm@example.com>`.                              |
+| `KILN_SMTP_ALLOW_PRIVATE_HOSTS`       | `true` to allow a mail host on a private, loopback or link-local address. Default `false`.                     |
 
 A wrong value stops the server at start with one plain sentence naming the variable.
 
 **Settings, Mail** (owners and admins): host, security, port, user, password, sender. Saved encrypted with the master key, like
 credentials. The password is never shown or returned again. Leave it empty to keep the saved one; changing the host, the port or
-the user name needs it typed again. When the environment sets `MRM_SMTP_HOST`, the screen is read only.
+the user name needs it typed again. When the environment sets `KILN_SMTP_HOST`, the screen is read only.
 
 A mail host on your own network (a relay in a home lab, a container next to this one) is a private address. It is refused
-until the person who runs the server sets `MRM_SMTP_ALLOW_PRIVATE_HOSTS=true` and restarts it: it cannot be turned on from the
+until the person who runs the server sets `KILN_SMTP_ALLOW_PRIVATE_HOSTS=true` and restarts it: it cannot be turned on from the
 screen, because the screen is the thing it protects.
 
 Common settings: Gmail or Google Workspace `smtp.gmail.com`, `starttls`, 587, an app password; Microsoft 365

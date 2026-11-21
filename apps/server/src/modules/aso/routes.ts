@@ -155,7 +155,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
         unofficial: true,
         // The Terms of Service warning, in the same words the docs use.
         notice: PLAY_UNOFFICIAL_NOTICE,
-        howToEnable: 'The operator sets MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true on the server.',
+        howToEnable: 'The operator sets KILN_ASO_PLAY_UNOFFICIAL_ENABLED=true on the server.',
       },
       schedule: { intervalMinutes: Math.round(ctx.limits.intervalMs / 60_000) },
       retentionDays: ctx.limits.retentionDays,

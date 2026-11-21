@@ -1,8 +1,9 @@
-import { accessSync, closeSync, constants, openSync, readSync, statSync } from 'node:fs';
+import { accessSync, closeSync, constants, existsSync, openSync, readSync, statSync } from 'node:fs';
 import { delimiter, isAbsolute, join, parse as parsePath, resolve } from 'node:path';
 import { parseMasterKey } from '@kiln/vault';
 import { z } from 'zod';
 import type { GitSigning } from './services/local-git.ts';
+import { defaultDataDir, type PathExists, sqliteUrlInUse } from './legacy-data.ts';
 import { parseExtraHosts } from './single-user.ts';
 
 /** `KEY=` in an .env file is an empty string, which should read as "not set". */
@@ -33,19 +34,19 @@ const byteSize = (name: string) =>
   });
 
 const schema = z.object({
-  // SQLite by default so a bare `pnpm dev` works. Compose sets Postgres.
-  DATABASE_URL: z.string().min(1).default('file:./.mrm-data/mrm.db'),
-  MRM_MASTER_KEY: z.string().optional(),
+  // SQLite by default so a bare `pnpm dev` works (`file:<default data folder>/kiln.db`, see legacy-data.ts). Compose sets Postgres.
+  DATABASE_URL: z.string().min(1).optional(),
+  KILN_MASTER_KEY: z.string().optional(),
   PORT: z.coerce.number().int().min(1).max(65535).default(8787),
-  MRM_DATA_DIR: z.string().min(1).default('./.mrm-data'),
-  MRM_WEB_DIST: z.string().min(1).default('apps/web/dist'),
+  KILN_DATA_DIR: z.string().min(1).optional(),
+  KILN_WEB_DIST: z.string().min(1).default('apps/web/dist'),
   // 'inline' runs the job worker inside the server. 'off' leaves it to a separate process.
-  MRM_WORKER: z.enum(['inline', 'off']).default('inline'),
+  KILN_WORKER: z.enum(['inline', 'off']).default('inline'),
   // Comma-separated origins allowed to send state-changing requests besides the server itself.
-  MRM_TRUSTED_ORIGINS: z.string().default(''),
+  KILN_TRUSTED_ORIGINS: z.string().default(''),
   // The origin passkeys (step-up confirmation, docs/adr/0019-step-up-confirmation.md) are bound to, for example
   // https://mrm.example.com. Empty: the origin of the request. Needed behind a proxy that rewrites Host.
-  MRM_PUBLIC_ORIGIN: z
+  KILN_PUBLIC_ORIGIN: z
     .string()
     .default('')
     .refine((v) => {
@@ -56,57 +57,57 @@ const schema = z.object({
       } catch {
         return false;
       }
-    }, 'MRM_PUBLIC_ORIGIN must be an origin such as https://mrm.example.com (no path, no trailing slash).'),
+    }, 'KILN_PUBLIC_ORIGIN must be an origin such as https://mrm.example.com (no path, no trailing slash).'),
   // 'multi' is the hosted server with accounts. 'single_user' is the desktop app: no login,
-  // loopback only, sessions start from MRM_LAUNCH_SECRET. See docs/adr/0003-single-user-mode.md.
-  MRM_MODE: z.enum(['multi', 'single_user']).default('multi'),
-  MRM_LAUNCH_SECRET: z.string().optional(),
+  // loopback only, sessions start from KILN_LAUNCH_SECRET. See docs/adr/0003-single-user-mode.md.
+  KILN_MODE: z.enum(['multi', 'single_user']).default('multi'),
+  KILN_LAUNCH_SECRET: z.string().optional(),
   // Single-user only. Extra Host values to accept, comma separated, each a loopback name with a
   // port (for example localhost:5173 for the Vite dev server). Default: none.
-  MRM_ALLOWED_HOSTS: z.string().default(''),
+  KILN_ALLOWED_HOSTS: z.string().default(''),
   // '1' when exactly one reverse proxy you control sits in front and sets X-Forwarded-For. The
   // client address (for the login rate limit) is then the last X-Forwarded-For entry. Leave it at
   // '0' otherwise: the header is client-controlled and would let anyone dodge the limit.
-  MRM_TRUST_PROXY: z.enum(['0', '1']).default('0'),
+  KILN_TRUST_PROXY: z.enum(['0', '1']).default('0'),
   // '1' lets outbound webhooks go to loopback and private-network addresses, and to http://localhost
   // (for development and for receivers on your own network). Off by default: webhooks are https
   // to public addresses only, so a webhook cannot be aimed at the server's own network. Link-local
   // addresses, which hold the cloud metadata service, are refused either way.
-  MRM_WEBHOOKS_ALLOW_PRIVATE: z.enum(['0', '1']).default('0'),
+  KILN_WEBHOOKS_ALLOW_PRIVATE: z.enum(['0', '1']).default('0'),
   // 'true' lets the LibreTranslate address of a workspace (a workspace setting an admin can change)
   // point at loopback and private-network addresses, and at http://localhost: self-hosted instances
   // are often on a LAN. Off by default: the address must then be https to a public host, so an admin
   // cannot aim review translation at this server's own network. Link-local addresses (cloud
   // metadata, 169.254.169.254, fd00:ec2::254) are refused either way. Turn it on only when every
   // person who can change workspace settings is trusted with your network. See docs/deployment.md.
-  MRM_TRANSLATE_ALLOW_PRIVATE_URLS: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_TRANSLATE_ALLOW_PRIVATE_URLS: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // AI assistance (docs/api/ai.md, docs/adr/0016-ai-foundation.md). OFF by default: while off, no request is ever sent to an AI
   // provider, whatever a workspace has set. A workspace must ALSO turn it on in its AI settings (admins), and add a provider key.
   // AI only produces suggestions a person accepts; it cannot push, submit, publish, release or send a reply.
-  MRM_AI_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_AI_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // 'true' lets the address of an OpenAI compatible model server (a workspace setting an admin can change) be a loopback or private
   // network address, which is how a local model (Ollama, LM Studio, vLLM) is reached; plain http then works to the same machine only.
   // Off by default: the address must be https to a public host. Link-local addresses (cloud metadata) are refused either way.
-  MRM_AI_ALLOW_PRIVATE_URLS: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_AI_ALLOW_PRIVATE_URLS: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // 'true' turns on the MCP endpoint (POST /mcp) that lets AI assistants (Claude, Cursor, ...) work with a workspace through an API token.
   // Off by default: while off, /mcp answers 404. Even when on, a token sees only what its role and actions allow; store writes are never
   // applied through it (only previewed). docs/mcp.md, docs/adr/0023-mcp-server.md.
-  MRM_MCP_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_MCP_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Where scans and listings read the repository. 'auto' (default) uses a local git clone and
   // falls back to the GitHub API for a request when the clone cannot be used. 'clone' never falls
   // back. 'api' is the GitHub REST API only. See docs/adr/0005-local-clone-reads.md.
-  MRM_READS: blankIsUnset(z.enum(['api', 'clone', 'auto']).default('auto')),
-  // An empty value (a bare `MRM_CLONE_DIR=` line in .env) means the default.
-  MRM_CLONE_DIR: blankIsUnset(z.string().min(1).optional()),
+  KILN_READS: blankIsUnset(z.enum(['api', 'clone', 'auto']).default('auto')),
+  // An empty value (a bare `KILN_CLONE_DIR=` line in .env) means the default.
+  KILN_CLONE_DIR: blankIsUnset(z.string().min(1).optional()),
   // How long a fetched branch tip is reused before the next read fetches again.
-  MRM_CLONE_TTL_SECONDS: blankIsUnset(z.coerce.number().int().min(0).max(86_400).default(60)),
+  KILN_CLONE_TTL_SECONDS: blankIsUnset(z.coerce.number().int().min(0).max(86_400).default(60)),
   // Upkeep of the clone folder (docs/adr/0005-local-clone-reads.md, "Clone upkeep"). The clones are
   // a cache, so pruning one only costs a fetch on its next read. MAX_BYTES is a size in bytes (or
   // with a unit: 500m, 2g); 0 is no limit. IDLE_DAYS: a clone unused for longer is removed; 0 never.
   // SWEEP_INTERVAL_MINUTES: how often the sweep runs; 0 turns it off, otherwise 5 to 10080.
-  MRM_CLONE_MAX_BYTES: blankIsUnset(byteSize('MRM_CLONE_MAX_BYTES').default('2g')),
-  MRM_CLONE_IDLE_DAYS: blankIsUnset(z.coerce.number().int().min(0).max(3650).default(30)),
-  MRM_CLONE_SWEEP_INTERVAL_MINUTES: blankIsUnset(
+  KILN_CLONE_MAX_BYTES: blankIsUnset(byteSize('KILN_CLONE_MAX_BYTES').default('2g')),
+  KILN_CLONE_IDLE_DAYS: blankIsUnset(z.coerce.number().int().min(0).max(3650).default(30)),
+  KILN_CLONE_SWEEP_INTERVAL_MINUTES: blankIsUnset(
     z.coerce
       .number()
       .int()
@@ -114,18 +115,18 @@ const schema = z.object({
       .default(360),
   ),
   // The git program: `git` from PATH, or an absolute path.
-  MRM_GIT_PATH: blankIsUnset(z.string().min(1).default('git')),
+  KILN_GIT_PATH: blankIsUnset(z.string().min(1).default('git')),
   // Folders that may hold local git clones to read (docs/adr/0005-local-clone-reads.md). Empty
   // (the default) turns local clones off. A list separated by `:` (`;` on Windows), absolute paths
   // only. See parseLocalRepoRoots.
-  MRM_LOCAL_REPO_ROOTS: z.string().default(''),
+  KILN_LOCAL_REPO_ROOTS: z.string().default(''),
   // 'true' lets the server write to a local clone: a commit on a NEW branch (never the checked out
   // one, never the working tree), and with the right options its push and a pull request. Off by
   // default; reading local clones does not need it. See docs/adr/0005-local-clone-reads.md.
-  MRM_LOCAL_REPO_WRITE: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_LOCAL_REPO_WRITE: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Author and committer of those commits. Optional: the person who applied the change set (their
   // display name and email) is used for what is not set. One line, no angle brackets.
-  MRM_GIT_AUTHOR_NAME: blankIsUnset(
+  KILN_GIT_AUTHOR_NAME: blankIsUnset(
     z
       .string()
       .trim()
@@ -133,7 +134,7 @@ const schema = z.object({
       .regex(/^[^\u0000-\u001f\u007f<>]+$/, 'must be one line without < or >')
       .optional(),
   ),
-  MRM_GIT_AUTHOR_EMAIL: blankIsUnset(
+  KILN_GIT_AUTHOR_EMAIL: blankIsUnset(
     z
       .string()
       .trim()
@@ -148,14 +149,14 @@ const schema = z.object({
   // 'off' (the default) is the behaviour before signing existed. The key, the program and the
   // keyring are the server's own: the repository's and the user's git config are never consulted.
   // The rest of the checks (files, programs) are in parseGitSigning.
-  MRM_GIT_SIGN: blankIsUnset(z.enum(['off', 'ssh', 'gpg']).default('off')),
-  MRM_GIT_SIGNING_KEY: blankIsUnset(z.string().trim().optional()),
-  MRM_GIT_SIGNING_PROGRAM: blankIsUnset(z.string().trim().optional()),
-  MRM_GIT_GNUPGHOME: blankIsUnset(z.string().trim().optional()),
+  KILN_GIT_SIGN: blankIsUnset(z.enum(['off', 'ssh', 'gpg']).default('off')),
+  KILN_GIT_SIGNING_KEY: blankIsUnset(z.string().trim().optional()),
+  KILN_GIT_SIGNING_PROGRAM: blankIsUnset(z.string().trim().optional()),
+  KILN_GIT_GNUPGHOME: blankIsUnset(z.string().trim().optional()),
   // Minutes between scheduled store syncs of every app. 30 by default (a sync only READS the stores, with the stored
   // credentials, and is what lets the app follow a release in review and raise alerts when its state changes); 0 turns scheduled
   // syncs off; otherwise 5 to 10080 (a week). See docs/api/ci.md.
-  MRM_SYNC_INTERVAL_MINUTES: blankIsUnset(
+  KILN_SYNC_INTERVAL_MINUTES: blankIsUnset(
     z.coerce
       .number()
       .int()
@@ -166,7 +167,7 @@ const schema = z.object({
   // off; otherwise 15 to 10080. Google Play serves only about the last 7 days of reviews, so for
   // Play apps 360 (6 hours) or less is recommended: a longer gap can miss reviews for good.
   // See docs/api/reviews.md.
-  MRM_REVIEW_SYNC_INTERVAL_MINUTES: blankIsUnset(
+  KILN_REVIEW_SYNC_INTERVAL_MINUTES: blankIsUnset(
     z.coerce
       .number()
       .int()
@@ -175,7 +176,7 @@ const schema = z.object({
   ),
   // Days a stored customer review is kept (by the store's date of the review); older rows are
   // pruned by the scheduler. 0 keeps them for ever. Reviews are personal data of third parties.
-  MRM_REVIEW_RETENTION_DAYS: blankIsUnset(
+  KILN_REVIEW_RETENTION_DAYS: blankIsUnset(
     z.coerce
       .number()
       .int()
@@ -185,7 +186,7 @@ const schema = z.object({
   // ASO: keyword ranks and competitors from PUBLIC store data (docs/adr/0011-aso-keywords-competitors.md,
   // docs/api/aso.md). Minutes between scheduled refreshes of every app's keywords and competitors; 0
   // (the default) turns them off, otherwise 60 to 10080. A person can always refresh an app by hand.
-  MRM_ASO_INTERVAL_MINUTES: blankIsUnset(
+  KILN_ASO_INTERVAL_MINUTES: blankIsUnset(
     z.coerce
       .number()
       .int()
@@ -196,7 +197,7 @@ const schema = z.object({
   // of every app from its stores (Apple Analytics Reports and Sales and Trends, Google Play vitals and reports). 0 turns them off,
   // otherwise 15 to 10080; the default is 360 (six hours). A workspace must ALSO turn on its setting analytics.enabled (default
   // false), so this value alone never contacts a store. A person with the right can always sync an app by hand.
-  MRM_ANALYTICS_INTERVAL_MINUTES: blankIsUnset(
+  KILN_ANALYTICS_INTERVAL_MINUTES: blankIsUnset(
     z.coerce
       .number()
       .int()
@@ -207,7 +208,7 @@ const schema = z.object({
   // submissions of every app that is linked to an Expo project. 0 turns them off, otherwise 5 to 10080; the default is 30. A build or
   // submission still running is read again every three minutes. Only linked apps are ever read, so a workspace without an Expo
   // credential costs nothing. A person with the right can always read an app by hand.
-  MRM_EAS_STATUS_INTERVAL_MINUTES: blankIsUnset(
+  KILN_EAS_STATUS_INTERVAL_MINUTES: blankIsUnset(
     z.coerce
       .number()
       .int()
@@ -215,7 +216,7 @@ const schema = z.object({
       .default(30),
   ),
   // Days a stored rank check and competitor snapshot is kept; 0 keeps them for ever.
-  MRM_ASO_RETENTION_DAYS: blankIsUnset(
+  KILN_ASO_RETENTION_DAYS: blankIsUnset(
     z.coerce
       .number()
       .int()
@@ -226,80 +227,80 @@ const schema = z.object({
   // UNOFFICIAL, may be against Google Play's terms of service and breaks when the markup changes, so it
   // is off by default: every Play ASO route then answers 409 play_unofficial_disabled. Apple is read
   // through the documented iTunes Search API and does not depend on this. Read docs/api/aso.md first.
-  MRM_ASO_PLAY_UNOFFICIAL_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
-  MRM_ASO_MAX_KEYWORDS_PER_APP: blankIsUnset(z.coerce.number().int().min(1).max(500).default(50)),
-  MRM_ASO_MAX_COMPETITORS_PER_APP: blankIsUnset(z.coerce.number().int().min(1).max(50).default(10)),
+  KILN_ASO_PLAY_UNOFFICIAL_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_ASO_MAX_KEYWORDS_PER_APP: blankIsUnset(z.coerce.number().int().min(1).max(500).default(50)),
+  KILN_ASO_MAX_COMPETITORS_PER_APP: blankIsUnset(z.coerce.number().int().min(1).max(50).default(10)),
   // The most keyword checks one refresh makes (the rest stays due for the next one).
-  MRM_ASO_MAX_CHECKS_PER_RUN: blankIsUnset(z.coerce.number().int().min(1).max(200).default(25)),
+  KILN_ASO_MAX_CHECKS_PER_RUN: blankIsUnset(z.coerce.number().int().min(1).max(200).default(25)),
   // How many search results are read to find the app (Apple allows up to 200, Google Play is capped lower).
-  MRM_ASO_RANK_DEPTH: blankIsUnset(z.coerce.number().int().min(10).max(200).default(50)),
+  KILN_ASO_RANK_DEPTH: blankIsUnset(z.coerce.number().int().min(10).max(200).default(50)),
   // How long the same search or lookup is reused, in minutes; 0 never.
-  MRM_ASO_CACHE_MINUTES: blankIsUnset(z.coerce.number().int().min(0).max(1440).default(60)),
+  KILN_ASO_CACHE_MINUTES: blankIsUnset(z.coerce.number().int().min(0).max(1440).default(60)),
   // Calls per minute to each store, per process. Apple documents about 20; Google Play documents nothing.
-  MRM_ASO_APPLE_CALLS_PER_MINUTE: blankIsUnset(z.coerce.number().int().min(1).max(20).default(10)),
-  MRM_ASO_PLAY_CALLS_PER_MINUTE: blankIsUnset(z.coerce.number().int().min(1).max(20).default(4)),
+  KILN_ASO_APPLE_CALLS_PER_MINUTE: blankIsUnset(z.coerce.number().int().min(1).max(20).default(10)),
+  KILN_ASO_PLAY_CALLS_PER_MINUTE: blankIsUnset(z.coerce.number().int().min(1).max(20).default(4)),
   // A competitor with no stored snapshot for this many days gets one anyway (so a quiet one shows it was looked at).
-  MRM_ASO_HEARTBEAT_DAYS: blankIsUnset(z.coerce.number().int().min(1).max(90).default(7)),
+  KILN_ASO_HEARTBEAT_DAYS: blankIsUnset(z.coerce.number().int().min(1).max(90).default(7)),
   // Kill switch for replying to customer reviews (docs/adr/0007-review-replies.md). A reply is
   // published publicly in the App Store or Google Play in the organisation's name, so it is off by
   // default: every reply route answers 409 reply_disabled until this is 'true'. Reading and
   // triaging reviews do not depend on it.
-  MRM_REVIEW_REPLY_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_REVIEW_REPLY_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Kill switch for changing a LIVE rollout in a store (docs/adr/0008-store-rollout-writes.md): the
   // Google Play staged rollout share, halt, resume and complete, and the App Store phased release
   // pause, resume and release to all. It changes what users receive, so it is off by default: every
   // rollout route answers 409 rollout_disabled until this is 'true'. Planning data (rollout steps)
   // does not depend on it.
-  MRM_STORE_ROLLOUT_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_STORE_ROLLOUT_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Kill switch for the ONE write of EAS Update (docs/adr/0037-eas-update.md): raising the rollout percentage of an update at Expo
   // (what `eas update:edit` does). It changes what clients receive and cannot be lowered from here, so it is off by default: the rollout
   // preview and apply routes answer 409 eas_update_write_disabled until this is 'true'. Reading channels, updates and insights does not
   // depend on it. It is separate from the store switches.
-  MRM_EAS_UPDATE_ROLLOUT_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_EAS_UPDATE_ROLLOUT_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Kill switch for the ONE write of in-app products (docs/adr/0034-in-app-products.md): changing the localized display name and description of an
   // in-app purchase or subscription in the store. Prices, availability and the products themselves are never written. Reading and syncing the
   // products does not depend on it. Off by default: the localization route answers 409 store_product_write_disabled until this is 'true'.
-  MRM_STORE_PRODUCT_WRITE_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_STORE_PRODUCT_WRITE_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Kill switch for writing staged listing text and graphics into a store as a DRAFT (docs/adr/0009-staged-store-drafts.md):
   // the App Store version localizations and screenshots of the editable version, and a Google Play edit
   // committed with changesNotSentForReview. It never submits, sends for review or publishes. Off by
   // default: staging and previewing work, but the push route answers 409 store_draft_disabled until
   // this is 'true'.
-  MRM_STORE_DRAFT_WRITE_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_STORE_DRAFT_WRITE_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Kill switch for SUBMITTING the store's draft for review (docs/adr/0010-store-submit.md): an App Store
   // review submission of the editable version, or a Google Play commit that sends the held back changes to
   // review. It cannot be recalled from here, so it is off by default and separate from the draft switch:
   // the submit routes answer 409 store_submit_disabled until this is 'true'. It never releases a version
   // and never changes a rollout.
-  MRM_STORE_SUBMIT_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_STORE_SUBMIT_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Kill switch for RELEASING (docs/adr/0014-release-management.md): making an approved App Store version available
   // (POST appStoreVersionReleaseRequests), or starting a Google Play draft release at a share of users you name. It cannot
   // be recalled from here, so it is off by default and separate from the draft and submit switches: the release routes
   // answer 409 store_release_disabled until this is 'true'. Reading builds and version codes does not depend on it.
-  MRM_STORE_RELEASE_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_STORE_RELEASE_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Kill switch for DOWNLOADING build binaries (docs/api/builds.md): the zips CI uploaded as workflow artifacts, streamed through this
   // server, and the short-lived links that hand one to a phone. An unreleased build is the product itself, so it is off by default:
   // the lists work, the download routes answer 409 builds_download_disabled until this is 'true'. Needs the GitHub credential to read
   // Actions (fine-grained 'Actions: read').
-  MRM_BUILDS_DOWNLOAD_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_BUILDS_DOWNLOAD_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Largest artifact a download may carry, in megabytes (1 to 4096, default 500). Bigger ones are refused before any byte is sent.
-  MRM_BUILDS_DOWNLOAD_MAX_MB: blankIsUnset(z.coerce.number().int().min(1).max(4096).default(500)),
+  KILN_BUILDS_DOWNLOAD_MAX_MB: blankIsUnset(z.coerce.number().int().min(1).max(4096).default(500)),
   // Kill switch for sharing a build through GOOGLE PLAY INTERNAL APP SHARING (docs/adr/0020-play-internal-sharing.md): uploads the .aab or
   // .apk inside a CI artifact to Google with the Google credential of the app and returns an install link. It puts a binary on Google's
   // servers that this server cannot delete (nothing is published to users), so it is off by default and separate from the download switch:
   // the routes answer 409 internal_sharing_disabled until this is 'true'. Owners and admins only, and a step-up confirmation when that
-  // policy covers the class `internal_sharing`. The file size limit is MRM_BUILDS_DOWNLOAD_MAX_MB; the zip is held in memory while it is read.
-  MRM_PLAY_INTERNAL_SHARING_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  // policy covers the class `internal_sharing`. The file size limit is KILN_BUILDS_DOWNLOAD_MAX_MB; the zip is held in memory while it is read.
+  KILN_PLAY_INTERNAL_SHARING_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Master switch for the BATCH PUBLISH of an app (docs/adr/0015-pending-and-batch-publish.md): one preview and one typed confirmation for
   // several gated steps (push the draft, submit, release, rollout). It adds no power of its own: every step in the batch still needs its
   // own switch above, its own role right and its own hash, so turning this on does not turn any step on. Off by default: the batch routes
   // answer 409 publish_batch_disabled until this is 'true'. Viewing the pending changes of an app does not depend on it.
-  MRM_STORE_PUBLISH_BATCH_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  KILN_STORE_PUBLISH_BATCH_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Minutes between scheduled reads of the store listing of every app (texts, categories, age
   // rating, screenshot counts). 0 (the default) turns them off; otherwise 30 to 10080 (a week). A
   // listing read is many requests, so the floor is higher than the sync's. They use the stored
   // credentials, so they are opt-in. See docs/api/listing.md.
-  MRM_LISTING_INTERVAL_MINUTES: blankIsUnset(
+  KILN_LISTING_INTERVAL_MINUTES: blankIsUnset(
     z.coerce
       .number()
       .int()
@@ -309,7 +310,7 @@ const schema = z.object({
   // Minutes between runs of the plan reminders (deadlines close or passed, rollout steps whose time
   // has passed; sent as events, never as email). 0 turns them off; otherwise 5 to 10080. They only
   // run in the process that runs the worker. See docs/api/events.md.
-  MRM_REMINDER_INTERVAL_MINUTES: blankIsUnset(
+  KILN_REMINDER_INTERVAL_MINUTES: blankIsUnset(
     z.coerce
       .number()
       .int()
@@ -319,7 +320,7 @@ const schema = z.object({
   // Minutes between runs of the release watch: `release.stalled` (a release that stands still, workspace setting
   // `release.stalledAfterHours`) and `review.unanswered` (a digest, setting `reviews.unansweredReminderHours`, off by default).
   // Events only, never email. 0 turns the watch off; otherwise 5 to 10080. Runs where the worker runs.
-  MRM_RELEASE_WATCH_INTERVAL_MINUTES: blankIsUnset(
+  KILN_RELEASE_WATCH_INTERVAL_MINUTES: blankIsUnset(
     z.coerce
       .number()
       .int()
@@ -328,12 +329,12 @@ const schema = z.object({
   ),
 });
 
-/** Most allowed roots, and the longest path, accepted for MRM_LOCAL_REPO_ROOTS. */
+/** Most allowed roots, and the longest path, accepted for KILN_LOCAL_REPO_ROOTS. */
 export const MAX_LOCAL_REPO_ROOTS = 20;
 export const MAX_LOCAL_PATH_LENGTH = 4096;
 
 /**
- * Parses MRM_LOCAL_REPO_ROOTS: the folders local git clones may live in. Blank is an empty list
+ * Parses KILN_LOCAL_REPO_ROOTS: the folders local git clones may live in. Blank is an empty list
  * (the feature is off). Throws a message that names the variable, never anything else, when an
  * entry is not an absolute path, has a `..` segment, a NUL byte or a line break, is the file
  * system root (which would allow every folder), or when there are too many. Paths are normalised
@@ -350,7 +351,7 @@ export function parseLocalRepoRoots(
     if (entry === '') continue;
     const problem = (why: string) =>
       new Error(
-        `Invalid configuration:\n  MRM_LOCAL_REPO_ROOTS ${why} (entries are separated by "${separator}").`,
+        `Invalid configuration:\n  KILN_LOCAL_REPO_ROOTS ${why} (entries are separated by "${separator}").`,
       );
     if (entry.length > MAX_LOCAL_PATH_LENGTH) throw problem('has an entry that is too long');
     if (/[\u0000-\u001f\u007f]/.test(entry)) throw problem('has an entry with a control character');
@@ -367,7 +368,7 @@ export function parseLocalRepoRoots(
   }
   if (roots.length > MAX_LOCAL_REPO_ROOTS)
     throw new Error(
-      `Invalid configuration:\n  MRM_LOCAL_REPO_ROOTS has more than ${MAX_LOCAL_REPO_ROOTS} entries.`,
+      `Invalid configuration:\n  KILN_LOCAL_REPO_ROOTS has more than ${MAX_LOCAL_REPO_ROOTS} entries.`,
     );
   return roots;
 }
@@ -419,17 +420,17 @@ function findOnPath(names: readonly string[], pathEnv: string | undefined): stri
 }
 
 /**
- * Parses MRM_GIT_SIGN and its companions into the signing setup of local commits, or undefined
+ * Parses KILN_GIT_SIGN and its companions into the signing setup of local commits, or undefined
  * when signing is off (unset, blank or `off`: then nothing else is read, so today's behaviour is
  * unchanged). Fails fast, at start, with a message that names the variable and says what to fix.
  * The messages never contain the key's path or any part of the key.
  *
- * - ssh: MRM_GIT_SIGNING_KEY is an absolute path: a private key file (not readable by group or
+ * - ssh: KILN_GIT_SIGNING_KEY is an absolute path: a private key file (not readable by group or
  *   others), or the `.pub` of a key an ssh-agent holds (then the agent socket of the server's own
  *   environment, SSH_AUTH_SOCK, is passed on, if there is one). The program is ssh-keygen.
- * - gpg: MRM_GIT_SIGNING_KEY is a key id or fingerprint, MRM_GIT_GNUPGHOME is the keyring folder
+ * - gpg: KILN_GIT_SIGNING_KEY is a key id or fingerprint, KILN_GIT_GNUPGHOME is the keyring folder
  *   (required: the server does not use the home folder of its user). The program is gpg.
- * - MRM_GIT_SIGNING_PROGRAM: the absolute path of the program. Otherwise it is looked up in PATH
+ * - KILN_GIT_SIGNING_PROGRAM: the absolute path of the program. Otherwise it is looked up in PATH
  *   once, here, and pinned: it is never looked up again and never taken from a repository.
  * Whether a passphrase-protected key is unlocked cannot be known here; signing says so when used.
  */
@@ -441,14 +442,14 @@ export function parseGitSigning(
     const value = env[name];
     return value === undefined || value.trim() === '' ? undefined : value.trim();
   };
-  const format = get('MRM_GIT_SIGN') ?? 'off';
+  const format = get('KILN_GIT_SIGN') ?? 'off';
   if (format === 'off') return undefined;
   const problem = (why: string) => new Error(`Invalid configuration:\n  ${why}`);
   if (format !== 'ssh' && format !== 'gpg') {
-    throw problem(`MRM_GIT_SIGN must be off, ssh or gpg (it is "${format.slice(0, 20)}").`);
+    throw problem(`KILN_GIT_SIGN must be off, ssh or gpg (it is "${format.slice(0, 20)}").`);
   }
   if (platform === 'win32' && format === 'gpg') {
-    throw problem('MRM_GIT_SIGN=gpg is not supported on Windows. Use ssh.');
+    throw problem('KILN_GIT_SIGN=gpg is not supported on Windows. Use ssh.');
   }
   const absolute = (name: string, value: string): void => {
     if (value.length > MAX_LOCAL_PATH_LENGTH) throw problem(`${name} is too long.`);
@@ -461,25 +462,25 @@ export function parseGitSigning(
     if (value.split(/[\\/]+/).includes('..')) throw problem(`${name} must not contain "..".`);
   };
 
-  const key = get('MRM_GIT_SIGNING_KEY');
+  const key = get('KILN_GIT_SIGNING_KEY');
   if (key === undefined) {
     throw problem(
       format === 'ssh'
-        ? 'MRM_GIT_SIGNING_KEY is required when MRM_GIT_SIGN=ssh: the absolute path of an ssh private key file, or of the .pub of a key held by ssh-agent.'
-        : 'MRM_GIT_SIGNING_KEY is required when MRM_GIT_SIGN=gpg: the id or fingerprint of the gpg key.',
+        ? 'KILN_GIT_SIGNING_KEY is required when KILN_GIT_SIGN=ssh: the absolute path of an ssh private key file, or of the .pub of a key held by ssh-agent.'
+        : 'KILN_GIT_SIGNING_KEY is required when KILN_GIT_SIGN=gpg: the id or fingerprint of the gpg key.',
     );
   }
 
   // The program, pinned.
-  const configured = get('MRM_GIT_SIGNING_PROGRAM');
+  const configured = get('KILN_GIT_SIGNING_PROGRAM');
   let program: string;
   if (configured !== undefined) {
-    absolute('MRM_GIT_SIGNING_PROGRAM', configured);
+    absolute('KILN_GIT_SIGNING_PROGRAM', configured);
     // The gpg wrapper script quotes the path: a quote would end the quoting.
-    if (/['"]/.test(configured)) throw problem('MRM_GIT_SIGNING_PROGRAM must not contain quotes.');
+    if (/['"]/.test(configured)) throw problem('KILN_GIT_SIGNING_PROGRAM must not contain quotes.');
     if (!isExecutable(configured)) {
       throw problem(
-        'MRM_GIT_SIGNING_PROGRAM is not an executable file (check the path and its permissions).',
+        'KILN_GIT_SIGNING_PROGRAM is not an executable file (check the path and its permissions).',
       );
     }
     program = configured;
@@ -488,13 +489,13 @@ export function parseGitSigning(
     if (!found) {
       throw problem(
         format === 'ssh'
-          ? 'MRM_GIT_SIGN=ssh needs ssh-keygen, which was not found in PATH. Install OpenSSH, or set MRM_GIT_SIGNING_PROGRAM to the absolute path of ssh-keygen.'
-          : 'MRM_GIT_SIGN=gpg needs gpg, which was not found in PATH. Install GnuPG 2.1 or later, or set MRM_GIT_SIGNING_PROGRAM to the absolute path of gpg.',
+          ? 'KILN_GIT_SIGN=ssh needs ssh-keygen, which was not found in PATH. Install OpenSSH, or set KILN_GIT_SIGNING_PROGRAM to the absolute path of ssh-keygen.'
+          : 'KILN_GIT_SIGN=gpg needs gpg, which was not found in PATH. Install GnuPG 2.1 or later, or set KILN_GIT_SIGNING_PROGRAM to the absolute path of gpg.',
       );
     }
     if (/['"\u0000-\u001f]/.test(found))
       throw problem(
-        'The signing program found in PATH has a quote in its path. Set MRM_GIT_SIGNING_PROGRAM to another one.',
+        'The signing program found in PATH has a quote in its path. Set KILN_GIT_SIGNING_PROGRAM to another one.',
       );
     program = found;
   }
@@ -502,59 +503,59 @@ export function parseGitSigning(
   if (format === 'gpg') {
     if (!GPG_KEY_PATTERN.test(key)) {
       throw problem(
-        'MRM_GIT_SIGNING_KEY must be a gpg key id or fingerprint: hexadecimal, 8 to 64 characters (a user name or e-mail address is not accepted).',
+        'KILN_GIT_SIGNING_KEY must be a gpg key id or fingerprint: hexadecimal, 8 to 64 characters (a user name or e-mail address is not accepted).',
       );
     }
-    const home = get('MRM_GIT_GNUPGHOME');
+    const home = get('KILN_GIT_GNUPGHOME');
     if (home === undefined) {
       throw problem(
-        "MRM_GIT_GNUPGHOME is required when MRM_GIT_SIGN=gpg: the absolute path of the folder with the keyring (usually ~/.gnupg of the user that owns the key). The server does not use its own user's home folder.",
+        "KILN_GIT_GNUPGHOME is required when KILN_GIT_SIGN=gpg: the absolute path of the folder with the keyring (usually ~/.gnupg of the user that owns the key). The server does not use its own user's home folder.",
       );
     }
-    absolute('MRM_GIT_GNUPGHOME', home);
+    absolute('KILN_GIT_GNUPGHOME', home);
     let directory = false;
     try {
       directory = statSync(home).isDirectory();
     } catch {
       // Reported below.
     }
-    if (!directory) throw problem('MRM_GIT_GNUPGHOME is not a folder that exists.');
+    if (!directory) throw problem('KILN_GIT_GNUPGHOME is not a folder that exists.');
     if (!canAccess(home, constants.R_OK | constants.X_OK))
-      throw problem('MRM_GIT_GNUPGHOME is not readable by the user the server runs as.');
+      throw problem('KILN_GIT_GNUPGHOME is not readable by the user the server runs as.');
     return { format, key: key.replace(/^0x/i, ''), program, gnupgHome: home };
   }
 
-  if (get('MRM_GIT_GNUPGHOME') !== undefined) {
+  if (get('KILN_GIT_GNUPGHOME') !== undefined) {
     throw problem(
-      'MRM_GIT_GNUPGHOME only applies with MRM_GIT_SIGN=gpg. Remove it, or change MRM_GIT_SIGN.',
+      'KILN_GIT_GNUPGHOME only applies with KILN_GIT_SIGN=gpg. Remove it, or change KILN_GIT_SIGN.',
     );
   }
-  absolute('MRM_GIT_SIGNING_KEY', key);
+  absolute('KILN_GIT_SIGNING_KEY', key);
   if (!isFile(key))
     throw problem(
-      'MRM_GIT_SIGNING_KEY is not a file that exists (it must be a key file, not a folder).',
+      'KILN_GIT_SIGNING_KEY is not a file that exists (it must be a key file, not a folder).',
     );
   if (!canAccess(key, constants.R_OK))
-    throw problem('MRM_GIT_SIGNING_KEY is not readable by the user the server runs as.');
+    throw problem('KILN_GIT_SIGNING_KEY is not readable by the user the server runs as.');
   const start = head(key, 64);
-  if (start === undefined) throw problem('MRM_GIT_SIGNING_KEY could not be read.');
+  if (start === undefined) throw problem('KILN_GIT_SIGNING_KEY could not be read.');
   if (key.endsWith('.pub')) {
     if (!/^(?:ssh-|ecdsa-|sk-)/.test(start))
-      throw problem('MRM_GIT_SIGNING_KEY ends in .pub but is not an ssh public key.');
+      throw problem('KILN_GIT_SIGNING_KEY ends in .pub but is not an ssh public key.');
     const sock = get('SSH_AUTH_SOCK');
     if (sock !== undefined) absolute('SSH_AUTH_SOCK', sock);
     return { format, key, program, ...(sock !== undefined ? { sshAuthSock: sock } : {}) };
   }
   if (/^(?:ssh-|ecdsa-|sk-)/.test(start)) {
     throw problem(
-      'MRM_GIT_SIGNING_KEY is an ssh public key but its name does not end in .pub. Rename it, or point to the private key.',
+      'KILN_GIT_SIGNING_KEY is an ssh public key but its name does not end in .pub. Rename it, or point to the private key.',
     );
   }
   if (!/^-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/.test(start))
-    throw problem('MRM_GIT_SIGNING_KEY is not an ssh private key file.');
+    throw problem('KILN_GIT_SIGNING_KEY is not an ssh private key file.');
   if (platform !== 'win32' && (statSync(key).mode & 0o077) !== 0) {
     throw problem(
-      'MRM_GIT_SIGNING_KEY is readable by other users (ssh refuses such a key). Run: chmod 600 on the key file.',
+      'KILN_GIT_SIGNING_KEY is readable by other users (ssh refuses such a key). Run: chmod 600 on the key file.',
     );
   }
   return { format, key, program };
@@ -567,16 +568,16 @@ const MIN_DISTINCT_CHARS = 12;
 /** Never includes the value in its message. */
 function checkLaunchSecret(secret: string | undefined): string {
   const hint =
-    'MRM_LAUNCH_SECRET must be 32 random bytes as base64url (43 characters) or hex (64). Generate one with: openssl rand -hex 32';
+    'KILN_LAUNCH_SECRET must be 32 random bytes as base64url (43 characters) or hex (64). Generate one with: openssl rand -hex 32';
   if (!secret?.trim()) {
     throw new Error(
-      `Invalid configuration:\n  MRM_LAUNCH_SECRET is required when MRM_MODE=single_user. ${hint}`,
+      `Invalid configuration:\n  KILN_LAUNCH_SECRET is required when KILN_MODE=single_user. ${hint}`,
     );
   }
   // A sanity check, not proof of entropy: it catches short, padded or repetitive values.
   if (!LAUNCH_SECRET_SHAPE.test(secret) || new Set(secret).size < MIN_DISTINCT_CHARS) {
     throw new Error(
-      `Invalid configuration:\n  MRM_LAUNCH_SECRET is too short or not random enough. ${hint}`,
+      `Invalid configuration:\n  KILN_LAUNCH_SECRET is too short or not random enough. ${hint}`,
     );
   }
   return secret;
@@ -590,7 +591,7 @@ export type Config = {
   webDist: string;
   worker: 'inline' | 'off';
   trustedOrigins: string[];
-  /** MRM_PUBLIC_ORIGIN, or undefined: passkeys are bound to the origin of the request. */
+  /** KILN_PUBLIC_ORIGIN, or undefined: passkeys are bound to the origin of the request. */
   publicOrigin?: string | undefined;
   mode: 'multi' | 'single_user';
   /** Single-user mode only. Treat as a password: never log it. */
@@ -599,101 +600,104 @@ export type Config = {
   host?: string | undefined;
   /** Single-user mode only: extra accepted Host values besides this server's own. */
   allowedHosts: string[];
-  /** Believe X-Forwarded-For for the client address. See MRM_TRUST_PROXY. */
+  /** Believe X-Forwarded-For for the client address. See KILN_TRUST_PROXY. */
   trustProxy: boolean;
-  /** Webhooks may reach private addresses and http://localhost. See MRM_WEBHOOKS_ALLOW_PRIVATE. */
+  /** Webhooks may reach private addresses and http://localhost. See KILN_WEBHOOKS_ALLOW_PRIVATE. */
   webhooksAllowPrivate: boolean;
-  /** The LibreTranslate address may be private or loopback. See MRM_TRANSLATE_ALLOW_PRIVATE_URLS. */
+  /** The LibreTranslate address may be private or loopback. See KILN_TRANSLATE_ALLOW_PRIVATE_URLS. */
   translateAllowPrivateUrls: boolean;
-  /** AI assistance may be used at all. See MRM_AI_ENABLED. */
+  /** AI assistance may be used at all. See KILN_AI_ENABLED. */
   aiEnabled: boolean;
-  /** The address of an OpenAI compatible model server may be private or loopback. See MRM_AI_ALLOW_PRIVATE_URLS. */
+  /** The address of an OpenAI compatible model server may be private or loopback. See KILN_AI_ALLOW_PRIVATE_URLS. */
   aiAllowPrivateUrls: boolean;
-  /** The MCP endpoint (POST /mcp) is on. See MRM_MCP_ENABLED. */
+  /** The MCP endpoint (POST /mcp) is on. See KILN_MCP_ENABLED. */
   mcpEnabled: boolean;
-  /** How scans and listings read the repository. See MRM_READS. */
+  /** How scans and listings read the repository. See KILN_READS. */
   reads: 'api' | 'clone' | 'auto';
-  /** Where git clones live: MRM_CLONE_DIR, default `<dataDir>/clones`. */
+  /** Where git clones live: KILN_CLONE_DIR, default `<dataDir>/clones`. */
   cloneDir: string;
-  /** How long a fetched branch tip is reused, in milliseconds (MRM_CLONE_TTL_SECONDS). */
+  /** How long a fetched branch tip is reused, in milliseconds (KILN_CLONE_TTL_SECONDS). */
   cloneTtlMs: number;
-  /** Most bytes the clone folder may hold; 0 is no limit (MRM_CLONE_MAX_BYTES). */
+  /** Most bytes the clone folder may hold; 0 is no limit (KILN_CLONE_MAX_BYTES). */
   cloneMaxBytes: number;
-  /** A clone unused for this many days is removed; 0 never (MRM_CLONE_IDLE_DAYS). */
+  /** A clone unused for this many days is removed; 0 never (KILN_CLONE_IDLE_DAYS). */
   cloneIdleDays: number;
-  /** Minutes between sweeps of the clone folder; 0 is off (MRM_CLONE_SWEEP_INTERVAL_MINUTES). */
+  /** Minutes between sweeps of the clone folder; 0 is off (KILN_CLONE_SWEEP_INTERVAL_MINUTES). */
   cloneSweepIntervalMinutes: number;
-  /** The git program (MRM_GIT_PATH). */
+  /** The git program (KILN_GIT_PATH). */
   gitPath: string;
-  /** Minutes between scheduled syncs of every app; 30 by default, 0 is off (MRM_SYNC_INTERVAL_MINUTES). */
+  /** Minutes between scheduled syncs of every app; 30 by default, 0 is off (KILN_SYNC_INTERVAL_MINUTES). */
   syncIntervalMinutes: number;
-  /** Minutes between scheduled review reads of every app; 0 is off (MRM_REVIEW_SYNC_INTERVAL_MINUTES). */
+  /** Minutes between scheduled review reads of every app; 0 is off (KILN_REVIEW_SYNC_INTERVAL_MINUTES). */
   reviewSyncIntervalMinutes: number;
-  /** Days a stored review is kept; 0 keeps them (MRM_REVIEW_RETENTION_DAYS). */
+  /** Days a stored review is kept; 0 keeps them (KILN_REVIEW_RETENTION_DAYS). */
   reviewRetentionDays: number;
-  /** Minutes between scheduled analytics syncs of every app; 0 is off (MRM_ANALYTICS_INTERVAL_MINUTES, default 360). */
+  /** Minutes between scheduled analytics syncs of every app; 0 is off (KILN_ANALYTICS_INTERVAL_MINUTES, default 360). */
   analyticsIntervalMinutes: number;
-  /** Minutes between scheduled reads of the EAS builds and submissions of every linked app; 0 is off (MRM_EAS_STATUS_INTERVAL_MINUTES, default 30). */
+  /** Minutes between scheduled reads of the EAS builds and submissions of every linked app; 0 is off (KILN_EAS_STATUS_INTERVAL_MINUTES, default 30). */
   easStatusIntervalMinutes: number;
-  /** Minutes between scheduled ASO refreshes of every app; 0 is off (MRM_ASO_INTERVAL_MINUTES). */
+  /** Minutes between scheduled ASO refreshes of every app; 0 is off (KILN_ASO_INTERVAL_MINUTES). */
   asoIntervalMinutes: number;
-  /** Days a stored rank check or competitor snapshot is kept; 0 keeps them (MRM_ASO_RETENTION_DAYS). */
+  /** Days a stored rank check or competitor snapshot is kept; 0 keeps them (KILN_ASO_RETENTION_DAYS). */
   asoRetentionDays: number;
-  /** Reading Google Play's public pages is allowed (MRM_ASO_PLAY_UNOFFICIAL_ENABLED). Unofficial; default false. */
+  /** Reading Google Play's public pages is allowed (KILN_ASO_PLAY_UNOFFICIAL_ENABLED). Unofficial; default false. */
   asoPlayUnofficialEnabled: boolean;
   asoMaxKeywordsPerApp: number;
   asoMaxCompetitorsPerApp: number;
   asoMaxChecksPerRun: number;
   asoRankDepth: number;
-  /** Milliseconds a search or lookup is reused (MRM_ASO_CACHE_MINUTES). */
+  /** Milliseconds a search or lookup is reused (KILN_ASO_CACHE_MINUTES). */
   asoCacheMs: number;
   asoAppleCallsPerMinute: number;
   asoPlayCallsPerMinute: number;
-  /** Milliseconds (MRM_ASO_HEARTBEAT_DAYS). */
+  /** Milliseconds (KILN_ASO_HEARTBEAT_DAYS). */
   asoHeartbeatMs: number;
-  /** Replying to customer reviews in the stores is allowed (MRM_REVIEW_REPLY_ENABLED). Default false. */
+  /** Replying to customer reviews in the stores is allowed (KILN_REVIEW_REPLY_ENABLED). Default false. */
   reviewReplyEnabled: boolean;
-  /** Changing a live rollout in the stores is allowed (MRM_STORE_ROLLOUT_ENABLED). Default false. */
+  /** Changing a live rollout in the stores is allowed (KILN_STORE_ROLLOUT_ENABLED). Default false. */
   storeRolloutEnabled: boolean;
-  /** Raising the rollout of an EAS Update at Expo is allowed (MRM_EAS_UPDATE_ROLLOUT_ENABLED). Default false. */
+  /** Raising the rollout of an EAS Update at Expo is allowed (KILN_EAS_UPDATE_ROLLOUT_ENABLED). Default false. */
   easUpdateRolloutEnabled: boolean;
-  /** Changing the display name and description of an in-app product in the stores is allowed (MRM_STORE_PRODUCT_WRITE_ENABLED). Default false. */
+  /** Changing the display name and description of an in-app product in the stores is allowed (KILN_STORE_PRODUCT_WRITE_ENABLED). Default false. */
   storeProductWriteEnabled: boolean;
-  /** Writing staged listing text and graphics into a store as a draft is allowed (MRM_STORE_DRAFT_WRITE_ENABLED). Default false. */
+  /** Writing staged listing text and graphics into a store as a draft is allowed (KILN_STORE_DRAFT_WRITE_ENABLED). Default false. */
   storeDraftWriteEnabled: boolean;
-  /** Submitting the store's draft for review is allowed (MRM_STORE_SUBMIT_ENABLED). Default false. */
+  /** Submitting the store's draft for review is allowed (KILN_STORE_SUBMIT_ENABLED). Default false. */
   storeSubmitEnabled: boolean;
-  /** Releasing an approved version or starting a Google Play draft release is allowed (MRM_STORE_RELEASE_ENABLED). Default false. */
+  /** Releasing an approved version or starting a Google Play draft release is allowed (KILN_STORE_RELEASE_ENABLED). Default false. */
   storeReleaseEnabled: boolean;
-  /** Downloading build binaries and handing them to a phone is allowed (MRM_BUILDS_DOWNLOAD_ENABLED). Default false. */
+  /** Downloading build binaries and handing them to a phone is allowed (KILN_BUILDS_DOWNLOAD_ENABLED). Default false. */
   buildsDownloadEnabled: boolean;
-  /** Largest artifact a download may carry, in bytes (MRM_BUILDS_DOWNLOAD_MAX_MB, default 500 MB). */
+  /** Largest artifact a download may carry, in bytes (KILN_BUILDS_DOWNLOAD_MAX_MB, default 500 MB). */
   buildsDownloadMaxBytes: number;
-  /** Uploading a build to Google Play internal app sharing is allowed (MRM_PLAY_INTERNAL_SHARING_ENABLED). Default false. */
+  /** Uploading a build to Google Play internal app sharing is allowed (KILN_PLAY_INTERNAL_SHARING_ENABLED). Default false. */
   playInternalSharingEnabled: boolean;
-  /** The batch publish (one confirmation for several gated steps) is allowed (MRM_STORE_PUBLISH_BATCH_ENABLED). Default false. Turns no step on. */
+  /** The batch publish (one confirmation for several gated steps) is allowed (KILN_STORE_PUBLISH_BATCH_ENABLED). Default false. Turns no step on. */
   storePublishBatchEnabled: boolean;
-  /** Minutes between scheduled reads of the store listing of every app; 0 is off (MRM_LISTING_INTERVAL_MINUTES). */
+  /** Minutes between scheduled reads of the store listing of every app; 0 is off (KILN_LISTING_INTERVAL_MINUTES). */
   listingIntervalMinutes: number;
-  /** Minutes between runs of the plan reminders; 0 is off (MRM_REMINDER_INTERVAL_MINUTES). */
+  /** Minutes between runs of the plan reminders; 0 is off (KILN_REMINDER_INTERVAL_MINUTES). */
   reminderIntervalMinutes: number;
-  /** Minutes between runs of the release watch (stalled releases, unanswered reviews); 0 is off (MRM_RELEASE_WATCH_INTERVAL_MINUTES). */
+  /** Minutes between runs of the release watch (stalled releases, unanswered reviews); 0 is off (KILN_RELEASE_WATCH_INTERVAL_MINUTES). */
   releaseWatchIntervalMinutes: number;
-  /** Folders that may hold local clones (MRM_LOCAL_REPO_ROOTS). Empty: local clones are off. */
+  /** Folders that may hold local clones (KILN_LOCAL_REPO_ROOTS). Empty: local clones are off. */
   localRepoRoots: string[];
-  /** Commits on a new branch of a local clone, and their push, are allowed (MRM_LOCAL_REPO_WRITE). */
+  /** Commits on a new branch of a local clone, and their push, are allowed (KILN_LOCAL_REPO_WRITE). */
   localRepoWrite: boolean;
-  /** MRM_GIT_AUTHOR_NAME and MRM_GIT_AUTHOR_EMAIL, when set. */
+  /** KILN_GIT_AUTHOR_NAME and KILN_GIT_AUTHOR_EMAIL, when set. */
   gitAuthorName?: string | undefined;
   gitAuthorEmail?: string | undefined;
-  /** Signing of local commits (MRM_GIT_SIGN). Absent: commits are not signed. Holds a key path: never log or return it. */
+  /** Signing of local commits (KILN_GIT_SIGN). Absent: commits are not signed. Holds a key path: never log or return it. */
   gitSigning?: GitSigning | undefined;
 };
 
-export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
-  if (!env.MRM_MASTER_KEY?.trim()) {
+export function loadConfig(
+  env: Record<string, string | undefined> = process.env,
+  exists: PathExists = existsSync,
+): Config {
+  if (!env.KILN_MASTER_KEY?.trim()) {
     throw new Error(
-      'Invalid configuration:\n  MRM_MASTER_KEY is required. Generate one with: openssl rand -base64 32',
+      'Invalid configuration:\n  KILN_MASTER_KEY is required. Generate one with: openssl rand -base64 32',
     );
   }
   const parsed = schema.safeParse(env);
@@ -702,75 +706,78 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     throw new Error(`Invalid configuration:\n  ${problems.join('\n  ')}`);
   }
   const data = parsed.data;
+  // The default folder is `./.kiln-data`; an existing `./.mrm-data` from before the rename is kept in use.
+  const defaultDir = defaultDataDir(exists);
+  const dataDir = data.KILN_DATA_DIR ?? defaultDir;
   // Ignored in multi-user mode: nothing there consumes it.
   const launchSecret =
-    data.MRM_MODE === 'single_user' ? checkLaunchSecret(data.MRM_LAUNCH_SECRET) : undefined;
-  const localRepoRoots = parseLocalRepoRoots(data.MRM_LOCAL_REPO_ROOTS);
+    data.KILN_MODE === 'single_user' ? checkLaunchSecret(data.KILN_LAUNCH_SECRET) : undefined;
+  const localRepoRoots = parseLocalRepoRoots(data.KILN_LOCAL_REPO_ROOTS);
   const gitSigning = parseGitSigning(env);
   const allowedHosts =
-    data.MRM_MODE === 'single_user' ? parseExtraHosts(data.MRM_ALLOWED_HOSTS) : [];
+    data.KILN_MODE === 'single_user' ? parseExtraHosts(data.KILN_ALLOWED_HOSTS) : [];
   return {
-    databaseUrl: data.DATABASE_URL,
-    masterKey: parseMasterKey(env.MRM_MASTER_KEY),
+    databaseUrl: sqliteUrlInUse(data.DATABASE_URL ?? `file:${defaultDir}/kiln.db`, exists),
+    masterKey: parseMasterKey(env.KILN_MASTER_KEY),
     port: data.PORT,
-    dataDir: data.MRM_DATA_DIR,
-    webDist: data.MRM_WEB_DIST,
-    worker: data.MRM_WORKER,
-    trustedOrigins: data.MRM_TRUSTED_ORIGINS.split(',')
+    dataDir,
+    webDist: data.KILN_WEB_DIST,
+    worker: data.KILN_WORKER,
+    trustedOrigins: data.KILN_TRUSTED_ORIGINS.split(',')
       .map((o) => o.trim())
       .filter(Boolean),
-    ...(data.MRM_PUBLIC_ORIGIN ? { publicOrigin: data.MRM_PUBLIC_ORIGIN } : {}),
-    mode: data.MRM_MODE,
+    ...(data.KILN_PUBLIC_ORIGIN ? { publicOrigin: data.KILN_PUBLIC_ORIGIN } : {}),
+    mode: data.KILN_MODE,
     launchSecret,
-    host: data.MRM_MODE === 'single_user' ? '127.0.0.1' : undefined,
+    host: data.KILN_MODE === 'single_user' ? '127.0.0.1' : undefined,
     allowedHosts,
-    trustProxy: data.MRM_TRUST_PROXY === '1',
-    webhooksAllowPrivate: data.MRM_WEBHOOKS_ALLOW_PRIVATE === '1',
-    translateAllowPrivateUrls: data.MRM_TRANSLATE_ALLOW_PRIVATE_URLS === 'true',
-    aiEnabled: data.MRM_AI_ENABLED === 'true',
-    aiAllowPrivateUrls: data.MRM_AI_ALLOW_PRIVATE_URLS === 'true',
-    mcpEnabled: data.MRM_MCP_ENABLED === 'true',
-    reads: data.MRM_READS,
-    cloneDir: data.MRM_CLONE_DIR ?? join(data.MRM_DATA_DIR, 'clones'),
-    cloneTtlMs: data.MRM_CLONE_TTL_SECONDS * 1000,
-    cloneMaxBytes: data.MRM_CLONE_MAX_BYTES,
-    cloneIdleDays: data.MRM_CLONE_IDLE_DAYS,
-    cloneSweepIntervalMinutes: data.MRM_CLONE_SWEEP_INTERVAL_MINUTES,
-    gitPath: data.MRM_GIT_PATH,
-    syncIntervalMinutes: data.MRM_SYNC_INTERVAL_MINUTES,
-    reviewSyncIntervalMinutes: data.MRM_REVIEW_SYNC_INTERVAL_MINUTES,
-    reviewRetentionDays: data.MRM_REVIEW_RETENTION_DAYS,
-    analyticsIntervalMinutes: data.MRM_ANALYTICS_INTERVAL_MINUTES,
-    easStatusIntervalMinutes: data.MRM_EAS_STATUS_INTERVAL_MINUTES,
-    asoIntervalMinutes: data.MRM_ASO_INTERVAL_MINUTES,
-    asoRetentionDays: data.MRM_ASO_RETENTION_DAYS,
-    asoPlayUnofficialEnabled: data.MRM_ASO_PLAY_UNOFFICIAL_ENABLED === 'true',
-    asoMaxKeywordsPerApp: data.MRM_ASO_MAX_KEYWORDS_PER_APP,
-    asoMaxCompetitorsPerApp: data.MRM_ASO_MAX_COMPETITORS_PER_APP,
-    asoMaxChecksPerRun: data.MRM_ASO_MAX_CHECKS_PER_RUN,
-    asoRankDepth: data.MRM_ASO_RANK_DEPTH,
-    asoCacheMs: data.MRM_ASO_CACHE_MINUTES * 60_000,
-    asoAppleCallsPerMinute: data.MRM_ASO_APPLE_CALLS_PER_MINUTE,
-    asoPlayCallsPerMinute: data.MRM_ASO_PLAY_CALLS_PER_MINUTE,
-    asoHeartbeatMs: data.MRM_ASO_HEARTBEAT_DAYS * 24 * 60 * 60_000,
-    reviewReplyEnabled: data.MRM_REVIEW_REPLY_ENABLED === 'true',
-    storeRolloutEnabled: data.MRM_STORE_ROLLOUT_ENABLED === 'true',
-    easUpdateRolloutEnabled: data.MRM_EAS_UPDATE_ROLLOUT_ENABLED === 'true',
-    storeProductWriteEnabled: data.MRM_STORE_PRODUCT_WRITE_ENABLED === 'true',
-    storeDraftWriteEnabled: data.MRM_STORE_DRAFT_WRITE_ENABLED === 'true',
-    storeSubmitEnabled: data.MRM_STORE_SUBMIT_ENABLED === 'true',
-    storeReleaseEnabled: data.MRM_STORE_RELEASE_ENABLED === 'true',
-    buildsDownloadEnabled: data.MRM_BUILDS_DOWNLOAD_ENABLED === 'true',
-    buildsDownloadMaxBytes: data.MRM_BUILDS_DOWNLOAD_MAX_MB * 1024 * 1024,
-    playInternalSharingEnabled: data.MRM_PLAY_INTERNAL_SHARING_ENABLED === 'true',
-    storePublishBatchEnabled: data.MRM_STORE_PUBLISH_BATCH_ENABLED === 'true',
-    listingIntervalMinutes: data.MRM_LISTING_INTERVAL_MINUTES,
-    reminderIntervalMinutes: data.MRM_REMINDER_INTERVAL_MINUTES,
-    releaseWatchIntervalMinutes: data.MRM_RELEASE_WATCH_INTERVAL_MINUTES,
+    trustProxy: data.KILN_TRUST_PROXY === '1',
+    webhooksAllowPrivate: data.KILN_WEBHOOKS_ALLOW_PRIVATE === '1',
+    translateAllowPrivateUrls: data.KILN_TRANSLATE_ALLOW_PRIVATE_URLS === 'true',
+    aiEnabled: data.KILN_AI_ENABLED === 'true',
+    aiAllowPrivateUrls: data.KILN_AI_ALLOW_PRIVATE_URLS === 'true',
+    mcpEnabled: data.KILN_MCP_ENABLED === 'true',
+    reads: data.KILN_READS,
+    cloneDir: data.KILN_CLONE_DIR ?? join(dataDir, 'clones'),
+    cloneTtlMs: data.KILN_CLONE_TTL_SECONDS * 1000,
+    cloneMaxBytes: data.KILN_CLONE_MAX_BYTES,
+    cloneIdleDays: data.KILN_CLONE_IDLE_DAYS,
+    cloneSweepIntervalMinutes: data.KILN_CLONE_SWEEP_INTERVAL_MINUTES,
+    gitPath: data.KILN_GIT_PATH,
+    syncIntervalMinutes: data.KILN_SYNC_INTERVAL_MINUTES,
+    reviewSyncIntervalMinutes: data.KILN_REVIEW_SYNC_INTERVAL_MINUTES,
+    reviewRetentionDays: data.KILN_REVIEW_RETENTION_DAYS,
+    analyticsIntervalMinutes: data.KILN_ANALYTICS_INTERVAL_MINUTES,
+    easStatusIntervalMinutes: data.KILN_EAS_STATUS_INTERVAL_MINUTES,
+    asoIntervalMinutes: data.KILN_ASO_INTERVAL_MINUTES,
+    asoRetentionDays: data.KILN_ASO_RETENTION_DAYS,
+    asoPlayUnofficialEnabled: data.KILN_ASO_PLAY_UNOFFICIAL_ENABLED === 'true',
+    asoMaxKeywordsPerApp: data.KILN_ASO_MAX_KEYWORDS_PER_APP,
+    asoMaxCompetitorsPerApp: data.KILN_ASO_MAX_COMPETITORS_PER_APP,
+    asoMaxChecksPerRun: data.KILN_ASO_MAX_CHECKS_PER_RUN,
+    asoRankDepth: data.KILN_ASO_RANK_DEPTH,
+    asoCacheMs: data.KILN_ASO_CACHE_MINUTES * 60_000,
+    asoAppleCallsPerMinute: data.KILN_ASO_APPLE_CALLS_PER_MINUTE,
+    asoPlayCallsPerMinute: data.KILN_ASO_PLAY_CALLS_PER_MINUTE,
+    asoHeartbeatMs: data.KILN_ASO_HEARTBEAT_DAYS * 24 * 60 * 60_000,
+    reviewReplyEnabled: data.KILN_REVIEW_REPLY_ENABLED === 'true',
+    storeRolloutEnabled: data.KILN_STORE_ROLLOUT_ENABLED === 'true',
+    easUpdateRolloutEnabled: data.KILN_EAS_UPDATE_ROLLOUT_ENABLED === 'true',
+    storeProductWriteEnabled: data.KILN_STORE_PRODUCT_WRITE_ENABLED === 'true',
+    storeDraftWriteEnabled: data.KILN_STORE_DRAFT_WRITE_ENABLED === 'true',
+    storeSubmitEnabled: data.KILN_STORE_SUBMIT_ENABLED === 'true',
+    storeReleaseEnabled: data.KILN_STORE_RELEASE_ENABLED === 'true',
+    buildsDownloadEnabled: data.KILN_BUILDS_DOWNLOAD_ENABLED === 'true',
+    buildsDownloadMaxBytes: data.KILN_BUILDS_DOWNLOAD_MAX_MB * 1024 * 1024,
+    playInternalSharingEnabled: data.KILN_PLAY_INTERNAL_SHARING_ENABLED === 'true',
+    storePublishBatchEnabled: data.KILN_STORE_PUBLISH_BATCH_ENABLED === 'true',
+    listingIntervalMinutes: data.KILN_LISTING_INTERVAL_MINUTES,
+    reminderIntervalMinutes: data.KILN_REMINDER_INTERVAL_MINUTES,
+    releaseWatchIntervalMinutes: data.KILN_RELEASE_WATCH_INTERVAL_MINUTES,
     localRepoRoots,
-    localRepoWrite: data.MRM_LOCAL_REPO_WRITE === 'true',
-    ...(data.MRM_GIT_AUTHOR_NAME ? { gitAuthorName: data.MRM_GIT_AUTHOR_NAME } : {}),
-    ...(data.MRM_GIT_AUTHOR_EMAIL ? { gitAuthorEmail: data.MRM_GIT_AUTHOR_EMAIL } : {}),
+    localRepoWrite: data.KILN_LOCAL_REPO_WRITE === 'true',
+    ...(data.KILN_GIT_AUTHOR_NAME ? { gitAuthorName: data.KILN_GIT_AUTHOR_NAME } : {}),
+    ...(data.KILN_GIT_AUTHOR_EMAIL ? { gitAuthorEmail: data.KILN_GIT_AUTHOR_EMAIL } : {}),
     ...(gitSigning ? { gitSigning } : {}),
   };
 }

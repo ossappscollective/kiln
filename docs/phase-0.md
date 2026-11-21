@@ -33,11 +33,11 @@ been run, the dual-dialect spike has no Postgres run, and the sidecar spike has 
 - [x] The API refuses a secret that cannot be right for its kind (`checkSecret` in `@kiln/core`,
       shared with the UI)
 - [x] Database-backed job queue and worker (retries with backoff, stale-job recovery; a job
-      finishes only for the attempt that claimed it), started in-process unless `MRM_WORKER=off`
+      finishes only for the attempt that claimed it), started in-process unless `KILN_WORKER=off`
 - [x] Single-user mode for the desktop app: launch secret, localhost-only host guard
       ([ADR 0003](adr/0003-single-user-mode.md)). Server side and web client are tested
 - [x] Hardening of the hosted server: login limiter gaps closed, body limits, security headers,
-      `MRM_TRUST_PROXY`, non-root container, loopback publish by default
+      `KILN_TRUST_PROXY`, non-root container, loopback publish by default
       ([docs/deployment.md](deployment.md)). The headers and limits are tested in-process; the
       container changes are not (no Docker build ran)
 
@@ -68,7 +68,7 @@ in-process client, the migrations and the job queue on SQLite.
       file have never been built
 - [ ] `pnpm --filter @kiln/web build`, and a click-through of the UI in a browser
 - [ ] `pnpm --filter @kiln/desktop dev` (needs icons and Rust), and any Rust compilation
-- [ ] The Postgres test cases: they exist (`MRM_TEST_POSTGRES_URL`, `docker-compose.test.yml`, a
+- [ ] The Postgres test cases: they exist (`KILN_TEST_POSTGRES_URL`, `docker-compose.test.yml`, a
       service in [ci.yml.example](ci.yml.example)) but have never run, so 18 db cases and 170
       server cases are skipped
 - [ ] CI: `.github/workflows/ci.yml` has never run, and still uses plain `pnpm install` where its

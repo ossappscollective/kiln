@@ -51,11 +51,11 @@ export { MAX_SYNC_INTERVAL_MINUTES, MIN_SYNC_INTERVAL_MINUTES };
 /** Syncs the scheduler queues for one workspace in one tick: the rest wait for the next. */
 export const DEFAULT_PER_WORKSPACE_PER_TICK = 5;
 export const DEFAULT_MAX_PER_TICK = 100;
-/** MRM_RELEASE_WATCH_INTERVAL_MINUTES: 0 (off) or from 5 minutes to a week. */
+/** KILN_RELEASE_WATCH_INTERVAL_MINUTES: 0 (off) or from 5 minutes to a week. */
 export const MIN_RELEASE_WATCH_INTERVAL_MINUTES = 5;
 export const MAX_RELEASE_WATCH_INTERVAL_MINUTES = 7 * 24 * 60;
 export const DEFAULT_RELEASE_WATCH_INTERVAL_MINUTES = 15;
-/** MRM_REMINDER_INTERVAL_MINUTES: 0 (off) or from 5 minutes to a week. */
+/** KILN_REMINDER_INTERVAL_MINUTES: 0 (off) or from 5 minutes to a week. */
 export const MIN_REMINDER_INTERVAL_MINUTES = 5;
 export const MAX_REMINDER_INTERVAL_MINUTES = 7 * 24 * 60;
 export const DEFAULT_REMINDER_INTERVAL_MINUTES = 15;
@@ -97,7 +97,7 @@ export type SchedulerOptions = {
   perWorkspacePerTick?: number;
   maxPerTick?: number;
   /**
-   * Milliseconds between scheduled listing reads of one app (MRM_LISTING_INTERVAL_MINUTES). 0 (the
+   * Milliseconds between scheduled listing reads of one app (KILN_LISTING_INTERVAL_MINUTES). 0 (the
    * default) turns them off. They queue `app.listing` jobs (services/listing-schedule.ts), bounded
    * and spaced by `listing`, sharing `limiter` with the syncs.
    */
@@ -105,34 +105,34 @@ export type SchedulerOptions = {
   listing?: { perTick?: number; perWorkspace?: number; spacingMs?: number; maxJitterMs?: number };
   /**
    * Milliseconds between scheduled reads of the customer reviews of one app
-   * (MRM_REVIEW_SYNC_INTERVAL_MINUTES). 0 (the default) turns them off. They queue `review.sync`
+   * (KILN_REVIEW_SYNC_INTERVAL_MINUTES). 0 (the default) turns them off. They queue `review.sync`
    * jobs (services/review-schedule.ts), bounded and spaced by `reviews`, sharing `limiter`.
    */
   reviewSyncIntervalMs?: number;
   reviews?: { perTick?: number; perWorkspace?: number; spacingMs?: number; maxJitterMs?: number };
   /**
-   * MRM_REVIEW_RETENTION_DAYS: reviews older than this are deleted, a bounded number per run, at
+   * KILN_REVIEW_RETENTION_DAYS: reviews older than this are deleted, a bounded number per run, at
    * most once an hour. 0 keeps them all. Absent: no pruning (rows of deleted apps are still removed).
    */
   reviewRetentionDays?: number;
   /**
    * Milliseconds between scheduled ASO refreshes (keyword ranks and competitors from public store pages) of one
-   * app (MRM_ASO_INTERVAL_MINUTES). 0 (the default) turns them off. They queue `aso.refresh` jobs
+   * app (KILN_ASO_INTERVAL_MINUTES). 0 (the default) turns them off. They queue `aso.refresh` jobs
    * (services/aso-schedule.ts), bounded and spaced by `aso`, sharing `limiter`. `asoPlayEnabled` is
-   * MRM_ASO_PLAY_UNOFFICIAL_ENABLED: while off, Google Play apps are skipped.
+   * KILN_ASO_PLAY_UNOFFICIAL_ENABLED: while off, Google Play apps are skipped.
    */
   asoIntervalMs?: number;
   asoPlayEnabled?: boolean;
   aso?: { perTick?: number; perWorkspace?: number; spacingMs?: number; maxJitterMs?: number };
   /**
-   * Milliseconds between scheduled analytics syncs of one app (MRM_ANALYTICS_INTERVAL_MINUTES, default 360). 0 or absent turns them
+   * Milliseconds between scheduled analytics syncs of one app (KILN_ANALYTICS_INTERVAL_MINUTES, default 360). 0 or absent turns them
    * off. They queue `analytics.sync` jobs (services/analytics-schedule.ts), bounded and spaced by `analytics`, sharing `limiter`. A
    * workspace must also have turned on its setting `analytics.enabled`. The daily facts are never pruned; old run rows are, hourly.
    */
   analyticsIntervalMs?: number;
   analytics?: { perTick?: number; perWorkspace?: number; spacingMs?: number; maxJitterMs?: number };
   /**
-   * Milliseconds between scheduled reads of the EAS builds and submissions of one linked app record (MRM_EAS_STATUS_INTERVAL_MINUTES, default
+   * Milliseconds between scheduled reads of the EAS builds and submissions of one linked app record (KILN_EAS_STATUS_INTERVAL_MINUTES, default
    * 30). 0 or absent turns them off. They queue `eas.status` jobs (modules/eas/status-sync.ts), bounded and spaced by `easStatus`, sharing
    * `limiter`; a record with a build still running is read again after `activeIntervalMs` (default three minutes).
    */
@@ -144,7 +144,7 @@ export type SchedulerOptions = {
     maxJitterMs?: number;
     activeIntervalMs?: number;
   };
-  /** MRM_ASO_RETENTION_DAYS: rank checks and competitor snapshots older than this are deleted (at most once an hour). 0 keeps them. Absent: no pruning. */
+  /** KILN_ASO_RETENTION_DAYS: rank checks and competitor snapshots older than this are deleted (at most once an hour). 0 keeps them. Absent: no pruning. */
   asoRetentionDays?: number;
   /** Runs started longer ago than this are no longer polled. Default 3 hours. */
   pollMaxMs?: number;
@@ -205,7 +205,7 @@ export type Scheduler = {
   stop(): Promise<void>;
 };
 
-/** Minutes from MRM_SYNC_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
+/** Minutes from KILN_SYNC_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
 export function syncIntervalMs(minutes: number): number {
   if (minutes === 0) return 0;
   if (
@@ -220,7 +220,7 @@ export function syncIntervalMs(minutes: number): number {
   return minutes * MINUTE;
 }
 
-/** Minutes from MRM_REMINDER_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
+/** Minutes from KILN_REMINDER_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
 export function reminderIntervalMs(minutes: number): number {
   if (minutes === 0) return 0;
   if (
@@ -235,7 +235,7 @@ export function reminderIntervalMs(minutes: number): number {
   return minutes * MINUTE;
 }
 
-/** Minutes from MRM_RELEASE_WATCH_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
+/** Minutes from KILN_RELEASE_WATCH_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
 export function releaseWatchIntervalMs(minutes: number): number {
   if (minutes === 0) return 0;
   if (

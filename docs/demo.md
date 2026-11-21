@@ -11,7 +11,7 @@ Open http://localhost:8788/demo/login. It signs you in as the demo owner. Other 
 
 App Store Connect, Google Play, GitHub (repository, workflows, runs), translation, AI (a deterministic built-in provider), analytics and the ASO sources. The data is seeded through the normal API on a virtual clock, so histories (60 days of ranks, 90 days of analytics, audit events) look real. All gated writes are on.
 
-Test builds work end to end: TestFlight public links (Demo Notes iOS: on, 100 testers; Demo Weather iOS: off; Demo Focus: none), tiny workflow artifacts (`.ipa`, `.apk`, `.aab`, `.dmg`, a few hundred bytes, created by finished build runs), downloads (on; `MRM_BUILDS_DOWNLOAD_ENABLED=false` switches them off), and Share to device (Google Play internal app sharing with a made-up link; the passkey step-up is approved automatically).
+Test builds work end to end: TestFlight public links (Demo Notes iOS: on, 100 testers; Demo Weather iOS: off; Demo Focus: none), tiny workflow artifacts (`.ipa`, `.apk`, `.aab`, `.dmg`, a few hundred bytes, created by finished build runs), downloads (on; `KILN_BUILDS_DOWNLOAD_ENABLED=false` switches them off), and Share to device (Google Play internal app sharing with a made-up link; the passkey step-up is approved automatically).
 
 ## What is real
 
@@ -29,4 +29,4 @@ A walk through: fix the alpha screenshot on Demo Notes (iOS), push the draft, su
 
 ## Safety
 
-Off unless `MRM_DEMO=true`. It listens on 127.0.0.1 only, uses its own folder (`apps/server/.mrm-demo`, `MRM_DEMO_DIR`), its own SQLite file and a built-in master key. It never reads `.env`, the real master key or `.mrm-data`. It refuses to start when `DATABASE_URL` is Postgres, `NODE_ENV=production`, `MRM_MASTER_KEY` or `MRM_MODE=single_user` is set (override the look-alike cases with `MRM_DEMO_FORCE=true`; a folder that is not a demo folder is never accepted). `/demo/*` routes exist only in demo mode. Port: `MRM_DEMO_PORT` (default 8788).
+Off unless `KILN_DEMO=true`. It listens on 127.0.0.1 only, uses its own folder (`apps/server/.mrm-demo`, `KILN_DEMO_DIR`), its own SQLite file and a built-in master key. It never reads `.env`, the real master key or `.mrm-data`. It refuses to start when `DATABASE_URL` is Postgres, `NODE_ENV=production`, `KILN_MASTER_KEY` or `KILN_MODE=single_user` is set (override the look-alike cases with `KILN_DEMO_FORCE=true`; a folder that is not a demo folder is never accepted). `/demo/*` routes exist only in demo mode. Port: `KILN_DEMO_PORT` (default 8788).

@@ -40,7 +40,7 @@ test('checkTranslateUrl: https only, no credentials, no query, normalized', () =
   }
 });
 
-test('checkTranslateUrl: with MRM_TRANSLATE_ALLOW_PRIVATE_URLS private and loopback pass, http only on loopback, metadata never', () => {
+test('checkTranslateUrl: with KILN_TRANSLATE_ALLOW_PRIVATE_URLS private and loopback pass, http only on loopback, metadata never', () => {
   const allow = { allowPrivate: true };
   for (const raw of [
     'https://10.0.0.1',

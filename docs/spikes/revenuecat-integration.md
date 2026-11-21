@@ -219,7 +219,7 @@ that pushes a product to the stores, grant or revoke entitlements, refund, cance
 refuse to hold such a key by never asking for those scopes, and the guide says so. Admin work belongs in RevenueCat's dashboard.
 Money-moving or access-granting calls (refund, grant, cancel, `create_in_store`) are out of scope permanently. If the owner
 later wants "create the RevenueCat product for a store product" or "attach to an entitlement", gate exactly as ADR 0034's text
-write: a new switch `MRM_REVENUECAT_WRITE_ENABLED` (default off), a new right (`revenuecat.write`, owner and admin, explicit-only for
+write: a new switch `KILN_REVENUECAT_WRITE_ENABLED` (default off), a new right (`revenuecat.write`, owner and admin, explicit-only for
 tokens), step-up, preview then apply with a SHA-256 hash and a re-read guard, one write in flight per app, never retried, audit
 rows with ids and hashes only. It also needs a second credential (or a second key) because v1's key has no write scope.
 

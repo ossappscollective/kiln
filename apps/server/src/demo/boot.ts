@@ -36,7 +36,7 @@ import { createTestLimiter } from '../services/credential-tests.ts';
 import { DEFAULT_REPO_TIMEOUT_MS } from '../services/repositories.ts';
 import { createWebhookHandler, WEBHOOK_QUEUE } from '../services/webhooks.ts';
 import { VERSION } from '../version.ts';
-import { DEMO_MARKER, type DemoConfig } from './config.ts';
+import { DEMO_LEGACY_MARKER, DEMO_MARKER, type DemoConfig, hasDemoMarker } from './config.ts';
 import { createSeams } from './connectors.ts';
 import { createDemoRoutes } from './routes.ts';
 import { seedDemo } from './seed.ts';
@@ -60,17 +60,16 @@ const cheap = { N: 1024, r: 8, p: 1 };
 
 async function prepareDir(config: DemoConfig) {
   await mkdir(config.dataDir, { recursive: true });
-  const marker = join(config.dataDir, DEMO_MARKER);
-  if (!existsSync(marker))
+  if (!hasDemoMarker(config.dataDir))
     await writeFile(
-      marker,
-      `${JSON.stringify({ kind: 'kiln demo data', note: 'Safe to delete. Made by MRM_DEMO.' })}\n`,
+      join(config.dataDir, DEMO_MARKER),
+      `${JSON.stringify({ kind: 'kiln demo data', note: 'Safe to delete. Made by KILN_DEMO.' })}\n`,
     );
 }
 
 export async function wipe(config: DemoConfig) {
   for (const name of await readdir(config.dataDir).catch(() => [] as string[])) {
-    if (name === DEMO_MARKER) continue;
+    if (name === DEMO_MARKER || name === DEMO_LEGACY_MARKER) continue;
     await rm(join(config.dataDir, name), { recursive: true, force: true });
   }
 }
@@ -181,12 +180,12 @@ export async function createDemoRuntime(
         limiter: createTestLimiter({ now, limit: 600 }),
         activeLimiter: createTestLimiter({ now, limit: 600 }),
       },
-      // Test builds: the demo's artifacts are a few hundred bytes, so downloads are on (MRM_BUILDS_DOWNLOAD_ENABLED=false turns them
+      // Test builds: the demo's artifacts are a few hundred bytes, so downloads are on (KILN_BUILDS_DOWNLOAD_ENABLED=false turns them
       // off to see that state), TestFlight links and Google Play internal sharing come from the simulated stores, and nobody is there to
       // confirm a hard action with a passkey.
       builds: {
         downloadEnabled: !/^(false|0)$/i.test(
-          process.env.MRM_BUILDS_DOWNLOAD_ENABLED?.trim() ?? '',
+          process.env.KILN_BUILDS_DOWNLOAD_ENABLED?.trim() ?? '',
         ),
         maxDownloadBytes: 5 * 1024 * 1024,
         internalSharingEnabled: true,

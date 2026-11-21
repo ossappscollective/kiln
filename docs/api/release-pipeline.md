@@ -107,7 +107,7 @@ is still shown). The clock starts at the last thing that moved. The steps, most 
 The scheduler's release watch ([events](events.md#release-watch)) sends [`release.stalled`](events.md) for the stall `stalled` shows, **once per
 episode** (a step and the thing that is stuck, `key`) and again only after `release.stalledRepeatHours` (default 24; `0`: never). When
 the stall clears, the next stall is a new episode. The payload holds ids, versions and times, never the sentence, a text or a name.
-It needs `MRM_RELEASE_WATCH_INTERVAL_MINUTES` not `0` and `release.stalledAfterHours` not `0`; events only: no email, no push. See
+It needs `KILN_RELEASE_WATCH_INTERVAL_MINUTES` not `0` and `release.stalledAfterHours` not `0`; events only: no email, no push. See
 [events](events.md) for the payload and [settings](settings.md) for the keys.
 
 ## Where the facts come from (and their limits)
@@ -127,7 +127,7 @@ Because the store is read at the sync interval, an app that is synced rarely sho
 only raised when the store was read after the run ended, so "no build yet" is not mistaken for "not looked yet".
 
 **Postgres:** the migration, the queries and the release watch have run only on SQLite; the test suite runs them on Postgres when
-`MRM_TEST_POSTGRES_URL` is set.
+`KILN_TEST_POSTGRES_URL` is set.
 
 ## Stored data
 

@@ -46,7 +46,7 @@ export type TranslationContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
-  /** MRM_TRANSLATE_ALLOW_PRIVATE_URLS. */
+  /** KILN_TRANSLATE_ALLOW_PRIVATE_URLS. */
   allowPrivateUrls?: boolean;
   /** Replaces the global fetch for Google, DeepL and Azure (tests). */
   fetch?: typeof fetch;

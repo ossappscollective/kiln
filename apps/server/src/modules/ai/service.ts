@@ -85,7 +85,7 @@ export type AiServices = AiContext & {
   asoLimits: AsoLimits;
   /** The repository seam staged texts need (not used to read anything for a text; the context type asks for it). */
   assets: AssetsContext;
-  /** The reply context (kill switch `MRM_REVIEW_REPLY_ENABLED`, connector factory). saveReplyDraft is the only call made with it. */
+  /** The reply context (kill switch `KILN_REVIEW_REPLY_ENABLED`, connector factory). saveReplyDraft is the only call made with it. */
   reply: ReviewReplyContext;
   gate: ConcurrencyGate;
 };

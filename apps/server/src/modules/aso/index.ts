@@ -7,7 +7,7 @@ import { type AsoLimits, DEFAULT_ASO_LIMITS } from './service.ts';
 /**
  * ASO, keyword ranks and competitors from public store data (docs/api/aso.md). `sources` reads the stores (a fake in
  * tests; index.ts builds one and shares it with the worker, so the cache and the rate limits are shared);
- * `limits` are the MRM_ASO_* values; `limiter` is the per workspace budget of refreshes and lookups (default 10 a minute).
+ * `limits` are the KILN_ASO_* values; `limiter` is the per workspace budget of refreshes and lookups (default 10 a minute).
  */
 export type AsoDeps = {
   sources?: AsoSources;
@@ -22,7 +22,7 @@ export const asoLimitsFor = (deps: AsoDeps | undefined): AsoLimits => ({
   ...(deps?.limits ?? {}),
 });
 
-// ASO: keyword ranks and competitors from public store data. Google Play only when MRM_ASO_PLAY_UNOFFICIAL_ENABLED.
+// ASO: keyword ranks and competitors from public store data. Google Play only when KILN_ASO_PLAY_UNOFFICIAL_ENABLED.
 export const asoModule: ServerModule<AsoDeps> = {
   id: 'aso',
   mount(app, services, deps) {

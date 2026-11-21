@@ -1,14 +1,14 @@
 <!--
   AiSettings: the "AI assistant" card of the Settings screen (docs/api/ai.md, docs/adr/0016-ai-foundation.md). Members can read where it stands;
   admins and owners change it. It saves on its own (its own call, its own right), not with the other settings.
-  - Where it stands, in words, from the server's own state: off on the server (names MRM_AI_ENABLED), off for the workspace, not set up (what
+  - Where it stands, in words, from the server's own state: off on the server (names KILN_AI_ENABLED), off for the workspace, not set up (what
     is missing), ready.
   - Provider (Anthropic, OpenAI, or an OpenAI compatible server, for example a local one), model, address (for the compatible one), the API key,
     and the monthly usage limit with a meter. The key is write-only: it goes to the credential vault, and what is saved is never shown back.
   - The model is a combobox: any typed name is allowed, and "Load models" asks the provider for its list (POST /ai/models, with the typed key for
     that one call, never stored). It also loads once by itself when the form is ready (debounced, one call at a time, never on every keystroke).
     A list that could not be read says so quietly and offers well known names. The chosen name is kept even when it is not listed.
-  - A local address is explained before it fails: this server only talks to public addresses unless its operator sets MRM_AI_ALLOW_PRIVATE_URLS=true.
+  - A local address is explained before it fails: this server only talks to public addresses unless its operator sets KILN_AI_ALLOW_PRIVATE_URLS=true.
   - "Test connection" sends one fixed small request (no workspace data) through the saved settings.
   - Who receives the text is stated plainly, and for each task a "What is sent" popover lists what is sent and what never is.
   Nothing an AI task does changes a store: it makes suggestions a person accepts (see the AI suggestions of ASO, the locale drawer and replies).
@@ -265,7 +265,7 @@
           <span>{info.message}</span>
         </p>
         <Disclosure summary="What AI needs to run">
-          <p class="hint">Off by default. It needs the server switch (MRM_AI_ENABLED) and the setting below, a provider, a model and, for most providers, a key.</p>
+          <p class="hint">Off by default. It needs the server switch (KILN_AI_ENABLED) and the setting below, a provider, a model and, for most providers, a key.</p>
         </Disclosure>
       </div>
 

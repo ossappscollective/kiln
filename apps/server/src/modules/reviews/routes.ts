@@ -62,11 +62,11 @@ import {
 export type ReviewRoutesContext = ReviewsContext & {
   /** Reads per workspace per minute: the budget the app sync routes use (built in createApp). */
   limiter: TestLimiter;
-  /** MRM_REVIEW_RETENTION_DAYS, shown to people; the pruning itself is the scheduler's. */
+  /** KILN_REVIEW_RETENTION_DAYS, shown to people; the pruning itself is the scheduler's. */
   retentionDays?: number;
   /**
    * Replying to reviews (a store write, docs/adr/0007-review-replies.md). `enabled` is
-   * MRM_REVIEW_REPLY_ENABLED (default false). The rest is for tests and wiring: `connectorFactory`
+   * KILN_REVIEW_REPLY_ENABLED (default false). The rest is for tests and wiring: `connectorFactory`
    * builds the connector that can reply, `translateDraft` is the optional translation seam.
    */
   reply?: {

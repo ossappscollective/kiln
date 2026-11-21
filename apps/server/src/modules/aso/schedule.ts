@@ -4,8 +4,8 @@ import { enqueue } from '../../jobs.ts';
 import { ASO_CLAIM_TTL_MS, ASO_REFRESH_QUEUE, type AsoRefreshPayload } from './service.ts';
 
 /**
- * Scheduled ASO refreshes (MRM_ASO_INTERVAL_MINUTES, off by default) and the data protection upkeep
- * (MRM_ASO_RETENTION_DAYS). The scheduler only queues `aso.refresh` jobs; the worker runs them through
+ * Scheduled ASO refreshes (KILN_ASO_INTERVAL_MINUTES, off by default) and the data protection upkeep
+ * (KILN_ASO_RETENTION_DAYS). The scheduler only queues `aso.refresh` jobs; the worker runs them through
  * the same service as the route (`refreshApp`), which takes the claim, checks only what is due, and shares
  * the per source rate limits and the cache.
  *
@@ -18,7 +18,7 @@ import { ASO_CLAIM_TTL_MS, ASO_REFRESH_QUEUE, type AsoRefreshPayload } from './s
  *   per run cap, the time or a rate limit) it is due again after the shorter of the interval and 30 minutes.
  * - Backoff: not before `backoff_until` (doubled for every failed refresh in a row, up to six hours).
  * - Never twice for one app: not while a job is queued or running, nor while a live claim is held.
- * - A Google Play app is skipped while MRM_ASO_PLAY_UNOFFICIAL_ENABLED is off; an iOS app whose App Store id
+ * - A Google Play app is skipped while KILN_ASO_PLAY_UNOFFICIAL_ENABLED is off; an iOS app whose App Store id
  *   is not known yet (never synced) is skipped.
  */
 
@@ -31,7 +31,7 @@ const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
 const DEFERRED_RETRY_MS = 30 * MINUTE;
 
-/** Minutes from MRM_ASO_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
+/** Minutes from KILN_ASO_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
 export function asoIntervalMs(minutes: number): number {
   if (minutes === 0) return 0;
   if (
@@ -65,7 +65,7 @@ export type AsoQueueOptions = {
   now: number;
   /** Milliseconds between refreshes of one app. Must be above 0. */
   intervalMs: number;
-  /** MRM_ASO_PLAY_UNOFFICIAL_ENABLED. */
+  /** KILN_ASO_PLAY_UNOFFICIAL_ENABLED. */
   playEnabled: boolean;
   perTick?: number;
   perWorkspace?: number;
@@ -200,7 +200,7 @@ export async function queueAsoRefreshes(
 
 export type AsoUpkeepOptions = {
   now: number;
-  /** MRM_ASO_RETENTION_DAYS. 0 keeps everything. */
+  /** KILN_ASO_RETENTION_DAYS. 0 keeps everything. */
   retentionDays: number;
   /** Most rows deleted per table in one run. Default 2000. */
   maxRows?: number;

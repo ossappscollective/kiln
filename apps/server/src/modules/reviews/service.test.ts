@@ -241,7 +241,7 @@ dbTest(
       const res = await t.call(t.owner, method, p, body);
       assert.equal(res.status, 409, `${method} ${p}`);
       assert.equal(res.body.error, 'reply_disabled');
-      assert.match(res.body.message, /MRM_REVIEW_REPLY_ENABLED/);
+      assert.match(res.body.message, /KILN_REVIEW_REPLY_ENABLED/);
     }
     // Routes that do not exist stay 404 or 405.
     for (const [method, p] of [

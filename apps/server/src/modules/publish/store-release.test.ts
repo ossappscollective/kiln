@@ -40,7 +40,7 @@ dbTest(
         config.body.minimumRole,
         config.body.irreversible,
       ],
-      [false, 'MRM_STORE_RELEASE_ENABLED', 'store.release', 'admin', true],
+      [false, 'KILN_STORE_RELEASE_ENABLED', 'store.release', 'admin', true],
     );
     for (const res of [
       await t.releasePreview(app),
@@ -48,7 +48,7 @@ dbTest(
     ]) {
       assert.equal(res.status, 409);
       assert.equal(res.body.error, 'store_release_disabled');
-      assert.match(res.body.message, /MRM_STORE_RELEASE_ENABLED=true/);
+      assert.match(res.body.message, /KILN_STORE_RELEASE_ENABLED=true/);
     }
     noReleaseIo(t);
     const state = await t.releaseState(app);

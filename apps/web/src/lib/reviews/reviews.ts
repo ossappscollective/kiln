@@ -510,7 +510,7 @@ export function syncNotices(
   if (gap) {
     notices.push({
       tone: 'warn',
-      text: `Reviews may be missing. Google Play only returns the last 7 days, and nothing was read between ${shortDate(gap.from)} and ${shortDate(gap.to)}. Those reviews cannot be recovered. Read more often: see MRM_REVIEW_SYNC_INTERVAL_MINUTES.`,
+      text: `Reviews may be missing. Google Play only returns the last 7 days, and nothing was read between ${shortDate(gap.from)} and ${shortDate(gap.to)}. Those reviews cannot be recovered. Read more often: see KILN_REVIEW_SYNC_INTERVAL_MINUTES.`,
     });
   } else if (state.lastGapAt !== null) {
     notices.push({

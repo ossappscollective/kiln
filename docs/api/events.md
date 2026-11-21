@@ -105,8 +105,8 @@ overdue" strip on the board and on the plan.
   event. A second tick, a restart, or a second server instance sharing the same database cannot send it
   again, and that unique key is the only lock. **Changing the date (or a step's planned time) arms it
   again**, because the key changes.
-- **When.** Every `MRM_REMINDER_INTERVAL_MINUTES` (default 15; `0` is off; 5 to 10080), in the
-  process that runs the scheduler (`MRM_WORKER=inline`, the default). Each run sends at most 100
+- **When.** Every `KILN_REMINDER_INTERVAL_MINUTES` (default 15; `0` is off; 5 to 10080), in the
+  process that runs the scheduler (`KILN_WORKER=inline`, the default). Each run sends at most 100
   reminders; the rest wait for the next run. The lead time of "due soon" is 24 hours before the end
   of the target day (UTC); there is no workspace setting for it yet, only the `leadHours` option of
   the code.
@@ -119,7 +119,7 @@ overdue" strip on the board and on the plan.
 second pass, and are **events only** (no email, no push). Their `actor` is `{ "type": "system", "id":
 "release.watch" }`, and the audit entries are `release.reminder` and `review.reminder` with the same actor.
 
-- **When.** Every `MRM_RELEASE_WATCH_INTERVAL_MINUTES` (default 15; `0` is off; 5 to 10080), in the
+- **When.** Every `KILN_RELEASE_WATCH_INTERVAL_MINUTES` (default 15; `0` is off; 5 to 10080), in the
   process that runs the worker. Each run sends at most 100 events. It reads this server's own tables
   only: no store and no GitHub call.
 - **`release.stalled`, once per episode.** The row `release_stall_reminders` (one per app and platform)

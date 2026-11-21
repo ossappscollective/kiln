@@ -25,7 +25,7 @@ import {
  * path (repositories.ts) needs, and it does not import repositories.ts.
  */
 
-export const ENV_NAME = 'MRM_LOCAL_REPO_ROOTS';
+export const ENV_NAME = 'KILN_LOCAL_REPO_ROOTS';
 const NO_LOCAL = { roots: [], excluded: [] } as const;
 
 export type LocalUnavailableReason = 'no_roots' | 'reads_api' | 'git_missing';
@@ -51,7 +51,7 @@ export function localAvailability(reads: CloneReads | undefined): LocalAvailabil
       reason: 'reads_api',
       envName: ENV_NAME,
       message:
-        'MRM_READS=api means git is never run, so local clones cannot be read. Set MRM_READS=auto or clone to use them.',
+        'KILN_READS=api means git is never run, so local clones cannot be read. Set KILN_READS=auto or clone to use them.',
     };
   }
   if (!reads?.active) {
@@ -60,7 +60,7 @@ export function localAvailability(reads: CloneReads | undefined): LocalAvailabil
       reason: 'git_missing',
       envName: ENV_NAME,
       message:
-        'git is not available on the server, so local clones cannot be read. Install git or set MRM_GIT_PATH.',
+        'git is not available on the server, so local clones cannot be read. Install git or set KILN_GIT_PATH.',
     };
   }
   return { enabled: true, roots: [...roots] };
@@ -91,18 +91,18 @@ export const LOCAL_ONLY_MESSAGE =
 export const LOCAL_ONLY_APPLY_MESSAGE =
   'This repository has no GitHub connection, so its change sets cannot be applied as a pull request on GitHub. Apply it as a commit on a new branch of the local clone instead (mode local_branch).';
 
-export const WRITE_ENV_NAME = 'MRM_LOCAL_REPO_WRITE';
+export const WRITE_ENV_NAME = 'KILN_LOCAL_REPO_WRITE';
 
 /**
  * Writing to local clones (a commit on a new branch, docs/adr/0005-local-clone-reads.md) is a
- * separate opt-in from reading them: `MRM_LOCAL_REPO_WRITE=true`.
+ * separate opt-in from reading them: `KILN_LOCAL_REPO_WRITE=true`.
  */
 export type LocalWriteConfig = {
   enabled: boolean;
-  /** MRM_GIT_AUTHOR_NAME and MRM_GIT_AUTHOR_EMAIL; the acting person is used when they are not set. */
+  /** KILN_GIT_AUTHOR_NAME and KILN_GIT_AUTHOR_EMAIL; the acting person is used when they are not set. */
   authorName?: string;
   authorEmail?: string;
-  /** Sign the commits with the server's own key (MRM_GIT_SIGN). Absent: not signed. Holds a key path: never returned or logged. */
+  /** Sign the commits with the server's own key (KILN_GIT_SIGN). Absent: not signed. Holds a key path: never returned or logged. */
   signing?: GitSigning;
   /** For tests only: where a push goes and how, instead of https://github.com/<owner>/<repo>.git. */
   push?: {
@@ -149,7 +149,7 @@ export function translateLocalError(error: unknown, branch: string): unknown {
     if (error.reason === 'git_missing') {
       return new LocalReadError(
         'local_git_missing',
-        'The git program was not found on the server (MRM_GIT_PATH).',
+        'The git program was not found on the server (KILN_GIT_PATH).',
         409,
       );
     }

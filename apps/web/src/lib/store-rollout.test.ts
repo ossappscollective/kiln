@@ -23,7 +23,7 @@ import type { ReleaseSummary } from './types.ts';
 
 const config: RolloutConfig = {
   enabled: true,
-  envName: 'MRM_STORE_ROLLOUT_ENABLED',
+  envName: 'KILN_STORE_ROLLOUT_ENABLED',
   actions: {
     android: ['set_fraction', 'halt', 'resume', 'complete'],
     ios: ['pause', 'resume', 'release_to_all'],
@@ -88,7 +88,7 @@ test('availability: loading, failed, off with the env name, ready', () => {
   assert.equal(controlsAvailability('admin', null, true).state, 'unknown');
   const off = controlsAvailability('admin', { ...config, enabled: false }, false);
   assert.equal(off.state, 'off');
-  assert.ok(off.state === 'off' && off.message.includes('MRM_STORE_ROLLOUT_ENABLED'));
+  assert.ok(off.state === 'off' && off.message.includes('KILN_STORE_ROLLOUT_ENABLED'));
   assert.equal(controlsAvailability('owner', config, false).state, 'ready');
 });
 

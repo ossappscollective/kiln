@@ -556,7 +556,7 @@ export function scheduleView(schedule: ListingSchedule | undefined, now: number)
       state: 'off',
       headline: 'Scheduled reads are off',
       detail:
-        'The listing is read when the app is synced or refreshed from the store. The server owner can turn scheduled reads on (MRM_LISTING_INTERVAL_MINUTES).',
+        'The listing is read when the app is synced or refreshed from the store. The server owner can turn scheduled reads on (KILN_LISTING_INTERVAL_MINUTES).',
     };
   }
   const every = `Read automatically every ${intervalText(schedule.intervalMinutes)}`;

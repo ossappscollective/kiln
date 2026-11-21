@@ -6,12 +6,12 @@ import { createDatabase, type Database, type Sql } from './index.ts';
 /**
  * Test helpers: run one test body against every database we support.
  *
- * SQLite (in memory) always runs. Postgres runs when MRM_TEST_POSTGRES_URL is set; without it the
+ * SQLite (in memory) always runs. Postgres runs when KILN_TEST_POSTGRES_URL is set; without it the
  * Postgres cases are reported as skipped, so the gap shows up in the test output.
  * Each Postgres test gets its own schema, dropped when the test ends, so tests never see each
  * other's rows and the server can be shared by parallel test files.
  */
-export const POSTGRES_URL_ENV = 'MRM_TEST_POSTGRES_URL';
+export const POSTGRES_URL_ENV = 'KILN_TEST_POSTGRES_URL';
 
 export type TestDatabase = Database & {
   /** A URL that opens another connection to the same data. Not shareable for in-memory SQLite. */

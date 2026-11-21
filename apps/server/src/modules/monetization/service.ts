@@ -65,7 +65,7 @@ export async function listProducts(
       supported,
       products: supported ? await listStoredProducts(ctx.db, input.workspaceId, app.id) : [],
       sync: supported ? await readSyncStatus(ctx.db, input.workspaceId, app.id) : null,
-      write: { enabled: ctx.writeEnabled, envName: 'MRM_STORE_PRODUCT_WRITE_ENABLED' },
+      write: { enabled: ctx.writeEnabled, envName: 'KILN_STORE_PRODUCT_WRITE_ENABLED' },
     },
   };
 }

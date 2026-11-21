@@ -8,7 +8,7 @@ details: [api/mcp](api/mcp.md).
 
 ## Turn it on
 
-1. Set `MRM_MCP_ENABLED=true` in the server's environment and restart. While it is off, `/mcp` answers 404. Behind a proxy also set `MRM_PUBLIC_ORIGIN`
+1. Set `KILN_MCP_ENABLED=true` in the server's environment and restart. While it is off, `/mcp` answers 404. Behind a proxy also set `KILN_PUBLIC_ORIGIN`
    (the links the assistant gives you to confirm things point there).
 2. In the web app, **Settings → Connect an AI assistant** (owners and admins): **Create an "MCP read-only" token**. It is a `viewer` token that names only
    the read tools' actions and expires after 90 days. It is shown once, together with the configuration to paste.
@@ -27,7 +27,7 @@ claude mcp add --transport http kiln https://mrm.example.com/mcp --header 'Autho
 Claude Code, stdio:
 
 ```sh
-claude mcp add kiln --env MRM_URL=https://mrm.example.com --env MRM_TOKEN=mrm_... -- node /path/to/kiln/apps/server/src/mcp/stdio.ts
+claude mcp add kiln --env KILN_URL=https://mrm.example.com --env KILN_TOKEN=mrm_... -- node /path/to/kiln/apps/server/src/mcp/stdio.ts
 ```
 
 Claude Desktop, `claude_desktop_config.json` (stdio):
@@ -38,7 +38,7 @@ Claude Desktop, `claude_desktop_config.json` (stdio):
     "kiln": {
       "command": "node",
       "args": ["/path/to/kiln/apps/server/src/mcp/stdio.ts"],
-      "env": { "MRM_URL": "https://mrm.example.com", "MRM_TOKEN": "mrm_..." }
+      "env": { "KILN_URL": "https://mrm.example.com", "KILN_TOKEN": "mrm_..." }
     }
   }
 }
@@ -74,7 +74,7 @@ server's.
 | Tool               | Action           | Also needs                      |
 | ------------------ | ---------------- | ------------------------------- |
 | `triage_review`    | `reviews.triage` | nothing                         |
-| `save_reply_draft` | `reviews.triage` | `MRM_REVIEW_REPLY_ENABLED=true` |
+| `save_reply_draft` | `reviews.triage` | `KILN_REVIEW_REPLY_ENABLED=true` |
 
 A reply is only ever saved as a **draft**; a person reviews and sends it in the web app. Nothing is sent to a store from here.
 
@@ -82,12 +82,12 @@ A reply is only ever saved as a **draft**; a person reviews and sends it in the 
 
 | Tool                     | Action             | Server switch                       | Confirm at      |
 | ------------------------ | ------------------ | ----------------------------------- | --------------- |
-| `preview_rollout`        | `releases.rollout` | `MRM_STORE_ROLLOUT_ENABLED`         | Releases        |
-| `preview_store_release`  | `store.release`    | `MRM_STORE_RELEASE_ENABLED`         | Releases        |
-| `preview_store_submit`   | `store.submit`     | `MRM_STORE_SUBMIT_ENABLED`          | Pending changes |
-| `preview_staged_push`    | `store.push_draft` | `MRM_STORE_DRAFT_WRITE_ENABLED`     | Pending changes |
-| `preview_publish_batch`  | `store.publish`    | `MRM_STORE_PUBLISH_BATCH_ENABLED`   | Pending changes |
-| `preview_internal_share` | `builds.share`     | `MRM_PLAY_INTERNAL_SHARING_ENABLED` | Builds          |
+| `preview_rollout`        | `releases.rollout` | `KILN_STORE_ROLLOUT_ENABLED`         | Releases        |
+| `preview_store_release`  | `store.release`    | `KILN_STORE_RELEASE_ENABLED`         | Releases        |
+| `preview_store_submit`   | `store.submit`     | `KILN_STORE_SUBMIT_ENABLED`          | Pending changes |
+| `preview_staged_push`    | `store.push_draft` | `KILN_STORE_DRAFT_WRITE_ENABLED`     | Pending changes |
+| `preview_publish_batch`  | `store.publish`    | `KILN_STORE_PUBLISH_BATCH_ENABLED`   | Pending changes |
+| `preview_internal_share` | `builds.share`     | `KILN_PLAY_INTERNAL_SHARING_ENABLED` | Builds          |
 
 A preview answer holds the preview, `confirmHash` (the `planHash` for a batch), `applied: false` and `confirmInApp.url`. **There is no apply tool and
 there will not be one**: confirming needs a passkey or password ([ADR 0019](adr/0019-step-up-confirmation.md)), which an API token cannot give. You open

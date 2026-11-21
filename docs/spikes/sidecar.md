@@ -38,25 +38,25 @@ already:
 - generates a launch secret with the OS CSPRNG and a free loopback port;
 - creates a master key in the app data folder (TODO: OS keychain) and passes the data folder and a
   SQLite path;
-- starts the server as a child process with `MRM_MODE=single_user`, `MRM_LAUNCH_SECRET`, `PORT`,
-  `MRM_MASTER_KEY` and `MRM_EXIT_WITH_PARENT=1` in the environment, never argv;
+- starts the server as a child process with `KILN_MODE=single_user`, `KILN_LAUNCH_SECRET`, `PORT`,
+  `KILN_MASTER_KEY` and `KILN_EXIT_WITH_PARENT=1` in the environment, never argv;
 - waits for `/api/health`, then creates the window (no window is declared in `tauri.conf.json`
   any more) at `/api/auth/launch?secret=...`;
 - closes the child's stdin on exit so it shuts down cleanly, then kills it after 3 seconds.
 
 The stand-in is `node apps/server/src/index.ts` from the repository checkout, located through
-`CARGO_MANIFEST_DIR` at compile time (override the Node binary with `MRM_NODE`). Replacing it with
+`CARGO_MANIFEST_DIR` at compile time (override the Node binary with `KILN_NODE`). Replacing it with
 the packaged sidecar changes only `spawn_server`; the secret, port, health wait, launch URL and
 shutdown stay. Requirements the chosen option must meet:
 
 - accept the same environment variables and the stdin-close shutdown;
-- locate the web UI (`MRM_WEB_DIST`) inside the bundle instead of the repository;
+- locate the web UI (`KILN_WEB_DIST`) inside the bundle instead of the repository;
 - with `externalBin`, step 3 above uses the sidecar API but must still pass the secret by
   environment, not as an argument;
 - the page is a remote origin, so the capability file must keep granting it no IPC.
 
 Not covered yet: Windows and Linux behaviour, a macOS app started from Finder (short `PATH`, hence
-`MRM_NODE`), and how the server is updated.
+`KILN_NODE`), and how the server is updated.
 
 ## Findings (docs read 2026-11-18)
 
@@ -106,7 +106,7 @@ Verified on this repository (Linux arm64, Node v22.23.4, `apps/desktop/scripts/p
 - The staged tree runs with `mrm-node launcher.mjs`: types stripped by Node alone (no tsx), `@kiln/*`
   resolved by the hook, migrations applied on SQLite through `node:sqlite`, `/api/health` 200, a
   foreign `Host` gets 403, the launch URL answers 302 and the process exits 0 when stdin closes.
-- With an absolute `MRM_WEB_DIST` pointing at a stub UI, `/` and an unknown route both answer 200.
+- With an absolute `KILN_WEB_DIST` pointing at a stub UI, `/` and an unknown route both answer 200.
 - Cold start to a healthy `/api/health`: 147, 179 and 201 ms (three runs, warm disk cache).
 - Staged size: 902 files, 4.4 MB of server files plus the 116.6 MB Node binary; only text file
   types by extension (ts, js, cjs, mjs, json, md, html), so no native binaries under `server/`.

@@ -28,7 +28,7 @@ jobs:
           --health-retries 10
     env:
       # With this set, the db and server tests run on Postgres as well as on SQLite.
-      MRM_TEST_POSTGRES_URL: postgres://mrm_test:mrm_test@localhost:5432/mrm_test
+      KILN_TEST_POSTGRES_URL: postgres://mrm_test:mrm_test@localhost:5432/mrm_test
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

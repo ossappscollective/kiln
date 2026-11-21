@@ -10,7 +10,7 @@ import type { Operation } from './openapi.ts';
 const W = '/api/workspaces/{workspaceId}';
 
 const statusSchema = z.object({
-  enabled: z.boolean().describe('MRM_MCP_ENABLED is on. While it is off, `POST /mcp` answers 404.'),
+  enabled: z.boolean().describe('KILN_MCP_ENABLED is on. While it is off, `POST /mcp` answers 404.'),
   endpoint: z.string().describe('The path of the MCP endpoint on this server.'),
   protocolVersion: z.string(),
   envName: z.string(),
@@ -57,7 +57,7 @@ export const mcpOperations: Operation[] = [
     tags: ['mcp'],
     summary: 'Whether the MCP server is on, and which tools it offers',
     description:
-      'Owner and admin, session only. `enabled` is the server switch MRM_MCP_ENABLED (off by default). The tools are the whole catalog with what each needs; what a given token is offered is decided by its role, its actions and the switches.',
+      'Owner and admin, session only. `enabled` is the server switch KILN_MCP_ENABLED (off by default). The tools are the whole catalog with what each needs; what a given token is offered is decided by its role, its actions and the switches.',
     risk: 'read',
     access: { action: 'tokens.manage' },
     responses: { '200': { description: 'The status and the tool catalog.', schema: statusSchema } },

@@ -30,7 +30,7 @@ import {
 /**
  * Staged listing text and graphics of an app, and writing them to the store as a DRAFT
  * (docs/api/staged-changes.md, docs/adr/0009-staged-store-drafts.md). Staging reads and writes the
- * database only. The push is a store write, OFF unless MRM_STORE_DRAFT_WRITE_ENABLED=true, and never
+ * database only. The push is a store write, OFF unless KILN_STORE_DRAFT_WRITE_ENABLED=true, and never
  * submits anything. Mounted under /api/workspaces.
  */
 export type StagedRoutesContext = {
@@ -42,7 +42,7 @@ export type StagedRoutesContext = {
   /** Index reads that miss the cache, per workspace per minute (the one of the Assets tab). */
   limiter: TestLimiter;
   draft?: {
-    /** MRM_STORE_DRAFT_WRITE_ENABLED (default false). */
+    /** KILN_STORE_DRAFT_WRITE_ENABLED (default false). */
     enabled?: boolean;
     /** Builds the connector that can read and write a draft (fakes in tests). */
     connectorFactory?: DraftConnectorFactory;

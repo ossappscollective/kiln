@@ -32,7 +32,7 @@ test('suggestedVersion: nothing to go on is empty, so the person types one', () 
 test('classifyVersionFailure: the switch names the variable, a refusal of the role says who may', () => {
   const off = classifyVersionFailure(new ApiError(409, 'store_draft_disabled', 'off'));
   assert.equal(off.kind, 'disabled');
-  assert.match(off.message, /MRM_STORE_DRAFT_WRITE_ENABLED=true/);
+  assert.match(off.message, /KILN_STORE_DRAFT_WRITE_ENABLED=true/);
   assert.equal(classifyVersionFailure(new ApiError(403, 'forbidden', 'no')).kind, 'forbidden');
 });
 

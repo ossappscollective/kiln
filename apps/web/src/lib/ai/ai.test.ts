@@ -117,7 +117,7 @@ const apiError = (
 test('every state says where AI stands, and an off server names the environment flag', () => {
   const off = aiStateInfo(config({ state: 'off_server' }));
   assert.equal(off.tone, 'info');
-  assert.match(off.message, /MRM_AI_ENABLED=true/);
+  assert.match(off.message, /KILN_AI_ENABLED=true/);
   assert.match(aiStateInfo(config({ state: 'off_workspace' })).message, /Turn it on below/);
   assert.match(
     aiStateInfo(config({ state: 'off_workspace', canManage: false })).message,
@@ -565,7 +565,7 @@ test('errors are fixed sentences chosen from the code, never the server or provi
   }
   assert.match(
     aiErrorMessage(apiError(409, 'ai_not_enabled', { reason: 'server' })),
-    /MRM_AI_ENABLED=true/,
+    /KILN_AI_ENABLED=true/,
   );
   assert.match(
     aiErrorMessage(apiError(409, 'ai_not_enabled', { reason: 'workspace' })),
@@ -858,7 +858,7 @@ test('a local address is explained BEFORE it fails when this server only talks t
   assert.match(ADDRESS_TEXTS.private_address_blocked, /only talks to public addresses/);
   assert.match(
     ADDRESS_TEXTS.private_address_blocked,
-    /MRM_AI_ALLOW_PRIVATE_URLS=true and restarts it/,
+    /KILN_AI_ALLOW_PRIVATE_URLS=true and restarts it/,
   );
   assert.match(ADDRESS_TEXTS.private_address_blocked, /Docker, localhost is the container/);
   assert.equal(needsV1Hint('http://localhost:11234'), true);

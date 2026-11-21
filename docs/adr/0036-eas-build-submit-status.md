@@ -16,7 +16,7 @@ visible only at expo.dev.
    the app record (an iOS record reads iOS, an Android record Android; macOS is not read: EAS has no such platform) and replaces the snapshot in
    one transaction. A failed read keeps the old snapshot and records why. The views read the database only, so listing never calls Expo.
 2. **The repo's own sync pattern.** A job queue `eas.status` and a scheduler pass like the review and analytics ones: spaced, bounded, one job per
-   credential, the shared per workspace budget, a doubling backoff (10 minutes up to 6 hours), `MRM_EAS_STATUS_INTERVAL_MINUTES` (default 30,
+   credential, the shared per workspace budget, a doubling backoff (10 minutes up to 6 hours), `KILN_EAS_STATUS_INTERVAL_MINUTES` (default 30,
    `0` off). One addition suited to the data: an app record whose snapshot has a build or submission that has not ended is read again after
    three minutes, which is how a running build is followed. Only linked records with an Expo credential are ever read.
 3. **Two routes** (`docs/api/eas-builds.md`): `GET /apps/:appId/eas/status` (`builds.read`, database only) and `POST .../eas/status/refresh`
@@ -27,7 +27,7 @@ visible only at expo.dev.
    are a section below the list. The store a submission goes to and the name of the build number ("Build" or "Version code") come from the core
    platform table; the only place that names Expo's `IOS` / `ANDROID` is a mapping table keyed by `Platform`.
 5. **No build file address is stored or returned.** `hasArtifact` and the page of the build at expo.dev (`expoUrl`) are. A stored link would be a
-   way around the switch of the builds download (`MRM_BUILDS_DOWNLOAD_ENABLED`, `builds.download`); Expo applies its own access rules to its page.
+   way around the switch of the builds download (`KILN_BUILDS_DOWNLOAD_ENABLED`, `builds.download`); Expo applies its own access rules to its page.
    The "Install" help of an EAS row says so and points at Expo.
 6. **Expo's text** (an error, a commit message) is cut (500 and 200 characters), shown as plain text and never logged or put in an audit row.
    A scheduled failure is a short code (`expo_auth`, `rate_limited`, ...), never Expo's wording.

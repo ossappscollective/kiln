@@ -105,11 +105,11 @@ export type AppDeps = {
   version: string;
   /** Origins besides this server that may send state-changing requests, e.g. a dev server. */
   trustedOrigins?: string[] | undefined;
-  /** MRM_PUBLIC_ORIGIN: the origin passkeys are bound to (step-up confirmation). Default: the origin of the request. */
+  /** KILN_PUBLIC_ORIGIN: the origin passkeys are bound to (step-up confirmation). Default: the origin of the request. */
   publicOrigin?: string | undefined;
   /** Demo mode only: hard actions pass the step-up check, because nobody is there to confirm them. */
   stepUpAutoApprove?: boolean | undefined;
-  /** Email (SMTP) and two-factor codes (docs/api/mail.md). `env` is MRM_SMTP_*; tests pass `mailer`. All optional. */
+  /** Email (SMTP) and two-factor codes (docs/api/mail.md). `env` is KILN_SMTP_*; tests pass `mailer`. All optional. */
   mail?: MailDeps | undefined;
   /** Overridable for tests. */
   now?: (() => number) | undefined;
@@ -119,7 +119,7 @@ export type AppDeps = {
   ipLimiter?: Services['ipLimiter'] | undefined;
   /** Bad attempts per invitation link. Its own instance, never the login limiter. */
   inviteLimiter?: Services['inviteLimiter'] | undefined;
-  /** Believe X-Forwarded-For for the client address (MRM_TRUST_PROXY=1). Default: no. */
+  /** Believe X-Forwarded-For for the client address (KILN_TRUST_PROXY=1). Default: no. */
   trustProxy?: boolean | undefined;
   /** Folder with the built web UI, relative to the working directory. Omit to serve the API only. */
   webDist?: string | undefined;
@@ -139,7 +139,7 @@ export type AppDeps = {
   /** Longest a synchronous repository job (scan, listing, apply) may run. Default 90 seconds. */
   repositoryTimeoutMs?: number | undefined;
   /**
-   * Local clones for scan and listing reads (MRM_READS, docs/adr/0005-local-clone-reads.md).
+   * Local clones for scan and listing reads (KILN_READS, docs/adr/0005-local-clone-reads.md).
    * Built at start by `setUpReads`. Omitted: reads go through the GitHub API.
    */
   reads?: CloneReads | undefined;
@@ -149,7 +149,7 @@ export type AppDeps = {
    * `reads` is set, so the routes work; it sweeps nothing until something calls `sweep`.
    */
   cloneUpkeep?: CloneUpkeep | undefined;
-  /** Writing to local clones: MRM_LOCAL_REPO_WRITE, the commit author, and (tests) where a push goes. Omitted: off. */
+  /** Writing to local clones: KILN_LOCAL_REPO_WRITE, the commit author, and (tests) where a push goes. Omitted: off. */
   localWrite?: LocalWriteConfig | undefined;
   /**
    * Store sync of apps. `connectorFactory` builds the read-only App Store Connect / Google Play
@@ -160,7 +160,7 @@ export type AppDeps = {
     connectorFactory?: StoreConnectorFactory;
     timeoutMs?: number;
     limiter?: TestLimiter;
-    /** MRM_SYNC_INTERVAL_MINUTES (the scheduler is built in index.ts): only told to the Settings screen. 0 is off; default 30. */
+    /** KILN_SYNC_INTERVAL_MINUTES (the scheduler is built in index.ts): only told to the Settings screen. 0 is off; default 30. */
     intervalMinutes?: number;
   };
   /** API token requests: the per-token rate limit (default 300 a minute) and the bad-token limit. Overridable for tests. */
@@ -171,7 +171,7 @@ export type AppDeps = {
    */
   eventStreams?: EventStreamHub | undefined;
   /**
-   * Outbound webhooks. `allowPrivate` is MRM_WEBHOOKS_ALLOW_PRIVATE=1 (loopback and private
+   * Outbound webhooks. `allowPrivate` is KILN_WEBHOOKS_ALLOW_PRIVATE=1 (loopback and private
    * addresses, and http to localhost); `resolve` and `send` are for tests. The delivery job itself
    * is registered in index.ts with the same options.
    */
@@ -186,12 +186,12 @@ export type AppDeps = {
   ci?: Partial<Pick<CiContext, 'limiter' | 'activeLimiter' | 'matchers' | 'pollMaxMs'>> | undefined;
   /**
    * Builds to test (docs/api/builds.md): listing CI artifacts always works; downloading them, and the links that hand one to a phone,
-   * answer `409 builds_download_disabled` unless `downloadEnabled` (MRM_BUILDS_DOWNLOAD_ENABLED, default false). Uploading an Android build
-   * to Google Play internal app sharing (docs/api/internal-sharing.md) is off unless `internalSharingEnabled` (MRM_PLAY_INTERNAL_SHARING_ENABLED).
+   * answer `409 builds_download_disabled` unless `downloadEnabled` (KILN_BUILDS_DOWNLOAD_ENABLED, default false). Uploading an Android build
+   * to Google Play internal app sharing (docs/api/internal-sharing.md) is off unless `internalSharingEnabled` (KILN_PLAY_INTERNAL_SHARING_ENABLED).
    */
   builds?: BuildsDeps | undefined;
   /**
-   * The scheduled listing read (MRM_LISTING_INTERVAL_MINUTES) in milliseconds, 0 or absent for off.
+   * The scheduled listing read (KILN_LISTING_INTERVAL_MINUTES) in milliseconds, 0 or absent for off.
    * Only used to tell the Listing tab when the next read is due; the scheduler is built in index.ts.
    */
   listing?: ListingDeps['listing'] | undefined;
@@ -217,37 +217,37 @@ export type AppDeps = {
   revenuecat?: RevenueCatDeps | undefined;
   /**
    * Changing a live rollout in a store (docs/api/rollout.md), a store write that is OFF unless `enabled`
-   * (MRM_STORE_ROLLOUT_ENABLED). `connectorFactory` builds the connector that can read and change a
+   * (KILN_STORE_ROLLOUT_ENABLED). `connectorFactory` builds the connector that can read and change a
    * rollout (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
   rollout?: PublishDeps['rollout'] | undefined;
   /**
    * Staged listing text and graphics, and writing them to the store as a DRAFT (docs/api/staged-changes.md):
-   * a store write that is OFF unless `enabled` (MRM_STORE_DRAFT_WRITE_ENABLED). `connectorFactory` builds the
+   * a store write that is OFF unless `enabled` (KILN_STORE_DRAFT_WRITE_ENABLED). `connectorFactory` builds the
    * connector that can read and write a draft (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
   storeDraft?: PublishDeps['draft'] | undefined;
   /**
    * Submitting the store's draft for review (docs/api/submit.md, docs/adr/0010-store-submit.md): a store write that
-   * is OFF unless `enabled` (MRM_STORE_SUBMIT_ENABLED). `connectorFactory` builds the connector that can read and
+   * is OFF unless `enabled` (KILN_STORE_SUBMIT_ENABLED). `connectorFactory` builds the connector that can read and
    * submit (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
   storeSubmit?: PublishDeps['submit'] | undefined;
   /**
    * Releasing (docs/api/releases-write.md, docs/adr/0014-release-management.md): releasing an approved App Store version or
-   * starting a Google Play draft release is a store write that is OFF unless `enabled` (MRM_STORE_RELEASE_ENABLED).
+   * starting a Google Play draft release is a store write that is OFF unless `enabled` (KILN_STORE_RELEASE_ENABLED).
    * `connectorFactory` builds the connector that can read and release (fakes in tests); `timeoutMs` and `claimTtlMs` are for
    * tests. The reads of builds and version codes use the draft connector (`storeDraft.connectorFactory`) and no switch.
    */
   storeRelease?: PublishDeps['release'] | undefined;
   /**
    * Creating the next App Store version (docs/api/store-version.md): a reversible store write behind the SAME switch as the draft
-   * push (`storeDraft.enabled`, MRM_STORE_DRAFT_WRITE_ENABLED) and its timeouts. Only `connectorFactory` (fakes in tests) is set here.
+   * push (`storeDraft.enabled`, KILN_STORE_DRAFT_WRITE_ENABLED) and its timeouts. Only `connectorFactory` (fakes in tests) is set here.
    */
   storeVersion?: PublishDeps['version'] | undefined;
   /**
    * Publishing everything an app has pending in one go (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md): a store write
-   * that is OFF unless `enabled` (MRM_STORE_PUBLISH_BATCH_ENABLED). It turns no step on: the steps keep the switches, the fakes and the
+   * that is OFF unless `enabled` (KILN_STORE_PUBLISH_BATCH_ENABLED). It turns no step on: the steps keep the switches, the fakes and the
    * timeouts of `storeDraft`, `storeSubmit`, `storeRelease` and `rollout`. `claimTtlMs` is for tests.
    */
   storePublish?: PublishDeps['publish'] | undefined;
@@ -257,7 +257,7 @@ export type AppDeps = {
   analytics?: AnalyticsDeps | undefined;
   /**
    * Translation of reviews and the workspace settings (docs/api/settings.md, docs/api/reviews.md).
-   * `allowPrivateUrls` is MRM_TRANSLATE_ALLOW_PRIVATE_URLS (a private or loopback LibreTranslate
+   * `allowPrivateUrls` is KILN_TRANSLATE_ALLOW_PRIVATE_URLS (a private or loopback LibreTranslate
    * address); `fetch`, `resolve`, `exchange` and `timeoutMs` replace the network in tests;
    * `limiter` is the per workspace budget of translation requests (default 20 a minute).
    */
@@ -270,18 +270,18 @@ export type AppDeps = {
     notesLimiter?: TestLimiter;
   };
   /**
-   * AI assistance (docs/api/ai.md). `enabled` is MRM_AI_ENABLED (default false: no provider is ever contacted), `allowPrivateUrls` is
-   * MRM_AI_ALLOW_PRIVATE_URLS. `fetch` replaces the network for Anthropic and OpenAI, `resolve` and `exchange` for an OpenAI compatible
+   * AI assistance (docs/api/ai.md). `enabled` is KILN_AI_ENABLED (default false: no provider is ever contacted), `allowPrivateUrls` is
+   * KILN_AI_ALLOW_PRIVATE_URLS. `fetch` replaces the network for Anthropic and OpenAI, `resolve` and `exchange` for an OpenAI compatible
    * server, `clientFactory` hands in a whole client (tests use a fake). `limiter` is the per workspace budget of runs a minute.
    */
   ai?: AiSettings | undefined;
-  /** The MCP endpoint for AI assistants (docs/mcp.md). `enabled` is MRM_MCP_ENABLED (default false: POST /mcp answers 404). */
+  /** The MCP endpoint for AI assistants (docs/mcp.md). `enabled` is KILN_MCP_ENABLED (default false: POST /mcp answers 404). */
   mcp?: McpDeps | undefined;
 };
 
 export function createApp(deps: AppDeps) {
   const app = new Hono<AppEnv>();
-  // The address the buttons in emails open (MRM_PUBLIC_ORIGIN); without it emails name the screen and have no link.
+  // The address the buttons in emails open (KILN_PUBLIC_ORIGIN); without it emails name the screen and have no link.
   setMailLinkOrigin(deps.publicOrigin);
   const services: Services = {
     db: deps.db,
@@ -525,7 +525,7 @@ export function createApp(deps: AppDeps) {
   // Public: the person with the link is not signed in yet.
   app.route('/api/invitations', publicInvitationRoutes(services));
 
-  // MCP: POST /mcp for AI assistants (off unless MRM_MCP_ENABLED) and its status for Settings. Store writes are previewed, never applied. docs/adr/0023-mcp-server.md
+  // MCP: POST /mcp for AI assistants (off unless KILN_MCP_ENABLED) and its status for Settings. Store writes are previewed, never applied. docs/adr/0023-mcp-server.md
   mountMcp(app, {
     services,
     deps: deps.mcp,

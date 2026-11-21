@@ -246,7 +246,7 @@ export type AiTestOutcome =
 // ---------------------------------------------------------------------------------------------
 // Where the feature stands, in words
 
-export const AI_ENV = 'MRM_AI_ENABLED';
+export const AI_ENV = 'KILN_AI_ENABLED';
 
 const OFF_SERVER_TEXT = `AI assistance is switched off on this server. Whoever runs the server turns it on with ${AI_ENV}=true and restarts it.`;
 
@@ -872,7 +872,7 @@ const wait = (seconds: number | undefined): string => {
 
 /** The fixed codes the API gives for a refused address (`hint` or `reason` or an issue `code`). */
 export type AddressHintCode = 'private_address_blocked' | 'plain_http_not_allowed';
-export const ADDRESS_ENV = 'MRM_AI_ALLOW_PRIVATE_URLS';
+export const ADDRESS_ENV = 'KILN_AI_ALLOW_PRIVATE_URLS';
 
 export const ADDRESS_TEXTS: Record<AddressHintCode, string> = {
   private_address_blocked: `This server only talks to public addresses. To use a model on your own machine or network, the person who runs this server sets ${ADDRESS_ENV}=true and restarts it. In Docker, localhost is the container itself, and plain http is accepted only for localhost, so a model on the host machine needs an https address this server can reach (or the server run outside Docker).`,

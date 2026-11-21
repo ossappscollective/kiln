@@ -30,7 +30,7 @@ import {
  * Attaching a folder on this machine to a repository, or connecting it as a repository of its
  * own (docs/adr/0005-local-clone-reads.md). Reading from it is in local-reads.ts. Every function
  * here needs the role `repositories.write` (the routes check it), is refused unless
- * MRM_LOCAL_REPO_ROOTS is set, and audits the path (not secret) and never any content.
+ * KILN_LOCAL_REPO_ROOTS is set, and audits the path (not secret) and never any content.
  */
 
 type Actor = { type: ActorType; id: string };
@@ -45,9 +45,9 @@ export type LocalConfigView = {
   reason?: string;
   /** The allowed folders. Only given to people who may attach a folder. */
   roots?: string[];
-  /** Whether a change set may be committed to a new branch of a local clone (MRM_LOCAL_REPO_WRITE), and if not, why not. */
+  /** Whether a change set may be committed to a new branch of a local clone (KILN_LOCAL_REPO_WRITE), and if not, why not. */
   write: { enabled: boolean; envName: string; message?: string };
-  /** Whether the commits are signed (MRM_GIT_SIGN) and how. Never the key or where it is. */
+  /** Whether the commits are signed (KILN_GIT_SIGN) and how. Never the key or where it is. */
   signing: { enabled: boolean; format?: 'ssh' | 'gpg' };
 };
 

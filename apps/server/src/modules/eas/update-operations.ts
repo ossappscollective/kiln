@@ -7,7 +7,7 @@ import { rolloutApplyBody, rolloutPreviewBody } from './update-routes.ts';
 /**
  * The operations of EAS Update (docs/api/eas-update.md, docs/adr/0037-eas-update.md). The two reads need `apps.read` and call Expo with
  * the app's Expo credential (audited as `credential.use`). Raising a rollout is the one write: `releases.rollout`, the switch
- * MRM_EAS_UPDATE_ROLLOUT_ENABLED, a preview and a step-up confirmation.
+ * KILN_EAS_UPDATE_ROLLOUT_ENABLED, a preview and a step-up confirmation.
  */
 
 const update = z.object({
@@ -116,7 +116,7 @@ const state = z.object({
       }),
     )
     .describe('The finished store-distribution builds the runtime check compared with, newest first (at most 10).'),
-  rolloutWriteEnabled: z.boolean().describe('MRM_EAS_UPDATE_ROLLOUT_ENABLED.'),
+  rolloutWriteEnabled: z.boolean().describe('KILN_EAS_UPDATE_ROLLOUT_ENABLED.'),
   readAt: timestamp,
 });
 
@@ -205,7 +205,7 @@ export const easUpdateOperations: Draft[] = [
     tags: ['eas'],
     summary: 'Preview raising the rollout of an update: the current share, the new one and a confirmHash',
     description:
-      'READS EXPO, writes nothing (audited as `credential.use`, purpose `eas.update_rollout`). `group` is the update group whose update of this platform is mid-rollout; `percentage` the new share, a whole percent above the current one (100 ends the rollout). `409 rollout_not_found` when no update of that group is mid-rollout among the newest groups read; `422` `invalid_group` / `invalid_rollout` / `rollout_not_raised` (the share only goes up here; lowering or reverting needs the Expo CLI). Needs `releases.rollout` and `MRM_EAS_UPDATE_ROLLOUT_ENABLED=true` (`409 eas_update_write_disabled` otherwise).',
+      'READS EXPO, writes nothing (audited as `credential.use`, purpose `eas.update_rollout`). `group` is the update group whose update of this platform is mid-rollout; `percentage` the new share, a whole percent above the current one (100 ends the rollout). `409 rollout_not_found` when no update of that group is mid-rollout among the newest groups read; `422` `invalid_group` / `invalid_rollout` / `rollout_not_raised` (the share only goes up here; lowering or reverting needs the Expo CLI). Needs `releases.rollout` and `KILN_EAS_UPDATE_ROLLOUT_ENABLED=true` (`409 eas_update_write_disabled` otherwise).',
     risk: 'read',
     access: { action: 'releases.rollout' },
     appScope: { kind: 'param', name: 'appId' },
@@ -220,7 +220,7 @@ export const easUpdateOperations: Draft[] = [
     tags: ['eas'],
     summary: 'Raise the rollout of an update at Expo (what clients receive; 100 ends the rollout and cannot be lowered here)',
     description:
-      'AN EXPO WRITE (`update.setRolloutPercentage`, as `eas update:edit` does). Needs `releases.rollout` (owner and admin), `MRM_EAS_UPDATE_ROLLOUT_ENABLED=true` and, when the workspace policy covers `rollout`, a step-up confirmation bound to the app and the `confirmHash`. `confirmHash` must come from a preview of exactly this request. Expo is READ AGAIN right before the write: if the rollout is not the one previewed nothing is written (`409 state_changed`, with a new `confirmHash` when the rollout still exists). Never retried: after a timeout or a 5xx the update is read back and the answer is `200` with `confirmedByReread: true`, `502 write_failed` (`outcome: not_applied`) or `409 outcome_unknown` (check at Expo, then preview again). One write per update at a time (`409 write_in_progress`). Audited as `eas.update_rollout_changed` / `eas.update_rollout_failed` (ids and values, never a token).',
+      'AN EXPO WRITE (`update.setRolloutPercentage`, as `eas update:edit` does). Needs `releases.rollout` (owner and admin), `KILN_EAS_UPDATE_ROLLOUT_ENABLED=true` and, when the workspace policy covers `rollout`, a step-up confirmation bound to the app and the `confirmHash`. `confirmHash` must come from a preview of exactly this request. Expo is READ AGAIN right before the write: if the rollout is not the one previewed nothing is written (`409 state_changed`, with a new `confirmHash` when the rollout still exists). Never retried: after a timeout or a 5xx the update is read back and the answer is `200` with `confirmedByReread: true`, `502 write_failed` (`outcome: not_applied`) or `409 outcome_unknown` (check at Expo, then preview again). One write per update at a time (`409 write_in_progress`). Audited as `eas.update_rollout_changed` / `eas.update_rollout_failed` (ids and values, never a token).',
     risk: 'destructive',
     access: { action: 'releases.rollout' },
     appScope: { kind: 'param', name: 'appId' },

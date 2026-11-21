@@ -40,7 +40,7 @@ launchAssetCount, averagePayloadBytes } } }`. `launches` and `failedLaunches` ar
 
 ## Raising a rollout
 
-Off unless the server sets `MRM_EAS_UPDATE_ROLLOUT_ENABLED=true` (`409 eas_update_write_disabled`, also for the preview). Body of the preview:
+Off unless the server sets `KILN_EAS_UPDATE_ROLLOUT_ENABLED=true` (`409 eas_update_write_disabled`, also for the preview). Body of the preview:
 `{ "group": "<update group id>", "percentage": 50 }`; of the apply, the same plus `"confirmHash"` from the preview. The update of this platform in
 the group must be mid-rollout (`409 rollout_not_found`), and the share must be above the current one, at most 100 (`422 rollout_not_raised`;
 lowering or reverting needs the Expo CLI). 100 ends the rollout (`irreversible: true`). Apply needs a step-up grant for the action class

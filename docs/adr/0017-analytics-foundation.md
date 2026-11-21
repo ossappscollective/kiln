@@ -1,7 +1,7 @@
 # ADR 0017: Analytics, as a normalised store of daily facts with honest limits
 
 Status: connectors, server and database implemented and tested against fakes on SQLite (the Postgres variants run when
-`MRM_TEST_POSTGRES_URL` is set). **No store was ever contacted: every request shape is written from the vendors' pages as read on
+`KILN_TEST_POSTGRES_URL` is set). **No store was ever contacted: every request shape is written from the vendors' pages as read on
 2026-11-19 and anything [the study](../research/analytics-apis.md) marks UNVERIFIED is still UNVERIFIED** (see
 [Not verified](#not-verified-unverified)). No screens yet. API: [api/analytics](../api/analytics.md). Migration 31.
 
@@ -34,7 +34,7 @@ for every series, where it comes from, how late the store may still change it, a
    updates, in-app purchases and other apps.
 4. **Off by default, per workspace.** The workspace setting `analytics.enabled` (default `false`) gates syncing, the scheduled job and
    the Apple enable action. Reading what is stored and **importing a file** work whatever it says (they contact no store).
-   `MRM_ANALYTICS_INTERVAL_MINUTES` (default 360, `0` off) only sets the interval of the scheduled job: with the setting off it queues nothing.
+   `KILN_ANALYTICS_INTERVAL_MINUTES` (default 360, `0` off) only sets the interval of the scheduled job: with the setting off it queues nothing.
 5. **Apple, two ways in.**
    - _Automatic:_ one explicit, role-gated, two-step action creates an ONGOING `analyticsReportRequest` (the only store write of
      analytics): `GET` shows the plan (what exists at Apple, what would be created, whether the key's role may create, a `confirmHash`),

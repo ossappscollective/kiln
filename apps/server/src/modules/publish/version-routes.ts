@@ -18,7 +18,7 @@ import {
 
 /**
  * Creating the next App Store version (docs/api/store-version.md, docs/adr/0031-create-app-store-version.md): a reversible store
- * write behind the draft-write switch (MRM_STORE_DRAFT_WRITE_ENABLED) and the `store.push_draft` action (owner and admin; a token
+ * write behind the draft-write switch (KILN_STORE_DRAFT_WRITE_ENABLED) and the `store.push_draft` action (owner and admin; a token
  * only when its actions name it). Preview, then create with the preview's hash; no typed phrase. Mounted under /api/workspaces.
  */
 export type VersionRoutesContext = {
@@ -26,7 +26,7 @@ export type VersionRoutesContext = {
   masterKey: Buffer;
   now: () => number;
   version?: {
-    /** MRM_STORE_DRAFT_WRITE_ENABLED (default false). */
+    /** KILN_STORE_DRAFT_WRITE_ENABLED (default false). */
     enabled?: boolean;
     /** Builds the connector that can read and create versions (fakes in tests). */
     connectorFactory?: VersionConnectorFactory;

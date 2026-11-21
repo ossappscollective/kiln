@@ -74,7 +74,7 @@ dbTest(
     assert.equal(config.status, 200);
     assert.deepEqual(
       [config.body.enabled, config.body.envName, config.body.submit.implemented],
-      [false, 'MRM_STORE_DRAFT_WRITE_ENABLED', true],
+      [false, 'KILN_STORE_DRAFT_WRITE_ENABLED', true],
     );
     assert.equal(config.body.submit.configRoute, '/store-submit/config');
     for (const [path, body] of [
@@ -84,7 +84,7 @@ dbTest(
       const res = await t.call(t.owner, 'POST', path, body);
       assert.equal(res.status, 409, path);
       assert.equal(res.body.error, 'store_draft_disabled');
-      assert.match(res.body.message, /MRM_STORE_DRAFT_WRITE_ENABLED=true/);
+      assert.match(res.body.message, /KILN_STORE_DRAFT_WRITE_ENABLED=true/);
     }
     noStoreIo(t);
     assert.equal((await t.call(t.owner, 'GET', t.sp(app))).status, 200, 'the staged view works');

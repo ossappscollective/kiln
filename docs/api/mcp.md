@@ -5,14 +5,14 @@ Design: [ADR 0023](../adr/0023-mcp-server.md). It is not part of `/api` and not 
 
 ## Switch
 
-`MRM_MCP_ENABLED` (default `false`). While off, every method answers `404 {"error":"not_found"}`.
+`KILN_MCP_ENABLED` (default `false`). While off, every method answers `404 {"error":"not_found"}`.
 
 ## Request
 
 - `Authorization: Bearer mrm_...` is required (an [API token](tokens.md)); the session cookie is ignored. Missing or bad: `401 invalid_token`.
   Bad tokens from one address: `429 too_many_attempts`.
 - `Content-Type: application/json` (else `415`), body at most 256 KiB (else `413`). One message, or a batch of at most 16 (`400` otherwise).
-- `Origin`, if present, must be `MRM_PUBLIC_ORIGIN` or in `MRM_TRUSTED_ORIGINS` (else `403 bad_origin`). MCP clients send none.
+- `Origin`, if present, must be `KILN_PUBLIC_ORIGIN` or in `KILN_TRUSTED_ORIGINS` (else `403 bad_origin`). MCP clients send none.
 - `MCP-Protocol-Version`, if present, must be `2025-06-18`, `2025-03-26` or `2024-11-05` (else `400`). `structuredContent` is added to tool results only for
   `2025-06-18`.
 - 120 requests a minute per token (`429 rate_limited`, `Retry-After`).

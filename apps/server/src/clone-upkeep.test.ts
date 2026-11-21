@@ -279,7 +279,7 @@ dbTest(
     assert.equal(s.exists('idle'), false);
     assert.equal(result.skippedInUse, 1);
     assert.equal(result.overBudget, true);
-    assert.ok(s.logs.some((l) => /Still over MRM_CLONE_MAX_BYTES/.test(l)));
+    assert.ok(s.logs.some((l) => /Still over KILN_CLONE_MAX_BYTES/.test(l)));
     assert.ok(IN_USE_GRACE_MS >= 5 * 60_000);
   },
 );
@@ -609,7 +609,7 @@ dbTest('disconnecting a repository still removes its clones', async (db) => {
   assert.equal(existsSync(join(b.cloneDir, t.workspaceId, repositoryId)), false);
 });
 
-dbTest('without clones (MRM_READS=api) the routes answer, with nothing to show', async (db) => {
+dbTest('without clones (KILN_READS=api) the routes answer, with nothing to show', async (db) => {
   const t = await bootRepoApp(db);
   const { repositoryId } = await t.connect();
   const list = await t.call(t.owner, 'GET', '/clones');

@@ -12,7 +12,7 @@ The project is at Phase 0. Read [docs/phase-0.md](docs/phase-0.md) and
 ## Testing against Postgres
 
 Tests for the database and the server run on SQLite (in memory) always, and on Postgres too when
-`MRM_TEST_POSTGRES_URL` is set. Without it, the Postgres cases show up as skipped (`[postgres]` in
+`KILN_TEST_POSTGRES_URL` is set. Without it, the Postgres cases show up as skipped (`[postgres]` in
 the test name) instead of being left out, so a green run on a laptop without Postgres is not a
 Postgres pass. CI sets the variable.
 
@@ -20,7 +20,7 @@ To run both locally:
 
 ```sh
 docker compose -f docker-compose.test.yml up -d --wait
-MRM_TEST_POSTGRES_URL=postgres://mrm_test:mrm_test@localhost:55432/mrm_test pnpm test
+KILN_TEST_POSTGRES_URL=postgres://mrm_test:mrm_test@localhost:55432/mrm_test pnpm test
 docker compose -f docker-compose.test.yml down
 ```
 

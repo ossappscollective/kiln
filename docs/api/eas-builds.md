@@ -34,12 +34,12 @@ some apps may use both for those apps only.
 
 An app record shows the builds and submissions of **its own platform**: an iOS and an Android record linked to one project each read their
 side. **The address of a build file is never stored or returned.** `hasArtifact` says that Expo holds one; `expoUrl` is the page of the build
-at expo.dev (logs and, where the build has one, the install link), so the switch `MRM_BUILDS_DOWNLOAD_ENABLED` stays the only way a build
+at expo.dev (logs and, where the build has one, the install link), so the switch `KILN_BUILDS_DOWNLOAD_ENABLED` stays the only way a build
 file leaves through this server. Times are epoch milliseconds.
 
 ## Refreshing
 
-The snapshot is refreshed by the scheduler (`MRM_EAS_STATUS_INTERVAL_MINUTES`, default 30, `0` off, 5 to 10080; an app record whose snapshot
+The snapshot is refreshed by the scheduler (`KILN_EAS_STATUS_INTERVAL_MINUTES`, default 30, `0` off, 5 to 10080; an app record whose snapshot
 has a build or a submission that has not ended is read again after three minutes) and by `POST /status/refresh`. Only linked app records with
 a usable Expo credential are ever read, one job per credential at a time, spaced and bounded like the other scheduled reads. After a failed
 read the scheduler waits (10 minutes, doubled for every failure in a row, at most 6 hours); a manual read never waits. A failed read keeps the

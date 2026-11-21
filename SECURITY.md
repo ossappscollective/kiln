@@ -23,5 +23,5 @@ Design rules that matter for reviews:
   per workspace and per server. A stolen password cannot enroll a second factor on an account that has one. API tokens cannot use any of it.
 - Outgoing mail ([docs/api/mail.md](docs/api/mail.md)): the SMTP password is stored encrypted and never returned, TLS certificates are always verified, a password
   is never sent without TLS (except to this machine), STARTTLS is never downgraded, a mail host on a private address needs the operator to set
-  `MRM_SMTP_ALLOW_PRIVATE_HOSTS=true`, and the test message goes only to the person who asks for it. Changing the host, port or user name needs the password again.
+  `KILN_SMTP_ALLOW_PRIVATE_HOSTS=true`, and the test message goes only to the person who asks for it. Changing the host, port or user name needs the password again.
   Nothing a mail server says is shown or logged.

@@ -17,7 +17,7 @@ import type { BuildsContext } from './service.ts';
 
 /**
  * Google Play internal app sharing from the Test builds panel (docs/api/internal-sharing.md, docs/adr/0020-play-internal-sharing.md).
- * Mounted under /api/workspaces. OFF unless MRM_PLAY_INTERNAL_SHARING_ENABLED=true. Preview and apply need `builds.share` (owner and
+ * Mounted under /api/workspaces. OFF unless KILN_PLAY_INTERNAL_SHARING_ENABLED=true. Preview and apply need `builds.share` (owner and
  * admin; a token only when its actions name it); the apply also needs the step-up class `internal_sharing`.
  */
 

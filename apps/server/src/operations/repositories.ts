@@ -19,12 +19,12 @@ const localConfigSchema = z.object({
   write: z
     .object({ enabled: z.boolean(), envName: z.string(), message: z.string().optional() })
     .describe(
-      'Whether a change set may be committed to a new branch of a local clone (MRM_LOCAL_REPO_WRITE).',
+      'Whether a change set may be committed to a new branch of a local clone (KILN_LOCAL_REPO_WRITE).',
     ),
   signing: z
     .object({ enabled: z.boolean(), format: z.enum(['ssh', 'gpg']).optional() })
     .describe(
-      "Whether those commits are signed with the server's key (MRM_GIT_SIGN) and how. Never the key or where it is.",
+      "Whether those commits are signed with the server's key (KILN_GIT_SIGN) and how. Never the key or where it is.",
     ),
 });
 
@@ -186,7 +186,7 @@ const localPathText = z
   .min(1)
   .max(4096)
   .describe(
-    'An absolute folder on the server, inside one of the folders MRM_LOCAL_REPO_ROOTS allows. Symbolic links are resolved first.',
+    'An absolute folder on the server, inside one of the folders KILN_LOCAL_REPO_ROOTS allows. Symbolic links are resolved first.',
   );
 
 const localBranchText = z
@@ -281,7 +281,7 @@ export const repositoriesOperations: Draft[] = [
     tags: ['repositories'],
     summary: 'Whether local clones are enabled on this server',
     description:
-      'Local clones are off unless MRM_LOCAL_REPO_ROOTS is set. The allowed folders are listed only to people who may attach one. `write` says whether commits to a local clone are allowed (MRM_LOCAL_REPO_WRITE) and `signing` whether they are signed (MRM_GIT_SIGN: `enabled`, and `format` ssh or gpg); the key and its location are never part of the answer.',
+      'Local clones are off unless KILN_LOCAL_REPO_ROOTS is set. The allowed folders are listed only to people who may attach one. `write` says whether commits to a local clone are allowed (KILN_LOCAL_REPO_WRITE) and `signing` whether they are signed (KILN_GIT_SIGN: `enabled`, and `format` ssh or gpg); the key and its location are never part of the answer.',
     risk: 'read',
     access: { action: 'repositories.read' },
     partial: true,
@@ -310,7 +310,7 @@ export const repositoriesOperations: Draft[] = [
     tags: ['repositories'],
     summary: 'Connect a local folder as a repository without GitHub',
     description:
-      'A local-only repository is read from the folder. A change set for it is applied as a commit on a new branch of the folder (`mode: local_branch`, needs MRM_LOCAL_REPO_WRITE=true); `github_pr` is refused with 409 local_only.',
+      'A local-only repository is read from the folder. A change set for it is applied as a commit on a new branch of the folder (`mode: local_branch`, needs KILN_LOCAL_REPO_WRITE=true); `github_pr` is refused with 409 local_only.',
     risk: 'write',
     access: { action: 'repositories.write' },
     body: localConnectBody,
@@ -329,7 +329,7 @@ export const repositoriesOperations: Draft[] = [
     tags: ['repositories'],
     summary: 'Attach a local clone to a repository, or change its folder or branch',
     description:
-      'Scan, listing and change set creation then read the committed branch of the folder. A change set can still be applied as a pull request through GitHub, or (MRM_LOCAL_REPO_WRITE=true) as a commit on a new branch of the folder.',
+      'Scan, listing and change set creation then read the committed branch of the folder. A change set can still be applied as a pull request through GitHub, or (KILN_LOCAL_REPO_WRITE=true) as a commit on a new branch of the folder.',
     risk: 'write',
     access: { action: 'repositories.write' },
     body: localAttachBody,
@@ -511,7 +511,7 @@ export const repositoriesOperations: Draft[] = [
     summary:
       'Apply an approved change set (a pull request through GitHub, or a commit on a new branch of the local clone)',
     description:
-      "No body, or `mode: github_pr`: a branch and a pull request through the GitHub API (409 local_only for a local-only repository). `mode: local_branch`: one commit on a NEW branch of the repository's local clone, built with git plumbing (the working tree, index, HEAD and current branch are not touched); needs MRM_LOCAL_REPO_WRITE=true (409 local_write_disabled), a local clone (409 no_local_checkout) and files that still match the clone's branch (409 base_changed, with `paths`); an existing branch is never moved (409 branch_exists). When the server signs commits (MRM_GIT_SIGN) the commit is signed with its own key and `outcome.signature` says so; if signing fails nothing is committed, the change set stays approved and the answer is 502 (504 when it timed out) `signing_failed` with a fixed `reason` (`timeout`, `locked`, `key`, `program`, `failed`). `push` pushes that branch to the connected GitHub repository and `openPr` (needs `push`) opens the pull request; a failed push or pull request does not undo the commit: the answer is 200 and `changeSet.outcome` says what happened, then `POST /change-sets/{id}/push` retries.",
+      "No body, or `mode: github_pr`: a branch and a pull request through the GitHub API (409 local_only for a local-only repository). `mode: local_branch`: one commit on a NEW branch of the repository's local clone, built with git plumbing (the working tree, index, HEAD and current branch are not touched); needs KILN_LOCAL_REPO_WRITE=true (409 local_write_disabled), a local clone (409 no_local_checkout) and files that still match the clone's branch (409 base_changed, with `paths`); an existing branch is never moved (409 branch_exists). When the server signs commits (KILN_GIT_SIGN) the commit is signed with its own key and `outcome.signature` says so; if signing fails nothing is committed, the change set stays approved and the answer is 502 (504 when it timed out) `signing_failed` with a fixed `reason` (`timeout`, `locked`, `key`, `program`, `failed`). `push` pushes that branch to the connected GitHub repository and `openPr` (needs `push`) opens the pull request; a failed push or pull request does not undo the commit: the answer is 200 and `changeSet.outcome` says what happened, then `POST /change-sets/{id}/push` retries.",
     risk: 'write',
     access: { action: 'changesets.approve' },
     body: applyBody,
@@ -551,7 +551,7 @@ export const repositoriesOperations: Draft[] = [
     tags: ['repositories'],
     summary: 'The managed git clones of this workspace: size and last use',
     description:
-      "Admin and owner. Only this workspace's clones are listed (the folder and its limits are the server's): per repository the bytes on disk (cached for ten minutes, a lower bound when the walk reached its cap), when it was last used and whether it is in use now. `kind` is `local` for the managed copy of an attached local folder. No server path is part of the answer. A sweep (MRM_CLONE_SWEEP_INTERVAL_MINUTES) removes clones idle for MRM_CLONE_IDLE_DAYS, then the least recently used above MRM_CLONE_MAX_BYTES; a removed clone is fetched again by the next read. `enabled` is false when reads do not use clones (MRM_READS=api).",
+      "Admin and owner. Only this workspace's clones are listed (the folder and its limits are the server's): per repository the bytes on disk (cached for ten minutes, a lower bound when the walk reached its cap), when it was last used and whether it is in use now. `kind` is `local` for the managed copy of an attached local folder. No server path is part of the answer. A sweep (KILN_CLONE_SWEEP_INTERVAL_MINUTES) removes clones idle for KILN_CLONE_IDLE_DAYS, then the least recently used above KILN_CLONE_MAX_BYTES; a removed clone is fetched again by the next read. `enabled` is false when reads do not use clones (KILN_READS=api).",
     risk: 'read',
     access: { action: 'repositories.write' },
     responses: {
@@ -660,7 +660,7 @@ export const repositoriesOperations: Draft[] = [
     tags: ['change-sets'],
     summary: 'Fix up the branch of a change set: add ONE commit on top of it',
     description:
-      'For a change set that has a branch: `applied` (a pull request through GitHub, or a commit on a new branch of a local clone) or `failed` with the branch GitHub made before the pull request failed. The content is refreshed first (a three-way merge against the repository, then against the branch: the base of that merge is the text this tool last committed, so edits a person made on the branch are merged, not overwritten), the difference is committed as ONE new commit whose parent is the branch tip that was read, and the branch is moved forward to it with a fast-forward only. History is never rewritten and nothing is forced. 409 `refresh_conflicts` (per file against the repository, resolve with `resolutions`) and 409 `fixup_conflicts` (per file against the branch, resolve with `branchResolutions`) change nothing. No difference: 200 with `nothingToFix` and no commit. `dryRun` reports the plan and writes nothing. Refusals that write nothing: 409 `branch_moved` (the branch is not at the tip that was read), 409 `branch_checked_out` (the local branch is checked out, in a worktree or being rebased: moving it would leave that working folder stale), 409 `pr_closed` (the pull request is merged or closed: create a new change set), 409 `branch_missing`, 409 `fixup_in_progress`, 409 `no_branch`. Local mode needs MRM_LOCAL_REPO_WRITE (409 `local_write_disabled`), signs like apply, and with `push` pushes the new tip without force (409 `remote_diverged` when the branch on GitHub has other commits; the local commit is kept). With `recompute` the content comes from the live store listing. Needs `changesets.approve` (and `listing.read` for `recompute`, `apps.sync` for `refresh`). Audited as `changeset.fixup` / `changeset.fixup_failed` with counts only.',
+      'For a change set that has a branch: `applied` (a pull request through GitHub, or a commit on a new branch of a local clone) or `failed` with the branch GitHub made before the pull request failed. The content is refreshed first (a three-way merge against the repository, then against the branch: the base of that merge is the text this tool last committed, so edits a person made on the branch are merged, not overwritten), the difference is committed as ONE new commit whose parent is the branch tip that was read, and the branch is moved forward to it with a fast-forward only. History is never rewritten and nothing is forced. 409 `refresh_conflicts` (per file against the repository, resolve with `resolutions`) and 409 `fixup_conflicts` (per file against the branch, resolve with `branchResolutions`) change nothing. No difference: 200 with `nothingToFix` and no commit. `dryRun` reports the plan and writes nothing. Refusals that write nothing: 409 `branch_moved` (the branch is not at the tip that was read), 409 `branch_checked_out` (the local branch is checked out, in a worktree or being rebased: moving it would leave that working folder stale), 409 `pr_closed` (the pull request is merged or closed: create a new change set), 409 `branch_missing`, 409 `fixup_in_progress`, 409 `no_branch`. Local mode needs KILN_LOCAL_REPO_WRITE (409 `local_write_disabled`), signs like apply, and with `push` pushes the new tip without force (409 `remote_diverged` when the branch on GitHub has other commits; the local commit is kept). With `recompute` the content comes from the live store listing. Needs `changesets.approve` (and `listing.read` for `recompute`, `apps.sync` for `refresh`). Audited as `changeset.fixup` / `changeset.fixup_failed` with counts only.',
     risk: 'write',
     access: { action: 'changesets.approve' },
     body: fixupBody,

@@ -478,5 +478,5 @@ test('the API description lists the four operations with the right risk, action 
   const apply = byId.get('applyExpoUpdateRollout');
   assert.equal(apply?.risk, 'destructive');
   assert.deepEqual(apply?.access, { action: 'releases.rollout' });
-  assert.match(apply?.description ?? '', /MRM_EAS_UPDATE_ROLLOUT_ENABLED/);
+  assert.match(apply?.description ?? '', /KILN_EAS_UPDATE_ROLLOUT_ENABLED/);
 });

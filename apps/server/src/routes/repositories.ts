@@ -230,7 +230,7 @@ export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
 
   // ----- local clones (docs/adr/0005-local-clone-reads.md) ---------------------------------
   // Registered before `/repositories/:id`. All of them need the right to change repositories
-  // (admin and owner), and refuse with 409 unless MRM_LOCAL_REPO_ROOTS is set.
+  // (admin and owner), and refuse with 409 unless KILN_LOCAL_REPO_ROOTS is set.
 
   // Whether the feature is on. Anyone who may look sees that; only who may attach sees the folders.
   app.get('/:workspaceId/repositories/local/config', needs('repositories.read'), async (c) =>

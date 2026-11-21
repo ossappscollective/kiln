@@ -37,10 +37,10 @@ The app runs as a single process, often in a home lab or a small company network
    the password.
 4. **A private-address policy.** The mail host is set by an admin, so it is a way to make the server open connections.
    Like webhooks, a host that resolves to a private, loopback, link-local or metadata address is refused unless
-   `MRM_SMTP_ALLOW_PRIVATE_HOSTS=true` (default false), set by the person who runs the server and not changeable from the
+   `KILN_SMTP_ALLOW_PRIVATE_HOSTS=true` (default false), set by the person who runs the server and not changeable from the
    screen. The address that passed the check is the address connected to (no second lookup), which closes DNS rebinding.
-   `MRM_SMTP_ALLOW_PRIVATE_HOSTS` is what a home-lab mail relay needs.
-5. **Where the setting lives.** Either the environment (`MRM_SMTP_HOST`, `_PORT`, `_SECURE`, `_USER`, `_PASSWORD`, `_FROM`),
+   `KILN_SMTP_ALLOW_PRIVATE_HOSTS` is what a home-lab mail relay needs.
+5. **Where the setting lives.** Either the environment (`KILN_SMTP_HOST`, `_PORT`, `_SECURE`, `_USER`, `_PASSWORD`, `_FROM`),
    which wins and makes the screen read only, or an admin-edited instance setting stored encrypted with the master key like
    credentials (table `instance_settings`). The password is never returned by any route. Changing the host, the port or the
    user name asks for the password again, so an admin (or a stolen admin session) cannot point the saved password at a

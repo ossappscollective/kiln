@@ -33,7 +33,7 @@ audited with `actor_type = token`. All routes are in the [OpenAPI description](o
 
 ## Switching it on
 
-`MRM_STORE_DRAFT_WRITE_ENABLED=true` (default `false`; only `true` and `false`; blank is off). See
+`KILN_STORE_DRAFT_WRITE_ENABLED=true` (default `false`; only `true` and `false`; blank is off). See
 [deployment](../deployment.md#writing-listing-drafts-to-a-store-a-store-write-off-by-default).
 
 ## Staging
@@ -186,7 +186,7 @@ Audit: `staged.asset_added`, `staged.asset_replaced`, `staged.asset_removed`, `s
 ## Submit and publish
 
 A push never submits, sends for review or publishes. Handing the pushed draft to the store's review is a separate
-step with its own switch (`MRM_STORE_SUBMIT_ENABLED`), right (`store.submit`), preview, hash and typed
+step with its own switch (`KILN_STORE_SUBMIT_ENABLED`), right (`store.submit`), preview, hash and typed
 confirmation: see [submit](submit.md). Publishing a release is not done by this server at all.
 
 ## UNVERIFIED (check with a real account)

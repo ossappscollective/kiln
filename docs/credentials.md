@@ -65,7 +65,7 @@ needs more and is off unless the server turns it on:
 ## Replying to reviews
 
 Replying is a **write**: the text is published publicly in the store. It is **off** unless the server
-runs with `MRM_REVIEW_REPLY_ENABLED=true` ([deployment](deployment.md#replying-to-reviews-a-store-write-off-by-default)),
+runs with `KILN_REVIEW_REPLY_ENABLED=true` ([deployment](deployment.md#replying-to-reviews-a-store-write-off-by-default)),
 and only an owner or admin of this workspace can send. It uses the **same credential** as reading
 reviews: a key that may reply can also read them, and the key itself could answer reviews outside
 this tool. Issue it only for the apps that need it.
@@ -94,7 +94,7 @@ this tool. Issue it only for the apps that need it.
 
 ## Changing a rollout (what the same credentials need)
 
-Only when the server runs with `MRM_STORE_ROLLOUT_ENABLED=true` ([deployment](deployment.md#changing-a-store-rollout-a-store-write-off-by-default)).
+Only when the server runs with `KILN_STORE_ROLLOUT_ENABLED=true` ([deployment](deployment.md#changing-a-store-rollout-a-store-write-off-by-default)).
 The same credential is used; no new one is needed, but it must be allowed to release the app.
 
 - **Google Play:** the service account must be allowed to manage releases of the app in Play Console
@@ -109,7 +109,7 @@ The same credential is used; no new one is needed, but it must be allowed to rel
 
 ## Writing listing drafts (what the same credentials need)
 
-Only when the server runs with `MRM_STORE_DRAFT_WRITE_ENABLED=true` ([deployment](deployment.md#writing-listing-drafts-to-a-store-a-store-write-off-by-default)).
+Only when the server runs with `KILN_STORE_DRAFT_WRITE_ENABLED=true` ([deployment](deployment.md#writing-listing-drafts-to-a-store-a-store-write-off-by-default)).
 The same credential is used; it must be allowed to edit the app's listing.
 
 - **Google Play:** the service account must be allowed to edit the store listing and release management
@@ -159,7 +159,7 @@ for the length of one request and never returned. Set a **spending limit with th
   (https://docs.vllm.ai/) normally do not. The server address is an AI setting, not part of the credential.
 
 The first credential of the provider's kind in the workspace is the one used. A key may be saved before AI is turned on; nothing is sent until the server switch
-(`MRM_AI_ENABLED`) and the workspace setting are both on. The connection test is `POST /ai/test` (AI settings), not the generic credential test.
+(`KILN_AI_ENABLED`) and the workspace setting are both on. The connection test is `POST /ai/test` (AI settings), not the generic credential test.
 
 ## Expo access token (EAS)
 

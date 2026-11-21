@@ -38,7 +38,7 @@ import { type AnalyticsContext, syncAnalytics } from './sync.ts';
 export type AnalyticsRoutesContext = AnalyticsContext & {
   /** Syncs, previews and enables per workspace per minute (default 10, built in createApp). */
   limiter: TestLimiter;
-  /** MRM_ANALYTICS_INTERVAL_MINUTES, shown by `status`. */
+  /** KILN_ANALYTICS_INTERVAL_MINUTES, shown by `status`. */
   intervalMinutes: number;
 };
 

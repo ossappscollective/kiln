@@ -6,7 +6,7 @@
   preview is shown read only: what is applied is exactly what was previewed. If the store changed meanwhile, nothing is overwritten and the
   preview is read again. Never retried by this app.
   Disabled states: a role below admin sees the texts read only with the reason; while the server's switch is off the texts are read only and
-  the page names MRM_STORE_PRODUCT_WRITE_ENABLED. Read only means plain text for every language, never disabled inputs.
+  the page names KILN_STORE_PRODUCT_WRITE_ENABLED. Read only means plain text for every language, never disabled inputs.
   Props: api, workspaceId, role, app ({ id, platform }), product (the detail), writeEnabled (the server's switch, from the list), onsaved
   (the texts were changed: read the product and the list again), onswitchoff (the server said the switch is off).
 -->

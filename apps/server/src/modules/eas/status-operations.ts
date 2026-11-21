@@ -96,7 +96,7 @@ export const easStatusOperations: Draft[] = [
     tags: ['eas'],
     summary: 'EAS builds and submissions of the Expo project an app is linked to (the stored snapshot)',
     description:
-      'Answers `{ status }` from the database only: Expo is not called. The snapshot is refreshed by the scheduled status read (`MRM_EAS_STATUS_INTERVAL_MINUTES`, every few minutes while a build or submission is running) and by `refreshEasStatus`. `project` is null when the app has no link; `sync.readAt` is null before the first read. Builds and submissions are those of the platform of this app record. Build file addresses are never returned. Needs `builds.read`.',
+      'Answers `{ status }` from the database only: Expo is not called. The snapshot is refreshed by the scheduled status read (`KILN_EAS_STATUS_INTERVAL_MINUTES`, every few minutes while a build or submission is running) and by `refreshEasStatus`. `project` is null when the app has no link; `sync.readAt` is null before the first read. Builds and submissions are those of the platform of this app record. Build file addresses are never returned. Needs `builds.read`.',
     risk: 'read',
     access: { action: 'builds.read' },
     appScope: { kind: 'param', name: 'appId' },

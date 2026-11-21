@@ -88,7 +88,7 @@ network. The rules, enforced both when a webhook is saved and again at every del
   connecting.
 - Redirects are never followed. A new connection is made for every request.
 - The response is read up to 64 KB and the rest is thrown away.
-- `MRM_WEBHOOKS_ALLOW_PRIVATE=1` lifts the private-address rule for development and for receivers on
+- `KILN_WEBHOOKS_ALLOW_PRIVATE=1` lifts the private-address rule for development and for receivers on
   your own network, and allows plain `http://` to `localhost` and loopback addresses. Link-local
   addresses (the cloud metadata endpoint) stay refused. Leave it off on a shared or hosted server.
 

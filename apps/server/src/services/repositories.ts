@@ -89,11 +89,11 @@ export type RepoContext = {
   timeoutMs: number;
   /**
    * Local clones for scan and listing reads (docs/adr/0005-local-clone-reads.md). Omitted, or
-   * inactive (`MRM_READS=api`): every read goes through the connector as before.
+   * inactive (`KILN_READS=api`): every read goes through the connector as before.
    */
   reads?: CloneReads | undefined;
   /**
-   * Writing to local clones: a commit on a new branch, and its push (MRM_LOCAL_REPO_WRITE,
+   * Writing to local clones: a commit on a new branch, and its push (KILN_LOCAL_REPO_WRITE,
    * docs/adr/0005-local-clone-reads.md). Omitted: off.
    */
   localWrite?: LocalWriteConfig | undefined;
@@ -579,7 +579,7 @@ async function openLocalFor(
 
 /**
  * Opens the connector for a purpose. Reads of a repository with a local folder come from the
- * folder, when local clones are enabled (MRM_LOCAL_REPO_ROOTS, and not MRM_READS=api); a
+ * folder, when local clones are enabled (KILN_LOCAL_REPO_ROOTS, and not KILN_READS=api); a
  * local-only repository can only be read, and is refused for anything else.
  */
 const openFor = async (

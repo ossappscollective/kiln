@@ -118,7 +118,7 @@ const rolloutConfigSchema = z.object({
   enabled: z
     .boolean()
     .describe(
-      'MRM_STORE_ROLLOUT_ENABLED. While false every rollout route answers `409 rollout_disabled`.',
+      'KILN_STORE_ROLLOUT_ENABLED. While false every rollout route answers `409 rollout_disabled`.',
     ),
   envName: z.string(),
   actions: z.object({ android: z.array(z.string()), ios: z.array(z.string()) }),
@@ -198,7 +198,7 @@ export const rolloutOperations: Draft[] = [
     tags: ['rollout'],
     summary: 'Read where a release stands in the store, and what may be done from there',
     description:
-      'READS THE STORE (Google Play opens and deletes an edit, which invalidates other open edits of the same service account). Changes nothing. Needs `releases.rollout` and `MRM_STORE_ROLLOUT_ENABLED=true` (`409 rollout_disabled` otherwise). Google Play: `track` and `versionCodes` (comma separated); App Store: `version`.',
+      'READS THE STORE (Google Play opens and deletes an edit, which invalidates other open edits of the same service account). Changes nothing. Needs `releases.rollout` and `KILN_STORE_ROLLOUT_ENABLED=true` (`409 rollout_disabled` otherwise). Google Play: `track` and `versionCodes` (comma separated); App Store: `version`.',
     risk: 'read',
     access: { action: 'releases.rollout' },
     appScope: { kind: 'param', name: 'id' },
@@ -221,7 +221,7 @@ export const rolloutOperations: Draft[] = [
     tags: ['rollout'],
     summary: 'Preview a rollout change: the live state, the proposed state and a confirmHash',
     description:
-      'READS THE STORE, writes nothing. Validates the request for the app’s platform (`422 invalid_rollout`), refuses a change the current state does not allow (`422 rollout_not_allowed`, with `current`), and returns `confirmHash`: a hash of the app, the release, the change and the state that was read. Google Play: the share only goes up (`not_an_increase` otherwise; halt is the way to stop); App Store: no un-release. Needs `releases.rollout` and `MRM_STORE_ROLLOUT_ENABLED=true`.',
+      'READS THE STORE, writes nothing. Validates the request for the app’s platform (`422 invalid_rollout`), refuses a change the current state does not allow (`422 rollout_not_allowed`, with `current`), and returns `confirmHash`: a hash of the app, the release, the change and the state that was read. Google Play: the share only goes up (`not_an_increase` otherwise; halt is the way to stop); App Store: no un-release. Needs `releases.rollout` and `KILN_STORE_ROLLOUT_ENABLED=true`.',
     risk: 'read',
     access: { action: 'releases.rollout' },
     appScope: { kind: 'param', name: 'id' },
@@ -238,7 +238,7 @@ export const rolloutOperations: Draft[] = [
     summary:
       'Change the live rollout in the store (what users receive; complete and release to all cannot be undone here)',
     description:
-      'A STORE WRITE. Needs `releases.rollout` (owner and admin; a token only when its actions name it) and `MRM_STORE_ROLLOUT_ENABLED=true`. `confirmHash` must come from a preview of exactly this request. The store is READ AGAIN right before the write: if its state is not the one previewed nothing is written (`409 state_changed`, with `current`, `proposed` and a new `confirmHash`). One write per app at a time (`409 write_in_progress`). Never retried: after a timeout or a 5xx the state is read back and the answer is `200` with `confirmedByReread: true`, `502 write_failed` (`outcome: not_applied`), or `409 outcome_unknown` (then preview again). Google Play never cancels a review in progress (`409 changes_in_review`). Audited as `release.rollout_changed` / `release.rollout_failed` (ids and values, never a credential) and emitted as the event `release.rollout_changed`.',
+      'A STORE WRITE. Needs `releases.rollout` (owner and admin; a token only when its actions name it) and `KILN_STORE_ROLLOUT_ENABLED=true`. `confirmHash` must come from a preview of exactly this request. The store is READ AGAIN right before the write: if its state is not the one previewed nothing is written (`409 state_changed`, with `current`, `proposed` and a new `confirmHash`). One write per app at a time (`409 write_in_progress`). Never retried: after a timeout or a 5xx the state is read back and the answer is `200` with `confirmedByReread: true`, `502 write_failed` (`outcome: not_applied`), or `409 outcome_unknown` (then preview again). Google Play never cancels a review in progress (`409 changes_in_review`). Audited as `release.rollout_changed` / `release.rollout_failed` (ids and values, never a credential) and emitted as the event `release.rollout_changed`.',
     risk: 'destructive',
     access: { action: 'releases.rollout' },
     appScope: { kind: 'param', name: 'id' },

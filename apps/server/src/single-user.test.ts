@@ -72,41 +72,41 @@ const count = async (db: Database, table: 'users' | 'sessions' | 'workspaces') =
 const masterKey = randomBytes(32).toString('base64');
 
 test('config: mode defaults to multi, without a host restriction or a launch secret', () => {
-  const config = loadConfig({ MRM_MASTER_KEY: masterKey });
+  const config = loadConfig({ KILN_MASTER_KEY: masterKey });
   assert.equal(config.mode, 'multi');
   assert.equal(config.host, undefined);
   assert.equal(config.launchSecret, undefined);
 });
 
 test('config: multi mode ignores a launch secret, even a bad one', () => {
-  const config = loadConfig({ MRM_MASTER_KEY: masterKey, MRM_LAUNCH_SECRET: 'short' });
+  const config = loadConfig({ KILN_MASTER_KEY: masterKey, KILN_LAUNCH_SECRET: 'short' });
   assert.equal(config.mode, 'multi');
   assert.equal(config.launchSecret, undefined);
 });
 
 test('config: single_user binds to loopback and keeps the secret', () => {
   const config = loadConfig({
-    MRM_MASTER_KEY: masterKey,
-    MRM_MODE: 'single_user',
-    MRM_LAUNCH_SECRET: SECRET,
+    KILN_MASTER_KEY: masterKey,
+    KILN_MODE: 'single_user',
+    KILN_LAUNCH_SECRET: SECRET,
   });
   assert.equal(config.mode, 'single_user');
   assert.equal(config.host, '127.0.0.1');
   assert.equal(config.launchSecret, SECRET);
   const hex = randomBytes(32).toString('hex');
   assert.equal(
-    loadConfig({ MRM_MASTER_KEY: masterKey, MRM_MODE: 'single_user', MRM_LAUNCH_SECRET: hex })
+    loadConfig({ KILN_MASTER_KEY: masterKey, KILN_MODE: 'single_user', KILN_LAUNCH_SECRET: hex })
       .launchSecret,
     hex,
   );
 });
 
 test('config: single_user needs a strong secret, and errors never echo it', () => {
-  const env = { MRM_MASTER_KEY: masterKey, MRM_MODE: 'single_user' };
-  assert.throws(() => loadConfig(env), /MRM_LAUNCH_SECRET is required/);
+  const env = { KILN_MASTER_KEY: masterKey, KILN_MODE: 'single_user' };
+  assert.throws(() => loadConfig(env), /KILN_LAUNCH_SECRET is required/);
   assert.throws(
-    () => loadConfig({ ...env, MRM_LAUNCH_SECRET: '  ' }),
-    /MRM_LAUNCH_SECRET is required/,
+    () => loadConfig({ ...env, KILN_LAUNCH_SECRET: '  ' }),
+    /KILN_LAUNCH_SECRET is required/,
   );
 
   const weak = [
@@ -119,33 +119,33 @@ test('config: single_user needs a strong secret, and errors never echo it', () =
   ];
   for (const secret of weak) {
     assert.throws(
-      () => loadConfig({ ...env, MRM_LAUNCH_SECRET: secret }),
-      (error: Error) => /MRM_LAUNCH_SECRET/.test(error.message) && !error.message.includes(secret),
+      () => loadConfig({ ...env, KILN_LAUNCH_SECRET: secret }),
+      (error: Error) => /KILN_LAUNCH_SECRET/.test(error.message) && !error.message.includes(secret),
       secret,
     );
   }
 });
 
 test('config: an unknown mode is rejected', () => {
-  assert.throws(() => loadConfig({ MRM_MASTER_KEY: masterKey, MRM_MODE: 'solo' }), /MRM_MODE/);
+  assert.throws(() => loadConfig({ KILN_MASTER_KEY: masterKey, KILN_MODE: 'solo' }), /KILN_MODE/);
 });
 
-test('config: MRM_ALLOWED_HOSTS defaults to none and is parsed for single_user only', () => {
-  const env = { MRM_MASTER_KEY: masterKey, MRM_MODE: 'single_user', MRM_LAUNCH_SECRET: SECRET };
+test('config: KILN_ALLOWED_HOSTS defaults to none and is parsed for single_user only', () => {
+  const env = { KILN_MASTER_KEY: masterKey, KILN_MODE: 'single_user', KILN_LAUNCH_SECRET: SECRET };
   assert.deepEqual(loadConfig(env).allowedHosts, []);
   assert.deepEqual(
-    loadConfig({ ...env, MRM_ALLOWED_HOSTS: ' localhost:5173, ,[::1]:5174 ,LOCALHOST:3000' })
+    loadConfig({ ...env, KILN_ALLOWED_HOSTS: ' localhost:5173, ,[::1]:5174 ,LOCALHOST:3000' })
       .allowedHosts,
     ['localhost:5173', '[::1]:5174', 'localhost:3000'],
   );
   assert.deepEqual(
-    loadConfig({ MRM_MASTER_KEY: masterKey, MRM_ALLOWED_HOSTS: 'evil.example' }).allowedHosts,
+    loadConfig({ KILN_MASTER_KEY: masterKey, KILN_ALLOWED_HOSTS: 'evil.example' }).allowedHosts,
     [],
   );
 });
 
-test('config: MRM_ALLOWED_HOSTS refuses anything that is not loopback with a port', () => {
-  const env = { MRM_MASTER_KEY: masterKey, MRM_MODE: 'single_user', MRM_LAUNCH_SECRET: SECRET };
+test('config: KILN_ALLOWED_HOSTS refuses anything that is not loopback with a port', () => {
+  const env = { KILN_MASTER_KEY: masterKey, KILN_MODE: 'single_user', KILN_LAUNCH_SECRET: SECRET };
   for (const bad of [
     'evil.example:5173',
     'localhost',
@@ -158,7 +158,7 @@ test('config: MRM_ALLOWED_HOSTS refuses anything that is not loopback with a por
     'a.localhost:5173',
     'localhost:5173/x',
   ]) {
-    assert.throws(() => loadConfig({ ...env, MRM_ALLOWED_HOSTS: bad }), /MRM_ALLOWED_HOSTS/, bad);
+    assert.throws(() => loadConfig({ ...env, KILN_ALLOWED_HOSTS: bad }), /KILN_ALLOWED_HOSTS/, bad);
   }
   assert.deepEqual(parseExtraHosts(''), []);
 });

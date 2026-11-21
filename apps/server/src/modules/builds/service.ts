@@ -46,7 +46,7 @@ export const TESTFLIGHT_LIFETIME_MS = 90 * 24 * 60 * 60_000;
 const ARTIFACT_PAGES = 2;
 
 export type BuildsSettings = {
-  /** MRM_BUILDS_DOWNLOAD_ENABLED. Off: the lists work, downloads and links answer `409 builds_download_disabled`. */
+  /** KILN_BUILDS_DOWNLOAD_ENABLED. Off: the lists work, downloads and links answer `409 builds_download_disabled`. */
   downloadEnabled: boolean;
   maxDownloadBytes: number;
   downloadTimeoutMs: number;
@@ -55,7 +55,7 @@ export type BuildsSettings = {
   allowHttpRedirects: boolean;
   /** Builds the read-only App Store Connect connector for the TestFlight public links. Replaced by a fake in tests. */
   storeConnectorFactory: StoreConnectorFactory;
-  /** MRM_PLAY_INTERNAL_SHARING_ENABLED (default false): uploading a build to Google Play internal app sharing (docs/api/internal-sharing.md). */
+  /** KILN_PLAY_INTERNAL_SHARING_ENABLED (default false): uploading a build to Google Play internal app sharing (docs/api/internal-sharing.md). */
   internalSharingEnabled: boolean;
   /** Builds the connector that uploads to internal app sharing. Replaced by a fake in tests. */
   internalSharingConnectorFactory: InternalSharingConnectorFactory;
@@ -946,7 +946,7 @@ export async function openArtifactDownload(
     return fail(
       409,
       'builds_download_disabled',
-      'Downloading builds is switched off on this server (MRM_BUILDS_DOWNLOAD_ENABLED).',
+      'Downloading builds is switched off on this server (KILN_BUILDS_DOWNLOAD_ENABLED).',
     );
   }
   if (!/^[0-9]{1,20}$/.test(input.artifactId))
@@ -1141,7 +1141,7 @@ export async function createDownloadLink(
     return fail(
       409,
       'builds_download_disabled',
-      'Downloading builds is switched off on this server (MRM_BUILDS_DOWNLOAD_ENABLED).',
+      'Downloading builds is switched off on this server (KILN_BUILDS_DOWNLOAD_ENABLED).',
     );
   }
   const wait = ctx.downloadLimiter.take(input.workspaceId);

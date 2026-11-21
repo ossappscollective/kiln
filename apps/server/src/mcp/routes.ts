@@ -28,12 +28,12 @@ import {
 /**
  * `POST /mcp`, the MCP endpoint (docs/adr/0023-mcp-server.md, docs/api/mcp.md), and the admin status route for the Settings card.
  *
- * - OFF by default (MRM_MCP_ENABLED): while off, every method answers 404 as if the route did not exist.
+ * - OFF by default (KILN_MCP_ENABLED): while off, every method answers 404 as if the route did not exist.
  * - Streamable HTTP, stateless: a POST with a JSON-RPC message (or a batch) is answered with `application/json`; notifications get 202.
  *   GET (the optional server to client stream) and DELETE (ending a session, which does not exist) answer 405.
  * - Authentication is the API token and nothing else: `Authorization: Bearer mrm_...` is REQUIRED, the session cookie is ignored, so a
  *   page in a browser can never act through this endpoint. A request with an `Origin` header is refused unless the origin is one the
- *   server already trusts (MRM_PUBLIC_ORIGIN, MRM_TRUSTED_ORIGINS): real MCP clients are not browsers and send none, and a rebound DNS name
+ *   server already trusts (KILN_PUBLIC_ORIGIN, KILN_TRUSTED_ORIGINS): real MCP clients are not browsers and send none, and a rebound DNS name
  *   shows up as a foreign origin. In single user mode the host guard of the app (single-user.ts) runs before this as well.
  * - A tool call goes through the app's own routes with the same bearer token (see `dispatcher`), so the registry allow-list, the role
  *   ceiling, the app restriction, the per token rate limit and the audit attribution are the routes' own.
@@ -52,7 +52,7 @@ export const CALL_TIMEOUT_MS = 25_000;
 const MAX_ROUTE_ANSWER = 4_000_000;
 
 export type McpDeps = {
-  /** MRM_MCP_ENABLED. Default false. */
+  /** KILN_MCP_ENABLED. Default false. */
   enabled?: boolean;
   /** MCP requests per token per minute. */
   limiter?: TestLimiter;
@@ -244,7 +244,7 @@ export function mcpStatus(enabled: boolean, flags: McpFlags) {
     enabled,
     endpoint: '/mcp',
     protocolVersion: LATEST_PROTOCOL_VERSION,
-    envName: 'MRM_MCP_ENABLED',
+    envName: 'KILN_MCP_ENABLED',
     switches: (Object.keys(FLAG_ENV) as (keyof McpFlags)[]).map((key) => ({
       env: FLAG_ENV[key],
       enabled: flags[key],

@@ -2,7 +2,7 @@
   SubmitReady: the slim "Draft pushed — ready to submit?" line of one app record, with the "Submit for review…"
   button and the dialog behind it. Drawn only for admin and up (`store.submit`) and only while a draft push is
   waiting to be submitted (or a submit has an unknown outcome). While the server's switch is off there is no
-  button: the line says so and a small popover names MRM_STORE_SUBMIT_ENABLED.
+  button: the line says so and a small popover names KILN_STORE_SUBMIT_ENABLED.
   A submit is a SEPARATE, IRREVERSIBLE store write: the preview (a store read) comes first; the submit is sent
   once with the preview's hash and the typed phrase and is NEVER retried by this app. `state_changed` brings a
   new preview that must be confirmed again; `outcome_unknown` makes the person look at the store console and

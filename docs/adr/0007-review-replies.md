@@ -35,7 +35,7 @@ reply works past the 7 day window.
 
 Replying is built as a **gated, two-person-step-free but deliberate** write. Ten rules:
 
-1. **A kill switch, off by default.** `MRM_REVIEW_REPLY_ENABLED=true` turns the feature on. While off,
+1. **A kill switch, off by default.** `KILN_REVIEW_REPLY_ENABLED=true` turns the feature on. While off,
    every reply route (draft, delete, translate, send, templates) answers `409 reply_disabled` naming
    the variable, the UI says the same, and no connector is ever built for a write.
 2. **A separate right.** `reviews.reply` is **admin and up**. Writing a draft stays `reviews.triage`

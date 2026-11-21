@@ -95,7 +95,7 @@ startup, the smoke test fails and the skip list in the script changes.
   `std::process::Command`, as it does today. Capabilities restrict what the web view can call; a
   Rust `Command` is outside them. Not adding `tauri-plugin-shell` means no `shell:allow-*`
   permission exists for a page to use. The plugin's `CommandChild` also has `write` and `kill`
-  but no way to close stdin, which the server's `MRM_EXIT_WITH_PARENT` shutdown (ADR 0003) needs.
+  but no way to close stdin, which the server's `KILN_EXIT_WITH_PARENT` shutdown (ADR 0003) needs.
   The window loads a remote origin and `capabilities/default.json` grants that origin nothing;
   that does not change. If the shell plugin is ever added, the capability must allow only
   `{ "name": "binaries/mrm-node", "sidecar": true }` with fixed arguments.
@@ -149,7 +149,7 @@ startup, the smoke test fails and the skip list in the script changes.
   download; it takes `--node <path>`.
 - `main.rs` changes (still uncompiled): `packaged_server`, `spawn_server` takes the app handle,
   release builds use the packaged server, debug builds keep the repository stand-in unless
-  `MRM_USE_PACKAGED_SERVER` is set.
+  `KILN_USE_PACKAGED_SERVER` is set.
 
 ## What is verified
 

@@ -160,7 +160,7 @@ test('failures: each fixed code has its own kind and says whether anything chang
     new ApiError(status, code, String(body.message ?? 'Server words.'), retry, { error: code, ...body });
   const off = classifyProductFailure(err(409, 'store_product_write_disabled'), 'change');
   assert.equal(off.kind, 'disabled');
-  assert.match(off.message, /MRM_STORE_PRODUCT_WRITE_ENABLED=true/);
+  assert.match(off.message, /KILN_STORE_PRODUCT_WRITE_ENABLED=true/);
   assert.match(off.message, /Nothing was changed/);
   assert.equal(classifyProductFailure(err(403, 'forbidden'), 'change').kind, 'forbidden');
   assert.equal(classifyProductFailure(err(409, 'write_in_progress'), 'change').kind, 'busy');

@@ -31,7 +31,7 @@ round is deliberately small: read everything, write only the text a person sees.
    product, and does not add a locale (a locale the store does not list is `404 locale_not_found`). Gated exactly like the other
    reversible store writes ([ADR 0008](0008-store-rollout-writes.md), [0009](0009-staged-store-drafts.md),
    [0031](0031-create-app-store-version.md)):
-   - **Switch** `MRM_STORE_PRODUCT_WRITE_ENABLED` (default `false`). Off: `409 store_product_write_disabled` with `envName`, after the
+   - **Switch** `KILN_STORE_PRODUCT_WRITE_ENABLED` (default `false`). Off: `409 store_product_write_disabled` with `envName`, after the
      rights check and before anything else. Reads and the sync do not depend on it.
    - **Right** `monetization.write`: owner and admin. For an API token it is **explicit-only**: a token acts on it only when its
      action list names it (the same class as `releases.rollout`).
@@ -81,7 +81,7 @@ extended and the schema-drift test covers them.
 
 - **Price changes** are the next step and need their own design, not a wider text write. Money on a live product is a different
   risk: a wrong price is charged to real customers at once and cannot be called back. The design to follow:
-  - a **separate switch** (`MRM_STORE_PRICE_WRITE_ENABLED`, off by default) and a **separate right** (explicit-only for tokens),
+  - a **separate switch** (`KILN_STORE_PRICE_WRITE_ENABLED`, off by default) and a **separate right** (explicit-only for tokens),
     so turning on text edits never turns on price edits;
   - **step-up on every apply**, with a **typed phrase** (as for a release) and no way to skip it for a token;
   - a **preview of revenue impact**: for each territory the old and new price, the change in percent, and an estimate from the

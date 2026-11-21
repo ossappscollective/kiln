@@ -612,10 +612,10 @@ errors above.
 ## Scheduled sync
 
 There is no cron and no extra process: a small scheduler runs where the job worker runs
-(`MRM_WORKER=inline`, the default) and only **queues jobs**; the worker runs them through the normal
+(`KILN_WORKER=inline`, the default) and only **queues jobs**; the worker runs them through the normal
 handlers, so a sync keeps its audit trail and retries.
 
-- **`MRM_SYNC_INTERVAL_MINUTES`** (default `30`): queue an `app.sync` job for every app whose
+- **`KILN_SYNC_INTERVAL_MINUTES`** (default `30`): queue an `app.sync` job for every app whose
   last sync attempt, successful or not, is older than this. `0` turns scheduled syncs off, or a
   value from `5` to `10080` (one week); anything else stops the server at start. It is on by
   default because a sync only reads the stores (with the stored credentials) and is what lets the
@@ -625,7 +625,7 @@ handlers, so a sync keeps its audit trail and retries.
 - **Per workspace** ([ADR 0030](../adr/0030-workspace-sync-setting.md), [settings](settings.md)): the workspace settings `sync.enabled` (on
   by default) and `sync.intervalMinutes` (5 to 10080; Settings offers 15 minutes, 30 minutes, 1 hour, 6 hours, daily) are read every tick. A
   workspace that turned the refresh off is skipped (`skipped.disabled`); one that chose an interval uses it instead of the server's;
-  `MRM_SYNC_INTERVAL_MINUTES=0` stays off for everyone. `GET /settings` reports when the last scheduled sync ran
+  `KILN_SYNC_INTERVAL_MINUTES=0` stays off for everyone. `GET /settings` reports when the last scheduled sync ran
   (`sync.lastScheduledAt`, from the audit events whose `requestedBy` is `scheduler`).
 - The scheduler ticks every minute (first tick 10 seconds after start). Each queued job gets a
   **random delay** of up to a tenth of the interval (at most 5 minutes), so a workspace does not
@@ -661,7 +661,7 @@ repository and start time) and `build_links` (one row per app, platform and buil
 has a foreign key to repositories or apps, the scheduler cleans orphans. Run inputs are stored as
 sent (they are values a person typed into a dispatch; do not put secrets in workflow inputs).
 **Postgres:** the migration, the tables and the SQL have run only on SQLite; the test suite runs
-them on Postgres when `MRM_TEST_POSTGRES_URL` is set.
+them on Postgres when `KILN_TEST_POSTGRES_URL` is set.
 
 ## Error codes
 

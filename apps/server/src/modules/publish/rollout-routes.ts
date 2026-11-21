@@ -20,14 +20,14 @@ import {
 
 /**
  * Changing the live rollout of an app in its store (docs/api/rollout.md, docs/adr/0008-store-rollout-writes.md):
- * a store write, OFF unless MRM_STORE_ROLLOUT_ENABLED=true. Mounted under /api/workspaces.
+ * a store write, OFF unless KILN_STORE_ROLLOUT_ENABLED=true. Mounted under /api/workspaces.
  */
 export type RolloutRoutesContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
   rollout?: {
-    /** MRM_STORE_ROLLOUT_ENABLED (default false). */
+    /** KILN_STORE_ROLLOUT_ENABLED (default false). */
     enabled?: boolean;
     /** Builds the connector that can read and change a rollout (fakes in tests). */
     connectorFactory?: RolloutConnectorFactory;

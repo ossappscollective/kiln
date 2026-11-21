@@ -1,7 +1,7 @@
 import type { Sql } from '@kiln/db';
 
 /**
- * The scheduled store refresh, per workspace. The server-wide switch is `MRM_SYNC_INTERVAL_MINUTES` (default 30; 0 turns scheduled
+ * The scheduled store refresh, per workspace. The server-wide switch is `KILN_SYNC_INTERVAL_MINUTES` (default 30; 0 turns scheduled
  * syncs off for every workspace). A workspace may then turn its own refresh off (`sync.enabled`, on by default) or choose how often
  * its apps are read (`sync.intervalMinutes`); a workspace that chose nothing uses the server's interval. See docs/api/ci.md and
  * docs/adr/0030-workspace-sync-setting.md.
@@ -53,7 +53,7 @@ export async function loadSyncPrefs(sql: Sql): Promise<Map<string, SyncPrefs>> {
 }
 
 /**
- * What applies to one workspace. `serverMinutes` is MRM_SYNC_INTERVAL_MINUTES (0: off for everyone). `minutes` is 0 when no scheduled
+ * What applies to one workspace. `serverMinutes` is KILN_SYNC_INTERVAL_MINUTES (0: off for everyone). `minutes` is 0 when no scheduled
  * sync runs for the workspace, and says why in `reason`.
  */
 export function effectiveSync(

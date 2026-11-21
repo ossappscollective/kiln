@@ -193,7 +193,7 @@ export const asoOperations: Draft[] = [
     tags: ['aso'],
     summary: 'ASO: what is switched on, the limits and the Google Play warning',
     description:
-      'Apple is read through the documented iTunes Search API. Google Play has no official API: `play.enabled` is false unless the operator set MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true, and `play.notice` is the warning about its terms of service. Admins and owners hold `aso.manage`.',
+      'Apple is read through the documented iTunes Search API. Google Play has no official API: `play.enabled` is false unless the operator set KILN_ASO_PLAY_UNOFFICIAL_ENABLED=true, and `play.notice` is the warning about its terms of service. Admins and owners hold `aso.manage`.',
     risk: 'read',
     access: { action: 'aso.read' },
     responses: {
@@ -731,7 +731,7 @@ export const asoOperations: Draft[] = [
     tags: ['aso'],
     summary: 'Check the keyword ranks and competitors of an app now',
     description:
-      'READS THE PUBLIC STORE (Apple: the iTunes Search API; Google Play: its public pages, only when switched on, `409 play_unofficial_disabled` otherwise). Read-only toward the stores. At most MRM_ASO_MAX_CHECKS_PER_RUN keywords per run, the oldest first; the rest stays due (`result.deferred`). Stops early when a store says to slow down, is unavailable or fails repeatedly; an unavailable store is never recorded as "not ranked". `429` carries `Retry-After`; `409 refresh_in_progress` while another refresh of the app holds the claim. `?background=true` queues it and answers `202` with `jobId`. Rate limited per workspace.',
+      'READS THE PUBLIC STORE (Apple: the iTunes Search API; Google Play: its public pages, only when switched on, `409 play_unofficial_disabled` otherwise). Read-only toward the stores. At most KILN_ASO_MAX_CHECKS_PER_RUN keywords per run, the oldest first; the rest stays due (`result.deferred`). Stops early when a store says to slow down, is unavailable or fails repeatedly; an unavailable store is never recorded as "not ranked". `429` carries `Retry-After`; `409 refresh_in_progress` while another refresh of the app holds the claim. `?background=true` queues it and answers `202` with `jobId`. Rate limited per workspace.',
     risk: 'write',
     access: { action: 'aso.write' },
     appScope: { kind: 'param', name: 'id' },

@@ -1,7 +1,7 @@
 <!--
   ReviewsTab: the customer reviews and ratings of an app, with internal triage and replies. "Read
   reviews now" only reads. Replying is a public store write: it is off unless the server turns it on
-  (MRM_REVIEW_REPLY_ENABLED), needs an admin to send, and goes through ReplyDialog (draft, confirm).
+  (KILN_REVIEW_REPLY_ENABLED), needs an admin to send, and goes through ReplyDialog (draft, confirm).
   Props: api, workspaceId, role, app, now (ms), refreshKey (changes when the app was synced, so this
   tab reloads).
   Platform scope: the app record is one platform; the app section mounts one tab per platform in scope.

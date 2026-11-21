@@ -11,7 +11,7 @@
 // On start this:
 //   1. makes a launch secret from the OS CSPRNG (32 bytes, hex),
 //   2. picks a free loopback port,
-//   3. starts the server as a child process in MRM_MODE=single_user, passing the secret in the
+//   3. starts the server as a child process in KILN_MODE=single_user, passing the secret in the
 //      environment (never argv: other users can read argv),
 //   4. waits for /api/health,
 //   5. opens the window at /api/auth/launch?secret=..., which trades the secret for a session
@@ -59,7 +59,7 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Standard base64 with padding, which is what the server's MRM_MASTER_KEY expects.
+/// Standard base64 with padding, which is what the server's KILN_MASTER_KEY expects.
 fn base64(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::new();
@@ -99,6 +99,38 @@ fn load_or_create_master_key(data_dir: &Path) -> BoxResult<String> {
     Ok(key)
 }
 
+/// The app data folder of the first versions, from before the product was named Kiln
+/// (docs/adr/0040-rename-to-kiln.md). It sits next to the current one.
+const LEGACY_IDENTIFIER: &str = "dev.example.mobilereleasemanager";
+
+/// The app data folder: `default_dir`, unless only the earlier folder exists. Nothing is moved or deleted.
+fn resolve_data_dir(default_dir: PathBuf) -> PathBuf {
+    if !default_dir.exists() {
+        if let Some(old) = default_dir.parent().map(|p| p.join(LEGACY_IDENTIFIER)) {
+            if old.is_dir() {
+                return old;
+            }
+        }
+    }
+    default_dir
+}
+
+/// The database file: `kiln.db`, or the earlier `mrm.db` when only that one exists.
+fn database_file(data_dir: &Path) -> PathBuf {
+    let current = data_dir.join("kiln.db");
+    let earlier = data_dir.join("mrm.db");
+    if !current.exists() && earlier.exists() {
+        earlier
+    } else {
+        current
+    }
+}
+
+/// An environment variable of the shell: `KILN_<name>`, or the earlier `MRM_<name>`.
+fn shell_env(name: &str) -> Option<std::ffi::OsString> {
+    std::env::var_os(format!("KILN_{name}")).or_else(|| std::env::var_os(format!("MRM_{name}")))
+}
+
 /// Asks the OS for a free loopback port. Another process could take it before the server does;
 /// the server then fails to start and the shell reports that.
 fn free_port() -> BoxResult<u16> {
@@ -126,8 +158,8 @@ fn packaged_server(app: &tauri::AppHandle) -> Option<(PathBuf, PathBuf, PathBuf)
 
 /// Starts the server. Release builds run the packaged server (own Node binary, no Node needed on
 /// the user's machine). Debug builds run the repository sources with the system Node, so editing
-/// the server needs no re-staging; set MRM_USE_PACKAGED_SERVER=1 to test the packaged one in
-/// `tauri dev`. In the repository case, MRM_NODE picks a specific Node binary (a macOS app
+/// the server needs no re-staging; set KILN_USE_PACKAGED_SERVER=1 to test the packaged one in
+/// `tauri dev`. In the repository case, KILN_NODE picks a specific Node binary (a macOS app
 /// started from Finder has a short PATH).
 fn spawn_server(
     app: &tauri::AppHandle,
@@ -137,7 +169,7 @@ fn spawn_server(
     master_key: &str,
 ) -> BoxResult<Child> {
     let use_packaged =
-        !cfg!(debug_assertions) || std::env::var_os("MRM_USE_PACKAGED_SERVER").is_some();
+        !cfg!(debug_assertions) || shell_env("USE_PACKAGED_SERVER").is_some();
 
     let mut command = if use_packaged {
         let (node, launcher, web) = packaged_server(app).ok_or(
@@ -148,7 +180,7 @@ fn spawn_server(
             .arg("--disable-warning=ExperimentalWarning")
             .arg(launcher)
             .current_dir(data_dir)
-            .env("MRM_WEB_DIST", web);
+            .env("KILN_WEB_DIST", web);
         command
     } else {
         // apps/desktop/src-tauri -> repository root. Fixed at compile time, so dev builds only.
@@ -157,27 +189,28 @@ fn spawn_server(
         if !entry.exists() {
             return Err(format!("server entry not found at {}", entry.display()).into());
         }
-        let node = std::env::var("MRM_NODE").unwrap_or_else(|_| "node".to_string());
+        let node = shell_env("NODE").unwrap_or_else(|| "node".into());
         let mut command = Command::new(node);
         command
             .arg("--disable-warning=ExperimentalWarning")
             .arg(&entry)
             .current_dir(&root)
-            .env("MRM_WEB_DIST", root.join("apps/web/dist"));
+            .env("KILN_WEB_DIST", root.join("apps/web/dist"));
         command
     };
 
     command
-        .env("MRM_MODE", "single_user")
-        .env("MRM_LAUNCH_SECRET", secret)
-        .env("MRM_MASTER_KEY", master_key)
+        .env("KILN_MODE", "single_user")
+        .env("KILN_LAUNCH_SECRET", secret)
+        .env("KILN_MASTER_KEY", master_key)
         .env("PORT", port.to_string())
-        .env("MRM_DATA_DIR", data_dir)
-        .env("DATABASE_URL", format!("file:{}", data_dir.join("mrm.db").display()))
-        .env("MRM_WORKER", "inline")
+        .env("KILN_DATA_DIR", data_dir)
+        .env("DATABASE_URL", format!("file:{}", database_file(data_dir).display()))
+        .env("KILN_WORKER", "inline")
         // The server watches its stdin and exits when it closes, so it stops even if this
         // process is killed without running its exit handler.
-        .env("MRM_EXIT_WITH_PARENT", "1")
+        .env("KILN_EXIT_WITH_PARENT", "1")
+        .env_remove("KILN_TRUSTED_ORIGINS")
         .env_remove("MRM_TRUSTED_ORIGINS")
         // The app may be started from a shell that exports Node options; do not pass them on.
         .env_remove("NODE_OPTIONS")
@@ -247,7 +280,7 @@ fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            let data_dir = app.path().app_data_dir()?;
+            let data_dir = resolve_data_dir(app.path().app_data_dir()?);
             fs::create_dir_all(&data_dir)?;
 
             // 32 bytes from the OS CSPRNG as 64 hex characters. Never logged, never in argv.

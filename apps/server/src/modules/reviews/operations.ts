@@ -224,7 +224,7 @@ const reviewsSummarySchema = z.object({
     .number()
     .int()
     .nullable()
-    .describe('MRM_REVIEW_RETENTION_DAYS; 0 keeps every review.'),
+    .describe('KILN_REVIEW_RETENTION_DAYS; 0 keeps every review.'),
 });
 
 // ----- replying to reviews (a store write, off by default: docs/api/reviews.md#replying-to-a-review) ----
@@ -337,7 +337,7 @@ const replyConfigSchema = z.object({
   enabled: z
     .boolean()
     .describe(
-      'MRM_REVIEW_REPLY_ENABLED. While false every reply route answers `409 reply_disabled`.',
+      'KILN_REVIEW_REPLY_ENABLED. While false every reply route answers `409 reply_disabled`.',
     ),
   envName: z.string(),
   limits: z.object({ appstoreconnect: z.number().int(), googleplay: z.number().int() }),
@@ -709,7 +709,7 @@ export const reviewsOperations: Draft[] = [
     tags: ['reviews'],
     summary: 'Publish the draft reply in the store (public, not recallable here)',
     description:
-      'A STORE WRITE: the text is published publicly in the App Store or Google Play in the organisation\u2019s name. Needs `reviews.reply` (owner and admin; a token only when its actions name it) and `MRM_REVIEW_REPLY_ENABLED=true`. `confirmHash` must be the hash of the current draft (`409 stale_draft` otherwise); a second send of the same text is `409 already_sent`; one send per review at a time (`409 send_in_progress`); 30 an hour per workspace (`429 rate_limited`). Never retried: a timeout is checked by reading the review back and the answer is `200` with the settled state, `409 outcome_unknown`, or `502 send_failed` with the draft kept. Audited as `review.reply_sent` / `review.reply_failed` (ids, store, length, hash: never the text) and emitted as the event `review.reply_sent`.',
+      'A STORE WRITE: the text is published publicly in the App Store or Google Play in the organisation\u2019s name. Needs `reviews.reply` (owner and admin; a token only when its actions name it) and `KILN_REVIEW_REPLY_ENABLED=true`. `confirmHash` must be the hash of the current draft (`409 stale_draft` otherwise); a second send of the same text is `409 already_sent`; one send per review at a time (`409 send_in_progress`); 30 an hour per workspace (`429 rate_limited`). Never retried: a timeout is checked by reading the review back and the answer is `200` with the settled state, `409 outcome_unknown`, or `502 send_failed` with the draft kept. Audited as `review.reply_sent` / `review.reply_failed` (ids, store, length, hash: never the text) and emitted as the event `review.reply_sent`.',
     risk: 'destructive',
     access: { action: 'reviews.reply' },
     appScope: { kind: 'param', name: 'id' },

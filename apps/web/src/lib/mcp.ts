@@ -130,7 +130,7 @@ export function snippets(origin: string, token: string | null, endpoint = '/mcp'
   const secret = token ?? TOKEN_PLACEHOLDER;
   const url = mcpUrl(origin, endpoint);
   const base = origin.replace(/\/+$/, '');
-  const stdioEnv = { MRM_URL: base, MRM_TOKEN: secret };
+  const stdioEnv = { KILN_URL: base, KILN_TOKEN: secret };
   const stdioServer = { command: 'node', args: [BRIDGE], env: stdioEnv };
   return [
     {
@@ -147,7 +147,7 @@ export function snippets(origin: string, token: string | null, endpoint = '/mcp'
       title: 'Claude Code (stdio)',
       where: 'Run in a terminal',
       language: 'sh',
-      text: `claude mcp add ${SERVER_NAME} --env MRM_URL=${shellQuote(base)} --env MRM_TOKEN=${shellQuote(secret)} -- node ${BRIDGE}`,
+      text: `claude mcp add ${SERVER_NAME} --env KILN_URL=${shellQuote(base)} --env KILN_TOKEN=${shellQuote(secret)} -- node ${BRIDGE}`,
     },
     {
       client: 'claude-desktop',

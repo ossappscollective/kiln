@@ -20,7 +20,7 @@ Routes are under `/api/workspaces/{workspaceId}`. A non-member gets 404, a membe
 
 | Setting                    | Value                                                                                                                                                                                                                                                   |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MRM_STORE_SUBMIT_ENABLED` | Default `false`; only `true` and `false`; blank is off. **Independent of** `MRM_STORE_DRAFT_WRITE_ENABLED`: drafts on does not turn submitting on. See [deployment](../deployment.md#submitting-a-draft-for-store-review-a-store-write-off-by-default). |
+| `KILN_STORE_SUBMIT_ENABLED` | Default `false`; only `true` and `false`; blank is off. **Independent of** `KILN_STORE_DRAFT_WRITE_ENABLED`: drafts on does not turn submitting on. See [deployment](../deployment.md#submitting-a-draft-for-store-review-a-store-write-off-by-default). |
 | `store.submit`             | **admin and up** (owner, admin). Explicit-only on API tokens: the token's `actions` must name it (a token with no list never gets it) and the role ceiling still applies. Not `store.push_draft`: being allowed to push is not being allowed to submit. |
 
 ## The flow

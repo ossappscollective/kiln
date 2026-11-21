@@ -490,7 +490,7 @@ dbTest(
     assert.ok(!list.includes('save_reply_draft'));
     assert.ok(list.includes('triage_review'), 'triage has no store switch');
     const who = await t.tool(releaser, 'whoami');
-    assert.ok(who.content.data.switchesOff.includes('MRM_STORE_RELEASE_ENABLED'));
+    assert.ok(who.content.data.switchesOff.includes('KILN_STORE_RELEASE_ENABLED'));
     assert.equal(who.content.data.canApply, false);
   },
 );

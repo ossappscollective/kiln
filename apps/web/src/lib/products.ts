@@ -15,7 +15,7 @@ import type {
  * build: no flatMap, no fromEntries.
  */
 
-export const PRODUCT_WRITE_ENV = 'MRM_STORE_PRODUCT_WRITE_ENABLED';
+export const PRODUCT_WRITE_ENV = 'KILN_STORE_PRODUCT_WRITE_ENABLED';
 export const PRODUCT_WRITE_ROLE_REASON =
   'Changing a product text needs the admin or owner role. You can read everything on this page.';
 /** The limits the server enforces; the store may have stricter ones and says so when it refuses. */

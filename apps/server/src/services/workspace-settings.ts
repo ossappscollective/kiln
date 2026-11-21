@@ -37,7 +37,7 @@ import { checkWebhookUrl, type Resolver, resolveAllowed } from './webhook-transp
  */
 
 export type SettingsContext = {
-  /** MRM_TRANSLATE_ALLOW_PRIVATE_URLS: the LibreTranslate address may be private or loopback. */
+  /** KILN_TRANSLATE_ALLOW_PRIVATE_URLS: the LibreTranslate address may be private or loopback. */
   allowPrivateUrls?: boolean;
   /** DNS lookup for the address check on save (tests replace it). */
   resolve?: Resolver;
@@ -92,14 +92,14 @@ export const settingDefinitions = {
     parse: integerIn(0, 720),
   } satisfies Definition<number>,
   'sync.enabled': {
-    doc: 'Scheduled refresh of the stores: while on, the server reads the stores of every app of this workspace on its own (read only, with the stored credentials) so alerts can tell you when a release goes into review, is approved, rejected or halted. On by default. It has no effect when the server turned scheduled syncs off (MRM_SYNC_INTERVAL_MINUTES=0). Google Play reports no review state, so for Android alerts cover what Play reports (track, rollout, halted).',
+    doc: 'Scheduled refresh of the stores: while on, the server reads the stores of every app of this workspace on its own (read only, with the stored credentials) so alerts can tell you when a release goes into review, is approved, rejected or halted. On by default. It has no effect when the server turned scheduled syncs off (KILN_SYNC_INTERVAL_MINUTES=0). Google Play reports no review state, so for Android alerts cover what Play reports (track, rollout, halted).',
     default: true,
     writeAction: 'settings.write',
     parse: (raw: unknown): Parsed<boolean> =>
       typeof raw === 'boolean' ? ok(raw) : bad('Use true or false.'),
   } satisfies Definition<boolean>,
   'sync.intervalMinutes': {
-    doc: `Minutes between two scheduled refreshes of one app (${MIN_SYNC_INTERVAL_MINUTES} to ${MAX_SYNC_INTERVAL_MINUTES}; the Settings screen offers 15, 30, 60, 360 and 1440). Not set: the server's interval (MRM_SYNC_INTERVAL_MINUTES, 30 by default).`,
+    doc: `Minutes between two scheduled refreshes of one app (${MIN_SYNC_INTERVAL_MINUTES} to ${MAX_SYNC_INTERVAL_MINUTES}; the Settings screen offers 15, 30, 60, 360 and 1440). Not set: the server's interval (KILN_SYNC_INTERVAL_MINUTES, 30 by default).`,
     default: DEFAULT_SYNC_INTERVAL_MINUTES,
     writeAction: 'settings.write',
     parse: (raw: unknown): Parsed<number> =>
@@ -164,7 +164,7 @@ export const settingDefinitions = {
     parse: integerIn(0, MAX_DAILY_CHAR_BUDGET),
   } satisfies Definition<number>,
   'translation.libretranslate.url': {
-    doc: 'The address of the LibreTranslate server, https://host[/path]. Empty means none. A private or loopback address needs MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true on the server. The API key, if the server needs one, is a vault credential.',
+    doc: 'The address of the LibreTranslate server, https://host[/path]. Empty means none. A private or loopback address needs KILN_TRANSLATE_ALLOW_PRIVATE_URLS=true on the server. The API key, if the server needs one, is a vault credential.',
     default: '',
     writeAction: 'settings.write',
     parse: (raw: unknown, ctx?: SettingsContext): Parsed<string> => {

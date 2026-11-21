@@ -34,8 +34,8 @@ clone. The GitHub API stays for connecting a repository, credential tests, apply
 
 ### The clone
 
-- Location: `<MRM_CLONE_DIR>/<workspace id>/<repository id>`, default
-  `<MRM_DATA_DIR>/clones/...`. Ids are checked (letters, digits, `-`, `_`), so they cannot
+- Location: `<KILN_CLONE_DIR>/<workspace id>/<repository id>`, default
+  `<KILN_DATA_DIR>/clones/...`. Ids are checked (letters, digits, `-`, `_`), so they cannot
   traverse. The folder holds `mrm-clone.json` (a marker and the source URL, no secret); the
   marker is what allows deleting it.
 - A bare repository made with `git init --bare --template=` (the empty template: no sample
@@ -189,17 +189,17 @@ A clone is a cache: it can be deleted at any time and is made again on demand.
 
 ### Idle pruning and the disk budget (built)
 
-- [x] Idle pruning and a disk budget for `MRM_CLONE_DIR`.
+- [x] Idle pruning and a disk budget for `KILN_CLONE_DIR`.
 
 `services/clone-upkeep.ts` (`createCloneUpkeep`) runs one sweep over the folder; the scheduler calls
-it every `MRM_CLONE_SWEEP_INTERVAL_MINUTES` (default 360, `0` = off; the first run is at the first
+it every `KILN_CLONE_SWEEP_INTERVAL_MINUTES` (default 360, `0` = off; the first run is at the first
 scheduler tick after start, not at start itself).
 
 - **Last use.** The marker `mrm-clone.json` has its mtime touched when a clone is resolved or
   verified for a read (`GitCloneReader.#touch`, at most once every 30 s per clone), so the marker is
   the clock. A clone with no marker is not a clone and is not touched.
-- **Idle phase.** Clones unused for `MRM_CLONE_IDLE_DAYS` (default 30, `0` = never) are removed.
-- **Budget phase.** If the folder is still over `MRM_CLONE_MAX_BYTES` (default 2 GiB, accepts `500m`,
+- **Idle phase.** Clones unused for `KILN_CLONE_IDLE_DAYS` (default 30, `0` = never) are removed.
+- **Budget phase.** If the folder is still over `KILN_CLONE_MAX_BYTES` (default 2 GiB, accepts `500m`,
   `2g`, `10 GiB`; `0` = unlimited) the least recently used clones are removed until it is not. The
   budget is for the whole folder, so one workspace's clones can make room for another's; the audit
   event is written per workspace, with counts only (`clone.prune`: scanned, removed, idle, budget, bytes
@@ -235,11 +235,11 @@ the 90 s request timeout.
 
 The image (`node:22-bookworm-slim`) has no `git`. The Dockerfile now runs
 `apt-get install -y --no-install-recommends git ca-certificates` (root, before `USER node`, apt
-lists removed) and creates `/data/clones` (mode 0700, owned by `node`; `MRM_CLONE_DIR=/data/clones`).
+lists removed) and creates `/data/clones` (mode 0700, owned by `node`; `KILN_CLONE_DIR=/data/clones`).
 **The image has not been built**: no Docker was available. The clone folder is under `/data`, which
 is the volume the container already writes to. Needed: git 2.34 or newer (tested with 2.34.1; `GIT_CONFIG_COUNT` needs 2.31, `GIT_CONFIG_GLOBAL`
 2.32). Debian 12 ships a newer git (expected 2.39); behaviour on it is unverified. The server
-checks `git --version` at start when `MRM_READS` is not `api`.
+checks `git --version` at start when `KILN_READS` is not `api`.
 
 ## Local clones (phase 3)
 
@@ -250,18 +250,18 @@ which folders may ever be read.
 
 ### Decision
 
-- **Off by default.** `MRM_LOCAL_REPO_ROOTS` is an absolute-path list (colon separated). Unset means
+- **Off by default.** `KILN_LOCAL_REPO_ROOTS` is an absolute-path list (colon separated). Unset means
   no folder can be checked, attached or read, in hosted and in `single_user` mode alike. The web app
   says so and names the variable; when it is set, the Connect dialog lists the roots.
-  `MRM_READS=api` ("git is never run") also turns it off.
+  `KILN_READS=api` ("git is never run") also turns it off.
 - **Two uses.** (a) Attach a folder to an existing GitHub repository: reads come from the folder,
   apply still opens a pull request on GitHub by default (or commits to the folder, phase 4). (b)
   Connect a folder as a **local-only** repository with no credential and no `owner/repo`: reads come
   from the folder; a change set is applied as a commit on a new branch of the folder (phase 4,
-  `MRM_LOCAL_REPO_WRITE=true`); `github_pr` is refused with `409 local_only` (checked before the
+  `KILN_LOCAL_REPO_WRITE=true`); `github_pr` is refused with `409 local_only` (checked before the
   change set is claimed, so it stays approved).
 - **Committed state only.** The reader fetches the tip of one chosen branch from the folder into a
-  managed bare clone (`<MRM_CLONE_DIR>/<ws>/<repoId>-local`, ttl 0, so every request sees the newest
+  managed bare clone (`<KILN_CLONE_DIR>/<ws>/<repoId>-local`, ttl 0, so every request sees the newest
   commit). Nothing is checked out and the folder is never written to. Uncommitted work is not read;
   the UI shows the count from a read-only `git status` ("Reads commit abc1234 on branch main; 3
   uncommitted changes are not included").
@@ -293,12 +293,12 @@ untrusted (a cloned repository carries its own config), and the _path_ is attack
 | Reading any folder on the machine                                                                                                                      | allowed roots from the environment only; the real path must be inside one; `/` is refused as a root                                                                                                                                                                              | yes                                                                               |
 | Traversal, symlink out of a root, NUL bytes, long paths                                                                                                | text rules (absolute, no `..`, no control characters, 4096 bytes); `realpath` before the root test; a symlinked `.git` is refused; a `.git` file's git directory (and `commondir`) must be inside a root too                                                                     | yes                                                                               |
 | Swapping a folder for a symlink after it was attached                                                                                                  | the real path is validated again at every read, not only when attached                                                                                                                                                                                                           | yes                                                                               |
-| Reading the server's own data or clones                                                                                                                | `MRM_DATA_DIR`, `MRM_CLONE_DIR` and any folder with `mrm-clone.json` are refused                                                                                                                                                                                                 | yes                                                                               |
+| Reading the server's own data or clones                                                                                                                | `KILN_DATA_DIR`, `KILN_CLONE_DIR` and any folder with `mrm-clone.json` are refused                                                                                                                                                                                                 | yes                                                                               |
 | Bare repositories and non-repositories                                                                                                                 | need a `.git` directory with `HEAD` or a worktree `.git` file                                                                                                                                                                                                                    | yes                                                                               |
 | Code execution through the repository's own config (`core.fsmonitor`, hooks, `core.sshCommand`, `diff.external`, filters, `core.alternateRefsCommand`) | every git call gets `--no-pager` and `-c` overrides that empty them; `status` also empties configured `filter.<name>.*` drivers; `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_NOSYSTEM`, an allowlisted environment, `GIT_OPTIONAL_LOCKS=0`, lazy fetch and all transports blocked | yes, with a hostile repository config and a control showing plain git does run it |
 | A person without the right                                                                                                                             | `repositories.write` (admin, owner) for check, connect, attach, detach; config shows the roots only to them; non-members get 404                                                                                                                                                 | yes                                                                               |
 | Credentials in the origin URL                                                                                                                          | the URL is parsed to host, owner and name; userinfo is dropped and never returned, logged or audited                                                                                                                                                                             | yes                                                                               |
-| Using git when told not to                                                                                                                             | `MRM_READS=api` means git never runs; attached repositories then read from GitHub, local-only ones refuse                                                                                                                                                                        | yes                                                                               |
+| Using git when told not to                                                                                                                             | `KILN_READS=api` means git never runs; attached repositories then read from GitHub, local-only ones refuse                                                                                                                                                                        | yes                                                                               |
 | The repository's or user's git config choosing the signing program or key (`gpg.program`, `gpg.ssh.program`, `user.signingkey`, `commit.gpgsign`)      | key, program and format come from the server's environment, passed with `-c` after the config files; the program is pinned by absolute path at start; `GIT_CONFIG_GLOBAL=/dev/null`                                                                                              | yes (recording program vs a repository program, and which key signed)             |
 | A signing program or `gpg` waiting for a passphrase, a hung agent                                                                                      | `--batch --no-tty --pinentry-mode error` through the wrapper; no `DISPLAY`, `SSH_ASKPASS` or tty in the environment; the process runs in its own process group, killed after 20 seconds; `signing_failed` with reason `locked` or `timeout`                                      | yes (locked ssh key, locked gpg key, a program that sleeps)                       |
 | An unsigned commit where a signed one was promised                                                                                                     | signing failure stops before `update-ref`; the object must hold a `gpgsig` block of the configured format before any ref points at it; no fallback                                                                                                                               | yes                                                                               |
@@ -350,11 +350,11 @@ git path.
 
 ### Decision
 
-- **Opt-in, off by default.** `MRM_LOCAL_REPO_WRITE=true` (and `MRM_LOCAL_REPO_ROOTS`, which
+- **Opt-in, off by default.** `KILN_LOCAL_REPO_WRITE=true` (and `KILN_LOCAL_REPO_ROOTS`, which
   must name the folder). Without it, `mode: local_branch` is refused with `409 local_write_disabled`
   and nothing is touched. Reading local clones does not need it. The web app reads the setting from
   `GET /repositories/local/config` (`write`) and shows the option disabled with the reason.
-- **Signing is opt-in and the server's own.** `MRM_GIT_SIGN=off|ssh|gpg` (default `off`, which is
+- **Signing is opt-in and the server's own.** `KILN_GIT_SIGN=off|ssh|gpg` (default `off`, which is
   exactly the behaviour before signing existed). With `ssh` or `gpg` the commit is signed with a key
   the operator configured, never one from the clone's or the user's git config. See "Signing".
 - **Same right as apply.** `changesets.approve` (admin, owner). Members and viewers get 403,
@@ -419,7 +419,7 @@ may have uncommitted work in that working tree. So the commit is built from obje
 4. `hash-object -w --no-filters --stdin` writes each blob byte for byte (no line-ending
    conversion, no filter). A private index (`GIT_INDEX_FILE` in a new temporary folder) gets
    `read-tree <base>`, `update-index --index-info` and `write-tree`. `commit-tree` makes the commit
-   (parent: the base; author and committer set explicitly; signed only with `MRM_GIT_SIGN`, see
+   (parent: the base; author and committer set explicitly; signed only with `KILN_GIT_SIGN`, see
    "Signing"). `update-ref
    refs/heads/<branch> <commit> <zero oid>` creates the branch and can only create it: if it appeared
    in the meantime the call fails and nothing is replaced.
@@ -479,10 +479,10 @@ names the variable and never contains the key's path):
 
 | Variable                  | Meaning                                                                                                                                                                                                                           |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MRM_GIT_SIGN`            | `off` (default), `ssh` or `gpg`. Off or unset: nothing below is read.                                                                                                                                                             |
-| `MRM_GIT_SIGNING_KEY`     | `ssh`: absolute path of a private key file (not readable by group or others), or of the `.pub` of a key an `ssh-agent` holds. `gpg`: a key id or fingerprint (hex, 8 to 64 characters; a user name or e-mail address is refused). |
-| `MRM_GIT_SIGNING_PROGRAM` | Absolute path of `ssh-keygen` or `gpg`. Unset: looked up in `PATH` **once at start** and pinned.                                                                                                                                  |
-| `MRM_GIT_GNUPGHOME`       | `gpg` only, required: the keyring folder. The server does not use its user's home folder.                                                                                                                                         |
+| `KILN_GIT_SIGN`            | `off` (default), `ssh` or `gpg`. Off or unset: nothing below is read.                                                                                                                                                             |
+| `KILN_GIT_SIGNING_KEY`     | `ssh`: absolute path of a private key file (not readable by group or others), or of the `.pub` of a key an `ssh-agent` holds. `gpg`: a key id or fingerprint (hex, 8 to 64 characters; a user name or e-mail address is refused). |
+| `KILN_GIT_SIGNING_PROGRAM` | Absolute path of `ssh-keygen` or `gpg`. Unset: looked up in `PATH` **once at start** and pinned.                                                                                                                                  |
+| `KILN_GIT_GNUPGHOME`       | `gpg` only, required: the keyring folder. The server does not use its user's home folder.                                                                                                                                         |
 
 **How.** `git -c gpg.format=ssh -c gpg.ssh.program=<pinned> -c user.signingkey=<key> commit-tree -S
 ...` for ssh; `-c gpg.format=openpgp -c gpg.program=<wrapper> -c gpg.openpgp.program=<wrapper> -c
@@ -498,7 +498,7 @@ environment of that one `git` call is the usual allowlist plus: `HOME`, `TMPDIR`
 pointing into a private folder that is deleted afterwards (git's signing buffer and ssh-keygen's
 `.sig` live there, so even a killed run leaves nothing), `GNUPGHOME` (gpg) and `SSH_AUTH_SOCK` (ssh,
 only when the key is a `.pub` and the server's own environment had one at start). Nothing else of
-the server's environment reaches the program (a test plants `MRM_MASTER_KEY` and a socket and
+the server's environment reaches the program (a test plants `KILN_MASTER_KEY` and a socket and
 checks the program does not see them).
 
 **Failure.** If signing is on and fails (no key, key file unreadable or not a key, passphrase
@@ -522,7 +522,7 @@ The outcome records `signature: { status: "signed", format }`, the audit event `
 has `signed` and `signature`, and the UI says "Signed (ssh)", never "Verified". GitHub shows
 "Verified" only if the public key is on the committer's account as a signing key (an SSH key must be
 added with the type "Signing Key") and the commit's e-mail is a verified e-mail of that account:
-`MRM_GIT_AUTHOR_EMAIL` should be set to such an address, because by default the committer is the
+`KILN_GIT_AUTHOR_EMAIL` should be set to such an address, because by default the committer is the
 person who applied.
 
 **What the UI may know.** `GET /repositories/local/config` returns `signing: { enabled, format? }`.
@@ -535,7 +535,7 @@ or `gpg`, and for gpg the wrapper script) on every apply when signing is on. The
 operator's choice, pinned by an absolute path at start; it is not user-controlled and not
 repository-controlled. A person with `changesets.approve` can cause it to run and to sign **with the
 server's key**: they cannot choose the key, the message beyond the change set's summary and files,
-or the identity beyond what `MRM_GIT_AUTHOR_*` and their own account give. In effect the server key
+or the identity beyond what `KILN_GIT_AUTHOR_*` and their own account give. In effect the server key
 vouches for any change set an admin or owner applies. Use a key that is meant for that, not a
 person's everyday key.
 
@@ -554,7 +554,7 @@ signed by GitHub in some cases and not in others), and nothing was checked here.
 
 | Threat                                                                                                                                       | Mitigation                                                                                                                                                                                                                                                                                                                      | Tested |
 | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| Writing into repositories nobody agreed to write to                                                                                          | `MRM_LOCAL_REPO_WRITE` off by default; `409 local_write_disabled` before the change set is claimed; the folder must be inside `MRM_LOCAL_REPO_ROOTS`                                                                                                                                                                            | yes    |
+| Writing into repositories nobody agreed to write to                                                                                          | `KILN_LOCAL_REPO_WRITE` off by default; `409 local_write_disabled` before the change set is claimed; the folder must be inside `KILN_LOCAL_REPO_ROOTS`                                                                                                                                                                            | yes    |
 | A person without the right                                                                                                                   | `changesets.approve` for apply and push; viewers and members 403; non-members and other workspaces 404                                                                                                                                                                                                                          | yes    |
 | Swapping the folder (symlink, other repository) after it was attached                                                                        | the real path is validated again immediately before the write (and the read); a symlinked `.git` is refused                                                                                                                                                                                                                     | yes    |
 | Code execution through the repository (hooks, `core.fsmonitor`, filters, `gpg.program`, `core.sshCommand`, aliases, `reference-transaction`) | plumbing only; `-c` overrides; `core.hooksPath` emptied; allowlisted environment; the hostile repository in the tests runs none of its hooks or programs, with a control that plain git does                                                                                                                                    | yes    |
@@ -572,10 +572,10 @@ signed by GitHub in some cases and not in others), and nothing was checked here.
 
 Decisions:
 
-- **Author and committer** are `MRM_GIT_AUTHOR_NAME` and `MRM_GIT_AUTHOR_EMAIL` when set, otherwise
+- **Author and committer** are `KILN_GIT_AUTHOR_NAME` and `KILN_GIT_AUTHOR_EMAIL` when set, otherwise
   the person who applied (their display name and email). Cleaned to one line, no `<`, `>` or control
   characters, with a fixed fallback. Never read from the folder's git config.
-- **Signing is opt-in** (`MRM_GIT_SIGN`, see "Signing"), with the server's key and a pinned program.
+- **Signing is opt-in** (`KILN_GIT_SIGN`, see "Signing"), with the server's key and a pinned program.
   Off, the commit is not signed whatever `commit.gpgsign` says, and a repository that requires signed
   commits will not merge it as is (the person can re-sign after `git switch`: `git commit --amend
   -S`). Running the person's or the repository's `gpg.program` from a server request is the kind of
@@ -652,7 +652,7 @@ a failed GitHub set whose pull request exists, or was opened by the fix up, beco
    succeeds only from the tip that was read (`409 branch_moved` otherwise, nothing is changed). The
    branch is refused when it is checked out in the clone or in a linked worktree, or a rebase of it is
    in progress (`409 branch_checked_out`), checked again right before the ref moves. The working tree,
-   index, HEAD, config and every other ref stay as they were; the `MRM_LOCAL_REPO_WRITE` gate, the path
+   index, HEAD, config and every other ref stay as they were; the `KILN_LOCAL_REPO_WRITE` gate, the path
    re-validation and the folder roots apply as for apply. **GitHub mode**: `commitOnBranch` creates
    blobs, a tree on the tip's tree and a commit with the tip as its only parent, then
    `PATCH git/refs/heads/<b>` with `force: false`. A non-fast-forward answer is `409 branch_moved`, a
@@ -749,7 +749,7 @@ How it differs from or adds to the plan:
 - **Disconnect** removes the clone after the transaction commits; a failure is logged and ignored.
   There is no workspace deletion in the server yet, so `removeWorkspaceClones` is available
   (`CloneReads.removeWorkspace`) but not called.
-- **Not built here:** step 8 was done later as "Local clones" (above), `MRM_CLONE_FILTER` (the filter stays
+- **Not built here:** step 8 was done later as "Local clones" (above), `KILN_CLONE_FILTER` (the filter stays
   `blob:none` for GitHub). Idle pruning and the disk budget were built later (see above). `GitCloneError.reason` is not added to
   response messages.
 
@@ -759,7 +759,7 @@ It looked small and is not. A repository row requires a credential, and connecti
 against the API, so "no GitHub token at all" needs a nullable `credential_id`, a connect flow
 without a credential and an apply story (a local checkout cannot be applied to). Setting only a
 `local_path` on a connected repository is smaller but needs a migration and both Drizzle schemas
-(shared files edited concurrently by other work), `MRM_MODE` plumbed into `RepoContext`, a route in
+(shared files edited concurrently by other work), `KILN_MODE` plumbed into `RepoContext`, a route in
 `routes/repositories.ts`, realpath, directory and git repository validation, an audit event and a
 role check, with the hosted-mode refusal tested. The reader already has the `local` source and
 `createCloneReads` takes a `source` hook, so the remaining work is the settings and the UI. Do it
@@ -803,27 +803,27 @@ Read the current code: `apps/server/src/services/repositories.ts` (`RepoClient`,
    deletion with `removeWorkspaceClones`.
 7. Errors: `githubFailure()` already maps `GithubError` kinds. Add `GitCloneError.reason` values to
    its messages only if wanted (`git_missing` should read as a server problem, 502).
-   `MRM_READS=auto` falls back to the API for the request on `git_missing`, `not_managed` or an
+   `KILN_READS=auto` falls back to the API for the request on `git_missing`, `not_managed` or an
    `unexpected` clone failure, and says so in the audit detail; `clone` does not fall back.
 8. Single-user: migration for `repositories.local_path`, a route to set it (single-user mode
    only, admin), and the `local` source in the adapter when it is set.
 9. Tests: server tests with a local source repository (as in `git-clone.test.ts`) through a
    `ConnectorFactory` that returns the adapter; keep the existing fake-connector tests for the API
-   path. Update docs: `deployment.md` (git, `MRM_CLONE_DIR`, disk), `architecture.md`, and the
+   path. Update docs: `deployment.md` (git, `KILN_CLONE_DIR`, disk), `architecture.md`, and the
    Dockerfile.
 
 ## Config knobs (proposed)
 
 | Variable                                                                         | Default                 | Meaning                                                                                          |
 | -------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
-| `MRM_READS`                                                                      | `auto` (built)          | `api`, `clone`, or `auto` (clone when git is installed, API otherwise and on clone failure)      |
-| `MRM_CLONE_DIR`                                                                  | `<MRM_DATA_DIR>/clones` | where clones live                                                                                |
-| `MRM_CLONE_TTL_SECONDS`                                                          | `60`                    | how long a fetched tip is reused (`ttlMs`)                                                       |
-| `MRM_CLONE_FILTER`                                                               | `blob:none`             | partial clone filter; `none` downloads all blobs (not built)                                     |
-| `MRM_GIT_PATH`                                                                   | `git`                   | the git program                                                                                  |
-| `MRM_LOCAL_REPO_WRITE`                                                           | `false`                 | allow a change set to be committed to a new branch of a local clone, and pushed (phase 4, built) |
-| `MRM_GIT_AUTHOR_NAME`, `MRM_GIT_AUTHOR_EMAIL`                                    | unset                   | author and committer of those commits; unset means the person who applied (built)                |
-| `MRM_CLONE_MAX_BYTES`, `MRM_CLONE_IDLE_DAYS`, `MRM_CLONE_SWEEP_INTERVAL_MINUTES` | `2g`, `30`, `360`       | disk budget, idle pruning and how often the sweep runs (built; `0` turns each off)               |
+| `KILN_READS`                                                                      | `auto` (built)          | `api`, `clone`, or `auto` (clone when git is installed, API otherwise and on clone failure)      |
+| `KILN_CLONE_DIR`                                                                  | `<KILN_DATA_DIR>/clones` | where clones live                                                                                |
+| `KILN_CLONE_TTL_SECONDS`                                                          | `60`                    | how long a fetched tip is reused (`ttlMs`)                                                       |
+| `KILN_CLONE_FILTER`                                                               | `blob:none`             | partial clone filter; `none` downloads all blobs (not built)                                     |
+| `KILN_GIT_PATH`                                                                   | `git`                   | the git program                                                                                  |
+| `KILN_LOCAL_REPO_WRITE`                                                           | `false`                 | allow a change set to be committed to a new branch of a local clone, and pushed (phase 4, built) |
+| `KILN_GIT_AUTHOR_NAME`, `KILN_GIT_AUTHOR_EMAIL`                                    | unset                   | author and committer of those commits; unset means the person who applied (built)                |
+| `KILN_CLONE_MAX_BYTES`, `KILN_CLONE_IDLE_DAYS`, `KILN_CLONE_SWEEP_INTERVAL_MINUTES` | `2g`, `30`, `360`       | disk budget, idle pruning and how often the sweep runs (built; `0` turns each off)               |
 
 ## Alternatives considered
 
@@ -845,7 +845,7 @@ Verified in phase 2 (server tests, local git repositories as the source, no netw
 listing for the three fastlane layouts in `fastlane.fixtures.ts` give the same results from a clone
 as from the API fake, including the monorepo targets; change set creation reads from the clone and
 apply goes through the API connector; the by-commit cache keeps one `ls-tree` per commit; `auto`
-falls back with a bad `MRM_GIT_PATH`, `api` never runs git, `clone` surfaces the error; a token
+falls back with a bad `KILN_GIT_PATH`, `api` never runs git, `clone` surfaces the error; a token
 printed by git reaches no response, audit row or log line; the request timeout kills git; disconnect
 removes the clone; the token wiring for both credential kinds (with a stand-in reader).
 
@@ -913,6 +913,6 @@ installation token, protected branches, a push from a shallow clone, rate limits
 request; macOS, Windows, a case-insensitive file system (two branch names differing only by case);
 a real GPG signing setup (the test proves `gpg.program` is not run, not that a signing repository
 behaves); real hook scripts beyond the test ones; Git LFS repositories; Postgres (the migration is
-written for it and drift-tested, but the Postgres run is skipped without `MRM_TEST_POSTGRES_URL`);
+written for it and drift-tested, but the Postgres run is skipped without `KILN_TEST_POSTGRES_URL`);
 the web screens in a browser (they type check, compile without warnings and their logic is unit
 tested); a very large change set.

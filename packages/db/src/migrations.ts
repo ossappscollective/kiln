@@ -707,7 +707,7 @@ export const migrations: Migration[] = [
       const t = epoch(dialect);
       // app_listing_status.listing_attempt_at: when the last listing read of the app was tried, by
       // any path (a manual refresh, an app sync or a scheduled read), successful or not. The
-      // scheduled listing read (MRM_LISTING_INTERVAL_MINUTES) is due an interval after it, and
+      // scheduled listing read (KILN_LISTING_INTERVAL_MINUTES) is due an interval after it, and
       // claims a read with a compare-and-set on it so two instances do not read one app at once.
       // listing_failures: reads in a row that failed (0 after a success); the scheduler backs off
       // by it. Both are NULL / 0 for every row that existed before: such an app is simply due.
@@ -778,7 +778,7 @@ export const migrations: Migration[] = [
       const t = epoch(dialect);
       // app_reviews: one row per review the store returned (read only; nothing is ever sent to a
       // store). The review text and the public display name are third-party personal data that the
-      // store itself shows: only what the store returns is kept, and MRM_REVIEW_RETENTION_DAYS
+      // store itself shows: only what the store returns is kept, and KILN_REVIEW_RETENTION_DAYS
       // prunes old rows. app_id has no foreign key on purpose (deleting an app removes its rows in
       // code, like the listing snapshots). store is appstoreconnect or googleplay; store_review_id
       // is the store's own id, unique per app, so a re-sync upserts. created_at and updated_at are
@@ -1124,7 +1124,7 @@ export const migrations: Migration[] = [
       // store data read without a credential (the iTunes Search API; optionally the public pages of
       // Google Play), kept for ranking history. Nothing is ever written to a store. app_id has no
       // foreign key on purpose (like the review and listing tables): deleting an app deletes its rows
-      // in code. Counts, ids and public short fields only; MRM_ASO_RETENTION_DAYS prunes old rows.
+      // in code. Counts, ids and public short fields only; KILN_ASO_RETENTION_DAYS prunes old rows.
       // aso_keywords: one tracked search term of an app in one storefront (country, two letters, lower
       // case) and listing locale. term is as typed (white space collapsed), term_key the normalized form
       // that makes two spellings one keyword (unique per app, country and locale). priority 1 low, 2

@@ -75,7 +75,7 @@ import {
 
 type Actor = { type: 'user' | 'token' | 'system'; id: string };
 
-export const PUBLISH_ENV = 'MRM_STORE_PUBLISH_BATCH_ENABLED';
+export const PUBLISH_ENV = 'KILN_STORE_PUBLISH_BATCH_ENABLED';
 export const PUBLISH_ACTION = 'store.publish';
 /** A batch of up to four steps, each with its own timeout (a draft push alone may take four minutes). */
 export const DEFAULT_PUBLISH_CLAIM_TTL_MS = 900_000;
@@ -109,7 +109,7 @@ const IRREVERSIBLE: Record<PublishStep, boolean> = {
 export type PublishContext = {
   db: Database;
   now: () => number;
-  /** MRM_STORE_PUBLISH_BATCH_ENABLED. Turns no step on: each step's own switch decides. */
+  /** KILN_STORE_PUBLISH_BATCH_ENABLED. Turns no step on: each step's own switch decides. */
   publishEnabled: boolean;
   draft: DraftContext;
   submit: SubmitContext;

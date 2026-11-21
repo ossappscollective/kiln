@@ -40,7 +40,7 @@ export type SettingsUpdateResponse = Omit<SettingsResponse, 'translation'> & { c
 
 /** `sync` of `GET /settings` (docs/api/settings.md). */
 export type SyncStatus = {
-  /** MRM_SYNC_INTERVAL_MINUTES: 0 turns scheduled refreshes off for every workspace. */
+  /** KILN_SYNC_INTERVAL_MINUTES: 0 turns scheduled refreshes off for every workspace. */
   serverMinutes: number;
   enabled: boolean;
   /** What applies: the workspace's choice, else the server's interval. */
@@ -147,7 +147,7 @@ export function lastRefreshText(sync: SyncStatus | undefined, now: number = Date
 export function syncOffText(sync: SyncStatus | undefined): string {
   if (!sync || sync.running) return '';
   if (sync.off === 'server_off')
-    return 'Scheduled refresh is turned off for the whole server (MRM_SYNC_INTERVAL_MINUTES is 0), so the settings below have no effect until the person who runs the server changes it.';
+    return 'Scheduled refresh is turned off for the whole server (KILN_SYNC_INTERVAL_MINUTES is 0), so the settings below have no effect until the person who runs the server changes it.';
   return 'Scheduled refresh is off for this workspace. Alerts only change when someone syncs an app by hand.';
 }
 

@@ -171,7 +171,7 @@ const repoPath = (id: string, suffix = '') => `/repositories/${id}${suffix}`;
 // The setting
 
 dbTest(
-  'without MRM_LOCAL_REPO_ROOTS every local route is refused and says which setting to use',
+  'without KILN_LOCAL_REPO_ROOTS every local route is refused and says which setting to use',
   async (db) => {
     const b = await boot(db, { roots: 'none' });
     const { t } = b;
@@ -179,8 +179,8 @@ dbTest(
     const config = await t.call(t.owner, 'GET', '/repositories/local/config');
     assert.equal(config.status, 200);
     assert.equal(config.body.local.enabled, false);
-    assert.equal(config.body.local.envName, 'MRM_LOCAL_REPO_ROOTS');
-    assert.match(config.body.local.message, /MRM_LOCAL_REPO_ROOTS=/);
+    assert.equal(config.body.local.envName, 'KILN_LOCAL_REPO_ROOTS');
+    assert.match(config.body.local.message, /KILN_LOCAL_REPO_ROOTS=/);
     assert.equal(config.body.local.roots, undefined);
     assert.equal(config.body.local.write.enabled, false);
     const { repositoryId } = await t.connect();
@@ -192,7 +192,7 @@ dbTest(
       const res = await t.call(t.owner, method, path, body);
       assert.equal(res.status, 409, `${method} ${path}`);
       assert.equal(res.body.error, 'local_not_enabled');
-      assert.match(res.body.message, /MRM_LOCAL_REPO_ROOTS/);
+      assert.match(res.body.message, /KILN_LOCAL_REPO_ROOTS/);
     }
     assert.equal(b.wrapper.calls().length, 0, 'git was never run');
   },
@@ -206,14 +206,14 @@ dbTest(
     const owner = await t.call(t.owner, 'GET', '/repositories/local/config');
     const write = {
       enabled: false,
-      envName: 'MRM_LOCAL_REPO_WRITE',
+      envName: 'KILN_LOCAL_REPO_WRITE',
       message: owner.body.local.write.message,
     };
-    assert.match(write.message, /MRM_LOCAL_REPO_WRITE=true/);
+    assert.match(write.message, /KILN_LOCAL_REPO_WRITE=true/);
     const signing = { enabled: false };
     assert.deepEqual(owner.body.local, {
       enabled: true,
-      envName: 'MRM_LOCAL_REPO_ROOTS',
+      envName: 'KILN_LOCAL_REPO_ROOTS',
       roots: [b.root],
       write,
       signing,
@@ -222,7 +222,7 @@ dbTest(
     const seen = await t.call(member, 'GET', '/repositories/local/config');
     assert.deepEqual(seen.body.local, {
       enabled: true,
-      envName: 'MRM_LOCAL_REPO_ROOTS',
+      envName: 'KILN_LOCAL_REPO_ROOTS',
       write,
       signing,
     });
@@ -230,7 +230,7 @@ dbTest(
 );
 
 dbTest(
-  'MRM_READS=api means git is never run: local clones are refused with a clear error',
+  'KILN_READS=api means git is never run: local clones are refused with a clear error',
   async (db) => {
     const b = await boot(db, { mode: 'api' });
     const { t } = b;
@@ -245,14 +245,14 @@ dbTest(
       const res = await t.call(t.owner, 'POST', path, body);
       assert.equal(res.status, 409);
       assert.equal(res.body.error, 'local_reads_disabled');
-      assert.match(res.body.message, /MRM_READS=api/);
+      assert.match(res.body.message, /KILN_READS=api/);
     }
     assert.equal(b.wrapper.calls().length, 0);
   },
 );
 
 dbTest(
-  'an attached folder is ignored (reads use GitHub) when MRM_READS=api, and the status says why',
+  'an attached folder is ignored (reads use GitHub) when KILN_READS=api, and the status says why',
   async (db) => {
     const b = await boot(db, { mode: 'api' });
     const { t } = b;

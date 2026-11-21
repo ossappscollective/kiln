@@ -1,6 +1,6 @@
 # ADR 0014: Release management from the app
 
-Status: implemented and tested against fakes on SQLite (the Postgres variants run when `MRM_TEST_POSTGRES_URL` is set); **never
+Status: implemented and tested against fakes on SQLite (the Postgres variants run when `KILN_TEST_POSTGRES_URL` is set); **never
 run against App Store Connect or Google Play**. The facts that were not verified are listed in
 [api/releases-write](../api/releases-write.md#unverified-check-with-a-real-account).
 
@@ -20,7 +20,7 @@ code), and the **release itself**: the other write of this server that cannot be
    `staged_changes.kind` is text and the unique index already fits (migration 27 only adds the claims table). The App Store
    "what's new" is **not** a new field: it is the existing listing field `release_notes` (`whatsNew`), staged with the texts.
    Google Play's per language notes belong to the release, so they are a release field of their own.
-2. **The draft push stays the only way to write them.** It keeps its switch (`MRM_STORE_DRAFT_WRITE_ENABLED`), its right
+2. **The draft push stays the only way to write them.** It keeps its switch (`KILN_STORE_DRAFT_WRITE_ENABLED`), its right
    (`store.push_draft`), its preview with `confirmHash`, its re-read right before the first write, its claim, its never-retry rule
    and its read-back of a lost answer. The connectors gained one more kind of write (`fields`), nothing else. The preview shows
    each field before and after, and **checks** the staged values against facts the connector reads next to each field (a build
@@ -34,7 +34,7 @@ code), and the **release itself**: the other write of this server that cannot be
    needs its own explicit share. When the two differ the preview warns.
 5. **Limits no official page states are warnings.** Play release notes (500 characters), the release name, the copyright and the
    version string are marked UNVERIFIED and produce warnings, never errors: a wrong limit must not block a person.
-6. **Release is a separate step, gated exactly like submit.** `MRM_STORE_RELEASE_ENABLED` (default `false`, independent of the draft
+6. **Release is a separate step, gated exactly like submit.** `KILN_STORE_RELEASE_ENABLED` (default `false`, independent of the draft
    and submit switches); the role action `store.release` (owner and admin, **explicit-only on tokens**: the same table entries as
    `store.submit`); a preview that reads the store and gives `confirmHash` and a **phrase to type**; a re-read inside the connector
    right before the write that refuses on drift (`409 state_changed` with a new preview), on a blocking check (`409 blocked`) and on

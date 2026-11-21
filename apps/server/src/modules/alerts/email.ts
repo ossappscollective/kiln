@@ -11,7 +11,7 @@ import type { AlertData, AlertDef, AlertSeverity } from './catalog-core.ts';
 
 /**
  * The look of an alert email (docs/alerts.md): what happened, what to do about it and a button that opens the right screen of the
- * app, as an HTML part with a plain text twin. Pure apart from the link origin, which `createApp` sets from MRM_PUBLIC_ORIGIN (the
+ * app, as an HTML part with a plain text twin. Pure apart from the link origin, which `createApp` sets from KILN_PUBLIC_ORIGIN (the
  * address people open the app at). Without it the email still says where to go ("Credentials"), it just has no link: the server
  * cannot know the address it is reached at from a background job. Everything that reaches the HTML is escaped; the data is ids,
  * names and numbers only (see `redactAlertData`).

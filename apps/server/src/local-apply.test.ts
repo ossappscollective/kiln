@@ -135,7 +135,7 @@ const SUBTITLE_PATH = 'fastlane/metadata/en-US/subtitle.txt';
 // The switch, permissions, isolation
 
 dbTest(
-  'without MRM_LOCAL_REPO_WRITE a local_branch apply is refused, says which setting, and changes nothing',
+  'without KILN_LOCAL_REPO_WRITE a local_branch apply is refused, says which setting, and changes nothing',
   async (db) => {
     const b = await boot(db, { write: false });
     const { dir, repositoryId } = await attached(b);
@@ -144,8 +144,8 @@ dbTest(
     const res = await apply(b, id, local);
     assert.equal(res.status, 409, res.text);
     assert.equal(res.body.error, 'local_write_disabled');
-    assert.equal(res.body.envName, 'MRM_LOCAL_REPO_WRITE');
-    assert.match(res.body.message, /MRM_LOCAL_REPO_WRITE=true/);
+    assert.equal(res.body.envName, 'KILN_LOCAL_REPO_WRITE');
+    assert.match(res.body.message, /KILN_LOCAL_REPO_WRITE=true/);
     assert.equal(
       (await b.t.call(b.t.owner, 'GET', `/change-sets/${id}`)).body.changeSet.status,
       'approved',
@@ -153,7 +153,7 @@ dbTest(
     assert.deepEqual(snapshot(dir), before);
     const config = await b.t.call(b.t.owner, 'GET', '/repositories/local/config');
     assert.equal(config.body.local.write.enabled, false);
-    assert.equal(config.body.local.write.envName, 'MRM_LOCAL_REPO_WRITE');
+    assert.equal(config.body.local.write.envName, 'KILN_LOCAL_REPO_WRITE');
     // The push route is gated the same way.
     assert.equal((await b.t.call(b.t.owner, 'POST', `/change-sets/${id}/push`)).status, 409);
     // The GitHub apply is unaffected by the switch.
@@ -819,7 +819,7 @@ dbTest(
 );
 
 // ---------------------------------------------------------------------------------------------
-// Signing (MRM_GIT_SIGN)
+// Signing (KILN_GIT_SIGN)
 
 const NO_SSH = SSH_KEYGEN ? undefined : 'ssh-keygen is not installed';
 

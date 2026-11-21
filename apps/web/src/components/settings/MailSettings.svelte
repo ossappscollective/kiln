@@ -2,7 +2,7 @@
   MailSettings: the mail server (SMTP) this instance sends email through (docs/api/mail.md, docs/adr/0021-two-factor-and-smtp.md).
   Emailed codes and alerts use it. Owners and admins only. The password is typed here and never shown again; saving, clearing and the
   test message are separate buttons (this card is not part of the settings form above). A server whose mail is set in the environment
-  (MRM_SMTP_HOST) shows it read only. "Send test email" sends one message to the signed-in person's own address.
+  (KILN_SMTP_HOST) shows it read only. "Send test email" sends one message to the signed-in person's own address.
   Props: api, workspaceId, role.
 -->
 <script lang="ts">
@@ -161,7 +161,7 @@
       <form class="stack readable-card" onsubmit={save} novalidate>
         <p class="muted">{smtpSourceLabel(settings.source)}.</p>
         {#if locked}
-          <Alert tone="info">This server's mail settings come from its environment (MRM_SMTP_*). Change them there and restart the server.</Alert>
+          <Alert tone="info">This server's mail settings come from its environment (KILN_SMTP_*). Change them there and restart the server.</Alert>
         {/if}
         <TextField label="Host" bind:value={host} placeholder="smtp.example.com" autocomplete="off" disabled={!canEdit || busy} required />
         <div class="field">

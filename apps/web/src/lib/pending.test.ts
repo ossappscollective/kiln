@@ -68,31 +68,31 @@ const config = (
   steps: Partial<Record<string, boolean>> = {},
 ): PublishConfig => ({
   enabled: true,
-  envName: 'MRM_STORE_PUBLISH_BATCH_ENABLED',
+  envName: 'KILN_STORE_PUBLISH_BATCH_ENABLED',
   action: 'store.publish',
   minimumRole: 'admin',
   steps: {
     push_draft: {
       action: 'store.push_draft',
-      envName: 'MRM_STORE_DRAFT_WRITE_ENABLED',
+      envName: 'KILN_STORE_DRAFT_WRITE_ENABLED',
       enabled: steps.push_draft ?? true,
       irreversible: false,
     },
     submit: {
       action: 'store.submit',
-      envName: 'MRM_STORE_SUBMIT_ENABLED',
+      envName: 'KILN_STORE_SUBMIT_ENABLED',
       enabled: steps.submit ?? true,
       irreversible: true,
     },
     release: {
       action: 'store.release',
-      envName: 'MRM_STORE_RELEASE_ENABLED',
+      envName: 'KILN_STORE_RELEASE_ENABLED',
       enabled: steps.release ?? true,
       irreversible: true,
     },
     rollout: {
       action: 'releases.rollout',
-      envName: 'MRM_STORE_ROLLOUT_ENABLED',
+      envName: 'KILN_STORE_ROLLOUT_ENABLED',
       enabled: steps.rollout ?? true,
       irreversible: true,
     },
@@ -113,7 +113,7 @@ const step = (type: PlanStep['type'], over: Partial<PlanStep> = {}): PlanStep =>
   reason: null,
   requires: {
     action: `store.${type}`,
-    envName: `MRM_${type.toUpperCase()}`,
+    envName: `KILN_${type.toUpperCase()}`,
     enabled: true,
     allowed: true,
   },
@@ -279,7 +279,7 @@ test('the publish button: role, switch, nothing to do, step switches and errors,
   assert.equal(publishAvailability({ ...base, config: null }).state, 'loading');
   const off = publishAvailability({ ...base, config: config({ enabled: false }) });
   assert.equal(off.state, 'off');
-  assert.match((off as { message: string }).message, /MRM_STORE_PUBLISH_BATCH_ENABLED=true/);
+  assert.match((off as { message: string }).message, /KILN_STORE_PUBLISH_BATCH_ENABLED=true/);
   assert.equal(
     publishAvailability({ ...base, totals: { items: 1, actionable: 0, blocking: 0 } }).state,
     'nothing',
@@ -292,7 +292,7 @@ test('the publish button: role, switch, nothing to do, step switches and errors,
   assert.equal(stepsOff.state, 'steps_off');
   assert.match(
     (stepsOff as { message: string }).message,
-    /MRM_STORE_DRAFT_WRITE_ENABLED, MRM_STORE_SUBMIT_ENABLED/,
+    /KILN_STORE_DRAFT_WRITE_ENABLED, KILN_STORE_SUBMIT_ENABLED/,
   );
   // One step off is not enough to disable: the plan shows that step as switched off.
   assert.equal(
@@ -360,7 +360,7 @@ test('step rows: available steps are ticked, unavailable ones disabled with a re
     step('release', {
       included: false,
       availability: 'feature_disabled',
-      reason: 'MRM_RELEASE is off on this server.',
+      reason: 'KILN_RELEASE is off on this server.',
       request: null,
     }),
     step('rollout', {
@@ -382,7 +382,7 @@ test('step rows: available steps are ticked, unavailable ones disabled with a re
   );
   assert.equal(rows[1]!.reason, null);
   assert.equal(rows[1]!.deferred, true);
-  assert.match(rows[2]!.reason ?? '', /Switched off on this server \(MRM_RELEASE\)/);
+  assert.match(rows[2]!.reason ?? '', /Switched off on this server \(KILN_RELEASE\)/);
   assert.match(rows[3]!.reason ?? '', /Do just one step \(advanced\)/);
   assert.equal(rows[2]!.word, 'Switched off');
   assert.equal(rows[0]!.reason, null);
@@ -703,7 +703,7 @@ test('failures of preview and publish are worded from fixed text, and drift asks
   assert.equal(classifyPublishFailure(apiError(409, 'publish_batch_disabled')).kind, 'disabled');
   assert.match(
     classifyPublishFailure(apiError(409, 'publish_batch_disabled')).message,
-    /MRM_STORE_PUBLISH_BATCH_ENABLED=true/,
+    /KILN_STORE_PUBLISH_BATCH_ENABLED=true/,
   );
   const changed = classifyPublishFailure(apiError(409, 'plan_changed'));
   assert.equal(changed.kind, 'plan_changed');

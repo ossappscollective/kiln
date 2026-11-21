@@ -14,7 +14,7 @@ import { reviewTranslationRoutes } from './translation-routes.ts';
  * Customer reviews (docs/api/reviews.md), read-only. `connectorFactory` builds the App Store
  * Connect / Google Play reviews connector (overridable for tests), `ratingFetcher` the store-wide
  * rating (null turns it off), `timeoutMs` the longest one sync may run (default 90 seconds).
- * `limiter` defaults to the one of the app syncs. `retentionDays` (MRM_REVIEW_RETENTION_DAYS) is
+ * `limiter` defaults to the one of the app syncs. `retentionDays` (KILN_REVIEW_RETENTION_DAYS) is
  * only shown to people; the pruning is the scheduler's.
  */
 export type ReviewsDeps = {
@@ -25,14 +25,14 @@ export type ReviewsDeps = {
   lowRatingThreshold?: number;
   retentionDays?: number;
   /**
-   * Replying to reviews, a store write that is OFF unless `enabled` (MRM_REVIEW_REPLY_ENABLED).
+   * Replying to reviews, a store write that is OFF unless `enabled` (KILN_REVIEW_REPLY_ENABLED).
    * `connectorFactory` builds the connector that can reply (fakes in tests), `translateDraft` is
    * the optional seam for translating a draft (wired to services/translation.ts by the lead).
    */
   reply?: NonNullable<ReviewRoutesContext['reply']>;
 };
 
-// Customer reviews: an inbox with internal triage. Replying (a store write) is off unless MRM_REVIEW_REPLY_ENABLED.
+// Customer reviews: an inbox with internal triage. Replying (a store write) is off unless KILN_REVIEW_REPLY_ENABLED.
 export const reviewsModule: ServerModule<ReviewsDeps> = {
   id: 'reviews',
   mount(app, services, deps, shared) {

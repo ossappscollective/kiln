@@ -3,7 +3,7 @@
 Change the staged rollout of a release in the store: **Google Play** raises the share of users of a
 staged rollout, halts, resumes or completes it; the **App Store** pauses, resumes or releases to all
 users the phased release of a version. This is a **store write that changes who receives an update**,
-so it is switched off by default (`MRM_STORE_ROLLOUT_ENABLED`), needs a separate right, a preview and
+so it is switched off by default (`KILN_STORE_ROLLOUT_ENABLED`), needs a separate right, a preview and
 a confirmation, and some changes cannot be taken back. Design: [ADR 0008](../adr/0008-store-rollout-writes.md).
 
 **Never run against a real store**: the connectors are tested with recorded-shape fixtures and fakes
@@ -32,7 +32,7 @@ with `actor_type = token`. All four routes are in the [OpenAPI description](open
 ```json
 {
   "enabled": false,
-  "envName": "MRM_STORE_ROLLOUT_ENABLED",
+  "envName": "KILN_STORE_ROLLOUT_ENABLED",
   "actions": {
     "android": ["set_fraction", "halt", "resume", "complete"],
     "ios": ["pause", "resume", "release_to_all"]
@@ -130,7 +130,7 @@ make a preview stale).
 
 ## Rules the server enforces
 
-- **Off by default.** While `MRM_STORE_ROLLOUT_ENABLED` is not `true`, state, preview and apply answer
+- **Off by default.** While `KILN_STORE_ROLLOUT_ENABLED` is not `true`, state, preview and apply answer
   `409 rollout_disabled` (with `envName`) and no connector is built.
 - **Preview, then confirm.** Apply needs the `confirmHash`. Before writing the server **reads the
   store again** and compares it to the state the hash was made from. If it differs (somebody used

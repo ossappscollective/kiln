@@ -17,7 +17,7 @@ import { confirmationMatches } from './store-submit.ts';
  * Written for the ES2017 web build: no flatMap, no fromEntries.
  */
 
-export const RELEASE_ENV = 'MRM_STORE_RELEASE_ENABLED';
+export const RELEASE_ENV = 'KILN_STORE_RELEASE_ENABLED';
 export const RELEASE_ROLE_REASON = 'Releasing needs the admin or owner role.';
 
 // ---------------------------------------------------------------------------------------------

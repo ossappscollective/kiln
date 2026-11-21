@@ -37,7 +37,7 @@ import type { ReviewConnectorInput } from './sync.ts';
  * name). The whole feature is built around never publishing by accident; see
  * docs/adr/0007-review-replies.md and docs/api/reviews.md#replying-to-a-review.
  *
- * - Off unless `replyEnabled` (MRM_REVIEW_REPLY_ENABLED): every function here that changes
+ * - Off unless `replyEnabled` (KILN_REVIEW_REPLY_ENABLED): every function here that changes
  *   anything answers `409 reply_disabled`.
  * - A reply is a DRAFT first (`review_reply_drafts`, one row per review). Sending needs the hash of
  *   the exact text (`confirmHash`), so a client that shows an old draft cannot publish a newer one.
@@ -58,7 +58,7 @@ import type { ReviewConnectorInput } from './sync.ts';
 
 type Actor = { type: ActorType; id: string };
 
-export const REPLY_ENV = 'MRM_REVIEW_REPLY_ENABLED';
+export const REPLY_ENV = 'KILN_REVIEW_REPLY_ENABLED';
 export const REPLY_PURPOSE = 'review.reply';
 export const DEFAULT_REPLY_TIMEOUT_MS = 60_000;
 export const DEFAULT_REPLY_CLAIM_TTL_MS = 120_000;
@@ -114,7 +114,7 @@ export type ReviewReplyContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
-  /** MRM_REVIEW_REPLY_ENABLED. */
+  /** KILN_REVIEW_REPLY_ENABLED. */
   replyEnabled: boolean;
   replyConnectorFactory: ReviewReplyConnectorFactory;
   /** Longest one store call may take. Default 60 seconds. */

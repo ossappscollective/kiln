@@ -7,8 +7,8 @@ import { pruneReviews, purgeOrphanReviewRows } from './service.ts';
 import { REVIEW_SYNC_QUEUE, type ReviewSyncPayload } from './sync.ts';
 
 /**
- * Scheduled review reads (MRM_REVIEW_SYNC_INTERVAL_MINUTES, off by default) and the data
- * protection upkeep (MRM_REVIEW_RETENTION_DAYS). The scheduler only queues `review.sync` jobs; the
+ * Scheduled review reads (KILN_REVIEW_SYNC_INTERVAL_MINUTES, off by default) and the data
+ * protection upkeep (KILN_REVIEW_RETENTION_DAYS). The scheduler only queues `review.sync` jobs; the
  * worker runs them through the same read-only sync as the route.
  *
  * Rules, because every read is several requests against a quota (Google Play: 200 per hour per
@@ -35,7 +35,7 @@ const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
-/** Minutes from MRM_REVIEW_SYNC_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
+/** Minutes from KILN_REVIEW_SYNC_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
 export function reviewSyncIntervalMs(minutes: number): number {
   if (minutes === 0) return 0;
   if (
@@ -190,7 +190,7 @@ export async function queueReviewSyncs(
 
 export type ReviewUpkeepOptions = {
   now: number;
-  /** MRM_REVIEW_RETENTION_DAYS. 0 keeps every review. */
+  /** KILN_REVIEW_RETENTION_DAYS. 0 keeps every review. */
   retentionDays: number;
   /** Most reviews deleted in one run. Default 1000. */
   maxRows?: number;

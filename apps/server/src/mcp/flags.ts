@@ -10,13 +10,13 @@ export type McpFlags = {
 };
 
 export const FLAG_ENV: Record<keyof McpFlags, string> = {
-  reviewReply: 'MRM_REVIEW_REPLY_ENABLED',
-  storeRollout: 'MRM_STORE_ROLLOUT_ENABLED',
-  storeDraft: 'MRM_STORE_DRAFT_WRITE_ENABLED',
-  storeSubmit: 'MRM_STORE_SUBMIT_ENABLED',
-  storeRelease: 'MRM_STORE_RELEASE_ENABLED',
-  storePublish: 'MRM_STORE_PUBLISH_BATCH_ENABLED',
-  internalSharing: 'MRM_PLAY_INTERNAL_SHARING_ENABLED',
+  reviewReply: 'KILN_REVIEW_REPLY_ENABLED',
+  storeRollout: 'KILN_STORE_ROLLOUT_ENABLED',
+  storeDraft: 'KILN_STORE_DRAFT_WRITE_ENABLED',
+  storeSubmit: 'KILN_STORE_SUBMIT_ENABLED',
+  storeRelease: 'KILN_STORE_RELEASE_ENABLED',
+  storePublish: 'KILN_STORE_PUBLISH_BATCH_ENABLED',
+  internalSharing: 'KILN_PLAY_INTERNAL_SHARING_ENABLED',
 };
 
 export const noFlags: McpFlags = {

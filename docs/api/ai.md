@@ -11,7 +11,7 @@ accepting calls a service that already exists, with that service's own right: tr
 (`changesets.write`; it reaches a store only through the previewed and confirmed draft push) or saving a reply **draft** (`reviews.triage`;
 sending is a different call). Nothing in this feature pushes, submits, publishes, releases, rolls out or sends.
 
-**Off by default, twice.** The server needs `MRM_AI_ENABLED=true` and the workspace needs the setting `enabled`. A provider, a model and
+**Off by default, twice.** The server needs `KILN_AI_ENABLED=true` and the workspace needs the setting `enabled`. A provider, a model and
 (except for a local server) a key must be set. `GET /ai/config` says which is missing.
 
 ## Rights
@@ -84,7 +84,7 @@ gets `403` there; `GET /apps/{id}/ai/suggestions` works for the apps of the toke
   `maxOutputTokens`, `maxInputTokens`, `softWarnPercent`, `priceInputCentsPerMTok`, `priceOutputCentsPerMTok`, `monthlyCostCapCents` (see [Cost](#cost-the-soft-warning-and-the-cap)); `null` resets a key to its default. All or nothing. Unknown keys are `400`. `400 invalid_setting` lists `issues`.
   The key is **not** a setting: add a credential of kind `ai_anthropic`, `ai_openai` or `ai_openai_compatible` ([credentials](../credentials.md#ai-provider-keys)).
   The settings are not part of `PUT /settings`.
-- **Addresses.** The `baseUrl` must be `https` to a public host. With `MRM_AI_ALLOW_PRIVATE_URLS=true` loopback and private addresses are allowed and
+- **Addresses.** The `baseUrl` must be `https` to a public host. With `KILN_AI_ALLOW_PRIVATE_URLS=true` loopback and private addresses are allowed and
   plain `http` only to the same machine (`localhost`, `127.0.0.1`, `[::1]`), which is how Ollama or LM Studio is reached. Plain `http` to any other
   address (a LAN machine, `host.docker.internal`) is refused either way: use `https` there. Cloud metadata addresses are always refused. The address is
   checked when saved and again at every call. **A refused address gets a fixed code**, so a screen can say what to do (`GET /ai/config` has
@@ -93,7 +93,7 @@ gets `403` there; `GET /apps/{id}/ai/suggestions` works for the apps of the toke
   `plain_http_not_allowed` (plain `http` to anything but localhost). It is `code` of the `baseUrl` entry in `issues` of `400 invalid_setting`,
   `hint` of `422 ai_not_configured` (`reason: bad_url`) on test, run and models, and `reason` of `502 ai_unavailable` when a name resolves to a private
   address at call time. The wording is chosen by the client from the code; the server's own sentence says the same: *"This server only talks to public
-  addresses. To use a model on this machine or your network, the person who runs this server sets MRM_AI_ALLOW_PRIVATE_URLS=true and restarts it."*
+  addresses. To use a model on this machine or your network, the person who runs this server sets KILN_AI_ALLOW_PRIVATE_URLS=true and restarts it."*
   Metadata addresses and malformed URLs have no code (the switch would not help). In Docker `localhost` is the container itself, so a model on the host
   is not reachable that way.
 - **The address is used as typed.** Nothing is added or rewritten: the call goes to `<baseUrl>/chat/completions` and the list to `<baseUrl>/models`
@@ -123,7 +123,7 @@ right after an opening bracket is not repaired, and a string cut off stays cut o
 `POST /ai/models` (`ai.manage`, rate limited like the test) lists what a provider says it serves, so a screen can offer a pick list instead of an empty field. Body
 `{ "provider": "anthropic" | "openai" | "openai_compatible", "baseUrl"?: "...", "apiKey"?: "..." }` (unknown keys are `400`). It sends **no data of the workspace**:
 one read, `GET /v1/models` (Anthropic, OpenAI) or `GET <baseUrl>/models` (a compatible server; `baseUrl` of the body, else the saved one). Needs
-`MRM_AI_ENABLED=true`; the workspace switch is **not** needed (this is part of setting AI up).
+`KILN_AI_ENABLED=true`; the workspace switch is **not** needed (this is part of setting AI up).
 
 - **The key.** `apiKey` is a key typed in the form and not saved yet: it is used for this one call and is **never stored, logged, audited or put in an error**.
   Without it the stored credential of the provider's kind is used (decrypted for the call, audited as `credential.use`, purpose `ai`).
@@ -174,7 +174,7 @@ one read, `GET /v1/models` (Anthropic, OpenAI) or `GET <baseUrl>/models` (a comp
 | ----------------------- | -------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------ |
 | `keyword_ideas`         | `locale` (required), `country`, `goal`                                                       | `keywords`         | tracks the chosen terms (`aso.write`)                                    |
 | `listing_improve`       | `locale` (required), `fields`, `goal`                                                        | `listing_text`     | stages the texts, source `ai` (`changesets.write`)                       |
-| `review_reply_draft`    | `reviewId` (required), `tone` (`friendly`, `neutral`, `apologetic`), `replyLanguage`, `goal` | `reply_draft`      | saves a reply draft (`reviews.triage`, needs `MRM_REVIEW_REPLY_ENABLED`) |
+| `review_reply_draft`    | `reviewId` (required), `tone` (`friendly`, `neutral`, `apologetic`), `replyLanguage`, `goal` | `reply_draft`      | saves a reply draft (`reviews.triage`, needs `KILN_REVIEW_REPLY_ENABLED`) |
 | `review_summary`        | `days` (1 to 180, default 30), `limit` (5 to 80, default 40)                                 | `insight`          | marks it reviewed (`ai.use`)                                             |
 | `review_classify`       | `days` (default 90), `limit` (1 to 40, default 20), `reviewIds`                              | `insight`          | marks it reviewed; the tags are stored by the run                        |
 | `fix_next`              | `days` (default 30), `limit` (5 to 80, default 40)                                           | `insight`          | marks it reviewed                                                        |

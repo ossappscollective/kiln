@@ -7,7 +7,7 @@ import { isIP } from 'node:net';
  * Sending a webhook is a request to an address a user chose, so it is the one place where the
  * server could be turned against its own network (SSRF). The rules, all enforced here:
  *
- * - https only. With `allowPrivate` (MRM_WEBHOOKS_ALLOW_PRIVATE=1) plain http is also accepted,
+ * - https only. With `allowPrivate` (KILN_WEBHOOKS_ALLOW_PRIVATE=1) plain http is also accepted,
  *   but only to a loopback address, for local development.
  * - The host name is resolved by us, every answer is classified, and if ANY answer is not a
  *   public address the request is refused (an attacker-run DNS server can mix good and bad ones).

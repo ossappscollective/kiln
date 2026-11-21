@@ -31,7 +31,7 @@ export type MonetizationDeps = {
       }
     | undefined;
   /**
-   * Changing a localization (MRM_STORE_PRODUCT_WRITE_ENABLED): OFF unless `enabled`. `connectorFactory` builds the connector that can read and
+   * Changing a localization (KILN_STORE_PRODUCT_WRITE_ENABLED): OFF unless `enabled`. `connectorFactory` builds the connector that can read and
    * write one localization (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
   write?:

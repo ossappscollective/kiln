@@ -260,7 +260,7 @@ export type CloneTarget = {
 
 /** Where local clones may be (docs/adr/0005-local-clone-reads.md). Empty `roots`: the feature is off. */
 export type LocalReposConfig = {
-  /** Allowed parent folders, absolute (MRM_LOCAL_REPO_ROOTS). Their real paths are used when a path is checked. */
+  /** Allowed parent folders, absolute (KILN_LOCAL_REPO_ROOTS). Their real paths are used when a path is checked. */
   roots: readonly string[];
   /** Folders a local clone must never be in (the server's data and clone folders). */
   excluded: readonly string[];
@@ -450,8 +450,8 @@ export async function setUpReads(
     gitAvailable = false;
     info(
       auto
-        ? `Reads: git is not installed (${git.message}). Reading repositories through the GitHub API. Install git or set MRM_GIT_PATH to use local clones.`
-        : `Reads: MRM_READS=clone but git is not installed (${git.message}). Repository reads will fail until it is. Install git, set MRM_GIT_PATH, or use MRM_READS=api.`,
+        ? `Reads: git is not installed (${git.message}). Reading repositories through the GitHub API. Install git or set KILN_GIT_PATH to use local clones.`
+        : `Reads: KILN_READS=clone but git is not installed (${git.message}). Repository reads will fail until it is. Install git, set KILN_GIT_PATH, or use KILN_READS=api.`,
     );
   }
   let folderOk = true;

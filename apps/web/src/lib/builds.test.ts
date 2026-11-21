@@ -235,7 +235,7 @@ test('no download button without the switch, the right, a live artifact or room 
   const row = artifactRow(artifact());
   assert.equal(downloadBlocker(row, list()), null);
   assert.equal(downloadBlocker(row, list({ downloadEnabled: false })), DOWNLOADS_OFF_TEXT);
-  assert.match(DOWNLOADS_OFF_TEXT, /MRM_BUILDS_DOWNLOAD_ENABLED/);
+  assert.match(DOWNLOADS_OFF_TEXT, /KILN_BUILDS_DOWNLOAD_ENABLED/);
   assert.match(DOWNLOADS_OFF_TEXT, /Actions: read/);
   assert.equal(downloadBlocker(row, list({ canDownload: false })), NO_RIGHT_TEXT);
   assert.match(

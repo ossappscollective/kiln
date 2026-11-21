@@ -736,7 +736,7 @@ const translateLibretranslate: CredentialGuide = {
     'Lets the tool translate customer reviews with a LibreTranslate server you run or rent. The server address is a workspace setting; this credential is only the API key, and only when the server asks for one.',
   prerequisites: [
     'A LibreTranslate server that this server can reach, started by you or hosted by someone else.',
-    'The address of the server (https, or http on this same machine). An address on your own network needs MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true on this server.',
+    'The address of the server (https, or http on this same machine). An address on your own network needs KILN_TRANSLATE_ALLOW_PRIVATE_URLS=true on this server.',
   ],
   steps: [
     {
@@ -772,12 +772,12 @@ const translateLibretranslate: CredentialGuide = {
   permissions: [
     'The key can use the translation service of that server. Keep it private.',
     'The tool sends the review text and the target language to the address you entered, and nothing else.',
-    'This server refuses addresses with a user name or password in them, addresses on a private network unless MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true, and cloud metadata addresses always.',
+    'This server refuses addresses with a user name or password in them, addresses on a private network unless KILN_TRANSLATE_ALLOW_PRIVATE_URLS=true, and cloud metadata addresses always.',
   ],
   troubleshooting: [
     {
       problem: 'The address is refused as private or not allowed.',
-      fix: 'A server on your own network is refused by default. Set MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true on this server only if you trust everyone who can change settings.',
+      fix: 'A server on your own network is refused by default. Set KILN_TRANSLATE_ALLOW_PRIVATE_URLS=true on this server only if you trust everyone who can change settings.',
     },
     {
       problem: 'The server answers 403.',
@@ -808,7 +808,7 @@ const aiAnthropic: CredentialGuide = {
     'Lets the tool send the data listed for an AI task to the Anthropic API and read back a structured proposal. It cannot publish, send or change anything in a store: a person accepts every proposal.',
   prerequisites: [
     'An Anthropic account with a billing method, and an API key from its console.',
-    'AI assistance turned on for this server (MRM_AI_ENABLED=true) and for the workspace, by an admin.',
+    'AI assistance turned on for this server (KILN_AI_ENABLED=true) and for the workspace, by an admin.',
   ],
   steps: [
     {
@@ -875,7 +875,7 @@ const aiOpenai: CredentialGuide = {
     'Lets the tool send the data listed for an AI task to the OpenAI API and read back a structured proposal. It cannot publish, send or change anything in a store: a person accepts every proposal.',
   prerequisites: [
     'An OpenAI account with a billing method, and an API key.',
-    'AI assistance turned on for this server (MRM_AI_ENABLED=true) and for the workspace, by an admin.',
+    'AI assistance turned on for this server (KILN_AI_ENABLED=true) and for the workspace, by an admin.',
   ],
   steps: [
     {
@@ -948,7 +948,7 @@ const aiOpenaiCompatible: CredentialGuide = {
     'Lets the tool use a model you run yourself, or a gateway, that speaks the OpenAI chat protocol. The server address is a workspace setting; this credential is only the API key, and only when the server asks for one.',
   prerequisites: [
     'A model server this server can reach, for example Ollama, LM Studio or vLLM, or a hosted gateway.',
-    'The address of the server, ending in /v1. A server on your own network needs MRM_AI_ALLOW_PRIVATE_URLS=true on this server, and plain http only works to this same machine.',
+    'The address of the server, ending in /v1. A server on your own network needs KILN_AI_ALLOW_PRIVATE_URLS=true on this server, and plain http only works to this same machine.',
   ],
   steps: [
     {
@@ -987,12 +987,12 @@ const aiOpenaiCompatible: CredentialGuide = {
   permissions: [
     'The key can use that server. Keep it private.',
     'The tool sends only the data listed for a task before you run it, and nothing else, to the address you entered.',
-    'This server refuses addresses with a user name or password in them, addresses on a private network unless MRM_AI_ALLOW_PRIVATE_URLS=true, and cloud metadata addresses always.',
+    'This server refuses addresses with a user name or password in them, addresses on a private network unless KILN_AI_ALLOW_PRIVATE_URLS=true, and cloud metadata addresses always.',
   ],
   troubleshooting: [
     {
       problem: 'The address is refused as private or not allowed.',
-      fix: 'A server on your own network is refused by default. Set MRM_AI_ALLOW_PRIVATE_URLS=true on this server only if you trust everyone who can change settings.',
+      fix: 'A server on your own network is refused by default. Set KILN_AI_ALLOW_PRIVATE_URLS=true on this server only if you trust everyone who can change settings.',
     },
     {
       problem: 'The test says the key was refused.',

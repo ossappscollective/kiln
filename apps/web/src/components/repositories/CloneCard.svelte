@@ -2,7 +2,7 @@
   CloneCard: how much disk the server's clone of this repository takes, when it was last used, and a
   "Free space" button for admin and owner. The clone is a cache of what GitHub (or an attached local
   folder) holds: freeing it costs a fetch on the next read, and the server removes idle or surplus
-  clones by itself (MRM_CLONE_IDLE_DAYS, MRM_CLONE_MAX_BYTES).
+  clones by itself (KILN_CLONE_IDLE_DAYS, KILN_CLONE_MAX_BYTES).
   Props: api, workspaceId, repository, role.
   Shown to everyone who can see the repository; only repositories.write may free the space.
 -->

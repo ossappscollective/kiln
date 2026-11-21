@@ -13,8 +13,8 @@ changed after it was pushed). It is therefore a separate, gated step and not a f
 
 ## Decision
 
-1. **A separate step with its own kill switch.** `MRM_STORE_SUBMIT_ENABLED`, default `false`, independent of
-   `MRM_STORE_DRAFT_WRITE_ENABLED`. While off, preview and submit answer `409 store_submit_disabled` after the
+1. **A separate step with its own kill switch.** `KILN_STORE_SUBMIT_ENABLED`, default `false`, independent of
+   `KILN_STORE_DRAFT_WRITE_ENABLED`. While off, preview and submit answer `409 store_submit_disabled` after the
    rights check and no connector is built.
 2. **A separate right, owner and admin: `store.submit`, explicit-only on tokens.** It is not `store.push_draft`:
    pushing is reversible, submitting is not, and the people who may do the first are not automatically the people who may do the

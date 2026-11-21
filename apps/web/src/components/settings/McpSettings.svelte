@@ -1,7 +1,7 @@
 <!--
   McpSettings: the "Connect an AI assistant" card of the Settings screen (docs/mcp.md, docs/api/mcp.md, docs/adr/0023-mcp-server.md).
   Owners and admins only (it creates an API token). It shows:
-  - whether the MCP server is on (a server switch, MRM_MCP_ENABLED: off by default; the card says where to set it),
+  - whether the MCP server is on (a server switch, KILN_MCP_ENABLED: off by default; the card says where to set it),
   - one button that creates an "MCP read-only" token (a viewer limited to the read tools' actions, expiring after 90 days) and shows
     it ONCE, with the copy and paste configuration for Claude Code, Claude Desktop and Cursor, over HTTP and over stdio,
   - the tools the server offers, by kind: read, change the workspace's own data, and preview only. Nothing here applies a store action:

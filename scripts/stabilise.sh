@@ -55,7 +55,7 @@ step "tests (sqlite)" pnpm test
 
 if have docker && docker info > /dev/null 2>&1; then
   step "postgres up" docker compose -f docker-compose.test.yml up -d --wait
-  step "tests (postgres)" env MRM_TEST_POSTGRES_URL=postgres://mrm_test:mrm_test@localhost:55432/mrm_test pnpm test
+  step "tests (postgres)" env KILN_TEST_POSTGRES_URL=postgres://mrm_test:mrm_test@localhost:55432/mrm_test pnpm test
   docker compose -f docker-compose.test.yml down > /dev/null 2>&1
   if [ "$MODE" != quick ]; then
     step "docker compose config" docker compose config -q

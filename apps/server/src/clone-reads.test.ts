@@ -882,7 +882,7 @@ test('setUpReads: api mode checks nothing; auto without git reads through the AP
   });
   assert.equal(clone.active, true);
   assert.equal(lines.length, 1);
-  assert.match(lines[0] ?? '', /MRM_READS=clone but git is not installed/);
+  assert.match(lines[0] ?? '', /KILN_READS=clone but git is not installed/);
 
   lines.length = 0;
   const fresh = join(scratch('mrm-setup-'), 'deep', 'clones');

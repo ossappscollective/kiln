@@ -1,14 +1,15 @@
 /**
  * A stdio bridge for MCP clients that start a local command (docs/adr/0023-mcp-server.md, docs/mcp.md):
  *
- *   MRM_URL=https://mrm.example.com MRM_TOKEN=mrm_... node apps/server/src/mcp/stdio.ts
+ *   KILN_URL=https://mrm.example.com KILN_TOKEN=mrm_... node apps/server/src/mcp/stdio.ts
  *
- * It reads newline delimited JSON-RPC from stdin, POSTs each message to `<MRM_URL>/mcp` with the token, and writes the answers to stdout.
+ * It reads newline delimited JSON-RPC from stdin, POSTs each message to `<KILN_URL>/mcp` with the token, and writes the answers to stdout.
  * It is a transport only: every rule (what the token may do, size caps, untrusted markers, previews instead of writes) is the server's.
  * No dependency, no state, nothing is logged but a fixed line on stderr; the token is read from the environment and never printed.
  * It refuses a plain `http` address unless it is this machine (the token must not cross a network unencrypted).
  */
 import { pathToFileURL } from 'node:url';
+import { applyLegacyEnv } from '../legacy-env.ts';
 
 export type BridgeOptions = {
   url: string;
@@ -26,7 +27,7 @@ const STATUS_TEXT: Record<number, string> = {
   400: 'The server did not accept the request.',
   401: 'The API token was refused (wrong, revoked or expired).',
   403: 'The server refused the request.',
-  404: 'The MCP server is off (MRM_MCP_ENABLED) or MRM_URL is wrong.',
+  404: 'The MCP server is off (KILN_MCP_ENABLED) or KILN_URL is wrong.',
   413: 'The request is too large.',
   429: 'Too many requests. Try again later.',
 };
@@ -37,7 +38,7 @@ export function endpointFor(raw: string): URL {
   try {
     url = new URL(raw);
   } catch {
-    throw new Error('MRM_URL is not a valid address.');
+    throw new Error('KILN_URL is not a valid address.');
   }
   const local =
     url.hostname === 'localhost' ||
@@ -45,10 +46,10 @@ export function endpointFor(raw: string): URL {
     url.hostname === '[::1]' ||
     url.hostname === '::1';
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) {
-    throw new Error('MRM_URL must be https (plain http is accepted for localhost only).');
+    throw new Error('KILN_URL must be https (plain http is accepted for localhost only).');
   }
   if (url.username || url.password)
-    throw new Error('MRM_URL must not contain a user name or password.');
+    throw new Error('KILN_URL must not contain a user name or password.');
   url.search = '';
   url.hash = '';
   if (!url.pathname.replace(/\/+$/, '').endsWith('/mcp'))
@@ -161,11 +162,12 @@ export async function runBridge(options: BridgeOptions): Promise<void> {
 const isMain =
   typeof process.argv[1] === 'string' && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
-  const url = process.env.MRM_URL ?? '';
-  const token = process.env.MRM_TOKEN ?? '';
+  applyLegacyEnv(process.env);
+  const url = process.env.KILN_URL ?? '';
+  const token = process.env.KILN_TOKEN ?? '';
   if (!url || !token) {
     process.stderr.write(
-      'Set MRM_URL (the address of Kiln) and MRM_TOKEN (an API token).\n',
+      'Set KILN_URL (the address of Kiln) and KILN_TOKEN (an API token).\n',
     );
     process.exit(2);
   }
@@ -177,7 +179,7 @@ if (isMain) {
     log: (line) => process.stderr.write(`${line}\n`),
   }).catch((error: unknown) => {
     process.stderr.write(
-      `${error instanceof Error && /^MRM_URL/.test(error.message) ? error.message : 'The bridge stopped.'}\n`,
+      `${error instanceof Error && /^KILN_URL/.test(error.message) ? error.message : 'The bridge stopped.'}\n`,
     );
     process.exit(1);
   });

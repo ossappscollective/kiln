@@ -13,7 +13,7 @@ the differences that follow from a state that someone else can change while a pe
 
 ## Decision
 
-1. **A kill switch, off by default.** `MRM_STORE_ROLLOUT_ENABLED=true` turns it on. While off, state,
+1. **A kill switch, off by default.** `KILN_STORE_ROLLOUT_ENABLED=true` turns it on. While off, state,
    preview and apply answer `409 rollout_disabled` and no connector is built.
 2. **A separate right.** `releases.rollout`, admin and up. An API token gets it only when its action
    list names it (`tokenExplicitOnlyActions`, as for `reviews.reply`).

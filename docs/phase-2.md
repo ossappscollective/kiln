@@ -59,7 +59,7 @@ and a release page show the result; none of those screens has been rendered in a
       observed from the store, no control), and the plan below. It is a screen of the portfolio view
       next to the app page, not a tab of it, because it can show two apps. Apple's phased release is
       still not read (see above), so an iOS release shows no share. **Never rendered in a browser**
-- [ ] Verify the whole slice on Postgres (`MRM_TEST_POSTGRES_URL`)
+- [ ] Verify the whole slice on Postgres (`KILN_TEST_POSTGRES_URL`)
 - [ ] Record real store responses from a test App Store Connect key and a Play service account,
       and replace the hand-written fixtures
 - [ ] Play review states through `GET /applications/{package}/tracks/{track}/releases`
@@ -69,7 +69,7 @@ and a release page show the result; none of those screens has been rendered in a
 - [ ] Settle the mapping and policy decisions in [open-decisions.md](open-decisions.md): Apple state
       mappings, non-iOS platforms, a dedicated Play service account, the app name, the audit
       actor for background syncs
-- [x] Scheduled sync (`MRM_SYNC_INTERVAL_MINUTES`, 30 minutes by default, 0 is off; 5 to 10080): a scheduler in the
+- [x] Scheduled sync (`KILN_SYNC_INTERVAL_MINUTES`, 30 minutes by default, 0 is off; 5 to 10080): a scheduler in the
       job queue enqueues `app.sync` per app whose last attempt is older than the interval, with
       jitter, skipping apps already queued or attempted recently, sharing the sync route's rate
       limiter, with an injected clock in tests ([docs/api/ci.md](api/ci.md#scheduled-sync)). The
@@ -110,7 +110,7 @@ or push). It prepares the ground for the phases that build and submit releases. 
       read Apple's phased release**, so for iOS the comparison is "unknown". A step is never marked
       done automatically; a person may confirm one from the store's share with an explicit click.
       Tested on SQLite only; the card was never rendered in a browser
-- [x] Reminders from the scheduler (`MRM_REMINDER_INTERVAL_MINUTES`, default 15, 0 turns them off):
+- [x] Reminders from the scheduler (`KILN_REMINDER_INTERVAL_MINUTES`, default 15, 0 turns them off):
       a plan's target date due soon (24 hours) or passed, and a rollout step whose planned time
       passed. They are **events only** (`plan.deadline_due_soon`, `plan.deadline_overdue`,
       `plan.rollout_step_due`): they reach the event stream and signed webhooks, **not email and
@@ -184,7 +184,7 @@ planned for Phase 3: it shows drift **before** anything is pushed, and writes no
       (`lib/repository-intent.ts`); the Repositories screen takes it once its list has loaded, opens that
       repository on its Change sets tab with the change set open. Unit tested (the resolver); never
       rendered in a browser
-- [x] Scheduled listing reads (`MRM_LISTING_INTERVAL_MINUTES`, off by default; 0 or 30 to 10080): the
+- [x] Scheduled listing reads (`KILN_LISTING_INTERVAL_MINUTES`, off by default; 0 or 30 to 10080): the
       scheduler queues an `app.listing` job per app that is due, at most 3 per pass and 2 per workspace,
       spaced and jittered, one per credential at a time, never twice for one app (also across instances,
       by a compare-and-set claim), sharing the sync's store rate limit, with a growing backoff after

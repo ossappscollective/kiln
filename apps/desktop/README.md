@@ -35,7 +35,7 @@ pnpm --filter @kiln/desktop build                        # stages the sidecar, t
 - `build` and `dev` run the staging step first, because Tauri refuses to build when the
   `externalBin` file for the target is missing. `dev` passes `--allow-missing-web`.
 - Debug builds (`tauri dev`) still run `apps/server/src/index.ts` from the checkout with the system
-  `node` (`MRM_NODE` picks another). Set `MRM_USE_PACKAGED_SERVER=1` to run the staged one.
+  `node` (`KILN_NODE` picks another). Set `KILN_USE_PACKAGED_SERVER=1` to run the staged one.
 - Test the staged server on its own, without Tauri:
   `node apps/desktop/scripts/prepare-sidecar.mjs --smoke`. It starts the server once in
   single-user mode, calls it, and checks it exits when stdin closes.

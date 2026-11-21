@@ -29,7 +29,7 @@ dbTest(
     assert.equal(config.status, 200);
     assert.deepEqual(
       [config.body.enabled, config.body.envName],
-      [false, 'MRM_STORE_ROLLOUT_ENABLED'],
+      [false, 'KILN_STORE_ROLLOUT_ENABLED'],
     );
     assert.deepEqual(config.body.actions, {
       android: ['set_fraction', 'halt', 'resume', 'complete'],
@@ -45,7 +45,7 @@ dbTest(
       const res = await t.call(t.owner, method, path, body);
       assert.equal(res.status, 409, `${method} ${path}`);
       assert.equal(res.body.error, 'rollout_disabled');
-      assert.match(res.body.message, /MRM_STORE_ROLLOUT_ENABLED=true/);
+      assert.match(res.body.message, /KILN_STORE_ROLLOUT_ENABLED=true/);
     }
     assert.equal(t.built.length, 0, 'no connector was built');
     assert.equal(t.stores.android.reads + t.stores.android.writes.length, 0);

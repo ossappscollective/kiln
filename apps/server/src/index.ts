@@ -6,6 +6,7 @@ import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { demoRequested } from './demo/config.ts';
 import { createWorker } from './jobs.ts';
+import { applyLegacyEnv } from './legacy-env.ts';
 import { createAlertDeliveryHandler } from './modules/alerts/delivery.ts';
 import { ALERT_PASS_INTERVAL_MS, createAlertRunner } from './modules/alerts/runner.ts';
 import { ALERT_QUEUE } from './modules/alerts/service.ts';
@@ -67,7 +68,10 @@ import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/rep
 import { createWebhookHandler, pruneDeliveries, WEBHOOK_QUEUE } from './services/webhooks.ts';
 import { VERSION } from './version.ts';
 
-// Demo mode (MRM_DEMO=true) is a separate, self-contained server: it never reads the real configuration, database or master key.
+// The old MRM_* names still work: copy them to KILN_* before anything reads the environment.
+applyLegacyEnv(process.env);
+
+// Demo mode (KILN_DEMO=true) is a separate, self-contained server: it never reads the real configuration, database or master key.
 if (demoRequested(process.env)) {
   const { runDemo } = await import('./demo/main.ts');
   await runDemo(process.env);
@@ -107,7 +111,7 @@ const reads = await setUpReads({
   cloneDir: config.cloneDir,
   ttlMs: config.cloneTtlMs,
   gitPath: config.gitPath,
-  // Local clones (docs/adr/0005-local-clone-reads.md): off unless MRM_LOCAL_REPO_ROOTS names folders.
+  // Local clones (docs/adr/0005-local-clone-reads.md): off unless KILN_LOCAL_REPO_ROOTS names folders.
   local: { roots: config.localRepoRoots, excluded: [config.dataDir, config.cloneDir] },
 });
 if (config.localRepoRoots.length > 0) {
@@ -116,18 +120,18 @@ if (config.localRepoRoots.length > 0) {
 if (config.localRepoWrite) {
   console.log(
     config.localRepoRoots.length > 0
-      ? 'Local clones: writing is ON (MRM_LOCAL_REPO_WRITE): change sets may be committed to a new branch of a clone.'
-      : 'MRM_LOCAL_REPO_WRITE=true has no effect until MRM_LOCAL_REPO_ROOTS names the folders that may hold clones.',
+      ? 'Local clones: writing is ON (KILN_LOCAL_REPO_WRITE): change sets may be committed to a new branch of a clone.'
+      : 'KILN_LOCAL_REPO_WRITE=true has no effect until KILN_LOCAL_REPO_ROOTS names the folders that may hold clones.',
   );
 }
-// Signing of those commits (MRM_GIT_SIGN). The log says the format and, for ssh, the public
+// Signing of those commits (KILN_GIT_SIGN). The log says the format and, for ssh, the public
 // fingerprint: never the key's path or anything from the key.
 if (config.gitSigning) {
   const signing = config.gitSigning;
   const fingerprint =
     signing.format === 'ssh' ? await sshKeyFingerprint(signing.program, signing.key) : undefined;
   console.log(
-    `Local clones: signing: ${signing.format}${fingerprint ? ` (key ${fingerprint})` : ''}${config.localRepoWrite ? '' : ' (no effect until MRM_LOCAL_REPO_WRITE=true)'}`,
+    `Local clones: signing: ${signing.format}${fingerprint ? ` (key ${fingerprint})` : ''}${config.localRepoWrite ? '' : ' (no effect until KILN_LOCAL_REPO_WRITE=true)'}`,
   );
   if (signing.format === 'ssh') {
     const git = await checkGit(config.gitPath);
@@ -142,8 +146,8 @@ if (config.gitSigning) {
       );
     }
   }
-} else if (process.env.MRM_GIT_SIGNING_KEY?.trim()) {
-  console.warn('MRM_GIT_SIGNING_KEY is set but MRM_GIT_SIGN is off: commits are not signed.');
+} else if (process.env.KILN_GIT_SIGNING_KEY?.trim()) {
+  console.warn('KILN_GIT_SIGNING_KEY is set but KILN_GIT_SIGN is off: commits are not signed.');
 }
 
 // Pruning of the clone folder: idle clones, then the least recently used above the byte limit.
@@ -237,7 +241,7 @@ const worker = createWorker({
       connectorFactory: defaultStoreConnectorFactory,
       timeoutMs: DEFAULT_SYNC_TIMEOUT_MS,
     }),
-    // Scheduled reads of the store listing (queued by the scheduler when MRM_LISTING_INTERVAL_MINUTES is set).
+    // Scheduled reads of the store listing (queued by the scheduler when KILN_LISTING_INTERVAL_MINUTES is set).
     [LISTING_READ_QUEUE]: createListingReadHandler({
       db: database,
       masterKey: config.masterKey,
@@ -304,7 +308,7 @@ const worker = createWorker({
 });
 if (config.worker === 'inline') worker.start();
 
-// Queues scheduled app syncs (when MRM_SYNC_INTERVAL_MINUTES is set) and ci.poll for runs still
+// Queues scheduled app syncs (when KILN_SYNC_INTERVAL_MINUTES is set) and ci.poll for runs still
 // going. It only queues jobs, so it runs where the worker does.
 const scheduler = createScheduler({
   db: database,
@@ -374,62 +378,62 @@ if (config.worker === 'inline') {
   }
   if (config.asoPlayUnofficialEnabled) {
     console.warn(
-      'ASO for Google Play is ON (MRM_ASO_PLAY_UNOFFICIAL_ENABLED): the public pages of play.google.com are read. This is unofficial and may be against the Google Play Terms of Service; read docs/api/aso.md.',
+      'ASO for Google Play is ON (KILN_ASO_PLAY_UNOFFICIAL_ENABLED): the public pages of play.google.com are read. This is unofficial and may be against the Google Play Terms of Service; read docs/api/aso.md.',
     );
   }
   if (config.aiEnabled) {
     console.log(
-      'AI assistance is ON (MRM_AI_ENABLED): workspaces that turn it on send the data listed for a task to their chosen AI provider; it only makes suggestions a person accepts',
+      'AI assistance is ON (KILN_AI_ENABLED): workspaces that turn it on send the data listed for a task to their chosen AI provider; it only makes suggestions a person accepts',
     );
   }
   if (config.reviewReplyEnabled) {
     console.log(
-      'Replying to customer reviews is ON (MRM_REVIEW_REPLY_ENABLED): owners and admins can publish replies in the stores',
+      'Replying to customer reviews is ON (KILN_REVIEW_REPLY_ENABLED): owners and admins can publish replies in the stores',
     );
   }
   if (config.storeProductWriteEnabled) {
     console.log(
-      'Changing in-app product texts is ON (MRM_STORE_PRODUCT_WRITE_ENABLED): owners and admins can change the display name and description of an in-app purchase or subscription in the stores (never prices)',
+      'Changing in-app product texts is ON (KILN_STORE_PRODUCT_WRITE_ENABLED): owners and admins can change the display name and description of an in-app purchase or subscription in the stores (never prices)',
     );
   }
   if (config.easUpdateRolloutEnabled) {
     console.log(
-      'Raising EAS Update rollouts is ON (MRM_EAS_UPDATE_ROLLOUT_ENABLED): owners and admins can raise the rollout percentage of an update at Expo (never lower it)',
+      'Raising EAS Update rollouts is ON (KILN_EAS_UPDATE_ROLLOUT_ENABLED): owners and admins can raise the rollout percentage of an update at Expo (never lower it)',
     );
   }
   if (config.storeRolloutEnabled) {
     console.log(
-      'Changing store rollouts is ON (MRM_STORE_ROLLOUT_ENABLED): owners and admins can change a live rollout in the stores',
+      'Changing store rollouts is ON (KILN_STORE_ROLLOUT_ENABLED): owners and admins can change a live rollout in the stores',
     );
   }
   if (config.storeDraftWriteEnabled) {
     console.log(
-      'Writing store drafts is ON (MRM_STORE_DRAFT_WRITE_ENABLED): owners and admins can push staged listing text and graphics to the stores as a draft (never submitted)',
+      'Writing store drafts is ON (KILN_STORE_DRAFT_WRITE_ENABLED): owners and admins can push staged listing text and graphics to the stores as a draft (never submitted)',
     );
   }
   if (config.storeSubmitEnabled) {
     console.log(
-      'Submitting for store review is ON (MRM_STORE_SUBMIT_ENABLED): owners and admins can submit a pushed draft to App Review or send it to Google Play review (not recallable from here; never releases)',
+      'Submitting for store review is ON (KILN_STORE_SUBMIT_ENABLED): owners and admins can submit a pushed draft to App Review or send it to Google Play review (not recallable from here; never releases)',
     );
   }
   if (config.storeReleaseEnabled) {
     console.log(
-      'Releasing is ON (MRM_STORE_RELEASE_ENABLED): owners and admins can release an approved App Store version or start a Google Play draft release at a share of users (not recallable from here)',
+      'Releasing is ON (KILN_STORE_RELEASE_ENABLED): owners and admins can release an approved App Store version or start a Google Play draft release at a share of users (not recallable from here)',
     );
   }
   if (config.buildsDownloadEnabled) {
     console.log(
-      'Build downloads are ON (MRM_BUILDS_DOWNLOAD_ENABLED): members can download CI artifacts through this server and hand one to a phone with a 10 minute single use link',
+      'Build downloads are ON (KILN_BUILDS_DOWNLOAD_ENABLED): members can download CI artifacts through this server and hand one to a phone with a 10 minute single use link',
     );
   }
   if (config.playInternalSharingEnabled) {
     console.log(
-      'Google Play internal app sharing is ON (MRM_PLAY_INTERNAL_SHARING_ENABLED): owners and admins can upload a build from a CI artifact to Google and get an install link (the upload cannot be deleted from here; nothing is published to users)',
+      'Google Play internal app sharing is ON (KILN_PLAY_INTERNAL_SHARING_ENABLED): owners and admins can upload a build from a CI artifact to Google and get an install link (the upload cannot be deleted from here; nothing is published to users)',
     );
   }
   if (config.storePublishBatchEnabled) {
     console.log(
-      'The batch publish is ON (MRM_STORE_PUBLISH_BATCH_ENABLED): owners and admins can run several gated store steps with one confirmation; every step still needs its own switch and right',
+      'The batch publish is ON (KILN_STORE_PUBLISH_BATCH_ENABLED): owners and admins can run several gated store steps with one confirmation; every step still needs its own switch and right',
     );
   }
   if (config.reminderIntervalMinutes > 0) {
@@ -467,7 +471,7 @@ async function shutdown(signal: string) {
 
 // The desktop shell keeps our stdin open. When the shell dies, even by a crash, the pipe closes
 // and we stop, so a server never outlives its window. Off unless the shell asks for it.
-if (process.env.MRM_EXIT_WITH_PARENT === '1') {
+if (process.env.KILN_EXIT_WITH_PARENT === '1') {
   process.stdin.resume();
   process.stdin.on('end', () => void shutdown('parent exit'));
   process.stdin.on('close', () => void shutdown('parent exit'));

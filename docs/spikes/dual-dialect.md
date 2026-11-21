@@ -16,13 +16,13 @@ small `Sql` interface, so there is one set of queries for both. See
 
 The Postgres cases below are written and wired into CI, but **none of them has been run**: no
 Postgres server was available where they were written (no `postgres`, `pg_ctl` or Docker on the
-machine). The SQLite side runs and passes. Until a run with `MRM_TEST_POSTGRES_URL` set is green,
+machine). The SQLite side runs and passes. Until a run with `KILN_TEST_POSTGRES_URL` set is green,
 treat every Postgres line as unverified. See "Testing against Postgres" in CONTRIBUTING.md.
 
 1. A parity test that introspects both databases after migration and compares tables, columns,
    types, nullability and indexes against the drizzle schema. Written for both:
    `schema-drift.test.ts` runs the same check on SQLite (`pragma_table_info`) and, when
-   `MRM_TEST_POSTGRES_URL` is set, on Postgres (`information_schema`, `pg_indexes`), and still
+   `KILN_TEST_POSTGRES_URL` is set, on Postgres (`information_schema`, `pg_indexes`), and still
    compares the two schema files with each other. Foreign keys and unique constraints are not
    compared yet. Verified on SQLite; Postgres not run.
 2. The same repository tests run against both dialects in CI. Done in code: `@kiln/db/testing`

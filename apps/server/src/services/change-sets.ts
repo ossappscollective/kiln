@@ -57,7 +57,7 @@ export type LocalOutcome = {
   /** What the person asked for when applying. */
   requested: { push: boolean; openPr: boolean };
   /**
-   * Set when the commit carries a signature (MRM_GIT_SIGN): the commit object has a signature
+   * Set when the commit carries a signature (KILN_GIT_SIGN): the commit object has a signature
    * header of this format. It says "signed", never "verified": that needs the verifier's keys.
    */
   signature?: { status: 'signed'; format: 'ssh' | 'gpg' };

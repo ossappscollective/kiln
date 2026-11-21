@@ -4,10 +4,10 @@ ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
 
-# git for reading repositories from a local clone (MRM_READS, docs/adr/0005-local-clone-reads.md).
-# Debian 12 ships git 2.39; the server needs 2.34 or newer. Without it MRM_READS=auto falls back
+# git for reading repositories from a local clone (KILN_READS, docs/adr/0005-local-clone-reads.md).
+# Debian 12 ships git 2.39; the server needs 2.34 or newer. Without it KILN_READS=auto falls back
 # to the GitHub API. ca-certificates is for https to github.com. openssh-client (ssh-keygen) and
-# gnupg are only used when MRM_GIT_SIGN is ssh or gpg (signed local commits, docs/deployment.md);
+# gnupg are only used when KILN_GIT_SIGN is ssh or gpg (signed local commits, docs/deployment.md);
 # they do nothing otherwise.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates openssh-client gnupg \
@@ -24,9 +24,9 @@ ENV NODE_ENV=production
 ENV PORT=8787
 # The server writes only here (SQLite file, uploads, git clones in /data/clones). It is owned by
 # the unprivileged user below; a named volume mounted at /data starts with this ownership.
-ENV MRM_DATA_DIR=/data
+ENV KILN_DATA_DIR=/data
 ENV DATABASE_URL=file:/data/mrm.db
-ENV MRM_CLONE_DIR=/data/clones
+ENV KILN_CLONE_DIR=/data/clones
 RUN mkdir -p /data/clones && chown -R node:node /data && chmod 700 /data/clones
 EXPOSE 8787
 

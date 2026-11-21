@@ -27,37 +27,37 @@ const PW = 'S3cret-smtp-password';
 
 test('parseSmtpEnv: nothing set is "not configured"; defaults follow the security mode; wrong values are refused with a plain sentence', () => {
   assert.deepEqual(parseSmtpEnv({}), { allowPrivateHosts: false });
-  assert.deepEqual(parseSmtpEnv({ MRM_SMTP_HOST: '  ', MRM_SMTP_PORT: '' }), {
+  assert.deepEqual(parseSmtpEnv({ KILN_SMTP_HOST: '  ', KILN_SMTP_PORT: '' }), {
     allowPrivateHosts: false,
   });
   assert.deepEqual(
-    parseSmtpEnv({ MRM_SMTP_HOST: 'mail.example.com', MRM_SMTP_FROM: 'mrm@example.com' }).config,
+    parseSmtpEnv({ KILN_SMTP_HOST: 'mail.example.com', KILN_SMTP_FROM: 'mrm@example.com' }).config,
     { host: 'mail.example.com', port: 587, secure: 'starttls', from: 'mrm@example.com' },
   );
   assert.equal(
     parseSmtpEnv({
-      MRM_SMTP_HOST: 'mail.example.com',
-      MRM_SMTP_FROM: 'a@example.com',
-      MRM_SMTP_SECURE: 'tls',
+      KILN_SMTP_HOST: 'mail.example.com',
+      KILN_SMTP_FROM: 'a@example.com',
+      KILN_SMTP_SECURE: 'tls',
     }).config?.port,
     465,
   );
   assert.equal(
     parseSmtpEnv({
-      MRM_SMTP_HOST: 'mail.example.com',
-      MRM_SMTP_FROM: 'a@example.com',
-      MRM_SMTP_SECURE: 'none',
+      KILN_SMTP_HOST: 'mail.example.com',
+      KILN_SMTP_FROM: 'a@example.com',
+      KILN_SMTP_SECURE: 'none',
     }).config?.port,
     25,
   );
   const full = parseSmtpEnv({
-    MRM_SMTP_HOST: '10.0.0.5',
-    MRM_SMTP_PORT: '2525',
-    MRM_SMTP_SECURE: 'starttls',
-    MRM_SMTP_USER: 'u',
-    MRM_SMTP_PASSWORD: PW,
-    MRM_SMTP_FROM: 'Release <r@example.com>',
-    MRM_SMTP_ALLOW_PRIVATE_HOSTS: 'true',
+    KILN_SMTP_HOST: '10.0.0.5',
+    KILN_SMTP_PORT: '2525',
+    KILN_SMTP_SECURE: 'starttls',
+    KILN_SMTP_USER: 'u',
+    KILN_SMTP_PASSWORD: PW,
+    KILN_SMTP_FROM: 'Release <r@example.com>',
+    KILN_SMTP_ALLOW_PRIVATE_HOSTS: 'true',
   });
   assert.deepEqual(full, {
     allowPrivateHosts: true,
@@ -71,25 +71,25 @@ test('parseSmtpEnv: nothing set is "not configured"; defaults follow the securit
     },
   });
   for (const [env, message] of [
-    [{ MRM_SMTP_HOST: 'smtp://mail.example.com', MRM_SMTP_FROM: 'a@example.com' }, /MRM_SMTP_HOST/],
-    [{ MRM_SMTP_HOST: 'mail.example.com:25', MRM_SMTP_FROM: 'a@example.com' }, /MRM_SMTP_HOST/],
-    [{ MRM_SMTP_HOST: 'mail.example.com' }, /MRM_SMTP_FROM/],
-    [{ MRM_SMTP_HOST: 'mail.example.com', MRM_SMTP_FROM: 'not an address' }, /MRM_SMTP_FROM/],
+    [{ KILN_SMTP_HOST: 'smtp://mail.example.com', KILN_SMTP_FROM: 'a@example.com' }, /KILN_SMTP_HOST/],
+    [{ KILN_SMTP_HOST: 'mail.example.com:25', KILN_SMTP_FROM: 'a@example.com' }, /KILN_SMTP_HOST/],
+    [{ KILN_SMTP_HOST: 'mail.example.com' }, /KILN_SMTP_FROM/],
+    [{ KILN_SMTP_HOST: 'mail.example.com', KILN_SMTP_FROM: 'not an address' }, /KILN_SMTP_FROM/],
     [
-      { MRM_SMTP_HOST: 'mail.example.com', MRM_SMTP_FROM: 'a@example.com', MRM_SMTP_SECURE: 'ssl' },
-      /MRM_SMTP_SECURE/,
+      { KILN_SMTP_HOST: 'mail.example.com', KILN_SMTP_FROM: 'a@example.com', KILN_SMTP_SECURE: 'ssl' },
+      /KILN_SMTP_SECURE/,
     ],
     [
-      { MRM_SMTP_HOST: 'mail.example.com', MRM_SMTP_FROM: 'a@example.com', MRM_SMTP_PORT: '99999' },
-      /MRM_SMTP_PORT/,
+      { KILN_SMTP_HOST: 'mail.example.com', KILN_SMTP_FROM: 'a@example.com', KILN_SMTP_PORT: '99999' },
+      /KILN_SMTP_PORT/,
     ],
     [
-      { MRM_SMTP_HOST: 'mail.example.com', MRM_SMTP_FROM: 'a@example.com', MRM_SMTP_PORT: 'x' },
-      /MRM_SMTP_PORT/,
+      { KILN_SMTP_HOST: 'mail.example.com', KILN_SMTP_FROM: 'a@example.com', KILN_SMTP_PORT: 'x' },
+      /KILN_SMTP_PORT/,
     ],
-    [{ MRM_SMTP_ALLOW_PRIVATE_HOSTS: 'yes' }, /MRM_SMTP_ALLOW_PRIVATE_HOSTS/],
+    [{ KILN_SMTP_ALLOW_PRIVATE_HOSTS: 'yes' }, /KILN_SMTP_ALLOW_PRIVATE_HOSTS/],
     [
-      { MRM_SMTP_HOST: 'mail.example.com', MRM_SMTP_FROM: 'a@example.com', MRM_SMTP_USER: 'u\nx' },
+      { KILN_SMTP_HOST: 'mail.example.com', KILN_SMTP_FROM: 'a@example.com', KILN_SMTP_USER: 'u\nx' },
       /line breaks/,
     ],
   ] as const) {
@@ -363,7 +363,7 @@ dbTest(
       assert.equal(res.status, 400, host);
       assert.equal(res.body.error, 'address_not_allowed', host);
       assert.equal(res.body.hint, 'private_address_blocked');
-      assert.match(res.body.message, /MRM_SMTP_ALLOW_PRIVATE_HOSTS=true/);
+      assert.match(res.body.message, /KILN_SMTP_ALLOW_PRIVATE_HOSTS=true/);
     }
     assert.equal(
       (await t.save({ ...value, host: '169.254.169.254' })).body.hint,
@@ -378,11 +378,11 @@ dbTest(
   'when the environment sets the mail server it wins, shows read-only and cannot be edited or cleared; the password is not returned',
   async (db) => {
     const env = parseSmtpEnv({
-      MRM_SMTP_HOST: '10.0.0.8',
-      MRM_SMTP_USER: 'u',
-      MRM_SMTP_PASSWORD: PW,
-      MRM_SMTP_FROM: 'mrm@example.com',
-      MRM_SMTP_ALLOW_PRIVATE_HOSTS: 'true',
+      KILN_SMTP_HOST: '10.0.0.8',
+      KILN_SMTP_USER: 'u',
+      KILN_SMTP_PASSWORD: PW,
+      KILN_SMTP_FROM: 'mrm@example.com',
+      KILN_SMTP_ALLOW_PRIVATE_HOSTS: 'true',
     });
     const t = await boot(db, { env });
     const got = await t.send(t.owner, 'GET', '/mail/settings');

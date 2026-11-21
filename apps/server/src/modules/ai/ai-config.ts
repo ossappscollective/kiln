@@ -37,12 +37,12 @@ import {
  * docs/adr/0016-ai-foundation.md).
  *
  * - The values live in `workspace_settings` under `ai.*` keys but are NOT in the generic settings registry:
- *   they have their own validation (the address policy is MRM_AI_ALLOW_PRIVATE_URLS, not the translation one),
+ *   they have their own validation (the address policy is KILN_AI_ALLOW_PRIVATE_URLS, not the translation one),
  *   their own right (`ai.manage`) and their own audit entry. `PUT /settings` refuses them as unknown keys.
  * - The API key is a vault credential of kind `ai_anthropic`, `ai_openai` or `ai_openai_compatible`, found
  *   the way the translation credential is found (the oldest of its kind in the workspace). It is decrypted for the
  *   length of one call and never returned, logged or audited.
- * - Two switches must both be on: the server's (`MRM_AI_ENABLED`, default false) and the workspace's (`ai.enabled`,
+ * - Two switches must both be on: the server's (`KILN_AI_ENABLED`, default false) and the workspace's (`ai.enabled`,
  *   default false). Either off, nothing is sent to a provider and no client is built.
  */
 
@@ -70,7 +70,7 @@ export const aiFail = (
 
 export const NOT_ENABLED = {
   server:
-    'AI assistance is switched off on this server. The operator can turn it on with MRM_AI_ENABLED=true.',
+    'AI assistance is switched off on this server. The operator can turn it on with KILN_AI_ENABLED=true.',
   workspace:
     'AI assistance is turned off for this workspace. An admin can turn it on in the AI settings.',
 } as const;
@@ -102,16 +102,16 @@ export const aiNotConfigured = (
 /**
  * Why an address of a model server is refused, as a FIXED code a screen can explain (the policy itself is not weakened by naming it):
  * - `private_address_blocked`: the address is a loopback, private or LAN address (or a name that resolves to one) and this server only talks
- *   to public addresses. The operator allows it with MRM_AI_ALLOW_PRIVATE_URLS=true.
+ *   to public addresses. The operator allows it with KILN_AI_ALLOW_PRIVATE_URLS=true.
  * - `plain_http_not_allowed`: plain http is only accepted for localhost (and only with that switch on); every other address needs https.
  */
 export type AddressHint = 'private_address_blocked' | 'plain_http_not_allowed';
 
 export const ADDRESS_HINT_MESSAGES: Record<AddressHint, string> = {
   private_address_blocked:
-    'This server only talks to public addresses. To use a model on this machine or your network, the person who runs this server sets MRM_AI_ALLOW_PRIVATE_URLS=true and restarts it.',
+    'This server only talks to public addresses. To use a model on this machine or your network, the person who runs this server sets KILN_AI_ALLOW_PRIVATE_URLS=true and restarts it.',
   plain_http_not_allowed:
-    'Plain http is accepted only for localhost, and only when MRM_AI_ALLOW_PRIVATE_URLS=true. Use an https address for any other server.',
+    'Plain http is accepted only for localhost, and only when KILN_AI_ALLOW_PRIVATE_URLS=true. Use an https address for any other server.',
 };
 
 /**
@@ -192,7 +192,7 @@ export type AiConfigValues = {
 export type AiConfigKey = keyof AiConfigValues;
 
 export type AiSettingsContext = {
-  /** MRM_AI_ALLOW_PRIVATE_URLS. */
+  /** KILN_AI_ALLOW_PRIVATE_URLS. */
   allowPrivateUrls?: boolean;
   /** DNS lookup for the address check on save (tests replace it). */
   resolve?: Resolver;
@@ -219,7 +219,7 @@ const MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$/;
 
 export const aiSettingDefinitions: { [K in AiConfigKey]: Definition<AiConfigValues[K]> } = {
   enabled: {
-    doc: 'Turns AI assistance on for this workspace. Needs MRM_AI_ENABLED=true on the server as well. While off, nothing is sent to an AI provider.',
+    doc: 'Turns AI assistance on for this workspace. Needs KILN_AI_ENABLED=true on the server as well. While off, nothing is sent to an AI provider.',
     default: false,
     parse: (raw) => (typeof raw === 'boolean' ? ok(raw) : bad('Use true or false.')),
   },
@@ -244,7 +244,7 @@ export const aiSettingDefinitions: { [K in AiConfigKey]: Definition<AiConfigValu
     },
   },
   baseUrl: {
-    doc: 'OpenAI compatible server only: its address ending in /v1, such as http://localhost:11434/v1 (Ollama) or https://host/v1. A private or loopback address needs MRM_AI_ALLOW_PRIVATE_URLS=true on the server, and plain http only works to the same machine. Ignored for the other providers.',
+    doc: 'OpenAI compatible server only: its address ending in /v1, such as http://localhost:11434/v1 (Ollama) or https://host/v1. A private or loopback address needs KILN_AI_ALLOW_PRIVATE_URLS=true on the server, and plain http only works to the same machine. Ignored for the other providers.',
     default: '',
     parse: (raw, ctx) => {
       if (typeof raw !== 'string') return bad('Use an address as text.');
@@ -464,9 +464,9 @@ export type AiContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
-  /** MRM_AI_ENABLED. */
+  /** KILN_AI_ENABLED. */
   enabled: boolean;
-  /** MRM_AI_ALLOW_PRIVATE_URLS. */
+  /** KILN_AI_ALLOW_PRIVATE_URLS. */
   allowPrivateUrls?: boolean;
   /** Replaces the global fetch for Anthropic and OpenAI (tests). */
   fetch?: typeof fetch;

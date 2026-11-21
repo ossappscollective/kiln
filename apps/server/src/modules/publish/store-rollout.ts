@@ -45,7 +45,7 @@ import { storeFor } from '../reviews/sync.ts';
  * of review replies (docs/adr/0007-review-replies.md) and is written down in
  * docs/adr/0008-store-rollout-writes.md and docs/api/rollout.md:
  *
- * - Off unless `rolloutEnabled` (MRM_STORE_ROLLOUT_ENABLED): every function here answers
+ * - Off unless `rolloutEnabled` (KILN_STORE_ROLLOUT_ENABLED): every function here answers
  *   `409 rollout_disabled` and no connector is ever built.
  * - Preview, then apply. The preview reads the live state and returns it with the proposed change
  *   and `confirmHash`, a SHA-256 over the app, the target, the change and the state that was read.
@@ -70,7 +70,7 @@ import { storeFor } from '../reviews/sync.ts';
 
 type Actor = { type: ActorType; id: string };
 
-export const ROLLOUT_ENV = 'MRM_STORE_ROLLOUT_ENABLED';
+export const ROLLOUT_ENV = 'KILN_STORE_ROLLOUT_ENABLED';
 export const ROLLOUT_PURPOSE = 'release.rollout';
 export const DEFAULT_ROLLOUT_TIMEOUT_MS = 90_000;
 export const DEFAULT_ROLLOUT_CLAIM_TTL_MS = 180_000;
@@ -102,7 +102,7 @@ export type RolloutContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
-  /** MRM_STORE_ROLLOUT_ENABLED. */
+  /** KILN_STORE_ROLLOUT_ENABLED. */
   rolloutEnabled: boolean;
   rolloutConnectorFactory: RolloutConnectorFactory;
   /** Longest one store operation (a read, or a whole write) may take. Default 90 seconds. */

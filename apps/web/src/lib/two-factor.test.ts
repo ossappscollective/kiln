@@ -161,7 +161,7 @@ test('a mail failure shows the sentence for its code, plus its hint; nothing fro
       message: 'x',
       body: { hint: 'private_address_blocked' },
     }),
-    /MRM_SMTP_ALLOW_PRIVATE_HOSTS/,
+    /KILN_SMTP_ALLOW_PRIVATE_HOSTS/,
   );
   assert.equal(
     twoFactorProblem({

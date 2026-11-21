@@ -116,7 +116,7 @@ export type SearchInput = {
 export type LookupInput = { platform: AsoPlatform; id: string; country: string; locale: string };
 
 export type AsoSources = {
-  /** The unofficial Google Play source is switched on (MRM_ASO_PLAY_UNOFFICIAL_ENABLED). */
+  /** The unofficial Google Play source is switched on (KILN_ASO_PLAY_UNOFFICIAL_ENABLED). */
   playEnabled: boolean;
   search(input: SearchInput): Promise<SearchOutcome>;
   lookup(input: LookupInput): Promise<PublicApp | undefined>;
@@ -259,7 +259,7 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
           throw new AsoError(
             'play_public',
             'unavailable',
-            'Reading Google Play pages is switched off (MRM_ASO_PLAY_UNOFFICIAL_ENABLED).',
+            'Reading Google Play pages is switched off (KILN_ASO_PLAY_UNOFFICIAL_ENABLED).',
             { reason: 'disabled' },
           );
         }
@@ -288,7 +288,7 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
           throw new AsoError(
             'play_public',
             'unavailable',
-            'Reading Google Play pages is switched off (MRM_ASO_PLAY_UNOFFICIAL_ENABLED).',
+            'Reading Google Play pages is switched off (KILN_ASO_PLAY_UNOFFICIAL_ENABLED).',
             { reason: 'disabled' },
           );
         }

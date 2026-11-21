@@ -10,7 +10,7 @@ import {
 } from './status.ts';
 
 /**
- * Scheduled reads of EAS builds and submissions (MRM_EAS_STATUS_INTERVAL_MINUTES, default 30, 0 is off; docs/adr/0036-eas-build-submit-status.md).
+ * Scheduled reads of EAS builds and submissions (KILN_EAS_STATUS_INTERVAL_MINUTES, default 30, 0 is off; docs/adr/0036-eas-build-submit-status.md).
  * The scheduler only queues `eas.status` jobs; the worker runs them through the same read-only read as the manual route (`refreshEasStatus`).
  * Only app records that have a link, a usable Expo credential and a platform EAS builds for are queued, so a workspace without Expo costs nothing.
  *
@@ -30,7 +30,7 @@ export const DEFAULT_EAS_STATUS_SPACING_MS = 5_000;
 export const DEFAULT_EAS_ACTIVE_INTERVAL_MS = 3 * 60_000;
 const MINUTE = 60_000;
 
-/** Minutes from MRM_EAS_STATUS_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
+/** Minutes from KILN_EAS_STATUS_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
 export function easStatusIntervalMs(minutes: number): number {
   if (minutes === 0) return 0;
   if (

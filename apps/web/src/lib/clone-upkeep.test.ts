@@ -44,7 +44,7 @@ const clone: CloneView = {
 };
 
 test('the summary line and the result of freeing space', () => {
-  assert.match(cloneSummary({ enabled: false, clone: null }), /MRM_READS=api/);
+  assert.match(cloneSummary({ enabled: false, clone: null }), /KILN_READS=api/);
   assert.match(cloneSummary({ enabled: true, clone: null }), /No clone on disk/);
   assert.equal(cloneSummary({ enabled: true, clone }), '4.0 KB on the server.');
   assert.equal(

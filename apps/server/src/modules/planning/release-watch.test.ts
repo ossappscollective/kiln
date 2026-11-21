@@ -376,28 +376,28 @@ test('releaseWatchIntervalMs: off, or whole minutes between 5 and a week', () =>
     assert.throws(() => releaseWatchIntervalMs(bad), /release watch interval/, String(bad));
 });
 
-test('MRM_RELEASE_WATCH_INTERVAL_MINUTES defaults to 15, 0 is off, and the range is checked', () => {
+test('KILN_RELEASE_WATCH_INTERVAL_MINUTES defaults to 15, 0 is off, and the range is checked', () => {
   const key = Buffer.alloc(32, 7).toString('base64');
-  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).releaseWatchIntervalMinutes, 15);
+  assert.equal(loadConfig({ KILN_MASTER_KEY: key }).releaseWatchIntervalMinutes, 15);
   assert.equal(
-    loadConfig({ MRM_MASTER_KEY: key, MRM_RELEASE_WATCH_INTERVAL_MINUTES: '' })
+    loadConfig({ KILN_MASTER_KEY: key, KILN_RELEASE_WATCH_INTERVAL_MINUTES: '' })
       .releaseWatchIntervalMinutes,
     15,
   );
   assert.equal(
-    loadConfig({ MRM_MASTER_KEY: key, MRM_RELEASE_WATCH_INTERVAL_MINUTES: '0' })
+    loadConfig({ KILN_MASTER_KEY: key, KILN_RELEASE_WATCH_INTERVAL_MINUTES: '0' })
       .releaseWatchIntervalMinutes,
     0,
   );
   assert.equal(
-    loadConfig({ MRM_MASTER_KEY: key, MRM_RELEASE_WATCH_INTERVAL_MINUTES: '10080' })
+    loadConfig({ KILN_MASTER_KEY: key, KILN_RELEASE_WATCH_INTERVAL_MINUTES: '10080' })
       .releaseWatchIntervalMinutes,
     10_080,
   );
   for (const bad of ['1', '4', '10081', '-1', '2.5', 'soon']) {
     assert.throws(
-      () => loadConfig({ MRM_MASTER_KEY: key, MRM_RELEASE_WATCH_INTERVAL_MINUTES: bad }),
-      /MRM_RELEASE_WATCH_INTERVAL_MINUTES/,
+      () => loadConfig({ KILN_MASTER_KEY: key, KILN_RELEASE_WATCH_INTERVAL_MINUTES: bad }),
+      /KILN_RELEASE_WATCH_INTERVAL_MINUTES/,
       bad,
     );
   }

@@ -613,7 +613,7 @@ dbTest(
     const refused = await t.refresh(droid);
     assert.equal(refused.status, 409);
     assert.equal(refused.body.error, 'play_unofficial_disabled');
-    assert.match(refused.body.message, /MRM_ASO_PLAY_UNOFFICIAL_ENABLED/);
+    assert.match(refused.body.message, /KILN_ASO_PLAY_UNOFFICIAL_ENABLED/);
     const comp = await t.call(t.owner, 'POST', `/apps/${droid}/aso/competitors`, {
       externalId: 'com.rival.app',
     });

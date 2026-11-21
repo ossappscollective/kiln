@@ -66,7 +66,7 @@ Body (strict): `{ apply, name, description, previewHash? }`. `locale` is a tag s
 
 ### The gate
 
-- **Switch**: `MRM_STORE_PRODUCT_WRITE_ENABLED=true` (default `false`). While off the route answers `409 store_product_write_disabled`
+- **Switch**: `KILN_STORE_PRODUCT_WRITE_ENABLED=true` (default `false`). While off the route answers `409 store_product_write_disabled`
   with `envName`, after the rights check; no store is contacted. Reads and the sync are not affected.
 - **Right**: `monetization.write` (owner and admin). An API token needs the action **named** in its list.
 - **Step-up**: an apply is the `store.push_draft` action of [step-up](step-up.md): a workspace that covers it asks for the person's

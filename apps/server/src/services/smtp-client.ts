@@ -34,7 +34,7 @@ export const defaultPort = (secure: SmtpSecure): number =>
   secure === 'tls' ? 465 : secure === 'none' ? 25 : 587;
 
 export type SmtpOptions = {
-  /** Private and loopback addresses may be used (MRM_SMTP_ALLOW_PRIVATE_HOSTS). */
+  /** Private and loopback addresses may be used (KILN_SMTP_ALLOW_PRIVATE_HOSTS). */
   allowPrivateHosts?: boolean;
   resolve?: Resolver;
   now?: () => number;

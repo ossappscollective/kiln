@@ -25,7 +25,7 @@ gets `401`. Times are epoch milliseconds.
   with the same credential and the same connector. It adds no new credential use and no audit event.
   A failure reading the listing **never fails the release sync**; it is stored as `listing_error`
   and shown here under `store.error`.
-- It can also be read **on a schedule** (`MRM_LISTING_INTERVAL_MINUTES`, off by default; see
+- It can also be read **on a schedule** (`KILN_LISTING_INTERVAL_MINUTES`, off by default; see
   "Scheduled reads"). That is the same read with the same connector, started by the scheduler.
 - The **sections** beyond the texts (categories, age rating, privacy choices URL, app details, media
   counts, Play release notes; see "Sections beyond the texts") are read-only twice over: nothing is
@@ -429,7 +429,7 @@ Pull the live store listing into the repository: it takes the store's text for t
 writes those values into the repository's listing files. Nothing is written to a store and nothing is
 written to the repository: the draft is reviewed, approved and applied like every change set
 (`POST /change-sets/:id/approve`, then `/apply`), and applying opens a **pull request on GitHub**, or, with `mode: "local_branch"` (opt-in,
-`MRM_LOCAL_REPO_WRITE=true`), **commits to a new branch of the repository's local clone** with an
+`KILN_LOCAL_REPO_WRITE=true`), **commits to a new branch of the repository's local clone** with an
 optional push and pull request ([repositories](repositories.md)). For a repository with a local clone,
 that is the way to "sync the store listing into fastlane metadata and commit it in git".
 
@@ -570,11 +570,11 @@ Audit `changeset.recompute` with counts only.
 
 ## Scheduled reads
 
-`MRM_LISTING_INTERVAL_MINUTES` (default `0`, off; otherwise 30 to 10080) makes the scheduler read the
+`KILN_LISTING_INTERVAL_MINUTES` (default `0`, off; otherwise 30 to 10080) makes the scheduler read the
 listing of every app that has a store credential, without anyone pressing a button. Without it the
-listing is read only when the app is synced (by hand or by `MRM_SYNC_INTERVAL_MINUTES`, which also
+listing is read only when the app is synced (by hand or by `KILN_SYNC_INTERVAL_MINUTES`, which also
 reads the listing) or refreshed from the store. It runs where the background worker runs
-(`MRM_WORKER=inline`); see [deployment](../deployment.md#scheduled-listing-reads).
+(`KILN_WORKER=inline`); see [deployment](../deployment.md#scheduled-listing-reads).
 
 - The scheduler only **queues** an `app.listing` job per app that is due; the worker reads it with
   the same read-only connector, credential use and snapshot recording as the sync's listing step. It

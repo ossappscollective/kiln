@@ -77,7 +77,7 @@ added, ones the store no longer reports removed). It is read-only toward the sto
   The worker is the database-backed queue in `jobs.ts` (no Redis): claiming is optimistic and
   portable, delivery is at least once, stale running jobs are recovered, temporary failures retry
   with backoff, and a job finishes only for the attempt that claimed it. The worker runs inside the
-  server unless `MRM_WORKER=off`; handlers are registered in `apps/server/src/index.ts`.
+  server unless `KILN_WORKER=off`; handlers are registered in `apps/server/src/index.ts`.
 - The secret is decrypted for one call, never returned or logged, and its use is audited
   (`credential.use`). A failed sync keeps the last good snapshot and records a redacted error on the
   app. Syncs of one app do not overlap (`409 sync_in_progress`) and are rate limited per workspace.
@@ -93,8 +93,8 @@ Summary; the operator-facing detail is in [docs/deployment.md](deployment.md).
   password hash runs so parallel guesses cannot all pass. Separate instances for sign-in per email
   address, sign-in per client address (looser), and bad invitation tokens, so one cannot evict the
   others. Credential tests and app syncs have their own per-workspace limits (10 per minute each).
-- **Client address and `MRM_TRUST_PROXY`**: the client address is the socket address by default.
-  With `MRM_TRUST_PROXY=1` it is the last `X-Forwarded-For` entry; set it only with exactly one
+- **Client address and `KILN_TRUST_PROXY`**: the client address is the socket address by default.
+  With `KILN_TRUST_PROXY=1` it is the last `X-Forwarded-For` entry; set it only with exactly one
   proxy you control in front. Limits reset on restart and are not shared between instances.
 - **Request limits and headers**: bodies capped at 1 MB (256 KB on sign-in, setup and invitation
   routes, `413 payload_too_large`); every response carries a Content-Security-Policy with
@@ -103,7 +103,7 @@ Summary; the operator-facing detail is in [docs/deployment.md](deployment.md).
 - **Writes**: cookie sessions stored hashed, a same-origin check on state-changing requests, an
   invitation stops working when its creator loses the right to invite.
 - **Deployment defaults**: the container runs as the unprivileged `node` user and writes only to
-  `/data`; compose publishes 8787 on `127.0.0.1` unless `MRM_BIND` says otherwise. Not verified:
+  `/data`; compose publishes 8787 on `127.0.0.1` unless `KILN_BIND` says otherwise. Not verified:
   the image has never been built.
 - **Desktop**: single-user mode adds loopback bind, a Host allowlist and a single-use launch secret
   ([ADR 0003](adr/0003-single-user-mode.md)).

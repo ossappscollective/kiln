@@ -41,7 +41,7 @@ export const changeSetSchema = z.object({
         .object({ status: z.literal('signed'), format: z.enum(['ssh', 'gpg']) })
         .optional()
         .describe(
-          "Present when the commit was signed with the server's key (MRM_GIT_SIGN): the commit object holds a signature header of that format. It means signed, not verified; GitHub shows Verified only when the public key is a signing key on the committer's account.",
+          "Present when the commit was signed with the server's key (KILN_GIT_SIGN): the commit object holds a signature header of that format. It means signed, not verified; GitHub shows Verified only when the public key is a signing key on the committer's account.",
         ),
       push: z
         .object({

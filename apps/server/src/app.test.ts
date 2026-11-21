@@ -11,7 +11,7 @@ const pem = (word: string) => `-----BEGIN PRIVATE KEY-----\n${word}\n-----END PR
 const ascSecret = (word: string) =>
   JSON.stringify({ keyId: 'ABC123DEFG', issuerId: 'issuer-1', privateKey: pem(word) });
 
-// Every test below runs once per database (SQLite, and Postgres when MRM_TEST_POSTGRES_URL is set).
+// Every test below runs once per database (SQLite, and Postgres when KILN_TEST_POSTGRES_URL is set).
 async function boot(db: Database, overrides: Partial<Parameters<typeof createApp>[0]> = {}) {
   await migrate(db);
   const masterKey = randomBytes(32);

@@ -2,7 +2,7 @@
   RolloutControls: change the staged rollout of a release IN THE STORE (docs/api/rollout.md): raise the Google
   Play share, halt, resume, release to 100%, pause or resume an Apple phased release, release to all.
   A store write that changes who gets an update, so: only for admin and owner (`releases.rollout`; everyone
-  else sees nothing), switched off unless the server sets MRM_STORE_ROLLOUT_ENABLED (then a note says so and
+  else sees nothing), switched off unless the server sets KILN_STORE_ROLLOUT_ENABLED (then a note says so and
   nothing can be clicked), and every change goes through a preview and a confirmation.
   The rollout PLAN (steps, planned times) is planning data and lives in each release row.
   Props: api, workspaceId, role, members (the app records in scope), releases (by app id).

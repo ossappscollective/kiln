@@ -103,7 +103,7 @@ test('availability: off names the env var, rights explain who can do what', () =
   assert.equal(replyAvailability(null, 'owner').state, 'loading');
   const off = replyAvailability({ enabled: false, envName: REPLY_ENV }, 'owner');
   assert.deepEqual([off.canDraft, off.canSend, off.state], [false, false, 'off']);
-  assert.ok(off.reason?.includes('MRM_REVIEW_REPLY_ENABLED=true'));
+  assert.ok(off.reason?.includes('KILN_REVIEW_REPLY_ENABLED=true'));
   const viewer = replyAvailability(config, 'viewer');
   assert.deepEqual([viewer.canDraft, viewer.canSend, viewer.state], [false, false, 'rights']);
   const member = replyAvailability(config, 'member');
@@ -192,7 +192,7 @@ test('the send button needs a saved draft that fits, rights, and the acknowledge
 });
 
 test('error messages: each code says what happened and what is safe', () => {
-  assert.match(replyErrorMessage(apiError('reply_disabled')), /MRM_REVIEW_REPLY_ENABLED=true/);
+  assert.match(replyErrorMessage(apiError('reply_disabled')), /KILN_REVIEW_REPLY_ENABLED=true/);
   assert.match(replyErrorMessage(apiError('forbidden'), 'send'), /admin or owner/);
   assert.match(replyErrorMessage(apiError('forbidden'), 'draft'), /member/);
   assert.match(replyErrorMessage(apiError('stale_draft')), /changed/);

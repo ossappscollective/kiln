@@ -66,7 +66,7 @@ export type CloneSource =
   | { type: 'local'; path: string };
 
 export type GitCloneReaderOptions = {
-  /** Directory all clones live under (for example `<MRM_DATA_DIR>/clones`). Created on demand. */
+  /** Directory all clones live under (for example `<KILN_DATA_DIR>/clones`). Created on demand. */
   baseDir: string;
   /** Safe ids (letters, digits, `-`, `_`). The clone is `<baseDir>/<workspaceId>/<repositoryId>`. */
   workspaceId: string;

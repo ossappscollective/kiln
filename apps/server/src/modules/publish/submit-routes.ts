@@ -20,7 +20,7 @@ import {
 
 /**
  * Submitting the pushed store draft for review (docs/api/submit.md, docs/adr/0010-store-submit.md): an IRREVERSIBLE
- * store write, OFF unless MRM_STORE_SUBMIT_ENABLED=true, needing the `store.submit` action (owner and admin; a token
+ * store write, OFF unless KILN_STORE_SUBMIT_ENABLED=true, needing the `store.submit` action (owner and admin; a token
  * only when its actions name it). Never releases a version and never changes a rollout. Mounted under /api/workspaces.
  */
 export type SubmitRoutesContext = {
@@ -28,7 +28,7 @@ export type SubmitRoutesContext = {
   masterKey: Buffer;
   now: () => number;
   submit?: {
-    /** MRM_STORE_SUBMIT_ENABLED (default false). */
+    /** KILN_STORE_SUBMIT_ENABLED (default false). */
     enabled?: boolean;
     /** Builds the connector that can read and submit (fakes in tests). */
     connectorFactory?: SubmitConnectorFactory;

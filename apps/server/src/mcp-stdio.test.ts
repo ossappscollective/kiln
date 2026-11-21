@@ -160,7 +160,7 @@ test('the script runs as a command: environment in, newline delimited JSON out, 
     });
   try {
     const ok = await run(
-      { MRM_URL: `http://127.0.0.1:${port}`, MRM_TOKEN: 'mrm_smoketoken' },
+      { KILN_URL: `http://127.0.0.1:${port}`, KILN_TOKEN: 'mrm_smoketoken' },
       '{"jsonrpc":"2.0","id":1,"method":"ping"}\n{"jsonrpc":"2.0","method":"notifications/initialized"}\n',
     );
     assert.equal(ok.code, 0);
@@ -178,7 +178,7 @@ test('the script runs as a command: environment in, newline delimited JSON out, 
     const missing = await run({}, '');
     assert.equal(missing.code, 2);
     assert.equal(missing.out, '');
-    const plain = await run({ MRM_URL: 'http://mrm.example.com', MRM_TOKEN: 'mrm_smoketoken' }, '');
+    const plain = await run({ KILN_URL: 'http://mrm.example.com', KILN_TOKEN: 'mrm_smoketoken' }, '');
     assert.equal(plain.code, 1);
     assert.match(plain.err, /https/);
     assert.ok(!plain.err.includes('smoketoken'));

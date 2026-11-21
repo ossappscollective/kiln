@@ -81,9 +81,9 @@ export type AsoLimits = {
   rankDepth: number;
   /** A competitor with no stored snapshot for this long gets one anyway. */
   heartbeatMs: number;
-  /** MRM_ASO_RETENTION_DAYS; 0 keeps everything. */
+  /** KILN_ASO_RETENTION_DAYS; 0 keeps everything. */
   retentionDays: number;
-  /** MRM_ASO_INTERVAL_MINUTES in milliseconds; 0: scheduled refreshes are off. */
+  /** KILN_ASO_INTERVAL_MINUTES in milliseconds; 0: scheduled refreshes are off. */
   intervalMs: number;
 };
 
@@ -145,7 +145,7 @@ export const playDisabledFailure = (): Failure =>
   failure(
     409,
     'play_unofficial_disabled',
-    'Reading Google Play pages is switched off. The operator can turn it on with MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true (read the warning in docs/api/aso.md first).',
+    'Reading Google Play pages is switched off. The operator can turn it on with KILN_ASO_PLAY_UNOFFICIAL_ENABLED=true (read the warning in docs/api/aso.md first).',
   );
 
 /** The short code kept on a keyword or competitor when its last look failed. */
@@ -377,7 +377,7 @@ export async function addKeywords(
         results.push({
           index,
           status: 'limit',
-          message: `An app tracks at most ${ctx.limits.maxKeywordsPerApp} keywords (MRM_ASO_MAX_KEYWORDS_PER_APP).`,
+          message: `An app tracks at most ${ctx.limits.maxKeywordsPerApp} keywords (KILN_ASO_MAX_KEYWORDS_PER_APP).`,
         });
         continue;
       }
@@ -811,7 +811,7 @@ export async function addCompetitor(
     return failure(
       409,
       'limit_reached',
-      `An app follows at most ${ctx.limits.maxCompetitorsPerApp} competitors (MRM_ASO_MAX_COMPETITORS_PER_APP).`,
+      `An app follows at most ${ctx.limits.maxCompetitorsPerApp} competitors (KILN_ASO_MAX_COMPETITORS_PER_APP).`,
     );
   }
   let found: PublicApp | undefined;

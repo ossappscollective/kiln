@@ -16,7 +16,7 @@ export type EasDeps = {
   apiOrigin?: string | undefined;
   /**
    * Raising the rollout of an EAS Update (docs/adr/0037-eas-update.md), the one write of the update view: OFF unless `enabled`
-   * (MRM_EAS_UPDATE_ROLLOUT_ENABLED).
+   * (KILN_EAS_UPDATE_ROLLOUT_ENABLED).
    */
   updateRollout?: { enabled?: boolean | undefined } | undefined;
 };

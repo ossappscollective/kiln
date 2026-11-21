@@ -1,7 +1,7 @@
 /**
  * The frame every HTML email of the server shares (alerts, sign-in codes, the SMTP test): a white card on a grey page, a coloured
  * bar, a footer, inline CSS only (mail clients ignore the rest). Pure apart from the link origin, which `createApp` sets from
- * MRM_PUBLIC_ORIGIN: a background job cannot know the address people reach the server at, so without it an email names the screen
+ * KILN_PUBLIC_ORIGIN: a background job cannot know the address people reach the server at, so without it an email names the screen
  * ("Credentials") and has no link. Everything that reaches the HTML goes through `escapeHtml`.
  */
 

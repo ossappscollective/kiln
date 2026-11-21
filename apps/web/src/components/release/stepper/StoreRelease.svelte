@@ -1,7 +1,7 @@
 <!--
   StoreRelease: the "Release" control of the Confirm step, for one app record, with the dialog behind it. Drawn only for
   admin and up (`store.release`). While the server's switch is off there is no button: the line says so and a small
-  popover names MRM_STORE_RELEASE_ENABLED.
+  popover names KILN_STORE_RELEASE_ENABLED.
   A release is a SEPARATE, IRREVERSIBLE store write: the preview (a store read) comes first; the release is sent once
   with the preview's hash and the typed phrase and is NEVER retried by this app. `state_changed` brings a new preview
   that must be confirmed again; `outcome_unknown` makes the person look at the store console and preview again.

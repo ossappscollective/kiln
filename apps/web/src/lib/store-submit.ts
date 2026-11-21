@@ -9,7 +9,7 @@ import { ApiError } from './api.ts';
  * Written for the ES2017 web build: no flatMap, no fromEntries.
  */
 
-export const SUBMIT_ENV = 'MRM_STORE_SUBMIT_ENABLED';
+export const SUBMIT_ENV = 'KILN_STORE_SUBMIT_ENABLED';
 
 export const SUBMIT_ROLE_REASON = 'Submitting a draft for review needs the admin or owner role.';
 

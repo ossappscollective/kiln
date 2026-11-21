@@ -162,7 +162,7 @@ const statusSchema = z.object({
     intervalMinutes: z
       .number()
       .int()
-      .describe('MRM_ANALYTICS_INTERVAL_MINUTES; 0 means no scheduled sync.'),
+      .describe('KILN_ANALYTICS_INTERVAL_MINUTES; 0 means no scheduled sync.'),
   }),
   apple: z
     .object({

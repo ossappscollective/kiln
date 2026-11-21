@@ -14,7 +14,7 @@ credentials and can write to the stores, so "no login" must not mean "no authent
 
 ## Decision
 
-`MRM_MODE=single_user` (default `multi`, which is unchanged). The server still has accounts and
+`KILN_MODE=single_user` (default `multi`, which is unchanged). The server still has accounts and
 sessions; single-user mode only changes how the one session starts.
 
 1. **Loopback only.** The server listens on `127.0.0.1`, not on all interfaces.
@@ -24,7 +24,7 @@ sessions; single-user mode only changes how the one session starts.
    `X-Forwarded-Host` are refused too, because nothing may sit in front of this server and the
    same-origin check trusts that header.
 3. **A per-launch secret instead of a password.** The shell generates 32 random bytes from the OS
-   CSPRNG and passes them in `MRM_LAUNCH_SECRET` (environment, never argv, which other users can
+   CSPRNG and passes them in `KILN_LAUNCH_SECRET` (environment, never argv, which other users can
    read). Config requires 43 or more URL-safe characters (32 bytes as base64url, or 64 hex) and
    rejects repetitive values. That is a sanity check; the shell is responsible for real randomness.
 4. **`GET /api/auth/launch?secret=...`** compares the secret in constant time (SHA-256 of both
@@ -53,10 +53,10 @@ sessions; single-user mode only changes how the one session starts.
    `mode` as `multi`. (Adding it to multi mode too is one line in `routes/auth.ts`, once
    `app.test.ts` stops asserting the exact shape.)
 10. **Dev servers.** Vite forwards the browser's own Host (`localhost:5173`), which the allowlist
-    would refuse. `MRM_ALLOWED_HOSTS` (single-user only, default empty) adds exact extra Host values.
+    would refuse. `KILN_ALLOWED_HOSTS` (single-user only, default empty) adds exact extra Host values.
     Each must be `localhost`, `127.0.0.1` or `[::1]` with an explicit port; anything else, including
     wildcards and real hostnames, fails at startup, because that would reopen DNS rebinding.
-    Example: `MRM_ALLOWED_HOSTS=localhost:5173`.
+    Example: `KILN_ALLOWED_HOSTS=localhost:5173`.
 
 ## Threat model
 
@@ -89,4 +89,4 @@ Explicitly out of scope:
   new secret.
 - The launch secret exists only in memory, so restarting the server always needs a new one.
 - The shell's own failure mode: if the shell is killed, the server exits when its stdin closes
-  (`MRM_EXIT_WITH_PARENT=1`), so a server never outlives its window.
+  (`KILN_EXIT_WITH_PARENT=1`), so a server never outlives its window.

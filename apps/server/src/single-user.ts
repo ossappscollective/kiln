@@ -8,8 +8,12 @@ import type { MiddlewareHandler } from 'hono';
  * opens the window at /api/auth/launch?secret=... which trades the secret for a session cookie.
  */
 
-/** The only user single-user mode has. It has no password hash, so it can never log in. */
-export const LOCAL_USER_EMAIL = 'local-user@kiln.invalid';
+/**
+ * The only user single-user mode has. It has no password hash, so it can never log in. The address keeps
+ * the working-title name on purpose: the user is found by it, so changing it would create a second user
+ * next to the one that owns an existing desktop workspace.
+ */
+export const LOCAL_USER_EMAIL = 'local-user@mrm.invalid';
 
 const sha256 = (value: string) => createHash('sha256').update(value).digest();
 
@@ -57,7 +61,7 @@ export function allowedHosts(port: number): string[] {
 const LOOPBACK_WITH_PORT = /^(localhost|127\.0\.0\.1|\[::1\]):([0-9]{1,5})$/;
 
 /**
- * Parses MRM_ALLOWED_HOSTS: extra Host values to accept, for a dev server in front of the API
+ * Parses KILN_ALLOWED_HOSTS: extra Host values to accept, for a dev server in front of the API
  * (Vite on localhost:5173 forwards its own Host). Each entry must be a loopback name with an
  * explicit port. Anything else would let a rebound DNS name through, so it is an error, not a
  * warning. Returns the lowercased entries.
@@ -71,7 +75,7 @@ export function parseExtraHosts(list: string): string[] {
     const port = Number(match?.[2]);
     if (!match || port < 1 || port > 65535) {
       throw new Error(
-        `MRM_ALLOWED_HOSTS entry "${raw.trim()}" must be localhost, 127.0.0.1 or [::1] with a port, for example localhost:5173`,
+        `KILN_ALLOWED_HOSTS entry "${raw.trim()}" must be localhost, 127.0.0.1 or [::1] with a port, for example localhost:5173`,
       );
     }
     hosts.push(entry);

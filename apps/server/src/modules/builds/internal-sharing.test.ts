@@ -45,7 +45,7 @@ dbTest(
       [
         200,
         false,
-        'MRM_PLAY_INTERNAL_SHARING_ENABLED',
+        'KILN_PLAY_INTERNAL_SHARING_ENABLED',
         'builds.share',
         'admin',
         'internal_sharing',
@@ -60,7 +60,7 @@ dbTest(
     ]) {
       assert.equal(res.status, 409, res.text);
       assert.equal(res.body.error, 'internal_sharing_disabled');
-      assert.match(res.body.message, /MRM_PLAY_INTERNAL_SHARING_ENABLED=true/);
+      assert.match(res.body.message, /KILN_PLAY_INTERNAL_SHARING_ENABLED=true/);
     }
     assert.equal(t.built.length, 0, 'no connector was built');
     assert.equal(

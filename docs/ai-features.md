@@ -6,7 +6,7 @@ What the assistant can do for reviews, the store listing and ASO, where to find 
 **The rule, again.** Every feature turns stored data into a **suggestion or a report** that a person reads. It never pushes, submits,
 publishes, releases, rolls out or sends anything. Accepting a suggestion calls something that already exists (track keywords, stage a text,
 save a reply draft) and a staged text still reaches a store only through Pending changes. A report is read and marked as reviewed; marking it
-changes nothing else. The assistant is off by default (the server switch `MRM_AI_ENABLED` and the workspace setting) and every control below
+changes nothing else. The assistant is off by default (the server switch `KILN_AI_ENABLED` and the workspace setting) and every control below
 is **not drawn at all** while it is off, or for a role that may not use it.
 
 ## Where things are
@@ -115,4 +115,4 @@ and nothing is saved. Use a model made for structured output. A thinking model t
 No real model was contacted for these features. They were built and tested against the fake provider, which returns what a well-behaved and a badly
 behaved model could. Before relying on them, try each task once with the provider and model you will use, with a handful of real reviews, and read what
 comes back; the quality of the themes, the tags and the variants depends on the model. The web screens compile and their logic is tested, but they were not
-run in a browser here. The Postgres variants of the new tables run only when `MRM_TEST_POSTGRES_URL` is set.
+run in a browser here. The Postgres variants of the new tables run only when `KILN_TEST_POSTGRES_URL` is set.

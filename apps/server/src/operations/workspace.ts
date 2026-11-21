@@ -274,7 +274,7 @@ const settingsBody = z.object({
     .nullable()
     .optional()
     .describe(
-      'https://host[/path]. A private or loopback address needs MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true. Credentials in the URL are refused.',
+      'https://host[/path]. A private or loopback address needs KILN_TRANSLATE_ALLOW_PRIVATE_URLS=true. Credentials in the URL are refused.',
     ),
 });
 

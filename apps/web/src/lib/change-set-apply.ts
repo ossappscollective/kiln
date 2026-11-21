@@ -24,8 +24,8 @@ export type ApplyContext = {
 
 export type Availability = { available: boolean; reason?: string };
 
-export const WRITE_ENV_NAME = 'MRM_LOCAL_REPO_WRITE';
-export const SIGN_ENV_NAME = 'MRM_GIT_SIGN';
+export const WRITE_ENV_NAME = 'KILN_LOCAL_REPO_WRITE';
+export const SIGN_ENV_NAME = 'KILN_GIT_SIGN';
 
 const unavailable = (reason: string): Availability => ({ available: false, reason });
 const ok: Availability = { available: true };

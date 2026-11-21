@@ -123,7 +123,7 @@ test('ready: the button only when the switch is on', () => {
 test('switched off: one line and a note that names the variable, no button', () => {
   const line = submitLine({ ...base, config: config({ enabled: false }) });
   assert.equal(line.kind, 'off');
-  assert.ok(line.kind === 'off' && line.note.includes('MRM_STORE_SUBMIT_ENABLED'));
+  assert.ok(line.kind === 'off' && line.note.includes('KILN_STORE_SUBMIT_ENABLED'));
   assert.ok(line.kind === 'off' && line.note.includes('=true'));
   // A blank name from the server falls back to the documented one.
   const blank = submitLine({ ...base, config: config({ enabled: false, envName: '' }) });

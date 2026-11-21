@@ -965,7 +965,7 @@ dbTest(
     assert.equal(s.proposal.acceptable, true);
     const off = await t.call(t.owner, 'POST', `/ai/suggestions/${s.id}/accept`);
     assert.equal(off.status, 409);
-    assert.equal(off.body.error, 'reply_disabled', 'MRM_REVIEW_REPLY_ENABLED is respected');
+    assert.equal(off.body.error, 'reply_disabled', 'KILN_REVIEW_REPLY_ENABLED is respected');
     assert.equal(
       (await t.call(t.owner, 'GET', `/ai/suggestions/${s.id}`)).body.suggestion.status,
       'proposed',
@@ -1134,7 +1134,7 @@ dbTest(
 );
 
 dbTest(
-  'with MRM_AI_ALLOW_PRIVATE_URLS a local model is reachable over loopback; metadata addresses stay refused',
+  'with KILN_AI_ALLOW_PRIVATE_URLS a local model is reachable over loopback; metadata addresses stay refused',
   async (db) => {
     const t = await bootAi(db, {
       allowPrivateUrls: true,
@@ -1599,7 +1599,7 @@ dbTest(
     assert.equal(local.body.issues[0].path, 'baseUrl');
     assert.equal(local.body.issues[0].code, 'private_address_blocked');
     assert.match(local.body.issues[0].message, /only talks to public addresses/);
-    assert.match(local.body.issues[0].message, /MRM_AI_ALLOW_PRIVATE_URLS=true/);
+    assert.match(local.body.issues[0].message, /KILN_AI_ALLOW_PRIVATE_URLS=true/);
     const plain = await t.configure({
       provider: 'openai_compatible',
       baseUrl: 'http://example.com/v1',

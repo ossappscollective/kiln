@@ -9,9 +9,9 @@ There are four parts, each with its own gate:
 | Part                                                              | What it does                                                                                       | Gate                                                                                                                        |
 | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | [Reads](#reads-what-a-draft-is-made-of)                           | Lists processed builds / uploaded version codes, and shows the release fields the store holds.     | `listing.read`. No switch: they change nothing.                                                                             |
-| [Staging and the draft push](#staging-and-pushing-release-fields) | Release fields are staged items; the existing draft push writes them.                              | `changesets.write` to stage; `store.push_draft` and `MRM_STORE_DRAFT_WRITE_ENABLED` to push. Never submits, never releases. |
+| [Staging and the draft push](#staging-and-pushing-release-fields) | Release fields are staged items; the existing draft push writes them.                              | `changesets.write` to stage; `store.push_draft` and `KILN_STORE_DRAFT_WRITE_ENABLED` to push. Never submits, never releases. |
 | [Check with Google Play](#check-with-google-play-read-only)       | Asks Google Play whether it would refuse a proposed release. Saves nothing.                        | `listing.read`. No switch: it changes nothing.                                                                              |
-| [Release](#release-irreversible)                                  | Releases an approved App Store version, or starts a Google Play draft release at a share you name. | `store.release` and `MRM_STORE_RELEASE_ENABLED`, a preview, a hash and a typed phrase.                                      |
+| [Release](#release-irreversible)                                  | Releases an approved App Store version, or starts a Google Play draft release at a share you name. | `store.release` and `KILN_STORE_RELEASE_ENABLED`, a preview, a hash and a typed phrase.                                      |
 
 **Never run against a real store**: the connectors are tested with fakes only. Read [UNVERIFIED](#unverified-check-with-a-real-account)
 before turning anything on.
@@ -178,7 +178,7 @@ Remove an item with `DELETE .../staged/items?id=<id>` (the `id` of `release[]`),
 
 ### The push (`POST .../staged/push/preview` and `.../staged/push`)
 
-Same routes, same switch (`MRM_STORE_DRAFT_WRITE_ENABLED`), same confirm hash, same re-read right before the first write. Added:
+Same routes, same switch (`KILN_STORE_DRAFT_WRITE_ENABLED`), same confirm hash, same re-read right before the first write. Added:
 
 - Preview `release[] { id, field, label, locale, before, after, status, localOnly }`: the store's value now and the staged one, in
   the same canonical text. `status`: `changed`, `unchanged`, or `local` (the intended Play share).
@@ -258,7 +258,7 @@ Makes an approved App Store version available, or starts a Google Play draft rel
 
 | Setting                     | Value                                                                                                                                                                                                                                   |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MRM_STORE_RELEASE_ENABLED` | Default `false`; only `true` and `false`; blank is off. **Independent of** the draft and submit switches. See [deployment](../deployment.md#releasing-a-store-write-off-by-default).                                                    |
+| `KILN_STORE_RELEASE_ENABLED` | Default `false`; only `true` and `false`; blank is off. **Independent of** the draft and submit switches. See [deployment](../deployment.md#releasing-a-store-write-off-by-default).                                                    |
 | `store.release`             | **admin and up** (owner, admin). **Explicit-only on API tokens**: the token's `actions` must name it (a token with no list never gets it) and the role ceiling still applies. Neither `store.push_draft` nor `store.submit` implies it. |
 
 While the switch is off, preview and release answer `409 store_release_disabled` after the rights check and no connector is
@@ -290,7 +290,7 @@ built; the config and state routes still work.
   preview carries `direct` (`creates`, `versionCodes`, `name`, `notesLanguages`, and a `summary` in plain words that says Google
   reviews it and it cannot be undone from here); no note text is ever returned or audited. Extra checks: `direct_release` (warning),
   `draft_used_as_is` (warning), `codes_already_in_track` (blocking: a release of the track already holds these codes). Not for the
-  App Store (`422 not_applicable`). The gates are exactly those of the release above: `MRM_STORE_RELEASE_ENABLED`, `store.release`,
+  App Store (`422 not_applicable`). The gates are exactly those of the release above: `KILN_STORE_RELEASE_ENABLED`, `store.release`,
   preview, hash, typed phrase, re-read and drift refusal, one write in flight, never retried, audit `store.released` with
   `direct: true, created` (ids and counts only).
 

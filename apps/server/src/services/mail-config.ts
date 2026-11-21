@@ -18,7 +18,7 @@ import {
 /**
  * Where the SMTP settings come from (docs/api/mail.md):
  *
- * 1. The environment (MRM_SMTP_HOST and friends), when MRM_SMTP_HOST is set. The operator's choice: the screen shows it and cannot change it.
+ * 1. The environment (KILN_SMTP_HOST and friends), when KILN_SMTP_HOST is set. The operator's choice: the screen shows it and cannot change it.
  * 2. Otherwise the instance setting an owner or admin saves in Settings, Mail. It is ONE row for the whole server (a mail server is not
  *    per workspace), stored as a single JSON document ENCRYPTED with the master key (AES-GCM, bound to its row), like a credential.
  *    The password is write-only: no route returns it, no log or audit row holds it.
@@ -29,38 +29,38 @@ export type SmtpEnv = { config?: SmtpConfig; allowPrivateHosts: boolean };
 const blank = (v: string | undefined) =>
   v === undefined || v.trim() === '' ? undefined : v.trim();
 
-/** Reads MRM_SMTP_*. Throws an Error with a plain sentence when a value is wrong, so the server does not start with a half setting. */
+/** Reads KILN_SMTP_*. Throws an Error with a plain sentence when a value is wrong, so the server does not start with a half setting. */
 export function parseSmtpEnv(env: Record<string, string | undefined>): SmtpEnv {
-  const allow = blank(env.MRM_SMTP_ALLOW_PRIVATE_HOSTS);
+  const allow = blank(env.KILN_SMTP_ALLOW_PRIVATE_HOSTS);
   if (allow !== undefined && !['true', 'false', '1', '0'].includes(allow))
-    throw new Error('MRM_SMTP_ALLOW_PRIVATE_HOSTS must be true or false.');
+    throw new Error('KILN_SMTP_ALLOW_PRIVATE_HOSTS must be true or false.');
   const allowPrivateHosts = allow === 'true' || allow === '1';
-  const host = blank(env.MRM_SMTP_HOST);
+  const host = blank(env.KILN_SMTP_HOST);
   if (host === undefined) return { allowPrivateHosts };
   if (!validHost(host))
     throw new Error(
-      'MRM_SMTP_HOST must be a host name or an IP address, without a scheme or a port.',
+      'KILN_SMTP_HOST must be a host name or an IP address, without a scheme or a port.',
     );
-  const secureRaw = blank(env.MRM_SMTP_SECURE) ?? 'starttls';
+  const secureRaw = blank(env.KILN_SMTP_SECURE) ?? 'starttls';
   if (!(smtpSecureModes as readonly string[]).includes(secureRaw))
-    throw new Error('MRM_SMTP_SECURE must be none, starttls or tls.');
+    throw new Error('KILN_SMTP_SECURE must be none, starttls or tls.');
   const secure = secureRaw as SmtpSecure;
-  const portRaw = blank(env.MRM_SMTP_PORT);
+  const portRaw = blank(env.KILN_SMTP_PORT);
   const port = portRaw === undefined ? defaultPort(secure) : Number(portRaw);
   if (!Number.isInteger(port) || port < 1 || port > 65535)
-    throw new Error('MRM_SMTP_PORT must be a port number from 1 to 65535.');
-  const from = blank(env.MRM_SMTP_FROM);
+    throw new Error('KILN_SMTP_PORT must be a port number from 1 to 65535.');
+  const from = blank(env.KILN_SMTP_FROM);
   if (!from || !parseMailbox(from))
     throw new Error(
-      'MRM_SMTP_FROM must be set to the sender address, for example mrm@example.com or Release Manager <mrm@example.com>.',
+      'KILN_SMTP_FROM must be set to the sender address, for example mrm@example.com or Release Manager <mrm@example.com>.',
     );
-  const user = blank(env.MRM_SMTP_USER);
+  const user = blank(env.KILN_SMTP_USER);
   const password =
-    env.MRM_SMTP_PASSWORD === undefined || env.MRM_SMTP_PASSWORD === ''
+    env.KILN_SMTP_PASSWORD === undefined || env.KILN_SMTP_PASSWORD === ''
       ? undefined
-      : env.MRM_SMTP_PASSWORD;
+      : env.KILN_SMTP_PASSWORD;
   if (/[\r\n\0]/.test(user ?? '') || /[\r\n\0]/.test(password ?? ''))
-    throw new Error('MRM_SMTP_USER and MRM_SMTP_PASSWORD must not contain line breaks.');
+    throw new Error('KILN_SMTP_USER and KILN_SMTP_PASSWORD must not contain line breaks.');
   return {
     allowPrivateHosts,
     config: {
@@ -137,7 +137,7 @@ export type SmtpView = {
   user: string | null;
   from: string | null;
   passwordSet: boolean;
-  /** MRM_SMTP_ALLOW_PRIVATE_HOSTS: a loopback or private mail host is accepted. */
+  /** KILN_SMTP_ALLOW_PRIVATE_HOSTS: a loopback or private mail host is accepted. */
   allowPrivateHosts: boolean;
 };
 

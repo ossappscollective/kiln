@@ -90,7 +90,7 @@ export type WebhookContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
-  /** MRM_WEBHOOKS_ALLOW_PRIVATE=1: loopback and private addresses (and http to localhost) allowed. */
+  /** KILN_WEBHOOKS_ALLOW_PRIVATE=1: loopback and private addresses (and http to localhost) allowed. */
   allowPrivate?: boolean | undefined;
   /** Overridable for tests. */
   resolve?: Resolver | undefined;

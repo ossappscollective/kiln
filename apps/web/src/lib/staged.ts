@@ -30,7 +30,7 @@ import type { AssetItem, DriftField } from './types.ts';
  * Written for the ES2017 web build: no flatMap, no fromEntries.
  */
 
-export const DRAFT_ENV = 'MRM_STORE_DRAFT_WRITE_ENABLED';
+export const DRAFT_ENV = 'KILN_STORE_DRAFT_WRITE_ENABLED';
 
 /** The sentence the dialog and the tray keep saying: a push is not a submit. */
 export const NOT_SUBMITTED =

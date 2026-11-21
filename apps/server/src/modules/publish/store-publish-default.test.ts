@@ -12,7 +12,7 @@ dbTest(
     assert.equal(config.status, 200);
     assert.deepEqual(
       [config.body.enabled, config.body.envName, config.body.action, config.body.minimumRole],
-      [false, 'MRM_STORE_PUBLISH_BATCH_ENABLED', 'store.publish', 'admin'],
+      [false, 'KILN_STORE_PUBLISH_BATCH_ENABLED', 'store.publish', 'admin'],
     );
     for (const step of Object.values(config.body.steps) as { enabled: boolean }[])
       assert.equal(step.enabled, false);

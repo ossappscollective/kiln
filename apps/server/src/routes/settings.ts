@@ -18,7 +18,7 @@ import {
 export type SettingsRoutesContext = SettingsContext & {
   db: Database;
   now: () => number;
-  /** MRM_SYNC_INTERVAL_MINUTES: 0 is off for every workspace. Default 30. */
+  /** KILN_SYNC_INTERVAL_MINUTES: 0 is off for every workspace. Default 30. */
   syncIntervalMinutes?: number;
 };
 

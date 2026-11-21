@@ -59,12 +59,12 @@ rendered in a browser, and Expo is only done at library level.
       are written back as a one-file change, an unreadable config blocks App Store edits. Tested with
       fake connector fixtures on SQLite; never run against real GitHub or in a browser
 - [x] Scan, listing and change set creation can read from a local git clone instead of one GitHub
-      API call per file (`MRM_READS=auto|clone|api`, default `auto` with a fall back to the API,
+      API call per file (`KILN_READS=auto|clone|api`, default `auto` with a fall back to the API,
       [ADR 0005](adr/0005-local-clone-reads.md)). Apply as a pull request, connect and credential
       tests stay on the API. Tested with real local git repositories as the source for the fastlane layouts, the
       fall back, tokens in logs and audit rows, and disconnect; **never run against real GitHub
       over https**, with a GitHub App installation token, or in the Docker image (not built here)
-- [x] Local clones: read a git folder on the server as a repository (`MRM_LOCAL_REPO_ROOTS`, off
+- [x] Local clones: read a git folder on the server as a repository (`KILN_LOCAL_REPO_ROOTS`, off
       unless set, [ADR 0005](adr/0005-local-clone-reads.md)). Attach a folder to a connected GitHub
       repository, or connect it as a **local-only** repository (no credential, no owner/repo;
       a pull request apply is refused with `409 local_only`; see the next item for what it does
@@ -82,10 +82,10 @@ rendered in a browser, and Expo is only done at library level.
       drafts, this applies). `POST /change-sets/:id/apply` takes `{ mode?: "github_pr" |
       "local_branch", branch?, push?, openPr? }` (no body is the old pull request apply); `POST
       /change-sets/:id/push` retries a failed push or pull request. Opt-in
-      (`MRM_LOCAL_REPO_WRITE=true`, `MRM_GIT_AUTHOR_NAME`/`_EMAIL`), admin and owner only, audited
+      (`KILN_LOCAL_REPO_WRITE=true`, `KILN_GIT_AUTHOR_NAME`/`_EMAIL`), admin and owner only, audited
       (`changeset.apply_local`, `.push`, `.push_failed`, `.pr_open`, `.pr_failed`). The commit is
       made with git plumbing in a temporary index (no checkout, hooks or filters, and signed only with
-      the opt-in `MRM_GIT_SIGN=ssh|gpg` below; the working
+      the opt-in `KILN_GIT_SIGN=ssh|gpg` below; the working
       folder, index, HEAD and checked out branch are never touched; the base is verified, the branch
       can only be created); the push runs from a private bare repository that borrows the clone's
       objects, to an explicit https URL with the token in a header that only that git process sees,
@@ -100,8 +100,8 @@ rendered in a browser, and Expo is only done at library level.
       hostile config and hooks), a bare repository as the push remote and an HTTP stub for the token
       header; **not run on macOS, against real GitHub (a real push or pull request), with hooks, on
       Postgres, or in a browser**
-- [x] Opt-in signing of those local commits (`MRM_GIT_SIGN=off|ssh|gpg`, `MRM_GIT_SIGNING_KEY`,
-      `MRM_GIT_SIGNING_PROGRAM`, `MRM_GIT_GNUPGHOME`): the server's own key and a program pinned at
+- [x] Opt-in signing of those local commits (`KILN_GIT_SIGN=off|ssh|gpg`, `KILN_GIT_SIGNING_KEY`,
+      `KILN_GIT_SIGNING_PROGRAM`, `KILN_GIT_GNUPGHOME`): the server's own key and a program pinned at
       start, set with `-c` on the plumbing `commit-tree` call, so nothing in the repository's or the
       user's git config can choose the program or the key; no prompts (`--batch --pinentry-mode
       error` through a one-line wrapper for gpg, a private HOME and temp folder, a 20 second kill of
@@ -147,8 +147,8 @@ rendered in a browser, and Expo is only done at library level.
       `changeset.fixup`; web "Fix up this branch" dialog. ADR 0005. Tested on SQLite with real git
       repositories and a fake GitHub connector; **never run against live GitHub, with a real gpg-agent, or in
       a browser**, not run on Postgres
-- [x] Idle pruning and a disk budget for the clone folder (`MRM_CLONE_MAX_BYTES`, `MRM_CLONE_IDLE_DAYS`,
-      `MRM_CLONE_SWEEP_INTERVAL_MINUTES`), a scheduled sweep, `POST /repositories/:id/clone/purge`, and a
+- [x] Idle pruning and a disk budget for the clone folder (`KILN_CLONE_MAX_BYTES`, `KILN_CLONE_IDLE_DAYS`,
+      `KILN_CLONE_SWEEP_INTERVAL_MINUTES`), a scheduled sweep, `POST /repositories/:id/clone/purge`, and a
       size card in the web app. Not tried on macOS, Windows or Docker volumes
 - [ ] Decide whether approval needs a second person, and whether `.github/` stays blocked
       ([open-decisions.md](open-decisions.md))

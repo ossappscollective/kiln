@@ -37,7 +37,7 @@ import { clearPushedRelease } from './store-draft-record.ts';
  * share of users. The most consequential STORE WRITE after a submit, and one this server cannot take back. It is written down in
  * docs/adr/0014-release-management.md and docs/api/releases-write.md and gated exactly like a submit (ADR 0010):
  *
- * - Off unless `releaseEnabled` (MRM_STORE_RELEASE_ENABLED, default false), separately from the draft and submit switches: every
+ * - Off unless `releaseEnabled` (KILN_STORE_RELEASE_ENABLED, default false), separately from the draft and submit switches: every
  *   function answers `409 store_release_disabled` and no connector is built.
  * - A role action of its own, `store.release` (owner and admin; a token only when its actions name it), checked by the route.
  * - Preview (what is released, to whom, what cannot be undone, the checks), then apply with the `confirmHash` of that preview AND
@@ -57,7 +57,7 @@ import { clearPushedRelease } from './store-draft-record.ts';
 
 type Actor = { type: 'user' | 'token' | 'system'; id: string };
 
-export const RELEASE_ENV = 'MRM_STORE_RELEASE_ENABLED';
+export const RELEASE_ENV = 'KILN_STORE_RELEASE_ENABLED';
 export const RELEASE_PURPOSE = 'store.release';
 /** One to four requests to a store. */
 export const DEFAULT_RELEASE_TIMEOUT_MS = 120_000;
@@ -92,7 +92,7 @@ export type ReleaseContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
-  /** MRM_STORE_RELEASE_ENABLED. */
+  /** KILN_STORE_RELEASE_ENABLED. */
   releaseEnabled: boolean;
   releaseConnectorFactory: ReleaseConnectorFactory;
   releaseTimeoutMs?: number;

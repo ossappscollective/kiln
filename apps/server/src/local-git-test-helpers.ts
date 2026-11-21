@@ -351,7 +351,7 @@ export function fakeProgram(name: string, real: string | undefined, body = ''): 
   const log = join(dir, 'ran.log');
   writeFileSync(
     path,
-    `#!/bin/sh\necho "args:$*" >> '${log}'\necho "home:$HOME" >> '${log}'\necho "sock:\${SSH_AUTH_SOCK-unset}" >> '${log}'\necho "gnupg:\${GNUPGHOME-unset}" >> '${log}'\necho "secret:\${MRM_MASTER_KEY-unset}" >> '${log}'\n${body}${real ? `exec '${real}' "$@"\n` : ''}`,
+    `#!/bin/sh\necho "args:$*" >> '${log}'\necho "home:$HOME" >> '${log}'\necho "sock:\${SSH_AUTH_SOCK-unset}" >> '${log}'\necho "gnupg:\${GNUPGHOME-unset}" >> '${log}'\necho "secret:\${KILN_MASTER_KEY-unset}" >> '${log}'\n${body}${real ? `exec '${real}' "$@"\n` : ''}`,
   );
   chmodSync(path, 0o755);
   return {

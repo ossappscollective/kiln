@@ -15,7 +15,7 @@ import { isPlayPackageName } from './googleplay.ts';
  * Developer API (googleplay.ts and friends) is for your own apps and has no search. Reading the public
  * pages of the store from a program may be against the Google Play Terms of Service or Google's Terms
  * of Service: that was NOT checked by a lawyer and is for the operator to decide. That is why this
- * is off unless the operator sets `MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true` (the server passes it as
+ * is off unless the operator sets `KILN_ASO_PLAY_UNOFFICIAL_ENABLED=true` (the server passes it as
  * `enabled`; a connector that is not enabled makes no request and throws `unavailable/disabled`).
  * docs/adr/0011-aso-keywords-competitors.md has the stance in full.
  *
@@ -259,7 +259,7 @@ function blocked(html: string): boolean {
 // The connector
 
 export type PlayPublicOptions = {
-  /** MRM_ASO_PLAY_UNOFFICIAL_ENABLED. False: no request is ever made. */
+  /** KILN_ASO_PLAY_UNOFFICIAL_ENABLED. False: no request is ever made. */
   enabled: boolean;
   fetch?: typeof fetch;
   timeoutMs?: number;
@@ -316,7 +316,7 @@ export class PlayPublicConnector {
       throw new AsoError(
         'play_public',
         'unavailable',
-        'Reading Google Play pages is switched off (MRM_ASO_PLAY_UNOFFICIAL_ENABLED).',
+        'Reading Google Play pages is switched off (KILN_ASO_PLAY_UNOFFICIAL_ENABLED).',
         { reason: 'disabled' },
       );
     }

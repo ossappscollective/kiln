@@ -89,7 +89,7 @@ test('AI: hidden without ai.use, off with the setting to change, off when the mo
   assert.match(ready.sends, /Anthropic \(Claude\)/);
   assert.match(
     aiEngine({ role: 'member', config: aiConfig({ state: 'off_server' }) }).reason ?? '',
-    /MRM_AI_ENABLED/,
+    /KILN_AI_ENABLED/,
   );
   const off = aiEngine({ role: 'member', config: aiConfig({ state: 'off_workspace' }) });
   assert.match(off.reason ?? '', /An admin can turn it on in Settings, in the AI view/);

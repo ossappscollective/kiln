@@ -68,7 +68,7 @@ const configSchema = z.object({
   state: z
     .enum(['ready', 'off_server', 'off_workspace', 'not_configured'])
     .describe(
-      '`ready`: a run would go to the provider now. `off_server`: MRM_AI_ENABLED is not true. `off_workspace`: an admin has not turned it on. `not_configured`: see `reason`.',
+      '`ready`: a run would go to the provider now. `off_server`: KILN_AI_ENABLED is not true. `off_workspace`: an admin has not turned it on. `not_configured`: see `reason`.',
     ),
   reason: z
     .enum(['no_model', 'no_credential', 'no_url', 'credential_unreadable', 'bad_url'])
@@ -214,7 +214,7 @@ const appContextSchema = z.object({
 });
 
 const note =
-  'Needs MRM_AI_ENABLED=true on the server AND the AI setting `enabled` of the workspace; otherwise `409 ai_not_enabled`. ';
+  'Needs KILN_AI_ENABLED=true on the server AND the AI setting `enabled` of the workspace; otherwise `409 ai_not_enabled`. ';
 
 export const aiOperations: Operation[] = [
   {
@@ -236,7 +236,7 @@ export const aiOperations: Operation[] = [
     tags: ['ai'],
     summary: 'Change the AI settings (admins): on or off, provider, model, address, token budget',
     description:
-      'Each key is optional; `null` goes back to the default. All or nothing. The address of an OpenAI compatible server must be https to a public host unless the operator set MRM_AI_ALLOW_PRIVATE_URLS=true (plain http then only to the same machine). A refused address is `400 invalid_setting` with an issue on `baseUrl` that carries a `code` (`private_address_blocked`, `plain_http_not_allowed`) and a sentence that says what to do. The key is a credential of kind `ai_anthropic`, `ai_openai` or `ai_openai_compatible`. Audited as `ai.config_update`.',
+      'Each key is optional; `null` goes back to the default. All or nothing. The address of an OpenAI compatible server must be https to a public host unless the operator set KILN_AI_ALLOW_PRIVATE_URLS=true (plain http then only to the same machine). A refused address is `400 invalid_setting` with an issue on `baseUrl` that carries a `code` (`private_address_blocked`, `plain_http_not_allowed`) and a sentence that says what to do. The key is a credential of kind `ai_anthropic`, `ai_openai` or `ai_openai_compatible`. Audited as `ai.config_update`.',
     risk: 'write',
     access: { action: 'ai.manage' },
     body: updateConfigBody,
@@ -281,7 +281,7 @@ export const aiOperations: Operation[] = [
     tags: ['ai'],
     summary: 'List the models a provider offers (admins), so one can be picked instead of typed',
     description:
-      'Sends no data of the workspace: one read (`GET /models`) to the provider, or to the OpenAI compatible server at `baseUrl` (the saved one when omitted), with the key. `apiKey` is optional: a key typed in the form and not saved yet is used for this one call and is never stored, logged or audited; without it the stored credential of the provider is used. Needs MRM_AI_ENABLED=true on the server; the workspace switch is not needed. The answer is `{ models: [{ id, label? }], source }`: `source` is `provider` when the server answered a list (ids checked, deduplicated, sorted, at most 200) and `fallback` when it could not (a 404 or an answer that is not a list, or no key yet: `reason` says which), in which case `models` is a short fixed list of well known ids (empty for an OpenAI compatible server). Errors: `ai_not_enabled` (409), `ai_not_configured` (422, `reason` `no_url`, `bad_url` with a `hint` of `private_address_blocked` or `plain_http_not_allowed`, `credential_unreadable`), `ai_auth` (422), `ai_rate_limited` (429), `ai_unavailable` (502, 504, with a `reason`). Audited as `ai.models_list` with the provider, the source and a count only.',
+      'Sends no data of the workspace: one read (`GET /models`) to the provider, or to the OpenAI compatible server at `baseUrl` (the saved one when omitted), with the key. `apiKey` is optional: a key typed in the form and not saved yet is used for this one call and is never stored, logged or audited; without it the stored credential of the provider is used. Needs KILN_AI_ENABLED=true on the server; the workspace switch is not needed. The answer is `{ models: [{ id, label? }], source }`: `source` is `provider` when the server answered a list (ids checked, deduplicated, sorted, at most 200) and `fallback` when it could not (a 404 or an answer that is not a list, or no key yet: `reason` says which), in which case `models` is a short fixed list of well known ids (empty for an OpenAI compatible server). Errors: `ai_not_enabled` (409), `ai_not_configured` (422, `reason` `no_url`, `bad_url` with a `hint` of `private_address_blocked` or `plain_http_not_allowed`, `credential_unreadable`), `ai_auth` (422), `ai_rate_limited` (429), `ai_unavailable` (502, 504, with a `reason`). Audited as `ai.models_list` with the provider, the source and a count only.',
     risk: 'write',
     access: { action: 'ai.manage' },
     rateLimited: true,

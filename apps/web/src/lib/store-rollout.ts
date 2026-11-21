@@ -13,7 +13,7 @@ import type { AppSummary, ReleaseSummary } from './types.ts';
  * Written for the ES2017 web build.
  */
 
-export const ROLLOUT_ENV = 'MRM_STORE_ROLLOUT_ENABLED';
+export const ROLLOUT_ENV = 'KILN_STORE_ROLLOUT_ENABLED';
 
 /** The sentence a confirmation must show, word for word (docs/ux-ia.md, section 5). */
 export const LIVE_STORE_WARNING = 'This changes the live store.';

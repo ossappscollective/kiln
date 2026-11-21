@@ -14,8 +14,8 @@ A reviews and ratings inbox per app and across all apps, with internal triage, e
   schemas, a data migration test. Deleting an app removes its rows.
 - Server: incremental, idempotent `syncReviews` (inline route and `review.sync` job), per
   credential serialization, the shared store rate limiter, timeouts, Play 7 day gap warnings, backoff,
-  the scheduler (`MRM_REVIEW_SYNC_INTERVAL_MINUTES`, off by default) and retention pruning
-  (`MRM_REVIEW_RETENTION_DAYS`).
+  the scheduler (`KILN_REVIEW_SYNC_INTERVAL_MINUTES`, off by default) and retention pruning
+  (`KILN_REVIEW_RETENTION_DAYS`).
 - Routes: list with filters and cursor paging, summary with its basis, sync, triage; registered in
   the OpenAPI registry with full schemas; roles `reviews.read`, `reviews.sync`, `reviews.triage`.
 - Events `review.new_low_rating` and `review.sync_failed` through the log, SSE and signed webhooks.
@@ -29,7 +29,7 @@ A reviews and ratings inbox per app and across all apps, with internal triage, e
   `StoreHttp` with no 429 retry for writes, timeouts and `ReplyOutcomeUnknownError`.
 - Database: migration 21: `review_reply_drafts`, `review_reply_templates` and the three
   workspace-first indexes of the inbox.
-- Server: `MRM_REVIEW_REPLY_ENABLED` kill switch (default off), `reviews.reply` (admin and up, and
+- Server: `KILN_REVIEW_REPLY_ENABLED` kill switch (default off), `reviews.reply` (admin and up, and
   explicit-only for tokens), draft then `confirmHash` send, an atomic claim per review, a stale claim
   and an unknown outcome settled by re-reading the review, a 30 an hour workspace limit, audit and an
   event without text, templates (50), an optional translation seam, and

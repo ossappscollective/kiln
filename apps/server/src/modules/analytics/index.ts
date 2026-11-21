@@ -11,7 +11,7 @@ import {
  * Analytics (docs/api/analytics.md): daily metrics read from the stores into a normalised store. `connectors` builds the Apple
  * Analytics Reports / Sales and Trends and Google Play vitals / reports readers from a stored credential (fakes in tests),
  * `timeoutMs` is the longest one source may take (default 120 seconds), `limiter` the per workspace budget of syncs, previews and
- * imports a minute (default 10), `intervalMinutes` is MRM_ANALYTICS_INTERVAL_MINUTES, shown by the status.
+ * imports a minute (default 10), `intervalMinutes` is KILN_ANALYTICS_INTERVAL_MINUTES, shown by the status.
  */
 export type AnalyticsDeps = {
   connectors?: AnalyticsConnectorFactory;

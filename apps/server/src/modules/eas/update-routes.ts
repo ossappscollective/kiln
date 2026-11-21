@@ -55,7 +55,7 @@ const respond = (c: Context<AppEnv>, f: Failure) => {
 /**
  * EAS Update of the Expo project an app is linked to (docs/api/eas-update.md, docs/adr/0037-eas-update.md). Reading needs `apps.read`
  * (the same people who may read the app). Raising a rollout needs `releases.rollout` (owners and admins), the switch
- * MRM_EAS_UPDATE_ROLLOUT_ENABLED and, when the workspace's policy covers `rollout`, a step-up confirmation. Not being a member and an
+ * KILN_EAS_UPDATE_ROLLOUT_ENABLED and, when the workspace's policy covers `rollout`, a step-up confirmation. Not being a member and an
  * unknown app look the same (404).
  */
 export function easUpdateRoutes(ctx: EasUpdateRoutesContext) {

@@ -291,7 +291,7 @@ export function messageFor(
   body: { error?: string; message?: string; issues?: Issue[]; paths?: string[] },
   retryAfter?: number,
 ): string {
-  // Local clones: the server's messages are written to be shown (they name MRM_LOCAL_REPO_ROOTS, the
+  // Local clones: the server's messages are written to be shown (they name KILN_LOCAL_REPO_ROOTS, the
   // folder rule or the fix), so they are used as they are.
   if (body.error?.startsWith('local_') && body.message) return body.message;
   // Step-up confirmation (docs/api/step-up.md): every code has a fixed sentence.
@@ -1039,7 +1039,7 @@ export function createApi(options: ApiOptions = {}) {
         `${planPath(workspaceId, appId, planId)}/rollout/steps/${encodeURIComponent(stepId)}/${action}`,
         action === 'complete' && options.fromStore ? { fromStore: true } : {},
       ),
-    // Store rollout writes (docs/api/rollout.md): off unless the server sets MRM_STORE_ROLLOUT_ENABLED. State,
+    // Store rollout writes (docs/api/rollout.md): off unless the server sets KILN_STORE_ROLLOUT_ENABLED. State,
     // preview and apply need `releases.rollout` (admin and up); only `rolloutApply` changes a store, once,
     // with the `confirmHash` of a preview. `query` is `stateQuery(base)` of lib/store-rollout.ts.
     rolloutConfig: (workspaceId: string) =>
@@ -2404,7 +2404,7 @@ export function createApi(options: ApiOptions = {}) {
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/eas/status/refresh`,
       ),
     // EAS Update of the linked Expo project (docs/api/eas-update.md). The reads need `apps.read` and call Expo; raising a rollout is off
-    // unless the server sets MRM_EAS_UPDATE_ROLLOUT_ENABLED, needs `releases.rollout`, and only `easUpdateRolloutApply` changes Expo.
+    // unless the server sets KILN_EAS_UPDATE_ROLLOUT_ENABLED, needs `releases.rollout`, and only `easUpdateRolloutApply` changes Expo.
     easUpdates: (workspaceId: string, appId: string) =>
       request<{ state: EasUpdateState }>(
         'GET',

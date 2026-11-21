@@ -23,7 +23,7 @@ import { getExpoLink, type ExpoLinkView } from './link.ts';
  * The snapshot holds the newest page of each list for the platform of the app record (an iOS record shows iOS builds, an Android record
  * Android builds): an app with an iOS and an Android record linked to one project reads each platform once. The ADDRESS of a build file is
  * never stored or returned: `hasArtifact` says that Expo holds one, and `expoUrl` is the page of the build at expo.dev, which is where
- * Expo shows the install link (and applies its own access rules). That keeps the builds download switch (`MRM_BUILDS_DOWNLOAD_ENABLED`)
+ * Expo shows the install link (and applies its own access rules). That keeps the builds download switch (`KILN_BUILDS_DOWNLOAD_ENABLED`)
  * the only way a build file leaves through this server.
  */
 

@@ -152,13 +152,13 @@ the raw state). A phased release currently shows as `live` because it is not rea
 
 ### 16. Attached repository when local reads are unavailable
 
-- **Decided:** when `MRM_READS=api` or no `MRM_LOCAL_REPO_ROOTS` is set, an attached repository keeps
+- **Decided:** when `KILN_READS=api` or no `KILN_LOCAL_REPO_ROOTS` is set, an attached repository keeps
   reading from GitHub and its status badge says so (it does not refuse). A local-only repository still
   refuses, because it has nothing else to read from.
 
 ### 17. Commits written to a local clone
 
-- **Today:** signing is **opt-in** (`MRM_GIT_SIGN=ssh|gpg`, with a key and a program the operator
+- **Today:** signing is **opt-in** (`KILN_GIT_SIGN=ssh|gpg`, with a key and a program the operator
   configures; off by default, then the commits are unsigned). No hooks run, and Git LFS or attribute
   filters are not applied (an LFS-tracked listing path would be committed as plain text). Signed
   means the commit holds a signature; nothing verifies it, and it was not run on macOS or in Docker.
@@ -194,7 +194,7 @@ the raw state). A phased release currently shows as `live` because it is not rea
 
 ### 21. Replying to reviews
 
-- **Today:** off by default (`MRM_REVIEW_REPLY_ENABLED`); an admin or owner sends one reply at a
+- **Today:** off by default (`KILN_REVIEW_REPLY_ENABLED`); an admin or owner sends one reply at a
   time after a draft and a confirmation of the exact text; a member may write drafts; no bulk or
   automatic send; 30 sends an hour per workspace; a token needs `reviews.reply` named explicitly.
   Nothing was run against a real store.
@@ -232,16 +232,16 @@ the raw state). A phased release currently shows as `live` because it is not rea
 
 ### 23. Private LibreTranslate addresses
 
-- **Today:** `MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true` lets an admin point translation at a private or
+- **Today:** `KILN_TRANSLATE_ALLOW_PRIVATE_URLS=true` lets an admin point translation at a private or
   loopback address (metadata addresses stay refused). The same trust question as
-  `MRM_WEBHOOKS_ALLOW_PRIVATE`.
+  `KILN_WEBHOOKS_ALLOW_PRIVATE`.
 - **Decide:** whether an allow list of hosts would be better than one switch.
 
 ## Store rollout ([ADR 0008](adr/0008-store-rollout-writes.md))
 
 ### Changing a store rollout
 
-- **Today:** off by default (`MRM_STORE_ROLLOUT_ENABLED`); an admin or owner previews and confirms one
+- **Today:** off by default (`KILN_STORE_ROLLOUT_ENABLED`); an admin or owner previews and confirms one
   change at a time; Google Play only goes up (halt is the way down); complete and release to all are
   irreversible; a token needs `releases.rollout` named explicitly. Server only: no screens yet. Nothing
   was run against a real store.
@@ -254,7 +254,7 @@ the raw state). A phased release currently shows as `live` because it is not rea
 
 ### Writing staged listing changes to a store as a draft
 
-- **Today:** off by default (`MRM_STORE_DRAFT_WRITE_ENABLED`); an admin or owner previews and confirms a
+- **Today:** off by default (`KILN_STORE_DRAFT_WRITE_ENABLED`); an admin or owner previews and confirms a
   push of the staged texts and screenshot sets to the store's draft; a token needs `store.push_draft`
   named explicitly; nothing is submitted. Server only: no screens yet. Nothing was run against a real store.
 - **Decide:** whether name and subtitle of the App Store (app info) should be pushable; whether asset reverse
@@ -264,7 +264,7 @@ the raw state). A phased release currently shows as `live` because it is not rea
 
 ### Submitting the pushed draft for review ([ADR 0010](adr/0010-store-submit.md))
 
-- **Today:** off by default (`MRM_STORE_SUBMIT_ENABLED`, separate from the draft switch); an admin or owner previews,
+- **Today:** off by default (`KILN_STORE_SUBMIT_ENABLED`, separate from the draft switch); an admin or owner previews,
   then confirms with a hash and a typed phrase; a token needs `store.submit` named explicitly; never releases, never
   changes a rollout; a version that would release by itself is blocked. Server only: no screens yet. Nothing was run
   against a real store.
@@ -276,7 +276,7 @@ the raw state). A phased release currently shows as `live` because it is not rea
 ### Pending changes and publishing in one go ([ADR 0015](adr/0015-pending-and-batch-publish.md))
 
 - **Today:** the pending view (per app and per workspace) reads stored data only and needs `listing.read`. The batch publish is off by
-  default (`MRM_STORE_PUBLISH_BATCH_ENABLED`, which turns no step on); an admin or owner previews the plan, types ONE phrase
+  default (`KILN_STORE_PUBLISH_BATCH_ENABLED`, which turns no step on); an admin or owner previews the plan, types ONE phrase
   (`publish <app name> <n> steps`) and the steps run in order through their own services, each with its own switch, right, re-read and
   drift refusal; it stops at the first step that is not applied and never retries. A token needs `store.publish` and every step's
   right named explicitly. Server only: no screens yet. Nothing was run against a real store.
@@ -289,7 +289,7 @@ the raw state). A phased release currently shows as `live` because it is not rea
 ### ASO: keyword ranks and competitors ([ADR 0011](adr/0011-aso-keywords-competitors.md))
 
 - **Today:** read-only, from public store data. Apple through the documented iTunes Search API; Google Play only when the operator sets
-  `MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true` (unofficial, may be against its terms of service, off by default). Members track keywords and competitors and
+  `KILN_ASO_PLAY_UNOFFICIAL_ENABLED=true` (unofficial, may be against its terms of service, off by default). Members track keywords and competitors and
   refresh one app; admins refresh every app and set `aso.rankMoveThreshold`; viewers read. Server only: no screens yet. Nothing was run against a real store.
 - **Decide:** whether the unofficial Google Play source should exist at all in the build you ship (it is opt-in, but it is in the code); whether viewers
   should see ASO at all (they do today, like reviews); whether an optional LLM provider for keyword and competitor suggestions is wanted (not in v1; public texts only, off by default).
@@ -297,19 +297,19 @@ the raw state). A phased release currently shows as `live` because it is not rea
 
 ### AI assistance ([ADR 0016](adr/0016-ai-foundation.md))
 
-- **Today:** a foundation, off by default (`MRM_AI_ENABLED`, then a workspace switch). Anthropic, OpenAI and any OpenAI compatible server (a local model is the
+- **Today:** a foundation, off by default (`KILN_AI_ENABLED`, then a workspace switch). Anthropic, OpenAI and any OpenAI compatible server (a local model is the
   default recommendation for privacy) behind one interface; structured outputs only, validated twice; three tasks (`keyword_ideas`, `listing_improve`,
   `review_reply_draft`) and three registered stubs (`release_notes`, `listing_translate`, `rank_drop_explain`). Output is a suggestion; a person accepts it
   through the keyword, staged text or reply draft service with that service's own right. Monthly token budget (default 500,000), per request caps, two runs at a
   time. Server only: no screens yet. Nothing was run against a real provider.
 - **Decide:** whether to ship the hosted providers at all or only the OpenAI compatible one; the default monthly budget and output cap (500,000 and 4,000 tokens);
   whether accepting a reply draft should need `reviews.triage` only (today) or also the reply switch being on (it does: `reply_disabled`); whether
-  `MRM_AI_ALLOW_PRIVATE_URLS` may ever be on for a shared server; the 90 day suggestion retention; whether viewers should see AI suggestions (they cannot today).
+  `KILN_AI_ALLOW_PRIVATE_URLS` may ever be on for a shared server; the 90 day suggestion retention; whether viewers should see AI suggestions (they cannot today).
 - **Check with a real account:** [ADR 0016](adr/0016-ai-foundation.md#not-verified-unverified) (every provider request shape, structured output support per model, token counts).
 
 ### Analytics ([ADR 0017](adr/0017-analytics-foundation.md))
 
-- **Today:** a foundation, off by default (workspace setting `analytics.enabled`). Daily facts from Apple (analytics reports through an explicit, role gated, two step "enable" or an imported file; Sales and Trends with the vendor number) and Google Play (Reporting API vitals; monthly CSVs from a bucket), one table, every series with its source, delay and coverage. Scheduled sync every 6 hours (`MRM_ANALYTICS_INTERVAL_MINUTES`). Server only: no screens yet. Nothing was run against a real store.
+- **Today:** a foundation, off by default (workspace setting `analytics.enabled`). Daily facts from Apple (analytics reports through an explicit, role gated, two step "enable" or an imported file; Sales and Trends with the vendor number) and Google Play (Reporting API vitals; monthly CSVs from a bucket), one table, every series with its source, delay and coverage. Scheduled sync every 6 hours (`KILN_ANALYTICS_INTERVAL_MINUTES`). Server only: no screens yet. Nothing was run against a real store.
 - **Decide:** whether `analytics.manage` (sync, enable, import) stays admin and owner only; whether the 6 hour default is right; keeping daily facts for ever or adding a retention setting; whether the web offers the Apple one-time history snapshot (`backfill`) by default (one per 30 days, a second one after a month is not supported yet); a bucket id per app (stored, no route yet) or per workspace only; whether the import should also need `analytics.enabled` (it does not today).
 - **Check with a real account:** [api/analytics](api/analytics.md#not-verified-unverified) and [the study](research/analytics-apis.md): the Apple report segment format and the Sales key's role, the Google Reporting API fields and units, Play Console permissions and the bucket, and what Google still exports after the 2026 store listing change.
 
@@ -333,14 +333,14 @@ the raw state). A phased release currently shows as `live` because it is not rea
 - **Decide:** whether `admins` should be the default for new servers with accounts; whether email codes should be allowed as a sign-in factor at all (they are only
   as strong as the mailbox) or only for confirming actions; whether an owner who is locked out with no phone and no recovery codes needs a documented operator command
   (today: delete the rows in `user_totp` and `user_mail`); whether passkeys should also work as a sign-in factor (not built); whether to allow a mail host on a private
-  address from the screen (today only the operator, with `MRM_SMTP_ALLOW_PRIVATE_HOSTS`); whether OAuth2 mail (Gmail, Microsoft 365 without app passwords) or an HTTP
+  address from the screen (today only the operator, with `KILN_SMTP_ALLOW_PRIVATE_HOSTS`); whether OAuth2 mail (Gmail, Microsoft 365 without app passwords) or an HTTP
   mail API is worth a second `Mailer`.
 - **Check with the real thing:** [api/two-factor](api/two-factor.md#unverified) and [api/mail](api/mail.md#unverified): real authenticator apps scanning the QR code, a real mailbox
   (delivery, spam filtering), Gmail, Microsoft 365 and SES settings, and a browser run of the three screens.
 
 ### Google Play internal app sharing ([ADR 0020](adr/0020-play-internal-sharing.md))
 
-- **Today:** built, tested against fakes, **off by default** (`MRM_PLAY_INTERNAL_SHARING_ENABLED`). Owners and admins (`builds.share`, explicit-only for
+- **Today:** built, tested against fakes, **off by default** (`KILN_PLAY_INTERNAL_SHARING_ENABLED`). Owners and admins (`builds.share`, explicit-only for
   tokens), preview with a hash, a typed phrase `SHARE <package>`, step-up class `internal_sharing`, one upload per app, never retried; the install link is
   stored encrypted for 24 hours and never logged ([api/internal-sharing](api/internal-sharing.md)).
 - **Decide:** whether members may share (today owner and admin: the link installs an unreleased build); whether 24 hours is the right life for this server's
