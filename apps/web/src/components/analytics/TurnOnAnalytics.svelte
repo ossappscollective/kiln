@@ -53,8 +53,8 @@
     <p class="warn-line">It only reads: the one write, an Apple report request, is a separate step with its own confirmation.</p>
     <Disclosure summary="How it works">
       <ul class="points">
-        <li>For iOS and macOS apps: App Store analytics reports, and Sales and Trends when a vendor number is set.</li>
-        <li>For Android apps: Android vitals and the monthly Play Console reports, when the bucket id is set.</li>
+        <li>For iOS and macOS apps: App Store analytics reports, and Sales and Trends (units and proceeds, also by product) when a vendor number is set.</li>
+        <li>For Android apps: Android vitals and the monthly Play Console reports, when the bucket id is set. Estimated sales (what buyers paid, not your proceeds) also need the Play Console permission View financial data.</li>
         <li>Apple deletes its daily reports after 35 days, so the numbers this server reads are the only copy. They are not deleted.</li>
         <li>You can turn it off again under Settings. Numbers already stored stay readable.</li>
       </ul>

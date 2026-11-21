@@ -2,12 +2,20 @@
   ProductDetail: one in-app purchase or subscription as the last sync read it: its status, period and group, the price of every territory
   (read only, in the currency's own units), where it is on sale, and the editor of its display name and description per language.
   Reads the stored copy only (`GET .../products/<id>`); nothing here asks a store until the person previews a text change.
-  Props: api, workspaceId, role, app, productId, writeEnabled, refreshKey (changes after a sync, so this reads again), embedded (inside the
+  A small "Sales" section shows the last 28 days of this product from the stored sales numbers the list already read (`sales`; null hides the
+  section: no stored sales, or a role that cannot read analytics). Per currency, never summed; the text says what the number is.
+  Props: api, workspaceId, role, app, productId, sales, writeEnabled, refreshKey (changes after a sync, so this reads again), embedded (inside the
   table row of the product), onsaved (a text was changed: the list reads again), onclose, onswitchoff.
 -->
 <script lang="ts">
   import type { Role } from '@mrm/core';
   import { untrack } from 'svelte';
+  import {
+    type ProductSalesView,
+    salesByProduct,
+    salesCell,
+    salesMeasureText,
+  } from '../../lib/analytics/product-sales.ts';
   import { type Api, ApiError } from '../../lib/api.ts';
   import {
     groupPrices,
@@ -33,6 +41,7 @@
     role,
     app,
     productId,
+    sales = null,
     writeEnabled,
     refreshKey,
     embedded = false,
@@ -45,6 +54,8 @@
     role: Role;
     app: Pick<AppSummary, 'id' | 'platform' | 'name'>;
     productId: string;
+    /** The stored sales of the app (null: none stored, or no right to read analytics: the section is not drawn). */
+    sales?: ProductSalesView | null | undefined;
     writeEnabled: boolean;
     refreshKey: number;
     /** Drawn inside the table row of the product: no card of its own and no Close (the row's button hides it). */
@@ -87,6 +98,8 @@
   const product = $derived(data?.product ?? null);
   const status = $derived(product ? stateBadge(product.state) : null);
   const groups = $derived(product ? groupPrices(product.prices) : []);
+  const salesItem = $derived(sales ? salesByProduct(sales).get(productId) : undefined);
+  const salesLines = $derived(sales ? salesCell(sales, salesItem) : []);
   const guessed = $derived(product !== null && product.kind !== 'subscription' && data?.app.store === 'googleplay');
 
   function saved() {
@@ -127,6 +140,23 @@
       {#if product.group}<span class="muted text-sm">Group: {product.group}</span>{/if}
       {#if guessed}<InfoTip label="About the type" text={guessedKindNote} />{/if}
     </div>
+
+    {#if sales}
+      <div class="stack" data-testid="product-sales-section">
+        <div class="row">
+          <h4>Sales, last 28 days</h4>
+          <InfoTip label="About the sales numbers" text={salesMeasureText(sales)} />
+        </div>
+        {#if salesLines[0] === '—'}
+          <p class="muted text-sm">No sales of this product in the last 28 days.</p>
+        {:else}
+          <p class="text-sm sales-lines">
+            {#each salesLines as line, i (line)}{i > 0 ? ' · ' : ''}<span>{line}</span>{/each}
+          </p>
+        {/if}
+        <p class="muted text-sm">{sales.measure === 'apple_proceeds' ? 'Developer proceeds' : 'Estimated: what buyers paid, not your proceeds'}. Per currency, never added across currencies.</p>
+      </div>
+    {/if}
 
     <div class="stack">
       <h4>Texts</h4>
@@ -220,5 +250,9 @@
 
   .retry {
     margin-top: var(--space-2);
+  }
+
+  .sales-lines {
+    margin: 0;
   }
 </style>

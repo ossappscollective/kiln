@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AnalyticsOverview, AnalyticsStatus } from './analytics.ts';
-import { androidOverview, appleOverview, NOW, sourceOf, statusOf } from './fixtures.ts';
+import {
+  androidOverview,
+  androidSalesSeries,
+  appleOverview,
+  NOW,
+  sourceOf,
+  statusOf,
+} from './fixtures.ts';
 import {
   allSeries,
   appleCrashRate,
@@ -461,4 +468,28 @@ test('the Insights overview draws one chart open: downloads or installs, the res
     'x',
     'without a downloads or installs card, the first one',
   );
+});
+
+test('Android sales are their own card, named as buyer-paid estimates, one panel per currency and never called proceeds', () => {
+  const base = androidOverview();
+  assert.ok(!buildCards(base).some((c) => c.id === 'sales'), 'no sales data, no card');
+  const cards = buildCards({ ...base, series: [...base.series, ...androidSalesSeries()] });
+  const sales = cards.find((c) => c.id === 'sales');
+  assert.ok(sales);
+  assert.equal(sales.title, 'Sales (buyer-paid, estimated)');
+  assert.ok(!cards.some((c) => c.id === 'proceeds'));
+  assert.deepEqual(
+    sales.panels.map((p) => p.id),
+    ['sales_gross:EUR', 'sales_gross:USD', 'sales_refunds:EUR', 'sales_orders'],
+  );
+  assert.deepEqual(
+    sales.panels.map((p) => p.currency),
+    ['EUR', 'USD', 'EUR', null],
+  );
+  assert.ok(sales.panels.every((p) => p.series.every((s) => !/proceeds/i.test(s.label))));
+  assert.ok(sales.panels.filter((p) => p.currency !== null).every((p) => p.series.length === 1));
+  // The honesty lines of the page carry the buyer-paid limit.
+  const notes = pageNotes({ ...base, series: [...base.series, ...androidSalesSeries()] });
+  assert.ok(notes.some((t) => /what buyers paid/i.test(t)));
+  assert.ok(notes.every((t) => !/server text/.test(t)));
 });

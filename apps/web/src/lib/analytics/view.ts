@@ -312,8 +312,11 @@ export function splitHeadline(cards: readonly ChartCard[]): {
   return { headline: cards[at] ?? null, rest: cards.filter((_, i) => i !== at) };
 }
 
+/** What the Android sales card is called: the numbers are buyer-paid estimates, not proceeds (the Apple card is "Proceeds"). */
+export const SALES_CARD_TITLE_GOOGLE = 'Sales (buyer-paid, estimated)';
+
 /**
- * The chart cards of one platform, in reading order: reach, downloads, conversion, crashes, ratings, proceeds.
+ * The chart cards of one platform, in reading order: reach, downloads, conversion, crashes, ratings, proceeds (Apple) or sales (Google).
  * A card with no data is not drawn; the screen says in one quiet line when nothing is.
  */
 export function buildCards(overview: AnalyticsOverview | null): ChartCard[] {
@@ -369,6 +372,34 @@ export function buildCards(overview: AnalyticsOverview | null): ChartCard[] {
           ],
           { domain: 'tight' },
         ),
+      ]),
+    );
+    // Estimated sales are what BUYERS paid (tax included, Google's fee not deducted): never called proceeds, one panel per currency.
+    const gross = overview.series.filter((x) => x.metric === 'sales_gross' && hasData(x));
+    const refunds = overview.series.filter((x) => x.metric === 'sales_refunds' && hasData(x));
+    cards.push(
+      card('sales', SALES_CARD_TITLE_GOOGLE, [
+        ...gross.map((x) =>
+          makePanel(
+            x.id,
+            x.currency ?? 'Sales',
+            'columns',
+            'money',
+            [[x, x.currency ? `Sales, buyer-paid (${x.currency})` : 'Sales, buyer-paid', 1]],
+            { currency: x.currency },
+          ),
+        ),
+        ...refunds.map((x) =>
+          makePanel(
+            x.id,
+            x.currency ? `Refunds (${x.currency})` : 'Refunds',
+            'columns',
+            'money',
+            [[x, x.currency ? `Refunds, buyer-paid (${x.currency})` : 'Refunds, buyer-paid', 2]],
+            { currency: x.currency },
+          ),
+        ),
+        makePanel('sales_orders', 'Orders', 'columns', 'count', [[s('sales_orders'), null, 1]]),
       ]),
     );
   } else {
@@ -497,6 +528,8 @@ export function pageNotes(overview: AnalyticsOverview | null): string[] {
     'apple_estimates',
     'google_monthly_files',
     'google_unit_unverified',
+    'play_estimated_sales_gross',
+    'play_sales_latency',
   ];
   const seen: string[] = [];
   for (const s of overview.series) {

@@ -45,7 +45,7 @@ export type SeriesPoint = { date: string; value: number | null };
 export type SeriesBreakdown = { dimension: string; items: { value: string; total: number }[] };
 
 export type AnalyticsSeries = {
-  /** The metric, `sales_proceeds:EUR` for one currency, or a derived id. */
+  /** The metric, `sales_proceeds:EUR` or `sales_gross:EUR` for one currency, or a derived id. */
   id: string;
   metric: string;
   label: string;
@@ -575,6 +575,7 @@ export const sourceLabels: Record<string, string> = {
   apple_sales: 'Sales and Trends',
   play_vitals: 'Android vitals',
   play_reports: 'Play Console reports',
+  play_sales: 'Play Console sales reports',
 };
 
 export const sourceLabel = (source: string): string => sourceLabels[source] ?? 'Store data';
@@ -591,6 +592,8 @@ export function lagText(source: string, delayDays: number): string {
       return `Play vitals can lag up to ${days}`;
     case 'play_reports':
       return 'Play monthly reports are posted 3 to 7 days late';
+    case 'play_sales':
+      return 'Play sales are added to the month file every day, up to a few days late, on UTC';
     default:
       return `The store can lag up to ${days}`;
   }
@@ -671,11 +674,13 @@ export const setupText: Record<AnalyticsSetupCode, string> = {
   request_stopped:
     'Apple stopped the request because nothing was read for a long time. Enable Apple analytics again.',
   vendor_number_missing:
-    'Optional: add the Apple vendor number in the workspace settings to read daily units and proceeds.',
+    'Optional: add the Apple vendor number in the workspace settings to read daily units and proceeds, also by product.',
   sales_forbidden:
     'The key may not read Sales and Trends. It needs the Sales and Reports role or higher.',
+  play_sales_forbidden:
+    'In Play Console open Users and permissions, find the service account and give it the permission View financial data, set to Global (all apps). Then sync again. Without it the Play sales numbers stay off.',
   bucket_id_missing:
-    'Add the Cloud Storage bucket of your Play Console reports (it is the same for every app of the Play account) to read installs and ratings.',
+    'Add the Cloud Storage bucket of your Play Console reports (it is the same for every app of the Play account) to read installs and ratings, and sales when the service account may also view financial data.',
   bucket_forbidden:
     'The service account may not read the bucket of the Play Console reports. Grant it read access to the bucket.',
   reporting_api_not_enabled:
@@ -699,6 +704,7 @@ export const nextStepLabels: Record<AnalyticsNextStep, string> = {
   set_vendor_number: 'Set the vendor number',
   set_bucket_id: 'Set the reports bucket',
   grant_play_permission: 'Grant the Play permission',
+  grant_play_financial_permission: 'Grant View financial data',
   enable_reporting_api: 'Enable the Reporting API',
   fix_credential: 'Check the credential',
   sync_now: 'Sync analytics now',
@@ -808,6 +814,7 @@ export function playSourceLine(status: AnalyticsStatus): string {
   return [
     word('play_vitals', 'Vitals', true),
     word('play_reports', 'Installs', status.google?.bucketIdSet === true),
+    word('play_sales', 'Sales', status.google?.bucketIdSet === true),
   ].join(' · ');
 }
 

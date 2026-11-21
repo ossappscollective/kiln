@@ -417,21 +417,44 @@ test('the status line names each Android source: Vitals connected, Installs not 
     google: { bucketIdSet: false, bucketSource: null },
     sources: [vitals, reports],
   });
-  assert.equal(playSourceLine(without), 'Vitals: connected · Installs: not set up');
+  assert.equal(
+    playSourceLine(without),
+    'Vitals: connected · Installs: not set up · Sales: not set up',
+  );
   const withBucket = statusOf({
     platform: 'android',
     apple: null,
     google: { bucketIdSet: true, bucketSource: 'workspace' },
     sources: [vitals, { ...reports, state: 'ready' }],
   });
-  assert.equal(playSourceLine(withBucket), 'Vitals: connected · Installs: connected');
+  assert.equal(
+    playSourceLine(withBucket),
+    'Vitals: connected · Installs: connected · Sales: not set up',
+  );
+  const withSales = statusOf({
+    platform: 'android',
+    apple: null,
+    google: { bucketIdSet: true, bucketSource: 'workspace' },
+    sources: [
+      vitals,
+      { ...reports, state: 'ready' },
+      sourceOf({ source: 'play_sales', label: 'Play Console sales reports', state: 'needs_setup' }),
+    ],
+  });
+  assert.equal(
+    playSourceLine(withSales),
+    'Vitals: connected · Installs: connected · Sales: needs setup',
+  );
   const failing = statusOf({
     platform: 'android',
     apple: null,
     google: { bucketIdSet: true, bucketSource: 'app' },
     sources: [vitals, { ...reports, state: 'error' }],
   });
-  assert.equal(playSourceLine(failing), 'Vitals: connected · Installs: last read failed');
+  assert.equal(
+    playSourceLine(failing),
+    'Vitals: connected · Installs: last read failed · Sales: not set up',
+  );
 });
 
 test('where the bucket comes from, in words', () => {

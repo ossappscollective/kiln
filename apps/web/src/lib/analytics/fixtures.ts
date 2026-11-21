@@ -349,3 +349,54 @@ export function statusOf(partial: Partial<AnalyticsStatus> = {}): AnalyticsStatu
     ...partial,
   };
 }
+
+/** Google Play estimated sales (buyer-paid, per currency of sale), to add to an Android overview. Made-up numbers. */
+export function androidSalesSeries(): AnalyticsSeries[] {
+  const n = DAYS;
+  const notes = ['play_estimated_sales_gross', 'play_sales_per_currency', 'play_sales_latency'];
+  const days = (base: number) => Array.from({ length: n }, (_, i) => base + (i % 5));
+  return [
+    mkSeries({
+      id: 'sales_gross:EUR',
+      metric: 'sales_gross',
+      label: 'Sales, buyer-paid estimate (EUR)',
+      unit: 'money',
+      source: 'play_sales',
+      delayDays: 7,
+      currency: 'EUR',
+      values: days(20),
+      notes,
+    }),
+    mkSeries({
+      id: 'sales_gross:USD',
+      metric: 'sales_gross',
+      label: 'Sales, buyer-paid estimate (USD)',
+      unit: 'money',
+      source: 'play_sales',
+      delayDays: 7,
+      currency: 'USD',
+      values: days(30),
+      notes,
+    }),
+    mkSeries({
+      id: 'sales_refunds:EUR',
+      metric: 'sales_refunds',
+      label: 'Refunds, buyer-paid estimate (EUR)',
+      unit: 'money',
+      source: 'play_sales',
+      delayDays: 7,
+      currency: 'EUR',
+      values: days(1),
+      notes,
+    }),
+    mkSeries({
+      id: 'sales_orders',
+      label: 'Orders',
+      unit: 'count',
+      source: 'play_sales',
+      delayDays: 7,
+      values: days(5),
+      notes: ['play_estimated_sales_gross', 'play_sales_latency'],
+    }),
+  ];
+}

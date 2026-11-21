@@ -54,6 +54,10 @@
           permission to view app information and download bulk reports (read-only). Google does not say whether both are needed, so use the test.
         </li>
         <li>Paste it as the bucket of this app. Apps of another Play account get their own.</li>
+        <li>
+          Optional, for estimated sales (what buyers paid, not your proceeds): in Play Console, Users and permissions, give the service account
+          <strong>View financial data</strong>, set to Global. The sales files are in the same bucket.
+        </li>
       </ol>
     </Disclosure>
     <div class="row">

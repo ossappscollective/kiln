@@ -34,7 +34,7 @@
     <p class="hint" id="{uid}-enabled-hint">Reads numbers from App Store Connect and Google Play and keeps them on this server. It only reads.</p>
     <Disclosure summary="What it reads">
       <p class="hint">
-        Downloads, page views, crashes and sales from App Store Connect, and installs, crash rates and ratings from Google Play. Numbers already stored stay
+        Downloads, page views, crashes and sales from App Store Connect, and installs, crash rates, ratings and estimated sales from Google Play. Numbers already stored stay
         readable when this is off.
       </p>
     </Disclosure>
@@ -52,7 +52,7 @@
       aria-describedby="{uid}-vendor-hint"
       aria-invalid={errors.analyticsVendorNumber ? 'true' : undefined}
     />
-    <p class="hint" id="{uid}-vendor-hint">5 to 12 digits, from App Store Connect under Payments and Financial Reports. Empty: no sales numbers.</p>
+    <p class="hint" id="{uid}-vendor-hint">5 to 12 digits, from App Store Connect under Payments and Financial Reports. Empty: no sales numbers (units and proceeds, also by product).</p>
     {#if errors.analyticsVendorNumber}<p class="field-error" role="alert">{errors.analyticsVendorNumber}</p>{/if}
   </div>
   <div class="field">
@@ -67,7 +67,7 @@
       aria-describedby="{uid}-bucket-hint"
       aria-invalid={errors.analyticsBucketId ? 'true' : undefined}
     />
-    <p class="hint" id="{uid}-bucket-hint">The bucket of the monthly Play Console reports, like pubsite_prod_rev_01234567890123456789.</p>
+    <p class="hint" id="{uid}-bucket-hint">The bucket of the monthly Play Console reports, like pubsite_prod_rev_01234567890123456789. Sales (estimated, what buyers paid) come from the same bucket and also need the Play Console permission View financial data, set to Global.</p>
     {#if errors.analyticsBucketId}<p class="field-error" role="alert">{errors.analyticsBucketId}</p>{/if}
   </div>
   <Disclosure summary="About the bucket and the sync">

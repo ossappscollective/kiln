@@ -46,6 +46,7 @@ import type {
   PlayBucketTestResult,
   PlayBucketView,
 } from './analytics/analytics.ts';
+import type { ProductSalesView } from './analytics/product-sales.ts';
 import type {
   AsoAddResult,
   AsoCoachResponse,
@@ -2226,6 +2227,21 @@ export function createApi(options: ApiOptions = {}) {
       return request<AnalyticsOverview>(
         'GET',
         `${analyticsPath(workspaceId, appId)}/overview${text ? `?${text}` : ''}`,
+      );
+    },
+    // Sales by store product (stored analytics only, no store call). Needs `analytics.read`.
+    analyticsProductSales: (
+      workspaceId: string,
+      appId: string,
+      query: { from?: string; to?: string } = {},
+    ) => {
+      const params = new URLSearchParams();
+      if (query.from) params.set('from', query.from);
+      if (query.to) params.set('to', query.to);
+      const text = params.toString();
+      return request<ProductSalesView>(
+        'GET',
+        `${analyticsPath(workspaceId, appId)}/product-sales${text ? `?${text}` : ''}`,
       );
     },
     syncAnalytics: (workspaceId: string, appId: string, sources?: string[]) =>

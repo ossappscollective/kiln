@@ -4,11 +4,23 @@
   open (prices and availability read only; the display name and description editable per language, behind a preview).
   Reading and syncing never change a store. The one write, a text change, is OFF until the server's switch is on and needs the admin role:
   the page says so instead of hiding the texts.
+  Sales (28 days): a column from STORED analytics only (`GET .../analytics/product-sales`, no store call), shown to roles that may read analytics and
+  only once the app has a stored sales day. Units and one amount line per currency (never summed); the header's tooltip says what the number is
+  (Apple proceeds, or a Google buyer-paid estimate that is not proceeds). Without sales data the column is hidden and one line says how to turn it on.
   Props: api, workspaceId, role, app, refreshKey (changes when an app sync finished, so this reads again).
 -->
 <script lang="ts">
-  import { can, type Role } from '@mrm/core';
+  import { can, platformSupports, type Role } from '@mrm/core';
   import { untrack } from 'svelte';
+  import {
+    type ProductSalesView,
+    salesByProduct,
+    salesCell,
+    salesColumnTitle,
+    salesMeasureText,
+    salesSetupHint,
+    salesVisible,
+  } from '../../lib/analytics/product-sales.ts';
   import { type Api, ApiError } from '../../lib/api.ts';
   import {
     classifyProductFailure,
@@ -46,6 +58,29 @@
   let detailKey = $state(0);
   let now = $state(Date.now());
   let generation = 0;
+  let sales = $state<ProductSalesView | null>(null);
+  let salesGeneration = 0;
+
+  const mayReadSales = $derived(can(role, 'analytics.read'));
+  const apple = $derived(platformSupports(app.platform, 'appleAnalyticsReports'));
+  const showSales = $derived(mayReadSales && salesVisible(sales));
+  const salesById = $derived(salesByProduct(sales));
+  const columns = $derived(showSales ? 7 : 6);
+
+  /** Sales are an extra: stored analytics only, and a failure to read them never gets in the way of the product list. */
+  async function loadSales() {
+    const mine = ++salesGeneration;
+    if (!mayReadSales) {
+      sales = null;
+      return;
+    }
+    try {
+      const read = await api.analyticsProductSales(workspaceId, app.id);
+      if (mine === salesGeneration) sales = read;
+    } catch {
+      if (mine === salesGeneration) sales = null;
+    }
+  }
 
   async function load() {
     const mine = ++generation;
@@ -70,7 +105,10 @@
     void workspaceId;
     void refreshKey;
     openId = null;
-    untrack(() => void load());
+    untrack(() => {
+      void load();
+      void loadSales();
+    });
   });
 
   async function sync() {
@@ -170,6 +208,11 @@
               <th scope="col">Type</th>
               <th scope="col">Status</th>
               <th scope="col" class="num">Price</th>
+              {#if showSales && sales}
+                <th scope="col" class="num">
+                  <span class="sales-head">{salesColumnTitle}<InfoTip label="About the sales numbers" text={salesMeasureText(sales)} align="end" width="24rem" /></span>
+                </th>
+              {/if}
               <th scope="col">Languages</th>
               <th scope="col"><span class="visually-hidden">Actions</span></th>
             </tr>
@@ -191,6 +234,12 @@
                   {priceText(p.price)}
                   <div class="muted text-sm">{priceCountText(p.territoryCount)}</div>
                 </td>
+                {#if showSales && sales}
+                  {@const cell = salesCell(sales, salesById.get(p.productId))}
+                  <td class="num sales-cell" class:none={cell[0] === '—'} title={salesMeasureText(sales)} data-testid="product-sales">
+                    {#each cell as line (line)}<div>{line}</div>{/each}
+                  </td>
+                {/if}
                 <td class="muted text-sm">{p.locales.length === 0 ? 'None' : p.locales.length <= 3 ? p.locales.join(', ') : `${p.locales.slice(0, 3).join(', ')} and ${p.locales.length - 3} more`}</td>
                 <td class="actions">
                   <Button
@@ -206,13 +255,14 @@
               </tr>
               {#if openId === p.productId}
                 <tr class="detail-row">
-                  <td colspan="6" id="product-detail-{p.productId}">
+                  <td colspan={columns} id="product-detail-{p.productId}">
                     <ProductDetail
                       {api}
                       {workspaceId}
                       {role}
                       {app}
                       productId={p.productId}
+                      sales={showSales ? sales : null}
                       writeEnabled={view.write.enabled}
                       refreshKey={detailKey}
                       embedded
@@ -229,6 +279,9 @@
           </tbody>
         </table>
       </div>
+      {#if mayReadSales && sales !== null && !showSales}
+        <p class="muted text-sm sales-hint" data-testid="sales-hint">{salesSetupHint(sales, apple)}</p>
+      {/if}
     {/if}
   {/if}
 </div>
@@ -262,6 +315,20 @@
 
   tr.open {
     background: var(--accent-bg);
+  }
+
+  .sales-head {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .sales-cell.none {
+    color: var(--muted);
+  }
+
+  .sales-hint {
+    margin: 0;
   }
 
   .detail-row > td {

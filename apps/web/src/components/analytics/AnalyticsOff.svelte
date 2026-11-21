@@ -30,9 +30,9 @@
       <InfoTip label="What analytics reads" buttonText="What it reads" align="start" width="26rem">
         <p>
           {#if apple}
-            Analytics reads daily numbers for this app from App Store Connect: impressions, product page views, downloads, conversion, crashes and, with a vendor number, units and proceeds.
+            Analytics reads daily numbers for this app from App Store Connect: impressions, product page views, downloads, conversion, crashes and, with a vendor number, units and proceeds, also by product.
           {:else}
-            Analytics reads daily numbers for this app from Google Play: crash and ANR rate by app version, and, with the bucket id of the Play Console reports, installs and ratings.
+            Analytics reads daily numbers for this app from Google Play: crash and ANR rate by app version, and, with the bucket id of the Play Console reports, installs and ratings. With the Play Console permission View financial data it also reads estimated sales: what buyers paid, not your proceeds.
           {/if}
         </p>
         <p>It keeps them on this server and shows where each number comes from, how late it can be and what it leaves out. Nothing is requested from a store until it is turned on.</p>
