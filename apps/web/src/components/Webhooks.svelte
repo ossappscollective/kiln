@@ -146,7 +146,7 @@
           <details>
             <summary>How to verify a delivery</summary>
             <p class="hint">
-              Each request has <span class="mono">X-MRM-Timestamp</span> and <span class="mono">X-MRM-Signature</span>
+              Each request has <span class="mono">X-Kiln-Timestamp</span> and <span class="mono">X-Kiln-Signature</span>
               headers. The signature is <span class="mono">v1=</span> and the hex HMAC-SHA256 of the timestamp, a dot and
               the raw body, keyed with the secret.
             </p>

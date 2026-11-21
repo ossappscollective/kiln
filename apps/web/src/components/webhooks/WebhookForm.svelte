@@ -90,7 +90,7 @@
       id="{uid}-url"
       type="url"
       bind:value={url}
-      placeholder="https://example.com/hooks/mrm"
+      placeholder="https://example.com/hooks/kiln"
       autocomplete="off"
       error={showProblems ? problems.url : undefined}
     />

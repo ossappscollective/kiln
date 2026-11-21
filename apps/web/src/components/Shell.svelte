@@ -2,6 +2,7 @@
   import { onMount, tick, untrack } from 'svelte';
   import type { Api } from '../lib/api.ts';
   import { floating } from '../lib/floating.ts';
+  import { readMigrated } from '../lib/legacy-storage.ts';
   import { can } from '@kiln/core';
   import { address, appContext } from '../lib/address.svelte.ts';
   import { carryHeaderParams } from '../lib/app-header.ts';
@@ -50,10 +51,10 @@
     void api.demoStatus().then((yes) => (demo = yes));
   });
 
-  const KEY = 'mrm.workspace';
+  const KEY = 'kiln.workspace';
   const remembered = () => {
     try {
-      return localStorage.getItem(KEY);
+      return readMigrated(localStorage, KEY);
     } catch {
       return null;
     }
@@ -728,8 +729,8 @@
     background: var(--surface-hover);
   }
 
-  .sidebar nav a[aria-current='page'] {
   /* The wash and the gradient bar of the current item are in app.css ("Sidebar navigation"), shared with AppNav. */
+  .sidebar nav a[aria-current='page'] {
     font-weight: var(--weight-semibold);
     color: var(--ink);
   }
