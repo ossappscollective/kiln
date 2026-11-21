@@ -111,10 +111,9 @@ Summary; the operator-facing detail is in [docs/deployment.md](deployment.md).
 ## Naming
 
 The product is **Kiln**: packages are `@kiln/*`, environment variables `KILN_*`, the session cookie
-`kiln_session`, API tokens `kiln_...`, local data `.kiln-data` and `kiln.db`. It was first called MRM;
-the old names are still read where an upgrade would otherwise break data or sessions, and are written
-nowhere. The rules and what is deliberately kept are in [ADR 0040](adr/0040-rename-to-kiln.md); the
-operator's list is in [deployment](deployment.md#upgrading-from-the-working-title-names-mrm_).
+`kiln_session`, API tokens `kiln_...`, local data `.kiln-data` and `kiln.db`. No earlier name is read
+anywhere. The few old labels that are kept because they key stored or derived data are listed in
+[ADR 0040](adr/0040-rename-to-kiln.md).
 
 ## Automation surface
 

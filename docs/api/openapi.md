@@ -15,7 +15,7 @@ curl -H "Authorization: Bearer kiln_..." https://kiln.example.com/api/openapi.js
 - Every operation with its path, method, `operationId`, summary, path and query parameters,
   request body and success responses as JSON Schema, and the error responses that can happen
   (400, 401, 403, 404, 413, 429), shared as components.
-- Two security schemes: `cookieAuth` (the `kiln_session` cookie; the old `mrm_session` is still accepted when the new one is absent) and `bearerAuth` (a `kiln_` token; tokens made before the rename start with `mrm_` and still work).
+- Two security schemes: `cookieAuth` (the `kiln_session` cookie) and `bearerAuth` (a `kiln_` token).
   Operations a token may not call list only `cookieAuth`; public operations list none.
 - Vendor extensions that tell a client, or an assistant deciding what needs a person's approval,
   what an operation does:

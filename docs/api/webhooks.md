@@ -1,12 +1,5 @@
 # Webhooks
 
-> **Renamed.** The delivery headers were renamed with the product: `X-MRM-Event`, `X-MRM-Delivery`,
-> `X-MRM-Timestamp` and `X-MRM-Signature` are now `X-Kiln-Event`, `X-Kiln-Delivery`,
-> `X-Kiln-Timestamp` and `X-Kiln-Signature`. Receivers must read the new names; the old ones are no
-> longer sent (a deliberate break in a pre-release product). Nothing else changed: the body, the
-> `v1=` signature and the signed string `<timestamp>.<raw body>` are exactly as before, so an existing
-> verification only needs the header names updated.
-
 A webhook sends a signed HTTP POST to your server when an [event](events.md) happens. Owners and
 admins manage them in the web app (**Webhooks**) or through the endpoints below. Session cookie
 only: an API token can never manage webhooks (see [tokens](tokens.md)).

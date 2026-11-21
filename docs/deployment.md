@@ -40,50 +40,6 @@ Referrer-Policy. The policy only allows the web UI's own scripts, styles, images
 The image runs as the unprivileged `node` user. The only writable path is `/data`
 (`KILN_DATA_DIR`). The image still contains the development dependencies that the web build needs.
 
-## Upgrading from the working-title names (MRM_*)
-
-The product was first called MRM (Mobile Release Manager) and is now **Kiln**. Nothing needs to be
-changed to start the new version on existing data; these are the compatibility rules
-([ADR 0040](adr/0040-rename-to-kiln.md)), and what to rename when you have time.
-
-- **Environment variables**: `MRM_X` is now `KILN_X` for every variable. At start the server copies
-  each `MRM_X` that is set to `KILN_X` when `KILN_X` is not set (it never overwrites a `KILN_`
-  variable) and logs one line that lists the names it took from the old prefix, never the values.
-  The MCP bridge and the demo do the same. Rename the variables in your `.env`, compose file or
-  service definition and the line goes away. `docker-compose.yml` also reads `MRM_MASTER_KEY` and
-  `MRM_BIND` for its own substitutions.
-- **Session cookie**: new sign-ins set `kiln_session`. A session in the old `mrm_session` cookie keeps
-  working while the new cookie is absent, so nobody is signed out by the upgrade. Signing out clears
-  both.
-- **API tokens**: tokens you create now start with `kiln_`. Existing `mrm_...` tokens keep working
-  unchanged (they are stored as a hash of the whole string and are not rewritten), so scripts and CI
-  need no change. The list shows the prefix each token was made with.
-- **Data folder and database file**: the defaults are `./.kiln-data`, `./.kiln-data/kiln.db` and
-  `./.kiln-demo` (the image uses `/data/kiln.db`). When the old name exists and the new one does not
-  (`./.mrm-data`, `mrm.db` next to where `kiln.db` would be, `./.mrm-demo`), the old one stays in use.
-  Nothing is moved, copied or deleted; rename the folder or file yourself if you want the new name
-  (stop the server first). A folder you set with `KILN_DATA_DIR` is used as you wrote it.
-- **Clone markers and refs**: clones made before the rename keep their `mrm-clone.json` marker and
-  `refs/mrm/*` refs and keep working; new clones write `kiln-clone.json` and `refs/kiln/*`.
-- **Webhook headers** changed: `X-MRM-Event`, `X-MRM-Delivery`, `X-MRM-Timestamp` and
-  `X-MRM-Signature` are now `X-Kiln-Event`, `X-Kiln-Delivery`, `X-Kiln-Timestamp` and
-  `X-Kiln-Signature`. The signature algorithm and the signed string are unchanged. This is a break
-  with no fallback: update receivers that read the headers ([webhooks](api/webhooks.md)).
-- **Other names that changed** and have no fallback: the OpenAPI extensions (`x-mrm-*` is
-  `x-kiln-*`), the MCP resource addresses (`mrm://apps/...` is `kiln://apps/...`), and the default
-  branch name for change sets (`mrm/...` is `kiln/...`).
-- **Browser settings** (theme, remembered workspace, collapsed sections, and so on) are copied from
-  their old `mrm.*` browser storage keys the first time they are read.
-- **Docker compose**: the Postgres user, database and the volume names in `docker-compose.yml` are
-  still `mrm` on purpose; they are where an existing installation's data lives, and renaming them
-  would start an empty database. Leave them as they are, or migrate the data yourself.
-- **Desktop app**: it looks for its data in the new app folder first and uses the folder of the
-  earlier identifier (`dev.example.mobilereleasemanager`) when only that exists; `mrm.db` is used when
-  `kiln.db` does not exist. `KILN_NODE` and `KILN_USE_PACKAGED_SERVER` also read their `MRM_` names.
-- **Unchanged on purpose**: the single-user address `local-user@mrm.invalid`, the labels that key
-  recovery codes, passkey user handles, mail codes and build download links, and the demo's built-in
-  key. They are part of stored or derived data; changing them would break existing accounts.
-
 ## Reading repositories: git and local clones
 
 Scans, listings and change set creation read the repository from a local clone instead of one

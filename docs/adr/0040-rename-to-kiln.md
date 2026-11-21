@@ -3,6 +3,17 @@
 Status: built. Tested with unit and server tests; the Rust changes in the desktop shell and the compose
 substitutions were not compiled or run here.
 
+## Amendment, 2026-11-21: the fallbacks were removed
+
+Decisions 2 to 7 and 9 below describe compatibility fallbacks (`MRM_*` variables, the `mrm_session`
+cookie, `mrm_` tokens, `.mrm-data` and `mrm.db`, `mrm-clone.json` and `refs/mrm/*`, `mrm:sha256:`
+image names, `mrm.*` browser keys, the desktop shell's `MRM_` variables and earlier app-data folder).
+They were removed again because there turned out to be no old installs to support. Only the Kiln
+names are read and written now, and the code, tests and the deployment upgrade notes for those
+fallbacks are gone. The webhook headers (8), the names renamed without a fallback (10) and the labels
+kept on purpose (11) are unchanged; the compose substitutions of `MRM_MASTER_KEY` and `MRM_BIND`
+are gone as well. The text below is the record of the original decision.
+
 ## Context
 
 The project began under the working title MRM (Mobile Release Manager). The name was only a placeholder
@@ -69,5 +80,3 @@ and stored or derived data keeps its old label**.
 - Postgres and compose volume names still say `mrm`. A later migration (dump and restore into a new
   database) is the operator's decision.
 - Repository folders on disk keep their old name; this ADR does not rename them.
-
-See [deployment](../deployment.md#upgrading-from-the-working-title-names-mrm_) for the operator's list.

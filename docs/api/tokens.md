@@ -109,9 +109,7 @@ Body (16 KB at most):
 ```
 
 The `token` is in this response and nowhere else, ever (`Cache-Control: no-store`). It is `kiln_`
-plus 256 random bits, base64url. Only its SHA-256 is stored. Tokens made before the product was
-renamed start with `mrm_` instead; they stay valid and are not rewritten (the stored hash covers the
-whole string), and the list shows the prefix they were made with.
+plus 256 random bits, base64url. Only its SHA-256 is stored.
 
 Errors: 400 `invalid_request` (validation, or an expiry in the past), 400 `action_not_allowed`
 (an action tokens can never hold), 400 `action_above_role` (an action the role does not include),
