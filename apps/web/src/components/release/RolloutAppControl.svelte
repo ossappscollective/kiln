@@ -12,6 +12,7 @@
   import type { Api } from '../../lib/api.ts';
   import { formatNumber, formatTime } from '../../lib/i18n/format.ts';
   import { k, t } from '../../lib/i18n/t.ts';
+  import { type Msg, msg, msgText } from '../../lib/message.ts';
   import T from '../ui/T.svelte';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
@@ -57,21 +58,21 @@
   let targetKey = $state('');
   let view = $state<RolloutStateView | null>(null);
   let reading = $state(false);
-  let readError = $state('');
+  let readError = $state<Msg | null>(null);
   /** Why the change buttons are off even though a state is shown: an unknown outcome, or a result not yet re-read. */
   let blocked = $state<string | null>(null);
-  let notice = $state<{ tone: 'info' | 'warn' | 'error' | 'ok'; title: string; text: string } | null>(null);
+  let notice = $state<{ tone: 'info' | 'warn' | 'error' | 'ok'; title: Msg; text: Msg } | null>(null);
   let sharing = $state(false);
   let percent = $state('');
-  let percentProblem = $state('');
+  let percentProblem = $state<Msg | null>(null);
   let preview = $state<RolloutPreview | null>(null);
   /** The change the preview was made for: apply sends exactly this plus the hash (the hash covers it). */
   let previewed: RolloutRequest | null = null;
   let dialogOpen = $state(false);
   let previewing = $state('');
   let applying = $state(false);
-  let dialogProblem = $state('');
-  let dialogNotice = $state('');
+  let dialogProblem = $state<Msg | null>(null);
+  let dialogNotice = $state<Msg | null>(null);
   let result = $state<RolloutResult | null>(null);
   let seq = 0;
 
@@ -93,12 +94,12 @@
   function reset() {
     seq++;
     view = null;
-    readError = '';
+    readError = null;
     blocked = null;
     notice = null;
     sharing = false;
     percent = '';
-    percentProblem = '';
+    percentProblem = null;
     preview = null;
     dialogOpen = false;
     previewing = '';
@@ -117,7 +118,7 @@
     if (!target || reading || applying) return;
     const mine = ++seq;
     reading = true;
-    readError = '';
+    readError = null;
     try {
       const done = await api.rolloutState(workspaceId, app.id, stateQuery(target.base));
       if (mine !== seq) return;
@@ -127,7 +128,7 @@
       result = null;
     } catch (e) {
       if (mine !== seq) return;
-      readError = classifyFailure(e, null).message;
+      readError = classifyFailure(e, null).text;
     } finally {
       if (mine === seq) reading = false;
     }
@@ -136,7 +137,7 @@
   function begin(action: string) {
     if (action === 'set_fraction') {
       sharing = !sharing;
-      percentProblem = '';
+      percentProblem = null;
       return;
     }
     void startPreview(action);
@@ -145,10 +146,10 @@
   function submitShare() {
     const checked = parsePercent(percent, view?.minUserFraction ?? null);
     if (!checked.ok) {
-      percentProblem = checked.message;
+      percentProblem = checked.text;
       return;
     }
-    percentProblem = '';
+    percentProblem = null;
     void startPreview('set_fraction', checked.fraction);
   }
 
@@ -157,8 +158,8 @@
     const mine = ++seq;
     previewing = action;
     notice = null;
-    dialogProblem = '';
-    dialogNotice = '';
+    dialogProblem = null;
+    dialogNotice = null;
     try {
       const request = buildRequest(target.base, action, fraction);
       const done = await api.rolloutPreview(workspaceId, app.id, request);
@@ -169,7 +170,7 @@
     } catch (e) {
       if (mine !== seq) return;
       const failure = classifyFailure(e, null);
-      notice = { tone: 'error', title: t('release-store:ra.noPreview'), text: failure.message };
+      notice = { tone: 'error', title: msg(k('release-store:ra.noPreview')), text: failure.text };
     } finally {
       if (mine === seq) previewing = '';
     }
@@ -179,8 +180,8 @@
     dialogOpen = false;
     preview = null;
     previewed = null;
-    dialogProblem = '';
-    dialogNotice = '';
+    dialogProblem = null;
+    dialogNotice = null;
   }
 
   async function confirm() {
@@ -188,7 +189,7 @@
     const sent = preview;
     const mine = ++seq;
     applying = true;
-    dialogProblem = '';
+    dialogProblem = null;
     try {
       // The same change as the preview, with its hash. This is the only call that writes to the store, and it is sent once.
       const body = { ...previewed, confirmHash: sent.confirmHash };
@@ -201,8 +202,8 @@
       percent = '';
       notice = {
         tone: 'ok',
-        title: done.result.confirmedByReread ? t('release-store:ra.doneConfirmed') : t('release-store:ra.done'),
-        text: t('release-store:ra.doneText', { state: describeState(done.result.after), note: done.result.note }),
+        title: done.result.confirmedByReread ? msg(k('release-store:ra.doneConfirmed')) : msg(k('release-store:ra.done')),
+        text: msg(k('release-store:ra.doneText'), () => ({ state: describeState(done.result.after), note: done.result.note })),
       };
     } catch (e) {
       if (mine !== seq) return;
@@ -218,32 +219,32 @@
         if (failure.next) {
           // The store is not what was previewed. Nothing was written. Show the new preview: it must be confirmed again.
           preview = failure.next;
-          dialogNotice = t('release-store:ra.changedAfterPreview');
-          dialogProblem = '';
+          dialogNotice = msg(k('release-store:ra.changedAfterPreview'));
+          dialogProblem = null;
         } else {
           closeDialog();
-          notice = { tone: 'warn', title: t('release-store:ra.storeChanged'), text: t('release-store:ra.noLongerFits', { message: failure.message }) };
+          notice = { tone: 'warn', title: msg(k('release-store:ra.storeChanged')), text: msg(k('release-store:ra.noLongerFits'), () => ({ message: failure.message })) };
           blocked = k('release-store:ra.blockedRefresh');
         }
         break;
       case 'write_in_progress':
-        dialogProblem = t('release-store:ra.waitConfirm', { message: failure.message });
+        dialogProblem = msg(k('release-store:ra.waitConfirm'), () => ({ message: failure.message }));
         break;
       case 'outcome_unknown':
         closeDialog();
         blocked = k('release-store:ra.blockedUnknown');
-        notice = { tone: 'error', title: t('release-store:ra.unknown'), text: failure.message };
+        notice = { tone: 'error', title: msg(k('release-store:ra.unknown')), text: failure.text };
         break;
       case 'not_applied':
         closeDialog();
-        notice = { tone: 'info', title: t('release-store:ra.nothingChanged'), text: failure.message };
+        notice = { tone: 'info', title: msg(k('release-store:ra.nothingChanged')), text: failure.text };
         break;
       case 'disabled':
         closeDialog();
-        notice = { tone: 'warn', title: t('release-store:ra.switchedOff'), text: failure.message };
+        notice = { tone: 'warn', title: msg(k('release-store:ra.switchedOff')), text: failure.text };
         break;
       default:
-        dialogProblem = failure.message;
+        dialogProblem = failure.text;
     }
   }
 
@@ -272,7 +273,7 @@
       </Button>
     </div>
 
-    {#if readError}<Alert tone="error">{readError}</Alert>{/if}
+    {#if readError}<Alert tone="error">{msgText(readError)}</Alert>{/if}
 
     {#if view}
       <p class="state" aria-live="polite" title={describeState(view.current)}>
@@ -283,7 +284,7 @@
       <p class="muted note">{t('release-store:ra.readFirst')}</p>
     {/if}
 
-    {#if notice}<Alert tone={notice.tone} title={notice.title}>{notice.text}</Alert>{/if}
+    {#if notice}<Alert tone={notice.tone} title={msgText(notice.title)}>{msgText(notice.text)}</Alert>{/if}
     {#if blocked && !notice}<p class="muted note">{t(blocked)}</p>{/if}
 
     <div class="row wrap actions">
@@ -305,10 +306,10 @@
       <div class="field share">
         <label for={shareId}>{t('release-store:ra.newShare', { min: formatNumber(view.minUserFraction !== null ? Math.round(view.minUserFraction * 10000) / 100 : 0) })}</label>
         <div class="row">
-          <input id={shareId} type="text" inputmode="decimal" autocomplete="off" bind:value={percent} aria-invalid={percentProblem !== ''} />
+          <input id={shareId} type="text" inputmode="decimal" autocomplete="off" bind:value={percent} aria-invalid={percentProblem !== null} />
           <Button size="sm" variant="primary" loading={previewing === 'set_fraction'} disabled={previewing !== ''} onclick={submitShare}>{t('release-store:ra.previewChange')}</Button>
         </div>
-        {#if percentProblem}<p class="error" role="alert">{percentProblem}</p>{/if}
+        {#if percentProblem}<p class="error" role="alert">{msgText(percentProblem)}</p>{/if}
         <p class="hint">{t('release-store:ra.raiseOnly')}</p>
       </div>
     {/if}
@@ -321,8 +322,8 @@
       bind:open={dialogOpen}
       {preview}
       busy={applying}
-      problem={dialogProblem}
-      notice={dialogNotice}
+      problem={msgText(dialogProblem)}
+      notice={msgText(dialogNotice)}
       onconfirm={confirm}
       oncancel={() => {
         if (!applying) {

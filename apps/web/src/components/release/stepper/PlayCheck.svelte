@@ -13,6 +13,7 @@
 -->
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { playCheckMessage } from '../../../lib/core-text.ts';
   import { t } from '../../../lib/i18n/t.ts';
   import T from '../../ui/T.svelte';
   import type { Api } from '../../../lib/api.ts';
@@ -161,7 +162,7 @@
           <Badge tone={c.severity === 'problem' ? 'bad' : c.severity === 'warning' ? 'warn' : 'info'}>
             {c.severity === 'problem' ? t('release-stepper:pc.fix') : c.severity === 'warning' ? t('release-stepper:pc.check') : t('release-stepper:pc.note')}
           </Badge>
-          <span>{c.message}</span>
+          <span>{playCheckMessage(c)}</span>
         </li>
       {/each}
     </ul>

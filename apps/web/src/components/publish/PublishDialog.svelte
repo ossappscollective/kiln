@@ -27,7 +27,7 @@
     type PublishResult,
     type PublishStepType,
     STEP_NAME,
-    STOP_NOTE,
+    stopNote,
     asPushPreview,
     asReleasePreview,
     asRolloutPreview,
@@ -363,7 +363,7 @@ import { supports } from '@kiln/core';
       <section class="stack" aria-label={t('publish:dialog.resultAria')} data-testid="publish-result">
         <Alert tone={summary.tone} title={summary.title}>
           {summary.text}
-          {#if !result.completed}<span class="para">{STOP_NOTE}</span>{/if}
+          {#if !result.completed}<span class="para">{stopNote()}</span>{/if}
         </Alert>
         <ol class="results">
           {#each summary.rows as r (r.type)}

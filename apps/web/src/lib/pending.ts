@@ -234,7 +234,9 @@ export const KIND_ORDER: readonly PendingKind[] = [
  * A table of message keys as an object whose values are read in the active language each time (the exported label tables below are
  * used as `KIND_LABEL[kind]` by screens, so they must follow the language, not freeze it when the module loads).
  */
-function translated<K extends string>(keys: Readonly<Record<K, string>>): Readonly<Record<K, string>> {
+function translated<K extends string>(
+  keys: Readonly<Record<K, string>>,
+): Readonly<Record<K, string>> {
   const out = {} as Record<K, string>;
   for (const key of Object.keys(keys) as K[]) {
     Object.defineProperty(out, key, { enumerable: true, get: () => t(keys[key]) });
@@ -339,7 +341,10 @@ export function editHref(
     case 'asset_set':
       return { href: at('assets'), label: t('app:pending.edit.graphics') };
     case 'release_field':
-      return { href: releaseStepHref(appId, platform, 'build'), label: t('app:pending.edit.release') };
+      return {
+        href: releaseStepHref(appId, platform, 'build'),
+        label: t('app:pending.edit.release'),
+      };
     default:
       return { href: at('releases'), label: t('app:pending.edit.releases') };
   }
@@ -359,7 +364,8 @@ export function totalsLine(totals: PendingTotals): string {
   if (totals.items === 0) return t('app:pending.totals.nothing');
   const waiting = totals.items - totals.actionable;
   const parts: string[] = [];
-  if (totals.actionable > 0) parts.push(t('app:pending.totals.forYou', { count: totals.actionable }));
+  if (totals.actionable > 0)
+    parts.push(t('app:pending.totals.forYou', { count: totals.actionable }));
   if (totals.blocking > 0) parts.push(t('app:pending.totals.errors', { count: totals.blocking }));
   if (waiting > 0) parts.push(t('app:pending.totals.forStore', { count: waiting }));
   return formatList(parts, { type: 'unit' });
@@ -565,22 +571,24 @@ export function publishAvailability(input: {
       message: t('app:pending.avail.unknown'),
     };
   const config = input.config;
-  if (!config)
-    return { state: 'loading', message: t('app:pending.avail.loadingConfig') };
+  if (!config) return { state: 'loading', message: t('app:pending.avail.loadingConfig') };
   if (!config.enabled) {
     return {
       state: 'off',
       message: t('app:pending.avail.off', { env: config.envName || PUBLISH_ENV }),
     };
   }
-  if (input.totals === null) return { state: 'loading', message: t('app:pending.avail.loadingTotals') };
+  if (input.totals === null)
+    return { state: 'loading', message: t('app:pending.avail.loadingTotals') };
   if (input.totals.actionable === 0)
     return { state: 'nothing', message: t('app:pending.avail.nothing') };
   const off = input.nextSteps.filter((s) => config.steps?.[s] && config.steps[s].enabled === false);
   if (input.nextSteps.length > 0 && off.length === input.nextSteps.length) {
     return {
       state: 'steps_off',
-      message: t('app:pending.avail.stepsOff', { names: off.map((s) => config.steps[s].envName).join(', ') }),
+      message: t('app:pending.avail.stepsOff', {
+        names: off.map((s) => config.steps[s].envName).join(', '),
+      }),
     };
   }
   if (input.totals.blocking > 0) {
@@ -650,8 +658,7 @@ export function stepRow(step: PlanStep, platform: Platform): StepRow {
   let reason = step.reason;
   if (step.type === 'rollout') {
     toggleable = false;
-    if (step.availability !== 'nothing_to_do')
-      reason = t('app:pending.row.rolloutSingle');
+    if (step.availability !== 'nothing_to_do') reason = t('app:pending.row.rolloutSingle');
   } else if (step.availability === 'needs_input') {
     // A Google Play release is ticked after the dialog asked for the track and the share; any other step that needs details stays single.
     toggleable = needsInput;
@@ -923,10 +930,6 @@ export function promiseText(step: Pick<PlanStep, 'type' | 'summary'>): string {
 /** The note under a stopped publish, in the active language. */
 export const stopNote = (): string => t('app:pending.stopNote');
 
-/** @deprecated English only, read once. Use `stopNote()`, which follows the language. */
-export const STOP_NOTE =
-  'The steps run in order and stop at the first one that is not done. The steps after it were not run, and nothing is retried automatically.';
-
 const FAILED_TEXT: Readonly<Record<string, string>> = {
   state_changed: k('app:pending.failed.stateChanged'),
   blocked: k('app:pending.failed.blocked'),
@@ -967,7 +970,11 @@ const SKIPPED_TEXT: Readonly<Record<string, string>> = {
 };
 
 /** The text of a code in one of the tables above, or the fallback; '' when there is no code. */
-const said = (table: Readonly<Record<string, string>>, code: string | undefined, fallback = ''): string => {
+const said = (
+  table: Readonly<Record<string, string>>,
+  code: string | undefined,
+  fallback = '',
+): string => {
   const key = code === undefined ? undefined : table[code];
   return key === undefined ? fallback : t(key);
 };
@@ -1019,7 +1026,9 @@ export function resultRow(step: StepResult, askedFraction: number | null = null)
       status: 'applied',
       word: t('app:pending.result.done'),
       tone: 'ok',
-      text: step.confirmedByReread ? t('app:pending.result.doneConfirmed') : t('app:pending.result.doneText'),
+      text: step.confirmedByReread
+        ? t('app:pending.result.doneConfirmed')
+        : t('app:pending.result.doneText'),
       review: false,
     };
   }
@@ -1044,12 +1053,16 @@ export function resultRow(step: StepResult, askedFraction: number | null = null)
         status: 'failed',
         word: t('app:pending.result.failed'),
         tone: 'bad',
-        text: sentences(notice, said(OUTCOME_TEXT, step.outcome)),
+        text: sentences(t('core:play.fractionRefused'), said(OUTCOME_TEXT, step.outcome)),
         review: true,
       };
   }
   const text = sentences(
-    said(FAILED_TEXT, step.error, t('app:pending.failed.unknownCode', { code: safeCode(step.error) })),
+    said(
+      FAILED_TEXT,
+      step.error,
+      t('app:pending.failed.unknownCode', { code: safeCode(step.error) }),
+    ),
     storeSaid(step),
     said(OUTCOME_TEXT, step.outcome),
   );

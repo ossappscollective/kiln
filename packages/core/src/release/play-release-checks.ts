@@ -12,6 +12,8 @@
  * UNVERIFIED: whether Play refuses a version code that is lower than the one a track holds (it is only a warning here).
  */
 
+import { type CoreText, coreText } from '../text.ts';
+
 /** The most characters of release notes per language (VERIFIED, see above). */
 export const PLAY_NOTES_LIMIT = 500;
 
@@ -39,6 +41,8 @@ export type PlayCheckContext = {
 
 export type PlayLocalCheck = {
   code: string;
+  /** The message as a key (`play.check.<code in camelCase>`) with parameters (`CoreText`), for a client that shows it in the reader's language. */
+  text: CoreText;
   /** `problem`: Google Play would not take it as it is. `warning`: it can go on, read it. `note`: explains. */
   severity: 'problem' | 'warning' | 'note';
   message: string;
@@ -78,8 +82,12 @@ export function checkPlayProposal(
   context: PlayCheckContext,
 ): PlayLocalCheck[] {
   const out: PlayLocalCheck[] = [];
-  const add = (check: PlayLocalCheck) => {
-    out.push(check);
+  const add = (
+    check: Omit<PlayLocalCheck, 'text'>,
+    params: Record<string, string | number> = {},
+  ) => {
+    const key = check.code.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+    out.push({ ...check, text: coreText(`play.check.${key}`, params) });
   };
   const track = proposal.track.trim();
   if (track === '')
@@ -105,22 +113,28 @@ export function checkPlayProposal(
     }
     const already = proposal.versionCodes.filter((c) => held.indexOf(c) !== -1);
     if (already.length > 0) {
-      add({
-        code: 'code_already_live',
-        severity: 'problem',
-        message: `Version code ${already.join(', ')} is already in a release of ${track} that is live or rolling out. Choose a code that is not released there yet.`,
-      });
+      add(
+        {
+          code: 'code_already_live',
+          severity: 'problem',
+          message: `Version code ${already.join(', ')} is already in a release of ${track} that is live or rolling out. Choose a code that is not released there yet.`,
+        },
+        { codes: already.join(', '), track },
+      );
     }
     const lower = proposal.versionCodes.filter((c) => {
       const n = codeNumber(c);
       return held.indexOf(c) === -1 && n <= highest && n > 0;
     });
     if (lower.length > 0) {
-      add({
-        code: 'code_not_newer',
-        severity: 'warning',
-        message: `Version code ${lower.join(', ')} is lower than ${highest}, which ${track} already holds. People who have ${highest} are not offered a lower code, so they will not get this release.`,
-      });
+      add(
+        {
+          code: 'code_not_newer',
+          severity: 'warning',
+          message: `Version code ${lower.join(', ')} is lower than ${highest}, which ${track} already holds. People who have ${highest} are not offered a lower code, so they will not get this release.`,
+        },
+        { codes: lower.join(', '), highest, track },
+      );
     }
     if (proposal.versionCodes.some((c) => Number.isNaN(codeNumber(c)))) {
       add({
@@ -166,12 +180,15 @@ export function checkPlayProposal(
   for (const note of written) {
     const length = Array.from(note.text.trim()).length;
     if (length > PLAY_NOTES_LIMIT) {
-      add({
-        code: 'notes_over_limit',
-        severity: 'problem',
-        item: note.locale,
-        message: `The release notes for ${note.locale} have ${length} characters. Google Play allows at most ${PLAY_NOTES_LIMIT} per language.`,
-      });
+      add(
+        {
+          code: 'notes_over_limit',
+          severity: 'problem',
+          item: note.locale,
+          message: `The release notes for ${note.locale} have ${length} characters. Google Play allows at most ${PLAY_NOTES_LIMIT} per language.`,
+        },
+        { locale: note.locale, count: length, max: PLAY_NOTES_LIMIT },
+      );
     }
   }
   const have: string[] = written.map((n) => n.locale.replace(/_/g, '-').toLowerCase());
@@ -184,12 +201,15 @@ export function checkPlayProposal(
   } else {
     for (const locale of context.listingLocales) {
       if (have.indexOf(locale.replace(/_/g, '-').toLowerCase()) === -1) {
-        add({
-          code: 'notes_missing',
-          severity: 'warning',
-          item: locale,
-          message: `There are no release notes for ${locale}, a language that has a listing.`,
-        });
+        add(
+          {
+            code: 'notes_missing',
+            severity: 'warning',
+            item: locale,
+            message: `There are no release notes for ${locale}, a language that has a listing.`,
+          },
+          { locale },
+        );
       }
     }
   }

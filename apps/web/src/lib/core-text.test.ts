@@ -5,8 +5,10 @@ import {
   type CoachKeyword,
   type CoreText,
   buildCoach,
+  checkPlayProposal,
   checkTerm,
   compareRollout,
+  rolloutOffer,
   rolloutTemplatesFor,
   storeRollout,
   validateRolloutSteps,
@@ -15,6 +17,8 @@ import {
   coachWords,
   coreMessage,
   knowsCoreText,
+  playCheckMessage,
+  rolloutOfferMessage,
   rolloutComparisonMessage,
   rolloutIssueMessage,
   templateDescription,
@@ -187,6 +191,38 @@ test('core text: the rollout comparison, rules, templates and keyword reasons', 
     const first = issues[0];
     assert.ok(first);
     assert.match(rolloutIssueMessage(first), /^Ein Einführungsplan braucht/);
+  } finally {
+    useLocale('en');
+  }
+});
+
+test('core text: Google Play checks and the reason no staged rollout is offered', () => {
+  const checks = [
+    checkPlayProposal(
+      { track: '', releaseName: '', versionCodes: [], notes: [], userFraction: 1.5 },
+      { listingLocales: [], trackReleases: [] },
+    ),
+    checkPlayProposal(
+      { track: 'production', releaseName: 'v', versionCodes: ['5', '3', 'x'], notes: [{ locale: 'en-US', text: 'x'.repeat(600) }], userFraction: 1 },
+      { listingLocales: ['fr-FR'], trackReleases: [{ status: 'completed', versionCodes: ['5', '9'] }] },
+    ),
+  ].flat();
+  const codes = checks.map((c) => c.code);
+  for (const code of ['track_missing', 'codes_missing', 'fraction_out_of_range', 'name_empty', 'code_already_live', 'code_not_newer', 'code_invalid', 'full_rollout', 'notes_over_limit', 'notes_missing'])
+    assert.equal(codes.includes(code), true, code);
+  for (const c of checks) {
+    assert.equal(knowsCoreText(c.text), true, c.text.key);
+    assert.equal(playCheckMessage(c), c.message, c.code);
+  }
+  const offers = [
+    rolloutOffer({ mode: 'never', track: 'production', earlierProductionRelease: true }),
+    rolloutOffer({ mode: 'auto', track: 'production', earlierProductionRelease: false }),
+  ];
+  for (const offer of offers) assert.equal(rolloutOfferMessage(offer), offer.message);
+  useLocale('es');
+  try {
+    assert.match(playCheckMessage(checks.find((c) => c.code === 'notes_missing') as never), /No hay notas de la versión para fr-FR/);
+    assert.match(rolloutOfferMessage(offers[1] as never), /primer lanzamiento/);
   } finally {
     useLocale('en');
   }

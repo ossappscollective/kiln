@@ -18,7 +18,9 @@
   import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { announcePublished } from '../../../lib/app-page.ts';
-  import { t } from '../../../lib/i18n/t.ts';
+  import { rolloutOfferMessage } from '../../../lib/core-text.ts';
+  import { k, t } from '../../../lib/i18n/t.ts';
+  import { type Msg, builtMsg, msg, msgText } from '../../../lib/message.ts';
   import type { Api } from '../../../lib/api.ts';
   import { confirmed } from '../../../lib/step-up-prompt.svelte.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
@@ -75,14 +77,14 @@ import { supports } from '@kiln/core';
 
   const uid = $props.id();
 
-  type Notice = { tone: 'info' | 'warn' | 'error' | 'ok'; title: string; text: string };
+  type Notice = { tone: 'info' | 'warn' | 'error' | 'ok'; title: Msg; text: Msg };
 
   let previewing = $state(false);
   let applying = $state(false);
   let preview = $state<ReleasePreview | null>(null);
   let dialogOpen = $state(false);
-  let dialogProblem = $state('');
-  let dialogNotice = $state('');
+  let dialogProblem = $state<Msg | null>(null);
+  let dialogNotice = $state<Msg | null>(null);
   let notice = $state<Notice | null>(null);
   let result = $state<ReleaseResult | null>(null);
   let announcement = $state('');
@@ -157,8 +159,8 @@ import { supports } from '@kiln/core';
     previewing = true;
     notice = null;
     result = null;
-    dialogProblem = '';
-    dialogNotice = '';
+    dialogProblem = null;
+    dialogNotice = null;
     try {
       // Reads the store. Not a write. A successful read also settles an unknown outcome of an earlier release.
       const done = await api.previewStoreRelease(workspaceId, app.id, body);
@@ -170,7 +172,7 @@ import { supports } from '@kiln/core';
       if (mine !== seq) return;
       const failure = classifyReleaseFailure(e, 'preview', fraction);
       if (failure.kind === 'disabled') releaseStore.markDisabled(workspaceId);
-      notice = { tone: failure.kind === 'disabled' ? 'warn' : 'error', title: t('release-stepper:sr.noPreview'), text: failure.message };
+      notice = { tone: failure.kind === 'disabled' ? 'warn' : 'error', title: msg(k('release-stepper:sr.noPreview')), text: failure.text };
       if (shouldReloadState(failure)) void releaseStore.load(api, workspaceId, app.id);
     } finally {
       if (mine === seq) previewing = false;
@@ -180,8 +182,8 @@ import { supports } from '@kiln/core';
   function closeDialog() {
     dialogOpen = false;
     preview = null;
-    dialogProblem = '';
-    dialogNotice = '';
+    dialogProblem = null;
+    dialogNotice = null;
   }
 
   async function confirm(typed: string) {
@@ -189,7 +191,7 @@ import { supports } from '@kiln/core';
     const sent = preview;
     const mine = ++seq;
     applying = true;
-    dialogProblem = '';
+    dialogProblem = null;
     try {
       // The only call that writes to a store, and it cannot be taken back. Sent once per click, with the hash of the
       // preview and the typed phrase. This app never sends it again by itself, whatever the answer.
@@ -220,40 +222,40 @@ import { supports } from '@kiln/core';
         if (failure.next) {
           // Nothing was released. The new preview must be read and confirmed again.
           preview = failure.next;
-          dialogNotice = failure.message;
-          dialogProblem = '';
+          dialogNotice = failure.text;
+          dialogProblem = null;
         } else {
           closeDialog();
-          notice = { tone: 'warn', title: t('release-stepper:sr.changed'), text: t('release-stepper:sr.previewAgain', { message: failure.message }) };
+          notice = { tone: 'warn', title: msg(k('release-stepper:sr.changed')), text: msg(k('release-stepper:sr.previewAgain'), () => ({ message: msgText(failure.text) })) };
         }
         break;
       case 'outcome_unknown':
         closeDialog();
         releaseStore.markUnknown(app.id);
-        notice = { tone: 'error', title: t('release-stepper:sr.unknown'), text: failure.message };
+        notice = { tone: 'error', title: msg(k('release-stepper:sr.unknown')), text: failure.text };
         break;
       case 'other_unknown':
         closeDialog();
-        notice = { tone: 'warn', title: t('release-stepper:sr.earlierFirst'), text: failure.message };
+        notice = { tone: 'warn', title: msg(k('release-stepper:sr.earlierFirst')), text: failure.text };
         break;
       case 'blocked': {
         closeDialog();
         const items = failure.checks.map((c) => c.message).slice(0, 5);
-        notice = { tone: 'error', title: t('release-stepper:sr.blocked'), text: [failure.message, ...items].join(' ') };
+        notice = { tone: 'error', title: msg(k('release-stepper:sr.blocked')), text: builtMsg(() => [msgText(failure.text), ...items].join(' ')) };
         break;
       }
       case 'disabled':
         closeDialog();
         releaseStore.markDisabled(workspaceId);
-        notice = { tone: 'warn', title: t('release-stepper:sr.switchedOff'), text: failure.message };
+        notice = { tone: 'warn', title: msg(k('release-stepper:sr.switchedOff')), text: failure.text };
         break;
       case 'forbidden':
         closeDialog();
-        notice = { tone: 'error', title: t('release-stepper:sr.notAllowed'), text: failure.message };
+        notice = { tone: 'error', title: msg(k('release-stepper:sr.notAllowed')), text: failure.text };
         break;
       default:
         // A refusal of the store, a rate limit and the rest: shown in the dialog; nothing is sent again by itself.
-        dialogProblem = mayConfirmAgain(failure) ? t('release-stepper:sr.confirmAgain', { message: failure.message }) : failure.message;
+        dialogProblem = mayConfirmAgain(failure) ? msg(k('release-stepper:sr.confirmAgain'), () => ({ message: msgText(failure.text) })) : failure.text;
     }
   }
 </script>
@@ -271,7 +273,7 @@ import { supports } from '@kiln/core';
           </label>
         {/if}
         {#if android && !offered}
-          <p class="muted small" data-testid="no-staged-rollout">{inputs.offer.message}</p>
+          <p class="muted small" data-testid="no-staged-rollout">{rolloutOfferMessage(inputs.offer)}</p>
         {:else if android}
           <div class="share">
             <label for="{uid}-share">{t('release-stepper:sr.shareLabel')}</label>
@@ -319,7 +321,7 @@ import { supports } from '@kiln/core';
     </div>
   {/if}
 
-  {#if notice}<Alert tone={notice.tone} title={notice.title} ondismiss={() => (notice = null)}>{notice.text}</Alert>{/if}
+  {#if notice}<Alert tone={notice.tone} title={msgText(notice.title)} ondismiss={() => (notice = null)}>{msgText(notice.text)}</Alert>{/if}
   {#if result}
     <Alert tone="ok" title={result.confirmedByReread ? t('release-stepper:sr.releasedConfirmed') : t('release-stepper:sr.released')} ondismiss={() => (result = null)}>
       <p class="alert-text">{resultText(result)}</p>
@@ -335,8 +337,8 @@ import { supports } from '@kiln/core';
       {workspaceId}
       {preview}
       busy={applying}
-      problem={dialogProblem}
-      notice={dialogNotice}
+      problem={msgText(dialogProblem)}
+      notice={msgText(dialogNotice)}
       onconfirm={confirm}
       oncancel={() => {
         if (!applying) {

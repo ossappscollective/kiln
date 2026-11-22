@@ -63,6 +63,20 @@ const KEYS: Readonly<Record<string, string>> = {
   'coach.unusedCharacters.itemBytes': k('core:coach.unusedCharacters.itemBytes'),
   'coach.unusedCharacters.itemCharacters': k('core:coach.unusedCharacters.itemCharacters'),
   'coach.unusedCharacters.title': k('core:coach.unusedCharacters.title'),
+  'play.check.codeAlreadyLive': k('core:play.check.codeAlreadyLive'),
+  'play.check.codeInvalid': k('core:play.check.codeInvalid'),
+  'play.check.codeNotNewer': k('core:play.check.codeNotNewer'),
+  'play.check.codesMissing': k('core:play.check.codesMissing'),
+  'play.check.fractionOutOfRange': k('core:play.check.fractionOutOfRange'),
+  'play.check.fullRollout': k('core:play.check.fullRollout'),
+  'play.check.nameEmpty': k('core:play.check.nameEmpty'),
+  'play.check.notesMissing': k('core:play.check.notesMissing'),
+  'play.check.notesNone': k('core:play.check.notesNone'),
+  'play.check.notesOverLimit': k('core:play.check.notesOverLimit'),
+  'play.check.trackMissing': k('core:play.check.trackMissing'),
+  'play.fractionRefused': k('core:play.fractionRefused'),
+  'play.offer.firstRelease': k('core:play.offer.firstRelease'),
+  'play.offer.never': k('core:play.offer.never'),
   'rollout.action.doneCannotSkip': k('core:rollout.action.doneCannotSkip'),
   'rollout.action.earlierOpen': k('core:rollout.action.earlierOpen'),
   'rollout.action.laterDone': k('core:rollout.action.laterDone'),
@@ -174,6 +188,17 @@ export const templateDescription = (template: {
   description: string;
   descriptionText?: CoreText | undefined;
 }): string => coreMessage(template.descriptionText, template.description);
+
+/** A local check of a Google Play release (`checkPlayProposal`). */
+export const playCheckMessage = (check: { message: string; text?: CoreText | undefined }): string =>
+  coreMessage(check.text, check.message);
+
+/** Why no staged rollout is offered (`rolloutOffer`): its `reason` is the stable code, the English message the fallback. */
+export function rolloutOfferMessage(offer: { reason: string | null; message: string | null }): string {
+  if (offer.reason === 'never') return t('core:play.offer.never');
+  if (offer.reason === 'first_release') return t('core:play.offer.firstRelease');
+  return offer.message ?? '';
+}
 
 // ---------------------------------------------------------------------------------------------
 // The ASO coach

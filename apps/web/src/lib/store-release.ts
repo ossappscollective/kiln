@@ -9,6 +9,7 @@ import {
 import { ApiError } from './api.ts';
 import { formatPercent } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
+import { type Msg, msg, msgText, rawMsg } from './message.ts';
 import { confirmationMatches } from './store-submit.ts';
 
 /**
@@ -312,7 +313,7 @@ export function releaseTitle(
 // ---------------------------------------------------------------------------------------------
 // Errors of the preview and the release
 
-export type ReleaseFailure =
+export type ReleaseFailure = (
   | { kind: 'disabled'; message: string }
   | { kind: 'mismatch'; message: string }
   | { kind: 'blocked'; message: string; checks: ReleaseCheck[] }
@@ -325,7 +326,11 @@ export type ReleaseFailure =
   | { kind: 'not_applied'; message: string }
   | { kind: 'rate_limited'; message: string }
   | { kind: 'forbidden'; message: string }
-  | { kind: 'other'; message: string; code: string };
+  | { kind: 'other'; message: string; code: string }
+) & {
+  /** The same `message` as a value that is written when it is drawn, so it follows a language change. */
+  text: Msg;
+};
 
 const bodyMessage = (error: ApiError): string =>
   typeof error.body.message === 'string' && error.body.message !== ''
@@ -335,8 +340,11 @@ const bodyMessage = (error: ApiError): string =>
 /** A message key: show it with `t(UNKNOWN_RELEASE_HINT)`. */
 export const UNKNOWN_RELEASE_HINT = k('release-store:rel.unknownHint');
 
-const withHint = (message: string): string =>
-  t('release-store:rel.fail.withHint', { message, hint: t(UNKNOWN_RELEASE_HINT) });
+const withHint = (inner: Msg): Msg =>
+  msg(k('release-store:rel.fail.withHint'), () => ({
+    message: msgText(inner),
+    hint: t(UNKNOWN_RELEASE_HINT),
+  }));
 
 export function classifyReleaseFailure(
   error: unknown,
@@ -352,132 +360,125 @@ export function classifyReleaseFailure(
     (error.code === 'store_rejected' || error.code === 'write_failed')
   ) {
     const notice = fractionRefusalNotice(bodyMessage(error), askedFraction);
-    if (notice !== null) return { ...failure, message: notice };
+    if (notice !== null) {
+      const text = msg(k('core:play.fractionRefused'));
+      return { ...failure, message: msgText(text), text };
+    }
   }
   return failure;
 }
 
 function classifyReleaseFailureBase(error: unknown, phase: 'preview' | 'release'): ReleaseFailure {
-  if (!(error instanceof ApiError))
-    return {
-      kind: 'other',
-      code: 'error',
-      message: t('release-store:rel.fail.request'),
-    };
+  // The message of a failure is written now and kept as a `Msg` too, so a screen can write it again after a language change.
+  const fail = (kind: 'other', text: Msg, code: string): ReleaseFailure => ({
+    kind,
+    code,
+    message: msgText(text),
+    text,
+  });
+  const plain = (
+    kind: Exclude<ReleaseFailure['kind'], 'other' | 'blocked' | 'state_changed'>,
+    text: Msg,
+  ): ReleaseFailure => ({ kind, message: msgText(text), text });
+  if (!(error instanceof ApiError)) return fail('other', msg(k('release-store:rel.fail.request')), 'error');
   const message = bodyMessage(error);
+  const raw = rawMsg(message);
+  const code = error.code;
   const body = error.body;
-  switch (error.code) {
+  switch (code) {
     case 'store_release_disabled':
-      return {
-        kind: 'disabled',
-        message: t('release-store:rel.fail.disabled', { env: RELEASE_ENV }),
-      };
+      return plain(
+        'disabled',
+        msg(k('release-store:rel.fail.disabled'), () => ({ env: RELEASE_ENV })),
+      );
     case 'forbidden':
-      return { kind: 'forbidden', message: t(RELEASE_ROLE_REASON) };
+      return plain('forbidden', msg(RELEASE_ROLE_REASON));
     case 'confirmation_mismatch': {
       const phrase = typeof body.phrase === 'string' ? body.phrase : null;
-      return {
-        kind: 'mismatch',
-        message: phrase
-          ? t('release-store:rel.fail.mismatchPhrase', { phrase })
-          : t('release-store:rel.fail.mismatch'),
-      };
+      return plain(
+        'mismatch',
+        phrase
+          ? msg(k('release-store:rel.fail.mismatchPhrase'), () => ({ phrase }))
+          : msg(k('release-store:rel.fail.mismatch')),
+      );
     }
-    case 'blocked':
+    case 'blocked': {
+      const text = msg(k('release-store:rel.fail.blocked'));
       return {
         kind: 'blocked',
         checks: Array.isArray(body.checks) ? (body.checks as ReleaseCheck[]) : [],
-        message: t('release-store:rel.fail.blocked'),
+        message: msgText(text),
+        text,
       };
-    case 'state_changed':
+    }
+    case 'state_changed': {
+      const text = msg(k('release-store:rel.fail.stateChanged'));
       return {
         kind: 'state_changed',
         next: isReleasePreview(body.preview) ? body.preview : null,
-        message: t('release-store:rel.fail.stateChanged'),
+        message: msgText(text),
+        text,
       };
+    }
     case 'write_in_progress':
-      return {
-        kind: 'write_in_progress',
-        message: t('release-store:rel.fail.writeInProgress', { message }),
-      };
+      return plain(
+        'write_in_progress',
+        msg(k('release-store:rel.fail.writeInProgress'), () => ({ message })),
+      );
     case 'push_outcome_unknown':
     case 'submit_outcome_unknown':
-      return {
-        kind: 'other_unknown',
-        message:
-          error.code === 'push_outcome_unknown'
-            ? t('release-store:rel.fail.pushUnknown', { message })
-            : t('release-store:rel.fail.submitUnknown', { message }),
-      };
+      return plain(
+        'other_unknown',
+        code === 'push_outcome_unknown'
+          ? msg(k('release-store:rel.fail.pushUnknown'), () => ({ message }))
+          : msg(k('release-store:rel.fail.submitUnknown'), () => ({ message })),
+      );
     case 'outcome_unknown':
-      return { kind: 'outcome_unknown', message: withHint(message) };
+      return plain('outcome_unknown', withHint(raw));
     case 'write_failed':
       return body.outcome === 'not_applied'
-        ? {
-            kind: 'not_applied',
-            message: t('release-store:rel.fail.notApplied', { message }),
-          }
-        : { kind: 'outcome_unknown', message: withHint(message) };
+        ? plain('not_applied', msg(k('release-store:rel.fail.notApplied'), () => ({ message })))
+        : plain('outcome_unknown', withHint(raw));
     case 'changes_in_review':
-      return {
-        kind: 'other',
-        code: error.code,
-        message: t('release-store:rel.fail.changesInReview'),
-      };
+      return fail('other', msg(k('release-store:rel.fail.changesInReview')), code);
     case 'track_required':
     case 'user_fraction_required':
     case 'invalid_user_fraction':
     case 'invalid_version_codes':
     case 'not_applicable':
     case 'ambiguous_version':
-      return { kind: 'other', code: error.code, message };
-    case 'rate_limited':
-      return {
-        kind: 'rate_limited',
-        message: error.retryAfter
-          ? t('release-store:submit.fail.rateLimitedSeconds', { count: error.retryAfter })
-          : t('release-store:submit.fail.rateLimited'),
-      };
+      return fail('other', raw, code);
+    case 'rate_limited': {
+      const seconds = error.retryAfter;
+      return plain(
+        'rate_limited',
+        seconds
+          ? msg(k('release-store:submit.fail.rateLimitedSeconds'), () => ({ count: seconds }))
+          : msg(k('release-store:submit.fail.rateLimited')),
+      );
+    }
     case 'store_auth':
     case 'store_forbidden':
     case 'store_not_found':
     case 'store_rejected':
-      return {
-        kind: 'other',
-        code: error.code,
-        message: t('release-store:submit.fail.refused', { message }),
-      };
+      return fail('other', msg(k('release-store:submit.fail.refused'), () => ({ message })), code);
     case 'store_unavailable':
-      return {
-        kind: 'other',
-        code: error.code,
-        message: t('release-store:rel.fail.unavailable', { message }),
-      };
+      return fail('other', msg(k('release-store:rel.fail.unavailable'), () => ({ message })), code);
     case 'timeout':
-      return {
-        kind: 'other',
-        code: error.code,
-        message: t('release-store:rel.fail.timeout'),
-      };
+      return fail('other', msg(k('release-store:rel.fail.timeout')), code);
     case 'app_not_synced':
-      return {
-        kind: 'other',
-        code: error.code,
-        message: t('release-store:submit.fail.syncFirst', { message }),
-      };
+      return fail('other', msg(k('release-store:submit.fail.syncFirst'), () => ({ message })), code);
     default:
   }
-  if (error.code.startsWith('credential_')) return { kind: 'other', code: error.code, message };
+  if (code.startsWith('credential_')) return fail('other', raw, code);
   // The release may have reached the server and the answer was lost: a cut connection, or a 5xx without a known code.
   if (phase === 'release' && (error.status === 0 || error.status >= 500)) {
-    return {
-      kind: 'outcome_unknown',
-      message: withHint(
-        error.status === 0 ? t('release-store:rel.fail.connectionBroke') : message,
-      ),
-    };
+    return plain(
+      'outcome_unknown',
+      withHint(error.status === 0 ? msg(k('release-store:rel.fail.connectionBroke')) : raw),
+    );
   }
-  return { kind: 'other', code: error.code, message };
+  return fail('other', raw, code);
 }
 
 /** The person may confirm the same preview again without a new read: nothing was sent, or the store did not apply it. Never after an unknown outcome. */

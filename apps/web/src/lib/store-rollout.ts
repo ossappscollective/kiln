@@ -1,6 +1,7 @@
 import { byFamily, can, type Platform, platformMeta, type Role, supports } from '@kiln/core';
 import { ApiError } from './api.ts';
 import { k, t } from './i18n/t.ts';
+import { type Msg, msg, msgText, rawMsg } from './message.ts';
 import { formatRollout, trackLabel } from './portfolio.ts';
 import type { AppSummary, ReleaseSummary } from './types.ts';
 
@@ -290,37 +291,29 @@ export function actionButtons(
 // ---------------------------------------------------------------------------------------------
 // The share to set (Google Play)
 
-export type FractionCheck = { ok: true; fraction: number } | { ok: false; message: string };
+export type FractionCheck =
+  | { ok: true; fraction: number }
+  | { ok: false; message: string; text: Msg };
 
 /**
  * A percentage typed by a person ("25", "12.5") as the fraction the API wants: more than 0, less than 1,
  * at most 4 decimals, and (Google Play only goes up) above `min` when the store's share is known.
  */
 export function parsePercent(input: string, min: number | null): FractionCheck {
+  const refused = (text: Msg): FractionCheck => ({ ok: false, message: msgText(text), text });
   const text = input.trim().replace(/%$/, '').trim().replace(',', '.');
-  if (text === '') return { ok: false, message: t('release-store:rollout.percent.enter') };
-  if (!/^\d+(\.\d+)?$/.test(text))
-    return { ok: false, message: t('release-store:rollout.percent.number') };
+  if (text === '') return refused(msg(k('release-store:rollout.percent.enter')));
+  if (!/^\d+(\.\d+)?$/.test(text)) return refused(msg(k('release-store:rollout.percent.number')));
   const percent = Number(text);
   const fraction = Math.round(percent * 100) / 10000;
-  if (!(percent > 0) || !(percent < 100)) {
-    return {
-      ok: false,
-      message: t('release-store:rollout.percent.range'),
-    };
-  }
-  if (Math.abs(fraction * 100 - percent) > 1e-9) {
-    return {
-      ok: false,
-      message: t('release-store:rollout.percent.decimals'),
-    };
-  }
-  if (min !== null && fraction <= min) {
-    return {
-      ok: false,
-      message: t('release-store:rollout.percent.raiseOnly', { share: formatRollout(min) }),
-    };
-  }
+  if (!(percent > 0) || !(percent < 100))
+    return refused(msg(k('release-store:rollout.percent.range')));
+  if (Math.abs(fraction * 100 - percent) > 1e-9)
+    return refused(msg(k('release-store:rollout.percent.decimals')));
+  if (min !== null && fraction <= min)
+    return refused(
+      msg(k('release-store:rollout.percent.raiseOnly'), () => ({ share: formatRollout(min) })),
+    );
   return { ok: true, fraction };
 }
 
@@ -412,7 +405,7 @@ export function canConfirm(
 // ---------------------------------------------------------------------------------------------
 // Outcomes of a request
 
-export type RolloutFailure =
+export type RolloutFailure = (
   | {
       kind: 'state_changed';
       message: string;
@@ -423,7 +416,11 @@ export type RolloutFailure =
   | { kind: 'outcome_unknown'; message: string }
   | { kind: 'not_applied'; message: string }
   | { kind: 'disabled'; message: string }
-  | { kind: 'other'; message: string };
+  | { kind: 'other'; message: string }
+) & {
+  /** The same `message` as a value that is written when it is drawn, so it follows a language change. */
+  text: Msg;
+};
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
 
@@ -433,11 +430,12 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
  * `outcome_unknown` is final for this attempt: the caller must NOT send the request again.
  */
 export function classifyFailure(error: unknown, previous: RolloutPreview | null): RolloutFailure {
-  if (!(error instanceof ApiError))
-    return { kind: 'other', message: t('release-store:rollout.fail.request') };
+  const other = (text: Msg): RolloutFailure => ({ kind: 'other', message: msgText(text), text });
+  if (!(error instanceof ApiError)) return other(msg(k('release-store:rollout.fail.request')));
   const body = error.body;
   const message =
     typeof body.message === 'string' && body.message !== '' ? body.message : error.message;
+  const raw = rawMsg(message);
   switch (error.code) {
     case 'state_changed': {
       const current = isObject(body.current) ? (body.current as RolloutState) : null;
@@ -455,51 +453,44 @@ export function classifyFailure(error: unknown, previous: RolloutPreview | null)
           confirmHash: hash,
         };
       }
-      return { kind: 'state_changed', message, next, current };
+      return { kind: 'state_changed', message, next, current, text: raw };
     }
     case 'write_in_progress':
-      return { kind: 'write_in_progress', message };
-    case 'outcome_unknown':
-      return {
-        kind: 'outcome_unknown',
-        message: t('release-store:rollout.fail.outcomeUnknown', { message }),
-      };
-    case 'write_failed':
-      return body.outcome === 'not_applied'
-        ? { kind: 'not_applied', message }
-        : {
-            kind: 'outcome_unknown',
-            message: t('release-store:rollout.fail.writeFailedUnknown', { message }),
-          };
-    case 'timeout':
-      return {
-        kind: 'outcome_unknown',
-        message: t('release-store:rollout.fail.timeout'),
-      };
-    case 'rollout_disabled':
-      return {
-        kind: 'disabled',
-        message: t('release-store:rollout.fail.disabled', { env: ROLLOUT_ENV }),
-      };
+      return { kind: 'write_in_progress', message, text: raw };
+    case 'outcome_unknown': {
+      const text = msg(k('release-store:rollout.fail.outcomeUnknown'), () => ({ message }));
+      return { kind: 'outcome_unknown', message: msgText(text), text };
+    }
+    case 'write_failed': {
+      if (body.outcome === 'not_applied') return { kind: 'not_applied', message, text: raw };
+      const text = msg(k('release-store:rollout.fail.writeFailedUnknown'), () => ({ message }));
+      return { kind: 'outcome_unknown', message: msgText(text), text };
+    }
+    case 'timeout': {
+      const text = msg(k('release-store:rollout.fail.timeout'));
+      return { kind: 'outcome_unknown', message: msgText(text), text };
+    }
+    case 'rollout_disabled': {
+      const text = msg(k('release-store:rollout.fail.disabled'), () => ({ env: ROLLOUT_ENV }));
+      return { kind: 'disabled', message: msgText(text), text };
+    }
     case 'changes_in_review':
-      return {
-        kind: 'other',
-        message: t('release-store:rollout.fail.changesInReview'),
-      };
+      return other(msg(k('release-store:rollout.fail.changesInReview')));
     case 'rollout_not_allowed':
     case 'invalid_rollout':
-      return { kind: 'other', message };
-    case 'rate_limited':
-      return {
-        kind: 'other',
-        message: error.retryAfter
-          ? t('release-store:rollout.fail.rateLimitedSeconds', { count: error.retryAfter })
-          : t('release-store:rollout.fail.rateLimited'),
-      };
+      return other(raw);
+    case 'rate_limited': {
+      const seconds = error.retryAfter;
+      return other(
+        seconds
+          ? msg(k('release-store:rollout.fail.rateLimitedSeconds'), () => ({ count: seconds }))
+          : msg(k('release-store:rollout.fail.rateLimited')),
+      );
+    }
     case 'forbidden':
-      return { kind: 'other', message: t('release-store:rollout.fail.forbidden') };
+      return other(msg(k('release-store:rollout.fail.forbidden')));
     default:
-      return { kind: 'other', message };
+      return other(raw);
   }
 }
 

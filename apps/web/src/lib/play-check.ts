@@ -190,10 +190,11 @@ export function outcomeView(answer: PlayCheckAnswer): OutcomeView {
     title: t('release-store:playCheck.titleErrors', { count: n }),
     lines: [t('release-store:playCheck.fixBefore'), t(NOTHING_SAVED)],
     findings: answer.findings.map((f) => f.message),
-    rolloutNotice:
-      answer.findings
-        .map((f) => fractionRefusalNotice(f.message, answer.userFraction ?? null))
-        .find((n) => n !== null) ?? null,
+    rolloutNotice: answer.findings.some(
+      (f) => fractionRefusalNotice(f.message, answer.userFraction ?? null) !== null,
+    )
+      ? t('core:play.fractionRefused')
+      : null,
   };
 }
 
