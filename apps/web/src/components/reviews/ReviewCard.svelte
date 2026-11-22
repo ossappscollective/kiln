@@ -12,6 +12,7 @@
   and confirmed there; nothing on this card sends anything by itself.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import type { Role } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
@@ -105,7 +106,7 @@
   const low = $derived(isLowRating(review.rating, lowThreshold));
   const edited = $derived(review.updatedAt > review.createdAt + 60_000);
   const assignee = $derived(
-    review.assigneeUserId ? (members.find((m) => m.userId === review.assigneeUserId)?.displayName ?? 'A former member') : null,
+    review.assigneeUserId ? (members.find((m) => m.userId === review.assigneeUserId)?.displayName ?? t('reviews:card.formerMember')) : null,
   );
   const tone = $derived(
     review.status === 'new' ? 'info' : review.status === 'ignored' ? 'neutral' : review.status === 'replied_in_console' ? 'ok' : 'accent',
@@ -126,11 +127,11 @@
   const replyButton = $derived(
     review.replyDraft && review.replyDraft.status !== 'sent'
       ? isLocked(review.replyDraft.status)
-        ? 'See the reply'
-        : 'Edit the reply draft'
+        ? t('reviews:card.seeReply')
+        : t('reviews:card.editDraft')
       : review.developerResponse || sentReply
-        ? 'Edit reply'
-        : 'Reply',
+        ? t('reviews:card.editReply')
+        : t('reviews:card.reply'),
   );
 
   /** Opens the reply dialog, as the button does (the inbox calls this for its keyboard shortcut). */
@@ -171,7 +172,7 @@
       const done = await api.triageReview(workspaceId, appId, review.id, changes);
       onchange(done.review);
       editing = false;
-      toast.success('Saved. Nothing was sent to the store.');
+      toast.success(t('reviews:card.saved'));
     } catch (e) {
       problem = reviewErrorMessage(e, 'triage');
     } finally {
@@ -187,12 +188,12 @@
         <Icon name={n <= review.rating ? 'star-filled' : 'star'} size={16} />
       {/each}
     </span>
-    {#if low}<Badge tone="bad">Low rating</Badge>{/if}
+    {#if low}<Badge tone="bad">{t('reviews:card.lowRating')}</Badge>{/if}
     <Badge {tone}>{statusLabel(review.status)}</Badge>
     <span class="muted when">
       <time datetime={new Date(review.createdAt).toISOString()} title={fullTime(review.createdAt)}>{timeAgo(review.createdAt, now)}</time>
-      {#if review.store === 'googleplay'}<span class="faint"> (first seen)</span>{/if}
-      {#if edited}<span class="faint"> · edited {timeAgo(review.updatedAt, now)}</span>{/if}
+      {#if review.store === 'googleplay'}<span class="faint"> {t('reviews:card.firstSeen')}</span>{/if}
+      {#if edited}<span class="faint"> · {t('reviews:card.edited', { when: timeAgo(review.updatedAt, now) })}</span>{/if}
     </span>
   </header>
 
@@ -201,11 +202,11 @@
     <p class="body">{expanded ? review.body : text.text}</p>
     {#if text.cut}
       <button type="button" class="link sm" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
-        {expanded ? 'Show less' : 'Show the whole review'}
+        {expanded ? t('reviews:card.showLess') : t('reviews:card.showWholeReview')}
       </button>
     {/if}
   {:else}
-    <p class="muted body">This review has no text.</p>
+    <p class="muted body">{t('reviews:card.noText')}</p>
   {/if}
 
   <ReviewTranslation {api} {workspaceId} {appId} {review} stored={translation} onstore={ontranslate} showAll={showTranslations} />
@@ -220,7 +221,7 @@
     <div class="response">
       <p class="response-head">
         <Icon name="message" size={14} />
-        <strong>Developer response</strong>
+        <strong>{t('reviews:card.developerResponse')}</strong>
         <span class="muted">
           {#if review.developerResponse.at !== null}{timeAgo(review.developerResponse.at, now)}{/if}
           {#if review.developerResponse.state} · {review.developerResponse.state}{/if}
@@ -229,7 +230,7 @@
       <p class="body">{responseExpanded ? review.developerResponse.body : response.text}</p>
       {#if response.cut}
         <button type="button" class="link sm" aria-expanded={responseExpanded} onclick={() => (responseExpanded = !responseExpanded)}>
-          {responseExpanded ? 'Show less' : 'Show the whole response'}
+          {responseExpanded ? t('reviews:card.showLess') : t('reviews:card.showWholeResponse')}
         </button>
       {/if}
     </div>
@@ -239,8 +240,8 @@
     <div class="response">
       <p class="response-head">
         <Icon name="message" size={14} />
-        <strong>Your reply</strong>
-        <span class="muted">sent from here{#if sentReply.sentAt !== null} · {timeAgo(sentReply.sentAt, now)}{/if}</span>
+        <strong>{t('reviews:card.yourReply')}</strong>
+        <span class="muted">{sentReply.sentAt !== null ? t('reviews:card.sentFromHereAt', { when: timeAgo(sentReply.sentAt, now) }) : t('reviews:card.sentFromHere')}</span>
       </p>
       <p class="body">{sentReply.text}</p>
     </div>
@@ -257,7 +258,7 @@
       </div>
       {#if replyAvail.reason}<p class="hint">{replyAvail.reason}</p>{/if}
       {#if draftPreview && review.replyDraft}
-        <p class="hint">Reply draft, not sent{review.replyDraft.status === 'failed' ? ' (the last send failed)' : ''}:</p>
+        <p class="hint">{review.replyDraft.status === 'failed' ? t('reviews:card.draftFailed') : t('reviews:card.draftNotSent')}</p>
         <p class="body note">{draftPreview.text}</p>
       {/if}
     </div>
@@ -266,8 +267,8 @@
 
   {#if assignee || review.internalNote}
     <div class="internal">
-      <p class="internal-head"><Icon name="lock" size={14} /> <strong>Internal</strong> <span class="muted">(only your team sees this)</span></p>
-      {#if assignee}<p class="note">Assigned to {assignee}.</p>{/if}
+      <p class="internal-head"><Icon name="lock" size={14} /> <strong>{t('reviews:card.internal')}</strong> <span class="muted">{t('reviews:card.internalHint')}</span></p>
+      {#if assignee}<p class="note">{t('reviews:card.assignedTo', { name: assignee })}</p>{/if}
       {#if review.internalNote}<p class="note body">{review.internalNote}</p>{/if}
     </div>
   {/if}
@@ -283,38 +284,38 @@
       >
         <div class="triage-row">
           <div class="field">
-            <label for="{uid}-status">Status</label>
+            <label for="{uid}-status">{t('reviews:card.status')}</label>
             <select id="{uid}-status" bind:value={draft.status} disabled={saving}>
               {#each statusOrder as status (status)}<option value={status}>{statusLabel(status)}</option>{/each}
             </select>
           </div>
           <div class="field">
-            <label for="{uid}-assignee">Assigned to</label>
+            <label for="{uid}-assignee">{t('reviews:card.assignee')}</label>
             <select id="{uid}-assignee" bind:value={draft.assigneeUserId} disabled={saving}>
-              <option value="">Nobody</option>
+              <option value="">{t('reviews:card.nobody')}</option>
               {#each members as member (member.userId)}<option value={member.userId}>{member.displayName}</option>{/each}
             </select>
           </div>
         </div>
         <div class="field">
-          <label for="{uid}-note">Internal note</label>
+          <label for="{uid}-note">{t('reviews:card.note')}</label>
           <textarea id="{uid}-note" rows="3" maxlength={MAX_NOTE_LENGTH} bind:value={draft.internalNote} disabled={saving} aria-describedby="{uid}-note-hint"></textarea>
-          <p class="hint" id="{uid}-note-hint">Only visible here. It is never sent to the store.</p>
+          <p class="hint" id="{uid}-note-hint">{t('reviews:card.noteHint')}</p>
         </div>
         {#if draft.status === 'replied_in_console'}
-          <p class="hint">This only records that someone answered in the store’s own console. Nothing is sent from here.</p>
+          <p class="hint">{t('reviews:card.consoleHint')}</p>
         {/if}
         {#if problem}<Alert tone="error">{problem}</Alert>{/if}
         <div class="row">
-          <Button type="submit" variant="primary" size="sm" loading={saving} disabled={!dirty}>Save</Button>
-          <Button size="sm" disabled={saving} onclick={() => (editing = false)}>Cancel</Button>
+          <Button type="submit" variant="primary" size="sm" loading={saving} disabled={!dirty}>{t('common:action.save')}</Button>
+          <Button size="sm" disabled={saving} onclick={() => (editing = false)}>{t('common:action.cancel')}</Button>
         </div>
       </form>
     {:else}
       <div class="row">
-        <Button size="sm" icon="edit" onclick={open}>Triage</Button>
+        <Button size="sm" icon="edit" onclick={open}>{t('reviews:card.triage')}</Button>
         {#if review.status === 'new'}
-          <Button size="sm" variant="ghost" disabled={saving} onclick={markTriaged}>Mark triaged</Button>
+          <Button size="sm" variant="ghost" disabled={saving} onclick={markTriaged}>{t('reviews:card.markTriaged')}</Button>
         {/if}
       </div>
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}

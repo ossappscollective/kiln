@@ -12,7 +12,7 @@ import {
   limitFor,
   needsReload,
   normalizeReplyText,
-  PUBLIC_WARNING,
+  publicWarning,
   previewTemplate,
   REPLY_ENV,
   type ReplyDraft,
@@ -149,7 +149,7 @@ test('the confirmation shows store, app, review, count and the exact text with t
     facts.warning,
     'This will be published publicly in the store and cannot be recalled by this tool.',
   );
-  assert.equal(PUBLIC_WARNING, facts.warning);
+  assert.equal(publicWarning(), facts.warning);
   const replacing = confirmFacts({
     store: 'appstoreconnect',
     appName: 'Beta',

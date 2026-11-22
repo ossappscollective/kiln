@@ -7,7 +7,9 @@
   Props: summary (ReviewsSummary).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { fullTime } from '../../lib/format.ts';
+  import { formatNumber, formatPercent } from '../../lib/i18n/format.ts';
   import {
     averageText,
     histogramBars,
@@ -33,21 +35,21 @@
   const wide = $derived(summary.storeWide[0] ?? null);
 </script>
 
-<section class="overview" aria-label="Rating summary">
+<section class="overview" aria-label={t('reviews:overview.region')}>
   <span class="avg-number num">{averageText(stored.average)}</span>
-  <span class="stars" role="img" aria-label={stored.average === null ? 'No ratings yet' : `Average ${ratingText(stored.average)}`}>
+  <span class="stars" role="img" aria-label={stored.average === null ? t('reviews:overview.noRatings') : t('reviews:overview.averageLabel', { rating: ratingText(stored.average) })}>
     {#each [1, 2, 3, 4, 5] as n (n)}
       <Icon name={stored.average !== null && stored.average >= n - 0.5 ? 'star-filled' : 'star'} size={13} />
     {/each}
   </span>
   <span class="line muted">{statsLine(stored)}</span>
-  {#if wide}<span class="line muted" title={wide.label}>Store-wide {averageText(wide.average)}{wide.ratingCount !== null ? `, ${wide.ratingCount} ratings` : ''}</span>{/if}
+  {#if wide}<span class="line muted" title={wide.label}>{wide.ratingCount !== null ? t('reviews:overview.storeWideCount', { value: averageText(wide.average), count: wide.ratingCount }) : t('reviews:overview.storeWide', { value: averageText(wide.average) })}</span>{/if}
   {#if stored.count > 0}
     <svg class="trend" viewBox="0 0 {trend.width} {trend.height}" role="img" aria-label={trendDescription(stored.weeks)}>
       {#each trend.bars as bar (bar.weekStart)}
         {#if bar.h > 0}
           <rect class="trend-bar" x={bar.x} y={bar.y} width={bar.w} height={bar.h}>
-            <title>{weekLabel(bar.weekStart)}: {bar.count} {bar.count === 1 ? 'review' : 'reviews'}{bar.average !== null ? `, average ${averageText(bar.average)}` : ''}</title>
+            <title>{bar.average !== null ? t('reviews:overview.barAverage', { week: weekLabel(bar.weekStart), count: bar.count, average: averageText(bar.average) }) : t('reviews:overview.bar', { week: weekLabel(bar.weekStart), count: bar.count })}</title>
           </rect>
         {/if}
       {/each}
@@ -60,62 +62,62 @@
   {/if}
   <span class="spacer"></span>
   <span class="tips">
-    <InfoTip label="About these numbers" buttonText="About the numbers" align="end" width="26rem">
-      <ul class="bars" aria-label="Reviews by rating">
+    <InfoTip label={t('reviews:overview.aboutLabel')} buttonText={t('reviews:overview.about')} align="end" width="26rem">
+      <ul class="bars" aria-label={t('reviews:overview.byRating')}>
         {#each bars as bar (bar.stars)}
           <li>
-            <span class="bar-label">{bar.stars}<span class="visually-hidden"> {bar.stars === 1 ? 'star' : 'stars'}</span></span>
+            <span class="bar-label"><span aria-hidden="true">{bar.stars}</span><span class="visually-hidden">{t('reviews:overview.stars', { count: bar.stars })}</span></span>
             <span class="bar-track" aria-hidden="true"><span class="bar-fill" style:width="{Math.round(bar.share * 100)}%"></span></span>
-            <span class="bar-count num">{bar.count}<span class="bar-percent"> ({bar.percent}%)</span></span>
+            <span class="bar-count num">{formatNumber(bar.count)}<span class="bar-percent"> ({formatPercent(bar.percent / 100)})</span></span>
           </li>
         {/each}
       </ul>
       {#if versions.length > 0}
         <table class="versions">
-          <caption class="visually-hidden">Reviews by app version</caption>
+          <caption class="visually-hidden">{t('reviews:overview.byVersion')}</caption>
           <thead>
-            <tr><th scope="col">Version</th><th scope="col" class="r">Reviews</th><th scope="col" class="r">Average</th></tr>
+            <tr><th scope="col">{t('reviews:overview.colVersion')}</th><th scope="col" class="r">{t('reviews:overview.colReviews')}</th><th scope="col" class="r">{t('reviews:overview.colAverage')}</th></tr>
           </thead>
           <tbody>
             {#each versions as v (v.version)}
-              <tr><th scope="row">{v.version}</th><td class="r">{v.count}</td><td class="r">{averageText(v.average)}</td></tr>
+              <tr><th scope="row">{v.version}</th><td class="r">{formatNumber(v.count)}</td><td class="r">{averageText(v.average)}</td></tr>
             {/each}
           </tbody>
         </table>
         {#if stored.byVersion.length > versions.length}
-          <p class="muted small">{stored.byVersion.length - versions.length} more versions not shown. Filter by version in the filters.</p>
+          <p class="muted small">{t('reviews:overview.moreVersions', { count: stored.byVersion.length - versions.length })}</p>
         {/if}
       {/if}
-      <p><strong>Stored reviews.</strong> {stored.label}</p>
+      <p><strong>{t('reviews:overview.storedHeading')}</strong> {stored.label}</p>
       {#if stored.truncated}
-        <p class="muted">Only the newest reviews are counted here: there are more stored than a summary reads.</p>
+        <p class="muted">{t('reviews:overview.truncated')}</p>
       {/if}
       {#if stored.oldestAt !== null && stored.newestAt !== null}
-        <p class="muted">Stored reviews from {fullTime(stored.oldestAt)} to {fullTime(stored.newestAt)}.</p>
+        <p class="muted">{t('reviews:overview.storedRange', { from: fullTime(stored.oldestAt), to: fullTime(stored.newestAt) })}</p>
       {/if}
       <p>
-        <strong>Store-wide rating.</strong>
+        <strong>{t('reviews:overview.storeWideHeading')}</strong>
         {#if summary.storeWide.length === 0}
           {#if summary.app.store === 'googleplay'}
-            Google Play does not give this tool a store-wide rating. Only the reviews it can list are counted.
+            {t('reviews:overview.noStoreWideGoogle')}
           {:else}
-            Not read yet. It comes from Apple’s public lookup and is stored after a successful read.
+            {t('reviews:overview.noStoreWideApple')}
           {/if}
         {:else}
           {#each summary.storeWide as w (w.territory)}
-            {w.label}. Read {fullTime(w.observedAt)}.
+            {t('reviews:overview.storeRead', { label: w.label, time: fullTime(w.observedAt) })}
             {#if w.currentVersionAverage !== null}
-              This version: {averageText(w.currentVersionAverage)}{w.currentVersionCount !== null ? ` from ${w.currentVersionCount} ratings` : ''}.
+              {w.currentVersionCount !== null ? t('reviews:overview.thisVersionCount', { average: averageText(w.currentVersionAverage), count: w.currentVersionCount }) : t('reviews:overview.thisVersion', { average: averageText(w.currentVersionAverage) })}
             {/if}
           {/each}
-          Ratings in the store include people who did not write a review, so this differs from the stored reviews.
+          {t('reviews:overview.storeWideNote')}
         {/if}
       </p>
       {#if stored.count > 0}
         <p class="muted">
-          Weekly trend:
-          {#if first && last}{weekLabel(first.weekStart)} to {weekLabel(last.weekStart)}.{/if}
-          Bars are reviews a week, the line is the weekly average rating (1 at the bottom, 5 at the top).
+          {first && last
+            ? t('reviews:overview.trendNoteRange', { from: weekLabel(first.weekStart), to: weekLabel(last.weekStart) })
+            : t('reviews:overview.trendNote')}
         </p>
       {/if}
     </InfoTip>

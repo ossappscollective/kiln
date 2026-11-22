@@ -1,4 +1,6 @@
 import { isPlatform } from '@kiln/core';
+import { formatDate } from '../i18n/format.ts';
+import { t } from '../i18n/t.ts';
 import { type ReplyState, replyStatusLabel } from './reply.ts';
 import {
   type InboxShortcut,
@@ -181,16 +183,27 @@ export const rowDotTone = (
 
 const DAY = 24 * 60 * 60 * 1000;
 
+/** The keyboard shortcuts of the list, for the hint under it: the keys and what they do. */
+export function shortcutHints(): { id: string; keys: string[]; label: string }[] {
+  return [
+    { id: 'move', keys: ['j', 'k'], label: t('reviews:keys.move') },
+    { id: 'open', keys: [t('reviews:keys.enter')], label: t('reviews:keys.open') },
+    { id: 'triage', keys: ['t'], label: t('reviews:keys.triage') },
+    { id: 'reply', keys: ['r'], label: t('reviews:keys.reply') },
+    { id: 'search', keys: ['/'], label: t('reviews:keys.search') },
+  ];
+}
+
 /** A short date for a dense row: "5m", "3h", "4d", then "Mar 4" (with the year when it is not this one). */
-export function rowDate(at: number, now: number, locale = 'en'): string {
+export function rowDate(at: number, now: number): string {
   const diff = now - at;
-  if (diff < 60_000) return 'now';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`;
-  if (diff < DAY) return `${Math.floor(diff / 3_600_000)}h`;
-  if (diff < 7 * DAY) return `${Math.floor(diff / DAY)}d`;
+  if (diff < 60_000) return t('reviews:row.now');
+  if (diff < 3_600_000) return t('reviews:row.minutes', { n: Math.floor(diff / 60_000) });
+  if (diff < DAY) return t('reviews:row.hours', { n: Math.floor(diff / 3_600_000) });
+  if (diff < 7 * DAY) return t('reviews:row.days', { n: Math.floor(diff / DAY) });
   const sameYear = new Date(at).getFullYear() === new Date(now).getFullYear();
-  return new Date(at).toLocaleDateString(
-    locale,
+  return formatDate(
+    at,
     sameYear
       ? { month: 'short', day: 'numeric' }
       : { year: 'numeric', month: 'short', day: 'numeric' },

@@ -1,5 +1,6 @@
 import { can, type Role } from '@kiln/core';
 import { ApiError } from '../api.ts';
+import { k, t } from '../i18n/t.ts';
 import type { Review, ReviewStore } from './reviews.ts';
 
 /**
@@ -14,9 +15,8 @@ import type { Review, ReviewStore } from './reviews.ts';
 
 export const REPLY_ENV = 'KILN_REVIEW_REPLY_ENABLED';
 
-/** The sentence the confirmation must show, word for word. */
-export const PUBLIC_WARNING =
-  'This will be published publicly in the store and cannot be recalled by this tool.';
+/** The sentence the confirmation must show, word for word (in the person's language). */
+export const publicWarning = (): string => t('reviews:reply.publicWarning');
 
 export type ReplyStatus = 'draft' | 'sending' | 'sent' | 'failed' | 'unknown';
 
@@ -83,27 +83,26 @@ export function checkReply(
   limit: number,
 ): { ok: true } | { ok: false; problem: ReplyProblem; message: string } {
   const value = normalizeReplyText(text);
-  if (value === '') return { ok: false, problem: 'empty', message: 'The reply is empty.' };
+  if (value === '') return { ok: false, problem: 'empty', message: t('reviews:reply.problem.empty') };
   if (CONTROL.test(value)) {
     return {
       ok: false,
       problem: 'control_characters',
-      message:
-        'The reply has a character that is not allowed in plain text (only line breaks are).',
+      message: t('reviews:reply.problem.control'),
     };
   }
   if (MARKUP.test(value)) {
     return {
       ok: false,
       problem: 'markup',
-      message: 'The reply looks like it contains HTML tags. Replies are plain text.',
+      message: t('reviews:reply.problem.markup'),
     };
   }
   if (value.length > limit) {
     return {
       ok: false,
       problem: 'too_long',
-      message: `The reply is ${value.length} characters; this store allows at most ${limit}.`,
+      message: t('reviews:reply.problem.tooLong', { length: value.length, limit }),
     };
   }
   return { ok: true };
@@ -126,8 +125,8 @@ export function lengthState(text: string, limit: number): LengthState {
   const over = remaining < 0;
   const tone = over ? 'bad' : remaining <= Math.max(10, Math.floor(limit * 0.1)) ? 'warn' : 'ok';
   const label = over
-    ? `${-remaining} over the limit of ${limit}`
-    : `${count} of ${limit} characters`;
+    ? t('reviews:reply.length.over', { over: -remaining, limit })
+    : t('reviews:reply.length.of', { count, limit });
   return { count, limit, remaining, over, tone, label };
 }
 
@@ -152,7 +151,9 @@ export type ReplyAvailability = {
   state: 'loading' | 'off' | 'rights' | 'ready';
 };
 
-export const REPLY_OFF_TEXT = `Replying is switched off on this server. Someone who runs it sets ${REPLY_ENV}=true and restarts it (see docs/deployment.md).`;
+/** Why replying is off, naming the setting that switches it on. */
+export const replyOffText = (envName: string = REPLY_ENV): string =>
+  t('reviews:reply.off', { env: envName || REPLY_ENV });
 
 export function replyAvailability(
   config: Pick<ReplyConfig, 'enabled' | 'envName'> | null,
@@ -163,7 +164,7 @@ export function replyAvailability(
     return {
       canDraft: false,
       canSend: false,
-      reason: `Replying is switched off on this server. Someone who runs it sets ${config.envName || REPLY_ENV}=true and restarts it (see docs/deployment.md).`,
+      reason: replyOffText(config.envName),
       state: 'off',
     };
   }
@@ -173,14 +174,14 @@ export function replyAvailability(
     return {
       canDraft,
       canSend: false,
-      reason: 'You can read reviews. A member can write reply drafts and an admin can send them.',
+      reason: t('reviews:reply.rights.read'),
       state: 'rights',
     };
   if (!canSend)
     return {
       canDraft,
       canSend,
-      reason: 'You can write a draft. Only an admin or owner can send a reply to the store.',
+      reason: t('reviews:reply.rights.draft'),
       state: 'rights',
     };
   return { canDraft, canSend, reason: null, state: 'ready' };
@@ -189,16 +190,17 @@ export function replyAvailability(
 // ---------------------------------------------------------------------------------------------
 // Status
 
-export const replyStatusLabels: Record<ReplyStatus, string> = {
-  draft: 'Draft',
-  sending: 'Sending',
-  sent: 'Reply sent',
-  failed: 'Send failed',
-  unknown: 'Outcome unknown',
+/** Message keys of the status words: draw them with `t(replyStatusKeys[status])`. */
+export const replyStatusKeys: Record<ReplyStatus, string> = {
+  draft: k('reviews:reply.status.draft'),
+  sending: k('reviews:reply.status.sending'),
+  sent: k('reviews:reply.status.sent'),
+  failed: k('reviews:reply.status.failed'),
+  unknown: k('reviews:reply.status.unknown'),
 };
 
 export const replyStatusLabel = (status: ReplyState['status']): string =>
-  status === 'none' ? 'No reply' : (replyStatusLabels[status] ?? status);
+  status === 'none' ? t('reviews:reply.status.none') : t(replyStatusKeys[status] ?? status);
 
 export const replyStatusTone = (
   status: ReplyState['status'],
@@ -221,13 +223,13 @@ export const isLocked = (status: ReplyState['status']): boolean =>
 export function statusExplanation(draft: Pick<ReplyDraft, 'status' | 'errorCode'>): string | null {
   switch (draft.status) {
     case 'sending':
-      return 'This reply is being sent right now. Nothing can be changed until the store answers.';
+      return t('reviews:reply.explain.sending');
     case 'unknown':
-      return 'The store did not confirm this reply and the review could not be read back to check. It was not sent again. Send again to check; this tool then reads the review first and only publishes if the reply is not there.';
+      return t('reviews:reply.explain.unknown');
     case 'failed':
-      return 'The last send did not publish the reply. The draft is kept: fix the cause (or the text) and send again.';
+      return t('reviews:reply.explain.failed');
     case 'sent':
-      return 'This reply is published. Changing the text makes a new draft that replaces the published reply when sent.';
+      return t('reviews:reply.explain.sent');
     default:
       return null;
   }
@@ -265,21 +267,32 @@ export function confirmFacts(input: {
   const author =
     input.review.authorName && input.review.authorName.trim() !== ''
       ? input.review.authorName
-      : 'an anonymous reviewer';
+      : t('reviews:reply.anonymous');
   return {
     rows: [
-      { label: 'Store', value: storeNames[input.store] ?? input.store },
-      { label: 'App', value: input.appName },
-      { label: 'Review', value: `${input.review.rating} out of 5 stars by ${author}` },
-      { label: 'Length', value: `${input.draft.length} of ${input.draft.limit} characters` },
+      { label: t('reviews:reply.confirm.store'), value: storeNames[input.store] ?? input.store },
+      { label: t('reviews:reply.confirm.app'), value: input.appName },
+      {
+        label: t('reviews:reply.confirm.review'),
+        value: t('reviews:reply.confirm.reviewValue', { rating: input.review.rating, author }),
+      },
+      {
+        label: t('reviews:reply.confirm.length'),
+        value: t('reviews:reply.length.of', { count: input.draft.length, limit: input.draft.limit }),
+      },
       ...(input.replacing
-        ? [{ label: 'Replaces', value: 'The reply that is already published for this review' }]
+        ? [
+            {
+              label: t('reviews:reply.confirm.replaces'),
+              value: t('reviews:reply.confirm.replacesValue'),
+            },
+          ]
         : []),
     ],
     text: input.draft.text,
     count: input.draft.length,
     limit: input.draft.limit,
-    warning: PUBLIC_WARNING,
+    warning: publicWarning(),
   };
 }
 
@@ -312,58 +325,54 @@ export function replyErrorMessage(
   action: 'draft' | 'send' | 'template' | 'translate' = 'send',
 ): string {
   if (!(error instanceof ApiError))
-    return 'Something went wrong. Nothing was changed in the store as far as this tool knows. Reload the review to see its state.';
+    return t('reviews:error.genericReply');
   const server = typeof error.body.message === 'string' ? error.body.message : '';
   switch (error.code) {
     case 'reply_disabled':
-      return REPLY_OFF_TEXT;
+      return replyOffText();
     case 'forbidden':
-      return action === 'send'
-        ? 'Only an admin or owner can send replies.'
-        : 'Only a member or above can write reply drafts.';
+      return action === 'send' ? t('reviews:error.forbiddenSend') : t('reviews:error.forbiddenDraft');
     case 'not_found':
-      return 'This review no longer exists.';
+      return t('reviews:error.notFound');
     case 'stale_draft':
-      return 'The draft changed after you opened this. Read the current text and confirm again.';
+      return t('reviews:error.staleDraft');
     case 'already_sent':
-      return 'This reply was already sent. Nothing was sent again.';
+      return t('reviews:error.alreadySent');
     case 'send_in_progress':
-      return 'A reply for this review is being sent right now. Wait a moment and look again.';
+      return t('reviews:error.sendInProgress');
     case 'outcome_unknown':
-      return 'The store did not confirm the reply and it could not be checked. Nothing was sent again. Look at the review in the store, then send again to check.';
+      return t('reviews:error.outcomeUnknown');
     case 'send_failed':
-      return `The reply was not published. ${server} The draft is kept.`
-        .replace(/\s+/g, ' ')
-        .trim();
+      return t('reviews:error.sendFailed', { server }).replace(/\s+/g, ' ').trim();
     case 'invalid_reply':
     case 'invalid_template':
       return server || error.message;
     case 'no_draft':
-      return 'There is no saved draft to send.';
+      return t('reviews:error.noDraft');
     case 'rate_limited':
       return error.message;
     case 'store_auth':
-      return `The store did not accept the credential. ${server}`.trim();
+      return t('reviews:error.storeAuth', { server }).trim();
     case 'store_forbidden':
-      return `The credential is not allowed to reply to reviews. ${server}`.trim();
+      return t('reviews:error.storeForbiddenReply', { server }).trim();
     case 'store_not_found':
-      return `The store has no such review any more. ${server}`.trim();
+      return t('reviews:error.storeNotFound', { server }).trim();
     case 'store_rejected':
-      return `The store refused the reply. ${server}`.trim();
+      return t('reviews:error.storeRejected', { server }).trim();
     case 'credential_not_found':
     case 'credential_kind':
     case 'credential_unreadable':
-      return server || 'The credential of this app cannot be used. Check it under Credentials.';
+      return server || t('reviews:error.credential');
     case 'too_many_templates':
-      return server || 'A workspace can have at most 50 reply templates.';
+      return server || t('reviews:error.tooManyTemplates');
     case 'template_not_found':
-      return 'This template no longer exists.';
+      return t('reviews:error.templateNotFound');
     case 'translation_unavailable':
-      return 'Translation is not set up on this server.';
+      return t('reviews:error.translationUnavailable');
     case 'invalid_request':
       return error.message;
   }
-  return error.message || 'The request failed. Try again.';
+  return error.message || t('reviews:error.requestFailed');
 }
 
 /** Whether a failure leaves the state of the reply uncertain, so the review should be loaded again. */

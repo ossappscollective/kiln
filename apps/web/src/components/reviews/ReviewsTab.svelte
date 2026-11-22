@@ -16,6 +16,7 @@
   Review text is written by customers and is shown as plain text only. It never goes into a URL.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { can, needsStoreAppId, type Role, storeOf, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
@@ -43,7 +44,7 @@
     type ReviewSort,
     type ReviewsSummary,
   } from '../../lib/reviews/reviews.ts';
-  import { REPLY_OFF_TEXT, type ReplyConfig } from '../../lib/reviews/reply.ts';
+  import { replyOffText, type ReplyConfig } from '../../lib/reviews/reply.ts';
   import {
     type ReviewTranslation,
     canTranslate,
@@ -59,7 +60,7 @@
     unansweredFilters,
   } from '../../lib/reviews/tab.ts';
   import { filtersButtonText, popoverFilterCount, statsLine, statusChips, statusesAfterChip } from '../../lib/reviews/toolbar.ts';
-  import { averageText } from '../../lib/reviews/reviews.ts';
+  import { averageText, inboxAnnouncement } from '../../lib/reviews/reviews.ts';
   import Section from '../ui/Section.svelte';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { type TranslationConfig, languageName, loadTranslationConfig } from '../../lib/settings.ts';
@@ -149,7 +150,7 @@
       if (owner !== generation || mine !== listGeneration) return;
       reviews = reset ? page.reviews : appendPage(reviews, page.reviews);
       nextCursor = page.nextCursor;
-      if (reset) announcement = `${page.reviews.length}${page.nextCursor ? ' or more' : ''} reviews shown.`;
+      if (reset) announcement = inboxAnnouncement(page.reviews.length, page.nextCursor !== null);
     } catch (e) {
       if (owner !== generation || mine !== listGeneration) return;
       listProblem = reviewErrorMessage(e, 'load');
@@ -341,7 +342,7 @@
 
   {#snippet readButton(primary: boolean)}
     {#if canSync}
-      <Button variant={primary ? 'primary' : 'secondary'} icon="refresh" loading={syncing} disabled={needsAppSync} onclick={readNow}>Read reviews now</Button>
+      <Button variant={primary ? 'primary' : 'secondary'} icon="refresh" loading={syncing} disabled={needsAppSync} onclick={readNow}>{t('reviews:tabui.readNow')}</Button>
     {/if}
   {/snippet}
 
@@ -353,70 +354,67 @@
   >
     {#snippet aside()}
       <span class="row wrap">
-        <InfoTip label="About the reviews of this app" buttonText="About reviews" align="start" width="26rem">
-          <p>
-            What customers wrote in {storeLabel(summary?.app.store ?? storeOf(app.platform))},
-            read from the store and kept here for your team. This is a copy for triage: reading and triage change nothing in the store. A reply does, and goes through its own confirmation.
-          </p>
-          {#if summary?.retentionDays}<p class="muted">Reviews older than {summary.retentionDays} days are deleted automatically.</p>{/if}
-          {#if summary?.retentionDays === 0}<p class="muted">Reviews are kept until the app is deleted.</p>{/if}
+        <InfoTip label={t('reviews:tabui.aboutLabel')} buttonText={t('reviews:tabui.about')} align="start" width="26rem">
+          <p>{t('reviews:tabui.aboutText', { store: storeLabel(summary?.app.store ?? storeOf(app.platform)) })}</p>
+          {#if summary?.retentionDays}<p class="muted">{t('reviews:tabui.retention', { count: summary.retentionDays })}</p>{/if}
+          {#if summary?.retentionDays === 0}<p class="muted">{t('reviews:tabui.retentionForever')}</p>{/if}
         </InfoTip>
         {#if replyConfig && !replyConfig.enabled}
-          <StatusPill tone="info" label="Replying is switched off" stateKey="reviews.reply-off">
-            <p>{REPLY_OFF_TEXT}</p>
+          <StatusPill tone="info" label={t('reviews:reply.offTitle')} stateKey="reviews.reply-off">
+            <p>{replyOffText()}</p>
           </StatusPill>
         {/if}
       </span>
     {/snippet}
     {#snippet actions()}
       {#if lead.primary === 'show' && chip}
-        <Button variant="primary" aria-label={chip.label} disabled={showingUnanswered} onclick={showUnanswered}>{showingUnanswered ? 'Showing unanswered' : 'Show unanswered'}</Button>
+        <Button variant="primary" aria-label={chip.label} disabled={showingUnanswered} onclick={showUnanswered}>{showingUnanswered ? t('reviews:tabui.showingUnanswered') : t('reviews:tabui.showUnanswered')}</Button>
       {/if}
       {#if lead.primary !== 'none'}{@render readButton(lead.primary === 'read')}{/if}
     {/snippet}
   </PageLead>
 
   {#if needsAppSync}
-    <Alert tone="warn" title="Sync the app first">
-      The App Store id of this app is not known yet. Sync the app from the Releases tab, then read its reviews.
+    <Alert tone="warn" title={t('reviews:tabui.syncFirst')}>
+      {t('reviews:tabui.syncFirstHint')}
     </Alert>
   {/if}
 
-  {#if syncProblem}<Alert tone="error" title="Reading reviews failed">{syncProblem}</Alert>{/if}
+  {#if syncProblem}<Alert tone="error" title={t('reviews:tabui.readFailed')}>{syncProblem}</Alert>{/if}
   {#each notices as notice (notice.text)}
     <Alert tone={notice.tone === 'error' ? (syncProblem ? 'info' : 'error') : notice.tone}>{notice.text}</Alert>
   {/each}
 
   {#if loading && !summary}
-    <div role="status" aria-label="Loading reviews"><Skeleton height="160px" /></div>
+    <div role="status" aria-label={t('reviews:inbox.loading')}><Skeleton height="160px" /></div>
   {:else if loadProblem && !summary}
-    <Alert tone="error" title="Reviews could not be loaded">{loadProblem}</Alert>
-    <div><Button icon="refresh" onclick={() => void loadAll(false)}>Try again</Button></div>
+    <Alert tone="error" title={t('reviews:inbox.loadFailed')}>{loadProblem}</Alert>
+    <div><Button icon="refresh" onclick={() => void loadAll(false)}>{t('common:action.tryAgain')}</Button></div>
   {:else if summary}
     {#if !everStored && !active}
       <div class="card">
         <EmptyState
           icon="inbox"
-          title={summary.sync.lastSuccessAt === null ? 'No reviews have been read yet' : 'No reviews stored'}
+          title={summary.sync.lastSuccessAt === null ? t('reviews:inbox.nothingRead') : t('reviews:tabui.noneStored')}
           description={summary.sync.lastSuccessAt === null
             ? supports(app.platform, 'limitedReviewWindow')
-              ? 'Read them from Google Play with this app’s credential. Google Play only returns the last 7 days, and only reviews with a comment, so read often.'
-              : 'Read them from App Store Connect with this app’s credential. The first read stores what is there and raises no alerts.'
+              ? t('reviews:tabui.emptyGoogleFirst')
+              : t('reviews:tabui.emptyAppleFirst')
             : supports(app.platform, 'limitedReviewWindow')
-              ? 'The last read found no review in the last 7 days. Google Play only returns reviews with a comment.'
-              : 'The store returned no reviews for this app.'}
+              ? t('reviews:tabui.emptyGoogleLater')
+              : t('reviews:tabui.emptyAppleLater')}
         >
           {#snippet actions()}
             {#if canSync && !needsAppSync}
-              <Button variant="primary" icon="refresh" loading={syncing} onclick={readNow}>Read reviews now</Button>
+              <Button variant="primary" icon="refresh" loading={syncing} onclick={readNow}>{t('reviews:tabui.readNow')}</Button>
             {:else if !canSync}
-              <span class="muted">A member or admin can read the reviews.</span>
+              <span class="muted">{t('reviews:tabui.memberCanRead')}</span>
             {/if}
           {/snippet}
         </EmptyState>
       </div>
     {:else}
-      <Section title="Rating summary" key="summary" variant="plain" level={2} summary={`${averageText(summary.stored.average)} · ${statsLine(summary.stored)}`}>
+      <Section title={t('reviews:overview.region')} key="summary" variant="plain" level={2} summary={`${averageText(summary.stored.average)} · ${statsLine(summary.stored)}`}>
       <div class="statsrow">
         <RatingOverview {summary} />
       </div>
@@ -424,26 +422,26 @@
 
       <ReviewsAi {api} {workspaceId} {role} {app} reviewIds={reviews.map((r) => r.id)} />
 
-      <form class="toolbar" onsubmit={search} role="search" aria-label="Filter reviews">
+      <form class="toolbar" onsubmit={search} role="search" aria-label={t('reviews:inbox.filter')}>
         <label class="searchbox">
           <Icon name="search" size={14} />
-          <input id="{uid}-q" type="search" aria-label="Search the review text" maxlength="100" placeholder="Search reviews" bind:value={searchText} autocomplete="off" />
+          <input id="{uid}-q" type="search" aria-label={t('reviews:inbox.searchLabel')} maxlength="100" placeholder={t('reviews:inbox.searchPlaceholder')} bind:value={searchText} autocomplete="off" />
         </label>
-        <ul class="chips" aria-label="Status">
+        <ul class="chips" aria-label={t('reviews:card.status')}>
           {#each chips as c (c.status)}
             <li>
               <StatChip label={c.label} value={c.count ?? ''} tone={c.status === 'new' ? 'info' : 'neutral'} pressed={c.pressed} onclick={() => change({ statuses: statusesAfterChip(filters.statuses, c.status) })} />
             </li>
           {/each}
         </ul>
-        <InfoTip label="Filters" buttonText={filtersButtonText(moreActive)} icon="filter" align="end" width="min(26rem, 92vw)" bind:open={moreOpen}>
+        <InfoTip label={t('reviews:toolbar.filters')} buttonText={filtersButtonText(moreActive)} icon="filter" align="end" width="min(26rem, 92vw)" bind:open={moreOpen}>
           <div class="filter-grid">
             <fieldset class="ratings">
-              <legend>Rating</legend>
+              <legend>{t('reviews:inbox.rating')}</legend>
               {#each [5, 4, 3, 2, 1] as n (n)}
                 <label class="check">
                   <input type="checkbox" checked={filters.ratings.includes(n)} onchange={() => change({ ratings: toggleIn(filters.ratings, n) })} />
-                  {n}<Icon name="star-filled" size={12} /><span class="visually-hidden"> {n === 1 ? 'star' : 'stars'}</span>
+                  <span aria-hidden="true">{n}</span><Icon name="star-filled" size={12} /><span class="visually-hidden">{t('reviews:overview.stars', { count: n })}</span>
                 </label>
               {/each}
             </fieldset>
@@ -454,46 +452,46 @@
                   checked={lowOnly}
                   onchange={() => change({ ratings: ratingsWithLowOnly(!lowOnly, summary?.lowRatingThreshold ?? 0) })}
                 />
-                Low ratings only ({summary.lowRatingThreshold} {summary.lowRatingThreshold === 1 ? 'star' : 'stars'} or less)
+                {t('reviews:tabui.lowOnly', { count: summary.lowRatingThreshold })}
               </label>
             {/if}
             <div class="field">
-              <label for="{uid}-sort">Sort</label>
+              <label for="{uid}-sort">{t('reviews:inbox.sort')}</label>
               <select id="{uid}-sort" value={filters.sort} onchange={(e) => change({ sort: e.currentTarget.value as ReviewSort })}>
                 {#each Object.entries(sortLabels) as [value, label] (value)}<option {value}>{label}</option>{/each}
               </select>
             </div>
             <div class="field">
-              <label for="{uid}-response">Developer response</label>
+              <label for="{uid}-response">{t('reviews:card.developerResponse')}</label>
               <select id="{uid}-response" value={filters.response} onchange={(e) => change({ response: e.currentTarget.value as ReviewFilters['response'] })}>
-                <option value="">Either</option>
-                <option value="no">No response yet</option>
-                <option value="yes">Has a response</option>
+                <option value="">{t('reviews:inbox.either')}</option>
+                <option value="no">{t('reviews:tabui.noResponseYet')}</option>
+                <option value="yes">{t('reviews:inbox.hasResponse')}</option>
               </select>
             </div>
             <div class="field">
-              <label for="{uid}-language">Language</label>
+              <label for="{uid}-language">{t('reviews:tabui.language')}</label>
               <select id="{uid}-language" value={filters.language} onchange={(e) => change({ language: e.currentTarget.value })}>
-                <option value="">Any</option>
+                <option value="">{t('reviews:tabui.any')}</option>
                 {#each summary.stored.languages as l (l.value)}<option value={l.value}>{l.value} ({l.count})</option>{/each}
               </select>
             </div>
             <div class="field">
-              <label for="{uid}-territory">Country or region</label>
+              <label for="{uid}-territory">{t('reviews:tabui.territory')}</label>
               <select id="{uid}-territory" value={filters.territory} onchange={(e) => change({ territory: e.currentTarget.value })}>
-                <option value="">Any</option>
-                {#each summary.stored.territories as t (t.value)}<option value={t.value}>{territoryName(t.value)} ({t.count})</option>{/each}
+                <option value="">{t('reviews:tabui.any')}</option>
+                {#each summary.stored.territories as place (place.value)}<option value={place.value}>{territoryName(place.value)} ({place.count})</option>{/each}
               </select>
             </div>
             <div class="field">
-              <label for="{uid}-version">Version</label>
+              <label for="{uid}-version">{t('reviews:overview.colVersion')}</label>
               <select id="{uid}-version" value={filters.version} onchange={(e) => change({ version: e.currentTarget.value })}>
-                <option value="">Any version</option>
+                <option value="">{t('reviews:tabui.anyVersion')}</option>
                 {#each summary.stored.byVersion as v (v.version)}<option value={v.version}>{v.version} ({v.count})</option>{/each}
               </select>
             </div>
             <div class="field">
-              <label for="{uid}-since">Written</label>
+              <label for="{uid}-since">{t('reviews:inbox.written')}</label>
               <select id="{uid}-since" value={sinceChoice} onchange={(e) => setSince(e.currentTarget.value)}>
                 {#each sinceChoices as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
               </select>
@@ -506,30 +504,30 @@
               </Button>
               <label class="check">
                 <input type="checkbox" bind:checked={showTranslations} disabled={!anyTranslated} />
-                Show translations
+                {t('reviews:tabui.showTranslations')}
               </label>
-              <p class="muted small">The stored text of those reviews is sent to the translation provider, 25 at a time.</p>
+              <p class="muted small">{t('reviews:tabui.translateNote', { n: 25 })}</p>
             </div>
           {/if}
         </InfoTip>
-        {#if active}<Button variant="ghost" size="sm" onclick={clear}>Clear filters</Button>{/if}
+        {#if active}<Button variant="ghost" size="sm" onclick={clear}>{t('reviews:inbox.clear')}</Button>{/if}
       </form>
-      {#if translateProblem}<Alert tone="error" title="Translation stopped">{translateProblem}</Alert>{/if}
+      {#if translateProblem}<Alert tone="error" title={t('reviews:tabui.translationStopped')}>{translateProblem}</Alert>{/if}
 
       <div class="list" aria-busy={listLoading}>
         {#if listProblem}
-          <Alert tone="error" title="Reviews could not be loaded">{listProblem}</Alert>
-          <div><Button icon="refresh" onclick={() => void loadList(true)}>Try again</Button></div>
+          <Alert tone="error" title={t('reviews:inbox.loadFailed')}>{listProblem}</Alert>
+          <div><Button icon="refresh" onclick={() => void loadList(true)}>{t('common:action.tryAgain')}</Button></div>
         {:else if listLoading && reviews.length === 0}
-          <div role="status" aria-label="Loading reviews"><Skeleton height="120px" /></div>
+          <div role="status" aria-label={t('reviews:inbox.loading')}><Skeleton height="120px" /></div>
         {:else if reviews.length === 0}
           <div class="card">
             <EmptyState
               icon="filter"
-              title="No review matches"
-              description="Change or clear the filters to see more."
+              title={t('reviews:inbox.noMatch')}
+              description={t('reviews:inbox.noMatchHint')}
             >
-              {#snippet actions()}<Button onclick={clear}>Clear filters</Button>{/snippet}
+              {#snippet actions()}<Button onclick={clear}>{t('reviews:inbox.clear')}</Button>{/snippet}
             </EmptyState>
           </div>
         {:else}
@@ -547,7 +545,7 @@
               lowThreshold={summary.lowRatingThreshold}
               {now}
               {translations}
-              ontranslate={(t) => (translations = mergeTranslations(translations, [t]))}
+              ontranslate={(item) => (translations = mergeTranslations(translations, [item]))}
               {showTranslations}
               settled={!listLoading}
               hasMore={nextCursor !== null}
@@ -573,7 +571,7 @@
                     lowThreshold={summary.lowRatingThreshold}
                     {now}
                     translation={translations[review.id]}
-                    ontranslate={(t) => (translations = mergeTranslations(translations, [t]))}
+                    ontranslate={(item) => (translations = mergeTranslations(translations, [item]))}
                     {showTranslations}
                     onchange={updated}
                   />
@@ -581,9 +579,9 @@
               {/each}
             </ul>
             {#if nextCursor}
-              <div class="more"><Button loading={moreLoading} onclick={() => void loadList(false)}>Show more reviews</Button></div>
+              <div class="more"><Button loading={moreLoading} onclick={() => void loadList(false)}>{t('reviews:split.showMore')}</Button></div>
             {:else}
-              <p class="muted small">That is every review that matches.</p>
+              <p class="muted small">{t('reviews:split.everyReview')}</p>
             {/if}
           {/if}
         {/if}

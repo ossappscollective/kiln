@@ -5,6 +5,8 @@ import type {
   StoredSummary,
   WeekBucket,
 } from './reviews.ts';
+import { formatList } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 import { averageText, statusLabels, statusOrder } from './reviews.ts';
 
 /**
@@ -85,9 +87,15 @@ export function inboxPopoverFilterCount(f: InboxFilters): number {
 }
 
 /** The label of the Filters button: "Filters", or "Filters (3)". */
-export const filtersButtonText = (on: number): string => (on > 0 ? `Filters (${on})` : 'Filters');
+export const filtersButtonText = (on: number): string => (on > 0 ? t('reviews:toolbar.filtersCount', { count: on }) : t('reviews:toolbar.filters'));
 
 export type TrendWord = 'rising' | 'falling' | 'steady';
+
+const TREND_KEYS: Record<TrendWord, string> = {
+  rising: k('reviews:toolbar.trendRising'),
+  falling: k('reviews:toolbar.trendFalling'),
+  steady: k('reviews:toolbar.trendSteady'),
+};
 
 /**
  * Whether the weekly average rating moves: the average of the latest two weeks with a rating against the weeks before them.
@@ -114,12 +122,12 @@ export function trendWord(weeks: readonly WeekBucket[]): TrendWord | null {
 
 /** The slim line: "4.3 average, 42 stored reviews, rating rising". Always the same order; the trend only when it can be said. */
 export function statsLine(stored: Pick<StoredSummary, 'count' | 'average' | 'weeks'>): string {
-  if (stored.count === 0) return 'No stored reviews yet';
+  if (stored.count === 0) return t('reviews:toolbar.noStored');
   const parts = [
-    `${averageText(stored.average)} average`,
-    `${stored.count} stored ${stored.count === 1 ? 'review' : 'reviews'}`,
+    t('reviews:toolbar.average', { value: averageText(stored.average) }),
+    t('reviews:toolbar.stored', { count: stored.count }),
   ];
   const trend = trendWord(stored.weeks);
-  if (trend !== null) parts.push(`rating ${trend}`);
-  return parts.join(', ');
+  if (trend !== null) parts.push(t(TREND_KEYS[trend]));
+  return formatList(parts, { type: 'unit' });
 }

@@ -20,6 +20,7 @@
   Review text is written by customers: plain text only, never markup, never in a URL.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import type { Role } from '@kiln/core';
   import { onMount, tick, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
@@ -34,6 +35,7 @@
     reviewFromHash,
     rowByline,
     rowDate,
+    shortcutHints,
     rowReplyText,
     rowTitle,
     shouldFindMore,
@@ -304,7 +306,7 @@
 
 <div class="split" class:compact bind:this={root}>
   <div class="pane list-pane" bind:this={listEl}>
-    <ul class="rows" aria-label="Reviews">
+    <ul class="rows" aria-label={t('reviews:split.list')}>
       {#each reviews as review (review.id)}
         {@const current = review.id === selectedId}
         {@const reply = rowReplyText(review)}
@@ -347,23 +349,25 @@
     </ul>
     <div class="foot">
       {#if hasMore}
-        <Button size="sm" loading={moreLoading} onclick={onmore}>Show more reviews</Button>
+        <Button size="sm" loading={moreLoading} onclick={onmore}>{t('reviews:split.showMore')}</Button>
       {:else}
-        <p class="muted small">That is every review that matches.</p>
+        <p class="muted small">{t('reviews:split.everyReview')}</p>
       {/if}
       {#if showKeys}
-        <p class="hint">
-          <kbd>j</kbd> <kbd>k</kbd> move, <kbd>Enter</kbd> opens, <kbd>t</kbd> triaged, <kbd>r</kbd> reply, <kbd>/</kbd> search.
+        <p class="hint keys">
+          {#each shortcutHints() as hint (hint.id)}
+            <span class="shortcut">{#each hint.keys as key (key)}<kbd>{key}</kbd>{' '}{/each}{hint.label}</span>
+          {/each}
         </p>
       {/if}
     </div>
   </div>
 
-  <div class="pane detail-pane" class:drawer={compact} hidden={compact && !drawerOpen} bind:this={detailEl} aria-label="Selected review" role="region" id="{uid}-detail">
+  <div class="pane detail-pane" class:drawer={compact} hidden={compact && !drawerOpen} bind:this={detailEl} aria-label={t('reviews:split.selected')} role="region" id="{uid}-detail">
     {#if compact}
       <div class="drawer-head">
-        <span class="muted small">Review</span>
-        <Button size="sm" variant="ghost" icon="x" onclick={closeDrawer}>Close<span class="visually-hidden"> the review</span></Button>
+        <span class="muted small">{t('reviews:split.review')}</span>
+        <Button size="sm" variant="ghost" icon="x" aria-label={t('reviews:split.closeReview')} onclick={closeDrawer}>{t('common:action.close')}</Button>
       </div>
     {/if}
     {#if selected}
@@ -372,7 +376,7 @@
           <p class="from">
             <AppIcon name={selected.app.name} url={iconUrls[selected.app.id] ?? null} platform={selected.app.platform} size="xs" labelled={true} />
             <span class="app-name">{selected.app.name}</span>
-            <a class="link sm" href={appReviewHref(selected.app.id, selected.id, selected.app.platform)} title="Opens the reviews of this app.">Open app</a>
+            <a class="link sm" href={appReviewHref(selected.app.id, selected.id, selected.app.platform)} title={t('reviews:split.openAppTitle')}>{t('reviews:split.openApp')}</a>
           </p>
         {/if}
         <ReviewCard
@@ -400,6 +404,12 @@
 </div>
 
 <style>
+  .keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-3);
+  }
+
   .split {
     display: grid;
     grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { REPLACING_NOTE, replyHint, reviewByline } from './reply-dialog.ts';
+import { replacingNote, replyHint, reviewByline } from './reply-dialog.ts';
 
 const base = {
   authorName: null,
@@ -33,6 +33,6 @@ test('replyHint: the limit, the store, and that it stays a draft', () => {
   );
 });
 
-test('REPLACING_NOTE is one short note', () => {
-  assert.ok(REPLACING_NOTE.length < 140);
+test('replacingNote is one short note', () => {
+  assert.ok(replacingNote().length < 140);
 });

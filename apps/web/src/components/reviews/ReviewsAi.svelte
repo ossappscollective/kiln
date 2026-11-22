@@ -8,6 +8,7 @@
   Props: api, workspaceId, role, app (the app record), reviewIds (the reviews on screen, to read their tags), onclassified? (after tagging).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { suggestAvailability } from '../../lib/ai/ai.ts';
@@ -54,24 +55,24 @@
     await aiStore.loadTags(api, workspaceId, app.id, reviewIds, true);
     const p = made.proposal;
     if (p.kind === 'insight' && p.insight === 'review_classify' && p.remaining > 0) {
-      toast.info(`${p.remaining} more reviews can be tagged. Run it again to continue.`);
+      toast.info(t('reviews:ai.moreToTag', { count: p.remaining }));
     }
   }
 </script>
 
 {#if visible}
-  <section class="ai" aria-label="AI assistance for the reviews">
+  <section class="ai" aria-label={t('reviews:ai.region')}>
     <div class="row wrap bar">
-      <span class="muted small">AI</span>
-      <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="review_summary" label="Summarise" hiddenLabel="the reviews of the last {days} days" onrun={summarise} preview={{ appId: app.id, days }} />
-      <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="fix_next" label="What to fix next" onrun={fixNext} preview={{ appId: app.id, days }} />
-      <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="review_classify" label="Tag reviews" onrun={tag} preview={{ appId: app.id, days }} />
+      <span class="muted small">{t('reviews:ai.badge')}</span>
+      <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="review_summary" label={t('reviews:ai.summarise')} hiddenLabel={t('reviews:ai.summariseHidden', { n: days })} onrun={summarise} preview={{ appId: app.id, days }} />
+      <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="fix_next" label={t('reviews:ai.fixNext')} onrun={fixNext} preview={{ appId: app.id, days }} />
+      <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="review_classify" label={t('reviews:ai.tag')} onrun={tag} preview={{ appId: app.id, days }} />
       <label class="period">
-        <span class="visually-hidden">Reviews of the last</span>
-        <select id="{uid}-days" bind:value={days} aria-label="Period the AI looks at">
-          <option value={7}>last 7 days</option>
-          <option value={30}>last 30 days</option>
-          <option value={90}>last 90 days</option>
+        <span class="visually-hidden">{t('reviews:ai.periodLabel')}</span>
+        <select id="{uid}-days" bind:value={days} aria-label={t('reviews:ai.period')}>
+          <option value={7}>{t('reviews:ai.lastDays', { n: 7 })}</option>
+          <option value={30}>{t('reviews:ai.lastDays', { n: 30 })}</option>
+          <option value={90}>{t('reviews:ai.lastDays', { n: 90 })}</option>
         </select>
       </label>
     </div>

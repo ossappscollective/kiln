@@ -11,7 +11,9 @@
   provider made it, and says that the text left this server.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import type { Api } from '../../lib/api.ts';
+  import { formatNumber } from '../../lib/i18n/format.ts';
   import {
     type ReviewTranslation,
     isRetryable,
@@ -88,13 +90,13 @@
     retry = false;
     try {
       const done = await api.translateReviews(workspaceId, appId, { reviewIds: [review.id] });
-      const found = done.translations.find((t) => t.reviewId === review.id);
+      const found = done.translations.find((item) => item.reviewId === review.id);
       if (found) {
         result = found;
         visible = true;
         onstore?.(found);
       } else {
-        problem = 'This review is no longer stored here. Reload the list.';
+        problem = t('reviews:translation.gone');
       }
     } catch (e) {
       problem = translationErrorMessage(e);
@@ -109,23 +111,23 @@
   {#if !result}
     <div class="row">
       <Button size="sm" variant="ghost" icon="globe" {loading} onclick={translate}>
-        {retry ? 'Try again' : `Translate to ${languageName(config.target)}`}
+        {retry ? t('reviews:translation.retry') : t('reviews:translation.translateTo', { language: languageName(config.target) })}
       </Button>
     </div>
   {:else if result.sameLanguage}
-    <p class="hint">This review is already in {languageName(config.target)}.</p>
+    <p class="hint">{t('reviews:translation.sameLanguage', { language: languageName(config.target) })}</p>
   {:else}
     <div class="translation">
       <p class="head">
-        <strong>Translation</strong>
+        <strong>{t('reviews:translation.heading')}</strong>
         <button type="button" class="link sm" aria-expanded={visible} onclick={() => (visible = !visible)}>
-          {visible ? 'Hide' : 'Show'}
+          {visible ? t('reviews:translation.hide') : t('reviews:translation.show')}
         </button>
       </p>
       {#if visible}
         {#if result.title}<p class="title">{result.title}</p>{/if}
         {#if result.body}<p class="body">{result.body}</p>{/if}
-        {#if result.truncated}<p class="hint">The review is long: only the first 5,000 characters were translated.</p>{/if}
+        {#if result.truncated}<p class="hint">{t('reviews:translation.truncated', { limit: formatNumber(5000) })}</p>{/if}
         <p class="hint">{translationCaption(result, review.language)} {privacyNote(result.provider)}</p>
       {/if}
     </div>

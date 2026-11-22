@@ -17,6 +17,8 @@
   Review text is written by customers: plain text only, never markup, never in a URL.
 -->
 <script lang="ts">
+  import T from '../ui/T.svelte';
+  import { t } from '../../lib/i18n/t.ts';
   import { type Role, can } from '@kiln/core';
   import { onMount, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
@@ -25,7 +27,7 @@
   import { unansweredCount } from '../../lib/nav-badges.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { appLabel } from '../../lib/portfolio.ts';
-  import { REPLY_OFF_TEXT, type ReplyConfig } from '../../lib/reviews/reply.ts';
+  import { replyOffText, type ReplyConfig } from '../../lib/reviews/reply.ts';
   import {
     appendInboxPage,
     averageText,
@@ -58,7 +60,7 @@
     type ReviewSort,
     type WorkspaceReviewsSummary,
   } from '../../lib/reviews/reviews.ts';
-  import { isReviewsAddress, reviewFromHash, withReview } from '../../lib/reviews/split.ts';
+  import { isReviewsAddress, reviewFromHash, shortcutHints, withReview } from '../../lib/reviews/split.ts';
   import { filtersButtonText, inboxPopoverFilterCount, statusChips, statusesAfterChip } from '../../lib/reviews/toolbar.ts';
   import { splitView } from '../../lib/split-view.svelte.ts';
   import type { AppSummary, Member } from '../../lib/types.ts';
@@ -317,21 +319,21 @@
 <svelte:window onkeydown={onKey} />
 
 <PageHeader
-  title="Reviews"
-  description="What customers wrote about every app, for your team to triage and answer. Triage changes nothing in a store."
+  title={t('reviews:inbox.title')}
+  description={t('reviews:inbox.description')}
 />
 
 <section class="inbox stack loose" aria-busy={loading}>
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#if replyConfig && !replyConfig.enabled}
-    <Alert tone="info" title="Replying is switched off">{REPLY_OFF_TEXT}</Alert>
+    <Alert tone="info" title={t('reviews:reply.offTitle')}>{replyOffText()}</Alert>
   {/if}
 
   {#if summaryProblem && !summary}
-    <Alert tone="error" title="The summary could not be loaded">{summaryProblem}</Alert>
+    <Alert tone="error" title={t('reviews:inbox.summaryFailed')}>{summaryProblem}</Alert>
   {:else if summary}
-    <div class="strip" aria-label="Summary">
+    <div class="strip" aria-label={t('reviews:inbox.summary')}>
       <p class="visually-hidden">{summaryStripText(summary.totals)}</p>
       <ul class="quick">
         {#each quickViews as view (view.id)}
@@ -344,20 +346,20 @@
             </button>
           </li>
         {/each}
-        <li class="muted"><strong>{averageText(summary.totals.average)}</strong> average of stored reviews</li>
+        <li class="muted"><T key="reviews:inbox.averageStored" params={{ value: averageText(summary.totals.average) }} /></li>
       </ul>
-      <InfoTip label="About these numbers" buttonText="About the numbers" align="end" width="min(28rem, 92vw)">
-        <p>{summary.label}. Low rating means {lowThreshold} stars or fewer; ignored reviews are not counted as unanswered or low.</p>
+      <InfoTip label={t('reviews:overview.aboutLabel')} buttonText={t('reviews:overview.about')} align="end" width="min(28rem, 92vw)">
+        <p>{t('reviews:inbox.lowRatingNote', { label: summary.label, count: lowThreshold })}</p>
         {#if oldestNote}<p class="muted" data-testid="unanswered-oldest">{oldestNote}</p>{/if}
         {#if busiest.length > 0}
-          <p class="eyebrow">Apps with reviews to look at</p>
-          <ul class="apps" aria-label="Apps with reviews to look at">
+          <p class="eyebrow">{t('reviews:inbox.busiest')}</p>
+          <ul class="apps" aria-label={t('reviews:inbox.busiest')}>
             {#each busiest as row (row.app.id)}
               <li>
                 <button type="button" class="app-chip" onclick={() => focusApp(row.app.id)}>
                   <AppIcon name={row.app.name} url={iconUrls[row.app.id] ?? null} platform={row.app.platform} size="xs" labelled={true} />
                   <span class="app-name">{row.app.name}</span>
-                  <span class="muted small">{row.new} new, {row.unanswered} unanswered, {row.lowRating} low</span>
+                  <span class="muted small">{t('reviews:inbox.appCounts', { newCount: row.new, unanswered: row.unanswered, low: row.lowRating })}</span>
                 </button>
               </li>
             {/each}
@@ -371,91 +373,89 @@
     <div class="card">
       <EmptyState
         icon="inbox"
-        title={noApps ? 'No apps yet' : 'No reviews have been read yet'}
-        description={noApps
-          ? 'Add an app in the Portfolio. Its reviews then appear here.'
-          : 'Read an app’s reviews from the store on its Reviews tab. They are kept and listed here after that.'}
+        title={noApps ? t('reviews:inbox.noApps') : t('reviews:inbox.nothingRead')}
+        description={noApps ? t('reviews:inbox.noAppsHint') : t('reviews:inbox.nothingReadHint')}
       >
-        {#snippet actions()}<Button variant="primary" href="#/portfolio">Go to the portfolio</Button>{/snippet}
+        {#snippet actions()}<Button variant="primary" href="#/portfolio">{t('reviews:inbox.goPortfolio')}</Button>{/snippet}
       </EmptyState>
     </div>
   {:else}
-    <form class="toolbar" onsubmit={search} role="search" aria-label="Filter reviews">
+    <form class="toolbar" onsubmit={search} role="search" aria-label={t('reviews:inbox.filter')}>
       <label class="searchbox">
         <Icon name="search" size={14} />
-        <input id="{uid}-q" bind:this={searchEl} type="search" aria-label="Search the review text" maxlength="100" placeholder="Search reviews" bind:value={searchText} autocomplete="off" />
+        <input id="{uid}-q" bind:this={searchEl} type="search" aria-label={t('reviews:inbox.searchLabel')} maxlength="100" placeholder={t('reviews:inbox.searchPlaceholder')} bind:value={searchText} autocomplete="off" />
       </label>
-      <ul class="chips" aria-label="Status">
+      <ul class="chips" aria-label={t('reviews:card.status')}>
         {#each chips as c (c.status)}
           <li>
             <StatChip label={c.label} value={c.count ?? ''} tone={c.status === 'new' ? 'info' : 'neutral'} pressed={c.pressed} onclick={() => change({ statuses: statusesAfterChip(filters.statuses, c.status) })} />
           </li>
         {/each}
       </ul>
-      <InfoTip label="Filters" buttonText={filtersButtonText(moreActive)} icon="filter" align="end" width="min(30rem, 92vw)">
+      <InfoTip label={t('reviews:toolbar.filters')} buttonText={filtersButtonText(moreActive)} icon="filter" align="end" width="min(30rem, 92vw)">
         <div class="filter-grid">
           <fieldset class="ratings">
-            <legend>Rating</legend>
+            <legend>{t('reviews:inbox.rating')}</legend>
             {#each [5, 4, 3, 2, 1] as n (n)}
               <label class="check">
                 <input type="checkbox" checked={filters.ratings.includes(n)} onchange={() => change({ ratings: toggleIn(filters.ratings, n) })} />
-                {n} {n === 1 ? 'star' : 'stars'}
+                {t('reviews:overview.stars', { count: n })}
               </label>
             {/each}
           </fieldset>
           <div class="field">
-            <label for="{uid}-platform">Store</label>
+            <label for="{uid}-platform">{t('reviews:inbox.store')}</label>
             <select id="{uid}-platform" value={filters.platform} onchange={(e) => change({ platform: e.currentTarget.value as InboxFilters['platform'] })}>
-              <option value="">All stores</option>
+              <option value="">{t('reviews:inbox.allStores')}</option>
               <option value="ios">App Store</option>
               <option value="android">Google Play</option>
             </select>
           </div>
           <div class="field">
-            <label for="{uid}-sort">Sort</label>
+            <label for="{uid}-sort">{t('reviews:inbox.sort')}</label>
             <select id="{uid}-sort" value={filters.sort} onchange={(e) => change({ sort: e.currentTarget.value as ReviewSort })}>
               {#each Object.entries(sortLabels) as [value, label] (value)}<option {value}>{label}</option>{/each}
             </select>
           </div>
           <div class="field">
-            <label for="{uid}-response">Developer response</label>
+            <label for="{uid}-response">{t('reviews:card.developerResponse')}</label>
             <select id="{uid}-response" value={filters.response} onchange={(e) => change({ response: e.currentTarget.value as InboxFilters['response'] })}>
-              <option value="">Either</option>
-              <option value="no">Unanswered</option>
-              <option value="yes">Has a response</option>
+              <option value="">{t('reviews:inbox.either')}</option>
+              <option value="no">{t('reviews:inbox.unanswered')}</option>
+              <option value="yes">{t('reviews:inbox.hasResponse')}</option>
             </select>
           </div>
           <div class="field">
-            <label for="{uid}-assignee">Assigned to</label>
+            <label for="{uid}-assignee">{t('reviews:card.assignee')}</label>
             <select id="{uid}-assignee" value={filters.assignee} onchange={(e) => change({ assignee: e.currentTarget.value })}>
-              <option value="">Anyone</option>
-              <option value="me">Me</option>
-              <option value="unassigned">Nobody</option>
+              <option value="">{t('reviews:inbox.anyone')}</option>
+              <option value="me">{t('reviews:inbox.me')}</option>
+              <option value="unassigned">{t('reviews:card.nobody')}</option>
               {#each members as member (member.userId)}<option value={member.userId}>{member.displayName}</option>{/each}
             </select>
           </div>
           <div class="field">
-            <label for="{uid}-within">Written</label>
+            <label for="{uid}-within">{t('reviews:inbox.written')}</label>
             <select id="{uid}-within" value={filters.within} onchange={(e) => change({ within: e.currentTarget.value as InboxFilters['within'] })}>
               {#each withinChoices as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
             </select>
           </div>
           <div class="field">
-            <label for="{uid}-version">Version</label>
+            <label for="{uid}-version">{t('reviews:overview.colVersion')}</label>
             <input id="{uid}-version" type="text" maxlength="100" value={filters.version} onchange={(e) => change({ version: e.currentTarget.value })} autocomplete="off" />
           </div>
           <div class="field">
-            <label for="{uid}-territory">Country or region code</label>
-            <input id="{uid}-territory" type="text" maxlength="10" value={filters.territory} onchange={(e) => change({ territory: e.currentTarget.value })} placeholder="for example US" autocomplete="off" />
+            <label for="{uid}-territory">{t('reviews:inbox.territory')}</label>
+            <input id="{uid}-territory" type="text" maxlength="10" value={filters.territory} onchange={(e) => change({ territory: e.currentTarget.value })} placeholder={t('reviews:inbox.territoryExample')} autocomplete="off" />
             {#if filters.territory}<p class="hint">{territoryName(filters.territory)}</p>{/if}
           </div>
           <div class="field">
-            <label for="{uid}-language">Language code</label>
-            <input id="{uid}-language" type="text" maxlength="12" value={filters.language} onchange={(e) => change({ language: e.currentTarget.value })} placeholder="for example en" autocomplete="off" />
+            <label for="{uid}-language">{t('reviews:inbox.language')}</label>
+            <input id="{uid}-language" type="text" maxlength="12" value={filters.language} onchange={(e) => change({ language: e.currentTarget.value })} placeholder={t('reviews:inbox.languageExample')} autocomplete="off" />
           </div>
           {#if apps.length > 0}
             <fieldset class="app-list">
-              <legend>Apps (none chosen means all)</legend>
+              <legend>{t('reviews:inbox.apps')}</legend>
               {#each apps as app (app.id)}
                 <label class="check">
                   <input type="checkbox" checked={filters.appIds.includes(app.id)} onchange={() => change({ appIds: toggleIn(filters.appIds, app.id) })} />
@@ -465,23 +465,26 @@
             </fieldset>
           {/if}
         </div>
-        <p class="hint">
-          Keyboard: <kbd>j</kbd> and <kbd>k</kbd> move between reviews, <kbd>Enter</kbd> opens one in the detail view, <kbd>t</kbd> marks one triaged, <kbd>r</kbd> opens its reply, <kbd>/</kbd> searches.
+        <p class="hint keys">
+          <span>{t('reviews:inbox.keyboard')}</span>
+          {#each shortcutHints() as hint (hint.id)}
+            <span class="shortcut">{#each hint.keys as key (key)}<kbd>{key}</kbd>{' '}{/each}{hint.label}</span>
+          {/each}
         </p>
       </InfoTip>
-      {#if active}<Button variant="ghost" size="sm" onclick={clear}>Clear filters</Button>{/if}
+      {#if active}<Button variant="ghost" size="sm" onclick={clear}>{t('reviews:inbox.clear')}</Button>{/if}
     </form>
 
     <div class="list" aria-busy={loading}>
       {#if problem}
-        <Alert tone="error" title="Reviews could not be loaded">{problem}</Alert>
-        <div><Button icon="refresh" onclick={() => void loadList(true)}>Try again</Button></div>
+        <Alert tone="error" title={t('reviews:inbox.loadFailed')}>{problem}</Alert>
+        <div><Button icon="refresh" onclick={() => void loadList(true)}>{t('common:action.tryAgain')}</Button></div>
       {:else if loading && reviews.length === 0}
-        <div role="status" aria-label="Loading reviews"><Skeleton height="140px" /></div>
+        <div role="status" aria-label={t('reviews:inbox.loading')}><Skeleton height="140px" /></div>
       {:else if reviews.length === 0}
         <div class="card">
-          <EmptyState icon="filter" title="No review matches" description="Change or clear the filters to see more.">
-            {#snippet actions()}<Button onclick={clear}>Clear filters</Button>{/snippet}
+          <EmptyState icon="filter" title={t('reviews:inbox.noMatch')} description={t('reviews:inbox.noMatchHint')}>
+            {#snippet actions()}<Button onclick={clear}>{t('reviews:inbox.clear')}</Button>{/snippet}
           </EmptyState>
         </div>
       {:else}
@@ -516,7 +519,7 @@
                   <AppIcon name={review.app.name} url={iconUrls[review.app.id] ?? null} platform={review.app.platform} size="xs" labelled={true} />
                   <span class="app-name">{review.app.name}</span>
                   <PlatformBadge platform={review.app.platform} />
-                  <a class="link sm" href={appReviewsHref(review.app.id)} title="Opens the reviews of this app.">Open app</a>
+                  <a class="link sm" href={appReviewsHref(review.app.id)} title={t('reviews:split.openAppTitle')}>{t('reviews:split.openApp')}</a>
                   <span class="muted small">{timeAgo(review.createdAt, now)}</span>
                 </p>
                 <ReviewCard
@@ -538,9 +541,9 @@
             {/each}
           </ul>
           {#if nextCursor}
-            <div class="more-row"><Button loading={moreLoading} onclick={() => void loadList(false)}>Show more reviews</Button></div>
+            <div class="more-row"><Button loading={moreLoading} onclick={() => void loadList(false)}>{t('reviews:split.showMore')}</Button></div>
           {:else}
-            <p class="muted small">That is every review that matches.</p>
+            <p class="muted small">{t('reviews:split.everyReview')}</p>
           {/if}
         {/if}
       {/if}
@@ -549,6 +552,12 @@
 </section>
 
 <style>
+  .keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-3);
+  }
+
   .strip {
     display: flex;
     flex-wrap: wrap;

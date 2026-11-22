@@ -24,11 +24,13 @@
   The review text and the reply are plain text nodes only, never markup and never in a URL.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { type FlagInfo, aiErrorMessage, flagInfos } from '../../lib/ai/ai.ts';
   import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
+  import { formatNumber } from '../../lib/i18n/format.ts';
   import {
     type ReplyConfig,
     type ReplyDraft,
@@ -50,7 +52,7 @@
     replyStatusTone,
     statusExplanation,
   } from '../../lib/reviews/reply.ts';
-  import { REPLACING_NOTE, replyHint, reviewByline } from '../../lib/reviews/reply-dialog.ts';
+  import { replacingNote, replyHint, reviewByline } from '../../lib/reviews/reply-dialog.ts';
   import { collapseText, ratingText, storeLabel, type Review } from '../../lib/reviews/reviews.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
@@ -115,7 +117,7 @@
   const canReview = $derived(
     avail.canSend && saved !== null && !unsaved && !locked && check !== null && check.ok && saved.length <= saved.limit && busy === '',
   );
-  const picked = $derived(templates.find((t) => t.id === templateId));
+  const picked = $derived(templates.find((item) => item.id === templateId));
   const targetOk = $derived(/^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})?$/.test(target.trim()));
 
   let wasOpen = false;
@@ -187,7 +189,7 @@
       saved = null;
       text = '';
       onchange({ ...review, replyDraft: null, reply: { status: 'none', sentAt: null } });
-      toast.success('The draft was deleted. Nothing was sent.');
+      toast.success(t('reviews:reply.draftDeleted'));
     } catch (e) {
       problem = replyErrorMessage(e, 'draft');
       if (needsReload(e)) await reload(false);
@@ -206,7 +208,7 @@
       if (made.proposal.kind !== 'reply_draft') return;
       const proposed = made.proposal;
       if (normalizeReplyText(proposed.text) === '') {
-        problem = 'The assistant did not write a usable draft. Try again.';
+        problem = t('reviews:reply.aiUnusable');
         return;
       }
       aiDraft = { id: made.id, text: normalizeReplyText(proposed.text), before: text, flags: flagInfos(proposed.flags) };
@@ -261,9 +263,7 @@
       const done = await api.sendReviewReply(workspaceId, app.id, review.id, saved.textHash);
       onchange(done.review);
       toast.success(
-        done.confirmedByReread
-          ? 'The reply is published. The store did not answer clearly, so this tool read the review back and found the reply.'
-          : 'The reply was sent to the store.',
+        done.confirmedByReread ? t('reviews:reply.publishedReread') : t('reviews:reply.sentToast'),
       );
       open = false;
     } catch (e) {
@@ -284,7 +284,7 @@
     try {
       const done = await api.translateReplyDraft(workspaceId, app.id, review.id, { text: normalizeReplyText(text), target: target.trim() });
       text = done.text;
-      toast.info('Translated. Read it and save it: nothing is saved or sent yet.');
+      toast.info(t('reviews:reply.translatedToast'));
     } catch (e) {
       problem = replyErrorMessage(e, 'translate');
     } finally {
@@ -306,7 +306,7 @@
       const made = (await api.createReplyTemplate(workspaceId, { name, body: normalizeReplyText(text) })).template;
       templates = [...templates, made].sort((a, b) => a.name.localeCompare(b.name));
       templateName = '';
-      toast.success('Saved as a template.');
+      toast.success(t('reviews:reply.templateSaved'));
     } catch (e) {
       problem = replyErrorMessage(e, 'template');
     } finally {
@@ -320,7 +320,7 @@
     problem = '';
     try {
       await api.deleteReplyTemplate(workspaceId, picked.id);
-      templates = templates.filter((t) => t.id !== picked?.id);
+      templates = templates.filter((item) => item.id !== picked?.id);
       templateId = '';
     } catch (e) {
       problem = replyErrorMessage(e, 'template');
@@ -333,13 +333,13 @@
 <Modal
   bind:open
   size="lg"
-  title={step === 'confirm' ? 'Confirm the public reply' : replacing ? 'Edit the reply' : 'Reply to this review'}
+  title={step === 'confirm' ? t('reviews:reply.titleConfirm') : replacing ? t('reviews:reply.titleEdit') : t('reviews:reply.titleNew')}
   description="{app.name} · {storeLabel(review.store)}"
   dismissible={busy === ''}
 >
   <div class="context">
     <p class="context-head">
-      <span class="visually-hidden">Review: </span>
+      <span class="visually-hidden">{t('reviews:reply.reviewPrefix')}</span>
       <span class="stars" role="img" aria-label={ratingText(review.rating)}>
         {#each [1, 2, 3, 4, 5] as n (n)}
           <Icon name={n <= review.rating ? 'star-filled' : 'star'} size={18} />
@@ -351,16 +351,16 @@
     <p class="plain body">{showContext ? review.body : context.text}</p>
     {#if context.cut}
       <button type="button" class="link sm" aria-expanded={showContext} onclick={() => (showContext = !showContext)}>
-        {showContext ? 'Show less' : 'Show the whole review'}
+        {showContext ? t('reviews:card.showLess') : t('reviews:card.showWholeReview')}
       </button>
     {/if}
     {#if replacing}
-      <p class="muted small">{REPLACING_NOTE}</p>
+      <p class="muted small">{replacingNote()}</p>
     {/if}
   </div>
 
   {#if avail.state === 'off' || avail.state === 'rights'}
-    <Alert tone={avail.state === 'off' ? 'warn' : 'info'} title={avail.state === 'off' ? 'Replying is switched off' : 'You cannot do everything here'}>
+    <Alert tone={avail.state === 'off' ? 'warn' : 'info'} title={avail.state === 'off' ? t('reviews:reply.offTitle') : t('reviews:reply.rightsTitle')}>
       {avail.reason}
     </Alert>
   {/if}
@@ -369,15 +369,15 @@
     <div class="stack">
       <div class="field">
         <div class="label-row">
-          <label for="{uid}-text">Your reply (plain text)</label>
+          <label for="{uid}-text">{t('reviews:reply.label')}</label>
           {#if saved}<Badge tone={replyStatusTone(status)}>{replyStatusLabel(status)}</Badge>{/if}
         </div>
         {#if aiDraft}
           <p class="ai-note" role="status" data-testid="ai-draft-label">
             <Icon name="sparkles" size={14} />
-            <strong>AI draft — check before sending</strong>
+            <strong>{t('reviews:reply.aiDraft')}</strong>
             {#each aiDraft.flags as f (f.flag)}<Badge tone={f.tone}>{f.text}</Badge>{/each}
-            <button type="button" class="link sm" disabled={busy !== ''} onclick={undoAi}>Undo</button>
+            <button type="button" class="link sm" disabled={busy !== ''} onclick={undoAi}>{t('reviews:reply.undo')}</button>
           </p>
         {/if}
         <textarea
@@ -401,40 +401,40 @@
 
       {#if avail.canDraft && !locked}
         <div class="helpers">
-          <SuggestButton {api} {workspaceId} {role} kind="reply_draft" taskId="review_reply_draft" label="Draft reply" onrun={draftWithAi} align="start" />
+          <SuggestButton {api} {workspaceId} {role} kind="reply_draft" taskId="review_reply_draft" label={t('reviews:reply.draftButton')} onrun={draftWithAi} align="start" />
         </div>
         <details class="extras">
-          <summary>Templates{config.translation.available ? ' and translation' : ''}</summary>
+          <summary>{config.translation.available ? t('reviews:reply.extrasWithTranslation') : t('reviews:reply.extras')}</summary>
           <div class="extras-body">
             <div class="field">
-              <label for="{uid}-template">Start from a template</label>
+              <label for="{uid}-template">{t('reviews:reply.templateStart')}</label>
               <div class="row">
                 <select id="{uid}-template" bind:value={templateId} disabled={busy !== '' || templates.length === 0}>
-                  <option value="">{templates.length === 0 ? 'No templates yet' : 'Choose a template'}</option>
+                  <option value="">{templates.length === 0 ? t('reviews:reply.templatesNone') : t('reviews:reply.templatePick')}</option>
                   {#each templates as template (template.id)}<option value={template.id}>{template.name}</option>{/each}
                 </select>
-                <Button size="sm" disabled={!picked || busy !== ''} onclick={useTemplate}>Insert</Button>
-                <Button size="sm" variant="ghost" disabled={!picked || busy !== ''} onclick={removeTemplate}>Delete template</Button>
+                <Button size="sm" disabled={!picked || busy !== ''} onclick={useTemplate}>{t('reviews:reply.insert')}</Button>
+                <Button size="sm" variant="ghost" disabled={!picked || busy !== ''} onclick={removeTemplate}>{t('reviews:reply.templateDelete')}</Button>
               </div>
-              <p class="hint">{'{{author}}'} and {'{{app}}'} are filled in as plain text. Shared with everyone in this workspace.</p>
+              <p class="hint">{t('reviews:reply.templateHint', { author: '{{author}}', app: '{{app}}' })}</p>
             </div>
             <div class="field">
-              <label for="{uid}-tname">Save this text as a template</label>
+              <label for="{uid}-tname">{t('reviews:reply.templateSaveLabel')}</label>
               <div class="row">
-                <input id="{uid}-tname" type="text" maxlength="100" bind:value={templateName} placeholder="A short name" autocomplete="off" />
+                <input id="{uid}-tname" type="text" maxlength="100" bind:value={templateName} placeholder={t('reviews:reply.templateName')} autocomplete="off" />
                 <Button size="sm" disabled={busy !== '' || templateName.trim() === '' || text.trim() === ''} loading={busy === 'template'} onclick={saveTemplate}>
-                  Save template
+                  {t('reviews:reply.templateSave')}
                 </Button>
               </div>
             </div>
             {#if config.translation.available}
               <div class="field">
-                <label for="{uid}-target">Translate the text into</label>
+                <label for="{uid}-target">{t('reviews:reply.translateLabel')}</label>
                 <div class="row">
-                  <input id="{uid}-target" type="text" maxlength="12" bind:value={target} placeholder="a language code, for example de" autocomplete="off" />
-                  <Button size="sm" disabled={busy !== '' || !targetOk || text.trim() === ''} loading={busy === 'translate'} onclick={translate}>Translate</Button>
+                  <input id="{uid}-target" type="text" maxlength="12" bind:value={target} placeholder={t('reviews:reply.translatePlaceholder')} autocomplete="off" />
+                  <Button size="sm" disabled={busy !== '' || !targetOk || text.trim() === ''} loading={busy === 'translate'} onclick={translate}>{t('reviews:reply.translate')}</Button>
                 </div>
-                <p class="hint">The translation replaces the text above as an unsaved change. Read it before you save it.</p>
+                <p class="hint">{t('reviews:reply.translateHint')}</p>
               </div>
             {/if}
           </div>
@@ -446,9 +446,9 @@
   {:else if facts}
     <div class="stack">
       <div>
-        <p class="label-line" id="{uid}-exact">The exact text that will be published</p>
+        <p class="label-line" id="{uid}-exact">{t('reviews:reply.exactText')}</p>
         <p class="exact" aria-labelledby="{uid}-exact" data-testid="exact-reply">{facts.text}</p>
-        <p class="counter {facts.count > facts.limit ? 'bad' : 'ok'}">{facts.count} of {facts.limit} characters</p>
+        <p class="counter {facts.count > facts.limit ? 'bad' : 'ok'}">{t('reviews:reply.charCount', { used: formatNumber(facts.count), limit: formatNumber(facts.limit) })}</p>
       </div>
       <dl class="facts">
         {#each facts.rows as row (row.label)}
@@ -458,10 +458,10 @@
           </div>
         {/each}
       </dl>
-      <Alert tone="warn" title="This cannot be undone here">{facts.warning}</Alert>
+      <Alert tone="warn" title={t('reviews:reply.irreversible')}>{facts.warning}</Alert>
       <label class="check">
         <input type="checkbox" bind:checked={ack} disabled={busy !== ''} />
-        I have read the text above and I want it published in {storeLabel(review.store)}.
+        {t('reviews:reply.ack', { store: storeLabel(review.store) })}
       </label>
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}
     </div>
@@ -469,16 +469,16 @@
 
   {#snippet footer()}
     {#if step === 'write'}
-      <Button disabled={busy === 'send'} onclick={() => (open = false)}>Close</Button>
+      <Button disabled={busy === 'send'} onclick={() => (open = false)}>{t('common:action.close')}</Button>
       {#if saved && avail.canDraft && !locked}
-        <Button variant="ghost" loading={busy === 'delete'} disabled={busy !== ''} onclick={remove}>Delete draft</Button>
+        <Button variant="ghost" loading={busy === 'delete'} disabled={busy !== ''} onclick={remove}>{t('reviews:reply.deleteDraft')}</Button>
       {/if}
       {#if status === 'sending'}
-        <Button onclick={() => void reload(false)}>Check again</Button>
+        <Button onclick={() => void reload(false)}>{t('reviews:reply.checkAgain')}</Button>
       {/if}
       {#if avail.canDraft && !locked}
         <Button loading={busy === 'save'} disabled={busy !== '' || !unsaved || (check !== null && !check.ok) || text.trim() === ''} onclick={() => void save()}>
-          Save draft
+          {t('reviews:reply.saveDraft')}
         </Button>
       {/if}
       {#if avail.canSend}
@@ -487,13 +487,13 @@
           disabled={!(canReview || (unsaved && check !== null && check.ok && busy === '' && !locked))}
           onclick={() => void saveAndReview()}
         >
-          {unsaved ? 'Save and review' : 'Review and send'}
+          {unsaved ? t('reviews:reply.saveAndReview') : t('reviews:reply.reviewAndSend')}
         </Button>
       {/if}
     {:else}
-      <Button disabled={busy === 'send'} onclick={() => (step = 'write')}>Back</Button>
+      <Button disabled={busy === 'send'} onclick={() => (step = 'write')}>{t('common:action.back')}</Button>
       <Button variant="danger-solid" loading={busy === 'send'} disabled={!sendable || busy !== ''} onclick={() => void publish()}>
-        {status === 'unknown' ? 'Check and send' : 'Send reply'}
+        {status === 'unknown' ? t('reviews:reply.checkAndSend') : t('reviews:reply.send')}
       </Button>
     {/if}
   {/snippet}

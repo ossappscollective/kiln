@@ -1,5 +1,7 @@
 import { isPlatform, type Platform, type StoreId } from '@kiln/core';
 import { ApiError } from '../api.ts';
+import { formatDate, formatDateTime, formatDisplayName, formatList, formatNumber } from '../i18n/format.ts';
+import { t } from '../i18n/t.ts';
 import type { ReplyDraft, ReplyState } from './reply.ts';
 
 /**
@@ -141,11 +143,20 @@ export type TriageBody = {
 // ---------------------------------------------------------------------------------------------
 // Labels
 
+/** The status words in the person's language: each is read when it is used (a getter), so a language switch shows at once. */
 export const statusLabels: Record<ReviewStatus, string> = {
-  new: 'New',
-  triaged: 'Triaged',
-  replied_in_console: 'Replied in store console',
-  ignored: 'Ignored',
+  get new() {
+    return t('reviews:status.new');
+  },
+  get triaged() {
+    return t('reviews:status.triaged');
+  },
+  get replied_in_console() {
+    return t('reviews:status.repliedInConsole');
+  },
+  get ignored() {
+    return t('reviews:status.ignored');
+  },
 };
 
 export const statusOrder: ReviewStatus[] = ['new', 'triaged', 'replied_in_console', 'ignored'];
@@ -154,9 +165,15 @@ export const statusLabel = (status: string): string =>
   statusLabels[status as ReviewStatus] ?? status;
 
 export const sortLabels: Record<ReviewSort, string> = {
-  newest: 'Newest first',
-  rating: 'Lowest rating first',
-  updated: 'Recently edited',
+  get newest() {
+    return t('reviews:sort.newest');
+  },
+  get rating() {
+    return t('reviews:sort.rating');
+  },
+  get updated() {
+    return t('reviews:sort.updated');
+  },
 };
 
 export const storeLabel = (store: string): string =>
@@ -170,7 +187,7 @@ export const MAX_RATING = 5;
 /** "4 out of 5 stars", for assistive technology and for text. Anything else is clamped. */
 export function ratingText(rating: number): string {
   const n = Math.min(MAX_RATING, Math.max(0, Math.round(Number.isFinite(rating) ? rating : 0)));
-  return `${n} out of ${MAX_RATING} stars`;
+  return t('reviews:rating.text', { rating: n, max: MAX_RATING });
 }
 
 /** Five booleans: which stars are filled. */
@@ -206,7 +223,9 @@ export function reviewFacts(
   if (review.device) facts.push(review.device);
   if (review.appVersion)
     facts.push(
-      `Version ${review.appVersion}${review.buildNumber ? ` (${review.buildNumber})` : ''}`,
+      review.buildNumber
+        ? t('reviews:fact.versionBuild', { version: review.appVersion, build: review.buildNumber })
+        : t('reviews:fact.version', { version: review.appVersion }),
     );
   if (review.territory) facts.push(territoryName(review.territory));
   if (review.language) facts.push(review.language);
@@ -214,24 +233,10 @@ export function reviewFacts(
 }
 
 /** "United States" for US where the runtime knows it, else the code. Store territory codes vary in case and length. */
-export function territoryName(code: string, locale = 'en'): string {
-  try {
-    // Intl.DisplayNames is newer than the lib the web build's type settings assume.
-    const Names = (
-      Intl as unknown as {
-        DisplayNames?: new (
-          l: string[],
-          o: { type: string },
-        ) => { of(c: string): string | undefined };
-      }
-    ).DisplayNames;
-    const name = Names ? new Names([locale], { type: 'region' }).of(code.toUpperCase()) : undefined;
-    return name && name !== code.toUpperCase()
-      ? `${name} (${code.toUpperCase()})`
-      : code.toUpperCase();
-  } catch {
-    return code.toUpperCase();
-  }
+export function territoryName(code: string): string {
+  const upper = code.toUpperCase();
+  const name = formatDisplayName(upper, 'region');
+  return name && name !== upper ? `${name} (${upper})` : upper;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -304,10 +309,34 @@ export function filtersToQuery(
 }
 
 export const sinceChoices: { id: string; label: string; days: number | null }[] = [
-  { id: 'all', label: 'Any time', days: null },
-  { id: '7', label: 'Last 7 days', days: 7 },
-  { id: '30', label: 'Last 30 days', days: 30 },
-  { id: '90', label: 'Last 90 days', days: 90 },
+  {
+    id: 'all',
+    get label() {
+      return t('reviews:since.any');
+    },
+    days: null,
+  },
+  {
+    id: '7',
+    get label() {
+      return t('reviews:since.days', { count: 7 });
+    },
+    days: 7,
+  },
+  {
+    id: '30',
+    get label() {
+      return t('reviews:since.days', { count: 30 });
+    },
+    days: 30,
+  },
+  {
+    id: '90',
+    get label() {
+      return t('reviews:since.days', { count: 90 });
+    },
+    days: 90,
+  },
 ];
 
 export const sinceFor = (days: number | null, now: number): number | null =>
@@ -460,20 +489,17 @@ const round = (n: number) => Math.round(n * 10) / 10;
 /** "6 weeks, 1 to 14 reviews a week; average 3.2 to 4.5" for the text alternative of the chart. */
 export function trendDescription(weeks: readonly WeekBucket[]): string {
   const withReviews = weeks.filter((w) => w.count > 0);
-  if (withReviews.length === 0) return `No reviews in these ${weeks.length} weeks.`;
+  if (withReviews.length === 0) return t('reviews:trend.none', { count: weeks.length });
   const counts = withReviews.map((w) => w.count);
   const averages = withReviews.map((w) => w.average ?? 0);
-  const lo = Math.min(...averages).toFixed(1);
-  const hi = Math.max(...averages).toFixed(1);
-  return `${weeks.length} weeks, ${Math.min(...counts)} to ${Math.max(...counts)} reviews in a week with reviews; weekly average rating ${lo} to ${hi}.`;
+  const one = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
+  const lo = formatNumber(Math.min(...averages), one);
+  const hi = formatNumber(Math.max(...averages), one);
+  return t('reviews:trend.range', { count: weeks.length, min: Math.min(...counts), max: Math.max(...counts), lo, hi });
 }
 
-export const weekLabel = (weekStart: number, locale?: string): string =>
-  new Date(weekStart).toLocaleDateString(locale, {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
+export const weekLabel = (weekStart: number): string =>
+  formatDate(weekStart, { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
 // ---------------------------------------------------------------------------------------------
 // Sync state
@@ -485,7 +511,9 @@ export function lastReadText(
   state: Pick<ReviewSyncState, 'lastSuccessAt'>,
   ago: (at: number) => string,
 ): string {
-  return state.lastSuccessAt === null ? 'Not read yet.' : `Last read ${ago(state.lastSuccessAt)}.`;
+  return state.lastSuccessAt === null
+    ? t('reviews:sync.notRead')
+    : t('reviews:sync.lastRead', { when: ago(state.lastSuccessAt) });
 }
 
 /**
@@ -500,28 +528,40 @@ export function syncNotices(
   const notices: SyncNotice[] = [];
   if (state.lastError) {
     const failures = state.consecutiveFailures;
-    const when = state.lastAttemptAt !== null ? ` ${ago(state.lastAttemptAt)}` : '';
+    const params = {
+      count: failures,
+      when: state.lastAttemptAt !== null ? ago(state.lastAttemptAt) : '',
+      error: state.lastError,
+    };
+    const again = failures > 1;
     notices.push({
       tone: 'error',
-      text: `The last attempt${when} failed${failures > 1 ? ` (${failures} times in a row)` : ''}: ${state.lastError}`,
+      text:
+        state.lastAttemptAt !== null
+          ? again
+            ? t('reviews:sync.failedAtRepeated', params)
+            : t('reviews:sync.failedAt', params)
+          : again
+            ? t('reviews:sync.failedRepeated', params)
+            : t('reviews:sync.failed', params),
     });
   }
   const gap = state.lastResult?.gap ?? null;
   if (gap) {
     notices.push({
       tone: 'warn',
-      text: `Reviews may be missing. Google Play only returns the last 7 days, and nothing was read between ${shortDate(gap.from)} and ${shortDate(gap.to)}. Those reviews cannot be recovered. Read more often: see KILN_REVIEW_SYNC_INTERVAL_MINUTES.`,
+      text: t('reviews:sync.gap', { from: shortDate(gap.from), to: shortDate(gap.to) }),
     });
   } else if (state.lastGapAt !== null) {
     notices.push({
       tone: 'warn',
-      text: `Reviews were missed once: Google Play only returns the last 7 days and nothing was read for longer (noticed ${ago(state.lastGapAt)}).`,
+      text: t('reviews:sync.gapOnce', { when: ago(state.lastGapAt) }),
     });
   }
   if (state.moreToRead) {
     notices.push({
       tone: 'info',
-      text: 'Older reviews are still being read. Read again to continue.',
+      text: t('reviews:sync.moreToRead'),
     });
   }
   for (const warning of state.lastResult?.warnings ?? [])
@@ -529,26 +569,28 @@ export function syncNotices(
   if (state.backoffUntil !== null && state.backoffUntil > now && state.lastError) {
     notices.push({
       tone: 'info',
-      text: `The scheduled read waits until ${shortDate(state.backoffUntil)} before trying again. Reading by hand ignores that.`,
+      text: t('reviews:sync.backoff', { until: shortDate(state.backoffUntil) }),
     });
   }
   return notices;
 }
 
 const shortDate = (at: number) =>
-  new Date(at).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  formatDateTime(at, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 /** "Read 12 reviews: 3 new, 2 changed." */
 export function syncSummaryText(result: ReviewSyncResult): string {
-  const parts = [`${result.added} new`, `${result.updated} changed`];
-  if (result.responses > 0) parts.push(`${result.responses} with a changed developer response`);
-  const base = `Read ${result.fetched} ${result.fetched === 1 ? 'review' : 'reviews'}: ${parts.join(', ')}.`;
-  return result.complete ? base : `${base} Not everything was read: read again to continue.`;
+  const parts = [
+    t('reviews:sync.partNew', { count: result.added }),
+    t('reviews:sync.partChanged', { count: result.updated }),
+  ];
+  if (result.responses > 0)
+    parts.push(t('reviews:sync.partResponses', { count: result.responses }));
+  const base = t('reviews:sync.summary', {
+    count: result.fetched,
+    parts: formatList(parts, { type: 'unit' }),
+  });
+  return result.complete ? base : `${base} ${t('reviews:sync.incomplete')}`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -559,40 +601,40 @@ export function reviewErrorMessage(
   error: unknown,
   action: 'load' | 'sync' | 'triage' = 'load',
 ): string {
-  if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
+  if (!(error instanceof ApiError)) return t('reviews:error.generic');
   const server = typeof error.body.message === 'string' ? error.body.message : '';
   switch (error.code) {
     case 'not_found':
-      return 'This app or review no longer exists.';
+      return t('reviews:error.appOrReviewGone');
     case 'forbidden':
       return action === 'sync'
-        ? 'Only a member or admin can read reviews from the store.'
+        ? t('reviews:error.forbiddenSync')
         : action === 'triage'
-          ? 'Only a member or admin can triage reviews.'
-          : 'You are not allowed to see reviews.';
+          ? t('reviews:error.forbiddenTriage')
+          : t('reviews:error.forbiddenSee');
     case 'sync_in_progress':
-      return 'The reviews of this app are already being read. Wait a moment.';
+      return t('reviews:error.syncInProgress');
     case 'rate_limited':
       return error.message;
     case 'app_not_synced':
-      return 'The App Store id of this app is not known yet. Sync the app from the Releases tab first.';
+      return t('reviews:error.appNotSynced');
     case 'credential_not_found':
     case 'credential_kind':
     case 'credential_unreadable':
-      return server || 'The credential of this app cannot be used. Check it under Credentials.';
+      return server || t('reviews:error.credential');
     case 'store_auth':
-      return `The store did not accept the credential. ${server}`.trim();
+      return t('reviews:error.storeAuth', { server }).trim();
     case 'store_forbidden':
-      return `The credential is not allowed to read reviews. ${server}`.trim();
+      return t('reviews:error.storeForbiddenRead', { server }).trim();
     case 'store_unavailable':
     case 'timeout':
-      return `The store did not answer. Try again later. ${server}`.trim();
+      return t('reviews:error.storeUnavailable', { server }).trim();
     case 'assignee_not_member':
-      return 'The assignee is not a member of this workspace.';
+      return t('reviews:error.assigneeNotMember');
     case 'invalid_request':
       return error.message;
   }
-  return action === 'load' ? 'Reviews could not be loaded. Try again.' : error.message;
+  return action === 'load' ? t('reviews:error.loadFailed') : error.message;
 }
 
 /** Whether a rating counts as low for this app (the server's threshold). */
@@ -666,10 +708,30 @@ const WITHIN_DAYS: Record<string, number> = { '7': 7, '30': 30, '90': 90 };
 const DAY = 24 * 60 * 60 * 1000;
 
 export const withinChoices: { id: InboxFilters['within']; label: string }[] = [
-  { id: '', label: 'Any time' },
-  { id: '7', label: 'Last 7 days' },
-  { id: '30', label: 'Last 30 days' },
-  { id: '90', label: 'Last 90 days' },
+  {
+    id: '',
+    get label() {
+      return t('reviews:since.any');
+    },
+  },
+  {
+    id: '7',
+    get label() {
+      return t('reviews:since.days', { count: 7 });
+    },
+  },
+  {
+    id: '30',
+    get label() {
+      return t('reviews:since.days', { count: 30 });
+    },
+  },
+  {
+    id: '90',
+    get label() {
+      return t('reviews:since.days', { count: 90 });
+    },
+  },
 ];
 
 /** The query string for `GET /reviews`. `now` turns "last 30 days" into a `since`. */
@@ -786,10 +848,30 @@ export const appPageHref = (appId: string): string => `#/portfolio/${encodeURICo
 /** The quick views of the summary strip: what each count opens in the inbox. */
 export type QuickView = { id: 'new' | 'unanswered' | 'low' | 'mine'; label: string };
 export const quickViews: QuickView[] = [
-  { id: 'new', label: 'New' },
-  { id: 'unanswered', label: 'Unanswered' },
-  { id: 'low', label: 'Low rating' },
-  { id: 'mine', label: 'Assigned to me' },
+  {
+    id: 'new',
+    get label() {
+      return t('reviews:quick.new');
+    },
+  },
+  {
+    id: 'unanswered',
+    get label() {
+      return t('reviews:quick.unanswered');
+    },
+  },
+  {
+    id: 'low',
+    get label() {
+      return t('reviews:quick.low');
+    },
+  },
+  {
+    id: 'mine',
+    get label() {
+      return t('reviews:quick.mine');
+    },
+  },
 ];
 
 /** The filters of a quick view. Low rating uses the server's own threshold; ignored reviews are not counted in the summary and are left out here too. */
@@ -811,7 +893,12 @@ export function quickViewFilters(id: QuickView['id'], lowThreshold: number): Inb
 
 /** The same figures as text for a screen reader: "3 new, 5 unanswered, 2 low rated". */
 export function summaryStripText(totals: WorkspaceReviewsSummary['totals']): string {
-  return `${totals.new} new, ${totals.unanswered} unanswered, ${totals.lowRating} low rated, in ${totals.total} stored ${totals.total === 1 ? 'review' : 'reviews'}.`;
+  return t('reviews:summary.strip', {
+    count: totals.total,
+    new: totals.new,
+    unanswered: totals.unanswered,
+    low: totals.lowRating,
+  });
 }
 
 /**
@@ -827,15 +914,15 @@ export function unansweredNote(
   if (summary.totals.unanswered <= 0 || oldest === undefined || oldest === null) return null;
   const hours = Math.max(0, Math.floor((now - oldest) / 3_600_000));
   const age =
-    hours < 1 ? 'under 1 hour' : hours < 48 ? `${hours} hours` : `${Math.floor(hours / 24)} days`;
+    hours < 1
+      ? t('reviews:age.underHour')
+      : hours < 48
+        ? t('reviews:age.hours', { count: hours })
+        : t('reviews:age.days', { count: Math.floor(hours / 24) });
   const max = summary.unansweredMaxRating;
-  const ratings =
-    max === undefined || max >= MAX_RATING
-      ? ''
-      : max === 1
-        ? ', counting 1 star reviews only'
-        : `, counting reviews of ${max} stars or fewer`;
-  return `The oldest unanswered review is ${age} old${ratings}.`;
+  if (max === undefined || max >= MAX_RATING) return t('reviews:summary.oldest', { age });
+  if (max === 1) return t('reviews:summary.oldestOneStar', { age });
+  return t('reviews:summary.oldestMax', { age, max });
 }
 
 /** The apps with something to look at first (most new, then most unanswered), for the strip. */
@@ -921,5 +1008,7 @@ export function moveIndex(current: number, count: number, move: InboxShortcut): 
 /** The text a screen reader hears when the list changes. */
 export const inboxAnnouncement = (shown: number, more: boolean): string =>
   shown === 0
-    ? 'No reviews match.'
-    : `${shown}${more ? ' or more' : ''} ${shown === 1 && !more ? 'review' : 'reviews'} shown.`;
+    ? t('reviews:inbox.noneMatch')
+    : more
+      ? t('reviews:inbox.shownMore', { count: shown })
+      : t('reviews:inbox.shown', { count: shown });

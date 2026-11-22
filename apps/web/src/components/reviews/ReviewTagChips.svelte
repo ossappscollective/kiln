@@ -5,7 +5,8 @@
   Props: reviewId.
 -->
 <script lang="ts">
-  import { sentimentTone, severityTone, topicLabel } from '../../lib/ai/insights.ts';
+  import { t } from '../../lib/i18n/t.ts';
+  import { sentimentLabel, sentimentTone, severityLabel, severityTone, topicLabel } from '../../lib/ai/insights.ts';
   import { aiStore } from '../../lib/ai/store.svelte.ts';
   import Badge from '../ui/Badge.svelte';
 
@@ -17,12 +18,12 @@
 </script>
 
 {#if tags}
-  <p class="tags" aria-label="Tags the AI assistant gave this review">
-    {#each tags.topics as t (t)}<Badge>{topicLabel(t)}</Badge>{/each}
-    <Badge tone={sentimentTone(tags.sentiment)}>{tags.sentiment}</Badge>
-    {#if tags.severity !== 'none'}<Badge tone={severityTone(tags.severity)}>{tags.severity} severity</Badge>{/if}
-    {#if tags.needsReply}<Badge tone="warn">Needs a reply</Badge>{/if}
-    <span class="muted small">AI tags</span>
+  <p class="tags" aria-label={t('reviews:tags.label')}>
+    {#each tags.topics as topic (topic)}<Badge>{topicLabel(topic)}</Badge>{/each}
+    <Badge tone={sentimentTone(tags.sentiment)}>{sentimentLabel(tags.sentiment)}</Badge>
+    {#if tags.severity !== 'none'}<Badge tone={severityTone(tags.severity)}>{severityLabel(tags.severity)}</Badge>{/if}
+    {#if tags.needsReply}<Badge tone="warn">{t('reviews:tags.needsReply')}</Badge>{/if}
+    <span class="muted small">{t('reviews:tags.aiTags')}</span>
   </p>
 {/if}
 

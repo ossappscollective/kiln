@@ -1,3 +1,4 @@
+import { t } from '../i18n/t.ts';
 import { MAX_RATING, type ReviewFilters, type UnansweredSummary } from './reviews.ts';
 import {
   chunkIds,
@@ -58,8 +59,8 @@ export function mergeTranslations(
 /** The label of the button: how many reviews it will send. */
 export function translateAllLabel(pending: number, language: string): string {
   return pending === 0
-    ? 'All visible reviews are translated'
-    : `Translate all visible (${pending}) to ${language}`;
+    ? t('reviews:tab.allTranslated')
+    : t('reviews:tab.translateAll', { count: pending, language });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -68,9 +69,9 @@ export function translateAllLabel(pending: number, language: string): string {
 /** How old the oldest unanswered review is, in words for a chip: "2 h", "3 d". Rounded down; never negative. */
 export function ageText(at: number, now: number): string {
   const hours = Math.max(0, Math.floor((now - at) / 3_600_000));
-  if (hours < 1) return 'under 1 h';
-  if (hours < 48) return `${hours} h`;
-  return `${Math.floor(hours / 24)} d`;
+  if (hours < 1) return t('reviews:tab.ageUnderHour');
+  if (hours < 48) return t('reviews:tab.ageHours', { count: hours });
+  return t('reviews:tab.ageDays', { count: Math.floor(hours / 24) });
 }
 
 export type UnansweredChip = { text: string; label: string };
@@ -84,16 +85,25 @@ export function unansweredChip(
   now: number,
 ): UnansweredChip | null {
   if (!unanswered || !(unanswered.count > 0)) return null;
-  const ratings =
+  const params = {
+    count: unanswered.count,
+    max: unanswered.maxRating,
+    age: unanswered.oldestAt === null ? '' : ageText(unanswered.oldestAt, now),
+  };
+  const dated = unanswered.oldestAt !== null;
+  const text =
     unanswered.maxRating >= MAX_RATING
-      ? ''
+      ? dated
+        ? t('reviews:tab.chipOldest', params)
+        : t('reviews:tab.chip', params)
       : unanswered.maxRating === 1
-        ? ' (1 star)'
-        : ` (${unanswered.maxRating} stars or fewer)`;
-  const oldest =
-    unanswered.oldestAt === null ? '' : `, oldest ${ageText(unanswered.oldestAt, now)}`;
-  const text = `${unanswered.count} unanswered${ratings}${oldest}`;
-  return { text, label: `${text}. Show them.` };
+        ? dated
+          ? t('reviews:tab.chipOneStarOldest', params)
+          : t('reviews:tab.chipOneStar', params)
+        : dated
+          ? t('reviews:tab.chipMaxOldest', params)
+          : t('reviews:tab.chipMax', params);
+  return { text, label: t('reviews:tab.chipLabel', { text }) };
 }
 
 /** The filters of "Show unanswered": no developer response, not ignored, and the same ratings the count covers. */

@@ -340,8 +340,9 @@
           <Alert tone="warn" title={t('portfolio:conv.tagsFailedTitle')}>{namesProblem}</Alert>
           <div><Button size="sm" icon="refresh" onclick={loadNames}>{t('common:action.tryAgain')}</Button></div>
         {:else if names && preview}
+          {@const readAt = names.readAt}
           <p class="muted text-sm">
-            {#snippet readTime(text: string)}<time datetime={new Date(names.readAt).toISOString()}>{text}</time>{/snippet}
+            {#snippet readTime(text: string)}<time datetime={new Date(readAt).toISOString()}>{text}</time>{/snippet}
             <T key="portfolio:conv.read" params={{ tags: names.tagsTruncated ? t('portfolio:conv.tagCountMore', { count: names.tags.length }) : t('portfolio:conv.tagCount', { count: names.tags.length }), releases: names.releasesTruncated ? t('portfolio:conv.releaseCountMore', { count: names.releases.length }) : t('portfolio:conv.releaseCount', { count: names.releases.length }), when: timeAgo(names.readAt, now) }} tags={{ link: readTime }} />
             {t('portfolio:conv.fits', { tags: t('portfolio:conv.tagCount', { count: preview.tagFits }), releases: t('portfolio:conv.releaseCount', { count: preview.releaseFits }), platform: platformLabel(app.platform) })}
           </p>

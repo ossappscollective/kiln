@@ -7,7 +7,9 @@ import {
   translationProviderInfo,
 } from '@kiln/core';
 import { ApiError } from '../api.ts';
-import { languageName } from '../settings.ts';
+import { formatNumber } from '../i18n/format.ts';
+import { t } from '../i18n/t.ts';
+import { languageName, providerPrivacy } from '../settings.ts';
 
 /** Translating reviews (docs/api/reviews.md, "Translation"): shapes and the logic of the review translation UI. */
 
@@ -77,51 +79,59 @@ export function chunkIds(ids: string[], size: number = MAX_REVIEW_IDS): string[]
 }
 
 /** "Translated from German by Google Cloud Translation", with a note when it was kept from before. */
-export function translationCaption(t: ReviewTranslation, reviewLanguage: string | null): string {
-  const from = t.detectedSource ?? reviewLanguage;
-  const provider = translationProviderInfo[t.provider]?.label ?? t.provider;
-  return `Machine translation${from ? ` from ${languageName(from)}` : ''} by ${provider}${t.cached ? ' (kept from an earlier request)' : ''}.`;
+export function translationCaption(item: ReviewTranslation, reviewLanguage: string | null): string {
+  const from = item.detectedSource ?? reviewLanguage;
+  const provider = translationProviderInfo[item.provider]?.label ?? item.provider;
+  const params = { provider, from: from ? languageName(from) : '' };
+  return from
+    ? item.cached
+      ? t('reviews:translation.captionFromCached', params)
+      : t('reviews:translation.captionFrom', params)
+    : item.cached
+      ? t('reviews:translation.captionCached', params)
+      : t('reviews:translation.caption', params);
 }
 
 /** Said under a translation: the text left this server. */
 export function privacyNote(provider: TranslationProvider): string {
-  return (
-    translationProviderInfo[provider]?.privacy ??
-    'Review text was sent to the translation provider.'
-  );
+  return translationProviderInfo[provider]
+    ? providerPrivacy(provider)
+    : t('reviews:translation.privacyDefault');
 }
 
 export function translationErrorMessage(error: unknown): string {
-  if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
+  if (!(error instanceof ApiError)) return t('reviews:error.generic');
   const reason = typeof error.body.reason === 'string' ? error.body.reason : '';
   switch (error.code) {
     case 'translation_not_configured':
       return reason === 'disabled'
-        ? 'Translation is turned off. An admin can turn it on under Settings.'
-        : 'Translation is not fully set up. An admin can finish it under Settings.';
+        ? t('reviews:translation.off')
+        : t('reviews:translation.notSetUp');
     case 'translation_budget': {
       const used = Number(error.body.used);
       const budget = Number(error.body.budget);
       return Number.isFinite(used) && Number.isFinite(budget)
-        ? `The daily translation budget is used up (${used.toLocaleString('en-US')} of ${budget.toLocaleString('en-US')} characters). It resets at 00:00 UTC; an admin can raise it under Settings.`
-        : 'The daily translation budget is used up. It resets at 00:00 UTC.';
+        ? t('reviews:translation.budgetUsed', { used: formatNumber(used), budget: formatNumber(budget) })
+        : t('reviews:translation.budgetUsedShort');
     }
     case 'translation_rate_limited':
     case 'rate_limited':
       return error.message;
     case 'forbidden':
-      return 'Only a member or admin can translate reviews.';
+      return t('reviews:translation.forbidden');
     case 'not_found':
-      return 'This app or review no longer exists.';
+      return t('reviews:error.appOrReviewGone');
     case 'translation_unavailable':
     case 'translation_unsupported_language':
-      return reason ? `${error.message} (${unsupportedHint(reason)})` : error.message;
+      return reason
+        ? t('reviews:translation.withHint', { message: error.message, hint: unsupportedHint(reason) })
+        : error.message;
     case 'translation_auth':
     case 'translation_quota':
     case 'translation_too_large':
       return error.message;
     default:
-      return error.message || 'Something went wrong. Try again.';
+      return error.message || t('reviews:error.generic');
   }
 }
 
@@ -136,8 +146,8 @@ export const isRetryable = (error: unknown): boolean =>
 export function unsupportedHint(reason: string): string {
   const pair = /^pair_([a-z-]+)_to_([a-z-]+)$/.exec(reason);
   if (pair)
-    return `the server has no ${pair[1]} to ${pair[2]} model; if the review is not ${pair[1]}, its language was detected wrongly`;
-  if (reason === 'lang_target') return 'the server does not offer the target language';
-  if (reason === 'lang_source') return 'the server does not offer the source language';
+    return t('reviews:translation.hint.pair', { from: pair[1] ?? '', to: pair[2] ?? '' });
+  if (reason === 'lang_target') return t('reviews:translation.hint.target');
+  if (reason === 'lang_source') return t('reviews:translation.hint.source');
   return reason;
 }

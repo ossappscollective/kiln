@@ -1,3 +1,4 @@
+import { t } from '../i18n/t.ts';
 import { type Review, reviewFacts } from './reviews.ts';
 
 /**
@@ -13,14 +14,13 @@ export function reviewByline(
   >,
 ): string[] {
   const author = review.authorName?.trim();
-  return [...(author ? [`by ${author}`] : []), ...reviewFacts(review)];
+  return [...(author ? [t('reviews:byline.by', { author })] : []), ...reviewFacts(review)];
 }
 
 /** The one line under the reply box: plain text, the store's limit, and that it stays a draft until an admin sends it. */
 export function replyHint(storeName: string, limit: number): string {
-  return `Plain text only, up to ${limit} characters in ${storeName}. It stays a draft until an admin sends it.`;
+  return t('reviews:reply.hint', { limit, store: storeName });
 }
 
 /** The note above the box when the review already has a reply: one line. */
-export const REPLACING_NOTE =
-  'This review already has a reply, shown below. The store keeps one per review, so sending replaces it.';
+export const replacingNote = (): string => t('reviews:reply.replacingNote');
