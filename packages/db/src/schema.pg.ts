@@ -28,6 +28,7 @@ export const users = pgTable('users', {
   displayName: text('display_name').notNull(),
   createdAt: epochMs('created_at').notNull(),
   passwordHash: text('password_hash'),
+  locale: text('locale'),
 });
 
 export const workspaceMembers = pgTable(

@@ -21,6 +21,7 @@ export const users = sqliteTable('users', {
   displayName: text('display_name').notNull(),
   createdAt: integer('created_at').notNull(),
   passwordHash: text('password_hash'),
+  locale: text('locale'),
 });
 
 export const workspaceMembers = sqliteTable(
