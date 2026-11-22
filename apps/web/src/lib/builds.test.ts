@@ -7,7 +7,7 @@ import {
   type BuildsList,
   buildNumberOfTitle,
   canOfferShare,
-  DOWNLOADS_OFF_TEXT,
+  downloadsOffText,
   defaultFilters,
   downloadBlocker,
   downloadPath,
@@ -16,9 +16,9 @@ import {
   hiddenBy,
   humanSize,
   installGuide,
-  LINK_SENSITIVE_TEXT,
+  linkSensitiveText,
   linkKeptText,
-  NO_RIGHT_TEXT,
+  noRightText,
   phoneCannotReach,
   phoneUrl,
   phraseMatches,
@@ -37,7 +37,7 @@ import {
   shortHash,
   statusLine,
   storeRow,
-  TESTFLIGHT_NONE_TEXT,
+  testflightNoneText,
   testBuildsHref,
   testflightNote,
   testflightView,
@@ -132,7 +132,7 @@ test('states are words, not only colours', () => {
   assert.equal(artifactRow(artifact({ tooLarge: true })).state.label, 'Too large to download');
   assert.equal(
     artifactRow(artifact({ run: { ...artifact().run, conclusion: 'failure' } })).state.label,
-    'Run failure',
+    'Run failed',
   );
   assert.equal(storeRow(store({ state: 'processing' })).state.label, 'Processing');
   assert.equal(storeRow(store({ expired: true })).state.label, 'Expired');
@@ -178,8 +178,8 @@ test('filters: platform, source, hide expired and hide reports', () => {
 
 test('sizes and expiry in plain words', () => {
   assert.equal(humanSize(null), '');
-  assert.equal(humanSize(512), '512 B');
-  assert.equal(humanSize(1536), '1.5 KB');
+  assert.equal(humanSize(512), '512 byte');
+  assert.equal(humanSize(1536), '1.5 kB');
   assert.equal(humanSize(12 * 1024 * 1024), '12 MB');
   assert.equal(humanSize(500 * 1024 * 1024), '500 MB');
   assert.equal(humanSize(2.5 * 1024 ** 3), '2.5 GB');
@@ -193,7 +193,7 @@ test('sizes and expiry in plain words', () => {
     expiryText(artifactRow(artifact({ expired: true, expiresAt: NOW - 3 * DAY })), NOW),
     'expired 3 days ago',
   );
-  assert.equal(expiryText(storeRow(store()), NOW), 'expires about in 88 days');
+  assert.equal(expiryText(storeRow(store()), NOW), 'expires in about 88 days');
   assert.equal(expiryText(artifactRow(artifact({ expiresAt: null })), NOW), '');
 });
 
@@ -234,10 +234,10 @@ test('install guidance: honest by kind', () => {
 test('no download button without the switch, the right, a live artifact or room under the limit; the reason is a sentence', () => {
   const row = artifactRow(artifact());
   assert.equal(downloadBlocker(row, list()), null);
-  assert.equal(downloadBlocker(row, list({ downloadEnabled: false })), DOWNLOADS_OFF_TEXT);
-  assert.match(DOWNLOADS_OFF_TEXT, /KILN_BUILDS_DOWNLOAD_ENABLED/);
-  assert.match(DOWNLOADS_OFF_TEXT, /Actions: read/);
-  assert.equal(downloadBlocker(row, list({ canDownload: false })), NO_RIGHT_TEXT);
+  assert.equal(downloadBlocker(row, list({ downloadEnabled: false })), downloadsOffText());
+  assert.match(downloadsOffText(), /KILN_BUILDS_DOWNLOAD_ENABLED/);
+  assert.match(downloadsOffText(), /Actions: read/);
+  assert.equal(downloadBlocker(row, list({ canDownload: false })), noRightText());
   assert.match(
     downloadBlocker(artifactRow(artifact({ expired: true })), list()) ?? '',
     /no longer keeps/,
@@ -356,7 +356,7 @@ test('TestFlight row: links with state and limit, and plain words when there is 
     testflightView({ testflight: info({ groups: [] }) }, store({ testflightGroupIds: [] })).kind,
     'hidden',
   );
-  assert.match(TESTFLIGHT_NONE_TEXT, /never creates or turns on/);
+  assert.match(testflightNoneText(), /never creates or turns on/);
   assert.equal(testflightView({ testflight: info() }, store({ expired: true })).kind, 'hidden');
   assert.equal(testflightView({ testflight: info() }, store({ channel: 'play' })).kind, 'hidden');
   assert.equal(testflightView({ testflight: null }, store()).kind, 'hidden');
@@ -380,7 +380,7 @@ test('TestFlight row: links with state and limit, and plain words when there is 
       ?.short,
     'TestFlight links could not be read.',
   );
-  assert.equal(testflightNote(withStore(info({ groups: [] })))?.text, TESTFLIGHT_NONE_TEXT);
+  assert.equal(testflightNote(withStore(info({ groups: [] })))?.text, testflightNoneText());
   assert.equal(testflightNote(withStore(info())), null);
   assert.equal(testflightNote(withStore(broken, [store({ channel: 'play' })])), null);
   assert.equal(testflightNote(withStore(null)), null);
@@ -529,7 +529,7 @@ test('entry choices and a new preview are read from an error body, and only when
 });
 
 test('the link warnings say it is sensitive and how long this server keeps it', () => {
-  assert.match(LINK_SENSITIVE_TEXT, /sensitive/);
+  assert.match(linkSensitiveText(), /sensitive/);
   assert.match(linkKeptText(24), /24 hours/);
   assert.match(linkKeptText(1), /1 hour,/);
 });
@@ -542,7 +542,7 @@ test('the status line joins "downloads off" and a problem with the artifacts int
   assert.equal(off?.tone, 'info');
   assert.deepEqual(
     off?.details.map((d) => d.body),
-    [DOWNLOADS_OFF_TEXT],
+    [downloadsOffText()],
   );
   const both = statusLine({
     downloadEnabled: false,
@@ -565,6 +565,6 @@ test('sharedNote: only an artifact of a shared run with an unknown owner gets th
   assert.equal(sharedNote(artifact({ sharedWith: null })), '');
   assert.equal(
     sharedNote(artifact({ sharedWith: ['Demo Notes', 'Demo Weather'] })),
-    'From a run shared by Demo Notes, Demo Weather',
+    'From a run shared by Demo Notes and Demo Weather',
   );
 });

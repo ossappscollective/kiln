@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { useLocale } from '../i18n/test-setup.ts';
 import type { AppBuild, WorkflowInputSpec, WorkflowRun } from '../types.ts';
 import {
   buildLinkLabel,
   buildName,
+  confidenceBadge,
   canDispatchWorkflow,
   changesHeadline,
   dispatchInputs,
@@ -117,10 +119,10 @@ test('hasActiveRun, isPending, runTitle, sortRuns, runDuration', () => {
     'running first, then the newest',
   );
 
-  assert.equal(runDuration(run({ startedAt: 0, updatedAt: 45_000 })), '45 s');
-  assert.equal(runDuration(run({ startedAt: 0, updatedAt: 200_000 })), '3 min 20 s');
+  assert.equal(runDuration(run({ startedAt: 0, updatedAt: 45_000 })), '45 sec');
+  assert.equal(runDuration(run({ startedAt: 0, updatedAt: 200_000 })), '3 min 20 sec');
   assert.equal(runDuration(run({ startedAt: 0, updatedAt: 180_000 })), '3 min');
-  assert.equal(runDuration(run({ startedAt: 0, updatedAt: 3_900_000 })), '1 h 5 min');
+  assert.equal(runDuration(run({ startedAt: 0, updatedAt: 3_900_000 })), '1 hr 5 min');
   assert.equal(runDuration(run({ active: true })), null);
   assert.equal(runDuration(run({ startedAt: 10, updatedAt: 5 })), null);
 });
@@ -282,4 +284,22 @@ test('workflowKey is the file name, and only active workflows can be started', (
   assert.equal(workflowKey({ id: '5', path: '' }), '5');
   assert.equal(canDispatchWorkflow({ state: 'active' }), true);
   assert.equal(canDispatchWorkflow({ state: 'disabled_manually' }), false);
+});
+
+test('run states, durations, plurals and inputs follow the active language', () => {
+  useLocale('fr');
+  assert.equal(runBadge({ status: 'in_progress', conclusion: null }).label, 'En cours');
+  assert.equal(runBadge({ status: 'completed', conclusion: 'failure' }).label, 'Échoué');
+  assert.match(runDuration(run({ startedAt: 0, updatedAt: 200_000 })) ?? '', /^3.min.20.s$/u);
+  assert.equal(
+    dispatchSummary({ workflow: 'w', ref: 'r', repository: 'o/r', inputs: { a: '1', b: '2' } }),
+    'Lancer w sur r dans o/r avec 2 paramètres d’entrée.',
+  );
+  assert.deepEqual(
+    inputProblems([{ name: 'x', required: true, type: 'string' }], {}),
+    { x: 'x est obligatoire.' },
+  );
+  useLocale('de');
+  assert.equal(confidenceBadge('low').label, 'Geringe Sicherheit');
+  useLocale('en');
 });

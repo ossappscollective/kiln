@@ -6,16 +6,18 @@
   for example the workflow).
 -->
 <script lang="ts">
+  import { formatPercent } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   let { percent, label, name }: { percent: number | null; label: string; name: string } = $props();
 </script>
 
 <div class="progress">
   {#if percent !== null}
-    <div class="bar" role="progressbar" aria-label="Progress of {name}" aria-valuemin="0" aria-valuemax="100" aria-valuenow={percent}>
+    <div class="bar" role="progressbar" aria-label={t('builds:progress.label', { name })} aria-valuemin="0" aria-valuemax="100" aria-valuenow={percent}>
       <span class="fill" style:width="{percent}%"></span>
     </div>
   {/if}
-  {#if label}<span class="label muted text-sm">{label}{#if percent !== null}<span class="num"> · {percent}%</span>{/if}</span>{/if}
+  {#if label}<span class="label muted text-sm">{label}{#if percent !== null}<span class="num"> · {formatPercent(percent / 100)}</span>{/if}</span>{/if}
 </div>
 
 <style>

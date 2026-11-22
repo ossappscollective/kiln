@@ -18,6 +18,7 @@
   "language.help": "¿Falta una palabra o un idioma? Consulta <code>docs/translating.md</code> en el repositorio de Kiln.",
   "language.label": "Idioma",
   "language.title": "Idioma",
+  "link.opensInNewTab": "(se abre en una pestaña nueva)",
   "password.hide": "Ocultar contraseña",
   "password.show": "Mostrar contraseña",
   "role.admin": "Administrador",

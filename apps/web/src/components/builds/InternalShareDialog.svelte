@@ -11,23 +11,24 @@
   import { ApiError, type Api } from '../../lib/api.ts';
   import {
     type BuildRow,
-    LINK_SENSITIVE_TEXT,
-    SHARE_CANNOT_UNDO_TEXT,
     type SharePreview,
     type ShareResult,
     entryChoices,
     humanSize,
     linkKeptText,
+    linkSensitiveText,
     phraseMatches,
     previewFromBody,
     previewNotes,
     previewReady,
+    shareCannotUndoText,
     shareFailure,
     shortHash,
     uploadFileText,
     versionCodeText,
   } from '../../lib/builds.ts';
   import { qrMatrix, qrPath } from '../../lib/qr.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
@@ -69,7 +70,7 @@
     } catch (e) {
       preview = null;
       if (e instanceof ApiError && (e.code === 'entry_required' || e.code === 'entry_not_found')) entries = entryChoices(e.body);
-      problem = e instanceof ApiError ? shareFailure(e) : 'Could not read the artifact. Try again.';
+      problem = e instanceof ApiError ? shareFailure(e) : t('builds:share.readFailed');
     } finally {
       loading = false;
     }
@@ -96,7 +97,7 @@
         }
         if (e.code === 'entry_required') entries = entryChoices(e.body);
       } else {
-        problem = 'Could not share the build. Try again.';
+        problem = t('builds:shareError.generic');
       }
     } finally {
       sharing = false;
@@ -106,62 +107,62 @@
   onMount(() => void look());
 </script>
 
-<Modal bind:open title="Share to device" description={row.title} size="md" dismissible={!sharing} {onclose}>
+<Modal bind:open title={t('builds:share.title')} description={row.title} size="md" dismissible={!sharing} {onclose}>
   <div class="stack">
     {#if result}
-      <Alert tone="warn" title="This link is sensitive">{LINK_SENSITIVE_TEXT}</Alert>
+      <Alert tone="warn" title={t('builds:share.linkSensitiveTitle')}>{linkSensitiveText()}</Alert>
       {#if code}
         <div class="qr">
-          <svg viewBox="0 0 {code.size} {code.size}" role="img" aria-label="QR code with the install link" shape-rendering="crispEdges">
+          <svg viewBox="0 0 {code.size} {code.size}" role="img" aria-label={t('builds:share.qrLabel')} shape-rendering="crispEdges">
             <rect width={code.size} height={code.size} fill="#fff" />
             <path d={code.d} fill="#000" />
           </svg>
         </div>
       {:else}
-        <Alert tone="info">The link is too long for a code. Copy it below and open it on the device.</Alert>
+        <Alert tone="info">{t('builds:share.tooLong')}</Alert>
       {/if}
-      <div class="row"><code class="url">{result.downloadUrl}</code><CopyButton value={result.downloadUrl} label="Copy link" size="sm" /></div>
+      <div class="row"><code class="url">{result.downloadUrl}</code><CopyButton value={result.downloadUrl} label={t('builds:phone.copyLink')} size="sm" /></div>
       <p class="muted text-sm">{linkKeptText(preview?.linkRetentionHours ?? 24)}</p>
       <p class="muted text-sm">{result.note}</p>
       {#if result.checksumMatches === false}
-        <Alert tone="warn" title="Checksum differs">Google reported a different SHA-256 than the one computed here. Check the build before you rely on this link.</Alert>
+        <Alert tone="warn" title={t('builds:share.checksumTitle')}>{t('builds:share.checksumBody')}</Alert>
       {/if}
       <dl class="facts text-sm">
-        <dt>File</dt><dd>{result.share.fileName ?? 'Unknown'} ({humanSize(result.share.sizeBytes)})</dd>
+        <dt>{t('builds:share.file')}</dt><dd>{result.share.fileName ?? t('builds:share.unknown')} ({humanSize(result.share.sizeBytes)})</dd>
         <dt>SHA-256</dt><dd><code>{result.share.sha256}</code></dd>
       </dl>
     {:else if loading && !preview}
-      <div class="center" role="status" aria-label="Reading the artifact"><Spinner /></div>
+      <div class="center" role="status" aria-label={t('builds:share.reading')}><Spinner /></div>
     {:else if !preview}
-      <Alert tone="error" title="Could not prepare the share">{problem}</Alert>
+      <Alert tone="error" title={t('builds:share.prepareFailed')}>{problem}</Alert>
       {#if entries.length > 0}
         <label class="stack">
-          <span class="text-sm">Build file to share</span>
+          <span class="text-sm">{t('builds:share.entryLabel')}</span>
           <select bind:value={entry}>
-            <option value="" disabled>Choose a file</option>
+            <option value="" disabled>{t('builds:share.entryChoose')}</option>
             {#each entries as name (name)}<option value={name}>{name}</option>{/each}
           </select>
         </label>
-        <div class="row"><Button loading={loading} disabled={loading || entry === ''} onclick={() => void look(entry)}>Preview this file</Button></div>
+        <div class="row"><Button loading={loading} disabled={loading || entry === ''} onclick={() => void look(entry)}>{t('builds:share.previewFile')}</Button></div>
       {/if}
     {:else}
       <dl class="facts text-sm">
-        <dt>Package</dt><dd><code>{preview.upload.packageName}</code></dd>
-        <dt>File</dt><dd>{uploadFileText(preview.upload)}</dd>
-        <dt>Artifact</dt><dd>{preview.artifact.name} ({humanSize(preview.artifact.sizeBytes)})</dd>
-        <dt>Version code</dt><dd>{versionCodeText(preview.upload.versionCode)}</dd>
+        <dt>{t('builds:share.package')}</dt><dd><code>{preview.upload.packageName}</code></dd>
+        <dt>{t('builds:share.file')}</dt><dd>{uploadFileText(preview.upload)}</dd>
+        <dt>{t('builds:share.artifact')}</dt><dd>{preview.artifact.name} ({humanSize(preview.artifact.sizeBytes)})</dd>
+        <dt>{t('builds:share.versionCode')}</dt><dd>{versionCodeText(preview.upload.versionCode)}</dd>
         <dt>SHA-256</dt><dd>{shortHash(preview.upload.sha256)}</dd>
       </dl>
       <ul class="effects text-sm">
         {#each preview.effects as line (line)}<li>{line}</li>{/each}
       </ul>
-      <p class="text-sm"><strong>{SHARE_CANNOT_UNDO_TEXT}</strong></p>
+      <p class="text-sm"><strong>{shareCannotUndoText()}</strong></p>
       {#each previewNotes(preview) as note (note.text)}
         <Alert tone={note.tone}>{note.text}</Alert>
       {/each}
       {#if ready && preview.confirmation}
         <TextField
-          label="Type {preview.confirmation.phrase} to confirm"
+          label={t('builds:share.typeToConfirm', { phrase: preview.confirmation.phrase })}
           hint={preview.confirmation.instruction}
           bind:value={typed}
           autocomplete="off"
@@ -175,13 +176,13 @@
 
   {#snippet footer()}
     {#if result}
-      <Button variant="primary" onclick={() => (open = false)}>Close</Button>
+      <Button variant="primary" onclick={() => (open = false)}>{t('common:action.close')}</Button>
     {:else}
-      <Button disabled={sharing} onclick={() => (open = false)}>Cancel</Button>
+      <Button disabled={sharing} onclick={() => (open = false)}>{t('common:action.cancel')}</Button>
       {#if preview && ready}
-        <Button variant="primary" icon="upload" loading={sharing} disabled={sharing || !matches} onclick={() => void share()}>Share to device</Button>
+        <Button variant="primary" icon="upload" loading={sharing} disabled={sharing || !matches} onclick={() => void share()}>{t('builds:share.title')}</Button>
       {:else if preview}
-        <Button icon="refresh" loading={loading} disabled={loading} onclick={() => void look(preview?.upload.entry ?? undefined)}>Preview again</Button>
+        <Button icon="refresh" loading={loading} disabled={loading} onclick={() => void look(preview?.upload.entry ?? undefined)}>{t('builds:share.previewAgain')}</Button>
       {/if}
     {/if}
   {/snippet}

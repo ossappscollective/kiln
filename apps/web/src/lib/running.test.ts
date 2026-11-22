@@ -61,10 +61,10 @@ const answer = (runs: ActiveRun[]): ActiveRuns => ({
 });
 
 test('elapsedText: seconds, minutes and hours; never negative', () => {
-  assert.equal(elapsedText(-5), '0 s');
-  assert.equal(elapsedText(45_000), '45 s');
-  assert.equal(elapsedText(185_000), '3 min 05 s');
-  assert.equal(elapsedText(3_900_000), '1 h 05 min');
+  assert.equal(elapsedText(-5), '0 sec');
+  assert.equal(elapsedText(45_000), '45 sec');
+  assert.equal(elapsedText(185_000), '3 min 5 sec');
+  assert.equal(elapsedText(3_900_000), '1 hr 5 min');
 });
 
 test('runElapsedMs ticks against now while active and stops at the last update when finished', () => {
@@ -173,7 +173,7 @@ test('failedFirst and finishedCounts', () => {
     failedFirst(runs).map((r) => r.id),
     ['c', 'b', 'a', 'e', 'd'],
   );
-  assert.equal(finishedCounts(runs), '2 failed, 1 succeeded, 1 cancelled, 1 other');
+  assert.equal(finishedCounts(runs), '2 failed, 1 succeeded, 1 cancelled, and 1 other');
   assert.equal(finishedCounts([]), '');
 });
 

@@ -12,6 +12,7 @@
   import { ApiError, type Api } from '../../lib/api.ts';
   import { address } from '../../lib/address.svelte.ts';
   import { parseViewPath } from '../../lib/app-scope.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import {
     type BuildFilters,
     type BuildRow,
@@ -124,7 +125,7 @@
     } catch (e) {
       if (mine !== generation) return;
       data = null;
-      loadProblem = e instanceof ApiError ? e.message : 'Could not load the builds.';
+      loadProblem = e instanceof ApiError ? e.message : t('builds:tests.loadFailed');
     } finally {
       if (mine === generation) loading = false;
     }
@@ -182,30 +183,30 @@
 <div class="stack">
   <PageLead
     testid="test-builds-lead"
-    headline={data && rows.length > 0 ? `${rows.length} ${rows.length === 1 ? 'build' : 'builds'} to try on a device` : 'Builds to try on a device'}
-    hint={eas ? 'What your CI and EAS built, and what the stores hold for testers.' : 'What your CI built, and what the stores hold for testers.'}
+    headline={data && rows.length > 0 ? t('builds:tests.headline', { count: rows.length }) : t('builds:tests.headlineNone')}
+    hint={eas ? t('builds:tests.hintEas') : t('builds:tests.hint')}
   >
     {#snippet aside()}
-      <InfoTip label="About test builds" buttonText="About test builds" width="26rem">
-        <p>CI builds are the zips your workflows upload as artifacts. GitHub keeps them for a limited time (90 days unless your workflow or repository says otherwise).</p>
-        <p>The type of a CI build (IPA, APK, AAB) is a guess from the artifact name. Store builds come from the last sync of the app.</p>
+      <InfoTip label={t('builds:tests.about')} buttonText={t('builds:tests.about')} width="26rem">
+        <p>{t('builds:tests.aboutCi')}</p>
+        <p>{t('builds:tests.aboutType')}</p>
       </InfoTip>
     {/snippet}
     {#snippet actions()}
-      <Button icon="refresh" loading={loading || easReading} onclick={readAgain}>Read again</Button>
+      <Button icon="refresh" loading={loading || easReading} onclick={readAgain}>{t('builds:tests.readAgain')}</Button>
     {/snippet}
   </PageLead>
 
   {#if !mayRead}
-    <Alert tone="info" title="Test builds need the member role">Viewers can see the app and its releases. Ask an admin for the member role to list and download builds.</Alert>
+    <Alert tone="info" title={t('builds:tests.needMemberTitle')}>{t('builds:tests.needMember')}</Alert>
   {:else if loading && !data}
-    <div role="status" aria-label="Reading the builds" class="stack">
+    <div role="status" aria-label={t('builds:tests.reading')} class="stack">
       <Skeleton width="100%" height="2.5rem" /><Skeleton width="100%" height="2.5rem" /><Skeleton width="100%" height="2.5rem" />
     </div>
   {:else if loadProblem}
-    <Alert tone="error" title="Could not load the builds">
+    <Alert tone="error" title={t('builds:tests.loadFailedTitle')}>
       {loadProblem}
-      <div class="retry"><Button size="sm" icon="refresh" onclick={() => void load()}>Try again</Button></div>
+      <div class="retry"><Button size="sm" icon="refresh" onclick={() => void load()}>{t('common:action.tryAgain')}</Button></div>
     </Alert>
   {:else if data}
     {#if status}
@@ -214,7 +215,7 @@
           <Icon name={status.tone === 'info' ? 'info' : 'alert-triangle'} size={16} />
           <span class="status-text">{status.text}</span>
           <button type="button" class="link-button" aria-expanded={statusOpen} aria-controls="builds-status-details" onclick={() => (statusOpen = !statusOpen)}>
-            Details
+            {t('builds:tests.details')}
           </button>
         </span>
         {#if statusOpen}
@@ -230,42 +231,42 @@
     {#if eas}<EasStatusNote status={eas} problem={easProblem} {now} />{/if}
 
     {#if rows.length > 0}
-      <div class="filters" role="group" aria-label="Filter builds">
+      <div class="filters" role="group" aria-label={t('builds:tests.filters')}>
         <label class="inline">
-          <span class="muted text-sm">Platform</span>
+          <span class="muted text-sm">{t('builds:tests.platform')}</span>
           <select bind:value={filters.platform}>
-            <option value="all">All</option>
+            <option value="all">{t('builds:tests.all')}</option>
             {#each platforms as p (p)}<option value={p}>{platformLabel(p)}</option>{/each}
           </select>
         </label>
         <label class="inline">
-          <span class="muted text-sm">Source</span>
+          <span class="muted text-sm">{t('builds:tests.source')}</span>
           <select bind:value={filters.source}>
-            <option value="all">{eas ? 'CI, EAS and store' : 'CI and store'}</option>
-            <option value="ci">CI runs</option>
-            {#if eas}<option value="eas">EAS builds</option>{/if}
-            <option value="store">Store (TestFlight, Play)</option>
+            <option value="all">{eas ? t('builds:tests.sourceAllEas') : t('builds:tests.sourceAll')}</option>
+            <option value="ci">{t('builds:tests.sourceCi')}</option>
+            {#if eas}<option value="eas">{t('builds:tests.sourceEas')}</option>{/if}
+            <option value="store">{t('builds:tests.sourceStore')}</option>
           </select>
         </label>
-        <label class="inline"><input type="checkbox" bind:checked={filters.hideExpired} /> <span>Hide expired</span></label>
-        <label class="inline"><input type="checkbox" bind:checked={filters.hideOther} /> <span>Hide reports and logs</span></label>
-        {#if hidden > 0}<span class="muted text-sm" aria-live="polite">{hidden} hidden by the filters</span>{/if}
+        <label class="inline"><input type="checkbox" bind:checked={filters.hideExpired} /> <span>{t('builds:tests.hideExpired')}</span></label>
+        <label class="inline"><input type="checkbox" bind:checked={filters.hideOther} /> <span>{t('builds:tests.hideOther')}</span></label>
+        {#if hidden > 0}<span class="muted text-sm" aria-live="polite">{t('builds:tests.hiddenByFilters', { count: hidden })}</span>{/if}
       </div>
     {/if}
 
     {#if shown.length === 0}
-      <EmptyState icon="smartphone" title={rows.length === 0 ? 'No builds to test yet' : 'Nothing matches the filters'} description={rows.length === 0 ? 'Run a workflow that uploads the build as an artifact (actions/upload-artifact), or sync the app so its store builds appear. CI builds show here for the runs linked to this app.' : 'Change the filters above to see the other builds.'} />
+      <EmptyState icon="smartphone" title={rows.length === 0 ? t('builds:tests.emptyTitle') : t('builds:tests.noMatchTitle')} description={rows.length === 0 ? t('builds:tests.emptyBody') : t('builds:tests.noMatchBody')} />
     {:else}
-      <Section title="Test builds" key="test-builds" count={shown.length} flush>
+      <Section title={t('builds:tests.sectionTitle')} key="test-builds" count={shown.length} flush>
         {#if flightNote}
           <p class="flight-note muted text-sm" role="status" title={flightNote.text}>
             <Icon name={flightNote.tone === 'warn' ? 'alert-triangle' : 'info'} size={14} />
             <span>{flightNote.short}</span>
-            {#if flightNote.retry}<button type="button" class="link-button" disabled={loading} onclick={() => void load()}>Retry</button>{/if}
-            <InfoTip label="About the TestFlight links" width="24rem" text={flightNote.text} />
+            {#if flightNote.retry}<button type="button" class="link-button" disabled={loading} onclick={() => void load()}>{t('common:action.retry')}</button>{/if}
+            <InfoTip label={t('builds:tests.aboutFlight')} width="24rem" text={flightNote.text} />
           </p>
         {/if}
-        <ul class="rows" aria-label="Builds of {app.name} to test">
+        <ul class="rows" aria-label={t('builds:tests.listLabel', { name: app.name })}>
           {#each shown as row (row.key)}
             {@const blocker = downloadBlocker(row, data)}
             {@const guide = installGuide(row)}
@@ -282,15 +283,15 @@
                 <div class="meta muted text-sm">
                   <span class="src">
                     <Icon name={row.source === 'store' ? 'store' : 'pipeline'} size={13} />
-                    {row.source === 'ci' ? 'CI' : row.source === 'eas' ? 'EAS' : 'Store'}
+                    {row.source === 'ci' ? t('builds:tests.srcCi') : row.source === 'eas' ? t('builds:tests.srcEas') : t('builds:tests.srcStore')}
                   </span>
                   {#if (row.source === 'ci' || row.source === 'eas') && row.runUrl}
-                    <a href={row.runUrl} target="_blank" rel="noopener noreferrer">{row.detail || 'Open on Expo'}<Icon name="external-link" size={12} /><span class="visually-hidden"> (opens in a new tab)</span></a>
+                    <a href={row.runUrl} target="_blank" rel="noopener noreferrer">{row.detail || t('builds:guide.eas.openOnExpo')}<Icon name="external-link" size={12} /><span class="visually-hidden"> {t('common:link.opensInNewTab')}</span></a>
                   {:else if row.detail}<span>{row.detail}</span>{/if}
                   {#if row.sizeBytes !== null}<span>{humanSize(row.sizeBytes)}</span>{/if}
-                  {#if row.at !== null}<time datetime={new Date(row.at).toISOString()} title={fullTime(row.at)}>{timeAgo(row.at, now)}</time>{:else}<span>Age unknown</span>{/if}
+                  {#if row.at !== null}<time datetime={new Date(row.at).toISOString()} title={fullTime(row.at)}>{timeAgo(row.at, now)}</time>{:else}<span>{t('builds:tests.ageUnknown')}</span>{/if}
                   {#if expiryText(row, now) !== ''}<span>{expiryText(row, now)}</span>{/if}
-                  {#if row.artifact?.guessed && row.kind !== 'other'}<span>Type guessed from the name</span>{/if}
+                  {#if row.artifact?.guessed && row.kind !== 'other'}<span>{t('builds:tests.typeGuessed')}</span>{/if}
                   {#if row.artifact && sharedNote(row.artifact) !== ''}<span class="shared" data-testid="build-shared">{sharedNote(row.artifact)}</span>{/if}
                 </div>
                 {#if row.eas}<EasBuildExtras build={row.eas} />{/if}
@@ -301,13 +302,13 @@
               </div>
               <div class="buttons">
                 {#if row.artifact && blocker === null}
-                  <Button size="sm" icon="download" onclick={() => (downloadRow = row)}>Download</Button>
-                  {#if guide.qr}<Button size="sm" icon="qr" onclick={() => (phoneRow = row)}>Phone</Button>{/if}
+                  <Button size="sm" icon="download" onclick={() => (downloadRow = row)}>{t('builds:tests.download')}</Button>
+                  {#if guide.qr}<Button size="sm" icon="qr" onclick={() => (phoneRow = row)}>{t('builds:tests.phone')}</Button>{/if}
                 {:else if row.artifact}
-                  <InfoTip label="Why this cannot be downloaded" icon="lock" text={blocker ?? ''} align="end" />
+                  <InfoTip label={t('builds:tests.whyNoDownload')} icon="lock" text={blocker ?? ''} align="end" />
                 {/if}
                 {#if canOfferShare(row, sharing)}
-                  <Button size="sm" icon="upload" onclick={() => (shareRow = row)}>Share to device</Button>
+                  <Button size="sm" icon="upload" onclick={() => (shareRow = row)}>{t('builds:share.title')}</Button>
                 {/if}
                 {#if guide.link}
                   <Button size="sm" icon="external-link" href={guide.link.href} target="_blank">{guide.link.label}</Button>
@@ -319,7 +320,7 @@
                   aria-controls="install-{row.key}"
                   onclick={() => (installKey = installKey === row.key ? null : row.key)}
                 >
-                  Install
+                  {t('builds:tests.install')}
                 </Button>
               </div>
               {#if installKey === row.key}
@@ -329,8 +330,8 @@
           {/each}
         </ul>
       </Section>
-      {#if data.truncated}<p class="muted text-sm">Only the newest artifacts of the repository were read.</p>{/if}
-      {#if data.hiddenArtifacts > 0}<p class="muted text-sm">{data.hiddenArtifacts} other artifact{data.hiddenArtifacts === 1 ? '' : 's'} of this repository belong to other runs or platforms and are not shown.</p>{/if}
+      {#if data.truncated}<p class="muted text-sm">{t('builds:tests.truncated')}</p>{/if}
+      {#if data.hiddenArtifacts > 0}<p class="muted text-sm">{t('builds:tests.otherArtifacts', { count: data.hiddenArtifacts })}</p>{/if}
     {/if}
     {#if eas}
       <EasSubmissions status={eas} {now} />

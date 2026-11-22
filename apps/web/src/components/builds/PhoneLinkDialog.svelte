@@ -14,6 +14,8 @@
   import CopyButton from '../ui/CopyButton.svelte';
   import Modal from '../ui/Modal.svelte';
   import Spinner from '../ui/Spinner.svelte';
+  import { t } from '../../lib/i18n/t.ts';
+  import T from '../ui/T.svelte';
 
   let { api, workspaceId, appId, row, onclose }: { api: Api; workspaceId: string; appId: string; row: BuildRow; onclose: () => void } = $props();
 
@@ -41,7 +43,7 @@
       now = Date.now();
     } catch (e) {
       link = null;
-      problem = e instanceof ApiError ? e.message : 'Could not make the link.';
+      problem = e instanceof ApiError ? e.message : t('builds:phone.makeFailed');
     } finally {
       busy = false;
     }
@@ -54,41 +56,41 @@
   });
 </script>
 
-<Modal bind:open title="Install on a phone" description={row.title} size="sm" {onclose}>
+<Modal bind:open title={t('builds:phone.title')} description={row.title} size="sm" {onclose}>
   <div class="stack">
     {#if busy && !link}
-      <div class="center" role="status" aria-label="Making the link"><Spinner /></div>
+      <div class="center" role="status" aria-label={t('builds:phone.making')}><Spinner /></div>
     {:else if problem}
-      <Alert tone="error" title="Could not make the link">{problem}</Alert>
+      <Alert tone="error" title={t('builds:phone.makeFailedTitle')}>{problem}</Alert>
     {:else if link}
       {#if unreachable}
-        <Alert tone="warn" title="A phone cannot open this address">
-          This page is open at <code>{location.host}</code>, which only this computer can reach. Open Kiln at the computer's network address or a public address, then make the code again.
+        <Alert tone="warn" title={t('builds:phone.unreachableTitle')}>
+          <T key="builds:phone.unreachable" params={{ host: location.host }} />
         </Alert>
       {/if}
       {#if code}
         <div class="qr" class:old={expired}>
-          <svg viewBox="0 0 {code.size} {code.size}" role="img" aria-label="QR code with the download link" shape-rendering="crispEdges">
+          <svg viewBox="0 0 {code.size} {code.size}" role="img" aria-label={t('builds:phone.qrLabel')} shape-rendering="crispEdges">
             <rect width={code.size} height={code.size} fill="#fff" />
             <path d={code.d} fill="#000" />
           </svg>
         </div>
       {:else}
-        <Alert tone="warn" title="The link is too long for a code">Copy the address below and open it on the phone.</Alert>
+        <Alert tone="warn" title={t('builds:phone.tooLongTitle')}>{t('builds:phone.tooLong')}</Alert>
       {/if}
       <p class="muted text-sm" aria-live="polite">
-        {#if expired}This link has expired. Make a new one.{:else}Scan with the phone's camera. The link works once and for {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')} more.{/if}
+        {#if expired}{t('builds:phone.expired')}{:else}{t('builds:phone.scan', { time: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` })}{/if}
       </p>
       <ol class="steps text-sm">
-        <li>Scan the code. The phone downloads a zip.</li>
-        <li>Unzip it, open the APK and allow "Install unknown apps" once when asked.</li>
+        <li>{t('builds:phone.step1')}</li>
+        <li>{t('builds:phone.step2')}</li>
       </ol>
-      <div class="row"><code class="url">{url}</code><CopyButton value={url} label="Copy link" iconOnly size="sm" /></div>
+      <div class="row"><code class="url">{url}</code><CopyButton value={url} label={t('builds:phone.copyLink')} iconOnly size="sm" /></div>
     {/if}
   </div>
   {#snippet footer()}
-    <Button onclick={() => (open = false)}>Close</Button>
-    {#if expired || problem}<Button variant="primary" icon="refresh" loading={busy} onclick={() => void make()}>Make a new link</Button>{/if}
+    <Button onclick={() => (open = false)}>{t('common:action.close')}</Button>
+    {#if expired || problem}<Button variant="primary" icon="refresh" loading={busy} onclick={() => void make()}>{t('builds:phone.makeNew')}</Button>{/if}
   {/snippet}
 </Modal>
 

@@ -1,4 +1,6 @@
 import { type Platform, platformLabel } from '@kiln/core';
+import { formatList } from '../i18n/format.ts';
+import { t } from '../i18n/t.ts';
 
 /**
  * The "For apps" choice of the dispatch dialog (docs/api/ci.md): a run can be started for several apps of one repository (one
@@ -40,13 +42,12 @@ const label = (a: DispatchApp): string => `${a.name} (${platformLabel(a.platform
 /** The line of the confirmation: who the run is for, and what "none" means. */
 export function appsLine(apps: readonly DispatchApp[], selected: readonly string[]): string {
   const chosen = apps.filter((a) => selected.indexOf(a.id) >= 0);
-  if (chosen.length === 0)
-    return 'For no app in particular: the run is shown on every app of this repository.';
-  return `For ${chosen.length === 1 ? 'the app' : 'the apps'} ${chosen.map(label).join(', ')}.`;
+  if (chosen.length === 0) return t('builds:apps.none');
+  const list = formatList(chosen.map(label), { type: 'unit' });
+  const key = chosen.length === 1 ? 'builds:apps.one' : 'builds:apps.many';
+  return t(key, { apps: list });
 }
 
 /** The short hint under the field. */
-export const APPS_HINT =
-  'Pick the apps this run builds. Leave it empty to show the run on every app of this repository.';
-export const APPS_INFO =
-  'A run tied to apps is listed on those apps, and its build is matched to theirs by the build number in its inputs. With none picked the run is not tied to any app: it is shown on every app of the repository, because there is no way to tell which one it builds.';
+export const appsHint = (): string => t('builds:apps.hint');
+export const appsInfo = (): string => t('builds:apps.info');

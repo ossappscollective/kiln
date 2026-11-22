@@ -11,6 +11,7 @@
   import { ApiError, type Api } from '../../lib/api.ts';
   import { POLL_MAX_MS, POLL_MS, canDispatchWorkflow, hasActiveRun } from '../../lib/ci/ci.ts';
   import { timeAgo } from '../../lib/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { createPoller } from '../../lib/poll.ts';
   import type { CiWorkflow, RepositorySummary, WorkflowRun } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -70,15 +71,15 @@
       return true;
     } catch (e) {
       if (mine !== generation) return true;
-      const message = e instanceof ApiError ? e.message : 'Could not load the runs.';
+      const message = e instanceof ApiError ? e.message : t('builds:panel.runsLoadFailed');
       if (refresh && runs === null) {
         // GitHub is unreachable: show what is stored, and say so.
         const ok = await readRuns(false);
-        if (ok && mine === generation) runsWarning = `Could not read GitHub: ${message} Showing the runs stored earlier.`;
+        if (ok && mine === generation) runsWarning = t('builds:panel.githubUnreadable', { message });
         return false;
       }
       if (runs === null) runsProblem = message;
-      else runsWarning = `Could not update from GitHub: ${message}`;
+      else runsWarning = t('builds:panel.updateFailed', { message });
       return false;
     }
   }
@@ -92,7 +93,7 @@
     } catch (e) {
       if (mine !== generation) return;
       workflows = null;
-      workflowsProblem = e instanceof ApiError ? e.message : 'Could not load the workflows.';
+      workflowsProblem = e instanceof ApiError ? e.message : t('builds:panel.workflowsLoadFailed');
     }
   }
 
@@ -101,7 +102,7 @@
     refreshing = true;
     await Promise.all([readRuns(canScan), canScan ? readWorkflows() : Promise.resolve()]);
     refreshing = false;
-    announcement = 'Runs updated.';
+    announcement = t('builds:panel.runsUpdated');
   }
 
   $effect(() => {
@@ -149,7 +150,7 @@
   function dispatched(run: WorkflowRun) {
     // The new run is stored on the server already; show it without waiting for the next read.
     runs = [run, ...(runs ?? []).filter((r) => r.id !== run.id)];
-    announcement = `Started ${run.workflow}.`;
+    announcement = t('builds:panel.started', { name: run.workflow });
     // A run GitHub already named is followed at once; a placeholder is picked up by the list when it is named.
     if (!run.id.startsWith('pending-')) follow(run);
   }
@@ -164,33 +165,33 @@
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#if canScan}
-    <Card title="Workflows" description="GitHub Actions workflows of this repository." flush collapseKey="workflows" count={workflows?.length ?? 0}>
+    <Card title={t('builds:wfl.caption')} description={t('builds:panel.workflowsDescription')} flush collapseKey="workflows" count={workflows?.length ?? 0}>
       {#if workflowsProblem}
         <div class="pad stack">
-          <Alert tone="error" title="Could not load the workflows">{workflowsProblem}</Alert>
-          <div><Button icon="refresh" onclick={readWorkflows}>Try again</Button></div>
+          <Alert tone="error" title={t('builds:panel.workflowsLoadFailedTitle')}>{workflowsProblem}</Alert>
+          <div><Button icon="refresh" onclick={readWorkflows}>{t('common:action.tryAgain')}</Button></div>
         </div>
       {:else if workflows === null}
-        <div class="pad stack" role="status" aria-label="Loading the workflows">
+        <div class="pad stack" role="status" aria-label={t('builds:panel.loadingWorkflows')}>
           <Skeleton width="60%" height="16px" />
           <Skeleton width="45%" height="16px" />
         </div>
       {:else if workflows.length === 0}
         <EmptyState
           icon="play"
-          title="No workflows"
-          description="This repository has no GitHub Actions workflows. Add one under .github/workflows to build from here."
+          title={t('builds:panel.noWorkflowsTitle')}
+          description={t('builds:panel.noWorkflowsBody')}
         />
       {:else}
         <div class="table-wrap">
           <table>
-            <caption class="visually-hidden">Workflows of {repository.owner}/{repository.repo}</caption>
+            <caption class="visually-hidden">{t('builds:panel.workflowsOf', { repository: `${repository.owner}/${repository.repo}` })}</caption>
             <thead>
               <tr>
-                <th scope="col">Workflow</th>
-                <th scope="col">File</th>
-                <th scope="col">State</th>
-                {#if canDispatch}<th scope="col"><span class="visually-hidden">Actions</span></th>{/if}
+                <th scope="col">{t('builds:runs.workflow')}</th>
+                <th scope="col">{t('builds:panel.file')}</th>
+                <th scope="col">{t('builds:runs.state')}</th>
+                {#if canDispatch}<th scope="col"><span class="visually-hidden">{t('builds:runs.actions')}</span></th>{/if}
               </tr>
             </thead>
             <tbody>
@@ -200,7 +201,7 @@
                   <td><code>{workflow.path}</code></td>
                   <td>
                     <Badge tone={canDispatchWorkflow(workflow) ? 'ok' : 'neutral'}>
-                      {canDispatchWorkflow(workflow) ? 'Active' : workflow.state.replace(/_/g, ' ')}
+                      {canDispatchWorkflow(workflow) ? t('builds:panel.active') : workflow.state.replace(/_/g, ' ')}
                     </Badge>
                   </td>
                   {#if canDispatch}
@@ -209,8 +210,8 @@
                         size="sm"
                         icon="play"
                         disabled={!canDispatchWorkflow(workflow)}
-                        label="Run {workflow.name}"
-                        onclick={() => (dispatchWorkflow = workflow)}>Run</Button
+                        label={t('builds:lead.runWorkflow', { name: workflow.name })}
+                        onclick={() => (dispatchWorkflow = workflow)}>{t('builds:wfl.run')}</Button
                       >
                     </td>
                   {/if}
@@ -222,28 +223,28 @@
       {/if}
     </Card>
   {:else}
-    <p class="muted">Listing and starting workflows asks GitHub, which needs the member or admin role. You can read the runs below.</p>
+    <p class="muted">{t('builds:panel.needMember')}</p>
   {/if}
 
-  <Card title="Recent runs" flush collapseKey="runs" count={runs?.length ?? 0}>
+  <Card title={t('builds:panel.recentRuns')} flush collapseKey="runs" count={runs?.length ?? 0}>
     {#snippet actions()}
       {#if following}
-        <span class="muted text-sm" role="status">Following {runs?.filter((r) => r.active).length ?? 0} running</span>
+        <span class="muted text-sm" role="status">{t('builds:panel.following', { count: runs?.filter((r) => r.active).length ?? 0 })}</span>
       {:else if refreshedAt !== null}
-        <span class="muted text-sm">Read from GitHub {timeAgo(refreshedAt, now)}</span>
+        <span class="muted text-sm">{t('builds:panel.readFromGithub', { ago: timeAgo(refreshedAt, now) })}</span>
       {/if}
       {#if canScan}
-        <Button size="sm" icon="refresh" loading={refreshing} onclick={refresh}>Refresh</Button>
+        <Button size="sm" icon="refresh" loading={refreshing} onclick={refresh}>{t('builds:panel.refresh')}</Button>
       {/if}
     {/snippet}
 
     {#if runsProblem}
       <div class="pad stack">
-        <Alert tone="error" title="Could not load the runs">{runsProblem}</Alert>
-        <div><Button icon="refresh" onclick={refresh}>Try again</Button></div>
+        <Alert tone="error" title={t('builds:panel.runsLoadFailedTitle')}>{runsProblem}</Alert>
+        <div><Button icon="refresh" onclick={refresh}>{t('common:action.tryAgain')}</Button></div>
       </div>
     {:else if runs === null}
-      <div class="pad stack" role="status" aria-label="Loading the runs">
+      <div class="pad stack" role="status" aria-label={t('builds:panel.loadingRuns')}>
         <Skeleton width="80%" height="16px" />
         <Skeleton width="65%" height="16px" />
         <Skeleton width="72%" height="16px" />
@@ -255,10 +256,8 @@
       {#if runs.length === 0}
         <EmptyState
           icon="play"
-          title="No runs yet"
-          description={canScan
-            ? 'Runs appear here once this tool has read them from GitHub. Refresh to read the latest, or run a workflow.'
-            : 'No runs have been read from GitHub yet. A member or admin can refresh them.'}
+          title={t('builds:wfl.noRuns')}
+          description={canScan ? t('builds:panel.noRunsBody') : t('builds:panel.noRunsBodyRead')}
         />
       {:else}
         <RunsTable {runs} {now} {repository} onfollow={follow} />

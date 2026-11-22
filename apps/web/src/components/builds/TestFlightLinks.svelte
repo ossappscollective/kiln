@@ -10,6 +10,7 @@
   import Badge from '../ui/Badge.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
+  import { t } from '../../lib/i18n/t.ts';
 
   let { view }: { view: Exclude<TestFlightView, { kind: 'hidden' }> } = $props();
 
@@ -34,20 +35,20 @@
         </span>
         {#if link.publicLink}
           <span class="line">
-            <a class="url text-sm" href={link.publicLink} target="_blank" rel="noopener noreferrer">{link.publicLink}<span class="visually-hidden"> (opens in a new tab)</span></a>
-            <CopyButton value={link.publicLink} label="Copy the TestFlight link of {link.name}" iconOnly size="sm" />
+            <a class="url text-sm" href={link.publicLink} target="_blank" rel="noopener noreferrer">{link.publicLink}<span class="visually-hidden"> {t('common:link.opensInNewTab')}</span></a>
+            <CopyButton value={link.publicLink} label={t('builds:flight.copyLink', { name: link.name })} iconOnly size="sm" />
           </span>
-          {#if !link.enabled}<span class="muted text-sm">Switched off in App Store Connect: testers cannot join with it.</span>{/if}
+          {#if !link.enabled}<span class="muted text-sm">{t('builds:flight.switchedOff')}</span>{/if}
           {#if qr}
-            <Disclosure summary="QR code">
-              <svg class="qr" viewBox="0 0 {qr.size} {qr.size}" role="img" aria-label="QR code with the TestFlight link of {link.name}" shape-rendering="crispEdges">
+            <Disclosure summary={t('builds:flight.qr')}>
+              <svg class="qr" viewBox="0 0 {qr.size} {qr.size}" role="img" aria-label={t('builds:flight.qrLabel', { name: link.name })} shape-rendering="crispEdges">
                 <rect width={qr.size} height={qr.size} fill="#fff" />
                 <path d={qr.d} fill="#000" />
               </svg>
             </Disclosure>
           {/if}
         {:else}
-          <span class="muted text-sm">The store gave no link address for this group.</span>
+          <span class="muted text-sm">{t('builds:flight.noAddress')}</span>
         {/if}
       </div>
     {/each}

@@ -22,6 +22,7 @@
   import { ApiError, type Api } from '../../lib/api.ts';
   import { POLL_MAX_MS, POLL_MS, hasActiveRun } from '../../lib/ci/ci.ts';
   import { timeAgo } from '../../lib/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { createPoller } from '../../lib/poll.ts';
   import { repositoryName } from '../../lib/repositories.ts';
   import type { CiWorkflow, RepositorySummary, WorkflowRun } from '../../lib/types.ts';
@@ -104,7 +105,7 @@
   const problemOf = (e: unknown, fallback: string) =>
     e instanceof ApiError
       ? { label: readProblemLabel(e.code, e.status), message: e.message }
-      : { label: 'Workflows could not be read', message: fallback };
+      : { label: t('builds:workflows.problem.unreadable'), message: fallback };
 
   async function readRuns(refresh: boolean): Promise<boolean> {
     const mine = generation;
@@ -119,15 +120,15 @@
       return true;
     } catch (e) {
       if (mine !== generation) return true;
-      const problem = problemOf(e, 'Could not load the runs.');
+      const problem = problemOf(e, t('builds:panel.runsLoadFailed'));
       if (refresh && runs === null) {
         // GitHub is unreachable: show what is stored, and say so.
         const ok = await readRuns(false);
-        if (ok && mine === generation) runsWarning = `Could not read GitHub: ${problem.message} Showing the runs stored earlier.`;
+        if (ok && mine === generation) runsWarning = t('builds:panel.githubUnreadable', { message: problem.message });
         return false;
       }
       if (runs === null) runsProblem = problem;
-      else runsWarning = `Could not update from GitHub: ${problem.message}`;
+      else runsWarning = t('builds:panel.updateFailed', { message: problem.message });
       return false;
     }
   }
@@ -141,7 +142,7 @@
     } catch (e) {
       if (mine !== generation) return;
       workflows = null;
-      workflowsProblem = problemOf(e, 'Could not load the workflows.');
+      workflowsProblem = problemOf(e, t('builds:panel.workflowsLoadFailed'));
     }
   }
 
@@ -150,7 +151,7 @@
     refreshing = true;
     await Promise.all([readRuns(canScan), canScan ? readWorkflows() : Promise.resolve()]);
     refreshing = false;
-    announcement = 'Workflows and runs updated.';
+    announcement = t('builds:panel.bothUpdated');
   }
 
   $effect(() => {
@@ -213,13 +214,13 @@
   const note = $derived(
     showAllPlatforms
       ? leftOut > 0
-        ? 'Showing the workflows and runs of every platform.'
+        ? t('builds:panel.showingAll')
         : ''
       : [
           scopeNote({ noun: 'workflow', scopeLabel, hidden: scopedWorkflows.hidden.length, fellBack: scopedWorkflows.fellBack }),
           scopedWorkflows.fellBack ? '' : scopeNote({ noun: 'run', scopeLabel, hidden: scopedRuns.hidden.length, fellBack: false }),
         ]
-          .filter((t) => t !== '')
+          .filter((part) => part !== '')
           .join(' '),
   );
   /** The lead waits for what it reads: the runs, and the workflows when this role can list them. */
@@ -245,16 +246,16 @@
 
   const permission = $derived(
     !canScan
-      ? 'Listing and starting workflows asks GitHub, which needs the member or admin role. The workflows below are the ones the stored runs came from.'
+      ? t('builds:panel.needMemberStored')
       : !canDispatch
-        ? 'Starting a workflow needs the member or admin role.'
+        ? t('builds:workflows.blocked.role')
         : '',
   );
 
   function dispatched(run: WorkflowRun) {
     // The new run is stored on the server already; show it without waiting for the next read.
     runs = [run, ...(runs ?? []).filter((r) => r.id !== run.id)];
-    announcement = `Started ${run.workflow}.`;
+    announcement = t('builds:panel.started', { name: run.workflow });
     if (!run.id.startsWith('pending-')) follow(run);
   }
 
@@ -271,7 +272,7 @@
     <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="workflows-lead">
       {#snippet actions()}
         {#if lead.primary?.kind === 'start'}
-          <Button variant="primary" icon="play" label={lead.primary.label === 'Start release' ? `Start release: run ${primaryName}` : lead.primary.label} onclick={leadAction}
+          <Button variant="primary" icon="play" label={lead.primary.label === t('builds:lead.startRelease') ? t('builds:panel.startReleaseLabel', { name: primaryName }) : lead.primary.label} onclick={leadAction}
             >{lead.primary.label}</Button
           >
         {:else if lead.primary}
@@ -283,26 +284,26 @@
   {#if afterLead}{@render afterLead()}{/if}
 
   {#if showTitle}
-    <h2 class="repo">{repositoryName(repository)} <span class="muted text-sm">default branch {repository.defaultBranch}</span></h2>
+    <h2 class="repo">{repositoryName(repository)} <span class="muted text-sm">{t('builds:panel.defaultBranch', { branch: repository.defaultBranch })}</span></h2>
   {/if}
 
-  <Card title="Workflows" flush collapseKey="workflows" count={ranked.length}>
+  <Card title={t('builds:wfl.caption')} flush collapseKey="workflows" count={ranked.length}>
     {#snippet actions()}
       {#if following}
-        <span class="muted text-sm" role="status">Following {runs?.filter((r) => r.active).length ?? 0} running</span>
+        <span class="muted text-sm" role="status">{t('builds:panel.following', { count: runs?.filter((r) => r.active).length ?? 0 })}</span>
       {:else if refreshedAt !== null}
-        <span class="muted text-sm">Read from GitHub {timeAgo(refreshedAt, now)}</span>
+        <span class="muted text-sm">{t('builds:panel.readFromGithub', { ago: timeAgo(refreshedAt, now) })}</span>
       {/if}
-      <Button size="sm" icon="refresh" loading={refreshing} onclick={refresh}>Refresh</Button>
+      <Button size="sm" icon="refresh" loading={refreshing} onclick={refresh}>{t('builds:panel.refresh')}</Button>
     {/snippet}
 
     {#if workflowsProblem}
       <div class="pad stack">
         <StatusPill tone="warn" label={workflowsProblem.label}>{workflowsProblem.message}</StatusPill>
-        <div><Button size="sm" icon="refresh" onclick={readWorkflows}>Try again</Button></div>
+        <div><Button size="sm" icon="refresh" onclick={readWorkflows}>{t('common:action.tryAgain')}</Button></div>
       </div>
     {:else if (canScan && workflows === null) || (!canScan && runs === null)}
-      <div class="pad stack" role="status" aria-label="Loading the workflows">
+      <div class="pad stack" role="status" aria-label={t('builds:panel.loadingWorkflows')}>
         <Skeleton width="60%" height="16px" />
         <Skeleton width="45%" height="16px" />
       </div>
@@ -315,7 +316,7 @@
               {note}
               {#if leftOut > 0 && !scopedWorkflows.fellBack}
                 <Button size="sm" variant="link" onclick={() => (showAllPlatforms = !showAllPlatforms)}
-                  >{showAllPlatforms ? `Only ${scopeLabel}` : 'Show all'}</Button
+                  >{showAllPlatforms ? t('builds:panel.onlyScope', { scope: scopeLabel }) : t('builds:panel.showAll')}</Button
                 >
               {/if}
             </p>
@@ -325,10 +326,8 @@
       {#if byPlatform.shown.length === 0}
         <EmptyState
           icon="play"
-          title="No workflows"
-          description={canScan
-            ? 'This repository has no GitHub Actions workflows. Add one under .github/workflows to build from here.'
-            : 'No runs have been read yet, so no workflow is known. A member or admin can list them.'}
+          title={t('builds:panel.noWorkflowsTitle')}
+          description={canScan ? t('builds:panel.noWorkflowsBody') : t('builds:panel.noWorkflowsBodyStored')}
         />
       {:else}
         <WorkflowsList
@@ -341,7 +340,7 @@
         {#if split.rest.length > 0}
           <div class="pad">
             <Button size="sm" variant="ghost" onclick={() => (showOthers = !showOthers)}
-              >{showOthers ? 'Show fewer workflows' : `Show ${split.rest.length} other workflows`}</Button
+              >{showOthers ? t('builds:panel.showFewer') : t('builds:panel.showOthers', { count: split.rest.length })}</Button
             >
           </div>
         {/if}
@@ -349,28 +348,26 @@
     {/if}
   </Card>
 
-  <Card title="Recent runs" flush collapseKey="runs" count={runsByPlatform.shown.length}>
+  <Card title={t('builds:panel.recentRuns')} flush collapseKey="runs" count={runsByPlatform.shown.length}>
     {#if runsProblem}
       <div class="pad stack">
         <StatusPill tone="warn" label={runsProblem.label}>{runsProblem.message}</StatusPill>
-        <div><Button size="sm" icon="refresh" onclick={refresh}>Try again</Button></div>
+        <div><Button size="sm" icon="refresh" onclick={refresh}>{t('common:action.tryAgain')}</Button></div>
       </div>
     {:else if runs === null}
-      <div class="pad stack" role="status" aria-label="Loading the runs">
+      <div class="pad stack" role="status" aria-label={t('builds:panel.loadingRuns')}>
         <Skeleton width="80%" height="16px" />
         <Skeleton width="65%" height="16px" />
       </div>
     {:else}
       {#if runsWarning}
-        <div class="pad"><StatusPill tone="info" label="Showing stored runs">{runsWarning}</StatusPill></div>
+        <div class="pad"><StatusPill tone="info" label={t('builds:panel.storedRuns')}>{runsWarning}</StatusPill></div>
       {/if}
       {#if runsByPlatform.shown.length === 0}
         <EmptyState
           icon="play"
-          title="No runs yet"
-          description={canScan
-            ? 'Runs appear here once this tool has read them from GitHub. Refresh to read the latest, or run a workflow.'
-            : 'No runs have been read from GitHub yet. A member or admin can refresh them.'}
+          title={t('builds:wfl.noRuns')}
+          description={canScan ? t('builds:panel.noRunsBody') : t('builds:panel.noRunsBodyRead')}
         />
       {:else}
         <RunsTable runs={runsByPlatform.shown} {now} {repository} onfollow={follow} />

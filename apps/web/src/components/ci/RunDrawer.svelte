@@ -12,6 +12,7 @@
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { isPending, runTitle, shortSha } from '../../lib/ci/ci.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { createPoller } from '../../lib/poll.ts';
   import { githubUrl } from '../../lib/repositories.ts';
@@ -78,7 +79,7 @@
       return true;
     } catch (e) {
       if (mine !== generation) return true;
-      problem = e instanceof ApiError ? e.message : 'Could not read the jobs.';
+      problem = e instanceof ApiError ? e.message : t('builds:drawer.readFailed');
       return false;
     } finally {
       if (mine === generation) loading = false;
@@ -141,9 +142,9 @@
       <header>
         <div class="titles">
           <h2 id="{uid}-title">{runTitle(run)}</h2>
-          <p class="muted">{run.workflow}{#if run.runNumber !== null} · run {run.runNumber}{/if}{#if run.event} · {run.event}{/if}</p>
+          <p class="muted">{run.workflow}{#if run.runNumber !== null} · {t('builds:drawer.runNumber', { number: run.runNumber })}{/if}{#if run.event} · {run.event}{/if}</p>
         </div>
-        <button type="button" class="ghost icon sm" aria-label="Close" onclick={() => (open = false)}>
+        <button type="button" class="ghost icon sm" aria-label={t('common:action.close')} onclick={() => (open = false)}>
           <Icon name="x" />
         </button>
       </header>
@@ -151,35 +152,35 @@
       <div class="body">
         <div class="facts">
           <RunStatus {run} />
-          <span class="num" title="Started {fullTime(run.startedAt)}">{run.active ? 'Running for' : 'Took'} {elapsed}</span>
+          <span class="num" title={t('builds:running.startedAt', { time: fullTime(run.startedAt) })}>{run.active ? t('builds:drawer.runningFor', { duration: elapsed }) : t('builds:drawer.took', { duration: elapsed })}</span>
           {#if run.branch}<code>{run.branch}</code>{/if}
           {#if run.headSha}
             <a href="{githubUrl(repository.owner, repository.repo)}/commit/{run.headSha}" target="_blank" rel="noopener noreferrer"
-              ><code>{shortSha(run.headSha)}</code><span class="visually-hidden"> (opens in a new tab)</span></a
+              ><code>{shortSha(run.headSha)}</code><span class="visually-hidden"> {t('common:link.opensInNewTab')}</span></a
             >
           {/if}
-          {#if actor}<span class="muted">by {actor}</span>{/if}
+          {#if actor}<span class="muted">{t('builds:running.by', { actor })}</span>{/if}
           {#if run.url}
             <a class="github" href={run.url} target="_blank" rel="noopener noreferrer"
-              >Open on GitHub<Icon name="external-link" size={14} /><span class="visually-hidden"> (opens in a new tab)</span></a
+              >{t('builds:drawer.openOnGithub')}<Icon name="external-link" size={14} /><span class="visually-hidden"> {t('common:link.opensInNewTab')}</span></a
             >
           {/if}
         </div>
         {#if run.commitMessage}<p class="muted commit">{run.commitMessage}</p>{/if}
 
-        <h3 class="section">Jobs</h3>
+        <h3 class="section">{t('builds:runs.jobs')}</h3>
         {#if pending}
-          <p class="muted">GitHub has not named this run yet. The jobs show here as soon as it does.</p>
+          <p class="muted">{t('builds:drawer.pending')}</p>
         {:else if loading && jobs === null}
-          <div class="stack" role="status" aria-label="Reading the jobs">
+          <div class="stack" role="status" aria-label={t('builds:drawer.reading')}>
             <Skeleton width="50%" height="16px" />
             <Skeleton width="100%" height="32px" />
             <Skeleton width="70%" height="16px" />
           </div>
         {:else}
           {#if problem}
-            <StatusPill tone="info" label={jobs === null ? 'The jobs could not be read' : 'Not updating'}>
-              {problem}{#if jobs !== null} Showing what was read {jobs.readAt ? timeAgo(jobs.readAt, now) : 'earlier'}.{/if}
+            <StatusPill tone="info" label={jobs === null ? t('builds:drawer.unreadable') : t('builds:drawer.notUpdating')}>
+              {problem}{#if jobs !== null} {jobs.readAt ? t('builds:drawer.showingRead', { ago: timeAgo(jobs.readAt, now) }) : t('builds:drawer.showingReadEarlier')}{/if}
             </StatusPill>
           {/if}
           {#if jobs && jobs.jobs.length > 0}
@@ -189,10 +190,10 @@
                 {@const took = spanMs(job, now)}
                 <li>
                   <div class="jobhead">
-                    <span class="state {v.tone}"><Icon name={v.icon} size={14} /><span class="visually-hidden">{v.label}: </span></span>
+                    <span class="state {v.tone}"><Icon name={v.icon} size={14} /><span class="visually-hidden">{t('builds:drawer.stateOf', { state: v.label })} </span></span>
                     {#if job.url}
                       <a href={job.url} target="_blank" rel="noopener noreferrer" class="jobname"
-                        >{job.name}<span class="visually-hidden"> (opens in a new tab)</span></a
+                        >{job.name}<span class="visually-hidden"> {t('common:link.opensInNewTab')}</span></a
                       >
                     {:else}
                       <strong class="jobname">{job.name}</strong>
@@ -203,20 +204,20 @@
                     {#if showsSteps(job)}
                       {@render steps(job)}
                     {:else}
-                      <Disclosure summary="{job.steps.length} {job.steps.length === 1 ? 'step' : 'steps'}">{@render steps(job)}</Disclosure>
+                      <Disclosure summary={t('builds:drawer.steps', { count: job.steps.length })}>{@render steps(job)}</Disclosure>
                     {/if}
                   {/if}
                 </li>
               {/each}
             </ol>
-            {#if jobs.truncated}<p class="muted text-sm">GitHub has more jobs than are listed here.</p>{/if}
-            {#if jobs.readAt}<p class="muted text-xs">Read {timeAgo(jobs.readAt, now)}{#if !jobs.live} by a member{/if}.</p>{/if}
+            {#if jobs.truncated}<p class="muted text-sm">{t('builds:drawer.truncated')}</p>{/if}
+            {#if jobs.readAt}<p class="muted text-xs">{jobs.live ? t('builds:drawer.readAt', { ago: timeAgo(jobs.readAt, now) }) : t('builds:drawer.readAtMember', { ago: timeAgo(jobs.readAt, now) })}</p>{/if}
           {:else if jobs && !problem}
             <p class="muted">
               {#if jobs.live}
-                {run.active ? 'GitHub lists no jobs yet. They appear when a runner picks the run up.' : 'GitHub lists no jobs for this run.'}
+                {run.active ? t('builds:drawer.noJobsYet') : t('builds:drawer.noJobs')}
               {:else}
-                Job details are read from GitHub by members and admins. Nobody has opened this run lately.
+                {t('builds:drawer.notRead')}
               {/if}
             </p>
           {/if}
@@ -232,7 +233,7 @@
       {@const v = stateVisual(step.status, step.conclusion)}
       {@const took = spanMs(step, now)}
       <li class:current={step.status === 'in_progress'}>
-        <span class="state {v.tone}"><Icon name={v.icon} size={12} /><span class="visually-hidden">{v.label}: </span></span>
+        <span class="state {v.tone}"><Icon name={v.icon} size={12} /><span class="visually-hidden">{t('builds:drawer.stateOf', { state: v.label })} </span></span>
         <span class="stepname">{step.name}</span>
         {#if took !== null}<span class="muted text-xs num">{elapsedText(took)}</span>{/if}
       </li>

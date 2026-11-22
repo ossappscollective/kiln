@@ -16,6 +16,7 @@
   import { onMount, untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { runProvider, runTitle } from '../../lib/ci/ci.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {
     type ScopedRuns,
@@ -45,7 +46,7 @@
     repositoryIds,
     scope,
     apps = [],
-    heading = 'Running now',
+    heading,
     stateKey = 'ci.running.recent',
     ondata,
   }: {
@@ -91,7 +92,7 @@
       },
       onError: (e) => {
         if (!alive) return;
-        problem = e instanceof ApiError ? e.message : 'Could not read the running workflows.';
+        problem = e instanceof ApiError ? e.message : t('builds:running.readFailed');
       },
       fatal: endsFeed,
     });
@@ -146,6 +147,7 @@
     if (!drawerOpen) selected = null;
   });
 
+  const title = $derived(heading ?? t('builds:running.heading'));
   const showCard = $derived(rows.length > 0);
   const showAnything = $derived(showCard || recent.length > 0 || pill !== null || (problem !== '' && data === null));
 </script>
@@ -153,18 +155,18 @@
 {#if showAnything}
   <div class="running">
     {#if showCard}
-      <section class="card flush" aria-label={heading}>
+      <section class="card flush" aria-label={title}>
         <header>
-          <h2>{heading}</h2>
-          <span class="count" aria-label="{rows.length} running">{rows.length}</span>
+          <h2>{title}</h2>
+          <span class="count" aria-label={t('builds:running.countLabel', { count: rows.length })}>{rows.length}</span>
           {#if !whole.linked}
             <InfoTip
-              label="About these runs"
-              text="These are the runs of this app's repository. None could be tied to the app: start them from here with the app chosen, or set the release workflow in the build conventions."
+              label={t('builds:running.aboutRuns')}
+              text={t('builds:running.unlinked')}
             />
           {/if}
           <span class="spacer"></span>
-          {#if readAt !== null}<span class="muted text-xs">Updated {timeAgo(readAt, now)}</span>{/if}
+          {#if readAt !== null}<span class="muted text-xs">{t('builds:running.updated', { ago: timeAgo(readAt, now) })}</span>{/if}
         </header>
         <ul class="rows">
           {#each rows as run (run.repositoryId + '/' + run.id)}
@@ -177,14 +179,14 @@
                   <strong>{run.workflow}</strong>
                   {#if run.title && run.title !== run.workflow}<span class="muted"> {run.title}</span>{/if}
                 </span>
-                <span class="num elapsed" title="Started {fullTime(run.startedAt)}">{elapsedText(runElapsedMs(run, now))}</span>
+                <span class="num elapsed" title={t('builds:running.startedAt', { time: fullTime(run.startedAt) })}>{elapsedText(runElapsedMs(run, now))}</span>
                 <span class="actions">
                   {#if runProvider(run).readsJobs}
-                    <Button size="sm" variant="ghost" onclick={() => follow(run)} label="Follow {run.workflow}">Follow</Button>
+                    <Button size="sm" variant="ghost" onclick={() => follow(run)} label={t('builds:runs.followLabel', { name: run.workflow })}>{t('builds:runs.follow')}</Button>
                   {/if}
                   {#if run.url}
-                    <a class="icon-link" href={run.url} target="_blank" rel="noopener noreferrer" title="Open on {runProvider(run).host}">
-                      <Icon name="external-link" size={14} /><span class="visually-hidden">Open {run.workflow} on {runProvider(run).host} (opens in a new tab)</span>
+                    <a class="icon-link" href={run.url} target="_blank" rel="noopener noreferrer" title={t('builds:running.openOn', { host: runProvider(run).host })}>
+                      <Icon name="external-link" size={14} /><span class="visually-hidden">{t('builds:running.openRunOn', { name: run.workflow, host: runProvider(run).host })} {t('common:link.opensInNewTab')}</span>
                     </a>
                   {/if}
                 </span>
@@ -193,7 +195,7 @@
                 {#if name}<span>{name}</span><span aria-hidden="true">·</span>{/if}
                 <span>{run.repository.owner}/{run.repository.repo}</span>
                 {#if run.branch}<span aria-hidden="true">·</span><code>{run.branch}</code>{/if}
-                {#if run.actor}<span aria-hidden="true">·</span><span>by {run.actor}</span>{/if}
+                {#if run.actor}<span aria-hidden="true">·</span><span>{t('builds:running.by', { actor: run.actor })}</span>{/if}
               </div>
               <RunProgress percent={info.percent} label={info.label} name={run.workflow} />
             </li>
@@ -207,11 +209,11 @@
         <ul class="plain">{#each pill.lines as line (line)}<li>{line}</li>{/each}</ul>
       </StatusPill>
     {:else if problem !== ''}
-      <StatusPill tone="info" label={data === null ? 'Running workflows could not be read' : 'Running workflows are not updating'}>{problem}</StatusPill>
+      <StatusPill tone="info" label={data === null ? t('builds:running.unreadable') : t('builds:running.stale')}>{problem}</StatusPill>
     {/if}
 
     {#if recent.length > 0}
-      <Disclosure {stateKey} summary="Finished in the last 24 hours: {finishedCounts(recent)}">
+      <Disclosure {stateKey} summary={t('builds:running.finished', { counts: finishedCounts(recent) })}>
         <ul class="recent">
           {#each recent as run (run.repositoryId + '/' + run.id)}
             <li>
@@ -222,10 +224,10 @@
               </span>
               <span class="muted text-sm"><time datetime={new Date(run.updatedAt).toISOString()} title={fullTime(run.updatedAt)}>{timeAgo(run.updatedAt, now)}</time></span>
               {#if runProvider(run).readsJobs}
-                <Button size="sm" variant="ghost" onclick={() => follow(run)} label="Details of {run.workflow}">Details</Button>
+                <Button size="sm" variant="ghost" onclick={() => follow(run)} label={t('builds:runs.detailsLabel', { name: run.workflow })}>{t('builds:tests.details')}</Button>
               {:else if run.url}
-                <a class="icon-link" href={run.url} target="_blank" rel="noopener noreferrer" title="Open on {runProvider(run).host}">
-                  <Icon name="external-link" size={14} /><span class="visually-hidden">Open {run.workflow} on {runProvider(run).host} (opens in a new tab)</span>
+                <a class="icon-link" href={run.url} target="_blank" rel="noopener noreferrer" title={t('builds:running.openOn', { host: runProvider(run).host })}>
+                  <Icon name="external-link" size={14} /><span class="visually-hidden">{t('builds:running.openRunOn', { name: run.workflow, host: runProvider(run).host })} {t('common:link.opensInNewTab')}</span>
                 </a>
               {/if}
             </li>

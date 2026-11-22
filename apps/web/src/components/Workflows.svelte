@@ -13,6 +13,7 @@
   import { type Role, can } from '@kiln/core';
   import { onMount, untrack } from 'svelte';
   import { ApiError, type Api } from '../lib/api.ts';
+  import { t } from '../lib/i18n/t.ts';
     import { repositoryName } from '../lib/repositories.ts';
   import type { ActiveRuns, AppSummary, CiWorkflow, RepositorySummary, WorkflowRun } from '../lib/types.ts';
   import {
@@ -94,7 +95,7 @@
     const ws = workspaceId;
     let problem: string | null = null;
     const note = (e: unknown) => {
-      if (problem === null) problem = e instanceof ApiError ? `${readProblemLabel(e.code, e.status)}: ${e.message}` : 'Could not be read.';
+      if (problem === null) problem = e instanceof ApiError ? t('builds:page.problemLine', { label: readProblemLabel(e.code, e.status), message: e.message }) : t('builds:page.couldNotRead');
     };
     const [workflows, runs, configured] = await Promise.all([
       canScan
@@ -153,7 +154,7 @@
       now = Date.now();
     } catch (e) {
       if (mine !== generation) return;
-      loadError = e instanceof ApiError ? e.message : 'Could not load the workflows.';
+      loadError = e instanceof ApiError ? e.message : t('builds:page.loadFailed');
     } finally {
       if (mine === generation) loading = false;
     }
@@ -179,7 +180,7 @@
     refreshing = true;
     await load();
     refreshing = false;
-    announcement = 'Workflows updated.';
+    announcement = t('builds:page.updated');
   }
 
   $effect(() => {
@@ -256,7 +257,7 @@
   function dispatched(run: WorkflowRun) {
     const d = data[run.repositoryId];
     if (d) data[run.repositoryId] = { ...d, runs: [run, ...d.runs.filter((r) => r.id !== run.id)] };
-    announcement = `Started ${run.workflow}.`;
+    announcement = t('builds:panel.started', { name: run.workflow });
     if (!run.id.startsWith('pending-')) {
       followed = { id: run.id, repositoryId: run.repositoryId };
       drawerOpen = true;
@@ -267,24 +268,24 @@
 </script>
 
 <section>
-  <PageHeader title="Workflows" description="The GitHub Actions workflows of every connected repository, and the runs going now.">
+  <PageHeader title={t('builds:wfl.caption')} description={t('builds:page.description')}>
     {#snippet actions()}
       {#if canRead && github.length > 0}
-        <Button icon="refresh" loading={refreshing} onclick={refresh}>Refresh</Button>
+        <Button icon="refresh" loading={refreshing} onclick={refresh}>{t('builds:panel.refresh')}</Button>
       {/if}
     {/snippet}
   </PageHeader>
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#if !canRead}
-    <Alert tone="info">Your role does not include repositories.</Alert>
+    <Alert tone="info">{t('builds:page.noRole')}</Alert>
   {:else if loadError}
     <div class="stack">
-      <Alert tone="error" title="Could not load the workflows">{loadError}</Alert>
-      <div><Button icon="refresh" onclick={load}>Try again</Button></div>
+      <Alert tone="error" title={t('builds:panel.workflowsLoadFailedTitle')}>{loadError}</Alert>
+      <div><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
     </div>
   {:else if loading && repositories.length === 0}
-    <div class="card" role="status" aria-label="Loading the workflows">
+    <div class="card" role="status" aria-label={t('builds:panel.loadingWorkflows')}>
       <div class="stack">
         <Skeleton width="60%" height="16px" />
         <Skeleton width="45%" height="16px" />
@@ -295,10 +296,10 @@
     <div class="card">
       <EmptyState
         icon="play"
-        title="No GitHub repositories"
-        description="Workflows come from the GitHub repositories connected to this workspace. A local folder has no GitHub Actions."
+        title={t('builds:page.noReposTitle')}
+        description={t('builds:page.noReposBody')}
       >
-        {#snippet actions()}<Button href="#/repositories" variant="primary">Open repositories</Button>{/snippet}
+        {#snippet actions()}<Button href="#/repositories" variant="primary">{t('builds:page.openRepositories')}</Button>{/snippet}
       </EmptyState>
     </div>
   {:else}
@@ -314,14 +315,14 @@
     <div class="stack">
       <div class="row filters">
         <div class="field">
-          <label for="wf-repo">Repository</label>
+          <label for="wf-repo">{t('builds:page.repository')}</label>
           <select id="wf-repo" bind:value={repositoryId}>
-            <option value="">All repositories ({github.length})</option>
+            <option value="">{t('builds:page.allRepositories', { count: github.length })}</option>
             {#each github as r (r.id)}<option value={r.id}>{repositoryName(r)}</option>{/each}
           </select>
         </div>
         <div class="field">
-          <label for="wf-status">Status</label>
+          <label for="wf-status">{t('builds:runs.status')}</label>
           <select
             id="wf-status"
             value={status}
@@ -330,38 +331,38 @@
               if (isStatusFilter(v)) status = v;
             }}
           >
-            {#each statusFilters as f (f.id)}<option value={f.id}>{f.label}</option>{/each}
+            {#each statusFilters as f (f.id)}<option value={f.id}>{t(f.labelKey)}</option>{/each}
           </select>
         </div>
         <p class="muted text-sm count" role="status">
           {filtered.length === rows.length
-            ? `${rows.length} workflow${rows.length === 1 ? '' : 's'}`
-            : `${filtered.length} of ${rows.length} workflows`}
+            ? t('builds:page.count', { count: rows.length })
+            : t('builds:page.countOf', { count: rows.length, shown: filtered.length })}
         </p>
       </div>
 
       {#if problems.length > 0}
         <StatusPill
           tone="warn"
-          label={problems.length === 1 ? `Workflows of ${problems[0]?.name} cannot be read` : `Workflows of ${problems.length} repositories cannot be read`}
+          label={problems.length === 1 ? t('builds:page.problemOne', { name: problems[0]?.name ?? '' }) : t('builds:page.problemMany', { count: problems.length })}
         >
-          <ul class="plain">{#each problems as p (p.name)}<li>{p.name}: {p.problem}</li>{/each}</ul>
+          <ul class="plain">{#each problems as p (p.name)}<li>{t('builds:page.problemItem', { name: p.name, problem: p.problem })}</li>{/each}</ul>
         </StatusPill>
       {/if}
       {#if !canScan}
-        <p class="muted text-sm">Listing and starting workflows asks GitHub, which needs the member or admin role. The workflows below are the ones the stored runs came from.</p>
+        <p class="muted text-sm">{t('builds:panel.needMemberStored')}</p>
       {:else if !canDispatch}
-        <p class="muted text-sm">Starting a workflow needs the member or admin role.</p>
+        <p class="muted text-sm">{t('builds:workflows.blocked.role')}</p>
       {/if}
 
       <div class="card flush">
         {#if filtered.length === 0}
           <EmptyState
             icon="play"
-            title={rows.length === 0 ? (loading ? 'Reading the workflows' : 'No workflows') : 'No workflow matches'}
+            title={rows.length === 0 ? (loading ? t('builds:page.reading') : t('builds:panel.noWorkflowsTitle')) : t('builds:page.noMatchTitle')}
             description={rows.length === 0
-              ? 'The selected repositories have no GitHub Actions workflows that could be read.'
-              : 'Change the repository or the status to see more.'}
+              ? t('builds:page.emptyBody')
+              : t('builds:page.noMatchBody')}
           />
         {:else}
           <WorkflowsList

@@ -1,3 +1,5 @@
+import { formatDuration, formatList } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import { createPoller, type Poller, type Timers, type Visibility } from './poll.ts';
 import type { ActiveRun, ActiveRuns, ActiveRunsProblem, WorkflowRun } from './types.ts';
 
@@ -61,15 +63,10 @@ export function createRunsFeed(options: RunsFeedOptions): Poller {
 // ---------------------------------------------------------------------------------------------
 // Rows
 
-const pad = (n: number) => (n < 10 ? `0${n}` : String(n));
 
-/** "45 s", "3 min 05 s", "1 h 05 min". */
+/** "45 sec", "3 min 5 sec", "1 hr 5 min" (in the active language). */
 export function elapsedText(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  if (total < 60) return `${total} s`;
-  const minutes = Math.floor(total / 60);
-  if (minutes < 60) return `${minutes} min ${pad(total % 60)} s`;
-  return `${Math.floor(minutes / 60)} h ${pad(minutes % 60)} min`;
+  return formatDuration(Math.max(0, ms));
 }
 
 /** How long a run has gone (ticking against `now`) or went (a finished run). */
@@ -101,24 +98,26 @@ export type ProgressInfo = {
 export function progressInfo(run: Pick<ActiveRun, 'status' | 'progress'>): ProgressInfo {
   switch (run.status) {
     case 'pending':
-      return { percent: null, label: 'Starting' };
+      return { percent: null, label: t('builds:running.starting') };
     case 'waiting':
-      return { percent: null, label: 'Waiting for approval' };
+      return { percent: null, label: t('builds:running.waitingApproval') };
     case 'queued':
     case 'requested':
-      return { percent: null, label: 'Waiting for a runner' };
+      return { percent: null, label: t('builds:running.waitingRunner') };
     case 'in_progress': {
       const p = run.progress;
-      if (!p) return { percent: null, label: 'In progress' };
+      if (!p) return { percent: null, label: t('builds:running.inProgress') };
       const where = [p.job, p.step]
         .filter((x): x is string => typeof x === 'string' && x !== '')
         .join(' · ');
       const jobs =
-        p.jobsTotal > 1 ? `job ${Math.min(p.jobsDone + 1, p.jobsTotal)} of ${p.jobsTotal}` : '';
+        p.jobsTotal > 1
+          ? t('builds:running.jobOf', { n: Math.min(p.jobsDone + 1, p.jobsTotal), total: p.jobsTotal })
+          : '';
       const label = [where, jobs].filter((x) => x !== '').join(' · ');
       return {
         percent: Math.round(Math.min(1, Math.max(0, p.fraction)) * 100),
-        label: label || 'In progress',
+        label: label || t('builds:running.inProgress'),
       };
     }
     default:
@@ -175,14 +174,16 @@ export function scopeRunsToApps(
   targets: readonly AppRunTarget[],
 ): ScopedRuns {
   const repos = new Set<string>();
-  for (const t of targets) if (t.repositoryId) repos.add(t.repositoryId);
+  for (const target of targets) if (target.repositoryId) repos.add(target.repositoryId);
   const inRepos = runs.filter((r) => repos.has(r.repositoryId));
   const tied = inRepos.filter((r) =>
     targets.some(
-      (t) =>
-        t.repositoryId === r.repositoryId &&
-        (runAppIds(r).indexOf(t.id) >= 0 ||
-          (runAppIds(r).length === 0 && t.workflow !== null && workflowMatches(r, t.workflow))),
+      (target) =>
+        target.repositoryId === r.repositoryId &&
+        (runAppIds(r).indexOf(target.id) >= 0 ||
+          (runAppIds(r).length === 0 &&
+            target.workflow !== null &&
+            workflowMatches(r, target.workflow))),
     ),
   );
   return tied.length > 0 ? { runs: tied, linked: true } : { runs: inRepos, linked: false };
@@ -220,21 +221,20 @@ export function finishedCounts(runs: readonly Pick<WorkflowRun, 'conclusion'>[])
     else other++;
   }
   const parts: string[] = [];
-  if (failed) parts.push(`${failed} failed`);
-  if (succeeded) parts.push(`${succeeded} succeeded`);
-  if (cancelled) parts.push(`${cancelled} cancelled`);
-  if (other) parts.push(`${other} other`);
-  return parts.join(', ');
+  if (failed) parts.push(t('builds:running.count.failed', { count: failed }));
+  if (succeeded) parts.push(t('builds:running.count.succeeded', { count: succeeded }));
+  if (cancelled) parts.push(t('builds:running.count.cancelled', { count: cancelled }));
+  if (other) parts.push(t('builds:running.count.other', { count: other }));
+  return formatList(parts);
 }
 
 export type ProblemPill = { tone: 'warn' | 'info'; label: string; lines: string[] };
 
-const reasonText: Record<ActiveRunsProblem['reason'], string> = {
-  no_access:
-    'the GitHub connection cannot read Actions runs (check the token or app permission "Actions: read")',
-  unsupported: 'this connection cannot read workflow runs',
-  rate_limited: 'GitHub asked for a pause; it is tried again by itself',
-  unavailable: 'GitHub did not answer; it is tried again by itself',
+const reasonKeys: Record<ActiveRunsProblem['reason'], string> = {
+  no_access: k('builds:running.problem.noAccess'),
+  unsupported: k('builds:running.problem.unsupported'),
+  rate_limited: k('builds:running.problem.rateLimited'),
+  unavailable: k('builds:running.problem.unavailable'),
 };
 
 /** One quiet pill for repositories whose runs could not be read; null when there is nothing to say. */
@@ -245,14 +245,16 @@ export function problemPill(
   if (problems.length === 0) return null;
   const name = (id: string) => {
     const r = repositories.find((x) => x.id === id);
-    return r ? `${r.owner}/${r.repo}` : 'a repository';
+    return r ? `${r.owner}/${r.repo}` : t('builds:running.problem.aRepository');
   };
-  const lines = problems.map((p) => `${name(p.repositoryId)}: ${reasonText[p.reason]}.`);
+  const lines = problems.map((p) => t(reasonKeys[p.reason], { name: name(p.repositoryId) }));
   const hard = problems.some((p) => p.reason === 'no_access' || p.reason === 'unsupported');
   const label =
     problems.length === 1
-      ? `Runs of ${name((problems[0] as ActiveRunsProblem).repositoryId)} cannot be read`
-      : `Runs of ${problems.length} repositories cannot be read`;
+      ? t('builds:running.problem.labelOne', {
+          name: name((problems[0] as ActiveRunsProblem).repositoryId),
+        })
+      : t('builds:running.problem.labelMany', { count: problems.length });
   return { tone: hard ? 'warn' : 'info', label, lines };
 }
 
@@ -274,17 +276,21 @@ export type StateVisual = {
 /** The icon, tone and words for a job or a step. The words always say the state. */
 export function stateVisual(status: string, conclusion: string | null): StateVisual {
   if (status === 'completed') {
-    if (conclusion === 'success') return { icon: 'check-circle', tone: 'ok', label: 'Succeeded' };
-    if (conclusion === 'skipped') return { icon: 'minus', tone: 'neutral', label: 'Skipped' };
-    if (conclusion === 'cancelled') return { icon: 'minus', tone: 'neutral', label: 'Cancelled' };
+    if (conclusion === 'success')
+      return { icon: 'check-circle', tone: 'ok', label: t('builds:ci.run.succeeded') };
+    if (conclusion === 'skipped')
+      return { icon: 'minus', tone: 'neutral', label: t('builds:ci.run.skipped') };
+    if (conclusion === 'cancelled')
+      return { icon: 'minus', tone: 'neutral', label: t('builds:ci.run.cancelled') };
     if (conclusion === 'action_required')
-      return { icon: 'alert-triangle', tone: 'warn', label: 'Needs approval' };
+      return { icon: 'alert-triangle', tone: 'warn', label: t('builds:ci.run.needsApproval') };
     if (conclusion === 'neutral')
-      return { icon: 'check-circle', tone: 'neutral', label: 'Finished' };
-    return { icon: 'x-circle', tone: 'bad', label: 'Failed' };
+      return { icon: 'check-circle', tone: 'neutral', label: t('builds:ci.run.finished') };
+    return { icon: 'x-circle', tone: 'bad', label: t('builds:ci.run.failed') };
   }
-  if (status === 'in_progress') return { icon: 'refresh', tone: 'info', label: 'Running' };
-  return { icon: 'clock', tone: 'neutral', label: 'Queued' };
+  if (status === 'in_progress')
+    return { icon: 'refresh', tone: 'info', label: t('builds:ci.run.running') };
+  return { icon: 'clock', tone: 'neutral', label: t('builds:ci.run.queued') };
 }
 
 /** Milliseconds a job or step has taken (against `now` while it goes); null when it has not started. */

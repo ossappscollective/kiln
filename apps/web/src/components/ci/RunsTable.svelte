@@ -8,6 +8,7 @@
 -->
 <script lang="ts">
   import { isPending, runDuration, runProvider, runTitle, shortSha } from '../../lib/ci/ci.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { githubUrl } from '../../lib/repositories.ts';
   import type { WorkflowRun } from '../../lib/types.ts';
@@ -37,15 +38,15 @@
 
 <div class="table-wrap">
   <table class="runs">
-    <caption class="visually-hidden">Recent workflow runs of {repository.owner}/{repository.repo}</caption>
+    <caption class="visually-hidden">{t('builds:runs.caption', { repository: `${repository.owner}/${repository.repo}` })}</caption>
     <thead>
       <tr>
-        <th scope="col">Status</th>
-        <th scope="col">Workflow</th>
-        <th scope="col">Branch</th>
-        <th scope="col">Started</th>
-        <th scope="col">Took</th>
-        <th scope="col"><span class="visually-hidden">Actions</span></th>
+        <th scope="col">{t('builds:runs.status')}</th>
+        <th scope="col">{t('builds:runs.workflow')}</th>
+        <th scope="col">{t('builds:runs.branch')}</th>
+        <th scope="col">{t('builds:runs.started')}</th>
+        <th scope="col">{t('builds:runs.took')}</th>
+        <th scope="col"><span class="visually-hidden">{t('builds:runs.actions')}</span></th>
       </tr>
     </thead>
     <tbody>
@@ -57,7 +58,7 @@
           <td class="wf">
             {#if run.url}
               <a href={run.url} target="_blank" rel="noopener noreferrer" class="title"
-                >{runTitle(run)}<Icon name="external-link" size={14} /><span class="visually-hidden"> (opens in a new tab)</span></a
+                >{runTitle(run)}<Icon name="external-link" size={14} /><span class="visually-hidden"> {t('common:link.opensInNewTab')}</span></a
               >
             {:else}
               <span class="title">{runTitle(run)}</span>
@@ -67,11 +68,11 @@
           <td class="muted">
             <time datetime={new Date(run.startedAt).toISOString()} title={fullTime(run.startedAt)}>{timeAgo(run.startedAt, now)}</time>
           </td>
-          <td class="muted">{took ?? (run.active ? 'running' : '-')}</td>
+          <td class="muted">{took ?? (run.active ? t('builds:runs.running') : '-')}</td>
           <td class="acts">
             {#if onfollow && !isPending(run) && runProvider(run).readsJobs}
-              <Button size="sm" variant="ghost" label="{run.active ? 'Follow' : 'Jobs of'} {runTitle(run)}" onclick={() => onfollow(run)}
-                >{run.active ? 'Follow' : 'Jobs'}</Button
+              <Button size="sm" variant="ghost" label={run.active ? t('builds:runs.followLabel', { name: runTitle(run) }) : t('builds:runs.jobsLabel', { name: runTitle(run) })} onclick={() => onfollow(run)}
+                >{run.active ? t('builds:runs.follow') : t('builds:runs.jobs')}</Button
               >
             {/if}
             {#if more}
@@ -80,8 +81,8 @@
                 variant="ghost"
                 aria-expanded={opened[run.id] ? 'true' : 'false'}
                 aria-controls="{uid}-{run.id}"
-                label="Details of {runTitle(run)}"
-                onclick={() => (opened = { ...opened, [run.id]: !opened[run.id] })}>Details</Button
+                label={t('builds:runs.detailsLabel', { name: runTitle(run) })}
+                onclick={() => (opened = { ...opened, [run.id]: !opened[run.id] })}>{t('builds:tests.details')}</Button
               >
             {/if}
           </td>
@@ -93,30 +94,30 @@
               <dl class="facts">
                 {#if run.runNumber !== null || run.event}
                   <div>
-                    <dt>Run</dt>
+                    <dt>{t('builds:runs.run')}</dt>
                     <dd>{run.workflow}{#if run.runNumber !== null} #{run.runNumber}{/if}{#if run.event} · {run.event}{/if}</dd>
                   </div>
                 {/if}
                 {#if run.headSha}
                   <div>
-                    <dt>Commit</dt>
+                    <dt>{t('builds:runs.commit')}</dt>
                     <dd>
                       <a href="{githubUrl(repository.owner, repository.repo)}/commit/{run.headSha}" target="_blank" rel="noopener noreferrer"
-                        ><code>{shortSha(run.headSha)}</code><span class="visually-hidden"> (opens in a new tab)</span></a
+                        ><code>{shortSha(run.headSha)}</code><span class="visually-hidden"> {t('common:link.opensInNewTab')}</span></a
                       >{#if run.commitMessage}<span class="muted"> {run.commitMessage}</span>{/if}
                     </dd>
                   </div>
                 {/if}
                 {#if run.inputs && Object.keys(run.inputs).length > 0}
                   <div>
-                    <dt>Inputs</dt>
+                    <dt>{t('builds:runs.inputs')}</dt>
                     <dd>{Object.entries(run.inputs).map(([k, v]) => `${k}=${v}`).join(', ')}</dd>
                   </div>
                 {/if}
                 {#if isPending(run)}
                   <div>
-                    <dt>State</dt>
-                    <dd>Waiting for GitHub to name the run</dd>
+                    <dt>{t('builds:runs.state')}</dt>
+                    <dd>{t('builds:runs.waitingName')}</dd>
                   </div>
                 {/if}
               </dl>

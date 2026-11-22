@@ -26,12 +26,14 @@
     workflowKey,
     type InputValues,
   } from '../../lib/ci/ci.ts';
-  import { APPS_HINT, APPS_INFO, appsLine, dispatchAppsBody, toggleApp } from '../../lib/ci/dispatch-apps.ts';
+  import { appsHint, appsInfo, appsLine, dispatchAppsBody, toggleApp } from '../../lib/ci/dispatch-apps.ts';
   import { type DispatchTarget, dispatchLinkableApps, dispatchPreselection } from '../../lib/ci/dispatch-target.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { repositoryName } from '../../lib/repositories.ts';
   import { dispatchHints } from '../../lib/start-release.ts';
   import { toast } from '../../lib/toast.svelte.ts';
+  import { t } from '../../lib/i18n/t.ts';
+  import T from '../ui/T.svelte';
   import type { AppSummary, CiWorkflow, RepositorySummary, WorkflowInputs, WorkflowRun } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
@@ -104,7 +106,7 @@
       inputsRef = at;
     } catch (e) {
       info = null;
-      loadProblem = e instanceof ApiError ? e.message : 'Could not read the workflow.';
+      loadProblem = e instanceof ApiError ? e.message : t('builds:dispatch.readFailed');
     } finally {
       loading = false;
     }
@@ -129,7 +131,7 @@
   const freeForm = $derived(!info || !info.parsed);
   const free = $derived(parseFreeFormInputs(freeText));
   const problems = $derived(freeForm ? {} : inputProblems(specs, values));
-  const refProblem = $derived(ref.trim() === '' ? 'Enter a branch or tag.' : '');
+  const refProblem = $derived(ref.trim() === '' ? t('builds:dispatch.refRequired') : '');
   const valid = $derived(refProblem === '' && (freeForm ? free.problems.length === 0 : Object.keys(problems).length === 0));
   const payload = $derived(freeForm ? free.inputs : dispatchInputs(specs, values));
   const linkable = $derived(dispatchLinkableApps(apps, repository.id));
@@ -164,8 +166,8 @@
       maybeStarted = false;
       toast.success(
         done.runKnown
-          ? `Started ${workflow.name}. It is listed under recent runs.`
-          : `Asked GitHub to start ${workflow.name}. The run shows up under recent runs in a few seconds.`,
+          ? t('builds:dispatch.started', { name: workflow.name })
+          : t('builds:dispatch.asked', { name: workflow.name }),
       );
       ondispatched(done.run);
       open = false;
@@ -177,7 +179,7 @@
           ? e.code === 'timeout' && typeof e.body.message === 'string'
             ? e.body.message
             : e.message
-          : 'Could not start the workflow.';
+          : t('builds:dispatch.startFailed');
     } finally {
       submitting = false;
     }
@@ -187,14 +189,14 @@
 <Modal
   bind:open
   size="md"
-  title={step === 'form' ? `Run ${workflow.name}` : 'Run this workflow?'}
-  description={step === 'form' ? 'Starts the workflow on GitHub with workflow_dispatch.' : undefined}
+  title={step === 'form' ? t('builds:lead.runWorkflow', { name: workflow.name }) : t('builds:dispatch.confirmTitle')}
+  description={step === 'form' ? t('builds:dispatch.description') : undefined}
   dismissible={!submitting}
   {onclose}
 >
   {#if step === 'form'}
     {#if loading}
-      <div class="stack" role="status" aria-label="Reading the workflow inputs">
+      <div class="stack" role="status" aria-label={t('builds:dispatch.readingInputs')}>
         <Skeleton width="40%" height="14px" />
         <Skeleton height="36px" />
         <Skeleton width="40%" height="14px" />
@@ -211,37 +213,37 @@
         }}
       >
         {#if loadProblem}
-          <Alert tone="warn" title="Could not read the workflow file">
-            {loadProblem} You can still start it by typing the inputs by hand.
+          <Alert tone="warn" title={t('builds:dispatch.fileUnreadableTitle')}>
+            {t('builds:dispatch.fileUnreadable', { problem: loadProblem })}
           </Alert>
         {:else if notDispatchable}
-          <Alert tone="error" title="This workflow cannot be started by hand">
-            Its file has no <code>workflow_dispatch</code> trigger, so GitHub would refuse. Add the trigger to the workflow file first.
+          <Alert tone="error" title={t('builds:dispatch.notDispatchableTitle')}>
+            <T key="builds:dispatch.notDispatchable" />
           </Alert>
         {:else if info && !info.parsed}
-          <Alert tone="info" title="The inputs could not be read from the file">
-            Type them as <code>name=value</code> lines, one per line. Leave it empty to start without inputs.
+          <Alert tone="info" title={t('builds:dispatch.inputsUnreadableTitle')}>
+            <T key="builds:dispatch.inputsUnreadable" />
           </Alert>
         {/if}
 
         <TextField
-          label="Branch or tag"
+          label={t('builds:dispatch.ref')}
           bind:value={ref}
           error={tried ? refProblem || undefined : undefined}
-          hint="The code the workflow runs on. Defaults to the repository's default branch."
+          hint={t('builds:dispatch.refHint')}
           autocomplete="off"
           spellcheck={false}
         />
 
         {#if reread !== '' && reread === inputsRef && !loadProblem}
           <Alert tone="info">
-            Read the inputs of <code>{reread}</code>. Check them, then continue.
+            <T key="builds:dispatch.reread" params={{ ref: reread }} />
           </Alert>
         {/if}
 
         {#if freeForm}
           <div class="field">
-            <label for="{uid}-free">Inputs</label>
+            <label for="{uid}-free">{t('builds:dispatch.inputs')}</label>
             <textarea id="{uid}-free" rows="4" bind:value={freeText} spellcheck="false" placeholder="build_number=241&#10;track=internal"></textarea>
             {#if tried && free.problems.length > 0}
               <ul class="problems" id="{uid}-free-problems">
@@ -270,7 +272,7 @@
               <div class="field">
                 <label for={id} class:required={spec.required}>{spec.name}</label>
                 <select {id} bind:value={values[spec.name]} aria-invalid={error ? 'true' : undefined}>
-                  {#if !spec.required}<option value="">(not set)</option>{/if}
+                  {#if !spec.required}<option value="">{t('builds:dispatch.notSet')}</option>{/if}
                   {#each spec.options ?? [] as option (option)}
                     <option value={option}>{option}</option>
                   {/each}
@@ -280,7 +282,7 @@
               </div>
             {:else}
               <TextField
-                label={spec.required ? `${spec.name} (required)` : spec.name}
+                label={spec.required ? t('builds:dispatch.requiredName', { name: spec.name }) : spec.name}
                 bind:value={values[spec.name]}
                 hint={spec.description}
                 {error}
@@ -290,15 +292,15 @@
               />
             {/if}
           {:else}
-            <p class="muted">This workflow takes no inputs.</p>
+            <p class="muted">{t('builds:dispatch.noInputs')}</p>
           {/each}
         {/if}
 
         {#if linkable.length > 0}
           <fieldset class="field apps">
             <legend>
-              For apps (optional)
-              <InfoTip label="About the apps of a run" text={APPS_INFO} />
+              {t('builds:dispatch.forApps')}
+              <InfoTip label={t('builds:apps.infoLabel')} text={appsInfo()} />
             </legend>
             {#each linkable as app (app.id)}
               <label class="check">
@@ -306,7 +308,7 @@
                 <span>{app.name} ({platformLabel(app.platform)})</span>
               </label>
             {/each}
-            <p class="hint">{appIds.length === 0 ? APPS_HINT : appsText}</p>
+            <p class="hint">{appIds.length === 0 ? appsHint() : appsText}</p>
           </fieldset>
         {/if}
       </form>
@@ -324,19 +326,19 @@
         </dl>
       {/if}
       <Alert tone="info">
-        This runs your CI with your CI's secrets and may build and upload. This tool does not build anything itself and does not publish to any store.
+        {t('builds:dispatch.confirmNote')}
       </Alert>
-      {#if problem}<Alert tone={maybeStarted ? 'warn' : 'error'} title={maybeStarted ? 'It may have started' : 'Could not start the workflow'}>{problem}</Alert>{/if}
+      {#if problem}<Alert tone={maybeStarted ? 'warn' : 'error'} title={maybeStarted ? t('builds:dispatch.mayHaveStarted') : t('builds:dispatch.startFailedTitle')}>{problem}</Alert>{/if}
     </div>
   {/if}
 
   {#snippet footer()}
     {#if step === 'form'}
-      <Button disabled={submitting} onclick={() => (open = false)}>Cancel</Button>
-      <Button variant="primary" type="submit" form="{uid}-form" disabled={loading || notDispatchable}>Continue</Button>
+      <Button disabled={submitting} onclick={() => (open = false)}>{t('common:action.cancel')}</Button>
+      <Button variant="primary" type="submit" form="{uid}-form" disabled={loading || notDispatchable}>{t('builds:dispatch.continue')}</Button>
     {:else}
-      <Button disabled={submitting} onclick={() => (step = 'form')}>Back</Button>
-      <Button variant="primary" icon="play" loading={submitting} onclick={run}>{maybeStarted ? 'Run again anyway' : 'Run workflow'}</Button>
+      <Button disabled={submitting} onclick={() => (step = 'form')}>{t('common:action.back')}</Button>
+      <Button variant="primary" icon="play" loading={submitting} onclick={run}>{maybeStarted ? t('builds:dispatch.runAgain') : t('builds:dispatch.run')}</Button>
     {/if}
   {/snippet}
 </Modal>

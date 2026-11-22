@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  APPS_HINT,
+  appsHint,
   appsLine,
   dispatchAppsBody,
   initialSelection,
@@ -36,5 +36,5 @@ test('the confirmation says who the run is for, and what none means', () => {
   assert.equal(appsLine(apps, ['a']), 'For the app Acme (iOS).');
   assert.equal(appsLine(apps, ['a', 'b']), 'For the apps Acme (iOS), Acme (Android).');
   assert.match(appsLine(apps, []), /shown on every app of this repository/);
-  assert.match(APPS_HINT, /every app of this repository/);
+  assert.match(appsHint(), /every app of this repository/);
 });

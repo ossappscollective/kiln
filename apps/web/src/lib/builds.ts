@@ -2,6 +2,8 @@ import type { Platform } from '@kiln/core';
 import { platformSupports, supports } from '@kiln/core';
 import { appAddress } from './app-scope.ts';
 import { type EasBuildView, easBuildDetail, easBuildState, easBuildTitle } from './eas/eas-status.ts';
+import { formatBytes, formatList } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 
 /**
  * Builds to test (docs/api/builds.md): the rows of the "Test builds" section, their filters and the plain install guidance, as
@@ -130,26 +132,47 @@ const runLabel = (a: ArtifactItem): string => {
   return [run, a.run.branch, a.run.shortSha].filter((x): x is string => !!x).join(' · ');
 };
 
+const runConclusionKeys: Record<string, string> = {
+  failure: k('builds:row.run.failure'),
+  cancelled: k('builds:row.run.cancelled'),
+  timed_out: k('builds:row.run.timedOut'),
+  startup_failure: k('builds:row.run.startupFailure'),
+  action_required: k('builds:row.run.actionRequired'),
+  skipped: k('builds:row.run.skipped'),
+  neutral: k('builds:row.run.neutral'),
+  stale: k('builds:row.run.stale'),
+};
+
 const artifactState = (a: ArtifactItem): BuildRow['state'] => {
-  if (a.expired) return { label: 'Expired', tone: 'bad' };
-  if (a.tooLarge) return { label: 'Too large to download', tone: 'warn' };
-  if (a.run.conclusion !== null && a.run.conclusion !== 'success')
-    return { label: `Run ${a.run.conclusion.replace(/_/g, ' ')}`, tone: 'warn' };
-  return { label: 'Available', tone: 'ok' };
+  if (a.expired) return { label: t('builds:row.expired'), tone: 'bad' };
+  if (a.tooLarge) return { label: t('builds:row.tooLarge'), tone: 'warn' };
+  if (a.run.conclusion !== null && a.run.conclusion !== 'success') {
+    const key = runConclusionKeys[a.run.conclusion];
+    return {
+      label: key ? t(key) : t('builds:row.run.other', { conclusion: a.run.conclusion.replace(/_/g, ' ') }),
+      tone: 'warn',
+    };
+  }
+  return { label: t('builds:row.available'), tone: 'ok' };
 };
 
 const storeState = (b: StoreBuildItem): BuildRow['state'] => {
-  if (b.expired === true) return { label: 'Expired', tone: 'bad' };
-  if (b.state === 'processing') return { label: 'Processing', tone: 'info' };
-  if (b.state === 'invalid') return { label: 'Invalid', tone: 'bad' };
+  if (b.expired === true) return { label: t('builds:row.expired'), tone: 'bad' };
+  if (b.state === 'processing') return { label: t('builds:row.processing'), tone: 'info' };
+  if (b.state === 'invalid') return { label: t('builds:row.invalid'), tone: 'bad' };
   if (b.state === 'processed')
-    return { label: b.channel === 'play' ? 'On a track' : 'Ready to test', tone: 'ok' };
-  return { label: 'Unknown state', tone: 'neutral' };
+    return {
+      label: b.channel === 'play' ? t('builds:row.onTrack') : t('builds:row.readyToTest'),
+      tone: 'ok',
+    };
+  return { label: t('builds:row.unknownState'), tone: 'neutral' };
 };
 
 /** The quiet chip for an artifact of a run shared by several apps when its owner is not known; '' otherwise. */
 export const sharedNote = (a: Pick<ArtifactItem, 'sharedWith'>): string =>
-  a.sharedWith && a.sharedWith.length > 1 ? `From a run shared by ${a.sharedWith.join(', ')}` : '';
+  a.sharedWith && a.sharedWith.length > 1
+    ? t('builds:row.sharedRun', { apps: formatList(a.sharedWith) })
+    : '';
 
 export function artifactRow(a: ArtifactItem): BuildRow {
   return {
@@ -174,8 +197,8 @@ export function storeRow(b: StoreBuildItem): BuildRow {
   const where =
     b.channel === 'play'
       ? b.tracks.length > 0
-        ? `Track ${b.tracks.join(', ')}`
-        : 'No track'
+        ? t('builds:row.tracks', { count: b.tracks.length, tracks: formatList(b.tracks) })
+        : t('builds:row.noTrack')
       : 'TestFlight';
   return {
     key: `store:${b.platform}:${b.buildNumber}`,
@@ -210,7 +233,7 @@ export function easRow(b: EasBuildView, now: number = Date.now()): BuildRow {
     at: b.createdAt,
     expiresAt: b.artifactExpiresAt,
     expired,
-    state: expired ? { label: 'Expired', tone: 'bad' } : easBuildState(b),
+    state: expired ? { label: t('builds:row.expired'), tone: 'bad' } : easBuildState(b),
     artifact: null,
     store: null,
     eas: b,
@@ -267,18 +290,8 @@ export function hiddenBy(rows: readonly BuildRow[], f: BuildFilters): number {
 // ---------------------------------------------------------------------------------------------
 // Words
 
-export function humanSize(bytes: number | null): string {
-  if (bytes === null) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ['KB', 'MB', 'GB'];
-  let value = bytes / 1024;
-  let i = 0;
-  while (value >= 1024 && i < units.length - 1) {
-    value /= 1024;
-    i++;
-  }
-  return `${value >= 100 || Number.isInteger(value) ? Math.round(value) : value.toFixed(1)} ${units[i]}`;
-}
+/** `1.5 MB` in the active language; '' when the size is not known. */
+export const humanSize = (bytes: number | null): string => (bytes === null ? '' : formatBytes(bytes));
 
 const DAY = 24 * 60 * 60_000;
 
@@ -287,34 +300,39 @@ export function expiryText(
   row: Pick<BuildRow, 'expiresAt' | 'expired' | 'store'>,
   now: number,
 ): string {
-  const estimated = row.store?.expiresAtEstimated === true;
-  if (row.expiresAt === null) return row.expired ? 'expired' : '';
+  const about = row.store?.expiresAtEstimated === true;
+  if (row.expiresAt === null) return row.expired ? t('builds:expiry.expired') : '';
   const days = Math.floor((row.expiresAt - now) / DAY);
-  const lead = estimated ? 'about ' : '';
   if (row.expired || row.expiresAt <= now) {
     const ago = Math.floor((now - row.expiresAt) / DAY);
-    return row.expired && ago <= 0
-      ? 'expired'
-      : `expired ${ago <= 0 ? 'today' : `${ago} day${ago === 1 ? '' : 's'} ago`}`;
+    if (row.expired && ago <= 0) return t('builds:expiry.expired');
+    return ago <= 0
+      ? t('builds:expiry.expiredToday')
+      : t('builds:expiry.expiredAgo', { count: ago });
   }
-  if (days <= 0) return `expires ${lead}today`;
-  return `expires ${lead}in ${days} day${days === 1 ? '' : 's'}`;
+  if (days <= 0)
+    return about ? t('builds:expiry.expiresTodayAbout') : t('builds:expiry.expiresToday');
+  return about
+    ? t('builds:expiry.expiresInAbout', { count: days })
+    : t('builds:expiry.expiresIn', { count: days });
 }
 
 export const kindLabel = (kind: RowKind): string =>
-  ({
-    ipa: 'IPA',
-    apk: 'APK',
-    aab: 'AAB',
-    app: 'macOS app',
-    dmg: 'DMG',
-    pkg: 'PKG',
-    zip: 'Zip',
-    other: 'Other',
-    testflight: 'TestFlight',
-    play: 'Play',
-    eas: 'EAS',
-  })[kind];
+  kind === 'app'
+    ? t('builds:kind.macApp')
+    : kind === 'other'
+      ? t('builds:kind.other')
+      : ({
+          ipa: 'IPA',
+          apk: 'APK',
+          aab: 'AAB',
+          dmg: 'DMG',
+          pkg: 'PKG',
+          zip: 'Zip',
+          testflight: 'TestFlight',
+          play: 'Play',
+          eas: 'EAS',
+        } as const)[kind];
 
 // ---------------------------------------------------------------------------------------------
 // Install guidance
@@ -332,19 +350,17 @@ export type Guide = {
   link: { label: string; href: string } | null;
 };
 
-const ZIP_NOTE =
-  'A workflow artifact is always a zip: unzip it first. The type shown is a guess from the artifact name.';
-
 /** Installation guidance for an EAS build: this tool holds no file, so it points at the Expo page of the build. */
 function easGuide(b: EasBuildView): Guide {
-  const link = b.expoUrl ? { label: 'Open on Expo', href: b.expoUrl } : null;
+  const link = b.expoUrl ? { label: t('builds:guide.eas.openOnExpo'), href: b.expoUrl } : null;
   if (b.status !== 'finished') {
     return {
-      title: b.status === 'errored' ? 'This EAS build failed' : 'This EAS build has not finished',
+      title:
+        b.status === 'errored' ? t('builds:guide.eas.failedTitle') : t('builds:guide.eas.runningTitle'),
       steps: [
         b.status === 'errored'
-          ? 'Open the build on Expo to read its log and the reason it failed, fix the cause and build again.'
-          : 'Open the build on Expo to follow its progress. This page reads it again every few minutes while it runs.',
+          ? t('builds:guide.eas.failedStep')
+          : t('builds:guide.eas.runningStep'),
       ],
       caution: null,
       downloads: false,
@@ -354,12 +370,9 @@ function easGuide(b: EasBuildView): Guide {
   }
   if (b.simulator === true || b.distribution === 'simulator') {
     return {
-      title: 'An iOS Simulator build',
-      steps: [
-        'A simulator build runs in the iOS Simulator on a Mac, not on a phone.',
-        'Open the build on Expo to download it, then drag it onto a running simulator.',
-      ],
-      caution: 'Kiln does not download EAS builds; Expo does.',
+      title: t('builds:guide.eas.simulatorTitle'),
+      steps: [t('builds:guide.eas.simulatorStep1'), t('builds:guide.eas.simulatorStep2')],
+      caution: t('builds:guide.eas.simulatorCaution'),
       downloads: false,
       qr: false,
       link,
@@ -367,25 +380,22 @@ function easGuide(b: EasBuildView): Guide {
   }
   if (b.internal) {
     return {
-      title: 'Install an internal distribution build',
+      title: t('builds:guide.eas.internalTitle'),
       steps: [
-        'Open the build on Expo: for a build with internal distribution it has the install link for the device.',
+        t('builds:guide.eas.internalStep1'),
         b.platform === 'android'
-          ? 'On Android the link installs the build (the phone asks to allow installing from this source, once).'
-          : 'On iOS an internal build only runs on devices that are in its provisioning profile (registered by UDID, or an enterprise profile).',
+          ? t('builds:guide.eas.internalStepAndroid')
+          : t('builds:guide.eas.internalStepIos'),
       ],
-      caution: 'Kiln does not download EAS builds and holds no install link of its own; Expo does.',
+      caution: t('builds:guide.eas.internalCaution'),
       downloads: false,
       qr: false,
       link,
     };
   }
   return {
-    title: 'A build for store distribution',
-    steps: [
-      'A store distribution build is meant to be sent to the store, not installed from a link.',
-      'Submit it with EAS Submit (the submissions below show how that went), or upload it to the store yourself, then test it from TestFlight or Google Play.',
-    ],
+    title: t('builds:guide.eas.storeTitle'),
+    steps: [t('builds:guide.eas.storeStep1'), t('builds:guide.eas.storeStep2')],
     caution: null,
     downloads: false,
     qr: false,
@@ -400,19 +410,19 @@ export function installGuide(row: BuildRow): Guide {
     const b = row.store;
     if (b.channel === 'testflight') {
       return {
-        title: 'Install from TestFlight',
+        title: t('builds:guide.testflight.title'),
         steps: [
-          'Store builds cannot be downloaded as a file. Open the TestFlight app on the device.',
-          'Internal testers (people in App Store Connect) see a processed build there automatically.',
-          'External testers need an invitation or the public link of a beta group, made in App Store Connect.',
+          t('builds:guide.testflight.step1'),
+          t('builds:guide.testflight.step2'),
+          t('builds:guide.testflight.step3'),
         ],
         caution:
           b.expired === true
-            ? 'This build has expired and cannot be installed any more.'
+            ? t('builds:guide.testflight.expired')
             : b.state === 'processing'
-              ? 'Apple is still processing this build; it cannot be installed yet.'
+              ? t('builds:guide.testflight.processing')
               : b.expiresAtEstimated
-                ? 'A TestFlight build lasts 90 days from its upload; the date shown is that estimate.'
+                ? t('builds:guide.testflight.estimate')
                 : null,
         downloads: false,
         qr: false,
@@ -420,56 +430,42 @@ export function installGuide(row: BuildRow): Guide {
       };
     }
     return {
-      title: 'Install from Google Play',
+      title: t('builds:guide.play.title'),
       steps: [
-        'Play builds cannot be downloaded as a file here. Testers install from the Play Store.',
-        b.optInUrl
-          ? 'A tester who was invited to the track opens the opt-in link below on the phone, joins, and installs from Play.'
-          : 'For the internal track, the tester joins with the opt-in link from Play Console (Testing, Internal testing, Testers), then installs from Play.',
+        t('builds:guide.play.step1'),
+        b.optInUrl ? t('builds:guide.play.stepOptIn') : t('builds:guide.play.stepInternal'),
       ],
-      caution: b.tracks.length === 0 ? 'No track holds this version code at the moment.' : null,
+      caution: b.tracks.length === 0 ? t('builds:guide.play.noTrack') : null,
       downloads: false,
       qr: false,
-      link: b.optInUrl ? { label: 'Open the opt-in page', href: b.optInUrl } : null,
+      link: b.optInUrl ? { label: t('builds:guide.play.openOptIn'), href: b.optInUrl } : null,
     };
   }
   const kind = row.kind as ArtifactKind;
   switch (kind) {
     case 'apk':
       return {
-        title: 'Install an Android APK',
-        steps: [
-          'On the phone: scan the code, or download the zip here and unzip it.',
-          'Open the APK and allow "Install unknown apps" for the app you opened it from, once.',
-          'Or from a computer: adb install app.apk (USB debugging on).',
-        ],
-        caution: `${ZIP_NOTE} A debug or upload-key build cannot update a copy installed from Play (the signatures differ): remove that copy first.`,
+        title: t('builds:guide.apk.title'),
+        steps: [t('builds:guide.apk.step1'), t('builds:guide.apk.step2'), t('builds:guide.apk.step3')],
+        caution: t('builds:guide.apk.caution'),
         downloads: true,
         qr: true,
         link: null,
       };
     case 'aab':
       return {
-        title: 'An Android App Bundle cannot be installed directly',
-        steps: [
-          'Turn it into installable APKs with bundletool: bundletool build-apks --connected-device --bundle=app.aab --output=app.apks',
-          'Then: bundletool install-apks --apks=app.apks',
-          'Or put the bundle on a Play internal test track and install from Play.',
-        ],
-        caution: `${ZIP_NOTE} A phone cannot do this on its own, so there is no code for a phone.`,
+        title: t('builds:guide.aab.title'),
+        steps: [t('builds:guide.aab.step1'), t('builds:guide.aab.step2'), t('builds:guide.aab.step3')],
+        caution: t('builds:guide.aab.caution'),
         downloads: true,
         qr: false,
         link: null,
       };
     case 'ipa':
       return {
-        title: 'Install an iOS IPA',
-        steps: [
-          'An ad hoc or development IPA only runs on devices that are in its provisioning profile (by UDID). Any other device refuses it.',
-          'On a Mac: unzip, connect the device, and drag the IPA onto it in Finder, or use Apple Configurator or Xcode (Window, Devices and Simulators).',
-          'An IPA built for the App Store cannot be installed this way: upload it to TestFlight instead.',
-        ],
-        caution: `${ZIP_NOTE} Installing over the air from a link is not offered: Apple needs a trusted public HTTPS address and a manifest for it.`,
+        title: t('builds:guide.ipa.title'),
+        steps: [t('builds:guide.ipa.step1'), t('builds:guide.ipa.step2'), t('builds:guide.ipa.step3')],
+        caution: t('builds:guide.ipa.caution'),
         downloads: true,
         qr: false,
         link: null,
@@ -478,40 +474,34 @@ export function installGuide(row: BuildRow): Guide {
     case 'dmg':
     case 'pkg':
       return {
-        title: 'Install a Mac build',
+        title: t('builds:guide.mac.title'),
         steps: [
           kind === 'dmg'
-            ? 'Open the DMG and drag the app to Applications.'
+            ? t('builds:guide.mac.stepDmg')
             : kind === 'pkg'
-              ? 'Open the PKG and follow the installer.'
-              : 'Unzip it and move the app to Applications.',
-          'A downloaded app is checked by Gatekeeper. A notarized build opens normally; one that is not asks you to allow it in System Settings, Privacy and Security, "Open Anyway".',
+              ? t('builds:guide.mac.stepPkg')
+              : t('builds:guide.mac.stepApp'),
+          t('builds:guide.mac.stepGatekeeper'),
         ],
-        caution: ZIP_NOTE,
+        caution: t('builds:guide.zipNote'),
         downloads: true,
         qr: false,
         link: null,
       };
     case 'zip':
       return {
-        title: 'A build in a zip',
-        steps: [
-          'Download it and unzip it to see what the workflow uploaded (an IPA, an APK, an AAB or a Mac app).',
-          'Then install it as described for that type.',
-        ],
-        caution: ZIP_NOTE,
+        title: t('builds:guide.zip.title'),
+        steps: [t('builds:guide.zip.step1'), t('builds:guide.zip.step2')],
+        caution: t('builds:guide.zipNote'),
         downloads: true,
         qr: platformSupports(row.platform, 'sideloadInstall'),
         link: null,
       };
     default:
       return {
-        title: 'Not recognised as a build',
-        steps: [
-          'This artifact does not look like an app build (a test report, logs or symbols, for example).',
-          'You can still download it as a zip.',
-        ],
-        caution: ZIP_NOTE,
+        title: t('builds:guide.other.title'),
+        steps: [t('builds:guide.other.step1'), t('builds:guide.other.step2')],
+        caution: t('builds:guide.zipNote'),
         downloads: true,
         qr: false,
         link: null,
@@ -534,32 +524,34 @@ export function problemNotice(
     case 'no_repository':
       return {
         tone: 'info',
-        title: 'No repository is linked to this app',
-        body: 'CI builds appear here when the app is linked to a GitHub repository. The store builds below come from the last sync.',
+        title: t('builds:notice.noRepository.title'),
+        body: t('builds:notice.noRepository.body'),
       };
     case 'no_access':
       return {
         tone: 'warn',
-        title: 'GitHub did not let us list the artifacts',
-        body: `The credential of ${repo ? `${repo.owner}/${repo.repo}` : 'the repository'} needs read access to GitHub Actions: "Actions: read" for a fine-grained token or GitHub App, or the repo scope for a classic token. Add it in GitHub, then reload.`,
+        title: t('builds:notice.noAccess.title'),
+        body: t('builds:notice.noAccess.body', {
+          repository: repo ? `${repo.owner}/${repo.repo}` : t('builds:notice.noAccess.theRepository'),
+        }),
       };
     case 'rate_limited':
       return {
         tone: 'warn',
-        title: 'GitHub asked us to slow down',
-        body: 'The artifact list is paused for a moment. Try again in a minute.',
+        title: t('builds:notice.rateLimited.title'),
+        body: t('builds:notice.rateLimited.body'),
       };
     case 'unsupported':
       return {
         tone: 'info',
-        title: 'This connection cannot list artifacts',
-        body: 'The repository connection does not support reading workflow artifacts.',
+        title: t('builds:notice.unsupported.title'),
+        body: t('builds:notice.unsupported.body'),
       };
     default:
       return {
         tone: 'warn',
-        title: 'GitHub could not be reached',
-        body: 'The artifact list could not be read. Try again in a moment.',
+        title: t('builds:notice.unreachable.title'),
+        body: t('builds:notice.unreachable.body'),
       };
   }
 }
@@ -573,20 +565,19 @@ export type TestFlightView =
       links: (TestFlightLink & { state: 'on' | 'off'; stateText: string; limitText: string })[];
     };
 
-export const TESTFLIGHT_NONE_TEXT =
-  'No TestFlight group has a public link. Kiln only reads TestFlight and never creates or turns on a group or a link: set one up in App Store Connect (TestFlight, a group, Enable Public Link).';
+export const testflightNoneText = (): string => t('builds:flight.none.text');
 
 /** The one line for a failed TestFlight read, in the fixed vocabulary of the server (never Apple's text). */
 const flightProblemText = (reason: TestFlightProblemReason): string => {
   switch (reason) {
     case 'no_access':
-      return 'App Store Connect did not let us read the TestFlight groups. The API key of this app needs the App Manager role (the least role that works is not confirmed). Change the key in App Store Connect, then reload.';
+      return t('builds:flight.problem.noAccess');
     case 'rate_limited':
-      return 'App Store Connect asked us to slow down. The TestFlight links are paused for a moment: try again in a minute.';
+      return t('builds:flight.problem.rateLimited');
     case 'not_synced':
-      return 'Sync this app once so its App Store id is known, then the TestFlight links can be read.';
+      return t('builds:flight.problem.notSynced');
     default:
-      return 'The TestFlight links could not be read. Try again in a moment.';
+      return t('builds:flight.problem.unavailable');
   }
 };
 
@@ -606,8 +597,8 @@ export function testflightNote(
       tone: warn ? 'warn' : 'info',
       short:
         info.problem.reason === 'not_synced'
-          ? 'TestFlight links: sync this app first.'
-          : 'TestFlight links could not be read.',
+          ? t('builds:flight.short.notSynced')
+          : t('builds:flight.short.unreadable'),
       text: flightProblemText(info.problem.reason),
       retry: info.problem.reason !== 'not_synced',
     };
@@ -615,8 +606,8 @@ export function testflightNote(
   if (info.groups.length === 0)
     return {
       tone: 'info',
-      short: 'No TestFlight public link yet.',
-      text: TESTFLIGHT_NONE_TEXT,
+      short: t('builds:flight.none.short'),
+      text: testflightNoneText(),
       retry: false,
     };
   return null;
@@ -642,15 +633,17 @@ export function testflightView(
     .map((g) => ({
       ...g,
       state: g.enabled ? ('on' as const) : ('off' as const),
-      stateText: g.enabled ? 'Link on' : 'Link off',
+      stateText: g.enabled ? t('builds:flight.linkOn') : t('builds:flight.linkOff'),
       limitText:
-        g.limit === null ? 'No tester limit' : `Up to ${g.limit} tester${g.limit === 1 ? '' : 's'}`,
+        g.limit === null
+          ? t('builds:flight.noLimit')
+          : t('builds:flight.limit', { count: g.limit }),
     }));
   if (links.length === 0)
     return {
       kind: 'message',
       tone: 'info',
-      text: 'This build is not in a TestFlight group that has a public link.',
+      text: t('builds:flight.notInGroup'),
     };
   return { kind: 'links', links };
 }
@@ -671,8 +664,8 @@ export function statusLine(
   const parts: string[] = [];
   const details: StatusLine['details'] = [];
   if (!list.downloadEnabled) {
-    parts.push('Downloads are off');
-    details.push({ title: 'Downloads are switched off', body: DOWNLOADS_OFF_TEXT });
+    parts.push(t('builds:status.downloadsOff'));
+    details.push({ title: t('builds:status.downloadsOffTitle'), body: downloadsOffText() });
   }
   if (notice) {
     parts.push(notice.title);
@@ -684,10 +677,9 @@ export function statusLine(
 }
 
 /** Shown instead of a download button while the server switch is off. */
-export const DOWNLOADS_OFF_TEXT =
-  'Downloads are switched off on this server. An administrator turns them on with KILN_BUILDS_DOWNLOAD_ENABLED=true, and the GitHub credential needs "Actions: read".';
+export const downloadsOffText = (): string => t('builds:download.off');
 
-export const NO_RIGHT_TEXT = 'Downloading builds needs the member role or above.';
+export const noRightText = (): string => t('builds:download.noRight');
 
 /** Why a row has no download button, or null when it has one. */
 export function downloadBlocker(
@@ -695,12 +687,11 @@ export function downloadBlocker(
   list: Pick<BuildsList, 'downloadEnabled' | 'canDownload' | 'maxDownloadBytes'>,
 ): string | null {
   if (!row.artifact) return null;
-  if (!list.downloadEnabled) return DOWNLOADS_OFF_TEXT;
-  if (!list.canDownload) return NO_RIGHT_TEXT;
-  if (row.artifact.expired)
-    return 'GitHub no longer keeps this artifact. Run the workflow again to make a new one.';
+  if (!list.downloadEnabled) return downloadsOffText();
+  if (!list.canDownload) return noRightText();
+  if (row.artifact.expired) return t('builds:download.expired');
   if (row.artifact.tooLarge)
-    return `Larger than the download limit (${humanSize(list.maxDownloadBytes)}).`;
+    return t('builds:download.tooLarge', { size: humanSize(list.maxDownloadBytes) });
   return null;
 }
 
@@ -829,15 +820,15 @@ export function canOfferShare(
 export const uploadFileText = (u: Pick<SharePreview['upload'], 'fileName' | 'kind'>): string => {
   const kind = u.kind === 'bundle' ? 'Android App Bundle (.aab)' : u.kind === 'apk' ? 'APK' : null;
   if (u.fileName) return kind ? `${u.fileName} (${kind})` : u.fileName;
-  return kind ?? 'The .aab or .apk inside the zip, found when you confirm';
+  return kind ?? t('builds:share.fileFoundOnConfirm');
 };
 
 /** The version code is known only when the server read the file; today it does not before the upload. */
 export const versionCodeText = (v: number | null): string =>
-  v === null ? 'Not known before the upload' : String(v);
+  v === null ? t('builds:share.unknownBeforeUpload') : String(v);
 
 export const shortHash = (sha: string | null): string =>
-  sha ? `${sha.slice(0, 12)}…${sha.slice(-6)}` : 'Not known before the upload';
+  sha ? `${sha.slice(0, 12)}…${sha.slice(-6)}` : t('builds:share.unknownBeforeUpload');
 
 /** True when what was typed is the phrase (spaces at the ends do not matter; case does). */
 export const phraseMatches = (typed: string, phrase: string | null | undefined): boolean =>
@@ -845,14 +836,12 @@ export const phraseMatches = (typed: string, phrase: string | null | undefined):
 
 /** Words for a link's life: "24 hours" for the server's copy; Google's own expiry is not known here. */
 export const linkKeptText = (hours: number): string =>
-  `This server keeps the link for ${hours} hour${hours === 1 ? '' : 's'}, then forgets it. Share the build again to get a new one.`;
+  t('builds:share.linkKept', { count: hours });
 
-export const LINK_SENSITIVE_TEXT =
-  'This link is sensitive. Anyone who has it and whose Google account is allowed to use internal app sharing can install this build. Send it only to the people who should test it.';
+export const linkSensitiveText = (): string => t('builds:share.linkSensitive');
 
 /** What this does not do, said once in the preview. */
-export const SHARE_CANNOT_UNDO_TEXT =
-  'This cannot be taken back from here: Google offers no way to delete an uploaded build or its link.';
+export const shareCannotUndoText = (): string => t('builds:share.cannotUndo');
 
 /** The entry names a server lists when one artifact holds several builds (at most 20). */
 export function entryChoices(body: Record<string, unknown> | undefined): string[] {
@@ -860,61 +849,44 @@ export function entryChoices(body: Record<string, unknown> | undefined): string[
   return list.filter((x): x is string => typeof x === 'string');
 }
 
+const shareErrorKeys: Record<string, string> = {
+  internal_sharing_disabled: k('builds:shareError.internalSharingDisabled'),
+  forbidden: k('builds:shareError.forbidden'),
+  not_android: k('builds:shareError.notAndroid'),
+  invalid_entry: k('builds:shareError.invalidEntry'),
+  entry_required: k('builds:shareError.entryRequired'),
+  entry_not_found: k('builds:shareError.entryNotFound'),
+  no_android_build: k('builds:shareError.noAndroidBuild'),
+  bad_zip: k('builds:shareError.badZip'),
+  artifact_expired: k('builds:shareError.artifactExpired'),
+  artifact_too_large: k('builds:shareError.artifactTooLarge'),
+  confirmation_mismatch: k('builds:shareError.confirmationMismatch'),
+  state_changed: k('builds:shareError.stateChanged'),
+  blocked: k('builds:shareError.blocked'),
+  write_in_progress: k('builds:shareError.writeInProgress'),
+  store_auth: k('builds:shareError.storeAuth'),
+  store_forbidden: k('builds:shareError.storeForbidden'),
+  store_not_found: k('builds:shareError.storeNotFound'),
+  artifact_rejected: k('builds:shareError.artifactRejected'),
+  upload_failed: k('builds:shareError.uploadFailed'),
+  outcome_unknown: k('builds:shareError.outcomeUnknown'),
+  link_expired: k('builds:shareError.linkExpired'),
+  not_found: k('builds:shareError.notFound'),
+};
+
 /**
  * One plain sentence for every fixed code the preview and the apply answer with. Unknown codes give undefined: the caller shows its own
  * fallback. Google's wording is never shown (the server does not pass it on).
  */
 export function shareErrorMessage(code: string, retryAfter?: number): string | undefined {
-  switch (code) {
-    case 'internal_sharing_disabled':
-      return 'Sharing to a device is switched off on this server.';
-    case 'forbidden':
-      return 'Only an owner or an admin can share a build to a device.';
-    case 'not_android':
-      return 'Sharing to a device is for Android apps.';
-    case 'invalid_entry':
-      return 'That is not the path of an .aab or .apk file inside the artifact.';
-    case 'entry_required':
-      return 'This artifact holds more than one build file. Choose the one to share.';
-    case 'entry_not_found':
-      return 'That file is not in the artifact. Choose another.';
-    case 'no_android_build':
-      return 'There is no .aab or .apk in this artifact, so nothing was uploaded.';
-    case 'bad_zip':
-      return 'This artifact could not be read as a zip, so nothing was uploaded.';
-    case 'artifact_expired':
-      return 'GitHub no longer keeps this artifact. Run the workflow again to make a new one.';
-    case 'artifact_too_large':
-      return 'This build is larger than the limit this server allows, so nothing was uploaded.';
-    case 'confirmation_mismatch':
-      return 'The words you typed do not match. Nothing was uploaded.';
-    case 'state_changed':
-      return 'The artifact changed since it was previewed. Nothing was uploaded. Review the new preview and confirm again.';
-    case 'blocked':
-      return 'Something stands in the way of sharing. Nothing was uploaded.';
-    case 'write_in_progress':
-      return 'A build of this app is being uploaded already. Wait for it to finish.';
-    case 'store_auth':
-      return 'Google rejected the credential of this app. Replace it in Credentials, then try again.';
-    case 'store_forbidden':
-      return 'The credential of this app is not allowed to do this, or the Android Publisher API is off for its Google Cloud project.';
-    case 'store_not_found':
-      return 'Google does not know this package. Nothing was uploaded.';
-    case 'artifact_rejected':
-      return 'Google did not accept the file: it is not a valid, signed build for this package.';
-    case 'rate_limited':
-      return `Too many requests. Try again in ${retryAfter && retryAfter > 0 ? (retryAfter < 60 ? `${Math.ceil(retryAfter)} seconds` : `${Math.ceil(retryAfter / 60)} minutes`) : 'a minute'}.`;
-    case 'upload_failed':
-      return 'The upload to Google failed. Nothing was shared. Try again later.';
-    case 'outcome_unknown':
-      return 'The upload may or may not have reached Google, and Google cannot be asked. Preview again before you share again; sharing twice only makes a second link.';
-    case 'link_expired':
-      return 'This link is no longer kept. Share the build again to get a new one.';
-    case 'not_found':
-      return 'That build or app was not found.';
-    default:
-      return undefined;
+  if (code === 'rate_limited') {
+    if (!retryAfter || retryAfter <= 0) return t('builds:shareError.rateLimitedSoon');
+    return retryAfter < 60
+      ? t('builds:shareError.rateLimitedSeconds', { count: Math.ceil(retryAfter) })
+      : t('builds:shareError.rateLimitedMinutes', { count: Math.ceil(retryAfter / 60) });
   }
+  const key = Object.hasOwn(shareErrorKeys, code) ? shareErrorKeys[code] : undefined;
+  return key ? t(key) : undefined;
 }
 
 /** The refusal the dialog shows for an error: a fixed sentence for the code, else the API client's own text. */
@@ -932,7 +904,7 @@ export function shareFailure(error: {
     fixed ??
     (typeof error.message === 'string' && error.message
       ? error.message
-      : 'Could not share the build. Try again.')
+      : t('builds:shareError.generic'))
   );
 }
 

@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import { type BuildRow, downloadPath, humanSize, installGuide } from '../../lib/builds.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
   import Modal from '../ui/Modal.svelte';
@@ -16,16 +17,16 @@
   const href = $derived(downloadPath(workspaceId, appId, row.artifact?.id ?? ''));
 </script>
 
-<Modal bind:open title="Download {row.title}" description="A zip from your CI, sent through this server." size="sm" {onclose}>
+<Modal bind:open title={t('builds:download.title', { name: row.title })} description={t('builds:download.description')} size="sm" {onclose}>
   <div class="stack">
     <p>
-      {#if row.sizeBytes !== null}This is {humanSize(row.sizeBytes)}.{/if}
-      The download is recorded in the audit log. Unzip it to find the build.
+      {#if row.sizeBytes !== null}{t('builds:download.sizeIntro', { size: humanSize(row.sizeBytes) })}{/if}
+      {t('builds:download.recorded')}
     </p>
     <p class="muted text-sm">{guide.steps[0]}</p>
   </div>
   {#snippet footer()}
-    <Button onclick={() => (open = false)}>Cancel</Button>
-    <a class="btn primary" {href} download onclick={() => setTimeout(() => (open = false), 0)}><Icon name="download" size={16} />Download zip</a>
+    <Button onclick={() => (open = false)}>{t('common:action.cancel')}</Button>
+    <a class="btn primary" {href} download onclick={() => setTimeout(() => (open = false), 0)}><Icon name="download" size={16} />{t('builds:download.button')}</a>
   {/snippet}
 </Modal>

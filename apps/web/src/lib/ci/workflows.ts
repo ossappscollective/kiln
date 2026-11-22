@@ -1,4 +1,5 @@
 import { type Platform, ciProviderMeta } from '@kiln/core';
+import { k, t } from '../i18n/t.ts';
 import { isFailedRun, runAppIds } from '../running.ts';
 import type { CiWorkflow, WorkflowRun } from '../types.ts';
 import { canDispatchWorkflow } from './ci.ts';
@@ -21,7 +22,7 @@ export const nameTokens = (text: string): string[] =>
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .toLowerCase()
     .split(/[^a-z0-9]+/)
-    .filter((t) => t !== '');
+    .filter((token) => token !== '');
 
 const IOS_WORDS = ['ios', 'iphone', 'ipados', 'testflight', 'xcode', 'appstore'];
 const ANDROID_WORDS = ['android', 'gradle', 'apk', 'aab', 'playstore'];
@@ -104,13 +105,13 @@ const RANK: Record<WorkflowRelevance, number> = {
 export const relevanceLabel = (relevance: WorkflowRelevance): string => {
   switch (relevance) {
     case 'configured':
-      return 'Release workflow';
+      return t('builds:workflows.relevance.configured');
     case 'used':
-      return 'Used for this app';
+      return t('builds:workflows.relevance.used');
     case 'release':
-      return 'Release';
+      return t('builds:workflows.relevance.release');
     case 'build':
-      return 'Build';
+      return t('builds:workflows.relevance.build');
     default:
       return '';
   }
@@ -166,7 +167,7 @@ export function rankWorkflows(
       return {
         workflow,
         relevance: 'configured',
-        reason: "The release workflow set in this app's build conventions.",
+        reason: t('builds:workflows.reason.configured'),
         platforms,
       };
     }
@@ -176,7 +177,7 @@ export function rankWorkflows(
       return {
         workflow,
         relevance: 'used',
-        reason: 'A run of it was started from here for this app.',
+        reason: t('builds:workflows.reason.used'),
         platforms,
       };
     }
@@ -184,11 +185,11 @@ export function rankWorkflows(
       return {
         workflow,
         relevance: 'release',
-        reason: 'Its name says release, publish or deploy.',
+        reason: t('builds:workflows.reason.release'),
         platforms,
       };
     if (has(words, BUILD_WORDS))
-      return { workflow, relevance: 'build', reason: 'Its name says build.', platforms };
+      return { workflow, relevance: 'build', reason: t('builds:workflows.reason.build'), platforms };
     return { workflow, relevance: 'other', reason: '', platforms };
   });
   return entries.sort(
@@ -250,15 +251,22 @@ export function filterByPlatform<T>(
 
 /** The sentence under the toolbar when the scope left something out; empty when it left nothing. */
 export function scopeNote(input: {
-  noun: string;
+  noun: 'workflow' | 'run';
   scopeLabel: string;
   hidden: number;
   fellBack: boolean;
 }): string {
   if (input.fellBack)
-    return `No ${input.noun}s are named for ${input.scopeLabel}, so all of them are shown.`;
+    return t(
+      input.noun === 'run'
+        ? 'builds:workflows.scope.fellBackRuns'
+        : 'builds:workflows.scope.fellBackWorkflows',
+      { scope: input.scopeLabel },
+    );
   if (input.hidden === 0) return '';
-  return `${input.hidden} ${input.noun}${input.hidden === 1 ? '' : 's'} for other platforms ${input.hidden === 1 ? 'is' : 'are'} hidden.`;
+  return input.noun === 'run'
+    ? t('builds:workflows.scope.hiddenRuns', { count: input.hidden })
+    : t('builds:workflows.scope.hiddenWorkflows', { count: input.hidden });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -301,9 +309,9 @@ export function runBlockedReason(
   workflow: Pick<CiWorkflow, 'state'>,
   canDispatch: boolean,
 ): string | null {
-  if (!canDispatch) return 'Starting a workflow needs the member or admin role.';
+  if (!canDispatch) return t('builds:workflows.blocked.role');
   if (!canDispatchWorkflow(workflow))
-    return `This workflow is ${workflow.state.replace(/_/g, ' ')} on GitHub.`;
+    return t('builds:workflows.blocked.state', { state: workflow.state.replace(/_/g, ' ') });
   return null;
 }
 
@@ -338,12 +346,12 @@ export type WorkflowRow = { repository: RepoRef; entry: WorkflowEntry; last: Wor
 
 export type StatusFilter = 'all' | 'running' | 'failed' | 'succeeded' | 'never';
 
-export const statusFilters: readonly { id: StatusFilter; label: string }[] = [
-  { id: 'all', label: 'Any status' },
-  { id: 'running', label: 'Running now' },
-  { id: 'failed', label: 'Last run failed' },
-  { id: 'succeeded', label: 'Last run succeeded' },
-  { id: 'never', label: 'Never run' },
+export const statusFilters: readonly { id: StatusFilter; labelKey: string }[] = [
+  { id: 'all', labelKey: k('builds:workflows.status.all') },
+  { id: 'running', labelKey: k('builds:workflows.status.running') },
+  { id: 'failed', labelKey: k('builds:workflows.status.failed') },
+  { id: 'succeeded', labelKey: k('builds:workflows.status.succeeded') },
+  { id: 'never', labelKey: k('builds:workflows.status.never') },
 ];
 
 export const isStatusFilter = (value: string): value is StatusFilter =>
@@ -414,13 +422,15 @@ export function readProblemLabel(code: string | undefined, status?: number): str
     case 'github_forbidden':
     case 'github_not_found':
     case 'ci_unsupported':
-      return 'The GitHub connection cannot read Actions';
+      return t('builds:workflows.problem.noAccess');
     case 'rate_limited':
-      return 'GitHub asked for a pause';
+      return t('builds:workflows.problem.rateLimited');
     case 'github_unavailable':
     case 'timeout':
-      return 'GitHub did not answer';
+      return t('builds:workflows.problem.unavailable');
     default:
-      return status === 403 ? 'You cannot read workflows here' : 'Workflows could not be read';
+      return status === 403
+        ? t('builds:workflows.problem.forbidden')
+        : t('builds:workflows.problem.unreadable');
   }
 }

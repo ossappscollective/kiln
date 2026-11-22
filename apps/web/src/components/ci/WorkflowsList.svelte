@@ -9,6 +9,7 @@
 -->
 <script lang="ts">
   import { isPending, runProvider, runTitle } from '../../lib/ci/ci.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { type WorkflowRow, relevanceLabel, runBlockedReason } from '../../lib/ci/workflows.ts';
   import type { WorkflowRun } from '../../lib/types.ts';
@@ -40,12 +41,12 @@
 
 <div class="table-wrap">
   <table class="compact wfs">
-    <caption class="visually-hidden">Workflows</caption>
+    <caption class="visually-hidden">{t('builds:wfl.caption')}</caption>
     <thead>
       <tr>
-        <th scope="col">Workflow</th>
-        <th scope="col">Last run</th>
-        <th scope="col"><span class="visually-hidden">Actions</span></th>
+        <th scope="col">{t('builds:runs.workflow')}</th>
+        <th scope="col">{t('builds:wfl.lastRun')}</th>
+        <th scope="col"><span class="visually-hidden">{t('builds:runs.actions')}</span></th>
       </tr>
     </thead>
     <tbody>
@@ -66,7 +67,7 @@
                 </span>
               {/if}
               {#if workflow.state !== 'active'}
-                <Badge tone="warn">{workflow.state === 'unknown' ? 'Not listed by GitHub' : workflow.state.replace(/_/g, ' ')}</Badge>
+                <Badge tone="warn">{workflow.state === 'unknown' ? t('builds:wfl.notListed') : workflow.state.replace(/_/g, ' ')}</Badge>
               {/if}
             </div>
             <span class="path muted">{#if showRepository}{row.repository.name} · {/if}<code>{workflow.path}</code></span>
@@ -81,22 +82,22 @@
                   <time datetime={new Date(last.startedAt).toISOString()} title={fullTime(last.startedAt)}>{timeAgo(last.startedAt, now)}</time>
                 </span>
                 {#if last.url}
-                  <a class="icon-link" href={last.url} target="_blank" rel="noopener noreferrer" title="Open {runTitle(last)} on {runProvider(last).host}">
-                    <Icon name="external-link" size={14} /><span class="visually-hidden">Open the last run of {workflow.name} on {runProvider(last).host} (opens in a new tab)</span>
+                  <a class="icon-link" href={last.url} target="_blank" rel="noopener noreferrer" title={t('builds:wfl.openRun', { name: runTitle(last), host: runProvider(last).host })}>
+                    <Icon name="external-link" size={14} /><span class="visually-hidden">{t('builds:wfl.openLastRun', { name: workflow.name, host: runProvider(last).host })} {t('common:link.opensInNewTab')}</span>
                   </a>
                 {/if}
                 {#if runProvider(last).readsJobs}
                   {#if !isPending(last)}
-                    <Button size="sm" variant="ghost" label="{last.active ? 'Follow' : 'Jobs of'} the last run of {workflow.name}" onclick={() => onfollow(last, row)}
-                      >{last.active ? 'Follow' : 'Jobs'}</Button
+                    <Button size="sm" variant="ghost" label={last.active ? t('builds:wfl.followLast', { name: workflow.name }) : t('builds:wfl.jobsLast', { name: workflow.name })} onclick={() => onfollow(last, row)}
+                      >{last.active ? t('builds:runs.follow') : t('builds:runs.jobs')}</Button
                     >
                   {:else}
-                    <span class="muted when">Waiting for GitHub to name the run</span>
+                    <span class="muted when">{t('builds:runs.waitingName')}</span>
                   {/if}
                 {/if}
               </div>
             {:else}
-              <span class="muted">No runs yet</span>
+              <span class="muted">{t('builds:wfl.noRuns')}</span>
             {/if}
           </td>
           <td class="actions">
@@ -105,8 +106,8 @@
                 size="sm"
                 icon="play"
                 disabled={blocked !== null}
-                label={blocked ? `${blocked} (${workflow.name})` : `Run ${workflow.name}`}
-                onclick={() => onrun(row)}>Run</Button
+                label={blocked ? t('builds:wfl.blockedLabel', { reason: blocked, name: workflow.name }) : t('builds:lead.runWorkflow', { name: workflow.name })}
+                onclick={() => onrun(row)}>{t('builds:wfl.run')}</Button
               >
             {/if}
           </td>

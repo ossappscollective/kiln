@@ -13,6 +13,8 @@ import {
   previewPatterns,
   proposePattern,
 } from '@kiln/core';
+import { formatDuration, formatList } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 import type { Tone } from '../repositories.ts';
 import type {
   AppBuild,
@@ -34,39 +36,42 @@ import type {
 
 export type RunBadge = { label: string; tone: Tone; dot: boolean };
 
-const finished: Record<string, RunBadge> = {
-  success: { label: 'Succeeded', tone: 'ok', dot: false },
-  failure: { label: 'Failed', tone: 'bad', dot: false },
-  timed_out: { label: 'Timed out', tone: 'bad', dot: false },
-  startup_failure: { label: 'Failed to start', tone: 'bad', dot: false },
-  cancelled: { label: 'Cancelled', tone: 'neutral', dot: false },
-  skipped: { label: 'Skipped', tone: 'neutral', dot: false },
-  stale: { label: 'Stale', tone: 'neutral', dot: false },
-  neutral: { label: 'Finished', tone: 'neutral', dot: false },
-  action_required: { label: 'Needs approval', tone: 'warn', dot: false },
+type BadgeSpec = { labelKey: string; tone: Tone; dot: boolean };
+const badge = ({ labelKey, tone, dot }: BadgeSpec): RunBadge => ({ label: t(labelKey), tone, dot });
+
+const finished: Record<string, BadgeSpec> = {
+  success: { labelKey: k('builds:ci.run.succeeded'), tone: 'ok', dot: false },
+  failure: { labelKey: k('builds:ci.run.failed'), tone: 'bad', dot: false },
+  timed_out: { labelKey: k('builds:ci.run.timedOut'), tone: 'bad', dot: false },
+  startup_failure: { labelKey: k('builds:ci.run.failedToStart'), tone: 'bad', dot: false },
+  cancelled: { labelKey: k('builds:ci.run.cancelled'), tone: 'neutral', dot: false },
+  skipped: { labelKey: k('builds:ci.run.skipped'), tone: 'neutral', dot: false },
+  stale: { labelKey: k('builds:ci.run.stale'), tone: 'neutral', dot: false },
+  neutral: { labelKey: k('builds:ci.run.finished'), tone: 'neutral', dot: false },
+  action_required: { labelKey: k('builds:ci.run.needsApproval'), tone: 'warn', dot: false },
 };
 
 /** The words and tone for a run. The text always says the state, so colour is never alone. */
 export function runBadge(run: Pick<WorkflowRun, 'status' | 'conclusion'>): RunBadge {
   switch (run.status) {
     case 'pending':
-      return { label: 'Starting', tone: 'info', dot: true };
+      return badge({ labelKey: k('builds:ci.run.starting'), tone: 'info', dot: true });
     case 'queued':
     case 'requested':
     case 'waiting':
-      return { label: 'Queued', tone: 'neutral', dot: true };
+      return badge({ labelKey: k('builds:ci.run.queued'), tone: 'neutral', dot: true });
     case 'in_progress':
-      return { label: 'Running', tone: 'info', dot: true };
+      return badge({ labelKey: k('builds:ci.run.running'), tone: 'info', dot: true });
     case 'completed':
-      return (
+      return badge(
         (run.conclusion ? finished[run.conclusion] : undefined) ?? {
-          label: 'Finished',
+          labelKey: k('builds:ci.run.finished'),
           tone: 'neutral',
           dot: false,
-        }
+        },
       );
     default:
-      return { label: 'Unknown', tone: 'neutral', dot: false };
+      return badge({ labelKey: k('builds:ci.run.unknown'), tone: 'neutral', dot: false });
   }
 }
 
@@ -99,19 +104,14 @@ export function sortRuns<T extends Pick<WorkflowRun, 'active' | 'startedAt' | 'i
   );
 }
 
-/** How long a finished run took, as "3 min 20 s"; null while it is going or when times are odd. */
+/** How long a finished run took, as "3 min 20 sec"; null while it is going or when times are odd. */
 export function runDuration(
   run: Pick<WorkflowRun, 'active' | 'startedAt' | 'updatedAt'>,
 ): string | null {
   if (run.active || run.updatedAt < run.startedAt) return null;
   const seconds = Math.round((run.updatedAt - run.startedAt) / 1000);
   if (!Number.isFinite(seconds) || seconds < 0) return null;
-  if (seconds < 60) return `${seconds} s`;
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  if (minutes < 60) return rest ? `${minutes} min ${rest} s` : `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours} h ${minutes % 60} min`;
+  return formatDuration(seconds * 1000);
 }
 
 /** What the API takes for a workflow: its file name (`ios.yml`), else its id. */
@@ -159,17 +159,20 @@ export function inputProblems(
   for (const spec of specs) {
     const value = (values[spec.name] ?? '').trim();
     if (value === '') {
-      if (spec.required) problems[spec.name] = `${spec.name} is required.`;
+      if (spec.required) problems[spec.name] = t('builds:ci.input.required', { name: spec.name });
       continue;
     }
     if (spec.type === 'number' && !Number.isFinite(Number(value))) {
-      problems[spec.name] = `${spec.name} must be a number.`;
+      problems[spec.name] = t('builds:ci.input.notNumber', { name: spec.name });
     } else if (spec.type === 'boolean' && value !== 'true' && value !== 'false') {
-      problems[spec.name] = `${spec.name} must be true or false.`;
+      problems[spec.name] = t('builds:ci.input.notBoolean', { name: spec.name });
     } else if (spec.type === 'choice' && spec.options && !spec.options.includes(value)) {
-      problems[spec.name] = `${spec.name} must be one of: ${spec.options.join(', ')}.`;
+      problems[spec.name] = t('builds:ci.input.notChoice', {
+        name: spec.name,
+        options: formatList(spec.options, { type: 'unit' }),
+      });
     } else if (value.length > 4096) {
-      problems[spec.name] = `${spec.name} is too long (4096 characters at most).`;
+      problems[spec.name] = t('builds:ci.input.tooLong', { name: spec.name, max: 4096 });
     }
   }
   return problems;
@@ -210,29 +213,27 @@ export function parseFreeFormInputs(text: string): FreeFormInputs {
     if (line === '' || line.startsWith('#')) continue;
     const at = line.indexOf('=');
     if (at <= 0) {
-      problems.push(`Line ${lineNo}: write name=value.`);
+      problems.push(t('builds:ci.free.writeNameValue', { line: lineNo }));
       continue;
     }
     const name = line.slice(0, at).trim();
     const value = line.slice(at + 1).trim();
     if (!INPUT_NAME.test(name)) {
-      problems.push(
-        `Line ${lineNo}: "${name}" is not a valid input name (letters, digits, - and _).`,
-      );
+      problems.push(t('builds:ci.free.badName', { line: lineNo, name }));
       continue;
     }
     if (name in inputs) {
-      problems.push(`Line ${lineNo}: ${name} is given twice.`);
+      problems.push(t('builds:ci.free.twice', { line: lineNo, name }));
       continue;
     }
     if (value.length > 4096) {
-      problems.push(`Line ${lineNo}: the value of ${name} is too long.`);
+      problems.push(t('builds:ci.free.valueTooLong', { line: lineNo, name }));
       continue;
     }
     inputs[name] = value;
   }
   if (Object.keys(inputs).length > MAX_DISPATCH_INPUTS) {
-    problems.push(`GitHub accepts at most ${MAX_DISPATCH_INPUTS} inputs.`);
+    problems.push(t('builds:ci.free.tooMany', { max: MAX_DISPATCH_INPUTS }));
   }
   return { inputs, problems };
 }
@@ -244,51 +245,59 @@ export function dispatchSummary(input: {
   repository: string;
   inputs: Readonly<InputValues>;
 }): string {
-  const names = Object.keys(input.inputs);
-  const withInputs =
-    names.length === 0
-      ? 'with no inputs'
-      : `with ${names.length} input${names.length === 1 ? '' : 's'}`;
-  return `Run ${input.workflow} on ${input.ref} in ${input.repository} ${withInputs}.`;
+  const count = Object.keys(input.inputs).length;
+  const { workflow, ref, repository } = input;
+  return count === 0
+    ? t('builds:ci.dispatch.summaryNone', { workflow, ref, repository })
+    : t('builds:ci.dispatch.summary', { count, workflow, ref, repository });
 }
 
 // ---------------------------------------------------------------------------------------------
 // Builds
 
+const sourceKeys: Record<string, string> = {
+  manual: k('builds:ci.source.manual'),
+  dispatch_input: k('builds:ci.source.dispatchInput'),
+  run_title: k('builds:ci.source.runTitle'),
+  run_number: k('builds:ci.source.runNumber'),
+  tag: k('builds:ci.source.tag'),
+  release: k('builds:ci.source.release'),
+};
+
 /** What the person reads for how a link was made. */
 export function linkSourceLabel(source: string): string {
-  switch (source) {
-    case 'manual':
-      return 'Linked by hand';
-    case 'dispatch_input':
-      return 'Matched by the dispatch input';
-    case 'run_title':
-      return 'Matched by the run title';
-    case 'run_number':
-      return 'Matched by the run number';
-    case 'tag':
-      return 'Found through the tag';
-    case 'release':
-      return 'Found through the GitHub release';
-    default:
-      return `Matched by ${source}`;
-  }
+  const key = sourceKeys[source];
+  return key ? t(key) : t('builds:ci.source.other', { source });
 }
 
+const linkStateKeys = {
+  linked: k('builds:ci.link.linked'),
+  tag: k('builds:ci.link.tag'),
+  unlinked: k('builds:ci.link.unlinked'),
+};
+
 /** The state of a build in a few words for the table: Linked, Tag found or Unlinked. */
-export const buildLinkLabel = (build: Pick<AppBuild, 'linkState'>): string =>
-  build.linkState === 'linked' ? 'Linked' : build.linkState === 'tag' ? 'Tag found' : 'Unlinked';
+export function buildLinkLabel(build: Pick<AppBuild, 'linkState'>): string {
+  const key =
+    build.linkState === 'linked'
+      ? linkStateKeys.linked
+      : build.linkState === 'tag'
+        ? linkStateKeys.tag
+        : linkStateKeys.unlinked;
+  return t(key);
+}
+
+const confidenceKeys: Record<LinkConfidence, string> = {
+  high: k('builds:ci.confidence.high'),
+  medium: k('builds:ci.confidence.medium'),
+  low: k('builds:ci.confidence.low'),
+};
+const confidenceTones: Record<LinkConfidence, Tone> = { high: 'ok', medium: 'info', low: 'warn' };
 
 /** The words and tone for how sure a link is. The text always says it, so colour is never alone. */
 export function confidenceBadge(confidence: LinkConfidence): { label: string; tone: Tone } {
-  switch (confidence) {
-    case 'high':
-      return { label: 'High confidence', tone: 'ok' };
-    case 'medium':
-      return { label: 'Medium confidence', tone: 'info' };
-    default:
-      return { label: 'Low confidence', tone: 'warn' };
-  }
+  const level: LinkConfidence = confidence in confidenceKeys ? confidence : 'low';
+  return { label: t(confidenceKeys[level]), tone: confidenceTones[level] };
 }
 
 /** Whether a link is worth a second look: a guess from times, or several runs that fit. */
@@ -301,9 +310,11 @@ export function tagFoundText(link: {
   evidence: { tag: string; kind: 'tag' | 'release'; noRunReason: string | null } | null;
 }): string {
   const e = link.evidence;
-  if (!e) return 'A tag carries this build number, but no run was found for its commit.';
-  const what = e.kind === 'release' ? 'GitHub release' : 'tag';
-  return `The ${what} ${e.tag} carries this build number. ${e.noRunReason ?? 'No run was found for its commit.'}`;
+  if (!e) return t('builds:ci.tagFound.none');
+  const reason = e.noRunReason ?? t('builds:ci.tagFound.noRun');
+  return e.kind === 'release'
+    ? t('builds:ci.tagFound.release', { tag: e.tag, reason })
+    : t('builds:ci.tagFound.tag', { tag: e.tag, reason });
 }
 
 export const shortSha = (sha: string): string => sha.slice(0, 7);
@@ -335,13 +346,13 @@ export function changesHeadline(
   const to = changes.head.buildNumber;
   switch (changes.status) {
     case 'identical':
-      return `Build ${to} and build ${from} were made from the same commit.`;
+      return t('builds:ci.changes.identical', { to, from });
     case 'behind':
-      return `Build ${to} is older than build ${from}: it is behind it by ${changes.behindBy} commit${changes.behindBy === 1 ? '' : 's'}.`;
+      return t('builds:ci.changes.behind', { to, from, count: changes.behindBy });
     case 'diverged':
-      return `Build ${to} and build ${from} come from branches that split. The commits below are only in build ${to}.`;
+      return t('builds:ci.changes.diverged', { to, from });
     default:
-      return `${changes.totalCommits} commit${changes.totalCommits === 1 ? '' : 's'} in build ${to} since build ${from}.`;
+      return t('builds:ci.changes.ahead', { to, from, count: changes.totalCommits });
   }
 }
 
@@ -352,27 +363,39 @@ export function changesHeadline(
 export function diagnosticsLines(d: BuildDiagnostics): string[] {
   const lines: string[] = [];
   if (d.scannedAt === null) {
-    lines.push('Tags and releases have not been searched yet.');
+    lines.push(t('builds:ci.diag.notSearched'));
   } else if (d.scanOk === false) {
-    lines.push(`The last search failed${d.scanError ? `: ${d.scanError}` : '.'}`);
+    lines.push(
+      d.scanError
+        ? t('builds:ci.diag.scanFailedWith', { error: d.scanError })
+        : t('builds:ci.diag.scanFailed'),
+    );
   } else {
     if (d.tags) {
-      const more = d.tags.truncated ? ' (more exist than were read)' : '';
-      lines.push(`${d.tags.seen} tag${d.tags.seen === 1 ? '' : 's'} read${more}.`);
+      lines.push(
+        d.tags.truncated
+          ? t('builds:ci.diag.tagsReadMore', { count: d.tags.seen })
+          : t('builds:ci.diag.tagsRead', { count: d.tags.seen }),
+      );
     }
     if (d.releases) {
-      if (d.releases.error) lines.push(`Releases could not be read: ${d.releases.error}`);
-      else lines.push(`${d.releases.seen} GitHub release${d.releases.seen === 1 ? '' : 's'} read.`);
+      if (d.releases.error)
+        lines.push(t('builds:ci.diag.releasesError', { error: d.releases.error }));
+      else lines.push(t('builds:ci.diag.releasesRead', { count: d.releases.seen }));
     }
     if (d.fitting > 0 && d.newestFit) {
       lines.push(
-        `${d.fitting} name${d.fitting === 1 ? '' : 's'} fit a pattern; the newest build number among them is ${d.newestFit.buildNumber} (${d.newestFit.name}).`,
+        t('builds:ci.diag.fits', {
+          count: d.fitting,
+          buildNumber: d.newestFit.buildNumber,
+          name: d.newestFit.name,
+        }),
       );
     } else if ((d.tags?.seen ?? 0) > 0) {
-      lines.push('No tag or release name fits a pattern.');
+      lines.push(t('builds:ci.diag.noFit'));
     }
   }
-  lines.push(`${d.runs.stored} CI run${d.runs.stored === 1 ? ' is' : 's are'} stored.`);
+  lines.push(t('builds:ci.diag.runsStored', { count: d.runs.stored }));
   return lines;
 }
 
@@ -469,7 +492,7 @@ export function draftProblems(draft: ConventionDraft): DraftProblems {
     prefix,
     workflow:
       values.workflow !== null && !WORKFLOW_NAME.test(values.workflow)
-        ? 'A workflow file name such as release.yml.'
+        ? t('builds:ci.conv.workflowName')
         : undefined,
   };
 }
@@ -545,18 +568,18 @@ export const rowsForBuild = (rows: readonly PreviewRow[], buildNumber: string): 
 
 /** Short text for a preview row: what was read from the name. */
 export function previewReading(row: PreviewRow): string {
-  if (!row.matched || !row.fields) return 'Fits no pattern';
+  if (!row.matched || !row.fields) return t('builds:ci.reading.none');
   const f = row.fields;
-  const parts = [`build ${f.buildNumber}`];
-  if (f.version) parts.push(`version ${f.version}`);
+  const parts = [t('builds:ci.reading.build', { buildNumber: f.buildNumber })];
+  if (f.version) parts.push(t('builds:ci.reading.version', { version: f.version }));
   if (f.platform)
     parts.push(
       f.platform === 'other'
-        ? `platform ${f.platformWord ?? '?'} (not used)`
+        ? t('builds:ci.reading.platformOther', { word: f.platformWord ?? '?' })
         : platformLabel(f.platform),
     );
   if (f.flavor) parts.push(f.flavor);
-  if (row.platformOk === false) parts.push('other platform: not used for this app');
+  if (row.platformOk === false) parts.push(t('builds:ci.reading.otherPlatform'));
   return parts.join(' · ');
 }
 
@@ -573,13 +596,13 @@ export function proposeFromExample(
   kind: PatternKind,
 ): Proposal {
   const text = example.trim();
-  if (text === '') return { ok: false, message: 'Paste or pick a tag or release name.' };
+  if (text === '') return { ok: false, message: t('builds:ci.propose.empty') };
   const proposal = proposePattern(text, {
     buildNumber: build.buildNumber,
     version: build.version,
     kind,
   });
-  if (!proposal) return { ok: false, message: 'No build number was found in that name.' };
+  if (!proposal) return { ok: false, message: t('builds:ci.propose.none') };
   return { ok: true, pattern: proposal.pattern };
 }
 
@@ -595,12 +618,12 @@ export function appendPattern(
 ): { text: string; added: boolean; reason?: string } {
   const lines = parsePatternLines(text);
   if (lines.includes(pattern))
-    return { text, added: false, reason: 'That pattern is already in the list.' };
+    return { text, added: false, reason: t('builds:ci.append.exists') };
   if (lines.length === 0) {
     const next = [pattern, ...defaults.filter((d) => d !== pattern)].slice(0, MAX_PATTERNS);
     return { text: patternLines(next), added: true };
   }
   if (lines.length >= MAX_PATTERNS)
-    return { text, added: false, reason: `A list holds ${MAX_PATTERNS} patterns at most.` };
+    return { text, added: false, reason: t('builds:ci.append.full', { max: MAX_PATTERNS }) };
   return { text: patternLines([...lines, pattern]), added: true };
 }
