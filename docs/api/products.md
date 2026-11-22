@@ -30,13 +30,13 @@ switch, step-up and revenue preview (ADR 0034).
 
 Right `apps.read`. Reads the **stored snapshot**; it does not call the store. Returns:
 
-| Field       | Meaning                                                                                                                                  |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `app`       | `{ id, name, platform, store }`.                                                                                                         |
-| `supported` | `false` when the platform has no in-app purchases here (the list is empty).                                                              |
-| `products[]`| `productId`, `kind` (`consumable`, `non_consumable`, `subscription`), `referenceName`, `state` and `rawState`, `group`, `period`, `name`, `locales[]`, `price` (a headline price), `territoryCount`, `syncedAt`. |
-| `sync`      | `null` before the first sync, else `lastAttemptAt`, `lastSyncedAt`, `lastError`, `failures`, `productCount`, `complete`, `warnings[]`.   |
-| `write`     | `{ enabled, envName }`: whether the text write is switched on on this server.                                                            |
+| Field        | Meaning                                                                                                                                                                                                          |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app`        | `{ id, name, platform, store }`.                                                                                                                                                                                 |
+| `supported`  | `false` when the platform has no in-app purchases here (the list is empty).                                                                                                                                      |
+| `products[]` | `productId`, `kind` (`consumable`, `non_consumable`, `subscription`), `referenceName`, `state` and `rawState`, `group`, `period`, `name`, `locales[]`, `price` (a headline price), `territoryCount`, `syncedAt`. |
+| `sync`       | `null` before the first sync, else `lastAttemptAt`, `lastSyncedAt`, `lastError`, `failures`, `productCount`, `complete`, `warnings[]`.                                                                           |
+| `write`      | `{ enabled, envName }`: whether the text write is switched on on this server.                                                                                                                                    |
 
 Prices are `{ planId, territory, currency, amount, display }`. `amount` is a **string in minor units** (`999` is 9.99 USD), never a number.
 
@@ -76,14 +76,14 @@ Body (strict): `{ apply, name, description, previewHash? }`. `locale` is a tag s
 
 READS the product in the store and writes nothing. A successful read also settles an earlier `outcome_unknown`. Returns `{ preview }`:
 
-| Field                | Meaning                                                                                              |
-| -------------------- | ---------------------------------------------------------------------------------------------------- |
-| `app`, `product`     | Which record and product (`productId`, `kind`, `referenceName`).                                     |
-| `locale`             | The locale as the store writes it.                                                                   |
-| `current`, `proposed`| `{ name, description }` as the store has them, and as asked (line breaks normalized).                |
-| `changes`, `unchanged`| Which of the two texts differ; `unchanged` is true when nothing does.                               |
-| `previewHash`        | SHA-256 over the app, product, locale, the store's current texts and the proposed texts.            |
-| `warnings`, `readAt` | Notes from the store read, and when it was read.                                                     |
+| Field                  | Meaning                                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `app`, `product`       | Which record and product (`productId`, `kind`, `referenceName`).                         |
+| `locale`               | The locale as the store writes it.                                                       |
+| `current`, `proposed`  | `{ name, description }` as the store has them, and as asked (line breaks normalized).    |
+| `changes`, `unchanged` | Which of the two texts differ; `unchanged` is true when nothing does.                    |
+| `previewHash`          | SHA-256 over the app, product, locale, the store's current texts and the proposed texts. |
+| `warnings`, `readAt`   | Notes from the store read, and when it was read.                                         |
 
 ### Apply: `apply: true`
 
@@ -109,25 +109,25 @@ invalid_text`. The stores' own limits may be tighter and are not verified: their
 
 ## Errors
 
-| Status | `error`                         | When                                                                                          |
-| ------ | ------------------------------- | --------------------------------------------------------------------------------------------- |
-| 400    | `invalid_request`               | Body not valid, or `previewHash` missing on an apply.                                         |
-| 403    | `forbidden`, `step_up_required` | No right; or the workspace asks for a confirmation (see step-up).                             |
-| 404    | `not_found`                     | Not a member, no such workspace or app.                                                       |
-| 404    | `product_not_found`             | The product is not in the snapshot, or the store does not have it.                            |
-| 404    | `locale_not_found`              | The store lists no such locale for the product (a locale is never added).                     |
-| 409    | `store_product_write_disabled`  | The switch is off. Carries `envName`.                                                         |
-| 409    | `state_changed`                 | The store shows other texts than the previewed ones.                                          |
-| 409    | `write_in_progress`             | Another text change of this app is running.                                                   |
-| 409    | `outcome_unknown`               | The write may or may not have reached the store.                                              |
-| 422    | `invalid_locale`, `invalid_text`| The locale or a text breaks the rules above.                                                  |
-| 422    | `no_change`                     | The store already shows these texts.                                                          |
-| 422    | `products_not_supported`        | The platform has no in-app purchases here.                                                    |
-| 422    | `credential_not_found`, `credential_kind`, `credential_unreadable`, `app_not_synced` | The app's credential or store id is not usable. |
-| 422    | `store_auth`, `store_forbidden`, `store_not_found`, `invalid_product`, `store_rejected` | The store refused; the message has no secret. |
-| 429    | `rate_limited`                  | Sync limit, or the store's own limit (`Retry-After`).                                         |
-| 502    | `store_unavailable`, `store_failed` | The store could not be reached or answered with an error.                                 |
-| 504    | `timeout`                       | The store did not answer in time (a write is then read back, see above).                      |
+| Status | `error`                                                                                 | When                                                                      |
+| ------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 400    | `invalid_request`                                                                       | Body not valid, or `previewHash` missing on an apply.                     |
+| 403    | `forbidden`, `step_up_required`                                                         | No right; or the workspace asks for a confirmation (see step-up).         |
+| 404    | `not_found`                                                                             | Not a member, no such workspace or app.                                   |
+| 404    | `product_not_found`                                                                     | The product is not in the snapshot, or the store does not have it.        |
+| 404    | `locale_not_found`                                                                      | The store lists no such locale for the product (a locale is never added). |
+| 409    | `store_product_write_disabled`                                                          | The switch is off. Carries `envName`.                                     |
+| 409    | `state_changed`                                                                         | The store shows other texts than the previewed ones.                      |
+| 409    | `write_in_progress`                                                                     | Another text change of this app is running.                               |
+| 409    | `outcome_unknown`                                                                       | The write may or may not have reached the store.                          |
+| 422    | `invalid_locale`, `invalid_text`                                                        | The locale or a text breaks the rules above.                              |
+| 422    | `no_change`                                                                             | The store already shows these texts.                                      |
+| 422    | `products_not_supported`                                                                | The platform has no in-app purchases here.                                |
+| 422    | `credential_not_found`, `credential_kind`, `credential_unreadable`, `app_not_synced`    | The app's credential or store id is not usable.                           |
+| 422    | `store_auth`, `store_forbidden`, `store_not_found`, `invalid_product`, `store_rejected` | The store refused; the message has no secret.                             |
+| 429    | `rate_limited`                                                                          | Sync limit, or the store's own limit (`Retry-After`).                     |
+| 502    | `store_unavailable`, `store_failed`                                                     | The store could not be reached or answered with an error.                 |
+| 504    | `timeout`                                                                               | The store did not answer in time (a write is then read back, see above).  |
 
 ## Credentials
 

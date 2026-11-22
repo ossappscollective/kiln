@@ -473,7 +473,12 @@ export function createApp(deps: AppDeps) {
   reviewsModule.mount(app, services, deps.reviews, shared);
   easModule.mount(app, services, deps.eas, shared);
   // The products sync runs the RevenueCat read as its second step, so the monetization module gets the RevenueCat seams too.
-  monetizationModule.mount(app, services, { ...deps.monetization, revenueCat: deps.revenuecat }, shared);
+  monetizationModule.mount(
+    app,
+    services,
+    { ...deps.monetization, revenueCat: deps.revenuecat },
+    shared,
+  );
   revenuecatModule.mount(app, services, deps.revenuecat, shared);
   publishModule.mount(
     app,

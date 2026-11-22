@@ -129,7 +129,10 @@ export type UpdateStateView = {
 const toUpdateView = (u: ExpoUpdate): UpdateView => ({ ...u });
 
 /** Keeps only the updates of one platform, and drops the groups left empty. */
-function forPlatform(channels: readonly ExpoUpdateChannel[], platform: ExpoPlatformKey): ExpoUpdateChannel[] {
+function forPlatform(
+  channels: readonly ExpoUpdateChannel[],
+  platform: ExpoPlatformKey,
+): ExpoUpdateChannel[] {
   return channels.map((channel) => ({
     ...channel,
     branches: channel.branches.map((branch) => ({
@@ -227,11 +230,18 @@ async function open(
       coded('eas.noUpdates'),
     );
   }
-  const opened = await expoClientFor(ctx.db, ctx.masterKey, input.workspaceId, link.credentialId, ctx.deps, {
-    actor,
-    purpose,
-    now: ctx.now(),
-  });
+  const opened = await expoClientFor(
+    ctx.db,
+    ctx.masterKey,
+    input.workspaceId,
+    link.credentialId,
+    ctx.deps,
+    {
+      actor,
+      purpose,
+      now: ctx.now(),
+    },
+  );
   if (!opened.ok) return opened;
   return { ok: true, link, platform, client: opened.client };
 }
@@ -240,7 +250,9 @@ async function readAll(
   client: ExpoClient,
   projectId: string,
   platform: ExpoPlatformKey,
-): Promise<{ channels: ExpoUpdateChannel[]; truncated: boolean; builds: ExpoStoreBuild[] } | Failure> {
+): Promise<
+  { channels: ExpoUpdateChannel[]; truncated: boolean; builds: ExpoStoreBuild[] } | Failure
+> {
   try {
     const [read, builds] = await Promise.all([
       expoUpdateChannels(client, projectId),
@@ -263,7 +275,9 @@ export async function readUpdateState(
   const read = await readAll(opened.client, opened.link.projectId, opened.platform);
   if ('ok' in read) return read;
   const checks = checkRuntimeVersions({ channels: read.channels, builds: read.builds });
-  const builds = [...read.builds].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)).slice(0, SHOWN_BUILDS);
+  const builds = [...read.builds]
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+    .slice(0, SHOWN_BUILDS);
   return {
     ok: true,
     state: {
@@ -308,7 +322,11 @@ export async function readUpdateInsights(
     return failure(422, 'invalid_group', 'An update group id looks like a UUID.');
   }
   if (!Number.isInteger(input.days) || input.days < 1 || input.days > INSIGHTS_MAX_DAYS) {
-    return failure(422, 'invalid_days', `Days must be a whole number from 1 to ${INSIGHTS_MAX_DAYS}.`);
+    return failure(
+      422,
+      'invalid_days',
+      `Days must be a whole number from 1 to ${INSIGHTS_MAX_DAYS}.`,
+    );
   }
   const opened = await open(ctx, input, actor, EXPO_UPDATE_INSIGHTS_PURPOSE);
   if (!opened.ok) return opened;
@@ -317,15 +335,23 @@ export async function readUpdateInsights(
   try {
     const all = await expoUpdateGroupInsights(opened.client, input.group, { start, end });
     const mine = all.find((i) => i.platform === opened.platform);
-    if (!mine) return failure(
-      422,
-      'expo_not_found',
-      'That update group has no update for this platform.',
-      coded('eas.groupNoUpdate'),
-    );
+    if (!mine)
+      return failure(
+        422,
+        'expo_not_found',
+        'That update group has no update for this platform.',
+        coded('eas.groupNoUpdate'),
+      );
     return {
       ok: true,
-      insights: { group: input.group.toLowerCase(), platform: opened.platform, days: input.days, start, end, insights: mine },
+      insights: {
+        group: input.group.toLowerCase(),
+        platform: opened.platform,
+        days: input.days,
+        start,
+        end,
+        insights: mine,
+      },
     };
   } catch (error) {
     return expoFailure(error);
@@ -389,10 +415,25 @@ export const rolloutConfirmHash = (input: {
   to: number;
 }): string =>
   createHash('sha256')
-    .update(JSON.stringify(['eas.update_rollout.v1', input.appId, input.projectId, input.updateId, input.group, input.from, input.to]))
+    .update(
+      JSON.stringify([
+        'eas.update_rollout.v1',
+        input.appId,
+        input.projectId,
+        input.updateId,
+        input.group,
+        input.from,
+        input.to,
+      ]),
+    )
     .digest('hex');
 
-type Found = { channel: ExpoUpdateChannel; branch: string; update: ExpoUpdate; check: RuntimeCheck };
+type Found = {
+  channel: ExpoUpdateChannel;
+  branch: string;
+  update: ExpoUpdate;
+  check: RuntimeCheck;
+};
 
 function findRollout(
   channels: readonly ExpoUpdateChannel[],
@@ -405,7 +446,8 @@ function findRollout(
       for (const g of branch.groups) {
         if (g.group.toLowerCase() !== wanted) continue;
         const update = g.updates.find((u) => u.rolloutPercentage !== null);
-        if (update) return { channel, branch: branch.name, update, check: checks[i] as RuntimeCheck };
+        if (update)
+          return { channel, branch: branch.name, update, check: checks[i] as RuntimeCheck };
       }
     }
   }
@@ -479,7 +521,10 @@ export async function previewUpdateRollout(
   const to = input.request.percentage;
   const warnings: string[] = [];
   if (found.check.status === 'mismatch') warnings.push(found.check.message);
-  if (to === 100) warnings.push('At 100% the rollout ends and every matching client gets the update. This server cannot lower it again.');
+  if (to === 100)
+    warnings.push(
+      'At 100% the rollout ends and every matching client gets the update. This server cannot lower it again.',
+    );
   return {
     ok: true,
     preview: {
@@ -569,7 +614,10 @@ export async function applyUpdateRollout(
         confirmedByReread,
       },
     });
-    const record = (action: 'eas.update_rollout_changed' | 'eas.update_rollout_failed', extra: Record<string, unknown>) =>
+    const record = (
+      action: 'eas.update_rollout_changed' | 'eas.update_rollout_failed',
+      extra: Record<string, unknown>,
+    ) =>
       recordAudit(ctx.db, {
         workspaceId: input.workspaceId,
         actor,
@@ -580,14 +628,25 @@ export async function applyUpdateRollout(
         at: ctx.now(),
       });
     try {
-      const wrote = await expoSetUpdateRolloutPercentage(opened.client, found.update.id, input.request.percentage);
-      await record('eas.update_rollout_changed', { via: 'expo', answered: wrote.rolloutPercentage });
+      const wrote = await expoSetUpdateRolloutPercentage(
+        opened.client,
+        found.update.id,
+        input.request.percentage,
+      );
+      await record('eas.update_rollout_changed', {
+        via: 'expo',
+        answered: wrote.rolloutPercentage,
+      });
       return done(false);
     } catch (error) {
       const unknown =
-        error instanceof ExpoError && (error.kind === 'network' || error.kind === 'server' || error.kind === 'unexpected');
+        error instanceof ExpoError &&
+        (error.kind === 'network' || error.kind === 'server' || error.kind === 'unexpected');
       if (!unknown) {
-        await record('eas.update_rollout_failed', { outcome: 'not_applied', kind: error instanceof ExpoError ? error.kind : 'other' });
+        await record('eas.update_rollout_failed', {
+          outcome: 'not_applied',
+          kind: error instanceof ExpoError ? error.kind : 'other',
+        });
         return expoFailure(error);
       }
       // The answer was lost: read the update back instead of trying again.
@@ -601,18 +660,30 @@ export async function applyUpdateRollout(
           coded('eas.rolloutUnknown'),
         );
       }
-      const now = findRollout(after.channels, checkRuntimeVersions({ channels: after.channels, builds: after.builds }), found.update.group);
+      const now = findRollout(
+        after.channels,
+        checkRuntimeVersions({ channels: after.channels, builds: after.builds }),
+        found.update.group,
+      );
       const share = now?.update.rolloutPercentage ?? null;
       // A rollout that reached 100 is no longer listed as mid-rollout: it is then not found, and not found after a request for 100 is done.
-      if (share === input.request.percentage || (now === undefined && input.request.percentage === 100)) {
+      if (
+        share === input.request.percentage ||
+        (now === undefined && input.request.percentage === 100)
+      ) {
         await record('eas.update_rollout_changed', { via: 'reread' });
         return done(true);
       }
       await record('eas.update_rollout_failed', { outcome: 'not_applied' });
-      return failure(502, 'write_failed', 'Expo did not apply the change. The rollout is as before. Nothing was changed.', {
-        outcome: 'not_applied',
-        ...coded('eas.rolloutNotApplied'),
-      });
+      return failure(
+        502,
+        'write_failed',
+        'Expo did not apply the change. The rollout is as before. Nothing was changed.',
+        {
+          outcome: 'not_applied',
+          ...coded('eas.rolloutNotApplied'),
+        },
+      );
     }
   } finally {
     writing.delete(key);

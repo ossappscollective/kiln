@@ -37,7 +37,8 @@ dbTest(
     );
     assert.equal(String((await db.query('SELECT name FROM workspaces'))[0]?.name), 'Acme');
 
-    const names = async (table: string) => (await tableColumns(db, table)).map((c) => c.name).sort();
+    const names = async (table: string) =>
+      (await tableColumns(db, table)).map((c) => c.name).sort();
     assert.deepEqual(await names('app_revenuecat_links'), [
       'app_id',
       'created_at',
@@ -125,10 +126,16 @@ dbTest(
       );
     await insert('a1', 'prod1');
     await insert('a2', 'prod1');
-    await assert.rejects(() => insert('a1', 'prod1'), 'app_id and rc_product_id are the primary key');
+    await assert.rejects(
+      () => insert('a1', 'prod1'),
+      'app_id and rc_product_id are the primary key',
+    );
     await assert.rejects(() => insert('a3', 'prod1', 'nope'), 'the workspace must exist');
     await db.execute("INSERT INTO revenuecat_sync (app_id, workspace_id) VALUES ('a1', 'w1')");
-    const [sync] = await db.query('SELECT failures, complete, warnings_json FROM revenuecat_sync WHERE app_id = ?', ['a1']);
+    const [sync] = await db.query(
+      'SELECT failures, complete, warnings_json FROM revenuecat_sync WHERE app_id = ?',
+      ['a1'],
+    );
     assert.equal(Number(sync?.failures), 0);
     assert.equal(Number(sync?.complete), 1);
     assert.equal(String(sync?.warnings_json), '[]');

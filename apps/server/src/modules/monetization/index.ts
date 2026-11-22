@@ -64,7 +64,8 @@ export const monetizationModule: ServerModule<MonetizationDeps> = {
         writeFactory: deps?.write?.connectorFactory ?? defaultProductWriteConnectorFactory,
         writeTimeoutMs: deps?.write?.timeoutMs ?? DEFAULT_PRODUCT_WRITE_TIMEOUT_MS,
         claimTtlMs: deps?.write?.claimTtlMs ?? DEFAULT_PRODUCT_CLAIM_TTL_MS,
-        revenueCatStep: (input) => revenueCatStep({ db, masterKey, now, deps: deps?.revenueCat }, input),
+        revenueCatStep: (input) =>
+          revenueCatStep({ db, masterKey, now, deps: deps?.revenueCat }, input),
       }),
     );
   },

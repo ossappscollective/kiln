@@ -161,7 +161,9 @@ export function releaseLead(input: {
         break;
       case 'preparing':
         out = {
-          headline: on ? t('release:lead.preparingOn', params) : t('release:lead.preparing', params),
+          headline: on
+            ? t('release:lead.preparingOn', params)
+            : t('release:lead.preparing', params),
           hint: t('release:lead.preparingHint'),
           tone: 'info',
           action: go(t('release:lead.preparingAction'), 'confirm'),
@@ -170,8 +172,12 @@ export function releaseLead(input: {
       case 'halted':
         out = {
           headline: share
-            ? on ? t('release:lead.haltedOnAt', { ...params, share }) : t('release:lead.haltedAt', { ...params, share })
-            : on ? t('release:lead.haltedOn', params) : t('release:lead.halted', params),
+            ? on
+              ? t('release:lead.haltedOnAt', { ...params, share })
+              : t('release:lead.haltedAt', { ...params, share })
+            : on
+              ? t('release:lead.haltedOn', params)
+              : t('release:lead.halted', params),
           hint: t('release:lead.haltedHint'),
           tone: 'warn',
           action: go(t('release:lead.openSteps'), 'confirm'),
@@ -181,8 +187,12 @@ export function releaseLead(input: {
         const elapsed = elapsedText(lead.since, input.now);
         out = {
           headline: elapsed
-            ? on ? t('release:lead.inReviewOnFor', { ...params, elapsed }) : t('release:lead.inReviewFor', { ...params, elapsed })
-            : on ? t('release:lead.inReviewOn', params) : t('release:lead.inReview', params),
+            ? on
+              ? t('release:lead.inReviewOnFor', { ...params, elapsed })
+              : t('release:lead.inReviewFor', { ...params, elapsed })
+            : on
+              ? t('release:lead.inReviewOn', params)
+              : t('release:lead.inReview', params),
           hint: t('release:lead.inReviewHint'),
           tone: 'info',
           // This page is where the review is followed: there is nothing to open (Prepare release has no step for it).
@@ -193,8 +203,12 @@ export function releaseLead(input: {
       case 'rolling_out':
         out = {
           headline: share
-            ? on ? t('release:lead.rollingOutOnShare', { ...params, share }) : t('release:lead.rollingOutShare', { ...params, share })
-            : on ? t('release:lead.rollingOutOn', params) : t('release:lead.rollingOut', params),
+            ? on
+              ? t('release:lead.rollingOutOnShare', { ...params, share })
+              : t('release:lead.rollingOutShare', { ...params, share })
+            : on
+              ? t('release:lead.rollingOutOn', params)
+              : t('release:lead.rollingOut', params),
           hint: t('release:lead.rollingOutHint'),
           tone: 'info',
           action: go(t('release:lead.openSteps'), 'confirm'),
@@ -202,7 +216,9 @@ export function releaseLead(input: {
         break;
       case 'propagating':
         out = {
-          headline: on ? t('release:lead.propagatingOn', params) : t('release:lead.propagating', params),
+          headline: on
+            ? t('release:lead.propagatingOn', params)
+            : t('release:lead.propagating', params),
           hint: t('release:lead.propagatingHint'),
           tone: 'info',
           action: null,
@@ -274,7 +290,9 @@ export function planLine(
     const due = dueText(plan.due, plan.released);
     const date = formatTargetDate(plan.targetDate);
     parts.push(
-      due ? t('release:planLine.targetDue', { date, due: due.text }) : t('release:planLine.target', { date }),
+      due
+        ? t('release:planLine.targetDue', { date, due: due.text })
+        : t('release:planLine.target', { date }),
     );
   } else parts.push(t('release:planLine.noTarget'));
   const { notes } = plan.readiness;
@@ -292,9 +310,13 @@ export function rolloutNowLine(state: RolloutState): string {
     const share = formatRollout(state.userFraction);
     switch (state.status) {
       case 'inProgress':
-        return share ? t('release:rolloutNow.rollingShare', { share }) : t('release:rolloutNow.rolling');
+        return share
+          ? t('release:rolloutNow.rollingShare', { share })
+          : t('release:rolloutNow.rolling');
       case 'halted':
-        return share ? t('release:rolloutNow.haltedShare', { share }) : t('release:rolloutNow.halted');
+        return share
+          ? t('release:rolloutNow.haltedShare', { share })
+          : t('release:rolloutNow.halted');
       case 'completed':
         return t('release:rolloutNow.completed');
       case 'draft':
@@ -308,9 +330,13 @@ export function rolloutNowLine(state: RolloutState): string {
     case null:
       return t('release:rolloutNow.noPhased');
     case 'ACTIVE':
-      return day !== null ? t('release:rolloutNow.activeDay', { day }) : t('release:rolloutNow.rolling');
+      return day !== null
+        ? t('release:rolloutNow.activeDay', { day })
+        : t('release:rolloutNow.rolling');
     case 'PAUSED':
-      return day !== null ? t('release:rolloutNow.pausedDay', { day }) : t('release:rolloutNow.paused');
+      return day !== null
+        ? t('release:rolloutNow.pausedDay', { day })
+        : t('release:rolloutNow.paused');
     case 'COMPLETE':
       return t('release:rolloutNow.complete');
     default:

@@ -46,19 +46,19 @@ Scans, listings and change set creation read the repository from a local clone i
 GitHub API call per file (design and limits: [ADR 0005](adr/0005-local-clone-reads.md)). Applying a
 change set (branch, commit, pull request) and connecting a repository still use the GitHub API.
 
-| Variable                                      | Default                 | Meaning                                                                                                                                                               |
-| --------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `KILN_READS`                                   | `auto`                  | `auto`: clone, and the GitHub API for a request when the clone cannot be used. `clone`: clone only, errors are shown. `api`: API only, git is never run.              |
-| `KILN_CLONE_DIR`                               | `<KILN_DATA_DIR>/clones` | Where clones live. Created with mode 0700 at start.                                                                                                                   |
-| `KILN_CLONE_TTL_SECONDS`                       | `60`                    | How long a fetched branch tip is reused. A scan always fetches.                                                                                                       |
-| `KILN_CLONE_MAX_BYTES`                         | `2g`                    | Disk budget for `KILN_CLONE_DIR`: `500m`, `2g`, `10 GiB` or plain bytes. When the folder is over it, the sweep removes the least recently used clones. `0` = no limit. |
-| `KILN_CLONE_IDLE_DAYS`                         | `30`                    | The sweep removes clones not used for this many days. `0` = never.                                                                                                    |
-| `KILN_CLONE_SWEEP_INTERVAL_MINUTES`            | `360`                   | How often the sweep runs (`0` = off, else 5 to 10080). Needs reads to use clones (`KILN_READS` other than `api`).                                                      |
-| `KILN_GIT_PATH`                                | `git`                   | The git program.                                                                                                                                                      |
-| `KILN_LOCAL_REPO_ROOTS`                        | unset (off)             | Folders that may hold local clones, absolute paths separated by `:` (`;` on Windows). See "Local clones" below.                                                       |
-| `KILN_LOCAL_REPO_WRITE`                        | `false`                 | `true` allows applying a change set as a commit on a new branch of a local clone, and pushing it. See "Writing to a local clone" below.                               |
-| `KILN_GIT_AUTHOR_NAME`, `KILN_GIT_AUTHOR_EMAIL` | unset                   | Author and committer of those commits; unset means the person who applied.                                                                                            |
-| `KILN_GIT_SIGN`                                | `off`                   | `ssh` or `gpg` signs those commits with the server's own key. See "Signing the commits" below.                                                                        |
+| Variable                                        | Default                  | Meaning                                                                                                                                                                |
+| ----------------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `KILN_READS`                                    | `auto`                   | `auto`: clone, and the GitHub API for a request when the clone cannot be used. `clone`: clone only, errors are shown. `api`: API only, git is never run.               |
+| `KILN_CLONE_DIR`                                | `<KILN_DATA_DIR>/clones` | Where clones live. Created with mode 0700 at start.                                                                                                                    |
+| `KILN_CLONE_TTL_SECONDS`                        | `60`                     | How long a fetched branch tip is reused. A scan always fetches.                                                                                                        |
+| `KILN_CLONE_MAX_BYTES`                          | `2g`                     | Disk budget for `KILN_CLONE_DIR`: `500m`, `2g`, `10 GiB` or plain bytes. When the folder is over it, the sweep removes the least recently used clones. `0` = no limit. |
+| `KILN_CLONE_IDLE_DAYS`                          | `30`                     | The sweep removes clones not used for this many days. `0` = never.                                                                                                     |
+| `KILN_CLONE_SWEEP_INTERVAL_MINUTES`             | `360`                    | How often the sweep runs (`0` = off, else 5 to 10080). Needs reads to use clones (`KILN_READS` other than `api`).                                                      |
+| `KILN_GIT_PATH`                                 | `git`                    | The git program.                                                                                                                                                       |
+| `KILN_LOCAL_REPO_ROOTS`                         | unset (off)              | Folders that may hold local clones, absolute paths separated by `:` (`;` on Windows). See "Local clones" below.                                                        |
+| `KILN_LOCAL_REPO_WRITE`                         | `false`                  | `true` allows applying a change set as a commit on a new branch of a local clone, and pushing it. See "Writing to a local clone" below.                                |
+| `KILN_GIT_AUTHOR_NAME`, `KILN_GIT_AUTHOR_EMAIL` | unset                    | Author and committer of those commits; unset means the person who applied.                                                                                             |
+| `KILN_GIT_SIGN`                                 | `off`                    | `ssh` or `gpg` signs those commits with the server's own key. See "Signing the commits" below.                                                                         |
 
 - **git 2.34 or newer** must be on the server. The Docker image installs it (Debian 12 ships 2.39).
   At start, unless `KILN_READS=api`, the server runs `git --version` once and logs one line. If git is
@@ -161,9 +161,9 @@ app shows the option disabled with the reason, and nothing is written to any fol
     KILN_GIT_AUTHOR_NAME="Release Bot"          # optional
     KILN_GIT_AUTHOR_EMAIL=release-bot@example.com   # optional
 
-| Variable                                      | Default | Meaning                                                                                                                                                                |
-| --------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `KILN_LOCAL_REPO_WRITE`                        | `false` | `true` allows a commit on a new branch of a local clone, and its push. Anything other than `true` or `false` stops the server at start.                                |
+| Variable                                        | Default | Meaning                                                                                                                                                                |
+| ----------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `KILN_LOCAL_REPO_WRITE`                         | `false` | `true` allows a commit on a new branch of a local clone, and its push. Anything other than `true` or `false` stops the server at start.                                |
 | `KILN_GIT_AUTHOR_NAME`, `KILN_GIT_AUTHOR_EMAIL` | unset   | Author and committer of those commits. Unset means the name and email of the person who applied. One line, no `<` or `>`; the email must look like `name@example.com`. |
 
 What you are allowing:
@@ -200,8 +200,8 @@ Off by default: the commits are then unsigned, exactly as before. To have the se
 clone's git config and the user's global config are ignored (a repository that sets `gpg.program` or
 `user.signingkey` changes nothing).
 
-| Variable                  | Meaning                                                                                                                                                                               |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Variable                   | Meaning                                                                                                                                                                               |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `KILN_GIT_SIGN`            | `off` (default), `ssh` or `gpg`.                                                                                                                                                      |
 | `KILN_GIT_SIGNING_KEY`     | `ssh`: absolute path of a private key file (mode `600`), or of the `.pub` of a key held by `ssh-agent`. `gpg`: the key id or fingerprint (hexadecimal; not a name or e-mail address). |
 | `KILN_GIT_SIGNING_PROGRAM` | Optional. Absolute path of `ssh-keygen` or `gpg`. Unset: found in `PATH` once at start and kept.                                                                                      |

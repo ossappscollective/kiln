@@ -263,7 +263,8 @@ export async function productSales(
         note('apple_pacific_time'),
         note('apple_product_sales_include_in_app'),
       ];
-  if (stored.size >= productSalesLimits.maxProductsPerApp) notes.push(note('sales_products_capped'));
+  if (stored.size >= productSalesLimits.maxProductsPerApp)
+    notes.push(note('sales_products_capped'));
   return {
     appId: app.id,
     platform: app.platform,

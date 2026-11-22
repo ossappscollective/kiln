@@ -146,29 +146,32 @@ dbTest('login, logout, and a session that no longer works afterwards', async (db
   assert.equal((await app.request('/api/me', { headers: { cookie } })).status, 401);
 });
 
-dbTest('the session cookie is kiln_session, and the old mrm_session name is not read', async (db) => {
-  const { app } = await boot(db);
-  await register(app);
-  const login = await app.request(
-    '/api/auth/login',
-    json({ email: 'ada@example.com', password: PASSWORD }),
-  );
-  const cookie = cookieOf(login);
-  assert.match(cookie, /^kiln_session=/);
-  const token = cookie.slice('kiln_session='.length);
-  const me = (headers: Record<string, string>) => app.request('/api/me', { headers });
+dbTest(
+  'the session cookie is kiln_session, and the old mrm_session name is not read',
+  async (db) => {
+    const { app } = await boot(db);
+    await register(app);
+    const login = await app.request(
+      '/api/auth/login',
+      json({ email: 'ada@example.com', password: PASSWORD }),
+    );
+    const cookie = cookieOf(login);
+    assert.match(cookie, /^kiln_session=/);
+    const token = cookie.slice('kiln_session='.length);
+    const me = (headers: Record<string, string>) => app.request('/api/me', { headers });
 
-  assert.equal((await me({ cookie: `kiln_session=${token}` })).status, 200);
-  assert.equal((await me({ cookie: `mrm_session=${token}` })).status, 401);
+    assert.equal((await me({ cookie: `kiln_session=${token}` })).status, 200);
+    assert.equal((await me({ cookie: `mrm_session=${token}` })).status, 401);
 
-  const out = await app.request('/api/auth/logout', { method: 'POST', headers: { cookie } });
-  assert.equal(out.status, 204);
-  assert.deepEqual(
-    out.headers.getSetCookie().map((c) => c.split('=')[0]),
-    ['kiln_session'],
-  );
-  assert.equal((await me({ cookie })).status, 401);
-});
+    const out = await app.request('/api/auth/logout', { method: 'POST', headers: { cookie } });
+    assert.equal(out.status, 204);
+    assert.deepEqual(
+      out.headers.getSetCookie().map((c) => c.split('=')[0]),
+      ['kiln_session'],
+    );
+    assert.equal((await me({ cookie })).status, 401);
+  },
+);
 
 dbTest('wrong password and unknown email look the same', async (db) => {
   const { app } = await boot(db);
@@ -260,7 +263,10 @@ dbTest('trusted origins are allowed', async (db) => {
   const { app } = await boot(db, { trustedOrigins: ['http://localhost:5173'] });
   const res = await app.request(
     'http://kiln.test/api/auth/login',
-    json({ email: 'a@b.co', password: 'x' }, { origin: 'http://localhost:5173', host: 'kiln.test' }),
+    json(
+      { email: 'a@b.co', password: 'x' },
+      { origin: 'http://localhost:5173', host: 'kiln.test' },
+    ),
   );
   assert.equal(res.status, 401);
 });

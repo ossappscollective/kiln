@@ -111,7 +111,10 @@ export function translationErrorMessage(error: unknown): string {
       const used = Number(error.body.used);
       const budget = Number(error.body.budget);
       return Number.isFinite(used) && Number.isFinite(budget)
-        ? t('reviews:translation.budgetUsed', { used: formatNumber(used), budget: formatNumber(budget) })
+        ? t('reviews:translation.budgetUsed', {
+            used: formatNumber(used),
+            budget: formatNumber(budget),
+          })
         : t('reviews:translation.budgetUsedShort');
     }
     case 'translation_rate_limited':
@@ -124,7 +127,10 @@ export function translationErrorMessage(error: unknown): string {
     case 'translation_unavailable':
     case 'translation_unsupported_language':
       return reason
-        ? t('reviews:translation.withHint', { message: error.message, hint: unsupportedHint(reason) })
+        ? t('reviews:translation.withHint', {
+            message: error.message,
+            hint: unsupportedHint(reason),
+          })
         : error.message;
     case 'translation_auth':
     case 'translation_quota':
@@ -145,8 +151,7 @@ export const isRetryable = (error: unknown): boolean =>
 /** The fixed hints of an unsupported language, in words. Anything else is shown as it is. */
 export function unsupportedHint(reason: string): string {
   const pair = /^pair_([a-z-]+)_to_([a-z-]+)$/.exec(reason);
-  if (pair)
-    return t('reviews:translation.hint.pair', { from: pair[1] ?? '', to: pair[2] ?? '' });
+  if (pair) return t('reviews:translation.hint.pair', { from: pair[1] ?? '', to: pair[2] ?? '' });
   if (reason === 'lang_target') return t('reviews:translation.hint.target');
   if (reason === 'lang_source') return t('reviews:translation.hint.source');
   return reason;

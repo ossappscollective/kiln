@@ -70,7 +70,8 @@ export function parseBranchMapping(raw: unknown): ExpoBranchMapping {
       condition: always ? null : describeCondition(item.branchMappingLogic).slice(0, MAX_CONDITION),
     });
   }
-  const version = typeof value.version === 'number' && Number.isFinite(value.version) ? value.version : null;
+  const version =
+    typeof value.version === 'number' && Number.isFinite(value.version) ? value.version : null;
   return {
     kind: entries.length === 0 ? 'none' : entries.length === 1 ? 'branch' : 'rollout',
     version,
@@ -143,7 +144,8 @@ export function checkRuntimeVersions(input: {
     const newestBuild = builds[0];
     const shipped: string[] = [];
     for (const b of builds) {
-      if (b.runtimeVersion !== null && !shipped.includes(b.runtimeVersion)) shipped.push(b.runtimeVersion);
+      if (b.runtimeVersion !== null && !shipped.includes(b.runtimeVersion))
+        shipped.push(b.runtimeVersion);
     }
     const latestUpdate = newest
       ? {
@@ -162,7 +164,12 @@ export function checkRuntimeVersions(input: {
           createdAt: newestBuild.createdAt,
         }
       : null;
-    const base = { channel: channel.name, latestUpdate, latestBuild, shippedRuntimeVersions: shipped };
+    const base = {
+      channel: channel.name,
+      latestUpdate,
+      latestBuild,
+      shippedRuntimeVersions: shipped,
+    };
     if (!newest) {
       return {
         ...base,
@@ -186,7 +193,8 @@ export function checkRuntimeVersions(input: {
         ...base,
         status: 'unknown',
         severity: 'info',
-        message: 'The runtime version of the newest update or of the builds is not known, so they cannot be compared.',
+        message:
+          'The runtime version of the newest update or of the builds is not known, so they cannot be compared.',
       };
     }
     if (!shipped.includes(updateRuntime)) {

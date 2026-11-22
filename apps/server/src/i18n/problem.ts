@@ -21,7 +21,8 @@ export const CODE_PATTERN = /^[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)+$/;
 export type ErrorParams = Record<string, string | number | boolean | null>;
 export type Coding = { code: string; params?: ErrorParams };
 
-const SECRETY = /secret|token(?!Id)|password|passwd|ciphertext|authorization|private_?key|api_?key|credential/i;
+const SECRETY =
+  /secret|token(?!Id)|password|passwd|ciphertext|authorization|private_?key|api_?key|credential/i;
 const MAX_TEXT = 300;
 export const MAX_PARAMS = 12;
 
@@ -43,16 +44,21 @@ export function cleanParams(params: Params | undefined): ErrorParams | undefined
 
 /** `{ code, params? }`, ready to spread into a response body. A malformed code is a bug in the caller and throws. */
 export function coded(code: string, params?: Params): Coding {
-  if (!CODE_PATTERN.test(code)) throw new Error(`"${code}" is not a valid error code (dot.case, e.g. store.rateLimited).`);
+  if (!CODE_PATTERN.test(code))
+    throw new Error(`"${code}" is not a valid error code (dot.case, e.g. store.rateLimited).`);
   const clean = cleanParams(params);
   return clean ? { code, params: clean } : { code };
 }
 
 /** `coded()` for a value that may not be coded at all: nothing to spread when there is no code. */
-export function codingOf(source: { code?: unknown; params?: unknown } | null | undefined): Coding | Record<string, never> {
+export function codingOf(
+  source: { code?: unknown; params?: unknown } | null | undefined,
+): Coding | Record<string, never> {
   if (!source || typeof source.code !== 'string' || !CODE_PATTERN.test(source.code)) return {};
   const params =
-    source.params && typeof source.params === 'object' ? cleanParams(source.params as Params) : undefined;
+    source.params && typeof source.params === 'object'
+      ? cleanParams(source.params as Params)
+      : undefined;
   return params ? { code: source.code, params } : { code: source.code };
 }
 
@@ -62,7 +68,11 @@ export function codingOf(source: { code?: unknown; params?: unknown } | null | u
  */
 export function legacyCode(error: string): string {
   const words = error.split('_').filter((w) => w !== '');
-  const camel = words.map((w, i) => (i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())).join('');
+  const camel = words
+    .map((w, i) =>
+      i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(),
+    )
+    .join('');
   return `api.${camel}`;
 }
 
@@ -71,5 +81,7 @@ export function legacyCode(error: string): string {
  * changed.") or rewrites it has a message the code no longer describes, so it gets no code (and the English text is shown).
  */
 export function messageCoding(error: unknown, sent: string): Coding | Record<string, never> {
-  return error instanceof Error && sent === error.message ? codingOf(error as { code?: unknown; params?: unknown }) : {};
+  return error instanceof Error && sent === error.message
+    ? codingOf(error as { code?: unknown; params?: unknown })
+    : {};
 }

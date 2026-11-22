@@ -506,13 +506,14 @@ async function deliverToPerson(
     }
   }
   if (wanted.includes('email')) {
+    // The recipient's language (users.locale; English when none). A background email has no request to read it from.
     const rendered = renderAlertEmail(def, {
       title: c.title,
       body: c.body,
       severity: c.severity,
       data: c.data,
-    });
       locale: await recipientLocale(sql, r.userId),
+    });
     const mail = { subject: rendered.subject, body: rendered.text, html: rendered.html };
     if (!c.test && r.settings.digest !== 'off' && c.severity !== 'critical') {
       await log('email', 'deferred', 'in_digest', mail);

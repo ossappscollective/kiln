@@ -20,8 +20,8 @@ curl -H "Authorization: Bearer kiln_..." https://kiln.example.com/api/openapi.js
 - Vendor extensions that tell a client, or an assistant deciding what needs a person's approval,
   what an operation does:
 
-| Extension            | Meaning                                                                                                                                                                             |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Extension             | Meaning                                                                                                                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `x-kiln-risk`         | `read` (changes nothing), `write` (changes something that can be undone or is ours to keep) or `destructive` (deletes, revokes or discards).                                        |
 | `x-kiln-action`       | The permission the operation needs (`apps.sync`, `changesets.approve`, ...). The role table is in `packages/core/src/roles.ts`. Absent for public and any-member operations.        |
 | `x-kiln-token-access` | Whether an API token may call it at all. `false` operations are for people with a session; see [tokens](tokens.md).                                                                 |

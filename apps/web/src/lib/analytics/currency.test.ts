@@ -17,8 +17,16 @@ test('the currency a chart opens on: what the person chose, else their locale, e
   const have = ['EUR', 'USD', 'GBP'];
   assert.equal(defaultCurrency(have, 'GBP', 'en-US'), 'GBP', 'the earlier choice wins');
   assert.equal(defaultCurrency(have, null, 'en-US'), 'USD', 'then the locale');
-  assert.equal(defaultCurrency(have, 'JPY', 'en-GB'), 'GBP', 'a choice the card does not have is ignored');
-  assert.equal(defaultCurrency(have, null, 'ja-JP'), 'EUR', 'a locale currency the card does not have: the biggest');
+  assert.equal(
+    defaultCurrency(have, 'JPY', 'en-GB'),
+    'GBP',
+    'a choice the card does not have is ignored',
+  );
+  assert.equal(
+    defaultCurrency(have, null, 'ja-JP'),
+    'EUR',
+    'a locale currency the card does not have: the biggest',
+  );
   assert.equal(defaultCurrency([], null, 'en-US'), '');
 });
 

@@ -247,7 +247,10 @@ export class GooglePlayConnector implements StoreConnector {
           `Not a valid Android package name: ${JSON.stringify(name.slice(0, 80))}.`,
           undefined,
           undefined,
-          { code: 'store.google.packageInvalid', params: { name: JSON.stringify(name.slice(0, 80)) } },
+          {
+            code: 'store.google.packageInvalid',
+            params: { name: JSON.stringify(name.slice(0, 80)) },
+          },
         );
       }
     }

@@ -248,7 +248,16 @@ test('staged sets are found by their id and listed in order with their upload ma
 
 test('compareLabel and compareSummary read in words, with plurals', () => {
   assert.equal(compareLabel('only_store'), 'Only in the store');
-  assert.equal(compareSummary({ identical: 3, likely_same: 0, differs: 1, only_repo: 0, only_store: 2 }), '3 identical, 1 differs, 2 only in the store');
-  assert.equal(compareSummary({ identical: 0, likely_same: 0, differs: 2, only_repo: 1, only_store: 0 }), '2 differ, 1 only in the repository');
-  assert.equal(compareSummary({ identical: 0, likely_same: 0, differs: 0, only_repo: 0, only_store: 0 }), '');
+  assert.equal(
+    compareSummary({ identical: 3, likely_same: 0, differs: 1, only_repo: 0, only_store: 2 }),
+    '3 identical, 1 differs, 2 only in the store',
+  );
+  assert.equal(
+    compareSummary({ identical: 0, likely_same: 0, differs: 2, only_repo: 1, only_store: 0 }),
+    '2 differ, 1 only in the repository',
+  );
+  assert.equal(
+    compareSummary({ identical: 0, likely_same: 0, differs: 0, only_repo: 0, only_store: 0 }),
+    '',
+  );
 });

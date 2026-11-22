@@ -84,7 +84,10 @@ const toView = (r: Record<string, unknown>): RevenueCatLinkView => {
     revenueCatAppName: String(r.rc_app_name),
     revenueCatAppType: String(r.rc_app_type),
     revenueCatIdentifier: identifier,
-    identifierMatches: identifier === null || own === null || platform === null ? null : sameIdentifier(platform, identifier, own),
+    identifierMatches:
+      identifier === null || own === null || platform === null
+        ? null
+        : sameIdentifier(platform, identifier, own),
     verifiedAt: Number(r.verified_at),
     linkedBy: String(r.linked_by),
     createdAt: Number(r.created_at),
@@ -93,8 +96,15 @@ const toView = (r: Record<string, unknown>): RevenueCatLinkView => {
 };
 
 /** The link of an app record, or null when it has none. Database only: no call to RevenueCat. */
-export async function getRevenueCatLink(sql: Sql, workspaceId: string, appId: string): Promise<RevenueCatLinkView | null> {
-  const [row] = await sql.query(`${SELECT} WHERE l.app_id = ? AND l.workspace_id = ?`, [appId, workspaceId]);
+export async function getRevenueCatLink(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<RevenueCatLinkView | null> {
+  const [row] = await sql.query(`${SELECT} WHERE l.app_id = ? AND l.workspace_id = ?`, [
+    appId,
+    workspaceId,
+  ]);
   return row ? toView(row) : null;
 }
 
@@ -146,7 +156,10 @@ export type RevenueCatOptions = {
 const NOT_MAPPED =
   'Not mapped: this tool reads App Store, Mac App Store and Google Play apps of RevenueCat only. This app is ignored.';
 
-export function choicesFor(app: Pick<ManagedApp, 'platform' | 'identifier'>, found: readonly RevenueCatApp[]): RevenueCatAppChoice[] {
+export function choicesFor(
+  app: Pick<ManagedApp, 'platform' | 'identifier'>,
+  found: readonly RevenueCatApp[],
+): RevenueCatAppChoice[] {
   const order = revenueCatAppTypes(app.platform);
   const rows = found.map((a) => {
     const mapped = a.store !== null;
@@ -160,16 +173,27 @@ export function choicesFor(app: Pick<ManagedApp, 'platform' | 'identifier'>, fou
       identifier: a.identifier,
       matches: a.identifier !== null && sameIdentifier(app.platform, a.identifier, app.identifier),
       suggested: false,
-      note: !mapped ? NOT_MAPPED : fits ? null : `This is a ${a.type} app of RevenueCat; it does not fit the store of this app.`,
+      note: !mapped
+        ? NOT_MAPPED
+        : fits
+          ? null
+          : `This is a ${a.type} app of RevenueCat; it does not fit the store of this app.`,
     };
     // The position in the platform's preference list: a macOS app prefers `mac_app_store`, then the shared `app_store` app.
     return { choice, rank: a.store === null ? order.length : order.indexOf(a.store) };
   });
-  const best = rows.filter((r) => r.choice.linkable && r.choice.matches).sort((x, y) => x.rank - y.rank)[0];
+  const best = rows
+    .filter((r) => r.choice.linkable && r.choice.matches)
+    .sort((x, y) => x.rank - y.rank)[0];
   if (best) best.choice.suggested = true;
   return rows
     .map((r) => r.choice)
-    .sort((a, b) => Number(b.suggested) - Number(a.suggested) || Number(b.linkable) - Number(a.linkable) || a.name.localeCompare(b.name));
+    .sort(
+      (a, b) =>
+        Number(b.suggested) - Number(a.suggested) ||
+        Number(b.linkable) - Number(a.linkable) ||
+        a.name.localeCompare(b.name),
+    );
 }
 
 /**
@@ -178,24 +202,42 @@ export function choicesFor(app: Pick<ManagedApp, 'platform' | 'identifier'>, fou
  */
 export async function detectRevenueCat(
   ctx: LinkContext,
-  input: { workspaceId: string; app: ManagedApp; credentialId: string; projectId?: string | undefined },
+  input: {
+    workspaceId: string;
+    app: ManagedApp;
+    credentialId: string;
+    projectId?: string | undefined;
+  },
   actor: Actor,
 ): Promise<Outcome<{ options: RevenueCatOptions }>> {
   if (!supports(input.app.platform, 'revenueCat')) return notSupportedFailure();
-  const opened = await revenueCatClientFor(ctx.db, ctx.masterKey, input.workspaceId, input.credentialId, ctx.deps, {
-    actor,
-    purpose: REVENUECAT_DETECT_PURPOSE,
-    now: ctx.now(),
-  });
+  const opened = await revenueCatClientFor(
+    ctx.db,
+    ctx.masterKey,
+    input.workspaceId,
+    input.credentialId,
+    ctx.deps,
+    {
+      actor,
+      purpose: REVENUECAT_DETECT_PURPOSE,
+      now: ctx.now(),
+    },
+  );
   if (!opened.ok) return opened;
   try {
     const { projects, complete } = await listRevenueCatProjects(opened.client);
     const projectId = input.projectId ?? (projects.length === 1 ? (projects[0]?.id ?? null) : null);
-    if (projectId === null) return { ok: true, options: { projects, projectId: null, apps: null, complete } };
+    if (projectId === null)
+      return { ok: true, options: { projects, projectId: null, apps: null, complete } };
     const listed = await listRevenueCatApps(opened.client, projectId);
     return {
       ok: true,
-      options: { projects, projectId, apps: choicesFor(input.app, listed.apps), complete: complete && listed.complete },
+      options: {
+        projects,
+        projectId,
+        apps: choicesFor(input.app, listed.apps),
+        complete: complete && listed.complete,
+      },
     };
   } catch (error) {
     return revenueCatFailure(error, opened.secret);
@@ -226,16 +268,25 @@ export async function setRevenueCatLink(
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   if (!supports(app.platform, 'revenueCat')) return notSupportedFailure();
-  const opened = await revenueCatClientFor(ctx.db, ctx.masterKey, input.workspaceId, input.credentialId, ctx.deps, {
-    actor,
-    purpose: REVENUECAT_LINK_PURPOSE,
-    now: ctx.now(),
-  });
+  const opened = await revenueCatClientFor(
+    ctx.db,
+    ctx.masterKey,
+    input.workspaceId,
+    input.credentialId,
+    ctx.deps,
+    {
+      actor,
+      purpose: REVENUECAT_LINK_PURPOSE,
+      now: ctx.now(),
+    },
+  );
   if (!opened.ok) return opened;
   let project: RevenueCatProject | undefined;
   let found: RevenueCatApp | undefined;
   try {
-    project = (await listRevenueCatProjects(opened.client)).projects.find((p) => p.id === input.projectId);
+    project = (await listRevenueCatProjects(opened.client)).projects.find(
+      (p) => p.id === input.projectId,
+    );
     if (!project) {
       return failure(
         422,
@@ -298,7 +349,10 @@ export async function setRevenueCatLink(
       ],
     );
     // A copy read for another project or app is not this one's.
-    if (before && (String(before.project_id) !== input.projectId || String(before.rc_app_id) !== found.id)) {
+    if (
+      before &&
+      (String(before.project_id) !== input.projectId || String(before.rc_app_id) !== found.id)
+    ) {
       await clearRevenueCatCache(tx, input.workspaceId, app.id);
     }
     await recordAudit(tx, {
@@ -334,14 +388,21 @@ export async function removeRevenueCatLink(
       [input.appId, input.workspaceId],
     );
     if (!before) return false;
-    await tx.execute('DELETE FROM app_revenuecat_links WHERE app_id = ? AND workspace_id = ?', [input.appId, input.workspaceId]);
+    await tx.execute('DELETE FROM app_revenuecat_links WHERE app_id = ? AND workspace_id = ?', [
+      input.appId,
+      input.workspaceId,
+    ]);
     await clearRevenueCatCache(tx, input.workspaceId, input.appId);
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor,
       action: 'revenuecat.link_remove',
       target: { type: 'app', id: input.appId },
-      detail: { appId: input.appId, projectId: String(before.project_id), revenueCatAppId: String(before.rc_app_id) },
+      detail: {
+        appId: input.appId,
+        projectId: String(before.project_id),
+        revenueCatAppId: String(before.rc_app_id),
+      },
       at: ctx.now(),
     });
     return true;

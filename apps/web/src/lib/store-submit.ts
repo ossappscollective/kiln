@@ -269,7 +269,8 @@ export function versionLine(preview: Pick<SubmitPreview, 'app' | 'version'>): st
       ? t('release-store:submit.version.named', { version: v.versionString })
       : t('release-store:submit.version.unnamed');
   const parts: string[] = [head];
-  if (v.releaseType) parts.push(t('release-store:submit.version.releaseType', { type: v.releaseType }));
+  if (v.releaseType)
+    parts.push(t('release-store:submit.version.releaseType', { type: v.releaseType }));
   return parts.join(', ');
 }
 

@@ -123,7 +123,11 @@ test('the sync line says whether it was read, when, and what a failure left in p
 test('texts are normalized the way the server does, and checked before a round trip', () => {
   assert.equal(normalizeText('  a\r\nb  '), 'a\nb');
   assert.deepEqual(validateTexts('Coins', 'A pile'), {});
-  assert.deepEqual(validateTexts('Coins', ''), {}, 'an empty description is for the store to judge');
+  assert.deepEqual(
+    validateTexts('Coins', ''),
+    {},
+    'an empty description is for the store to judge',
+  );
   assert.ok(validateTexts('   ', 'x').name);
   assert.ok(validateTexts('a\nb', 'x').name);
   assert.ok(validateTexts('a\u0000b', 'x').name);
@@ -131,7 +135,11 @@ test('texts are normalized the way the server does, and checked before a round t
   assert.deepEqual(validateTexts('n'.repeat(MAX_PRODUCT_NAME), 'x'), {});
   assert.ok(validateTexts('ok', 'd'.repeat(MAX_PRODUCT_DESCRIPTION + 1)).description);
   assert.ok(validateTexts('ok', 'a\u0007b').description);
-  assert.deepEqual(validateTexts('ok', 'line one\nline two'), {}, 'a description may hold line breaks');
+  assert.deepEqual(
+    validateTexts('ok', 'line one\nline two'),
+    {},
+    'a description may hold line breaks',
+  );
 });
 
 test('a draft differs from the stored texts only after normalizing', () => {
@@ -144,7 +152,10 @@ test('a draft differs from the stored texts only after normalizing', () => {
 test('a preview is summarized in one sentence', () => {
   const preview = (changes: { name: boolean; description: boolean }) =>
     ({ locale: 'de-DE', changes }) as ProductLocalizationPreview;
-  assert.equal(changeSummary(preview({ name: true, description: false })), 'Changes the display name for de-DE.');
+  assert.equal(
+    changeSummary(preview({ name: true, description: false })),
+    'Changes the display name for de-DE.',
+  );
   assert.equal(
     changeSummary(preview({ name: true, description: true })),
     'Changes the display name and the description for de-DE.',
@@ -157,7 +168,10 @@ test('a preview is summarized in one sentence', () => {
 
 test('failures: each fixed code has its own kind and says whether anything changed', () => {
   const err = (status: number, code: string, body: Record<string, unknown> = {}, retry?: number) =>
-    new ApiError(status, code, String(body.message ?? 'Server words.'), retry, { error: code, ...body });
+    new ApiError(status, code, String(body.message ?? 'Server words.'), retry, {
+      error: code,
+      ...body,
+    });
   const off = classifyProductFailure(err(409, 'store_product_write_disabled'), 'change');
   assert.equal(off.kind, 'disabled');
   assert.match(off.message, /KILN_STORE_PRODUCT_WRITE_ENABLED=true/);
@@ -195,8 +209,15 @@ test('failures: each fixed code has its own kind and says whether anything chang
   const timeout = classifyProductFailure(err(504, 'timeout'), 'change');
   assert.match(timeout.message, /not known whether/);
   assert.match(classifyProductFailure(err(504, 'timeout'), 'read').message, /Try again/);
-  assert.equal(classifyProductFailure(err(422, 'store_rejected', { message: 'Name too long.' }), 'change').message, 'Name too long. Nothing was changed.');
-  assert.equal(classifyProductFailure(err(502, 'store_unavailable', { message: 'Down.' }), 'change').message, 'Down.');
+  assert.equal(
+    classifyProductFailure(err(422, 'store_rejected', { message: 'Name too long.' }), 'change')
+      .message,
+    'Name too long. Nothing was changed.',
+  );
+  assert.equal(
+    classifyProductFailure(err(502, 'store_unavailable', { message: 'Down.' }), 'change').message,
+    'Down.',
+  );
   const offline = classifyProductFailure(new Error('x'), 'change');
   assert.match(offline.message, /not known whether anything was changed/);
   assert.match(classifyProductFailure(new Error('x'), 'read').message, /try again/);

@@ -243,8 +243,8 @@ rule, for example "1024 by 500 px"). Invalid items cannot be staged.
 
 ## 5. Store writes (gated) vs planning data
 
-| Control                                                                               | Kind                      | Gate                                                                                                                                 |
-| ------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Control                                                                               | Kind                      | Gate                                                                                                                                  |
+| ------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | Increase Android staged rollout %, halt, resume, release to 100%                      | store write               | `KILN_STORE_ROLLOUT_ENABLED` (server done, [api/rollout](api/rollout.md))                                                             |
 | Apple phased release: pause, resume, release to all                                   | store write               | `KILN_STORE_ROLLOUT_ENABLED` (server done, [api/rollout](api/rollout.md))                                                             |
 | Push listing text as draft                                                            | store write               | `KILN_STORE_DRAFT_WRITE_ENABLED` (server done, [api/staged-changes](api/staged-changes.md))                                           |
@@ -252,11 +252,11 @@ rule, for example "1024 by 500 px"). Invalid items cannot be staged.
 | Release (App Store version, or a Google Play draft release at a share)                | store write, irreversible | `KILN_STORE_RELEASE_ENABLED` and `store.release` (server done, [api/releases-write](api/releases-write.md))                           |
 | Submit the pushed draft for store review                                              | store write, irreversible | `KILN_STORE_SUBMIT_ENABLED` and `store.submit` (server done, [api/submit](api/submit.md))                                             |
 | Publish several steps at once (push draft, submit, release, rollout) after one review | store write, irreversible | `KILN_STORE_PUBLISH_BATCH_ENABLED`, `store.publish` and each step's own switch and right (server done, [api/pending](api/pending.md)) |
-| See everything an app has pending; which apps have pending changes                    | read only                 | `listing.read` (server done, [api/pending](api/pending.md))                                                                          |
+| See everything an app has pending; which apps have pending changes                    | read only                 | `listing.read` (server done, [api/pending](api/pending.md))                                                                           |
 | Reply to a review                                                                     | store write               | `KILN_REVIEW_REPLY_ENABLED` (exists), plus the credential role                                                                        |
 | Commit or push to a local clone                                                       | repository write          | `KILN_LOCAL_REPO_WRITE` (exists)                                                                                                      |
-| Rollout step plan, mark step done, reminders, checklist                               | planning data             | none                                                                                                                                 |
-| Triage status, assignee, note                                                         | internal data             | role `reviews.triage`                                                                                                                |
+| Rollout step plan, mark step done, reminders, checklist                               | planning data             | none                                                                                                                                  |
+| Triage status, assignee, note                                                         | internal data             | role `reviews.triage`                                                                                                                 |
 
 The screens for these exist (rollout controls on a release, the publish dialogs, Pending changes). Every store write asks for confirmation with the sentence "This changes the live store" (or, for a
 reply, "This will be published publicly in the store"), names the store, app, version and the

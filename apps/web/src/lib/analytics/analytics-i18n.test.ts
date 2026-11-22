@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { analyticsErrorCodes, analyticsNextSteps, analyticsSetupCodes, coverageNoteCodes } from '@kiln/core';
+import {
+  analyticsErrorCodes,
+  analyticsNextSteps,
+  analyticsSetupCodes,
+  coverageNoteCodes,
+} from '@kiln/core';
 import { useLocale } from '../i18n/test-setup.ts';
 import { t } from '../i18n/t.ts';
 import {
@@ -16,10 +21,14 @@ import { metricLabel, seriesLabel } from './view.ts';
 
 test('every code of the fixed vocabularies has a sentence (never a bare key) in English', () => {
   useLocale('en');
-  for (const code of analyticsErrorCodes) assert.ok(!storedErrorText(code).startsWith('analytics:'), code);
-  for (const code of coverageNoteCodes) assert.ok(!noteText({ code, message: '' }).startsWith('analytics:'), code);
-  for (const code of analyticsSetupCodes) assert.ok(!setupSentence(code).startsWith('analytics:'), code);
-  for (const step of analyticsNextSteps) assert.ok(!stepAction(step).label.startsWith('analytics:'), step);
+  for (const code of analyticsErrorCodes)
+    assert.ok(!storedErrorText(code).startsWith('analytics:'), code);
+  for (const code of coverageNoteCodes)
+    assert.ok(!noteText({ code, message: '' }).startsWith('analytics:'), code);
+  for (const code of analyticsSetupCodes)
+    assert.ok(!setupSentence(code).startsWith('analytics:'), code);
+  for (const step of analyticsNextSteps)
+    assert.ok(!stepAction(step).label.startsWith('analytics:'), step);
 });
 
 test('formatDay names a day, a day with its year and a month in the active language, from the text of the date', () => {
@@ -50,6 +59,14 @@ test('a series is named by its metric in the active language, and by the API lab
   useLocale('es');
   assert.equal(metricLabel('impressions', 'Impressions'), 'Impresiones');
   assert.equal(metricLabel('something_new', 'Something new'), 'Something new');
-  assert.equal(seriesLabel({ id: 'product_page_conversion', metric: 'product_page_conversion', label: 'x', source: 'play_reports' }), 'Conversión de la ficha de la tienda');
+  assert.equal(
+    seriesLabel({
+      id: 'product_page_conversion',
+      metric: 'product_page_conversion',
+      label: 'x',
+      source: 'play_reports',
+    }),
+    'Conversión de la ficha de la tienda',
+  );
   useLocale('en');
 });

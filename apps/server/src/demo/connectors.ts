@@ -898,7 +898,12 @@ function playSubscriptionPoints(app: (typeof DEMO_APPS)[number]): AnalyticsPoint
       ['play_subscriptions_active', active],
     ] as const) {
       out.push({ date: n.date, metric, value });
-      out.push({ date: n.date, metric, value, dimension: { type: 'product', value: 'premium_monthly' } });
+      out.push({
+        date: n.date,
+        metric,
+        value,
+        dimension: { type: 'product', value: 'premium_monthly' },
+      });
     }
   });
   return out;
@@ -1001,7 +1006,12 @@ function createAnalytics(world: DemoWorld): AnalyticsConnectorFactory {
             return {
               points,
               files: [`earnings/earnings_${month}.zip`],
-              stats: { rowsRead: points.length, rowsUsed: points.length, rowsUnreadable: 0, rowsFiltered: 0 },
+              stats: {
+                rowsRead: points.length,
+                rowsUsed: points.length,
+                rowsUnreadable: 0,
+                rowsFiltered: 0,
+              },
             };
           },
         } satisfies PlayEarningsPort,
@@ -1021,9 +1031,16 @@ function createAnalytics(world: DemoWorld): AnalyticsConnectorFactory {
               });
             return {
               points,
-              files: [`financial-stats/subscriptions/subscriptions_${input.packageName}_premium_monthly_${month}_country.csv`],
+              files: [
+                `financial-stats/subscriptions/subscriptions_${input.packageName}_premium_monthly_${month}_country.csv`,
+              ],
               products: 1,
-              stats: { rowsRead: points.length, rowsUsed: points.length, rowsUnreadable: 0, rowsFiltered: 0 },
+              stats: {
+                rowsRead: points.length,
+                rowsUsed: points.length,
+                rowsUnreadable: 0,
+                rowsFiltered: 0,
+              },
             };
           },
         } satisfies PlaySubscriptionsPort,

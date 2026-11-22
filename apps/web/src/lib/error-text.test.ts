@@ -33,9 +33,18 @@ describe('paramsOf', () => {
 
 describe('codedText (English)', () => {
   it('fills params and picks plural forms', () => {
-    assert.equal(codedText('store.rateLimited', { store: 'Apple', count: 1 })?.includes('1 second'), true);
-    assert.equal(codedText('sync.tooManySyncs', { count: 1 }), 'Too many syncs. Try again in 1 second.');
-    assert.equal(codedText('sync.tooManySyncs', { count: 30 }), 'Too many syncs. Try again in 30 seconds.');
+    assert.equal(
+      codedText('store.rateLimited', { store: 'Apple', count: 1 })?.includes('1 second'),
+      true,
+    );
+    assert.equal(
+      codedText('sync.tooManySyncs', { count: 1 }),
+      'Too many syncs. Try again in 1 second.',
+    );
+    assert.equal(
+      codedText('sync.tooManySyncs', { count: 30 }),
+      'Too many syncs. Try again in 30 seconds.',
+    );
   });
   it('is undefined for a code this app does not know and for a malformed one', () => {
     assert.equal(codedText('store.neverHeardOfIt'), undefined);
@@ -46,18 +55,30 @@ describe('codedText (English)', () => {
 
 describe('errorText', () => {
   it('prefers the explicit code, then the legacy word', () => {
-    assert.equal(errorText({ error: 'whatever', code: 'sync.inProgress' }), 'A sync of this app is already running.');
+    assert.equal(
+      errorText({ error: 'whatever', code: 'sync.inProgress' }),
+      'A sync of this app is already running.',
+    );
     assert.equal(errorText({ error: 'not_found' }), 'That no longer exists.');
     assert.equal(errorText({ error: 'unheard_of' }), undefined);
   });
   it('leaves invalid_request with issues and local_ errors to the caller', () => {
-    assert.equal(errorText({ error: 'invalid_request', issues: [{ path: 'a', message: 'b' }] } as never), undefined);
+    assert.equal(
+      errorText({ error: 'invalid_request', issues: [{ path: 'a', message: 'b' }] } as never),
+      undefined,
+    );
     assert.equal(errorText({ error: 'invalid_request' }), 'Check the form and try again.');
     assert.equal(errorText({ error: 'local_not_allowed' }), undefined);
   });
   it('uses the retry wait for rate limits', () => {
-    assert.equal(errorText({ error: 'too_many_attempts' }, 30), 'Too many attempts. Try again in 30 seconds.');
-    assert.equal(errorText({ error: 'too_many_attempts' }, 61), 'Too many attempts. Try again in 2 minutes.');
+    assert.equal(
+      errorText({ error: 'too_many_attempts' }, 30),
+      'Too many attempts. Try again in 30 seconds.',
+    );
+    assert.equal(
+      errorText({ error: 'too_many_attempts' }, 61),
+      'Too many attempts. Try again in 2 minutes.',
+    );
   });
 });
 
@@ -79,16 +100,26 @@ describe('messageFor with codes', () => {
       'A sync of this app is already running.',
     );
     assert.equal(
-      messageFor(502, { error: 'store_error', message: 'Server words', code: 'store.fromTheFuture' }),
+      messageFor(502, {
+        error: 'store_error',
+        message: 'Server words',
+        code: 'store.fromTheFuture',
+      }),
       'Server words',
     );
-    assert.equal(messageFor(401, { error: 'unauthenticated' }), 'Your session has ended. Sign in again.');
+    assert.equal(
+      messageFor(401, { error: 'unauthenticated' }),
+      'Your session has ended. Sign in again.',
+    );
     assert.equal(messageFor(500, {}), 'The server had a problem. Try again.');
     assert.equal(messageFor(418, {}), 'The request failed (418).');
     assert.equal(messageFor(429, {}, 90), 'Too many requests. Try again in 2 minutes.');
   });
   it('ignores a legacy code field that is not dot.case', () => {
-    assert.equal(messageFor(502, { error: 'smtp_failed', code: 'smtp_timeout' }), 'The server had a problem. Try again.');
+    assert.equal(
+      messageFor(502, { error: 'smtp_failed', code: 'smtp_timeout' }),
+      'The server had a problem. Try again.',
+    );
   });
 });
 
@@ -129,9 +160,12 @@ describe('Accept-Language and network errors', () => {
     try {
       const api = createApi({
         fetch: (async () =>
-          new Response(JSON.stringify({ error: 'sync_in_progress', message: 'x', code: 'sync.inProgress' }), {
-            status: 409,
-          })) as typeof fetch,
+          new Response(
+            JSON.stringify({ error: 'sync_in_progress', message: 'x', code: 'sync.inProgress' }),
+            {
+              status: 409,
+            },
+          )) as typeof fetch,
       });
       await assert.rejects(api.health(), (e: unknown) => {
         assert.equal((e as ApiError).message, read('de')['sync.inProgress']);
@@ -158,7 +192,8 @@ describe('the errors catalog', () => {
     for (const lang of readdirSync(ERRORS).map((f) => f.replace('.json', ''))) {
       const keys = Object.keys(read(lang));
       // Plural groups differ by language (fr and es add _many); compare the base keys.
-      const base = (list: string[]) => new Set(list.map((k) => k.replace(/_(zero|one|two|few|many|other)$/, '')));
+      const base = (list: string[]) =>
+        new Set(list.map((k) => k.replace(/_(zero|one|two|few|many|other)$/, '')));
       assert.deepEqual([...base(keys)].sort(), [...base(en)].sort(), lang);
     }
   });

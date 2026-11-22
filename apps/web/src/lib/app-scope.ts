@@ -90,17 +90,37 @@ export type SectionDef = { id: AppSection; labelKey: string; icon: IconName; req
 export const appSectionDefs: readonly SectionDef[] = [
   { id: 'dashboard', labelKey: k('app:nav.overview'), icon: 'grid', requires: 'apps.read' },
   { id: 'pending', labelKey: k('app:title.pending'), icon: 'upload', requires: 'listing.read' },
-  { id: 'listing', labelKey: k('app:nav.storeListing'), icon: 'file-text', requires: 'listing.read' },
+  {
+    id: 'listing',
+    labelKey: k('app:nav.storeListing'),
+    icon: 'file-text',
+    requires: 'listing.read',
+  },
   { id: 'releases', labelKey: k('app:nav.releases'), icon: 'rocket', requires: 'apps.read' },
   { id: 'workflows', labelKey: k('app:view.workflows'), icon: 'play', requires: 'apps.read' },
   { id: 'assets', labelKey: k('app:section.assets'), icon: 'images', requires: 'listing.read' },
   { id: 'products', labelKey: k('app:nav.products'), icon: 'tag', requires: 'apps.read' },
   { id: 'reviews', labelKey: k('app:nav.reviews'), icon: 'message', requires: 'reviews.read' },
-  { id: 'insights', labelKey: k('app:nav.insights'), icon: 'trending-up', requires: 'analytics.read' },
+  {
+    id: 'insights',
+    labelKey: k('app:nav.insights'),
+    icon: 'trending-up',
+    requires: 'analytics.read',
+  },
   { id: 'aso', labelKey: k('app:section.aso'), icon: 'trending-up', requires: 'aso.read' },
-  { id: 'analytics', labelKey: k('app:section.analytics'), icon: 'activity', requires: 'analytics.read' },
+  {
+    id: 'analytics',
+    labelKey: k('app:section.analytics'),
+    icon: 'activity',
+    requires: 'analytics.read',
+  },
   { id: 'builds', labelKey: k('app:section.buildsAndCi'), icon: 'pipeline', requires: 'apps.read' },
-  { id: 'test-builds', labelKey: k('app:view.testBuilds'), icon: 'smartphone', requires: 'builds.read' },
+  {
+    id: 'test-builds',
+    labelKey: k('app:view.testBuilds'),
+    icon: 'smartphone',
+    requires: 'builds.read',
+  },
   { id: 'settings', labelKey: k('app:rail.settings'), icon: 'settings', requires: 'apps.read' },
 ];
 

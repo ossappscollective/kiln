@@ -140,10 +140,12 @@ dbTest(
     );
     assert.equal(String(defaulted[0]?.plan_id), '');
 
-    await db.execute(
-      `INSERT INTO store_product_sync (app_id, workspace_id) VALUES ('a1', 'w1')`,
-    );
-    const sync = (await db.query('SELECT failures, product_count, complete, warnings_json FROM store_product_sync'))[0];
+    await db.execute(`INSERT INTO store_product_sync (app_id, workspace_id) VALUES ('a1', 'w1')`);
+    const sync = (
+      await db.query(
+        'SELECT failures, product_count, complete, warnings_json FROM store_product_sync',
+      )
+    )[0];
     assert.equal(Number(sync?.failures), 0);
     assert.equal(Number(sync?.product_count), 0);
     assert.equal(Number(sync?.complete), 1);

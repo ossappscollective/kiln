@@ -11,6 +11,8 @@ export const ciProviderMigrations: Migration[] = [
     id: 46,
     name: 'CI runs: the provider of a stored run (github, eas-workflows)',
     // A default, so the rows that exist are GitHub's and the same statement runs on SQLite and PostgreSQL.
-    statements: () => ["ALTER TABLE workflow_runs ADD COLUMN provider TEXT NOT NULL DEFAULT 'github'"],
+    statements: () => [
+      "ALTER TABLE workflow_runs ADD COLUMN provider TEXT NOT NULL DEFAULT 'github'",
+    ],
   },
 ];

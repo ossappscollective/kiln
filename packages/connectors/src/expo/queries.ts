@@ -146,7 +146,10 @@ export async function expoProjectByFullName(
 }
 
 /** The project with this id (a UUID). `not_found` when Expo has none the token can see. */
-export async function expoProjectById(client: ExpoGraphql, projectId: string): Promise<ExpoProject> {
+export async function expoProjectById(
+  client: ExpoGraphql,
+  projectId: string,
+): Promise<ExpoProject> {
   if (!isExpoProjectId(projectId)) throw new ExpoError('invalid_input');
   const data = await client.graphql<{ app?: unknown }>({
     query: PROJECT_BY_ID_QUERY,
@@ -184,7 +187,8 @@ export async function expoProjectById(client: ExpoGraphql, projectId: string): P
 
 const asNumber = (value: unknown): number | null => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) return Number(value);
+  if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value)))
+    return Number(value);
   return null;
 };
 
@@ -238,7 +242,9 @@ function updateOf(value: unknown): ExpoUpdate | null {
     gitCommitHash: text(value.gitCommitHash) ?? null,
     isRollBackToEmbedded: value.isRollBackToEmbedded === true,
     rolloutPercentage: rollout !== null && rollout > 0 && rollout < 100 ? rollout : null,
-    rolloutControlGroup: isRecord(value.rolloutControlUpdate) ? (text(value.rolloutControlUpdate.group) ?? null) : null,
+    rolloutControlGroup: isRecord(value.rolloutControlUpdate)
+      ? (text(value.rolloutControlUpdate.group) ?? null)
+      : null,
   };
 }
 
@@ -247,7 +253,9 @@ function groupsOf(value: unknown): ExpoUpdateGroup[] {
   if (!Array.isArray(value)) return [];
   const out: ExpoUpdateGroup[] = [];
   for (const item of value) {
-    const updates = (Array.isArray(item) ? item : [item]).map(updateOf).filter((u): u is ExpoUpdate => u !== null);
+    const updates = (Array.isArray(item) ? item : [item])
+      .map(updateOf)
+      .filter((u): u is ExpoUpdate => u !== null);
     const first = updates[0];
     if (first) out.push({ group: first.group, updates });
   }
@@ -376,7 +384,11 @@ export async function expoStoreBuilds(
     variables: {
       appId: projectId.toLowerCase(),
       limit: options.limit ?? 20,
-      filter: { platform: BUILD_PLATFORM[options.platform], status: 'FINISHED', distribution: 'STORE' },
+      filter: {
+        platform: BUILD_PLATFORM[options.platform],
+        status: 'FINISHED',
+        distribution: 'STORE',
+      },
     },
     operationName: 'KilnStoreBuildRuntimes',
   });
@@ -417,7 +429,9 @@ function insightsOf(value: unknown): ExpoUpdateInsights | null {
   const platform = text(value.platform);
   if (!updateId || !platform) return null;
   const insights = isRecord(value.insights) ? value.insights : {};
-  const average = isRecord(insights.cumulativeAverageMetrics) ? insights.cumulativeAverageMetrics : {};
+  const average = isRecord(insights.cumulativeAverageMetrics)
+    ? insights.cumulativeAverageMetrics
+    : {};
   const cumulative = isRecord(insights.cumulativeMetrics) ? insights.cumulativeMetrics : {};
   const last = isRecord(cumulative.metricsAtLastTimestamp) ? cumulative.metricsAtLastTimestamp : {};
   const launches = asNumber(last.totalInstalls);
@@ -429,7 +443,8 @@ function insightsOf(value: unknown): ExpoUpdateInsights | null {
     launches,
     failedLaunches: failed,
     // failed / (installs + failed): the formula `eas update:insights` documents. Null when there was no launch at all.
-    crashRatePercent: failed !== null && attempts > 0 ? Math.round((failed / attempts) * 10_000) / 100 : null,
+    crashRatePercent:
+      failed !== null && attempts > 0 ? Math.round((failed / attempts) * 10_000) / 100 : null,
     uniqueUsers: asNumber(insights.totalUniqueUsers),
     launchAssetCount: asNumber(average.launchAssetCount),
     averagePayloadBytes: asNumber(average.averageUpdatePayloadBytes),
@@ -450,12 +465,17 @@ export async function expoUpdateGroupInsights(
     query: UPDATE_INSIGHTS_QUERY,
     variables: {
       groupId: groupId.toLowerCase(),
-      timespan: { start: new Date(span.start).toISOString(), end: new Date(span.end).toISOString() },
+      timespan: {
+        start: new Date(span.start).toISOString(),
+        end: new Date(span.end).toISOString(),
+      },
     },
     operationName: 'KilnUpdateGroupInsights',
   });
   if (!Array.isArray(data.updatesByGroup)) throw unreadable();
-  const found = data.updatesByGroup.map(insightsOf).filter((i): i is ExpoUpdateInsights => i !== null);
+  const found = data.updatesByGroup
+    .map(insightsOf)
+    .filter((i): i is ExpoUpdateInsights => i !== null);
   if (found.length === 0) throw new ExpoError('not_found');
   return found;
 }
@@ -479,7 +499,12 @@ export async function expoSetUpdateRolloutPercentage(
   updateId: string,
   percentage: number,
 ): Promise<ExpoUpdateRolloutResult> {
-  if (!EXPO_UPDATE_GROUP_ID.test(updateId) || !Number.isInteger(percentage) || percentage < 1 || percentage > 100) {
+  if (
+    !EXPO_UPDATE_GROUP_ID.test(updateId) ||
+    !Number.isInteger(percentage) ||
+    percentage < 1 ||
+    percentage > 100
+  ) {
     throw new ExpoError('invalid_input');
   }
   const data = await client.graphql<{ update?: unknown }>({
@@ -491,7 +516,11 @@ export async function expoSetUpdateRolloutPercentage(
   const done = data.update.setRolloutPercentage;
   const id = text(done.id);
   if (!id) throw unreadable();
-  return { updateId: id, group: text(done.group) ?? null, rolloutPercentage: asNumber(done.rolloutPercentage) };
+  return {
+    updateId: id,
+    group: text(done.group) ?? null,
+    rolloutPercentage: asNumber(done.rolloutPercentage),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -562,13 +591,15 @@ const easText = (value: unknown, max: number): string | null => {
 const easErrorOf = (value: unknown): ExpoErrorDetail | null => {
   if (!isRecord(value)) return null;
   const rawCode = text(value.errorCode);
-  const code = rawCode !== undefined && /^[A-Za-z][A-Za-z0-9_]{1,63}$/.test(rawCode) ? rawCode : null;
+  const code =
+    rawCode !== undefined && /^[A-Za-z][A-Za-z0-9_]{1,63}$/.test(rawCode) ? rawCode : null;
   const message = easText(value.message, 500);
   return code === null && message === null ? null : { code, message };
 };
 
 /** The key a status is kept under: Expo's own upper case wording, so a lower case or mixed case spelling still reads. */
-const wire = (value: unknown): string => (typeof value === 'string' ? value.trim().toUpperCase() : '');
+const wire = (value: unknown): string =>
+  typeof value === 'string' ? value.trim().toUpperCase() : '';
 
 const BUILD_FIELDS = `id status platform error { errorCode message } artifacts { buildUrl applicationArchiveUrl }
         updateChannel { name } distribution buildProfile appIdentifier sdkVersion appVersion appBuildVersion runtime { version }
@@ -591,7 +622,12 @@ function easBuildOf(value: unknown): ExpoBuildSummary | null {
   if (!id) return null;
   const rawStatus = text(value.status) ?? '';
   const artifacts = isRecord(value.artifacts) ? value.artifacts : {};
-  const firstLine = easText(typeof value.gitCommitMessage === 'string' ? value.gitCommitMessage.split('\n')[0]?.trim() : null, 200);
+  const firstLine = easText(
+    typeof value.gitCommitMessage === 'string'
+      ? value.gitCommitMessage.split('\n')[0]?.trim()
+      : null,
+    200,
+  );
   return {
     id,
     status: EXPO_BUILD_STATUS_FROM_WIRE[wire(value.status)] ?? 'unknown',
@@ -609,7 +645,8 @@ function easBuildOf(value: unknown): ExpoBuildSummary | null {
     gitCommitHash: easText(value.gitCommitHash, 64),
     gitCommitMessage: firstLine,
     error: easErrorOf(value.error),
-    hasArtifact: text(artifacts.buildUrl) !== undefined || text(artifacts.applicationArchiveUrl) !== undefined,
+    hasArtifact:
+      text(artifacts.buildUrl) !== undefined || text(artifacts.applicationArchiveUrl) !== undefined,
     createdAt: easTime(value.createdAt),
     updatedAt: easTime(value.updatedAt),
     completedAt: easTime(value.completedAt),
@@ -675,7 +712,8 @@ function easSubmissionOf(value: unknown): ExpoSubmissionSummary | null {
     rawStatus: text(value.status) ?? '',
     platform: EXPO_PLATFORM_FROM_WIRE[wire(value.platform)] ?? null,
     buildId: isRecord(value.submittedBuild) ? (text(value.submittedBuild.id) ?? null) : null,
-    targetIdentifier: easText(android.applicationIdentifier, 200) ?? easText(ios.ascAppIdentifier, 200),
+    targetIdentifier:
+      easText(android.applicationIdentifier, 200) ?? easText(ios.ascAppIdentifier, 200),
     track: easText(android.track, 100),
     releaseStatus: easText(android.releaseStatus, 100),
     error: easErrorOf(value.error),

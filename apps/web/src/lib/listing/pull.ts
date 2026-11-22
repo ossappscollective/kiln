@@ -133,14 +133,19 @@ export function selectionText(fields: readonly Pick<DriftField, 'locale'>[]): st
 
 /** The suggested summary of the change set, which the person may edit. */
 export function defaultPullSummary(appName: string, platform: Platform): string {
-  return t('listing:pull.defaultSummary', { store: platformMeta(platform).storeName, app: appName }).slice(0, 200);
+  return t('listing:pull.defaultSummary', {
+    store: platformMeta(platform).storeName,
+    app: appName,
+  }).slice(0, 200);
 }
 
 // ---------------------------------------------------------------------------------------------
 // The target, in words
 
 export const sourceKindLabel = (source: ListingSourceKind): string =>
-  source === 'expo-store-config' ? t('listing:pull.source.expo') : t('listing:pull.source.fastlane');
+  source === 'expo-store-config'
+    ? t('listing:pull.source.expo')
+    : t('listing:pull.source.fastlane');
 
 /**
  * Where the listing would be written, judged from a stored scan (the real choice is made when the
@@ -165,7 +170,11 @@ export function detectedPullSource(
 
 /** "acme/app, branch main, store.config.json". */
 export function targetText(target: { repository: string; branch: string; path: string }): string {
-  return t('listing:pull.target', { repository: target.repository, branch: target.branch, path: target.path });
+  return t('listing:pull.target', {
+    repository: target.repository,
+    branch: target.branch,
+    path: target.path,
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -204,7 +213,9 @@ export const skipSubject = (
   skip: Pick<PullSkip, 'locale' | 'field'>,
   labelOf: (field: string) => string,
 ): string =>
-  skip.field === undefined ? skip.locale : t('listing:pull.skipSubject', { locale: skip.locale, field: labelOf(skip.field) });
+  skip.field === undefined
+    ? skip.locale
+    : t('listing:pull.skipSubject', { locale: skip.locale, field: labelOf(skip.field) });
 
 export type PullSummary = {
   tone: 'ok' | 'info' | 'warn';
@@ -272,7 +283,9 @@ export function pullErrorMessage(
       return error.message;
     case 'rate_limited': {
       const wait = error.retryAfter;
-      return wait === undefined ? t('listing:pull.error.rateLimited') : t('listing:pull.error.rateLimitedWait', { count: wait });
+      return wait === undefined
+        ? t('listing:pull.error.rateLimited')
+        : t('listing:pull.error.rateLimitedWait', { count: wait });
     }
     case 'sync_in_progress':
       return t('listing:pull.error.syncInProgress');

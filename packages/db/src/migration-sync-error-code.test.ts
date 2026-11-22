@@ -57,7 +57,10 @@ dbTest(
       'UPDATE apps SET last_sync_error_code = ?, last_sync_error_params = ? WHERE id = ?',
       ['store.google.noAccessPackage', '{"package":"com.acme.app"}', 'a1'],
     );
-    const [row] = await db.query('SELECT last_sync_error_code, last_sync_error_params FROM apps WHERE id = ?', ['a1']);
+    const [row] = await db.query(
+      'SELECT last_sync_error_code, last_sync_error_params FROM apps WHERE id = ?',
+      ['a1'],
+    );
     assert.equal(row?.last_sync_error_code, 'store.google.noAccessPackage');
     assert.equal(row?.last_sync_error_params, '{"package":"com.acme.app"}');
 

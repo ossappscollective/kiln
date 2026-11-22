@@ -14,15 +14,27 @@ export const T0 = Date.UTC(2026, 10, 20, 12, 0, 0);
 // Apple
 
 const link = (id: string, type: string) => ({ type, id });
-const rel = (type: string, ids: string[]) => ({ [type]: { data: ids.map((id) => link(id, type)) } });
+const rel = (type: string, ids: string[]) => ({
+  [type]: { data: ids.map((id) => link(id, type)) },
+});
 
-export const appleIapLocalization = (id: string, locale: string, name: string, description: string) => ({
+export const appleIapLocalization = (
+  id: string,
+  locale: string,
+  name: string,
+  description: string,
+) => ({
   type: 'inAppPurchaseLocalizations',
   id,
   attributes: { locale, name, description, state: 'APPROVED' },
 });
 
-export const appleSubLocalization = (id: string, locale: string, name: string, description: string) => ({
+export const appleSubLocalization = (
+  id: string,
+  locale: string,
+  name: string,
+  description: string,
+) => ({
   type: 'subscriptionLocalizations',
   id,
   attributes: { locale, name, description, state: 'APPROVED' },
@@ -114,7 +126,11 @@ export const appleAutomaticPrices = {
 };
 
 export const appleIapAvailability = {
-  data: { type: 'inAppPurchaseAvailabilities', id: 'av-1', attributes: { availableInNewTerritories: true } },
+  data: {
+    type: 'inAppPurchaseAvailabilities',
+    id: 'av-1',
+    attributes: { availableInNewTerritories: true },
+  },
 };
 export const appleTerritories = (ids: string[]) => ({
   data: ids.map((id) => territory(id, 'USD')),
@@ -185,30 +201,77 @@ export function appleProductsFake(): fx.FakeFetch {
   const fake = new fx.FakeFetch();
   fake
     .on({ method: 'GET', match: new RegExp(`^${IAPS_PATH}\\?`), json: appleIapList() })
-    .on({ method: 'GET', match: /^\/v2\/inAppPurchases\/iap-1\/iapPriceSchedule\?/, json: appleSchedule() })
-    .on({ method: 'GET', match: /^\/v2\/inAppPurchases\/iap-2\/iapPriceSchedule\?/, status: 404, json: { errors: [{ status: '404', code: 'NOT_FOUND' }] } })
-    .on({ method: 'GET', match: /^\/v1\/inAppPurchasePriceSchedules\/ps-1\/manualPrices\?/, json: appleManualPrices })
-    .on({ method: 'GET', match: /^\/v1\/inAppPurchasePriceSchedules\/ps-1\/automaticPrices\?/, json: appleAutomaticPrices })
-    .on({ method: 'GET', match: /^\/v2\/inAppPurchases\/iap-1\/inAppPurchaseAvailability\?/, json: appleIapAvailability })
-    .on({ method: 'GET', match: /^\/v2\/inAppPurchases\/iap-2\/inAppPurchaseAvailability\?/, status: 404, json: { errors: [] } })
-    .on({ method: 'GET', match: /^\/v1\/inAppPurchaseAvailabilities\/av-1\/availableTerritories\?/, json: appleTerritories(['USA', 'DEU', 'JPN']) })
+    .on({
+      method: 'GET',
+      match: /^\/v2\/inAppPurchases\/iap-1\/iapPriceSchedule\?/,
+      json: appleSchedule(),
+    })
+    .on({
+      method: 'GET',
+      match: /^\/v2\/inAppPurchases\/iap-2\/iapPriceSchedule\?/,
+      status: 404,
+      json: { errors: [{ status: '404', code: 'NOT_FOUND' }] },
+    })
+    .on({
+      method: 'GET',
+      match: /^\/v1\/inAppPurchasePriceSchedules\/ps-1\/manualPrices\?/,
+      json: appleManualPrices,
+    })
+    .on({
+      method: 'GET',
+      match: /^\/v1\/inAppPurchasePriceSchedules\/ps-1\/automaticPrices\?/,
+      json: appleAutomaticPrices,
+    })
+    .on({
+      method: 'GET',
+      match: /^\/v2\/inAppPurchases\/iap-1\/inAppPurchaseAvailability\?/,
+      json: appleIapAvailability,
+    })
+    .on({
+      method: 'GET',
+      match: /^\/v2\/inAppPurchases\/iap-2\/inAppPurchaseAvailability\?/,
+      status: 404,
+      json: { errors: [] },
+    })
+    .on({
+      method: 'GET',
+      match: /^\/v1\/inAppPurchaseAvailabilities\/av-1\/availableTerritories\?/,
+      json: appleTerritories(['USA', 'DEU', 'JPN']),
+    })
     .on({ method: 'GET', match: new RegExp(`^${GROUPS_PATH}\\?`), json: appleGroups })
-    .on({ method: 'GET', match: /^\/v1\/subscriptionGroups\/g-1\/subscriptions\?/, json: appleSubscriptions })
+    .on({
+      method: 'GET',
+      match: /^\/v1\/subscriptionGroups\/g-1\/subscriptions\?/,
+      json: appleSubscriptions,
+    })
     .on({ method: 'GET', match: /^\/v1\/subscriptions\/s-1\/prices\?/, json: appleSubPrices })
-    .on({ method: 'GET', match: /^\/v1\/subscriptionPlanAvailabilities\/pa-1\/availableTerritories\?/, json: appleTerritories(['USA', 'FRA']) });
+    .on({
+      method: 'GET',
+      match: /^\/v1\/subscriptionPlanAvailabilities\/pa-1\/availableTerritories\?/,
+      json: appleTerritories(['USA', 'FRA']),
+    });
   return fake;
 }
 
 // ---------------------------------------------------------------------------------------------
 // Google Play
 
-export const money = (currencyCode: string, units: string, nanos = 0) => ({ currencyCode, units, nanos });
+export const money = (currencyCode: string, units: string, nanos = 0) => ({
+  currencyCode,
+  units,
+  nanos,
+});
 
 export const playSubscription = {
   packageName: PACKAGE,
   productId: 'premium_monthly',
   listings: [
-    { languageCode: 'en-US', title: 'Premium', description: 'Everything, monthly', benefits: ['No ads', 'Cloud sync'] },
+    {
+      languageCode: 'en-US',
+      title: 'Premium',
+      description: 'Everything, monthly',
+      benefits: ['No ads', 'Cloud sync'],
+    },
     { languageCode: 'de-DE', title: 'Premium', description: 'Alles, monatlich', benefits: [] },
   ],
   basePlans: [
@@ -217,17 +280,35 @@ export const playSubscription = {
       state: 'ACTIVE',
       autoRenewingBasePlanType: { billingPeriodDuration: 'P1M' },
       regionalConfigs: [
-        { regionCode: 'US', newSubscriberAvailability: true, price: money('USD', '4', 990_000_000) },
-        { regionCode: 'DE', newSubscriberAvailability: true, price: money('EUR', '4', 990_000_000) },
+        {
+          regionCode: 'US',
+          newSubscriberAvailability: true,
+          price: money('USD', '4', 990_000_000),
+        },
+        {
+          regionCode: 'DE',
+          newSubscriberAvailability: true,
+          price: money('EUR', '4', 990_000_000),
+        },
         { regionCode: 'JP', newSubscriberAvailability: false, price: money('JPY', '600') },
       ],
-      otherRegionsConfig: { usdPrice: money('USD', '4', 990_000_000), eurPrice: money('EUR', '4', 990_000_000), newSubscriberAvailability: true },
+      otherRegionsConfig: {
+        usdPrice: money('USD', '4', 990_000_000),
+        eurPrice: money('EUR', '4', 990_000_000),
+        newSubscriberAvailability: true,
+      },
     },
     {
       basePlanId: 'old-yearly',
       state: 'INACTIVE',
       autoRenewingBasePlanType: { billingPeriodDuration: 'P1Y' },
-      regionalConfigs: [{ regionCode: 'US', newSubscriberAvailability: false, price: money('USD', '39', 990_000_000) }],
+      regionalConfigs: [
+        {
+          regionCode: 'US',
+          newSubscriberAvailability: false,
+          price: money('USD', '39', 990_000_000),
+        },
+      ],
     },
   ],
 };
@@ -243,9 +324,17 @@ export const playOneTime = {
       buyOption: { multiQuantityEnabled: true },
       regionalPricingAndAvailabilityConfigs: [
         { regionCode: 'US', availability: 'AVAILABLE', price: money('USD', '0', 990_000_000) },
-        { regionCode: 'FR', availability: 'NO_LONGER_AVAILABLE', price: money('EUR', '0', 990_000_000) },
+        {
+          regionCode: 'FR',
+          availability: 'NO_LONGER_AVAILABLE',
+          price: money('EUR', '0', 990_000_000),
+        },
       ],
-      newRegionsConfig: { usdPrice: money('USD', '0', 990_000_000), eurPrice: money('EUR', '0', 990_000_000), availability: 'AVAILABLE' },
+      newRegionsConfig: {
+        usdPrice: money('USD', '0', 990_000_000),
+        eurPrice: money('EUR', '0', 990_000_000),
+        availability: 'AVAILABLE',
+      },
     },
   ],
   regionsVersion: { version: '2022/02' },
@@ -255,13 +344,26 @@ export const playOneTimeSecond = {
   packageName: PACKAGE,
   productId: 'remove_ads',
   listings: [{ languageCode: 'en-US', title: 'Remove ads', description: 'No more ads' }],
-  purchaseOptions: [{ purchaseOptionId: 'buy', state: 'DRAFT', buyOption: {}, regionalPricingAndAvailabilityConfigs: [] }],
+  purchaseOptions: [
+    {
+      purchaseOptionId: 'buy',
+      state: 'DRAFT',
+      buyOption: {},
+      regionalPricingAndAvailabilityConfigs: [],
+    },
+  ],
   regionsVersion: { version: '2022/02' },
 };
 
 export const playOffers = {
   subscriptionOffers: [
-    { packageName: PACKAGE, productId: 'premium_monthly', basePlanId: 'monthly', offerId: 'trial', state: 'ACTIVE' },
+    {
+      packageName: PACKAGE,
+      productId: 'premium_monthly',
+      basePlanId: 'monthly',
+      offerId: 'trial',
+      state: 'ACTIVE',
+    },
   ],
 };
 
@@ -274,8 +376,16 @@ export function playProductsFake(): fx.FakeFetch {
   const fake = new fx.FakeFetch();
   fake
     .on({ method: 'POST', match: '/token', json: fx.googleToken })
-    .on({ method: 'GET', match: `${SUBS}?pageSize=100`, json: { subscriptions: [playSubscription] } })
-    .on({ method: 'GET', match: `${ONE_TIME}?pageSize=100`, json: { oneTimeProducts: [playOneTime, playOneTimeSecond] } })
+    .on({
+      method: 'GET',
+      match: `${SUBS}?pageSize=100`,
+      json: { subscriptions: [playSubscription] },
+    })
+    .on({
+      method: 'GET',
+      match: `${ONE_TIME}?pageSize=100`,
+      json: { oneTimeProducts: [playOneTime, playOneTimeSecond] },
+    })
     .on({ method: 'GET', match: `${OFFERS}?pageSize=100`, json: playOffers });
   return fake;
 }

@@ -89,7 +89,9 @@ export function summarizeTest(result: TestResult): TestSummary {
 
 /** The sentence to show when the test could not run at all: no network, rate limit, or a refusal. */
 export function testErrorMessage(error: unknown, fallback?: string): string {
-  return error instanceof ApiError ? error.message : (fallback ?? t('credentials:test.couldNotRunRetry'));
+  return error instanceof ApiError
+    ? error.message
+    : (fallback ?? t('credentials:test.couldNotRunRetry'));
 }
 
 /** What to announce to a screen reader when a saved credential's test finishes. */

@@ -9,7 +9,11 @@ export {
   revenueCatClientFor,
   revenueCatFailure,
 } from './client.ts';
-export { getRevenueCatMetrics, type RevenueCatMetricsAnswer, type RevenueCatMetricsView } from './metrics.ts';
+export {
+  getRevenueCatMetrics,
+  type RevenueCatMetricsAnswer,
+  type RevenueCatMetricsView,
+} from './metrics.ts';
 export { type RevenueCatStep, type RevenueCatSyncContext, revenueCatStep } from './sync.ts';
 
 /**

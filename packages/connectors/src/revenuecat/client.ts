@@ -69,7 +69,11 @@ export type RevenueCatClient = {
   list(
     path: string,
     query?: RevenueCatQuery,
-    options?: { signal?: AbortSignal | undefined; maxPages?: number | undefined; reserve?: number | undefined },
+    options?: {
+      signal?: AbortSignal | undefined;
+      maxPages?: number | undefined;
+      reserve?: number | undefined;
+    },
   ): Promise<RevenueCatListResult>;
 };
 
@@ -80,7 +84,9 @@ export function normalizeRevenueCatOrigin(origin: string | undefined): string {
   try {
     url = new URL(raw);
   } catch {
-    throw new RevenueCatError('invalid_input', { message: 'The RevenueCat address is not a valid URL.' });
+    throw new RevenueCatError('invalid_input', {
+      message: 'The RevenueCat address is not a valid URL.',
+    });
   }
   if (
     (url.protocol !== 'https:' && url.protocol !== 'http:') ||
@@ -90,7 +96,8 @@ export function normalizeRevenueCatOrigin(origin: string | undefined): string {
     url.hash !== ''
   ) {
     throw new RevenueCatError('invalid_input', {
-      message: 'The RevenueCat address must be an http(s) origin without credentials, query or fragment.',
+      message:
+        'The RevenueCat address must be an http(s) origin without credentials, query or fragment.',
     });
   }
   return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
@@ -134,7 +141,8 @@ const clampSeconds = (seconds: number) => Math.min(Math.max(Math.ceil(seconds), 
 /** Seconds to wait from `Retry-After` (seconds), else the body's `backoff_ms`; 60 when neither is readable. */
 function retryAfterOf(header: string | null, body: Record<string, unknown> | undefined): number {
   const seconds = Number(header);
-  if (header !== null && header.trim() !== '' && Number.isFinite(seconds) && seconds >= 0) return clampSeconds(seconds);
+  if (header !== null && header.trim() !== '' && Number.isFinite(seconds) && seconds >= 0)
+    return clampSeconds(seconds);
   const ms = body && typeof body.backoff_ms === 'number' ? body.backoff_ms : undefined;
   return ms !== undefined && Number.isFinite(ms) && ms >= 0 ? clampSeconds(ms / 1000) : 60;
 }
@@ -177,8 +185,10 @@ export function createRevenueCatClient(options: RevenueCatClientOptions): Revenu
   const maxBytes = options.maxResponseBytes ?? DEFAULT_REVENUECAT_MAX_RESPONSE_BYTES;
   const maxRequests = options.maxRequests ?? DEFAULT_REVENUECAT_MAX_REQUESTS;
   const userAgent = options.userAgent ?? 'kiln';
-  const fail = (kind: RevenueCatErrorKind, extra: ConstructorParameters<typeof RevenueCatError>[1] = {}) =>
-    new RevenueCatError(kind, { ...extra, known });
+  const fail = (
+    kind: RevenueCatErrorKind,
+    extra: ConstructorParameters<typeof RevenueCatError>[1] = {},
+  ) => new RevenueCatError(kind, { ...extra, known });
 
   let requests = 0;
   /** The usage and limit RevenueCat reported on the last answer, when it did. */
@@ -228,7 +238,11 @@ export function createRevenueCatClient(options: RevenueCatClientOptions): Revenu
     try {
       response = await send(`${apiOrigin}/v2${path}${queryString(query)}`, {
         method: 'GET',
-        headers: { authorization: `Bearer ${key}`, accept: 'application/json', 'user-agent': userAgent },
+        headers: {
+          authorization: `Bearer ${key}`,
+          accept: 'application/json',
+          'user-agent': userAgent,
+        },
         // A redirect would carry the key to another address.
         redirect: 'manual',
         signal,
@@ -239,7 +253,10 @@ export function createRevenueCatClient(options: RevenueCatClientOptions): Revenu
       if (error instanceof RevenueCatError) throw error;
       // The error text of the network is dropped on purpose (it can carry the address).
       if (timedOut || name === 'TimeoutError') {
-        throw fail('network', { timedOut: true, message: 'RevenueCat did not answer in time. Try again in a minute.' });
+        throw fail('network', {
+          timedOut: true,
+          message: 'RevenueCat did not answer in time. Try again in a minute.',
+        });
       }
       throw fail('network');
     } finally {
@@ -248,7 +265,8 @@ export function createRevenueCatClient(options: RevenueCatClientOptions): Revenu
 
     const current = Number(response.headers.get('revenuecat-rate-limit-current-usage'));
     const max = Number(response.headers.get('revenuecat-rate-limit-current-limit'));
-    if (Number.isFinite(current) && Number.isFinite(max) && max > 0) usage = { current, limit: max };
+    if (Number.isFinite(current) && Number.isFinite(max) && max > 0)
+      usage = { current, limit: max };
 
     const status = response.status;
     let body: Record<string, unknown> | undefined;
@@ -264,11 +282,15 @@ export function createRevenueCatClient(options: RevenueCatClientOptions): Revenu
       const type = body && typeof body.type === 'string' ? body.type : undefined;
       const kind = revenueCatErrorKind(status, type);
       if (kind === 'rate_limited') {
-        throw fail('rate_limited', { status, retryAfterSeconds: retryAfterOf(response.headers.get('retry-after'), body) });
+        throw fail('rate_limited', {
+          status,
+          retryAfterSeconds: retryAfterOf(response.headers.get('retry-after'), body),
+        });
       }
       throw fail(kind, { status });
     }
-    if (text === undefined) throw fail('unexpected', { status, message: 'RevenueCat sent too large an answer.' });
+    if (text === undefined)
+      throw fail('unexpected', { status, message: 'RevenueCat sent too large an answer.' });
     if (!body) throw fail('unexpected', { status });
     return body;
   }
@@ -287,7 +309,11 @@ export function createRevenueCatClient(options: RevenueCatClientOptions): Revenu
       for (let page = 0; page < maxPages; page += 1) {
         // The first page is always asked for; a later one only while the budget holds.
         if (page > 0 && !canRequest(call.reserve ?? 0)) return { items, complete: false };
-        const body = await get(path, { ...query, limit: REVENUECAT_PAGE_SIZE, starting_after: after }, call);
+        const body = await get(
+          path,
+          { ...query, limit: REVENUECAT_PAGE_SIZE, starting_after: after },
+          call,
+        );
         const got = Array.isArray(body.items) ? body.items : undefined;
         if (!got) throw fail('unexpected');
         items.push(...got);

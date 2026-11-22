@@ -8,8 +8,19 @@
  */
 import { SOURCE_LOCALE } from './core.ts';
 import { loadLocale } from './catalogs.ts';
-import { type LocaleInfo, availableLocales, isKnownLocale, localeInfo, pseudoLocaleInfo } from './locales.ts';
-import { applyDocumentLocale, readLocalePref, resolveInitialLocale, saveLocalePref } from './preference.ts';
+import {
+  type LocaleInfo,
+  availableLocales,
+  isKnownLocale,
+  localeInfo,
+  pseudoLocaleInfo,
+} from './locales.ts';
+import {
+  applyDocumentLocale,
+  readLocalePref,
+  resolveInitialLocale,
+  saveLocalePref,
+} from './preference.ts';
 import { setLocaleSource, setMissingReporter } from './t.ts';
 
 let current = $state<string>(SOURCE_LOCALE);
@@ -19,11 +30,17 @@ let ticket = 0;
 setLocaleSource(() => current);
 
 if (import.meta.env.DEV) {
-  setMissingReporter((key, locale) => console.warn(`[i18n] No message for "${key}" (active language: ${locale}). Add it to apps/web/locales.`));
+  setMissingReporter((key, locale) =>
+    console.warn(
+      `[i18n] No message for "${key}" (active language: ${locale}). Add it to apps/web/locales.`,
+    ),
+  );
 }
 
 /** The languages the picker offers: the available ones, plus the pseudo-locale in development builds. */
-export const pickerLocales: readonly LocaleInfo[] = import.meta.env.DEV ? [...availableLocales, pseudoLocaleInfo] : availableLocales;
+export const pickerLocales: readonly LocaleInfo[] = import.meta.env.DEV
+  ? [...availableLocales, pseudoLocaleInfo]
+  : availableLocales;
 
 /** The active language, reactive: read it in a template or `$derived`. */
 export const i18n = {
@@ -45,7 +62,10 @@ async function activate(code: string): Promise<boolean> {
   try {
     await loadLocale(code);
   } catch (error) {
-    console.warn(`[i18n] Could not load the "${code}" translations; staying on "${current}".`, error);
+    console.warn(
+      `[i18n] Could not load the "${code}" translations; staying on "${current}".`,
+      error,
+    );
     if (mine === ticket) switching = false;
     return false;
   }
@@ -60,7 +80,10 @@ async function activate(code: string): Promise<boolean> {
  * Chooses the language: loads it, makes it active and remembers it in this browser (`kiln.locale`). `{ persist: false }` is for a
  * preview that should not become the person's choice. An unknown code is ignored. Resolves to whether the language is now active.
  */
-export async function setLocale(code: string, options: { persist?: boolean } = {}): Promise<boolean> {
+export async function setLocale(
+  code: string,
+  options: { persist?: boolean } = {},
+): Promise<boolean> {
   if (!isKnownLocale(code)) return false;
   const ok = await activate(code);
   if (ok && options.persist !== false) saveLocalePref(code);
@@ -74,7 +97,12 @@ export async function initI18n(): Promise<string> {
   const code = resolveInitialLocale({
     search: typeof location === 'undefined' ? '' : location.search,
     stored: readLocalePref(),
-    languages: typeof navigator === 'undefined' ? [] : navigator.languages && navigator.languages.length > 0 ? navigator.languages : [navigator.language],
+    languages:
+      typeof navigator === 'undefined'
+        ? []
+        : navigator.languages && navigator.languages.length > 0
+          ? navigator.languages
+          : [navigator.language],
   });
   if (typeof document !== 'undefined') applyDocumentLocale(SOURCE_LOCALE, document.documentElement);
   const started = activate(code);

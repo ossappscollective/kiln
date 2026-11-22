@@ -157,10 +157,14 @@ export function localeLead(platforms: readonly { fields: readonly DriftField[] }
       over,
     };
   const parts: string[] = [];
-  if (count('store-differs') > 0) parts.push(t('listing:drawer.lead.changedInRepo', { count: count('store-differs') }));
-  if (count('repo-differs') > 0) parts.push(t('listing:drawer.lead.changedInStore', { count: count('repo-differs') }));
-  if (count('diverged') > 0) parts.push(t('listing:drawer.lead.changedBoth', { count: count('diverged') }));
-  if (count('missing') > 0) parts.push(t('listing:drawer.lead.missingValue', { count: count('missing') }));
+  if (count('store-differs') > 0)
+    parts.push(t('listing:drawer.lead.changedInRepo', { count: count('store-differs') }));
+  if (count('repo-differs') > 0)
+    parts.push(t('listing:drawer.lead.changedInStore', { count: count('repo-differs') }));
+  if (count('diverged') > 0)
+    parts.push(t('listing:drawer.lead.changedBoth', { count: count('diverged') }));
+  if (count('missing') > 0)
+    parts.push(t('listing:drawer.lead.missingValue', { count: count('missing') }));
   if (over > 0) {
     const rest = differ - over;
     return {
@@ -176,7 +180,10 @@ export function localeLead(platforms: readonly { fields: readonly DriftField[] }
   }
   return {
     headline: t('listing:drawer.lead.differ', { count: differ }),
-    hint: parts.length > 0 ? t('listing:drawer.lead.partsHint', { parts: formatList(parts, { type: 'unit' }) }) : t('listing:drawer.lead.lookBelow'),
+    hint:
+      parts.length > 0
+        ? t('listing:drawer.lead.partsHint', { parts: formatList(parts, { type: 'unit' }) })
+        : t('listing:drawer.lead.lookBelow'),
     tone: 'warn',
     differ,
     over,
@@ -213,7 +220,10 @@ export function leadAction(platforms: readonly LeadActionInput[]): LeadAction | 
         platform: p.platform,
         field: found,
         label: many
-          ? t('listing:drawer.action.shortenOn', { platform: platformLabel(p.platform), field: found.label.toLowerCase() })
+          ? t('listing:drawer.action.shortenOn', {
+              platform: platformLabel(p.platform),
+              field: found.label.toLowerCase(),
+            })
           : t('listing:drawer.action.shorten', { field: found.label.toLowerCase() }),
       };
   }
@@ -236,7 +246,10 @@ export function leadAction(platforms: readonly LeadActionInput[]): LeadAction | 
         platform: p.platform,
         field: found,
         label: many
-          ? t('listing:drawer.action.stageOn', { platform: platformLabel(p.platform), field: found.label.toLowerCase() })
+          ? t('listing:drawer.action.stageOn', {
+              platform: platformLabel(p.platform),
+              field: found.label.toLowerCase(),
+            })
           : t('listing:drawer.action.stage', { field: found.label.toLowerCase() }),
       };
   }

@@ -140,10 +140,7 @@ export function publicBuildsRoutes(ctx: BuildsContext) {
     }
     const { payload } = read;
     if (!reserveLink(ctx, payload))
-      return c.json(
-        { error: 'link_used', message: 'Ask for a new link in Kiln.' },
-        410,
-      );
+      return c.json({ error: 'link_used', message: 'Ask for a new link in Kiln.' }, 410);
     if (!(await linkStillAllowed(ctx, payload))) {
       releaseLink(ctx, payload);
       return c.json({ error: 'not_found' }, 404);

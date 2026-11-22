@@ -72,7 +72,12 @@ export type EasStatusSync = {
 };
 
 export type EasStatusView = {
-  project: { fullName: string; projectId: string; url: string; credentialAvailable: boolean } | null;
+  project: {
+    fullName: string;
+    projectId: string;
+    url: string;
+    credentialAvailable: boolean;
+  } | null;
   supported: boolean;
   builds: EasBuildView[];
   submissions: EasSubmissionView[];
@@ -105,18 +110,35 @@ const SUBMISSION_WORDS: Record<string, { key: string; tone: EasTone }> = {
 
 // An unknown status of Expo is shown as Expo wrote it, in sentence case.
 const sentence = (raw: string | null): string =>
-  raw ? raw.toLowerCase().replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()) : t('eas:status.unknown');
+  raw
+    ? raw
+        .toLowerCase()
+        .replace(/_/g, ' ')
+        .replace(/^./, (c) => c.toUpperCase())
+    : t('eas:status.unknown');
 
-function stateOf(words: Record<string, { key: string; tone: EasTone }>, status: string, raw: string | null): { label: string; tone: EasTone } {
+function stateOf(
+  words: Record<string, { key: string; tone: EasTone }>,
+  status: string,
+  raw: string | null,
+): { label: string; tone: EasTone } {
   const known = words[status];
-  return known ? { label: t(known.key), tone: known.tone } : { label: sentence(raw), tone: 'neutral' };
+  return known
+    ? { label: t(known.key), tone: known.tone }
+    : { label: sentence(raw), tone: 'neutral' };
 }
 
-export function easBuildState(b: Pick<EasBuildView, 'status' | 'rawStatus'>): { label: string; tone: EasTone } {
+export function easBuildState(b: Pick<EasBuildView, 'status' | 'rawStatus'>): {
+  label: string;
+  tone: EasTone;
+} {
   return stateOf(BUILD_WORDS, b.status, b.rawStatus);
 }
 
-export function easSubmissionState(s: Pick<EasSubmissionView, 'status' | 'rawStatus'>): { label: string; tone: EasTone } {
+export function easSubmissionState(s: Pick<EasSubmissionView, 'status' | 'rawStatus'>): {
+  label: string;
+  tone: EasTone;
+} {
   return stateOf(SUBMISSION_WORDS, s.status, s.rawStatus);
 }
 
@@ -153,8 +175,15 @@ export function easBuildDetail(b: EasBuildView): string {
 
 /** The version of a submission's build, when the build is known: "1.4.0 (57)". */
 export function easSubmissionBuild(s: EasSubmissionView): string {
-  if (!s.build) return s.buildId ? t('eas:status.buildTitle', { id: shortId(s.buildId) }) : t('eas:status.noBuild');
-  return easBuildTitle({ appVersion: s.build.appVersion, buildNumber: s.build.buildNumber, id: s.buildId || '' });
+  if (!s.build)
+    return s.buildId
+      ? t('eas:status.buildTitle', { id: shortId(s.buildId) })
+      : t('eas:status.noBuild');
+  return easBuildTitle({
+    appVersion: s.build.appVersion,
+    buildNumber: s.build.buildNumber,
+    id: s.buildId || '',
+  });
 }
 
 /** The submission's target in words: "App Store Connect · 1234567890" or "Google Play Console · com.acme · internal track". */
@@ -180,7 +209,10 @@ export function easSyncLine(
       tone: 'warn',
       text:
         sync.readAt !== null
-          ? t('eas:status.sync.errorKnown', { reason, ago: formatRelativeTime(sync.readAt, { now }) })
+          ? t('eas:status.sync.errorKnown', {
+              reason,
+              ago: formatRelativeTime(sync.readAt, { now }),
+            })
           : t('eas:status.sync.error', { reason }),
     };
   }

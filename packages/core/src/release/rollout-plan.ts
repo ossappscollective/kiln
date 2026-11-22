@@ -140,6 +140,9 @@ export const ROLLOUT_TEMPLATES: readonly RolloutTemplate[] = [
 /** The fixed note the API shows with an Apple phased release (the English sits in the server), as a key. */
 export const APPLE_PHASED_NOTE_TEXT: CoreText = coreText('rollout.appleNote');
 
+/** The message of the one rollout issue the server raises itself (a start day before the plan existed). */
+export const DAY_ONE_BEFORE_CREATED_TEXT: CoreText = coreText('rollout.issue.dayOneBeforeCreated');
+
 export const rolloutTemplate = (id: string): RolloutTemplate | undefined =>
   ROLLOUT_TEMPLATES.find((t) => t.id === id);
 

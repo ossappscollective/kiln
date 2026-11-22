@@ -67,7 +67,6 @@ import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/rep
 import { createWebhookHandler, pruneDeliveries, WEBHOOK_QUEUE } from './services/webhooks.ts';
 import { VERSION } from './version.ts';
 
-
 // Demo mode (KILN_DEMO=true) is a separate, self-contained server: it never reads the real configuration, database or master key.
 if (demoRequested(process.env)) {
   const { runDemo } = await import('./demo/main.ts');

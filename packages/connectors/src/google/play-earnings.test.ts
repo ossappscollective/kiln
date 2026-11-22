@@ -75,12 +75,19 @@ const EARNINGS = ax.csv([
   row('Charge', PKG, 'pro_monthly', 'EUR', 'n/a'),
 ]);
 
-type P = { date: string; metric: string; value: number; dimension?: { type: string; value: string } };
+type P = {
+  date: string;
+  metric: string;
+  value: number;
+  dimension?: { type: string; value: string };
+};
 const find = (points: P[], metric: string, dim?: string) =>
   points.find(
     (p) =>
       p.metric === metric &&
-      (dim === undefined ? p.dimension === undefined : `${p.dimension?.type}:${p.dimension?.value}` === dim),
+      (dim === undefined
+        ? p.dimension === undefined
+        : `${p.dimension?.type}:${p.dimension?.value}` === dim),
   )?.value;
 const near = (a: number | undefined, b: number) =>
   assert.ok(a !== undefined && Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
@@ -99,7 +106,10 @@ test('transaction types are grouped into families; only a plain Charge is an ord
 test('mapPlayEarningsTable: one month, dated the first day, per merchant currency and product; net is the signed sum of every line', () => {
   const r = mapPlayEarningsTable(parseTable(EARNINGS), { packageName: PKG, month: MONTH });
   const p = r.points;
-  assert.ok(p.every((x) => x.date === '2026-10-01'), 'every point is on the first day of the month');
+  assert.ok(
+    p.every((x) => x.date === '2026-10-01'),
+    'every point is on the first day of the month',
+  );
   const eurNet = 2 * (9.99 - 1.6 - 1.25) + (-9.99 + 1.25) + 0.5;
   near(find(p, 'earnings_net', 'currency:EUR'), eurNet);
   near(find(p, 'earnings_net', 'currency:USD'), 1234.5 - 185.18);
@@ -120,7 +130,10 @@ test('mapPlayEarningsTable: one month, dated the first day, per merchant currenc
   assert.equal(find(p, 'earnings_orders', 'product:pro_monthly'), 2);
   assert.equal(find(p, 'earnings_orders', 'product:coins_100'), 1);
   // Per product: the currency is part of the key. The adjustment has no SKU: currency total only.
-  near(find(p, 'earnings_net', 'product:EUR:pro_monthly'), 2 * (9.99 - 1.6 - 1.25) + (-9.99 + 1.25));
+  near(
+    find(p, 'earnings_net', 'product:EUR:pro_monthly'),
+    2 * (9.99 - 1.6 - 1.25) + (-9.99 + 1.25),
+  );
   near(find(p, 'earnings_net', 'product:USD:coins_100'), 1234.5 - 185.18);
   // The other app and the unreadable amount are not in it.
   assert.equal(r.stats.rowsRead, 13);
@@ -132,7 +145,11 @@ test('mapPlayEarningsTable: one month, dated the first day, per merchant currenc
 
 test('mapPlayEarningsTable: a table without the earnings columns is refused; the older Product ID column is read; a bad month is refused', () => {
   assert.throws(
-    () => mapPlayEarningsTable(parseTable('Transaction Type,Package ID\nCharge,x\n'), { packageName: PKG, month: MONTH }),
+    () =>
+      mapPlayEarningsTable(parseTable('Transaction Type,Package ID\nCharge,x\n'), {
+        packageName: PKG,
+        month: MONTH,
+      }),
     (e: unknown) => e instanceof AnalyticsError && e.code === 'missing_columns',
   );
   const old = ax.csv([
@@ -153,15 +170,24 @@ function bucket(files: Record<string, Uint8Array | string>, status?: number) {
   fake.on('GET', new RegExp(`/storage/v1/b/${ax.BUCKET}/o\\?`), (_n, call) => {
     if (status) return { status, json: { error: { message: 'no' } } };
     const prefix = call.url.searchParams.get('prefix') ?? '';
-    return { json: { items: Object.keys(files).filter((n) => n.startsWith(prefix)).map((name) => ({ name })) } };
+    return {
+      json: {
+        items: Object.keys(files)
+          .filter((n) => n.startsWith(prefix))
+          .map((name) => ({ name })),
+      },
+    };
   });
   fake.on(
     'GET',
-    (url) => url.pathname.startsWith(`/storage/v1/b/${ax.BUCKET}/o/`) && url.searchParams.get('alt') === 'media',
+    (url) =>
+      url.pathname.startsWith(`/storage/v1/b/${ax.BUCKET}/o/`) &&
+      url.searchParams.get('alt') === 'media',
     (_n, call) => {
       const name = decodeURIComponent(call.url.pathname.split('/o/')[1] ?? '');
       const file = files[name];
-      if (file === undefined) return { status: 404, json: { error: { message: 'No such object' } } };
+      if (file === undefined)
+        return { status: 404, json: { error: { message: 'No such object' } } };
       return { bytes: typeof file === 'string' ? new TextEncoder().encode(file) : file };
     },
   );
@@ -199,7 +225,10 @@ test('readMonth: a suffixed file is read too, and an identical copy is not count
   });
   const r = await connector.readMonth(MONTH);
   assert.equal(r.files.length, 2, 'the duplicate was skipped');
-  near(find(r.points, 'earnings_net', 'currency:EUR'), 2 * (9.99 - 1.6 - 1.25) + (-9.99 + 1.25) + 0.5 + 5);
+  near(
+    find(r.points, 'earnings_net', 'currency:EUR'),
+    2 * (9.99 - 1.6 - 1.25) + (-9.99 + 1.25) + 0.5 + 5,
+  );
 });
 
 test('readMonth: a month without a file is reports_not_found (not available yet); a refused folder is play_sales_forbidden', async () => {
@@ -224,7 +253,9 @@ test('readMonth: a broken zip is bad_zip and a table without the columns is miss
   );
   await assert.rejects(
     () =>
-      bucket({ [FILE]: zip([{ name: 'a.csv', data: new TextEncoder().encode('A,B\n1,2\n') }]) }).connector.readMonth(MONTH),
+      bucket({
+        [FILE]: zip([{ name: 'a.csv', data: new TextEncoder().encode('A,B\n1,2\n') }]),
+      }).connector.readMonth(MONTH),
     (e: unknown) => e instanceof AnalyticsError && e.code === 'missing_columns',
   );
 });

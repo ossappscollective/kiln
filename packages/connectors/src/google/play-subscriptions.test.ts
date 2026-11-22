@@ -25,17 +25,15 @@ const HEADER = [
   'Base Plan ID',
   'Offer ID',
 ];
-const row = (date: string, product: string, country: string, nw: string, cancel: string, active: string, pkg = PKG) => [
-  date,
-  pkg,
-  product,
-  country,
-  nw,
-  cancel,
-  active,
-  'monthly',
-  '',
-];
+const row = (
+  date: string,
+  product: string,
+  country: string,
+  nw: string,
+  cancel: string,
+  active: string,
+  pkg = PKG,
+) => [date, pkg, product, country, nw, cancel, active, 'monthly', ''];
 const PRO = ax.csv([
   HEADER,
   row('2026-11-01', 'pro', 'DE', '2', '1', '40'),
@@ -48,13 +46,20 @@ const PRO = ax.csv([
 ]);
 const PLUS = ax.csv([HEADER, row('2026-11-01', 'plus', 'DE', '1', '0', '5')]);
 
-type P = { date: string; metric: string; value: number; dimension?: { type: string; value: string } };
+type P = {
+  date: string;
+  metric: string;
+  value: number;
+  dimension?: { type: string; value: string };
+};
 const find = (points: P[], date: string, metric: string, dim?: string) =>
   points.find(
     (p) =>
       p.date === date &&
       p.metric === metric &&
-      (dim === undefined ? p.dimension === undefined : `${p.dimension?.type}:${p.dimension?.value}` === dim),
+      (dim === undefined
+        ? p.dimension === undefined
+        : `${p.dimension?.type}:${p.dimension?.value}` === dim),
   )?.value;
 
 test('mapPlaySubscriptionsTable: counts per day over the rows (countries), the active level, and per product', () => {
@@ -73,7 +78,10 @@ test('mapPlaySubscriptionsTable: counts per day over the rows (countries), the a
 });
 
 test('mapPlaySubscriptionsTable: the product of the file name is used when a row has none; a table without date and counts is refused', () => {
-  const noProduct = ax.csv([['Date', 'New Subscriptions'], ['2026-11-01', '4']]);
+  const noProduct = ax.csv([
+    ['Date', 'New Subscriptions'],
+    ['2026-11-01', '4'],
+  ]);
   const r = mapPlaySubscriptionsTable(parseTable(noProduct), { fallbackProduct: 'gold' });
   assert.equal(find(r.points, '2026-11-01', 'play_subscriptions_new', 'product:gold'), 4);
   assert.throws(
@@ -88,15 +96,24 @@ function bucket(files: Record<string, Uint8Array | string>, status?: number) {
   fake.on('GET', new RegExp(`/storage/v1/b/${ax.BUCKET}/o\\?`), (_n, call) => {
     if (status) return { status, json: { error: { message: 'no' } } };
     const prefix = call.url.searchParams.get('prefix') ?? '';
-    return { json: { items: Object.keys(files).filter((n) => n.startsWith(prefix)).map((name) => ({ name })) } };
+    return {
+      json: {
+        items: Object.keys(files)
+          .filter((n) => n.startsWith(prefix))
+          .map((name) => ({ name })),
+      },
+    };
   });
   fake.on(
     'GET',
-    (url) => url.pathname.startsWith(`/storage/v1/b/${ax.BUCKET}/o/`) && url.searchParams.get('alt') === 'media',
+    (url) =>
+      url.pathname.startsWith(`/storage/v1/b/${ax.BUCKET}/o/`) &&
+      url.searchParams.get('alt') === 'media',
     (_n, call) => {
       const name = decodeURIComponent(call.url.pathname.split('/o/')[1] ?? '');
       const file = files[name];
-      if (file === undefined) return { status: 404, json: { error: { message: 'No such object' } } };
+      if (file === undefined)
+        return { status: 404, json: { error: { message: 'No such object' } } };
       return { bytes: typeof file === 'string' ? new TextEncoder().encode(file) : file };
     },
   );
@@ -117,7 +134,8 @@ test('readMonth: one file per product (overview before country), summed over pro
     [NAME('pro', 'overview')]: ax.csv([HEADER, row('2026-11-01', 'pro', '', '7', '0', '70')]),
     [NAME('plus')]: PLUS,
     [`financial-stats/subscriptions/subscriptions_${PKG}_pro_202610_country.csv`]: 'other month',
-    [`financial-stats/subscriptions/subscriptions_com.example.other_pro_${MONTH}_country.csv`]: 'other app',
+    [`financial-stats/subscriptions/subscriptions_com.example.other_pro_${MONTH}_country.csv`]:
+      'other app',
   });
   const r = await connector.readMonth(MONTH);
   assert.equal(r.products, 2);

@@ -22,7 +22,10 @@ test('token calls use the token endpoints, with ids escaped', async () => {
   const { calls, api } = fake((call) =>
     call.init?.method === 'DELETE'
       ? empty()
-      : json({ tokens: [], token: 'kiln_x', summary: {} }, call.init?.method === 'POST' ? 201 : 200),
+      : json(
+          { tokens: [], token: 'kiln_x', summary: {} },
+          call.init?.method === 'POST' ? 201 : 200,
+        ),
   );
   await api.apiTokens('w/1');
   await api.createApiToken('w/1', { name: 'CI', role: 'member', expiresAt: 5 });

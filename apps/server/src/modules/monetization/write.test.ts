@@ -148,7 +148,11 @@ dbTest(
     const preview = await bearer(named, path(appId), { apply: false, ...NEW_TEXTS });
     assert.equal(preview.status, 200);
     const hash = (preview.body?.preview as { previewHash: string }).previewHash;
-    const done = await bearer(scoped, path(appId), { apply: true, ...NEW_TEXTS, previewHash: hash });
+    const done = await bearer(scoped, path(appId), {
+      apply: true,
+      ...NEW_TEXTS,
+      previewHash: hash,
+    });
     assert.equal(done.status, 200, JSON.stringify(done.body));
     const [changed] = await t.audit('monetization.localization_changed');
     assert.equal(changed?.actorType, 'token', 'a change by a token is attributed to the token');
@@ -204,7 +208,10 @@ dbTest(
       description: 'Line one\r\nLine two  ',
     });
     assert.equal(ok.status, 200);
-    assert.deepEqual(ok.body.preview.proposed, { name: 'Coins', description: 'Line one\nLine two' });
+    assert.deepEqual(ok.body.preview.proposed, {
+      name: 'Coins',
+      description: 'Line one\nLine two',
+    });
     const reads = t.stores.ios.localizationReads;
     for (const [texts, why] of [
       [{ name: '   ', description: 'x' }, 'empty name'],
@@ -277,7 +284,11 @@ dbTest(
     assert.equal(r.locale, 'en-US');
     assert.deepEqual(t.stores.ios.writes, [{ productId: COINS, locale: 'en-US', ...NEW_TEXTS }]);
     assert.equal(localizationOf(t, COINS, 'en-US')?.name, NEW_TEXTS.name);
-    assert.equal(localizationOf(t, COINS, 'de-DE')?.name, '100 Münzen', 'other locales are untouched');
+    assert.equal(
+      localizationOf(t, COINS, 'de-DE')?.name,
+      '100 Münzen',
+      'other locales are untouched',
+    );
 
     const detail = (await t.call(t.owner, 'GET', t.pp(appId, `/${COINS}`))).body.product;
     assert.deepEqual(
@@ -314,7 +325,9 @@ dbTest('apply works for Google Play too', async (db) => {
   const hash = await t.previewHash(appId, 'pro_monthly', 'fr-FR', texts);
   const res = await t.apply(appId, 'pro_monthly', 'fr-FR', texts, hash);
   assert.equal(res.status, 200, res.text);
-  assert.deepEqual(t.stores.android.writes, [{ productId: 'pro_monthly', locale: 'fr-FR', ...texts }]);
+  assert.deepEqual(t.stores.android.writes, [
+    { productId: 'pro_monthly', locale: 'fr-FR', ...texts },
+  ]);
   assert.equal(t.built.at(-1)?.kind, 'google_play');
 });
 
@@ -333,7 +346,13 @@ dbTest(
     });
     assert.equal(bad.status, 400);
     const hash = await t.previewHash(appId, COINS, 'en-US', NEW_TEXTS);
-    const otherTexts = await t.apply(appId, COINS, 'en-US', { ...NEW_TEXTS, name: 'Changed' }, hash);
+    const otherTexts = await t.apply(
+      appId,
+      COINS,
+      'en-US',
+      { ...NEW_TEXTS, name: 'Changed' },
+      hash,
+    );
     assert.equal(otherTexts.status, 409);
     assert.equal(otherTexts.body.error, 'state_changed');
     assert.equal((await t.apply(appId, COINS, 'de-DE', NEW_TEXTS, hash)).status, 409);
@@ -419,7 +438,11 @@ dbTest(
     const limited = await t.apply(appId, COINS, 'en-US', NEW_TEXTS, hash);
     assert.equal(limited.status, 429);
     assert.equal(limited.headers.get('retry-after'), '30');
-    assert.equal(t.stores.ios.writes.length, 3, 'each attempt reached the store once: never retried');
+    assert.equal(
+      t.stores.ios.writes.length,
+      3,
+      'each attempt reached the store once: never retried',
+    );
   },
 );
 
@@ -606,7 +629,11 @@ dbTest(
         `/api/workspaces/${t.workspaceId}${t.pp(appId, `/${COINS}/localizations/en-US`)}`,
         {
           method: 'PUT',
-          headers: { cookie: t.owner, 'content-type': 'application/json', 'x-step-up-grant': grant },
+          headers: {
+            cookie: t.owner,
+            'content-type': 'application/json',
+            'x-step-up-grant': grant,
+          },
           body: JSON.stringify({ apply: true, ...NEW_TEXTS, previewHash }),
         },
       );

@@ -892,7 +892,8 @@ async function recordSyncFailure(
 ): Promise<void> {
   const at = ctx.now();
   const code = typeof c.failure.body.code === 'string' ? c.failure.body.code : null;
-  const params = code !== null && c.failure.body.params ? JSON.stringify(c.failure.body.params) : null;
+  const params =
+    code !== null && c.failure.body.params ? JSON.stringify(c.failure.body.params) : null;
   await ctx.db.transaction(async (tx) => {
     const changed = await tx.execute(
       `UPDATE apps SET last_sync_attempt_at = ?, last_sync_error = ?, last_sync_error_code = ?,

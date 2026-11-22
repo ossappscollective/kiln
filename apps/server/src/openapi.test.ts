@@ -406,9 +406,14 @@ test('the registry is the real document: valid, unique, and consistent', () => {
       );
     // The document says what the registry says.
     const documented = built.paths[op.path]?.[op.method];
-    assert.equal(documented?.['x-kiln-token-access'], tokenAllowedFor(op), `${op.id}: token access`);
+    assert.equal(
+      documented?.['x-kiln-token-access'],
+      tokenAllowedFor(op),
+      `${op.id}: token access`,
+    );
     assert.equal(documented?.['x-kiln-risk'], op.risk);
-    if (typeof op.access === 'object') assert.equal(documented?.['x-kiln-action'], op.access.action);
+    if (typeof op.access === 'object')
+      assert.equal(documented?.['x-kiln-action'], op.access.action);
     const security = documented?.security as unknown[];
     assert.equal(security.length === 0, op.access === 'public');
     assert.equal(

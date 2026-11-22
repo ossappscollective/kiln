@@ -19,15 +19,15 @@ eye when you first run `pnpm --filter @kiln/web dev`, in both themes.
 
 ## Where things live
 
-| What                                                                                                    | File                                    |
-| ------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| **Every token**: colors (light and dark), borders, shadows, glows, gradients, fonts, radii, space, motion | `apps/web/src/styles/theme.css`         |
-| Solid colors as TypeScript, for the contrast test (mirrors `theme.css`)                                 | `apps/web/src/lib/tokens.ts`            |
-| The brand-gradient accents: primary button, page title and header glow, `.accent-edge`                  | `apps/web/src/styles/accents.css`       |
-| Reset, type, forms, buttons, cards, tables, badges, alerts, sidebar navigation (global classes)         | `apps/web/src/app.css`                  |
-| Theme choice (Auto, Light, Dark), remembered in `localStorage`                                          | `apps/web/src/lib/theme.ts`             |
-| Components                                                                                              | `apps/web/src/components/ui/`           |
-| Toast store                                                                                             | `apps/web/src/lib/toast.svelte.ts`      |
+| What                                                                                                      | File                               |
+| --------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **Every token**: colors (light and dark), borders, shadows, glows, gradients, fonts, radii, space, motion | `apps/web/src/styles/theme.css`    |
+| Solid colors as TypeScript, for the contrast test (mirrors `theme.css`)                                   | `apps/web/src/lib/tokens.ts`       |
+| The brand-gradient accents: primary button, page title and header glow, `.accent-edge`                    | `apps/web/src/styles/accents.css`  |
+| Reset, type, forms, buttons, cards, tables, badges, alerts, sidebar navigation (global classes)           | `apps/web/src/app.css`             |
+| Theme choice (Auto, Light, Dark), remembered in `localStorage`                                            | `apps/web/src/lib/theme.ts`        |
+| Components                                                                                                | `apps/web/src/components/ui/`      |
+| Toast store                                                                                               | `apps/web/src/lib/toast.svelte.ts` |
 
 `app.css` imports `theme.css`; `main.ts` loads `app.css` and then `accents.css`. `lib/contrast.test.ts` fails if the
 solid hex values of `theme.css` and `tokens.ts` differ, if the two dark blocks differ, if a text or graphic pair
@@ -38,17 +38,17 @@ listed in `tokens.ts` falls below WCAG AA in either theme, or if a component or 
 Edit `apps/web/src/styles/theme.css`, and for a solid color the same line in `apps/web/src/lib/tokens.ts`, then run
 `pnpm --filter @kiln/web test`.
 
-| To change                                  | Edit                                                                                                             |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| The brand gradient (logo, bars, glows)     | `--brand-blue`, `--brand-violet`, `--brand-ember` (shared block); the primary button uses `--primary-from/-to`   |
-| The primary button                         | `--primary-from`, `--primary-to` (themed, keep `--accent-ink` readable on both), `--btn-glow`                    |
-| Surfaces, text, accent, status colors      | The themed blocks: light (`:root`), dark (`:root[data-theme="dark"]`, repeated in the `prefers-color-scheme` block) |
-| Corner radii                               | `--radius-sm` (small parts), `-md` (controls), `-lg` (cards), `-xl` (dialogs), `-full` (chips)                    |
-| Fonts                                      | `--font-sans`, `--font-display`, `--font-mono`; weights `--weight-*`                                             |
-| Shadows and glows                          | `--shadow-xs` to `-lg`, `--shadow-card`, `--btn-glow`, `--nav-bar-glow`, `--seg-selected-ring`, `--dot-glow-blur` |
-| The ambient light behind page titles       | `--ambient` (three radial gradients)                                                                             |
-| Focus ring                                 | `--ring`, `--halo`, `--focus`, `--focus-soft`                                                                    |
-| Chart colors, line width, glow and area    | `--viz-1`, `--viz-2`, `--viz-mid`, `--viz-end`, `--viz-line-width`, `--viz-glow-blur`, `--viz-area-opacity`      |
+| To change                               | Edit                                                                                                                |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| The brand gradient (logo, bars, glows)  | `--brand-blue`, `--brand-violet`, `--brand-ember` (shared block); the primary button uses `--primary-from/-to`      |
+| The primary button                      | `--primary-from`, `--primary-to` (themed, keep `--accent-ink` readable on both), `--btn-glow`                       |
+| Surfaces, text, accent, status colors   | The themed blocks: light (`:root`), dark (`:root[data-theme="dark"]`, repeated in the `prefers-color-scheme` block) |
+| Corner radii                            | `--radius-sm` (small parts), `-md` (controls), `-lg` (cards), `-xl` (dialogs), `-full` (chips)                      |
+| Fonts                                   | `--font-sans`, `--font-display`, `--font-mono`; weights `--weight-*`                                                |
+| Shadows and glows                       | `--shadow-xs` to `-lg`, `--shadow-card`, `--btn-glow`, `--nav-bar-glow`, `--seg-selected-ring`, `--dot-glow-blur`   |
+| The ambient light behind page titles    | `--ambient` (three radial gradients)                                                                                |
+| Focus ring                              | `--ring`, `--halo`, `--focus`, `--focus-soft`                                                                       |
+| Chart colors, line width, glow and area | `--viz-1`, `--viz-2`, `--viz-mid`, `--viz-end`, `--viz-line-width`, `--viz-glow-blur`, `--viz-area-opacity`         |
 
 The dark colors are written twice, once for `data-theme="dark"` and once for the system setting; keep the two blocks
 identical (a test checks it). The fonts are not downloaded: the server sends `default-src 'self'`, and Kiln avoids
@@ -97,21 +97,21 @@ ignored). Write components against the variables below and they work in both. Ne
 
 ## Color tokens
 
-| Group        | Variables                                                                      | Use                                                                      |
-| ------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| Surfaces     | `--ground` `--sidebar` `--surface` `--surface-sunken` `--surface-hover` `--surface-active` | Page, sidebar, cards, track and code, raised or hovered, pressed or selected |
-| Roles        | `--chip-bg` `--track` `--raised` `--field-bg` `--seg-selected`                 | Names for a role: chip fill, segmented track, raised card, input fill, selected segment |
-| Text         | `--ink` `--muted` `--faint`                                                    | Body, secondary text and labels, placeholders and table headers          |
-| Borders      | `--line` `--line-strong` `--line-hover`                                        | Hairlines and cards, control borders, hovered control borders (translucent) |
-| Accent       | `--accent` `--accent-hover` `--accent-ink` `--accent-bg` `--chip-ink` `--focus` | Links and selection; text on a solid accent; chip fill and its text; focus ring |
-| Primary      | `--primary-from` `--primary-to` `--title-end`                                  | Ends of the primary button gradient; end of the page-title gradient      |
-| Success      | `--ok-bg` `--ok-ink` `--ok` `--ok-line`                                        | Tint, text on tint, dot or icon, border                                  |
-| Danger       | `--bad-bg` `--bad-ink` `--bad` `--bad-line`                                    | Same, for errors and destructive actions                                 |
-| Warning      | `--warn-bg` `--warn-ink` `--warn` `--warn-line`                                | Same                                                                     |
-| Info         | `--info-bg` `--info-ink` `--info` `--info-line`                                | Same                                                                     |
-| Solid danger | `--danger-solid` `--danger-solid-hover` `--danger-solid-ink`                   | The destructive confirm button                                           |
-| Charts       | `--viz-1` `--viz-2` `--viz-mid` `--viz-end` `--viz-grid` `--viz-axis`          | Chart marks, grid and axis                                               |
-| Misc         | `--scrim` `--focus-soft` `--skeleton-from` `--skeleton-to`                     | Modal backdrop, focus halo, loading shimmer                              |
+| Group        | Variables                                                                                  | Use                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| Surfaces     | `--ground` `--sidebar` `--surface` `--surface-sunken` `--surface-hover` `--surface-active` | Page, sidebar, cards, track and code, raised or hovered, pressed or selected            |
+| Roles        | `--chip-bg` `--track` `--raised` `--field-bg` `--seg-selected`                             | Names for a role: chip fill, segmented track, raised card, input fill, selected segment |
+| Text         | `--ink` `--muted` `--faint`                                                                | Body, secondary text and labels, placeholders and table headers                         |
+| Borders      | `--line` `--line-strong` `--line-hover`                                                    | Hairlines and cards, control borders, hovered control borders (translucent)             |
+| Accent       | `--accent` `--accent-hover` `--accent-ink` `--accent-bg` `--chip-ink` `--focus`            | Links and selection; text on a solid accent; chip fill and its text; focus ring         |
+| Primary      | `--primary-from` `--primary-to` `--title-end`                                              | Ends of the primary button gradient; end of the page-title gradient                     |
+| Success      | `--ok-bg` `--ok-ink` `--ok` `--ok-line`                                                    | Tint, text on tint, dot or icon, border                                                 |
+| Danger       | `--bad-bg` `--bad-ink` `--bad` `--bad-line`                                                | Same, for errors and destructive actions                                                |
+| Warning      | `--warn-bg` `--warn-ink` `--warn` `--warn-line`                                            | Same                                                                                    |
+| Info         | `--info-bg` `--info-ink` `--info` `--info-line`                                            | Same                                                                                    |
+| Solid danger | `--danger-solid` `--danger-solid-hover` `--danger-solid-ink`                               | The destructive confirm button                                                          |
+| Charts       | `--viz-1` `--viz-2` `--viz-mid` `--viz-end` `--viz-grid` `--viz-axis`                      | Chart marks, grid and axis                                                              |
+| Misc         | `--scrim` `--focus-soft` `--skeleton-from` `--skeleton-to`                                 | Modal backdrop, focus halo, loading shimmer                                             |
 
 Text on a tint uses the matching `-ink` variable. The solid (`--ok`, `--bad`, `--warn`, `--info`) is for dots, icons
 and borders only, never for body text. Every text pair is at least 4.5:1 (ink on surfaces 7:1) in both themes.
@@ -172,8 +172,8 @@ Each file starts with a comment that lists its props.
 | `CopyButton`                       | Copy a value with feedback and a fallback for plain http                                                                                                                                                                                                                          |
 | `Tabs`                             | Views of one object. Arrow keys move between tabs                                                                                                                                                                                                                                 |
 | `ThemeToggle`, `Logo`              | Theme choice and the product mark                                                                                                                                                                                                                                                 |
-| `LanguageSelect`                   | The language choice (a labelled select, options in their own language with `lang`). `layout` inline or stacked, `block`. Saved in this browser; see `docs/i18n.md`                               |
-| `T`                                | A translated message that has a link or emphasis inside (`<link>…</link>` tags, snippets per tag). Never `{@html}`; see `docs/i18n.md`                                         |
+| `LanguageSelect`                   | The language choice (a labelled select, options in their own language with `lang`). `layout` inline or stacked, `block`. Saved in this browser; see `docs/i18n.md`                                                                                                                |
+| `T`                                | A translated message that has a link or emphasis inside (`<link>…</link>` tags, snippets per tag). Never `{@html}`; see `docs/i18n.md`                                                                                                                                            |
 | `Icon`                             | One of the registered inline SVG icons (`lib/icons.ts`), see Icons below                                                                                                                                                                                                          |
 | `StoreBadge`, `PlatformBadge`      | A store, tool or platform as a generic glyph plus its name                                                                                                                                                                                                                        |
 | `AppIcon`                          | The icon of an app in a square of a fixed size. Loads `iconUrl` of the app JSON (same origin only), falls back to the initials of the app and the platform glyph, never a broken image. Decorative beside the app's name (`labelled`), named when alone. See `docs/api/assets.md` |

@@ -100,7 +100,9 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
 
   for (const app of input.apps) {
     const say = (text: string): string =>
-      several ? t('app:attention.withPlatform', { platform: platformLabel(app.platform), text }) : text;
+      several
+        ? t('app:attention.withPlatform', { platform: platformLabel(app.platform), text })
+        : text;
     const link = (section: Parameters<typeof appAddress>[1]) =>
       appAddress(app.id, section, input.scope);
 
@@ -158,7 +160,9 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
           tone: 'bad',
           icon: 'clock',
           text: say(t('app:attention.overdue', { version: plan.version })),
-          detail: plan.targetDate ? t('app:attention.overdueDetail', { date: plan.targetDate }) : null,
+          detail: plan.targetDate
+            ? t('app:attention.overdueDetail', { date: plan.targetDate })
+            : null,
           href,
           action: t('app:attention.planAction'),
         });
@@ -168,7 +172,9 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
           tone: 'warn',
           icon: 'clock',
           text: say(t('app:attention.dueSoon', { version: plan.version })),
-          detail: plan.targetDate ? t('app:attention.dueSoonDetail', { date: plan.targetDate }) : null,
+          detail: plan.targetDate
+            ? t('app:attention.dueSoonDetail', { date: plan.targetDate })
+            : null,
           href,
           action: t('app:attention.planAction'),
         });
@@ -226,7 +232,11 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
           text: say(t('app:attention.asoDrops', { count: drops.length })),
           detail:
             drops.length > 1
-              ? t('app:attention.asoDropMore', { term: first.term, move: moverText(first), count: drops.length - 1 })
+              ? t('app:attention.asoDropMore', {
+                  term: first.term,
+                  move: moverText(first),
+                  count: drops.length - 1,
+                })
               : t('app:attention.asoDropDetail', { term: first.term, move: moverText(first) }),
           href: asoViewHref(app.id, 'keywords', input.scope),
           action: t('app:attention.asoAction'),

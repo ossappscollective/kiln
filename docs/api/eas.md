@@ -5,11 +5,11 @@ credential of the kind `expo` (an Expo access token; a robot user with the Devel
 [credentials](../credentials.md#expo-access-token-eas)). One link per app record: an iOS and an Android record of the same product each
 have their own and may name the same project. Nothing in Expo is ever changed by these routes.
 
-| Route | Right | What it does |
-| --- | --- | --- |
-| `GET /api/workspaces/:workspaceId/apps/:appId/expo` | `apps.read` | The link, or `{ "link": null }`. Database only. |
-| `PUT /api/workspaces/:workspaceId/apps/:appId/expo` | `apps.write` | Links the app (or changes the link). Asks Expo first. |
-| `DELETE /api/workspaces/:workspaceId/apps/:appId/expo` | `apps.write` | Removes the link. `204`; `404` when there was none. |
+| Route                                                      | Right        | What it does                                            |
+| ---------------------------------------------------------- | ------------ | ------------------------------------------------------- |
+| `GET /api/workspaces/:workspaceId/apps/:appId/expo`        | `apps.read`  | The link, or `{ "link": null }`. Database only.         |
+| `PUT /api/workspaces/:workspaceId/apps/:appId/expo`        | `apps.write` | Links the app (or changes the link). Asks Expo first.   |
+| `DELETE /api/workspaces/:workspaceId/apps/:appId/expo`     | `apps.write` | Removes the link. `204`; `404` when there was none.     |
 | `GET /api/workspaces/:workspaceId/apps/:appId/expo/detect` | `apps.write` | Reads the project id from `app.json` of the repository. |
 
 `apps.write` is owners and admins. A token limited to some apps may use these routes for those apps only. Non-members and apps of
@@ -47,20 +47,20 @@ credential and save again. Times are epoch milliseconds. `verifiedAt` is when Ex
 `eas.link`), asks Expo for the project, and stores what Expo answered (id, account, slug, name), never what was typed. A project the
 token cannot see is not saved. At most 20 saves a minute per workspace.
 
-| Status | `error` | Meaning |
-| --- | --- | --- |
-| `400` | `invalid_request` | Missing or extra fields. |
-| `404` | `not_found` | No such app in this workspace. |
-| `422` | `credential_not_found` | The credential is not in this workspace. |
-| `422` | `credential_kind` | The credential is not an Expo access token. |
-| `422` | `credential_unreadable` | The stored secret cannot be decrypted. |
-| `422` | `invalid_project` | Neither a UUID nor `@account/slug`. |
-| `422` | `expo_auth` | Expo did not accept the token. |
-| `422` | `expo_forbidden` | The token may not do this (role, account). |
-| `422` | `expo_not_found` | Expo has no such project, or the token cannot see it. |
-| `429` | `rate_limited` | Our limit, or Expo's; `Retry-After` and `retryAfterSeconds`. |
-| `502` | `expo_unavailable` | Expo could not be reached or answered something unreadable. |
-| `504` | `timeout` | Expo did not answer in time. |
+| Status | `error`                 | Meaning                                                      |
+| ------ | ----------------------- | ------------------------------------------------------------ |
+| `400`  | `invalid_request`       | Missing or extra fields.                                     |
+| `404`  | `not_found`             | No such app in this workspace.                               |
+| `422`  | `credential_not_found`  | The credential is not in this workspace.                     |
+| `422`  | `credential_kind`       | The credential is not an Expo access token.                  |
+| `422`  | `credential_unreadable` | The stored secret cannot be decrypted.                       |
+| `422`  | `invalid_project`       | Neither a UUID nor `@account/slug`.                          |
+| `422`  | `expo_auth`             | Expo did not accept the token.                               |
+| `422`  | `expo_forbidden`        | The token may not do this (role, account).                   |
+| `422`  | `expo_not_found`        | Expo has no such project, or the token cannot see it.        |
+| `429`  | `rate_limited`          | Our limit, or Expo's; `Retry-After` and `retryAfterSeconds`. |
+| `502`  | `expo_unavailable`      | Expo could not be reached or answered something unreadable.  |
+| `504`  | `timeout`               | Expo did not answer in time.                                 |
 
 Messages are fixed sentences; Expo's own text and the token are never in them.
 
@@ -71,7 +71,19 @@ on, else the GitHub API), audited as `credential.use` with purpose `eas.detect` 
 `app.config.js` or `app.config.ts` is **never run**. Expo is not called and nothing is saved.
 
 ```json
-{ "detection": { "detected": { "projectId": "…", "owner": "acme", "slug": "trail-notes", "fullName": "@acme/trail-notes", "path": "app.json" }, "reason": null, "message": null } }
+{
+  "detection": {
+    "detected": {
+      "projectId": "…",
+      "owner": "acme",
+      "slug": "trail-notes",
+      "fullName": "@acme/trail-notes",
+      "path": "app.json"
+    },
+    "reason": null,
+    "message": null
+  }
+}
 ```
 
 `detected` is `null` with a `reason` and a `message` when nothing usable was found: `no_repository`, `repository_unavailable`,

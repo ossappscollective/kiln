@@ -21,7 +21,14 @@ const base = (over: Partial<ProductSalesView> = {}): ProductSalesView => ({
   unitsKind: 'orders',
   hasSalesData: true,
   enabled: true,
-  sales: { source: 'play_sales', label: 'x', state: 'ready', setup: null, lastOkAt: 1, lastError: null },
+  sales: {
+    source: 'play_sales',
+    label: 'x',
+    state: 'ready',
+    setup: null,
+    lastOkAt: 1,
+    lastError: null,
+  },
   products: [
     {
       productId: 'coins',
@@ -44,7 +51,12 @@ const apple = (): ProductSalesView =>
     measure: 'apple_proceeds',
     unitsKind: 'units',
     products: [
-      { productId: 'pro', units: 1, amounts: [{ currency: 'USD', amount: 29.99, refunds: null }], days: 1 },
+      {
+        productId: 'pro',
+        units: 1,
+        amounts: [{ currency: 'USD', amount: 29.99, refunds: null }],
+        days: 1,
+      },
     ],
   });
 
@@ -78,7 +90,10 @@ test('sales are hidden until a sales day is stored, and the hint says how to tur
   assert.equal(salesVisible(base({ hasSalesData: false })), false);
   assert.equal(salesVisible(base()), true);
   assert.match(salesSetupHint(null, true), /vendor number/);
-  assert.match(salesSetupHint(base({ enabled: false, platform: 'ios' }), true), /Turn on analytics/);
+  assert.match(
+    salesSetupHint(base({ enabled: false, platform: 'ios' }), true),
+    /Turn on analytics/,
+  );
   const play = salesSetupHint(base({ hasSalesData: false }), false);
   assert.match(play, /View financial data/);
   assert.match(play, /Global/);
@@ -89,7 +104,12 @@ test('sales are hidden until a sales day is stored, and the hint says how to tur
           source: 'play_sales',
           label: '',
           state: 'needs_setup',
-          setup: { code: 'bucket_id_missing', nextStep: 'set_bucket_id', optional: true, message: '' },
+          setup: {
+            code: 'bucket_id_missing',
+            nextStep: 'set_bucket_id',
+            optional: true,
+            message: '',
+          },
           lastOkAt: null,
           lastError: null,
         },

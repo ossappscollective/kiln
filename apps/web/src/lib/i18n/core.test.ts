@@ -37,7 +37,13 @@ const catalogs: Record<string, Record<string, Catalog>> = {
       empty: '',
     },
   },
-  de: { app: { hello: 'Hallo {{name}}', items_one: '{{count}} Element', items_other: '{{count}} Elemente' } },
+  de: {
+    app: {
+      hello: 'Hallo {{name}}',
+      items_one: '{{count}} Element',
+      items_other: '{{count}} Elemente',
+    },
+  },
 };
 const lookup = (locale: string, ns: string) => catalogs[locale]?.[ns];
 const missed: string[] = [];
@@ -131,14 +137,24 @@ test('a plural category the language lacks falls back to _other', () => {
 });
 
 test('a plural key missing in the language is read from English with English rules', () => {
-  const partial: Record<string, Record<string, Catalog>> = { en: catalogs.en as Record<string, Catalog>, fr: { app: {} } };
-  const out = translate('app:items', { count: 1 }, { locale: 'fr', lookup: (l, n) => partial[l]?.[n] });
+  const partial: Record<string, Record<string, Catalog>> = {
+    en: catalogs.en as Record<string, Catalog>,
+    fr: { app: {} },
+  };
+  const out = translate(
+    'app:items',
+    { count: 1 },
+    { locale: 'fr', lookup: (l, n) => partial[l]?.[n] },
+  );
   assert.equal(out, '1 item');
 });
 
 test('the pseudo-locale transforms English, keeps placeholders, counts and tags', () => {
   assert.match(tr(PSEUDO_LOCALE, 'app:hello', { name: 'Ada' }), /^\[.+ Ada ~+\]$/);
-  assert.equal(tr(PSEUDO_LOCALE, 'app:items', { count: 1 }), pseudoize('{{count}} item').replace('{{count}}', '1'));
+  assert.equal(
+    tr(PSEUDO_LOCALE, 'app:items', { count: 1 }),
+    pseudoize('{{count}} item').replace('{{count}}', '1'),
+  );
   const long = pseudoize('Save changes');
   assert.ok(long.startsWith('[') && long.endsWith(']'));
   assert.ok(long.length >= 'Save changes'.length * 1.3);
@@ -167,7 +183,10 @@ test('rich text splits into parts and never into HTML', () => {
   // Unknown tags, an unclosed tag and a lone "<" stay text.
   assert.deepEqual(splitRich('a <b>x</b>'), [{ text: 'a <b>x</b>' }]);
   assert.deepEqual(splitRich('a <link>x'), [{ text: 'a <link>x' }]);
-  assert.deepEqual(splitRich('1 < 2 <link>x</link>'), [{ text: '1 < 2 ' }, { tag: 'link', text: 'x' }]);
+  assert.deepEqual(splitRich('1 < 2 <link>x</link>'), [
+    { text: '1 < 2 ' },
+    { tag: 'link', text: 'x' },
+  ]);
 });
 
 test('translateParts puts values in after the tags are found: a value cannot add a tag', () => {
@@ -179,7 +198,9 @@ test('translateParts puts values in after the tags are found: a value cannot add
     { tag: 'strong', text: '<link>evil</link>' },
     { text: '.' },
   ]);
-  assert.deepEqual(translateParts('app:nope', undefined, { locale: 'en', lookup }), [{ text: 'app:nope' }]);
+  assert.deepEqual(translateParts('app:nope', undefined, { locale: 'en', lookup }), [
+    { text: 'app:nope' },
+  ]);
 });
 
 test('tagProblem accepts the documented tags and rejects the rest', () => {

@@ -103,15 +103,19 @@ export async function getExpoLink(
  */
 export async function clearEasStatus(sql: Sql, workspaceId: string, appId: string): Promise<void> {
   for (const table of ['eas_builds', 'eas_submissions', 'eas_status_sync']) {
-    await sql.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [appId, workspaceId]);
+    await sql.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
+      appId,
+      workspaceId,
+    ]);
   }
 }
 
 /** Every link of the workspace (for a feature that walks the linked apps, such as a status sync). Database only. */
 export async function listExpoLinks(sql: Sql, workspaceId: string): Promise<ExpoLinkView[]> {
-  const rows = await sql.query(`${SELECT} WHERE l.workspace_id = ? ORDER BY l.created_at, l.app_id`, [
-    workspaceId,
-  ]);
+  const rows = await sql.query(
+    `${SELECT} WHERE l.workspace_id = ? ORDER BY l.created_at, l.app_id`,
+    [workspaceId],
+  );
   return rows.map(toView);
 }
 
@@ -294,7 +298,8 @@ export type ExpoDetection = {
 };
 
 const MESSAGES: Record<ExpoDetectionReason, string> = {
-  no_repository: 'This app has no repository, so there is no app.json to read. Enter the project by hand.',
+  no_repository:
+    'This app has no repository, so there is no app.json to read. Enter the project by hand.',
   repository_unavailable:
     'The repository of this app could not be opened. Check it under Repositories, or enter the project by hand.',
   dynamic_config:
@@ -327,10 +332,18 @@ export async function detectExpoProject(
   if (!app.repositoryId) return done(none('no_repository'));
   const repository = await getRepository(repo.db, workspaceId, app.repositoryId);
   if (!repository) return done(none('no_repository'));
-  const opened = await openConnectorForRepository(repo, workspaceId, repository, actor, EXPO_DETECT_PURPOSE);
+  const opened = await openConnectorForRepository(
+    repo,
+    workspaceId,
+    repository,
+    actor,
+    EXPO_DETECT_PURPOSE,
+  );
   if (!opened.ok) {
     // A rate limit or a timeout is worth saying as it is; the rest is "could not be opened".
-    return opened.status === 429 || opened.status === 504 ? opened : done(none('repository_unavailable'));
+    return opened.status === 429 || opened.status === 504
+      ? opened
+      : done(none('repository_unavailable'));
   }
   const { connector, secret } = opened;
   const abort = new AbortController();

@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createExpoClient } from './client.ts';
 import { ExpoError } from './errors.ts';
-import { ARTIFACT_URL, buildsBody, easBuild, easSubmission, submissionsBody } from './eas-status.fixtures.ts';
+import {
+  ARTIFACT_URL,
+  buildsBody,
+  easBuild,
+  easSubmission,
+  submissionsBody,
+} from './eas-status.fixtures.ts';
 import { PROJECT_ID, TOKEN } from './expo.fixtures.ts';
 import { expoBuilds, expoSubmissions } from './queries.ts';
 
@@ -12,10 +18,16 @@ function clientFor(...bodies: unknown[]) {
   const calls: Call[] = [];
   const queue = [...bodies];
   const fetchFn: typeof fetch = async (_input, init) => {
-    const body = JSON.parse(String(init?.body ?? '{}')) as { query: string; variables?: Record<string, unknown> };
+    const body = JSON.parse(String(init?.body ?? '{}')) as {
+      query: string;
+      variables?: Record<string, unknown>;
+    };
     calls.push({ query: body.query, variables: body.variables ?? {} });
     const next = queue.length > 1 ? queue.shift() : queue[0];
-    return new Response(JSON.stringify(next), { status: 200, headers: { 'content-type': 'application/json' } });
+    return new Response(JSON.stringify(next), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
   };
   return { client: createExpoClient({ token: TOKEN, fetch: fetchFn }), calls };
 }
@@ -23,8 +35,16 @@ function clientFor(...bodies: unknown[]) {
 test('builds: the query asks for one platform of the project and maps every field', async () => {
   const f = clientFor(buildsBody([easBuild()]));
   const page = await expoBuilds(f.client, PROJECT_ID.toUpperCase(), { platform: 'ios' });
-  assert.deepEqual(f.calls[0]?.variables, { appId: PROJECT_ID, offset: 0, limit: 30, filter: { platform: 'IOS' } });
-  assert.match(f.calls[0]?.query ?? '', /builds\(offset: \$offset, limit: \$limit, filter: \$filter\)/);
+  assert.deepEqual(f.calls[0]?.variables, {
+    appId: PROJECT_ID,
+    offset: 0,
+    limit: 30,
+    filter: { platform: 'IOS' },
+  });
+  assert.match(
+    f.calls[0]?.query ?? '',
+    /builds\(offset: \$offset, limit: \$limit, filter: \$filter\)/,
+  );
   assert.equal(page.full, false);
   assert.deepEqual(page.items, [
     {
@@ -59,20 +79,36 @@ test('builds: the query asks for one platform of the project and maps every fiel
 test('builds: internal distribution, a simulator build, an Android build, statuses and errors', async () => {
   const f = clientFor(
     buildsBody([
-      easBuild({ id: 'old', createdAt: '2026-11-01T00:00:00.000Z', status: 'IN_QUEUE', completedAt: null, artifacts: null }),
+      easBuild({
+        id: 'old',
+        createdAt: '2026-11-01T00:00:00.000Z',
+        status: 'IN_QUEUE',
+        completedAt: null,
+        artifacts: null,
+      }),
       easBuild({
         id: 'new',
         createdAt: '2026-11-19T00:00:00.000Z',
         status: 'ERRORED',
         platform: 'ANDROID',
         distribution: 'INTERNAL',
-        error: { errorCode: 'EAS_BUILD_UNKNOWN_GRADLE_ERROR', message: 'x'.repeat(900), docsUrl: 'https://docs.example.invalid' },
+        error: {
+          errorCode: 'EAS_BUILD_UNKNOWN_GRADLE_ERROR',
+          message: 'x'.repeat(900),
+          docsUrl: 'https://docs.example.invalid',
+        },
         artifacts: { buildUrl: null, applicationArchiveUrl: null },
         isForIosSimulator: null,
         updateChannel: null,
         runtime: null,
       }),
-      easBuild({ id: 'sim', createdAt: '2026-11-10T00:00:00.000Z', distribution: 'SIMULATOR', isForIosSimulator: true, status: 'weird' }),
+      easBuild({
+        id: 'sim',
+        createdAt: '2026-11-10T00:00:00.000Z',
+        distribution: 'SIMULATOR',
+        isForIosSimulator: true,
+        status: 'weird',
+      }),
     ]),
   );
   const { items } = await expoBuilds(f.client, PROJECT_ID, { platform: 'android' });
@@ -101,10 +137,15 @@ test('builds: internal distribution, a simulator build, an Android build, status
 });
 
 test('builds: a full page is reported, entries without an id are dropped, odd dates become null', async () => {
-  const f = clientFor(buildsBody([easBuild({ id: 'a', createdAt: 'not a date' }), { status: 'FINISHED' }, null]));
+  const f = clientFor(
+    buildsBody([easBuild({ id: 'a', createdAt: 'not a date' }), { status: 'FINISHED' }, null]),
+  );
   const page = await expoBuilds(f.client, PROJECT_ID, { platform: 'ios', limit: 3 });
   assert.equal(page.full, true, 'three entries came back for a limit of three');
-  assert.deepEqual(page.items.map((b) => b.id), ['a']);
+  assert.deepEqual(
+    page.items.map((b) => b.id),
+    ['a'],
+  );
   assert.equal(page.items[0]?.createdAt, null);
 });
 
@@ -138,15 +179,28 @@ test('submissions: the query filters by platform; iOS and Android configs map to
         completedAt: null,
         submittedBuild: null,
         iosConfig: null,
-        androidConfig: { applicationIdentifier: 'com.acme.trail', track: 'INTERNAL', releaseStatus: 'DRAFT', rollout: null },
+        androidConfig: {
+          applicationIdentifier: 'com.acme.trail',
+          track: 'INTERNAL',
+          releaseStatus: 'DRAFT',
+          rollout: null,
+        },
         error: { errorCode: 'SUBMISSION_FAILED', message: 'The upload was refused.' },
       }),
       easSubmission({ id: 's3', status: 'AWAITING_BUILD', createdAt: '2026-11-17T00:00:00.000Z' }),
     ]),
   );
   const page = await expoSubmissions(f.client, PROJECT_ID, { platform: 'android' });
-  assert.deepEqual(f.calls[0]?.variables, { appId: PROJECT_ID, offset: 0, limit: 30, platform: 'ANDROID' });
-  assert.match(f.calls[0]?.query ?? '', /submissions\(filter: \{ platform: \$platform \}, offset: \$offset, limit: \$limit\)/);
+  assert.deepEqual(f.calls[0]?.variables, {
+    appId: PROJECT_ID,
+    offset: 0,
+    limit: 30,
+    platform: 'ANDROID',
+  });
+  assert.match(
+    f.calls[0]?.query ?? '',
+    /submissions\(filter: \{ platform: \$platform \}, offset: \$offset, limit: \$limit\)/,
+  );
   assert.deepEqual(
     page.items.map((s) => s.id),
     ['s2', 's0000000-0000-4000-8000-000000000001', 's3'],
@@ -158,7 +212,10 @@ test('submissions: the query filters by platform; iOS and Android configs map to
   assert.equal(android?.track, 'INTERNAL');
   assert.equal(android?.releaseStatus, 'DRAFT');
   assert.equal(android?.buildId, null);
-  assert.deepEqual(android?.error, { code: 'SUBMISSION_FAILED', message: 'The upload was refused.' });
+  assert.deepEqual(android?.error, {
+    code: 'SUBMISSION_FAILED',
+    message: 'The upload was refused.',
+  });
   assert.equal(ios?.status, 'finished');
   assert.equal(ios?.targetIdentifier, '1234567890');
   assert.equal(ios?.buildId, 'b0000000-0000-4000-8000-000000000001');

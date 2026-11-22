@@ -82,11 +82,15 @@ export const metricLabel = (metric: string, label: string): string => {
 };
 
 /** The name of a series in the active language: the API sends English labels, so the metric id (or a derived id) picks the message. */
-export function seriesLabel(series: Pick<AnalyticsSeries, 'id' | 'metric' | 'label' | 'source'>): string {
+export function seriesLabel(
+  series: Pick<AnalyticsSeries, 'id' | 'metric' | 'label' | 'source'>,
+): string {
   const key = metricKeys[series.metric];
   if (key) return t(key);
   if (series.id === 'product_page_conversion')
-    return series.source.indexOf('play_') === 0 ? t('analytics:series.storeListingConversion') : t('analytics:series.productPageConversion');
+    return series.source.indexOf('play_') === 0
+      ? t('analytics:series.storeListingConversion')
+      : t('analytics:series.productPageConversion');
   if (series.id === 'impression_tap_rate') return t('analytics:series.tapThroughRate');
   if (series.id === 'crash_rate_derived') return t('analytics:series.crashesPerSession');
   return series.label;
@@ -391,9 +395,13 @@ export function buildCards(overview: AnalyticsOverview | null): ChartCard[] {
         makePanel('store_listing_visitors', t('analytics:panel.visitors'), 'line', 'count', [
           [s('store_listing_visitors'), null, 1],
         ]),
-        makePanel('store_listing_acquisitions', t('analytics:panel.acquisitions'), 'line', 'count', [
-          [s('store_listing_acquisitions'), null, 1],
-        ]),
+        makePanel(
+          'store_listing_acquisitions',
+          t('analytics:panel.acquisitions'),
+          'line',
+          'count',
+          [[s('store_listing_acquisitions'), null, 1]],
+        ),
       ]),
       card('conversion', t('analytics:card.listingConversion'), [
         makePanel('product_page_conversion', null, 'line', 'ratio', [
@@ -439,28 +447,50 @@ export function buildCards(overview: AnalyticsOverview | null): ChartCard[] {
             x.currency ?? t('analytics:panel.sales'),
             'columns',
             'money',
-            [[x, x.currency ? t('analytics:panel.salesBuyerPaidCurrency', { currency: x.currency }) : t('analytics:panel.salesBuyerPaid'), 1]],
+            [
+              [
+                x,
+                x.currency
+                  ? t('analytics:panel.salesBuyerPaidCurrency', { currency: x.currency })
+                  : t('analytics:panel.salesBuyerPaid'),
+                1,
+              ],
+            ],
             { currency: x.currency },
           ),
         ),
         ...refunds.map((x) =>
           makePanel(
             x.id,
-            x.currency ? t('analytics:panel.refundsCurrency', { currency: x.currency }) : t('analytics:panel.refunds'),
+            x.currency
+              ? t('analytics:panel.refundsCurrency', { currency: x.currency })
+              : t('analytics:panel.refunds'),
             'columns',
             'money',
-            [[x, x.currency ? t('analytics:panel.refundsBuyerPaidCurrency', { currency: x.currency }) : t('analytics:panel.refundsBuyerPaid'), 2]],
+            [
+              [
+                x,
+                x.currency
+                  ? t('analytics:panel.refundsBuyerPaidCurrency', { currency: x.currency })
+                  : t('analytics:panel.refundsBuyerPaid'),
+                2,
+              ],
+            ],
             { currency: x.currency },
           ),
         ),
-        makePanel('sales_orders', t('analytics:panel.orders'), 'columns', 'count', [[s('sales_orders'), null, 1]]),
+        makePanel('sales_orders', t('analytics:panel.orders'), 'columns', 'count', [
+          [s('sales_orders'), null, 1],
+        ]),
       ]),
     );
   } else {
     const crashRate = appleCrashRate(overview);
     cards.push(
       card('reach', t('analytics:card.reach'), [
-        makePanel('impressions', t('analytics:panel.impressions'), 'line', 'count', [[s('impressions'), null, 1]]),
+        makePanel('impressions', t('analytics:panel.impressions'), 'line', 'count', [
+          [s('impressions'), null, 1],
+        ]),
         makePanel('product_page_views', t('analytics:panel.productPageViews'), 'line', 'count', [
           [s('product_page_views'), null, 1],
         ]),
@@ -472,9 +502,13 @@ export function buildCards(overview: AnalyticsOverview | null): ChartCard[] {
         ]),
       ]),
       card('conversion', t('analytics:card.conversion'), [
-        makePanel('product_page_conversion', t('analytics:panel.productPageConversion'), 'line', 'ratio', [
-          [s('product_page_conversion'), null, 1],
-        ]),
+        makePanel(
+          'product_page_conversion',
+          t('analytics:panel.productPageConversion'),
+          'line',
+          'ratio',
+          [[s('product_page_conversion'), null, 1]],
+        ),
         makePanel('impression_tap_rate', t('analytics:panel.tapThroughRate'), 'line', 'ratio', [
           [s('impression_tap_rate'), null, 1],
         ]),
@@ -483,7 +517,9 @@ export function buildCards(overview: AnalyticsOverview | null): ChartCard[] {
         'crashes',
         t('analytics:card.crashes'),
         [
-          makePanel('crashes', t('analytics:panel.crashes'), 'columns', 'count', [[s('crashes'), null, 1]]),
+          makePanel('crashes', t('analytics:panel.crashes'), 'columns', 'count', [
+            [s('crashes'), null, 1],
+          ]),
           makePanel('crash_rate_derived', t('analytics:panel.crashesPerSession'), 'line', 'ratio', [
             [crashRate, null, 1],
           ]),
@@ -502,7 +538,15 @@ export function buildCards(overview: AnalyticsOverview | null): ChartCard[] {
             x.currency ?? t('analytics:panel.proceeds'),
             'columns',
             'money',
-            [[x, x.currency ? t('analytics:panel.proceedsCurrency', { currency: x.currency }) : t('analytics:panel.proceeds'), 1]],
+            [
+              [
+                x,
+                x.currency
+                  ? t('analytics:panel.proceedsCurrency', { currency: x.currency })
+                  : t('analytics:panel.proceeds'),
+                1,
+              ],
+            ],
             { currency: x.currency },
           ),
         ),
@@ -582,13 +626,18 @@ const coverageWords = (s: AnalyticsSeries): string => {
     if (s.coverage.state === 'none') return t('analytics:coverage.noMonths');
     const withData = t('analytics:coverage.monthsWithData', { count: s.coverage.days });
     return s.coverage.gapDays > 0
-      ? formatList([withData, t('analytics:coverage.monthsMissing', { count: s.coverage.gapDays })], { type: 'unit' })
+      ? formatList(
+          [withData, t('analytics:coverage.monthsMissing', { count: s.coverage.gapDays })],
+          { type: 'unit' },
+        )
       : withData;
   }
   if (s.coverage.state === 'none') return t('analytics:coverage.noDays');
   const withData = t('analytics:coverage.daysWithData', { count: s.coverage.days });
   return s.coverage.gapDays > 0
-    ? formatList([withData, t('analytics:coverage.daysMissing', { count: s.coverage.gapDays })], { type: 'unit' })
+    ? formatList([withData, t('analytics:coverage.daysMissing', { count: s.coverage.gapDays })], {
+        type: 'unit',
+      })
     : withData;
 };
 
@@ -597,7 +646,9 @@ export function cardInfo(c: ChartCard): CardSeriesInfo[] {
   return allSeries(c).map((s) => ({
     id: s.id,
     label: seriesLabel(s),
-    source: s.derived ? t('analytics:info.derivedHere', { source: sourceLabel(s.source) }) : sourceLabel(s.source),
+    source: s.derived
+      ? t('analytics:info.derivedHere', { source: sourceLabel(s.source) })
+      : sourceLabel(s.source),
     coverage: coverageWords(s),
     freshness: freshnessLine(s),
     notes: s.coverage.notes.map(noteText),
@@ -657,7 +708,8 @@ export function tooltipFor(panel: ChartPanel, index: number, today: string): Tip
       key: ps.key,
       label: ps.label,
       color: ps.color,
-      text: v === null ? t('analytics:tip.noData') : formatExact(ps.series.unit, v, ps.series.currency),
+      text:
+        v === null ? t('analytics:tip.noData') : formatExact(ps.series.unit, v, ps.series.currency),
       missing: v === null,
     };
   });
@@ -695,10 +747,21 @@ export function describePanel(panel: ChartPanel, cardTitle: string): string {
     if (values.length === 0) continue;
     const fmt = (v: number) => formatValue(ps.series.unit, v, ps.series.currency);
     const missing = ps.series.points.length - values.length;
-    const figures = { label: ps.label, latest: fmt(lastValue(ps.series) ?? 0), lowest: fmt(Math.min(...values)), highest: fmt(Math.max(...values)) };
-    parts.push(missing > 0 ? t('analytics:panel.describeSeriesMissing', { ...figures, count: missing }) : t('analytics:panel.describeSeries', figures));
+    const figures = {
+      label: ps.label,
+      latest: fmt(lastValue(ps.series) ?? 0),
+      lowest: fmt(Math.min(...values)),
+      highest: fmt(Math.max(...values)),
+    };
+    parts.push(
+      missing > 0
+        ? t('analytics:panel.describeSeriesMissing', { ...figures, count: missing })
+        : t('analytics:panel.describeSeries', figures),
+    );
   }
-  return parts.length === 0 ? t('analytics:panel.describeNone', { name }) : t('analytics:panel.describe', { name, parts: parts.join(' ') });
+  return parts.length === 0
+    ? t('analytics:panel.describeNone', { name })
+    : t('analytics:panel.describe', { name, parts: parts.join(' ') });
 }
 
 export type DataTableModel = { columns: string[]; rows: { date: string; cells: string[] }[] };
@@ -776,7 +839,10 @@ export function sourceRows(status: AnalyticsStatus, now: number): SourceRow[] {
     else if (state === 'ready')
       message =
         s.firstDay && s.lastDay
-          ? t('analytics:sourceRow.dataFromTo', { from: formatDay(s.firstDay, true), to: formatDay(s.lastDay, true) })
+          ? t('analytics:sourceRow.dataFromTo', {
+              from: formatDay(s.firstDay, true),
+              to: formatDay(s.lastDay, true),
+            })
           : t('analytics:sourceRow.ready');
     else if (state === 'off') message = setupSentence('turn_on_analytics');
     else message = t('analytics:sourceRow.noData');
@@ -801,7 +867,10 @@ export function sourceRows(status: AnalyticsStatus, now: number): SourceRow[] {
       alternatives,
       range:
         s.firstDay && s.lastDay
-          ? t('analytics:range.fromTo', { from: formatDay(s.firstDay, true), to: formatDay(s.lastDay, true) })
+          ? t('analytics:range.fromTo', {
+              from: formatDay(s.firstDay, true),
+              to: formatDay(s.lastDay, true),
+            })
           : null,
       lastRead:
         s.lastOkAt === null
@@ -850,7 +919,11 @@ export function syncLines(sync: AnalyticsSyncResult['sync']): SyncLine[] {
           count <= 0
             ? t('analytics:sync.nothingNew')
             : s.dayFrom && s.dayTo
-              ? t('analytics:sync.readValuesSpan', { count, from: formatDay(s.dayFrom), to: formatDay(s.dayTo) })
+              ? t('analytics:sync.readValuesSpan', {
+                  count,
+                  from: formatDay(s.dayFrom),
+                  to: formatDay(s.dayTo),
+                })
               : t('analytics:sync.readValues', { count }),
         tone: 'ok',
       };
@@ -859,7 +932,9 @@ export function syncLines(sync: AnalyticsSyncResult['sync']): SyncLine[] {
       return {
         source: s.source,
         label,
-        text: s.errorCode ? t('analytics:sync.partialWith', { error: storedErrorText(s.errorCode) }) : t('analytics:sync.partial'),
+        text: s.errorCode
+          ? t('analytics:sync.partialWith', { error: storedErrorText(s.errorCode) })
+          : t('analytics:sync.partial'),
         tone: 'warn',
       };
     if (s.status === 'failed') {
@@ -875,7 +950,9 @@ export function syncLines(sync: AnalyticsSyncResult['sync']): SyncLine[] {
       const why =
         s.setup === 'import_only'
           ? t('analytics:sync.skippedImport')
-          : t('analytics:sync.skipped', { reason: s.setup ? setupSentence(s.setup) : t('analytics:sync.cannotRun') });
+          : t('analytics:sync.skipped', {
+              reason: s.setup ? setupSentence(s.setup) : t('analytics:sync.cannotRun'),
+            });
       return { source: s.source, label, text: why, tone: 'neutral' };
     }
     return { source: s.source, label, text: t('analytics:sync.done'), tone: 'neutral' };

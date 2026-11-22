@@ -64,12 +64,21 @@ export type RevenueCatMatchedProduct = {
   trialDuration: string | null;
 };
 
-export type RevenueCatStatus = 'in_revenuecat' | 'archived' | 'not_in_revenuecat' | 'id_not_matched';
+export type RevenueCatStatus =
+  | 'in_revenuecat'
+  | 'archived'
+  | 'not_in_revenuecat'
+  | 'id_not_matched';
 
 export type RevenueCatProductEntry = {
   status: RevenueCatStatus;
   products: RevenueCatMatchedProduct[];
-  entitlements: { id: string; lookupKey: string; displayName: string | null; state: RevenueCatState }[];
+  entitlements: {
+    id: string;
+    lookupKey: string;
+    displayName: string | null;
+    state: RevenueCatState;
+  }[];
   offerings: {
     id: string;
     lookupKey: string;
@@ -103,7 +112,11 @@ export type RevenueCatProductsView = {
 };
 
 /** `GET /apps/{appId}/revenuecat`. */
-export type RevenueCatLinkRead = { supported: boolean; link: RevenueCatLinkView | null; sync: RevenueCatSyncStatus | null };
+export type RevenueCatLinkRead = {
+  supported: boolean;
+  link: RevenueCatLinkView | null;
+  sync: RevenueCatSyncStatus | null;
+};
 
 export type RevenueCatAppChoice = {
   id: string;
@@ -126,7 +139,11 @@ export type RevenueCatOptions = {
   complete: boolean;
 };
 
-export type SetRevenueCatLinkBody = { credentialId: string; projectId: string; revenueCatAppId: string };
+export type SetRevenueCatLinkBody = {
+  credentialId: string;
+  projectId: string;
+  revenueCatAppId: string;
+};
 
 /** The RevenueCat step of `POST .../products/sync`: what it read, or a code and a fixed sentence. */
 export type RevenueCatStep =
@@ -152,8 +169,9 @@ export type MetricsStep =
 // Words
 
 /** The credentials of the workspace that are RevenueCat secret keys, in the order given. */
-export const revenueCatCredentials = (list: readonly CredentialSummary[] | null): CredentialSummary[] =>
-  (list || []).filter((c) => c.kind === 'revenuecat');
+export const revenueCatCredentials = (
+  list: readonly CredentialSummary[] | null,
+): CredentialSummary[] => (list || []).filter((c) => c.kind === 'revenuecat');
 
 /** RevenueCat's own app type, in words. An unknown type is shown as it is. */
 export function appTypeLabel(type: string): string {
@@ -195,11 +213,20 @@ export function statusBadge(status: RevenueCatStatus): { label: string; tone: To
 
 /** The word beside a warning of the set-up: how serious it is. */
 export const severityLabel = (severity: RevenueCatWarning['severity']): string =>
-  severity === 'bad' ? t('products:rc.severity.bad') : severity === 'warn' ? t('products:rc.severity.warn') : t('products:rc.severity.info');
+  severity === 'bad'
+    ? t('products:rc.severity.bad')
+    : severity === 'warn'
+      ? t('products:rc.severity.warn')
+      : t('products:rc.severity.info');
 
 /** The names of the entitlements, the first `max` of them and "+n" for the rest. Archived ones are left out. */
-export function entitlementNames(entry: RevenueCatProductEntry, max = 2): { shown: string[]; more: number } {
-  const names = entry.entitlements.filter((e) => e.state !== 'archived').map((e) => e.displayName || e.lookupKey);
+export function entitlementNames(
+  entry: RevenueCatProductEntry,
+  max = 2,
+): { shown: string[]; more: number } {
+  const names = entry.entitlements
+    .filter((e) => e.state !== 'archived')
+    .map((e) => e.displayName || e.lookupKey);
   return { shown: names.slice(0, max), more: Math.max(0, names.length - max) };
 }
 
@@ -217,7 +244,8 @@ export function revenueCatCell(
   productId: string,
 ): { label: string; tone: Tone; entry: RevenueCatProductEntry | null } {
   const entry = view !== null && revenueCatRead(view) ? view.products[productId] || null : null;
-  if (entry === null) return { label: t('products:rc.status.notRead'), tone: 'neutral', entry: null };
+  if (entry === null)
+    return { label: t('products:rc.status.notRead'), tone: 'neutral', entry: null };
   return { ...statusBadge(entry.status), entry };
 }
 
@@ -250,13 +278,16 @@ export function durationText(value: string | null): string {
 export function matchedLine(p: RevenueCatMatchedProduct): string {
   const bits: string[] = [p.type.replace(/_/g, ' ')];
   if (p.duration !== null) bits.push(durationText(p.duration));
-  if (p.trialDuration !== null) bits.push(t('products:rc.matched.trial', { duration: durationText(p.trialDuration) }));
-  if (p.gracePeriod !== null) bits.push(t('products:rc.matched.grace', { duration: durationText(p.gracePeriod) }));
+  if (p.trialDuration !== null)
+    bits.push(t('products:rc.matched.trial', { duration: durationText(p.trialDuration) }));
+  if (p.gracePeriod !== null)
+    bits.push(t('products:rc.matched.grace', { duration: durationText(p.gracePeriod) }));
   return formatList(bits, { type: 'unit' });
 }
 
 /** What a package's eligibility value says; RevenueCat's own words, with the underscores taken out. */
-export const eligibilityText = (value: string): string => (value === '' ? t('products:rc.eligibility.notGiven') : value.replace(/_/g, ' '));
+export const eligibilityText = (value: string): string =>
+  value === '' ? t('products:rc.eligibility.notGiven') : value.replace(/_/g, ' ');
 
 /** The store id of a Google Play base plan product, shown as `subscription:base plan`. Apple and bare ids are shown as they are. */
 export const matchedTitle = (p: RevenueCatMatchedProduct): string =>
@@ -264,7 +295,8 @@ export const matchedTitle = (p: RevenueCatMatchedProduct): string =>
 
 /** Warnings in the order worst first, then in the order the server gave. */
 export function sortedWarnings(list: readonly RevenueCatWarning[]): RevenueCatWarning[] {
-  const rank = (w: RevenueCatWarning): number => (w.severity === 'bad' ? 0 : w.severity === 'warn' ? 1 : 2);
+  const rank = (w: RevenueCatWarning): number =>
+    w.severity === 'bad' ? 0 : w.severity === 'warn' ? 1 : 2;
   return list
     .map((w, i) => ({ w, i }))
     .sort((a, b) => rank(a.w) - rank(b.w) || a.i - b.i)
@@ -272,19 +304,31 @@ export function sortedWarnings(list: readonly RevenueCatWarning[]): RevenueCatWa
 }
 
 /** The head of the warnings list: how many, and how bad the worst is. */
-export function warningsSummary(list: readonly RevenueCatWarning[]): { text: string; tone: Tone } | null {
+export function warningsSummary(
+  list: readonly RevenueCatWarning[],
+): { text: string; tone: Tone } | null {
   if (list.length === 0) return null;
   const worst = sortedWarnings(list)[0];
-  const tone: Tone = worst && worst.severity === 'bad' ? 'bad' : worst && worst.severity === 'warn' ? 'warn' : 'info';
+  const tone: Tone =
+    worst && worst.severity === 'bad'
+      ? 'bad'
+      : worst && worst.severity === 'warn'
+        ? 'warn'
+        : 'info';
   return { text: t('products:rc.warnings.summary', { count: list.length }), tone };
 }
 
 /** The warnings of one store product (they are also in the page list). */
-export const warningsOf = (list: readonly RevenueCatWarning[], productId: string): RevenueCatWarning[] =>
-  sortedWarnings(list.filter((w) => w.storeProductId === productId));
+export const warningsOf = (
+  list: readonly RevenueCatWarning[],
+  productId: string,
+): RevenueCatWarning[] => sortedWarnings(list.filter((w) => w.storeProductId === productId));
 
 /** How the last RevenueCat read went, in one line, and how it should look. */
-export function syncLine(sync: RevenueCatSyncStatus | null, now: number): { text: string; tone: 'neutral' | 'warn' | 'bad' } {
+export function syncLine(
+  sync: RevenueCatSyncStatus | null,
+  now: number,
+): { text: string; tone: 'neutral' | 'warn' | 'bad' } {
   if (sync === null || (sync.lastSyncedAt === null && sync.lastError === null))
     return { text: t('products:rc.sync.never'), tone: 'neutral' };
   if (sync.lastError !== null) {
@@ -307,10 +351,13 @@ export function syncLine(sync: RevenueCatSyncStatus | null, now: number): { text
   }
   // Past the checks above a sync with no error has been read at least once.
   const ago = timeAgo(sync.lastSyncedAt ?? now, now);
-  if (!sync.complete) return { text: t('products:rc.sync.partial', { count: sync.productCount, ago }), tone: 'warn' };
+  if (!sync.complete)
+    return { text: t('products:rc.sync.partial', { count: sync.productCount, ago }), tone: 'warn' };
   const read = t('products:rc.sync.read', { count: sync.productCount, ago });
   const others =
-    sync.otherAppProductCount > 0 ? ` ${t('products:rc.sync.others', { count: sync.otherAppProductCount })}` : '';
+    sync.otherAppProductCount > 0
+      ? ` ${t('products:rc.sync.others', { count: sync.otherAppProductCount })}`
+      : '';
   return { text: `${read}${others}`, tone: 'neutral' };
 }
 
@@ -325,9 +372,15 @@ export function stepResult(step: RevenueCatStep): { text: string; tone: 'ok' | '
     t('products:rc.step.offerings', { count: step.offerings }),
   ]);
   // The figures strip has its own result: a failure there is said, and never turns the configuration read into a failure.
-  const figures = step.metrics && !step.metrics.ok ? ` ${t('products:rc.step.figuresFailed', { message: step.metrics.message })}` : '';
+  const figures =
+    step.metrics && !step.metrics.ok
+      ? ` ${t('products:rc.step.figuresFailed', { message: step.metrics.message })}`
+      : '';
   return step.complete
-    ? { text: `${t('products:rc.step.read', { what })}${figures}`, tone: figures === '' ? 'ok' : 'warn' }
+    ? {
+        text: `${t('products:rc.step.read', { what })}${figures}`,
+        tone: figures === '' ? 'ok' : 'warn',
+      }
     : { text: `${t('products:rc.step.readPartial', { what })}${figures}`, tone: 'warn' };
 }
 
@@ -349,15 +402,23 @@ export function revenueCatSummary(links: readonly (RevenueCatLinkView | null)[])
   const linked = links.filter((l): l is RevenueCatLinkView => l !== null);
   if (linked.length === 0) return t('products:rc.summary.notLinked');
   const names = linked.map((l) => l.projectName).filter((n, i, all) => all.indexOf(n) === i);
-  return names.length === 1 ? names[0] || '' : t('products:rc.summary.projects', { count: names.length });
+  return names.length === 1
+    ? names[0] || ''
+    : t('products:rc.summary.projects', { count: names.length });
 }
 
 /** "Confirmed with RevenueCat 3 minutes ago.", or what is wrong with the credential. */
-export function linkStatus(link: RevenueCatLinkView, now: number): { tone: 'ok' | 'warn'; text: string } {
+export function linkStatus(
+  link: RevenueCatLinkView,
+  now: number,
+): { tone: 'ok' | 'warn'; text: string } {
   if (!link.credentialAvailable) {
     return { tone: 'warn', text: t('products:rc.link.credentialDeleted') };
   }
-  return { tone: 'ok', text: t('products:rc.link.confirmed', { ago: timeAgo(link.verifiedAt, now) }) };
+  return {
+    tone: 'ok',
+    text: t('products:rc.link.confirmed', { ago: timeAgo(link.verifiedAt, now) }),
+  };
 }
 
 /** A sentence when the RevenueCat app's identifier is not this app's own; '' when it is, or RevenueCat gave none. */
@@ -385,7 +446,8 @@ export function appsNote(apps: readonly RevenueCatAppChoice[]): string {
 
 /** The text of one option of the app list. */
 export function appChoiceLabel(a: RevenueCatAppChoice): string {
-  const details = a.identifier === null ? appTypeLabel(a.type) : `${appTypeLabel(a.type)}, ${a.identifier}`;
+  const details =
+    a.identifier === null ? appTypeLabel(a.type) : `${appTypeLabel(a.type)}, ${a.identifier}`;
   const params = { name: a.name, details };
   if (a.suggested) return t('products:rc.choice.suggested', params);
   if (!a.mapped) return t('products:rc.choice.notMapped', params);

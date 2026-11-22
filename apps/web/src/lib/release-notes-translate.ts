@@ -377,7 +377,12 @@ export function translateLines(
 ): { tone: 'ok' | 'warn' | 'error'; lines: string[] } {
   const lines: string[] = [];
   const n = applied.applied.length;
-  const params = { engine: engineLabel(engine), provider, count: n, list: applied.applied.join(', ') };
+  const params = {
+    engine: engineLabel(engine),
+    provider,
+    count: n,
+    list: applied.applied.join(', '),
+  };
   if (n > 0)
     lines.push(
       provider
@@ -401,7 +406,11 @@ export function translateLines(
       t('release-stepper:tr.lines.over', {
         list: applied.over
           .map((o) =>
-            t('release-stepper:tr.lines.overItem', { locale: o.locale, chars: o.chars, limit: o.limit }),
+            t('release-stepper:tr.lines.overItem', {
+              locale: o.locale,
+              chars: o.chars,
+              limit: o.limit,
+            }),
           )
           .join(', '),
       }),

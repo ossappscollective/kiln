@@ -55,7 +55,8 @@ const GIT_REF = /^[A-Za-z0-9][A-Za-z0-9._\/-]{0,199}$/;
 /** A branch, a tag, a commit SHA or a fully qualified ref (`refs/heads/main`); undefined when it cannot be one. */
 export function normalizeGitRef(value: string): string | undefined {
   const ref = value.trim();
-  if (!GIT_REF.test(ref) || ref.includes('..') || ref.endsWith('/') || ref.endsWith('.lock')) return undefined;
+  if (!GIT_REF.test(ref) || ref.includes('..') || ref.endsWith('/') || ref.endsWith('.lock'))
+    return undefined;
   return ref;
 }
 
@@ -230,7 +231,8 @@ export async function expoWorkflowRun(
   runId: string,
   options: { signal?: AbortSignal | undefined } = {},
 ): Promise<ExpoWorkflowRun> {
-  if (!isExpoRunId(runId)) throw new ExpoError('invalid_input', { message: 'That is not a workflow run id.' });
+  if (!isExpoRunId(runId))
+    throw new ExpoError('invalid_input', { message: 'That is not a workflow run id.' });
   const body = await client.rest<unknown>(
     {
       method: 'GET',
@@ -254,7 +256,8 @@ export async function expoWorkflowRun(
     ci,
     url: httpsUrl(data.url),
     gitCommitHash: text(data.gitCommitHash, 100) ?? null,
-    gitCommitMessage: text(data.gitCommitMessage, 2000)?.split(/\r?\n/, 1)[0]?.trim().slice(0, 200) || null,
+    gitCommitMessage:
+      text(data.gitCommitMessage, 2000)?.split(/\r?\n/, 1)[0]?.trim().slice(0, 200) || null,
     requestedGitRef: text(data.requestedGitRef, 200) ?? null,
     triggerEventType: text(data.triggerEventType, 60) ?? null,
     createdAt: timeOf(data.createdAt),

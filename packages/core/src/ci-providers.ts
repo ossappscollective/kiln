@@ -45,7 +45,9 @@ export const isCiProvider = (value: unknown): value is CiProviderId =>
   typeof value === 'string' && (CI_PROVIDERS as readonly string[]).indexOf(value) !== -1;
 
 /** The provider of a run; runs stored before providers existed (or from an older server) are GitHub's. */
-export const ciProviderOf = (value: unknown): CiProviderId => (isCiProvider(value) ? value : 'github');
+export const ciProviderOf = (value: unknown): CiProviderId =>
+  isCiProvider(value) ? value : 'github';
 
 /** The words for a run's provider. */
-export const ciProviderMeta = (value: unknown): CiProviderMeta => CI_PROVIDER_META[ciProviderOf(value)];
+export const ciProviderMeta = (value: unknown): CiProviderMeta =>
+  CI_PROVIDER_META[ciProviderOf(value)];

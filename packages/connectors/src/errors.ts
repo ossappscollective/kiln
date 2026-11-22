@@ -31,7 +31,10 @@ export type GithubErrorKind =
  * (`store.rateLimited`); `params` are plain scalars and never hold a secret. The English `message` stays: a client that does not know
  * the code shows it. Only errors whose whole sentence is fixed text plus those params carry one; the others have none.
  */
-export type ErrorCoding = { code: string; params?: Record<string, string | number | boolean | null> };
+export type ErrorCoding = {
+  code: string;
+  params?: Record<string, string | number | boolean | null>;
+};
 
 export class GithubError extends Error {
   readonly kind: GithubErrorKind;

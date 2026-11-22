@@ -26,7 +26,10 @@ export function dataChips(apps: readonly AppSummary[], now: number): DataChip[] 
       ? { value: t('app:chips.notLinked'), tone: 'neutral' as ChipTone }
       : linked === apps.length
         ? { value: t('app:chips.linked'), tone: 'ok' as ChipTone }
-        : { value: t('app:chips.linkedOn', { linked, total: apps.length }), tone: 'info' as ChipTone };
+        : {
+            value: t('app:chips.linkedOn', { linked, total: apps.length }),
+            tone: 'info' as ChipTone,
+          };
 
   const synced = apps.map((a) => a.lastSyncedAt);
   const failed = apps.some((a) => (a.lastSyncError ?? '').trim() !== '');

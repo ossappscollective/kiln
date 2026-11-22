@@ -1412,7 +1412,9 @@ export type EasConfig = {
   truncated: boolean;
 };
 
-export type EasRuntimeVersion = { kind: 'string'; value: string } | { kind: 'policy'; policy: string };
+export type EasRuntimeVersion =
+  | { kind: 'string'; value: string }
+  | { kind: 'policy'; policy: string };
 
 export type ExpoAppSummary = {
   path: string | null;

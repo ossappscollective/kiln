@@ -169,7 +169,10 @@ const mapFailure = (error: unknown, secret: string): Failure => {
   if (error instanceof StoreRateLimitError) {
     const wait = error.retryAfterSeconds;
     return {
-      ...failure(429, 'rate_limited', clean(error.message), { retryAfterSeconds: wait, ...codingOf(error) }),
+      ...failure(429, 'rate_limited', clean(error.message), {
+        retryAfterSeconds: wait,
+        ...codingOf(error),
+      }),
       headers: { 'Retry-After': String(wait) },
     };
   }

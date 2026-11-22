@@ -54,10 +54,7 @@ test('the fetch goes to two hosts only, with the identifying User-Agent, and to 
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { resultCount: 0, results: [] });
   assert.equal(s.seen[0]?.address, '93.184.216.34');
-  assert.equal(
-    s.seen[0]?.headers['User-Agent'] ?? s.seen[0]?.headers['user-agent'],
-    'kiln (test)',
-  );
+  assert.equal(s.seen[0]?.headers['User-Agent'] ?? s.seen[0]?.headers['user-agent'], 'kiln (test)');
   const sent = JSON.stringify(s.seen[0]?.headers).toLowerCase();
   assert.equal(sent.includes('cookie'), false);
   assert.equal(sent.includes('authorization'), false);

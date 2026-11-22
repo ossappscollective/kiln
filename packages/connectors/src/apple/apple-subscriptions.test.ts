@@ -13,7 +13,12 @@ import {
 const APP = fx.APPLE_APP_ID;
 const DAY = '2026-11-10';
 
-type P = { date: string; metric: string; value: number; dimension?: { type: string; value: string } };
+type P = {
+  date: string;
+  metric: string;
+  value: number;
+  dimension?: { type: string; value: string };
+};
 const find = (points: P[], metric: string, dim?: string) =>
   points.find(
     (p) =>
@@ -78,7 +83,13 @@ const sub = (
       case 'Device':
         return device;
       default:
-        return counts[h] ?? (h.startsWith('Active') || /Subscriptions$|Offers$|Opt-Ins|Retry|Grace|Subscribers/.test(h) ? '0' : '');
+        return (
+          counts[h] ??
+          (h.startsWith('Active') ||
+          /Subscriptions$|Offers$|Opt-Ins|Retry|Grace|Subscribers/.test(h)
+            ? '0'
+            : '')
+        );
     }
   });
 const SUBSCRIPTION = fx.tsv([
@@ -93,19 +104,37 @@ const SUBSCRIPTION = fx.tsv([
     'Grace Period': '3',
     Subscribers: '30',
   }),
-  sub(APP, '6001', '1 Month', 'iPad', { 'Active Standard Price Subscriptions': '10', 'Pay As You Go Promotional Offer Subscriptions': '3' }),
-  sub(APP, '6002', '1 Year', 'iPhone', { 'Active Standard Price Subscriptions': '7', 'Free Trial Win-Back Offers': '2' }),
+  sub(APP, '6001', '1 Month', 'iPad', {
+    'Active Standard Price Subscriptions': '10',
+    'Pay As You Go Promotional Offer Subscriptions': '3',
+  }),
+  sub(APP, '6002', '1 Year', 'iPhone', {
+    'Active Standard Price Subscriptions': '7',
+    'Free Trial Win-Back Offers': '2',
+  }),
   sub(APP, '6002', '1 Year', 'Desktop', { 'Active Standard Price Subscriptions': '100' }),
   sub('555', '7001', '1 Month', 'iPhone', { 'Active Standard Price Subscriptions': '999' }),
 ]);
 
 test('count columns are told apart by their header: standard, free trial, paid offer; opt-ins, billing states and subscribers are not figures', () => {
   assert.equal(subscriptionColumnKind('Active Standard Price Subscriptions'), 'standard');
-  assert.equal(subscriptionColumnKind('Active Free Trial Introductory Offer Subscriptions'), 'trial');
+  assert.equal(
+    subscriptionColumnKind('Active Free Trial Introductory Offer Subscriptions'),
+    'trial',
+  );
   assert.equal(subscriptionColumnKind('Free Trial Win-Back Offers'), 'trial');
   assert.equal(subscriptionColumnKind('Pay Up Front Offer Code Subscriptions'), 'offer');
-  assert.equal(subscriptionColumnKind('Active Pay As You Go Introductory Offer Subscriptions'), 'offer');
-  for (const h of ['Marketing Opt-Ins', 'Billing Retry', 'Grace Period', 'Subscribers', 'Customer Price'])
+  assert.equal(
+    subscriptionColumnKind('Active Pay As You Go Introductory Offer Subscriptions'),
+    'offer',
+  );
+  for (const h of [
+    'Marketing Opt-Ins',
+    'Billing Retry',
+    'Grace Period',
+    'Subscribers',
+    'Customer Price',
+  ])
     assert.equal(subscriptionColumnKind(h), 'ignored', h);
 });
 
@@ -132,9 +161,17 @@ test('mapAppleSubscriptionTable: the day is the day asked for; levels are summed
 });
 
 test('mapAppleSubscriptionTable: a macOS record keeps Desktop rows, an iOS record leaves them out; a table without the columns is refused', () => {
-  const mac = mapAppleSubscriptionTable(parseTable(SUBSCRIPTION), { appleId: APP, date: DAY, platform: 'macos' });
+  const mac = mapAppleSubscriptionTable(parseTable(SUBSCRIPTION), {
+    appleId: APP,
+    date: DAY,
+    platform: 'macos',
+  });
   assert.equal(find(mac.points, 'subscriptions_active'), 100);
-  const ios = mapAppleSubscriptionTable(parseTable(SUBSCRIPTION), { appleId: APP, date: DAY, platform: 'ios' });
+  const ios = mapAppleSubscriptionTable(parseTable(SUBSCRIPTION), {
+    appleId: APP,
+    date: DAY,
+    platform: 'ios',
+  });
   assert.equal(find(ios.points, 'subscriptions_active'), 57);
   assert.throws(
     () => mapAppleSubscriptionTable(parseTable('A\tB\n1\t2\n'), { appleId: APP, date: DAY }),
@@ -145,12 +182,31 @@ test('mapAppleSubscriptionTable: a macOS record keeps Desktop rows, an iOS recor
 test('events: new, cancelled and trial conversions are classified from the names; everything else is not counted', () => {
   for (const e of ['Subscribe', 'Opt-In', 'Start Introductory Offer', 'Start Offer Code'])
     assert.equal(subscriptionEventKind(e), 'new', e);
-  for (const e of ['Cancel', 'Canceled from Billing Retry', 'Canceled from Billing Grace Period', 'Canceled After Renewal Extension'])
+  for (const e of [
+    'Cancel',
+    'Canceled from Billing Retry',
+    'Canceled from Billing Grace Period',
+    'Canceled After Renewal Extension',
+  ])
     assert.equal(subscriptionEventKind(e), 'cancelled', e);
-  assert.equal(subscriptionEventKind('Paid Subscription from Introductory Offer', 'Free Trial'), 'trial_conversion');
-  assert.equal(subscriptionEventKind('Paid Subscription from Introductory Offer', 'Pay Up Front'), 'other');
+  assert.equal(
+    subscriptionEventKind('Paid Subscription from Introductory Offer', 'Free Trial'),
+    'trial_conversion',
+  );
+  assert.equal(
+    subscriptionEventKind('Paid Subscription from Introductory Offer', 'Pay Up Front'),
+    'other',
+  );
   assert.equal(subscriptionEventKind('Paid Subscription from Introductory Offer'), 'other');
-  for (const e of ['Renew', 'Reactivate', 'Refund', 'Billing Retry from Paid Subscription', 'Upgrade', 'Crossgrade', 'Renewal from Billing Retry'])
+  for (const e of [
+    'Renew',
+    'Reactivate',
+    'Refund',
+    'Billing Retry from Paid Subscription',
+    'Upgrade',
+    'Crossgrade',
+    'Renewal from Billing Retry',
+  ])
     assert.equal(subscriptionEventKind(e), 'other', e);
 });
 
@@ -170,7 +226,15 @@ const EVENT_HEADER = [
   'Cancellation Reason',
   'Quantity',
 ];
-const ev = (event: string, app: string, subId: string, duration: string, offer: string, device: string, quantity: string) => [
+const ev = (
+  event: string,
+  app: string,
+  subId: string,
+  duration: string,
+  offer: string,
+  device: string,
+  quantity: string,
+) => [
   '2026-11-10',
   event,
   'App',
@@ -192,8 +256,24 @@ const EVENTS = fx.tsv([
   ev('Start Introductory Offer', APP, '6001', '1 Month', 'Free Trial', 'iPhone', '6'),
   ev('Cancel', APP, '6001', '1 Month', '', 'iPhone', '3'),
   ev('Canceled from Billing Retry', APP, '6002', '1 Year', '', 'iPad', '1'),
-  ev('Paid Subscription from Introductory Offer', APP, '6001', '1 Month', 'Free Trial', 'iPhone', '2'),
-  ev('Paid Subscription from Introductory Offer', APP, '6001', '1 Month', 'Pay Up Front', 'iPhone', '5'),
+  ev(
+    'Paid Subscription from Introductory Offer',
+    APP,
+    '6001',
+    '1 Month',
+    'Free Trial',
+    'iPhone',
+    '2',
+  ),
+  ev(
+    'Paid Subscription from Introductory Offer',
+    APP,
+    '6001',
+    '1 Month',
+    'Pay Up Front',
+    'iPhone',
+    '5',
+  ),
   ev('Renew', APP, '6001', '1 Month', '', 'iPhone', '50'),
   ev('Subscribe', '555', '7001', '1 Month', '', 'iPhone', '99'),
   ev('Subscribe', APP, '6002', '1 Year', '', 'Desktop', '1'),
@@ -218,7 +298,11 @@ test('mapAppleSubscriptionEventTable: Quantity is summed per kind, for the app, 
   assert.equal(r.stats.rowsUsed, 6);
   assert.equal(r.stats.rowsUnreadable, 1);
   assert.equal(r.stats.rowsFiltered, 3);
-  const mac = mapAppleSubscriptionEventTable(parseTable(EVENTS), { appleId: APP, date: DAY, platform: 'macos' });
+  const mac = mapAppleSubscriptionEventTable(parseTable(EVENTS), {
+    appleId: APP,
+    date: DAY,
+    platform: 'macos',
+  });
   assert.equal(find(mac.points, 'subscriptions_new'), 1);
   assert.throws(
     () => mapAppleSubscriptionEventTable(parseTable('A\tB\n1\t2\n'), { appleId: APP, date: DAY }),

@@ -99,6 +99,7 @@
   "rollout.issue.afterPrevious": "Une étape ne peut pas être planifiée avant l’étape qui la précède.",
   "rollout.issue.beforeDone": "Une étape située avant une étape terminée doit être terminée ou ignorée.",
   "rollout.issue.dateTime": "Une date et une heure.",
+  "rollout.issue.dayOneBeforeCreated": "Le jour 1 ne peut pas précéder la création du plan.",
   "rollout.issue.doneCannotRemove": "L’étape à {{percent}} est terminée et ne peut pas être supprimée. Rouvrez-la d’abord.",
   "rollout.issue.doneKeepsPercent": "Une étape terminée conserve son pourcentage. Rouvrez-la d’abord.",
   "rollout.issue.higherThanBefore": "Chaque étape doit dépasser la précédente ({{percent}}).",

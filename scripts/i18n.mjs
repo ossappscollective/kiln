@@ -451,6 +451,9 @@ export function checkUsage(usage, english) {
     );
   const unused = [];
   for (const [ns, shape] of english) {
+    // `errors` keys are looked up by the code the server sends (error-text.ts builds `errors:<code>` at run time), so no
+    // source file names them: they cannot be reported as unused.
+    if (ns === 'errors') continue;
     for (const key of [...shape.plain.keys(), ...shape.groups.keys()])
       if (!used.has(`${ns}:${key}`)) unused.push(`${ns}:${key}`);
   }

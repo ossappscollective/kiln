@@ -120,7 +120,11 @@ export function connectProblem(
       return {
         field: 'repository',
         message: error.message,
-        hint: t('repositories:connect.forbiddenHint', { name, owner: target.owner, repo: target.repo }),
+        hint: t('repositories:connect.forbiddenHint', {
+          name,
+          owner: target.owner,
+          repo: target.repo,
+        }),
       };
     case 'github_not_found':
       return {
@@ -377,7 +381,10 @@ const usageCharacters = {
   plain: k('repositories:usage.characters'),
   withMax: k('repositories:usage.charactersMax'),
 };
-const usageBytes = { plain: k('repositories:usage.bytes'), withMax: k('repositories:usage.bytesMax') };
+const usageBytes = {
+  plain: k('repositories:usage.bytes'),
+  withMax: k('repositories:usage.bytesMax'),
+};
 
 export type FieldUsage = {
   count: number;
@@ -834,11 +841,9 @@ export function checkListingRoot(path: string): string | undefined {
   const text = normalizeRoot(path);
   if (text === '') return t('repositories:root.empty');
   if (text.length > 300) return t('repositories:root.tooLong');
-  if (text.startsWith('/'))
-    return t('repositories:root.leadingSlash');
+  if (text.startsWith('/')) return t('repositories:root.leadingSlash');
   // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are refused on purpose
-  if (/[\\\x00-\x1f\x7f]/.test(text))
-    return t('repositories:root.badChars');
+  if (/[\\\x00-\x1f\x7f]/.test(text)) return t('repositories:root.badChars');
   for (const segment of text.split('/')) {
     if (segment === '' || segment === '.' || segment === '..') {
       return t('repositories:root.badSegment');
@@ -989,7 +994,8 @@ export function checkLocalPathInput(
   if (/[\u0000-\u001f\u007f]/.test(path))
     return { ok: false, message: t('repositories:local.controlChars') };
   if (path === '') return { ok: false, message: t('repositories:local.pathEmpty') };
-  if (path.length > MAX_LOCAL_PATH_LENGTH) return { ok: false, message: t('repositories:local.pathTooLong') };
+  if (path.length > MAX_LOCAL_PATH_LENGTH)
+    return { ok: false, message: t('repositories:local.pathTooLong') };
   if (!/^(?:\/|[A-Za-z]:[\\/]|\\\\)/.test(path)) {
     return {
       ok: false,

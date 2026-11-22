@@ -4,7 +4,8 @@
  * its generated client, not recorded from a live account. The artifact addresses are fake and must never appear in anything the server returns.
  */
 
-export const ARTIFACT_URL = 'https://artifacts.example.invalid/builds/secret-signed-path/app.ipa?X-Signature=abc123';
+export const ARTIFACT_URL =
+  'https://artifacts.example.invalid/builds/secret-signed-path/app.ipa?X-Signature=abc123';
 
 export const easBuild = (overrides: Record<string, unknown> = {}) => ({
   id: 'b0000000-0000-4000-8000-000000000001',

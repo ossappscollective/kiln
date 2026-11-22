@@ -6,7 +6,12 @@ the web side is [i18n.md](i18n.md); translators read [translating.md](translatin
 ## Error responses
 
 ```json
-{ "error": "rate_limited", "message": "Google Play rate limit reached. Retry in 30 seconds.", "code": "store.rateLimited", "params": { "store": "Google Play", "count": 30 } }
+{
+  "error": "rate_limited",
+  "message": "Google Play rate limit reached. Retry in 30 seconds.",
+  "code": "store.rateLimited",
+  "params": { "store": "Google Play", "count": 30 }
+}
 ```
 
 - `message` is English and always present. `code` and `params` are optional: an error without them is shown in English.

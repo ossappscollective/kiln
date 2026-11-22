@@ -43,10 +43,14 @@ const expoPlatformOf: Readonly<Record<Platform, ExpoPlatformKey | null>> = {
   macos: null,
   android: 'android',
 };
-const platformOfExpo: Readonly<Record<ExpoPlatformKey, Platform>> = { ios: 'ios', android: 'android' };
+const platformOfExpo: Readonly<Record<ExpoPlatformKey, Platform>> = {
+  ios: 'ios',
+  android: 'android',
+};
 
 /** The Expo platform an app record reads, or null when EAS does not build for it. */
-export const easPlatformOf = (platform: Platform): ExpoPlatformKey | null => expoPlatformOf[platform];
+export const easPlatformOf = (platform: Platform): ExpoPlatformKey | null =>
+  expoPlatformOf[platform];
 
 /** Statuses of a build or a submission that has not ended: it is worth reading again soon. */
 export const ACTIVE_BUILD_STATUSES = ['new', 'in_queue', 'in_progress', 'pending_cancel'] as const;
@@ -140,7 +144,12 @@ export type EasStatusSync = {
 
 export type EasStatusView = {
   /** Null when the app record is not linked to an Expo project. */
-  project: { fullName: string; projectId: string; url: string; credentialAvailable: boolean } | null;
+  project: {
+    fullName: string;
+    projectId: string;
+    url: string;
+    credentialAvailable: boolean;
+  } | null;
   /** False for an app record EAS does not build for (macOS). */
   supported: boolean;
   builds: EasBuildView[];
@@ -223,7 +232,11 @@ function submissionView(
     active: (ACTIVE_SUBMISSION_STATUSES as readonly string[]).includes(status),
     buildId,
     build: built
-      ? { appVersion: built.appVersion, buildNumber: built.buildNumber, buildNumberLabel: built.buildNumberLabel }
+      ? {
+          appVersion: built.appVersion,
+          buildNumber: built.buildNumber,
+          buildNumberLabel: built.buildNumberLabel,
+        }
       : null,
     store: { id: meta.store, name: meta.consoleName },
     identifier: nullableString(row.target_identifier),
@@ -254,7 +267,14 @@ export async function getEasStatus(
   const link = await getExpoLink(sql, workspaceId, app.id);
   const supported = easPlatformOf(app.platform) !== null;
   if (!link) {
-    return { project: null, supported, builds: [], submissions: [], active: false, sync: { ...NO_SYNC } };
+    return {
+      project: null,
+      supported,
+      builds: [],
+      submissions: [],
+      active: false,
+      sync: { ...NO_SYNC },
+    };
   }
   const buildRows = await sql.query(
     'SELECT * FROM eas_builds WHERE app_id = ? AND workspace_id = ? ORDER BY COALESCE(created_at, 0) DESC, build_id',
@@ -264,10 +284,10 @@ export async function getEasStatus(
     'SELECT * FROM eas_submissions WHERE app_id = ? AND workspace_id = ? ORDER BY COALESCE(created_at, 0) DESC, submission_id',
     [app.id, workspaceId],
   );
-  const [state] = await sql.query('SELECT * FROM eas_status_sync WHERE app_id = ? AND workspace_id = ?', [
-    app.id,
-    workspaceId,
-  ]);
+  const [state] = await sql.query(
+    'SELECT * FROM eas_status_sync WHERE app_id = ? AND workspace_id = ?',
+    [app.id, workspaceId],
+  );
   const builds = buildRows.flatMap((r) => buildView(r, link) ?? []);
   const byId = new Map(builds.map((b) => [b.id, b]));
   const submissions = submissionRows.flatMap((r) => submissionView(r, link, byId) ?? []);
@@ -381,9 +401,17 @@ const insertSubmission = (
   );
 
 /** Notes a failed read: the attempt, a short code, the streak and the time before which the scheduler does not try again. */
-async function recordFailure(ctx: EasStatusContext, workspaceId: string, appId: string, code: string): Promise<void> {
+async function recordFailure(
+  ctx: EasStatusContext,
+  workspaceId: string,
+  appId: string,
+  code: string,
+): Promise<void> {
   const at = ctx.now();
-  const [before] = await ctx.db.query('SELECT consecutive_failures FROM eas_status_sync WHERE app_id = ?', [appId]);
+  const [before] = await ctx.db.query(
+    'SELECT consecutive_failures FROM eas_status_sync WHERE app_id = ?',
+    [appId],
+  );
   const failures = Number(before?.consecutive_failures ?? 0) + 1;
   await ctx.db.execute(
     `INSERT INTO eas_status_sync (app_id, workspace_id, last_attempt_at, last_error, consecutive_failures, backoff_until)
@@ -434,11 +462,18 @@ export async function refreshEasStatus(
       coded('eas.credentialDeleted'),
     );
   }
-  const opened = await expoClientFor(ctx.db, ctx.masterKey, input.workspaceId, link.credentialId, ctx.deps, {
-    actor,
-    purpose: EAS_STATUS_PURPOSE,
-    now: ctx.now(),
-  });
+  const opened = await expoClientFor(
+    ctx.db,
+    ctx.masterKey,
+    input.workspaceId,
+    link.credentialId,
+    ctx.deps,
+    {
+      actor,
+      purpose: EAS_STATUS_PURPOSE,
+      now: ctx.now(),
+    },
+  );
   if (!opened.ok) {
     await recordFailure(ctx, input.workspaceId, app.id, opened.body.error).catch(() => undefined);
     return opened;
@@ -455,10 +490,17 @@ export async function refreshEasStatus(
   }
   const at = ctx.now();
   await ctx.db.transaction(async (tx) => {
-    await tx.execute('DELETE FROM eas_builds WHERE app_id = ? AND workspace_id = ?', [app.id, input.workspaceId]);
-    await tx.execute('DELETE FROM eas_submissions WHERE app_id = ? AND workspace_id = ?', [app.id, input.workspaceId]);
+    await tx.execute('DELETE FROM eas_builds WHERE app_id = ? AND workspace_id = ?', [
+      app.id,
+      input.workspaceId,
+    ]);
+    await tx.execute('DELETE FROM eas_submissions WHERE app_id = ? AND workspace_id = ?', [
+      app.id,
+      input.workspaceId,
+    ]);
     for (const b of builds.items) {
-      if (b.platform !== null) await insertBuild(tx, input.workspaceId, app.id, { ...b, platform: b.platform }, at);
+      if (b.platform !== null)
+        await insertBuild(tx, input.workspaceId, app.id, { ...b, platform: b.platform }, at);
     }
     for (const s of submissions.items) {
       if (s.platform !== null) {

@@ -71,17 +71,17 @@ server's.
 
 **Write tools** (change only this workspace's own data; the token must name the action):
 
-| Tool               | Action           | Also needs                      |
-| ------------------ | ---------------- | ------------------------------- |
-| `triage_review`    | `reviews.triage` | nothing                         |
+| Tool               | Action           | Also needs                       |
+| ------------------ | ---------------- | -------------------------------- |
+| `triage_review`    | `reviews.triage` | nothing                          |
 | `save_reply_draft` | `reviews.triage` | `KILN_REVIEW_REPLY_ENABLED=true` |
 
 A reply is only ever saved as a **draft**; a person reviews and sends it in the web app. Nothing is sent to a store from here.
 
 **Preview tools** (show what a store action would do; never apply it). The token must name the action; the server switch must be on:
 
-| Tool                     | Action             | Server switch                       | Confirm at      |
-| ------------------------ | ------------------ | ----------------------------------- | --------------- |
+| Tool                     | Action             | Server switch                        | Confirm at      |
+| ------------------------ | ------------------ | ------------------------------------ | --------------- |
 | `preview_rollout`        | `releases.rollout` | `KILN_STORE_ROLLOUT_ENABLED`         | Releases        |
 | `preview_store_release`  | `store.release`    | `KILN_STORE_RELEASE_ENABLED`         | Releases        |
 | `preview_store_submit`   | `store.submit`     | `KILN_STORE_SUBMIT_ENABLED`          | Pending changes |

@@ -14,7 +14,9 @@ const finding = z.object({
   scope: z.enum(['file', 'cli', 'build', 'submit', 'app']),
   message: z
     .string()
-    .describe('One sentence. Names keys and profiles, never a value of `env` or of an unknown key.'),
+    .describe(
+      'One sentence. Names keys and profiles, never a value of `env` or of an unknown key.',
+    ),
   profile: z.string().optional(),
   key: z.string().optional().describe('The key concerned. Never a value.'),
 });
@@ -44,9 +46,13 @@ const buildProfile = target.extend({
   credentialsSource: z.string().nullable(),
   releaseChannel: z.string().nullable().describe('The deprecated Classic Updates field.'),
   envNames: z.array(z.string()).describe('Names of `env` variables. Never their values.'),
-  ios: target.nullable().describe('The values for iOS when a profile of the chain has an `ios` section.'),
+  ios: target
+    .nullable()
+    .describe('The values for iOS when a profile of the chain has an `ios` section.'),
   android: target.nullable(),
-  unknownKeys: z.array(z.string()).describe('Keys the Expo reference does not list. Values are not kept.'),
+  unknownKeys: z
+    .array(z.string())
+    .describe('Keys the Expo reference does not list. Values are not kept.'),
 });
 
 const submitIos = z.object({
@@ -60,7 +66,9 @@ const submitIos = z.object({
   ascApiKeyPath: z.string().nullable().describe('A path as written, never the key.'),
   ascApiKeyId: z.string().nullable(),
   ascApiKeyIssuerId: z.string().nullable(),
-  hasAppleId: z.boolean().describe('Whether `appleId` is set. The Apple ID itself is not returned.'),
+  hasAppleId: z
+    .boolean()
+    .describe('Whether `appleId` is set. The Apple ID itself is not returned.'),
   metadataPath: z.string().nullable(),
   groups: z.array(z.string()),
 });
@@ -107,7 +115,10 @@ const runtimeVersion = z
 
 const expoApp = z.object({
   path: z.string().nullable().describe('`app.config.json` or `app.json`.'),
-  dynamicPath: z.string().nullable().describe('A dynamic config (`app.config.js`, ...): never run.'),
+  dynamicPath: z
+    .string()
+    .nullable()
+    .describe('A dynamic config (`app.config.js`, ...): never run.'),
   unreadable: z.boolean(),
   version: z.string().nullable(),
   runtimeVersion,
@@ -123,7 +134,9 @@ const expoApp = z.object({
   updatesConfigured: z
     .boolean()
     .nullable()
-    .describe('Whether expo-updates is configured as far as the JSON says. Null when it cannot be told.'),
+    .describe(
+      'Whether expo-updates is configured as far as the JSON says. Null when it cannot be told.',
+    ),
 });
 
 const view = z.object({
@@ -135,7 +148,9 @@ const view = z.object({
   commit: z
     .string()
     .nullable()
-    .describe('The commit that was read. Null when it could not be named and the branch was read as it was.'),
+    .describe(
+      'The commit that was read. Null when it could not be named and the branch was read as it was.',
+    ),
   readAt: timestamp,
   found: z.boolean(),
   reason: z
@@ -145,9 +160,13 @@ const view = z.object({
     })
     .nullable()
     .describe('Why there is no model (`found` is false). Not an error.'),
-  nested: z.array(z.string()).describe('`eas.json` files in subfolders. Only the repository root is read.'),
+  nested: z
+    .array(z.string())
+    .describe('`eas.json` files in subfolders. Only the repository root is read.'),
   path: z.string().nullable(),
-  config: config.nullable().describe('Null when there is no `eas.json` or it is not valid JSON (see `findings`).'),
+  config: config
+    .nullable()
+    .describe('Null when there is no `eas.json` or it is not valid JSON (see `findings`).'),
   expoApp: expoApp.nullable(),
   findings: z.array(finding),
 });

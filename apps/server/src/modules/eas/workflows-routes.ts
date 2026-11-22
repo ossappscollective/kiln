@@ -73,40 +73,59 @@ export function easWorkflowRoutes(ctx: EasWorkflowContext) {
     c.set('role', role);
     return next();
   };
-  const appExists = async (c: Context<AppEnv>) => (await getApp(db, ws(c), param(c, 'appId'))) !== undefined;
+  const appExists = async (c: Context<AppEnv>) =>
+    (await getApp(db, ws(c), param(c, 'appId'))) !== undefined;
 
-  routes.post('/:workspaceId/apps/:appId/expo/workflows/dispatches', needs('ci.dispatch'), async (c) => {
-    const body = await parseBody(c, dispatchEasBody);
-    if (!body.ok) return body.response;
-    if (!(await appExists(c))) return c.json({ error: 'not_found' }, 404);
-    const done = await dispatchEasWorkflow(
-      ctx,
-      { workspaceId: ws(c), appId: param(c, 'appId'), ...body.data },
-      actor(c),
-    );
-    return done.ok ? c.json({ dispatched: true, run: done.run }, 202) : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:appId/expo/workflows/dispatches',
+    needs('ci.dispatch'),
+    async (c) => {
+      const body = await parseBody(c, dispatchEasBody);
+      if (!body.ok) return body.response;
+      if (!(await appExists(c))) return c.json({ error: 'not_found' }, 404);
+      const done = await dispatchEasWorkflow(
+        ctx,
+        { workspaceId: ws(c), appId: param(c, 'appId'), ...body.data },
+        actor(c),
+      );
+      return done.ok ? c.json({ dispatched: true, run: done.run }, 202) : respond(c, done);
+    },
+  );
 
   routes.get('/:workspaceId/apps/:appId/expo/workflows/runs', needs('apps.read'), async (c) => {
     if (!(await appExists(c))) return c.json({ error: 'not_found' }, 404);
     return c.json({ runs: await listEasRuns(ctx, ws(c), param(c, 'appId')) });
   });
 
-  routes.get('/:workspaceId/apps/:appId/expo/workflows/runs/:runId', needs('apps.read'), async (c) => {
-    const appId = param(c, 'appId');
-    const runId = param(c, 'runId');
-    if (!(await appExists(c))) return c.json({ error: 'not_found' }, 404);
-    if (!isExpoRunId(runId)) {
-      return c.json({ error: 'invalid_request', issues: [{ path: 'runId', message: 'A run id is a UUID.' }] }, 400);
-    }
-    const wantsRefresh = c.req.query('refresh') === 'true';
-    if (wantsRefresh && !can(c.get('role'), 'apps.sync')) return c.json({ error: 'forbidden' }, 403);
-    const stored = await getEasRun(ctx, ws(c), appId, runId.toLowerCase());
-    if (!stored) return c.json({ error: 'not_found' }, 404);
-    if (!wantsRefresh) return c.json({ run: stored, jobs: [], refreshed: false });
-    const done = await refreshEasRun(ctx, { workspaceId: ws(c), appId, runId: stored.id }, actor(c));
-    return done.ok ? c.json({ run: done.run, jobs: done.jobs, refreshed: true }) : respond(c, done);
-  });
+  routes.get(
+    '/:workspaceId/apps/:appId/expo/workflows/runs/:runId',
+    needs('apps.read'),
+    async (c) => {
+      const appId = param(c, 'appId');
+      const runId = param(c, 'runId');
+      if (!(await appExists(c))) return c.json({ error: 'not_found' }, 404);
+      if (!isExpoRunId(runId)) {
+        return c.json(
+          { error: 'invalid_request', issues: [{ path: 'runId', message: 'A run id is a UUID.' }] },
+          400,
+        );
+      }
+      const wantsRefresh = c.req.query('refresh') === 'true';
+      if (wantsRefresh && !can(c.get('role'), 'apps.sync'))
+        return c.json({ error: 'forbidden' }, 403);
+      const stored = await getEasRun(ctx, ws(c), appId, runId.toLowerCase());
+      if (!stored) return c.json({ error: 'not_found' }, 404);
+      if (!wantsRefresh) return c.json({ run: stored, jobs: [], refreshed: false });
+      const done = await refreshEasRun(
+        ctx,
+        { workspaceId: ws(c), appId, runId: stored.id },
+        actor(c),
+      );
+      return done.ok
+        ? c.json({ run: done.run, jobs: done.jobs, refreshed: true })
+        : respond(c, done);
+    },
+  );
 
   return routes;
 }

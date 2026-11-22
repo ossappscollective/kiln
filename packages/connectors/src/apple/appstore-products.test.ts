@@ -73,8 +73,10 @@ test('the price in force: not a future one, manual before automatic, the latest 
     ['3'],
   );
   assert.equal(
-    currentApplePrices([row({ amount: '1', manual: true }), row({ amount: '2', startMs: now - 5 })], now)[0]
-      ?.amount,
+    currentApplePrices(
+      [row({ amount: '1', manual: true }), row({ amount: '2', startMs: now - 5 })],
+      now,
+    )[0]?.amount,
     '1',
   );
   assert.deepEqual(currentApplePrices([row({ startMs: now + 5 })], now), []);
@@ -142,8 +144,13 @@ test('listProducts reads in-app purchases and subscriptions, with prices, texts 
   assert.ok(sub);
   assert.equal(sub.group, 'Premium');
   assert.equal(sub.period, 'ONE_MONTH');
-  assert.deepEqual(sub.prices, [{ territory: 'USA', currency: 'USD', amount: '499', planId: 'MONTHLY' }]);
-  assert.deepEqual(sub.availability, { territories: ['FRA', 'USA'], availableInNewTerritories: false });
+  assert.deepEqual(sub.prices, [
+    { territory: 'USA', currency: 'USD', amount: '499', planId: 'MONTHLY' },
+  ]);
+  assert.deepEqual(sub.availability, {
+    territories: ['FRA', 'USA'],
+    availableInNewTerritories: false,
+  });
   assert.equal(sub.localizations.length, 2);
 
   const pro = result.products[2];
@@ -173,7 +180,10 @@ test('the paging link of a list is followed, but never to another host', async (
     .on({
       method: 'GET',
       match: new RegExp(`^${pf.IAPS_PATH}\\?cursor=abc`),
-      json: { data: [pf.appleIap('iap-9', 'extra_pack', 'CONSUMABLE', 'APPROVED', [])], included: [] },
+      json: {
+        data: [pf.appleIap('iap-9', 'extra_pack', 'CONSUMABLE', 'APPROVED', [])],
+        included: [],
+      },
     })
     .on({ method: 'GET', match: /^\/v2\/inAppPurchases\/iap-9\/.*/, status: 404, json: {} });
   const result = await connector(fake).listProducts();
@@ -225,15 +235,21 @@ test('a refused key is a clear error that holds no secret; a rate limit carries 
     headers: { 'retry-after': '3000' },
     json: {},
   });
-  await assert.rejects(connector(limited, { maxRateLimitRetries: 0 }).listProducts(), (error: unknown) => {
-    assert.ok(error instanceof StoreRateLimitError);
-    return true;
-  });
+  await assert.rejects(
+    connector(limited, { maxRateLimitRetries: 0 }).listProducts(),
+    (error: unknown) => {
+      assert.ok(error instanceof StoreRateLimitError);
+      return true;
+    },
+  );
 });
 
 test('a failure in the middle fails the read: a half snapshot never replaces a good one', async () => {
   const fake = pf.appleProductsFake();
-  fake.clear('GET', /^\/v1\/inAppPurchasePriceSchedules\/ps-1\/manualPrices\?/ as unknown as string);
+  fake.clear(
+    'GET',
+    /^\/v1\/inAppPurchasePriceSchedules\/ps-1\/manualPrices\?/ as unknown as string,
+  );
   fake.on({
     method: 'GET',
     match: /^\/v1\/inAppPurchasePriceSchedules\/ps-1\/manualPrices\?/,

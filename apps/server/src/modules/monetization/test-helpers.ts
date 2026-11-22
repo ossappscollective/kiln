@@ -121,9 +121,7 @@ export class FakeProductsStore implements StoreProductsConnector, StoreProductWr
   constructor(platform: Platform) {
     this.store = platform === 'android' ? 'googleplay' : 'appstoreconnect';
     this.products =
-      platform === 'android'
-        ? [playSubscription()]
-        : [iapProduct(), appleSubscription()];
+      platform === 'android' ? [playSubscription()] : [iapProduct(), appleSubscription()];
   }
 
   async listProducts(): Promise<ListProductsResult> {
@@ -266,7 +264,8 @@ export async function bootMonetization(
       actorType: String(r.actor_type),
       detail: JSON.parse(String(r.detail ?? '{}')) as Record<string, unknown>,
     }));
-  const claims = async () => db.query('SELECT app_id, product_id, status FROM store_product_claims');
+  const claims = async () =>
+    db.query('SELECT app_id, product_id, status FROM store_product_claims');
   return {
     ...t,
     stores,

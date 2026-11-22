@@ -164,8 +164,7 @@ export function marketsLead(input: {
     terms: t('aso:lead.keywordsCount', { count: terms }),
     countries: t('aso:lead.markets.countries', { count: countries }),
   });
-  const hint =
-    countries < 2 ? t('aso:lead.markets.hintOne') : t('aso:lead.markets.hintMany');
+  const hint = countries < 2 ? t('aso:lead.markets.hintOne') : t('aso:lead.markets.hintMany');
   return unranked > 0
     ? { headline: t('aso:lead.markets.unranked', { head, count: unranked }), hint, tone: 'info' }
     : { headline: head, hint, tone: 'neutral' };

@@ -181,7 +181,11 @@ export function webhookSummary(list: readonly WebhookEndpoint[]): WebhookSummary
     list.length === 0
       ? t('app:settings.webhooks.none')
       : failing > 0
-        ? t('app:settings.webhooks.hearingFailing', { active: active.length, count: list.length, failing })
+        ? t('app:settings.webhooks.hearingFailing', {
+            active: active.length,
+            count: list.length,
+            failing,
+          })
         : t('app:settings.webhooks.hearing', { active: active.length, count: list.length });
   return { total: list.length, hearing: active.length, failing, text };
 }

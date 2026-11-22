@@ -256,7 +256,9 @@ export function periodLine(
   const period = periodText(view.from, view.to);
   if (view.terms.length < view.termCount) {
     const params = { shown: formatCountExact(view.terms.length), count: view.termCount, period };
-    return country ? t('aso:terms.line.topIn', { ...params, country }) : t('aso:terms.line.top', params);
+    return country
+      ? t('aso:terms.line.topIn', { ...params, country })
+      : t('aso:terms.line.top', params);
   }
   return country
     ? t('aso:terms.line.allIn', { count: view.termCount, country, period })
@@ -276,9 +278,7 @@ export function totalsLine(view: Pick<SearchTermsResponse, 'totals' | 'other'>):
   const all = one(view.totals);
   if (all === '') return null;
   const other = view.other ? one(view.other) : '';
-  return other === ''
-    ? t('aso:terms.totals', { all })
-    : t('aso:terms.totalsOther', { all, other });
+  return other === '' ? t('aso:terms.totals', { all }) : t('aso:terms.totalsOther', { all, other });
 }
 
 /** The day of a stored time, in UTC, for the freshness line. */
@@ -429,7 +429,8 @@ export function previewFacts(plan: SearchTermsPlan): PreviewFacts {
   const rows = [
     t('aso:terms.preview.rowsRead', { count: s.rowsRead, used: formatCountExact(s.rowsUsed) }),
   ];
-  if (s.rowsOther > 0) rows.push(t('aso:terms.preview.rowsOther', { count: formatCountExact(s.rowsOther) }));
+  if (s.rowsOther > 0)
+    rows.push(t('aso:terms.preview.rowsOther', { count: formatCountExact(s.rowsOther) }));
   if (s.rowsFiltered > 0)
     rows.push(t('aso:terms.preview.rowsFiltered', { count: formatCountExact(s.rowsFiltered) }));
   if (s.rowsUnreadable > 0)

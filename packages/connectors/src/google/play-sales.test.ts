@@ -83,7 +83,12 @@ const SALES = ax.csv([
 ]);
 
 const find = (
-  points: { date: string; metric: string; value: number; dimension?: { type: string; value: string } }[],
+  points: {
+    date: string;
+    metric: string;
+    value: number;
+    dimension?: { type: string; value: string };
+  }[],
   date: string,
   metric: string,
   dim?: string,
@@ -126,7 +131,9 @@ test('mapPlaySalesTable: one package out of the account, gross and refunds per c
   assert.equal(find(p, '2026-11-11', 'sales_orders'), 2);
   assert.equal(find(p, '2026-11-12', 'sales_orders'), undefined);
   // Per product: the currency is part of the key of money.
-  assert.ok(Math.abs((find(p, '2026-11-10', 'sales_gross', 'product:EUR:coins_100') ?? 0) - 4.74) < 1e-9);
+  assert.ok(
+    Math.abs((find(p, '2026-11-10', 'sales_gross', 'product:EUR:coins_100') ?? 0) - 4.74) < 1e-9,
+  );
   assert.equal(find(p, '2026-11-10', 'sales_orders', 'product:coins_100'), 2);
   assert.equal(find(p, '2026-11-11', 'sales_refunds', 'product:USD:pro_monthly'), 4.99);
   // The other app, the chargeback and the unreadable date are not in it.
@@ -139,15 +146,28 @@ test('mapPlaySalesTable: one package out of the account, gross and refunds per c
 
 test('mapPlaySalesTable: a missing column is refused; the older Product ID column and a missing Charged Amount are tolerated', () => {
   assert.throws(
-    () => mapPlaySalesTable(parseTable('Order Charged Date,Financial Status\n2026-11-10,Charged\n'), { packageName: PKG }),
+    () =>
+      mapPlaySalesTable(parseTable('Order Charged Date,Financial Status\n2026-11-10,Charged\n'), {
+        packageName: PKG,
+      }),
     (e: unknown) => e instanceof AnalyticsError && e.code === 'missing_columns',
   );
   const old = ax.csv([
-    ['Order Charged Date', 'Financial Status', 'Product ID', 'SKU ID', 'Currency of Sale', 'Item Price', 'Taxes Collected'],
+    [
+      'Order Charged Date',
+      'Financial Status',
+      'Product ID',
+      'SKU ID',
+      'Currency of Sale',
+      'Item Price',
+      'Taxes Collected',
+    ],
     ['2026-11-10', 'Charged', PKG, 'a', 'EUR', '1.00', '0.19'],
   ]);
   const r = mapPlaySalesTable(parseTable(old), { packageName: PKG });
-  assert.ok(Math.abs((find(r.points, '2026-11-10', 'sales_gross', 'currency:EUR') ?? 0) - 1.19) < 1e-9);
+  assert.ok(
+    Math.abs((find(r.points, '2026-11-10', 'sales_gross', 'currency:EUR') ?? 0) - 1.19) < 1e-9,
+  );
 });
 
 function bucket(files: Record<string, Uint8Array | string>, status?: number) {
@@ -156,15 +176,24 @@ function bucket(files: Record<string, Uint8Array | string>, status?: number) {
   fake.on('GET', new RegExp(`/storage/v1/b/${ax.BUCKET}/o\\?`), (_n, call) => {
     if (status) return { status, json: { error: { message: 'no' } } };
     const prefix = call.url.searchParams.get('prefix') ?? '';
-    return { json: { items: Object.keys(files).filter((n) => n.startsWith(prefix)).map((name) => ({ name })) } };
+    return {
+      json: {
+        items: Object.keys(files)
+          .filter((n) => n.startsWith(prefix))
+          .map((name) => ({ name })),
+      },
+    };
   });
   fake.on(
     'GET',
-    (url) => url.pathname.startsWith(`/storage/v1/b/${ax.BUCKET}/o/`) && url.searchParams.get('alt') === 'media',
+    (url) =>
+      url.pathname.startsWith(`/storage/v1/b/${ax.BUCKET}/o/`) &&
+      url.searchParams.get('alt') === 'media',
     (_n, call) => {
       const name = decodeURIComponent(call.url.pathname.split('/o/')[1] ?? '');
       const file = files[name];
-      if (file === undefined) return { status: 404, json: { error: { message: 'No such object' } } };
+      if (file === undefined)
+        return { status: 404, json: { error: { message: 'No such object' } } };
       return { bytes: typeof file === 'string' ? new TextEncoder().encode(file) : file };
     },
   );
@@ -189,7 +218,8 @@ test('readMonth: the zip of the month (UTF-16 inside), the devstorage scope, onl
   assert.equal(r.file, FILE);
   assert.equal(find(r.points, '2026-11-10', 'sales_orders'), 3);
   assert.equal(r.stats.rowsUsed, 7);
-  const scope = fx.decodeJwt(new URLSearchParams(fake.calls[0]?.body ?? '').get('assertion') ?? '').payload.scope;
+  const scope = fx.decodeJwt(new URLSearchParams(fake.calls[0]?.body ?? '').get('assertion') ?? '')
+    .payload.scope;
   assert.equal(scope, DEVSTORAGE_READ_ONLY_SCOPE);
   assert.ok(fake.calls.every((c) => !c.url.pathname.includes('earnings')));
 });
@@ -218,12 +248,16 @@ test('readMonth: a refused sales folder is play_sales_forbidden (the financial p
 });
 
 test('readMonth: a broken zip and a table without the sales columns are fixed codes', async () => {
-  const broken = bucket({ [FILE]: zip([{ name: 'a.csv', data: new TextEncoder().encode(SALES) }]).subarray(0, 40) });
+  const broken = bucket({
+    [FILE]: zip([{ name: 'a.csv', data: new TextEncoder().encode(SALES) }]).subarray(0, 40),
+  });
   await assert.rejects(
     () => broken.connector.readMonth(MONTH),
     (e: unknown) => e instanceof AnalyticsError && e.code === 'bad_zip',
   );
-  const wrong = bucket({ [FILE]: zip([{ name: 'a.csv', data: new TextEncoder().encode('A,B\n1,2\n') }]) });
+  const wrong = bucket({
+    [FILE]: zip([{ name: 'a.csv', data: new TextEncoder().encode('A,B\n1,2\n') }]),
+  });
   await assert.rejects(
     () => wrong.connector.readMonth(MONTH),
     (e: unknown) => e instanceof AnalyticsError && e.code === 'missing_columns',

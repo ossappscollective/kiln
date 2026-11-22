@@ -127,7 +127,10 @@ test('revenuecat: one secret API key, stored as the plain string, trimmed, no sp
   const secret = buildSecret('revenuecat', { apiKey: '  sk_abc123  ' });
   assert.equal(secret, 'sk_abc123');
   assert.equal(checkSecret('revenuecat', secret), undefined);
-  assert.match(checkSecret('revenuecat', buildSecret('revenuecat', { apiKey: ' ' })) ?? '', /Enter the secret API key/);
+  assert.match(
+    checkSecret('revenuecat', buildSecret('revenuecat', { apiKey: ' ' })) ?? '',
+    /Enter the secret API key/,
+  );
   assert.match(checkSecret('revenuecat', 'sk_a b') ?? '', /no spaces/);
   assert.equal(isCredentialKind('revenuecat'), true);
   assert.ok(credentialKindInfo.revenuecat.fields.every((f) => f.secret === true));

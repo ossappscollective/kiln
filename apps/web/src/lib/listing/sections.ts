@@ -109,7 +109,9 @@ export function sectionsSummary(sections: readonly SectionDrift[] | undefined): 
   const differ = list.filter((s) => s.compare.status === 'differs').length;
   if (read === 0) return t('listing:sections.summary.notRead');
   const base = t('listing:sections.summary.read', { read, total: list.length });
-  return differ > 0 ? formatList([base, t('listing:sections.summary.differ', { count: differ })], { type: 'unit' }) : base;
+  return differ > 0
+    ? formatList([base, t('listing:sections.summary.differ', { count: differ })], { type: 'unit' })
+    : base;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -141,7 +143,8 @@ export function ageRatingLabel(rating: string | undefined): string | null {
 
 const answerText = (value: string | boolean | undefined): string | null => {
   if (value === undefined) return null;
-  if (typeof value === 'boolean') return value ? t('listing:sections.answer.yes') : t('listing:sections.answer.no');
+  if (typeof value === 'boolean')
+    return value ? t('listing:sections.answer.yes') : t('listing:sections.answer.no');
   return humanize(value);
 };
 
@@ -251,7 +254,8 @@ export function ageRatingRows(
 ): ValueRow[] {
   const rows: ValueRow[] = [];
   const label = ageRatingLabel(store?.rating);
-  if (label !== null) rows.push(row(t('listing:sections.row.rating'), label, null, false, store?.rating));
+  if (label !== null)
+    rows.push(row(t('listing:sections.row.rating'), label, null, false, store?.rating));
   const keys = [
     ...new Set([...Object.keys(store?.answers ?? {}), ...Object.keys(repo?.answers ?? {})]),
   ].sort();
@@ -489,8 +493,10 @@ export function mediaSummary(store: ListingMedia | undefined): string {
     ...Object.keys(store.graphics ?? {}),
   ]);
   const parts = [t('listing:sections.media.screenshots', { count: screenshots })];
-  if (store.previews !== undefined) parts.push(t('listing:sections.media.previews', { count: previews }));
-  if (store.graphics !== undefined) parts.push(t('listing:sections.media.graphics', { count: graphics }));
+  if (store.previews !== undefined)
+    parts.push(t('listing:sections.media.previews', { count: previews }));
+  if (store.graphics !== undefined)
+    parts.push(t('listing:sections.media.graphics', { count: graphics }));
   const text = t('listing:sections.media.summary', {
     parts: formatList(parts, { type: 'unit' }),
     count: locales.size,
@@ -519,7 +525,9 @@ export function releaseNoteRows(releaseNotes: ListingReleaseNotes | undefined): 
         entry.name !== undefined && entry.name !== track ? entry.name : null,
         entry.status ? humanize(entry.status) : null,
         entry.versionCodes.length > 0
-          ? t('listing:sections.notes.version', { codes: formatList(entry.versionCodes, { type: 'unit' }) })
+          ? t('listing:sections.notes.version', {
+              codes: formatList(entry.versionCodes, { type: 'unit' }),
+            })
           : null,
       ]
         .filter((x): x is string => x !== null)
@@ -547,11 +555,15 @@ export type ScheduleView = {
 export function intervalText(minutes: number): string {
   if (minutes > 0 && minutes % 1440 === 0) {
     const d = minutes / 1440;
-    return d === 1 ? t('listing:sections.schedule.everyDay') : t('listing:sections.schedule.everyDays', { count: d });
+    return d === 1
+      ? t('listing:sections.schedule.everyDay')
+      : t('listing:sections.schedule.everyDays', { count: d });
   }
   if (minutes > 0 && minutes % 60 === 0) {
     const h = minutes / 60;
-    return h === 1 ? t('listing:sections.schedule.everyHour') : t('listing:sections.schedule.everyHours', { count: h });
+    return h === 1
+      ? t('listing:sections.schedule.everyHour')
+      : t('listing:sections.schedule.everyHours', { count: h });
   }
   return t('listing:sections.schedule.everyMinutes', { count: minutes });
 }

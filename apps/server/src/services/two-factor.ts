@@ -282,14 +282,7 @@ ${mailFooter(escapeHtml(t('email:code.footer')))}`,
   );
   return {
     subject: t('email:code.subject', { code }),
-    text: [
-      t(`email:code.${p}.text`, { code }),
-      '',
-      `${warning}`,
-      ignore,
-      '',
-      'Kiln',
-    ].join('\n'),
+    text: [t(`email:code.${p}.text`, { code }), '', `${warning}`, ignore, '', 'Kiln'].join('\n'),
     html,
   };
 };

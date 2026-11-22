@@ -68,7 +68,10 @@ for (const [name, selector, theme] of blocks) {
 
 test('theme.css keeps the dark tokens of the explicit and the system block identical', () => {
   const chosen = ruleBody(":root[data-theme='dark']");
-  const system = ruleBody(":root:not([data-theme='light'])", css.indexOf('prefers-color-scheme: dark'));
+  const system = ruleBody(
+    ":root:not([data-theme='light'])",
+    css.indexOf('prefers-color-scheme: dark'),
+  );
   const lines = (body: string) =>
     body
       .split('\n')
@@ -116,8 +119,11 @@ test('components and app.css hard-code no colors', () => {
     const rel = relative(here, file).replaceAll('\\', '/');
     if (rel === 'styles/theme.css' || allowedLiterals.includes(rel)) continue;
     // Only styles count: drop markup text such as "a colour such as #ffffff" by looking at CSS declarations and SVG attributes.
-    const text = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '');
-    const hits = text.match(/(?:^|[\s:(,'"])(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\))(?=[\s;,)'"]|$)/gm) ?? [];
+    const text = readFileSync(file, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/<!--[\s\S]*?-->/g, '');
+    const hits =
+      text.match(/(?:^|[\s:(,'"])(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\))(?=[\s;,)'"]|$)/gm) ?? [];
     const real = hits.filter((h) => !/colour such as/.test(h));
     if (real.length > 0 && !(rel === 'app.css' && real.every((h) => /#(000|fff)$/i.test(h.trim()))))
       offenders.push(`${rel}: ${real.map((h) => h.trim()).join(', ')}`);

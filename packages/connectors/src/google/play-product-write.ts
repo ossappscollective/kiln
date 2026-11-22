@@ -76,14 +76,18 @@ export class PlayProductWriteConnector implements StoreProductWriteConnector {
 
   /** The regions version to send: the product's own, else the one Play reports for a price conversion. */
   async #regionsVersion(resource: Json): Promise<string> {
-    const own = isRecord(resource.regionsVersion) ? text(resource.regionsVersion.version) : undefined;
+    const own = isRecord(resource.regionsVersion)
+      ? text(resource.regionsVersion.version)
+      : undefined;
     if (own) return own;
     const converted = await this.#api.postRead(
       this.#api.url('/pricing:convertRegionPrices'),
       { price: { currencyCode: 'USD', units: '1', nanos: 0 } },
       'reading the current regions version',
     );
-    const version = isRecord(converted.regionVersion) ? text(converted.regionVersion.version) : undefined;
+    const version = isRecord(converted.regionVersion)
+      ? text(converted.regionVersion.version)
+      : undefined;
     if (!version) {
       throw new StoreError(
         'googleplay',
@@ -113,7 +117,11 @@ export class PlayProductWriteConnector implements StoreProductWriteConnector {
     const id = this.#id(input.product);
     const path = subscription ? `/subscriptions/${enc(id)}` : `/onetimeproducts/${enc(id)}`;
     const url = `${this.#api.url(path)}?updateMask=listings&regionsVersion.version=${enc(version)}`;
-    const result = await this.#api.patch(url, { listings: next }, 'changing the texts of a product');
+    const result = await this.#api.patch(
+      url,
+      { listings: next },
+      'changing the texts of a product',
+    );
     if (!result.ok) {
       throw new ProductOutcomeUnknownError('googleplay', result.message, result.status);
     }

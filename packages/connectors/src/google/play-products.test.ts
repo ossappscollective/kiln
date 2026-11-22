@@ -57,7 +57,9 @@ test('listings become localizations; one without a language is left out', () => 
 });
 
 test('a subscription: base plans, regional prices in minor units, availability of the active plans', () => {
-  const p = parsePlaySubscription(pf.playSubscription, [{ id: 'trial', planId: 'monthly', state: 'ACTIVE' }]);
+  const p = parsePlaySubscription(pf.playSubscription, [
+    { id: 'trial', planId: 'monthly', state: 'ACTIVE' },
+  ]);
   assert.ok(p);
   assert.equal(p.kind, 'subscription');
   assert.equal(p.state, 'active');
@@ -119,12 +121,23 @@ test('listProducts reads subscriptions, one-time products and offers, and only r
 test('pages are followed by their token, and a cap says so', async () => {
   const fake = new fx.FakeFetch()
     .on({ method: 'POST', match: '/token', json: fx.googleToken })
-    .on({ method: 'GET', match: `${pf.SUBS}?pageSize=1`, json: { subscriptions: [pf.playSubscription], nextPageToken: 'p2' } })
-    .on({ method: 'GET', match: `${pf.SUBS}?pageSize=1&pageToken=p2`, json: { subscriptions: [{ ...pf.playSubscription, productId: 'premium_yearly' }] } })
+    .on({
+      method: 'GET',
+      match: `${pf.SUBS}?pageSize=1`,
+      json: { subscriptions: [pf.playSubscription], nextPageToken: 'p2' },
+    })
+    .on({
+      method: 'GET',
+      match: `${pf.SUBS}?pageSize=1&pageToken=p2`,
+      json: { subscriptions: [{ ...pf.playSubscription, productId: 'premium_yearly' }] },
+    })
     .on({ method: 'GET', match: `${pf.ONE_TIME}?pageSize=1`, json: {} })
     .on({ method: 'GET', match: `${pf.OFFERS}?pageSize=1`, json: {} });
   const result = await connector(fake, { pageSize: 1 }).listProducts();
-  assert.deepEqual(result.products.map((p) => p.productId), ['premium_monthly', 'premium_yearly']);
+  assert.deepEqual(
+    result.products.map((p) => p.productId),
+    ['premium_monthly', 'premium_yearly'],
+  );
   const capped = await connector(fake, { pageSize: 1, maxPages: 1 }).listProducts();
   assert.equal(capped.complete, false);
   const few = await connector(pf.playProductsFake(), { maxProducts: 1 }).listProducts();
@@ -135,7 +148,12 @@ test('pages are followed by their token, and a cap says so', async () => {
 test('offers that cannot be read leave the products and add a warning; other failures fail', async () => {
   const fake = pf.playProductsFake();
   fake.clear('GET', `${pf.OFFERS}?pageSize=100`);
-  fake.on({ method: 'GET', match: `${pf.OFFERS}?pageSize=100`, status: 404, json: { error: { message: 'x' } } });
+  fake.on({
+    method: 'GET',
+    match: `${pf.OFFERS}?pageSize=100`,
+    status: 404,
+    json: { error: { message: 'x' } },
+  });
   const result = await connector(fake).listProducts();
   assert.equal(result.products.length, 3);
   assert.ok(result.warnings.some((w) => /offers/.test(w)));
@@ -153,7 +171,12 @@ test('offers that cannot be read leave the products and add a warning; other fai
 test('a refused service account is a clear error with no secret in it', async () => {
   const fake = new fx.FakeFetch()
     .on({ method: 'POST', match: '/token', json: fx.googleToken })
-    .on({ method: 'GET', match: `${pf.SUBS}?pageSize=100`, status: 403, json: { error: { code: 403, message: 'The caller does not have permission' } } });
+    .on({
+      method: 'GET',
+      match: `${pf.SUBS}?pageSize=100`,
+      status: 403,
+      json: { error: { code: 403, message: 'The caller does not have permission' } },
+    });
   await assert.rejects(connector(fake).listProducts(), (error: unknown) => {
     assertNoSecrets(error);
     assert.ok(error instanceof StoreError);
@@ -176,7 +199,10 @@ test('an empty answer to a list is an empty list; one that is not JSON costs onl
   const none = await connector(empty).listProducts();
   assert.equal(none.complete, true);
   assert.deepEqual(none.warnings, []);
-  assert.deepEqual(none.products.map((p) => p.productId), ['premium_monthly']);
+  assert.deepEqual(
+    none.products.map((p) => p.productId),
+    ['premium_monthly'],
+  );
 
   const html = pf.playProductsFake();
   html.clear('GET', `${pf.ONE_TIME}?pageSize=100`);
@@ -188,7 +214,10 @@ test('an empty answer to a list is an empty list; one that is not JSON costs onl
   });
   const partial = await connector(html).listProducts();
   assert.equal(partial.complete, false, 'nothing may be taken to be gone');
-  assert.deepEqual(partial.products.map((p) => p.productId), ['premium_monthly']);
+  assert.deepEqual(
+    partial.products.map((p) => p.productId),
+    ['premium_monthly'],
+  );
   assert.equal(partial.warnings.length, 1);
   assert.match(partial.warnings[0] ?? '', /one-time products could not be read.*\(text\/html\)/);
   assert.ok(!(partial.warnings[0] ?? '').includes('blocked'), 'the body is never quoted');

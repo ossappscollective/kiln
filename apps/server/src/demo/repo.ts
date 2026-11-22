@@ -186,10 +186,7 @@ export class DemoRepo extends BlobRepo {
     f('.github/workflows/release.yml', RELEASE_YML);
     f('.github/workflows/build-ios.yml', BUILD_IOS_YML);
     f('.github/workflows/build-android.yml', BUILD_ANDROID_YML);
-    f(
-      'README.md',
-      '# Demo Studio apps\n\nA made-up monorepo for the kiln demo.\n',
-    );
+    f('README.md', '# Demo Studio apps\n\nA made-up monorepo for the kiln demo.\n');
     for (const app of DEMO_APPS) this.#populateApp(app, f, b);
     for (const w of WORKFLOWS) this.ci.files.set(w.path, this.files.get(w.path) as string);
     this.#seedRuns();

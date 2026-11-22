@@ -25,10 +25,38 @@ export const project = (id = PROJECT_ID, name = 'MagicWeather') => ({
 });
 
 export const apps = {
-  ios: { object: 'app', id: IOS_APP_ID, name: 'Magic iOS', type: 'app_store', project_id: PROJECT_ID, app_store: { bundle_id: 'com.example.magic' } },
-  mac: { object: 'app', id: MAC_APP_ID, name: 'Magic Mac', type: 'mac_app_store', project_id: PROJECT_ID, mac_app_store: { bundle_id: 'com.example.magic.mac' } },
-  play: { object: 'app', id: PLAY_APP_ID, name: 'Magic Android', type: 'play_store', project_id: PROJECT_ID, play_store: { package_name: 'com.example.magic' } },
-  stripe: { object: 'app', id: STRIPE_APP_ID, name: 'Web', type: 'stripe', project_id: PROJECT_ID, stripe: { stripe_account_id: 'acct_1' } },
+  ios: {
+    object: 'app',
+    id: IOS_APP_ID,
+    name: 'Magic iOS',
+    type: 'app_store',
+    project_id: PROJECT_ID,
+    app_store: { bundle_id: 'com.example.magic' },
+  },
+  mac: {
+    object: 'app',
+    id: MAC_APP_ID,
+    name: 'Magic Mac',
+    type: 'mac_app_store',
+    project_id: PROJECT_ID,
+    mac_app_store: { bundle_id: 'com.example.magic.mac' },
+  },
+  play: {
+    object: 'app',
+    id: PLAY_APP_ID,
+    name: 'Magic Android',
+    type: 'play_store',
+    project_id: PROJECT_ID,
+    play_store: { package_name: 'com.example.magic' },
+  },
+  stripe: {
+    object: 'app',
+    id: STRIPE_APP_ID,
+    name: 'Web',
+    type: 'stripe',
+    project_id: PROJECT_ID,
+    stripe: { stripe_account_id: 'acct_1' },
+  },
 };
 
 export const product = (
@@ -49,7 +77,12 @@ export const product = (
   ...extra,
 });
 
-export const entitlement = (id: string, lookupKey: string, products: unknown[] | null, extra: Record<string, unknown> = {}) => ({
+export const entitlement = (
+  id: string,
+  lookupKey: string,
+  products: unknown[] | null,
+  extra: Record<string, unknown> = {},
+) => ({
   object: 'entitlement',
   id,
   project_id: PROJECT_ID,
@@ -60,7 +93,12 @@ export const entitlement = (id: string, lookupKey: string, products: unknown[] |
   ...extra,
 });
 
-export const packageOf = (id: string, lookupKey: string, position: number, products: unknown[] | null) => ({
+export const packageOf = (
+  id: string,
+  lookupKey: string,
+  position: number,
+  products: unknown[] | null,
+) => ({
   object: 'package',
   id,
   lookup_key: lookupKey,
@@ -69,10 +107,21 @@ export const packageOf = (id: string, lookupKey: string, position: number, produ
   products:
     products === null
       ? null
-      : list(products.map((p) => (p && typeof p === 'object' && 'product' in p ? p : { product: p, eligibility_criteria: 'all' }))),
+      : list(
+          products.map((p) =>
+            p && typeof p === 'object' && 'product' in p
+              ? p
+              : { product: p, eligibility_criteria: 'all' },
+          ),
+        ),
 });
 
-export const offering = (id: string, lookupKey: string, packages: unknown[] | null, extra: Record<string, unknown> = {}) => ({
+export const offering = (
+  id: string,
+  lookupKey: string,
+  packages: unknown[] | null,
+  extra: Record<string, unknown> = {},
+) => ({
   object: 'offering',
   id,
   project_id: PROJECT_ID,
@@ -84,7 +133,10 @@ export const offering = (id: string, lookupKey: string, packages: unknown[] | nu
   ...extra,
 });
 
-export const errorBody = (type: string, message = 'Secret detail: sk_FAKEkey0123456789abcdefghijklmnop for proj1ab2c3d4') => ({
+export const errorBody = (
+  type: string,
+  message = 'Secret detail: sk_FAKEkey0123456789abcdefghijklmnop for proj1ab2c3d4',
+) => ({
   type,
   message,
   param: null,
@@ -92,7 +144,12 @@ export const errorBody = (type: string, message = 'Secret detail: sk_FAKEkey0123
   doc_url: 'https://errors.rev.cat/x',
 });
 
-export type Answer = { status?: number; body?: unknown; text?: string; headers?: Record<string, string> };
+export type Answer = {
+  status?: number;
+  body?: unknown;
+  text?: string;
+  headers?: Record<string, string>;
+};
 export type Call = { url: string; path: string; query: URLSearchParams; init: RequestInit };
 
 /** A fetch that answers by a function of the call and remembers every request. */
@@ -100,7 +157,12 @@ export function fakeFetch(answer: (call: Call) => Answer | Error) {
   const calls: Call[] = [];
   const fetchFn: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
-    const call: Call = { url: String(input), path: url.pathname, query: url.searchParams, init: init ?? {} };
+    const call: Call = {
+      url: String(input),
+      path: url.pathname,
+      query: url.searchParams,
+      init: init ?? {},
+    };
     calls.push(call);
     const next = answer(call);
     if (next instanceof Error) throw next;

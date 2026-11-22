@@ -235,11 +235,15 @@ export const compareLabel = (status: AssetCompareStatus): string => t(COMPARE_LA
 /** One line for a set: "3 identical, 1 differs". Empty when there is nothing. */
 export function compareSummary(totals: AssetDiffSet['totals']): string {
   const parts: string[] = [];
-  if (totals.identical > 0) parts.push(t('assets:compare.total.identical', { count: totals.identical }));
-  if (totals.likely_same > 0) parts.push(t('assets:compare.total.likelySame', { count: totals.likely_same }));
+  if (totals.identical > 0)
+    parts.push(t('assets:compare.total.identical', { count: totals.identical }));
+  if (totals.likely_same > 0)
+    parts.push(t('assets:compare.total.likelySame', { count: totals.likely_same }));
   if (totals.differs > 0) parts.push(t('assets:compare.total.differs', { count: totals.differs }));
-  if (totals.only_repo > 0) parts.push(t('assets:compare.total.onlyRepo', { count: totals.only_repo }));
-  if (totals.only_store > 0) parts.push(t('assets:compare.total.onlyStore', { count: totals.only_store }));
+  if (totals.only_repo > 0)
+    parts.push(t('assets:compare.total.onlyRepo', { count: totals.only_repo }));
+  if (totals.only_store > 0)
+    parts.push(t('assets:compare.total.onlyStore', { count: totals.only_store }));
   return formatList(parts, { type: 'unit' });
 }
 
@@ -309,7 +313,8 @@ export function summarizePull(report: PullReport): Summary {
     details.push(t('assets:sync.pull.unverified', { count: report.unverified.length }));
   if (report.skipped.length > 0)
     details.push(t('assets:sync.pull.skipped', { count: report.skipped.length }));
-  if (report.left.length > 0) details.push(t('assets:sync.pull.left', { count: report.left.length }));
+  if (report.left.length > 0)
+    details.push(t('assets:sync.pull.left', { count: report.left.length }));
   for (const n of report.notes) details.push(n);
   if (report.changeSet === null) {
     return {

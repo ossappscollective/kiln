@@ -426,15 +426,18 @@ test('KILN_REMINDER_INTERVAL_MINUTES defaults to 15, 0 or blank is off-or-defaul
   const key = Buffer.alloc(32, 7).toString('base64');
   assert.equal(loadConfig({ KILN_MASTER_KEY: key }).reminderIntervalMinutes, 15);
   assert.equal(
-    loadConfig({ KILN_MASTER_KEY: key, KILN_REMINDER_INTERVAL_MINUTES: '' }).reminderIntervalMinutes,
+    loadConfig({ KILN_MASTER_KEY: key, KILN_REMINDER_INTERVAL_MINUTES: '' })
+      .reminderIntervalMinutes,
     15,
   );
   assert.equal(
-    loadConfig({ KILN_MASTER_KEY: key, KILN_REMINDER_INTERVAL_MINUTES: '0' }).reminderIntervalMinutes,
+    loadConfig({ KILN_MASTER_KEY: key, KILN_REMINDER_INTERVAL_MINUTES: '0' })
+      .reminderIntervalMinutes,
     0,
   );
   assert.equal(
-    loadConfig({ KILN_MASTER_KEY: key, KILN_REMINDER_INTERVAL_MINUTES: '5' }).reminderIntervalMinutes,
+    loadConfig({ KILN_MASTER_KEY: key, KILN_REMINDER_INTERVAL_MINUTES: '5' })
+      .reminderIntervalMinutes,
     5,
   );
   assert.equal(

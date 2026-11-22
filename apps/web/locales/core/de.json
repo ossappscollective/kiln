@@ -99,6 +99,7 @@
   "rollout.issue.afterPrevious": "Eine Stufe kann nicht vor der darüberliegenden Stufe geplant werden.",
   "rollout.issue.beforeDone": "Eine Stufe vor einer erledigten Stufe muss erledigt oder übersprungen sein.",
   "rollout.issue.dateTime": "Ein Datum mit Uhrzeit.",
+  "rollout.issue.dayOneBeforeCreated": "Tag 1 darf nicht vor der Erstellung des Plans liegen.",
   "rollout.issue.doneCannotRemove": "Die Stufe bei {{percent}} ist erledigt und kann nicht entfernt werden. Öffnen Sie sie zuerst wieder.",
   "rollout.issue.doneKeepsPercent": "Eine erledigte Stufe behält ihren Prozentwert. Öffnen Sie sie zuerst wieder.",
   "rollout.issue.higherThanBefore": "Jede Stufe muss höher sein als die vorherige ({{percent}}).",

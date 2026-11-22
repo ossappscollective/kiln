@@ -205,14 +205,13 @@ export function checkLibreUrl(raw: string): string | undefined {
   } catch {
     return t('settings:libreUrl.fullAddress');
   }
-  if (url.username || url.password)
-    return t('settings:libreUrl.noCredentials');
+  if (url.username || url.password) return t('settings:libreUrl.noCredentials');
   if (url.search || url.hash) return t('settings:libreUrl.noQuery');
   const loopback =
     url.hostname === 'localhost' || url.hostname === '[::1]' || /^127\./.test(url.hostname);
-  if (url.protocol === 'http:' && !loopback)
-    return t('settings:libreUrl.useHttps');
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return t('settings:libreUrl.useHttpsAddress');
+  if (url.protocol === 'http:' && !loopback) return t('settings:libreUrl.useHttps');
+  if (url.protocol !== 'https:' && url.protocol !== 'http:')
+    return t('settings:libreUrl.useHttpsAddress');
   return undefined;
 }
 
@@ -227,16 +226,24 @@ export function validateForm(form: SettingsForm): FormErrors {
   }
   const budget = form.dailyCharBudget.trim();
   if (!WHOLE.test(budget) || Number(budget) > MAX_DAILY_CHAR_BUDGET) {
-    errors.dailyCharBudget = t('settings:form.dailyCharBudget', { max: formatNumber(MAX_DAILY_CHAR_BUDGET) });
+    errors.dailyCharBudget = t('settings:form.dailyCharBudget', {
+      max: formatNumber(MAX_DAILY_CHAR_BUDGET),
+    });
   }
   const hours = (text: string): boolean =>
     WHOLE.test(text.trim()) && Number(text.trim()) <= MAX_HOURS;
   if (!hours(form.stalledAfterHours))
-    errors.stalledAfterHours = t('settings:form.stalledAfterHours', { max: formatNumber(MAX_HOURS) });
+    errors.stalledAfterHours = t('settings:form.stalledAfterHours', {
+      max: formatNumber(MAX_HOURS),
+    });
   if (!hours(form.stalledRepeatHours))
-    errors.stalledRepeatHours = t('settings:form.stalledRepeatHours', { max: formatNumber(MAX_HOURS) });
+    errors.stalledRepeatHours = t('settings:form.stalledRepeatHours', {
+      max: formatNumber(MAX_HOURS),
+    });
   if (!hours(form.unansweredReminderHours))
-    errors.unansweredReminderHours = t('settings:form.unansweredReminderHours', { max: formatNumber(MAX_HOURS) });
+    errors.unansweredReminderHours = t('settings:form.unansweredReminderHours', {
+      max: formatNumber(MAX_HOURS),
+    });
   const top = form.unansweredMaxRating.trim();
   if (!WHOLE.test(top) || Number(top) < 1 || Number(top) > 5)
     errors.unansweredMaxRating = t('settings:form.unansweredMaxRating');
@@ -348,16 +355,40 @@ export const modeLabels: Record<TranslationMode, { label: string; help: string }
 
 /** Common targets for the picker (language codes); any other valid code can be typed. The name is written in the language of the app. */
 export const languageChoices: { tag: string }[] = [
-  'en', 'de', 'fr', 'es', 'it', 'pt', 'pt-BR', 'nl', 'sv', 'da', 'nb', 'fi', 'pl', 'cs', 'tr', 'ru', 'uk', 'ar', 'hi', 'ja', 'ko', 'zh-Hans', 'zh-Hant',
+  'en',
+  'de',
+  'fr',
+  'es',
+  'it',
+  'pt',
+  'pt-BR',
+  'nl',
+  'sv',
+  'da',
+  'nb',
+  'fi',
+  'pl',
+  'cs',
+  'tr',
+  'ru',
+  'uk',
+  'ar',
+  'hi',
+  'ja',
+  'ko',
+  'zh-Hans',
+  'zh-Hant',
 ].map((tag) => ({ tag }));
 
 /** "German" ("allemand" in French), or the code itself when it is not in the list. */
 export function languageName(tag: string | null | undefined): string {
   if (!tag) return t('settings:language.another');
   const normalized = normalizeLanguageTag(tag) ?? tag;
-  for (const choice of languageChoices) if (choice.tag === normalized) return formatDisplayName(choice.tag, 'language');
+  for (const choice of languageChoices)
+    if (choice.tag === normalized) return formatDisplayName(choice.tag, 'language');
   const base = normalized.split('-')[0] ?? normalized;
-  for (const choice of languageChoices) if (choice.tag === base) return formatDisplayName(choice.tag, 'language');
+  for (const choice of languageChoices)
+    if (choice.tag === base) return formatDisplayName(choice.tag, 'language');
   return normalized;
 }
 
@@ -367,7 +398,11 @@ export function usageText(usage: SettingsUsage): string {
   if (usage.budget === 0) return t('settings:usage.unlimited', { count: usage.used });
   const percent = Math.min(100, Math.round((usage.used / usage.budget) * 100));
   // `count` is the budget: the noun "characters" follows the second number of the sentence.
-  return t('settings:usage.of', { used, count: usage.budget, percent: formatPercent(percent / 100, { maximumFractionDigits: 0 }) });
+  return t('settings:usage.of', {
+    used,
+    count: usage.budget,
+    percent: formatPercent(percent / 100, { maximumFractionDigits: 0 }),
+  });
 }
 
 /** 0 to 1 for a meter, or null when there is no limit. */
@@ -390,9 +425,7 @@ export function settingsErrorMessage(
     : [];
   switch (error.code) {
     case 'forbidden':
-      return action === 'load'
-        ? t('settings:error.noRole')
-        : t('settings:error.ownerOrAdmin');
+      return action === 'load' ? t('settings:error.noRole') : t('settings:error.ownerOrAdmin');
     case 'not_found':
       return t('settings:error.workspaceGone');
     case 'invalid_setting':

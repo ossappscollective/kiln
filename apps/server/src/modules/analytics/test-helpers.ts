@@ -421,7 +421,12 @@ export class FakeEarnings implements PlayEarningsPort {
     return {
       points,
       files: [`earnings/earnings_${month}.zip`],
-      stats: { rowsRead: points.length, rowsUsed: points.length, rowsUnreadable: 0, rowsFiltered: 0 },
+      stats: {
+        rowsRead: points.length,
+        rowsUsed: points.length,
+        rowsUnreadable: 0,
+        rowsFiltered: 0,
+      },
     };
   }
 }
@@ -439,7 +444,12 @@ export class FakeSubscriptions implements PlaySubscriptionsPort {
       points,
       files: [`financial-stats/subscriptions/subscriptions_x_${month}_country.csv`],
       products: 1,
-      stats: { rowsRead: points.length, rowsUsed: points.length, rowsUnreadable: 0, rowsFiltered: 0 },
+      stats: {
+        rowsRead: points.length,
+        rowsUsed: points.length,
+        rowsUnreadable: 0,
+        rowsFiltered: 0,
+      },
     };
   }
 }
@@ -457,7 +467,12 @@ export class FakeSales implements PlaySalesPort {
     return {
       points,
       file: `sales/salesreport_${month}.zip`,
-      stats: { rowsRead: points.length, rowsUsed: points.length, rowsUnreadable: 0, rowsFiltered: 0 },
+      stats: {
+        rowsRead: points.length,
+        rowsUsed: points.length,
+        rowsUnreadable: 0,
+        rowsFiltered: 0,
+      },
     };
   }
 }

@@ -10,7 +10,9 @@ import type { Operation } from './openapi.ts';
 const W = '/api/workspaces/{workspaceId}';
 
 const statusSchema = z.object({
-  enabled: z.boolean().describe('KILN_MCP_ENABLED is on. While it is off, `POST /mcp` answers 404.'),
+  enabled: z
+    .boolean()
+    .describe('KILN_MCP_ENABLED is on. While it is off, `POST /mcp` answers 404.'),
   endpoint: z.string().describe('The path of the MCP endpoint on this server.'),
   protocolVersion: z.string(),
   envName: z.string(),

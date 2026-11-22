@@ -34,30 +34,49 @@ const priceSchema = z.object({
   currency: z.string().describe('ISO 4217.'),
   amount: z
     .string()
-    .describe('The price in the currency’s minor units, as a string of digits: `"499"` is 4.99 USD, `"500"` is 500 JPY.'),
+    .describe(
+      'The price in the currency’s minor units, as a string of digits: `"499"` is 4.99 USD, `"500"` is 500 JPY.',
+    ),
   display: z.string().describe('The amount for a person to read, such as `4.99`.'),
 });
 
 const summarySchema = z.object({
-  productId: z.string().describe('The id the developer chose, the same in the store and in the app.'),
+  productId: z
+    .string()
+    .describe('The id the developer chose, the same in the store and in the app.'),
   kind: productKind.describe(
     'Google Play does not say consumable or not: a one-time product that allows more than one purchase is `consumable`, every other is `non_consumable` (a guess, said so in the app).',
   ),
-  referenceName: z.string().describe('The name only the developer sees. Google Play has none: the product id.'),
+  referenceName: z
+    .string()
+    .describe('The name only the developer sees. Google Play has none: the product id.'),
   state: productState,
   rawState: z.string().nullable().describe('The store’s own state, verbatim.'),
   group: z.string().nullable().describe('App Store subscriptions: the subscription group.'),
-  period: z.string().nullable().describe('The subscription period (App Store `ONE_MONTH`, Google Play `P1M`).'),
-  name: z.string().nullable().describe('The display name of one locale (`en-US` when there is one).'),
+  period: z
+    .string()
+    .nullable()
+    .describe('The subscription period (App Store `ONE_MONTH`, Google Play `P1M`).'),
+  name: z
+    .string()
+    .nullable()
+    .describe('The display name of one locale (`en-US` when there is one).'),
   locales: z.array(z.string()),
-  price: priceSchema.nullable().describe('The price in the base territory, else the United States, else the first.'),
+  price: priceSchema
+    .nullable()
+    .describe('The price in the base territory, else the United States, else the first.'),
   territoryCount: z.number().int().describe('How many territories have a price.'),
   syncedAt: timestamp,
 });
 
 const detailSchema = summarySchema.extend({
-  baseTerritory: z.string().nullable().describe('App Store: the territory the other prices are derived from.'),
-  localizations: z.array(z.object({ locale: z.string(), name: z.string(), description: z.string() })),
+  baseTerritory: z
+    .string()
+    .nullable()
+    .describe('App Store: the territory the other prices are derived from.'),
+  localizations: z.array(
+    z.object({ locale: z.string(), name: z.string(), description: z.string() }),
+  ),
   prices: z.array(priceSchema),
   availability: z
     .object({
@@ -76,12 +95,17 @@ const detailSchema = summarySchema.extend({
 const syncStatusSchema = z.object({
   lastAttemptAt: timestamp.nullable(),
   lastSyncedAt: timestamp.nullable(),
-  lastError: z.string().nullable().describe('A redacted sentence about the last failure; null after a good sync.'),
+  lastError: z
+    .string()
+    .nullable()
+    .describe('A redacted sentence about the last failure; null after a good sync.'),
   failures: z.number().int().describe('Syncs in a row that failed.'),
   productCount: z.number().int(),
   complete: z
     .boolean()
-    .describe('False when the last sync stopped at a cap: the list may not be everything the store has.'),
+    .describe(
+      'False when the last sync stopped at a cap: the list may not be everything the store has.',
+    ),
   warnings: z.array(z.string()),
 });
 
@@ -96,9 +120,16 @@ const revenueCatStepSchema = z
       complete: z.boolean(),
       warnings: z.array(z.string()),
       syncedAt: timestamp,
-      metrics: metricsStep.describe('The RevenueCat metrics overview read after the configuration, with its own result (ADR 0043).'),
+      metrics: metricsStep.describe(
+        'The RevenueCat metrics overview read after the configuration, with its own result (ADR 0043).',
+      ),
     }),
-    z.object({ ok: z.literal(false), code: z.string(), message: z.string(), retryAfterSeconds: z.number().int().optional() }),
+    z.object({
+      ok: z.literal(false),
+      code: z.string(),
+      message: z.string(),
+      retryAfterSeconds: z.number().int().optional(),
+    }),
   ])
   .nullable();
 
@@ -128,8 +159,14 @@ const previewSchema = z.object({
   current: textsSchema.describe('What the store has right now.'),
   proposed: textsSchema,
   changes: changesSchema,
-  unchanged: z.boolean().describe('True when the proposed texts are the ones the store has: there is nothing to apply.'),
-  previewHash: z.string().describe('Send it back with `apply: true`. Valid only while the store still shows `current`.'),
+  unchanged: z
+    .boolean()
+    .describe(
+      'True when the proposed texts are the ones the store has: there is nothing to apply.',
+    ),
+  previewHash: z
+    .string()
+    .describe('Send it back with `apply: true`. Valid only while the store still shows `current`.'),
   warnings: z.array(z.string()),
   readAt: timestamp,
 });
@@ -143,7 +180,9 @@ const resultSchema = z.object({
   changes: changesSchema,
   confirmedByReread: z
     .boolean()
-    .describe('True when the write’s outcome was unknown and reading the store back showed the change.'),
+    .describe(
+      'True when the write’s outcome was unknown and reading the store back showed the change.',
+    ),
   appliedAt: timestamp,
   note: z.string(),
 });
@@ -160,7 +199,9 @@ export const monetizationOperations: Draft[] = [
     risk: 'read',
     access: { action: 'apps.read' },
     appScope: { kind: 'param', name: 'appId' },
-    responses: { '200': { description: 'The products and the state of the sync.', schema: productsViewSchema } },
+    responses: {
+      '200': { description: 'The products and the state of the sync.', schema: productsViewSchema },
+    },
   },
   {
     id: 'getAppProduct',
@@ -168,7 +209,8 @@ export const monetizationOperations: Draft[] = [
     path: `${W}/apps/{appId}/products/{productId}`,
     tags: ['products'],
     summary: 'One in-app purchase or subscription with its texts, prices and availability',
-    description: 'Reads the stored copy; asks no store. `404 product_not_found` when the last sync did not list it.',
+    description:
+      'Reads the stored copy; asks no store. `404 product_not_found` when the last sync did not list it.',
     risk: 'read',
     access: { action: 'apps.read' },
     appScope: { kind: 'param', name: 'appId' },
@@ -226,13 +268,23 @@ export const monetizationOperations: Draft[] = [
     appScope: { kind: 'param', name: 'appId' },
     body: z.object({
       apply: z.boolean().describe('False: preview. True: write, with `previewHash`.'),
-      name: z.string().max(400).describe('The display name, one line. The store’s own length limit applies and is not checked here.'),
-      description: z.string().max(4000).describe('The description. May be empty; the store may refuse an empty one.'),
+      name: z
+        .string()
+        .max(400)
+        .describe(
+          'The display name, one line. The store’s own length limit applies and is not checked here.',
+        ),
+      description: z
+        .string()
+        .max(4000)
+        .describe('The description. May be empty; the store may refuse an empty one.'),
       previewHash: z
         .string()
         .regex(/^[0-9a-f]{64}$/)
         .optional()
-        .describe('Required with `apply: true`: the `previewHash` of a preview of exactly these texts.'),
+        .describe(
+          'Required with `apply: true`: the `previewHash` of a preview of exactly these texts.',
+        ),
     }),
     responses: {
       '200': {

@@ -186,6 +186,8 @@ export function alertRoutes(ctx: AlertRoutesContext) {
       unreadOnly: c.req.query('unread') === '1' || c.req.query('unread') === 'true',
       limit,
       ...(before === undefined ? {} : { before }),
+      // The person's own choice (PATCH /api/me); without one the stored English text.
+      locale: storedLocale(c.get('user')?.locale) ?? undefined,
     });
     c.header('Cache-Control', 'no-store');
     return c.json({ ...result, now: ctx.now() });
@@ -199,8 +201,6 @@ export function alertRoutes(ctx: AlertRoutesContext) {
   // Reading is a state of the person's own inbox, so it needs only the right to read alerts.
   app.post('/:workspaceId/alerts/inbox/read', needs('alerts.read'), small, async (c) => {
     const body = await parseBody(c, markReadBody);
-      // The person's own choice (PATCH /api/me); without one the stored English text.
-      locale: storedLocale(c.get('user')?.locale) ?? undefined,
     if (!body.ok) return body.response;
     const marked = await markRead(db, {
       workspaceId: ws(c),

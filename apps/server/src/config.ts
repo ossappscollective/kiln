@@ -231,7 +231,9 @@ const schema = z.object({
   // through the documented iTunes Search API and does not depend on this. Read docs/api/aso.md first.
   KILN_ASO_PLAY_UNOFFICIAL_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   KILN_ASO_MAX_KEYWORDS_PER_APP: blankIsUnset(z.coerce.number().int().min(1).max(500).default(50)),
-  KILN_ASO_MAX_COMPETITORS_PER_APP: blankIsUnset(z.coerce.number().int().min(1).max(50).default(10)),
+  KILN_ASO_MAX_COMPETITORS_PER_APP: blankIsUnset(
+    z.coerce.number().int().min(1).max(50).default(10),
+  ),
   // The most keyword checks one refresh makes (the rest stays due for the next one).
   KILN_ASO_MAX_CHECKS_PER_RUN: blankIsUnset(z.coerce.number().int().min(1).max(200).default(25)),
   // How many search results are read to find the app (Apple allows up to 200, Google Play is capped lower).

@@ -154,11 +154,23 @@ export function eligibilityView(item: {
       e.message.trim() !== ''
         ? e.message.trim()
         : (codeSentence(e.code) ??
-          (e.eligible ? t('release-stepper:cand.eligible') : t('release-stepper:cand.notEligible')));
+          (e.eligible
+            ? t('release-stepper:cand.eligible')
+            : t('release-stepper:cand.notEligible')));
     if (e.eligible) {
       return e.severity === 'warning'
-        ? { selectable: true, tone: 'warn', sentence, label: t('release-stepper:cand.label.readFirst') }
-        : { selectable: true, tone: 'ok', sentence, label: t('release-stepper:cand.label.canChoose') };
+        ? {
+            selectable: true,
+            tone: 'warn',
+            sentence,
+            label: t('release-stepper:cand.label.readFirst'),
+          }
+        : {
+            selectable: true,
+            tone: 'ok',
+            sentence,
+            label: t('release-stepper:cand.label.canChoose'),
+          };
     }
     // Not eligible and not blocked: it is the build or code the draft has already.
     if (e.severity !== 'blocked')
@@ -203,8 +215,7 @@ export function sourceRunOf(
 ): SourceRun {
   if (buildNumber === null) return { text: t('release-stepper:cand.run.none'), url: null };
   const found = builds.filter((b) => b.buildNumber === buildNumber)[0];
-  if (!found)
-    return { text: t('release-stepper:cand.run.notInBuilds'), url: null };
+  if (!found) return { text: t('release-stepper:cand.run.notInBuilds'), url: null };
   const run = found.link?.run ?? null;
   if (run === null) {
     return {
@@ -330,7 +341,10 @@ export function noBuildSentence(
   };
   const reasons = order.map((key) => word(key, counts[key] as number));
   // Each reason is a whole clause with its own count; they are listed with semicolons in every language.
-  return t('release-stepper:cand.noBuild.summary', { count: builds.length, reasons: reasons.join('; ') });
+  return t('release-stepper:cand.noBuild.summary', {
+    count: builds.length,
+    reasons: reasons.join('; '),
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -385,14 +399,16 @@ export function codesInTrack(codes: readonly CodeCandidate[]): string[] {
 
 export function noCodeSentence(rows: readonly CodeRow[], track: string): string | null {
   if (rows.some((r) => r.eligibility.selectable)) return null;
-  if (rows.length === 0)
-    return t('release-stepper:cand.noCode.empty', { track });
+  if (rows.length === 0) return t('release-stepper:cand.noCode.empty', { track });
   const live = rows.filter((r) => r.eligibility.tone === 'bad').length;
   const chosen = rows.length - live;
   const parts: string[] = [];
   if (live > 0) parts.push(t('release-stepper:cand.noCode.live', { count: live, track }));
   if (chosen > 0) parts.push(t('release-stepper:cand.noCode.draft', { count: chosen }));
-  return t('release-stepper:cand.noCode.summary', { count: rows.length, reasons: parts.join('; ') });
+  return t('release-stepper:cand.noCode.summary', {
+    count: rows.length,
+    reasons: parts.join('; '),
+  });
 }
 
 // ---------------------------------------------------------------------------------------------

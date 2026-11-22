@@ -1,5 +1,14 @@
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
-import { enc, isRecord, type Json, records, StoreHttp, type StoreHttpOptions, type StoreReply, text } from '../store-http.ts';
+import {
+  enc,
+  isRecord,
+  type Json,
+  records,
+  StoreHttp,
+  type StoreHttpOptions,
+  type StoreReply,
+  text,
+} from '../store-http.ts';
 import {
   type AppStoreConnectKey,
   AppStoreConnectTokenProvider,
@@ -83,7 +92,9 @@ export class AppleProductsHttp {
 
   /** A GET of a path under the API (or a full paging link of it). A 404 is `undefined` when `optional`. */
   async get(pathOrUrl: string, what: string, optional = false): Promise<Json | undefined> {
-    const url = pathOrUrl.startsWith('http') ? this.#sameHost(pathOrUrl, what) : `${this.base}${pathOrUrl}`;
+    const url = pathOrUrl.startsWith('http')
+      ? this.#sameHost(pathOrUrl, what)
+      : `${this.base}${pathOrUrl}`;
     const token = this.#tokens.token();
     this.#http.known.add(token);
     this.#writeHttp.known.add(token);
@@ -140,7 +151,9 @@ export class AppleProductsHttp {
     path: string,
     what: string,
     json: unknown,
-  ): Promise<{ ok: true; json: unknown } | { ok: false; unknown: true; message: string; status?: number }> {
+  ): Promise<
+    { ok: true; json: unknown } | { ok: false; unknown: true; message: string; status?: number }
+  > {
     const token = this.#tokens.token();
     this.#http.known.add(token);
     this.#writeHttp.known.add(token);

@@ -16,7 +16,8 @@ function fake(body: unknown = {}) {
   return { calls, api: createApi({ fetch: fetchImpl }) };
 }
 
-const sent = (call: Call | undefined) => JSON.parse(String(call?.init?.body)) as Record<string, unknown>;
+const sent = (call: Call | undefined) =>
+  JSON.parse(String(call?.init?.body)) as Record<string, unknown>;
 
 test('the reads and the sync of products use the documented paths and methods', async () => {
   const { calls, api } = fake();

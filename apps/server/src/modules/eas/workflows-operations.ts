@@ -17,8 +17,13 @@ const run = z.object({
   title: z.string().nullable(),
   status: z
     .string()
-    .describe('In the CI words: `queued`, `waiting`, `in_progress` or `completed` (see `conclusion`).'),
-  conclusion: z.string().nullable().describe('`success`, `failure`, `cancelled` or `unknown` once completed.'),
+    .describe(
+      'In the CI words: `queued`, `waiting`, `in_progress` or `completed` (see `conclusion`).',
+    ),
+  conclusion: z
+    .string()
+    .nullable()
+    .describe('`success`, `failure`, `cancelled` or `unknown` once completed.'),
   provider: z.literal('eas-workflows'),
   active: z.boolean(),
   headSha: z.string().nullable(),
@@ -40,7 +45,9 @@ const job = z.object({
   type: z.string().describe('`build`, `submission`, ... as Expo says.'),
   status: z
     .string()
-    .describe('Expo’s job status: `new`, `in-progress`, `action-required`, `pending-cancel`, `success`, `failure`, `canceled`, `skipped`.'),
+    .describe(
+      'Expo’s job status: `new`, `in-progress`, `action-required`, `pending-cancel`, `success`, `failure`, `canceled`, `skipped`.',
+    ),
   buildId: z.string().nullable().describe('The Expo Build of a `build` job.'),
   submissionId: z.string().nullable().describe('The Expo Submit record of a `submission` job.'),
 });
@@ -77,7 +84,9 @@ export const easWorkflowOperations: Draft[] = [
     risk: 'read',
     access: { action: 'apps.read' },
     appScope: { kind: 'param', name: 'appId' },
-    responses: { '200': { description: 'The runs (at most 30).', schema: z.object({ runs: z.array(run) }) } },
+    responses: {
+      '200': { description: 'The runs (at most 30).', schema: z.object({ runs: z.array(run) }) },
+    },
   },
   {
     id: 'getEasWorkflowRun',

@@ -1,8 +1,4 @@
-import {
-  type AnalyticsDimension,
-  type AnalyticsMetric,
-  productDimValue,
-} from '@kiln/core';
+import { type AnalyticsDimension, type AnalyticsMetric, productDimValue } from '@kiln/core';
 import { AnalyticsError, type AnalyticsPoint, type ParseStats } from '../analytics-types.ts';
 import { columnIndex, type Table } from '../delimited.ts';
 import type { PlayAnalyticsOptions } from './play-analytics.ts';
@@ -102,7 +98,8 @@ const FAMILY_METRIC: Record<Exclude<EarningsFamily, 'other'>, AnalyticsMetric> =
 };
 
 /** The first day of a `YYYYMM` month. */
-export const earningsMonthDay = (month: string): string => `${month.slice(0, 4)}-${month.slice(4)}-01`;
+export const earningsMonthDay = (month: string): string =>
+  `${month.slice(0, 4)}-${month.slice(4)}-01`;
 
 /**
  * The monthly points of ONE package out of an Earnings table, all dated the first day of `month`. The table holds every app of the
@@ -202,7 +199,12 @@ export class PlayEarningsConnector implements PlayEarningsPort {
     for (const name of names) {
       const raw = await this.#storage.download(name);
       const filePoints: AnalyticsPoint[] = [];
-      const fileStats: ParseStats = { rowsRead: 0, rowsUsed: 0, rowsUnreadable: 0, rowsFiltered: 0 };
+      const fileStats: ParseStats = {
+        rowsRead: 0,
+        rowsUsed: 0,
+        rowsUnreadable: 0,
+        rowsFiltered: 0,
+      };
       for (const table of await readSalesTables(raw)) {
         const mapped = mapPlayEarningsTable(table, {
           packageName: this.#storage.packageName,

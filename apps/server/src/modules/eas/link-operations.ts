@@ -16,7 +16,9 @@ const link = z.object({
   credentialLabel: z.string().nullable().describe('Null when the credential was deleted.'),
   credentialAvailable: z
     .boolean()
-    .describe('False when the credential was deleted or is not an Expo credential: choose another and save again.'),
+    .describe(
+      'False when the credential was deleted or is not an Expo credential: choose another and save again.',
+    ),
   projectId: z.string().describe('The EAS project id (a UUID).'),
   accountName: z.string(),
   slug: z.string(),
@@ -64,7 +66,9 @@ export const easLinkOperations: Draft[] = [
     risk: 'read',
     access: { action: 'apps.read' },
     appScope: { kind: 'param', name: 'appId' },
-    responses: { '200': { description: 'The link, or null.', schema: z.object({ link: link.nullable() }) } },
+    responses: {
+      '200': { description: 'The link, or null.', schema: z.object({ link: link.nullable() }) },
+    },
   },
   {
     id: 'setExpoLink',
@@ -99,7 +103,8 @@ export const easLinkOperations: Draft[] = [
     method: 'get',
     path: `${W}/apps/{appId}/expo/detect`,
     tags: ['eas'],
-    summary: 'Read the Expo project id from the app.json of the repository of the app, to prefill the link',
+    summary:
+      'Read the Expo project id from the app.json of the repository of the app, to prefill the link',
     description:
       'READS the repository of the app (one file, `app.json` at the root, as JSON text; a dynamic `app.config.js` is never run), audited as `credential.use` with purpose `eas.detect` on the repository credential. Expo is not called and nothing is saved. `detected` is null with a `reason` and a `message` when nothing usable was found. Needs `apps.write`.',
     risk: 'read',

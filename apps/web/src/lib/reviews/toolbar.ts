@@ -87,7 +87,8 @@ export function inboxPopoverFilterCount(f: InboxFilters): number {
 }
 
 /** The label of the Filters button: "Filters", or "Filters (3)". */
-export const filtersButtonText = (on: number): string => (on > 0 ? t('reviews:toolbar.filtersCount', { count: on }) : t('reviews:toolbar.filters'));
+export const filtersButtonText = (on: number): string =>
+  on > 0 ? t('reviews:toolbar.filtersCount', { count: on }) : t('reviews:toolbar.filters');
 
 export type TrendWord = 'rising' | 'falling' | 'steady';
 

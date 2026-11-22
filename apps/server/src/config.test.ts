@@ -61,7 +61,10 @@ test('worker defaults to inline and trusted origins are split and trimmed', () =
   });
   assert.equal(config.worker, 'inline');
   assert.deepEqual(config.trustedOrigins, ['http://a.test', 'http://b.test']);
-  assert.throws(() => loadConfig({ KILN_MASTER_KEY: key, KILN_WORKER: 'sometimes' }), /KILN_WORKER/);
+  assert.throws(
+    () => loadConfig({ KILN_MASTER_KEY: key, KILN_WORKER: 'sometimes' }),
+    /KILN_WORKER/,
+  );
 });
 
 test('KILN_TRUST_PROXY is off by default and only 0 or 1 are accepted', () => {
@@ -80,7 +83,10 @@ test('reads default to auto, with the clone folder under the data folder and a 6
   assert.equal(config.cloneDir, join('./.kiln-data', 'clones'));
   assert.equal(config.cloneTtlMs, 60_000);
   assert.equal(config.gitPath, 'git');
-  assert.equal(loadConfig({ KILN_MASTER_KEY: key, KILN_DATA_DIR: '/data' }).cloneDir, '/data/clones');
+  assert.equal(
+    loadConfig({ KILN_MASTER_KEY: key, KILN_DATA_DIR: '/data' }).cloneDir,
+    '/data/clones',
+  );
 });
 
 test('KILN_READS accepts api, clone and auto only', () => {
@@ -112,15 +118,13 @@ test('bad clone settings are rejected, and blank ones mean the default', () => {
       bad,
     );
   }
-  const blank = loadConfig(
-    {
-      KILN_MASTER_KEY: key,
-      KILN_CLONE_DIR: '',
-      KILN_CLONE_TTL_SECONDS: ' ',
-      KILN_GIT_PATH: '',
-      KILN_READS: '',
-    },
-  );
+  const blank = loadConfig({
+    KILN_MASTER_KEY: key,
+    KILN_CLONE_DIR: '',
+    KILN_CLONE_TTL_SECONDS: ' ',
+    KILN_GIT_PATH: '',
+    KILN_READS: '',
+  });
   assert.equal(blank.cloneDir, join('./.kiln-data', 'clones'));
   assert.equal(blank.cloneTtlMs, 60_000);
   assert.equal(blank.gitPath, 'git');
@@ -246,7 +250,10 @@ test('KILN_LOCAL_REPO_ROOTS applies the same way in single-user mode', () => {
 
 test('KILN_LOCAL_REPO_WRITE is off by default; only true and false are accepted; blank means off', () => {
   assert.equal(loadConfig({ KILN_MASTER_KEY: key }).localRepoWrite, false);
-  assert.equal(loadConfig({ KILN_MASTER_KEY: key, KILN_LOCAL_REPO_WRITE: '' }).localRepoWrite, false);
+  assert.equal(
+    loadConfig({ KILN_MASTER_KEY: key, KILN_LOCAL_REPO_WRITE: '' }).localRepoWrite,
+    false,
+  );
   assert.equal(
     loadConfig({ KILN_MASTER_KEY: key, KILN_LOCAL_REPO_WRITE: 'false' }).localRepoWrite,
     false,
@@ -820,7 +827,8 @@ test('KILN_STORE_PRODUCT_WRITE_ENABLED is off by default; only true and false ar
   assert.equal(on.storeRolloutEnabled, false);
   assert.equal(on.storeDraftWriteEnabled, false);
   assert.equal(
-    loadConfig({ KILN_MASTER_KEY: key, KILN_STORE_ROLLOUT_ENABLED: 'true' }).storeProductWriteEnabled,
+    loadConfig({ KILN_MASTER_KEY: key, KILN_STORE_ROLLOUT_ENABLED: 'true' })
+      .storeProductWriteEnabled,
     false,
     'the rollout switch does not turn product writes on',
   );
@@ -836,7 +844,8 @@ test('KILN_STORE_PRODUCT_WRITE_ENABLED is off by default; only true and false ar
 test('KILN_EAS_UPDATE_ROLLOUT_ENABLED is off by default; only true and false are accepted; blank means off; independent of the store switches', () => {
   assert.equal(loadConfig({ KILN_MASTER_KEY: key }).easUpdateRolloutEnabled, false);
   assert.equal(
-    loadConfig({ KILN_MASTER_KEY: key, KILN_EAS_UPDATE_ROLLOUT_ENABLED: '' }).easUpdateRolloutEnabled,
+    loadConfig({ KILN_MASTER_KEY: key, KILN_EAS_UPDATE_ROLLOUT_ENABLED: '' })
+      .easUpdateRolloutEnabled,
     false,
   );
   assert.equal(
@@ -848,7 +857,8 @@ test('KILN_EAS_UPDATE_ROLLOUT_ENABLED is off by default; only true and false are
   assert.equal(on.easUpdateRolloutEnabled, true);
   assert.equal(on.storeRolloutEnabled, false);
   assert.equal(
-    loadConfig({ KILN_MASTER_KEY: key, KILN_STORE_ROLLOUT_ENABLED: 'true' }).easUpdateRolloutEnabled,
+    loadConfig({ KILN_MASTER_KEY: key, KILN_STORE_ROLLOUT_ENABLED: 'true' })
+      .easUpdateRolloutEnabled,
     false,
     'the store rollout switch does not turn the Expo rollout on',
   );
@@ -1014,7 +1024,8 @@ test('KILN_BUILDS_DOWNLOAD_ENABLED is off by default and independent of the stor
     false,
   );
   assert.equal(
-    loadConfig({ KILN_MASTER_KEY: key, KILN_BUILDS_DOWNLOAD_ENABLED: 'true' }).buildsDownloadEnabled,
+    loadConfig({ KILN_MASTER_KEY: key, KILN_BUILDS_DOWNLOAD_ENABLED: 'true' })
+      .buildsDownloadEnabled,
     true,
   );
   assert.equal(

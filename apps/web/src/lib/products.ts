@@ -82,7 +82,11 @@ const PERIODS: Record<string, string> = {
 
 /** The billing period as a word; an unknown value is shown as the store wrote it. */
 export const periodLabel = (period: string | null): string | null =>
-  period === null || period === '' ? null : PERIODS[period] === undefined ? period : t(PERIODS[period]);
+  period === null || period === ''
+    ? null
+    : PERIODS[period] === undefined
+      ? period
+      : t(PERIODS[period]);
 
 /** `$4.99` (the store's price in its own currency, written for the reader's language); a product with no price yet says so. */
 export const priceText = (price: ProductPrice | null): string =>
@@ -102,7 +106,10 @@ export function groupPrices(prices: readonly ProductPrice[]): PriceGroup[] {
     if (!group) {
       group = {
         planId: price.planId,
-        label: price.planId === null ? t('products:price.groupPrices') : t('products:price.groupPlan', { plan: price.planId }),
+        label:
+          price.planId === null
+            ? t('products:price.groupPrices')
+            : t('products:price.groupPlan', { plan: price.planId }),
         prices: [],
       };
       groups.push(group);
@@ -113,7 +120,9 @@ export function groupPrices(prices: readonly ProductPrice[]): PriceGroup[] {
 }
 
 export function priceCountText(count: number): string {
-  return count === 0 ? t('products:price.noTerritories') : t('products:price.territories', { count });
+  return count === 0
+    ? t('products:price.noTerritories')
+    : t('products:price.territories', { count });
 }
 
 /** How the last sync went, in one line, and how it should look. */
@@ -165,10 +174,13 @@ export function validateTexts(name: string, description: string): TextProblems {
   const out: TextProblems = {};
   if (n === '') out.name = t('products:validation.nameRequired');
   else if (n.indexOf('\n') >= 0) out.name = t('products:validation.nameOneLine');
-  else if (n.length > MAX_PRODUCT_NAME) out.name = t('products:validation.nameTooLong', { count: MAX_PRODUCT_NAME });
+  else if (n.length > MAX_PRODUCT_NAME)
+    out.name = t('products:validation.nameTooLong', { count: MAX_PRODUCT_NAME });
   else if (CONTROL.test(n)) out.name = t('products:validation.nameControl');
   if (d.length > MAX_PRODUCT_DESCRIPTION)
-    out.description = t('products:validation.descriptionTooLong', { count: MAX_PRODUCT_DESCRIPTION });
+    out.description = t('products:validation.descriptionTooLong', {
+      count: MAX_PRODUCT_DESCRIPTION,
+    });
   else if (CONTROL.test(d)) out.description = t('products:validation.descriptionControl');
   return out;
 }
@@ -178,7 +190,8 @@ export const textsDiffer = (
   draft: { name: string; description: string },
   stored: { name: string; description: string },
 ): boolean =>
-  normalizeText(draft.name) !== stored.name || normalizeText(draft.description) !== stored.description;
+  normalizeText(draft.name) !== stored.name ||
+  normalizeText(draft.description) !== stored.description;
 
 /** One line saying what a preview changes. */
 export function changeSummary(preview: ProductLocalizationPreview): string {
@@ -225,7 +238,8 @@ const textsOf = (value: unknown): { name: string; description: string } | null =
 export function classifyProductFailure(error: unknown, action: 'read' | 'change'): ProductFailure {
   const change = action === 'change';
   /** The server's sentence, and for a change the reassurance that nothing was changed. */
-  const unchanged = (text: string): string => (change ? t('products:failure.withNothing', { message: text }) : text);
+  const unchanged = (text: string): string =>
+    change ? t('products:failure.withNothing', { message: text }) : text;
   if (!(error instanceof ApiError))
     return {
       kind: 'other',
@@ -270,6 +284,9 @@ export function classifyProductFailure(error: unknown, action: 'read' | 'change'
         message: change ? t('products:failure.timeoutChange') : t('products:failure.timeoutRead'),
       };
     default:
-      return { kind: 'other', message: error.status >= 400 && error.status < 500 ? unchanged(message) : message };
+      return {
+        kind: 'other',
+        message: error.status >= 400 && error.status < 500 ? unchanged(message) : message,
+      };
   }
 }

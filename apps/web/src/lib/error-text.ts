@@ -27,7 +27,12 @@ export function paramsOf(value: unknown): ErrorParams {
   const out: ErrorParams = {};
   if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
   for (const [name, item] of Object.entries(value as Record<string, unknown>)) {
-    if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean' || item === null) {
+    if (
+      typeof item === 'string' ||
+      typeof item === 'number' ||
+      typeof item === 'boolean' ||
+      item === null
+    ) {
       out[name] = item;
     }
   }
@@ -84,11 +89,16 @@ export function legacyText(body: ErrorBody, retryAfter?: number): string | undef
   if (typeof error !== 'string' || error === '' || error.startsWith('local_')) return undefined;
   const issues = (body as { issues?: unknown }).issues;
   if (error === 'invalid_request' && Array.isArray(issues) && issues.length > 0) return undefined;
-  const paths = Array.isArray(body.paths) ? body.paths.filter((p): p is string => typeof p === 'string') : [];
+  const paths = Array.isArray(body.paths)
+    ? body.paths.filter((p): p is string => typeof p === 'string')
+    : [];
   if (error === 'base_changed' && paths.length > 0) {
     return codedText('api.baseChangedFiles', { paths: paths.join(', ') });
   }
-  return codedText(legacyCode(error), { wait: waitText(retryAfter ?? 60), ...paramsOf(body.params) });
+  return codedText(legacyCode(error), {
+    wait: waitText(retryAfter ?? 60),
+    ...paramsOf(body.params),
+  });
 }
 
 /** The translated sentence for an error body, or undefined to let the caller choose (the server's own `message`). */

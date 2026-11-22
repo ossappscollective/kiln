@@ -35,7 +35,9 @@ export const rolloutRequestFields = {
 export const rolloutPreviewBody = z.strictObject(rolloutRequestFields);
 export const rolloutApplyBody = z.strictObject({
   ...rolloutRequestFields,
-  confirmHash: z.string().regex(/^[0-9a-f]{64}$/, 'The confirmHash of the preview, 64 hexadecimal characters.'),
+  confirmHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/, 'The confirmHash of the preview, 64 hexadecimal characters.'),
 });
 
 export type EasUpdateRoutesContext = {
@@ -94,52 +96,77 @@ export function easUpdateRoutes(ctx: EasUpdateRoutesContext) {
     return done.ok ? c.json({ state: done.state }) : respond(c, done);
   });
 
-  routes.get('/:workspaceId/apps/:appId/expo/updates/:group/insights', needs('apps.read'), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'appId'));
-    if (!app) return c.json({ error: 'not_found' }, 404);
-    const raw = c.req.query('days');
-    const days = raw === undefined ? INSIGHTS_DEFAULT_DAYS : /^\d{1,3}$/.test(raw) ? Number(raw) : Number.NaN;
-    const limited = slow(c, ctx.readLimiter);
-    if (limited) return limited;
-    const done = await readUpdateInsights(
-      ctx.update,
-      { workspaceId: ws(c), app, group: param(c, 'group'), days },
-      actor(c),
-    );
-    return done.ok ? c.json({ insights: done.insights }) : respond(c, done);
-  });
+  routes.get(
+    '/:workspaceId/apps/:appId/expo/updates/:group/insights',
+    needs('apps.read'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'appId'));
+      if (!app) return c.json({ error: 'not_found' }, 404);
+      const raw = c.req.query('days');
+      const days =
+        raw === undefined
+          ? INSIGHTS_DEFAULT_DAYS
+          : /^\d{1,3}$/.test(raw)
+            ? Number(raw)
+            : Number.NaN;
+      const limited = slow(c, ctx.readLimiter);
+      if (limited) return limited;
+      const done = await readUpdateInsights(
+        ctx.update,
+        { workspaceId: ws(c), app, group: param(c, 'group'), days },
+        actor(c),
+      );
+      return done.ok ? c.json({ insights: done.insights }) : respond(c, done);
+    },
+  );
 
-  routes.post('/:workspaceId/apps/:appId/expo/updates/rollout/preview', needs('releases.rollout'), async (c) => {
-    if (!ctx.update.rolloutEnabled) return respond(c, rolloutDisabledFailure());
-    const body = await parseBody(c, rolloutPreviewBody);
-    if (!body.ok) return body.response;
-    const app = await getApp(db, ws(c), param(c, 'appId'));
-    if (!app) return c.json({ error: 'not_found' }, 404);
-    const limited = slow(c, ctx.writeLimiter);
-    if (limited) return limited;
-    const done = await previewUpdateRollout(ctx.update, { workspaceId: ws(c), app, request: body.data }, actor(c));
-    return done.ok ? c.json({ preview: done.preview }) : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:appId/expo/updates/rollout/preview',
+    needs('releases.rollout'),
+    async (c) => {
+      if (!ctx.update.rolloutEnabled) return respond(c, rolloutDisabledFailure());
+      const body = await parseBody(c, rolloutPreviewBody);
+      if (!body.ok) return body.response;
+      const app = await getApp(db, ws(c), param(c, 'appId'));
+      if (!app) return c.json({ error: 'not_found' }, 404);
+      const limited = slow(c, ctx.writeLimiter);
+      if (limited) return limited;
+      const done = await previewUpdateRollout(
+        ctx.update,
+        { workspaceId: ws(c), app, request: body.data },
+        actor(c),
+      );
+      return done.ok ? c.json({ preview: done.preview }) : respond(c, done);
+    },
+  );
 
   // The only route that changes anything at Expo. One update per request: no bulk change.
-  routes.post('/:workspaceId/apps/:appId/expo/updates/rollout/apply', needs('releases.rollout'), async (c) => {
-    if (!ctx.update.rolloutEnabled) return respond(c, rolloutDisabledFailure());
-    // Before the step-up check: a refused request must not spend the person's confirmation.
-    const limited = slow(c, ctx.writeLimiter);
-    if (limited) return limited;
-    const refusal = await requireStepUp({ db, now: ctx.update.now }, c, 'rollout', {
-      id: param(c, 'appId'),
-      hashField: 'confirmHash',
-    });
-    if (refusal) return refusal;
-    const body = await parseBody(c, rolloutApplyBody);
-    if (!body.ok) return body.response;
-    const app = await getApp(db, ws(c), param(c, 'appId'));
-    if (!app) return c.json({ error: 'not_found' }, 404);
-    const { confirmHash, ...request } = body.data;
-    const done = await applyUpdateRollout(ctx.update, { workspaceId: ws(c), app, request, confirmHash }, actor(c));
-    return done.ok ? c.json({ result: done.result }) : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:appId/expo/updates/rollout/apply',
+    needs('releases.rollout'),
+    async (c) => {
+      if (!ctx.update.rolloutEnabled) return respond(c, rolloutDisabledFailure());
+      // Before the step-up check: a refused request must not spend the person's confirmation.
+      const limited = slow(c, ctx.writeLimiter);
+      if (limited) return limited;
+      const refusal = await requireStepUp({ db, now: ctx.update.now }, c, 'rollout', {
+        id: param(c, 'appId'),
+        hashField: 'confirmHash',
+      });
+      if (refusal) return refusal;
+      const body = await parseBody(c, rolloutApplyBody);
+      if (!body.ok) return body.response;
+      const app = await getApp(db, ws(c), param(c, 'appId'));
+      if (!app) return c.json({ error: 'not_found' }, 404);
+      const { confirmHash, ...request } = body.data;
+      const done = await applyUpdateRollout(
+        ctx.update,
+        { workspaceId: ws(c), app, request, confirmHash },
+        actor(c),
+      );
+      return done.ok ? c.json({ result: done.result }) : respond(c, done);
+    },
+  );
 
   return routes;
 }

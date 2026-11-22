@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CI_PROVIDER_META, CI_PROVIDERS, ciProviderMeta, ciProviderOf, isCiProvider } from './ci-providers.ts';
+import {
+  CI_PROVIDER_META,
+  CI_PROVIDERS,
+  ciProviderMeta,
+  ciProviderOf,
+  isCiProvider,
+} from './ci-providers.ts';
 
 test('every provider has words, and the ids match', () => {
   for (const id of CI_PROVIDERS) {

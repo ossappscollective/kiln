@@ -4,9 +4,9 @@ Shows what the app's repository says about its Expo Application Services builds,
 profiles of `eas.json` and the few fields of the Expo app config that relate to them. It is read from the repository only. It needs
 no Expo credential and makes no call to Expo; nothing is changed anywhere ([ADR 0033](../adr/0033-eas-integration.md)).
 
-| Route                                                           | Right                                | What it does                                                                                                                                              |
-| --------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/workspaces/:workspaceId/apps/:appId/eas-config`       | `repositories.scan` (member and up)  | Reads `eas.json` at the root of the app's repository, at the default branch. Operation `getEasConfig` (read), so it is also an MCP tool. |
+| Route                                                     | Right                               | What it does                                                                                                                             |
+| --------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/workspaces/:workspaceId/apps/:appId/eas-config` | `repositories.scan` (member and up) | Reads `eas.json` at the root of the app's repository, at the default branch. Operation `getEasConfig` (read), so it is also an MCP tool. |
 
 Like the other routes that read a repository (the scan, the listing, the project detection): a viewer gets `403`, a non-member `404`,
 an unknown app `404`. At most 30 reads a minute per workspace (`429` with `Retry-After`); a refused credential, a rate limit or a
@@ -47,16 +47,16 @@ the finding `eas_json_invalid` with a line and column, never a piece of the text
 `findings[]`: `{code, severity (error|warning|info), scope (file|cli|build|submit|app), message, profile?, key?}`. A message names keys
 and profiles, never a value of `env`.
 
-| Group           | Codes                                                                                                                                                                                  |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| File            | `eas_json_invalid`, `eas_json_not_object`, `eas_json_too_large`, `eas_json_lenient`, `section_invalid`, `profile_invalid`, `invalid_value`, `unknown_keys`, `too_many_profiles`         |
-| `extends`       | `extends_missing`, `extends_cycle`, `extends_too_deep` (more than 5 steps), `extends_invalid`                                                                                           |
-| Build           | `distribution_unknown`, `channel_ignored_dev_client`, `auto_increment_without_source`, `release_channel_deprecated`, `env_secret_like` (the `env` name looks like a secret; the value is not shown) |
-| Version source  | `app_version_source_unknown`, `app_version_source_missing`, `app_version_source_remote`                                                                                                |
-| Updates         | `channel_without_updates`, `updates_without_channel`, `updates_without_runtime_version`, `updates_url_project_mismatch`, `updates_disabled_with_channel`                                |
-| Runtime version | `runtime_version_invalid`, `runtime_policy_unknown`, `runtime_policy_needs_version`, `runtime_policy_native_version`                                                                    |
+| Group           | Codes                                                                                                                                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| File            | `eas_json_invalid`, `eas_json_not_object`, `eas_json_too_large`, `eas_json_lenient`, `section_invalid`, `profile_invalid`, `invalid_value`, `unknown_keys`, `too_many_profiles`                                                      |
+| `extends`       | `extends_missing`, `extends_cycle`, `extends_too_deep` (more than 5 steps), `extends_invalid`                                                                                                                                        |
+| Build           | `distribution_unknown`, `channel_ignored_dev_client`, `auto_increment_without_source`, `release_channel_deprecated`, `env_secret_like` (the `env` name looks like a secret; the value is not shown)                                  |
+| Version source  | `app_version_source_unknown`, `app_version_source_missing`, `app_version_source_remote`                                                                                                                                              |
+| Updates         | `channel_without_updates`, `updates_without_channel`, `updates_without_runtime_version`, `updates_url_project_mismatch`, `updates_disabled_with_channel`                                                                             |
+| Runtime version | `runtime_version_invalid`, `runtime_policy_unknown`, `runtime_policy_needs_version`, `runtime_policy_native_version`                                                                                                                 |
 | Submit          | `submit_track_unknown`, `submit_release_status_unknown`, `submit_rollout_needs_in_progress`, `submit_in_progress_needs_rollout`, `submit_rollout_out_of_range`, `submit_profile_without_build_profile`, `submit_identifier_mismatch` |
-| App config      | `app_config_unreadable`, `app_config_dynamic`, `app_config_missing`, `app_config_invalid_value`, `app_identifier_mismatch` (the app's identifier is not the bundle id or package of the app config; not checked for desktop apps) |
+| App config      | `app_config_unreadable`, `app_config_dynamic`, `app_config_missing`, `app_config_invalid_value`, `app_identifier_mismatch` (the app's identifier is not the bundle id or package of the app config; not checked for desktop apps)    |
 
 The screen shows them in the order errors, warnings, notes, in the card "EAS configuration" of the app (collapsed, read-only, shown
 for an app with a repository to a member and above, read when opened).

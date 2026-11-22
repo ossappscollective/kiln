@@ -26,27 +26,41 @@ export const availableLocales: readonly LocaleInfo[] = [
 ];
 
 /** The development locale: English with accents and brackets. Offered in the picker only in development builds. */
-export const pseudoLocaleInfo: LocaleInfo = { code: PSEUDO_LOCALE, name: 'Pseudo (development)', dir: ltr, htmlLang: 'en-XA' };
+export const pseudoLocaleInfo: LocaleInfo = {
+  code: PSEUDO_LOCALE,
+  name: 'Pseudo (development)',
+  dir: ltr,
+  htmlLang: 'en-XA',
+};
 
 export const localeCodes: readonly string[] = availableLocales.map((l) => l.code);
 
 /** A language the app has files for (not the pseudo-locale). */
-export const isAvailableLocale = (code: unknown): code is string => typeof code === 'string' && localeCodes.indexOf(code) >= 0;
+export const isAvailableLocale = (code: unknown): code is string =>
+  typeof code === 'string' && localeCodes.indexOf(code) >= 0;
 
 /** A language the app can run in: the available ones and the pseudo-locale. */
-export const isKnownLocale = (code: unknown): code is string => isAvailableLocale(code) || code === PSEUDO_LOCALE;
+export const isKnownLocale = (code: unknown): code is string =>
+  isAvailableLocale(code) || code === PSEUDO_LOCALE;
 
 export function localeInfo(code: string): LocaleInfo {
-  return availableLocales.find((l) => l.code === code) ?? (code === PSEUDO_LOCALE ? pseudoLocaleInfo : (availableLocales[0] as LocaleInfo));
+  return (
+    availableLocales.find((l) => l.code === code) ??
+    (code === PSEUDO_LOCALE ? pseudoLocaleInfo : (availableLocales[0] as LocaleInfo))
+  );
 }
 
-const languageOf = (tag: string): string => tag.toLowerCase().replace(/_/g, '-').split('-')[0] ?? '';
+const languageOf = (tag: string): string =>
+  tag.toLowerCase().replace(/_/g, '-').split('-')[0] ?? '';
 
 /**
  * The best available language for the person's list of languages (`navigator.languages`, most wanted first): the first entry whose
  * language we have wins, `fr-CA` gives `fr`; otherwise English. The order of the list matters more than how exact a match is.
  */
-export function bestMatch(requested: readonly string[], available: readonly string[] = localeCodes): string {
+export function bestMatch(
+  requested: readonly string[],
+  available: readonly string[] = localeCodes,
+): string {
   for (const tag of requested) {
     const normal = tag.toLowerCase().replace(/_/g, '-');
     const exact = available.find((a) => a.toLowerCase() === normal);
@@ -81,4 +95,5 @@ export function formatLocaleFor(app: string, browserLanguages: readonly string[]
 const RIGHT_TO_LEFT = ['ar', 'fa', 'he', 'ur'];
 
 /** `ltr` or `rtl` for a language code. */
-export const directionOf = (code: string): 'ltr' | 'rtl' => (RIGHT_TO_LEFT.indexOf(languageOf(code)) >= 0 ? 'rtl' : ltr);
+export const directionOf = (code: string): 'ltr' | 'rtl' =>
+  RIGHT_TO_LEFT.indexOf(languageOf(code)) >= 0 ? 'rtl' : ltr;

@@ -23,7 +23,12 @@ const respond = (c: Context<AppEnv>, f: Failure) => {
  * EAS Build and Submit status of one app record (docs/adr/0036-eas-build-submit-status.md): the stored snapshot (database only) and a manual read
  * from Expo. Reading needs `builds.read`, like the other builds of an app; a manual read needs `apps.sync` and shares the budget of the app syncs.
  */
-export function easStatusRoutes(services: Services, deps: EasDeps | undefined, shared: ModuleShared, limiter: TestLimiter = shared.appSyncLimiter) {
+export function easStatusRoutes(
+  services: Services,
+  deps: EasDeps | undefined,
+  shared: ModuleShared,
+  limiter: TestLimiter = shared.appSyncLimiter,
+) {
   const { db, masterKey, now } = services;
   const app = new Hono<AppEnv>();
   const needs = (action: Action) => async (c: Context<AppEnv>, next: Next) => {

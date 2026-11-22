@@ -1,6 +1,12 @@
 import { isPlatform, type Platform, type StoreId } from '@kiln/core';
 import { ApiError } from '../api.ts';
-import { formatDate, formatDateTime, formatDisplayName, formatList, formatNumber } from '../i18n/format.ts';
+import {
+  formatDate,
+  formatDateTime,
+  formatDisplayName,
+  formatList,
+  formatNumber,
+} from '../i18n/format.ts';
 import { t } from '../i18n/t.ts';
 import type { ReplyDraft, ReplyState } from './reply.ts';
 
@@ -495,7 +501,13 @@ export function trendDescription(weeks: readonly WeekBucket[]): string {
   const one = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
   const lo = formatNumber(Math.min(...averages), one);
   const hi = formatNumber(Math.max(...averages), one);
-  return t('reviews:trend.range', { count: weeks.length, min: Math.min(...counts), max: Math.max(...counts), lo, hi });
+  return t('reviews:trend.range', {
+    count: weeks.length,
+    min: Math.min(...counts),
+    max: Math.max(...counts),
+    lo,
+    hi,
+  });
 }
 
 export const weekLabel = (weekStart: number): string =>

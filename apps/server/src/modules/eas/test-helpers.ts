@@ -16,7 +16,12 @@ export { ACCOUNT, PROJECT_ID, TOKEN as EXPO_TOKEN };
 
 export const OTHER_PROJECT_ID = '9d2b6f40-1c8e-4a37-b5d9-3e7a0c61f284';
 
-export type ExpoCall = { url: string; authorization: string; query: string; variables: Record<string, unknown> };
+export type ExpoCall = {
+  url: string;
+  authorization: string;
+  query: string;
+  variables: Record<string, unknown>;
+};
 
 /** Answers like Expo: the viewer, projects by full name and by id. `next` makes the following calls answer something else. */
 export class FakeExpo {
@@ -27,7 +32,10 @@ export class FakeExpo {
   next: (Response | Error)[] = [];
 
   readonly fetch: typeof fetch = async (input, init) => {
-    const body = JSON.parse(String(init?.body ?? '{}')) as { query: string; variables?: Record<string, unknown> };
+    const body = JSON.parse(String(init?.body ?? '{}')) as {
+      query: string;
+      variables?: Record<string, unknown>;
+    };
     const headers = (init?.headers ?? {}) as Record<string, string>;
     this.calls.push({
       url: String(input),
@@ -60,7 +68,10 @@ export class FakeExpo {
 }
 
 export const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json', ...headers },
+  });
 
 export async function bootEas(db: Database, overrides: Parameters<typeof bootRepoApp>[2] = {}) {
   const expo = new FakeExpo();
@@ -72,7 +83,12 @@ export async function bootEas(db: Database, overrides: Parameters<typeof bootRep
 
   /** An app record of this workspace, linked to the repository unless said otherwise. */
   const seedApp = async (
-    options: { id?: string; platform?: 'ios' | 'android'; repositoryId?: string | null; workspaceId?: string } = {},
+    options: {
+      id?: string;
+      platform?: 'ios' | 'android';
+      repositoryId?: string | null;
+      workspaceId?: string;
+    } = {},
   ) => {
     const id = options.id ?? `app-${Math.random().toString(16).slice(2, 8)}`;
     const platform = options.platform ?? 'ios';

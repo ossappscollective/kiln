@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createRevenueCatClient, normalizeRevenueCatOrigin, REVENUECAT_API_ORIGIN, revenueCatErrorKind } from './client.ts';
+import {
+  createRevenueCatClient,
+  normalizeRevenueCatOrigin,
+  REVENUECAT_API_ORIGIN,
+  revenueCatErrorKind,
+} from './client.ts';
 import { RevenueCatError } from './errors.ts';
 import { type Answer, errorBody, fakeFetch, KEY, list, PROJECT_ID } from './revenuecat.fixtures.ts';
 
-const client = (f: ReturnType<typeof fakeFetch>, extra: Partial<Parameters<typeof createRevenueCatClient>[0]> = {}) =>
-  createRevenueCatClient({ apiKey: KEY, fetch: f.fetch, ...extra });
+const client = (
+  f: ReturnType<typeof fakeFetch>,
+  extra: Partial<Parameters<typeof createRevenueCatClient>[0]> = {},
+) => createRevenueCatClient({ apiKey: KEY, fetch: f.fetch, ...extra });
 
 async function failure(run: () => Promise<unknown>): Promise<RevenueCatError> {
   try {
@@ -30,15 +37,24 @@ test('a request is a GET with the bearer key, below /v2, with no redirect follow
 
 test('a key with a space or a line break, or none, is refused before any request', () => {
   for (const apiKey of ['', '  ', 'sk_a b', 'sk_a\nb']) {
-    assert.throws(() => createRevenueCatClient({ apiKey }), (e: unknown) => e instanceof RevenueCatError && e.kind === 'auth');
+    assert.throws(
+      () => createRevenueCatClient({ apiKey }),
+      (e: unknown) => e instanceof RevenueCatError && e.kind === 'auth',
+    );
   }
 });
 
 test('the origin must be an http(s) origin without credentials, query or fragment', () => {
   assert.equal(normalizeRevenueCatOrigin(undefined), REVENUECAT_API_ORIGIN);
-  assert.equal(normalizeRevenueCatOrigin('https://proxy.example.com/rc/'), 'https://proxy.example.com/rc');
+  assert.equal(
+    normalizeRevenueCatOrigin('https://proxy.example.com/rc/'),
+    'https://proxy.example.com/rc',
+  );
   for (const bad of ['ftp://x.example', 'https://u:p@x.example', 'https://x.example?q=1', 'nope']) {
-    assert.throws(() => normalizeRevenueCatOrigin(bad), (e: unknown) => e instanceof RevenueCatError && e.kind === 'invalid_input');
+    assert.throws(
+      () => normalizeRevenueCatOrigin(bad),
+      (e: unknown) => e instanceof RevenueCatError && e.kind === 'invalid_input',
+    );
   }
 });
 
@@ -68,7 +84,10 @@ test('status and the documented error type decide the kind; the text of RevenueC
   ];
   for (const [status, type, kind] of cases) {
     assert.equal(revenueCatErrorKind(status, type), kind, `${status} ${type}`);
-    const f = fakeFetch(() => ({ status, body: type ? errorBody(type) : { message: `leak ${KEY}` } }));
+    const f = fakeFetch(() => ({
+      status,
+      body: type ? errorBody(type) : { message: `leak ${KEY}` },
+    }));
     const error = await failure(() => client(f).get('/projects'));
     assert.equal(error.kind, kind);
     assert.equal(error.status, status);
@@ -79,9 +98,20 @@ test('status and the documented error type decide the kind; the text of RevenueC
 });
 
 test('a 429 carries the seconds to wait: Retry-After, else backoff_ms, else a minute', async () => {
-  const one = async (answer: Answer) => (await failure(() => client(fakeFetch(() => answer)).get('/projects'))).retryAfterSeconds;
-  assert.equal(await one({ status: 429, headers: { 'retry-after': '7' }, body: errorBody('rate_limit_error') }), 7);
-  assert.equal(await one({ status: 429, body: { ...errorBody('rate_limit_error'), backoff_ms: 2500 } }), 3);
+  const one = async (answer: Answer) =>
+    (await failure(() => client(fakeFetch(() => answer)).get('/projects'))).retryAfterSeconds;
+  assert.equal(
+    await one({
+      status: 429,
+      headers: { 'retry-after': '7' },
+      body: errorBody('rate_limit_error'),
+    }),
+    7,
+  );
+  assert.equal(
+    await one({ status: 429, body: { ...errorBody('rate_limit_error'), backoff_ms: 2500 } }),
+    3,
+  );
   assert.equal(await one({ status: 429, body: errorBody('rate_limit_error') }), 60);
   assert.equal(await one({ status: 429, headers: { 'retry-after': '999999' }, body: {} }), 3600);
 });
@@ -106,7 +136,10 @@ test('a redirect is not followed and is not an answer; non-JSON and a non-object
 
 test('an answer over the size cap is refused, by its declared length and by what actually arrives', async () => {
   const declared = fakeFetch(() => ({ text: '{}', headers: { 'content-length': '999999999' } }));
-  assert.equal((await failure(() => client(declared, { maxResponseBytes: 1000 }).get('/projects'))).kind, 'unexpected');
+  assert.equal(
+    (await failure(() => client(declared, { maxResponseBytes: 1000 }).get('/projects'))).kind,
+    'unexpected',
+  );
   const big = fakeFetch(() => ({ text: JSON.stringify({ items: ['x'.repeat(5000)] }) }));
   const error = await failure(() => client(big, { maxResponseBytes: 1000 }).get('/projects'));
   assert.equal(error.kind, 'unexpected');
@@ -121,9 +154,13 @@ test('a network failure and a timeout are network errors; the text of the failur
   assert.ok(!e1.message.includes('ECONNREFUSED') && !e1.message.includes(KEY));
   const slow: typeof fetch = (_input, init) =>
     new Promise((_resolve, reject) => {
-      init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+      init?.signal?.addEventListener('abort', () =>
+        reject(new DOMException('aborted', 'AbortError')),
+      );
     });
-  const e2 = await failure(() => createRevenueCatClient({ apiKey: KEY, fetch: slow, timeoutMs: 20 }).get('/projects'));
+  const e2 = await failure(() =>
+    createRevenueCatClient({ apiKey: KEY, fetch: slow, timeoutMs: 20 }).get('/projects'),
+  );
   assert.equal(e2.kind, 'network');
   assert.equal(e2.timedOut, true);
 });
@@ -131,7 +168,10 @@ test('a network failure and a timeout are network errors; the text of the failur
 test('a list follows starting_after with the id of the last item, 100 at a time, and never the next_page URL', async () => {
   const f = fakeFetch((call) => {
     const after = call.query.get('starting_after');
-    if (after === null) return { body: list([{ id: 'a' }, { id: 'b' }], 'https://evil.example/v2/x?starting_after=b') };
+    if (after === null)
+      return {
+        body: list([{ id: 'a' }, { id: 'b' }], 'https://evil.example/v2/x?starting_after=b'),
+      };
     if (after === 'b') return { body: list([{ id: 'c' }]) };
     return { status: 500 };
   });
@@ -144,7 +184,9 @@ test('a list follows starting_after with the id of the last item, 100 at a time,
 });
 
 test('a list stops at the page cap and says it is incomplete; a next page without an id to continue from is not followed', async () => {
-  const f = fakeFetch((call) => ({ body: list([{ id: `p${call.query.get('starting_after') ?? '0'}x` }], '/next') }));
+  const f = fakeFetch((call) => ({
+    body: list([{ id: `p${call.query.get('starting_after') ?? '0'}x` }], '/next'),
+  }));
   const capped = await client(f).list('/projects', {}, { maxPages: 3 });
   assert.equal(capped.complete, false);
   assert.equal(f.calls.length, 3);
@@ -156,7 +198,9 @@ test('a list stops at the page cap and says it is incomplete; a next page withou
 });
 
 test('the request budget stops a paginated read before a 429 instead of after it', async () => {
-  const f = fakeFetch((call) => ({ body: list([{ id: `i${call.query.get('starting_after') ?? ''}` }], '/next') }));
+  const f = fakeFetch((call) => ({
+    body: list([{ id: `i${call.query.get('starting_after') ?? ''}` }], '/next'),
+  }));
   const c = client(f, { maxRequests: 2 });
   const got = await c.list('/projects');
   assert.equal(got.complete, false);
@@ -169,7 +213,10 @@ test('the request budget stops a paginated read before a 429 instead of after it
 test('the rate limit headers of an answer stop a paginated read when the minute is used up', async () => {
   const f = fakeFetch((call) => ({
     body: list([{ id: `i${call.query.get('starting_after') ?? ''}` }], '/next'),
-    headers: { 'revenuecat-rate-limit-current-usage': '59', 'revenuecat-rate-limit-current-limit': '60' },
+    headers: {
+      'revenuecat-rate-limit-current-usage': '59',
+      'revenuecat-rate-limit-current-limit': '60',
+    },
   }));
   const c = client(f);
   assert.equal((await c.list('/projects')).complete, false);

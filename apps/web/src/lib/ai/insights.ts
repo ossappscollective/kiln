@@ -172,7 +172,10 @@ export function sentimentShares(sentiment: {
 /** "Based on 38 of 112 reviews" or "Based on 112 reviews". */
 export const basedOnText = (analysed: number, reviewCount: number): string =>
   analysed < reviewCount
-    ? t('ai:insight.basedOnNewest', { analysed: formatNumber(analysed), reviews: reviewsText(reviewCount) })
+    ? t('ai:insight.basedOnNewest', {
+        analysed: formatNumber(analysed),
+        reviews: reviewsText(reviewCount),
+      })
     : t('ai:insight.basedOn', { reviews: reviewsText(reviewCount) });
 
 /** The one line of a tag set under a review: "Crash, Login · negative · high severity". */
@@ -194,18 +197,33 @@ export function auditFieldText(f: AiAuditField): string {
   if (f.empty) {
     return f.limit === null
       ? t('ai:insight.audit.empty')
-      : t('ai:insight.audit.emptyOf', { limit: formatNumber(f.limit), unit: t(unitKey, { count: f.limit }) });
+      : t('ai:insight.audit.emptyOf', {
+          limit: formatNumber(f.limit),
+          unit: t(unitKey, { count: f.limit }),
+        });
   }
   if (f.limit === null)
-    return t('ai:insight.audit.length', { length: formatNumber(f.length), unit: t(unitKey, { count: f.length }) });
-  const values = { length: formatNumber(f.length), limit: formatNumber(f.limit), unit: t(unitKey, { count: f.limit }) };
+    return t('ai:insight.audit.length', {
+      length: formatNumber(f.length),
+      unit: t(unitKey, { count: f.length }),
+    });
+  const values = {
+    length: formatNumber(f.length),
+    limit: formatNumber(f.limit),
+    unit: t(unitKey, { count: f.limit }),
+  };
   return f.percent === null
     ? t('ai:insight.audit.lengthOf', values)
-    : t('ai:insight.audit.lengthOfPercent', { ...values, percent: formatPercent(Math.round(f.percent) / 100) });
+    : t('ai:insight.audit.lengthOfPercent', {
+        ...values,
+        percent: formatPercent(Math.round(f.percent) / 100),
+      });
 }
 
 export const rankText = (rank: number | null): string =>
-  rank === null ? t('ai:insight.rank.none') : t('ai:insight.rank.value', { rank: formatNumber(rank) });
+  rank === null
+    ? t('ai:insight.rank.none')
+    : t('ai:insight.rank.value', { rank: formatNumber(rank) });
 
 /** The notes of a report: sentences the server wrote (a sample, a dropped reference). Plain text. */
 export const reportNotes = (proposal: AiInsightProposal): string[] =>

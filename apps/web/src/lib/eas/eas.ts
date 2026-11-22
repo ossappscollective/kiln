@@ -79,9 +79,15 @@ export function formStart(
   own: ExpoLinkView | null,
   siblings: readonly (ExpoLinkView | null)[],
 ): { credentialId: string; project: string; fromSibling: boolean } {
-  if (own) return { credentialId: own.credentialAvailable ? own.credentialId : '', project: own.fullName, fromSibling: false };
+  if (own)
+    return {
+      credentialId: own.credentialAvailable ? own.credentialId : '',
+      project: own.fullName,
+      fromSibling: false,
+    };
   const other = siblings.filter((l): l is ExpoLinkView => l !== null && l.credentialAvailable)[0];
-  if (other) return { credentialId: other.credentialId, project: other.fullName, fromSibling: true };
+  if (other)
+    return { credentialId: other.credentialId, project: other.fullName, fromSibling: true };
   return { credentialId: '', project: '', fromSibling: false };
 }
 
@@ -109,7 +115,7 @@ export function expoSummary(links: readonly (ExpoLinkView | null)[]): string {
   const linked = links.filter((l): l is ExpoLinkView => l !== null);
   if (linked.length === 0) return t('eas:link.summaryNone');
   const names = linked.map((l) => l.fullName).filter((n, i, all) => all.indexOf(n) === i);
-  return names.length === 1 ? names[0] ?? '' : t('eas:link.summaryMany', { count: names.length });
+  return names.length === 1 ? (names[0] ?? '') : t('eas:link.summaryMany', { count: names.length });
 }
 
 /** "Confirmed with Expo 3 minutes ago.", or what is wrong with the credential. */
@@ -117,7 +123,10 @@ export function linkStatus(link: ExpoLinkView, now: number): { tone: 'ok' | 'war
   if (!link.credentialAvailable) {
     return { tone: 'warn', text: t('eas:link.credentialDeleted') };
   }
-  return { tone: 'ok', text: t('eas:link.confirmed', { ago: formatRelativeTime(link.verifiedAt, { now }) }) };
+  return {
+    tone: 'ok',
+    text: t('eas:link.confirmed', { ago: formatRelativeTime(link.verifiedAt, { now }) }),
+  };
 }
 
 /** What the detection button says when it found a project, and when it did not. */

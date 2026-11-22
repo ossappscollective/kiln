@@ -322,7 +322,7 @@ change set stays `approved`):
 
 | When                                                                                                  | HTTP                   | `error`                                                                              |
 | ----------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------ |
-| `KILN_LOCAL_REPO_WRITE` is not `true`                                                                  | 409                    | `local_write_disabled` (with `envName`)                                              |
+| `KILN_LOCAL_REPO_WRITE` is not `true`                                                                 | 409                    | `local_write_disabled` (with `envName`)                                              |
 | no local clone attached                                                                               | 409                    | `no_local_checkout`                                                                  |
 | `github_pr`, or `push` / `openPr`, on a local-only repository (no GitHub connection)                  | 409                    | `local_only`                                                                         |
 | the clone's `origin` is not the connected GitHub repository (push only)                               | 409                    | `remote_mismatch` with `origin` and `repository`                                     |
@@ -331,9 +331,9 @@ change set stays `approved`):
 | a file changed in the clone since the draft                                                           | 409                    | `base_changed` with `paths` (discard and read again)                                 |
 | nothing would change; a path the rules refuse; a symlink or submodule in the way; a file too large    | 422                    | `no_changes`, `invalid_file_path`, `path_conflict`, `unsupported_entry`, `too_large` |
 | the folder cannot be used (outside the roots, moved, not a repository, branch deleted, detached HEAD) | 422                    | `local_` plus the code, `local_branch_missing` (see Local clones)                    |
-| `KILN_LOCAL_REPO_ROOTS` unset, or `KILN_READS=api`, or git missing                                      | 409                    | `local_not_enabled`, `local_reads_disabled`, `local_git_missing`                     |
+| `KILN_LOCAL_REPO_ROOTS` unset, or `KILN_READS=api`, or git missing                                    | 409                    | `local_not_enabled`, `local_reads_disabled`, `local_git_missing`                     |
 | git ran too long                                                                                      | 504                    | `timeout`                                                                            |
-| signing is on (`KILN_GIT_SIGN`) and failed: no key, key locked, program missing, no answer in time     | 502 (504 on a timeout) | `signing_failed` with `reason`: `timeout`, `locked`, `key`, `program` or `failed`    |
+| signing is on (`KILN_GIT_SIGN`) and failed: no key, key locked, program missing, no answer in time    | 502 (504 on a timeout) | `signing_failed` with `reason`: `timeout`, `locked`, `key`, `program` or `failed`    |
 | another apply is running                                                                              | 409                    | `apply_in_progress`                                                                  |
 | git failed in a way that was not expected                                                             | 502                    | `local_git_failed`                                                                   |
 

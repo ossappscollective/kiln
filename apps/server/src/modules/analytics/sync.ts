@@ -487,7 +487,9 @@ async function readAppleSales(env: Env, newestDay: string | null): Promise<Outco
     // Products kept now count against the cap of the next day of this sync.
     for (const p of capped.points)
       if (p.dimension?.type === 'product')
-        stored.add(splitProductDimValue(p.dimension.value, p.metric === 'sales_proceeds').productId);
+        stored.add(
+          splitProductDimValue(p.dimension.value, p.metric === 'sales_proceeds').productId,
+        );
     const parsed = { ...read, points: capped.points };
     reports++;
     const result = await upsertPoints(

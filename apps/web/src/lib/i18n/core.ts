@@ -24,7 +24,8 @@ export type PluralCategory = (typeof PLURAL_CATEGORIES)[number];
 export const RICH_TAGS: readonly string[] = ['link', 'link2', 'link3', 'strong', 'em', 'code'];
 
 /** Key grammar: dot-separated camelCase segments, optionally ending in a plural suffix. */
-export const KEY_PATTERN = /^[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)*(_(zero|one|two|few|many|other))?$/;
+export const KEY_PATTERN =
+  /^[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)*(_(zero|one|two|few|many|other))?$/;
 /** Namespace grammar. */
 export const NAMESPACE_PATTERN = /^[a-z][a-z0-9-]*$/;
 
@@ -54,7 +55,8 @@ export function splitPluralKey(key: string): { base: string; category: PluralCat
 // Languages and plurals
 
 /** What `Intl` should be given for an app locale: the pseudo locale reads like English. */
-export const intlLocaleOf = (locale: string): string => (locale === PSEUDO_LOCALE ? SOURCE_LOCALE : locale);
+export const intlLocaleOf = (locale: string): string =>
+  locale === PSEUDO_LOCALE ? SOURCE_LOCALE : locale;
 
 const rulesCache = new Map<string, Intl.PluralRules | null>();
 
@@ -129,20 +131,25 @@ export function tagProblem(message: string): string {
   const tags = tagsOf(message);
   let open: string | null = null;
   for (const tag of tags) {
-    if (RICH_TAGS.indexOf(tag.name) < 0) return `<${tag.name}> is not an allowed tag (allowed: ${RICH_TAGS.join(', ')}).`;
+    if (RICH_TAGS.indexOf(tag.name) < 0)
+      return `<${tag.name}> is not an allowed tag (allowed: ${RICH_TAGS.join(', ')}).`;
     if (!tag.closing) {
       if (open !== null) return `<${tag.name}> inside <${open}>: tags do not nest.`;
       open = tag.name;
     } else if (open !== tag.name) {
-      return open === null ? `</${tag.name}> has no opening tag.` : `</${tag.name}> closes <${open}>.`;
+      return open === null
+        ? `</${tag.name}> has no opening tag.`
+        : `</${tag.name}> closes <${open}>.`;
     } else {
       open = null;
     }
   }
   if (open !== null) return `<${open}> is never closed.`;
   const stray = /<[A-Za-z/!]/.exec(message.replace(new RegExp(TAG.source, 'g'), ''));
-  if (stray) return 'Looks like HTML. Messages hold text, {{placeholders}} and the documented tags only.';
-  if (/&[A-Za-z#0-9]+;/.test(message)) return 'HTML entities are not allowed: write the character itself.';
+  if (stray)
+    return 'Looks like HTML. Messages hold text, {{placeholders}} and the documented tags only.';
+  if (/&[A-Za-z#0-9]+;/.test(message))
+    return 'HTML entities are not allowed: write the character itself.';
   return '';
 }
 
@@ -192,7 +199,8 @@ export function interpolate(message: string, params: Params | undefined, locale:
     if (!Object.prototype.hasOwnProperty.call(params, name)) return whole;
     const value = params[name];
     if (value === null || value === undefined) return '';
-    if (name === 'count' && typeof value === 'number' && Number.isFinite(value)) return countText(value, locale);
+    if (name === 'count' && typeof value === 'number' && Number.isFinite(value))
+      return countText(value, locale);
     return String(value);
   });
 }
@@ -201,10 +209,58 @@ export function interpolate(message: string, params: Params | undefined, locale:
 // Pseudo-locale
 
 const ACCENTED: Record<string, string> = {
-  a: 'à', b: 'ƀ', c: 'ç', d: 'ď', e: 'é', f: 'ƒ', g: 'ĝ', h: 'ĥ', i: 'î', j: 'ĵ', k: 'ķ', l: 'ľ', m: 'ɱ',
-  n: 'ñ', o: 'ö', p: 'þ', q: 'ɋ', r: 'ŕ', s: 'š', t: 'ţ', u: 'û', v: 'ṽ', w: 'ŵ', x: 'ẋ', y: 'ý', z: 'ž',
-  A: 'À', B: 'Ɓ', C: 'Ç', D: 'Ď', E: 'É', F: 'Ƒ', G: 'Ĝ', H: 'Ĥ', I: 'Î', J: 'Ĵ', K: 'Ķ', L: 'Ľ', M: 'Ṁ',
-  N: 'Ñ', O: 'Ö', P: 'Þ', Q: 'Ɋ', R: 'Ŕ', S: 'Š', T: 'Ţ', U: 'Û', V: 'Ṽ', W: 'Ŵ', X: 'Ẋ', Y: 'Ý', Z: 'Ž',
+  a: 'à',
+  b: 'ƀ',
+  c: 'ç',
+  d: 'ď',
+  e: 'é',
+  f: 'ƒ',
+  g: 'ĝ',
+  h: 'ĥ',
+  i: 'î',
+  j: 'ĵ',
+  k: 'ķ',
+  l: 'ľ',
+  m: 'ɱ',
+  n: 'ñ',
+  o: 'ö',
+  p: 'þ',
+  q: 'ɋ',
+  r: 'ŕ',
+  s: 'š',
+  t: 'ţ',
+  u: 'û',
+  v: 'ṽ',
+  w: 'ŵ',
+  x: 'ẋ',
+  y: 'ý',
+  z: 'ž',
+  A: 'À',
+  B: 'Ɓ',
+  C: 'Ç',
+  D: 'Ď',
+  E: 'É',
+  F: 'Ƒ',
+  G: 'Ĝ',
+  H: 'Ĥ',
+  I: 'Î',
+  J: 'Ĵ',
+  K: 'Ķ',
+  L: 'Ľ',
+  M: 'Ṁ',
+  N: 'Ñ',
+  O: 'Ö',
+  P: 'Þ',
+  Q: 'Ɋ',
+  R: 'Ŕ',
+  S: 'Š',
+  T: 'Ţ',
+  U: 'Û',
+  V: 'Ṽ',
+  W: 'Ŵ',
+  X: 'Ẋ',
+  Y: 'Ý',
+  Z: 'Ž',
 };
 
 /**
@@ -246,7 +302,12 @@ export type TranslateOptions = {
  * is `key_<category>`, `key_other`, `key`; without one `key`, then `key_other`. An empty string is an untranslated string (Weblate writes
  * those) and counts as missing.
  */
-export function pickMessage(catalog: Catalog, key: string, locale: string, count: number | undefined): string | undefined {
+export function pickMessage(
+  catalog: Catalog,
+  key: string,
+  locale: string,
+  count: number | undefined,
+): string | undefined {
   const order =
     count === undefined
       ? [key, `${key}_other`]
@@ -264,15 +325,23 @@ function countOf(params: Params | undefined): number | undefined {
 }
 
 /** The raw message and the language it was found in (the plural rules and the pseudo-locale follow it), or null. */
-function resolve(full: string, params: Params | undefined, opts: TranslateOptions): { raw: string; locale: string } | null {
+function resolve(
+  full: string,
+  params: Params | undefined,
+  opts: TranslateOptions,
+): { raw: string; locale: string } | null {
   const parts = splitKey(full);
   if (parts) {
     const count = countOf(params);
-    const chain = opts.locale === SOURCE_LOCALE || opts.locale === PSEUDO_LOCALE ? [SOURCE_LOCALE] : [opts.locale, SOURCE_LOCALE];
+    const chain =
+      opts.locale === SOURCE_LOCALE || opts.locale === PSEUDO_LOCALE
+        ? [SOURCE_LOCALE]
+        : [opts.locale, SOURCE_LOCALE];
     for (const language of chain) {
       const catalog = opts.lookup(language, parts.ns);
       const raw = catalog ? pickMessage(catalog, parts.key, language, count) : undefined;
-      if (raw !== undefined) return { raw: opts.locale === PSEUDO_LOCALE ? pseudoize(raw) : raw, locale: language };
+      if (raw !== undefined)
+        return { raw: opts.locale === PSEUDO_LOCALE ? pseudoize(raw) : raw, locale: language };
     }
   }
   opts.onMissing?.(full, opts.locale);
@@ -283,14 +352,25 @@ function resolve(full: string, params: Params | undefined, opts: TranslateOption
  * The message of `ns:key` in the active language with `{{placeholders}}` filled. A key missing from the language is read from English; a
  * key missing everywhere is returned as written (`onMissing` is told). Tags stay in the text: use `translateParts` for messages with tags.
  */
-export function translate(full: string, params: Params | undefined, opts: TranslateOptions): string {
+export function translate(
+  full: string,
+  params: Params | undefined,
+  opts: TranslateOptions,
+): string {
   const found = resolve(full, params, opts);
   return found ? interpolate(found.raw, params, opts.locale) : full;
 }
 
 /** Like `translate`, split into parts for the `<T>` component. Tags are found before the values are put in, so a value can never add a tag. */
-export function translateParts(full: string, params: Params | undefined, opts: TranslateOptions): RichPart[] {
+export function translateParts(
+  full: string,
+  params: Params | undefined,
+  opts: TranslateOptions,
+): RichPart[] {
   const found = resolve(full, params, opts);
   if (!found) return [{ text: full }];
-  return splitRich(found.raw).map((part) => ({ ...part, text: interpolate(part.text, params, opts.locale) }));
+  return splitRich(found.raw).map((part) => ({
+    ...part,
+    text: interpolate(part.text, params, opts.locale),
+  }));
 }

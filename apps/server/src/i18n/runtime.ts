@@ -37,7 +37,8 @@ const TAG = /<(\/?)([a-z][a-z0-9]*)>/g;
 // ---------------------------------------------------------------------------------------------
 // Choosing a language
 
-const languageOf = (tag: string): string => tag.toLowerCase().replace(/_/g, '-').split('-')[0] ?? '';
+const languageOf = (tag: string): string =>
+  tag.toLowerCase().replace(/_/g, '-').split('-')[0] ?? '';
 
 /**
  * The language to answer in for an `Accept-Language` header (RFC 9110): entries are ranked by their `q` (default 1, `q=0` means "not
@@ -231,7 +232,8 @@ export function resolveMessage(
 ): { raw: string; locale: string } | undefined {
   const parts = splitKey(full);
   if (!parts) return undefined;
-  const count = typeof params?.count === 'number' && Number.isFinite(params.count) ? params.count : undefined;
+  const count =
+    typeof params?.count === 'number' && Number.isFinite(params.count) ? params.count : undefined;
   const chain = locale === SOURCE_LOCALE ? [SOURCE_LOCALE] : [locale, SOURCE_LOCALE];
   for (const language of chain) {
     const catalog = lookup(language, parts.ns);

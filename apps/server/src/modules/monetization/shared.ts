@@ -14,13 +14,13 @@ import {
 } from '@kiln/connectors';
 import { type ActorType, needsStoreAppId } from '@kiln/core';
 import type { Database } from '@kiln/db';
-import { coded, messageCoding } from '../../i18n/problem.ts';
 import { credentialKindFor, type ManagedApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import type { RevenueCatStep } from '../revenuecat/index.ts';
 
+import { coded, messageCoding } from '../../i18n/problem.ts';
 /**
  * What the sync, the reads and the localization write of in-app products share: the context, the connectors that are built from a
  * credential, the credential itself, the timeout, and the way a store refusal becomes an answer (docs/adr/0034-in-app-products.md).
@@ -89,7 +89,11 @@ export type MonetizationContext = {
    * The RevenueCat read that follows the store read of a sync (docs/adr/0039-revenuecat.md): null when the app has no link. It never throws,
    * never touches the store snapshot, and runs whether or not the store step worked.
    */
-  revenueCatStep: (input: { workspaceId: string; appId: string; actor: Actor }) => Promise<RevenueCatStep | null>;
+  revenueCatStep: (input: {
+    workspaceId: string;
+    appId: string;
+    actor: Actor;
+  }) => Promise<RevenueCatStep | null>;
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -130,7 +134,10 @@ export function mapStoreError(error: unknown, secret: string): Mapped {
   ): Mapped => ({
     code,
     failure: {
-      ...failure(status, code, clean(message, secret), { ...extra, ...messageCoding(error, message) }),
+      ...failure(status, code, clean(message, secret), {
+        ...extra,
+        ...messageCoding(error, message),
+      }),
       ...(headers ? { headers } : {}),
     },
   });

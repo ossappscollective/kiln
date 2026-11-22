@@ -10,7 +10,11 @@ type WithLocale = { locale?: string | undefined };
 
 function browserLanguages(): readonly string[] {
   if (typeof navigator === 'undefined') return [];
-  return navigator.languages && navigator.languages.length > 0 ? navigator.languages : navigator.language ? [navigator.language] : [];
+  return navigator.languages && navigator.languages.length > 0
+    ? navigator.languages
+    : navigator.language
+      ? [navigator.language]
+      : [];
 }
 
 /** The tag `Intl` is given when the caller passes none. Reads the active language (so it is reactive in templates). */
@@ -40,19 +44,28 @@ function dateFormat(locale: string, options: Intl.DateTimeFormatOptions): Intl.D
 // Numbers
 
 /** 12345.6 is "12,345.6" in English, "12 345,6" in French. */
-export function formatNumber(value: number, options: Intl.NumberFormatOptions & WithLocale = {}): string {
+export function formatNumber(
+  value: number,
+  options: Intl.NumberFormatOptions & WithLocale = {},
+): string {
   if (!Number.isFinite(value)) return '';
   const { locale, ...rest } = options;
   return numberFormat(locale ?? formatLocale(), rest).format(value);
 }
 
 /** A fraction as a percentage: 0.256 is "26%" (pass `maximumFractionDigits` for more). */
-export function formatPercent(fraction: number, options: Intl.NumberFormatOptions & WithLocale = {}): string {
+export function formatPercent(
+  fraction: number,
+  options: Intl.NumberFormatOptions & WithLocale = {},
+): string {
   return formatNumber(fraction, { ...options, style: 'percent' });
 }
 
 /** 12900 is "12.9K" in English and "12,9 k" in French. */
-export function formatCompact(value: number, options: Intl.NumberFormatOptions & WithLocale = {}): string {
+export function formatCompact(
+  value: number,
+  options: Intl.NumberFormatOptions & WithLocale = {},
+): string {
   return formatNumber(value, { maximumFractionDigits: 1, ...options, notation: 'compact' });
 }
 
@@ -66,26 +79,45 @@ type CurrencyOptions = WithLocale & {
 };
 
 /** Major units to text: `formatCurrency(1234.5, 'USD')` is "$1,234.50". A missing or unknown currency is written as its code before the number. */
-export function formatCurrency(amount: number | string, currency: string | null, options: CurrencyOptions = {}): string {
+export function formatCurrency(
+  amount: number | string,
+  currency: string | null,
+  options: CurrencyOptions = {},
+): string {
   // A string is an exact decimal such as "4.99" (what `formatMinorUnits` passes for amounts too long for a double).
-  if (typeof amount === 'number' ? !Number.isFinite(amount) : !/^-?\d+(\.\d+)?$/.test(amount)) return '';
+  if (typeof amount === 'number' ? !Number.isFinite(amount) : !/^-?\d+(\.\d+)?$/.test(amount))
+    return '';
   const locale = options.locale ?? formatLocale();
-  const fixed = options.digits === undefined ? {} : { minimumFractionDigits: options.digits, maximumFractionDigits: options.digits };
+  const fixed =
+    options.digits === undefined
+      ? {}
+      : { minimumFractionDigits: options.digits, maximumFractionDigits: options.digits };
   if (currency && /^[A-Za-z]{3}$/.test(currency)) {
     try {
-      return numberFormat(locale, { style: 'currency', currency: currency.toUpperCase(), ...fixed }).format(amount as number);
+      return numberFormat(locale, {
+        style: 'currency',
+        currency: currency.toUpperCase(),
+        ...fixed,
+      }).format(amount as number);
     } catch {
       // fall through to the plain form
     }
   }
-  const plain = formatNumber(Number(amount), { locale, minimumFractionDigits: options.digits ?? 2, maximumFractionDigits: options.digits ?? 2 });
+  const plain = formatNumber(Number(amount), {
+    locale,
+    minimumFractionDigits: options.digits ?? 2,
+    maximumFractionDigits: options.digits ?? 2,
+  });
   return currency ? `${currency} ${plain}` : plain;
 }
 
 /** How many decimals a currency has (2 for USD, 0 for JPY, 3 for KWD). */
 export function currencyDigits(currency: string): number {
   try {
-    return numberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 2;
+    return (
+      numberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ??
+      2
+    );
   } catch {
     return 2;
   }
@@ -95,14 +127,21 @@ export function currencyDigits(currency: string): number {
  * Minor units to text: `formatMinorUnits('499', 'USD')` is "$4.99". The digits are moved by text, never by floating-point arithmetic, so
  * no amount that fits in 15 digits changes. Anything that is not a whole number of digits gives ''.
  */
-export function formatMinorUnits(minor: string | number, currency: string, options: CurrencyOptions = {}): string {
+export function formatMinorUnits(
+  minor: string | number,
+  currency: string,
+  options: CurrencyOptions = {},
+): string {
   const match = /^(-?)(\d+)$/.exec(String(minor).trim());
   if (!match) return '';
   const digits = options.digits ?? currencyDigits(currency);
   const whole = (match[2] as string).replace(/^0+(?=\d)/, '');
   const sign = match[1] === '-' && whole !== '0' ? '-' : '';
   const padded = whole.padStart(digits + 1, '0');
-  const decimal = digits === 0 ? whole : `${padded.slice(0, padded.length - digits)}.${padded.slice(padded.length - digits)}`;
+  const decimal =
+    digits === 0
+      ? whole
+      : `${padded.slice(0, padded.length - digits)}.${padded.slice(padded.length - digits)}`;
   // Beyond 15 digits a double cannot hold the amount: hand Intl the decimal text (exact where the runtime supports it).
   const text = sign + decimal;
   return formatCurrency(whole.length <= 15 ? Number(text) : text, currency, { ...options, digits });
@@ -114,14 +153,32 @@ export function formatMinorUnits(minor: string | number, currency: string, optio
 type DateLike = Date | number | string;
 type DateOptions = Intl.DateTimeFormatOptions & WithLocale;
 
-const FIELD_KEYS = ['dateStyle', 'timeStyle', 'weekday', 'era', 'year', 'month', 'day', 'hour', 'minute', 'second', 'dayPeriod'];
+const FIELD_KEYS = [
+  'dateStyle',
+  'timeStyle',
+  'weekday',
+  'era',
+  'year',
+  'month',
+  'day',
+  'hour',
+  'minute',
+  'second',
+  'dayPeriod',
+];
 
-function format(value: DateLike, defaults: Intl.DateTimeFormatOptions, options: DateOptions): string {
+function format(
+  value: DateLike,
+  defaults: Intl.DateTimeFormatOptions,
+  options: DateOptions,
+): string {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   const { locale, ...rest } = options;
   const custom = FIELD_KEYS.some((key) => (rest as Record<string, unknown>)[key] !== undefined);
-  return dateFormat(locale ?? formatLocale(), custom ? rest : { ...defaults, ...rest }).format(date);
+  return dateFormat(locale ?? formatLocale(), custom ? rest : { ...defaults, ...rest }).format(
+    date,
+  );
 }
 
 /** "Nov 21, 2026" / "21 nov. 2026". Pass options (`{ weekday: 'short', day: 'numeric' }`) to choose the fields yourself. */
@@ -130,7 +187,11 @@ export const formatDate = (value: DateLike, options: DateOptions = {}): string =
 
 /** "Nov 21, 2026, 2:14 PM". */
 export const formatDateTime = (value: DateLike, options: DateOptions = {}): string =>
-  format(value, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }, options);
+  format(
+    value,
+    { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' },
+    options,
+  );
 
 /** "2:14 PM" / "14:14". */
 export const formatTime = (value: DateLike, options: DateOptions = {}): string =>
@@ -146,7 +207,10 @@ const DAY = 24 * HOUR;
  */
 export function formatRelativeTime(
   value: DateLike,
-  options: WithLocale & { now?: number | undefined; style?: 'long' | 'short' | 'narrow' | undefined } = {},
+  options: WithLocale & {
+    now?: number | undefined;
+    style?: 'long' | 'short' | 'narrow' | undefined;
+  } = {},
 ): string {
   const at = value instanceof Date ? value.getTime() : new Date(value).getTime();
   if (Number.isNaN(at)) return '';
@@ -168,8 +232,15 @@ export function formatRelativeTime(
                 : ['year', 365 * DAY];
   // Under a minute is "now": counting seconds in a list that refreshes rarely is noise.
   const amount = unit === 'second' ? 0 : Math.trunc(diff / size);
-  const rtf = memo('r', options.locale ?? formatLocale(), { style: options.style ?? 'long' }, () =>
-    new Intl.RelativeTimeFormat(options.locale ?? formatLocale(), { numeric: 'auto', style: options.style ?? 'long' }),
+  const rtf = memo(
+    'r',
+    options.locale ?? formatLocale(),
+    { style: options.style ?? 'long' },
+    () =>
+      new Intl.RelativeTimeFormat(options.locale ?? formatLocale(), {
+        numeric: 'auto',
+        style: options.style ?? 'long',
+      }),
   );
   return rtf.format(amount, unit);
 }
@@ -180,13 +251,21 @@ export function formatRelativeTime(
 /** ["a", "b", "c"] is "a, b, and c" in English, "a, b et c" in French. `type: 'disjunction'` says "or". */
 export function formatList(
   items: readonly string[],
-  options: WithLocale & { type?: 'conjunction' | 'disjunction' | 'unit' | undefined; style?: 'long' | 'short' | 'narrow' | undefined } = {},
+  options: WithLocale & {
+    type?: 'conjunction' | 'disjunction' | 'unit' | undefined;
+    style?: 'long' | 'short' | 'narrow' | undefined;
+  } = {},
 ): string {
   const locale = options.locale ?? formatLocale();
   const type = options.type ?? 'conjunction';
   const style = options.style ?? 'long';
   if (typeof Intl.ListFormat !== 'function') return items.join(', ');
-  return memo('l', locale, { type, style }, () => new Intl.ListFormat(locale, { type, style })).format(items);
+  return memo(
+    'l',
+    locale,
+    { type, style },
+    () => new Intl.ListFormat(locale, { type, style }),
+  ).format(items);
 }
 
 const BYTE_UNITS = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'] as const;
@@ -195,7 +274,10 @@ const BYTE_UNITS = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'] as c
  * 1536 is "1.5 kB" in English, "1,5 ko" in French. Steps of 1024, one decimal under 10, none above. The unit names come from
  * `Intl`, so they are the language's own.
  */
-export function formatBytes(bytes: number, options: WithLocale & { unitDisplay?: 'short' | 'long' | 'narrow' | undefined } = {}): string {
+export function formatBytes(
+  bytes: number,
+  options: WithLocale & { unitDisplay?: 'short' | 'long' | 'narrow' | undefined } = {},
+): string {
   if (!Number.isFinite(bytes)) return '';
   let value = Math.max(bytes, 0);
   let unit = 0;
@@ -220,7 +302,10 @@ const DURATION_UNITS: readonly (readonly [string, number])[] = [
 ];
 
 /** 3 725 000 ms is "1 hr, 2 min" (the two largest non-zero units). Under a second is "0 sec". */
-export function formatDuration(ms: number, options: WithLocale & { parts?: number | undefined } = {}): string {
+export function formatDuration(
+  ms: number,
+  options: WithLocale & { parts?: number | undefined } = {},
+): string {
   if (!Number.isFinite(ms)) return '';
   let rest = Math.max(Math.round(ms / 1000) * 1000, 0);
   const pieces: string[] = [];
@@ -228,30 +313,48 @@ export function formatDuration(ms: number, options: WithLocale & { parts?: numbe
     const n = Math.floor(rest / size);
     rest -= n * size;
     if (n > 0 && pieces.length < (options.parts ?? 2)) {
-      pieces.push(formatNumber(n, { locale: options.locale, style: 'unit', unit, unitDisplay: 'short' }));
+      pieces.push(
+        formatNumber(n, { locale: options.locale, style: 'unit', unit, unitDisplay: 'short' }),
+      );
     }
   }
-  if (pieces.length === 0) pieces.push(formatNumber(0, { locale: options.locale, style: 'unit', unit: 'second', unitDisplay: 'short' }));
+  if (pieces.length === 0)
+    pieces.push(
+      formatNumber(0, {
+        locale: options.locale,
+        style: 'unit',
+        unit: 'second',
+        unitDisplay: 'short',
+      }),
+    );
   return formatList(pieces, { locale: options.locale, type: 'unit', style: 'narrow' });
 }
 
 // ---------------------------------------------------------------------------------------------
 // Names of languages, regions and currencies
 
-type DisplayNamesCtor = new (locales: string[], options: { type: string }) => { of(code: string): string | undefined };
+type DisplayNamesCtor = new (
+  locales: string[],
+  options: { type: string },
+) => { of(code: string): string | undefined };
 
 /**
  * "German (Germany)" for the language `de-DE`, "United States" for the region `US`, "Euro" for the currency `EUR`, written in the active
  * language. The code itself comes back when the runtime cannot name it (`Intl.DisplayNames` is newer than the TypeScript library level
  * of this project, so it is reached through a cast).
  */
-export function formatDisplayName(code: string, type: 'language' | 'region' | 'currency', options: WithLocale = {}): string {
+export function formatDisplayName(
+  code: string,
+  type: 'language' | 'region' | 'currency',
+  options: WithLocale = {},
+): string {
   const Names = (Intl as unknown as { DisplayNames?: DisplayNamesCtor }).DisplayNames;
   if (!Names) return code;
   try {
     const locale = options.locale ?? formatLocale();
     const names = memo('dn', locale, { type }, () => new Names([locale], { type }));
-    const wanted = type === 'region' || type === 'currency' ? code.toUpperCase() : code.replace('_', '-');
+    const wanted =
+      type === 'region' || type === 'currency' ? code.toUpperCase() : code.replace('_', '-');
     const name = names.of(wanted);
     return name && name !== wanted ? name : code;
   } catch {

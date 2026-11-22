@@ -116,7 +116,10 @@ const actions: Record<string, (detail: Record<string, unknown> | null) => string
   'plan.reminder': (d) =>
     d?.kind
       ? d?.version
-        ? t('workspace:audit.planReminderKindVersion', { kind: str(d.kind).replace(/_/g, ' '), version: str(d.version) })
+        ? t('workspace:audit.planReminderKindVersion', {
+            kind: str(d.kind).replace(/_/g, ' '),
+            version: str(d.version),
+          })
         : t('workspace:audit.planReminderKind', { kind: str(d.kind).replace(/_/g, ' ') })
       : d?.version
         ? t('workspace:audit.planReminderVersion', { version: str(d.version) })
@@ -155,7 +158,9 @@ const actions: Record<string, (detail: Record<string, unknown> | null) => string
       : t('workspace:audit.webhookCreate'),
   'webhook.update': (d) =>
     Array.isArray(d?.changed) && d.changed.length > 0
-      ? t('workspace:audit.webhookUpdateFields', { fields: formatList(d.changed.map(str), { type: 'unit' }) })
+      ? t('workspace:audit.webhookUpdateFields', {
+          fields: formatList(d.changed.map(str), { type: 'unit' }),
+        })
       : t('workspace:audit.webhookUpdate'),
   'webhook.delete': (d) =>
     d?.url

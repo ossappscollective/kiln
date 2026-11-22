@@ -44,13 +44,16 @@ export async function verifyExpoCredential(
     }
     const names = who.accounts.map((a) => a.name);
     const shown = names.slice(0, MAX_ACCOUNTS_SHOWN).join(', ');
-    const more = names.length > MAX_ACCOUNTS_SHOWN ? `, and ${names.length - MAX_ACCOUNTS_SHOWN} more` : '';
+    const more =
+      names.length > MAX_ACCOUNTS_SHOWN ? `, and ${names.length - MAX_ACCOUNTS_SHOWN} more` : '';
     const details = [
       `Signed in as: ${clean(who.displayName)}`,
       who.kind === 'robot'
         ? 'Type: robot user'
         : 'Type: personal token (a robot user with the Developer role is recommended)',
-      names.length > 0 ? `Accounts: ${clean(shown)}${more}` : 'Accounts: none visible to this token',
+      names.length > 0
+        ? `Accounts: ${clean(shown)}${more}`
+        : 'Accounts: none visible to this token',
     ];
     return { ok: true, message: `Connected to Expo as ${clean(who.displayName)}.`, details };
   } catch (error) {

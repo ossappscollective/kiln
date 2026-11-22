@@ -4,6 +4,7 @@ import {
   APPLE_PHASED_SCHEDULE,
   checkRolloutAction,
   compareRollout,
+  DAY_ONE_BEFORE_CREATED_TEXT,
   PLATFORMS,
   type Platform,
   type ReleaseState,
@@ -356,7 +357,11 @@ export async function setRollout(
       const startsAt = body.startsAt ?? null;
       if (startsAt !== null && (!Number.isInteger(startsAt) || startsAt < plan.createdAt)) {
         return invalid([
-          { path: 'startsAt', message: 'Day 1 cannot be before the plan was created.' },
+          {
+            path: 'startsAt',
+            message: 'Day 1 cannot be before the plan was created.',
+            text: DAY_ONE_BEFORE_CREATED_TEXT,
+          },
         ]);
       }
       const unchanged =

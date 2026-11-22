@@ -189,7 +189,12 @@ export function rankWorkflows(
         platforms,
       };
     if (has(words, BUILD_WORDS))
-      return { workflow, relevance: 'build', reason: t('builds:workflows.reason.build'), platforms };
+      return {
+        workflow,
+        relevance: 'build',
+        reason: t('builds:workflows.reason.build'),
+        platforms,
+      };
     return { workflow, relevance: 'other', reason: '', platforms };
   });
   return entries.sort(

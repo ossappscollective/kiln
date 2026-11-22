@@ -32,10 +32,26 @@ const LABELS: Record<string, string> = {
  */
 type FieldMessages = { stageIn: string; draftIn: string; draftCannot: string };
 const BY_FIELD: Record<string, FieldMessages> = {
-  name: { stageIn: k('ai:stageIn.title'), draftIn: k('ai:draftIn.title'), draftCannot: k('ai:draftCannot.title') },
-  title: { stageIn: k('ai:stageIn.title'), draftIn: k('ai:draftIn.title'), draftCannot: k('ai:draftCannot.title') },
-  subtitle: { stageIn: k('ai:stageIn.subtitle'), draftIn: k('ai:draftIn.subtitle'), draftCannot: k('ai:draftCannot.subtitle') },
-  keywords: { stageIn: k('ai:stageIn.keywords'), draftIn: k('ai:draftIn.keywords'), draftCannot: k('ai:draftCannot.keywords') },
+  name: {
+    stageIn: k('ai:stageIn.title'),
+    draftIn: k('ai:draftIn.title'),
+    draftCannot: k('ai:draftCannot.title'),
+  },
+  title: {
+    stageIn: k('ai:stageIn.title'),
+    draftIn: k('ai:draftIn.title'),
+    draftCannot: k('ai:draftCannot.title'),
+  },
+  subtitle: {
+    stageIn: k('ai:stageIn.subtitle'),
+    draftIn: k('ai:draftIn.subtitle'),
+    draftCannot: k('ai:draftCannot.subtitle'),
+  },
+  keywords: {
+    stageIn: k('ai:stageIn.keywords'),
+    draftIn: k('ai:draftIn.keywords'),
+    draftCannot: k('ai:draftCannot.keywords'),
+  },
   promotional_text: {
     stageIn: k('ai:stageIn.promotionalText'),
     draftIn: k('ai:draftIn.promotionalText'),

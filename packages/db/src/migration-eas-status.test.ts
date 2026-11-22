@@ -37,7 +37,8 @@ dbTest(
     );
     assert.equal(String((await db.query('SELECT name FROM workspaces'))[0]?.name), 'Acme');
 
-    const names = async (table: string) => (await tableColumns(db, table)).map((c) => c.name).sort();
+    const names = async (table: string) =>
+      (await tableColumns(db, table)).map((c) => c.name).sort();
     assert.deepEqual(await names('eas_builds'), [
       'app_build_version',
       'app_id',
@@ -117,10 +118,11 @@ dbTest(
     await assert.rejects(() => insert('a3', 'b1', 'nope'), 'the workspace must exist');
     const [row] = await db.query('SELECT has_artifact FROM eas_builds WHERE app_id = ?', ['a1']);
     assert.equal(Number(row?.has_artifact), 0);
-    await db.execute(
-      "INSERT INTO eas_status_sync (app_id, workspace_id) VALUES ('a1', 'w1')",
+    await db.execute("INSERT INTO eas_status_sync (app_id, workspace_id) VALUES ('a1', 'w1')");
+    const [sync] = await db.query(
+      'SELECT consecutive_failures FROM eas_status_sync WHERE app_id = ?',
+      ['a1'],
     );
-    const [sync] = await db.query('SELECT consecutive_failures FROM eas_status_sync WHERE app_id = ?', ['a1']);
     assert.equal(Number(sync?.consecutive_failures), 0);
 
     // Running again changes nothing.

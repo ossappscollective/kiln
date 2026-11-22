@@ -5,7 +5,14 @@
  * Never call `t()` at module top level (it would be evaluated once, in whatever language was active): call it in a function, a
  * template or a `$derived`, or keep the key (`k('ns:key')`) and translate where it is drawn.
  */
-import { type Catalog, type Params, type RichPart, SOURCE_LOCALE, translate, translateParts } from './core.ts';
+import {
+  type Catalog,
+  type Params,
+  type RichPart,
+  SOURCE_LOCALE,
+  translate,
+  translateParts,
+} from './core.ts';
 
 const catalogs = new Map<string, Catalog>();
 const slot = (locale: string, ns: string): string => `${locale}/${ns}`;
@@ -16,8 +23,12 @@ export function registerCatalog(locale: string, ns: string, catalog: Catalog): v
 }
 
 /** Registers every namespace of a language. */
-export function registerCatalogs(locale: string, byNamespace: Readonly<Record<string, Catalog>>): void {
-  for (const ns of Object.keys(byNamespace)) registerCatalog(locale, ns, byNamespace[ns] as Catalog);
+export function registerCatalogs(
+  locale: string,
+  byNamespace: Readonly<Record<string, Catalog>>,
+): void {
+  for (const ns of Object.keys(byNamespace))
+    registerCatalog(locale, ns, byNamespace[ns] as Catalog);
 }
 
 /** Whether any catalog of the language is registered. */

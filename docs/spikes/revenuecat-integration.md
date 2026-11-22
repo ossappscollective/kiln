@@ -23,18 +23,18 @@ Rate limits are per domain and per key (per developer for developer-level keys):
 480/min, Charts & Metrics 25/min. Successful answers carry `RevenueCat-Rate-Limit-Current-Usage` and `-Current-Limit`; a 429 carries
 `Retry-After` (seconds) and a body `backoff_ms`.
 
-| Need | Endpoint (all under `/projects/{project_id}`) | Permission |
-| --- | --- | --- |
-| Projects the key sees | `GET /projects` (no prefix) | `project_configuration:projects:read` |
-| Apps (store type, bundle id or package name) | `GET /apps` | `project_configuration:apps:read` |
-| Products | `GET /products` (`expand=app`, `indicative_price`) | `project_configuration:products:read` |
-| Entitlements, with products | `GET /entitlements` (`expand=items.product`), `GET /entitlements/{id}/products` | `...:entitlements:read` (+ `products:read` to expand) |
-| Offerings, with packages and products | `GET /offerings` (`expand=items.package`, `items.package.product`) | `...:offerings:read` (+ `packages:read`, `products:read` to expand) |
-| Packages of an offering, products of a package | `GET /offerings/{id}/packages`, `GET /packages/{id}/products` | `...:packages:read` |
-| Overview metrics | `GET /metrics/overview` (`currency`) | `charts_metrics:overview:read` |
-| Revenue for a range | `GET /metrics/revenue` (`start_date`, `end_date`, `currency`, `revenue_type`) | `charts_metrics:overview:read` |
-| Time series | `GET /charts/{name}` (`filters`, `selectors`, `segment`, `resolution`, `currency`), `GET /charts/{name}/options` | `charts_metrics:charts:read` |
-| One subscriber | `GET /customers/{id}`, `GET /subscriptions?store_subscription_identifier=` | `customer_information:*:read` |
+| Need                                           | Endpoint (all under `/projects/{project_id}`)                                                                    | Permission                                                          |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Projects the key sees                          | `GET /projects` (no prefix)                                                                                      | `project_configuration:projects:read`                               |
+| Apps (store type, bundle id or package name)   | `GET /apps`                                                                                                      | `project_configuration:apps:read`                                   |
+| Products                                       | `GET /products` (`expand=app`, `indicative_price`)                                                               | `project_configuration:products:read`                               |
+| Entitlements, with products                    | `GET /entitlements` (`expand=items.product`), `GET /entitlements/{id}/products`                                  | `...:entitlements:read` (+ `products:read` to expand)               |
+| Offerings, with packages and products          | `GET /offerings` (`expand=items.package`, `items.package.product`)                                               | `...:offerings:read` (+ `packages:read`, `products:read` to expand) |
+| Packages of an offering, products of a package | `GET /offerings/{id}/packages`, `GET /packages/{id}/products`                                                    | `...:packages:read`                                                 |
+| Overview metrics                               | `GET /metrics/overview` (`currency`)                                                                             | `charts_metrics:overview:read`                                      |
+| Revenue for a range                            | `GET /metrics/revenue` (`start_date`, `end_date`, `currency`, `revenue_type`)                                    | `charts_metrics:overview:read`                                      |
+| Time series                                    | `GET /charts/{name}` (`filters`, `selectors`, `segment`, `resolution`, `currency`), `GET /charts/{name}/options` | `charts_metrics:charts:read`                                        |
+| One subscriber                                 | `GET /customers/{id}`, `GET /subscriptions?store_subscription_identifier=`                                       | `customer_information:*:read`                                       |
 
 Objects, as documented:
 
@@ -109,11 +109,11 @@ truth (country and rounding unclear; use it only as a hint in a mismatch warning
 Key: `(store, store product id)` within one linked RevenueCat **app** (so `products` are filtered client-side by `app_id`; the
 list endpoint's own filters are not documented, UNVERIFIED).
 
-| Store | RevenueCat `store_identifier` | Our `StoreProduct` |
-| --- | --- | --- |
-| Apple IAP and subscriptions | the App Store product id "exactly as it appears in the store" (guide) | `productId` |
-| Play one-time | the product id (SKU, per the create-request text) | `productId` |
-| Play subscription | `<subscription_id>:<base_plan_id>` for products set up after Feb 2023, bare `<subscription_id>` before; migrated May 2022 subscriptions may carry a duration id such as `P1Y` (Android products guide) | `productId` + one of `plans[].id` |
+| Store                       | RevenueCat `store_identifier`                                                                                                                                                                          | Our `StoreProduct`                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- |
+| Apple IAP and subscriptions | the App Store product id "exactly as it appears in the store" (guide)                                                                                                                                  | `productId`                       |
+| Play one-time               | the product id (SKU, per the create-request text)                                                                                                                                                      | `productId`                       |
+| Play subscription           | `<subscription_id>:<base_plan_id>` for products set up after Feb 2023, bare `<subscription_id>` before; migrated May 2022 subscriptions may carry a duration id such as `P1Y` (Android products guide) | `productId` + one of `plans[].id` |
 
 So the join is **one StoreProduct to zero or more RevenueCat products**: Play subscriptions have one RevenueCat product per base
 plan. Matching rule: exact match on `productId`; else split on the first `:` and match `productId` and a base plan id from
@@ -141,15 +141,15 @@ Edge cases to design for:
 **Cache, not live reads** (same reason as ADR 0034: a Products page that depends on a third-party API being up and under 60/min is
 worse). New migration (next free id), both schema files, `deleteApp` clears them. Sketch only:
 
-| Table | Key | Holds |
-| --- | --- | --- |
-| `app_revenuecat_links` | `app_id` | credential id, project id and name, RevenueCat app id, name, type, linked at (like `app_expo_links`, no foreign keys) |
-| `revenuecat_products` | `app_id, rc_product_id` | `store_identifier`, type, state, display name, durations, `indicative_price` (optional), hash |
-| `revenuecat_entitlements` | `app_id, rc_entitlement_id` | lookup key, display name, state |
-| `revenuecat_entitlement_products` | `app_id, entitlement, product` | the attachment |
-| `revenuecat_offering_packages` | `app_id, offering, package, product` | offering lookup key, `is_current`, state, package lookup key, `eligibility_criteria` |
-| `revenuecat_sync` | `app_id` | last attempt and success, failures, `complete`, warnings (same shape as `store_product_sync`) |
-| `revenuecat_overview` (v2) | `app_id` | metrics JSON, currency, `last_updated_at`, fetched at |
+| Table                             | Key                                  | Holds                                                                                                                 |
+| --------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `app_revenuecat_links`            | `app_id`                             | credential id, project id and name, RevenueCat app id, name, type, linked at (like `app_expo_links`, no foreign keys) |
+| `revenuecat_products`             | `app_id, rc_product_id`              | `store_identifier`, type, state, display name, durations, `indicative_price` (optional), hash                         |
+| `revenuecat_entitlements`         | `app_id, rc_entitlement_id`          | lookup key, display name, state                                                                                       |
+| `revenuecat_entitlement_products` | `app_id, entitlement, product`       | the attachment                                                                                                        |
+| `revenuecat_offering_packages`    | `app_id, offering, package, product` | offering lookup key, `is_current`, state, package lookup key, `eligibility_criteria`                                  |
+| `revenuecat_sync`                 | `app_id`                             | last attempt and success, failures, `complete`, warnings (same shape as `store_product_sync`)                         |
+| `revenuecat_overview` (v2)        | `app_id`                             | metrics JSON, currency, `last_updated_at`, fetched at                                                                 |
 
 Entitlements, offerings and packages belong to the RevenueCat **project**, not the app: they are stored per linked app record,
 filtered to the products of that app. (Two records of one project each hold a copy; storage is small.)
@@ -198,16 +198,16 @@ sees nothing new, as with Expo):
 
 **Warnings** (computed on read from the two snapshots, not stored; each has a code, severity and a one-line fix):
 
-| Code | When | Severity |
-| --- | --- | --- |
-| `store_product_not_in_revenuecat` | store state `active` or `in_review`, no matching RevenueCat product | warn (not for `draft`, `removed`) |
-| `revenuecat_product_not_in_store` | RevenueCat product `active`, no `StoreProduct` match, store snapshot `complete` | warn |
-| `product_not_sellable` | in RevenueCat, in no package of an active offering | info |
-| `entitlement_without_active_product` | active entitlement with no attached product that is active in RevenueCat and active in the store | warn |
-| `store_removed_but_active_in_revenuecat` | store state `removed` or `inactive`, RevenueCat product `active` and in an active offering | bad |
-| `play_base_plan_not_in_revenuecat` | a store base plan with state `ACTIVE`, product mapped, that plan missing | info |
-| `price_differs_hint` (v2) | RevenueCat `indicative_price` and store price differ for the same country | info, labelled hint |
-| `revenuecat_read_incomplete` | a cap or rate limit ended the read | info |
+| Code                                     | When                                                                                             | Severity                          |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------- |
+| `store_product_not_in_revenuecat`        | store state `active` or `in_review`, no matching RevenueCat product                              | warn (not for `draft`, `removed`) |
+| `revenuecat_product_not_in_store`        | RevenueCat product `active`, no `StoreProduct` match, store snapshot `complete`                  | warn                              |
+| `product_not_sellable`                   | in RevenueCat, in no package of an active offering                                               | info                              |
+| `entitlement_without_active_product`     | active entitlement with no attached product that is active in RevenueCat and active in the store | warn                              |
+| `store_removed_but_active_in_revenuecat` | store state `removed` or `inactive`, RevenueCat product `active` and in an active offering       | bad                               |
+| `play_base_plan_not_in_revenuecat`       | a store base plan with state `ACTIVE`, product mapped, that plan missing                         | info                              |
+| `price_differs_hint` (v2)                | RevenueCat `indicative_price` and store price differ for the same country                        | info, labelled hint               |
+| `revenuecat_read_incomplete`             | a cap or rate limit ended the read                                                               | info                              |
 
 Status mismatches only compare what both sides expose: the API shows RevenueCat product `state` (active or archived), not the
 store validation status RevenueCat's dashboard shows (UNVERIFIED that no API field exists for it: none is in the Product object).
@@ -225,11 +225,11 @@ rows with ids and hashes only. It also needs a second credential (or a second ke
 
 ## 7. Phases (rough sizes; one agent plus review, counting tests and docs)
 
-| Phase | Scope | Size |
-| --- | --- | --- |
-| v1 | Credential kind, guide, verifier; `packages/connectors/src/revenuecat/` client (typed errors, redaction, no redirects, size cap, no retry) and read of products, apps, entitlements, offerings; link table, routes, sync step, warnings; web link card, column, detail section, lists; ADR, `docs/api/revenuecat.md`, `docs/credentials.md`; operations registry entries | M to L: about 25 files, 1800 to 2500 lines with tests, one migration |
-| v2 | `metrics/overview` read and table, overview strip, price hint, refresh dedupe by project, viewer-role decision, optional alert `revenuecat.mismatch` | S to M: about 8 files |
-| v3 (optional) | Per-product subscribers or trial conversion through `charts` segments (needs a real project to learn segment names), scheduler, webhook "last purchase" (probably never), one gated write | M each, and only after v1 has run on a real account |
+| Phase         | Scope                                                                                                                                                                                                                                                                                                                                                                    | Size                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| v1            | Credential kind, guide, verifier; `packages/connectors/src/revenuecat/` client (typed errors, redaction, no redirects, size cap, no retry) and read of products, apps, entitlements, offerings; link table, routes, sync step, warnings; web link card, column, detail section, lists; ADR, `docs/api/revenuecat.md`, `docs/credentials.md`; operations registry entries | M to L: about 25 files, 1800 to 2500 lines with tests, one migration |
+| v2            | `metrics/overview` read and table, overview strip, price hint, refresh dedupe by project, viewer-role decision, optional alert `revenuecat.mismatch`                                                                                                                                                                                                                     | S to M: about 8 files                                                |
+| v3 (optional) | Per-product subscribers or trial conversion through `charts` segments (needs a real project to learn segment names), scheduler, webhook "last purchase" (probably never), one gated write                                                                                                                                                                                | M each, and only after v1 has run on a real account                  |
 
 Verify on a real project before v2: the overview metric ids, the max `limit`, expanded-list pagination, and the key-scope UI.
 

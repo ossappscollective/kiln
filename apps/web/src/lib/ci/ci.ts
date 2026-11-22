@@ -617,8 +617,7 @@ export function appendPattern(
   defaults: readonly string[] = [],
 ): { text: string; added: boolean; reason?: string } {
   const lines = parsePatternLines(text);
-  if (lines.includes(pattern))
-    return { text, added: false, reason: t('builds:ci.append.exists') };
+  if (lines.includes(pattern)) return { text, added: false, reason: t('builds:ci.append.exists') };
   if (lines.length === 0) {
     const next = [pattern, ...defaults.filter((d) => d !== pattern)].slice(0, MAX_PATTERNS);
     return { text: patternLines(next), added: true };

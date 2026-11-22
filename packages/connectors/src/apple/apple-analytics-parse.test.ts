@@ -277,6 +277,10 @@ test('sales by product: the app and its in-app products by SKU, the currency kep
   assert.ok(Math.abs((at('sales_proceeds', 'product:EUR:coins_100') ?? 0) - 1.78) < 1e-9);
   assert.equal(at('sales_units', 'product:pro_yearly'), 1);
   assert.equal(at('sales_units', 'product:known_by_sku'), 2);
-  assert.equal(at('sales_units', 'product:other_iap'), undefined, 'another app\'s in-app purchase is left out');
+  assert.equal(
+    at('sales_units', 'product:other_iap'),
+    undefined,
+    "another app's in-app purchase is left out",
+  );
   assert.equal(r.stats.rowsFiltered, 2, 'the update and the other app in-app row');
 });

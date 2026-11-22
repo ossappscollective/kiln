@@ -129,7 +129,10 @@ export function googleTokenError(
         by === ''
           ? { code: 'store.google.clockSkew' }
           : {
-              code: skewSeconds !== undefined && skewSeconds > 0 ? 'store.google.clockSkewAhead' : 'store.google.clockSkewBehind',
+              code:
+                skewSeconds !== undefined && skewSeconds > 0
+                  ? 'store.google.clockSkewAhead'
+                  : 'store.google.clockSkewBehind',
               params: { count: Math.abs(skewSeconds as number) },
             },
       );
@@ -170,7 +173,10 @@ export function googleTokenError(
       `Google refused the ${scope.slice(scope.lastIndexOf('/') + 1)} scope for this service account (${code}).`,
       status,
       undefined,
-      { code: 'store.google.scopeRefused', params: { scope: scope.slice(scope.lastIndexOf('/') + 1), reason: code } },
+      {
+        code: 'store.google.scopeRefused',
+        params: { scope: scope.slice(scope.lastIndexOf('/') + 1), reason: code },
+      },
     );
   }
   if (code === 'invalid_client') {

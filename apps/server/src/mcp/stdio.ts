@@ -164,9 +164,7 @@ if (isMain) {
   const url = process.env.KILN_URL ?? '';
   const token = process.env.KILN_TOKEN ?? '';
   if (!url || !token) {
-    process.stderr.write(
-      'Set KILN_URL (the address of Kiln) and KILN_TOKEN (an API token).\n',
-    );
+    process.stderr.write('Set KILN_URL (the address of Kiln) and KILN_TOKEN (an API token).\n');
     process.exit(2);
   }
   runBridge({

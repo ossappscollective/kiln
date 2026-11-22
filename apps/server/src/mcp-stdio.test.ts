@@ -178,7 +178,10 @@ test('the script runs as a command: environment in, newline delimited JSON out, 
     const missing = await run({}, '');
     assert.equal(missing.code, 2);
     assert.equal(missing.out, '');
-    const plain = await run({ KILN_URL: 'http://kiln.example.com', KILN_TOKEN: 'kiln_smoketoken' }, '');
+    const plain = await run(
+      { KILN_URL: 'http://kiln.example.com', KILN_TOKEN: 'kiln_smoketoken' },
+      '',
+    );
     assert.equal(plain.code, 1);
     assert.match(plain.err, /https/);
     assert.ok(!plain.err.includes('smoketoken'));

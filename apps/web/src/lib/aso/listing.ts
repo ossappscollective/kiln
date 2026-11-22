@@ -25,7 +25,9 @@ export const storeName = (platform: AsoPlatform): string => storeShortName(platf
 
 /** "Read from the App Store 3 hours ago", or that nothing was read yet. */
 export function freshnessText(platform: AsoPlatform, readAt: number | null, now: number): string {
-  const store = t(byFamily(platform, { apple: k('aso:lst.storeApple'), google: k('aso:lst.storeGoogle') }));
+  const store = t(
+    byFamily(platform, { apple: k('aso:lst.storeApple'), google: k('aso:lst.storeGoogle') }),
+  );
   return readAt === null
     ? t('aso:lst.notRead', { store })
     : t('aso:lst.read', { store, when: agoText(readAt, now) });
@@ -40,7 +42,9 @@ export function sourceLabel(platform: AsoPlatform, source: TermSource): string {
     case 'keywords':
       return t('aso:lst.source.keywords');
     case 'title':
-      return t(byFamily(platform, { apple: k('aso:lst.source.name'), google: k('aso:lst.source.title') }));
+      return t(
+        byFamily(platform, { apple: k('aso:lst.source.name'), google: k('aso:lst.source.title') }),
+      );
     case 'subtitle':
       return t('aso:lst.source.subtitle');
     case 'shortDescription':

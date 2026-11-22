@@ -1,5 +1,11 @@
 import { ApiError } from '../api.ts';
-import { formatBytes as formatByteSize, formatList, formatNumber, formatPercent, formatRelativeTime } from '../i18n/format.ts';
+import {
+  formatBytes as formatByteSize,
+  formatList,
+  formatNumber,
+  formatPercent,
+  formatRelativeTime,
+} from '../i18n/format.ts';
 import { k, t } from '../i18n/t.ts';
 import { waitText } from './eas.ts';
 
@@ -23,14 +29,25 @@ export type EasUpdateRow = {
   rolloutControlGroup: string | null;
 };
 
-export type RuntimeCheckStatus = 'ok' | 'mismatch' | 'newest_build_unreached' | 'no_updates' | 'no_builds' | 'unknown';
+export type RuntimeCheckStatus =
+  | 'ok'
+  | 'mismatch'
+  | 'newest_build_unreached'
+  | 'no_updates'
+  | 'no_builds'
+  | 'unknown';
 export type RuntimeSeverity = 'error' | 'warning' | 'info' | 'none';
 
 export type RuntimeCheck = {
   channel: string;
   status: RuntimeCheckStatus;
   severity: RuntimeSeverity;
-  latestUpdate: { runtimeVersion: string | null; group: string; branch: string; createdAt: number | null } | null;
+  latestUpdate: {
+    runtimeVersion: string | null;
+    group: string;
+    branch: string;
+    createdAt: number | null;
+  } | null;
   latestBuild: {
     id: string;
     runtimeVersion: string | null;
@@ -50,7 +67,12 @@ export type EasUpdateChannel = {
   updatedAt: number | null;
   mapping: {
     kind: 'none' | 'branch' | 'rollout' | 'unreadable';
-    entries: { branchId: string; branchName: string | null; logic: 'always' | 'conditional'; condition: string | null }[];
+    entries: {
+      branchId: string;
+      branchName: string | null;
+      logic: 'always' | 'conditional';
+      condition: string | null;
+    }[];
   };
   branches: {
     id: string;
@@ -140,7 +162,13 @@ export type EasRolloutResult = {
 export type BadgeTone = 'ok' | 'warn' | 'bad' | 'info' | 'neutral';
 
 export const checkTone = (check: RuntimeCheck): BadgeTone =>
-  check.severity === 'error' ? 'bad' : check.severity === 'warning' ? 'warn' : check.status === 'ok' ? 'ok' : 'neutral';
+  check.severity === 'error'
+    ? 'bad'
+    : check.severity === 'warning'
+      ? 'warn'
+      : check.status === 'ok'
+        ? 'ok'
+        : 'neutral';
 
 const CHECK_LABELS = {
   ok: k('eas:update.check.ok'),
@@ -160,12 +188,17 @@ export function checkLabel(status: RuntimeCheckStatus): string {
 export function channelsWithMismatch(state: EasUpdateState): EasUpdateChannel[] {
   return state.channels
     .filter((c) => c.runtimeCheck.severity === 'error' || c.runtimeCheck.severity === 'warning')
-    .sort((a, b) => (a.runtimeCheck.severity === 'error' ? 0 : 1) - (b.runtimeCheck.severity === 'error' ? 0 : 1));
+    .sort(
+      (a, b) =>
+        (a.runtimeCheck.severity === 'error' ? 0 : 1) -
+        (b.runtimeCheck.severity === 'error' ? 0 : 1),
+    );
 }
 
 /** The one line of the collapsed card. */
 export function updateSummary(state: EasUpdateState | null, loading: boolean): string {
-  if (state === null) return loading ? t('eas:update.summary.loading') : t('eas:update.summary.notRead');
+  if (state === null)
+    return loading ? t('eas:update.summary.loading') : t('eas:update.summary.notRead');
   const bad = channelsWithMismatch(state).length;
   const rollouts = state.channels.reduce((sum, c) => sum + c.rollouts.length, 0);
   const parts = [t('eas:update.summary.channels', { count: state.channels.length })];
@@ -180,7 +213,8 @@ export function updateSummary(state: EasUpdateState | null, loading: boolean): s
 /** Where a channel's clients get their updates from, in a sentence. */
 export function mappingText(channel: EasUpdateChannel): string {
   const m = channel.mapping;
-  const name = (e: { branchName: string | null; branchId: string }) => e.branchName ?? t('eas:update.mapping.otherBranch');
+  const name = (e: { branchName: string | null; branchId: string }) =>
+    e.branchName ?? t('eas:update.mapping.otherBranch');
   if (m.kind === 'none') return t('eas:update.mapping.none');
   if (m.kind === 'unreadable') return t('eas:update.mapping.unreadable');
   const first = m.entries[0];
@@ -200,14 +234,21 @@ export const shortCommit = (hash: string | null): string => (hash ? hash.slice(0
 
 /** "Fix the login button", or what the update is when it has no message. */
 export function updateTitle(u: EasUpdateRow): string {
-  if (u.isRollBackToEmbedded) return u.message ? t('eas:update.title.rollbackMessage', { message: u.message }) : t('eas:update.title.rollback');
+  if (u.isRollBackToEmbedded)
+    return u.message
+      ? t('eas:update.title.rollbackMessage', { message: u.message })
+      : t('eas:update.title.rollback');
   return u.message && u.message.trim() !== '' ? u.message : t('eas:update.title.none');
 }
 
 /** "runtime 1.4.0 · 3 days ago · a1b2c3d". */
 export function updateDetail(u: EasUpdateRow, now: number): string {
   const parts: string[] = [];
-  parts.push(u.runtimeVersion ? t('eas:update.detail.runtime', { version: u.runtimeVersion }) : t('eas:update.detail.noRuntime'));
+  parts.push(
+    u.runtimeVersion
+      ? t('eas:update.detail.runtime', { version: u.runtimeVersion })
+      : t('eas:update.detail.noRuntime'),
+  );
   if (u.createdAt !== null) parts.push(formatRelativeTime(u.createdAt, { now }));
   const commit = shortCommit(u.gitCommitHash);
   if (commit) parts.push(commit);
@@ -218,10 +259,13 @@ export function formatBytes(bytes: number | null): string {
   return bytes === null ? t('eas:update.notReported') : formatByteSize(bytes);
 }
 
-export const formatCount = (n: number | null): string => (n === null ? t('eas:update.notReported') : formatNumber(Math.round(n)));
+export const formatCount = (n: number | null): string =>
+  n === null ? t('eas:update.notReported') : formatNumber(Math.round(n));
 
 export function crashRateText(rate: number | null): string {
-  return rate === null ? t('eas:update.noLaunches') : formatPercent(rate / 100, { maximumFractionDigits: 2 });
+  return rate === null
+    ? t('eas:update.noLaunches')
+    : formatPercent(rate / 100, { maximumFractionDigits: 2 });
 }
 
 /** The lines of the insights panel, label and text. */
@@ -240,12 +284,16 @@ export function insightLines(i: EasUpdateInsights): { label: string; text: strin
 // Raising a rollout
 
 /** The new share as typed: a whole percent above the current one and at most 100. A sentence when it is not, else the number. */
-export function parseShare(text: string, current: number): { ok: true; percentage: number } | { ok: false; message: string } {
+export function parseShare(
+  text: string,
+  current: number,
+): { ok: true; percentage: number } | { ok: false; message: string } {
   const value = text.trim().replace(/%$/, '').trim();
   if (!/^\d{1,3}$/.test(value)) return { ok: false, message: t('eas:update.share.whole') };
   const percentage = Number(value);
   if (percentage > 100) return { ok: false, message: t('eas:update.share.max') };
-  if (percentage <= current) return { ok: false, message: t('eas:update.share.raiseOnly', { current }) };
+  if (percentage <= current)
+    return { ok: false, message: t('eas:update.share.raiseOnly', { current }) };
   return { ok: true, percentage };
 }
 
@@ -253,7 +301,8 @@ export type RolloutFailure = { kind: 'changed' | 'unknown' | 'off' | 'other'; me
 
 /** What a failed preview or apply means for the dialog. */
 export function rolloutFailure(error: unknown): RolloutFailure {
-  if (!(error instanceof ApiError)) return { kind: 'other', message: t('eas:update.rollout.other') };
+  if (!(error instanceof ApiError))
+    return { kind: 'other', message: t('eas:update.rollout.other') };
   switch (error.code) {
     case 'eas_update_write_disabled':
       return { kind: 'off', message: t('eas:update.rollout.off') };
@@ -311,4 +360,5 @@ export function easUpdateErrorText(error: unknown): string {
 }
 
 /** "Read from Expo 2 minutes ago." */
-export const readCaption = (state: EasUpdateState, now: number): string => t('eas:update.readCaption', { ago: formatRelativeTime(state.readAt, { now }) });
+export const readCaption = (state: EasUpdateState, now: number): string =>
+  t('eas:update.readCaption', { ago: formatRelativeTime(state.readAt, { now }) });

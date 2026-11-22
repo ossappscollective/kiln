@@ -63,9 +63,16 @@ const TABLES = [
 ] as const;
 
 /** Deletes the cached configuration and the sync state of an app record (its link was removed or now names another project or app). */
-export async function clearRevenueCatCache(sql: Sql, workspaceId: string, appId: string): Promise<void> {
+export async function clearRevenueCatCache(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<void> {
   for (const table of TABLES) {
-    await sql.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [appId, workspaceId]);
+    await sql.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
+      appId,
+      workspaceId,
+    ]);
   }
 }
 
@@ -100,8 +107,15 @@ export async function replaceRevenueCatSnapshot(
   },
 ): Promise<void> {
   const { workspaceId, appId, config, at } = input;
-  for (const table of ['revenuecat_products', 'revenuecat_entitlements', 'revenuecat_offerings'] as const) {
-    await tx.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [appId, workspaceId]);
+  for (const table of [
+    'revenuecat_products',
+    'revenuecat_entitlements',
+    'revenuecat_offerings',
+  ] as const) {
+    await tx.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
+      appId,
+      workspaceId,
+    ]);
   }
   await insertRows(
     tx,
@@ -252,7 +266,11 @@ export async function readRevenueCatSyncStatus(
   };
 }
 
-export async function readRevenueCatCache(sql: Sql, workspaceId: string, appId: string): Promise<RevenueCatCache> {
+export async function readRevenueCatCache(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<RevenueCatCache> {
   const products = await sql.query(
     'SELECT * FROM revenuecat_products WHERE app_id = ? AND workspace_id = ? ORDER BY store_identifier, rc_product_id',
     [appId, workspaceId],

@@ -140,11 +140,17 @@ const codeOf = (value: unknown): string | undefined =>
 export function graphqlErrorKind(message: string, code: string | undefined): ExpoErrorKind {
   const text = `${code ?? ''} ${message}`;
   if (/rate.?limit|too many requests|throttl/i.test(text)) return 'rate_limited';
-  if (/unauthenticated|not authenticated|authentication|invalid (access )?token|token.*(expired|revoked|invalid)|must be logged in/i.test(text))
+  if (
+    /unauthenticated|not authenticated|authentication|invalid (access )?token|token.*(expired|revoked|invalid)|must be logged in/i.test(
+      text,
+    )
+  )
     return 'auth';
-  if (/not authorized|unauthorized|forbidden|permission|not allowed/i.test(text)) return 'forbidden';
+  if (/not authorized|unauthorized|forbidden|permission|not allowed/i.test(text))
+    return 'forbidden';
   if (/not.?found|does not exist|no such/i.test(text)) return 'not_found';
-  if (/unexpected server error|internal server error|service unavailable|timeout/i.test(text)) return 'server';
+  if (/unexpected server error|internal server error|service unavailable|timeout/i.test(text))
+    return 'server';
   return 'unexpected';
 }
 
@@ -240,7 +246,8 @@ export function createExpoClient(options: ExpoClientOptions): ExpoClient {
       if (status === 403) throw fail('forbidden', { status });
       if (status >= 500) throw fail('server', { status });
       if (status < 200 || status >= 300) throw fail('unexpected', { status });
-      if (text === undefined) throw fail('unexpected', { status, message: 'Expo sent too large an answer.' });
+      if (text === undefined)
+        throw fail('unexpected', { status, message: 'Expo sent too large an answer.' });
 
       const body = parseObject(text, status);
       const errors = body.errors;
@@ -257,7 +264,11 @@ export function createExpoClient(options: ExpoClientOptions): ExpoClient {
 
     async rest<T>(request: RestRequest, call: Call = {}) {
       // A path is built by the caller from fixed words and encoded ids; anything else could point the token elsewhere.
-      if (!/^\/[A-Za-z0-9._~\/%-]*$/.test(request.path) || request.path.includes('..') || request.path.includes('//')) {
+      if (
+        !/^\/[A-Za-z0-9._~\/%-]*$/.test(request.path) ||
+        request.path.includes('..') ||
+        request.path.includes('//')
+      ) {
         throw fail('invalid_input', { message: 'That is not a valid Expo request path.' });
       }
       const { response, text } = await exchange(
@@ -282,10 +293,12 @@ export function createExpoClient(options: ExpoClientOptions): ExpoClient {
       if (status === 401) throw fail('auth', { status });
       if (status === 403) throw fail('forbidden', { status });
       if (status === 404) throw fail('not_found', { status, message: request.notFound });
-      if (status === 400 || status === 422) throw fail('invalid_input', { status, message: request.invalid });
+      if (status === 400 || status === 422)
+        throw fail('invalid_input', { status, message: request.invalid });
       if (status >= 500) throw fail('server', { status });
       if (status < 200 || status >= 300) throw fail('unexpected', { status });
-      if (text === undefined) throw fail('unexpected', { status, message: 'Expo sent too large an answer.' });
+      if (text === undefined)
+        throw fail('unexpected', { status, message: 'Expo sent too large an answer.' });
       return parseObject(text, status) as T;
     },
   };

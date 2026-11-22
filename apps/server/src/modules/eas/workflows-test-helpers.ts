@@ -32,7 +32,12 @@ export class FakeExpoWorkflows {
     if (url.endsWith('/graphql')) return this.graphql.fetch(input, init);
     const headers = (init?.headers ?? {}) as Record<string, string>;
     const body = init?.body === undefined ? undefined : JSON.parse(String(init.body));
-    this.rest.push({ url, method: String(init?.method), authorization: headers.authorization ?? '', body });
+    this.rest.push({
+      url,
+      method: String(init?.method),
+      authorization: headers.authorization ?? '',
+      body,
+    });
     const queued = this.next.shift();
     if (queued instanceof Error) throw queued;
     if (queued) return queued;
@@ -46,13 +51,22 @@ export class FakeExpoWorkflows {
     return json({ error: 'no such route' }, 404);
   };
 
-  private dispatch(body: { appId?: string; gitRef?: string; fileName?: string; inputs?: Record<string, unknown> }): Response {
+  private dispatch(body: {
+    appId?: string;
+    gitRef?: string;
+    fileName?: string;
+    inputs?: Record<string, unknown>;
+  }): Response {
     if (!body.appId || !body.gitRef || !body.fileName) return json({ error: 'bad body' }, 400);
-    if (!this.refs.has(body.gitRef) || !this.files.has(body.fileName)) return json({ error: 'not found' }, 404);
-    for (const key of Object.keys(body.inputs ?? {})) if (!this.declared.has(key)) return json({ error: 'bad inputs' }, 400);
+    if (!this.refs.has(body.gitRef) || !this.files.has(body.fileName))
+      return json({ error: 'not found' }, 404);
+    for (const key of Object.keys(body.inputs ?? {}))
+      if (!this.declared.has(key)) return json({ error: 'bad inputs' }, 400);
     const id = RUN_IDS[this.n++] as string;
     this.runs.set(id, { status: 'new', requestedGitRef: body.gitRef, jobs: [] });
-    return json({ data: { id, url: `https://expo.dev/accounts/acme/projects/trail-notes/workflows/${id}` } });
+    return json({
+      data: { id, url: `https://expo.dev/accounts/acme/projects/trail-notes/workflows/${id}` },
+    });
   }
 
   /** Changes what Expo answers for a run. */
@@ -69,7 +83,11 @@ export async function bootEasWorkflows(db: Database, ci: Parameters<typeof bootC
   /** An iOS app of this workspace, linked to the repository and (unless said otherwise) to the Expo project. */
   let seeded = 0;
   const seedLinkedApp = async (
-    options: { link?: boolean; repositoryId?: string | null; releases?: Parameters<typeof t.seedApp>[1] } = {},
+    options: {
+      link?: boolean;
+      repositoryId?: string | null;
+      releases?: Parameters<typeof t.seedApp>[1];
+    } = {},
   ) => {
     const appId = await t.seedApp('ios', options.releases ?? [], {
       identifier: `com.acme.trail${++seeded}`,

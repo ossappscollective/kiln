@@ -71,16 +71,27 @@ test('parseSmtpEnv: nothing set is "not configured"; defaults follow the securit
     },
   });
   for (const [env, message] of [
-    [{ KILN_SMTP_HOST: 'smtp://mail.example.com', KILN_SMTP_FROM: 'a@example.com' }, /KILN_SMTP_HOST/],
+    [
+      { KILN_SMTP_HOST: 'smtp://mail.example.com', KILN_SMTP_FROM: 'a@example.com' },
+      /KILN_SMTP_HOST/,
+    ],
     [{ KILN_SMTP_HOST: 'mail.example.com:25', KILN_SMTP_FROM: 'a@example.com' }, /KILN_SMTP_HOST/],
     [{ KILN_SMTP_HOST: 'mail.example.com' }, /KILN_SMTP_FROM/],
     [{ KILN_SMTP_HOST: 'mail.example.com', KILN_SMTP_FROM: 'not an address' }, /KILN_SMTP_FROM/],
     [
-      { KILN_SMTP_HOST: 'mail.example.com', KILN_SMTP_FROM: 'a@example.com', KILN_SMTP_SECURE: 'ssl' },
+      {
+        KILN_SMTP_HOST: 'mail.example.com',
+        KILN_SMTP_FROM: 'a@example.com',
+        KILN_SMTP_SECURE: 'ssl',
+      },
       /KILN_SMTP_SECURE/,
     ],
     [
-      { KILN_SMTP_HOST: 'mail.example.com', KILN_SMTP_FROM: 'a@example.com', KILN_SMTP_PORT: '99999' },
+      {
+        KILN_SMTP_HOST: 'mail.example.com',
+        KILN_SMTP_FROM: 'a@example.com',
+        KILN_SMTP_PORT: '99999',
+      },
       /KILN_SMTP_PORT/,
     ],
     [
@@ -89,7 +100,11 @@ test('parseSmtpEnv: nothing set is "not configured"; defaults follow the securit
     ],
     [{ KILN_SMTP_ALLOW_PRIVATE_HOSTS: 'yes' }, /KILN_SMTP_ALLOW_PRIVATE_HOSTS/],
     [
-      { KILN_SMTP_HOST: 'mail.example.com', KILN_SMTP_FROM: 'a@example.com', KILN_SMTP_USER: 'u\nx' },
+      {
+        KILN_SMTP_HOST: 'mail.example.com',
+        KILN_SMTP_FROM: 'a@example.com',
+        KILN_SMTP_USER: 'u\nx',
+      },
       /line breaks/,
     ],
   ] as const) {

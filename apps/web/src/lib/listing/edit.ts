@@ -168,10 +168,21 @@ export function measureField(info: Pick<FieldInfo, 'limit' | 'unit'>, text: stri
     text: over
       ? bytes
         ? t('listing:edit.meter.overBytes', { count: info.limit, over: formatNumber(-remaining) })
-        : t('listing:edit.meter.overCharacters', { count: info.limit, over: formatNumber(-remaining) })
+        : t('listing:edit.meter.overCharacters', {
+            count: info.limit,
+            over: formatNumber(-remaining),
+          })
       : bytes
-        ? t('listing:edit.meter.leftBytes', { count: info.limit, used: formatNumber(used), left: formatNumber(remaining) })
-        : t('listing:edit.meter.leftCharacters', { count: info.limit, used: formatNumber(used), left: formatNumber(remaining) }),
+        ? t('listing:edit.meter.leftBytes', {
+            count: info.limit,
+            used: formatNumber(used),
+            left: formatNumber(remaining),
+          })
+        : t('listing:edit.meter.leftCharacters', {
+            count: info.limit,
+            used: formatNumber(used),
+            left: formatNumber(remaining),
+          }),
   };
 }
 
@@ -234,7 +245,8 @@ export function addTargets(platform: Platform): FieldInfo[] {
 }
 
 /** "Add to keyword field", "Add to title". */
-export const addLabel = (info: Pick<FieldInfo, 'lower'>): string => t('listing:edit.addTo', { field: info.lower });
+export const addLabel = (info: Pick<FieldInfo, 'lower'>): string =>
+  t('listing:edit.addTo', { field: info.lower });
 
 export type AddResult = {
   /** The text to start the editor with. The person edits it before staging. */
@@ -264,7 +276,11 @@ export function addTermToText(
   if (info.id === 'keywords') {
     const entries = current.split(',').map((e) => keyOf(e, language));
     if (entries.indexOf(keyOf(clean, language)) >= 0) {
-      return { text: current, changed: false, note: t('listing:edit.add.alreadyInKeywords', { term: clean }) };
+      return {
+        text: current,
+        changed: false,
+        note: t('listing:edit.add.alreadyInKeywords', { term: clean }),
+      };
     }
     const base = current.replace(/[\s,]+$/, '');
     return {

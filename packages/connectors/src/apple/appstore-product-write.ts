@@ -13,11 +13,7 @@ import {
   type StoreProductWriteConnector,
 } from '../store-products-types.ts';
 import { parseAppleLocalizations } from './appstore-products.ts';
-import {
-  AppleProductsHttp,
-  type AppleProductsHttpOptions,
-  seg,
-} from './appstore-products-http.ts';
+import { AppleProductsHttp, type AppleProductsHttpOptions, seg } from './appstore-products-http.ts';
 
 export type AppleProductWriteConnectorOptions = AppleProductsHttpOptions;
 
@@ -106,7 +102,11 @@ export class AppleProductWriteConnector implements StoreProductWriteConnector {
       `/v2/${type}/${seg(current.ref)}`,
       'changing the texts of a product',
       {
-        data: { type, id: current.ref, attributes: { name: input.name, description: input.description } },
+        data: {
+          type,
+          id: current.ref,
+          attributes: { name: input.name, description: input.description },
+        },
       },
     );
     if (!result.ok) {

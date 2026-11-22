@@ -38,7 +38,12 @@ export type CellInfo = { label: string; short: string; tone: BadgeTone; icon: Ic
 
 /** `label` and `short` are message keys here; `cellInfo` translates them. */
 const INFO: Record<CellStatus, CellInfo> = {
-  sync: { label: k('listing:matrix.cell.sync'), short: k('listing:matrix.cellShort.sync'), tone: 'ok', icon: 'check' },
+  sync: {
+    label: k('listing:matrix.cell.sync'),
+    short: k('listing:matrix.cellShort.sync'),
+    tone: 'ok',
+    icon: 'check',
+  },
   'repo-differs': {
     label: k('listing:matrix.cell.repoDiffers'),
     short: k('listing:matrix.cellShort.repoDiffers'),
@@ -63,8 +68,18 @@ const INFO: Record<CellStatus, CellInfo> = {
     tone: 'neutral',
     icon: 'minus',
   },
-  over: { label: k('listing:matrix.cell.over'), short: k('listing:matrix.cellShort.over'), tone: 'bad', icon: 'alert' },
-  na: { label: k('listing:matrix.cell.na'), short: k('listing:matrix.cellShort.na'), tone: 'neutral', icon: 'minus' },
+  over: {
+    label: k('listing:matrix.cell.over'),
+    short: k('listing:matrix.cellShort.over'),
+    tone: 'bad',
+    icon: 'alert',
+  },
+  na: {
+    label: k('listing:matrix.cell.na'),
+    short: k('listing:matrix.cellShort.na'),
+    tone: 'neutral',
+    icon: 'minus',
+  },
 };
 
 export const cellInfo = (status: CellStatus): CellInfo => ({
@@ -284,7 +299,9 @@ export function columnScopeNote(
 ): string | null {
   if (shown.length < 2 || column.platforms.length === 0 || column.platforms.length >= shown.length)
     return null;
-  return t('listing:matrix.scopeOnly', { platforms: formatList(sortPlatforms(column.platforms).map(platformLabel)) });
+  return t('listing:matrix.scopeOnly', {
+    platforms: formatList(sortPlatforms(column.platforms).map(platformLabel)),
+  });
 }
 
 /** "30 characters" or "iOS 4000 / Android 500 characters" for the limit line of a column header. */
@@ -296,7 +313,8 @@ export function limitText(column: Pick<MatrixColumn, 'limits' | 'platforms'>): s
   }
   if (parts.length === 0) return '';
   const first = parts[0] as { limit: number };
-  if (parts.every((p) => p.limit === first.limit)) return t('listing:matrix.limitMax', { limit: formatNumber(first.limit) });
+  if (parts.every((p) => p.limit === first.limit))
+    return t('listing:matrix.limitMax', { limit: formatNumber(first.limit) });
   return parts.map((p) => `${platformLabel(p.platform)} ${formatNumber(p.limit)}`).join(' / ');
 }
 
@@ -383,7 +401,8 @@ export function matrixSummary(rows: readonly MatrixRow[]): string {
   const parts = [t('listing:matrix.localesCount', { count: rows.length })];
   if (counts.differing === 0) parts.push(t('listing:matrix.summary.allInSync'));
   else parts.push(t('listing:matrix.summary.needAttention', { count: counts.differing }));
-  if (counts.missing > 0) parts.push(t('listing:matrix.summary.withMissing', { count: counts.missing }));
+  if (counts.missing > 0)
+    parts.push(t('listing:matrix.summary.withMissing', { count: counts.missing }));
   if (counts.over > 0) parts.push(t('listing:matrix.summary.overLimit', { count: counts.over }));
   return formatList(parts, { type: 'unit' });
 }
@@ -407,11 +426,15 @@ export function listingStatusLine(rows: readonly MatrixRow[]): ListingStatusLine
   if (counts.differing === 0)
     return {
       tone: 'ok',
-      text: rows.length === 1 ? t('listing:matrix.status.oneInSync') : t('listing:matrix.status.allInSync'),
+      text:
+        rows.length === 1
+          ? t('listing:matrix.status.oneInSync')
+          : t('listing:matrix.status.allInSync'),
       attention: 0,
     };
   const parts = [t('listing:matrix.status.needAttention', { count: counts.differing })];
-  if (counts.missing > 0) parts.push(t('listing:matrix.summary.withMissing', { count: counts.missing }));
+  if (counts.missing > 0)
+    parts.push(t('listing:matrix.summary.withMissing', { count: counts.missing }));
   if (counts.over > 0) parts.push(t('listing:matrix.summary.overLimit', { count: counts.over }));
   return { tone: 'warn', text: formatList(parts, { type: 'unit' }), attention: counts.differing };
 }
@@ -430,7 +453,10 @@ export function cellText(
   withPlatform: boolean,
 ): string {
   const platform = platformLabel(cell.platform);
-  const text = t('listing:matrix.cellText', { field: column.label, status: cellLabel(cell.status) });
+  const text = t('listing:matrix.cellText', {
+    field: column.label,
+    status: cellLabel(cell.status),
+  });
   return withPlatform ? t('listing:matrix.cellTextOn', { platform, text }) : text;
 }
 
@@ -443,7 +469,12 @@ export function cellsSummary(
   if (live.length === 0) return cellLabel('na');
   return live
     .map((c) =>
-      withPlatform ? t('listing:matrix.platformStatus', { platform: platformLabel(c.platform), status: cellLabel(c.status) }) : cellLabel(c.status),
+      withPlatform
+        ? t('listing:matrix.platformStatus', {
+            platform: platformLabel(c.platform),
+            status: cellLabel(c.status),
+          })
+        : cellLabel(c.status),
     )
     .join('; ');
 }

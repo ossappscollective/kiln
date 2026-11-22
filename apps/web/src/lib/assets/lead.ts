@@ -63,7 +63,9 @@ const SET_PHRASE: Record<AssetKind, string> = {
 
 /** "2 screenshot sets", or "2 sets" when the sets are of more than one kind. */
 const setsText = (count: number, kind: AssetKind | null): string =>
-  t(kind !== null && SET_PHRASE[kind] !== undefined ? SET_PHRASE[kind] : k('assets:lead.set'), { count });
+  t(kind !== null && SET_PHRASE[kind] !== undefined ? SET_PHRASE[kind] : k('assets:lead.set'), {
+    count,
+  });
 
 export type AssetsLead = { headline: string; hint: string; tone: LeadTone; blocking: number };
 

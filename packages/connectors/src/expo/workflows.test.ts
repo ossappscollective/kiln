@@ -14,7 +14,13 @@ import {
   workflowPathOf,
 } from './workflows.ts';
 
-type Call = { url: string; method: string; headers: Record<string, string>; body: unknown; redirect: unknown };
+type Call = {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body: unknown;
+  redirect: unknown;
+};
 type Answer = { status?: number; body?: unknown; headers?: Record<string, string> };
 
 function fakeFetch(...answers: (Answer | Error)[]) {
@@ -59,13 +65,28 @@ test('workflow file names: the path or the name, one file in .eas/workflows', ()
   assert.equal(normalizeWorkflowFileName('./.eas/workflows/build.yml'), 'build.yml');
   assert.equal(normalizeWorkflowFileName(' deploy-prod.yaml '), 'deploy-prod.yaml');
   assert.equal(normalizeWorkflowFileName('build.yml'), 'build.yml');
-  for (const bad of ['', 'build', 'build.json', '.eas/workflows/sub/build.yml', '../build.yml', 'a b.yml', '/etc/x.yml', '.hidden.yml'])
+  for (const bad of [
+    '',
+    'build',
+    'build.json',
+    '.eas/workflows/sub/build.yml',
+    '../build.yml',
+    'a b.yml',
+    '/etc/x.yml',
+    '.hidden.yml',
+  ])
     assert.equal(normalizeWorkflowFileName(bad), undefined, bad);
   assert.equal(workflowPathOf('build.yml'), '.eas/workflows/build.yml');
 });
 
 test('git refs: branch, tag, SHA or a full ref; nothing odd', () => {
-  for (const ok of ['main', 'release/1.2', 'v1.2.3', 'refs/heads/main', '8c1f0a9d2e3b4c5d6e7f8091a2b3c4d5e6f70812'])
+  for (const ok of [
+    'main',
+    'release/1.2',
+    'v1.2.3',
+    'refs/heads/main',
+    '8c1f0a9d2e3b4c5d6e7f8091a2b3c4d5e6f70812',
+  ])
     assert.equal(normalizeGitRef(ok), ok);
   for (const bad of ['', ' ', 'a..b', 'x/', 'x.lock', 'a b', '-rf', 'a\nb', 'a'.repeat(201)])
     assert.equal(normalizeGitRef(bad), undefined, JSON.stringify(bad));
@@ -111,7 +132,10 @@ test('dispatch posts the documented body with the bearer token and returns the r
 
 test('dispatch leaves `inputs` out when there are none, and goes through a proxy origin', async () => {
   const f = fakeFetch({ body: dispatchAnswer() });
-  await dispatchExpoWorkflow(clientFor(f, 'https://expo-proxy.example.com/api'), { ...dispatch, inputs: {} });
+  await dispatchExpoWorkflow(clientFor(f, 'https://expo-proxy.example.com/api'), {
+    ...dispatch,
+    inputs: {},
+  });
   assert.equal(f.calls[0]?.url, 'https://expo-proxy.example.com/api/v2/workflows/dispatch');
   assert.ok(!('inputs' in (f.calls[0]?.body as object)));
 });
@@ -126,7 +150,11 @@ test('dispatch errors: fixed sentences by kind, no token, not retried', async ()
     [500, 'server'],
   ];
   for (const [status, kind] of cases) {
-    const f = fakeFetch({ status, body: { error: `boom ${TOKEN}` }, headers: { 'retry-after': '7' } });
+    const f = fakeFetch({
+      status,
+      body: { error: `boom ${TOKEN}` },
+      headers: { 'retry-after': '7' },
+    });
     const error = await failing(() => dispatchExpoWorkflow(clientFor(f), dispatch));
     assert.equal(error.kind, kind, String(status));
     assert.equal(f.calls.length, 1, 'a write is never retried');
@@ -135,17 +163,33 @@ test('dispatch errors: fixed sentences by kind, no token, not retried', async ()
     if (kind === 'rate_limited') assert.equal(error.retryAfterSeconds, 7);
   }
   const f404 = fakeFetch({ status: 404 });
-  assert.match((await failing(() => dispatchExpoWorkflow(clientFor(f404), dispatch))).message, /Git ref or workflow file/);
+  assert.match(
+    (await failing(() => dispatchExpoWorkflow(clientFor(f404), dispatch))).message,
+    /Git ref or workflow file/,
+  );
   const f400 = fakeFetch({ status: 400 });
-  assert.match((await failing(() => dispatchExpoWorkflow(clientFor(f400), dispatch))).message, /inputs/);
+  assert.match(
+    (await failing(() => dispatchExpoWorkflow(clientFor(f400), dispatch))).message,
+    /inputs/,
+  );
 });
 
 test('dispatch: a network failure or an unreadable answer is an ExpoError', async () => {
-  const net = await failing(() => dispatchExpoWorkflow(clientFor(fakeFetch(new Error(`down ${TOKEN}`))), dispatch));
+  const net = await failing(() =>
+    dispatchExpoWorkflow(clientFor(fakeFetch(new Error(`down ${TOKEN}`))), dispatch),
+  );
   assert.equal(net.kind, 'network');
   assert.ok(!net.message.includes(TOKEN));
-  for (const body of [{}, { data: {} }, { data: { id: 'not-a-uuid' } }, { data: { id: '../x' } }, []]) {
-    const error = await failing(() => dispatchExpoWorkflow(clientFor(fakeFetch({ body })), dispatch));
+  for (const body of [
+    {},
+    { data: {} },
+    { data: { id: 'not-a-uuid' } },
+    { data: { id: '../x' } },
+    [],
+  ]) {
+    const error = await failing(() =>
+      dispatchExpoWorkflow(clientFor(fakeFetch({ body })), dispatch),
+    );
     assert.equal(error.kind, 'unexpected', JSON.stringify(body));
   }
 });
@@ -156,7 +200,10 @@ test('dispatch keeps the run address only when it is https', async () => {
     dispatch,
   );
   assert.equal(http.url, null);
-  const none = await dispatchExpoWorkflow(clientFor(fakeFetch({ body: { data: { id: RUN_ID } } })), dispatch);
+  const none = await dispatchExpoWorkflow(
+    clientFor(fakeFetch({ body: { data: { id: RUN_ID } } })),
+    dispatch,
+  );
   assert.equal(none.url, null);
 });
 
@@ -191,26 +238,39 @@ test('reading a run: terminal statuses give a conclusion; a run without jobs is 
     ['failure', 'failure'],
     ['canceled', 'cancelled'],
   ] as const) {
-    const run = await expoWorkflowRun(clientFor(fakeFetch({ body: runAnswer({ status, jobs: undefined }) })), RUN_ID);
+    const run = await expoWorkflowRun(
+      clientFor(fakeFetch({ body: runAnswer({ status, jobs: undefined }) })),
+      RUN_ID,
+    );
     assert.deepEqual(run.ci, { status: 'completed', conclusion });
     assert.deepEqual(run.jobs, []);
   }
 });
 
 test('reading a run: an unknown status, a bad id and bad answers are refused; 404 has its own sentence', async () => {
-  const unknown = await failing(() => expoWorkflowRun(clientFor(fakeFetch({ body: runAnswer({ status: 'exploded' }) })), RUN_ID));
+  const unknown = await failing(() =>
+    expoWorkflowRun(clientFor(fakeFetch({ body: runAnswer({ status: 'exploded' }) })), RUN_ID),
+  );
   assert.equal(unknown.kind, 'unexpected');
-  const badId = await failing(() => expoWorkflowRun(clientFor(fakeFetch({ body: runAnswer() })), '../graphql'));
+  const badId = await failing(() =>
+    expoWorkflowRun(clientFor(fakeFetch({ body: runAnswer() })), '../graphql'),
+  );
   assert.equal(badId.kind, 'invalid_input');
   const f = fakeFetch({ body: runAnswer() });
   await failing(() => expoWorkflowRun(clientFor(f), 'abc'));
   assert.equal(f.calls.length, 0, 'a bad id never reaches the network');
-  const bad = await failing(() => expoWorkflowRun(clientFor(fakeFetch({ body: { data: { jobs: [runJob()] } } })), RUN_ID));
+  const bad = await failing(() =>
+    expoWorkflowRun(clientFor(fakeFetch({ body: { data: { jobs: [runJob()] } } })), RUN_ID),
+  );
   assert.equal(bad.kind, 'unexpected');
-  const missing = await failing(() => expoWorkflowRun(clientFor(fakeFetch({ status: 404 })), RUN_ID));
+  const missing = await failing(() =>
+    expoWorkflowRun(clientFor(fakeFetch({ status: 404 })), RUN_ID),
+  );
   assert.equal(missing.kind, 'not_found');
   assert.match(missing.message, /workflow run/);
-  const forbidden = await failing(() => expoWorkflowRun(clientFor(fakeFetch({ status: 403 })), RUN_ID));
+  const forbidden = await failing(() =>
+    expoWorkflowRun(clientFor(fakeFetch({ status: 403 })), RUN_ID),
+  );
   assert.equal(forbidden.kind, 'forbidden');
 });
 

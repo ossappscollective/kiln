@@ -14,7 +14,8 @@ test('the workflow file name: a path in .eas/workflows or a name, else nothing',
   assert.equal(workflowFileName('.eas/workflows/build.yml'), 'build.yml');
   assert.equal(workflowFileName('./.eas/workflows/build.yml'), 'build.yml');
   assert.equal(workflowFileName(' deploy.yaml '), 'deploy.yaml');
-  for (const bad of ['', 'build', '.eas/workflows/a/b.yml', 'a b.yml', '../x.yml', 'x.json']) assert.equal(workflowFileName(bad), '');
+  for (const bad of ['', 'build', '.eas/workflows/a/b.yml', 'a b.yml', '../x.yml', 'x.json'])
+    assert.equal(workflowFileName(bad), '');
 });
 
 test('the form: problems in sentences, or the body to send without empty parts', () => {
@@ -31,9 +32,17 @@ test('the form: problems in sentences, or the body to send without empty parts',
     ref: 'release/1.2',
     inputsText: '# comment\nplatform=ios\nbuild_number = 42\n',
   });
-  assert.deepEqual(full.body, { workflow: 'release.yml', ref: 'release/1.2', inputs: { platform: 'ios', build_number: '42' } });
+  assert.deepEqual(full.body, {
+    workflow: 'release.yml',
+    ref: 'release/1.2',
+    inputs: { platform: 'ios', build_number: '42' },
+  });
 
-  const many = startForm({ workflow: 'a.yml', ref: '', inputsText: Array.from({ length: 26 }, (_, i) => `k${i}=v`).join('\n') });
+  const many = startForm({
+    workflow: 'a.yml',
+    ref: '',
+    inputsText: Array.from({ length: 26 }, (_, i) => `k${i}=v`).join('\n'),
+  });
   assert.deepEqual(many.problems, ['At most 25 inputs.']);
 });
 
@@ -42,22 +51,46 @@ test('the confirmation sentence says what runs where, and that it uses the proje
     startSummary({ workflow: 'build.yml', ref: 'main', project: '@acme/trail', inputCount: 0 }),
     'Run build.yml on main in @acme/trail at Expo with no inputs. It runs with the EAS secrets of the project.',
   );
-  assert.ok(startSummary({ workflow: 'b.yml', ref: 'main', project: 'p', inputCount: 1 }).includes('with 1 input.'));
-  assert.ok(startSummary({ workflow: 'b.yml', ref: 'main', project: 'p', inputCount: 2 }).includes('with 2 inputs.'));
+  assert.ok(
+    startSummary({ workflow: 'b.yml', ref: 'main', project: 'p', inputCount: 1 }).includes(
+      'with 1 input.',
+    ),
+  );
+  assert.ok(
+    startSummary({ workflow: 'b.yml', ref: 'main', project: 'p', inputCount: 2 }).includes(
+      'with 2 inputs.',
+    ),
+  );
 });
 
 test('what blocks a start is said in order: credential, repository, role', () => {
-  assert.match(startBlocker({ credentialAvailable: false, hasRepository: false, canStart: false }), /credential/);
-  assert.match(startBlocker({ credentialAvailable: true, hasRepository: false, canStart: false }), /repository/);
-  assert.match(startBlocker({ credentialAvailable: true, hasRepository: true, canStart: false }), /member or admin/);
-  assert.equal(startBlocker({ credentialAvailable: true, hasRepository: true, canStart: true }), '');
+  assert.match(
+    startBlocker({ credentialAvailable: false, hasRepository: false, canStart: false }),
+    /credential/,
+  );
+  assert.match(
+    startBlocker({ credentialAvailable: true, hasRepository: false, canStart: false }),
+    /repository/,
+  );
+  assert.match(
+    startBlocker({ credentialAvailable: true, hasRepository: true, canStart: false }),
+    /member or admin/,
+  );
+  assert.equal(
+    startBlocker({ credentialAvailable: true, hasRepository: true, canStart: true }),
+    '',
+  );
 });
 
 test('every error code of the API has its own sentence', () => {
-  const code = (status: number, error: string, body: Record<string, unknown> = {}) => new ApiError(status, error, 'generic', undefined, body);
+  const code = (status: number, error: string, body: Record<string, unknown> = {}) =>
+    new ApiError(status, error, 'generic', undefined, body);
   assert.match(easWorkflowErrorText(code(403, 'forbidden')), /member or admin/);
   assert.match(easWorkflowErrorText(code(422, 'expo_not_linked')), /not linked/);
-  assert.equal(easWorkflowErrorText(code(422, 'invalid_workflow', { message: 'Expo said no.' })), 'Expo said no.');
+  assert.equal(
+    easWorkflowErrorText(code(422, 'invalid_workflow', { message: 'Expo said no.' })),
+    'Expo said no.',
+  );
   assert.match(easWorkflowErrorText(code(422, 'expo_not_found', {})), /Expo could not be asked/);
   assert.match(easWorkflowErrorText(code(504, 'timeout')), /may have started/);
   assert.match(easWorkflowErrorText(code(429, 'rate_limited')), /Too many requests/);
@@ -67,7 +100,10 @@ test('every error code of the API has its own sentence', () => {
 
 test('only runs that are not finished are asked about', () => {
   const run = (id: string, active: boolean) => ({ id, active }) as never;
-  assert.deepEqual(activeRuns([run('a', true), run('b', false)]).map((r) => r.id), ['a']);
+  assert.deepEqual(
+    activeRuns([run('a', true), run('b', false)]).map((r) => r.id),
+    ['a'],
+  );
 });
 
 test('an empty ref says the default branch', () => {

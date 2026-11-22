@@ -345,9 +345,7 @@ export function fixupDoneMessage(
 
 /** The push step after a fix up: said when the remote is behind. */
 export function behindNote(changeSet: Pick<ChangeSetView, 'outcome'>): string | null {
-  return changeSet.outcome?.push.status === 'behind'
-    ? t('publish:fixup.behind')
-    : null;
+  return changeSet.outcome?.push.status === 'behind' ? t('publish:fixup.behind') : null;
 }
 
 // ---------------------------------------------------------------------------------------------

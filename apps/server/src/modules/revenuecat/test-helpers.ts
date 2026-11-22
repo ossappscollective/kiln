@@ -19,7 +19,10 @@ import { bootMonetization } from '../monetization/test-helpers.ts';
 export { errorBody, KEY as REVENUECAT_KEY, PROJECT_ID };
 
 export const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json', ...headers },
+  });
 
 /** The shape of RevenueCat's overview answer (made-up numbers; the ids other than `active_trials` are UNVERIFIED guesses). */
 export function overviewBody(currency = 'USD') {
@@ -47,7 +50,12 @@ export function overviewBody(currency = 'USD') {
   };
 }
 
-export type RcCall = { method: string; path: string; query: URLSearchParams; authorization: string };
+export type RcCall = {
+  method: string;
+  path: string;
+  query: URLSearchParams;
+  authorization: string;
+};
 
 /** Answers like RevenueCat REST v2: projects, apps, and the three configuration lists. `next` makes the following calls answer something else. */
 export class FakeRevenueCat {
@@ -77,7 +85,10 @@ export class FakeRevenueCat {
     if (queued) return queued;
     const path = url.pathname.replace('/v2', '');
     if (path.endsWith('/metrics/overview') && this.overviewStatus !== undefined) {
-      return json({ object: 'error', message: 'nope', type: 'permission_error' }, this.overviewStatus);
+      return json(
+        { object: 'error', message: 'nope', type: 'permission_error' },
+        this.overviewStatus,
+      );
     }
     return json(this.answer(path));
   };
@@ -112,16 +123,25 @@ export class FakeRevenueCat {
   seedConfiguration() {
     const ios = rcApps.ios.id;
     const play = rcApps.play.id;
-    const coins = product('rc_coins', 'com.acme.coins100', ios, { type: 'consumable', subscription: null });
+    const coins = product('rc_coins', 'com.acme.coins100', ios, {
+      type: 'consumable',
+      subscription: null,
+    });
     const pro = product('rc_pro', 'com.acme.pro.monthly', ios);
     const ghost = product('rc_ghost', 'com.acme.ghost', ios);
     const playPro = product('rc_play_pro', 'pro_monthly:monthly', play);
     const playYear = product('rc_play_year', 'pro_monthly:yearly', play);
     this.products = [coins, pro, ghost, playPro, playYear];
-    this.entitlements = [entitlement('ent_pro', 'pro', [pro, playPro]), entitlement('ent_empty', 'unused', [])];
+    this.entitlements = [
+      entitlement('ent_pro', 'pro', [pro, playPro]),
+      entitlement('ent_empty', 'unused', []),
+    ];
     this.offerings = [
       offering('ofr_default', 'default', [
-        packageOf('pk_m', '$rc_monthly', 1, [pro, { product: playPro, eligibility_criteria: 'google_sdk_ge_6' }]),
+        packageOf('pk_m', '$rc_monthly', 1, [
+          pro,
+          { product: playPro, eligibility_criteria: 'google_sdk_ge_6' },
+        ]),
         packageOf('pk_c', 'coins', 2, [coins]),
       ]),
     ];
@@ -131,22 +151,30 @@ export class FakeRevenueCat {
 export async function bootRevenueCat(
   db: Database,
   overrides: NonNullable<Parameters<typeof bootMonetization>[2]> = {},
-  revenuecatDeps: NonNullable<NonNullable<Parameters<typeof bootMonetization>[2]>['revenuecat']> = {},
+  revenuecatDeps: NonNullable<
+    NonNullable<Parameters<typeof bootMonetization>[2]>['revenuecat']
+  > = {},
 ) {
   const rc = new FakeRevenueCat();
-  const t = await bootMonetization(db, {}, {
-    masterKey: randomBytes(32),
-    // The generic credential test calls the verifier with the network it was given.
-    credentialTests: { fetch: rc.fetch },
-    revenuecat: { fetch: rc.fetch, ...revenuecatDeps },
-    ...overrides,
-  });
+  const t = await bootMonetization(
+    db,
+    {},
+    {
+      masterKey: randomBytes(32),
+      // The generic credential test calls the verifier with the network it was given.
+      credentialTests: { fetch: rc.fetch },
+      revenuecat: { fetch: rc.fetch, ...revenuecatDeps },
+      ...overrides,
+    },
+  );
   const rcCredential = await t.addCredential('revenuecat', KEY);
   const identifierOf = async (appId: string) =>
     String((await db.query('SELECT identifier FROM apps WHERE id = ?', [appId]))[0]?.identifier);
   const base = (appId: string, rest = '') => `/apps/${appId}/revenuecat${rest}`;
-  const put = (appId: string, body: unknown, cookie = t.owner) => t.call(cookie, 'PUT', base(appId), body);
-  const detect = (appId: string, query: string, cookie = t.owner) => t.call(cookie, 'GET', base(appId, `/detect?${query}`));
+  const put = (appId: string, body: unknown, cookie = t.owner) =>
+    t.call(cookie, 'PUT', base(appId), body);
+  const detect = (appId: string, query: string, cookie = t.owner) =>
+    t.call(cookie, 'GET', base(appId, `/detect?${query}`));
   const rcSync = (appId: string, cookie = t.owner) => t.call(cookie, 'POST', base(appId, '/sync'));
   const view = (appId: string, cookie = t.owner) => t.call(cookie, 'GET', base(appId, '/products'));
   /** Seeds RevenueCat for an app record, links it, and returns the app id. */
@@ -157,7 +185,13 @@ export async function bootRevenueCat(
     const res = await put(appId, {
       credentialId: rcCredential,
       projectId: PROJECT_ID,
-      revenueCatAppId: rcAppId ?? (platform === 'android' ? rcApps.play.id : platform === 'macos' ? rcApps.mac.id : rcApps.ios.id),
+      revenueCatAppId:
+        rcAppId ??
+        (platform === 'android'
+          ? rcApps.play.id
+          : platform === 'macos'
+            ? rcApps.mac.id
+            : rcApps.ios.id),
     });
     if (res.status !== 200) throw new Error(`link ${res.status}: ${res.text}`);
     return appId;
@@ -182,7 +216,22 @@ export async function bootRevenueCat(
     return parts.join('\n');
   };
   const rcAudit = async () =>
-    (await t.auditActions()).filter((a) => a.action.startsWith('revenuecat.') || a.action === 'credential.use');
-  return { ...t, rc, rcCredential, identifierOf, base, put, detect, rcSync, view, linked, everything, rcAudit };
+    (await t.auditActions()).filter(
+      (a) => a.action.startsWith('revenuecat.') || a.action === 'credential.use',
+    );
+  return {
+    ...t,
+    rc,
+    rcCredential,
+    identifierOf,
+    base,
+    put,
+    detect,
+    rcSync,
+    view,
+    linked,
+    everything,
+    rcAudit,
+  };
 }
 export type RevenueCatBoot = Awaited<ReturnType<typeof bootRevenueCat>>;

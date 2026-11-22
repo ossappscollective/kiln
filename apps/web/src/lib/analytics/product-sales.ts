@@ -50,7 +50,10 @@ export function salesByProduct(view: ProductSalesView | null): Map<string, Produ
 }
 
 /** The amount of one currency as shown: Apple proceeds as they are (net of refunds); Google buyer-paid with its refunds taken off. */
-export const shownAmount = (view: Pick<ProductSalesView, 'measure'>, a: ProductSalesAmount): number =>
+export const shownAmount = (
+  view: Pick<ProductSalesView, 'measure'>,
+  a: ProductSalesAmount,
+): number =>
   view.measure === 'google_buyer_paid_estimate' ? a.amount - (a.refunds ?? 0) : a.amount;
 
 /** One line per currency, in that currency's own format. Never a sum over currencies. */
@@ -62,7 +65,9 @@ export function amountLines(view: ProductSalesView, item: ProductSalesItem | und
 /** "12 units" or "3 orders"; empty when the store gave no count. */
 export function unitsText(view: ProductSalesView, item: ProductSalesItem | undefined): string {
   if (!item || item.units === null) return '';
-  return view.unitsKind === 'orders' ? t('analytics:sales.orders', { count: item.units }) : t('analytics:sales.units', { count: item.units });
+  return view.unitsKind === 'orders'
+    ? t('analytics:sales.orders', { count: item.units })
+    : t('analytics:sales.units', { count: item.units });
 }
 
 /** The cell text lines of the column, or `['—']` when this product has no sales number in the range. */
@@ -76,7 +81,9 @@ export function salesCell(view: ProductSalesView, item: ProductSalesItem | undef
 
 /** What the number is, for the tooltip of the column header and the detail section. */
 export function salesMeasureText(view: Pick<ProductSalesView, 'measure'>): string {
-  return view.measure === 'apple_proceeds' ? t('analytics:sales.measureApple') : t('analytics:sales.measureGoogle');
+  return view.measure === 'apple_proceeds'
+    ? t('analytics:sales.measureApple')
+    : t('analytics:sales.measureGoogle');
 }
 
 /** The header of the sales column of the products table. */
@@ -91,17 +98,12 @@ export const salesColumnTitle = 'Sales (28 days)';
 export function salesSetupHint(view: ProductSalesView | null, platformIsApple: boolean): string {
   const code = view?.sales.setup?.code ?? '';
   if (platformIsApple) {
-    if (view !== null && !view.enabled)
-      return t('analytics:sales.hintAppleOff');
-    if (code === 'sales_forbidden')
-      return t('analytics:sales.hintAppleForbidden');
+    if (view !== null && !view.enabled) return t('analytics:sales.hintAppleOff');
+    if (code === 'sales_forbidden') return t('analytics:sales.hintAppleForbidden');
     return t('analytics:sales.hintAppleVendor');
   }
-  if (view !== null && !view.enabled)
-    return t('analytics:sales.hintGoogleOff');
-  if (code === 'bucket_id_missing')
-    return t('analytics:sales.hintGoogleBucket');
-  if (code === 'play_sales_forbidden')
-    return t('analytics:sales.hintGoogleForbidden');
+  if (view !== null && !view.enabled) return t('analytics:sales.hintGoogleOff');
+  if (code === 'bucket_id_missing') return t('analytics:sales.hintGoogleBucket');
+  if (code === 'play_sales_forbidden') return t('analytics:sales.hintGoogleForbidden');
   return t('analytics:sales.hintGoogleWaiting');
 }

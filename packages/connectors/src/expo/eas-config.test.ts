@@ -42,7 +42,9 @@ const config = (report: EasConfigReport): EasConfig => {
 };
 const codes = (report: EasConfigReport) => report.findings.map((f) => f.code);
 const find = (report: EasConfigReport, code: EasFindingCode, profile?: string) =>
-  report.findings.filter((f) => f.code === code && (profile === undefined || f.profile === profile));
+  report.findings.filter(
+    (f) => f.code === code && (profile === undefined || f.profile === profile),
+  );
 const one = (report: EasConfigReport, code: EasFindingCode, profile?: string): EasFinding => {
   const hits = find(report, code, profile);
   assert.equal(hits.length, 1, `${code} ${profile ?? ''}: ${JSON.stringify(codes(report))}`);
@@ -205,7 +207,9 @@ test('Google Play: track, releaseStatus and rollout combinations', () => {
   ]);
   // values the Expo reference does not list
   assert.deepEqual(androidFindings({ track: 'nightly' }), ['submit_track_unknown']);
-  assert.deepEqual(androidFindings({ releaseStatus: 'rolling' }), ['submit_release_status_unknown']);
+  assert.deepEqual(androidFindings({ releaseStatus: 'rolling' }), [
+    'submit_release_status_unknown',
+  ]);
 });
 
 test('a rollout with no releaseStatus is a warning, with a wrong one an error', () => {
@@ -232,7 +236,12 @@ test('a submit profile without a build profile of its name is information', () =
 test('env: only the names are kept, and values that look like secrets are reported by key', () => {
   const report = analyze(FULL_EAS);
   const text = JSON.stringify(report);
-  for (const value of [SECRET_TOKEN, SENTRY_TOKEN, 'do-not-keep-this-value', 'https://api.example.com']) {
+  for (const value of [
+    SECRET_TOKEN,
+    SENTRY_TOKEN,
+    'do-not-keep-this-value',
+    'https://api.example.com',
+  ]) {
     assert.equal(text.includes(value), false, `${value} must not appear`);
   }
   const keys = find(report, 'env_secret_like').map((f) => `${f.profile}:${f.key}`);
@@ -242,7 +251,10 @@ test('env: only the names are kept, and values that look like secrets are report
   assert.equal(finding.key, 'GITHUB');
   assert.match(finding.message, /GITHUB/);
   // API_URL, FLAVOR and a $REFERENCE are fine
-  assert.equal(keys.some((k) => /API_URL|FLAVOR|REF/.test(k)), false);
+  assert.equal(
+    keys.some((k) => /API_URL|FLAVOR|REF/.test(k)),
+    false,
+  );
 });
 
 test('looksLikeSecret: names, shapes, references and plain values', () => {
@@ -342,12 +354,18 @@ test('an empty object and a file with only unknown keys are fine', () => {
   const empty = analyze('{}');
   const c = config(empty);
   assert.deepEqual([c.build, c.submit, c.unknownKeys], [[], [], []]);
-  const unknown = analyze('{"build":{"p":{"channel":"c","frobnicate":{"token":"keep-out"}}},"x":1}');
+  const unknown = analyze(
+    '{"build":{"p":{"channel":"c","frobnicate":{"token":"keep-out"}}},"x":1}',
+  );
   const u = config(unknown);
   assert.deepEqual(u.unknownKeys, ['x']);
   assert.deepEqual(profile(u, 'p').unknownKeys, ['frobnicate']);
   assert.equal(profile(u, 'p').channel, 'c');
-  assert.equal(JSON.stringify(unknown).includes('keep-out'), false, 'values of unknown keys are not kept');
+  assert.equal(
+    JSON.stringify(unknown).includes('keep-out'),
+    false,
+    'values of unknown keys are not kept',
+  );
   assert.equal(one(unknown, 'unknown_keys', 'p').severity, 'info');
 });
 
@@ -409,7 +427,11 @@ test('keys named like Object.prototype members are ordinary keys', () => {
     ['__proto__', 'constructor', 'ok'],
   );
   assert.equal(profile(c, '__proto__').channel, 'evil');
-  assert.equal(profile(c, 'constructor').channel, 'evil', 'extends "__proto__" resolves to that profile');
+  assert.equal(
+    profile(c, 'constructor').channel,
+    'evil',
+    'extends "__proto__" resolves to that profile',
+  );
   assert.equal(({} as Record<string, unknown>).polluted, undefined);
   assert.equal(profile(c, 'ok').channel, null);
 });
@@ -420,7 +442,14 @@ test('wrong types are findings; the rest of the file is still read', () => {
   assert.equal(one(report, 'section_invalid', undefined).scope, 'cli');
   assert.equal(one(report, 'profile_invalid', 'bad').severity, 'warning');
   const keys = find(report, 'invalid_value', 'typed').map((f) => f.key);
-  for (const key of ['channel', 'developmentClient', 'autoIncrement', 'env', 'ios', 'android.buildType']) {
+  for (const key of [
+    'channel',
+    'developmentClient',
+    'autoIncrement',
+    'env',
+    'ios',
+    'android.buildType',
+  ]) {
     assert.ok(keys.includes(key), `${key} in ${JSON.stringify(keys)}`);
   }
   assert.equal(profile(c, 'typed').channel, null);
@@ -512,7 +541,11 @@ test('app config problems: not JSON, not an object, nothing at all, a dynamic fi
   assert.equal(one(broken, 'app_config_unreadable').severity, 'warning');
   assert.equal(broken.app.unreadable, true);
   assert.equal(broken.app.updatesConfigured, null);
-  assert.equal(find(broken, 'channel_without_updates').length, 0, 'nothing is claimed from a file that was not read');
+  assert.equal(
+    find(broken, 'channel_without_updates').length,
+    0,
+    'nothing is claimed from a file that was not read',
+  );
   assert.equal(analyze(DEFAULT_EAS, '[]').app.unreadable, true);
   const none = analyze(DEFAULT_EAS);
   assert.equal(one(none, 'app_config_missing').severity, 'info');
@@ -586,8 +619,14 @@ test('runtime version: string format, policies, and what a policy needs', () => 
       '{"cli":{"appVersionSource":"local"}}',
       app({ version: '1.0.0', updates: { url: 'https://u.expo.dev/p' }, runtimeVersion, ...extra }),
     );
-  assert.deepEqual(codes(run('1.0.0')).filter((c) => c.startsWith('runtime_')), []);
-  assert.deepEqual(codes(run('exposdk:52.0.0')).filter((c) => c.startsWith('runtime_')), []);
+  assert.deepEqual(
+    codes(run('1.0.0')).filter((c) => c.startsWith('runtime_')),
+    [],
+  );
+  assert.deepEqual(
+    codes(run('exposdk:52.0.0')).filter((c) => c.startsWith('runtime_')),
+    [],
+  );
   assert.equal(one(run('1.0 0'), 'runtime_version_invalid').severity, 'warning');
   assert.equal(find(run('-1'), 'runtime_version_invalid').length, 1);
   assert.equal(find(run('x'.repeat(256)), 'runtime_version_invalid').length, 1);
@@ -634,8 +673,15 @@ test('a submit profile that names another identifier than the app config', () =>
   });
   const report = analyze(eas, APP_PLAIN);
   const keys = find(report, 'submit_identifier_mismatch').map((f) => `${f.profile}:${f.key}`);
-  assert.deepEqual(keys.sort(), ['production:android.applicationId', 'production:ios.bundleIdentifier']);
-  assert.equal(find(analyze(eas), 'submit_identifier_mismatch').length, 0, 'no app config: nothing to compare');
+  assert.deepEqual(keys.sort(), [
+    'production:android.applicationId',
+    'production:ios.bundleIdentifier',
+  ]);
+  assert.equal(
+    find(analyze(eas), 'submit_identifier_mismatch').length,
+    0,
+    'no app config: nothing to compare',
+  );
 });
 
 // ---- from a repository ---------------------------------------------------------------------
@@ -680,7 +726,11 @@ test('app.config.json is preferred over app.json, and a dynamic config is only n
   assert.equal(result.app.path, 'app.config.json');
   assert.equal(result.app.version, '9.9.9');
   assert.equal(result.app.dynamicPath, 'app.config.ts');
-  assert.deepEqual(repo.reads.sort(), ['app.config.json', 'eas.json'], 'the dynamic file is never read');
+  assert.deepEqual(
+    repo.reads.sort(),
+    ['app.config.json', 'eas.json'],
+    'the dynamic file is never read',
+  );
 });
 
 test('no eas.json at the root: found false, with the ones in subfolders', async () => {

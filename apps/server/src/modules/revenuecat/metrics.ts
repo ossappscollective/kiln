@@ -89,7 +89,8 @@ function metricOf(
   currency: string | null,
 ): RevenueCatMetric {
   const money =
-    MONEY_KEYS.some((key) => pickOverviewMetric(all, key) === m) || (m.unit !== null && m.unit !== '#' && /^[^\w\s]$/u.test(m.unit));
+    MONEY_KEYS.some((key) => pickOverviewMetric(all, key) === m) ||
+    (m.unit !== null && m.unit !== '#' && /^[^\w\s]$/u.test(m.unit));
   return {
     id: m.id,
     name: m.name,
@@ -122,7 +123,9 @@ export function viewOfOverview(input: {
     revenue: pick('revenue'),
   };
   const used = new Set(
-    (['active_subscriptions', 'active_trials', 'mrr', 'revenue'] as const).map((k) => pickOverviewMetric(all, k)?.id),
+    (['active_subscriptions', 'active_trials', 'mrr', 'revenue'] as const).map(
+      (k) => pickOverviewMetric(all, k)?.id,
+    ),
   );
   return {
     scope: 'project',
@@ -160,7 +163,11 @@ function parseOverview(json: unknown, currency: string | null): RevenueCatOvervi
 }
 
 /** The stored copy as an answer. Reads only the database. */
-export async function getRevenueCatMetrics(sql: Sql, workspaceId: string, appId: string): Promise<RevenueCatMetricsAnswer> {
+export async function getRevenueCatMetrics(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<RevenueCatMetricsAnswer> {
   const link = await getRevenueCatLink(sql, workspaceId, appId);
   if (!link) return { metrics: null, status: null };
   const [row] = await sql.query(
@@ -169,12 +176,17 @@ export async function getRevenueCatMetrics(sql: Sql, workspaceId: string, appId:
   );
   if (!row) return { metrics: null, status: null };
   const status: RevenueCatMetricsStatus = {
-    lastAttemptAt: row.last_attempt_at === null || row.last_attempt_at === undefined ? null : Number(row.last_attempt_at),
-    lastError: row.last_error === null || row.last_error === undefined ? null : String(row.last_error),
+    lastAttemptAt:
+      row.last_attempt_at === null || row.last_attempt_at === undefined
+        ? null
+        : Number(row.last_attempt_at),
+    lastError:
+      row.last_error === null || row.last_error === undefined ? null : String(row.last_error),
     failures: Number(row.failures),
   };
   if (row.fetched_at === null || row.fetched_at === undefined) return { metrics: null, status };
-  const currency = row.currency === null || row.currency === undefined ? null : String(row.currency);
+  const currency =
+    row.currency === null || row.currency === undefined ? null : String(row.currency);
   return {
     metrics: viewOfOverview({
       // The figures are about the project that was read, which is the linked one unless the link changed (a change clears this copy).
@@ -188,17 +200,32 @@ export async function getRevenueCatMetrics(sql: Sql, workspaceId: string, appId:
 }
 
 /** Deletes the stored metrics of an app record. */
-export async function clearRevenueCatMetrics(sql: Sql, workspaceId: string, appId: string): Promise<void> {
-  await sql.execute('DELETE FROM revenuecat_metrics WHERE app_id = ? AND workspace_id = ?', [appId, workspaceId]);
+export async function clearRevenueCatMetrics(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<void> {
+  await sql.execute('DELETE FROM revenuecat_metrics WHERE app_id = ? AND workspace_id = ?', [
+    appId,
+    workspaceId,
+  ]);
 }
 
 const FORBIDDEN =
   'The RevenueCat key may not read metrics. Give the secret API key the permission to read Charts & Metrics (charts_metrics:overview:read) in RevenueCat, then sync again. Products and offerings are not affected.';
 
 /** The fixed sentence and code of a failed metrics read. A forbidden key gets the metrics-specific sentence. */
-export function metricsFailureOf(error: unknown, secret: string): Extract<RevenueCatMetricsStep, { ok: false }> {
+export function metricsFailureOf(
+  error: unknown,
+  secret: string,
+): Extract<RevenueCatMetricsStep, { ok: false }> {
   const f = revenueCatFailure(error, secret);
-  if (f.ok) return { ok: false, code: 'revenuecat_unavailable', message: 'The RevenueCat metrics could not be read. Try again in a moment.' };
+  if (f.ok)
+    return {
+      ok: false,
+      code: 'revenuecat_unavailable',
+      message: 'The RevenueCat metrics could not be read. Try again in a moment.',
+    };
   const wait = f.body.retryAfterSeconds;
   const forbidden = error instanceof RevenueCatError && error.kind === 'forbidden';
   return {
@@ -227,9 +254,20 @@ export async function syncRevenueCatMetrics(
 ): Promise<RevenueCatMetricsStep> {
   const { workspaceId, appId, at } = input;
   try {
-    const overview = await readRevenueCatOverview(input.client, { projectId: input.projectId }, { signal: input.signal });
+    const overview = await readRevenueCatOverview(
+      input.client,
+      { projectId: input.projectId },
+      { signal: input.signal },
+    );
     const stored = JSON.stringify(
-      overview.metrics.map((m) => ({ id: m.id, name: m.name, unit: m.unit, period: m.period, value: m.value, lastUpdatedAt: m.lastUpdatedAt })),
+      overview.metrics.map((m) => ({
+        id: m.id,
+        name: m.name,
+        unit: m.unit,
+        period: m.period,
+        value: m.value,
+        lastUpdatedAt: m.lastUpdatedAt,
+      })),
     );
     await sql.execute(
       `INSERT INTO revenuecat_metrics (app_id, workspace_id, project_id, currency, metrics_json, fetched_at, last_attempt_at, last_error, failures)
@@ -242,7 +280,11 @@ export async function syncRevenueCatMetrics(
     return { ok: true, metrics: overview.metrics.length, fetchedAt: at };
   } catch (error) {
     const step = input.signal.aborted
-      ? ({ ok: false, code: 'timeout', message: 'RevenueCat did not answer in time. Try again in a minute.' } as const)
+      ? ({
+          ok: false,
+          code: 'timeout',
+          message: 'RevenueCat did not answer in time. Try again in a minute.',
+        } as const)
       : metricsFailureOf(error, input.secret);
     try {
       const streak = step.code === 'rate_limited' ? 0 : 1;

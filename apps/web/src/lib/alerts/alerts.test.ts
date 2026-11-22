@@ -167,7 +167,9 @@ test('inboxHeadline says what needs attention first, then how many are unread', 
 
 test('the fixed words of the log all come from the catalog', async () => {
   const { t } = await import('../i18n/t.ts');
-  const { channelKeys, severityKeys, statusKeys, outcomeKeys, snoozeChoices } = await import('./alerts.ts');
+  const { channelKeys, severityKeys, statusKeys, outcomeKeys, snoozeChoices } = await import(
+    './alerts.ts'
+  );
   const keys = [
     ...Object.values(channelKeys),
     ...Object.values(severityKeys),

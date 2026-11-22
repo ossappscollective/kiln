@@ -158,14 +158,28 @@ test('a vendor number is digits; a bucket id is pubsite_prod_rev_ and digits, wi
 test('a money metric is one series per currency; the product dimension keeps the currency in its key', () => {
   assert.equal(metricInfo.sales_gross.source, 'play_sales');
   assert.equal(metricInfo.sales_gross.unit, 'money');
-  assert.notEqual(metricInfo.sales_gross.label, metricInfo.sales_proceeds.label, 'estimates are not proceeds');
+  assert.notEqual(
+    metricInfo.sales_gross.label,
+    metricInfo.sales_proceeds.label,
+    'estimates are not proceeds',
+  );
   assert.ok(!/proceeds/i.test(metricInfo.sales_gross.label));
   assert.equal(productDimValue('coins_100', 'EUR'), 'EUR:coins_100');
   assert.equal(productDimValue('coins_100', null), 'coins_100');
-  assert.equal(productDimValue('coins_100', 'eur'), undefined, 'a currency is three capital letters');
+  assert.equal(
+    productDimValue('coins_100', 'eur'),
+    undefined,
+    'a currency is three capital letters',
+  );
   assert.equal(productDimValue('  ', null), undefined);
-  assert.equal(productDimValue('x'.repeat(productSalesLimits.maxProductIdLength + 1), null), undefined);
+  assert.equal(
+    productDimValue('x'.repeat(productSalesLimits.maxProductIdLength + 1), null),
+    undefined,
+  );
   assert.deepEqual(splitProductDimValue('EUR:a:b', true), { productId: 'a:b', currency: 'EUR' });
   assert.deepEqual(splitProductDimValue('a:b', false), { productId: 'a:b', currency: null });
-  assert.deepEqual(splitProductDimValue('nocurrency', true), { productId: 'nocurrency', currency: null });
+  assert.deepEqual(splitProductDimValue('nocurrency', true), {
+    productId: 'nocurrency',
+    currency: null,
+  });
 });

@@ -57,7 +57,10 @@ export function saveViewMode(mode: ViewMode, storage?: WritableStorage): void {
 // Columns
 
 /** A column's name and description, read in the active language each time they are used. */
-const bucketInfo = (label: string, description: string): { label: string; description: string } => ({
+const bucketInfo = (
+  label: string,
+  description: string,
+): { label: string; description: string } => ({
   get label(): string {
     return t(label);
   },
@@ -273,7 +276,6 @@ export type Unplaced = {
 };
 
 export type Board = { columns: BoardColumn[]; unplaced: Unplaced[] };
-
 
 function blockOf(plan: PlanSummary | undefined, status: ReleaseState | null): Blocked | null {
   if (plan?.blocked)

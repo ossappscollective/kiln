@@ -6,7 +6,13 @@ import { memberRole } from '../../services/accounts.ts';
 import { getApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import type { Failure } from '../../services/repositories.ts';
-import { detectRevenueCat, getRevenueCatLink, type LinkContext, removeRevenueCatLink, setRevenueCatLink } from './link.ts';
+import {
+  detectRevenueCat,
+  getRevenueCatLink,
+  type LinkContext,
+  removeRevenueCatLink,
+  setRevenueCatLink,
+} from './link.ts';
 import { getRevenueCatMetrics } from './metrics.ts';
 import { readRevenueCatSyncStatus } from './snapshot.ts';
 import { notLinkedFailure, syncRevenueCat } from './sync.ts';
@@ -100,7 +106,10 @@ export function revenueCatRoutes(
     const query = detectQuery.safeParse(c.req.query());
     if (!query.success) {
       return c.json(
-        { error: 'invalid_request', issues: query.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) },
+        {
+          error: 'invalid_request',
+          issues: query.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
         400,
       );
     }
@@ -108,7 +117,11 @@ export function revenueCatRoutes(
     if (!found) return c.json({ error: 'not_found' }, 404);
     const wait = ctx.linkLimiter.take(ws(c));
     if (wait > 0) return respond(c, tooMany(wait, 'RevenueCat checks'));
-    const done = await detectRevenueCat(ctx, { workspaceId: ws(c), app: found, ...query.data }, actor(c));
+    const done = await detectRevenueCat(
+      ctx,
+      { workspaceId: ws(c), app: found, ...query.data },
+      actor(c),
+    );
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ options: done.options }) : respond(c, done);
   });
@@ -119,13 +132,21 @@ export function revenueCatRoutes(
     if (!(await appOf(c))) return c.json({ error: 'not_found' }, 404);
     const wait = ctx.linkLimiter.take(ws(c));
     if (wait > 0) return respond(c, tooMany(wait, 'RevenueCat checks'));
-    const done = await setRevenueCatLink(ctx, { workspaceId: ws(c), appId: param(c, 'appId'), ...body.data }, actor(c));
+    const done = await setRevenueCatLink(
+      ctx,
+      { workspaceId: ws(c), appId: param(c, 'appId'), ...body.data },
+      actor(c),
+    );
     return done.ok ? c.json({ link: done.link }) : respond(c, done);
   });
 
   app.delete('/:workspaceId/apps/:appId/revenuecat', needs('apps.write'), async (c) => {
     if (!(await appOf(c))) return c.json({ error: 'not_found' }, 404);
-    const removed = await removeRevenueCatLink(ctx, { workspaceId: ws(c), appId: param(c, 'appId') }, actor(c));
+    const removed = await removeRevenueCatLink(
+      ctx,
+      { workspaceId: ws(c), appId: param(c, 'appId') },
+      actor(c),
+    );
     return removed ? c.body(null, 204) : c.json({ error: 'not_found' }, 404);
   });
 
@@ -136,7 +157,11 @@ export function revenueCatRoutes(
     if (!(await getRevenueCatLink(db, ws(c), found.id))) return respond(c, notLinkedFailure());
     const wait = ctx.syncLimiter.take(ws(c));
     if (wait > 0) return respond(c, tooMany(wait, 'syncs'));
-    const done = await syncRevenueCat(ctx, { workspaceId: ws(c), appId: found.id, actor: actor(c) });
+    const done = await syncRevenueCat(ctx, {
+      workspaceId: ws(c),
+      appId: found.id,
+      actor: actor(c),
+    });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ sync: done.result }) : respond(c, done);
   });

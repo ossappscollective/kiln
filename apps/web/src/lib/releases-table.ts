@@ -192,11 +192,7 @@ export function planCell(
         : t('release:table.plan.blockedTitle'),
     );
   if (plan.released)
-    return base(
-      t('release:table.plan.released'),
-      'ok',
-      t('release:table.plan.releasedTitle'),
-    );
+    return base(t('release:table.plan.released'), 'ok', t('release:table.plan.releasedTitle'));
   if (plan.due.overdue)
     return base(
       t('release:table.plan.overdue'),

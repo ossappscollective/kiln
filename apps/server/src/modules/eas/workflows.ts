@@ -90,7 +90,9 @@ async function target(ctx: EasRunContext, workspaceId: string, appId: string) {
       coded('eas.notLinked'),
     );
   }
-  const repository = app.repositoryId ? await getRepository(ctx.db, workspaceId, app.repositoryId) : undefined;
+  const repository = app.repositoryId
+    ? await getRepository(ctx.db, workspaceId, app.repositoryId)
+    : undefined;
   if (!repository) {
     return failure(
       422,
@@ -112,14 +114,18 @@ export async function dispatchEasWorkflow(
   ctx: EasWorkflowContext,
   input: DispatchEasInput,
   actor: Actor,
-): Promise<({ ok: true; run: WorkflowRunView } | Failure)> {
+): Promise<{ ok: true; run: WorkflowRunView } | Failure> {
   const { workspaceId } = input;
   const found = await target(ctx, workspaceId, input.appId);
   if (!found.ok) return found;
   const { link, repository } = found;
   const fileName = normalizeWorkflowFileName(input.workflow);
   if (!fileName) {
-    return failure(422, 'invalid_workflow', 'Name a workflow file in .eas/workflows, such as build.yml.');
+    return failure(
+      422,
+      'invalid_workflow',
+      'Name a workflow file in .eas/workflows, such as build.yml.',
+    );
   }
   const ref = normalizeGitRef(input.ref ?? repository.defaultBranch);
   if (!ref) return failure(422, 'invalid_ref', 'Use a branch, a tag or a commit.');
@@ -152,11 +158,18 @@ export async function dispatchEasWorkflow(
     at: ctx.now(),
   });
 
-  const opened = await expoClientFor(ctx.db, ctx.masterKey, workspaceId, link.credentialId, ctx.deps, {
-    actor,
-    purpose: EAS_WORKFLOW_PURPOSE,
-    now: ctx.now(),
-  });
+  const opened = await expoClientFor(
+    ctx.db,
+    ctx.masterKey,
+    workspaceId,
+    link.credentialId,
+    ctx.deps,
+    {
+      actor,
+      purpose: EAS_WORKFLOW_PURPOSE,
+      now: ctx.now(),
+    },
+  );
   if (!opened.ok) {
     await recordAudit(ctx.db, audit({ ok: false, code: opened.body.error }));
     return opened;
@@ -208,7 +221,14 @@ export async function dispatchEasWorkflow(
   });
   await enqueueEasPoll(
     ctx,
-    { workspaceId, appId: input.appId, runId: started.id, startedAt: now, attempt: 0, requestedBy: actor.id },
+    {
+      workspaceId,
+      appId: input.appId,
+      runId: started.id,
+      startedAt: now,
+      attempt: 0,
+      requestedBy: actor.id,
+    },
     POLL_FIRST_DELAY_MS,
   );
   return { ok: true, run };
@@ -298,7 +318,13 @@ async function storeEasRun(
     if (finished && wasActive) {
       await announce(
         tx,
-        { workspaceId, repositoryId: stored.repositoryId, appIds: stored.appIds, runId: stored.id, at: now },
+        {
+          workspaceId,
+          repositoryId: stored.repositoryId,
+          appIds: stored.appIds,
+          runId: stored.id,
+          at: now,
+        },
         'finished',
         read.ci.conclusion ?? null,
       );
@@ -334,11 +360,18 @@ export async function refreshEasRun(
       coded('eas.notLinked'),
     );
   }
-  const opened = await expoClientFor(ctx.db, ctx.masterKey, workspaceId, link.credentialId, ctx.deps, {
-    actor,
-    purpose: EAS_WORKFLOW_PURPOSE,
-    now: ctx.now(),
-  });
+  const opened = await expoClientFor(
+    ctx.db,
+    ctx.masterKey,
+    workspaceId,
+    link.credentialId,
+    ctx.deps,
+    {
+      actor,
+      purpose: EAS_WORKFLOW_PURPOSE,
+      now: ctx.now(),
+    },
+  );
   if (!opened.ok) return opened;
   let read: ExpoWorkflowRun;
   try {
@@ -354,7 +387,13 @@ export async function refreshEasRun(
         );
         await announce(
           tx,
-          { workspaceId, repositoryId: stored.repositoryId, appIds: stored.appIds, runId: stored.id, at: now },
+          {
+            workspaceId,
+            repositoryId: stored.repositoryId,
+            appIds: stored.appIds,
+            runId: stored.id,
+            at: now,
+          },
           'finished',
           'unknown',
         );
@@ -394,7 +433,8 @@ export type EasPollPayload = {
 };
 
 /** 15 s, 22 s, 34 s, 51 s, then a minute (as `ci.poll`). */
-export const easPollDelayMs = (attempt: number) => Math.min(Math.round(15_000 * 1.5 ** attempt), 60_000);
+export const easPollDelayMs = (attempt: number) =>
+  Math.min(Math.round(15_000 * 1.5 ** attempt), 60_000);
 
 const isPollPayload = (v: unknown): v is EasPollPayload => {
   const p = v as Partial<EasPollPayload> | null;
@@ -436,7 +476,8 @@ export function createEasPollHandler(ctx: EasRunContext): JobHandler {
     const { workspaceId, appId, runId } = payload;
     const actor: Actor = { type: 'system', id: EAS_POLL_QUEUE };
     const deadline = payload.startedAt + (ctx.pollMaxMs ?? EAS_POLL_MAX_MS);
-    const next = (delayMs: number) => enqueueEasPoll(ctx, { ...payload, attempt: payload.attempt + 1 }, delayMs);
+    const next = (delayMs: number) =>
+      enqueueEasPoll(ctx, { ...payload, attempt: payload.attempt + 1 }, delayMs);
 
     const stored = await storedRun(ctx, workspaceId, appId, runId);
     if (!stored || !stored.active) return;

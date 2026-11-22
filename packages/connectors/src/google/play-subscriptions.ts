@@ -73,7 +73,10 @@ export function mapPlaySubscriptionsTable(
   const activeAt = cols.get('active subscriptions');
   const productAt = cols.get('product id');
   const packageAt = cols.get('package name');
-  if (dateAt === undefined || (newAt === undefined && cancelledAt === undefined && activeAt === undefined))
+  if (
+    dateAt === undefined ||
+    (newAt === undefined && cancelledAt === undefined && activeAt === undefined)
+  )
     throw new AnalyticsError('missing_columns');
   const stats: ParseStats = {
     rowsRead: table.rows.length,
@@ -84,7 +87,11 @@ export function mapPlaySubscriptionsTable(
   const wanted = options.packageName?.trim().toLowerCase();
   const acc: Acc = new Map();
   for (const row of table.rows) {
-    if (wanted && packageAt !== undefined && (row[packageAt] ?? '').trim().toLowerCase() !== wanted) {
+    if (
+      wanted &&
+      packageAt !== undefined &&
+      (row[packageAt] ?? '').trim().toLowerCase() !== wanted
+    ) {
       stats.rowsFiltered++;
       continue;
     }
@@ -170,7 +177,10 @@ export class PlaySubscriptionsConnector implements PlaySubscriptionsPort {
         stats: { rowsRead: 0, rowsUsed: 0, rowsUnreadable: 0, rowsFiltered: 0 } as ParseStats,
       };
       for (const table of tables) {
-        const one = mapPlaySubscriptionsTable(table, { packageName: pkg, fallbackProduct: product });
+        const one = mapPlaySubscriptionsTable(table, {
+          packageName: pkg,
+          fallbackProduct: product,
+        });
         mapped.points.push(...one.points);
         mapped.stats.rowsRead += one.stats.rowsRead;
         mapped.stats.rowsUsed += one.stats.rowsUsed;

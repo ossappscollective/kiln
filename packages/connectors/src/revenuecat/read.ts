@@ -87,7 +87,11 @@ export async function listRevenueCatApps(
   client: RevenueCatClient,
   projectId: string,
 ): Promise<{ apps: RevenueCatApp[]; complete: boolean }> {
-  const { items, complete } = await client.list(`${projectPath(projectId)}/apps`, {}, { maxPages: 5 });
+  const { items, complete } = await client.list(
+    `${projectPath(projectId)}/apps`,
+    {},
+    { maxPages: 5 },
+  );
   const apps: RevenueCatApp[] = [];
   for (const item of items) {
     const app = parseApp(item);
@@ -95,14 +99,22 @@ export async function listRevenueCatApps(
   }
   let extra = 0;
   for (const app of apps) {
-    if (app.store === null || app.identifier !== null || extra >= 10 || !client.canRequest()) continue;
+    if (app.store === null || app.identifier !== null || extra >= 10 || !client.canRequest())
+      continue;
     extra += 1;
     try {
-      const one = parseApp(await client.get(`${projectPath(projectId)}/apps/${encodeURIComponent(app.id)}`));
+      const one = parseApp(
+        await client.get(`${projectPath(projectId)}/apps/${encodeURIComponent(app.id)}`),
+      );
       if (one?.identifier) app.identifier = one.identifier;
     } catch (error) {
       // The key may read the list and not one app, or the app is gone: the app stays listed without an identifier.
-      if (!(error instanceof RevenueCatError) || error.kind === 'auth' || error.kind === 'rate_limited') throw error;
+      if (
+        !(error instanceof RevenueCatError) ||
+        error.kind === 'auth' ||
+        error.kind === 'rate_limited'
+      )
+        throw error;
     }
   }
   return { apps, complete };
@@ -115,7 +127,9 @@ export async function getRevenueCatApp(
   appId: string,
 ): Promise<RevenueCatApp | undefined> {
   try {
-    return parseApp(await client.get(`${projectPath(projectId)}/apps/${encodeURIComponent(appId)}`));
+    return parseApp(
+      await client.get(`${projectPath(projectId)}/apps/${encodeURIComponent(appId)}`),
+    );
   } catch (error) {
     if (error instanceof RevenueCatError && error.kind === 'not_found') return undefined;
     throw error;
@@ -157,8 +171,10 @@ function refOf(item: unknown): Ref | undefined {
     const id = text(item.product.id);
     return id ? { productId: id, eligibility } : undefined;
   }
-  if (typeof item.product === 'string' && item.product) return { productId: item.product, eligibility };
-  if (typeof item.product_id === 'string' && item.product_id) return { productId: item.product_id, eligibility };
+  if (typeof item.product === 'string' && item.product)
+    return { productId: item.product, eligibility };
+  if (typeof item.product_id === 'string' && item.product_id)
+    return { productId: item.product_id, eligibility };
   if (item.object === 'product' || typeof item.store_identifier === 'string') {
     const id = text(item.id);
     return id ? { productId: id, eligibility } : undefined;
@@ -167,8 +183,14 @@ function refOf(item: unknown): Ref | undefined {
 }
 
 /** A nested list object (`{ items, next_page }`): its refs, whether it is there at all, and whether more pages exist. */
-function nestedRefs(value: unknown): { refs: Ref[]; present: boolean; more: boolean; unreadable: number } {
-  if (!isRecord(value) || !Array.isArray(value.items)) return { refs: [], present: false, more: false, unreadable: 0 };
+function nestedRefs(value: unknown): {
+  refs: Ref[];
+  present: boolean;
+  more: boolean;
+  unreadable: number;
+} {
+  if (!isRecord(value) || !Array.isArray(value.items))
+    return { refs: [], present: false, more: false, unreadable: 0 };
   const refs: Ref[] = [];
   let unreadable = 0;
   for (const item of value.items) {
@@ -176,7 +198,12 @@ function nestedRefs(value: unknown): { refs: Ref[]; present: boolean; more: bool
     if (ref) refs.push(ref);
     else unreadable += 1;
   }
-  return { refs, present: true, more: typeof value.next_page === 'string' && value.next_page !== '', unreadable };
+  return {
+    refs,
+    present: true,
+    more: typeof value.next_page === 'string' && value.next_page !== '',
+    unreadable,
+  };
 }
 
 type Reader = {
@@ -203,7 +230,9 @@ async function refsWithFallback(
     reader.complete = false;
     return first.refs;
   }
-  const got = await reader.client.list(`${projectPath(reader.projectId)}${fallbackPath}`, query, { reserve });
+  const got = await reader.client.list(`${projectPath(reader.projectId)}${fallbackPath}`, query, {
+    reserve,
+  });
   if (!got.complete) reader.complete = false;
   const refs: Ref[] = [];
   for (const item of got.items) {
@@ -230,7 +259,13 @@ export async function readRevenueCatConfiguration(
   input: { projectId: string; appId: string },
 ): Promise<RevenueCatConfiguration> {
   const warnings: string[] = [];
-  const reader: Reader = { client, projectId: input.projectId, complete: true, skipped: false, unreadable: 0 };
+  const reader: Reader = {
+    client,
+    projectId: input.projectId,
+    complete: true,
+    skipped: false,
+    unreadable: 0,
+  };
   const base = projectPath(input.projectId);
 
   // 1. Products of the whole project, kept for the linked app. (`GET /products` is documented with an `app_id` query whose
@@ -239,7 +274,9 @@ export async function readRevenueCatConfiguration(
   const rawProducts = await client.list(`${base}/products`, {}, { reserve: 2 });
   if (!rawProducts.complete) {
     reader.complete = false;
-    warnings.push('RevenueCat has more products than one read takes in, so the list of products may be missing some.');
+    warnings.push(
+      'RevenueCat has more products than one read takes in, so the list of products may be missing some.',
+    );
   }
   const products: RevenueCatProduct[] = [];
   let otherAppProducts = 0;
@@ -254,15 +291,23 @@ export async function readRevenueCatConfiguration(
     else otherAppProducts += 1;
   }
   if (unreadableProducts > 0) {
-    warnings.push(`${unreadableProducts} RevenueCat product${unreadableProducts === 1 ? '' : 's'} could not be read and ${unreadableProducts === 1 ? 'was' : 'were'} left out.`);
+    warnings.push(
+      `${unreadableProducts} RevenueCat product${unreadableProducts === 1 ? '' : 's'} could not be read and ${unreadableProducts === 1 ? 'was' : 'were'} left out.`,
+    );
   }
   const ids = new Set(products.map((p) => p.id));
 
   // 2. Entitlements.
-  const rawEntitlements = await client.list(`${base}/entitlements`, { expand: 'items.product' }, { reserve: 1 });
+  const rawEntitlements = await client.list(
+    `${base}/entitlements`,
+    { expand: 'items.product' },
+    { reserve: 1 },
+  );
   if (!rawEntitlements.complete) {
     reader.complete = false;
-    warnings.push('RevenueCat has more entitlements than one read takes in, so the list of entitlements may be missing some.');
+    warnings.push(
+      'RevenueCat has more entitlements than one read takes in, so the list of entitlements may be missing some.',
+    );
   }
   const entitlements: RevenueCatEntitlement[] = [];
   for (const item of rawEntitlements.items) {
@@ -271,7 +316,13 @@ export async function readRevenueCatConfiguration(
     const lookupKey = short(item.lookup_key);
     if (!id || !lookupKey) continue;
     // One read is still ahead (the offerings): the fallback leaves it its request.
-    const refs = await refsWithFallback(reader, item.products, `/entitlements/${encodeURIComponent(id)}/products`, undefined, 1);
+    const refs = await refsWithFallback(
+      reader,
+      item.products,
+      `/entitlements/${encodeURIComponent(id)}/products`,
+      undefined,
+      1,
+    );
     const projectProductCount = new Set(refs.map((r) => r.productId)).size;
     const mine = [...new Set(refs.map((r) => r.productId).filter((p) => ids.has(p)))];
     // An entitlement that holds only products of other apps is not this app's; one that holds nothing at all is kept (it is a finding).
@@ -291,7 +342,9 @@ export async function readRevenueCatConfiguration(
   const rawOfferings = await client.list(`${base}/offerings`, { expand: 'items.package.product' });
   if (!rawOfferings.complete) {
     reader.complete = false;
-    warnings.push('RevenueCat has more offerings than one read takes in, so the list of offerings may be missing some.');
+    warnings.push(
+      'RevenueCat has more offerings than one read takes in, so the list of offerings may be missing some.',
+    );
   }
   const offerings: RevenueCatOffering[] = [];
   for (const item of rawOfferings.items) {
@@ -300,16 +353,23 @@ export async function readRevenueCatConfiguration(
     const lookupKey = short(item.lookup_key);
     if (!id || !lookupKey) continue;
     let packageItems: unknown[];
-    if (isRecord(item.packages) && Array.isArray(item.packages.items) && !text(item.packages.next_page)) {
+    if (
+      isRecord(item.packages) &&
+      Array.isArray(item.packages.items) &&
+      !text(item.packages.next_page)
+    ) {
       packageItems = item.packages.items;
     } else if (client.canRequest()) {
-      const got = await client.list(`${base}/offerings/${encodeURIComponent(id)}/packages`, { expand: 'items.product' });
+      const got = await client.list(`${base}/offerings/${encodeURIComponent(id)}/packages`, {
+        expand: 'items.product',
+      });
       if (!got.complete) reader.complete = false;
       packageItems = got.items;
     } else {
       reader.skipped = true;
       reader.complete = false;
-      packageItems = isRecord(item.packages) && Array.isArray(item.packages.items) ? item.packages.items : [];
+      packageItems =
+        isRecord(item.packages) && Array.isArray(item.packages.items) ? item.packages.items : [];
     }
     const packages: RevenueCatPackage[] = [];
     for (const pkg of packageItems) {
@@ -317,10 +377,17 @@ export async function readRevenueCatConfiguration(
       const packageId = text(pkg.id);
       const packageKey = short(pkg.lookup_key);
       if (!packageId || !packageKey) continue;
-      const refs = await refsWithFallback(reader, pkg.products, `/packages/${encodeURIComponent(packageId)}/products`);
+      const refs = await refsWithFallback(
+        reader,
+        pkg.products,
+        `/packages/${encodeURIComponent(packageId)}/products`,
+      );
       const mine: RevenueCatPackageProduct[] = [];
       for (const ref of refs) {
-        if (ids.has(ref.productId) && !mine.some((m) => m.productId === ref.productId && m.eligibility === ref.eligibility)) {
+        if (
+          ids.has(ref.productId) &&
+          !mine.some((m) => m.productId === ref.productId && m.eligibility === ref.eligibility)
+        ) {
           mine.push(ref);
         }
       }
@@ -334,7 +401,9 @@ export async function readRevenueCatConfiguration(
       });
     }
     if (packages.length === 0) continue;
-    packages.sort((a, b) => (a.position ?? 1e9) - (b.position ?? 1e9) || a.lookupKey.localeCompare(b.lookupKey));
+    packages.sort(
+      (a, b) => (a.position ?? 1e9) - (b.position ?? 1e9) || a.lookupKey.localeCompare(b.lookupKey),
+    );
     offerings.push({
       id,
       lookupKey,
@@ -348,7 +417,7 @@ export async function readRevenueCatConfiguration(
 
   if (reader.skipped) {
     warnings.push(
-      'The read stopped before every entitlement and offering was read in full, to stay under RevenueCat\'s rate limit. Sync again in a minute.',
+      "The read stopped before every entitlement and offering was read in full, to stay under RevenueCat's rate limit. Sync again in a minute.",
     );
   }
   if (reader.unreadable > 0) {

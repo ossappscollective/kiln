@@ -14,7 +14,13 @@ import {
 } from '@kiln/core';
 import { ApiError } from '../api.ts';
 import { parseViewPath } from '../app-scope.ts';
-import { formatCompact, formatCurrency, formatDate, formatNumber, formatPercent as formatPercentOf } from '../i18n/format.ts';
+import {
+  formatCompact,
+  formatCurrency,
+  formatDate,
+  formatNumber,
+  formatPercent as formatPercentOf,
+} from '../i18n/format.ts';
 import { k, t } from '../i18n/t.ts';
 
 /**
@@ -254,14 +260,18 @@ export function customRangeProblem(from: string, to: string, now: number): strin
   if (!isIsoDate(from) || !isIsoDate(to)) return t('analytics:range.errBothDates');
   if (from > to) return t('analytics:range.errOrder');
   if (to > dateToDay(now)) return t('analytics:range.errFuture');
-  if (daysBetween(from, to) + 1 > MAX_RANGE_DAYS) return t('analytics:range.errTooLong', { count: MAX_RANGE_DAYS });
+  if (daysBetween(from, to) + 1 > MAX_RANGE_DAYS)
+    return t('analytics:range.errTooLong', { count: MAX_RANGE_DAYS });
   return '';
 }
 
 export const rangeText = (choice: RangeChoice, range: ResolvedRange): string =>
   choice.kind === 'preset'
     ? t('analytics:range.last', { count: choice.days })
-    : t('analytics:range.fromTo', { from: formatDay(range.from, true), to: formatDay(range.to, true) });
+    : t('analytics:range.fromTo', {
+        from: formatDay(range.from, true),
+        to: formatDay(range.to, true),
+      });
 
 // ---------------------------------------------------------------------------------------------
 // Numbers and dates
@@ -273,11 +283,24 @@ export const rangeText = (choice: RangeChoice, range: ResolvedRange): string =>
 export function formatDay(day: string, withYear = false): string {
   // A month ("2026-10", from `monthKey`) is named as one: "Oct 2026". It is never shown as a day.
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(day)) {
-    return formatDate(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, 1), { timeZone: 'UTC', month: 'short', year: 'numeric' });
+    return formatDate(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, 1), {
+      timeZone: 'UTC',
+      month: 'short',
+      year: 'numeric',
+    });
   }
   if (!isIsoDate(day)) return day;
-  const at = Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)));
-  return formatDate(at, withYear ? { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' } : { timeZone: 'UTC', month: 'short', day: 'numeric' });
+  const at = Date.UTC(
+    Number(day.slice(0, 4)),
+    Number(day.slice(5, 7)) - 1,
+    Number(day.slice(8, 10)),
+  );
+  return formatDate(
+    at,
+    withYear
+      ? { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' }
+      : { timeZone: 'UTC', month: 'short', day: 'numeric' },
+  );
 }
 
 const group = (n: number): string => formatNumber(Math.round(n), { maximumFractionDigits: 0 });
@@ -298,10 +321,14 @@ export function formatPercent(fraction: number, exact = false): string {
   if (!Number.isFinite(fraction)) return '';
   const a = Math.abs(fraction * 100);
   const digits = exact || (a > 0 && a < 1) ? 2 : a > 0 && a < 10 ? 1 : 0;
-  return formatPercentOf(fraction, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return formatPercentOf(fraction, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
 }
 
-export const formatRating = (n: number): string => formatNumber(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const formatRating = (n: number): string =>
+  formatNumber(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Money in its own currency; never converted. A code the runtime does not know is written as text. */
 export function formatMoney(n: number, currency: string | null, exact = false): string {
@@ -340,7 +367,9 @@ export function formatExact(
     case 'money':
       return formatMoney(value, currency, true);
     default:
-      return Number.isInteger(value) ? formatCountExact(value) : formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return Number.isInteger(value)
+        ? formatCountExact(value)
+        : formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 }
 
@@ -459,7 +488,11 @@ export const MAX_COVERAGE_DIFFERENCE = 0.15;
 function deltaOfValues(unit: MetricUnit, current: number, previous: number): Delta {
   // The sign is written by the language's own number format ("+1.0", "-0.5"); it is left out of the spoken form.
   const signed = (n: number, digits: number): string =>
-    formatNumber(n, { minimumFractionDigits: digits, maximumFractionDigits: digits, signDisplay: 'always' });
+    formatNumber(n, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+      signDisplay: 'always',
+    });
   if (unit === 'ratio') {
     const points = (current - previous) * 100;
     if (Math.abs(points) < 0.05) return { kind: 'flat' };
@@ -485,7 +518,11 @@ function deltaOfValues(unit: MetricUnit, current: number, previous: number): Del
   return {
     kind: 'change',
     direction: pct > 0 ? 'up' : 'down',
-    text: formatPercentOf(pct / 100, { minimumFractionDigits: a < 10 ? 1 : 0, maximumFractionDigits: a < 10 ? 1 : 0, signDisplay: 'always' }),
+    text: formatPercentOf(pct / 100, {
+      minimumFractionDigits: a < 10 ? 1 : 0,
+      maximumFractionDigits: a < 10 ? 1 : 0,
+      signDisplay: 'always',
+    }),
   };
 }
 
@@ -548,7 +585,10 @@ export function deltaSpoken(delta: Delta, days: number): string {
   if (delta.kind === 'change')
     return delta.direction === 'up'
       ? t('analytics:delta.spokenUp', { text: delta.text.replace(/^[+\-\u2212]/, ''), count: days })
-      : t('analytics:delta.spokenDown', { text: delta.text.replace(/^[+\-\u2212]/, ''), count: days });
+      : t('analytics:delta.spokenDown', {
+          text: delta.text.replace(/^[+\-\u2212]/, ''),
+          count: days,
+        });
   return deltaLine(delta, days);
 }
 
@@ -598,13 +638,18 @@ export function lagText(source: string, delayDays: number): string {
 
 /** "Data up to Nov 17. Apple reports can lag up to 3 days." */
 export function freshnessLine(
-  series: Pick<AnalyticsSeries, 'source' | 'delayDays' | 'coverage'> & { cadence?: 'monthly' | undefined },
+  series: Pick<AnalyticsSeries, 'source' | 'delayDays' | 'coverage'> & {
+    cadence?: 'monthly' | undefined;
+  },
 ): string {
   const lag = lagText(series.source, series.delayDays);
   // A monthly figure is named by its month, never by the first day it is stored on.
   const last = series.coverage.lastDay;
   return last
-    ? t('analytics:freshness.dataUpTo', { date: series.cadence === 'monthly' ? formatDay(monthKey(last), true) : formatDay(last), lag })
+    ? t('analytics:freshness.dataUpTo', {
+        date: series.cadence === 'monthly' ? formatDay(monthKey(last), true) : formatDay(last),
+        lag,
+      })
     : t('analytics:freshness.noData', { lag });
 }
 
@@ -715,13 +760,14 @@ const noteKeys: Record<CoverageNoteCode, string> = {
   only_since_connected: k('analytics:note.onlySinceConnected'),
 };
 
-
 /** What went wrong, in a sentence from a fixed list. Never the text of a store, and never the server's own message. */
 export function analyticsErrorText(error: unknown): string {
   if (!(error instanceof ApiError)) return t('analytics:apiError.generic');
   if (error.code === 'rate_limited') {
     const wait = error.retryAfter;
-    return wait ? t('analytics:apiError.rateLimited', { count: wait }) : t('analytics:apiError.rateLimitedMinute');
+    return wait
+      ? t('analytics:apiError.rateLimited', { count: wait })
+      : t('analytics:apiError.rateLimitedMinute');
   }
   const own = apiSentences[error.code];
   if (own) return t(own);
@@ -802,7 +848,12 @@ export function stepAction(step: string): StepAction {
     case 'set_bucket_id':
       return { kind: 'bucket', label, needs: 'manage' };
     case 'set_vendor_number':
-      return { kind: 'link', label: t('analytics:step.inSettings', { label }), target: 'settings', needs: 'none' };
+      return {
+        kind: 'link',
+        label: t('analytics:step.inSettings', { label }),
+        target: 'settings',
+        needs: 'none',
+      };
     case 'fix_credential':
       return {
         kind: 'link',

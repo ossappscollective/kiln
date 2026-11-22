@@ -101,13 +101,7 @@ import type { FixupBody, FixupResult, RecomputeResult } from './change-set-fixup
 import type { RefreshResult, Resolution, Staleness } from './change-set-refresh.ts';
 import type { CloneReport, PurgeResult, RepositoryClone } from './clone-upkeep.ts';
 import { isDemoStatus } from './demo.ts';
-import {
-  codedText,
-  type ErrorBody,
-  explicitText,
-  legacyText,
-  waitText,
-} from './error-text.ts';
+import { codedText, type ErrorBody, explicitText, legacyText, waitText } from './error-text.ts';
 import { readLocalePref } from './i18n/preference.ts';
 import { currentLocale } from './i18n/t.ts';
 import type { McpStatus } from './mcp.ts';
@@ -653,15 +647,15 @@ export function createApi(options: ApiOptions = {}) {
       request<TotpBegin>('POST', '/api/auth/login/enroll/totp', { challenge }),
     loginEnrollTotpConfirm: (challenge: string, code: string) =>
       request<{ user: User }>('POST', '/api/auth/login/enroll/totp/confirm', { challenge, code }),
-    /** The language of emails the server sends without a request (alerts, the digest); null clears it. */
-    setMyLocale: (locale: string | null) =>
-      request<{ user: User }>('PATCH', '/api/me', { locale }),
     loginEnrollEmail: (challenge: string) =>
       request<CodeSent>('POST', '/api/auth/login/enroll/email', { challenge }),
     loginEnrollEmailConfirm: (challenge: string, code: string) =>
       request<{ user: User }>('POST', '/api/auth/login/enroll/email/confirm', { challenge, code }),
     logout: () => request<void>('POST', '/api/auth/logout'),
     me: () => request<Me>('GET', '/api/me'),
+    /** The language of emails the server sends without a request (alerts, the digest); null clears it. */
+    setMyLocale: (locale: string | null) =>
+      request<{ user: User }>('PATCH', '/api/me', { locale }),
     credentials: (workspaceId: string) =>
       request<{ credentials: CredentialSummary[] }>('GET', `${workspace(workspaceId)}/credentials`),
     addCredential: (workspaceId: string, input: { kind: string; label: string; secret: string }) =>
@@ -2406,10 +2400,7 @@ export function createApi(options: ApiOptions = {}) {
         body,
       ),
     removeExpoLink: (workspaceId: string, appId: string) =>
-      request<void>(
-        'DELETE',
-        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo`,
-      ),
+      request<void>('DELETE', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo`),
     detectExpoProject: (workspaceId: string, appId: string) =>
       request<{ detection: ExpoDetection }>(
         'GET',
@@ -2517,7 +2508,12 @@ export function createApi(options: ApiOptions = {}) {
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/revenuecat/metrics`,
       ),
-    detectRevenueCat: (workspaceId: string, appId: string, credentialId: string, projectId?: string) =>
+    detectRevenueCat: (
+      workspaceId: string,
+      appId: string,
+      credentialId: string,
+      projectId?: string,
+    ) =>
       request<{ options: RevenueCatOptions }>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/revenuecat/detect?credentialId=${encodeURIComponent(credentialId)}${projectId ? `&projectId=${encodeURIComponent(projectId)}` : ''}`,

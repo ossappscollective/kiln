@@ -57,7 +57,12 @@ export type MatchedProduct = {
 export type ProductRevenueCat = {
   status: RevenueCatStatus;
   products: MatchedProduct[];
-  entitlements: { id: string; lookupKey: string; displayName: string | null; state: RevenueCatState }[];
+  entitlements: {
+    id: string;
+    lookupKey: string;
+    displayName: string | null;
+    state: RevenueCatState;
+  }[];
   offerings: {
     id: string;
     lookupKey: string;
@@ -108,7 +113,11 @@ export type JoinResult = {
   warnings: RevenueCatWarning[];
 };
 
-const asMatched = (p: RevenueCatProduct, planId: string | null, planInStore: boolean | null): MatchedProduct => ({
+const asMatched = (
+  p: RevenueCatProduct,
+  planId: string | null,
+  planInStore: boolean | null,
+): MatchedProduct => ({
   rcProductId: p.id,
   storeIdentifier: p.storeIdentifier,
   planId,
@@ -131,7 +140,8 @@ function mergeOfferings(list: ProductRevenueCat['offerings']): ProductRevenueCat
       continue;
     }
     for (const p of o.packages) {
-      if (!have.packages.some((x) => x.id === p.id && x.rcProductId === p.rcProductId)) have.packages.push(p);
+      if (!have.packages.some((x) => x.id === p.id && x.rcProductId === p.rcProductId))
+        have.packages.push(p);
     }
   }
   return merged;
@@ -201,13 +211,20 @@ export function joinRevenueCat(input: JoinInput): JoinResult {
             state: offering.state,
             packages: [],
           } satisfies ProductRevenueCat['offerings'][number]);
-        entry.packages.push({ id: pkg.id, lookupKey: pkg.lookupKey, rcProductId: item.productId, eligibility: item.eligibility });
+        entry.packages.push({
+          id: pkg.id,
+          lookupKey: pkg.lookupKey,
+          rcProductId: item.productId,
+          eligibility: item.eligibility,
+        });
         perProduct.set(offering.id, entry);
         offeringsOf.set(item.productId, perProduct);
       }
     }
   }
-  const unique = <T extends { id: string }>(items: T[]): T[] => [...new Map(items.map((i) => [i.id, i])).values()];
+  const unique = <T extends { id: string }>(items: T[]): T[] => [
+    ...new Map(items.map((i) => [i.id, i])).values(),
+  ];
 
   const byProduct = new Map<string, ProductRevenueCat>();
   for (const store of input.storeProducts) {
@@ -224,14 +241,18 @@ export function joinRevenueCat(input: JoinInput): JoinResult {
       status,
       products: matched,
       entitlements: unique(matched.flatMap((m) => entitlementsOf.get(m.rcProductId) ?? [])),
-      offerings: mergeOfferings(matched.flatMap((m) => [...(offeringsOf.get(m.rcProductId)?.values() ?? [])])),
+      offerings: mergeOfferings(
+        matched.flatMap((m) => [...(offeringsOf.get(m.rcProductId)?.values() ?? [])]),
+      ),
     });
   }
 
   // ---- Warnings --------------------------------------------------------------------------------
   const warnings: RevenueCatWarning[] = [];
-  const warn = (w: Omit<RevenueCatWarning, 'storeProductId' | 'rcProductId' | 'entitlementId'> & Partial<RevenueCatWarning>) =>
-    warnings.push({ storeProductId: null, rcProductId: null, entitlementId: null, ...w });
+  const warn = (
+    w: Omit<RevenueCatWarning, 'storeProductId' | 'rcProductId' | 'entitlementId'> &
+      Partial<RevenueCatWarning>,
+  ) => warnings.push({ storeProductId: null, rcProductId: null, entitlementId: null, ...w });
 
   const rcById = new Map(input.rcProducts.map((p) => [p.id, p]));
   const matchedStoreOf = new Map<string, JoinStoreProduct>();
@@ -243,7 +264,8 @@ export function joinRevenueCat(input: JoinInput): JoinResult {
   const inActiveOffering = new Set<string>();
   for (const o of input.offerings) {
     if (!sellableOffering(o.state)) continue;
-    for (const pkg of o.packages) for (const item of pkg.products) inActiveOffering.add(item.productId);
+    for (const pkg of o.packages)
+      for (const item of pkg.products) inActiveOffering.add(item.productId);
   }
 
   if (input.storeSynced && input.rcComplete) {
@@ -269,7 +291,11 @@ export function joinRevenueCat(input: JoinInput): JoinResult {
         });
       }
       // A Play subscription whose base plan has no RevenueCat product (only when RevenueCat uses the base plan form).
-      if (view.status !== 'not_in_revenuecat' && view.products.some((m) => m.planId !== null) && !view.products.some((m) => m.planId === null)) {
+      if (
+        view.status !== 'not_in_revenuecat' &&
+        view.products.some((m) => m.planId !== null) &&
+        !view.products.some((m) => m.planId === null)
+      ) {
         const have = new Set(view.products.map((m) => m.planId));
         for (const plan of store.plans) {
           if (plan.state.toUpperCase() === 'ACTIVE' && !have.has(plan.id)) {

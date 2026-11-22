@@ -125,50 +125,58 @@ dbTest('the answer is what the operation says, and nothing more', async (db) => 
   assert.deepEqual(schema.parse(none.body), none.body);
 });
 
-dbTest('the commit is null when the connector cannot name it, and the tree is read once per commit', async (db) => {
-  const t = await boot(db, { 'eas.json': DEFAULT_EAS });
-  const appId = await t.seedApp();
-  const first = await t.get(t.owner, appId);
-  assert.equal(first.body.commit, null);
-  assert.equal(first.body.branch, 'main');
-  assert.equal(first.body.found, true);
+dbTest(
+  'the commit is null when the connector cannot name it, and the tree is read once per commit',
+  async (db) => {
+    const t = await boot(db, { 'eas.json': DEFAULT_EAS });
+    const appId = await t.seedApp();
+    const first = await t.get(t.owner, appId);
+    assert.equal(first.body.commit, null);
+    assert.equal(first.body.branch, 'main');
+    assert.equal(first.body.found, true);
 
-  clearRepoSnapshots();
-  t.repo.resolveCommit = async () => SHA;
-  const a = await t.get(t.owner, appId);
-  const listed = t.repo.listCalls;
-  const b = await t.get(t.owner, appId);
-  assert.equal(a.body.commit, SHA);
-  assert.equal(b.body.commit, SHA);
-  assert.equal(t.repo.listCalls, listed, 'the second read of the same commit lists no tree');
-});
+    clearRepoSnapshots();
+    t.repo.resolveCommit = async () => SHA;
+    const a = await t.get(t.owner, appId);
+    const listed = t.repo.listCalls;
+    const b = await t.get(t.owner, appId);
+    assert.equal(a.body.commit, SHA);
+    assert.equal(b.body.commit, SHA);
+    assert.equal(t.repo.listCalls, listed, 'the second read of the same commit lists no tree');
+  },
+);
 
-dbTest('rights: members read, viewers and outsiders do not, and a refused request never reaches GitHub', async (db) => {
-  const t = await boot(db, { 'eas.json': DEFAULT_EAS });
-  const appId = await t.seedApp();
-  const viewer = await t.addMember('viewer');
-  const member = await t.addMember('member');
-  await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('other', 'Other', 0)");
-  const outsider = await t.addMember('owner', 'other');
+dbTest(
+  'rights: members read, viewers and outsiders do not, and a refused request never reaches GitHub',
+  async (db) => {
+    const t = await boot(db, { 'eas.json': DEFAULT_EAS });
+    const appId = await t.seedApp();
+    const viewer = await t.addMember('viewer');
+    const member = await t.addMember('member');
+    await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('other', 'Other', 0)");
+    const outsider = await t.addMember('owner', 'other');
 
-  const forbidden = await t.get(viewer, appId);
-  assert.equal(forbidden.status, 403);
-  assert.deepEqual(forbidden.body, { error: 'forbidden' });
-  assert.equal((await t.get(outsider, appId)).status, 404, 'not a member: not found');
-  assert.equal((await t.get(t.owner, 'no-such-app')).status, 404);
-  assert.equal(
-    (await t.get(outsider, appId, 'other')).status,
-    404,
-    'the app of one workspace does not exist in another',
-  );
-  const anonymous = await t.app.request(`/api/workspaces/${t.workspaceId}/apps/${appId}/eas-config`);
-  assert.equal(anonymous.status, 401);
-  assert.equal(t.repo.reads.length, 0);
-  assert.equal(t.repo.listCalls, 0);
+    const forbidden = await t.get(viewer, appId);
+    assert.equal(forbidden.status, 403);
+    assert.deepEqual(forbidden.body, { error: 'forbidden' });
+    assert.equal((await t.get(outsider, appId)).status, 404, 'not a member: not found');
+    assert.equal((await t.get(t.owner, 'no-such-app')).status, 404);
+    assert.equal(
+      (await t.get(outsider, appId, 'other')).status,
+      404,
+      'the app of one workspace does not exist in another',
+    );
+    const anonymous = await t.app.request(
+      `/api/workspaces/${t.workspaceId}/apps/${appId}/eas-config`,
+    );
+    assert.equal(anonymous.status, 401);
+    assert.equal(t.repo.reads.length, 0);
+    assert.equal(t.repo.listCalls, 0);
 
-  assert.equal((await t.get(member, appId)).status, 200);
-  assert.equal((await t.get(t.owner, appId)).status, 200);
-});
+    assert.equal((await t.get(member, appId)).status, 200);
+    assert.equal((await t.get(t.owner, appId)).status, 200);
+  },
+);
 
 dbTest('an app without a repository is an answer, and GitHub is not touched', async (db) => {
   const t = await boot(db, { 'eas.json': DEFAULT_EAS });
@@ -184,77 +192,89 @@ dbTest('an app without a repository is an answer, and GitHub is not touched', as
   assert.deepEqual(t.repo.reads, []);
 });
 
-dbTest('a repository without eas.json answers found false with the reason, not an error', async (db) => {
-  const t = await boot(db, {
-    'package.json': '{}',
-    'app.json': APP_PLAIN,
-    'apps/mobile/eas.json': '{}',
-    'node_modules/x/eas.json': '{}',
-  });
-  const appId = await t.seedApp();
-  const res = await t.get(t.owner, appId);
-  assert.equal(res.status, 200);
-  assert.equal(res.body.found, false);
-  assert.equal(res.body.reason.code, 'no_eas_json');
-  assert.match(res.body.reason.message, /no eas\.json at the repository root/i);
-  assert.deepEqual(res.body.nested, ['apps/mobile/eas.json']);
-  assert.equal(res.body.config, null);
-  assert.equal(res.body.path, null);
-  assert.equal(res.body.expoApp.iosBundleIdentifier, 'com.example.trailnotes');
-  assert.equal(res.body.commit, null);
-  assert.deepEqual(t.repo.reads, ['app.json']);
-});
+dbTest(
+  'a repository without eas.json answers found false with the reason, not an error',
+  async (db) => {
+    const t = await boot(db, {
+      'package.json': '{}',
+      'app.json': APP_PLAIN,
+      'apps/mobile/eas.json': '{}',
+      'node_modules/x/eas.json': '{}',
+    });
+    const appId = await t.seedApp();
+    const res = await t.get(t.owner, appId);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.found, false);
+    assert.equal(res.body.reason.code, 'no_eas_json');
+    assert.match(res.body.reason.message, /no eas\.json at the repository root/i);
+    assert.deepEqual(res.body.nested, ['apps/mobile/eas.json']);
+    assert.equal(res.body.config, null);
+    assert.equal(res.body.path, null);
+    assert.equal(res.body.expoApp.iosBundleIdentifier, 'com.example.trailnotes');
+    assert.equal(res.body.commit, null);
+    assert.deepEqual(t.repo.reads, ['app.json']);
+  },
+);
 
-dbTest('an eas.json that is not JSON is found, with an error finding and no secret echoed', async (db) => {
-  const t = await boot(db, { 'eas.json': INVALID_EAS });
-  const appId = await t.seedApp();
-  const res = await t.get(t.owner, appId);
-  assert.equal(res.status, 200);
-  assert.equal(res.body.found, true);
-  assert.equal(res.body.config, null);
-  assert.deepEqual(
-    res.body.findings.map((f: { code: string; severity: string }) => [f.code, f.severity]),
-    [['eas_json_invalid', 'error']],
-  );
-  assert.equal(res.text.includes(SECRET_TOKEN), false);
-});
+dbTest(
+  'an eas.json that is not JSON is found, with an error finding and no secret echoed',
+  async (db) => {
+    const t = await boot(db, { 'eas.json': INVALID_EAS });
+    const appId = await t.seedApp();
+    const res = await t.get(t.owner, appId);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.found, true);
+    assert.equal(res.body.config, null);
+    assert.deepEqual(
+      res.body.findings.map((f: { code: string; severity: string }) => [f.code, f.severity]),
+      [['eas_json_invalid', 'error']],
+    );
+    assert.equal(res.text.includes(SECRET_TOKEN), false);
+  },
+);
 
-dbTest('no value of env, of an unknown key or of a secret reaches the response, the audit log or the stored rows', async (db) => {
-  const t = await boot(db, { 'eas.json': FULL_EAS, 'app.json': APP_UPDATES });
-  const appId = await t.seedApp();
-  const res = await t.get(t.owner, appId);
-  assert.equal(res.status, 200);
-  const everything = [
-    res.text,
-    JSON.stringify(await t.auditActions()),
-    JSON.stringify(await db.query('SELECT * FROM audit_events')),
-  ].join('\n');
-  for (const value of [
-    SECRET_TOKEN,
-    SENTRY_TOKEN,
-    'do-not-keep-this-value',
-    'https://api.example.com',
-    'dev@example.com',
-  ]) {
-    assert.equal(everything.includes(value), false, `${value} leaked`);
-  }
-  const secrets = res.body.findings.filter((f: { code: string }) => f.code === 'env_secret_like');
-  assert.deepEqual(
-    secrets.map((f: { key: string }) => f.key).sort(),
-    ['GITHUB', 'SENTRY_AUTH_TOKEN'],
-  );
-});
+dbTest(
+  'no value of env, of an unknown key or of a secret reaches the response, the audit log or the stored rows',
+  async (db) => {
+    const t = await boot(db, { 'eas.json': FULL_EAS, 'app.json': APP_UPDATES });
+    const appId = await t.seedApp();
+    const res = await t.get(t.owner, appId);
+    assert.equal(res.status, 200);
+    const everything = [
+      res.text,
+      JSON.stringify(await t.auditActions()),
+      JSON.stringify(await db.query('SELECT * FROM audit_events')),
+    ].join('\n');
+    for (const value of [
+      SECRET_TOKEN,
+      SENTRY_TOKEN,
+      'do-not-keep-this-value',
+      'https://api.example.com',
+      'dev@example.com',
+    ]) {
+      assert.equal(everything.includes(value), false, `${value} leaked`);
+    }
+    const secrets = res.body.findings.filter((f: { code: string }) => f.code === 'env_secret_like');
+    assert.deepEqual(secrets.map((f: { key: string }) => f.key).sort(), [
+      'GITHUB',
+      'SENTRY_AUTH_TOKEN',
+    ]);
+  },
+);
 
-dbTest('the read is audited as a use of the repository credential, with its purpose', async (db) => {
-  const t = await boot(db, { 'eas.json': DEFAULT_EAS });
-  const appId = await t.seedApp();
-  await t.get(t.owner, appId);
-  const uses = (await t.auditActions()).filter(
-    (a) => a.action === 'credential.use' && /eas\.config/.test(a.detail),
-  );
-  assert.equal(uses.length, 1);
-  assert.equal(uses[0]?.actorType, 'user');
-});
+dbTest(
+  'the read is audited as a use of the repository credential, with its purpose',
+  async (db) => {
+    const t = await boot(db, { 'eas.json': DEFAULT_EAS });
+    const appId = await t.seedApp();
+    await t.get(t.owner, appId);
+    const uses = (await t.auditActions()).filter(
+      (a) => a.action === 'credential.use' && /eas\.config/.test(a.detail),
+    );
+    assert.equal(uses.length, 1);
+    assert.equal(uses[0]?.actorType, 'user');
+  },
+);
 
 dbTest('the app identifier is compared with the app config; a desktop app is not', async (db) => {
   const t = await boot(db, { 'eas.json': '{}', 'app.json': APP_PLAIN });
@@ -270,19 +290,26 @@ dbTest('the app identifier is compared with the app config; a desktop app is not
   assert.equal((await codes(mac)).includes('app_identifier_mismatch'), false);
 });
 
-dbTest('a rate limit of GitHub and an outage are failures like in the other repository reads', async (db) => {
-  const t = await boot(db, { 'eas.json': DEFAULT_EAS });
-  const appId = await t.seedApp();
-  t.repo.listError = new GithubRateLimitError(403, 'primary', 42);
-  const limited = await t.get(t.owner, appId);
-  assert.equal(limited.status, 429);
-  assert.equal(limited.headers.get('retry-after'), '42');
+dbTest(
+  'a rate limit of GitHub and an outage are failures like in the other repository reads',
+  async (db) => {
+    const t = await boot(db, { 'eas.json': DEFAULT_EAS });
+    const appId = await t.seedApp();
+    t.repo.listError = new GithubRateLimitError(403, 'primary', 42);
+    const limited = await t.get(t.owner, appId);
+    assert.equal(limited.status, 429);
+    assert.equal(limited.headers.get('retry-after'), '42');
 
-  t.repo.listError = new GithubError('server', `upstream said: token ${SECRET_TOKEN} is odd`, 500);
-  const broken = await t.get(t.owner, appId);
-  assert.equal(broken.status, 502);
-  assert.equal(broken.text.includes(SECRET_TOKEN), false);
-});
+    t.repo.listError = new GithubError(
+      'server',
+      `upstream said: token ${SECRET_TOKEN} is odd`,
+      500,
+    );
+    const broken = await t.get(t.owner, appId);
+    assert.equal(broken.status, 502);
+    assert.equal(broken.text.includes(SECRET_TOKEN), false);
+  },
+);
 
 dbTest('a file that is too large or not text is an answer, not a failure', async (db) => {
   const t = await boot(db, { 'eas.json': DEFAULT_EAS });

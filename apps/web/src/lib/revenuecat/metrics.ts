@@ -51,7 +51,8 @@ export type StripTile = { id: string; label: string; value: string; title: strin
 /** "$1,235" or "1,235" with no currency named: an amount whose currency RevenueCat did not say is never dressed up as money. */
 export function metricValue(metric: RevenueCatMetric): string {
   if (metric.kind === 'count') return formatCountExact(metric.value);
-  if (metric.currency === null) return t('products:metrics.currencyNotReported', { amount: formatMoney(metric.value, null) });
+  if (metric.currency === null)
+    return t('products:metrics.currencyNotReported', { amount: formatMoney(metric.value, null) });
   return formatMoney(metric.value, metric.currency);
 }
 
@@ -74,10 +75,19 @@ export function stripTiles(read: RevenueCatMetricsRead | null): StripTile[] {
           },
         ];
   return [
-    ...tile('active_subscriptions', t('products:metrics.activeSubscriptions'), figures.activeSubscriptions),
+    ...tile(
+      'active_subscriptions',
+      t('products:metrics.activeSubscriptions'),
+      figures.activeSubscriptions,
+    ),
     ...tile('active_trials', t('products:metrics.activeTrials'), figures.activeTrials),
     ...tile('mrr', t('products:metrics.mrr'), figures.mrr, ` ${t('products:metrics.mrrNote')}`),
-    ...tile('revenue', t('products:metrics.revenue'), figures.revenue, ` ${t('products:metrics.revenueNote')}`),
+    ...tile(
+      'revenue',
+      t('products:metrics.revenue'),
+      figures.revenue,
+      ` ${t('products:metrics.revenueNote')}`,
+    ),
   ];
 }
 

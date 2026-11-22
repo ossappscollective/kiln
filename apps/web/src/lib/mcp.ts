@@ -61,7 +61,8 @@ export function groupTools(
 
 /** What a tool needs beyond a token that names its action, in words. */
 export function toolNeeds(tool: McpTool): string {
-  if (tool.kind === 'read') return tool.action ? t('workspace:mcp.needs.read', { action: tool.action }) : '';
+  if (tool.kind === 'read')
+    return tool.action ? t('workspace:mcp.needs.read', { action: tool.action }) : '';
   const parts = [
     tool.action
       ? t('workspace:mcp.needs.tokenNames', { action: tool.action })
@@ -83,7 +84,10 @@ export function stateView(status: McpStatus): McpStateView {
     return {
       tone: 'warn',
       label: t('workspace:mcp.state.offLabel'),
-      detail: t('workspace:mcp.state.offDetail', { env: status.envName, endpoint: status.endpoint }),
+      detail: t('workspace:mcp.state.offDetail', {
+        env: status.envName,
+        endpoint: status.endpoint,
+      }),
     };
   }
   return {

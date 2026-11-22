@@ -99,6 +99,7 @@
   "rollout.issue.afterPrevious": "A step cannot be planned before the step above it.",
   "rollout.issue.beforeDone": "A step before a completed step must be done or skipped.",
   "rollout.issue.dateTime": "A date and time.",
+  "rollout.issue.dayOneBeforeCreated": "Day 1 cannot be before the plan was created.",
   "rollout.issue.doneCannotRemove": "The step at {{percent}} is done and cannot be removed. Reopen it first.",
   "rollout.issue.doneKeepsPercent": "A step that is done keeps its percentage. Reopen it first.",
   "rollout.issue.higherThanBefore": "Each step must be higher than the one before ({{percent}}).",

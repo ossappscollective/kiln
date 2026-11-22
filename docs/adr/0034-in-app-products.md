@@ -66,13 +66,13 @@ round is deliberately small: read everything, write only the text a person sees.
 `packages/db/src/migrations-monetization.ts` (spliced into `migrations.ts`; ids stay contiguous): five tables, all keyed by
 `app_id` and removed by `deleteApp`:
 
-| Table                        | Primary key                                  | Holds                                                  |
-| ---------------------------- | -------------------------------------------- | ------------------------------------------------------ |
-| `store_products`             | `app_id, product_id`                         | kind, reference name, state, group, period, base territory |
-| `store_product_localizations` | `app_id, product_id, locale`                | name and description per locale                        |
-| `store_product_prices`       | `app_id, product_id, plan_id (''), territory` | currency, minor-unit amount string, display price      |
-| `store_product_sync`         | `app_id`                                     | last attempt and success, failures, count, `complete`, warnings |
-| `store_product_claims`       | `app_id`                                     | the write in flight (`writing` or `unknown`)           |
+| Table                         | Primary key                                   | Holds                                                           |
+| ----------------------------- | --------------------------------------------- | --------------------------------------------------------------- |
+| `store_products`              | `app_id, product_id`                          | kind, reference name, state, group, period, base territory      |
+| `store_product_localizations` | `app_id, product_id, locale`                  | name and description per locale                                 |
+| `store_product_prices`        | `app_id, product_id, plan_id (''), territory` | currency, minor-unit amount string, display price               |
+| `store_product_sync`          | `app_id`                                      | last attempt and success, failures, count, `complete`, warnings |
+| `store_product_claims`        | `app_id`                                      | the write in flight (`writing` or `unknown`)                    |
 
 Times are epoch milliseconds (`BIGINT` in Postgres, `INTEGER` in SQLite), JSON is text. The drizzle schemas for both dialects are
 extended and the schema-drift test covers them.

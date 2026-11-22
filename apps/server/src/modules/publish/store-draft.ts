@@ -195,7 +195,10 @@ export function mapStoreError(error: unknown, secret: string): Mapped {
   ): Mapped => ({
     code,
     failure: {
-      ...failure(status, code, clean(message, secret), { ...extra, ...messageCoding(error, message) }),
+      ...failure(status, code, clean(message, secret), {
+        ...extra,
+        ...messageCoding(error, message),
+      }),
       ...(headers ? { headers } : {}),
     },
   });

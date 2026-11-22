@@ -211,8 +211,11 @@ export function parseApplePriceRows(
     const territory = relationId(price, 'territory');
     const pointId = relationId(price, kind.relation);
     const point = pointId ? points.get(pointId) : undefined;
-    const currency = cleanCurrency(territory ? attrs(territories.get(territory) ?? {}).currency : undefined);
-    const amount = point && currency ? decimalToMinor(attrs(point).customerPrice, currency) : undefined;
+    const currency = cleanCurrency(
+      territory ? attrs(territories.get(territory) ?? {}).currency : undefined,
+    );
+    const amount =
+      point && currency ? decimalToMinor(attrs(point).customerPrice, currency) : undefined;
     if (!territory || !currency || amount === undefined) {
       skipped++;
       continue;
@@ -368,7 +371,9 @@ export class AppleProductsConnector implements StoreProductsConnector {
     const productId = text(a.productId) as string;
     const kind = appleProductKind(text(a.inAppPurchaseType));
     if (!kind) {
-      warnings.push(`${productId}: an in-app purchase type this server does not know was left out.`);
+      warnings.push(
+        `${productId}: an in-app purchase type this server does not know was left out.`,
+      );
       return undefined;
     }
     const rawState = text(a.state) ?? null;
@@ -428,10 +433,13 @@ export class AppleProductsConnector implements StoreProductsConnector {
       // A price of the automatic list is not a manual one, whatever the flag says.
       rows.push(...parsed.rows.map((r) => ({ ...r, manual: which === 'manualPrices' })));
       skipped += parsed.skipped;
-      if (listed.truncated) warnings.push(`${productId}: some prices were not read (too many pages).`);
+      if (listed.truncated)
+        warnings.push(`${productId}: some prices were not read (too many pages).`);
     }
     if (skipped > 0)
-      warnings.push(`${productId}: ${skipped} price${skipped === 1 ? '' : 's'} could not be read and were left out.`);
+      warnings.push(
+        `${productId}: ${skipped} price${skipped === 1 ? '' : 's'} could not be read and were left out.`,
+      );
     return { prices: currentApplePrices(rows, nowMs), baseTerritory };
   }
 
@@ -519,7 +527,8 @@ export class AppleProductsConnector implements StoreProductsConnector {
       warnings.push(
         `${productId}: ${parsed.skipped} price${parsed.skipped === 1 ? '' : 's'} could not be read and were left out.`,
       );
-    if (listed.truncated) warnings.push(`${productId}: some prices were not read (too many pages).`);
+    if (listed.truncated)
+      warnings.push(`${productId}: some prices were not read (too many pages).`);
     return currentApplePrices(parsed.rows, nowMs);
   }
 

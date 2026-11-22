@@ -295,10 +295,9 @@ test('run states, durations, plurals and inputs follow the active language', () 
     dispatchSummary({ workflow: 'w', ref: 'r', repository: 'o/r', inputs: { a: '1', b: '2' } }),
     'Lancer w sur r dans o/r avec 2 paramètres d’entrée.',
   );
-  assert.deepEqual(
-    inputProblems([{ name: 'x', required: true, type: 'string' }], {}),
-    { x: 'x est obligatoire.' },
-  );
+  assert.deepEqual(inputProblems([{ name: 'x', required: true, type: 'string' }], {}), {
+    x: 'x est obligatoire.',
+  });
   useLocale('de');
   assert.equal(confidenceBadge('low').label, 'Geringe Sicherheit');
   useLocale('en');

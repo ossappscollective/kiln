@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createExpoClient, EXPO_API_ORIGIN, graphqlErrorKind, normalizeExpoOrigin } from './client.ts';
+import {
+  createExpoClient,
+  EXPO_API_ORIGIN,
+  graphqlErrorKind,
+  normalizeExpoOrigin,
+} from './client.ts';
 import { ExpoError, type ExpoErrorKind } from './errors.ts';
 import {
   ACCOUNT,
@@ -25,7 +30,11 @@ import {
 import { readExpoProjectFromAppJson } from './app-json.ts';
 import { verifyExpoCredential } from './verify-expo.ts';
 
-type Call = { url: string; init: RequestInit; body: { query: string; variables?: unknown; operationName?: string } };
+type Call = {
+  url: string;
+  init: RequestInit;
+  body: { query: string; variables?: unknown; operationName?: string };
+};
 type Answer = { status?: number; body?: unknown; text?: string; headers?: Record<string, string> };
 
 /** A fetch that answers from a queue (the last answer repeats) and remembers every request. */
@@ -49,8 +58,10 @@ function fakeFetch(...answers: (Answer | Error)[]) {
   return { fetch: fetchFn, calls };
 }
 
-const client = (f: ReturnType<typeof fakeFetch>, extra: Partial<Parameters<typeof createExpoClient>[0]> = {}) =>
-  createExpoClient({ token: TOKEN, fetch: f.fetch, ...extra });
+const client = (
+  f: ReturnType<typeof fakeFetch>,
+  extra: Partial<Parameters<typeof createExpoClient>[0]> = {},
+) => createExpoClient({ token: TOKEN, fetch: f.fetch, ...extra });
 
 async function failure(run: () => Promise<unknown>): Promise<ExpoError> {
   try {
@@ -87,10 +98,23 @@ test('the request: POST {origin}/graphql, bearer token, JSON body, no redirects'
 
 test('apiOrigin: default, a proxy with a path, trailing slashes; refuses credentials, queries and other schemes', () => {
   assert.equal(normalizeExpoOrigin(undefined), EXPO_API_ORIGIN);
-  assert.equal(normalizeExpoOrigin('https://proxy.example.com/expo//'), 'https://proxy.example.com/expo');
+  assert.equal(
+    normalizeExpoOrigin('https://proxy.example.com/expo//'),
+    'https://proxy.example.com/expo',
+  );
   assert.equal(normalizeExpoOrigin('http://localhost:8080'), 'http://localhost:8080');
-  for (const bad of ['not a url', 'ftp://api.expo.dev', 'https://u:p@api.expo.dev', 'https://api.expo.dev?x=1', 'https://api.expo.dev#f']) {
-    assert.throws(() => normalizeExpoOrigin(bad), (e) => e instanceof ExpoError && e.kind === 'invalid_input', bad);
+  for (const bad of [
+    'not a url',
+    'ftp://api.expo.dev',
+    'https://u:p@api.expo.dev',
+    'https://api.expo.dev?x=1',
+    'https://api.expo.dev#f',
+  ]) {
+    assert.throws(
+      () => normalizeExpoOrigin(bad),
+      (e) => e instanceof ExpoError && e.kind === 'invalid_input',
+      bad,
+    );
   }
 });
 
@@ -103,7 +127,10 @@ test('the origin is used for the request', async () => {
 test('a token with a space or a line break, or none, is refused before anything is sent', () => {
   const f = fakeFetch({});
   for (const token of ['', '   ', 'abc def', 'abc\ndef']) {
-    assert.throws(() => createExpoClient({ token, fetch: f.fetch }), (e) => e instanceof ExpoError && e.kind === 'auth');
+    assert.throws(
+      () => createExpoClient({ token, fetch: f.fetch }),
+      (e) => e instanceof ExpoError && e.kind === 'auth',
+    );
   }
   assert.equal(f.calls.length, 0);
 });
@@ -133,7 +160,11 @@ test('429 carries the seconds to wait (default 60, bounded)', async () => {
   const wait = async (header?: string) =>
     (
       await failure(() =>
-        expoViewer(client(fakeFetch({ status: 429, ...(header ? { headers: { 'retry-after': header } } : {}) }))),
+        expoViewer(
+          client(
+            fakeFetch({ status: 429, ...(header ? { headers: { 'retry-after': header } } : {}) }),
+          ),
+        ),
       )
     ).retryAfterSeconds;
   assert.equal(await wait('12'), 12);
@@ -153,7 +184,9 @@ test('GraphQL errors (answered with HTTP 200) map by wording and code, without c
     ['Something odd', { errorCode: 'AUTHENTICATION_ERROR' }, 'auth'],
   ];
   for (const [message, extensions, kind] of rows) {
-    const error = await failure(() => expoViewer(client(fakeFetch({ body: graphqlError(message, extensions) }))));
+    const error = await failure(() =>
+      expoViewer(client(fakeFetch({ body: graphqlError(message, extensions) }))),
+    );
     assert.equal(error.kind, kind, message);
     clean(error);
   }
@@ -162,7 +195,9 @@ test('GraphQL errors (answered with HTTP 200) map by wording and code, without c
   );
   assert.equal(coded.code, 'SOME_CODE');
   const free = await failure(() =>
-    expoViewer(client(fakeFetch({ body: graphqlError('x', { errorCode: 'has spaces and <html>' }) }))),
+    expoViewer(
+      client(fakeFetch({ body: graphqlError('x', { errorCode: 'has spaces and <html>' }) })),
+    ),
   );
   assert.equal(free.code, undefined, 'only a constant-like code is kept');
   assert.equal(graphqlErrorKind('', undefined), 'unexpected');
@@ -176,7 +211,9 @@ test('a token echoed in an error body is never in the message', async () => {
 });
 
 test('network failure and timeout are `network`; the timeout says so', async () => {
-  const down = await failure(() => expoViewer(client(fakeFetch(new TypeError(`connect ECONNREFUSED ${TOKEN}`)))));
+  const down = await failure(() =>
+    expoViewer(client(fakeFetch(new TypeError(`connect ECONNREFUSED ${TOKEN}`)))),
+  );
   assert.equal(down.kind, 'network');
   assert.equal(down.timedOut, false);
   clean(down);
@@ -185,7 +222,9 @@ test('network failure and timeout are `network`; the timeout says so', async () 
     new Promise((_resolve, reject) => {
       init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
     });
-  const slow = await failure(() => expoViewer(createExpoClient({ token: TOKEN, fetch: hang, timeoutMs: 20 })));
+  const slow = await failure(() =>
+    expoViewer(createExpoClient({ token: TOKEN, fetch: hang, timeoutMs: 20 })),
+  );
   assert.equal(slow.kind, 'network');
   assert.equal(slow.timedOut, true);
   clean(slow);
@@ -198,7 +237,10 @@ test('a caller can abort a request', async () => {
     });
   const controller = new AbortController();
   const pending = failure(() =>
-    createExpoClient({ token: TOKEN, fetch: hang }).graphql({ query: '{ x }' }, { signal: controller.signal }),
+    createExpoClient({ token: TOKEN, fetch: hang }).graphql(
+      { query: '{ x }' },
+      { signal: controller.signal },
+    ),
   );
   controller.abort();
   assert.equal((await pending).kind, 'network');
@@ -233,11 +275,19 @@ test('viewer: a robot, a person, an unknown token (null), and unreadable shapes'
     assert.equal((await failure(() => expoViewer(client(fakeFetch({ body }))))).kind, 'unexpected');
   }
   const sso = await expoViewer(
-    client(fakeFetch({ body: { data: { meActor: { __typename: 'SSOUser', id: 's', displayName: 'S', accounts: [] } } } })),
+    client(
+      fakeFetch({
+        body: {
+          data: { meActor: { __typename: 'SSOUser', id: 's', displayName: 'S', accounts: [] } },
+        },
+      }),
+    ),
   );
   assert.equal(sso?.kind, 'sso_user');
   const other = await expoViewer(
-    client(fakeFetch({ body: { data: { meActor: { __typename: 'Mystery', id: 's', accounts: [] } } } })),
+    client(
+      fakeFetch({ body: { data: { meActor: { __typename: 'Mystery', id: 's', accounts: [] } } } }),
+    ),
   );
   assert.equal(other?.kind, 'other');
   assert.equal(other?.displayName, 'Mystery');
@@ -266,19 +316,29 @@ test('project by id: sends the id, reads the project; a null answer is not_found
   assert.match(f.calls[0]?.body.query ?? '', /byId\(appId: \$appId\)/);
   await expoProjectById(client(f), PROJECT_ID.toUpperCase());
   assert.deepEqual(f.calls[1]?.body.variables, { appId: PROJECT_ID }, 'sent in lower case');
-  const noApp = await failure(() => expoProjectById(client(fakeFetch({ body: { data: { other: 1 } } })), PROJECT_ID));
+  const noApp = await failure(() =>
+    expoProjectById(client(fakeFetch({ body: { data: { other: 1 } } })), PROJECT_ID),
+  );
   assert.equal(noApp.kind, 'unexpected', 'no `app` in the answer is unreadable, not "not found"');
-  const none = await failure(() => expoProjectById(client(fakeFetch({ body: projectByIdBody(null) })), PROJECT_ID));
+  const none = await failure(() =>
+    expoProjectById(client(fakeFetch({ body: projectByIdBody(null) })), PROJECT_ID),
+  );
   assert.equal(none.kind, 'not_found');
   const missing = await failure(() =>
-    expoProjectById(client(fakeFetch({ body: graphqlError(`Experience with id ${PROJECT_ID} does not exist`) })), PROJECT_ID),
+    expoProjectById(
+      client(fakeFetch({ body: graphqlError(`Experience with id ${PROJECT_ID} does not exist`) })),
+      PROJECT_ID,
+    ),
   );
   assert.equal(missing.kind, 'not_found');
 });
 
 test('a project with a missing field is unreadable; a missing name falls back to the slug', async () => {
   const bad = await failure(() =>
-    expoProjectById(client(fakeFetch({ body: projectByIdBody(project({ slug: '' })) })), PROJECT_ID),
+    expoProjectById(
+      client(fakeFetch({ body: projectByIdBody(project({ slug: '' })) })),
+      PROJECT_ID,
+    ),
   );
   assert.equal(bad.kind, 'unexpected');
   const unnamed = await expoProjectById(
@@ -290,9 +350,18 @@ test('a project with a missing field is unreadable; a missing name falls back to
 
 test('a bad reference is refused before anything is sent', async () => {
   const f = fakeFetch({});
-  assert.equal((await failure(() => expoProjectById(client(f), 'not-a-uuid'))).kind, 'invalid_input');
-  assert.equal((await failure(() => expoProjectByFullName(client(f), 'no slash'))).kind, 'invalid_input');
-  assert.equal((await failure(() => expoProjectByFullName(client(f), '@a/b/c'))).kind, 'invalid_input');
+  assert.equal(
+    (await failure(() => expoProjectById(client(f), 'not-a-uuid'))).kind,
+    'invalid_input',
+  );
+  assert.equal(
+    (await failure(() => expoProjectByFullName(client(f), 'no slash'))).kind,
+    'invalid_input',
+  );
+  assert.equal(
+    (await failure(() => expoProjectByFullName(client(f), '@a/b/c'))).kind,
+    'invalid_input',
+  );
   assert.equal(f.calls.length, 0);
 });
 
@@ -307,7 +376,11 @@ test('project id and full name helpers', () => {
 });
 
 test('app.json: the project id, owner and slug; other shapes are read leniently, code is never run', () => {
-  assert.deepEqual(readExpoProjectFromAppJson(appJson()), { projectId: PROJECT_ID, owner: 'acme', slug: 'trail-notes' });
+  assert.deepEqual(readExpoProjectFromAppJson(appJson()), {
+    projectId: PROJECT_ID,
+    owner: 'acme',
+    slug: 'trail-notes',
+  });
   assert.deepEqual(readExpoProjectFromAppJson(appJson(PROJECT_ID.toUpperCase())), {
     projectId: PROJECT_ID,
     owner: 'acme',
@@ -315,7 +388,9 @@ test('app.json: the project id, owner and slug; other shapes are read leniently,
   });
   // Without the `expo` wrapper.
   assert.equal(
-    readExpoProjectFromAppJson(JSON.stringify({ slug: 's', extra: { eas: { projectId: PROJECT_ID } } }))?.projectId,
+    readExpoProjectFromAppJson(
+      JSON.stringify({ slug: 's', extra: { eas: { projectId: PROJECT_ID } } }),
+    )?.projectId,
     PROJECT_ID,
   );
   // No project id, or one that is not a UUID.
@@ -328,29 +403,45 @@ test('app.json: the project id, owner and slug; other shapes are read leniently,
 });
 
 test('verify: a robot, a person, no token, an unknown token, and every failure kind in words', async () => {
-  const robot = await verifyExpoCredential(TOKEN, { fetch: fakeFetch({ body: robotViewer() }).fetch });
+  const robot = await verifyExpoCredential(TOKEN, {
+    fetch: fakeFetch({ body: robotViewer() }).fetch,
+  });
   assert.equal(robot.ok, true);
   assert.match(robot.message, /Connected to Expo as mobile-release-manager/);
   assert.ok(robot.details?.includes('Type: robot user'));
   assert.ok(robot.details?.includes('Accounts: acme'));
 
-  const person = await verifyExpoCredential(TOKEN, { fetch: fakeFetch({ body: userViewer() }).fetch });
+  const person = await verifyExpoCredential(TOKEN, {
+    fetch: fakeFetch({ body: userViewer() }).fetch,
+  });
   assert.equal(person.ok, true);
-  assert.ok(person.details?.some((d) => /robot user with the Developer role is recommended/.test(d)));
+  assert.ok(
+    person.details?.some((d) => /robot user with the Developer role is recommended/.test(d)),
+  );
   assert.ok(person.details?.includes('Accounts: ada, acme'));
 
   assert.equal((await verifyExpoCredential('  ')).ok, false);
   assert.match((await verifyExpoCredential('a b')).message, /no spaces/);
-  const unknown = await verifyExpoCredential(TOKEN, { fetch: fakeFetch({ body: noViewer() }).fetch });
+  const unknown = await verifyExpoCredential(TOKEN, {
+    fetch: fakeFetch({ body: noViewer() }).fetch,
+  });
   assert.equal(unknown.ok, false);
   assert.match(unknown.message, /did not recognize the token/);
 
-  for (const answer of [{ status: 401 }, { status: 403 }, { status: 429 }, { status: 500 }, { text: 'x' }]) {
+  for (const answer of [
+    { status: 401 },
+    { status: 403 },
+    { status: 429 },
+    { status: 500 },
+    { text: 'x' },
+  ]) {
     const result = await verifyExpoCredential(TOKEN, { fetch: fakeFetch(answer).fetch });
     assert.equal(result.ok, false);
     assert.ok(!JSON.stringify(result).includes(TOKEN));
   }
-  const offline = await verifyExpoCredential(TOKEN, { fetch: fakeFetch(new Error(`down ${TOKEN}`)).fetch });
+  const offline = await verifyExpoCredential(TOKEN, {
+    fetch: fakeFetch(new Error(`down ${TOKEN}`)).fetch,
+  });
   assert.equal(offline.ok, false);
   assert.match(offline.message, /Could not reach Expo/);
   assert.ok(!JSON.stringify(offline).includes(TOKEN));
@@ -358,7 +449,14 @@ test('verify: a robot, a person, no token, an unknown token, and every failure k
 
 test('verify: the token and the name Expo sends are redacted from what is shown', async () => {
   const body = {
-    data: { meActor: { __typename: 'Robot', id: 'r', displayName: `bot ${TOKEN}`, accounts: [{ id: 'a', name: 'acme' }] } },
+    data: {
+      meActor: {
+        __typename: 'Robot',
+        id: 'r',
+        displayName: `bot ${TOKEN}`,
+        accounts: [{ id: 'a', name: 'acme' }],
+      },
+    },
   };
   const result = await verifyExpoCredential(TOKEN, { fetch: fakeFetch({ body }).fetch });
   assert.ok(!JSON.stringify(result).includes(TOKEN));

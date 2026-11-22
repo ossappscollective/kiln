@@ -1132,7 +1132,8 @@ export function readExpoAppConfig(
     return finish();
   }
   const cfg = isObj(read.value.expo) ? read.value.expo : read.value;
-  const str = (v: unknown): string | null => (typeof v === 'string' && nonEmpty(v) ? clip(v) : null);
+  const str = (v: unknown): string | null =>
+    typeof v === 'string' && nonEmpty(v) ? clip(v) : null;
   const ios = isObj(cfg.ios) ? cfg.ios : undefined;
   const android = isObj(cfg.android) ? cfg.android : undefined;
   const updates = isObj(cfg.updates) ? cfg.updates : undefined;

@@ -298,7 +298,11 @@ export function describeSource(
 ): string {
   const parts: string[] = [sourceLabel(entry.source)];
   if (entry.source === 'store' && entry.channel !== '')
-    parts.push(entry.channel === 'editable' ? t('listing:drift.channel.editable') : t('listing:drift.channel.live'));
+    parts.push(
+      entry.channel === 'editable'
+        ? t('listing:drift.channel.editable')
+        : t('listing:drift.channel.live'),
+    );
   const ref = shortRef(entry.source, entry.sourceRef);
   if (ref) parts.push(ref);
   return parts.join(' · ');

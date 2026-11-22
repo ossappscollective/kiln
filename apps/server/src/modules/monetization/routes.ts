@@ -104,9 +104,7 @@ export function monetizationRoutes(ctx: MonetizationContext) {
       if (!ctx.writeEnabled) return respond(c, productWriteDisabledFailure());
       const raw: unknown = await c.req.json().catch(() => undefined);
       const applying =
-        typeof raw === 'object' &&
-        raw !== null &&
-        (raw as Record<string, unknown>).apply === true;
+        typeof raw === 'object' && raw !== null && (raw as Record<string, unknown>).apply === true;
       if (applying) {
         const refusal = await requireStepUp({ db, now: ctx.now }, c, 'store.push_draft', {
           id: param(c, 'appId'),

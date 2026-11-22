@@ -325,7 +325,11 @@ test('subscriptions: SUBSCRIPTION and SUBSCRIPTION_EVENT use version 1_3, SUMMAR
       json: { errors: [{ code: 'FORBIDDEN_ERROR' }] },
     });
   assert.equal(
-    await connector.fetchSubscriptionReport({ kind: 'subscription', vendorNumber: '85012345', date: '2026-11-10' }),
+    await connector.fetchSubscriptionReport({
+      kind: 'subscription',
+      vendorNumber: '85012345',
+      date: '2026-11-10',
+    }),
     ax.SALES_TSV,
   );
   const q = fake.calls[0]?.url.searchParams;
@@ -334,7 +338,11 @@ test('subscriptions: SUBSCRIPTION and SUBSCRIPTION_EVENT use version 1_3, SUMMAR
   assert.equal(q?.get('filter[frequency]'), 'DAILY');
   assert.equal(q?.get('filter[version]'), '1_3');
   assert.equal(q?.get('filter[vendorNumber]'), '85012345');
-  await connector.fetchSubscriptionReport({ kind: 'subscription_event', vendorNumber: '85012345', date: '2026-11-10' });
+  await connector.fetchSubscriptionReport({
+    kind: 'subscription_event',
+    vendorNumber: '85012345',
+    date: '2026-11-10',
+  });
   assert.equal(fake.calls[1]?.url.searchParams.get('filter[reportType]'), 'SUBSCRIPTION_EVENT');
   assert.equal(fake.calls[1]?.url.searchParams.get('filter[version]'), '1_3');
   assert.ok(
@@ -342,11 +350,19 @@ test('subscriptions: SUBSCRIPTION and SUBSCRIPTION_EVENT use version 1_3, SUMMAR
     'the per-subscriber report is never asked for',
   );
   assert.equal(
-    await connector.fetchSubscriptionReport({ kind: 'subscription', vendorNumber: '85012345', date: '2026-11-11' }),
+    await connector.fetchSubscriptionReport({
+      kind: 'subscription',
+      vendorNumber: '85012345',
+      date: '2026-11-11',
+    }),
     null,
   );
   const forbidden = await captured(() =>
-    connector.fetchSubscriptionReport({ kind: 'subscription', vendorNumber: '85012345', date: '2026-11-12' }),
+    connector.fetchSubscriptionReport({
+      kind: 'subscription',
+      vendorNumber: '85012345',
+      date: '2026-11-12',
+    }),
   );
   assert.equal((forbidden as AnalyticsError).code, 'sales_forbidden');
   // The sales summary keeps its own report type and version.

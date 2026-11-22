@@ -77,7 +77,11 @@ export function parsePlayListings(listings: unknown): StoreProductLocalization[]
 }
 
 const periodOf = (plan: Json): string | null => {
-  for (const key of ['autoRenewingBasePlanType', 'prepaidBasePlanType', 'installmentsBasePlanType']) {
+  for (const key of [
+    'autoRenewingBasePlanType',
+    'prepaidBasePlanType',
+    'installmentsBasePlanType',
+  ]) {
     const type = attrsOf(plan[key]);
     const period = text(type.billingPeriodDuration);
     if (period) return period;
@@ -132,7 +136,10 @@ export function parsePlaySubscription(
     prices: prices.sort((a, b) =>
       `${a.planId ?? ''}\u0000${a.territory}` < `${b.planId ?? ''}\u0000${b.territory}` ? -1 : 1,
     ),
-    availability: plans.length === 0 ? null : { territories: sortedUnique(territories), availableInNewTerritories: inNew },
+    availability:
+      plans.length === 0
+        ? null
+        : { territories: sortedUnique(territories), availableInNewTerritories: inNew },
     group: null,
     period: first?.period ?? null,
     baseTerritory: null,
@@ -170,7 +177,9 @@ export function parsePlayOneTimeProduct(product: unknown): StoreProduct | undefi
     if (counts && fresh !== undefined) inNew = inNew === true || fresh === 'AVAILABLE';
   }
   const availability: StoreProductAvailability | null =
-    plans.length === 0 ? null : { territories: sortedUnique(territories), availableInNewTerritories: inNew };
+    plans.length === 0
+      ? null
+      : { territories: sortedUnique(territories), availableInNewTerritories: inNew };
   return {
     store: 'googleplay',
     productId,
@@ -202,7 +211,9 @@ export class PlayProductsConnector implements StoreProductsConnector {
   constructor(options: PlayProductsConnectorOptions) {
     this.#api = new PlayProductsHttp(options);
     const wanted = options.pageSize ?? 100;
-    this.#pageSize = Number.isFinite(wanted) ? Math.min(1000, Math.max(1, Math.trunc(wanted))) : 100;
+    this.#pageSize = Number.isFinite(wanted)
+      ? Math.min(1000, Math.max(1, Math.trunc(wanted)))
+      : 100;
     this.#maxPages = Math.max(1, options.maxPages ?? 10);
     this.#maxProducts = Math.max(1, options.maxProducts ?? 300);
   }
@@ -229,12 +240,20 @@ export class PlayProductsConnector implements StoreProductsConnector {
     const warnings: string[] = [];
     let complete = true;
 
-    const subscriptions = await this.#pages('/subscriptions', 'subscriptions', 'reading the subscriptions');
+    const subscriptions = await this.#pages(
+      '/subscriptions',
+      'subscriptions',
+      'reading the subscriptions',
+    );
     // The one-time products are read apart: an app that was never moved to the new product model, or an answer that is not JSON, must not
     // cost the app its subscriptions. The list is then marked incomplete so nothing is taken to be gone.
     let oneTime: { items: Json[]; truncated: boolean } = { items: [], truncated: false };
     try {
-      oneTime = await this.#pages('/oneTimeProducts', 'oneTimeProducts', 'reading the one-time products');
+      oneTime = await this.#pages(
+        '/oneTimeProducts',
+        'oneTimeProducts',
+        'reading the one-time products',
+      );
     } catch (error) {
       if (!(error instanceof StoreError) || error.kind !== 'unexpected') throw error;
       complete = false;
@@ -249,7 +268,8 @@ export class PlayProductsConnector implements StoreProductsConnector {
         'subscriptionOffers',
         'reading the subscription offers',
       );
-      if (listed.truncated) warnings.push('Some subscription offers were not read (too many pages).');
+      if (listed.truncated)
+        warnings.push('Some subscription offers were not read (too many pages).');
       for (const offer of listed.items) {
         const productId = text(offer.productId);
         const id = text(offer.offerId);
@@ -261,14 +281,20 @@ export class PlayProductsConnector implements StoreProductsConnector {
       }
     } catch (error) {
       // Offers are extra information: an app without them, or a key that may not read them, still has its products.
-      if (!(error instanceof StoreError) || (error.kind !== 'not_found' && error.kind !== 'forbidden'))
+      if (
+        !(error instanceof StoreError) ||
+        (error.kind !== 'not_found' && error.kind !== 'forbidden')
+      )
         throw error;
       warnings.push('The offers of the subscriptions could not be read.');
     }
 
     const products: StoreProduct[] = [];
     for (const subscription of subscriptions.items) {
-      const parsed = parsePlaySubscription(subscription, offers.get(text(subscription.productId) ?? '') ?? []);
+      const parsed = parsePlaySubscription(
+        subscription,
+        offers.get(text(subscription.productId) ?? '') ?? [],
+      );
       if (parsed) products.push(parsed);
     }
     for (const product of oneTime.items) {

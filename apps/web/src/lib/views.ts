@@ -51,7 +51,13 @@ export const views: ViewDef[] = [
     component: ReviewsInbox,
     requires: 'reviews.read',
   },
-  { id: 'aso', icon: 'trending-up', labelKey: k('shell:nav.aso'), component: AsoOverview, requires: 'aso.read' },
+  {
+    id: 'aso',
+    icon: 'trending-up',
+    labelKey: k('shell:nav.aso'),
+    component: AsoOverview,
+    requires: 'aso.read',
+  },
   {
     id: 'repositories',
     icon: 'git-branch',

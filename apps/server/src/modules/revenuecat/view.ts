@@ -78,7 +78,8 @@ export async function getRevenueCatProductsView(
   if (!link) return { link: null, sync: null, products: {}, unmatched: [], warnings: [] };
   const sync = await readRevenueCatSyncStatus(sql, workspaceId, appId);
   // Before the first good RevenueCat read there is no copy: nothing is joined and nothing is claimed.
-  if (!sync || sync.lastSyncedAt === null) return { link, sync, products: {}, unmatched: [], warnings: [] };
+  if (!sync || sync.lastSyncedAt === null)
+    return { link, sync, products: {}, unmatched: [], warnings: [] };
   const [store, cache] = await Promise.all([
     readStoreSide(sql, workspaceId, appId),
     readRevenueCatCache(sql, workspaceId, appId),

@@ -92,6 +92,7 @@ const KEYS: Readonly<Record<string, string>> = {
   'rollout.issue.afterPrevious': k('core:rollout.issue.afterPrevious'),
   'rollout.issue.beforeDone': k('core:rollout.issue.beforeDone'),
   'rollout.issue.dateTime': k('core:rollout.issue.dateTime'),
+  'rollout.issue.dayOneBeforeCreated': k('core:rollout.issue.dayOneBeforeCreated'),
   'rollout.issue.doneCannotRemove': k('core:rollout.issue.doneCannotRemove'),
   'rollout.issue.doneKeepsPercent': k('core:rollout.issue.doneKeepsPercent'),
   'rollout.issue.higherThanBefore': k('core:rollout.issue.higherThanBefore'),

@@ -63,7 +63,6 @@ export function createRunsFeed(options: RunsFeedOptions): Poller {
 // ---------------------------------------------------------------------------------------------
 // Rows
 
-
 /** "45 sec", "3 min 5 sec", "1 hr 5 min" (in the active language). */
 export function elapsedText(ms: number): string {
   return formatDuration(Math.max(0, ms));
@@ -112,7 +111,10 @@ export function progressInfo(run: Pick<ActiveRun, 'status' | 'progress'>): Progr
         .join(' · ');
       const jobs =
         p.jobsTotal > 1
-          ? t('builds:running.jobOf', { n: Math.min(p.jobsDone + 1, p.jobsTotal), total: p.jobsTotal })
+          ? t('builds:running.jobOf', {
+              n: Math.min(p.jobsDone + 1, p.jobsTotal),
+              total: p.jobsTotal,
+            })
           : '';
       const label = [where, jobs].filter((x) => x !== '').join(' · ');
       return {

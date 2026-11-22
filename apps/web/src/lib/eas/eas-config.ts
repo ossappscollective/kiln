@@ -36,7 +36,11 @@ export const badgeTone = (severity: EasSeverity): 'bad' | 'warn' | 'info' =>
   severity === 'error' ? 'bad' : severity === 'warning' ? 'warn' : 'info';
 
 export const severityLabel = (severity: EasSeverity): string =>
-  severity === 'error' ? t('eas:config.severity.error') : severity === 'warning' ? t('eas:config.severity.warning') : t('eas:config.severity.note');
+  severity === 'error'
+    ? t('eas:config.severity.error')
+    : severity === 'warning'
+      ? t('eas:config.severity.warning')
+      : t('eas:config.severity.note');
 
 /** Errors first, then warnings, then notes; the server's order within each. */
 export function sortFindings(findings: readonly EasFinding[]): EasFinding[] {
@@ -63,8 +67,11 @@ export function findingsHeadline(findings: readonly EasFinding[], inline = false
   if (c.error > 0) parts.push(t('eas:config.findings.errors', { count: c.error }));
   if (c.warning > 0) parts.push(t('eas:config.findings.warnings', { count: c.warning }));
   if (parts.length === 0) {
-    if (c.info === 0) return inline ? t('eas:config.findings.noneInline') : t('eas:config.findings.none');
-    return inline ? t('eas:config.findings.noneInlineNotes', { count: c.info }) : t('eas:config.findings.noneNotes', { count: c.info });
+    if (c.info === 0)
+      return inline ? t('eas:config.findings.noneInline') : t('eas:config.findings.none');
+    return inline
+      ? t('eas:config.findings.noneInlineNotes', { count: c.info })
+      : t('eas:config.findings.noneNotes', { count: c.info });
   }
   if (c.info > 0) parts.push(t('eas:config.findings.notes', { count: c.info }));
   return formatList(parts, { type: 'unit' });
@@ -79,7 +86,9 @@ const DISTRIBUTION: Record<string, { key: string; tone: ChipTone }> = {
 };
 
 /** The platform sections a build profile has, with the label of the platform. */
-export function platformSections(profile: EasBuildProfile): { label: string; target: EasBuildTarget }[] {
+export function platformSections(
+  profile: EasBuildProfile,
+): { label: string; target: EasBuildTarget }[] {
   const out: { label: string; target: EasBuildTarget }[] = [];
   if (profile.ios) out.push({ label: platformLabel('ios'), target: profile.ios });
   if (profile.android) out.push({ label: platformLabel('android'), target: profile.android });
@@ -93,17 +102,27 @@ export function platformSections(profile: EasBuildProfile): { label: string; tar
 export function buildChips(profile: EasBuildProfile): Chip[] {
   const chips: Chip[] = [];
   // `platform` is the label of a platform section whose value differs from the profile's; its chip says which platform it is for.
-  const named = (platform: string | null, text: string) => (platform === null ? text : t('eas:config.chip.platform', { platform, chip: text }));
+  const named = (platform: string | null, text: string) =>
+    platform === null ? text : t('eas:config.chip.platform', { platform, chip: text });
   const distribution = (target: EasBuildTarget, platform: string | null) => {
     if (target.distribution === null) return;
     const known = DISTRIBUTION[target.distribution];
     chips.push({
-      text: named(platform, known ? t(known.key) : t('eas:config.chip.distributionOther', { name: target.distribution })),
+      text: named(
+        platform,
+        known
+          ? t(known.key)
+          : t('eas:config.chip.distributionOther', { name: target.distribution }),
+      ),
       tone: known ? known.tone : 'warn',
     });
   };
   const channel = (target: EasBuildTarget, platform: string | null) => {
-    if (target.channel !== null) chips.push({ text: named(platform, t('eas:config.chip.channel', { name: target.channel })), tone: 'accent' });
+    if (target.channel !== null)
+      chips.push({
+        text: named(platform, t('eas:config.chip.channel', { name: target.channel })),
+        tone: 'accent',
+      });
   };
   distribution(profile, null);
   channel(profile, null);
@@ -111,12 +130,15 @@ export function buildChips(profile: EasBuildProfile): Chip[] {
     if (target.distribution !== profile.distribution) distribution(target, label);
     if (target.channel !== profile.channel) channel(target, label);
   }
-  if (profile.developmentClient === true) chips.push({ text: t('eas:config.chip.devClient'), tone: 'neutral' });
+  if (profile.developmentClient === true)
+    chips.push({ text: t('eas:config.chip.devClient'), tone: 'neutral' });
   const increments = [profile, ...platformSections(profile).map((s) => s.target)].some(
     (t) => t.autoIncrement !== null && t.autoIncrement !== false,
   );
   if (increments) chips.push({ text: t('eas:config.chip.autoIncrement'), tone: 'neutral' });
-  const simulator = [profile, ...platformSections(profile).map((s) => s.target)].some((t) => t.simulator === true);
+  const simulator = [profile, ...platformSections(profile).map((s) => s.target)].some(
+    (t) => t.simulator === true,
+  );
   if (simulator) chips.push({ text: t('eas:config.chip.simulator'), tone: 'neutral' });
   return chips;
 }
@@ -125,11 +147,16 @@ export function buildChips(profile: EasBuildProfile): Chip[] {
 export function envText(names: readonly string[], show = 4): string {
   if (names.length === 0) return t('eas:config.env.none');
   const first = names.slice(0, show).join(', ');
-  return names.length > show ? t('eas:config.env.more', { names: first, count: names.length - show }) : first;
+  return names.length > show
+    ? t('eas:config.env.more', { names: first, count: names.length - show })
+    : first;
 }
 
 /** "Extends production, then base", or an empty string when the profile extends nothing. */
-export function extendsText(profile: { extends: string | null; extendsChain: readonly string[] }): string {
+export function extendsText(profile: {
+  extends: string | null;
+  extendsChain: readonly string[];
+}): string {
   if (profile.extends === null) return '';
   const rest = profile.extendsChain.slice(1);
   return t('eas:config.extends', { name: rest.length > 1 ? rest.join(' > ') : profile.extends });
@@ -139,7 +166,9 @@ export function extendsText(profile: { extends: string | null; extendsChain: rea
 // Submit profiles
 
 const rolloutText = (fraction: number) => {
-  return t('eas:config.rollout', { percent: formatPercent(Math.round(fraction * 10000) / 10000, { maximumFractionDigits: 2 }) });
+  return t('eas:config.rollout', {
+    percent: formatPercent(Math.round(fraction * 10000) / 10000, { maximumFractionDigits: 2 }),
+  });
 };
 
 /** The lines of a submit profile, one per store it has a section for. Paths and ids as written; the Apple ID is never shown. */
@@ -153,20 +182,31 @@ export function submitLines(profile: EasSubmitProfile): { label: string; text: s
     if (ios.bundleIdentifier) parts.push(ios.bundleIdentifier);
     if (ios.ascApiKeyPath) parts.push(t('eas:config.submit.apiKey', { path: ios.ascApiKeyPath }));
     else if (ios.hasAppleId) parts.push(t('eas:config.submit.appleId'));
-    if (ios.groups.length > 0) parts.push(t('eas:config.submit.groups', { count: ios.groups.length, groups: ios.groups.join(', ') }));
+    if (ios.groups.length > 0)
+      parts.push(
+        t('eas:config.submit.groups', { count: ios.groups.length, groups: ios.groups.join(', ') }),
+      );
     if (ios.metadataPath) parts.push(t('eas:config.submit.metadata', { path: ios.metadataPath }));
-    out.push({ label: platformLabel('ios'), text: parts.length > 0 ? parts.join(' · ') : t('eas:config.submit.nothing') });
+    out.push({
+      label: platformLabel('ios'),
+      text: parts.length > 0 ? parts.join(' · ') : t('eas:config.submit.nothing'),
+    });
   }
   const android = profile.android;
   if (android) {
     const parts: string[] = [];
     if (android.track) parts.push(t('eas:config.submit.track', { track: android.track }));
-    if (android.releaseStatus) parts.push(t('eas:config.submit.releaseStatus', { status: android.releaseStatus }));
+    if (android.releaseStatus)
+      parts.push(t('eas:config.submit.releaseStatus', { status: android.releaseStatus }));
     if (android.rollout !== null) parts.push(rolloutText(android.rollout));
     if (android.changesNotSentForReview === true) parts.push(t('eas:config.submit.notSent'));
     if (android.applicationId) parts.push(android.applicationId);
-    if (android.serviceAccountKeyPath) parts.push(t('eas:config.submit.serviceAccount', { path: android.serviceAccountKeyPath }));
-    out.push({ label: platformLabel('android'), text: parts.length > 0 ? parts.join(' · ') : t('eas:config.submit.nothing') });
+    if (android.serviceAccountKeyPath)
+      parts.push(t('eas:config.submit.serviceAccount', { path: android.serviceAccountKeyPath }));
+    out.push({
+      label: platformLabel('android'),
+      text: parts.length > 0 ? parts.join(' · ') : t('eas:config.submit.nothing'),
+    });
   }
   return out;
 }
@@ -176,15 +216,26 @@ export function submitLines(profile: EasSubmitProfile): { label: string; text: s
 
 export function runtimeVersionText(runtime: EasRuntimeVersion | null): string {
   if (runtime === null) return t('eas:config.runtime.notSet');
-  return runtime.kind === 'string' ? runtime.value : t('eas:config.runtime.policy', { policy: runtime.policy });
+  return runtime.kind === 'string'
+    ? runtime.value
+    : t('eas:config.runtime.policy', { policy: runtime.policy });
 }
 
 /** The runtime version of the app config: the top level one, and what a platform overrides it with. */
 export function runtimeLines(app: ExpoAppSummary): { label: string; text: string }[] {
-  const out = [{ label: t('eas:config.runtime.label'), text: runtimeVersionText(app.runtimeVersion) }];
-  if (app.iosRuntimeVersion) out.push({ label: t('eas:config.runtime.platformLabel', { platform: platformLabel('ios') }), text: runtimeVersionText(app.iosRuntimeVersion) });
+  const out = [
+    { label: t('eas:config.runtime.label'), text: runtimeVersionText(app.runtimeVersion) },
+  ];
+  if (app.iosRuntimeVersion)
+    out.push({
+      label: t('eas:config.runtime.platformLabel', { platform: platformLabel('ios') }),
+      text: runtimeVersionText(app.iosRuntimeVersion),
+    });
   if (app.androidRuntimeVersion) {
-    out.push({ label: t('eas:config.runtime.platformLabel', { platform: platformLabel('android') }), text: runtimeVersionText(app.androidRuntimeVersion) });
+    out.push({
+      label: t('eas:config.runtime.platformLabel', { platform: platformLabel('android') }),
+      text: runtimeVersionText(app.androidRuntimeVersion),
+    });
   }
   return out;
 }
@@ -195,12 +246,16 @@ export function updatesText(app: ExpoAppSummary): string {
   if (app.updatesConfigured === true) return t('eas:config.updates.configured');
   if (app.updatesEnabled === false) return t('eas:config.updates.off');
   if (app.updatesConfigured === false) return t('eas:config.updates.notConfigured');
-  return app.dynamicPath !== null ? t('eas:config.updates.unknownDynamic', { path: app.dynamicPath }) : t('eas:config.updates.unknownNone');
+  return app.dynamicPath !== null
+    ? t('eas:config.updates.unknownDynamic', { path: app.dynamicPath })
+    : t('eas:config.updates.unknownNone');
 }
 
 export function versionSourceText(cli: EasConfig['cli']): string {
   if (cli.appVersionSource === null) return t('eas:config.versionSource.none');
-  return cli.appVersionSource === 'remote' ? t('eas:config.versionSource.remote') : t('eas:config.versionSource.local');
+  return cli.appVersionSource === 'remote'
+    ? t('eas:config.versionSource.remote')
+    : t('eas:config.versionSource.local');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -216,16 +271,31 @@ export function readCaption(view: EasConfigView, now: number): string {
     branch: view.branch ?? '',
     ago: formatRelativeTime(view.readAt, { now }),
   };
-  if (view.commit !== null) return view.branch !== null ? t('eas:config.read.full', params) : t('eas:config.read.commit', params);
-  return view.branch !== null ? t('eas:config.read.branch', params) : t('eas:config.read.plain', params);
+  if (view.commit !== null)
+    return view.branch !== null
+      ? t('eas:config.read.full', params)
+      : t('eas:config.read.commit', params);
+  return view.branch !== null
+    ? t('eas:config.read.branch', params)
+    : t('eas:config.read.plain', params);
 }
 
 /** The one line that shows while the card is collapsed. */
-export function collapsedSummary(view: EasConfigView | null, state: 'idle' | 'loading' | 'error'): string {
+export function collapsedSummary(
+  view: EasConfigView | null,
+  state: 'idle' | 'loading' | 'error',
+): string {
   if (view === null) {
-    return state === 'loading' ? t('eas:config.collapsed.loading') : state === 'error' ? t('eas:config.collapsed.error') : t('eas:config.collapsed.idle');
+    return state === 'loading'
+      ? t('eas:config.collapsed.loading')
+      : state === 'error'
+        ? t('eas:config.collapsed.error')
+        : t('eas:config.collapsed.idle');
   }
-  if (!view.found) return view.reason?.code === 'no_eas_json' ? t('eas:config.collapsed.noFile') : t('eas:config.collapsed.nothing');
+  if (!view.found)
+    return view.reason?.code === 'no_eas_json'
+      ? t('eas:config.collapsed.noFile')
+      : t('eas:config.collapsed.nothing');
   const config = view.config;
   if (config === null) return t('eas:config.collapsed.unparsed');
   return [
@@ -239,8 +309,10 @@ export function collapsedSummary(view: EasConfigView | null, state: 'idle' | 'lo
 export function emptyState(view: EasConfigView): { title: string; description: string } {
   const code = view.reason?.code;
   const message = view.reason?.message ?? '';
-  if (code === 'no_repository') return { title: t('eas:config.empty.noRepoTitle'), description: message };
-  if (code === 'unreadable') return { title: t('eas:config.empty.unreadableTitle'), description: message };
+  if (code === 'no_repository')
+    return { title: t('eas:config.empty.noRepoTitle'), description: message };
+  if (code === 'unreadable')
+    return { title: t('eas:config.empty.unreadableTitle'), description: message };
   return {
     title: t('eas:config.empty.noFileTitle'),
     description: view.nested.length > 0 ? message : t('eas:config.empty.noFileDesc'),

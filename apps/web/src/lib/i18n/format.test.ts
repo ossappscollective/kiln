@@ -64,7 +64,10 @@ test('minor units move by text, never by floating point', () => {
   assert.equal(formatMinorUnits('-250', 'USD', { locale: 'en' }), '-$2.50');
   assert.equal(formatMinorUnits('500', 'JPY', { locale: 'en' }), '¥500');
   assert.equal(plain(formatMinorUnits('1234', 'KWD', { locale: 'en' })), 'KWD 1.234');
-  assert.equal(formatMinorUnits('123456789012345', 'USD', { locale: 'en' }), '$1,234,567,890,123.45');
+  assert.equal(
+    formatMinorUnits('123456789012345', 'USD', { locale: 'en' }),
+    '$1,234,567,890,123.45',
+  );
   assert.equal(formatMinorUnits('0000499', 'USD', { locale: 'en' }), '$4.99');
   assert.equal(formatMinorUnits('4.99', 'USD'), '');
   assert.equal(formatMinorUnits('', 'USD'), '');
@@ -78,14 +81,20 @@ test('dates, times and date-times (UTC here so the test is the same everywhere)'
   assert.equal(formatDate(instant, { locale: 'fr', ...UTC }), '21 nov. 2026');
   assert.equal(formatDate(instant, { locale: 'de', ...UTC }), '21. Nov. 2026');
   assert.equal(formatDate(instant, { locale: 'en-GB', ...UTC }), '21 Nov 2026');
-  assert.equal(formatDate(new Date(instant), { locale: 'en', ...UTC, weekday: 'short', day: 'numeric' }), '21 Sat');
+  assert.equal(
+    formatDate(new Date(instant), { locale: 'en', ...UTC, weekday: 'short', day: 'numeric' }),
+    '21 Sat',
+  );
   assert.equal(plain(formatTime(instant, { locale: 'en', ...UTC })), '2:14 PM');
   assert.equal(formatTime(instant, { locale: 'de', ...UTC }), '14:14');
   assert.equal(plain(formatDateTime(instant, { locale: 'en', ...UTC })), 'Nov 21, 2026, 2:14 PM');
   assert.equal(formatDate(new Date(Number.NaN)), '');
   assert.equal(formatDate('not a date'), '');
   assert.equal(formatDate('2026-11-21T14:14:00Z', { locale: 'en', ...UTC }), 'Nov 21, 2026');
-  assert.equal(formatDate(instant, { locale: 'en', ...UTC, dateStyle: 'long' }), 'November 21, 2026');
+  assert.equal(
+    formatDate(instant, { locale: 'en', ...UTC, dateStyle: 'long' }),
+    'November 21, 2026',
+  );
 });
 
 test('relative time', () => {
@@ -117,7 +126,7 @@ test('lists', () => {
   assert.equal(formatList(['a'], { locale: 'en' }), 'a');
 });
 
-test('byte sizes are 1024-based with the language\'s own unit names', () => {
+test("byte sizes are 1024-based with the language's own unit names", () => {
   assert.equal(formatBytes(0, { locale: 'en' }), '0 byte');
   assert.equal(formatBytes(512, { locale: 'en' }), '512 byte');
   assert.equal(formatBytes(1536, { locale: 'en' }), '1.5 kB');

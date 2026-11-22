@@ -38,7 +38,10 @@ function fake(...bodies: unknown[]) {
     const body = JSON.parse(String(init?.body ?? '{}')) as Call;
     calls.push({ query: body.query, variables: body.variables ?? {} });
     const next = queue.length > 1 ? queue.shift() : queue[0];
-    return new Response(JSON.stringify(next), { status: 200, headers: { 'content-type': 'application/json' } });
+    return new Response(JSON.stringify(next), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
   };
   return { client: createExpoClient({ token: TOKEN, fetch: fetchFn }), calls };
 }
@@ -77,17 +80,32 @@ test('a mapping with two entries is a rollout between branches, with the conditi
 
 test('an empty mapping points at no branch; anything unreadable is unreadable and never throws', () => {
   assert.equal(parseBranchMapping(JSON.stringify({ version: 0, data: [] })).kind, 'none');
-  for (const bad of ['', 'not json', '[]', '{"data":"x"}', '{"version":0,"data":[{"branchId":1}]}', null, 7]) {
+  for (const bad of [
+    '',
+    'not json',
+    '[]',
+    '{"data":"x"}',
+    '{"version":0,"data":[{"branchId":1}]}',
+    null,
+    7,
+  ]) {
     assert.equal(parseBranchMapping(bad).kind, 'unreadable', String(bad));
   }
 });
 
 test('conditions are described briefly, nested statements included, and unknown shapes become ?', () => {
   assert.equal(
-    describeCondition(['and', { clientKey: 'a', branchMappingOperator: '==', operand: 'x' }, ['not', 'true']]),
+    describeCondition([
+      'and',
+      { clientKey: 'a', branchMappingOperator: '==', operand: 'x' },
+      ['not', 'true'],
+    ]),
     'and(a == x, not(always))',
   );
-  assert.equal(describeCondition({ clientKey: 'a', branchMappingOperator: 'in', operand: ['x', 'y'] }), 'a in [2]');
+  assert.equal(
+    describeCondition({ clientKey: 'a', branchMappingOperator: 'in', operand: ['x', 'y'] }),
+    'a in [2]',
+  );
   assert.equal(describeCondition(42), '?');
 });
 
@@ -100,7 +118,11 @@ test('update channels are read with their branches and update groups', async () 
       channel({
         branchMapping: rolloutMapping(),
         updateBranches: [
-          { id: BRANCH_NEXT, name: 'next', updateGroups: [group(GROUP_B, ['ios'], { rolloutPercentage: 20 })] },
+          {
+            id: BRANCH_NEXT,
+            name: 'next',
+            updateGroups: [group(GROUP_B, ['ios'], { rolloutPercentage: 20 })],
+          },
           { id: BRANCH_MAIN, name: 'main', updateGroups: [group(GROUP_A)] },
         ],
       }),
@@ -133,7 +155,13 @@ test('a rollout percentage of 0 or 100 is not mid-rollout; odd entries are skipp
             name: 'main',
             updateGroups: [
               [update({ rolloutPercentage: 100 }), { nonsense: true }],
-              [update({ id: 'aa000000-0000-4000-8000-0000000000ff', group: GROUP_B, rolloutPercentage: 0 })],
+              [
+                update({
+                  id: 'aa000000-0000-4000-8000-0000000000ff',
+                  group: GROUP_B,
+                  rolloutPercentage: 0,
+                }),
+              ],
               [],
               'junk',
             ],
@@ -178,7 +206,11 @@ test('store builds are asked with the platform, FINISHED and STORE, and a build 
     ]),
   );
   const builds = await expoStoreBuilds(f.client, PROJECT_ID, { platform: 'ios' });
-  assert.deepEqual(f.calls[0]?.variables.filter, { platform: 'IOS', status: 'FINISHED', distribution: 'STORE' });
+  assert.deepEqual(f.calls[0]?.variables.filter, {
+    platform: 'IOS',
+    status: 'FINISHED',
+    distribution: 'STORE',
+  });
   assert.equal(builds.length, 2);
   assert.equal(builds[0]?.runtimeVersion, '1.4.0');
   assert.equal(builds[0]?.channel, 'production');
@@ -206,7 +238,10 @@ test('insights: launches, failed launches, the crash rate, unique users and payl
     launchAssetCount: 14.5,
     averagePayloadBytes: 482_113,
   });
-  assert.deepEqual(f.calls[0]?.variables.timespan, { start: '2026-11-13T00:00:00.000Z', end: '2026-11-20T00:00:00.000Z' });
+  assert.deepEqual(f.calls[0]?.variables.timespan, {
+    start: '2026-11-13T00:00:00.000Z',
+    end: '2026-11-20T00:00:00.000Z',
+  });
   assert.equal(f.calls[0]?.variables.groupId, GROUP_A);
 });
 
@@ -217,7 +252,12 @@ test('insights: no launches gives no crash rate (not 0), a missing group is not_
         {
           id: UPDATE_IOS,
           platform: 'ios',
-          insights: { totalUniqueUsers: 0, cumulativeMetrics: { metricsAtLastTimestamp: { totalInstalls: 0, totalFailedInstalls: 0 } } },
+          insights: {
+            totalUniqueUsers: 0,
+            cumulativeMetrics: {
+              metricsAtLastTimestamp: { totalInstalls: 0, totalFailedInstalls: 0 },
+            },
+          },
         },
       ],
     },
@@ -226,10 +266,24 @@ test('insights: no launches gives no crash rate (not 0), a missing group is not_
   assert.equal(one?.crashRatePercent, null);
   assert.equal(one?.launches, 0);
   assert.equal(one?.averagePayloadBytes, null);
-  assert.equal(await kindOf(() => expoUpdateGroupInsights(fake({ data: { updatesByGroup: [] } }).client, GROUP_A, { start: 1, end: 2 })), 'not_found');
+  assert.equal(
+    await kindOf(() =>
+      expoUpdateGroupInsights(fake({ data: { updatesByGroup: [] } }).client, GROUP_A, {
+        start: 1,
+        end: 2,
+      }),
+    ),
+    'not_found',
+  );
   const unsent = fake({});
-  assert.equal(await kindOf(() => expoUpdateGroupInsights(unsent.client, 'x; drop', { start: 1, end: 2 })), 'invalid_input');
-  assert.equal(await kindOf(() => expoUpdateGroupInsights(unsent.client, GROUP_A, { start: 5, end: 5 })), 'invalid_input');
+  assert.equal(
+    await kindOf(() => expoUpdateGroupInsights(unsent.client, 'x; drop', { start: 1, end: 2 })),
+    'invalid_input',
+  );
+  assert.equal(
+    await kindOf(() => expoUpdateGroupInsights(unsent.client, GROUP_A, { start: 5, end: 5 })),
+    'invalid_input',
+  );
   assert.equal(unsent.calls.length, 0);
 });
 
@@ -238,19 +292,38 @@ test('the rollout mutation sends the update id and the percentage as variables a
   const done = await expoSetUpdateRolloutPercentage(f.client, UPDATE_IOS, 50);
   assert.deepEqual(done, { updateId: UPDATE_IOS, group: GROUP_A, rolloutPercentage: 50 });
   assert.deepEqual(f.calls[0]?.variables, { updateId: UPDATE_IOS, rolloutPercentage: 50 });
-  assert.match(f.calls[0]?.query ?? '', /setRolloutPercentage\(updateId: \$updateId, percentage: \$rolloutPercentage\)/);
+  assert.match(
+    f.calls[0]?.query ?? '',
+    /setRolloutPercentage\(updateId: \$updateId, percentage: \$rolloutPercentage\)/,
+  );
   const unsent = fake({});
-  for (const [id, pct] of [[UPDATE_IOS, 0], [UPDATE_IOS, 101], [UPDATE_IOS, 12.5], ['x', 50]] as const) {
-    assert.equal(await kindOf(() => expoSetUpdateRolloutPercentage(unsent.client, id, pct)), 'invalid_input');
+  for (const [id, pct] of [
+    [UPDATE_IOS, 0],
+    [UPDATE_IOS, 101],
+    [UPDATE_IOS, 12.5],
+    ['x', 50],
+  ] as const) {
+    assert.equal(
+      await kindOf(() => expoSetUpdateRolloutPercentage(unsent.client, id, pct)),
+      'invalid_input',
+    );
   }
   assert.equal(unsent.calls.length, 0);
-  assert.equal(await kindOf(() => expoSetUpdateRolloutPercentage(fake({ data: { update: null } }).client, UPDATE_IOS, 50)), 'unexpected');
+  assert.equal(
+    await kindOf(() =>
+      expoSetUpdateRolloutPercentage(fake({ data: { update: null } }).client, UPDATE_IOS, 50),
+    ),
+    'unexpected',
+  );
 });
 
 // ---------------------------------------------------------------------------------------------
 // Runtime version mismatch
 
-const ch = (name: string, runtimes: { rv: string | null; at: string; branch?: string }[]): ExpoUpdateChannel => ({
+const ch = (
+  name: string,
+  runtimes: { rv: string | null; at: string; branch?: string }[],
+): ExpoUpdateChannel => ({
   id: name,
   name,
   isPaused: false,
@@ -283,7 +356,12 @@ const ch = (name: string, runtimes: { rv: string | null; at: string; branch?: st
   ],
 });
 
-const bld = (id: string, rv: string | null, channelName: string | null, at: string): ExpoStoreBuild => ({
+const bld = (
+  id: string,
+  rv: string | null,
+  channelName: string | null,
+  at: string,
+): ExpoStoreBuild => ({
   id,
   platform: 'ios',
   runtimeVersion: rv,
@@ -306,8 +384,16 @@ test('runtime check: matching the newest store build is ok', () => {
 
 test('runtime check: an update whose runtime no store build has is a mismatch (error) that names both sides', () => {
   const [r] = checkRuntimeVersions({
-    channels: [ch('production', [{ rv: '1.5.0', at: '2026-11-18T00:00:00Z' }, { rv: '1.4.0', at: '2026-11-01T00:00:00Z' }])],
-    builds: [bld('b1', '1.4.0', 'production', '2026-11-10T00:00:00Z'), bld('b0', '1.3.0', 'production', '2026-10-01T00:00:00Z')],
+    channels: [
+      ch('production', [
+        { rv: '1.5.0', at: '2026-11-18T00:00:00Z' },
+        { rv: '1.4.0', at: '2026-11-01T00:00:00Z' },
+      ]),
+    ],
+    builds: [
+      bld('b1', '1.4.0', 'production', '2026-11-10T00:00:00Z'),
+      bld('b0', '1.3.0', 'production', '2026-10-01T00:00:00Z'),
+    ],
   });
   assert.equal(r?.status, 'mismatch');
   assert.equal(r?.severity, 'error');
@@ -320,7 +406,10 @@ test('runtime check: an update whose runtime no store build has is a mismatch (e
 test('runtime check: updates that reach only an older build leave the newest build unreached (warning)', () => {
   const [r] = checkRuntimeVersions({
     channels: [ch('production', [{ rv: '1.3.0', at: '2026-11-18T00:00:00Z' }])],
-    builds: [bld('b1', '1.4.0', 'production', '2026-11-10T00:00:00Z'), bld('b0', '1.3.0', 'production', '2026-10-01T00:00:00Z')],
+    builds: [
+      bld('b1', '1.4.0', 'production', '2026-11-10T00:00:00Z'),
+      bld('b0', '1.3.0', 'production', '2026-10-01T00:00:00Z'),
+    ],
   });
   assert.equal(r?.status, 'newest_build_unreached');
   assert.equal(r?.severity, 'warning');
@@ -333,13 +422,20 @@ test('runtime check: only builds that bake in the channel count, and what cannot
       ch('staging', []),
       ch('preview', [{ rv: null, at: '2026-11-18T00:00:00Z' }]),
     ],
-    builds: [bld('b1', '1.4.0', 'staging', '2026-11-10T00:00:00Z'), bld('b2', '1.4.0', 'preview', '2026-11-10T00:00:00Z'), bld('b3', '1.4.0', null, '2026-11-10T00:00:00Z')],
+    builds: [
+      bld('b1', '1.4.0', 'staging', '2026-11-10T00:00:00Z'),
+      bld('b2', '1.4.0', 'preview', '2026-11-10T00:00:00Z'),
+      bld('b3', '1.4.0', null, '2026-11-10T00:00:00Z'),
+    ],
   });
-  assert.deepEqual(rows.map((r) => [r.channel, r.status, r.severity]), [
-    ['production', 'no_builds', 'info'],
-    ['staging', 'no_updates', 'info'],
-    ['preview', 'unknown', 'info'],
-  ]);
+  assert.deepEqual(
+    rows.map((r) => [r.channel, r.status, r.severity]),
+    [
+      ['production', 'no_builds', 'info'],
+      ['staging', 'no_updates', 'info'],
+      ['preview', 'unknown', 'info'],
+    ],
+  );
 });
 
 test('runtime check: the newest update across all branches of the channel is the one compared', () => {
@@ -376,7 +472,15 @@ test('runtime check: the newest update across all branches of the channel is the
 });
 
 test('store builds of another platform than asked are dropped even when Expo ignores the filter', async () => {
-  const f = fake(buildsBody([build({ platform: 'ANDROID' }), build({ id: 'dd000000-0000-4000-8000-000000000005' })]));
+  const f = fake(
+    buildsBody([
+      build({ platform: 'ANDROID' }),
+      build({ id: 'dd000000-0000-4000-8000-000000000005' }),
+    ]),
+  );
   const builds = await expoStoreBuilds(f.client, PROJECT_ID, { platform: 'ios' });
-  assert.deepEqual(builds.map((b) => b.id), ['dd000000-0000-4000-8000-000000000005']);
+  assert.deepEqual(
+    builds.map((b) => b.id),
+    ['dd000000-0000-4000-8000-000000000005'],
+  );
 });

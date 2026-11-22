@@ -9,16 +9,16 @@ web side: [ADR 0044](0044-localisation.md).
 The web UI loads in the Tauri window from the sidecar server and is translated by ADR 0044. The Rust shell around it has little text of its
 own. The inventory of `apps/desktop` (Rust, `tauri.conf.json`, capabilities, sidecar launcher) found:
 
-| Where | Text | Person-facing? | Decision |
-| --- | --- | --- | --- |
-| Window title (`main.rs`) | `Kiln` | yes | Product name: never translated (glossary). Stays a literal. |
-| Menu bar | none set; Tauri's default menu has **English** labels whatever the system language is | yes | New `menu.rs`: the same predefined items with catalog labels. |
-| Start-up errors (`main.rs`) | "The server did not become ready in time.", "Cannot open the window: …" | on stderr only (the app exits; no dialog) | In the catalog (`error.*`). |
-| Developer diagnostics (`main.rs`) | "cannot read OS randomness", "the packaged server is missing; run prepare-sidecar", "server entry not found" | no: they tell a developer what to run | Left in English on purpose; translated logs would be harder to search and report. |
-| Tray, dialogs, updater | none exist | | Nothing to convert. When one is added it uses `i18n::t`. |
-| Notifications | text is built by the web app (`lib/alerts/notify.ts`, namespace `workspace`) and handed to the plugin | yes | Web catalogs, not this one. |
-| `tauri.conf.json` | `productName` `Kiln`, no window titles (`windows` is empty) | | Not translated. |
-| Installer metadata | none translatable today | | Skipped (see below). |
+| Where                             | Text                                                                                                         | Person-facing?                            | Decision                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------- | --------------------------------------------------------------------------------- |
+| Window title (`main.rs`)          | `Kiln`                                                                                                       | yes                                       | Product name: never translated (glossary). Stays a literal.                       |
+| Menu bar                          | none set; Tauri's default menu has **English** labels whatever the system language is                        | yes                                       | New `menu.rs`: the same predefined items with catalog labels.                     |
+| Start-up errors (`main.rs`)       | "The server did not become ready in time.", "Cannot open the window: …"                                      | on stderr only (the app exits; no dialog) | In the catalog (`error.*`).                                                       |
+| Developer diagnostics (`main.rs`) | "cannot read OS randomness", "the packaged server is missing; run prepare-sidecar", "server entry not found" | no: they tell a developer what to run     | Left in English on purpose; translated logs would be harder to search and report. |
+| Tray, dialogs, updater            | none exist                                                                                                   |                                           | Nothing to convert. When one is added it uses `i18n::t`.                          |
+| Notifications                     | text is built by the web app (`lib/alerts/notify.ts`, namespace `workspace`) and handed to the plugin        | yes                                       | Web catalogs, not this one.                                                       |
+| `tauri.conf.json`                 | `productName` `Kiln`, no window titles (`windows` is empty)                                                  |                                           | Not translated.                                                                   |
+| Installer metadata                | none translatable today                                                                                      |                                           | Skipped (see below).                                                              |
 
 The assumption that Tauri's predefined menu items "follow the OS language" does not hold: muda (Tauri's menu layer) gives them English labels
 unless a label is passed. So the shell builds the menu itself and passes translated labels to the predefined items, which keeps their native

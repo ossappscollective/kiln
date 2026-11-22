@@ -59,7 +59,11 @@ export function footerFor(current: StepId, visible: readonly StepId[]): Footer {
     return {
       position,
       back,
-      primary: { kind: 'step', to: next, label: t('common:stepper.next', { step: STEP_LABELS[next] }) },
+      primary: {
+        kind: 'step',
+        to: next,
+        label: t('common:stepper.next', { step: STEP_LABELS[next] }),
+      },
     };
   return {
     position,
@@ -212,7 +216,10 @@ export function stepIntro(step: StepId, f: IntroFacts): { title: string; sentenc
   }
   const n = f.confirm === null ? null : f.confirm.length;
   if (n === null)
-    return { title: t('common:stepper.publish.title'), sentence: t('common:stepper.publish.reading') };
+    return {
+      title: t('common:stepper.publish.title'),
+      sentence: t('common:stepper.publish.reading'),
+    };
   if (n === 0 && f.inReview === true)
     return {
       title:
@@ -245,7 +252,8 @@ export function buildChip(
   if (row.eligibility.tone === 'bad') return { text: t('common:stepper.chip.cannot'), tone: 'bad' };
   if (flags.staged) return { text: t('common:stepper.chip.chosen'), tone: 'info' };
   if (flags.attached) return { text: t('common:stepper.chip.attached'), tone: 'ok' };
-  if (row.eligibility.tone === 'warn') return { text: t('common:stepper.chip.readFirst'), tone: 'warn' };
+  if (row.eligibility.tone === 'warn')
+    return { text: t('common:stepper.chip.readFirst'), tone: 'warn' };
   return { text: t('common:stepper.chip.can'), tone: 'neutral' };
 }
 

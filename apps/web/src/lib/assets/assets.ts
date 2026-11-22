@@ -394,7 +394,11 @@ export function compareWithStore(
   );
   if (!entry) return { state: 'not_compared', text: t(NOT_COMPARED) };
   return entry.count === group.count
-    ? { state: 'same', text: t('assets:compare.same', { count: entry.count }), storeCount: entry.count }
+    ? {
+        state: 'same',
+        text: t('assets:compare.same', { count: entry.count }),
+        storeCount: entry.count,
+      }
     : {
         state: 'differs',
         text: t('assets:compare.differs', { store: entry.count, repo: group.count }),

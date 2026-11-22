@@ -10,8 +10,14 @@ import { registerCatalog } from './t.ts';
 
 const FILE = /locales\/([^/]+)\/([^/.]+)\.json$/;
 
-const bundled = import.meta.glob<Catalog>('../../../locales/*/en.json', { eager: true, import: 'default' });
-const onDemand = import.meta.glob<Catalog>(['../../../locales/*/*.json', '!../../../locales/*/en.json'], { import: 'default' });
+const bundled = import.meta.glob<Catalog>('../../../locales/*/en.json', {
+  eager: true,
+  import: 'default',
+});
+const onDemand = import.meta.glob<Catalog>(
+  ['../../../locales/*/*.json', '!../../../locales/*/en.json'],
+  { import: 'default' },
+);
 
 for (const path of Object.keys(bundled)) {
   const match = FILE.exec(path);

@@ -40,7 +40,9 @@ export type RevenueCatUse = {
   signal?: AbortSignal | undefined;
 };
 
-export type RevenueCatClientResult = { ok: true; client: RevenueCatClient; secret: string } | Failure;
+export type RevenueCatClientResult =
+  | { ok: true; client: RevenueCatClient; secret: string }
+  | Failure;
 
 export async function revenueCatClientFor(
   db: Database,
@@ -111,7 +113,10 @@ export function revenueCatClientFromSecret(
   const base = deps?.fetch ?? globalThis.fetch;
   const send: typeof fetch = signal
     ? (target, init) =>
-        base(target, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, signal]) : signal })
+        base(target, {
+          ...init,
+          signal: init?.signal ? AbortSignal.any([init.signal, signal]) : signal,
+        })
     : base;
   try {
     return {

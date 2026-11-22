@@ -113,8 +113,7 @@ export function visibleSteps(role: Role, switches: Switches): StepId[] {
 /** One quiet sentence under the stepper when the last step is not shown, so nobody wonders where it went. Null when it is shown. */
 export function confirmHiddenReason(role: Role, switches: Switches): string | null {
   if (confirmAllowed(role, switches)) return null;
-  if (!mayWriteToStore(role))
-    return t('release-stepper:hidden.role');
+  if (!mayWriteToStore(role)) return t('release-stepper:hidden.role');
   return t('release-stepper:hidden.switchedOff');
 }
 
@@ -248,7 +247,10 @@ export function chosenOf(input: {
   if (codes !== null)
     return {
       label: track
-        ? t('release-stepper:chosen.codesOn', { codes: codes.value.split(',').join(', '), track: track.value })
+        ? t('release-stepper:chosen.codesOn', {
+            codes: codes.value.split(',').join(', '),
+            track: track.value,
+          })
         : t('release-stepper:chosen.codes', { codes: codes.value.split(',').join(', ') }),
       where: 'staged',
     };
@@ -344,7 +346,8 @@ export function notesStatus(f: StepperFacts): StepStatus {
       level: 'attention',
       text: t('release-stepper:notes.over', { count: f.notes.over }),
     };
-  if (f.notes.withText === 0) return { ...base, level: 'todo', text: t('release-stepper:notes.none') };
+  if (f.notes.withText === 0)
+    return { ...base, level: 'todo', text: t('release-stepper:notes.none') };
   return {
     ...base,
     level: 'ready',
@@ -354,7 +357,8 @@ export function notesStatus(f: StepperFacts): StepStatus {
 
 export function assetsStatus(f: StepperFacts): StepStatus {
   const base = { id: 'assets' as const, label: STEP_LABELS.assets };
-  if (f.staged.assets === 0) return { ...base, level: 'optional', text: t('release-stepper:assets.none') };
+  if (f.staged.assets === 0)
+    return { ...base, level: 'optional', text: t('release-stepper:assets.none') };
   return {
     ...base,
     level: 'ready',
@@ -370,7 +374,8 @@ export function reviewStatus(f: StepperFacts): StepStatus {
       level: 'blocked',
       text: t('release-stepper:review.errors', { count: f.staged.errors }),
     };
-  if (f.staged.total === 0) return { ...base, level: 'optional', text: t('release-stepper:review.nothing') };
+  if (f.staged.total === 0)
+    return { ...base, level: 'optional', text: t('release-stepper:review.nothing') };
   return {
     ...base,
     level: 'ready',
@@ -398,8 +403,7 @@ export function confirmStatus(f: StepperFacts): StepStatus {
       text: t('release-stepper:confirm.push', { count: f.staged.unpushed }),
     };
   const p = f.pipeline;
-  if (p === null)
-    return { ...base, level: 'unknown', text: t('release-stepper:confirm.unknown') };
+  if (p === null) return { ...base, level: 'unknown', text: t('release-stepper:confirm.unknown') };
   switch (p.state) {
     case 'draft':
       return !supports(f.platform, 'releaseTracks')

@@ -60,7 +60,7 @@ Sources: [EAS Metadata](https://docs.expo.dev/eas/metadata/),
 
 ## Mapping
 
-| `store.config.json`                              | `@kiln/core` field                             |
+| `store.config.json`                              | `@kiln/core` field                            |
 | ------------------------------------------------ | --------------------------------------------- |
 | `apple.info.<l>.title`                           | `name`                                        |
 | `subtitle`, `description`                        | `subtitle`, `description`                     |

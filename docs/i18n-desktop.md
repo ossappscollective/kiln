@@ -21,11 +21,11 @@ web catalogs:
   `_one`/`_other`);
 - no HTML, no tags. `{{app}}` is the product name (`Kiln`); `{{message}}` is a technical error text and stays untranslated.
 
-| Prefix | What |
-| --- | --- |
-| `menu.*` | Titles of menus and of the application-menu items (`menu.quit`: "Quit {{app}}") |
-| `edit.*`, `view.*`, `window.*` | Items of the Edit, View and Window menus |
-| `error.*` | Start-up errors, printed to stderr |
+| Prefix                         | What                                                                            |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| `menu.*`                       | Titles of menus and of the application-menu items (`menu.quit`: "Quit {{app}}") |
+| `edit.*`, `view.*`, `window.*` | Items of the Edit, View and Window menus                                        |
+| `error.*`                      | Start-up errors, printed to stderr                                              |
 
 Translate menus the way the platform's own apps word them (French macOS: "Présentation", German: "Darstellung", Spanish: "Visualización"),
 following the glossary. Keep it short: menu titles are one word.
@@ -56,14 +56,14 @@ app (ADR 0046, decision 5). Order: `KILN_LANG`; macOS `defaults read -g AppleLan
 The existing discovery expression only looks in `apps/web/locales`. For the desktop add **a second Component discovery add-on** on the same
 component (it can be installed more than once):
 
-| Field | Value |
-| --- | --- |
-| Regular expression to match translation files against | `apps/desktop/locales/(?P<component>[^/]*)/(?P<language>[^/.]*)\.json` |
-| Customize the component name | `{{ component\|title }}` (the component is called `Desktop`) |
-| Define the monolingual base filename | `apps/desktop/locales/{{ component }}/en.json` |
-| Define the base file for new translations | `apps/web/locales/empty.json` |
-| Language filter | `^(en\|fr\|es\|de)$` (as the first one) |
-| Remove components for inexistent files, Copy translation settings from the main component | on |
+| Field                                                                                     | Value                                                                  |
+| ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Regular expression to match translation files against                                     | `apps/desktop/locales/(?P<component>[^/]*)/(?P<language>[^/.]*)\.json` |
+| Customize the component name                                                              | `{{ component\|title }}` (the component is called `Desktop`)           |
+| Define the monolingual base filename                                                      | `apps/desktop/locales/{{ component }}/en.json`                         |
+| Define the base file for new translations                                                 | `apps/web/locales/empty.json`                                          |
+| Language filter                                                                           | `^(en\|fr\|es\|de)$` (as the first one)                                |
+| Remove components for inexistent files, Copy translation settings from the main component | on                                                                     |
 
 One expression for both apps is possible: `apps/(?P<app>web|desktop)/locales/(?P<component>[^/]*)/(?P<language>[^/.]*)\.json` with the base
 file `apps/{{ app }}/locales/{{ component }}/en.json`, if your Weblate version exposes extra named groups to the templates; two add-ons

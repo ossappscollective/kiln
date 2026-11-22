@@ -31,7 +31,9 @@ export async function verifyRevenueCatCredential(
   // A V2 secret key starts with sk_ (RevenueCat's authentication page). A public SDK key does not, and does not work here.
   const prefixNote = key.startsWith('sk_')
     ? []
-    : ['The key does not start with sk_. A V2 secret API key does; the public SDK keys do not work for this.'];
+    : [
+        'The key does not start with sk_. A V2 secret API key does; the public SDK keys do not work for this.',
+      ];
   try {
     const client = createRevenueCatClient({
       apiKey: key,
@@ -71,7 +73,8 @@ export async function verifyRevenueCatCredential(
         throw error;
       }
     }
-    if (projects.length > MAX_PROJECTS_SHOWN) details.push(`and ${projects.length - MAX_PROJECTS_SHOWN} more projects`);
+    if (projects.length > MAX_PROJECTS_SHOWN)
+      details.push(`and ${projects.length - MAX_PROJECTS_SHOWN} more projects`);
     const first = projects[0];
     return {
       ok: true,
@@ -84,6 +87,9 @@ export async function verifyRevenueCatCredential(
       const details = [...status, ...(error.kind === 'auth' ? prefixNote : [])];
       return { ok: false, message: clean(error.message), ...(details.length ? { details } : {}) };
     }
-    return { ok: false, message: 'The RevenueCat key could not be checked. Try again in a moment.' };
+    return {
+      ok: false,
+      message: 'The RevenueCat key could not be checked. Try again in a moment.',
+    };
   }
 }

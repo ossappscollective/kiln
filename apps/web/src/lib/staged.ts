@@ -184,8 +184,7 @@ export function pushAvailability(
   if (loadFailed) {
     return {
       state: 'unknown',
-      message:
-        t('publish:staged.availability.unknown'),
+      message: t('publish:staged.availability.unknown'),
     };
   }
   if (!config) return { state: 'loading' };
@@ -214,7 +213,8 @@ export const itemCount = (view: StagedChangesView | null): number =>
 export function trayCountText(view: StagedChangesView | null): string {
   if (view === null || itemCount(view) === 0) return t('publish:staged.nothingStaged');
   const parts: string[] = [];
-  if (view.text.length > 0) parts.push(t('publish:staged.count.texts', { count: view.text.length }));
+  if (view.text.length > 0)
+    parts.push(t('publish:staged.count.texts', { count: view.text.length }));
   if (releaseCount(view) > 0)
     parts.push(t('publish:staged.count.releaseFields', { count: releaseCount(view) }));
   if (view.assets.length > 0) {
@@ -258,7 +258,8 @@ export function textStatus(item: Pick<StagedTextView, 'status'>): {
   tone: StagedTone;
 } {
   if (item.status === 'invalid') return { label: t('publish:staged.status.error'), tone: 'bad' };
-  if (item.status === 'unchanged') return { label: t('publish:staged.status.same'), tone: 'neutral' };
+  if (item.status === 'unchanged')
+    return { label: t('publish:staged.status.same'), tone: 'neutral' };
   return { label: t('publish:staged.status.differs'), tone: 'info' };
 }
 
@@ -419,10 +420,8 @@ export function setStaging(input: {
 
   if (!canStage(input.role)) return no(stageRoleReason());
   if (input.assets.length === 0) return no(t('publish:staged.set.noFiles'));
-  if (input.commit === null)
-    return no(t('publish:staged.set.noCommit'));
-  if (!isStageableLocale(input.locale))
-    return no(t('publish:staged.set.noLocale'));
+  if (input.commit === null) return no(t('publish:staged.set.noCommit'));
+  if (!isStageableLocale(input.locale)) return no(t('publish:staged.set.noLocale'));
   const support = assetSlotSupport(input.platform, { kind: input.kind, device: input.device });
   if (!support.ok) return no(support.reason);
   const max = slotMaxFiles(input.platform, { kind: input.kind, device: input.device });
@@ -431,12 +430,13 @@ export function setStaging(input: {
   for (const a of input.assets) {
     const name = a.path.slice(a.path.lastIndexOf('/') + 1);
     if (a.origin !== 'store') return no(t('publish:staged.set.iconNotStore', { name }));
-    if (a.read !== 'read' || a.oid === null)
-      return no(t('publish:staged.set.notRead', { name }));
+    if (a.read !== 'read' || a.oid === null) return no(t('publish:staged.set.notRead', { name }));
     if (a.format === null || PUSHABLE_IMAGE_FORMATS.indexOf(a.format) === -1)
       return no(t('publish:staged.set.notImage', { name }));
     if (a.bytes === null || a.bytes > maxFile)
-      return no(t('publish:staged.set.tooLarge', { name, mb: formatNumber(Math.round(maxFile / MiB)) }));
+      return no(
+        t('publish:staged.set.tooLarge', { name, mb: formatNumber(Math.round(maxFile / MiB)) }),
+      );
   }
   const errors: AssetProblem[] = [];
   for (const p of input.setProblems) if (p.severity === 'error') errors.push(p);
@@ -602,7 +602,10 @@ export function classifyPushFailure(
         message: t('publish:staged.fail.writeInProgress', { message }),
       };
     case 'outcome_unknown':
-      return { kind: 'outcome_unknown', message: t('publish:staged.fail.outcomeUnknown', { message }) };
+      return {
+        kind: 'outcome_unknown',
+        message: t('publish:staged.fail.outcomeUnknown', { message }),
+      };
     case 'draft_partial': {
       const completed = Array.isArray(body.completed) ? (body.completed as DraftStep[]) : [];
       const failed = isObject(body.failed)
@@ -624,7 +627,10 @@ export function classifyPushFailure(
     case 'write_failed':
       return body.outcome === 'not_applied'
         ? { kind: 'not_applied', message }
-        : { kind: 'outcome_unknown', message: t('publish:staged.fail.outcomeUnknown', { message }) };
+        : {
+            kind: 'outcome_unknown',
+            message: t('publish:staged.fail.outcomeUnknown', { message }),
+          };
     case 'draft_not_allowed':
       return {
         kind: 'other',
@@ -696,7 +702,11 @@ export function classifyPushFailure(
         message: t('publish:staged.fail.timeout'),
       };
     case 'app_not_synced':
-      return { kind: 'other', code: error.code, message: t('publish:staged.fail.appNotSynced', { message }) };
+      return {
+        kind: 'other',
+        code: error.code,
+        message: t('publish:staged.fail.appNotSynced', { message }),
+      };
     default:
   }
   if (error.code.startsWith('credential_')) return { kind: 'other', code: error.code, message };
@@ -770,8 +780,10 @@ export function previewTextStatus(item: Pick<PreviewText, 'status'>): {
   label: string;
   tone: StagedTone;
 } {
-  if (item.status === 'new_locale') return { label: t('publish:staged.preview.newLocale'), tone: 'warn' };
-  if (item.status === 'unchanged') return { label: t('publish:staged.preview.alreadySame'), tone: 'neutral' };
+  if (item.status === 'new_locale')
+    return { label: t('publish:staged.preview.newLocale'), tone: 'warn' };
+  if (item.status === 'unchanged')
+    return { label: t('publish:staged.preview.alreadySame'), tone: 'neutral' };
   return { label: t('publish:staged.preview.willChange'), tone: 'info' };
 }
 
@@ -780,7 +792,8 @@ export function previewFieldStatus(f: Pick<PreviewReleaseField, 'status'>): {
   tone: StagedTone;
 } {
   if (f.status === 'local') return { label: t('publish:staged.preview.keptHere'), tone: 'neutral' };
-  if (f.status === 'unchanged') return { label: t('publish:staged.preview.alreadySame'), tone: 'neutral' };
+  if (f.status === 'unchanged')
+    return { label: t('publish:staged.preview.alreadySame'), tone: 'neutral' };
   return { label: t('publish:staged.preview.willChange'), tone: 'info' };
 }
 
@@ -801,7 +814,9 @@ export function previewSetText(set: PreviewAssetSet): string {
 
 export function versionText(preview: Pick<DraftPreview, 'app' | 'version'>): string {
   if (preview.version === null)
-    return supports(preview.app.platform, 'releaseTracks') ? t('publish:staged.version.playEdit') : '';
+    return supports(preview.app.platform, 'releaseTracks')
+      ? t('publish:staged.version.playEdit')
+      : '';
   return preview.version.versionString
     ? t('publish:staged.version.named', {
         version: preview.version.versionString,
@@ -812,9 +827,7 @@ export function versionText(preview: Pick<DraftPreview, 'app' | 'version'>): str
 
 /** The sentence after a successful push. Always says nothing was submitted. */
 export function resultText(result: DraftPushResult): string {
-  const parts: string[] = [
-    t('publish:staged.result.written', { count: result.counts.applied }),
-  ];
+  const parts: string[] = [t('publish:staged.result.written', { count: result.counts.applied })];
   if (result.counts.alreadySame > 0)
     parts.push(t('publish:staged.result.alreadySame', { count: result.counts.alreadySame }));
   if (result.counts.filesUploaded > 0)

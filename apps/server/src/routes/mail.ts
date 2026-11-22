@@ -16,7 +16,14 @@ import {
   smtpView,
 } from '../services/mail-config.ts';
 import { plainAddress } from '../services/mail-mime.ts';
-import { escapeHtml, mailBar, mailButton, mailFooter, mailLink, mailShell } from '../services/mail-template.ts';
+import {
+  escapeHtml,
+  mailBar,
+  mailButton,
+  mailFooter,
+  mailLink,
+  mailShell,
+} from '../services/mail-template.ts';
 import { MAIL_ERROR_MESSAGES, type Mailer } from '../services/mailer.ts';
 import { requireManage } from '../services/step-up.ts';
 import { activeEmail } from '../services/two-factor.ts';

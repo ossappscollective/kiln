@@ -5,12 +5,12 @@ the link of [docs/api/eas.md](eas.md) (an Expo credential and a project). All ro
 Reads call Expo with the credential (audited as `credential.use`, purposes `eas.update`, `eas.update_insights`, `eas.update_rollout`) and
 store nothing. Only the updates and builds of the platform of the app record are shown. macOS has no EAS Update (`422 platform_unsupported`).
 
-| Route | Right | What it does |
-| --- | --- | --- |
-| `GET /updates` | `apps.read` | The state: channels, branches, newest updates, rollouts, the runtime check. 30 a minute per workspace. |
-| `GET /updates/:group/insights?days=7` | `apps.read` | Launches, failed launches, crash rate, unique users, payload size of one update group. `days` 1 to 30. |
-| `POST /updates/rollout/preview` | `releases.rollout` | Reads Expo, changes nothing, returns the `confirmHash`. |
-| `POST /updates/rollout/apply` | `releases.rollout` | Raises the rollout of one update at Expo. **The only write.** |
+| Route                                 | Right              | What it does                                                                                           |
+| ------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------ |
+| `GET /updates`                        | `apps.read`        | The state: channels, branches, newest updates, rollouts, the runtime check. 30 a minute per workspace. |
+| `GET /updates/:group/insights?days=7` | `apps.read`        | Launches, failed launches, crash rate, unique users, payload size of one update group. `days` 1 to 30. |
+| `POST /updates/rollout/preview`       | `releases.rollout` | Reads Expo, changes nothing, returns the `confirmHash`.                                                |
+| `POST /updates/rollout/apply`         | `releases.rollout` | Raises the rollout of one update at Expo. **The only write.**                                          |
 
 ## The state
 
@@ -22,12 +22,12 @@ update for this platform), `rollouts[]` (updates that are mid-rollout: 1 to 99 p
 `runtimeCheck.status` compares the runtime version of the newest update of the channel with the finished store-distribution builds that name
 the channel:
 
-| Status | Severity | Meaning |
-| --- | --- | --- |
-| `ok` | none | The newest update has the runtime version of the newest store build. |
-| `mismatch` | error | The newest update has a runtime version that no store build of the channel has: it reaches no shipped binary. |
-| `newest_build_unreached` | warning | It reaches an older store build only; the newest build gets no update. |
-| `no_updates`, `no_builds`, `unknown` | info | Nothing to compare (no update, no store build on the channel, or a runtime version is not known). |
+| Status                               | Severity | Meaning                                                                                                       |
+| ------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------- |
+| `ok`                                 | none     | The newest update has the runtime version of the newest store build.                                          |
+| `mismatch`                           | error    | The newest update has a runtime version that no store build of the channel has: it reaches no shipped binary. |
+| `newest_build_unreached`             | warning  | It reaches an older store build only; the newest build gets no update.                                        |
+| `no_updates`, `no_builds`, `unknown` | info     | Nothing to compare (no update, no store build on the channel, or a runtime version is not known).             |
 
 "Shipped" means a finished build with store distribution; whether it was submitted is not read. `builds` lists the ones compared (at most 10).
 Limits: 25 channels, 5 branches a channel, 3 update groups a branch, 20 builds (`channelsTruncated` when the channel page was full).

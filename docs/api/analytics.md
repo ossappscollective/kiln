@@ -226,13 +226,13 @@ be listed, but no report of this package exists in it at all), which is a differ
 
 Two different things share the sales charts, and the API never calls the Google one "proceeds" (ADR [0038](../adr/0038-sales-analytics.md)).
 
-| | Apple (`apple_sales`, iOS and macOS) | Google Play (`play_sales`, Android) |
-| --- | --- | --- |
-| Needs | `analytics.appleVendorNumber`; the key's role Sales and Reports or higher (`sales_forbidden` otherwise) | the reports bucket id (above) and the Play Console permission **View financial data**, Global (`play_sales_forbidden` otherwise) |
-| Source file | Sales and Trends daily summary (`GET /v1/salesReports`), next day, Pacific Time | `sales/salesreport_YYYYMM.zip` in the reports bucket: ALL apps of the account, filtered by `Package ID`; extended daily with charged and refunded orders, up to a few days late, UTC |
-| Metrics | `sales_units` (net: refunds are negative), `sales_proceeds:<CUR>` (developer proceeds) | `sales_gross:<CUR>` (what the **buyer paid**, tax included, Google's fee NOT deducted), `sales_refunds:<CUR>` (refunded, positive), `sales_orders` (charged orders) |
-| Currency | `Currency of Proceeds` | `Currency of Sale` |
-| Notes | `apple_estimates`, `apple_proceeds_per_currency`, `apple_pacific_time`, `apple_in_app_not_included` | `play_estimated_sales_gross`, `play_sales_per_currency`, `play_sales_latency`, `play_sales_utc` |
+|             | Apple (`apple_sales`, iOS and macOS)                                                                    | Google Play (`play_sales`, Android)                                                                                                                                                  |
+| ----------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Needs       | `analytics.appleVendorNumber`; the key's role Sales and Reports or higher (`sales_forbidden` otherwise) | the reports bucket id (above) and the Play Console permission **View financial data**, Global (`play_sales_forbidden` otherwise)                                                     |
+| Source file | Sales and Trends daily summary (`GET /v1/salesReports`), next day, Pacific Time                         | `sales/salesreport_YYYYMM.zip` in the reports bucket: ALL apps of the account, filtered by `Package ID`; extended daily with charged and refunded orders, up to a few days late, UTC |
+| Metrics     | `sales_units` (net: refunds are negative), `sales_proceeds:<CUR>` (developer proceeds)                  | `sales_gross:<CUR>` (what the **buyer paid**, tax included, Google's fee NOT deducted), `sales_refunds:<CUR>` (refunded, positive), `sales_orders` (charged orders)                  |
+| Currency    | `Currency of Proceeds`                                                                                  | `Currency of Sale`                                                                                                                                                                   |
+| Notes       | `apple_estimates`, `apple_proceeds_per_currency`, `apple_pacific_time`, `apple_in_app_not_included`     | `play_estimated_sales_gross`, `play_sales_per_currency`, `play_sales_latency`, `play_sales_utc`                                                                                      |
 
 A day without a row is `null` (a gap), not 0. A month without a file yet is normal (the sync is `ok` with no data); the monthly **Earnings** report (net figures)
 is read as its own source, below. The Estimated sales report is "not recommended for accounting" (Google): treat it as a trend, not as revenue.
@@ -242,15 +242,15 @@ is read as its own source, below. The Estimated sales report is "not recommended
 ADR [0042](../adr/0042-earnings-and-subscription-metrics.md). Source `play_earnings` (Android). The Google Play **Earnings** report is a monthly statement, net of
 Google's fees and taxes: the figure for accounting, where the estimated sales above are what buyers paid.
 
-| | |
-| --- | --- |
-| Needs | the reports bucket id (above) and the Play Console permission **View financial data**, Global. A refused folder is `play_sales_forbidden` (the same code and next step `grant_play_financial_permission` as the sales; the statistics of the same bucket keep working) |
-| Source file | `earnings/earnings_YYYYMM*.zip` in the reports bucket: ALL apps of the account, filtered by `Package ID`. Google generates it once a month, typically by the 5th of the following month. The sync reads the current and the previous month (six months on the first read) |
-| Not available yet | A month with no file is **not an error**: it is skipped, the series has no point for it (`null`, not 0), and the status says nothing failed. The current month never has a file |
-| Stored | on the **first day of the month of the file**, never on a transaction date (the days in the file are Pacific Time, every other series is UTC), per merchant currency (`currency` dimension, `<CUR>:<product id>` per product) |
-| Metrics | `earnings_net:<CUR>` (the signed sum of every line of the app), `earnings_charges:<CUR>`, `earnings_taxes:<CUR>`, `earnings_fees:<CUR>` (the lines of one family, as signed), `earnings_orders` (number of `Charge` lines) |
-| Currency | `Merchant Currency` with `Amount (Merchant Currency)`, the currency you are paid in. Per currency, never converted or added |
-| Notes | `play_earnings_monthly`, `play_earnings_net`, `play_earnings_per_currency`, `play_earnings_pacific` |
+|                   |                                                                                                                                                                                                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Needs             | the reports bucket id (above) and the Play Console permission **View financial data**, Global. A refused folder is `play_sales_forbidden` (the same code and next step `grant_play_financial_permission` as the sales; the statistics of the same bucket keep working)    |
+| Source file       | `earnings/earnings_YYYYMM*.zip` in the reports bucket: ALL apps of the account, filtered by `Package ID`. Google generates it once a month, typically by the 5th of the following month. The sync reads the current and the previous month (six months on the first read) |
+| Not available yet | A month with no file is **not an error**: it is skipped, the series has no point for it (`null`, not 0), and the status says nothing failed. The current month never has a file                                                                                           |
+| Stored            | on the **first day of the month of the file**, never on a transaction date (the days in the file are Pacific Time, every other series is UTC), per merchant currency (`currency` dimension, `<CUR>:<product id>` per product)                                             |
+| Metrics           | `earnings_net:<CUR>` (the signed sum of every line of the app), `earnings_charges:<CUR>`, `earnings_taxes:<CUR>`, `earnings_fees:<CUR>` (the lines of one family, as signed), `earnings_orders` (number of `Charge` lines)                                                |
+| Currency          | `Merchant Currency` with `Amount (Merchant Currency)`, the currency you are paid in. Per currency, never converted or added                                                                                                                                               |
+| Notes             | `play_earnings_monthly`, `play_earnings_net`, `play_earnings_per_currency`, `play_earnings_pacific`                                                                                                                                                                       |
 
 Gross and net are two separate series of the same currency and month (`earnings_charges:EUR` and `earnings_net:EUR`); neither is derived from the other. Read them with
 `granularity=month`. The Insights card is "Earnings (net, monthly)"; it has its own twelve-month range and the same currency tabs as the sales cards.
@@ -259,13 +259,13 @@ Gross and net are two separate series of the same currency and month (`earnings_
 
 ADR [0042](../adr/0042-earnings-and-subscription-metrics.md). Counts of subscriptions (unitless: not people, not money), per day.
 
-| | Apple (`apple_subscriptions`, iOS and macOS) | Google Play (`play_subscriptions`, Android) |
-| --- | --- | --- |
-| Needs | `analytics.appleVendorNumber`; the key's role Sales and Reports or higher (`sales_forbidden` otherwise) | the reports bucket id and View financial data, Global (`play_sales_forbidden` otherwise) |
-| Source | `GET /v1/salesReports` with `SUBSCRIPTION` (a snapshot of the day) and `SUBSCRIPTION_EVENT`, `SUMMARY`, `DAILY`, version `1_3`. The per-subscriber `SUBSCRIBER` report is **not** read | `financial-stats/subscriptions/subscriptions_<package>_<product>_YYYYMM_<dimension>.csv` in the reports bucket, one file per product and month |
-| Metrics | `subscriptions_active` (standard price), `subscriptions_active_trial` (free trial offers), `subscriptions_active_offer` (paid offers), `subscriptions_new`, `subscriptions_cancelled`, `subscriptions_trial_conversions` | `play_subscriptions_active`, `play_subscriptions_new`, `play_subscriptions_cancelled` |
-| Dimensions | none (the app), `product` (the store product id), `duration` (Apple: `1 Month`) | none (the app), `product` |
-| Notes | `apple_subscription_counts`, `apple_subscription_events` | `play_subscription_stats` |
+|            | Apple (`apple_subscriptions`, iOS and macOS)                                                                                                                                                                             | Google Play (`play_subscriptions`, Android)                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Needs      | `analytics.appleVendorNumber`; the key's role Sales and Reports or higher (`sales_forbidden` otherwise)                                                                                                                  | the reports bucket id and View financial data, Global (`play_sales_forbidden` otherwise)                                                       |
+| Source     | `GET /v1/salesReports` with `SUBSCRIPTION` (a snapshot of the day) and `SUBSCRIPTION_EVENT`, `SUMMARY`, `DAILY`, version `1_3`. The per-subscriber `SUBSCRIBER` report is **not** read                                   | `financial-stats/subscriptions/subscriptions_<package>_<product>_YYYYMM_<dimension>.csv` in the reports bucket, one file per product and month |
+| Metrics    | `subscriptions_active` (standard price), `subscriptions_active_trial` (free trial offers), `subscriptions_active_offer` (paid offers), `subscriptions_new`, `subscriptions_cancelled`, `subscriptions_trial_conversions` | `play_subscriptions_active`, `play_subscriptions_new`, `play_subscriptions_cancelled`                                                          |
+| Dimensions | none (the app), `product` (the store product id), `duration` (Apple: `1 Month`)                                                                                                                                          | none (the app), `product`                                                                                                                      |
+| Notes      | `apple_subscription_counts`, `apple_subscription_events`                                                                                                                                                                 | `play_subscription_stats`                                                                                                                      |
 
 `breakdown=product` lists the products of `subscriptions_active` and the other series. Apple's and Google's counts are different measures and never mixed. The Insights card is
 "Subscriptions": active (with trials), new and cancelled, and the active ones by product. A day without a report is `null`, not 0.
@@ -280,12 +280,30 @@ total chart (`sales_units`, `sales_proceeds`) still counts the app itself only, 
 
 ```json
 {
-  "appId": "...", "platform": "android", "from": "2026-10-22", "to": "2026-11-18",
-  "source": "play_sales", "measure": "google_buyer_paid_estimate", "unitsKind": "orders",
-  "hasSalesData": true, "enabled": true,
-  "sales": { "source": "play_sales", "label": "...", "state": "ready", "setup": null, "lastOkAt": 0, "lastError": null },
+  "appId": "...",
+  "platform": "android",
+  "from": "2026-10-22",
+  "to": "2026-11-18",
+  "source": "play_sales",
+  "measure": "google_buyer_paid_estimate",
+  "unitsKind": "orders",
+  "hasSalesData": true,
+  "enabled": true,
+  "sales": {
+    "source": "play_sales",
+    "label": "...",
+    "state": "ready",
+    "setup": null,
+    "lastOkAt": 0,
+    "lastError": null
+  },
   "products": [
-    { "productId": "coins_100", "units": 2, "days": 1, "amounts": [{ "currency": "EUR", "amount": 4.74, "refunds": 2.37 }] }
+    {
+      "productId": "coins_100",
+      "units": 2,
+      "days": 1,
+      "amounts": [{ "currency": "EUR", "amount": 4.74, "refunds": 2.37 }]
+    }
   ],
   "notes": [{ "code": "play_estimated_sales_gross", "message": "..." }]
 }

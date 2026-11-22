@@ -16,7 +16,8 @@ test('KILN_LISTING_INTERVAL_MINUTES is off by default, blank means off, and the 
     0,
   );
   assert.equal(
-    loadConfig({ KILN_MASTER_KEY: key, KILN_LISTING_INTERVAL_MINUTES: '30' }).listingIntervalMinutes,
+    loadConfig({ KILN_MASTER_KEY: key, KILN_LISTING_INTERVAL_MINUTES: '30' })
+      .listingIntervalMinutes,
     30,
   );
   assert.equal(

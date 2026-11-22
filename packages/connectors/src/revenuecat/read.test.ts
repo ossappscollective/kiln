@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRevenueCatClient } from './client.ts';
 import { RevenueCatError } from './errors.ts';
-import { getRevenueCatApp, listRevenueCatApps, listRevenueCatProjects, readRevenueCatConfiguration } from './read.ts';
+import {
+  getRevenueCatApp,
+  listRevenueCatApps,
+  listRevenueCatProjects,
+  readRevenueCatConfiguration,
+} from './read.ts';
 import {
   type Answer,
   apps,
@@ -22,8 +27,10 @@ import {
   project,
 } from './revenuecat.fixtures.ts';
 
-const client = (f: ReturnType<typeof fakeFetch>, extra: Partial<Parameters<typeof createRevenueCatClient>[0]> = {}) =>
-  createRevenueCatClient({ apiKey: KEY, fetch: f.fetch, ...extra });
+const client = (
+  f: ReturnType<typeof fakeFetch>,
+  extra: Partial<Parameters<typeof createRevenueCatClient>[0]> = {},
+) => createRevenueCatClient({ apiKey: KEY, fetch: f.fetch, ...extra });
 
 async function failure(run: () => Promise<unknown>): Promise<RevenueCatError> {
   try {
@@ -36,7 +43,9 @@ async function failure(run: () => Promise<unknown>): Promise<RevenueCatError> {
 }
 
 test('projects are listed with id and name', async () => {
-  const f = fakeFetch(() => ({ body: list([project(), project('proj2', 'Other'), { name: 'no id' }]) }));
+  const f = fakeFetch(() => ({
+    body: list([project(), project('proj2', 'Other'), { name: 'no id' }]),
+  }));
   const got = await listRevenueCatProjects(client(f));
   assert.deepEqual(got.projects, [
     { id: PROJECT_ID, name: 'MagicWeather' },
@@ -77,18 +86,27 @@ test('apps: App Store, Mac App Store and Play Store are mapped with their identi
 
 test('an app list that leaves out the bundle id is completed from the app itself', async () => {
   const bare = { id: IOS_APP_ID, name: 'Magic iOS', type: 'app_store' };
-  const f = fakeFetch((call) => (call.path.endsWith('/apps') ? { body: list([bare]) } : { body: apps.ios }));
+  const f = fakeFetch((call) =>
+    call.path.endsWith('/apps') ? { body: list([bare]) } : { body: apps.ios },
+  );
   const { apps: got } = await listRevenueCatApps(client(f), PROJECT_ID);
   assert.equal(got[0]?.identifier, 'com.example.magic');
   assert.equal(f.calls[1]?.path, `/v2/projects/${PROJECT_ID}/apps/${IOS_APP_ID}`);
   // A key that may read the list but not one app leaves the identifier empty, without failing.
-  const g = fakeFetch((call) => (call.path.endsWith('/apps') ? { body: list([bare]) } : { status: 403, body: errorBody('authorization_error') }));
+  const g = fakeFetch((call) =>
+    call.path.endsWith('/apps')
+      ? { body: list([bare]) }
+      : { status: 403, body: errorBody('authorization_error') },
+  );
   assert.equal((await listRevenueCatApps(client(g), PROJECT_ID)).apps[0]?.identifier, null);
 });
 
 test('one app: found, or undefined when RevenueCat has none', async () => {
   const f = fakeFetch(() => ({ body: apps.play }));
-  assert.equal((await getRevenueCatApp(client(f), PROJECT_ID, PLAY_APP_ID))?.identifier, 'com.example.magic');
+  assert.equal(
+    (await getRevenueCatApp(client(f), PROJECT_ID, PLAY_APP_ID))?.identifier,
+    'com.example.magic',
+  );
   const gone = fakeFetch(() => ({ status: 404, body: errorBody('resource_missing') }));
   assert.equal(await getRevenueCatApp(client(gone), PROJECT_ID, 'nope'), undefined);
   const denied = fakeFetch(() => ({ status: 403, body: {} }));
@@ -111,7 +129,11 @@ const full = (call: Call): Answer => {
       body: list([
         product('prod_m', 'pro_monthly', IOS_APP_ID),
         product('prod_y', 'pro_yearly', IOS_APP_ID, { subscription: { duration: 'P1Y' } }),
-        product('prod_old', 'legacy_pass', IOS_APP_ID, { state: 'inactive', type: 'non_consumable', subscription: null }),
+        product('prod_old', 'legacy_pass', IOS_APP_ID, {
+          state: 'inactive',
+          type: 'non_consumable',
+          subscription: null,
+        }),
         product('prod_play_m', 'sub_pro:monthly', PLAY_APP_ID),
         product('prod_play_y', 'sub_pro:yearly', PLAY_APP_ID),
         { id: 'no_store_id', app_id: IOS_APP_ID },
@@ -121,8 +143,13 @@ const full = (call: Call): Answer => {
   if (path === `${base}/entitlements`) {
     return {
       body: list([
-        entitlement('ent_pro', 'pro', [product('prod_m', 'pro_monthly', IOS_APP_ID), product('prod_play_m', 'sub_pro:monthly', PLAY_APP_ID)]),
-        entitlement('ent_android', 'android_only', [product('prod_play_y', 'sub_pro:yearly', PLAY_APP_ID)]),
+        entitlement('ent_pro', 'pro', [
+          product('prod_m', 'pro_monthly', IOS_APP_ID),
+          product('prod_play_m', 'sub_pro:monthly', PLAY_APP_ID),
+        ]),
+        entitlement('ent_android', 'android_only', [
+          product('prod_play_y', 'sub_pro:yearly', PLAY_APP_ID),
+        ]),
         entitlement('ent_empty', 'nothing', []),
       ]),
     };
@@ -134,10 +161,15 @@ const full = (call: Call): Answer => {
           packageOf('pk_2', '$rc_annual', 2, [product('prod_y', 'pro_yearly', IOS_APP_ID)]),
           packageOf('pk_1', '$rc_monthly', 1, [
             product('prod_m', 'pro_monthly', IOS_APP_ID),
-            { product: product('prod_play_m', 'sub_pro:monthly', PLAY_APP_ID), eligibility_criteria: 'google_sdk_ge_6' },
+            {
+              product: product('prod_play_m', 'sub_pro:monthly', PLAY_APP_ID),
+              eligibility_criteria: 'google_sdk_ge_6',
+            },
           ]),
         ]),
-        offering('ofr_android', 'android', [packageOf('pk_a', 'monthly', 1, [product('prod_play_y', 'sub_pro:yearly', PLAY_APP_ID)])]),
+        offering('ofr_android', 'android', [
+          packageOf('pk_a', 'monthly', 1, [product('prod_play_y', 'sub_pro:yearly', PLAY_APP_ID)]),
+        ]),
       ]),
     };
   }
@@ -146,7 +178,10 @@ const full = (call: Call): Answer => {
 
 test('the configuration of the iOS app: its products, the entitlements and offerings that hold them, nothing of other apps', async () => {
   const f = fakeFetch(full);
-  const config = await readRevenueCatConfiguration(client(f), { projectId: PROJECT_ID, appId: IOS_APP_ID });
+  const config = await readRevenueCatConfiguration(client(f), {
+    projectId: PROJECT_ID,
+    appId: IOS_APP_ID,
+  });
   assert.deepEqual(
     config.products.map((p) => [p.id, p.storeIdentifier, p.state, p.type]),
     [
@@ -172,7 +207,11 @@ test('the configuration of the iOS app: its products, the entitlements and offer
   assert.equal(config.offerings[0]?.lookupKey, 'default');
   assert.equal(config.offerings[0]?.isCurrent, true);
   assert.deepEqual(
-    config.offerings[0]?.packages.map((p) => [p.lookupKey, p.position, p.products.map((x) => x.productId)]),
+    config.offerings[0]?.packages.map((p) => [
+      p.lookupKey,
+      p.position,
+      p.products.map((x) => x.productId),
+    ]),
     [
       ['$rc_monthly', 1, ['prod_m']],
       ['$rc_annual', 2, ['prod_y']],
@@ -188,30 +227,64 @@ test('the configuration of the iOS app: its products, the entitlements and offer
 });
 
 test('the Play app keeps the eligibility of a package product and one product per base plan', async () => {
-  const config = await readRevenueCatConfiguration(client(fakeFetch(full)), { projectId: PROJECT_ID, appId: PLAY_APP_ID });
-  assert.deepEqual(config.products.map((p) => p.storeIdentifier), ['sub_pro:monthly', 'sub_pro:yearly']);
+  const config = await readRevenueCatConfiguration(client(fakeFetch(full)), {
+    projectId: PROJECT_ID,
+    appId: PLAY_APP_ID,
+  });
+  assert.deepEqual(
+    config.products.map((p) => p.storeIdentifier),
+    ['sub_pro:monthly', 'sub_pro:yearly'],
+  );
   const monthly = config.offerings.find((o) => o.lookupKey === 'default')?.packages[0];
-  assert.deepEqual(monthly?.products, [{ productId: 'prod_play_m', eligibility: 'google_sdk_ge_6' }]);
-  assert.deepEqual(config.entitlements.map((e) => e.lookupKey), ['pro', 'android_only', 'nothing']);
+  assert.deepEqual(monthly?.products, [
+    { productId: 'prod_play_m', eligibility: 'google_sdk_ge_6' },
+  ]);
+  assert.deepEqual(
+    config.entitlements.map((e) => e.lookupKey),
+    ['pro', 'android_only', 'nothing'],
+  );
 });
 
 test('a nested list that was not sent, or has a next page, is read from its own endpoint', async () => {
   const f = fakeFetch((call) => {
     const path = pathOf(call);
-    if (path === `${base}/products`) return { body: list([product('prod_m', 'pro_monthly', IOS_APP_ID), product('prod_y', 'pro_yearly', IOS_APP_ID)]) };
-    if (path === `${base}/entitlements`) return { body: list([entitlement('ent_pro', 'pro', null)]) };
-    if (path === `${base}/entitlements/ent_pro/products`) return { body: list([product('prod_m', 'pro_monthly', IOS_APP_ID)]) };
+    if (path === `${base}/products`)
+      return {
+        body: list([
+          product('prod_m', 'pro_monthly', IOS_APP_ID),
+          product('prod_y', 'pro_yearly', IOS_APP_ID),
+        ]),
+      };
+    if (path === `${base}/entitlements`)
+      return { body: list([entitlement('ent_pro', 'pro', null)]) };
+    if (path === `${base}/entitlements/ent_pro/products`)
+      return { body: list([product('prod_m', 'pro_monthly', IOS_APP_ID)]) };
     if (path === `${base}/offerings`) return { body: list([offering('ofr', 'default', null)]) };
     if (path === `${base}/offerings/ofr/packages`) {
-      return { body: list([packageOf('pk_1', 'monthly', 1, null), packageOf('pk_2', 'annual', 2, [product('prod_y', 'pro_yearly', IOS_APP_ID)])]) };
+      return {
+        body: list([
+          packageOf('pk_1', 'monthly', 1, null),
+          packageOf('pk_2', 'annual', 2, [product('prod_y', 'pro_yearly', IOS_APP_ID)]),
+        ]),
+      };
     }
     if (path === `${base}/packages/pk_1/products`) {
-      return { body: list([{ product: product('prod_m', 'pro_monthly', IOS_APP_ID), eligibility_criteria: 'all' }]) };
+      return {
+        body: list([
+          { product: product('prod_m', 'pro_monthly', IOS_APP_ID), eligibility_criteria: 'all' },
+        ]),
+      };
     }
     return { status: 404, body: errorBody('resource_missing') };
   });
-  const config = await readRevenueCatConfiguration(client(f), { projectId: PROJECT_ID, appId: IOS_APP_ID });
-  assert.deepEqual(config.entitlements.map((e) => [e.lookupKey, e.productIds]), [['pro', ['prod_m']]]);
+  const config = await readRevenueCatConfiguration(client(f), {
+    projectId: PROJECT_ID,
+    appId: IOS_APP_ID,
+  });
+  assert.deepEqual(
+    config.entitlements.map((e) => [e.lookupKey, e.productIds]),
+    [['pro', ['prod_m']]],
+  );
   assert.deepEqual(
     config.offerings[0]?.packages.map((p) => [p.lookupKey, p.products.map((x) => x.productId)]),
     [
@@ -223,7 +296,14 @@ test('a nested list that was not sent, or has a next page, is read from its own 
   assert.deepEqual(config.warnings, []);
   assert.deepEqual(
     f.calls.map((c) => c.path.replace(`/v2${base}`, '')),
-    ['/products', '/entitlements', '/entitlements/ent_pro/products', '/offerings', '/offerings/ofr/packages', '/packages/pk_1/products'],
+    [
+      '/products',
+      '/entitlements',
+      '/entitlements/ent_pro/products',
+      '/offerings',
+      '/offerings/ofr/packages',
+      '/packages/pk_1/products',
+    ],
   );
 });
 
@@ -234,7 +314,10 @@ test('when the request budget runs out the read is incomplete, says so, and stil
       ? { body: list([entitlement('e1', 'pro', null), entitlement('e2', 'plus', null)]) }
       : full(call),
   );
-  const config = await readRevenueCatConfiguration(client(g, { maxRequests: 3 }), { projectId: PROJECT_ID, appId: IOS_APP_ID });
+  const config = await readRevenueCatConfiguration(client(g, { maxRequests: 3 }), {
+    projectId: PROJECT_ID,
+    appId: IOS_APP_ID,
+  });
   assert.equal(config.complete, false);
   assert.ok(config.warnings.some((w) => /rate limit/.test(w)));
   assert.ok(g.calls.length <= 3);
@@ -244,10 +327,18 @@ test('when the request budget runs out the read is incomplete, says so, and stil
 test('products that fill more pages than the budget allows make the read incomplete', async () => {
   const f = fakeFetch((call) =>
     call.path.endsWith('/products')
-      ? { body: list([product(`p${call.query.get('starting_after') ?? '0'}`, 'x', IOS_APP_ID)], '/next') }
+      ? {
+          body: list(
+            [product(`p${call.query.get('starting_after') ?? '0'}`, 'x', IOS_APP_ID)],
+            '/next',
+          ),
+        }
       : { body: list([]) },
   );
-  const config = await readRevenueCatConfiguration(client(f, { maxRequests: 6 }), { projectId: PROJECT_ID, appId: IOS_APP_ID });
+  const config = await readRevenueCatConfiguration(client(f, { maxRequests: 6 }), {
+    projectId: PROJECT_ID,
+    appId: IOS_APP_ID,
+  });
   assert.equal(config.complete, false);
   assert.ok(config.warnings.some((w) => /more products/.test(w)));
 });
@@ -255,18 +346,29 @@ test('products that fill more pages than the budget allows make the read incompl
 test('an unreadable product reference makes the read incomplete, so no "not found" is claimed from it', async () => {
   const f = fakeFetch((call) => {
     const path = pathOf(call);
-    if (path === `${base}/products`) return { body: list([product('prod_m', 'pro_monthly', IOS_APP_ID)]) };
-    if (path === `${base}/entitlements`) return { body: list([entitlement('e', 'pro', [{ weird: true }])]) };
+    if (path === `${base}/products`)
+      return { body: list([product('prod_m', 'pro_monthly', IOS_APP_ID)]) };
+    if (path === `${base}/entitlements`)
+      return { body: list([entitlement('e', 'pro', [{ weird: true }])]) };
     return { body: list([]) };
   });
-  const config = await readRevenueCatConfiguration(client(f), { projectId: PROJECT_ID, appId: IOS_APP_ID });
+  const config = await readRevenueCatConfiguration(client(f), {
+    projectId: PROJECT_ID,
+    appId: IOS_APP_ID,
+  });
   assert.equal(config.complete, false);
   assert.ok(config.warnings.some((w) => /could not be read/.test(w)));
 });
 
 test('a refusal of RevenueCat in the middle of the read is a RevenueCatError, never a partial result', async () => {
-  const f = fakeFetch((call) => (call.path.endsWith('/offerings') ? { status: 403, body: errorBody('authorization_error') } : full(call)));
-  const error = await failure(() => readRevenueCatConfiguration(client(f), { projectId: PROJECT_ID, appId: IOS_APP_ID }));
+  const f = fakeFetch((call) =>
+    call.path.endsWith('/offerings')
+      ? { status: 403, body: errorBody('authorization_error') }
+      : full(call),
+  );
+  const error = await failure(() =>
+    readRevenueCatConfiguration(client(f), { projectId: PROJECT_ID, appId: IOS_APP_ID }),
+  );
   assert.equal(error.kind, 'forbidden');
   assert.match(error.message, /offerings and packages/);
 });

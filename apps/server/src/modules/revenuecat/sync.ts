@@ -4,7 +4,12 @@ import type { Database } from '@kiln/db';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
-import { REVENUECAT_SYNC_PURPOSE, revenueCatClientFor, revenueCatClientFromSecret, revenueCatFailure } from './client.ts';
+import {
+  REVENUECAT_SYNC_PURPOSE,
+  revenueCatClientFor,
+  revenueCatClientFromSecret,
+  revenueCatFailure,
+} from './client.ts';
 import type { RevenueCatDeps } from './index.ts';
 import { getRevenueCatLink, notSupportedFailure } from './link.ts';
 import { type RevenueCatMetricsStep, syncRevenueCatMetrics } from './metrics.ts';
@@ -88,12 +93,19 @@ export async function syncRevenueCat(
     controller.abort();
   }, ctx.deps?.syncTimeoutMs ?? DEFAULT_REVENUECAT_SYNC_TIMEOUT_MS);
   try {
-    const opened = await revenueCatClientFor(ctx.db, ctx.masterKey, input.workspaceId, link.credentialId, ctx.deps, {
-      actor: input.actor,
-      purpose: REVENUECAT_SYNC_PURPOSE,
-      now: at,
-      signal: controller.signal,
-    });
+    const opened = await revenueCatClientFor(
+      ctx.db,
+      ctx.masterKey,
+      input.workspaceId,
+      link.credentialId,
+      ctx.deps,
+      {
+        actor: input.actor,
+        purpose: REVENUECAT_SYNC_PURPOSE,
+        now: at,
+        signal: controller.signal,
+      },
+    );
     if (!opened.ok) return failed(opened);
     let config: Awaited<ReturnType<typeof readRevenueCatConfiguration>>;
     try {
@@ -108,14 +120,20 @@ export async function syncRevenueCat(
           ),
         );
       }
-      config = await readRevenueCatConfiguration(opened.client, { projectId: link.projectId, appId: link.revenueCatAppId });
+      config = await readRevenueCatConfiguration(opened.client, {
+        projectId: link.projectId,
+        appId: link.revenueCatAppId,
+      });
     } catch (error) {
-      if (timedOut) return failed(failure(
-        504,
-        'timeout',
-        'RevenueCat did not answer in time. Try again in a minute.',
-        coded('revenuecat.timeout'),
-      ));
+      if (timedOut)
+        return failed(
+          failure(
+            504,
+            'timeout',
+            'RevenueCat did not answer in time. Try again in a minute.',
+            coded('revenuecat.timeout'),
+          ),
+        );
       return failed(revenueCatFailure(error, opened.secret));
     }
     await ctx.db.transaction(async (tx) => {
@@ -156,7 +174,11 @@ export async function syncRevenueCat(
           signal: controller.signal,
           at,
         })
-      : { ok: false, code: String(metricsClient.body.error), message: String(metricsClient.body.message ?? metricsClient.body.error) };
+      : {
+          ok: false,
+          code: String(metricsClient.body.error),
+          message: String(metricsClient.body.message ?? metricsClient.body.error),
+        };
     return {
       ok: true,
       result: {
@@ -196,6 +218,10 @@ export async function revenueCatStep(
     };
   } catch {
     // The error text is dropped on purpose: it could echo what was sent.
-    return { ok: false, code: 'revenuecat_failed', message: 'The RevenueCat read could not be completed. Try again in a moment.' };
+    return {
+      ok: false,
+      code: 'revenuecat_failed',
+      message: 'The RevenueCat read could not be completed. Try again in a moment.',
+    };
   }
 }

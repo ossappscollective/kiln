@@ -116,8 +116,7 @@ export type TokenFormProblems = { name?: string; actions?: string };
 export function validateTokenForm(form: TokenForm): TokenFormProblems {
   const problems: TokenFormProblems = {};
   const name = form.name.trim();
-  if (!name)
-    problems.name = t('workspace:token.form.nameRequired');
+  if (!name) problems.name = t('workspace:token.form.nameRequired');
   else if (name.length > 100) problems.name = t('workspace:token.form.nameTooLong', { count: 100 });
   const allowed = new Set<string>(narrowableActions(form.role));
   if (form.actions.some((a) => !allowed.has(a)))
@@ -177,18 +176,27 @@ export function tokenStatus(token: ApiToken, now: number = Date.now()): TokenSta
       title: t('workspace:token.status.expiresAt', { date: fullTime(token.expiresAt) }),
     };
   }
-  return { label: t('workspace:token.status.active'), tone: 'ok', title: t('workspace:token.status.activeTitle') };
+  return {
+    label: t('workspace:token.status.active'),
+    tone: 'ok',
+    title: t('workspace:token.status.activeTitle'),
+  };
 }
 
 export function lastUsed(token: ApiToken, now: number = Date.now()): string {
-  return token.lastUsedAt === null ? t('workspace:token.neverUsed') : timeAgo(token.lastUsedAt, now);
+  return token.lastUsedAt === null
+    ? t('workspace:token.neverUsed')
+    : timeAgo(token.lastUsedAt, now);
 }
 
 export function expiryLabel(token: ApiToken, now: number = Date.now()): string {
   if (token.expiresAt === null) return t('workspace:token.expiry.neverShort');
-  if (token.expiresAt <= now) return t('workspace:token.expiry.expiredAgo', { when: timeAgo(token.expiresAt, now) });
+  if (token.expiresAt <= now)
+    return t('workspace:token.expiry.expiredAgo', { when: timeAgo(token.expiresAt, now) });
   const days = Math.ceil((token.expiresAt - now) / DAY);
-  return days <= 1 ? t('workspace:token.expiry.underDay') : t('workspace:token.expiry.inDays', { count: days });
+  return days <= 1
+    ? t('workspace:token.expiry.underDay')
+    : t('workspace:token.expiry.inDays', { count: days });
 }
 
 /** What the token is limited to, as a short phrase: "all apps · all actions of the role". */

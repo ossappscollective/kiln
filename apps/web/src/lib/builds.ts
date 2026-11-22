@@ -1,7 +1,12 @@
 import type { Platform } from '@kiln/core';
 import { platformSupports, supports } from '@kiln/core';
 import { appAddress } from './app-scope.ts';
-import { type EasBuildView, easBuildDetail, easBuildState, easBuildTitle } from './eas/eas-status.ts';
+import {
+  type EasBuildView,
+  easBuildDetail,
+  easBuildState,
+  easBuildTitle,
+} from './eas/eas-status.ts';
 import { formatBytes, formatList } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
 
@@ -149,7 +154,9 @@ const artifactState = (a: ArtifactItem): BuildRow['state'] => {
   if (a.run.conclusion !== null && a.run.conclusion !== 'success') {
     const key = runConclusionKeys[a.run.conclusion];
     return {
-      label: key ? t(key) : t('builds:row.run.other', { conclusion: a.run.conclusion.replace(/_/g, ' ') }),
+      label: key
+        ? t(key)
+        : t('builds:row.run.other', { conclusion: a.run.conclusion.replace(/_/g, ' ') }),
       tone: 'warn',
     };
   }
@@ -220,7 +227,8 @@ export function storeRow(b: StoreBuildItem): BuildRow {
 
 /** An EAS build as a row. Its files are not downloadable through this server: the Expo page of the build is the way to install it. */
 export function easRow(b: EasBuildView, now: number = Date.now()): BuildRow {
-  const expired = b.status === 'finished' && b.artifactExpiresAt !== null && b.artifactExpiresAt <= now;
+  const expired =
+    b.status === 'finished' && b.artifactExpiresAt !== null && b.artifactExpiresAt <= now;
   return {
     key: `eas:${b.id}`,
     source: 'eas',
@@ -291,7 +299,8 @@ export function hiddenBy(rows: readonly BuildRow[], f: BuildFilters): number {
 // Words
 
 /** `1.5 MB` in the active language; '' when the size is not known. */
-export const humanSize = (bytes: number | null): string => (bytes === null ? '' : formatBytes(bytes));
+export const humanSize = (bytes: number | null): string =>
+  bytes === null ? '' : formatBytes(bytes);
 
 const DAY = 24 * 60 * 60_000;
 
@@ -322,17 +331,19 @@ export const kindLabel = (kind: RowKind): string =>
     ? t('builds:kind.macApp')
     : kind === 'other'
       ? t('builds:kind.other')
-      : ({
-          ipa: 'IPA',
-          apk: 'APK',
-          aab: 'AAB',
-          dmg: 'DMG',
-          pkg: 'PKG',
-          zip: 'Zip',
-          testflight: 'TestFlight',
-          play: 'Play',
-          eas: 'EAS',
-        } as const)[kind];
+      : (
+          {
+            ipa: 'IPA',
+            apk: 'APK',
+            aab: 'AAB',
+            dmg: 'DMG',
+            pkg: 'PKG',
+            zip: 'Zip',
+            testflight: 'TestFlight',
+            play: 'Play',
+            eas: 'EAS',
+          } as const
+        )[kind];
 
 // ---------------------------------------------------------------------------------------------
 // Install guidance
@@ -356,7 +367,9 @@ function easGuide(b: EasBuildView): Guide {
   if (b.status !== 'finished') {
     return {
       title:
-        b.status === 'errored' ? t('builds:guide.eas.failedTitle') : t('builds:guide.eas.runningTitle'),
+        b.status === 'errored'
+          ? t('builds:guide.eas.failedTitle')
+          : t('builds:guide.eas.runningTitle'),
       steps: [
         b.status === 'errored'
           ? t('builds:guide.eas.failedStep')
@@ -446,7 +459,11 @@ export function installGuide(row: BuildRow): Guide {
     case 'apk':
       return {
         title: t('builds:guide.apk.title'),
-        steps: [t('builds:guide.apk.step1'), t('builds:guide.apk.step2'), t('builds:guide.apk.step3')],
+        steps: [
+          t('builds:guide.apk.step1'),
+          t('builds:guide.apk.step2'),
+          t('builds:guide.apk.step3'),
+        ],
         caution: t('builds:guide.apk.caution'),
         downloads: true,
         qr: true,
@@ -455,7 +472,11 @@ export function installGuide(row: BuildRow): Guide {
     case 'aab':
       return {
         title: t('builds:guide.aab.title'),
-        steps: [t('builds:guide.aab.step1'), t('builds:guide.aab.step2'), t('builds:guide.aab.step3')],
+        steps: [
+          t('builds:guide.aab.step1'),
+          t('builds:guide.aab.step2'),
+          t('builds:guide.aab.step3'),
+        ],
         caution: t('builds:guide.aab.caution'),
         downloads: true,
         qr: false,
@@ -464,7 +485,11 @@ export function installGuide(row: BuildRow): Guide {
     case 'ipa':
       return {
         title: t('builds:guide.ipa.title'),
-        steps: [t('builds:guide.ipa.step1'), t('builds:guide.ipa.step2'), t('builds:guide.ipa.step3')],
+        steps: [
+          t('builds:guide.ipa.step1'),
+          t('builds:guide.ipa.step2'),
+          t('builds:guide.ipa.step3'),
+        ],
         caution: t('builds:guide.ipa.caution'),
         downloads: true,
         qr: false,
@@ -532,7 +557,9 @@ export function problemNotice(
         tone: 'warn',
         title: t('builds:notice.noAccess.title'),
         body: t('builds:notice.noAccess.body', {
-          repository: repo ? `${repo.owner}/${repo.repo}` : t('builds:notice.noAccess.theRepository'),
+          repository: repo
+            ? `${repo.owner}/${repo.repo}`
+            : t('builds:notice.noAccess.theRepository'),
         }),
       };
     case 'rate_limited':
@@ -835,8 +862,7 @@ export const phraseMatches = (typed: string, phrase: string | null | undefined):
   !!phrase && typed.trim() === phrase;
 
 /** Words for a link's life: "24 hours" for the server's copy; Google's own expiry is not known here. */
-export const linkKeptText = (hours: number): string =>
-  t('builds:share.linkKept', { count: hours });
+export const linkKeptText = (hours: number): string => t('builds:share.linkKept', { count: hours });
 
 export const linkSensitiveText = (): string => t('builds:share.linkSensitive');
 

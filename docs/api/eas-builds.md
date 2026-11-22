@@ -4,10 +4,10 @@ The builds and the submissions of the Expo (EAS) project an app record is linked
 ([ADR 0036](../adr/0036-eas-build-submit-status.md)). Needs the link of [eas.md](eas.md) (an Expo credential and a project). **Read only:**
 nothing is created, cancelled or resubmitted at Expo. The routes are under `/api/workspaces/:workspaceId/apps/:appId/eas/status`.
 
-| Route | Right | What it does |
-| --- | --- | --- |
-| `GET /status` | `builds.read` | The stored snapshot. Database only: Expo is not called. |
-| `POST /status/refresh` | `apps.sync` | Reads Expo with the credential of the link, replaces the snapshot, answers like `GET`. Shares the budget of the app syncs (10 a minute per workspace). |
+| Route                  | Right         | What it does                                                                                                                                           |
+| ---------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /status`          | `builds.read` | The stored snapshot. Database only: Expo is not called.                                                                                                |
+| `POST /status/refresh` | `apps.sync`   | Reads Expo with the credential of the link, replaces the snapshot, answers like `GET`. Shares the budget of the app syncs (10 a minute per workspace). |
 
 Members and above can read; viewers cannot (as for the other builds). Non-members and apps of another workspace are `404`. A token limited to
 some apps may use both for those apps only.

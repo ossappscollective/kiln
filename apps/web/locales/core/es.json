@@ -99,6 +99,7 @@
   "rollout.issue.afterPrevious": "Un paso no se puede programar antes del paso anterior.",
   "rollout.issue.beforeDone": "Un paso anterior a uno completado debe estar completado u omitido.",
   "rollout.issue.dateTime": "Una fecha y una hora.",
+  "rollout.issue.dayOneBeforeCreated": "El día 1 no puede ser anterior a la creación del plan.",
   "rollout.issue.doneCannotRemove": "El paso del {{percent}} está completado y no se puede quitar. Reábrelo primero.",
   "rollout.issue.doneKeepsPercent": "Un paso completado conserva su porcentaje. Reábrelo primero.",
   "rollout.issue.higherThanBefore": "Cada paso debe ser mayor que el anterior ({{percent}}).",

@@ -231,7 +231,8 @@ export function mapAppleSubscriptionEventTable(
         : kind === 'cancelled'
           ? 'subscriptions_cancelled'
           : 'subscriptions_trial_conversions';
-    for (const dimension of targets(row, at, options)) add(acc, options.date, metric, quantity, dimension);
+    for (const dimension of targets(row, at, options))
+      add(acc, options.date, metric, quantity, dimension);
     stats.rowsUsed++;
   }
   return { points: sortPoints(acc), stats };

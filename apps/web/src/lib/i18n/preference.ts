@@ -30,7 +30,10 @@ export function readLocalePref(storage: Reader | undefined = defaultStorage()): 
 }
 
 /** Saves the choice. A private window can refuse storage; the choice then lasts one visit. `null` forgets it. */
-export function saveLocalePref(code: string | null, storage: Writer | undefined = defaultStorage()): void {
+export function saveLocalePref(
+  code: string | null,
+  storage: Writer | undefined = defaultStorage(),
+): void {
   try {
     if (code === null) storage?.removeItem(LOCALE_KEY);
     else storage?.setItem(LOCALE_KEY, code);
@@ -60,7 +63,10 @@ export function resolveInitialLocale(input: {
 }
 
 /** Sets `lang` and `dir` on the root element (`<html>`), so screen readers, hyphenation and the layout follow the language. */
-export function applyDocumentLocale(code: string, root: { setAttribute(name: string, value: string): void }): void {
+export function applyDocumentLocale(
+  code: string,
+  root: { setAttribute(name: string, value: string): void },
+): void {
   root.setAttribute('lang', localeInfo(code).htmlLang);
   root.setAttribute('dir', directionOf(code));
 }

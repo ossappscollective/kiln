@@ -113,7 +113,9 @@ const productSalesSchema = z.object({
   unitsKind: z.enum(['units', 'orders']),
   hasSalesData: z
     .boolean()
-    .describe('Whether any sales day of the app is stored. When false, hide sales and show `sales.setup`.'),
+    .describe(
+      'Whether any sales day of the app is stored. When false, hide sales and show `sales.setup`.',
+    ),
   enabled: z.boolean(),
   sales: z.object({
     source: z.enum(['apple_sales', 'play_sales']),
@@ -133,13 +135,18 @@ const productSalesSchema = z.object({
   }),
   products: z.array(
     z.object({
-      productId: z.string().describe('Apple SKU or Google Play SKU ID: the productId of the Products page.'),
+      productId: z
+        .string()
+        .describe('Apple SKU or Google Play SKU ID: the productId of the Products page.'),
       units: z.number().nullable(),
       amounts: z.array(
         z.object({
           currency: z.string(),
           amount: z.number(),
-          refunds: z.number().nullable().describe('Google only: refunded amounts in the range (positive).'),
+          refunds: z
+            .number()
+            .nullable()
+            .describe('Google only: refunded amounts in the range (positive).'),
         }),
       ),
       days: z.number().int(),

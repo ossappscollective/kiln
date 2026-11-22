@@ -93,7 +93,11 @@ export function looksStale(
 
 export const fileStateInfo: Record<
   FileState,
-  { readonly label: string; readonly tone: 'ok' | 'info' | 'warn' | 'neutral'; readonly hint: string }
+  {
+    readonly label: string;
+    readonly tone: 'ok' | 'info' | 'warn' | 'neutral';
+    readonly hint: string;
+  }
 > = {
   same: {
     get label() {
@@ -155,7 +159,10 @@ export const conflictReasonText: Record<ConflictReason, string> = {
   },
 };
 
-export const resolutionInfo: Record<Resolution, { readonly label: string; readonly description: string }> = {
+export const resolutionInfo: Record<
+  Resolution,
+  { readonly label: string; readonly description: string }
+> = {
   mine: {
     get label() {
       return t('publish:refresh.resolution.mine');
@@ -213,14 +220,14 @@ export function toResolutions(
 export function refreshDoneMessage(
   result: Pick<RefreshResult, 'files' | 'nothingLeft' | 'unchanged' | 'approvalCleared'>,
 ): string {
-  if (result.nothingLeft)
-    return t('publish:refresh.done.nothingLeft');
+  if (result.nothingLeft) return t('publish:refresh.done.nothingLeft');
   if (result.unchanged) return t('publish:refresh.done.unchanged');
   const count = (outcome: RefreshFile['outcome']) =>
     result.files.filter((f) => f.outcome === outcome).length;
   const parts: string[] = [];
   if (count('merged') > 0) parts.push(t('publish:refresh.done.merged', { count: count('merged') }));
-  if (count('dropped') > 0) parts.push(t('publish:refresh.done.dropped', { count: count('dropped') }));
+  if (count('dropped') > 0)
+    parts.push(t('publish:refresh.done.dropped', { count: count('dropped') }));
   if (count('kept_mine') > 0)
     parts.push(t('publish:refresh.done.keptMine', { count: count('kept_mine') }));
   if (count('kept_theirs') > 0)

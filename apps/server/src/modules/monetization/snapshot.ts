@@ -243,14 +243,7 @@ export async function storeLocalizationText(
   await sql.execute(
     `UPDATE store_product_localizations SET name = ?, description = ?
       WHERE app_id = ? AND workspace_id = ? AND product_id = ? AND locale = ?`,
-    [
-      input.name,
-      input.description,
-      input.appId,
-      input.workspaceId,
-      input.productId,
-      input.locale,
-    ],
+    [input.name, input.description, input.appId, input.workspaceId, input.productId, input.locale],
   );
 }
 

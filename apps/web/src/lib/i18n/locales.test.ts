@@ -33,7 +33,12 @@ const memory = () => {
 test('the available languages are English, French, Spanish, German with native names', () => {
   assert.deepEqual(
     availableLocales.map((l) => [l.code, l.name]),
-    [['en', 'English'], ['fr', 'Français'], ['es', 'Español'], ['de', 'Deutsch']],
+    [
+      ['en', 'English'],
+      ['fr', 'Français'],
+      ['es', 'Español'],
+      ['de', 'Deutsch'],
+    ],
   );
   assert.equal(availableLocales[0]?.code, SOURCE_LOCALE);
   assert.equal(isAvailableLocale('fr'), true);

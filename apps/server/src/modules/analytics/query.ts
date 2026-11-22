@@ -144,7 +144,11 @@ const staticNotes: Record<AnalyticsMetric, CoverageNoteCode[]> = {
     'play_earnings_per_currency',
     'play_earnings_pacific',
   ],
-  earnings_charges: ['play_earnings_monthly', 'play_earnings_per_currency', 'play_earnings_pacific'],
+  earnings_charges: [
+    'play_earnings_monthly',
+    'play_earnings_per_currency',
+    'play_earnings_pacific',
+  ],
   earnings_taxes: ['play_earnings_monthly', 'play_earnings_per_currency', 'play_earnings_pacific'],
   earnings_fees: ['play_earnings_monthly', 'play_earnings_per_currency', 'play_earnings_pacific'],
   earnings_orders: ['play_earnings_monthly', 'play_earnings_pacific'],
@@ -285,8 +289,7 @@ function coverageOf(input: CoverageInput): SeriesCoverage {
   if (sorted.length > 0) {
     const fresh = input.monthly
       ? lastDay !== null &&
-        lastDay >=
-          [newestExpectedMonth(input.today), bucketStart(input.to, 'month')].sort()[0]!
+        lastDay >= [newestExpectedMonth(input.today), bucketStart(input.to, 'month')].sort()[0]!
       : lastDay !== null && lastDay >= addDays(input.to, -input.delayDays);
     state = gapDays === 0 && fresh ? 'complete' : 'partial';
     if (gapDays > 0 && !input.monthly) notes.push('gaps');

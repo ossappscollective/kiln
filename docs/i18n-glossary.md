@@ -13,88 +13,88 @@ when it needs one ("des webhooks", "los webhooks", "die Webhooks").
 
 ## Tone and style per language
 
-| | Français | Español | Deutsch |
-| --- | --- | --- | --- |
-| Address | **vous** | Buttons and labels: the infinitive ("Guardar", "Reintentar"). A sentence that must address the reader: neutral Latin-American **tú** imperative ("Comprueba…"). Never *usted*, never *vosotros*. Prefer impersonal wording. | **Sie** (always capitalised) |
-| Case | Sentence case. Capital only for the first word and proper names. | Sentence case. | Sentence case for labels and titles; nouns keep their capital. |
-| Punctuation | Non-breaking space before `:` `;` `!` `?`. Typographic apostrophe `’`. Quotes “ ”. | Opening `¿` and `¡`. | Quotes „ “ or “ ” as the source uses. |
-| Numbers, dates, money | Never typed by a translator: they come from `Intl` (`formatNumber`, `formatDate`, …). | same | same |
-| Gender | Use forms that work for everyone ("membres", "l’équipe"); avoid inclusive-writing dots. | "Persona", "miembros". | "Mitglieder", "Inhaber"; avoid the gender star. |
-| Length | Often 20 percent longer than English: shorten verbs, not meaning. | 15-25 percent longer. | Compounds are long: hyphenate at `-` ("API-Token"). |
+|                       | Français                                                                                | Español                                                                                                                                                                                                                     | Deutsch                                                        |
+| --------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Address               | **vous**                                                                                | Buttons and labels: the infinitive ("Guardar", "Reintentar"). A sentence that must address the reader: neutral Latin-American **tú** imperative ("Comprueba…"). Never _usted_, never _vosotros_. Prefer impersonal wording. | **Sie** (always capitalised)                                   |
+| Case                  | Sentence case. Capital only for the first word and proper names.                        | Sentence case.                                                                                                                                                                                                              | Sentence case for labels and titles; nouns keep their capital. |
+| Punctuation           | Non-breaking space before `:` `;` `!` `?`. Typographic apostrophe `’`. Quotes “ ”.      | Opening `¿` and `¡`.                                                                                                                                                                                                        | Quotes „ “ or “ ” as the source uses.                          |
+| Numbers, dates, money | Never typed by a translator: they come from `Intl` (`formatNumber`, `formatDate`, …).   | same                                                                                                                                                                                                                        | same                                                           |
+| Gender                | Use forms that work for everyone ("membres", "l’équipe"); avoid inclusive-writing dots. | "Persona", "miembros".                                                                                                                                                                                                      | "Mitglieder", "Inhaber"; avoid the gender star.                |
+| Length                | Often 20 percent longer than English: shorten verbs, not meaning.                       | 15-25 percent longer.                                                                                                                                                                                                       | Compounds are long: hyphenate at `-` ("API-Token").            |
 
 ## Terms
 
-| English | Français | Español | Deutsch | Note |
-| --- | --- | --- | --- | --- |
-| account | compte | cuenta | Konto | |
-| admin (role) | administrateur | administrador | Administrator | |
-| alert | alerte | alerta | Warnung | An alert raised by Kiln. A *notification* is `Benachrichtigung`. |
-| API token | jeton d’API | token de API | API-Token | |
-| app | application | app | App | French never abbreviates to "app" in running text. Plural: applications, apps, Apps. |
-| approved | approuvé | aprobado | genehmigt | Store review state. |
-| artifact (CI) | artefact | artefacto | Artefakt | |
-| audit log | journal d’audit | registro de auditoría | Audit-Protokoll | |
-| build | build | compilación | Build | French and German keep "build" (plural builds, Builds). |
-| change set | lot de modifications | conjunto de cambios | Änderungssatz | A set of edits Kiln proposes to a repository. |
-| checklist | liste de contrôle | lista de comprobación | Checkliste | |
-| competitor | concurrent | competidor | Wettbewerber | |
-| conversion | conversion | conversión | Conversion | |
-| credential | identifiant d’accès | credencial | Zugangsdaten | A stored key or account. German is plural: "die Zugangsdaten", "ein Zugang" for one. In tight spaces (navigation) French may shorten to "identifiants". Not a person's login name. |
-| dashboard | tableau de bord | panel | Dashboard | |
-| demo | démonstration | demostración | Demo | |
-| draft | brouillon | borrador | Entwurf | |
-| halted (rollout) | interrompu | detenido | angehalten | |
-| in-app purchase | achat intégré | compra integrada | In-App-Kauf | The thing sold inside an app. |
-| in review | en cours d’examen | en revisión | in Prüfung | Store review state. |
-| install | installation | instalación | Installation | A *download* is `téléchargement`, `descarga`, `Download`. |
-| keyword | mot-clé | palabra clave | Keyword | ASO keyword. |
-| listing (store listing) | fiche de l’application | ficha de la tienda | Store-Eintrag | The text and images shown in a store. |
-| locale (listing language) | langue | idioma | Sprache | The language of a listing. Not the app's own language setting. |
-| member | membre | miembro | Mitglied | |
-| metadata | métadonnées | metadatos | Metadaten | |
-| notification | notification | notificación | Benachrichtigung | |
-| owner (role) | propriétaire | propietario | Inhaber | |
-| password | mot de passe | contraseña | Passwort | |
-| pending changes | modifications en attente | cambios pendientes | ausstehende Änderungen | Edits staged but not sent to a store. |
-| phased release / staged rollout | déploiement progressif | despliegue gradual | gestaffelte Einführung | Releasing to a growing share of users. "Rollout" alone is avoided in German. |
-| platform | plateforme | plataforma | Plattform | iOS or Android. |
-| plan (release plan) | plan | plan | Plan | |
-| product (in-app product) | produit | producto | Produkt | |
-| publish | publier | publicar | veröffentlichen | Send a change to a store. |
-| rating | note | valoración | Bewertung | The stars. |
-| ready for sale | prêt à la vente | listo para la venta | Zum Verkauf bereit | Apple's state name. |
-| recovery code | code de récupération | código de recuperación | Wiederherstellungscode | |
-| rejected | rejeté | rechazado | abgelehnt | |
-| release | publication | lanzamiento | Release | A release of a version, with its plan. The verb: publier, lanzar, veröffentlichen. |
-| release notes | notes de version | notas de la versión | Versionshinweise | |
-| repository | dépôt | repositorio | Repository | A Git repository. |
-| reply (to a review) | réponse | respuesta | Antwort | |
-| review (by a user) | avis | reseña | Rezension | What people write about an app. "Reviews inbox": boîte des avis, bandeja de reseñas, Rezensionseingang. |
-| review (by the store) | examen | revisión | Prüfung | Apple or Google checking a submission. |
-| revenue | revenus | ingresos | Umsatz | |
-| rollout | déploiement | despliegue | Einführung | See phased release. |
-| screenshot | capture d’écran | captura de pantalla | Screenshot | |
-| settings | paramètres | ajustes | Einstellungen | |
-| sign in / sign out | se connecter / se déconnecter | iniciar sesión / cerrar sesión | anmelden / abmelden | The button is the infinitive or the imperative of the language's norm. |
-| store | store | tienda | Store | The App Store, Google Play. "les stores". |
-| submission | soumission | envío | Einreichung | Sending a version to a store's review. "Submit for review": soumettre à l’examen, enviar a revisión, zur Prüfung einreichen. |
-| subscription | abonnement | suscripción | Abonnement | |
-| sync | synchroniser / synchronisation | sincronizar / sincronización | synchronisieren / Synchronisierung | Reading the stores into Kiln. |
-| territory / country or region | pays ou région | país o región | Land oder Region | |
-| theme (light / dark) | thème (clair / sombre) | tema (claro / oscuro) | Design (Hell / Dunkel) | |
-| track (Google Play) | piste | canal | Track | Use the wording of Google's own console in each language. |
-| trial | essai | prueba | Testphase | "Free trial": essai gratuit, prueba gratuita, kostenlose Testphase. |
-| two-factor authentication | authentification à deux facteurs | autenticación en dos pasos | Zwei-Faktor-Authentifizierung | |
-| unanswered | sans réponse | sin responder | unbeantwortet | |
-| version | version | versión | Version | The number of a release (1.4.0). |
-| viewer (role) | lecteur | lector | Leser | |
-| webhook | webhook | webhook | Webhook | |
-| workflow | workflow | flujo de trabajo | Workflow | A GitHub Actions or EAS workflow. |
-| workspace | espace de travail | espacio de trabajo | Arbeitsbereich | The place a team's apps and settings live. |
+| English                         | Français                         | Español                        | Deutsch                            | Note                                                                                                                                                                               |
+| ------------------------------- | -------------------------------- | ------------------------------ | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| account                         | compte                           | cuenta                         | Konto                              |                                                                                                                                                                                    |
+| admin (role)                    | administrateur                   | administrador                  | Administrator                      |                                                                                                                                                                                    |
+| alert                           | alerte                           | alerta                         | Warnung                            | An alert raised by Kiln. A _notification_ is `Benachrichtigung`.                                                                                                                   |
+| API token                       | jeton d’API                      | token de API                   | API-Token                          |                                                                                                                                                                                    |
+| app                             | application                      | app                            | App                                | French never abbreviates to "app" in running text. Plural: applications, apps, Apps.                                                                                               |
+| approved                        | approuvé                         | aprobado                       | genehmigt                          | Store review state.                                                                                                                                                                |
+| artifact (CI)                   | artefact                         | artefacto                      | Artefakt                           |                                                                                                                                                                                    |
+| audit log                       | journal d’audit                  | registro de auditoría          | Audit-Protokoll                    |                                                                                                                                                                                    |
+| build                           | build                            | compilación                    | Build                              | French and German keep "build" (plural builds, Builds).                                                                                                                            |
+| change set                      | lot de modifications             | conjunto de cambios            | Änderungssatz                      | A set of edits Kiln proposes to a repository.                                                                                                                                      |
+| checklist                       | liste de contrôle                | lista de comprobación          | Checkliste                         |                                                                                                                                                                                    |
+| competitor                      | concurrent                       | competidor                     | Wettbewerber                       |                                                                                                                                                                                    |
+| conversion                      | conversion                       | conversión                     | Conversion                         |                                                                                                                                                                                    |
+| credential                      | identifiant d’accès              | credencial                     | Zugangsdaten                       | A stored key or account. German is plural: "die Zugangsdaten", "ein Zugang" for one. In tight spaces (navigation) French may shorten to "identifiants". Not a person's login name. |
+| dashboard                       | tableau de bord                  | panel                          | Dashboard                          |                                                                                                                                                                                    |
+| demo                            | démonstration                    | demostración                   | Demo                               |                                                                                                                                                                                    |
+| draft                           | brouillon                        | borrador                       | Entwurf                            |                                                                                                                                                                                    |
+| halted (rollout)                | interrompu                       | detenido                       | angehalten                         |                                                                                                                                                                                    |
+| in-app purchase                 | achat intégré                    | compra integrada               | In-App-Kauf                        | The thing sold inside an app.                                                                                                                                                      |
+| in review                       | en cours d’examen                | en revisión                    | in Prüfung                         | Store review state.                                                                                                                                                                |
+| install                         | installation                     | instalación                    | Installation                       | A _download_ is `téléchargement`, `descarga`, `Download`.                                                                                                                          |
+| keyword                         | mot-clé                          | palabra clave                  | Keyword                            | ASO keyword.                                                                                                                                                                       |
+| listing (store listing)         | fiche de l’application           | ficha de la tienda             | Store-Eintrag                      | The text and images shown in a store.                                                                                                                                              |
+| locale (listing language)       | langue                           | idioma                         | Sprache                            | The language of a listing. Not the app's own language setting.                                                                                                                     |
+| member                          | membre                           | miembro                        | Mitglied                           |                                                                                                                                                                                    |
+| metadata                        | métadonnées                      | metadatos                      | Metadaten                          |                                                                                                                                                                                    |
+| notification                    | notification                     | notificación                   | Benachrichtigung                   |                                                                                                                                                                                    |
+| owner (role)                    | propriétaire                     | propietario                    | Inhaber                            |                                                                                                                                                                                    |
+| password                        | mot de passe                     | contraseña                     | Passwort                           |                                                                                                                                                                                    |
+| pending changes                 | modifications en attente         | cambios pendientes             | ausstehende Änderungen             | Edits staged but not sent to a store.                                                                                                                                              |
+| phased release / staged rollout | déploiement progressif           | despliegue gradual             | gestaffelte Einführung             | Releasing to a growing share of users. "Rollout" alone is avoided in German.                                                                                                       |
+| platform                        | plateforme                       | plataforma                     | Plattform                          | iOS or Android.                                                                                                                                                                    |
+| plan (release plan)             | plan                             | plan                           | Plan                               |                                                                                                                                                                                    |
+| product (in-app product)        | produit                          | producto                       | Produkt                            |                                                                                                                                                                                    |
+| publish                         | publier                          | publicar                       | veröffentlichen                    | Send a change to a store.                                                                                                                                                          |
+| rating                          | note                             | valoración                     | Bewertung                          | The stars.                                                                                                                                                                         |
+| ready for sale                  | prêt à la vente                  | listo para la venta            | Zum Verkauf bereit                 | Apple's state name.                                                                                                                                                                |
+| recovery code                   | code de récupération             | código de recuperación         | Wiederherstellungscode             |                                                                                                                                                                                    |
+| rejected                        | rejeté                           | rechazado                      | abgelehnt                          |                                                                                                                                                                                    |
+| release                         | publication                      | lanzamiento                    | Release                            | A release of a version, with its plan. The verb: publier, lanzar, veröffentlichen.                                                                                                 |
+| release notes                   | notes de version                 | notas de la versión            | Versionshinweise                   |                                                                                                                                                                                    |
+| repository                      | dépôt                            | repositorio                    | Repository                         | A Git repository.                                                                                                                                                                  |
+| reply (to a review)             | réponse                          | respuesta                      | Antwort                            |                                                                                                                                                                                    |
+| review (by a user)              | avis                             | reseña                         | Rezension                          | What people write about an app. "Reviews inbox": boîte des avis, bandeja de reseñas, Rezensionseingang.                                                                            |
+| review (by the store)           | examen                           | revisión                       | Prüfung                            | Apple or Google checking a submission.                                                                                                                                             |
+| revenue                         | revenus                          | ingresos                       | Umsatz                             |                                                                                                                                                                                    |
+| rollout                         | déploiement                      | despliegue                     | Einführung                         | See phased release.                                                                                                                                                                |
+| screenshot                      | capture d’écran                  | captura de pantalla            | Screenshot                         |                                                                                                                                                                                    |
+| settings                        | paramètres                       | ajustes                        | Einstellungen                      |                                                                                                                                                                                    |
+| sign in / sign out              | se connecter / se déconnecter    | iniciar sesión / cerrar sesión | anmelden / abmelden                | The button is the infinitive or the imperative of the language's norm.                                                                                                             |
+| store                           | store                            | tienda                         | Store                              | The App Store, Google Play. "les stores".                                                                                                                                          |
+| submission                      | soumission                       | envío                          | Einreichung                        | Sending a version to a store's review. "Submit for review": soumettre à l’examen, enviar a revisión, zur Prüfung einreichen.                                                       |
+| subscription                    | abonnement                       | suscripción                    | Abonnement                         |                                                                                                                                                                                    |
+| sync                            | synchroniser / synchronisation   | sincronizar / sincronización   | synchronisieren / Synchronisierung | Reading the stores into Kiln.                                                                                                                                                      |
+| territory / country or region   | pays ou région                   | país o región                  | Land oder Region                   |                                                                                                                                                                                    |
+| theme (light / dark)            | thème (clair / sombre)           | tema (claro / oscuro)          | Design (Hell / Dunkel)             |                                                                                                                                                                                    |
+| track (Google Play)             | piste                            | canal                          | Track                              | Use the wording of Google's own console in each language.                                                                                                                          |
+| trial                           | essai                            | prueba                         | Testphase                          | "Free trial": essai gratuit, prueba gratuita, kostenlose Testphase.                                                                                                                |
+| two-factor authentication       | authentification à deux facteurs | autenticación en dos pasos     | Zwei-Faktor-Authentifizierung      |                                                                                                                                                                                    |
+| unanswered                      | sans réponse                     | sin responder                  | unbeantwortet                      |                                                                                                                                                                                    |
+| version                         | version                          | versión                        | Version                            | The number of a release (1.4.0).                                                                                                                                                   |
+| viewer (role)                   | lecteur                          | lector                         | Leser                              |                                                                                                                                                                                    |
+| webhook                         | webhook                          | webhook                        | Webhook                            |                                                                                                                                                                                    |
+| workflow                        | workflow                         | flujo de trabajo               | Workflow                           | A GitHub Actions or EAS workflow.                                                                                                                                                  |
+| workspace                       | espace de travail                | espacio de trabajo             | Arbeitsbereich                     | The place a team's apps and settings live.                                                                                                                                         |
 
 ## Words that look alike
 
-- *Review* (people write it about an app) and *App Review* (the store checks a submission) are two words in each language: see the table.
-- *Release*, *version* and *build* are three things: a release has a version, a version has builds.
-- *Notification* is something sent to a person; an *alert* is the thing Kiln raises about an app. Keep both words apart.
-- *Credential* is a key stored in Kiln's vault; a person's *password* is what they type to sign in.
+- _Review_ (people write it about an app) and _App Review_ (the store checks a submission) are two words in each language: see the table.
+- _Release_, _version_ and _build_ are three things: a release has a version, a version has builds.
+- _Notification_ is something sent to a person; an _alert_ is the thing Kiln raises about an app. Keep both words apart.
+- _Credential_ is a key stored in Kiln's vault; a person's _password_ is what they type to sign in.

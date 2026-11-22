@@ -1035,7 +1035,10 @@ const expo: CredentialGuide = {
     {
       title: 'Open the Expo dashboard',
       body: 'Sign in at expo.dev with an account that is an Admin or Owner of the Expo account that owns your project.',
-      link: { label: 'Expo: Programmatic access', url: 'https://docs.expo.dev/accounts/programmatic-access/' },
+      link: {
+        label: 'Expo: Programmatic access',
+        url: 'https://docs.expo.dev/accounts/programmatic-access/',
+      },
     },
     {
       title: 'Open Access tokens',
@@ -1048,7 +1051,10 @@ const expo: CredentialGuide = {
     {
       title: 'Choose the role',
       body: 'Give the robot the Developer role. You can change it later with Edit robot.',
-      link: { label: 'Expo: Account types and roles', url: 'https://docs.expo.dev/accounts/account-types/' },
+      link: {
+        label: 'Expo: Account types and roles',
+        url: 'https://docs.expo.dev/accounts/account-types/',
+      },
     },
     {
       title: 'Create the token',
@@ -1088,8 +1094,14 @@ const expo: CredentialGuide = {
     },
   ],
   links: [
-    { label: 'Expo: Programmatic access', url: 'https://docs.expo.dev/accounts/programmatic-access/' },
-    { label: 'Expo: Account types and roles', url: 'https://docs.expo.dev/accounts/account-types/' },
+    {
+      label: 'Expo: Programmatic access',
+      url: 'https://docs.expo.dev/accounts/programmatic-access/',
+    },
+    {
+      label: 'Expo: Account types and roles',
+      url: 'https://docs.expo.dev/accounts/account-types/',
+    },
     { label: 'Expo: Access tokens page', url: 'https://expo.dev/settings/access-tokens' },
   ],
   checkedOn: '2026-11-20',
@@ -1106,7 +1118,10 @@ const revenuecat: CredentialGuide = {
     {
       title: 'Open the RevenueCat dashboard',
       body: 'Sign in at app.revenuecat.com as an Admin of the project and open the project that has your apps.',
-      link: { label: 'RevenueCat: Authentication', url: 'https://www.revenuecat.com/docs/projects/authentication' },
+      link: {
+        label: 'RevenueCat: Authentication',
+        url: 'https://www.revenuecat.com/docs/projects/authentication',
+      },
     },
     {
       title: 'Open API keys',
@@ -1158,7 +1173,10 @@ const revenuecat: CredentialGuide = {
     },
   ],
   links: [
-    { label: 'RevenueCat: Authentication', url: 'https://www.revenuecat.com/docs/projects/authentication' },
+    {
+      label: 'RevenueCat: Authentication',
+      url: 'https://www.revenuecat.com/docs/projects/authentication',
+    },
     { label: 'RevenueCat: API v2 overview', url: 'https://www.revenuecat.com/docs/api-v2' },
     { label: 'RevenueCat: Dashboard', url: 'https://app.revenuecat.com' },
   ],

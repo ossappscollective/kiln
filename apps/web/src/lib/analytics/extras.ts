@@ -11,7 +11,13 @@ import {
   seriesOf,
   stateOf,
 } from './analytics.ts';
-import { type ChartCard, type ChartPanel, type PanelKind, seriesLabel, type VersionBars } from './view.ts';
+import {
+  type ChartCard,
+  type ChartPanel,
+  type PanelKind,
+  seriesLabel,
+  type VersionBars,
+} from './view.ts';
 
 /**
  * Two cards of the Analytics screen that do not fit the daily, one-overview pattern (docs/adr/0042-earnings-and-subscription-metrics.md):
@@ -51,13 +57,17 @@ export const earningsRange = (today: string): { from: string; to: string } => ({
   to: today,
 });
 
-const sourceOf = (status: AnalyticsStatus | null, source: string) => status?.sources.find((s) => s.source === source) ?? null;
+const sourceOf = (status: AnalyticsStatus | null, source: string) =>
+  status?.sources.find((s) => s.source === source) ?? null;
 
 /** Whether a source of this app has stored something (so the card is worth a read). */
-export const sourceHasData = (status: AnalyticsStatus | null, source: string): boolean => sourceOf(status, source)?.lastDay != null;
+export const sourceHasData = (status: AnalyticsStatus | null, source: string): boolean =>
+  sourceOf(status, source)?.lastDay != null;
 
-export const hasEarnings = (status: AnalyticsStatus | null): boolean => sourceHasData(status, EARNINGS_SOURCE);
-export const hasSubscriptions = (status: AnalyticsStatus | null): boolean => SUBSCRIPTION_SOURCES.some((s) => sourceHasData(status, s));
+export const hasEarnings = (status: AnalyticsStatus | null): boolean =>
+  sourceHasData(status, EARNINGS_SOURCE);
+export const hasSubscriptions = (status: AnalyticsStatus | null): boolean =>
+  SUBSCRIPTION_SOURCES.some((s) => sourceHasData(status, s));
 
 /**
  * The line under the cards when the earnings source is set up and has no month yet: a missing file is "not available yet", never zero and
@@ -87,7 +97,9 @@ function panel(
   entries: [AnalyticsSeries | null, string | null, 1 | 2][],
   currency: string | null = null,
 ): ChartPanel | null {
-  const series = entries.flatMap(([s, label, color]) => (hasData(s) ? [{ key: s.id, label: label ?? seriesLabel(s), color, series: s }] : []));
+  const series = entries.flatMap(([s, label, color]) =>
+    hasData(s) ? [{ key: s.id, label: label ?? seriesLabel(s), color, series: s }] : [],
+  );
   return series.length === 0 ? null : { id, title, kind, unit, currency, domain: 'zero', series };
 }
 
@@ -99,7 +111,10 @@ const compact = <T>(list: (T | null)[]): T[] => list.filter((p): p is T => p !==
  */
 export function buildEarningsCard(overview: AnalyticsOverview | null): ChartCard | null {
   if (!overview) return null;
-  const monthly = (metric: string) => overview.series.filter((s) => s.metric === metric && s.currency !== null && hasData(s)).map(monthlySeries);
+  const monthly = (metric: string) =>
+    overview.series
+      .filter((s) => s.metric === metric && s.currency !== null && hasData(s))
+      .map(monthlySeries);
   const net = monthly('earnings_net');
   const charges = monthly('earnings_charges');
   const currencies = [...new Set([...net, ...charges].map((s) => s.currency as string))];
@@ -111,15 +126,25 @@ export function buildEarningsCard(overview: AnalyticsOverview | null): ChartCard
         'line',
         'money',
         [
-          [net.find((s) => s.currency === currency) ?? null, t('analytics:earnings.net', { currency }), 1],
-          [charges.find((s) => s.currency === currency) ?? null, t('analytics:earnings.charges', { currency }), 2],
+          [
+            net.find((s) => s.currency === currency) ?? null,
+            t('analytics:earnings.net', { currency }),
+            1,
+          ],
+          [
+            charges.find((s) => s.currency === currency) ?? null,
+            t('analytics:earnings.charges', { currency }),
+            2,
+          ],
         ],
         currency,
       ),
     ),
     (() => {
       const orders = seriesOf(overview, 'earnings_orders');
-      return panel('earnings_orders', t('analytics:earnings.chargesCount'), 'columns', 'count', [[orders && hasData(orders) ? monthlySeries(orders) : null, null, 1]]);
+      return panel('earnings_orders', t('analytics:earnings.chargesCount'), 'columns', 'count', [
+        [orders && hasData(orders) ? monthlySeries(orders) : null, null, 1],
+      ]);
     })(),
   ]);
   if (panels.length === 0) return null;
@@ -148,21 +173,40 @@ export function buildSubscriptionsCard(overview: AnalyticsOverview | null): Char
         [active, null, 1],
         [trial, t('analytics:subs.activeTrials'), 2],
       ]),
-      panel(`${family.prefix}_new`, t('analytics:subs.new'), 'columns', 'count', [[fresh, null, 1]]),
-      panel(`${family.prefix}_cancelled`, t('analytics:subs.cancelled'), 'columns', 'count', [[cancelled, null, 1]]),
+      panel(`${family.prefix}_new`, t('analytics:subs.new'), 'columns', 'count', [
+        [fresh, null, 1],
+      ]),
+      panel(`${family.prefix}_cancelled`, t('analytics:subs.cancelled'), 'columns', 'count', [
+        [cancelled, null, 1],
+      ]),
     );
     const items = seriesOf(overview, `${family.prefix}_active`)?.breakdown;
     if (items && items.dimension === 'product' && items.items.length > 0 && hasData(active)) {
-      versions.push({ id: `${family.prefix}_by_product`, title: t('analytics:subs.byProduct'), unit: 'count', items: items.items });
+      versions.push({
+        id: `${family.prefix}_by_product`,
+        title: t('analytics:subs.byProduct'),
+        unit: 'count',
+        items: items.items,
+      });
     }
   }
   const list = compact(panels);
-  return list.length === 0 ? null : { id: 'subscriptions', title: subscriptionsCardTitle(), panels: list, versions: compact(versions) };
+  return list.length === 0
+    ? null
+    : {
+        id: 'subscriptions',
+        title: subscriptionsCardTitle(),
+        panels: list,
+        versions: compact(versions),
+      };
 }
 
 export type ExtraReads = Pick<Api, 'analyticsOverview'>;
 
-export type Extras = { earnings: AnalyticsOverview | null; subscriptions: AnalyticsOverview | null };
+export type Extras = {
+  earnings: AnalyticsOverview | null;
+  subscriptions: AnalyticsOverview | null;
+};
 
 /**
  * The reads of the two cards, only for what is stored (one extra read each): the monthly overview for earnings, and a daily one with the
@@ -179,15 +223,24 @@ export async function loadExtras(
   const today = dateToDay(now);
   const earnings = hasEarnings(status)
     ? api
-        .analyticsOverview(workspaceId, app.id, { platform: app.platform, ...earningsRange(today), granularity: 'month' })
+        .analyticsOverview(workspaceId, app.id, {
+          platform: app.platform,
+          ...earningsRange(today),
+          granularity: 'month',
+        })
         .catch((): null => null)
     : Promise.resolve(null);
   const subscriptions = hasSubscriptions(status)
     ? api
-        .analyticsOverview(workspaceId, app.id, { platform: app.platform, from: range.from, to: range.to, granularity: 'day', breakdown: 'product' })
+        .analyticsOverview(workspaceId, app.id, {
+          platform: app.platform,
+          from: range.from,
+          to: range.to,
+          granularity: 'day',
+          breakdown: 'product',
+        })
         .catch((): null => null)
     : Promise.resolve(null);
   const [e, s] = await Promise.all([earnings, subscriptions]);
   return { earnings: e, subscriptions: s };
 }
-

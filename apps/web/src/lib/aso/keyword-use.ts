@@ -137,7 +137,8 @@ export function rankText(
   depth = 50,
 ): string {
   if (!term.tracked) return t('aso:kw.rank.notTracked');
-  if (term.state === 'ranked' && term.rank !== null) return t('aso:kw.rank.rank', { rank: term.rank });
+  if (term.state === 'ranked' && term.rank !== null)
+    return t('aso:kw.rank.rank', { rank: term.rank });
   if (term.state === 'not_ranked') return t('aso:kw.rank.notRanked', { count: depth });
   return t('aso:kw.rank.notChecked');
 }

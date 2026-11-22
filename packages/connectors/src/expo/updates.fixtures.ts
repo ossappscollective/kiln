@@ -26,9 +26,18 @@ export const update = (overrides: Record<string, unknown> = {}) => ({
 });
 
 /** One group: the same update for the platforms asked for. */
-export const group = (id: string, platforms: string[] = ['ios', 'android'], overrides: Record<string, unknown> = {}) =>
+export const group = (
+  id: string,
+  platforms: string[] = ['ios', 'android'],
+  overrides: Record<string, unknown> = {},
+) =>
   platforms.map((platform, i) =>
-    update({ id: `aa${id.slice(2, 8)}-0000-4000-8000-00000000000${i + 1}`, group: id, platform, ...overrides }),
+    update({
+      id: `aa${id.slice(2, 8)}-0000-4000-8000-00000000000${i + 1}`,
+      group: id,
+      platform,
+      ...overrides,
+    }),
   );
 
 export const standardMapping = (branchId = BRANCH_MAIN) =>
@@ -40,7 +49,11 @@ export const rolloutMapping = () =>
     data: [
       {
         branchId: BRANCH_NEXT,
-        branchMappingLogic: { clientKey: 'rolloutToken', branchMappingOperator: 'hash_lt', operand: 0.25 },
+        branchMappingLogic: {
+          clientKey: 'rolloutToken',
+          branchMappingOperator: 'hash_lt',
+          operand: 0.25,
+        },
       },
       { branchId: BRANCH_MAIN, branchMappingLogic: 'true' },
     ],
@@ -88,7 +101,9 @@ export const insightsBody = (platforms: string[] = ['ios', 'android']) => ({
       insights: {
         totalUniqueUsers: 120 + i,
         cumulativeAverageMetrics: { launchAssetCount: 14.5, averageUpdatePayloadBytes: 482_113 },
-        cumulativeMetrics: { metricsAtLastTimestamp: { totalInstalls: 380, totalFailedInstalls: 20 } },
+        cumulativeMetrics: {
+          metricsAtLastTimestamp: { totalInstalls: 380, totalFailedInstalls: 20 },
+        },
       },
     })),
   },

@@ -33,7 +33,10 @@ test('params never carry a secret-looking name, an object, or long text', () => 
 test('legacyCode, codingOf and messageCoding', () => {
   assert.equal(legacyCode('not_found'), 'api.notFound');
   assert.equal(legacyCode('rate_limited'), 'api.rateLimited');
-  assert.deepEqual(codingOf({ code: 'a.b', params: { x: 1, token: 'z' } }), { code: 'a.b', params: { x: 1 } });
+  assert.deepEqual(codingOf({ code: 'a.b', params: { x: 1, token: 'z' } }), {
+    code: 'a.b',
+    params: { x: 1 },
+  });
   assert.deepEqual(codingOf({ code: 'nodots' }), {});
   assert.deepEqual(codingOf(null), {});
   const err = Object.assign(new Error('Same.'), { code: 'a.b' });

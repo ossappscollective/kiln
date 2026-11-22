@@ -24,10 +24,7 @@ test('a credential that was never tested says so', () => {
 });
 
 test('a passing test is Working with a relative time', () => {
-  const status = testStatus(
-    { at: now - 5 * 60_000, ok: true, message: 'Connected.' },
-    now,
-  );
+  const status = testStatus({ at: now - 5 * 60_000, ok: true, message: 'Connected.' }, now);
   assert.equal(status.state, 'working');
   assert.equal(status.label, 'Working');
   assert.equal(status.tone, 'ok');

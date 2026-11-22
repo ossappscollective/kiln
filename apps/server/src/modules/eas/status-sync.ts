@@ -93,7 +93,8 @@ export async function queueEasStatusSyncs(
   const perWorkspace = options.perWorkspace ?? DEFAULT_EAS_STATUS_PER_WORKSPACE;
   const spacing = options.spacingMs ?? DEFAULT_EAS_STATUS_SPACING_MS;
   const maxJitter = options.maxJitterMs ?? Math.min(5 * MINUTE, Math.floor(intervalMs / 10));
-  const jitter = options.jitter ?? ((_key: string, max: number) => Math.floor(Math.random() * (max + 1)));
+  const jitter =
+    options.jitter ?? ((_key: string, max: number) => Math.floor(Math.random() * (max + 1)));
   const summary: EasStatusQueueSummary = {
     queued: 0,
     skipped: { recent: 0, backoff: 0, alreadyQueued: 0, rateLimited: 0, capped: 0, notReady: 0 },
@@ -112,9 +113,10 @@ export async function queueEasStatusSyncs(
       ORDER BY COALESCE(s.last_attempt_at, 0), l.created_at, l.app_id`,
     [...ACTIVE_BUILD_STATUSES, ...ACTIVE_SUBMISSION_STATUSES],
   );
-  const jobs = await db.query("SELECT payload FROM jobs WHERE queue = ? AND status IN ('queued', 'running')", [
-    EAS_STATUS_QUEUE,
-  ]);
+  const jobs = await db.query(
+    "SELECT payload FROM jobs WHERE queue = ? AND status IN ('queued', 'running')",
+    [EAS_STATUS_QUEUE],
+  );
   const queuedApps = new Set<string>();
   const queuedCredentials = new Set<string>();
   const credentialOfApp = new Map(apps.map((a) => [String(a.app_id), String(a.credential_id)]));
@@ -143,12 +145,17 @@ export async function queueEasStatusSyncs(
       continue;
     }
     const last = Number(app.last_attempt_at ?? 0);
-    const wanted = Number(app.active_builds) + Number(app.active_submissions) > 0 ? activeMs : intervalMs;
+    const wanted =
+      Number(app.active_builds) + Number(app.active_submissions) > 0 ? activeMs : intervalMs;
     if (last > 0 && now - last < wanted) {
       summary.skipped.recent++;
       continue;
     }
-    if (app.backoff_until !== null && app.backoff_until !== undefined && Number(app.backoff_until) > now) {
+    if (
+      app.backoff_until !== null &&
+      app.backoff_until !== undefined &&
+      Number(app.backoff_until) > now
+    ) {
       summary.skipped.backoff++;
       continue;
     }
@@ -167,7 +174,10 @@ export async function queueEasStatusSyncs(
     }
     const delay = Math.min(Math.max(Math.trunc(jitter(id, maxJitter)), 0), maxJitter);
     const payload: EasStatusPayload = { workspaceId, appId: id, requestedBy: 'scheduler' };
-    await enqueue(db, EAS_STATUS_QUEUE, payload, { now, runAt: now + summary.queued * spacing + delay });
+    await enqueue(db, EAS_STATUS_QUEUE, payload, {
+      now,
+      runAt: now + summary.queued * spacing + delay,
+    });
     queuedApps.add(id);
     queuedCredentials.add(credentialId);
     perWorkspaceCount.set(workspaceId, (perWorkspaceCount.get(workspaceId) ?? 0) + 1);

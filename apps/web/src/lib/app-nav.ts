@@ -25,10 +25,20 @@ export type NavEntry = { id: AppSection; labelKey: string; icon: IconName; requi
 export const primaryNav: readonly NavEntry[] = [
   { id: 'dashboard', labelKey: k('app:nav.overview'), icon: 'grid', requires: 'apps.read' },
   { id: 'releases', labelKey: k('app:nav.releases'), icon: 'rocket', requires: 'apps.read' },
-  { id: 'listing', labelKey: k('app:nav.storeListing'), icon: 'file-text', requires: 'listing.read' },
+  {
+    id: 'listing',
+    labelKey: k('app:nav.storeListing'),
+    icon: 'file-text',
+    requires: 'listing.read',
+  },
   { id: 'products', labelKey: k('app:nav.products'), icon: 'tag', requires: 'apps.read' },
   { id: 'reviews', labelKey: k('app:nav.reviews'), icon: 'message', requires: 'reviews.read' },
-  { id: 'insights', labelKey: k('app:nav.insights'), icon: 'trending-up', requires: 'analytics.read' },
+  {
+    id: 'insights',
+    labelKey: k('app:nav.insights'),
+    icon: 'trending-up',
+    requires: 'analytics.read',
+  },
   { id: 'builds', labelKey: k('app:nav.builds'), icon: 'pipeline', requires: 'apps.read' },
 ];
 

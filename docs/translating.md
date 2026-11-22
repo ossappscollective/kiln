@@ -55,34 +55,34 @@ branch and a pull request; do not push to `main`). Component settings below appl
 Create one component by hand to carry the settings, then let the **Component discovery** add-on create one component per namespace. Name the
 first component `common` and give it:
 
-| Setting | Value |
-| --- | --- |
-| File format | **i18next JSON file v4** (the "JSON file" family; do not choose the plain "JSON file" or "go-i18n" formats) |
-| File mask | `apps/web/locales/common/*.json` |
-| Monolingual base language file | `apps/web/locales/common/en.json` |
-| Template for new translations | `apps/web/locales/empty.json` (an empty `{}`: a new language starts with nothing translated, so untranslated text is never mistaken for a translation) |
-| Source language | English (`en`) |
-| Language code style | **BCP style** (hyphen: `pt-BR`; `fr`, `es`, `de` are the same in any style) |
-| Push on commit, Merge style | rebase (keeps history linear) |
+| Setting                        | Value                                                                                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| File format                    | **i18next JSON file v4** (the "JSON file" family; do not choose the plain "JSON file" or "go-i18n" formats)                                            |
+| File mask                      | `apps/web/locales/common/*.json`                                                                                                                       |
+| Monolingual base language file | `apps/web/locales/common/en.json`                                                                                                                      |
+| Template for new translations  | `apps/web/locales/empty.json` (an empty `{}`: a new language starts with nothing translated, so untranslated text is never mistaken for a translation) |
+| Source language                | English (`en`)                                                                                                                                         |
+| Language code style            | **BCP style** (hyphen: `pt-BR`; `fr`, `es`, `de` are the same in any style)                                                                            |
+| Push on commit, Merge style    | rebase (keeps history linear)                                                                                                                          |
 
 Then **Add-ons, Component discovery** on that component:
 
-| Field | Value |
-| --- | --- |
-| Regular expression to match translation files against | `apps/web/locales/(?P<component>[^/]*)/(?P<language>[^/.]*)\.json` |
-| Customize the component name | `{{ component\|title }}` |
-| Define the monolingual base filename | `apps/web/locales/{{ component }}/en.json` |
-| Define the base file for new translations | `apps/web/locales/empty.json` |
-| Language filter | `^(en\|fr\|es\|de)$` (add a language here when you register it, step 4) |
-| Remove components for inexistent files | on |
-| Copy translation settings from the main component | on (so every discovered component gets the same format and add-ons) |
+| Field                                                 | Value                                                                   |
+| ----------------------------------------------------- | ----------------------------------------------------------------------- |
+| Regular expression to match translation files against | `apps/web/locales/(?P<component>[^/]*)/(?P<language>[^/.]*)\.json`      |
+| Customize the component name                          | `{{ component\|title }}`                                                |
+| Define the monolingual base filename                  | `apps/web/locales/{{ component }}/en.json`                              |
+| Define the base file for new translations             | `apps/web/locales/empty.json`                                           |
+| Language filter                                       | `^(en\|fr\|es\|de)$` (add a language here when you register it, step 4) |
+| Remove components for inexistent files                | on                                                                      |
+| Copy translation settings from the main component     | on (so every discovered component gets the same format and add-ons)     |
 
 The server and the desktop have their own catalogs with the same format and rules. Add **one Component discovery add-on per app** on the
 same component (the add-on can be installed several times), with the same values as above and only these fields changed:
 
-| App | Regular expression | Monolingual base filename |
-| --- | --- | --- |
-| server | `apps/server/locales/(?P<component>[^/]*)/(?P<language>[^/.]*)\.json` | `apps/server/locales/{{ component }}/en.json` |
+| App     | Regular expression                                                     | Monolingual base filename                      |
+| ------- | ---------------------------------------------------------------------- | ---------------------------------------------- |
+| server  | `apps/server/locales/(?P<component>[^/]*)/(?P<language>[^/.]*)\.json`  | `apps/server/locales/{{ component }}/en.json`  |
 | desktop | `apps/desktop/locales/(?P<component>[^/]*)/(?P<language>[^/.]*)\.json` | `apps/desktop/locales/{{ component }}/en.json` |
 
 One expression for the three apps is also possible, `apps/(?P<app>[^/]*)/locales/(?P<component>[^/]*)/(?P<language>[^/.]*)\.json` with
@@ -98,7 +98,7 @@ component (English is the base, not something to translate).
 
 Add these to the component (they are copied to discovered components):
 
-- **Customize JSON output**: *Sort JSON keys* on, *JSON indentation* `2`. Weblate then writes keys sorted with two spaces, which is the layout
+- **Customize JSON output**: _Sort JSON keys_ on, _JSON indentation_ `2`. Weblate then writes keys sorted with two spaces, which is the layout
   `pnpm i18n:check` requires, so a Weblate commit does not change formatting. (Add-on names are those of Weblate 5; check the add-on list
   of your version.) If a Weblate commit ever fails the "not formatted" check, run `pnpm i18n:fix` on the branch.
 - **Cleanup translation files**: removes strings that no longer exist in the English file.
@@ -111,17 +111,17 @@ Add these to the component (they are copied to discovered components):
 
 Keep Weblate's default message (`Translated using Weblate (French)` with the percentage) and set:
 
-- *Commit message when translating*: `i18n(<language>): translated using Weblate ({{ language_name }})`
-- *Commit message when adding translation*: `i18n(<language>): added translation using Weblate ({{ language_name }})`
-- *Commit message when deleting translation*: `i18n: removed {{ language_name }} translation`
-- *Committer name* `Weblate`; do not add the `Co-Authored-By` trailers that agents use: Weblate credits translators itself.
+- _Commit message when translating_: `i18n(<language>): translated using Weblate ({{ language_name }})`
+- _Commit message when adding translation_: `i18n(<language>): added translation using Weblate ({{ language_name }})`
+- _Commit message when deleting translation_: `i18n: removed {{ language_name }} translation`
+- _Committer name_ `Weblate`; do not add the `Co-Authored-By` trailers that agents use: Weblate credits translators itself.
 
 ### 5. Add a language
 
 1. Add it to `availableLocales` in `apps/web/src/lib/i18n/locales.ts` (`{ code: 'it', name: 'Italiano', dir: 'ltr', htmlLang: 'it' }`; the name
    is the language written in itself). Its plural forms are taken from `Intl.PluralRules`, nothing else to declare.
-2. Add the language to the discovery **Language filter**, then in Weblate use *Start new translation* in each component (or let the
-   add-on *Add missing languages* do it). Each new file starts as a copy of `empty.json`.
+2. Add the language to the discovery **Language filter**, then in Weblate use _Start new translation_ in each component (or let the
+   add-on _Add missing languages_ do it). Each new file starts as a copy of `empty.json`.
 3. Translate. `common` and `shell` first.
 4. Run `pnpm i18n:check`: it reports the percentage translated per language and fails if a file is malformed. A language at 0 percent is fine to
    merge (it falls back to English); consider hiding it from the picker until `common` and `shell` are done.

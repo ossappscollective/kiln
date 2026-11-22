@@ -109,10 +109,7 @@ test('snippets: a placeholder without a token, the token when there is one, vali
     (real.find((s) => s.title === 'Cursor (HTTP)') as { text: string }).text,
   );
   assert.equal(cursor.mcpServers['kiln'].url, 'https://kiln.example.com/mcp');
-  assert.equal(
-    cursor.mcpServers['kiln'].headers.Authorization,
-    "Bearer kiln_abc'def",
-  );
+  assert.equal(cursor.mcpServers['kiln'].headers.Authorization, "Bearer kiln_abc'def");
   const desktop = JSON.parse(
     (real.find((s) => s.client === 'claude-desktop') as { text: string }).text,
   );

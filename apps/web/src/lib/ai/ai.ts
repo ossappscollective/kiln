@@ -309,8 +309,7 @@ export const countText = (n: number): string => formatNumber(n);
 
 /** "120,000 of 500,000 used this month. Starts again on 1 December." */
 export function usageText(usage: Pick<AiUsage, 'used' | 'budget' | 'resetsAt'>): string {
-  if (usage.budget <= 0)
-    return t('ai:usage.usedNoLimit', { used: countText(usage.used) });
+  if (usage.budget <= 0) return t('ai:usage.usedNoLimit', { used: countText(usage.used) });
   return t('ai:usage.usedOf', {
     used: countText(usage.used),
     budget: countText(usage.budget),
@@ -465,7 +464,11 @@ export const flagTexts: Record<AiFlag, { text: string; tone: FlagTone; blocks: s
     blocks: k('ai:blocked.alreadyTracked'),
   },
   duplicate: { text: k('ai:flag.duplicate'), tone: 'info', blocks: k('ai:blocked.duplicate') },
-  invalid_term: { text: k('ai:flag.invalidTerm'), tone: 'bad', blocks: k('ai:blocked.invalidTerm') },
+  invalid_term: {
+    text: k('ai:flag.invalidTerm'),
+    tone: 'bad',
+    blocks: k('ai:blocked.invalidTerm'),
+  },
   field_not_for_store: { text: k('ai:flag.fieldNotForStore'), tone: 'info', blocks: null },
   over_limit: { text: k('ai:flag.overLimit'), tone: 'bad', blocks: k('ai:blocked.overLimit') },
   trimmed: { text: k('ai:flag.trimmed'), tone: 'warn', blocks: null },
@@ -793,8 +796,10 @@ export function acceptedNote(
             ? t('ai:accepted.nothingNewFor', { where })
             : t('ai:accepted.nothingNew'),
       ];
-      if (result.existing > 0) parts.push(t('ai:accepted.alreadyTracked', { count: result.existing }));
-      if (result.rejected > 0) parts.push(t('ai:accepted.couldNotTrack', { count: result.rejected }));
+      if (result.existing > 0)
+        parts.push(t('ai:accepted.alreadyTracked', { count: result.existing }));
+      if (result.rejected > 0)
+        parts.push(t('ai:accepted.couldNotTrack', { count: result.rejected }));
       const sentence = t('ai:accepted.sentence', { parts: unitList(parts) });
       const text =
         result.remaining !== undefined && result.remaining > 0
@@ -840,14 +845,19 @@ export function openSuggestions(list: readonly AiSuggestionView[]): AiSuggestion
 
 /** "3 suggestions" for the line of the tray. */
 export const openLine = (n: number, platform?: string): string =>
-  platform ? t('ai:tray.lineWithPlatform', { count: n, platform }) : t('ai:tray.line', { count: n });
+  platform
+    ? t('ai:tray.lineWithPlatform', { count: n, platform })
+    : t('ai:tray.line', { count: n });
 
 /** The heading of one suggestion: what it is, for which language. */
 export function suggestionTitle(proposal: AiProposal): string {
   switch (proposal.kind) {
     case 'keywords':
       return proposal.country
-        ? t('ai:title.keywordsCountry', { locale: proposal.locale, country: proposal.country.toUpperCase() })
+        ? t('ai:title.keywordsCountry', {
+            locale: proposal.locale,
+            country: proposal.country.toUpperCase(),
+          })
         : t('ai:title.keywords', { locale: proposal.locale });
     case 'listing_text':
       return t('ai:title.listingText', { locale: proposal.locale });
@@ -881,7 +891,8 @@ export const ADDRESS_TEXTS: Record<AddressHintCode, string> = {
   private_address_blocked: k('ai:address.privateBlocked'),
   plain_http_not_allowed: k('ai:address.plainHttp'),
 };
-export const addressText = (code: AddressHintCode): string => t(ADDRESS_TEXTS[code], { env: ADDRESS_ENV });
+export const addressText = (code: AddressHintCode): string =>
+  t(ADDRESS_TEXTS[code], { env: ADDRESS_ENV });
 
 const notFoundText = (): string => t('ai:address.notFound');
 
@@ -1056,11 +1067,10 @@ export function aiSaveMessage(error: unknown): string {
           .filter((m) => m !== '')
           .slice(0, 3)
       : [];
-    return lines.length > 0
-      ? lines.join(' ')
-      : t('ai:save.invalidSetting');
+    return lines.length > 0 ? lines.join(' ') : t('ai:save.invalidSetting');
   }
-  if (error instanceof ApiError && error.code === 'invalid_secret') return t('ai:save.invalidSecret');
+  if (error instanceof ApiError && error.code === 'invalid_secret')
+    return t('ai:save.invalidSecret');
   return aiErrorMessage(error, t('ai:save.failed'));
 }
 
@@ -1202,8 +1212,7 @@ export function validateAiForm(
 ): AiFormErrors {
   const errors: AiFormErrors = {};
   const model = form.model.trim();
-  if (model !== '' && (model.length > 100 || !MODEL.test(model)))
-    errors.model = t('ai:form.model');
+  if (model !== '' && (model.length > 100 || !MODEL.test(model))) errors.model = t('ai:form.model');
   const url = form.baseUrl.trim();
   if (url !== '' && !/^https?:\/\/[^\s/@]+(\/[^\s]*)?$/i.test(url))
     errors.baseUrl = t('ai:form.baseUrl');
@@ -1212,18 +1221,14 @@ export function validateAiForm(
   if (!/^\d{1,12}$/.test(budget) || Number(budget) > max)
     errors.budget = t('ai:form.budget', { max: countText(max) });
   const soft = form.softWarn.trim();
-  if (!/^\d{1,3}$/.test(soft) || Number(soft) > 100)
-    errors.softWarn = t('ai:form.softWarn');
+  if (!/^\d{1,3}$/.test(soft) || Number(soft) > 100) errors.softWarn = t('ai:form.softWarn');
   const money = (text: string): number | null => centsFromText(text);
   const priceIn = money(form.priceIn);
-  if (priceIn === null || priceIn > 1_000_000)
-    errors.priceIn = t('ai:form.priceIn');
+  if (priceIn === null || priceIn > 1_000_000) errors.priceIn = t('ai:form.priceIn');
   const priceOut = money(form.priceOut);
-  if (priceOut === null || priceOut > 1_000_000)
-    errors.priceOut = t('ai:form.priceOut');
+  if (priceOut === null || priceOut > 1_000_000) errors.priceOut = t('ai:form.priceOut');
   const cap = money(form.costCap);
-  if (cap === null || cap > 100_000_000)
-    errors.costCap = t('ai:form.costCap');
+  if (cap === null || cap > 100_000_000) errors.costCap = t('ai:form.costCap');
   if (form.apiKey.trim() !== '') {
     const provider = config.providers.find((p) => p.id === form.provider);
     if (provider) {

@@ -115,7 +115,11 @@ export interface StoreProductsConnector {
 }
 
 /** What names a product to a connector. */
-export type StoreProductRef = { productId: string; kind: StoreProductKind; storeRef: string | null };
+export type StoreProductRef = {
+  productId: string;
+  kind: StoreProductKind;
+  storeRef: string | null;
+};
 
 /** What `updateLocalization` is asked to do, and how it checks the store is still as the person saw it. */
 export type ProductLocalizationUpdate = {
@@ -228,7 +232,9 @@ export function currencyExponent(currency: string): number {
 
 /** A currency code as ISO 4217 writes it, or undefined. */
 export const cleanCurrency = (value: unknown): string | undefined =>
-  typeof value === 'string' && /^[A-Za-z]{3}$/.test(value.trim()) ? value.trim().toUpperCase() : undefined;
+  typeof value === 'string' && /^[A-Za-z]{3}$/.test(value.trim())
+    ? value.trim().toUpperCase()
+    : undefined;
 
 /** Divides `n` by `d` (both positive) and rounds half up. */
 const divRound = (n: bigint, d: bigint): bigint => (n * 2n + d) / (d * 2n);

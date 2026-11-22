@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { clearCatalogs, hasCatalogs, k, registerCatalog, setLocaleSource, setMissingReporter, t, tParts } from './t.ts';
+import {
+  clearCatalogs,
+  hasCatalogs,
+  k,
+  registerCatalog,
+  setLocaleSource,
+  setMissingReporter,
+  t,
+  tParts,
+} from './t.ts';
 import { loadLocaleFromDisk, useLocale } from './test-setup.ts';
 
 test('the preloaded English catalogs answer', () => {
@@ -41,8 +50,14 @@ test('plural messages follow the active language', () => {
 });
 
 test('the minimum-length message counts by the minimum, not by what was typed', () => {
-  assert.equal(t('common:validation.passwordTooShort', { count: 1, length: 0 }), 'Use at least 1 character. You have 0.');
-  assert.equal(t('common:validation.passwordTooShort', { count: 12, length: 5 }), 'Use at least 12 characters. You have 5.');
+  assert.equal(
+    t('common:validation.passwordTooShort', { count: 1, length: 0 }),
+    'Use at least 1 character. You have 0.',
+  );
+  assert.equal(
+    t('common:validation.passwordTooShort', { count: 12, length: 5 }),
+    'Use at least 12 characters. You have 5.',
+  );
 });
 
 test('the pseudo-locale reads English and marks it', () => {

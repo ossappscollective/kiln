@@ -10,10 +10,10 @@ other runs use, so it appears in the runs of the repository ([ci.md](ci.md)), th
 the app (a `build_number` dispatch input links the build to the run) and the `ci.run_started` / `ci.run_finished` events and the
 "A build run failed" alert, with no change on their side. The app needs an Expo link and a repository.
 
-| Method and path | Right | What |
-| --- | --- | --- |
-| `POST /apps/:appId/expo/workflows/dispatches` | `ci.dispatch` (member and above) | Start a run at Expo. `202 { dispatched, run }`. |
-| `GET /apps/:appId/expo/workflows/runs` | `apps.read` | The runs started here for the app, newest first (stored; Expo is not called). |
+| Method and path                               | Right                                          | What                                                                                             |
+| --------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `POST /apps/:appId/expo/workflows/dispatches` | `ci.dispatch` (member and above)               | Start a run at Expo. `202 { dispatched, run }`.                                                  |
+| `GET /apps/:appId/expo/workflows/runs`        | `apps.read`                                    | The runs started here for the app, newest first (stored; Expo is not called).                    |
 | `GET /apps/:appId/expo/workflows/runs/:runId` | `apps.read`; `?refresh=true` needs `apps.sync` | The stored run; with `refresh=true` Expo is asked, the run is stored again and `jobs` is filled. |
 
 **Start.** Body `{ workflow, ref?, inputs? }`, no other keys. `workflow` is `.eas/workflows/build.yml` or `build.yml` (a file directly in

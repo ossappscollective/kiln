@@ -53,7 +53,11 @@ export type Translate = {
   /** The message as plain text (tags removed). A key found nowhere comes back as written. */
   (key: string, params?: Params): string;
   /** The message as HTML: text and values escaped, `<strong>`, `<em>` and `<code>` as elements. */
-  html(key: string, params?: Params, links?: Readonly<Record<string, (innerHtml: string) => string>>): string;
+  html(
+    key: string,
+    params?: Params,
+    links?: Readonly<Record<string, (innerHtml: string) => string>>,
+  ): string;
   /** The language this translator answers in (the one asked for; a key missing there is read from English). */
   readonly locale: string;
 };

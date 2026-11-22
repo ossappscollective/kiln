@@ -19,7 +19,10 @@ test('counts and plurals follow the active language', () => {
   useLocale('fr');
   assert.equal(filesChangedLabel(1), '1 fichier');
   assert.equal(filesChangedLabel(3), '3 fichiers');
-  assert.equal(fieldUsage({ maxLength: 30, unit: 'characters' }, 'Hello').text, '5 / 30 caractères');
+  assert.equal(
+    fieldUsage({ maxLength: 30, unit: 'characters' }, 'Hello').text,
+    '5 / 30 caractères',
+  );
   assert.equal(fieldUsage({ unit: 'bytes' }, 'abc').text, '3 octets');
   useLocale('de');
   assert.equal(filesChangedLabel(2), '2 Dateien');
@@ -51,7 +54,10 @@ test('every branch of the read summary is a whole sentence in each language', ()
     }
   }
   useLocale('fr');
-  assert.match(localReadSummary({ branch: 'main', sha, dirtyCount: 3, checkedOutBranch: 'main' }), /3 modifications non validées/);
+  assert.match(
+    localReadSummary({ branch: 'main', sha, dirtyCount: 3, checkedOutBranch: 'main' }),
+    /3 modifications non validées/,
+  );
 });
 
 test('labels, statuses and lists come from the catalogs', () => {

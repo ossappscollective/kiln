@@ -19,11 +19,24 @@ export { BRANCH_MAIN, BRANCH_NEXT, EXPO_TOKEN, GROUP_A, GROUP_B, PROJECT_ID };
 
 type Any = Record<string, any>; // biome-ignore lint/suspicious/noExplicitAny: fixture bodies are shaped loosely
 
-export type UpdateCall = { operationName: string; authorization: string; variables: Record<string, unknown> };
+export type UpdateCall = {
+  operationName: string;
+  authorization: string;
+  variables: Record<string, unknown>;
+};
 
 /** The groups of one branch as Expo shapes them: lists of updates, one per platform. */
-export const groupOf = (id: string, rollout?: number, runtime = '1.4.0', at = '2026-11-18T10:00:00.000Z') =>
-  group(id, ['ios', 'android'], { runtime: { version: runtime }, createdAt: at, rolloutPercentage: rollout ?? null });
+export const groupOf = (
+  id: string,
+  rollout?: number,
+  runtime = '1.4.0',
+  at = '2026-11-18T10:00:00.000Z',
+) =>
+  group(id, ['ios', 'android'], {
+    runtime: { version: runtime },
+    createdAt: at,
+    rolloutPercentage: rollout ?? null,
+  });
 
 /** Production on main at runtime 1.4.0, plus a staging channel with a rollout between two branches and a per-update rollout. */
 export const defaultChannels = (): Any[] => [
@@ -35,7 +48,11 @@ export const defaultChannels = (): Any[] => [
     name: 'staging',
     branchMapping: rolloutMapping(),
     updateBranches: [
-      { id: BRANCH_NEXT, name: 'next', updateGroups: [groupOf(GROUP_B, 25, '1.5.0', '2026-11-19T10:00:00.000Z')] },
+      {
+        id: BRANCH_NEXT,
+        name: 'next',
+        updateGroups: [groupOf(GROUP_B, 25, '1.5.0', '2026-11-19T10:00:00.000Z')],
+      },
       { id: BRANCH_MAIN, name: 'main', updateGroups: [groupOf(GROUP_A)] },
     ],
   }),
@@ -47,7 +64,11 @@ export class FakeUpdates {
   channels: Any[] = defaultChannels();
   builds: Any[] = [
     build(),
-    build({ id: 'dd000000-0000-4000-8000-000000000009', platform: 'ANDROID', runtime: { version: '1.4.0' } }),
+    build({
+      id: 'dd000000-0000-4000-8000-000000000009',
+      platform: 'ANDROID',
+      runtime: { version: '1.4.0' },
+    }),
   ];
   insights: unknown = insightsBody();
   /** Answers for the next calls, in order, instead of the normal one: a Response, an Error to throw, or a function over the call. */
@@ -60,7 +81,10 @@ export class FakeUpdates {
   count = (name: string) => this.calls.filter((c) => c.operationName === name).length;
 
   readonly fetch: typeof fetch = async (_input, init) => {
-    const body = JSON.parse(String(init?.body ?? '{}')) as { operationName?: string; variables?: Record<string, unknown> };
+    const body = JSON.parse(String(init?.body ?? '{}')) as {
+      operationName?: string;
+      variables?: Record<string, unknown>;
+    };
     const headers = (init?.headers ?? {}) as Record<string, string>;
     const call: UpdateCall = {
       operationName: body.operationName ?? '',
@@ -102,7 +126,11 @@ export class FakeUpdates {
             }
           }
         }
-        return { data: { update: { setRolloutPercentage: { id, group: GROUP_B, rolloutPercentage: pct } } } };
+        return {
+          data: {
+            update: { setRolloutPercentage: { id, group: GROUP_B, rolloutPercentage: pct } },
+          },
+        };
       }
       default:
         return graphqlError('Unexpected server error');
@@ -110,14 +138,16 @@ export class FakeUpdates {
   }
 
   /** The updates of the staging channel's `next` branch: the first group, one per platform. */
-  nextGroup = (): { rolloutPercentage: number | null }[] => this.channels[1]?.updateBranches[0].updateGroups[0] ?? [];
+  nextGroup = (): { rolloutPercentage: number | null }[] =>
+    this.channels[1]?.updateBranches[0].updateGroups[0] ?? [];
 
   /** The id of the update of a platform in a group (as the fixtures number them). */
   updateId(groupId: string, platform: 'ios' | 'android' = 'ios'): string {
     for (const ch of this.channels) {
       for (const br of ch.updateBranches as Any[]) {
         for (const g of br.updateGroups as Any[][]) {
-          for (const u of g) if (u.group === groupId && u.platform === platform) return String(u.id);
+          for (const u of g)
+            if (u.group === groupId && u.platform === platform) return String(u.id);
         }
       }
     }
@@ -148,11 +178,18 @@ export async function bootUpdates(db: Database, options: { rolloutEnabled?: bool
     }
     return id;
   };
-  const stateOf = (appId: string, cookie = t.owner) => t.call(cookie, 'GET', `/apps/${appId}/expo/updates`);
+  const stateOf = (appId: string, cookie = t.owner) =>
+    t.call(cookie, 'GET', `/apps/${appId}/expo/updates`);
   const preview = (appId: string, body: unknown, cookie = t.owner) =>
     t.call(cookie, 'POST', `/apps/${appId}/expo/updates/rollout/preview`, body);
   /** Like `t.call`, with extra request headers (the step-up grant travels in one). */
-  const send = async (cookie: string, method: string, path: string, body?: unknown, headers: Record<string, string> = {}) => {
+  const send = async (
+    cookie: string,
+    method: string,
+    path: string,
+    body?: unknown,
+    headers: Record<string, string> = {},
+  ) => {
     const res = await t.app.request(`/api/workspaces/${t.workspaceId}${path}`, {
       method,
       headers: { 'content-type': 'application/json', cookie, ...headers },
@@ -161,10 +198,19 @@ export async function bootUpdates(db: Database, options: { rolloutEnabled?: bool
     const text = await res.text();
     t.texts.push(text);
     // biome-ignore lint/suspicious/noExplicitAny: test responses are inspected loosely
-    return { status: res.status, headers: res.headers, text, body: (text ? JSON.parse(text) : null) as any };
+    return {
+      status: res.status,
+      headers: res.headers,
+      text,
+      body: (text ? JSON.parse(text) : null) as any,
+    };
   };
-  const apply = (appId: string, body: unknown, cookie = t.owner, headers: Record<string, string> = {}) =>
-    send(cookie, 'POST', `/apps/${appId}/expo/updates/rollout/apply`, body, headers);
+  const apply = (
+    appId: string,
+    body: unknown,
+    cookie = t.owner,
+    headers: Record<string, string> = {},
+  ) => send(cookie, 'POST', `/apps/${appId}/expo/updates/rollout/apply`, body, headers);
   /** A step-up grant (by the owner's password) for raising the rollout of an app, bound to the hash the preview gave. */
   const grantFor = async (appId: string, hash: string) => {
     const res = await send(t.owner, 'POST', '/step-up/verify', {

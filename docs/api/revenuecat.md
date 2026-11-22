@@ -9,15 +9,15 @@ RevenueCat apps of any other store are listed as "not mapped" and ignored.
 
 **UNVERIFIED:** tested with fixtures and an injected `fetch` only, never against a real RevenueCat project (list in the ADR).
 
-| Route | Right | What it does |
-| --- | --- | --- |
-| `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat` | `apps.read` | `{ supported, link, sync }`. Database only. |
-| `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat/products` | `apps.read` | The store products joined to the stored RevenueCat copy, with warnings. Database only. |
-| `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat/metrics` | `apps.read` | RevenueCat's overview figures of the linked project (active subscriptions, trials, MRR, 28-day revenue). Database only. |
-| `PUT /api/workspaces/:workspaceId/apps/:appId/revenuecat` | `apps.write` | Links the app (or changes the link). Asks RevenueCat first. |
-| `DELETE /api/workspaces/:workspaceId/apps/:appId/revenuecat` | `apps.write` | Removes the link and the stored copy. `204`; `404` when there was none. |
-| `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat/detect?credentialId=&projectId=` | `apps.write` | READS RevenueCat: the projects the key sees and, for one, its apps. Saves nothing. |
-| `POST /api/workspaces/:workspaceId/apps/:appId/revenuecat/sync` | `apps.sync` | Reads the project configuration and replaces the stored copy (the second step of the products sync, alone). |
+| Route                                                                                     | Right        | What it does                                                                                                            |
+| ----------------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat`                                 | `apps.read`  | `{ supported, link, sync }`. Database only.                                                                             |
+| `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat/products`                        | `apps.read`  | The store products joined to the stored RevenueCat copy, with warnings. Database only.                                  |
+| `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat/metrics`                         | `apps.read`  | RevenueCat's overview figures of the linked project (active subscriptions, trials, MRR, 28-day revenue). Database only. |
+| `PUT /api/workspaces/:workspaceId/apps/:appId/revenuecat`                                 | `apps.write` | Links the app (or changes the link). Asks RevenueCat first.                                                             |
+| `DELETE /api/workspaces/:workspaceId/apps/:appId/revenuecat`                              | `apps.write` | Removes the link and the stored copy. `204`; `404` when there was none.                                                 |
+| `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat/detect?credentialId=&projectId=` | `apps.write` | READS RevenueCat: the projects the key sees and, for one, its apps. Saves nothing.                                      |
+| `POST /api/workspaces/:workspaceId/apps/:appId/revenuecat/sync`                           | `apps.sync`  | Reads the project configuration and replaces the stored copy (the second step of the products sync, alone).             |
 
 `apps.write` is owners and admins. A token limited to some apps may use these routes for those apps only. Non-members and apps of another
 workspace are `404`. `supported` is `false` for a platform whose store RevenueCat does not serve here (the platform capability `revenueCat`;
@@ -82,20 +82,65 @@ Computed on every read from the two stored copies; asks neither the store nor Re
 {
   "supported": true,
   "link": { "…": "as above, or null" },
-  "sync": { "lastAttemptAt": 1760000000000, "lastSyncedAt": 1760000000000, "lastError": null, "failures": 0,
-            "productCount": 4, "otherAppProductCount": 2, "complete": true, "warnings": [] },
+  "sync": {
+    "lastAttemptAt": 1760000000000,
+    "lastSyncedAt": 1760000000000,
+    "lastError": null,
+    "failures": 0,
+    "productCount": 4,
+    "otherAppProductCount": 2,
+    "complete": true,
+    "warnings": []
+  },
   "products": {
     "pro_monthly": {
       "status": "in_revenuecat",
-      "products": [{ "rcProductId": "prod1", "storeIdentifier": "pro_monthly", "planId": null, "planInStore": null, "type": "subscription",
-                     "state": "active", "displayName": "Pro monthly", "duration": "P1M", "gracePeriod": null, "trialDuration": "P1W" }],
-      "entitlements": [{ "id": "entl1", "lookupKey": "pro", "displayName": "Pro", "state": "active" }],
-      "offerings": [{ "id": "ofrng1", "lookupKey": "default", "isCurrent": true, "state": "active",
-                      "packages": [{ "id": "pkg1", "lookupKey": "$rc_monthly", "rcProductId": "prod1", "eligibility": "all" }] }]
+      "products": [
+        {
+          "rcProductId": "prod1",
+          "storeIdentifier": "pro_monthly",
+          "planId": null,
+          "planInStore": null,
+          "type": "subscription",
+          "state": "active",
+          "displayName": "Pro monthly",
+          "duration": "P1M",
+          "gracePeriod": null,
+          "trialDuration": "P1W"
+        }
+      ],
+      "entitlements": [
+        { "id": "entl1", "lookupKey": "pro", "displayName": "Pro", "state": "active" }
+      ],
+      "offerings": [
+        {
+          "id": "ofrng1",
+          "lookupKey": "default",
+          "isCurrent": true,
+          "state": "active",
+          "packages": [
+            {
+              "id": "pkg1",
+              "lookupKey": "$rc_monthly",
+              "rcProductId": "prod1",
+              "eligibility": "all"
+            }
+          ]
+        }
+      ]
     }
   },
   "unmatched": [],
-  "warnings": [{ "code": "store_product_not_in_revenuecat", "severity": "warn", "message": "…", "storeProductId": "x", "rcProductId": null, "entitlementId": null }]
+  "warnings": [
+    {
+      "code": "store_product_not_in_revenuecat",
+      "severity": "warn",
+      "message": "…",
+      "storeProductId": "x",
+      "rcProductId": null,
+      "entitlementId": null
+    }
+  ]
 }
 ```
 
@@ -143,12 +188,59 @@ sync.
     "currency": "USD",
     "fetchedAt": 1763000000000,
     "figures": {
-      "activeSubscriptions": { "id": "active_subscriptions", "name": "Active Subscriptions", "kind": "count", "value": 340, "currency": null, "period": "P0D", "windowDays": 0, "lastUpdatedAt": 1763000000000 },
-      "activeTrials": { "id": "active_trials", "name": "Active Trials", "kind": "count", "value": 12, "currency": null, "period": "P0D", "windowDays": 0, "lastUpdatedAt": 1763000000000 },
-      "mrr": { "id": "mrr", "name": "MRR", "kind": "money", "value": 1234.5, "currency": "USD", "period": "P0D", "windowDays": 0, "lastUpdatedAt": 1763000000000 },
-      "revenue": { "id": "revenue", "name": "Revenue", "kind": "money", "value": 2000, "currency": "USD", "period": "P28D", "windowDays": 28, "lastUpdatedAt": 1763000000000 }
+      "activeSubscriptions": {
+        "id": "active_subscriptions",
+        "name": "Active Subscriptions",
+        "kind": "count",
+        "value": 340,
+        "currency": null,
+        "period": "P0D",
+        "windowDays": 0,
+        "lastUpdatedAt": 1763000000000
+      },
+      "activeTrials": {
+        "id": "active_trials",
+        "name": "Active Trials",
+        "kind": "count",
+        "value": 12,
+        "currency": null,
+        "period": "P0D",
+        "windowDays": 0,
+        "lastUpdatedAt": 1763000000000
+      },
+      "mrr": {
+        "id": "mrr",
+        "name": "MRR",
+        "kind": "money",
+        "value": 1234.5,
+        "currency": "USD",
+        "period": "P0D",
+        "windowDays": 0,
+        "lastUpdatedAt": 1763000000000
+      },
+      "revenue": {
+        "id": "revenue",
+        "name": "Revenue",
+        "kind": "money",
+        "value": 2000,
+        "currency": "USD",
+        "period": "P28D",
+        "windowDays": 28,
+        "lastUpdatedAt": 1763000000000
+      }
     },
-    "others": [{ "id": "new_customers", "name": "New Customers", "kind": "count", "value": 77, "currency": null, "period": "P28D", "windowDays": 28, "lastUpdatedAt": 1763000000000 }]
+    "others": [
+      {
+        "id": "new_customers",
+        "name": "New Customers",
+        "kind": "count",
+        "value": 77,
+        "currency": null,
+        "period": "P28D",
+        "windowDays": 28,
+        "lastUpdatedAt": 1763000000000
+      }
+    ]
   },
   "status": { "lastAttemptAt": 1763000000000, "lastError": null, "failures": 0 }
 }

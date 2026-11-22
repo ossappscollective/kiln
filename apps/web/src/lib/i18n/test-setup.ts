@@ -14,7 +14,11 @@ const LOCALES = fileURLToPath(new URL('../../../locales/', import.meta.url));
 export function loadLocaleFromDisk(code: string): void {
   for (const ns of readdirSync(LOCALES)) {
     try {
-      registerCatalog(code, ns, JSON.parse(readFileSync(`${LOCALES}${ns}/${code}.json`, 'utf8')) as Catalog);
+      registerCatalog(
+        code,
+        ns,
+        JSON.parse(readFileSync(`${LOCALES}${ns}/${code}.json`, 'utf8')) as Catalog,
+      );
     } catch {
       // This namespace has no file in that language.
     }

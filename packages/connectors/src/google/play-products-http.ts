@@ -1,5 +1,12 @@
 import { StoreError, StoreRateLimitError } from '../errors.ts';
-import { enc, isRecord, type Json, StoreHttp, type StoreHttpOptions, type StoreReply } from '../store-http.ts';
+import {
+  enc,
+  isRecord,
+  type Json,
+  StoreHttp,
+  type StoreHttpOptions,
+  type StoreReply,
+} from '../store-http.ts';
 import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
 import { googleError, isPlayPackageName } from './googleplay.ts';
 
@@ -135,7 +142,9 @@ export class PlayProductsHttp {
     url: string,
     json: unknown,
     what: string,
-  ): Promise<{ ok: true; json: unknown } | { ok: false; unknown: true; message: string; status?: number }> {
+  ): Promise<
+    { ok: true; json: unknown } | { ok: false; unknown: true; message: string; status?: number }
+  > {
     for (let attempt = 0; ; attempt++) {
       const token = await this.#tokens.token();
       this.#writeHttp.known.add(token);

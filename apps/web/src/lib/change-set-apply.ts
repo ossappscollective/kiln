@@ -33,9 +33,7 @@ const ok: Availability = { available: true };
 
 /** Why a pull request cannot be opened by Apply, or ok. A local-only repository has no GitHub. */
 export function githubPrAvailability(ctx: Pick<ApplyContext, 'localOnly'>): Availability {
-  return ctx.localOnly
-    ? unavailable(t('publish:apply.githubPr.noConnection'))
-    : ok;
+  return ctx.localOnly ? unavailable(t('publish:apply.githubPr.noConnection')) : ok;
 }
 
 /** Why a commit in the local clone is not possible right now, or ok. */
@@ -61,8 +59,7 @@ export function localBranchAvailability(
 export function pushAvailability(ctx: ApplyContext): Availability {
   const local = localBranchAvailability(ctx);
   if (!local.available) return local;
-  if (ctx.localOnly)
-    return unavailable(t('publish:apply.push.noConnection'));
+  if (ctx.localOnly) return unavailable(t('publish:apply.push.noConnection'));
   return ok;
 }
 
@@ -70,8 +67,7 @@ export function pushAvailability(ctx: ApplyContext): Availability {
 export function openPrAvailability(ctx: ApplyContext, pushChosen: boolean): Availability {
   const push = pushAvailability(ctx);
   if (!push.available) return push;
-  if (!pushChosen)
-    return unavailable(t('publish:apply.pr.needsPush'));
+  if (!pushChosen) return unavailable(t('publish:apply.pr.needsPush'));
   return ok;
 }
 
@@ -223,7 +219,12 @@ export function outcomeSteps(outcome: LocalOutcome): OutcomeStep[] {
               tone: 'bad',
               ...(outcome.push.error ? { detail: outcome.push.error } : {}),
             }
-          : { id: 'push', label: label.push, status: t('publish:apply.step.notPushed'), tone: 'neutral' };
+          : {
+              id: 'push',
+              label: label.push,
+              status: t('publish:apply.step.notPushed'),
+              tone: 'neutral',
+            };
   const pr: OutcomeStep =
     outcome.pr.status === 'opened'
       ? { id: 'pr', label: label.pr, status: t('publish:apply.step.prOpened'), tone: 'ok' }
@@ -278,9 +279,7 @@ export function retryOptions(
       },
       {
         id: 'push_pr',
-        label: failed
-          ? t('publish:apply.retry.pushPrRetry')
-          : t('publish:apply.retry.pushPr'),
+        label: failed ? t('publish:apply.retry.pushPrRetry') : t('publish:apply.retry.pushPr'),
         openPr: true,
       },
     ];
@@ -372,8 +371,7 @@ export const applyLocalExplanation = (): string => t('publish:apply.localExplana
  */
 export function localOnlyNotice(write: WriteConfig): { title: string; text: string } {
   const base = t('publish:apply.localOnly.base');
-  if (write?.enabled)
-    return { title: t('publish:apply.localOnly.titleOn'), text: base };
+  if (write?.enabled) return { title: t('publish:apply.localOnly.titleOn'), text: base };
   const env = write?.envName || WRITE_ENV_NAME;
   return {
     title: t('publish:apply.localOnly.titleOff'),

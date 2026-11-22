@@ -160,7 +160,10 @@ export function statusInfo(
 export function formatRollout(fraction: number | null | undefined): string | null {
   if (fraction === null || fraction === undefined || !Number.isFinite(fraction)) return null;
   const percent = Math.round(Math.min(1, Math.max(0, fraction)) * 1000) / 10;
-  return formatPercent(percent / 100, { minimumFractionDigits: Number.isInteger(percent) ? 0 : 1, maximumFractionDigits: 1 });
+  return formatPercent(percent / 100, {
+    minimumFractionDigits: Number.isInteger(percent) ? 0 : 1,
+    maximumFractionDigits: 1,
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -393,7 +396,8 @@ export function syncDetail(sync: SyncSummary): string {
     sync.updated > 0 ? t('portfolio:sync.updated', { count: sync.updated }) : '',
     sync.removed > 0 ? t('portfolio:sync.removed', { count: sync.removed }) : '',
   ].filter(Boolean);
-  const changes = parts.length > 0 ? formatList(parts, { type: 'unit' }) : t('portfolio:sync.noChanges');
+  const changes =
+    parts.length > 0 ? formatList(parts, { type: 'unit' }) : t('portfolio:sync.noChanges');
   return sync.unmapped > 0
     ? t('portfolio:sync.detailUnmapped', { count: sync.found, changes, unmapped: sync.unmapped })
     : t('portfolio:sync.detail', { count: sync.found, changes });
@@ -737,7 +741,11 @@ export function batchSummary(results: readonly BatchResult[]): string {
     count('skipped') > 0 ? t('portfolio:batch.skipped', { count: count('skipped') }) : '',
   ].filter(Boolean);
   return parts.length > 0
-    ? t('portfolio:batch.summaryIssues', { ok: count('ok'), count: total, issues: formatList(parts, { type: 'unit' }) })
+    ? t('portfolio:batch.summaryIssues', {
+        ok: count('ok'),
+        count: total,
+        issues: formatList(parts, { type: 'unit' }),
+      })
     : t('portfolio:batch.summary', { ok: count('ok'), count: total });
 }
 
@@ -803,7 +811,11 @@ export function packageListProblem(list: PackageList): string {
   if (first) {
     const shown = first.value.length > 40 ? `${first.value.slice(0, 40)}…` : first.value;
     return list.invalid.length > 1
-      ? t('portfolio:packages.invalidMore', { line: first.line, value: shown, count: list.invalid.length - 1 })
+      ? t('portfolio:packages.invalidMore', {
+          line: first.line,
+          value: shown,
+          count: list.invalid.length - 1,
+        })
       : t('portfolio:packages.invalid', { line: first.line, value: shown });
   }
   if (list.packages.length === 0) return t('portfolio:packages.none');
@@ -861,7 +873,11 @@ export function discoverSummaryText(
     const verified = result.candidates.length;
     return withAdded(
       result.failures.length > 0
-        ? t('portfolio:discover.playCheckedFailed', { count: total, verified, failed: result.failures.length })
+        ? t('portfolio:discover.playCheckedFailed', {
+            count: total,
+            verified,
+            failed: result.failures.length,
+          })
         : t('portfolio:discover.playChecked', { count: total, verified }),
     );
   }
@@ -962,7 +978,9 @@ export function importSummaryText(
       ? t('portfolio:import.addedWithRest', { what, rest: joined })
       : t('portfolio:import.added', { what });
   }
-  return rest.length > 0 ? t('portfolio:import.noneWithRest', { rest: joined }) : t('portfolio:import.none');
+  return rest.length > 0
+    ? t('portfolio:import.noneWithRest', { rest: joined })
+    : t('portfolio:import.none');
 }
 
 /** What to say about one item of an import that did not create an app. */

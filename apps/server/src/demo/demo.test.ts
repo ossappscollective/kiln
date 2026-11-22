@@ -30,7 +30,9 @@ after(async () => {
 });
 
 const start = (dir = freshDir()) =>
-  createDemoRuntime(loadDemoConfig({ KILN_DEMO: 'true', KILN_DEMO_DIR: dir }, ''), { worker: false });
+  createDemoRuntime(loadDemoConfig({ KILN_DEMO: 'true', KILN_DEMO_DIR: dir }, ''), {
+    worker: false,
+  });
 
 type Json = Record<string, any>;
 async function session(rt: DemoRuntime, as = 'owner') {
@@ -111,7 +113,8 @@ test('it refuses Postgres, production and real-looking setups unless KILN_DEMO_F
   }
   // The hard problems cannot be forced: the real server's folder, and a folder that holds something else.
   assert.throws(
-    () => loadDemoConfig({ ...base, KILN_DEMO_DIR: join(dir, '.kiln-data'), KILN_DEMO_FORCE: 'true' }),
+    () =>
+      loadDemoConfig({ ...base, KILN_DEMO_DIR: join(dir, '.kiln-data'), KILN_DEMO_FORCE: 'true' }),
     /folder of the real server/,
   );
   assert.throws(

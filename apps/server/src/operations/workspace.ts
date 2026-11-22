@@ -128,7 +128,9 @@ const appSchema = z.object({
   lastSyncErrorParams: z
     .record(z.union([z.string(), z.number(), z.boolean(), z.null()]))
     .nullable()
-    .describe('What the sentence of `lastSyncErrorCode` needs (a store name, a number). Never a secret.'),
+    .describe(
+      'What the sentence of `lastSyncErrorCode` needs (a store name, a number). Never a secret.',
+    ),
   hasIcon: z
     .boolean()
     .describe(

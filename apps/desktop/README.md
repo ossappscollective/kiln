@@ -16,10 +16,10 @@ see [docs/i18n-desktop.md](../../docs/i18n-desktop.md). Try one with `KILN_LANG=
 `scripts/prepare-sidecar.mjs` copies files that are already on this machine into
 `src-tauri/binaries/` (git-ignored). It does not download or compile anything.
 
-| Output                           | Used as                                                                                                                                                   |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Output                            | Used as                                                                                                                                                    |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `kiln-node-<target-triple>[.exe]` | Tauri `externalBin` `binaries/kiln-node`: the Node binary                                                                                                  |
-| `server/`                        | Tauri `resources`, installed as `server/`: server sources, `@kiln/*` packages, `hono`, `zod`, `@hono/node-server`, the launcher, and `web/` (the built UI) |
+| `server/`                         | Tauri `resources`, installed as `server/`: server sources, `@kiln/*` packages, `hono`, `zod`, `@hono/node-server`, the launcher, and `web/` (the built UI) |
 
 The Node binary is the one running the script, so run it with the official Node 22.18 or newer
 (nodejs.org, nvm, fnm, Volta). Homebrew and distribution packages are refused because they link
