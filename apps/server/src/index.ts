@@ -45,6 +45,14 @@ import {
   defaultReviewConnectorFactory,
   REVIEW_SYNC_QUEUE,
 } from './modules/reviews/sync.ts';
+import {
+  createTestflightAfterReviews,
+  reviewThenTestflight,
+} from './modules/testflight/index.ts';
+import {
+  DEFAULT_TESTFLIGHT_SYNC_TIMEOUT_MS,
+  defaultTestflightConnectorFactory,
+} from './modules/testflight/shared.ts';
 import { createEventStreamHub } from './routes/events.ts';
 import {
   createScheduler,
@@ -249,14 +257,24 @@ const worker = createWorker({
       intervalMs: listingIntervalMs(config.listingIntervalMinutes),
     }),
     // Scheduled and background reads of customer reviews (read-only; docs/api/reviews.md).
-    [REVIEW_SYNC_QUEUE]: createReviewSyncHandler({
-      db: database,
-      masterKey: config.masterKey,
-      now: Date.now,
-      connectorFactory: defaultReviewConnectorFactory,
-      timeoutMs: DEFAULT_REVIEW_TIMEOUT_MS,
-      translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
-    }),
+    [REVIEW_SYNC_QUEUE]: reviewThenTestflight(
+      createReviewSyncHandler({
+        db: database,
+        masterKey: config.masterKey,
+        now: Date.now,
+        connectorFactory: defaultReviewConnectorFactory,
+        timeoutMs: DEFAULT_REVIEW_TIMEOUT_MS,
+        translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
+      }),
+      // The TestFlight feedback of the same app, read right after its reviews by the same job (no second scheduler; docs/adr/0049).
+      createTestflightAfterReviews({
+        db: database,
+        masterKey: config.masterKey,
+        now: Date.now,
+        readFactory: defaultTestflightConnectorFactory,
+        readTimeoutMs: DEFAULT_TESTFLIGHT_SYNC_TIMEOUT_MS,
+      }),
+    ),
     // Scheduled reads of the EAS builds and submissions of linked apps (read-only toward Expo; docs/api/eas-builds.md).
     [EAS_STATUS_QUEUE]: createEasStatusHandler({
       db: database,

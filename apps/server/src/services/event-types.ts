@@ -20,6 +20,9 @@ export const eventTypes = [
   'review.new_low_rating',
   'review.sync_failed',
   'review.reply_sent',
+  // TestFlight (docs/adr/0049-testflight-feedback.md): a new beta feedback or crash was stored (ids, build and platform only).
+  'testflight.feedback',
+  'testflight.crash',
   'release.rollout_changed',
   'listing.draft_pushed',
   'listing.submitted',
@@ -68,6 +71,9 @@ export const eventReadAction: Record<EventType, Action> = {
   'review.new_low_rating': 'reviews.read',
   'review.sync_failed': 'reviews.read',
   'review.reply_sent': 'reviews.read',
+  // Ids, build and platform only (or a count for a grouped event); never a comment, a tester or a crash log.
+  'testflight.feedback': 'reviews.read',
+  'testflight.crash': 'reviews.read',
   'release.rollout_changed': 'apps.read',
   'listing.draft_pushed': 'listing.read',
   'listing.submitted': 'listing.read',

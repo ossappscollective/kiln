@@ -63,6 +63,12 @@ const openApp = (d: AlertData, section: string | undefined, label: string): Acti
     { app: String(d.appName ?? d.appId ?? '') },
   ],
 });
+/** The TestFlight view of an app: the Reviews page, view TestFlight. */
+const openTestflight = (d: AlertData): ActionSpec => ({
+  label: 'openTestflight',
+  path: `${appAt(d, 'reviews')}?view=testflight`,
+  where: ['where.appSection.reviews', { app: String(d.appName ?? d.appId ?? '') }],
+});
 const credentials: ActionSpec = {
   label: 'checkCredentials',
   path: '#/credentials',
@@ -99,6 +105,8 @@ const guides: Record<string, (d: AlertData) => GuideSpec> = {
   'plan.rollout_step_due': (d) => ({ primary: openApp(d, 'releases', 'openPlan') }),
   'review.low_rating': (d) => ({ primary: openApp(d, 'reviews', 'readReviews') }),
   'review.new': (d) => ({ primary: openApp(d, 'reviews', 'readReviews') }),
+  'testflight.feedback': (d) => ({ primary: openTestflight(d) }),
+  'testflight.crash': (d) => ({ primary: openTestflight(d) }),
   'review.unanswered': (d) => ({
     hint: 'unanswered',
     primary: openApp(d, 'reviews', 'answerReviews'),

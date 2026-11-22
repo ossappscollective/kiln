@@ -3,6 +3,7 @@ import type { Database } from '@kiln/db';
 import { enqueue } from '../../jobs.ts';
 import { purgeOrphanTranslations } from '../../services/translation.ts';
 import { purgeAiData } from '../ai/ai-suggestions.ts';
+import { pruneTestflight } from '../testflight/store.ts';
 import { pruneReviews, purgeOrphanReviewRows } from './service.ts';
 import { REVIEW_SYNC_QUEUE, type ReviewSyncPayload } from './sync.ts';
 
@@ -211,6 +212,10 @@ export async function reviewUpkeep(
     options.retentionDays > 0
       ? await pruneReviews(db, options.now - options.retentionDays * DAY, maxRows)
       : 0;
+  // TestFlight feedback and crashes follow the same retention (by Apple's date): they hold comments and emails of testers.
+  if (options.retentionDays > 0) {
+    await pruneTestflight(db, options.now - options.retentionDays * DAY, maxRows).catch(() => 0);
+  }
   const orphans = await purgeOrphanReviewRows(db, maxRows);
   // Stored translations of reviews that are gone (pruned or deleted with their app).
   await purgeOrphanTranslations(db, maxRows).catch(() => 0);

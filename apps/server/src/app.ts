@@ -20,6 +20,7 @@ import { type CiContext, createCiContext } from './modules/ci/service.ts';
 import { type EasDeps, easModule } from './modules/eas/index.ts';
 import { type ListingDeps, listingModule } from './modules/listing/index.ts';
 import { type ExperimentsDeps, experimentsModule } from './modules/experiments/index.ts';
+import { type TestflightDeps, testflightModule } from './modules/testflight/index.ts';
 import { type MonetizationDeps, monetizationModule } from './modules/monetization/index.ts';
 import { type RevenueCatDeps, revenuecatModule } from './modules/revenuecat/index.ts';
 import type { ModuleShared } from './modules/module.ts';
@@ -223,6 +224,8 @@ export type AppDeps = {
   monetization?: MonetizationDeps | undefined;
   /** Store experiments and custom product pages (docs/adr/0048-store-experiments.md): see `ExperimentsDeps` in modules/experiments. */
   experiments?: ExperimentsDeps | undefined;
+  /** TestFlight feedback and crashes (docs/adr/0049-testflight-feedback.md): see `TestflightDeps` in modules/testflight. */
+  testflight?: TestflightDeps | undefined;
   /** RevenueCat next to the store products (docs/adr/0039-revenuecat.md): see `RevenueCatDeps` in modules/revenuecat. */
   revenuecat?: RevenueCatDeps | undefined;
   /**
@@ -495,6 +498,7 @@ export function createApp(deps: AppDeps) {
     shared,
   );
   experimentsModule.mount(app, services, deps.experiments, shared);
+  testflightModule.mount(app, services, deps.testflight, shared);
   revenuecatModule.mount(app, services, deps.revenuecat, shared);
   publishModule.mount(
     app,

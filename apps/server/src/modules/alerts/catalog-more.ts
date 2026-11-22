@@ -1,5 +1,23 @@
 import { DAY, def, everyone, HOUR, isoDay, noEmail, num, str } from './catalog-core.ts';
 
+/** The data of a TestFlight alert: ids, build and platform, or a count for a grouped event; never a comment, a tester or a log. */
+const testflightData = (e: Parameters<NonNullable<ReturnType<typeof def>['fromEvent']>>[0]) => {
+  const grouped = e.payload.grouped === true;
+  return {
+    appId: e.subject.appId ?? null,
+    platform: str(e.payload.platform),
+    ...(grouped
+      ? { grouped: true, count: num(e.payload.count) }
+      : {
+          submissionId: str(e.payload.submissionId),
+          buildNumber: str(e.payload.buildNumber),
+          version: str(e.payload.version),
+        }),
+    // One batch per read: the time of the event keeps two grouped events from collapsing into one alert.
+    batch: e.createdAt,
+  };
+};
+
 /** The alert catalog, part 2: reviews, store, builds, analytics, ASO, AI, security and system (see alert-catalog.ts). */
 export const moreDefs = [
   // ----- reviews and ratings ---------------------------------------------------------------------
@@ -57,6 +75,45 @@ export const moreDefs = [
         batch: e.createdAt,
       };
     },
+  }),
+  // ----- TestFlight (docs/adr/0049-testflight-feedback.md) ---------------------------------------
+  def({
+    id: 'testflight.feedback',
+    group: 'reviews',
+    label: 'New TestFlight feedback',
+    description:
+      'A beta tester sent feedback (a screenshot with a comment) through TestFlight, and it was stored by a read of an app. The first read of an app raises none; more than 10 new ones in one read raise one grouped alert. Low severity: made for the email digest. The comment is never in the alert.',
+    severity: 'info',
+    scope: 'app',
+    defaultChannels: ['in_app'],
+    allowedChannels: everyone,
+    audience: 'reviews.read',
+    source: { kind: 'event', events: ['testflight.feedback'] },
+    dedupe: 'testflight.feedback:{submissionId|appId:batch:time}',
+    dedupeKey: (d) => `testflight.feedback:${d.submissionId ?? `${d.appId}:batch:${d.batch}`}`,
+    dedupeWindowMs: 30 * DAY,
+    maxPerHour: 30,
+    params: {},
+    fromEvent: (e) => testflightData(e),
+  }),
+  def({
+    id: 'testflight.crash',
+    group: 'reviews',
+    label: 'New TestFlight crash',
+    description:
+      'A beta tester sent a crash report through TestFlight, and it was stored by a read of an app. The first read of an app raises none; more than 10 new ones in one read raise one grouped alert. The crash log is never in the alert.',
+    severity: 'warning',
+    scope: 'app',
+    defaultChannels: ['in_app'],
+    allowedChannels: everyone,
+    audience: 'reviews.read',
+    source: { kind: 'event', events: ['testflight.crash'] },
+    dedupe: 'testflight.crash:{submissionId|appId:batch:time}',
+    dedupeKey: (d) => `testflight.crash:${d.submissionId ?? `${d.appId}:batch:${d.batch}`}`,
+    dedupeWindowMs: 30 * DAY,
+    maxPerHour: 30,
+    params: {},
+    fromEvent: (e) => testflightData(e),
   }),
   def({
     id: 'review.sync_failed',

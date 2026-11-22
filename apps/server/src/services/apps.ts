@@ -554,6 +554,13 @@ export async function deleteApp(
         input.workspaceId,
       ]);
     }
+    // TestFlight feedback and crashes read from Apple, with their triage, and the sync state (modules/testflight).
+    for (const table of ['testflight_feedback', 'testflight_sync']) {
+      await tx.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
+        input.id,
+        input.workspaceId,
+      ]);
+    }
     // The link to the app's RevenueCat project and the cached RevenueCat configuration (modules/revenuecat).
     for (const table of [
       'app_revenuecat_links',

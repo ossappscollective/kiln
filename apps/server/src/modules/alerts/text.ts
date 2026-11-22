@@ -120,6 +120,29 @@ const store = (d: AlertData): string | undefined =>
   text(d.store) ?? (d.platform === 'ios' ? 'App Store' : d.platform === 'android' ? 'Google Play' : undefined);
 
 /** Title and body of each alert type: which key, which values. A type that is not here has no translation (its stored text is used). */
+/** `2.5.0 (42)`, `42`, `2.5.0` or undefined: how a build is named in a TestFlight alert. */
+const testflightBuild = (d: AlertData): string | undefined => {
+  const build = text(d.buildNumber);
+  const version = text(d.version);
+  return build && version ? `${version} (${build})` : (build ?? version);
+};
+
+function testflightSpec(f: Fmt, kind: 'feedback' | 'crash'): Spec {
+  const base = `testflight.${kind}`;
+  const count = number(f.d.count);
+  if (f.d.grouped === true && count !== undefined) {
+    return {
+      title: [`${base}.title.grouped`, { app: f.app, count }],
+      body: [`${base}.body.grouped`, { app: f.app, count }],
+    };
+  }
+  const build = testflightBuild(f.d);
+  return {
+    title: [`${base}.title`, { app: f.app }],
+    body: build ? [`${base}.body`, { app: f.app, build }] : [`${base}.body.noBuild`, { app: f.app }],
+  };
+}
+
 const specs: Record<string, (f: Fmt) => Spec> = {
   'release.rejected': (f) => ({
     title: ['release.rejected.title', { app: f.appVer }],
@@ -212,6 +235,8 @@ const specs: Record<string, (f: Fmt) => Spec> = {
             : ['review.low_rating.body.noStore', { app: f.app, count: rating }],
     };
   },
+  'testflight.feedback': (f) => testflightSpec(f, 'feedback'),
+  'testflight.crash': (f) => testflightSpec(f, 'crash'),
   'review.new': (f) => {
     const s = store(f.d);
     if (f.d.grouped === true) {
