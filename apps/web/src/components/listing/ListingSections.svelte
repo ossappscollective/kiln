@@ -10,6 +10,7 @@
 -->
 <script lang="ts">
   import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import {
     PLAY_LIMITS_NOTE,
     READ_ONLY_NOTE,
@@ -51,20 +52,20 @@ import { listingStoreOf, supports } from '@kiln/core';
 
 <section class="sections" aria-labelledby="listing-sections-heading">
   <header class="head">
-    <h3 id="listing-sections-heading">Categories, age rating, privacy and media</h3>
-    <Badge tone="info" icon="info">Read-only, not pulled into the repository</Badge>
+    <h3 id="listing-sections-heading">{t('listing:sectionsView.heading')}</h3>
+    <Badge tone="info" icon="info">{t('listing:sectionsView.badge')}</Badge>
   </header>
   <p class="muted note">
     <Icon name="info" size={14} />
-    <span>{READ_ONLY_NOTE}</span>
+    <span>{t(READ_ONLY_NOTE)}</span>
   </p>
   <p class="summary">
     {summary}{#if storeReadAt !== null}
-      <span class="muted"> · store read <time datetime={new Date(storeReadAt).toISOString()} title={fullTime(storeReadAt)}>{timeAgo(storeReadAt, now)}</time></span>
+      <span class="muted"> · <time datetime={new Date(storeReadAt).toISOString()} title={fullTime(storeReadAt)}>{t('listing:sectionsView.storeRead', { when: timeAgo(storeReadAt, now) })}</time></span>
     {/if}
   </p>
   {#if listingStoreOf(platform) === 'google_play'}
-    <p class="muted note"><Icon name="info" size={14} /> <span>{PLAY_LIMITS_NOTE}</span></p>
+    <p class="muted note"><Icon name="info" size={14} /> <span>{t(PLAY_LIMITS_NOTE)}</span></p>
   {/if}
 
   {#each ordered as section (section.name)}
@@ -75,7 +76,7 @@ import { listingStoreOf, supports } from '@kiln/core';
       level={4}
       flush
       defaultOpen={status === 'differs' || status === 'not-read'}
-      summary={`${sectionStatusLabel(status)}${section.name === 'media' && section.store !== null ? ` · ${mediaSummary(section.store as ListingMedia)}` : ''}`}
+      summary={section.name === 'media' && section.store !== null ? t('listing:sectionsView.statusWithMedia', { status: sectionStatusLabel(status), media: mediaSummary(section.store as ListingMedia) }) : sectionStatusLabel(status)}
     >
       {#snippet actions()}
         <Badge tone={sectionStatusTone(status)}>{sectionStatusLabel(status)}</Badge>
@@ -83,13 +84,13 @@ import { listingStoreOf, supports } from '@kiln/core';
           <span class="muted">{mediaSummary(section.store as ListingMedia)}</span>
         {/if}
         {#if section.storeObservedAt !== null}
-          <span class="muted when" title={fullTime(section.storeObservedAt)}>in the store since {timeAgo(section.storeObservedAt, now)}</span>
+          <span class="muted when" title={fullTime(section.storeObservedAt)}>{t('listing:sectionsView.inStoreSince', { when: timeAgo(section.storeObservedAt, now) })}</span>
         {/if}
       {/snippet}
       <div class="body">
         <p class="muted explain">{sectionStatusExplanation(status)}</p>
         {#if !repositoryLinked && status !== 'not-read'}
-          <p class="muted explain">This app is not linked to a repository, so there is nothing to compare with.</p>
+          <p class="muted explain">{t('listing:sectionsView.noRepo')}</p>
         {/if}
         {#if section.compare.details.length > 0}
           <ul class="details">
@@ -100,7 +101,7 @@ import { listingStoreOf, supports } from '@kiln/core';
         {/if}
 
         {#if status === 'not-read'}
-          <p class="muted">Not read yet. Refresh from the store to read it.</p>
+          <p class="muted">{t('listing:sectionsView.notReadYet')}</p>
         {:else if section.name === 'media'}
           {@const rows = mediaRows(
             (section.store ?? undefined) as ListingMedia | undefined,
@@ -108,18 +109,18 @@ import { listingStoreOf, supports } from '@kiln/core';
             platform,
           )}
           {#if rows.length === 0}
-            <p class="muted">The store has no screenshots, previews or images for this app.</p>
+            <p class="muted">{t('listing:sectionsView.noMedia')}</p>
           {:else}
             <div class="table-wrap">
               <table class="compact">
-                <caption class="visually-hidden">Screenshot, preview and image counts per locale and device type</caption>
+                <caption class="visually-hidden">{t('listing:sectionsView.mediaCaption')}</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Locale</th>
-                    <th scope="col">Kind</th>
-                    <th scope="col">Device type</th>
-                    <th scope="col" class="num">Store</th>
-                    <th scope="col" class="num">Repository</th>
+                    <th scope="col">{t('listing:sectionsView.col.locale')}</th>
+                    <th scope="col">{t('listing:sectionsView.col.kind')}</th>
+                    <th scope="col">{t('listing:sectionsView.col.device')}</th>
+                    <th scope="col" class="num">{t('listing:sectionsView.col.store')}</th>
+                    <th scope="col" class="num">{t('listing:sectionsView.col.repository')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -131,7 +132,7 @@ import { listingStoreOf, supports } from '@kiln/core';
                       <td class="num">{row.store ?? '–'}</td>
                       <td class="num">
                         {row.repo ?? '–'}
-                        {#if row.differs}<Badge tone="warn">Differs</Badge>{/if}
+                        {#if row.differs}<Badge tone="warn">{t('listing:sectionsView.differs')}</Badge>{/if}
                       </td>
                     </tr>
                   {/each}
@@ -139,22 +140,22 @@ import { listingStoreOf, supports } from '@kiln/core';
               </table>
             </div>
             <p class="muted fine">
-              Counts only: no image is read or kept.
+              {t('listing:sectionsView.countsOnly')}
               {#if supports(platform, 'screenshotsByDevice')}
-                The repository's screenshot folders do not say which device a file is for, so only the total of each locale is compared.
+                {t('listing:sectionsView.byDeviceNote')}
               {/if}
             </p>
           {/if}
         {:else if section.name === 'releaseNotes'}
           {@const notes = releaseNoteRows((section.store ?? undefined) as ListingReleaseNotes | undefined)}
           {#if notes.length === 0}
-            <p class="muted">No release notes were read.</p>
+            <p class="muted">{t('listing:sectionsView.noReleaseNotes')}</p>
           {:else}
             {#each notes as track (track.track)}
               <div class="track">
                 <h5>{track.track}{#if track.meta}<span class="muted"> · {track.meta}</span>{/if}</h5>
                 {#if track.notes.length === 0}
-                  <p class="muted">No release notes in this release.</p>
+                  <p class="muted">{t('listing:sectionsView.noNotesInRelease')}</p>
                 {:else}
                   <dl>
                     {#each track.notes as note (note.language)}
@@ -169,16 +170,16 @@ import { listingStoreOf, supports } from '@kiln/core';
         {:else}
           {@const rows = valueRows(section.name, section.store, section.repo)}
           {#if rows.length === 0}
-            <p class="muted">The store has nothing set here.</p>
+            <p class="muted">{t('listing:sectionsView.nothingSet')}</p>
           {:else}
             <div class="table-wrap">
               <table class="compact">
-                <caption class="visually-hidden">{sectionTitle(section.name)}: the store beside the repository</caption>
+                <caption class="visually-hidden">{t('listing:sectionsView.valuesCaption', { title: sectionTitle(section.name) })}</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Item</th>
-                    <th scope="col">Store</th>
-                    <th scope="col">Repository</th>
+                    <th scope="col">{t('listing:sectionsView.col.item')}</th>
+                    <th scope="col">{t('listing:sectionsView.col.store')}</th>
+                    <th scope="col">{t('listing:sectionsView.col.repository')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -188,7 +189,7 @@ import { listingStoreOf, supports } from '@kiln/core';
                       <td class="value">{row.store ?? '–'}</td>
                       <td class="value">
                         {row.repo ?? '–'}
-                        {#if row.differs}<Badge tone="warn">Differs</Badge>{/if}
+                        {#if row.differs}<Badge tone="warn">{t('listing:sectionsView.differs')}</Badge>{/if}
                       </td>
                     </tr>
                   {/each}
@@ -196,7 +197,7 @@ import { listingStoreOf, supports } from '@kiln/core';
               </table>
             </div>
             {#if section.repo === null}
-              <p class="muted fine">The repository does not say: it has not been read, or its files cannot hold this.</p>
+              <p class="muted fine">{t('listing:sectionsView.repoSilent')}</p>
             {/if}
           {/if}
         {/if}

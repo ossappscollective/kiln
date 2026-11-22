@@ -12,6 +12,8 @@
   import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import {
     buildPullRequest,
     candidatesOf,
@@ -29,6 +31,7 @@
   import Icon from '../ui/Icon.svelte';
   import Modal from '../ui/Modal.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import T from '../ui/T.svelte';
   import DiffText from './DiffText.svelte';
 
   let {
@@ -129,7 +132,7 @@
         if (candidates.length > 0 && chosenTarget === '') chosenTarget = candidates[0]?.id ?? '';
         problem = pullErrorMessage(e);
       } else {
-        problem = 'Something went wrong. Try again.';
+        problem = t('common:error.genericRetry');
       }
     } finally {
       busy = false;
@@ -137,84 +140,84 @@
   }
 
   const rootsText = (c: PullCandidate) =>
-    [c.roots.appStore, c.roots.googlePlay].filter((r): r is string => r !== null && r !== '').join(' and ') || 'no folders';
+    formatList([c.roots.appStore, c.roots.googlePlay].filter((r): r is string => r !== null && r !== '')) || t('listing:pullDialog.noFolders');
 </script>
 
 <Modal
   bind:open
   size="lg"
   dismissible={!busy}
-  title="Pull into the repository"
-  description="Copies the store's text into the listing files of the repository as a draft change set. Nothing changes in the store or in the repository until a person approves the change set and it is applied."
+  title={t('listing:pullResult.title')}
+  description={t('listing:pullDialog.description')}
 >
   <form id="pull-{uid}" class="stack" onsubmit={submit}>
-    <section aria-label="Where it goes">
-      <h3>Where it goes</h3>
+    <section aria-label={t('listing:pullDialog.whereAria')}>
+      <h3>{t('listing:pullDialog.where')}</h3>
       {#if repoState === 'loading'}
-        <div role="status" aria-label="Loading the repository"><Skeleton width="60%" height="14px" /></div>
+        <div role="status" aria-label={t('listing:pullDialog.loadingRepoAria')}><Skeleton width="60%" height="14px" /></div>
       {:else if repoState === 'error' || !repository}
-        <p class="muted">The repository could not be loaded here. The change set still goes to the repository linked to this app.</p>
+        <p class="muted">{t('listing:pullDialog.repoError')}</p>
       {:else}
         <dl class="target">
-          <div><dt>Repository</dt><dd>{repository.owner}/{repository.repo}</dd></div>
-          <div><dt>Branch</dt><dd><code>{repository.defaultBranch}</code> (the pull request will target it)</dd></div>
+          <div><dt>{t('listing:pullDialog.repository')}</dt><dd>{repository.owner}/{repository.repo}</dd></div>
+          <div><dt>{t('listing:pullDialog.branch')}</dt><dd><T key="listing:pullDialog.branchValue" params={{ branch: repository.defaultBranch }} /></dd></div>
           <div>
-            <dt>{storeName(app.platform)} listing</dt>
+            <dt>{t('listing:pullDialog.storeListing', { store: storeName(app.platform) })}</dt>
             <dd>
               {#if source}
                 <code>{source.path}</code> <span class="muted">· {sourceKindLabel(source.source)}</span>
               {:else}
-                <span class="muted">No listing source was found by the last scan. The files are created in the default folder.</span>
+                <span class="muted">{t('listing:pullDialog.noSource')}</span>
               {/if}
             </dd>
           </div>
         </dl>
-        <p class="muted small">A saved listing target of this app, or the one you choose below, decides the exact folder when the draft is made.</p>
+        <p class="muted small">{t('listing:pullDialog.targetHint')}</p>
       {/if}
     </section>
 
-    <section aria-label="What changes">
-      <h3>What changes: {selectionText(fields)}</h3>
+    <section aria-label={t('listing:pullDialog.changesAria')}>
+      <h3>{t('listing:pullDialog.whatChanges', { selection: selectionText(fields) })}</h3>
       <ul class="changes">
         {#each fields as field (field.locale + field.field)}
           {@const u = usage(field.live.value, field.limit, field.unit)}
           <li>
-            <h4>{field.locale} · {field.label}</h4>
+            <h4>{t('listing:pullResult.changeLine', { locale: field.locale, label: field.label })}</h4>
             <div class="pair">
               <div class="side">
-                <p class="side-title">Now in the repository</p>
-                <div class="text"><DiffText from={field.repo.value ?? ''} to={field.live.value ?? ''} side="from" fromName="the repository" toName="the store" /></div>
+                <p class="side-title">{t('listing:pullDialog.nowInRepo')}</p>
+                <div class="text"><DiffText from={field.repo.value ?? ''} to={field.live.value ?? ''} side="from" fromName={t('listing:diff.name.repository')} toName={t('listing:diff.name.store')} /></div>
               </div>
               <span class="arrow" aria-hidden="true"><Icon name="arrow-right" size={16} /></span>
               <div class="side">
-                <p class="side-title">Will become (from the store)</p>
-                <div class="text"><DiffText from={field.repo.value ?? ''} to={field.live.value ?? ''} side="to" fromName="the repository" toName="the store" /></div>
+                <p class="side-title">{t('listing:pullDialog.willBecome')}</p>
+                <div class="text"><DiffText from={field.repo.value ?? ''} to={field.live.value ?? ''} side="to" fromName={t('listing:diff.name.repository')} toName={t('listing:diff.name.store')} /></div>
               </div>
             </div>
             <p class="meta" class:over={overLimit(field)}>
-              {usageText(u)}{#if overLimit(field)}: over the store limit, so this field will be left out, not shortened.{/if}
+              {overLimit(field) ? t('listing:pullDialog.overLimit', { usage: usageText(u) }) : usageText(u)}
             </p>
           </li>
         {/each}
       </ul>
     </section>
 
-    <section class="options" aria-label="Options">
+    <section class="options" aria-label={t('listing:pullDialog.optionsAria')}>
       {#if canRefresh}
         <label class="check">
           <input type="checkbox" bind:checked={refresh} disabled={busy} />
-          <span>Refresh from the store first <span class="muted">(reads the store again, and counts toward the limit of 10 store reads a minute)</span></span>
+          <span>{t('listing:pullDialog.refresh')} <span class="muted">{t('listing:pullDialog.refreshHint')}</span></span>
         </label>
       {/if}
       <div class="field">
-        <label for="pull-summary-{uid}">Summary of the change set</label>
+        <label for="pull-summary-{uid}">{t('listing:pullDialog.summary')}</label>
         <input id="pull-summary-{uid}" type="text" maxlength="200" bind:value={summary} disabled={busy} />
       </div>
     </section>
 
     {#if candidates.length > 0}
       <fieldset class="choices">
-        <legend>Where in the repository?</legend>
+        <legend>{t('listing:pullDialog.whereInRepo')}</legend>
         {#each candidates as candidate (candidate.id)}
           <label class="check">
             <input type="radio" name="pull-target-{uid}" value={candidate.id} bind:group={chosenTarget} disabled={busy} />
@@ -225,12 +228,12 @@
     {/if}
 
     {#if problem}
-      <Alert tone="error" title="Could not create the draft">{problem}</Alert>
+      <Alert tone="error" title={t('listing:pullDialog.couldNot')}>{problem}</Alert>
     {/if}
   </form>
 
   {#snippet footer()}
-    <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>
+    <Button disabled={busy} onclick={() => (open = false)}>{t('common:action.cancel')}</Button>
     <Button
       type="submit"
       form="pull-{uid}"
@@ -238,7 +241,7 @@
       icon="git-pull-request"
       loading={busy}
       disabled={fields.length === 0 || pullCount === 0}
-    >Create draft change set</Button>
+    >{t('listing:pullDialog.create')}</Button>
   {/snippet}
 </Modal>
 
