@@ -18,9 +18,11 @@
     localesOf,
   } from '../../lib/aso/aso.ts';
   import { address } from '../../lib/address.svelte.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
   import { gapsLead } from '../../lib/aso/lead.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
-  import { countOf, summaryLine } from '../../lib/section-state.ts';
+  import { summaryLine } from '../../lib/section-state.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -30,6 +32,7 @@
   import Section from '../ui/Section.svelte';
   import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import T from '../ui/T.svelte';
 
   let {
     api,
@@ -78,7 +81,7 @@
               return acc;
             }, {});
           } catch (e) {
-            bad[m.id] = asoErrorMessage(e, 'Could not load the gaps.');
+            bad[m.id] = asoErrorMessage(e, t('aso:gaps.loadFailed'));
           }
         }),
       );
@@ -92,8 +95,9 @@
 
   function usedBy(app: AppSummary, ids: string[]): string {
     const map = names[app.id] ?? {};
-    const shown = ids.slice(0, 2).map((id) => map[id] ?? 'a competitor');
-    return shown.join(', ') + (ids.length > 2 ? ` +${ids.length - 2}` : '');
+    const shown = ids.slice(0, 2).map((id) => map[id] ?? t('aso:gaps.aCompetitor'));
+    const names = formatList(shown, { type: 'unit' });
+    return ids.length > 2 ? t('aso:gaps.usedByMore', { names, count: ids.length - 2 }) : names;
   }
 
   const lead = $derived(
@@ -107,12 +111,12 @@
       const country = countryForLocale(d.locale, keywords.filter((k) => k.appId === app.id));
       const out = await api.addAsoKeywords(workspaceId, app.id, [{ term, locale: d.locale, ...(country ? { country } : {}) }]);
       const first = out.results[0];
-      if (first?.status === 'created') toast.success(`Tracking “${term}”.`);
-      else if (first?.status === 'exists') toast.info(`“${term}” is already tracked.`);
-      else toast.error(first?.message ?? 'Could not track that keyword.');
+      if (first?.status === 'created') toast.success(t('aso:track.created', { term }));
+      else if (first?.status === 'exists') toast.info(t('aso:track.exists', { term }));
+      else toast.error(first?.message ?? t('aso:track.failed'));
       await onchanged();
     } catch (e) {
-      toast.error(asoErrorMessage(e, 'Could not track that keyword.'));
+      toast.error(asoErrorMessage(e, t('aso:track.failed')));
     } finally {
       busy = null;
     }
@@ -124,16 +128,16 @@
     <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="gaps-lead">
       {#snippet actions()}
         {#if noCompetitors && members[0]}
-          <Button variant="primary" icon="plus" href={asoViewHref(members[0].id, 'competitors', address.platform)}>Follow a competitor</Button>
+          <Button variant="primary" icon="plus" href={asoViewHref(members[0].id, 'competitors', address.platform)}>{t('aso:competitor.follow')}</Button>
         {/if}
       {/snippet}
     </PageLead>
   {/if}
   {#if locales.length > 1}
     <div class="row">
-      <label for="{uid}-locale" class="muted">Locale</label>
+      <label for="{uid}-locale" class="muted">{t('aso:label.locale')}</label>
       <select id="{uid}-locale" bind:value={locale}>
-        <option value="">Most used ({locales[0]})</option>
+        <option value="">{t('aso:label.mostUsed', { locale: locales[0] })}</option>
         {#each locales as l (l)}<option value={l}>{l}</option>{/each}
       </select>
     </div>
@@ -144,14 +148,15 @@
   {:else}
     {#each members as app (app.id)}
       {@const d = data[app.id]}
-      <Section title={platformLabel(app.platform)} key="platform.{app.platform}" variant="plain" summary={d ? summaryLine([countOf(d.gaps.length, 'gap'), d.locale, countOf(d.competitors, 'competitor') + ' read']) : ''}>
+      {#snippet link(text: string)}<a href={asoViewHref(app.id, 'competitors', address.platform)}>{text}</a>{/snippet}
+      <Section title={platformLabel(app.platform)} key="platform.{app.platform}" variant="plain" summary={d ? summaryLine([t('aso:count.gaps', { count: d.gaps.length }), d.locale, t('aso:count.competitorsRead', { count: d.competitors })]) : ''}>
         <div class="stack">
           <div class="row head">
             {#if d}
-              <span class="muted">{d.locale}: {d.competitors} {d.competitors === 1 ? 'competitor' : 'competitors'} read</span>
-              <InfoTip label="About these gaps" align="start">
+              <span class="muted">{t('aso:gaps.read', { locale: d.locale, count: d.competitors })}</span>
+              <InfoTip label={t('aso:gaps.aboutLabel')} align="start">
                 <p class="tip">
-                  Terms competitors put in their names, subtitles or descriptions that your searched fields do not hold. It compares stored texts only; it does not know what people search for.
+                  {t('aso:gaps.aboutText')}
                 </p>
                 {#if d.notes.length > 0}
                   <ul class="plain">{#each d.notes as n (n)}<li>{n}</li>{/each}</ul>
@@ -162,38 +167,38 @@
           {#if errors[app.id]}
             <Alert tone="error">{errors[app.id]}</Alert>
           {:else if d && d.competitors === 0}
-            <p class="none"><a href={asoViewHref(app.id, 'competitors', address.platform)}>Follow a competitor</a> to see which terms it uses that you do not.</p>
+            <p class="none"><T key="aso:gaps.noCompetitors" tags={{ link }} /></p>
           {:else if d && d.gaps.length === 0}
-            <p class="none">No gaps found: your listing has the terms the competitors use.</p>
+            <p class="none">{t('aso:gaps.none')}</p>
           {:else if d}
             <div class="table-wrap">
               <table class="compact">
                 <thead>
                   <tr>
-                    <th scope="col">Term</th>
-                    <th scope="col">Used by</th>
-                    <th scope="col">Your listing</th>
-                    {#if canWrite}<th scope="col"><span class="visually-hidden">Track</span></th>{/if}
+                    <th scope="col">{t('aso:gaps.term')}</th>
+                    <th scope="col">{t('aso:gaps.usedBy')}</th>
+                    <th scope="col">{t('aso:gaps.yourListing')}</th>
+                    {#if canWrite}<th scope="col"><span class="visually-hidden">{t('aso:track.button')}</span></th>{/if}
                   </tr>
                 </thead>
                 <tbody>
                   {#each d.gaps as g (g.term)}
                     {@const status = fitStatusInfo[g.ourStatus]}
                     <tr>
-                      <th scope="row" class="term">{g.term} {#if g.origin === 'tracked'}<Badge tone="info">Tracked</Badge>{/if}</th>
+                      <th scope="row" class="term">{g.term} {#if g.origin === 'tracked'}<Badge tone="info">{t('aso:gaps.tracked')}</Badge>{/if}</th>
                       <td>
                         {#if g.inTitle.length > 0}
-                          <span title="In the name or subtitle">{usedBy(app, g.inTitle)}</span>
-                          <span class="muted">(name or subtitle)</span>
+                          <span title={t('aso:gaps.inTitleTip')}>{usedBy(app, g.inTitle)}</span>
+                          <span class="muted">{t('aso:gaps.inTitle')}</span>
                         {:else}
-                          <span>{usedBy(app, g.inDescription)}</span> <span class="muted">(description)</span>
+                          <span>{usedBy(app, g.inDescription)}</span> <span class="muted">{t('aso:gaps.inDescription')}</span>
                         {/if}
                       </td>
-                      <td><Badge tone={status.tone} icon={status.tone === 'ok' ? 'check-circle' : status.tone === 'bad' ? 'x-circle' : 'alert-triangle'}>{status.label}</Badge></td>
+                      <td><Badge tone={status.tone} icon={status.tone === 'ok' ? 'check-circle' : status.tone === 'bad' ? 'x-circle' : 'alert-triangle'}>{t(status.labelKey)}</Badge></td>
                       {#if canWrite}
                         <td class="actions">
                           {#if g.origin === 'idea'}
-                            <Button size="sm" icon="plus" loading={busy === `${app.id}|${g.term}`} onclick={() => track(app, d, g.term)}>Track</Button>
+                            <Button size="sm" icon="plus" loading={busy === `${app.id}|${g.term}`} onclick={() => track(app, d, g.term)}>{t('aso:track.button')}</Button>
                           {/if}
                         </td>
                       {/if}

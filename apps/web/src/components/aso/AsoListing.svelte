@@ -39,6 +39,7 @@
     termKeywordItem,
     termMark,
   } from '../../lib/aso/listing.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { territoryName } from '../../lib/reviews/reviews.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -51,6 +52,7 @@
   import InfoTip from '../ui/InfoTip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import PageLead from '../ui/PageLead.svelte';
+  import T from '../ui/T.svelte';
 
   let {
     api,
@@ -101,7 +103,7 @@
             try {
               next[m.id] = await api.asoListingKeywords(workspaceId, m.id);
             } catch (e) {
-              bad[m.id] = asoErrorMessage(e, 'Could not load the listing keywords.');
+              bad[m.id] = asoErrorMessage(e, t('aso:used.loadFailed'));
             }
           }),
         );
@@ -164,7 +166,7 @@
         for (const part of chunk(items, per)) sums.push((await api.addAsoKeywords(workspaceId, g.appId, part)).summary);
       }
     } catch (e) {
-      planError = asoErrorMessage(e, 'Could not add the keywords.');
+      planError = asoErrorMessage(e, t('aso:used.addFailed'));
     } finally {
       busy = false;
     }
@@ -187,11 +189,11 @@
     try {
       const out = await api.addAsoKeywords(workspaceId, app.id, [termKeywordItem(row, term)]);
       const message = addSummaryText(out.summary, config?.limits.maxKeywordsPerApp);
-      if (out.summary.created > 0) toast.success(`Tracking “${term.term}” in ${row.country.toUpperCase()}.`);
+      if (out.summary.created > 0) toast.success(t('aso:listing.tracking', { term: term.term, country: row.country.toUpperCase() }));
       else toast.error(message);
       await onchanged();
     } catch (e) {
-      toast.error(asoErrorMessage(e, 'Could not add the keyword.'));
+      toast.error(asoErrorMessage(e, t('aso:listing.addFailed')));
     } finally {
       chipBusy = null;
     }
@@ -204,48 +206,39 @@
   <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="listing-lead">
     {#snippet aside()}
       <span class="row wrap about">
-        <InfoTip label="About this view" buttonText="About this view" align="start" width="30rem">
+        <InfoTip label={t('aso:listing.aboutLabel')} buttonText={t('aso:listing.aboutLabel')} align="start" width="30rem">
           <div class="tip stack tight">
-            <p>
-              Read from the listing text the last sync stored on this server. Nothing here contacts a store, and nothing is written to one. A term is tracked when a tracked keyword
-              has the same words (accents and English plurals ignored) in the same locale and storefront; the number is its rank today.
-            </p>
-            <p>
-              The storefront is the one rank tracking already uses for the locale (the one with most tracked keywords), else the usual one for its language. Which fields each
-              store searches is unverified.
-            </p>
-            <p>
-              <strong>wasted</strong>: the keyword field repeats a word the name or subtitle already holds. <strong>repeated</strong>: the field has the same words, or a plural, twice.
-              <strong>twice</strong>: the word is in more than one searched field.
-            </p>
+            <p>{t('aso:listing.about1')}</p>
+            <p>{t('aso:listing.about2')}</p>
+            <p><T key="aso:listing.about3" /></p>
           </div>
         </InfoTip>
         {#if androidInScope}
-          <label class="check"><input type="checkbox" bind:checked={includeDescription} /> Include frequent words of the Google Play description</label>
+          <label class="check"><input type="checkbox" bind:checked={includeDescription} /> {t('aso:listing.includeDescription')}</label>
         {/if}
       </span>
     {/snippet}
     {#snippet actions()}
       {#if canWrite && everything.total > 0}
-        <div class="acts" role="toolbar" aria-label="Listing keyword actions">
-          <Button variant="primary" icon="plus" onclick={() => openPlan()}>Track all untracked ({everything.total})</Button>
+        <div class="acts" role="toolbar" aria-label={t('aso:listing.actions')}>
+          <Button variant="primary" icon="plus" onclick={() => openPlan()}>{t('aso:listing.trackAll', { count: everything.total })}</Button>
         </div>
       {/if}
     {/snippet}
   </PageLead>
 
   {#if plan}
-    <section class="card plan stack" aria-label="Keywords that will be added">
-      <h3>Add {selectedCount} {selectedCount === 1 ? 'keyword' : 'keywords'} from the listing</h3>
+    <section class="card plan stack" aria-label={t('aso:listing.planLabel')}>
+      <h3>{t('aso:listing.planHeading', { count: selectedCount })}</h3>
       <p class="muted">
-        Each is added in the storefront and locale shown, with the tag “from listing”. Nothing is read from a store until you press Check now, and nothing is changed in a store.
+        {t('aso:listing.planText')}
       </p>
       {#if plan.groups.length === 0}
-        <p>Everything the listing sets is already tracked.</p>
+        <p>{t('aso:listing.allTracked')}</p>
       {/if}
       {#each plan.groups as g (g.id)}
         <fieldset class="group">
-          <legend>{multi ? `${platformLabel(g.platform)} · ` : ''}{g.locale} · {g.country.toUpperCase()} storefront</legend>
+          <legend>{multi ? t('aso:listing.groupLegendPlatform', { platform: platformLabel(g.platform), locale: g.locale, country: g.country.toUpperCase() }) : t('aso:listing.groupLegend', { locale: g.locale, country: g.country.toUpperCase() })}</legend>
           <ul class="plain picks">
             {#each g.items as item (item.key)}
               <li>
@@ -265,49 +258,47 @@
       {/each}
       {#each planApps as app (app.id)}
         {@const room = roomText(config?.limits.maxKeywordsPerApp, sections.find((s) => s.app.id === app.id)?.trackedCount ?? 0, selectedFor(app.id))}
-        {#if room}<p class="muted hint">{multi ? `${platformLabel(app.platform)}: ` : ''}{room}</p>{/if}
+        {#if room}<p class="muted hint">{multi ? t('aso:listing.roomPlatform', { platform: platformLabel(app.platform), room }) : room}</p>{/if}
       {/each}
       {#if planError}<Alert tone="error">{planError}</Alert>{/if}
       {#if planNote}<Alert tone="info">{planNote}</Alert>{/if}
       <div class="row">
-        <Button variant="primary" loading={busy} disabled={selectedCount === 0} onclick={confirmPlan}>Add {selectedCount} {selectedCount === 1 ? 'keyword' : 'keywords'}</Button>
-        <Button variant="ghost" onclick={() => (plan = null)}>Cancel</Button>
+        <Button variant="primary" loading={busy} disabled={selectedCount === 0} onclick={confirmPlan}>{t('aso:add.submit', { count: selectedCount })}</Button>
+        <Button variant="ghost" onclick={() => (plan = null)}>{t('common:action.cancel')}</Button>
       </div>
     </section>
   {/if}
 
   {#if loading}
-    <div role="status" aria-label="Loading the listing keywords" class="stack">
+    <div role="status" aria-label={t('aso:listing.loading')} class="stack">
       <Skeleton width="100%" height="36px" />
       <Skeleton width="100%" height="120px" />
     </div>
   {:else}
     {#each sections as s (s.app.id)}
       {@const d = s.d}
-      <section class="stack" aria-label="{platformLabel(s.app.platform)} keywords in the listing">
+      {#snippet refreshLink(text: string)}<a href={appAddress(s.app.id, 'listing', address.platform)}>{text}</a>{/snippet}
+      <section class="stack" aria-label={t('aso:listing.sectionLabel', { platform: platformLabel(s.app.platform) })}>
         <div class="row head">
           {#if multi}<h3 class="eyebrow">{platformLabel(s.app.platform)}</h3>{/if}
           <span class="muted fresh">{freshnessText(s.app.platform, d?.readAt ?? null, now)}</span>
-          <Button size="sm" variant="link" icon="refresh" href={appAddress(s.app.id, 'listing', address.platform)}>Re-sync in the listing</Button>
-          {#if d?.error}<span class="muted">The last read failed ({d.error}); this is the earlier copy.</span>{/if}
+          <Button size="sm" variant="link" icon="refresh" href={appAddress(s.app.id, 'listing', address.platform)}>{t('aso:listing.resync')}</Button>
+          {#if d?.error}<span class="muted">{t('aso:used.readFailed', { error: d.error })}</span>{/if}
         </div>
-        {#if !supports(s.app.platform, 'keywordField')}<p class="muted note">{PLAY_NO_KEYWORD_FIELD}</p>{/if}
+        {#if !supports(s.app.platform, 'keywordField')}<p class="muted note">{t(PLAY_NO_KEYWORD_FIELD)}</p>{/if}
 
         {#if errors[s.app.id]}
           <Alert tone="error">{errors[s.app.id]}</Alert>
         {:else if d && d.locales.length === 0}
-          <p class="none">
-            No listing text is stored for this app yet. Read it from the store in the Listing tab
-            (<a href={appAddress(s.app.id, 'listing', address.platform)}>Refresh from store</a>), then come back.
-          </p>
+          <p class="none"><T key="aso:listing.noText" tags={{ link: refreshLink }} /></p>
         {:else if d}
           <div class="table-wrap">
             <table class="compact">
               <thead>
                 <tr>
-                  <th scope="col">Locale</th>
-                  <th scope="col">Terms</th>
-                  <th scope="col"><span class="visually-hidden">Keyword field and actions</span></th>
+                  <th scope="col">{t('aso:label.locale')}</th>
+                  <th scope="col">{t('aso:listing.terms')}</th>
+                  <th scope="col"><span class="visually-hidden">{t('aso:listing.fieldActions')}</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -320,7 +311,7 @@
                         {#if row.storefronts.length > 1}
                           <select
                             class="pick"
-                            aria-label="Storefront for {row.locale}"
+                            aria-label={t('aso:used.storefrontFor', { locale: row.locale })}
                             value={row.country}
                             onchange={(e) => (picked[`${s.app.id}|${row.locale}`] = e.currentTarget.value)}
                           >
@@ -329,37 +320,37 @@
                         {:else}
                           <span title={storefrontTitle(row.country)}>{row.country.toUpperCase()}</span>
                         {/if}
-                        storefront
+                        {t('aso:listing.storefront')}
                       </span>
                     </th>
                     <td>
                       {#if !row.terms.hasText}
-                        <span class="muted">No text to read terms from in this locale.</span>
+                        <span class="muted">{t('aso:listing.noTerms')}</span>
                       {:else}
-                        {#if row.terms.extracted}<p class="muted flag">extracted, Play has no keyword field</p>{/if}
-                        <ul class="chips plain" aria-label="Terms in {row.locale}">
-                          {#each row.rows as t (t.key)}
-                            {@const mark = termMark(t)}
-                            {@const rank = rankMark(t, depth)}
-                            <li class="chip" class:tracked={t.tracked} class:waste={mark?.tone === 'warn'}>
-                              <span class="term">{t.term}</span>
-                              <span class="src" title="In the {sourcesText(s.app.platform, t.sources)}{t.occurrences > 0 ? `, ${t.occurrences} times` : ''}">
-                                {#each t.sources as src (src)}<span>{sourceMark(src)}</span>{/each}
+                        {#if row.terms.extracted}<p class="muted flag">{t('aso:listing.extracted')}</p>{/if}
+                        <ul class="chips plain" aria-label={t('aso:listing.termsIn', { locale: row.locale })}>
+                          {#each row.rows as item (item.key)}
+                            {@const mark = termMark(item)}
+                            {@const rank = rankMark(item, depth)}
+                            <li class="chip" class:tracked={item.tracked} class:waste={mark?.tone === 'warn'}>
+                              <span class="term">{item.term}</span>
+                              <span class="src" title={item.occurrences > 0 ? t('aso:listing.inSourcesTimes', { sources: sourcesText(s.app.platform, item.sources), count: item.occurrences }) : t('aso:listing.inSources', { sources: sourcesText(s.app.platform, item.sources) })}>
+                                {#each item.sources as src (src)}<span>{sourceMark(src)}</span>{/each}
                               </span>
-                              <span class="visually-hidden">In the {sourcesText(s.app.platform, t.sources)}.</span>
+                              <span class="visually-hidden">{t('aso:listing.inSourcesSr', { sources: sourcesText(s.app.platform, item.sources) })}</span>
                               {#if mark}<span class="mark {mark.tone}" title={mark.title}>{mark.text}</span>{/if}
                               {#if rank}
                                 <span class="rank" title={rank.title}>
-                                  <Icon name="check" size={12} /><span class="visually-hidden">Tracked, rank </span>{rank.text}
+                                  <Icon name="check" size={12} /><span class="visually-hidden">{t('aso:listing.trackedRank')} </span>{rank.text}
                                 </span>
                               {:else if canWrite && row.trackable}
                                 <button
                                   type="button"
                                   class="bare add"
-                                  aria-label="Track {t.term} in {row.locale}, {row.country.toUpperCase()} storefront"
-                                  title="Track {t.term}"
+                                  aria-label={t('aso:used.trackFor', { term: item.term, locale: row.locale, country: row.country.toUpperCase() })}
+                                  title={t('aso:listing.trackTerm', { term: item.term })}
                                   disabled={chipBusy !== null}
-                                  onclick={() => addOne(s.app, row, t)}
+                                  onclick={() => addOne(s.app, row, item)}
                                 >
                                   <Icon name="plus" size={12} />
                                 </button>
@@ -372,11 +363,11 @@
                     <td>
                       <div class="side">
                       {#if kf}
-                        <span class="muted kf" class:over={kf.over} title={keywordFieldText(kf)}>{kf.bytes}/{kf.limit} bytes</span>
-                        {#if kf.value !== ''}<CopyButton value={kf.value} label="Copy keyword field" />{/if}
+                        <span class="muted kf" class:over={kf.over} title={keywordFieldText(kf)}>{t('aso:used.sizeBytes', { used: kf.bytes, limit: kf.limit })}</span>
+                        {#if kf.value !== ''}<CopyButton value={kf.value} label={t('aso:listing.copyField')} />{/if}
                       {/if}
                       {#if canWrite && row.untracked.length > 0 && row.trackable}
-                        <Button size="sm" onclick={() => openPlan({ appId: s.app.id, locale: row.locale })}>Track {row.untracked.length} untracked</Button>
+                        <Button size="sm" onclick={() => openPlan({ appId: s.app.id, locale: row.locale })}>{t('aso:used.trackUntracked', { count: row.untracked.length })}</Button>
                       {/if}
                       </div>
                     </td>
@@ -386,10 +377,8 @@
             </table>
           </div>
           <p class="muted legend">
-            {!supports(s.app.platform, 'keywordField')
-              ? 'name: title, short: short description, desc: full description.'
-              : 'kw: keyword field, name: name, sub: subtitle.'}
-            A dashed chip is not tracked yet; a solid one is tracked and shows its rank today.
+            {supports(s.app.platform, 'keywordField') ? t('aso:listing.legendApple') : t('aso:listing.legendPlay')}
+            {t('aso:listing.legendChips')}
           </p>
           <ListingAi {api} {workspaceId} {role} app={s.app} locales={s.rows.map((r) => r.locale)} />
         {/if}

@@ -23,8 +23,9 @@
   } from '../../lib/aso/aso.ts';
   import { address } from '../../lib/address.svelte.ts';
   import { ideasLead } from '../../lib/aso/lead.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
-  import { countOf, summaryLine } from '../../lib/section-state.ts';
+  import { summaryLine } from '../../lib/section-state.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -35,6 +36,7 @@
   import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import SuggestKeywords from '../ai/SuggestKeywords.svelte';
+  import T from '../ui/T.svelte';
   import SuggestKeywordsFromReviews from '../ai/SuggestKeywordsFromReviews.svelte';
 
   let {
@@ -80,7 +82,7 @@
           try {
             next[m.id] = await api.asoIdeas(workspaceId, m.id, wanted === '' ? undefined : wanted);
           } catch (e) {
-            bad[m.id] = asoErrorMessage(e, 'Could not load the ideas.');
+            bad[m.id] = asoErrorMessage(e, t('aso:ideas.loadFailed'));
           }
         }),
       );
@@ -101,12 +103,12 @@
       const country = countryForLocale(d.locale, keywords.filter((k) => k.appId === app.id));
       const out = await api.addAsoKeywords(workspaceId, app.id, [{ term, locale: d.locale, ...(country ? { country } : {}) }]);
       const first = out.results[0];
-      if (first?.status === 'created') toast.success(`Tracking “${term}”.`);
-      else if (first?.status === 'exists') toast.info(`“${term}” is already tracked.`);
-      else toast.error(first?.message ?? 'Could not track that keyword.');
+      if (first?.status === 'created') toast.success(t('aso:track.created', { term }));
+      else if (first?.status === 'exists') toast.info(t('aso:track.exists', { term }));
+      else toast.error(first?.message ?? t('aso:track.failed'));
       await onchanged();
     } catch (e) {
-      toast.error(asoErrorMessage(e, 'Could not track that keyword.'));
+      toast.error(asoErrorMessage(e, t('aso:track.failed')));
     } finally {
       busy = null;
     }
@@ -146,9 +148,9 @@
   {/if}
   {#if locales.length > 1}
     <div class="row">
-      <label for="{uid}-locale" class="muted">Locale</label>
+      <label for="{uid}-locale" class="muted">{t('aso:label.locale')}</label>
       <select id="{uid}-locale" bind:value={locale}>
-        <option value="">Most used ({locales[0]})</option>
+        <option value="">{t('aso:label.mostUsed', { locale: locales[0] })}</option>
         {#each locales as l (l)}<option value={l}>{l}</option>{/each}
       </select>
     </div>
@@ -159,15 +161,15 @@
   {:else}
     {#each members as app (app.id)}
       {@const d = data[app.id]}
-      <Section title={platformLabel(app.platform)} key="platform.{app.platform}" variant="plain" summary={d ? summaryLine([countOf(d.ideas.length, 'idea'), d.locale]) : ''}>
+      {#snippet link(text: string)}<a href={asoViewHref(app.id, 'competitors', address.platform)}>{text}</a>{/snippet}
+      <Section title={platformLabel(app.platform)} key="platform.{app.platform}" variant="plain" summary={d ? summaryLine([t('aso:count.ideas', { count: d.ideas.length }), d.locale]) : ''}>
         <div class="stack">
           <div class="row head">
             {#if d}
-              <span class="muted">{d.locale}: from {ideaSourceText(d.basedOn)}</span>
-              <InfoTip label="About these ideas" align="start">
+              <span class="muted">{t('aso:ideas.basedOn', { locale: d.locale, source: ideaSourceText(d.basedOn) })}</span>
+              <InfoTip label={t('aso:ideas.aboutLabel')} align="start">
                 <p class="tip">
-                  Phrases that occur at least twice in the texts the server holds (your live listing and the competitors you follow) and are not tracked yet. The order is a frequency
-                  in those texts. It is not a search volume or a popularity: no free store source publishes one.
+                  {t('aso:ideas.aboutText')}
                 </p>
                 {#if d.notes.length > 0}
                   <ul class="plain">{#each d.notes as n (n)}<li>{n}</li>{/each}</ul>
@@ -179,7 +181,7 @@
             <Alert tone="error">{errors[app.id]}</Alert>
           {:else if d && d.ideas.length === 0}
             <p class="none">
-              No ideas yet. {#if !d.basedOn.ownListing}Sync the app to read its listing. {/if}{#if d.basedOn.competitors === 0}<a href={asoViewHref(app.id, 'competitors', address.platform)}>Follow a competitor</a> to give it more text.{/if}
+              {t('aso:ideas.none')} {#if !d.basedOn.ownListing}{t('aso:ideas.syncApp')} {/if}{#if d.basedOn.competitors === 0}<T key="aso:ideas.followCompetitor" tags={{ link }} />{/if}
             </p>
           {:else if d}
             {@const texts = ideaTexts(d.basedOn)}
@@ -187,21 +189,21 @@
               <table class="compact">
                 <thead>
                   <tr>
-                    <th scope="col">Idea</th>
-                    <th scope="col">Why</th>
-                    <th scope="col" class="num">Score</th>
-                    {#if canWrite}<th scope="col"><span class="visually-hidden">Track</span></th>{/if}
+                    <th scope="col">{t('aso:ideas.idea')}</th>
+                    <th scope="col">{t('aso:ideas.why')}</th>
+                    <th scope="col" class="num">{t('aso:ideas.score')}</th>
+                    {#if canWrite}<th scope="col"><span class="visually-hidden">{t('aso:track.button')}</span></th>{/if}
                   </tr>
                 </thead>
                 <tbody>
                   {#each d.ideas as idea (idea.term)}
                     <tr>
-                      <th scope="row" class="term">{idea.term} {#if idea.words > 1}<Badge>{idea.words} words</Badge>{/if}</th>
+                      <th scope="row" class="term">{idea.term} {#if idea.words > 1}<Badge>{t('aso:ideas.words', { count: idea.words })}</Badge>{/if}</th>
                       <td class="muted">{ideaWhy(idea, texts)}</td>
-                      <td class="num" title="A frequency in the stored texts, not a search volume">{idea.localScore}</td>
+                      <td class="num" title={t('aso:ideas.scoreTip')}>{idea.localScore}</td>
                       {#if canWrite}
                         <td class="actions">
-                          <Button size="sm" icon="plus" loading={busy === `${app.id}|${idea.term}`} onclick={() => track(app, d, idea.term)}>Track</Button>
+                          <Button size="sm" icon="plus" loading={busy === `${app.id}|${idea.term}`} onclick={() => track(app, d, idea.term)}>{t('aso:track.button')}</Button>
                         </td>
                       {/if}
                     </tr>

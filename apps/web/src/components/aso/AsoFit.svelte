@@ -27,9 +27,11 @@
   import { headerParams, withHeaderParams } from '../../lib/app-header.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { fitLead } from '../../lib/aso/lead.ts';
-  import { timeAgo } from '../../lib/format.ts';
+  import { agoText } from '../../lib/aso/ago.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
-  import { countOf, summaryLine } from '../../lib/section-state.ts';
+  import { summaryLine } from '../../lib/section-state.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -40,6 +42,7 @@
   import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import StatChip from '../ui/StatChip.svelte';
+  import T from '../ui/T.svelte';
   import AsoBudget from './AsoBudget.svelte';
 
   let {
@@ -89,7 +92,7 @@
           try {
             next[m.id] = await api.asoFit(workspaceId, m.id);
           } catch (e) {
-            bad[m.id] = asoErrorMessage(e, 'Could not load the fit.');
+            bad[m.id] = asoErrorMessage(e, t('aso:fit.loadFailed'));
           }
         }),
       );
@@ -106,16 +109,16 @@
     <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="fit-lead">
       {#snippet actions()}
         {#if leadMissing && members[0]}
-          <Button variant="primary" icon="file-text" href={appAddress(members[0].id, 'listing', address.platform)}>Edit the listing</Button>
+          <Button variant="primary" icon="file-text" href={appAddress(members[0].id, 'listing', address.platform)}>{t('aso:fit.editListing')}</Button>
         {/if}
       {/snippet}
     </PageLead>
   {/if}
   {#if allLocales.length > 1}
     <div class="row">
-      <label for="{uid}-locale" class="muted">Locale</label>
+      <label for="{uid}-locale" class="muted">{t('aso:label.locale')}</label>
       <select id="{uid}-locale" value={locale} onchange={(e) => setLocale(e.currentTarget.value)}>
-        <option value="">Most used ({allLocales[0]})</option>
+        <option value="">{t('aso:label.mostUsed', { locale: allLocales[0] })}</option>
         {#each allLocales as l (l)}<option value={l}>{l}</option>{/each}
       </select>
     </div>
@@ -128,44 +131,44 @@
       {@const d = data[app.id]}
       {@const pick = d ? (d.locales.filter((l) => l.locale === (locale || allLocales[0]))[0] ?? d.locales[0]) : undefined}
       {@const fit = pick?.fit ?? null}
-      <Section title={platformLabel(app.platform)} key="platform.{app.platform}" variant="plain" summary={fit && pick ? summaryLine([pick.locale, countOf(fit.keywords.length, 'keyword'), fit.counts.missing > 0 && `${fit.counts.missing} missing`, fit.counts.partial + fit.counts.description_only > 0 && `${fit.counts.partial + fit.counts.description_only} partial`]) : (pick?.locale ?? '')}>
+      {#snippet kwLink(text: string)}<a href={asoViewHref(app.id, 'keywords', address.platform)}>{text}</a>{/snippet}
+      <Section title={platformLabel(app.platform)} key="platform.{app.platform}" variant="plain" summary={fit && pick ? summaryLine([pick.locale, t('aso:lead.keywordsCount', { count: fit.keywords.length }), fit.counts.missing > 0 && t('aso:fit.summaryMissing', { count: fit.counts.missing }), fit.counts.partial + fit.counts.description_only > 0 && t('aso:fit.summaryPartial', { count: fit.counts.partial + fit.counts.description_only })]) : (pick?.locale ?? '')}>
         <div class="stack">
           <div class="row head">
-            {#if pick}<span class="muted">{pick.locale}{pick.listingLocale && pick.listingLocale !== pick.locale ? ` (listing text in ${pick.listingLocale})` : ''}</span>{/if}
+            {#if pick}<span class="muted">{pick.listingLocale && pick.listingLocale !== pick.locale ? t('aso:fit.listingIn', { locale: pick.locale, listing: pick.listingLocale }) : pick.locale}</span>{/if}
             {#if d}
-              <InfoTip label="What counts" align="start">
+              <InfoTip label={t('aso:fit.whatCountsLabel')} align="start">
                 <p class="tip">
-                  Compares the listing text stored on this server{d.readAt ? ` (read ${timeAgo(d.readAt, now)})` : ''} with your tracked keywords. Which fields each store searches is unverified:
-                  {d.indexedFields.join(', ')} are assumed.
+                  {d.readAt ? t('aso:fit.whatCountsRead', { ago: agoText(d.readAt, now), fields: formatList(d.indexedFields.map((f) => (fitFieldLabels[f] !== undefined ? t(fitFieldLabels[f]) : f))) }) : t('aso:fit.whatCounts', { fields: formatList(d.indexedFields.map((f) => (fitFieldLabels[f] !== undefined ? t(fitFieldLabels[f]) : f))) })}
                 </p>
                 {#if fit}<ul class="plain">{#each fit.assumptions as a (a)}<li>{a}</li>{/each}</ul>{/if}
               </InfoTip>
             {/if}
             <span class="spacer"></span>
-            <Button size="sm" variant="link" icon="file-text" href={appAddress(app.id, 'listing', address.platform)}>Open the listing</Button>
+            <Button size="sm" variant="link" icon="file-text" href={appAddress(app.id, 'listing', address.platform)}>{t('aso:fit.openListing')}</Button>
           </div>
 
           {#if errors[app.id]}
             <Alert tone="error">{errors[app.id]}</Alert>
           {:else if d && d.locales.length === 0}
-            <p class="none">No keywords tracked yet. <a href={asoViewHref(app.id, 'keywords', address.platform)}>Add keywords</a> to see how the listing covers them.</p>
+            <p class="none"><T key="aso:fit.noKeywords" tags={{ link: kwLink }} /></p>
           {:else if pick && !fit}
-            <p class="none">No listing text is stored for {pick.locale}. Sync the app to read it, then come back.</p>
+            <p class="none">{t('aso:fit.noText', { locale: pick.locale })}</p>
           {:else if fit && pick}
             <div class="row chips">
-              <StatChip label="strong" value={fit.counts.strong} tone="ok" />
-              <StatChip label="covered" value={fit.counts.covered} tone="ok" />
-              <StatChip label="partial" value={fit.counts.partial + fit.counts.description_only} tone="warn" />
-              <StatChip label="missing" value={fit.counts.missing} tone="bad" />
+              <StatChip label={t('aso:fit.chip.strong')} value={fit.counts.strong} tone="ok" />
+              <StatChip label={t('aso:fit.chip.covered')} value={fit.counts.covered} tone="ok" />
+              <StatChip label={t('aso:fit.chip.partial')} value={fit.counts.partial + fit.counts.description_only} tone="warn" />
+              <StatChip label={t('aso:fit.chip.missing')} value={fit.counts.missing} tone="bad" />
             </div>
 
             {#if fit.gaps.length > 0}
               <p class="weak">
-                <span class="muted">Weak or missing:</span>
+                <span class="muted">{t('aso:fit.weak')}</span>
                 {#each fit.gaps.slice(0, 8) as g (g.id)}
-                  <Badge tone={fitStatusInfo[g.status].tone}>{g.term}{g.priority >= 3 ? ' (high)' : ''}</Badge>
+                  <Badge tone={fitStatusInfo[g.status].tone}>{g.priority >= 3 ? t('aso:fit.termHigh', { term: g.term }) : g.term}</Badge>
                 {/each}
-                {#if fit.gaps.length > 8}<span class="muted">and {fit.gaps.length - 8} more</span>{/if}
+                {#if fit.gaps.length > 8}<span class="muted">{t('aso:coach.more', { count: fit.gaps.length - 8 })}</span>{/if}
               </p>
             {/if}
 
@@ -173,9 +176,9 @@
               <table class="compact">
                 <thead>
                   <tr>
-                    <th scope="col">Keyword</th>
-                    <th scope="col">Fit</th>
-                    {#each fitColumns[app.platform] as f (f)}<th scope="col" class="mid">{fitFieldLabels[f]}</th>{/each}
+                    <th scope="col">{t('aso:markets.keyword')}</th>
+                    <th scope="col">{t('aso:fit.fit')}</th>
+                    {#each fitColumns[app.platform] as f (f)}<th scope="col" class="mid">{t(fitFieldLabels[f] ?? f)}</th>{/each}
                   </tr>
                 </thead>
                 <tbody>
@@ -183,16 +186,16 @@
                     {@const status = fitStatusInfo[k.status]}
                     <tr>
                       <th scope="row" class="term">{k.term} {#if k.priority !== 2}<span class="muted prio">{priorityLabel(k.priority)}</span>{/if}</th>
-                      <td><span title={status.hint}><Badge tone={status.tone} icon={status.tone === 'ok' ? 'check-circle' : status.tone === 'bad' ? 'x-circle' : 'alert-triangle'}>{status.label}</Badge></span></td>
+                      <td><span title={t(status.hintKey)}><Badge tone={status.tone} icon={status.tone === 'ok' ? 'check-circle' : status.tone === 'bad' ? 'x-circle' : 'alert-triangle'}>{t(status.labelKey)}</Badge></span></td>
                       {#each fitColumns[app.platform] as f (f)}
                         {@const cell = fieldCell(k, f)}
                         <td class="mid" title={cell.title}>
                           {#if cell.mark === 'phrase'}
-                            <span class="in"><Icon name="check" size={14} /><span class="visually-hidden">Phrase in this field</span>{cell.text}</span>
+                            <span class="in"><Icon name="check" size={14} /><span class="visually-hidden">{t('aso:fit.phraseHere')}</span>{cell.text}</span>
                           {:else if cell.mark === 'words'}
-                            <span class="muted">{cell.text} words</span>
+                            <span class="muted">{t('aso:fit.wordsText', { text: cell.text })}</span>
                           {:else}
-                            <span class="muted"><span aria-hidden="true">–</span><span class="visually-hidden">Not in this field</span></span>
+                            <span class="muted"><span aria-hidden="true">–</span><span class="visually-hidden">{t('aso:fit.notHere')}</span></span>
                           {/if}
                         </td>
                       {/each}
@@ -214,7 +217,7 @@
                   keywords={keywordsForLocale(mine, pick.locale)}
                   countries={countriesForLocale(mine, pick.locale)}
                   listingLocales={d?.listingLocales ?? []}
-                  addHref={coachHref({ to: 'keywords_add', label: 'Add keywords' }, app.id, address.platform)}
+                  addHref={coachHref({ to: 'keywords_add', label: t('aso:fit.addKeywords') }, app.id, address.platform)}
                 />
               </div>
             {/if}

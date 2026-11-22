@@ -36,9 +36,11 @@
     sortKeywords,
     waitText,
   } from '../../lib/aso/aso.ts';
-  import { timeAgo } from '../../lib/format.ts';
+  import { agoText } from '../../lib/aso/ago.ts';
+  import { formatDateTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { platformLabel, runLimited } from '../../lib/portfolio.ts';
-  import { countOf, summaryLine } from '../../lib/section-state.ts';
+  import { summaryLine } from '../../lib/section-state.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
@@ -159,7 +161,8 @@ import { supports } from '@kiln/core';
           done.push(refreshText(out.result));
           wait = Math.max(wait, resultWaitSeconds(out.result) ?? 0);
         } catch (e) {
-          problems.push(`${multi ? `${platformLabel(app.platform)}: ` : ''}${asoErrorMessage(e, 'The check failed.')}`);
+          const reason = asoErrorMessage(e, t('aso:kw.checkFailed'));
+          problems.push(multi ? t('aso:kw.platformError', { platform: platformLabel(app.platform), error: reason }) : reason);
           wait = Math.max(wait, refreshWaitSeconds(e) ?? 0);
         }
       }
@@ -176,11 +179,11 @@ import { supports } from '@kiln/core';
     busyId = k.id;
     try {
       await api.deleteAsoKeyword(workspaceId, k.appId, k.id);
-      toast.success(`Stopped tracking “${k.term}”.`);
+      toast.success(t('aso:kw.stopped', { term: k.term }));
       removing = null;
       await onchanged();
     } catch (e) {
-      toast.error(asoErrorMessage(e, 'Could not remove the keyword.'));
+      toast.error(asoErrorMessage(e, t('aso:kw.removeFailed')));
     } finally {
       busyId = null;
     }
@@ -192,7 +195,7 @@ import { supports } from '@kiln/core';
       await api.updateAsoKeyword(workspaceId, k.appId, k.id, { priority: k.priority >= 3 ? 2 : 3 });
       await onchanged();
     } catch (e) {
-      toast.error(asoErrorMessage(e, 'Could not change the priority.'));
+      toast.error(asoErrorMessage(e, t('aso:kw.priorityFailed')));
     } finally {
       busyId = null;
     }
@@ -205,11 +208,11 @@ import { supports } from '@kiln/core';
 </script>
 
 <div class="keywords">
-  <AsoBar label="Keyword actions">
+  <AsoBar label={t('aso:kw.actions')}>
     {#if keywords.length > 0}
-      <input class="search" type="search" placeholder="Filter keywords" aria-label="Filter keywords" bind:value={query} />
-      <select aria-label="Sort keywords" bind:value={sort}>
-        {#each keywordSorts as s (s.id)}<option value={s.id}>{s.label}</option>{/each}
+      <input class="search" type="search" placeholder={t('aso:kw.filter')} aria-label={t('aso:kw.filter')} bind:value={query} />
+      <select aria-label={t('aso:kw.sort')} bind:value={sort}>
+        {#each keywordSorts as s (s.id)}<option value={s.id}>{t(s.labelKey)}</option>{/each}
       </select>
     {/if}
     <span class="spacer"></span>
@@ -228,12 +231,12 @@ import { supports } from '@kiln/core';
         icon="refresh"
         loading={checking}
         disabled={nothingToCheck || waiting}
-        title={waiting ? `The limit was reached. Try again in ${waitText(waitLeft)}.` : targets.length === 0 && keywords.length > 0 ? 'Google Play reading is switched off.' : 'Read the public store for every keyword and competitor'}
+        title={waiting ? t('aso:kw.limitReached', { wait: waitText(waitLeft) }) : targets.length === 0 && keywords.length > 0 ? t('aso:kw.playOff') : t('aso:kw.checkHint')}
         onclick={check}
       >
-        {checking ? 'Checking…' : waiting ? `Check now (${waitLeft}s)` : 'Check now'}
+        {checking ? t('aso:kw.checking') : waiting ? t('aso:kw.checkNowWait', { seconds: waitLeft }) : t('aso:kw.checkNow')}
       </Button>
-      <Button variant="primary" icon="plus" onclick={() => (adding = !adding)} aria-expanded={adding}>Add keywords</Button>
+      <Button variant="primary" icon="plus" onclick={() => (adding = !adding)} aria-expanded={adding}>{t('aso:kw.add')}</Button>
     {/if}
   </AsoBar>
 
@@ -243,44 +246,42 @@ import { supports } from '@kiln/core';
 
   {#if keywords.length === 0}
     <p class="empty">
-      No keywords tracked yet.
+      {t('aso:kw.none')}
       {#if canWrite}
-        <Button size="sm" variant="link" onclick={() => (adding = true)}>Add keywords</Button>
+        <Button size="sm" variant="link" onclick={() => (adding = true)}>{t('aso:kw.add')}</Button>
       {:else}
-        <span class="muted">A member can add them.</span>
+        <span class="muted">{t('aso:kw.memberCanAdd')}</span>
       {/if}
     </p>
   {:else if rows.length === 0}
-    <p class="empty muted">No keyword matches “{query}”.</p>
+    <p class="empty muted">{t('aso:kw.noMatch', { query })}</p>
   {:else}
     <Section
-      title="Tracked keywords"
+      title={t('aso:kw.tracked')}
       key="keywords"
       variant="plain"
-      count={rows.length === keywords.length ? keywords.length : `${rows.length} of ${keywords.length}`}
-      summary={summaryLine([countOf(keywords.length, 'keyword'), unchecked > 0 && `${unchecked} not checked`, top10 > 0 && `${top10} in top 10`])}
+      count={rows.length === keywords.length ? keywords.length : t('aso:kw.shownOf', { shown: rows.length, count: keywords.length })}
+      summary={summaryLine([t('aso:lead.keywordsCount', { count: keywords.length }), unchecked > 0 && t('aso:kw.notChecked', { count: unchecked }), top10 > 0 && t('aso:kw.inTop10', { count: top10 })])}
     >
       <div class="table-wrap">
         <table class="compact">
           <thead>
             <tr>
-              <th scope="col">Keyword</th>
-              <th scope="col">Market</th>
+              <th scope="col">{t('aso:markets.keyword')}</th>
+              <th scope="col">{t('aso:kw.market')}</th>
               <th scope="col" class="num">
-                Rank
-                <InfoTip label="What a rank is" align="start">
+                {t('aso:kw.col.rank')}
+                <InfoTip label={t('aso:kw.rankLabel')} align="start">
                   <p class="tip">
-                    The position of the app in the results the store's search returned for the term. For the App Store it is the position in Apple's public Search API
-                    results, a proxy for the App Store's own search. “{config?.limits.rankDepth ?? 50}+” means not within the first {config?.limits.rankDepth ?? 50} results, not that
-                    it does not rank at all.
+                    {t('aso:kw.rankTip', { depth: config?.limits.rankDepth ?? 50 })}
                   </p>
                 </InfoTip>
               </th>
-              <th scope="col" class="num">Change</th>
-              <th scope="col" class="num">Best</th>
-              <th scope="col">Trend</th>
-              <th scope="col">Checked</th>
-              {#if canWrite}<th scope="col"><span class="visually-hidden">Actions</span></th>{/if}
+              <th scope="col" class="num">{t('aso:kw.col.change')}</th>
+              <th scope="col" class="num">{t('aso:markets.best')}</th>
+              <th scope="col">{t('aso:kw.col.trend')}</th>
+              <th scope="col">{t('aso:kw.col.checked')}</th>
+              {#if canWrite}<th scope="col"><span class="visually-hidden">{t('aso:kw.col.actions')}</span></th>{/if}
             </tr>
           </thead>
           <tbody>
@@ -296,28 +297,28 @@ import { supports } from '@kiln/core';
                         type="button"
                         class="bare star"
                         aria-pressed={k.priority >= 3}
-                        aria-label="High priority: {k.term}"
-                        title={k.priority >= 3 ? 'High priority' : 'Mark as high priority'}
+                        aria-label={t('aso:kw.highPriorityFor', { term: k.term })}
+                        title={k.priority >= 3 ? t('aso:kw.highPriority') : t('aso:kw.markHigh')}
                         disabled={busyId === k.id}
                         onclick={() => togglePriority(k)}
                       >
                         <Icon name={k.priority >= 3 ? 'star-filled' : 'star'} size={14} />
                       </button>
                     {:else if k.priority >= 3}
-                      <span class="star on" title="High priority"><Icon name="star-filled" size={14} /><span class="visually-hidden">High priority</span></span>
+                      <span class="star on" title={t('aso:kw.highPriority')}><Icon name="star-filled" size={14} /><span class="visually-hidden">{t('aso:kw.highPriority')}</span></span>
                     {/if}
                     <span class="truncate" title={k.term}>{k.term}</span>
                     {#if multi}<Badge>{platformLabel(k.platform)}</Badge>{/if}
-                    {#if k.tag === 'ai'}<Badge tone="info">added by AI</Badge>{:else if k.tag}<Badge tone="info">{k.tag}</Badge>{/if}
+                    {#if k.tag === 'ai'}<Badge tone="info">{t('aso:kw.addedByAi')}</Badge>{:else if k.tag}<Badge tone="info">{k.tag}</Badge>{/if}
                   </span>
                 </th>
                 <td class="muted">{marketText(k)}</td>
                 <td class="num">
                   <span class:muted={rank.muted} title={rank.title}>{rank.text}</span>
                   {#if k.error}
-                    <InfoTip label="The last check failed" icon="alert-triangle" text={checkErrorText(k.error)} />
+                    <InfoTip label={t('aso:kw.lastFailed')} icon="alert-triangle" text={checkErrorText(k.error)} />
                   {:else if supports(k.platform, 'unofficialSearch') && playOff && k.state === null}
-                    <InfoTip label="Google Play reading is off" icon="info" text="Google Play reads are switched off on this server, so this keyword is kept but not checked. The operator can switch them on; see the pill above." />
+                    <InfoTip label={t('aso:kw.playReadOff')} icon="info" text={t('aso:kw.playReadOffText')} />
                   {/if}
                 </td>
                 <td class="num">
@@ -332,25 +333,25 @@ import { supports } from '@kiln/core';
                   {:else if hist}
                     <Sparkline
                       checks={hist.checks}
-                      label="{hist.checks.length} {hist.checks.length === 1 ? 'check' : 'checks'}{bestRank(hist.checks) !== null ? `, best ${bestRank(hist.checks)}` : ''}, latest {rank.text}"
+                      label={bestRank(hist.checks) !== null ? t('aso:kw.trendBest', { count: hist.checks.length, best: bestRank(hist.checks), latest: rank.text }) : t('aso:kw.trend', { count: hist.checks.length, latest: rank.text })}
                     />
                   {:else}
                     <span class="muted" aria-hidden="true">…</span>
                   {/if}
                 </td>
-                <td class="muted" title={k.lastCheckedAt ? new Date(k.lastCheckedAt).toLocaleString() : undefined}>
-                  {k.lastCheckedAt ? timeAgo(k.lastCheckedAt, now) : 'Never'}
+                <td class="muted" title={k.lastCheckedAt ? formatDateTime(k.lastCheckedAt) : undefined}>
+                  {k.lastCheckedAt ? agoText(k.lastCheckedAt, now) : t('aso:overview.never')}
                 </td>
                 {#if canWrite}
                   <td class="actions">
                     {#if removing === k.id}
                       <span class="confirm">
-                        Remove “{k.term}” and its history?
-                        <Button size="sm" variant="danger" loading={busyId === k.id} onclick={() => remove(k)}>Remove</Button>
-                        <Button size="sm" variant="ghost" onclick={() => (removing = null)}>Cancel</Button>
+                        {t('aso:kw.removeQuestion', { term: k.term })}
+                        <Button size="sm" variant="danger" loading={busyId === k.id} onclick={() => remove(k)}>{t('aso:card.remove')}</Button>
+                        <Button size="sm" variant="ghost" onclick={() => (removing = null)}>{t('common:action.cancel')}</Button>
                       </span>
                     {:else}
-                      <Button size="sm" variant="ghost" iconOnly icon="trash" label="Remove {k.term}" onclick={() => (removing = k.id)} />
+                      <Button size="sm" variant="ghost" iconOnly icon="trash" label={t('aso:kw.removeFor', { term: k.term })} onclick={() => (removing = k.id)} />
                     {/if}
                   </td>
                 {/if}

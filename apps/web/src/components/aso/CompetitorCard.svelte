@@ -6,7 +6,9 @@
 -->
 <script lang="ts">
   import { type AsoCompetitor, type AsoCompetitorHistory, changeText, countText, lastChangeText, ratingText } from '../../lib/aso/aso.ts';
-  import { timeAgo } from '../../lib/format.ts';
+  import { agoText } from '../../lib/aso/ago.ts';
+  import { formatDate } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
@@ -42,50 +44,50 @@
   <header class="head">
     <h3 id="{uid}-name" class="name truncate" title={competitor.name}>{competitor.name}</h3>
     {#if competitor.state === 'not_found'}
-      <Badge tone="warn" icon="alert-triangle">Not in the store</Badge>
+      <Badge tone="warn" icon="alert-triangle">{t('aso:card.notInStore')}</Badge>
     {:else if competitor.state === 'unavailable'}
-      <Badge tone="warn" icon="alert-triangle">Could not be read</Badge>
-      <InfoTip label="Why it could not be read" text="The last look at the store failed{competitor.error ? ` (${competitor.error})` : ''}. What is shown is from the last successful look." />
+      <Badge tone="warn" icon="alert-triangle">{t('aso:card.unreadable')}</Badge>
+      <InfoTip label={t('aso:card.whyLabel')} text={competitor.error ? t('aso:card.whyTextError', { error: competitor.error }) : t('aso:card.whyText')} />
     {/if}
   </header>
   {#if latest?.subtitle}<p class="sub muted truncate" title={latest.subtitle}>{latest.subtitle}</p>{/if}
 
   <dl class="facts">
-    <div><dt>Version</dt><dd>{latest?.version ?? '–'}</dd></div>
+    <div><dt>{t('aso:compare.version')}</dt><dd>{latest?.version ?? '–'}</dd></div>
     <div>
-      <dt>Rating</dt>
+      <dt>{t('aso:compare.rating')}</dt>
       <dd>{ratingText(latest?.rating)} <span class="muted">({countText(latest?.ratingCount)})</span></dd>
     </div>
-    <div><dt>Price</dt><dd>{latest?.price ?? '–'}</dd></div>
-    <div class="wide"><dt>Last change</dt><dd>{lastChangeText(history, competitor, now)}</dd></div>
+    <div><dt>{t('aso:compare.price')}</dt><dd>{latest?.price ?? '–'}</dd></div>
+    <div class="wide"><dt>{t('aso:card.lastChange')}</dt><dd>{lastChangeText(history, competitor, now)}</dd></div>
   </dl>
 
   <div class="row foot">
     <label class="check">
       <input type="checkbox" checked={comparing} onchange={ontoggle} />
-      Compare
+      {t('aso:card.compare')}
     </label>
-    <span class="muted when">{competitor.lastCheckedAt ? `Looked at ${timeAgo(competitor.lastCheckedAt, now)}` : 'Not looked at yet'}</span>
+    <span class="muted when">{competitor.lastCheckedAt ? t('aso:card.lookedAt', { ago: agoText(competitor.lastCheckedAt, now) }) : t('aso:card.notLookedAt')}</span>
     <span class="spacer"></span>
     {#if canWrite}
       {#if confirming}
         <span class="confirm">
-          Stop following?
-          <Button size="sm" variant="danger" loading={busy} onclick={onremove}>Remove</Button>
-          <Button size="sm" variant="ghost" onclick={() => (confirming = false)}>Cancel</Button>
+          {t('aso:card.stopQuestion')}
+          <Button size="sm" variant="danger" loading={busy} onclick={onremove}>{t('aso:card.remove')}</Button>
+          <Button size="sm" variant="ghost" onclick={() => (confirming = false)}>{t('common:action.cancel')}</Button>
         </span>
       {:else}
-        <Button size="sm" variant="ghost" iconOnly icon="trash" label="Stop following {competitor.name}" onclick={() => (confirming = true)} />
+        <Button size="sm" variant="ghost" iconOnly icon="trash" label={t('aso:card.stopFollowing', { name: competitor.name })} onclick={() => (confirming = true)} />
       {/if}
     {/if}
   </div>
 
   {#if changes.length > 0}
-    <Disclosure summary="Change history ({changes.length})" stateKey="aso.competitor.{competitor.id}">
+    <Disclosure summary={t('aso:card.history', { count: changes.length })} stateKey="aso.competitor.{competitor.id}">
       <ul class="history">
         {#each changes as snap (snap.id)}
           <li>
-            <time class="muted" datetime={new Date(snap.checkedAt).toISOString()}>{new Date(snap.checkedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</time>
+            <time class="muted" datetime={new Date(snap.checkedAt).toISOString()}>{formatDate(snap.checkedAt, { year: 'numeric', month: 'short', day: 'numeric' })}</time>
             <ul>
               {#each snap.changes ?? [] as c, i (i)}<li>{changeText(c)}</li>{/each}
             </ul>

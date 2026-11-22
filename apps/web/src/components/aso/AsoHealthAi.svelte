@@ -10,6 +10,7 @@
   import { suggestAvailability } from '../../lib/ai/ai.ts';
   import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { appLabel } from '../../lib/portfolio.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import AiSuggestions from '../ai/AiSuggestions.svelte';
@@ -27,20 +28,20 @@
 </script>
 
 {#if visible}
-  <section class="card" aria-label="ASO health report">
-    <h2 class="h"><Icon name="sparkles" size={16} /> ASO health report</h2>
+  <section class="card" aria-label={t('aso:health.title')}>
+    <h2 class="h"><Icon name="sparkles" size={16} /> {t('aso:health.title')}</h2>
     <ul class="apps">
       {#each targets as app (app.id)}
         <li>
           <div class="row wrap">
             <strong>{appLabel(app)}</strong>
-            <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="aso_health" label="Write the report" hiddenLabel="for {appLabel(app)}" onrun={() => run(app)} preview={{ appId: app.id }} />
+            <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="aso_health" label={t('aso:health.write')} hiddenLabel={t('aso:health.writeFor', { app: appLabel(app) })} onrun={() => run(app)} preview={{ appId: app.id }} />
           </div>
           <AiSuggestions {api} {workspaceId} {role} {app} platform={app.platform} tasks={['aso_health']} />
         </li>
       {/each}
     </ul>
-    <p class="muted hint">It reads what is already stored here and says nothing about search volume. You read the report; nothing is changed.</p>
+    <p class="muted hint">{t('aso:health.hint')}</p>
   </section>
 {/if}
 

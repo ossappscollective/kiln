@@ -8,6 +8,7 @@
   import type { Api } from '../../lib/api.ts';
   import { type AsoMarketsResponse, asoErrorMessage, marketCell, marketColumns } from '../../lib/aso/aso.ts';
   import { marketsLead } from '../../lib/aso/lead.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { countOf, summaryLine } from '../../lib/section-state.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -27,7 +28,7 @@
   const lead = $derived.by(() => {
     const all = members.flatMap((m) => data[m.id]?.terms ?? []);
     const countries = marketColumns(all);
-    return marketsLead({ terms: all.length, countries: countries.length, unranked: all.filter((t) => t.bestRank === null).length });
+    return marketsLead({ terms: all.length, countries: countries.length, unranked: all.filter((row) => row.bestRank === null).length });
   });
 
   $effect(() => {
@@ -42,7 +43,7 @@
           try {
             next[m.id] = await api.asoMarkets(workspaceId, m.id);
           } catch (e) {
-            bad[m.id] = asoErrorMessage(e, 'Could not load the markets.');
+            bad[m.id] = asoErrorMessage(e, t('aso:markets.loadFailed'));
           }
         }),
       );
@@ -64,40 +65,40 @@
     {#each members as app (app.id)}
       {@const d = data[app.id]}
       {@const cols = d ? marketColumns(d.terms) : []}
-      <Section title={platformLabel(app.platform)} key="platform.{app.platform}" variant="plain" summary={d ? summaryLine([countOf(d.terms.length, 'term'), d.terms.length > 0 && `${countOf(cols.length, 'country', 'countries')}`]) : ''}>
+      <Section title={platformLabel(app.platform)} key="platform.{app.platform}" variant="plain" summary={d ? summaryLine([t('aso:count.terms', { count: d.terms.length }), d.terms.length > 0 && t('aso:lead.markets.countries', { count: cols.length })]) : ''}>
         <div class="stack">
           <div class="row head">
             {#if d && d.terms.length > 0}
-              <span class="muted">{d.terms.length} {d.terms.length === 1 ? 'term' : 'terms'} in {cols.length} {cols.length === 1 ? 'country' : 'countries'}</span>
+              <span class="muted">{t('aso:lead.markets.head', { terms: t('aso:count.terms', { count: d.terms.length }), countries: t('aso:lead.markets.countries', { count: cols.length }) })}</span>
               <InfoTip
-                label="How to read the matrix"
-                text="Each cell is the best position of the app in the search results for that term in that storefront. “not ranked” means not within the first results read, an empty cell means the term is not tracked there."
+                label={t('aso:markets.howLabel')}
+                text={t('aso:markets.howText')}
               />
             {/if}
           </div>
           {#if errors[app.id]}
             <Alert tone="error">{errors[app.id]}</Alert>
           {:else if d && d.terms.length === 0}
-            <p class="none">No keywords tracked yet. Add them on the Keywords tab, in more than one country to compare.</p>
+            <p class="none">{t('aso:markets.none')}</p>
           {:else if d}
             <div class="table-wrap">
               <table class="compact matrix">
                 <thead>
                   <tr>
-                    <th scope="col" class="first">Keyword</th>
+                    <th scope="col" class="first">{t('aso:markets.keyword')}</th>
                     {#each cols as c (c)}<th scope="col" class="num">{c.toUpperCase()}</th>{/each}
-                    <th scope="col" class="num">Best</th>
+                    <th scope="col" class="num">{t('aso:markets.best')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {#each d.terms as t (t.key)}
+                  {#each d.terms as row (row.key)}
                     <tr>
-                      <th scope="row" class="first">{t.term}</th>
+                      <th scope="row" class="first">{row.term}</th>
                       {#each cols as c (c)}
-                        {@const cell = marketCell(t, c)}
+                        {@const cell = marketCell(row, c)}
                         <td class="num cell" class:best={cell.best} class:muted={cell.muted} title={cell.title}>{cell.text}</td>
                       {/each}
-                      <td class="num">{t.bestRank ?? '–'}</td>
+                      <td class="num">{row.bestRank ?? '–'}</td>
                     </tr>
                   {/each}
                 </tbody>

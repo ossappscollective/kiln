@@ -15,9 +15,10 @@
   import { type AsoKeyword, asoErrorMessage, asoViewHref } from '../../lib/aso/aso.ts';
   import { address } from '../../lib/address.svelte.ts';
   import { searchTermsLead } from '../../lib/aso/lead.ts';
-  import { timeAgo } from '../../lib/format.ts';
+  import { agoText } from '../../lib/aso/ago.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
-  import { countOf, summaryLine } from '../../lib/section-state.ts';
+  import { summaryLine } from '../../lib/section-state.ts';
   import {
     type SearchTermsResponse,
     dayOfMs,
@@ -106,7 +107,7 @@
           try {
             next[m.id] = await api.asoSearchTerms(workspaceId, m.id, { sort: by, ...(where !== '' ? { country: where } : {}) });
           } catch (e) {
-            bad[m.id] = asoErrorMessage(e, 'Could not load the search terms.');
+            bad[m.id] = asoErrorMessage(e, t('aso:terms.loadFailed'));
           }
         }),
       );
@@ -137,12 +138,12 @@
       const status = result.results[0]?.status;
       if (status === 'created' || status === 'exists') {
         justTracked = { ...justTracked, [`${app.id}/${key}`]: true };
-        toast.success(status === 'created' ? `Tracking ${term} in ${target.country.toUpperCase()}.` : 'Already tracked.');
+        toast.success(status === 'created' ? t('aso:terms.tracking', { term, country: target.country.toUpperCase() }) : t('aso:terms.alreadyTracked'));
         await onchanged();
-      } else if (status === 'limit') toast.error('The limit of tracked keywords is reached.');
-      else toast.error('That term cannot be tracked.');
+      } else if (status === 'limit') toast.error(t('aso:terms.limitReached'));
+      else toast.error(t('aso:terms.cannotTrack'));
     } catch (e) {
-      toast.error(asoErrorMessage(e, 'Could not track the term.'));
+      toast.error(asoErrorMessage(e, t('aso:terms.trackFailed')));
     } finally {
       tracking = { ...tracking, [key]: false };
     }
@@ -151,28 +152,28 @@
 
 <div class="terms stack roomy">
   {#if apps.length === 0}
-    <p class="none">Search terms come from Google Play Console, so they are only for Google Play apps.</p>
+    <p class="none">{t('aso:terms.onlyPlay')}</p>
   {:else}
     {#if !loading && apps.some((m) => data[m.id])}
       <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="search-terms-lead">
         {#snippet actions()}
           {#if single && canImport && apps[0] && data[apps[0].id]?.stored}
-            <Button icon="upload" onclick={() => openImport(apps[0]?.id ?? '')}>Import a file</Button>
+            <Button icon="upload" onclick={() => openImport(apps[0]?.id ?? '')}>{t('aso:terms.importFile')}</Button>
           {/if}
         {/snippet}
       </PageLead>
     {/if}
     {#if countries.length > 0 || apps.some((m) => data[m.id]?.terms.length)}
       <div class="row">
-        <label for="{uid}-sort" class="muted">Sort by</label>
+        <label for="{uid}-sort" class="muted">{t('aso:terms.sortBy')}</label>
         <select id="{uid}-sort" bind:value={sort}>
-          <option value="installs">Installs</option>
-          <option value="visitors">Listing visitors</option>
+          <option value="installs">{t('aso:terms.col.installs')}</option>
+          <option value="visitors">{t('aso:terms.listingVisitors')}</option>
         </select>
         {#if countries.length > 0}
-          <label for="{uid}-country" class="muted">Country</label>
+          <label for="{uid}-country" class="muted">{t('aso:label.country')}</label>
           <select id="{uid}-country" bind:value={country}>
-            <option value="">All</option>
+            <option value="">{t('aso:terms.all')}</option>
             {#each countries as c (c)}<option value={c}>{c.toUpperCase()}</option>{/each}
           </select>
         {/if}
@@ -186,38 +187,38 @@
         {@const d = data[app.id]}
         {@const rows = d ? termRows(d.terms) : []}
         {@const fresh = d ? freshnessLine(d, dayOfMs) : null}
-        <Section title={platformLabel(app.platform)} key="platform.{app.platform}" variant="plain" summary={d ? (d.stored ? summaryLine([countOf(d.terms.length, 'term'), d.terms.length > 0 && periodLine(d)]) : 'No file imported yet') : ''}>
+        <Section title={platformLabel(app.platform)} key="platform.{app.platform}" variant="plain" summary={d ? (d.stored ? summaryLine([t('aso:count.terms', { count: d.terms.length }), d.terms.length > 0 && periodLine(d)]) : t('aso:terms.noFile')) : ''}>
           <div class="stack">
             <div class="row head">
               {#if d && d.terms.length > 0}<span class="muted">{periodLine(d)}</span>{/if}
               {#if d && d.stored && d.notes.length > 0}
-                <InfoTip label="How to read the search terms" buttonText="How to read this" align="start" width="26rem">
+                <InfoTip label={t('aso:terms.howLabel')} buttonText={t('aso:rd.how')} align="start" width="26rem">
                   <ul class="plain">{#each d.notes as n (n.code)}<li>{n.message}</li>{/each}</ul>
                 </InfoTip>
               {/if}
               <span class="spacer"></span>
               {#if canImport && d && d.stored && !single}
-                <Button size="sm" icon="upload" onclick={() => openImport(app.id)}>Import a file</Button>
+                <Button size="sm" icon="upload" onclick={() => openImport(app.id)}>{t('aso:terms.importFile')}</Button>
               {/if}
             </div>
 
             {#if errors[app.id]}
               <Alert tone="error">{errors[app.id]}</Alert>
             {:else if d && !d.stored}
-              <EmptyState icon="search" title="No search terms yet" description={exportCaveat}>
+              <EmptyState icon="search" title={t('aso:terms.none')} description={exportCaveat()}>
                 {#snippet actions()}
                   {#if canImport}
-                    <Button variant="primary" icon="upload" onclick={() => openImport(app.id)}>Import a file</Button>
+                    <Button variant="primary" icon="upload" onclick={() => openImport(app.id)}>{t('aso:terms.importFile')}</Button>
                   {:else}
-                    <span class="muted">An owner or an admin can import the file.</span>
+                    <span class="muted">{t('aso:terms.adminImport')}</span>
                   {/if}
                 {/snippet}
               </EmptyState>
-              <ol class="steps">{#each exportSteps as step (step)}<li>{step}</li>{/each}</ol>
+              <ol class="steps">{#each exportSteps() as step (step)}<li>{step}</li>{/each}</ol>
             {:else if d}
               {#if fresh}<p class="fresh muted">{fresh}</p>{/if}
               {#if d.terms.length === 0}
-                <p class="none">No terms in this period{d.country ? ` for ${d.country.toUpperCase()}` : ''}. Choose another country, or import a file that covers it.</p>
+                <p class="none">{d.country ? t('aso:terms.noneInPeriodCountry', { country: d.country.toUpperCase() }) : t('aso:terms.noneInPeriod')}</p>
               {:else}
                 {@const sum = totalsLine(d)}
                 {#if sum}<p class="muted sum">{sum}</p>{/if}
@@ -225,12 +226,12 @@
                   <table class="compact">
                     <thead>
                       <tr>
-                        <th scope="col">Term</th>
-                        <th scope="col" class="num">Installs</th>
-                        <th scope="col" class="num">Visitors</th>
-                        <th scope="col" class="num">Conversion</th>
-                        <th scope="col">In your listing</th>
-                        <th scope="col">Tracked</th>
+                        <th scope="col">{t('aso:gaps.term')}</th>
+                        <th scope="col" class="num">{t('aso:terms.col.installs')}</th>
+                        <th scope="col" class="num">{t('aso:terms.col.visitors')}</th>
+                        <th scope="col" class="num">{t('aso:terms.col.conversion')}</th>
+                        <th scope="col">{t('aso:terms.col.inListing')}</th>
+                        <th scope="col">{t('aso:gaps.tracked')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -246,11 +247,11 @@
                           <td><span title={r.listing.title}><Badge tone={r.listing.tone}>{r.listing.text}</Badge></span></td>
                           <td>
                             {#if r.tracked || justTracked[`${app.id}/${r.key}`]}
-                              <Badge tone="ok" icon="check">Tracked{r.trackedIn ? ` in ${r.trackedIn}` : ''}</Badge>
+                              <Badge tone="ok" icon="check">{r.trackedIn ? t('aso:terms.trackedIn', { where: r.trackedIn }) : t('aso:gaps.tracked')}</Badge>
                             {:else if canWrite}
-                              <Button size="sm" variant="link" icon="plus" loading={tracking[r.key] === true} onclick={() => track(app, d, r.term, r.key)}>Track</Button>
+                              <Button size="sm" variant="link" icon="plus" loading={tracking[r.key] === true} onclick={() => track(app, d, r.term, r.key)}>{t('aso:track.button')}</Button>
                             {:else}
-                              <span class="muted">No</span>
+                              <span class="muted">{t('aso:terms.no')}</span>
                             {/if}
                           </td>
                         </tr>
@@ -260,8 +261,8 @@
                 </div>
                 {#if d.listingReadAt}
                   <p class="muted foot">
-                    Listing text read {timeAgo(d.listingReadAt, now)}{d.listingLocale ? ` (${d.listingLocale})` : ''}.
-                    <a href={asoViewHref(app.id, 'fit', address.platform)}>See how the listing covers your keywords</a>
+                    {d.listingLocale ? t('aso:terms.listingReadLocale', { ago: agoText(d.listingReadAt, now), locale: d.listingLocale }) : t('aso:terms.listingRead', { ago: agoText(d.listingReadAt, now) })}
+                    <a href={asoViewHref(app.id, 'fit', address.platform)}>{t('aso:terms.seeFit')}</a>
                   </p>
                 {/if}
               {/if}

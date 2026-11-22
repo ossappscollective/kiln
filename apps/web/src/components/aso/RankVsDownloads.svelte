@@ -31,12 +31,15 @@
     downloadsPanel,
     gateOf,
     rangeChoices,
+    rangeLabel,
     rankPanel,
     tipFor,
     toggleKeyword,
     whatChangedList,
   } from '../../lib/aso/rank-downloads.ts';
   import { floating } from '../../lib/floating.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { pointAnchor } from '../../lib/virtual-anchor.ts';
   import Alert from '../ui/Alert.svelte';
@@ -101,7 +104,7 @@
         error = '';
       } catch (e) {
         if (mine !== generation) return;
-        error = asoErrorMessage(e, 'Could not load the comparison.');
+        error = asoErrorMessage(e, t('aso:rd.loadFailed'));
       } finally {
         if (mine === generation) loading = false;
       }
@@ -162,7 +165,7 @@
 </script>
 
 <VizScope>
-  <section class="rvd stack" aria-label="{platformLabel(app.platform)} rank and downloads">
+  <section class="rvd stack" aria-label={t('aso:rd.sectionLabel', { platform: platformLabel(app.platform) })}>
     {#if heading}<h3 class="eyebrow">{platformLabel(app.platform)}</h3>{/if}
 
     {#if error}
@@ -172,18 +175,18 @@
     {:else}
       <div class="row controls">
         {#if (view.countries ?? []).length > 1}
-          <label for="{uid}-country" class="muted">Storefront</label>
+          <label for="{uid}-country" class="muted">{t('aso:rd.storefront')}</label>
           <select id="{uid}-country" value={view.country ?? ''} onchange={(e) => ((country = e.currentTarget.value), (chosen = null))}>
             {#each view.countries ?? [] as c (c)}<option value={c}>{c.toUpperCase()}</option>{/each}
           </select>
         {:else if view.country}
-          <span class="muted">Storefront {view.country.toUpperCase()}</span>
+          <span class="muted">{t('aso:rd.storefrontIs', { country: view.country.toUpperCase() })}</span>
         {/if}
-        <label for="{uid}-days" class="muted">Period</label>
+        <label for="{uid}-days" class="muted">{t('aso:rd.period')}</label>
         <select id="{uid}-days" bind:value={days}>
-          {#each rangeChoices as r (r.days)}<option value={r.days}>Last {r.label}</option>{/each}
+          {#each rangeChoices as r (r.days)}<option value={r.days}>{rangeLabel(r.days)}</option>{/each}
         </select>
-        <InfoTip label="How to read this view" buttonText="How to read this" align="start" width="28rem">
+        <InfoTip label={t('aso:rd.howLabel')} buttonText={t('aso:rd.how')} align="start" width="28rem">
           <ul class="plain">
             {#each view.notes as n (n.code)}<li>{n.message}</li>{/each}
             {#if delay}<li>{delay}</li>{/if}
@@ -193,12 +196,12 @@
 
       {#if view.available.length > 0}
         <fieldset class="picks">
-          <legend class="muted">Keywords to draw (up to {MAX_DRAWN})</legend>
+          <legend class="muted">{t('aso:rd.draw', { max: MAX_DRAWN })}</legend>
           {#each view.available as k (k.id)}
             <label class="pick" class:off={k.checks === 0}>
               <input type="checkbox" checked={view.selected.indexOf(k.id) >= 0} onchange={() => pick(k.id)} disabled={k.checks === 0 && view.selected.indexOf(k.id) < 0} />
               <span>{k.term}</span>
-              <span class="muted">{k.checks === 0 ? 'no checks' : `${k.checks} ${k.checks === 1 ? 'check' : 'checks'}`}</span>
+              <span class="muted">{k.checks === 0 ? t('aso:rd.noChecks') : t('aso:rd.checks', { count: k.checks })}</span>
             </label>
           {/each}
         </fieldset>
@@ -207,23 +210,23 @@
       {#if gate && gate.kind !== 'chart'}
         <div class="gate" role="status">
           <p>{gate.text}</p>
-          {#if gate.kind === 'missing' && gate.action === 'analytics' && analyticsHref}<Button size="sm" href={analyticsHref}>Open Analytics</Button>{/if}
-          {#if gate.kind === 'missing' && gate.action === 'keywords' && keywordsHref}<Button size="sm" href={keywordsHref}>Track keywords</Button>{/if}
+          {#if gate.kind === 'missing' && gate.action === 'analytics' && analyticsHref}<Button size="sm" href={analyticsHref}>{t('aso:rd.openAnalytics')}</Button>{/if}
+          {#if gate.kind === 'missing' && gate.action === 'keywords' && keywordsHref}<Button size="sm" href={keywordsHref}>{t('aso:rd.trackKeywords')}</Button>{/if}
         </div>
       {:else if gate && rank}
         <div class="plots" class:loading bind:clientWidth={width} bind:this={plotsEl}>
-          <ul class="legend" aria-label="Keywords">
+          <ul class="legend" aria-label={t('aso:rd.keywords')}>
             {#each rank.lines as l (l.id)}
               <li>
                 <svg width="26" height="8" aria-hidden="true"><line x1="0" y1="4" x2="26" y2="4" class="swatch" stroke-dasharray={dashes[l.pattern]} /></svg>
                 <span>{l.term}</span>
               </li>
             {/each}
-            <li><svg width="12" height="12" aria-hidden="true"><path d="M6,1L11,10L1,10Z" class="mk" /></svg><span>better rank</span></li>
-            <li><svg width="12" height="12" aria-hidden="true"><path d="M6,11L11,2L1,2Z" class="mk" /></svg><span>worse rank</span></li>
+            <li><svg width="12" height="12" aria-hidden="true"><path d="M6,1L11,10L1,10Z" class="mk" /></svg><span>{t('aso:rd.betterRank')}</span></li>
+            <li><svg width="12" height="12" aria-hidden="true"><path d="M6,11L11,2L1,2Z" class="mk" /></svg><span>{t('aso:rd.worseRank')}</span></li>
           </ul>
 
-          <h4>Rank <span class="muted">(1 is the top)</span></h4>
+          <h4>{t('aso:rd.rank')} <span class="muted">{t('aso:rd.rankTop')}</span></h4>
           <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
           <svg
             viewBox="0 0 {width} {rank.box.height}"
@@ -243,11 +246,11 @@
               <pattern id="{uid}-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="hatch" /></pattern>
             </defs>
             {#each noCheckBands as b (b.from)}
-              <rect x={b.x} y={rank.box.top} width={b.w} height={rank.plotH} fill="url(#{uid}-hatch)"><title>No rank check on these days</title></rect>
+              <rect x={b.x} y={rank.box.top} width={b.w} height={rank.plotH} fill="url(#{uid}-hatch)"><title>{t('aso:rd.noRankDays')}</title></rect>
             {/each}
-            {#each rank.ticks as t (t.label)}
-              <line class="grid" x1={rank.box.left} x2={width - rank.box.right} y1={t.y} y2={t.y} />
-              <text class="ytick" x={rank.box.left - 8} y={t.y + 4} text-anchor="end">{t.label}</text>
+            {#each rank.ticks as tk (tk.label)}
+              <line class="grid" x1={rank.box.left} x2={width - rank.box.right} y1={tk.y} y2={tk.y} />
+              <text class="ytick" x={rank.box.left - 8} y={tk.y + 4} text-anchor="end">{tk.label}</text>
             {/each}
             {#if hover !== null}<line class="cross" x1={rank.xCenter(hover)} x2={rank.xCenter(hover)} y1={rank.box.top} y2={rank.box.top + rank.plotH} />{/if}
             {#each rank.lines as l (l.id)}
@@ -265,17 +268,17 @@
             {/each}
           </svg>
 
-          <h4>{downloadsName(view)} <span class="muted">per day</span></h4>
+          <h4>{downloadsName(view)} <span class="muted">{t('aso:rd.perDay')}</span></h4>
           {#if dl}
             <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-            <svg viewBox="0 0 {width} {dl.box.height}" {width} height={dl.box.height} role="img" aria-label="{downloadsName(view)} per day, in the same days as the rank above" tabindex="0" onpointermove={at} onpointerleave={() => (hover = null)} {onkeydown}>
-              {#if dl.provisional}<rect class="wash" x={dl.provisional.x} y={dl.box.top} width={dl.provisional.w} height={dl.plotH}><title>The store may still change these days</title></rect>{/if}
+            <svg viewBox="0 0 {width} {dl.box.height}" {width} height={dl.box.height} role="img" aria-label={t('aso:rd.dlChartLabel', { name: downloadsName(view) })} tabindex="0" onpointermove={at} onpointerleave={() => (hover = null)} {onkeydown}>
+              {#if dl.provisional}<rect class="wash" x={dl.provisional.x} y={dl.box.top} width={dl.provisional.w} height={dl.plotH}><title>{t('aso:rd.provisionalDays')}</title></rect>{/if}
               {#each dl.missing as b (b.from)}
-                <rect x={b.x} y={dl.box.top} width={b.w} height={dl.plotH} fill="url(#{uid}-hatch)"><title>No download number on these days</title></rect>
+                <rect x={b.x} y={dl.box.top} width={b.w} height={dl.plotH} fill="url(#{uid}-hatch)"><title>{t('aso:rd.noDownloadDays')}</title></rect>
               {/each}
-              {#each dl.ticks as t (t.value)}
-                <line class="grid" x1={dl.box.left} x2={width - dl.box.right} y1={t.y} y2={t.y} />
-                <text class="ytick" x={dl.box.left - 8} y={t.y + 4} text-anchor="end">{t.value}</text>
+              {#each dl.ticks as tk (tk.value)}
+                <line class="grid" x1={dl.box.left} x2={width - dl.box.right} y1={tk.y} y2={tk.y} />
+                <text class="ytick" x={dl.box.left - 8} y={tk.y + 4} text-anchor="end">{tk.value}</text>
               {/each}
               <line class="axis" x1={dl.box.left} x2={width - dl.box.right} y1={dl.baseline} y2={dl.baseline} />
               {#if hover !== null}<rect class="lift" x={dl.box.left + hover * dl.slot} y={dl.box.top} width={dl.slot} height={dl.plotH} />{/if}
@@ -290,16 +293,16 @@
             <div class="tip" aria-hidden="true" use:floating={{ anchor: tipAnchor, align: flip ? 'end' : 'start', gap: 0 }}>
               <div class="tip-date">{tip.heading}</div>
               {#each tip.ranks as r (r.id)}<div class="tip-row"><strong class="num">{r.text}</strong><span class="muted">{r.term}</span></div>{/each}
-              <div class="tip-row"><strong class="num">{tip.downloads}</strong><span class="muted">{view.downloads ? view.downloads.label.toLowerCase() : 'downloads'}</span></div>
-              {#if tip.provisional}<div class="tip-note">The store may still change this day.</div>{/if}
+              <div class="tip-row"><strong class="num">{tip.downloads}</strong><span class="muted">{view.downloads ? view.downloads.label.toLowerCase() : t('aso:rd.chartDownloads')}</span></div>
+              {#if tip.provisional}<div class="tip-note">{t('aso:rd.provisionalDay')}</div>{/if}
             </div>
           {/if}
-          <div class="visually-hidden" id="{uid}-live" aria-live="polite">{tip ? `${tip.heading}. ${tip.ranks.map((r) => `${r.term}: ${r.text}`).join('. ')}. Downloads: ${tip.downloads}.` : ''}</div>
+          <div class="visually-hidden" id="{uid}-live" aria-live="polite">{tip ? t('aso:rd.live', { heading: tip.heading, ranks: tip.ranks.map((r) => t('aso:rd.liveRank', { term: r.term, text: r.text })).join('. '), downloads: tip.downloads }) : ''}</div>
         </div>
 
         {#if view.markers.length > 0}
           <div class="changes stack">
-            <h4 class="what">What changed after a big rank move <Badge tone="info">Correlation, not proof</Badge></h4>
+            <h4 class="what">{t('aso:rd.whatChanged')} <Badge tone="info">{t('aso:rd.correlation')}</Badge></h4>
             <ul class="moves">
               {#each changed as c, i (`${c.keywordId}-${i}`)}
                 <li>
@@ -313,7 +316,7 @@
             </ul>
           </div>
         {:else}
-          <p class="muted quiet">No rank move of {view.threshold} places or more in this period, so there is nothing to compare.</p>
+          <p class="muted quiet">{t('aso:rd.noMove', { count: view.threshold })}</p>
         {/if}
       {/if}
     {/if}

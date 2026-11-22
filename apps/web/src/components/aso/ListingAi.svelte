@@ -11,6 +11,7 @@
   import { suggestAvailability } from '../../lib/ai/ai.ts';
   import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import AiSuggestions from '../ai/AiSuggestions.svelte';
   import SuggestButton from '../ai/SuggestButton.svelte';
@@ -47,18 +48,18 @@
 </script>
 
 {#if visible}
-  <section class="ai" aria-label="AI assistance for the store listing">
+  <section class="ai" aria-label={t('aso:ai.label')}>
     <div class="row wrap bar">
-      <span class="muted small">AI</span>
+      <span class="muted small">{t('aso:ai.badge')}</span>
       <label class="pick">
-        <span class="small">Language</span>
-        <select id="{uid}-locale" value={locale} onchange={(e) => (chosen = e.currentTarget.value)} aria-label="Language the AI works on">
+        <span class="small">{t('aso:ai.language')}</span>
+        <select id="{uid}-locale" value={locale} onchange={(e) => (chosen = e.currentTarget.value)} aria-label={t('aso:ai.languageWorksOn')}>
           {#each locales as l (l)}<option value={l}>{l}</option>{/each}
         </select>
       </label>
-      <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="listing_audit" label="Audit this language" onrun={audit} preview={{ appId: app.id, locale }} />
+      <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="listing_audit" label={t('aso:ai.audit')} onrun={audit} preview={{ appId: app.id, locale }} />
       {#if canStage}
-        <SuggestButton {api} {workspaceId} {role} kind="listing_variants" taskId="listing_variants" label="Suggest variants" onrun={variants} preview={{ appId: app.id, locale }} />
+        <SuggestButton {api} {workspaceId} {role} kind="listing_variants" taskId="listing_variants" label={t('aso:ai.variants')} onrun={variants} preview={{ appId: app.id, locale }} />
         {#if others.length > 0}
           <SuggestButton
             {api}
@@ -66,15 +67,15 @@
             {role}
             kind="listing_text"
             taskId="listing_translate"
-            label="Translate into {locale}"
-            hiddenLabel="from {from}"
+            label={t('aso:ai.translate', { locale })}
+            hiddenLabel={t('aso:ai.translateFrom', { from })}
             onrun={translate}
             preview={{ appId: app.id, locale, sourceLocale: from }}
-            disabledReason={from === '' ? 'There is no other language with stored text.' : null}
+            disabledReason={from === '' ? t('aso:ai.noOther') : null}
           />
           <label class="pick">
-            <span class="small">from</span>
-            <select id="{uid}-from" value={from} onchange={(e) => (source = e.currentTarget.value)} aria-label="Language to translate from">
+            <span class="small">{t('aso:ai.from')}</span>
+            <select id="{uid}-from" value={from} onchange={(e) => (source = e.currentTarget.value)} aria-label={t('aso:ai.fromLabel')}>
               {#each others as l (l)}<option value={l}>{l}</option>{/each}
             </select>
           </label>
@@ -82,8 +83,8 @@
       {/if}
     </div>
     <label class="goal">
-      <span class="small muted">What should the text achieve? (optional, for the audit and the variants)</span>
-      <input id="{uid}-goal" bind:value={goal} maxlength="300" autocomplete="off" placeholder="for example: mention the new offline mode" />
+      <span class="small muted">{t('aso:ai.goal')}</span>
+      <input id="{uid}-goal" bind:value={goal} maxlength="300" autocomplete="off" placeholder={t('aso:ai.goalPlaceholder')} />
     </label>
     <AiSuggestions {api} {workspaceId} {role} {app} platform={app.platform} tasks={TASKS} />
   </section>

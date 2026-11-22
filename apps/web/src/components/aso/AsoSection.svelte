@@ -21,6 +21,7 @@
   import { type AsoConfig, type AsoKeyword, asoErrorMessage, asoViewFromHash, asoViewHref, availableAsoView, keywordMainViews, keywordMoreViews, localesOf } from '../../lib/aso/aso.ts';
   import { withInsightsAsoView } from '../../lib/app-nav.ts';
   import { appAddress } from '../../lib/app-scope.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import AiSuggestions from '../ai/AiSuggestions.svelte';
@@ -67,6 +68,7 @@
   const hrefFor = (next: string) => withInsightsAsoView(address.hash, next);
   let moreOpen = $state(false);
   const moreCurrent = $derived(keywordMoreViews.find((v) => v.id === view) ?? null);
+  const mainViews = $derived(keywordMainViews.map((v) => ({ id: v.id, label: t(v.labelKey) })));
 
   let config = $state<AsoConfig | null>(null);
   let keywords = $state<AsoKeyword[]>([]);
@@ -87,7 +89,7 @@
       keywords = lists.reduce<AsoKeyword[]>((all, l) => all.concat(l.keywords), []);
     } catch (e) {
       if (mine !== generation) return;
-      loadError = asoErrorMessage(e, 'Could not load the keywords.');
+      loadError = asoErrorMessage(e, t('aso:section.loadFailed'));
     } finally {
       if (mine === generation) loading = false;
     }
@@ -135,13 +137,13 @@
   const shared = $derived({ api, workspaceId, role, members, config, keywords, version, now, onchanged: changed });
 </script>
 
-<section class="aso stack" aria-label={view === 'terms' ? 'Search terms' : 'Keywords'}>
+<section class="aso stack" aria-label={view === 'terms' ? t('aso:view.terms') : t('aso:view.keywords')}>
   <div class="row bar">
     {#if view !== 'terms'}
-      <ViewSwitch views={keywordMainViews} value={view} {hrefFor} label="Keyword views" />
+      <ViewSwitch views={mainViews} value={view} {hrefFor} label={t('aso:section.viewsLabel')} />
       <InfoTip
-        label="More keyword views"
-        buttonText={moreCurrent ? `More: ${moreCurrent.label}` : 'More'}
+        label={t('aso:section.moreLabel')}
+        buttonText={moreCurrent ? t('aso:section.moreCurrent', { view: t(moreCurrent.labelKey) }) : t('aso:section.more')}
         icon="more"
         align="start"
         width="min(22rem, 92vw)"
@@ -151,8 +153,8 @@
           {#each keywordMoreViews as v (v.id)}
             <li>
               <a href={hrefFor(v.id)} aria-current={view === v.id ? 'page' : undefined} onclick={() => (moreOpen = false)}>
-                <strong>{v.label}</strong>
-                <span class="muted">{v.hint}</span>
+                <strong>{t(v.labelKey)}</strong>
+                <span class="muted">{t(v.hintKey)}</span>
               </a>
             </li>
           {/each}
@@ -164,10 +166,10 @@
   </div>
 
   {#if loadError}
-    <Alert tone="error" title="Could not load keywords">{loadError}</Alert>
-    <div><Button icon="refresh" onclick={load}>Try again</Button></div>
+    <Alert tone="error" title={t('aso:section.loadFailedTitle')}>{loadError}</Alert>
+    <div><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
   {:else if loading && keywords.length === 0}
-    <div role="status" aria-label="Loading keywords" class="stack">
+    <div role="status" aria-label={t('aso:section.loading')} class="stack">
       <Skeleton width="100%" height="36px" />
       <Skeleton width="100%" height="140px" />
     </div>

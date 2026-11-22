@@ -23,7 +23,8 @@
     parseThreshold,
   } from '../../lib/aso/aso.ts';
   import { coachHref } from '../../lib/aso/budget.ts';
-  import { timeAgo } from '../../lib/format.ts';
+  import { agoText } from '../../lib/aso/ago.ts';
+  import { k, t } from '../../lib/i18n/t.ts';
   import { appLabel, platformLabel, portfolioHref, runLimited } from '../../lib/portfolio.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -35,6 +36,7 @@
   import PageHeader from '../ui/PageHeader.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import StatChip from '../ui/StatChip.svelte';
+  import T from '../ui/T.svelte';
   import AsoHealthAi from './AsoHealthAi.svelte';
   import AsoStatus from './AsoStatus.svelte';
 
@@ -101,7 +103,7 @@
       rows = list.map((a) => next.find((r) => r.appId === a.id)).filter((r): r is OverviewRow => r !== undefined);
     } catch (e) {
       if (mine !== generation) return;
-      error = asoErrorMessage(e, 'Could not load ASO.');
+      error = asoErrorMessage(e, t('aso:overview.loadFailed'));
     } finally {
       if (mine === generation) loading = false;
     }
@@ -144,10 +146,10 @@
     try {
       const out = await api.refreshAsoAll(workspaceId);
       const skipped = out.skipped.alreadyQueued + out.skipped.notReady + out.skipped.playOff + out.skipped.capped;
-      toast.success(`Queued checks for ${out.queued} ${out.queued === 1 ? 'app' : 'apps'}${skipped > 0 ? `; ${skipped} skipped` : ''}. They run a few at a time.`);
+      toast.success(skipped > 0 ? t('aso:overview.queuedSkipped', { count: out.queued, skipped }) : t('aso:overview.queued', { count: out.queued }));
       confirmAll = false;
     } catch (e) {
-      toast.error(asoErrorMessage(e, 'Could not queue the checks.'));
+      toast.error(asoErrorMessage(e, t('aso:overview.queueFailed')));
     } finally {
       queuing = false;
     }
@@ -166,9 +168,9 @@
     try {
       await api.updateWorkspaceSettings(workspaceId, { 'aso.rankMoveThreshold': parsedThreshold });
       if (config) config = { ...config, rankMoveThreshold: parsedThreshold };
-      toast.success('Saved.');
+      toast.success(t('aso:overview.saved'));
     } catch (e) {
-      toast.error(asoErrorMessage(e, 'Could not save the setting.'));
+      toast.error(asoErrorMessage(e, t('aso:overview.saveFailed')));
     } finally {
       saving = false;
     }
@@ -176,45 +178,45 @@
 
   const stateNote = (r: OverviewRow): { text: string; tone: 'warn' | 'neutral' } | null => {
     const s = r.summary;
-    if (s.state.backoffUntil !== null && s.state.backoffUntil > now) return { text: 'Waiting to retry', tone: 'warn' };
-    if (s.state.lastError !== null) return { text: 'Last check failed', tone: 'warn' };
-    if (s.keywords.failing > 0) return { text: `${s.keywords.failing} failing`, tone: 'warn' };
+    if (s.state.backoffUntil !== null && s.state.backoffUntil > now) return { text: t('aso:overview.waiting'), tone: 'warn' };
+    if (s.state.lastError !== null) return { text: t('aso:overview.lastFailed'), tone: 'warn' };
+    if (s.keywords.failing > 0) return { text: t('aso:overview.failingCount', { count: s.keywords.failing }), tone: 'warn' };
     return null;
   };
 </script>
 
 <section aria-busy={loading}>
-  <PageHeader title="ASO" description="Where your apps rank for the keywords you track, and what the competitors you follow changed.">
+  <PageHeader title="ASO" description={t('aso:overview.description')}>
     {#snippet actions()}
       {#if canManage && withData.length > 0}
         {#if confirmAll}
           <span class="confirm">
-            Queue a check of every app? It reads the public stores.
-            <Button size="sm" variant="primary" loading={queuing} onclick={queueAll}>Queue checks</Button>
-            <Button size="sm" variant="ghost" onclick={() => (confirmAll = false)}>Cancel</Button>
+            {t('aso:overview.queueQuestion')}
+            <Button size="sm" variant="primary" loading={queuing} onclick={queueAll}>{t('aso:overview.queueChecks')}</Button>
+            <Button size="sm" variant="ghost" onclick={() => (confirmAll = false)}>{t('common:action.cancel')}</Button>
           </span>
         {:else}
-          <Button icon="refresh" onclick={() => (confirmAll = true)}>Check all apps</Button>
+          <Button icon="refresh" onclick={() => (confirmAll = true)}>{t('aso:overview.checkAll')}</Button>
         {/if}
       {/if}
     {/snippet}
   </PageHeader>
 
   {#if !canRead}
-    <Alert tone="info">Your role does not include ASO.</Alert>
+    <Alert tone="info">{t('aso:overview.noRole')}</Alert>
   {:else if error}
-    <Alert tone="error" title="Could not load ASO">{error}</Alert>
-    <p><Button icon="refresh" onclick={load}>Try again</Button></p>
+    <Alert tone="error" title={t('aso:overview.loadFailedTitle')}>{error}</Alert>
+    <p><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></p>
   {:else if loading && apps === null}
-    <div role="status" aria-label="Loading ASO" class="stack">
+    <div role="status" aria-label={t('aso:overview.loading')} class="stack">
       <Skeleton width="100%" height="32px" />
       <Skeleton width="100%" height="160px" />
     </div>
   {:else if withData.length === 0}
     <div class="empty card">
       <p>
-        No keywords or competitors are tracked yet.
-        {#if apps && apps.length > 0}Open an app and add some:{:else}<a href={portfolioHref}>Add an app</a> first.{/if}
+        {t('aso:overview.empty')}
+        {#if apps && apps.length > 0}{t('aso:overview.emptyOpen')}{:else}<T key="aso:overview.emptyAddApp" tags={{ link: addApp }} />{/if}
       </p>
       {#if apps && apps.length > 0}
         <p class="applinks">
@@ -228,32 +230,32 @@
     <div class="stack">
       <div class="row top">
         <span class="chips">
-          <StatChip label={stats.apps === 1 ? 'app' : 'apps'} value={stats.apps} />
-          <StatChip label="keywords" value={stats.keywords} />
-          <StatChip label="in top 10" value={stats.top10} tone="ok" />
-          <StatChip label="competitors" value={stats.competitors} />
-          <StatChip label="competitor changes" value={stats.competitorChanges} tone="info" hideZero />
-          <StatChip label="failing" value={stats.failing} tone="warn" hideZero />
+          <StatChip label={t('aso:overview.chip.apps', { count: stats.apps })} value={stats.apps} />
+          <StatChip label={t('aso:overview.chip.keywords', { count: stats.keywords })} value={stats.keywords} />
+          <StatChip label={t('aso:overview.chip.top10')} value={stats.top10} tone="ok" />
+          <StatChip label={t('aso:overview.chip.competitors', { count: stats.competitors })} value={stats.competitors} />
+          <StatChip label={t('aso:overview.chip.changes')} value={stats.competitorChanges} tone="info" hideZero />
+          <StatChip label={t('aso:overview.chip.failing')} value={stats.failing} tone="warn" hideZero />
         </span>
         <span class="spacer"></span>
         <AsoStatus {config} androidInScope={androidTracked} />
       </div>
 
       {#if starts.length > 0}
-        <section class="card" aria-label="Where to start">
-          <h2 class="h"><Icon name="check-circle" size={16} /> Where to start</h2>
+        <section class="card" aria-label={t('aso:overview.start')}>
+          <h2 class="h"><Icon name="check-circle" size={16} /> {t('aso:overview.start')}</h2>
           <ul class="movers starts">
             {#each starts as r (r.app.id)}
               <li>
                 <span class="what">
                   <strong class="truncate">{r.step.title}</strong>
-                  <span class="muted">{appLabel(r.app)}{r.total > 1 ? `, ${r.total} steps` : ''}</span>
+                  <span class="muted">{r.total > 1 ? t('aso:overview.appSteps', { app: appLabel(r.app), count: r.total }) : appLabel(r.app)}</span>
                 </span>
                 <Button size="sm" href={coachHref(r.step.link, r.app.id, r.app.platform)}>{r.step.link.label}</Button>
               </li>
             {/each}
           </ul>
-          <p class="muted hint">Open an app to see all of its next steps. They come from what is already stored here and say nothing about search volume.</p>
+          <p class="muted hint">{t('aso:overview.startHint')}</p>
         </section>
       {/if}
 
@@ -261,11 +263,11 @@
 
       {#if hasMoves}
         <div class="moves">
-          {#each [{ title: 'Moving up', list: movers.gains, icon: 'trending-up' as const }, { title: 'Moving down', list: movers.drops, icon: 'arrow-down' as const }] as group (group.title)}
-            <section class="card" aria-label={group.title}>
-              <h2 class="h"><Icon name={group.icon} size={16} /> {group.title}</h2>
+          {#each [{ title: k('aso:overview.up'), list: movers.gains, icon: 'trending-up' as const }, { title: k('aso:overview.down'), list: movers.drops, icon: 'arrow-down' as const }] as group (group.title)}
+            <section class="card" aria-label={t(group.title)}>
+              <h2 class="h"><Icon name={group.icon} size={16} /> {t(group.title)}</h2>
               {#if group.list.length === 0}
-                <p class="muted none">Nothing yet.</p>
+                <p class="muted none">{t('aso:overview.nothingYet')}</p>
               {:else}
                 <ul class="movers">
                   {#each group.list as m (`${m.appId}:${m.keywordId}`)}
@@ -286,14 +288,14 @@
       {/if}
 
       {#if changed.length > 0}
-        <section class="card" aria-label="Competitor changes">
-          <h2 class="h"><Icon name="activity" size={16} /> Competitors that changed</h2>
+        <section class="card" aria-label={t('aso:overview.chip.changes')}>
+          <h2 class="h"><Icon name="activity" size={16} /> {t('aso:overview.changedTitle')}</h2>
           <ul class="movers">
             {#each changed as r (r.appId)}
               <li>
                 <span class="what"><strong>{appName(r.appId) || r.name}</strong></span>
-                <span class="tabular">{r.summary.competitors.changedRecently} of {r.summary.competitors.total} changed recently</span>
-                <a class="app" href={asoViewHref(r.appId, 'competitors', r.platform)}>Open</a>
+                <span class="tabular">{t('aso:overview.changedOf', { count: r.summary.competitors.changedRecently, total: r.summary.competitors.total })}</span>
+                <a class="app" href={asoViewHref(r.appId, 'competitors', r.platform)}>{t('aso:overview.open')}</a>
               </li>
             {/each}
           </ul>
@@ -304,13 +306,13 @@
         <table class="compact">
           <thead>
             <tr>
-              <th scope="col">App</th>
-              <th scope="col" class="num">Keywords</th>
-              <th scope="col" class="num">Ranked</th>
-              <th scope="col" class="num">Top 10</th>
-              <th scope="col" class="num">Competitors</th>
-              <th scope="col">Last check</th>
-              <th scope="col"><span class="visually-hidden">State</span></th>
+              <th scope="col">{t('aso:overview.col.app')}</th>
+              <th scope="col" class="num">{t('aso:overview.col.keywords')}</th>
+              <th scope="col" class="num">{t('aso:overview.col.ranked')}</th>
+              <th scope="col" class="num">{t('aso:overview.col.top10')}</th>
+              <th scope="col" class="num">{t('aso:overview.col.competitors')}</th>
+              <th scope="col">{t('aso:overview.col.lastCheck')}</th>
+              <th scope="col"><span class="visually-hidden">{t('aso:overview.col.state')}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -325,7 +327,7 @@
                 <td class="num">{r.summary.keywords.ranked}</td>
                 <td class="num">{r.summary.keywords.top10}</td>
                 <td class="num">{r.summary.competitors.total}</td>
-                <td class="muted">{r.summary.state.lastSuccessAt ? timeAgo(r.summary.state.lastSuccessAt, now) : 'Never'}</td>
+                <td class="muted">{r.summary.state.lastSuccessAt ? agoText(r.summary.state.lastSuccessAt, now) : t('aso:overview.never')}</td>
                 <td>{#if note}<Badge tone={note.tone} icon="alert-triangle">{note.text}</Badge>{/if}</td>
               </tr>
             {/each}
@@ -334,23 +336,25 @@
       </div>
 
       {#if canManage && config}
-        <Disclosure summary="Rank alerts" stateKey="aso.alerts">
+        <Disclosure summary={t('aso:overview.alerts')} stateKey="aso.alerts">
           <form class="row alerts" onsubmit={saveThreshold} novalidate>
             <div class="field">
-              <label for="{uid}-threshold">Raise a rank event after a move of</label>
+              <label for="{uid}-threshold">{t('aso:overview.thresholdLabel')}</label>
               <span class="row inline">
                 <input id="{uid}-threshold" class="num-input" inputmode="numeric" maxlength="3" bind:value={threshold} aria-invalid={parsedThreshold === null} />
-                <span class="muted">places or more</span>
+                <span class="muted">{t('aso:overview.thresholdUnit')}</span>
               </span>
-              <p class="hint">1 to 100. Entering or leaving the results counts only within the top 10. Webhooks hear it as <code>aso.rank_changed</code>.</p>
+              <p class="hint"><T key="aso:overview.thresholdHint" /></p>
             </div>
-            <Button type="submit" variant="primary" loading={saving} disabled={!dirty || parsedThreshold === null}>Save</Button>
+            <Button type="submit" variant="primary" loading={saving} disabled={!dirty || parsedThreshold === null}>{t('common:action.save')}</Button>
           </form>
         </Disclosure>
       {/if}
     </div>
   {/if}
 </section>
+
+{#snippet addApp(text: string)}<a href={portfolioHref}>{text}</a>{/snippet}
 
 <style>
   .confirm {

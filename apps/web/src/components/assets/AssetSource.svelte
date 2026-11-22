@@ -41,7 +41,7 @@
     {#if index.commit}<span class="muted"><T key="assets:source.commit" params={{ commit: shortCommit(index.commit) }} /></span>{/if}
     {#if index.readAt !== null}
       <span class="muted">
-        <time datetime={new Date(index.readAt).toISOString()} title={formatDateTime(index.readAt)}>{t(index.cached ? 'assets:source.readCached' : 'assets:source.read', { ago: agoText(index.readAt, now) })}</time>
+        <time datetime={new Date(index.readAt).toISOString()} title={formatDateTime(index.readAt)}>{index.cached ? t('assets:source.readCached', { ago: agoText(index.readAt, now) }) : t('assets:source.read', { ago: agoText(index.readAt, now) })}</time>
       </span>
     {/if}
     <InfoTip label={t('assets:source.detailsLabel')} buttonText={t('assets:source.details')} width="28rem">

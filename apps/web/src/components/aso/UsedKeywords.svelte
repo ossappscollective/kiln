@@ -33,6 +33,7 @@
     usedSummary,
     visitorsText,
   } from '../../lib/aso/keyword-use.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { canStage, findStagedText } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
@@ -45,6 +46,7 @@
   import Button from '../ui/Button.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import T from '../ui/T.svelte';
 
   let {
     api,
@@ -94,7 +96,7 @@
         try {
           next[m.id] = await api.asoListingKeywords(workspaceId, m.id);
         } catch (e) {
-          bad[m.id] = asoErrorMessage(e, 'Could not load the listing keywords.');
+          bad[m.id] = asoErrorMessage(e, t('aso:used.loadFailed'));
         }
         void stagedStore.load(api, workspaceId, m.id);
       }),
@@ -150,7 +152,7 @@
         api
           .asoSearchTerms(workspaceId, w.id, { locale: w.locale, limit: 200 })
           .then((r) => {
-            search[`${w.id}|${w.locale}`] = r.terms.map((t) => ({ term: t.term, visitors: t.visitors, installs: t.installs }));
+            search[`${w.id}|${w.locale}`] = r.terms.map((row) => ({ term: row.term, visitors: row.visitors, installs: row.installs }));
           })
           .catch(() => undefined);
       }
@@ -168,14 +170,14 @@
     try {
       const per = config?.limits.maxKeywordsPerRequest ?? 50;
       const sums = [];
-      for (const part of chunk(items.map((t) => termKeywordItem(used, t)), per)) sums.push((await api.addAsoKeywords(workspaceId, app.id, part)).summary);
+      for (const part of chunk(items.map((item) => termKeywordItem(used, item)), per)) sums.push((await api.addAsoKeywords(workspaceId, app.id, part)).summary);
       const sum = sumAddSummary(sums);
       const message = addSummaryText(sum, config?.limits.maxKeywordsPerApp);
-      if (sum.created > 0) toast.success(`${message} Ranks are read when you press Check now.`);
+      if (sum.created > 0) toast.success(t('aso:used.added', { message }));
       else toast.error(message);
       await onchanged();
     } catch (e) {
-      toast.error(asoErrorMessage(e, 'Could not add the keywords.'));
+      toast.error(asoErrorMessage(e, t('aso:used.addFailed')));
     } finally {
       busy = '';
     }
@@ -196,28 +198,19 @@
 
 <section class="used stack" aria-labelledby="used-kw-title">
   <div class="row head">
-    <h2 id="used-kw-title" class="title">Keywords your listing uses now</h2>
-    <InfoTip label="About this list" align="start" width="30rem">
+    <h2 id="used-kw-title" class="title">{t('aso:used.title')}</h2>
+    <InfoTip label={t('aso:used.aboutLabel')} align="start" width="30rem">
       <div class="tip stack tight">
-        <p>
-          This is what the listing text stored in this tool says today, one language at a time. It is read from the copy the last sync stored: nothing here
-          contacts a store.
-        </p>
-        <p><strong>Track</strong> adds a keyword to the tracked keywords below, so its rank in the store search is checked. It does not change your listing.</p>
-        <p>
-          <strong>Edit</strong> opens the text of the field, with a character counter and the text before and after. <strong>Stage</strong> saves your change in this tool.
-          It reaches a store only when you push the staged changes, a separate step that asks you to confirm.
-        </p>
-        <p>
-          {APP_STORE_NOTE} Which fields each store searches is unverified. “Visitors from search” (Google Play) comes from a Play Console search terms file you
-          imported: it counts people who searched a term and opened your listing, not how often the term is searched.
-        </p>
+        <p>{t('aso:used.about1')}</p>
+        <p><T key="aso:used.about2" /></p>
+        <p><T key="aso:used.about3" /></p>
+        <p>{t('aso:used.about4', { note: t(APP_STORE_NOTE) })}</p>
       </div>
     </InfoTip>
   </div>
 
   {#if loading}
-    <div role="status" aria-label="Loading the keywords your listing uses" class="stack">
+    <div role="status" aria-label={t('aso:used.loading')} class="stack">
       <Skeleton width="100%" height="36px" />
       <Skeleton width="100%" height="120px" />
     </div>
@@ -225,32 +218,32 @@
     {#each sections as s (s.app.id)}
       {@const d = s.d}
       {@const used = s.used}
-      <section class="app stack" aria-label="{platformLabel(s.app.platform)} keywords used now">
+      <section class="app stack" aria-label={t('aso:used.sectionLabel', { platform: platformLabel(s.app.platform) })}>
         <div class="row head">
           {#if multi}<h3 class="eyebrow">{platformLabel(s.app.platform)}</h3>{/if}
           <span class="muted small">{freshnessText(s.app.platform, d?.readAt ?? null, now)}</span>
-          {#if d?.error}<span class="muted small">The last read failed ({d.error}); this is the earlier copy.</span>{/if}
+          {#if d?.error}<span class="muted small">{t('aso:used.readFailed', { error: d.error })}</span>{/if}
         </div>
 
         {#if errors[s.app.id]}
           <Alert tone="error">{errors[s.app.id]}</Alert>
         {:else if d && d.locales.length === 0}
           <div class="empty card">
-            <p><strong>The listing has not been read from the store yet.</strong></p>
-            <p class="muted">{NOT_READ_TEXT}</p>
+            <p><strong>{t('aso:kw.notReadTitle')}</strong></p>
+            <p class="muted">{t(NOT_READ_TEXT)}</p>
             <div class="row">
-              {#if canSync}<Button variant="primary" icon="refresh" onclick={() => openStatusPopover()}>Read the listing now (Sync)</Button>{/if}
-              <Button variant="link" href={appAddress(s.app.id, 'listing', address.platform)}>Open Store listing</Button>
+              {#if canSync}<Button variant="primary" icon="refresh" onclick={() => openStatusPopover()}>{t('aso:used.readNow')}</Button>{/if}
+              <Button variant="link" href={appAddress(s.app.id, 'listing', address.platform)}>{t('aso:used.openListing')}</Button>
             </div>
-            {#if !canSync}<p class="muted small">A member or admin can sync the app.</p>{/if}
+            {#if !canSync}<p class="muted small">{t('aso:used.adminSync')}</p>{/if}
           </div>
         {:else if d && used && s.locale !== null}
           <div class="row controls">
             <label class="row">
-              <span class="muted small">Language</span>
+              <span class="muted small">{t('aso:ai.language')}</span>
               <select
                 value={s.locale}
-                aria-label="Locale of the {platformLabel(s.app.platform)} listing"
+                aria-label={t('aso:used.localeOf', { platform: platformLabel(s.app.platform) })}
                 onchange={(e) => (pickedLocale[s.app.id] = e.currentTarget.value)}
               >
                 {#each d.locales as l (l.locale)}<option value={l.locale}>{l.locale}</option>{/each}
@@ -259,7 +252,7 @@
             <span class="muted small">
               {#if used.storefronts.length > 1}
                 <select
-                  aria-label="Storefront for {s.locale}"
+                  aria-label={t('aso:used.storefrontFor', { locale: s.locale })}
                   value={used.country}
                   onchange={(e) => (pickedCountry[`${s.app.id}|${s.locale}`] = e.currentTarget.value)}
                 >
@@ -268,7 +261,7 @@
               {:else}
                 <span title={territoryName(used.country)}>{used.country.toUpperCase()}</span>
               {/if}
-              storefront for ranks
+              {t('aso:used.storefrontForRanks')}
             </span>
             <span class="spacer"></span>
             <span class="muted small">{usedSummary(used)}</span>
@@ -280,22 +273,22 @@
                 disabled={busy !== ''}
                 onclick={() => track(s.app, used, used.untracked, `all|${s.app.id}`)}
               >
-                Track {used.untracked.length} untracked
+                {t('aso:used.trackUntracked', { count: used.untracked.length })}
               </Button>
             {/if}
           </div>
 
-          <p class="muted note">{used.derived ? PLAY_DERIVED_NOTE : APP_STORE_NOTE}</p>
+          <p class="muted note">{t(used.derived ? PLAY_DERIVED_NOTE : APP_STORE_NOTE)}</p>
 
           <div class="table-wrap">
             <table class="compact">
-              <caption class="visually-hidden">The fields of the {s.locale} listing that hold keywords</caption>
+              <caption class="visually-hidden">{t('aso:used.fieldsCaption', { locale: s.locale })}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Field</th>
-                  <th scope="col">Text now</th>
-                  <th scope="col">Size</th>
-                  <th scope="col"><span class="visually-hidden">Edit</span></th>
+                  <th scope="col">{t('aso:used.col.field')}</th>
+                  <th scope="col">{t('aso:used.col.text')}</th>
+                  <th scope="col">{t('aso:used.col.size')}</th>
+                  <th scope="col"><span class="visually-hidden">{t('aso:used.edit')}</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -303,15 +296,15 @@
                   <tr>
                     <th scope="row" class="fname">{f.info.label}</th>
                     <td class="ftext">
-                      {#if f.text === ''}<span class="muted">(empty)</span>{:else}{clip(f.text)}{/if}
-                      {#if stagedFlag(s.app, used.locale, f.info.id)}<Badge tone="info">staged</Badge>{/if}
+                      {#if f.text === ''}<span class="muted">{t('aso:used.empty')}</span>{:else}{clip(f.text)}{/if}
+                      {#if stagedFlag(s.app, used.locale, f.info.id)}<Badge tone="info">{t('aso:used.staged')}</Badge>{/if}
                     </td>
                     <td class="num" class:over={f.meter.over} title={f.meter.text}>
-                      {#if f.meter.limit !== null}{f.meter.used}/{f.meter.limit} {f.meter.unit === 'bytes' ? 'bytes' : ''}{:else}{f.meter.used}{/if}
+                      {#if f.meter.limit !== null}{f.meter.unit === 'bytes' ? t('aso:used.sizeBytes', { used: f.meter.used, limit: f.meter.limit }) : t('aso:used.size', { used: f.meter.used, limit: f.meter.limit })}{:else}{f.meter.used}{/if}
                     </td>
                     <td class="act">
-                      <Button size="sm" icon="edit" onclick={() => edit(s.app, used.locale, f.info.id)} title={f.info.stageable ? `Edit ${f.info.lower}` : `Work out the ${f.info.lower}. It cannot be staged: a draft push does not write it`}>
-                        Edit<span class="visually-hidden"> {f.info.lower} ({used.locale})</span>
+                      <Button size="sm" icon="edit" onclick={() => edit(s.app, used.locale, f.info.id)} title={f.info.stageable ? t('aso:used.editField', { field: f.info.lower }) : t('aso:used.workOut', { field: f.info.lower })}>
+                        {t('aso:used.edit')}<span class="visually-hidden"> {t('aso:used.editHidden', { field: f.info.lower, locale: used.locale })}</span>
                       </Button>
                     </td>
                   </tr>
@@ -321,18 +314,18 @@
           </div>
 
           {#if !used.hasText}
-            <p class="muted">No text is stored for {s.locale}, so no keywords can be read from it. Read the listing again from the store, or fill the fields above.</p>
+            <p class="muted">{t('aso:used.noText', { locale: s.locale })}</p>
           {:else}
             <div class="table-wrap">
               <table class="compact">
-                <caption class="visually-hidden">Keywords the {s.locale} listing uses</caption>
+                <caption class="visually-hidden">{t('aso:used.keywordsCaption', { locale: s.locale })}</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Keyword</th>
-                    <th scope="col">Where it appears</th>
-                    <th scope="col">Tracked, latest rank</th>
-                    {#if hasSearch(s.app.id, s.locale)}<th scope="col" class="num">Visitors from search</th>{/if}
-                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                    <th scope="col">{t('aso:markets.keyword')}</th>
+                    <th scope="col">{t('aso:used.col.where')}</th>
+                    <th scope="col">{t('aso:used.col.rank')}</th>
+                    {#if hasSearch(s.app.id, s.locale)}<th scope="col" class="num">{t('aso:used.col.visitors')}</th>{/if}
+                    <th scope="col"><span class="visually-hidden">{t('aso:kw.col.actions')}</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -341,7 +334,7 @@
                     <tr>
                       <th scope="row" class="kw">
                         <span class="term">{k.term}</span>
-                        {#if k.kind === 'phrase'}<span class="muted small">phrase</span>{/if}
+                        {#if k.kind === 'phrase'}<span class="muted small">{t('aso:used.phrase')}</span>{/if}
                         {#if mark}<span class="mark {mark.tone}" title={mark.title}>{mark.text}</span>{/if}
                       </th>
                       <td>{k.where}{#if k.occurrences > 0}<span class="muted small"> · {k.occurrences}×</span>{/if}</td>
@@ -354,14 +347,14 @@
                             icon="plus"
                             loading={busy === `one|${s.app.id}|${k.key}`}
                             disabled={busy !== ''}
-                            aria-label="Track {k.term} in {used.locale}, {used.country.toUpperCase()} storefront"
+                            aria-label={t('aso:used.trackFor', { term: k.term, locale: used.locale, country: used.country.toUpperCase() })}
                             onclick={() => track(s.app, used, [k], `one|${s.app.id}|${k.key}`)}
                           >
-                            Track
+                            {t('aso:track.button')}
                           </Button>
                         {/if}
                         {#if k.fieldIds[0] && mayStage}
-                          <Button size="sm" variant="ghost" icon="edit" aria-label="Edit the {k.where.replace('In the ', '')} where “{k.term}” appears" onclick={() => edit(s.app, used.locale, k.fieldIds[0] as string)}>Edit</Button>
+                          <Button size="sm" variant="ghost" icon="edit" aria-label={t('aso:used.editWhere', { term: k.term, where: k.where })} onclick={() => edit(s.app, used.locale, k.fieldIds[0] as string)}>{t('aso:used.edit')}</Button>
                         {/if}
                       </td>
                     </tr>
@@ -369,7 +362,7 @@
                 </tbody>
               </table>
             </div>
-            {#if used.derived}<p class="muted small">Google Play: found in your text, not typed into a keyword field. Words of the full description are the ones used at least twice.</p>{/if}
+            {#if used.derived}<p class="muted small">{t('aso:used.playNote')}</p>{/if}
           {/if}
         {/if}
       </section>

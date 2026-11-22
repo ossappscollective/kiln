@@ -27,12 +27,14 @@
     needsPeriod,
     previewFacts,
   } from '../../lib/aso/search-terms.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
   import Icon from '../ui/Icon.svelte';
   import Modal from '../ui/Modal.svelte';
+  import T from '../ui/T.svelte';
 
   let {
     open = $bindable(false),
@@ -112,7 +114,7 @@
       const result = await api.importSearchTerms(workspaceId, appId, file.name, hash, file, importPeriodText(period));
       storedSomething = true;
       send({ type: 'imported', result: result.imported });
-      toast.success(result.imported.written > 0 ? 'Search terms imported.' : 'The file was already imported.');
+      toast.success(result.imported.written > 0 ? t('aso:terms.dialog.imported') : t('aso:terms.dialog.alreadyImported'));
       onimported();
     } catch (e) {
       send({ type: 'failed', during: 'import', ...failure(e) });
@@ -126,61 +128,60 @@
   }
 </script>
 
-<Modal bind:open size="lg" title="Import search terms" description="From a file you exported in Google Play Console." dismissible={!busy}>
+<Modal bind:open size="lg" title={t('aso:terms.dialog.title')} description={t('aso:terms.dialog.description')} dismissible={!busy}>
   <div class="stack">
     {#if flow.phase === 'done'}
-      <Alert tone="ok" title="Done">{importedLine(flow.result)}</Alert>
+      <Alert tone="ok" title={t('common:action.done')}>{importedLine(flow.result)}</Alert>
     {:else}
       <p class="muted small">
-        Choose the file Play Console exported for the breakdown "Search term". It is sent to this server only, never to Google. The same file twice stores
-        nothing new, and a corrected file replaces the numbers of the rows it holds.
+        {t('aso:terms.dialog.intro')}
       </p>
-      <Disclosure summary="How to export the file" stateKey="aso.terms.howto">
-        <ol class="steps">{#each exportSteps as step (step)}<li>{step}</li>{/each}</ol>
+      <Disclosure summary={t('aso:terms.dialog.howExport')} stateKey="aso.terms.howto">
+        <ol class="steps">{#each exportSteps() as step (step)}<li>{step}</li>{/each}</ol>
       </Disclosure>
 
       {#if flow.phase === 'idle' || flow.phase === 'error' || flow.phase === 'checking'}
         <label class="drop" class:over={dragging} ondragover={(e) => { e.preventDefault(); dragging = true; }} ondragleave={() => (dragging = false)} {ondrop} for="{uid}-file">
           <Icon name="upload" size={20} />
-          <span><strong>Choose a file</strong> or drop it here</span>
-          <span class="muted small">.csv or .zip, at most 10 MiB</span>
+          <span><T key="aso:terms.dialog.drop" /></span>
+          <span class="muted small">{t('aso:terms.dialog.fileTypes')}</span>
           <input id="{uid}-file" class="visually-hidden" type="file" accept=".csv,.zip,.gz,.txt,text/csv,application/zip,application/gzip" disabled={busy} onchange={(e) => { void choose(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} />
         </label>
         {#if fileProblem}<p class="field-error" role="alert">{fileProblem}</p>{/if}
-        {#if flow.phase === 'checking'}<p role="status" class="muted">Checking {flow.fileName}. Nothing is stored yet.</p>{/if}
+        {#if flow.phase === 'checking'}<p role="status" class="muted">{t('aso:terms.dialog.checking', { name: flow.fileName })}</p>{/if}
         {#if flow.phase === 'error'}
-          <Alert tone={askPeriod ? 'info' : 'error'} title={askPeriod ? 'Which days does this file cover?' : flow.during === 'preview' ? 'This file cannot be imported' : 'The file was not imported'}>{flow.message}</Alert>
+          <Alert tone={askPeriod ? 'info' : 'error'} title={askPeriod ? t('aso:terms.dialog.askPeriod') : flow.during === 'preview' ? t('aso:terms.dialog.cannotImport') : t('aso:terms.dialog.notImported')}>{flow.message}</Alert>
         {/if}
         {#if askPeriod}
           <div class="period">
-            <label for="{uid}-from">First day</label>
+            <label for="{uid}-from">{t('aso:terms.dialog.firstDay')}</label>
             <input id="{uid}-from" type="date" bind:value={from} max={today} aria-invalid={periodProblem !== ''} />
-            <label for="{uid}-to">Last day</label>
+            <label for="{uid}-to">{t('aso:terms.dialog.lastDay')}</label>
             <input id="{uid}-to" type="date" bind:value={to} max={today} aria-invalid={periodProblem !== ''} />
-            <Button variant="primary" disabled={!periodReady || busy} onclick={withDays}>Check the file with these days</Button>
+            <Button variant="primary" disabled={!periodReady || busy} onclick={withDays}>{t('aso:terms.dialog.checkWithDays')}</Button>
           </div>
           {#if periodProblem}<p class="field-error" role="alert">{periodProblem}</p>{/if}
         {/if}
       {/if}
 
       {#if facts && (flow.phase === 'preview' || flow.phase === 'importing')}
-        <section aria-label="Preview of {flow.fileName}">
+        <section aria-label={t('aso:terms.dialog.preview', { name: flow.fileName })}>
           <dl class="facts">
-            <div><dt>File</dt><dd class="mono">{flow.fileName}</dd></div>
-            <div><dt>Period</dt><dd>{facts.period}</dd></div>
-            <div><dt>Terms</dt><dd>{facts.terms}</dd></div>
-            <div><dt>Countries</dt><dd>{facts.countries}</dd></div>
-            <div class="wide"><dt>Rows</dt><dd>{facts.rows.join('; ')}.</dd></div>
-            {#if facts.totals}<div class="wide"><dt>Numbers</dt><dd>{facts.totals}</dd></div>{/if}
+            <div><dt>{t('aso:terms.dialog.file')}</dt><dd class="mono">{flow.fileName}</dd></div>
+            <div><dt>{t('aso:rd.period')}</dt><dd>{facts.period}</dd></div>
+            <div><dt>{t('aso:listing.terms')}</dt><dd>{facts.terms}</dd></div>
+            <div><dt>{t('aso:terms.dialog.countries')}</dt><dd>{facts.countries}</dd></div>
+            <div class="wide"><dt>{t('aso:terms.dialog.rows')}</dt><dd>{facts.rows.join('; ')}.</dd></div>
+            {#if facts.totals}<div class="wide"><dt>{t('aso:terms.dialog.numbers')}</dt><dd>{facts.totals}</dd></div>{/if}
           </dl>
           {#if facts.top.length > 0}
             <div class="table-wrap">
               <table class="compact">
-                <caption class="visually-hidden">The biggest terms in the file</caption>
-                <thead><tr><th scope="col">Term</th><th scope="col" class="num">Visitors</th><th scope="col" class="num">Installs</th><th scope="col" class="num">Conversion</th></tr></thead>
+                <caption class="visually-hidden">{t('aso:terms.dialog.biggest')}</caption>
+                <thead><tr><th scope="col">{t('aso:gaps.term')}</th><th scope="col" class="num">{t('aso:terms.col.visitors')}</th><th scope="col" class="num">{t('aso:terms.col.installs')}</th><th scope="col" class="num">{t('aso:terms.col.conversion')}</th></tr></thead>
                 <tbody>
-                  {#each facts.top as t (t.term)}
-                    <tr><th scope="row">{t.term}</th><td class="num">{t.visitors}</td><td class="num">{t.installs}</td><td class="num">{t.conversion}</td></tr>
+                  {#each facts.top as row (row.term)}
+                    <tr><th scope="row">{row.term}</th><td class="num">{row.visitors}</td><td class="num">{row.installs}</td><td class="num">{row.conversion}</td></tr>
                   {/each}
                 </tbody>
               </table>
@@ -188,23 +189,23 @@
           {/if}
           {#each facts.warnings as w (w)}<Alert tone="warn">{w}</Alert>{/each}
           {#if flow.plan.notes.length > 0}
-            <Disclosure summary="Notes about this file" stateKey="aso.terms.notes">
+            <Disclosure summary={t('aso:terms.dialog.notes')} stateKey="aso.terms.notes">
               <ul class="notes">{#each flow.plan.notes as n (n)}<li>{n}</li>{/each}</ul>
             </Disclosure>
           {/if}
-          <p class="will"><strong>{facts.willStore}</strong> Nothing is stored until you confirm.</p>
+          <p class="will"><strong>{facts.willStore}</strong> {t('aso:terms.dialog.nothingStored')}</p>
         </section>
       {/if}
     {/if}
   </div>
   {#snippet footer()}
     {#if flow.phase === 'done'}
-      <Button variant="primary" onclick={() => (open = false)}>Close</Button>
+      <Button variant="primary" onclick={() => (open = false)}>{t('common:action.close')}</Button>
     {:else}
-      <Button disabled={busy} onclick={() => (open = false)}>{storedSomething ? 'Close' : 'Cancel'}</Button>
+      <Button disabled={busy} onclick={() => (open = false)}>{storedSomething ? t('common:action.close') : t('common:action.cancel')}</Button>
       {#if flow.phase === 'preview' || flow.phase === 'importing'}
-        <Button disabled={busy} onclick={() => send({ type: 'reset' })}>Choose another file</Button>
-        <Button variant="primary" icon="check" loading={flow.phase === 'importing'} disabled={!canConfirmTerms(flow) || busy} onclick={confirm}>Import these rows</Button>
+        <Button disabled={busy} onclick={() => send({ type: 'reset' })}>{t('aso:terms.dialog.another')}</Button>
+        <Button variant="primary" icon="check" loading={flow.phase === 'importing'} disabled={!canConfirmTerms(flow) || busy} onclick={confirm}>{t('aso:terms.dialog.import')}</Button>
       {/if}
     {/if}
   {/snippet}

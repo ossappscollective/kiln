@@ -16,6 +16,7 @@
     asoErrorMessage,
     compareRows,
   } from '../../lib/aso/aso.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { liveRelease, platformLabel, runLimited } from '../../lib/portfolio.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
@@ -87,7 +88,7 @@
       });
     } catch (e) {
       if (mine !== generation) return;
-      error = asoErrorMessage(e, 'Could not load the competitors.');
+      error = asoErrorMessage(e, t('aso:group.loadFailed'));
       loading = false;
     }
   }
@@ -112,10 +113,10 @@
     busyId = c.id;
     try {
       await api.deleteAsoCompetitor(workspaceId, app.id, c.id);
-      toast.success(`Stopped following “${c.name}”.`);
+      toast.success(t('aso:group.stopped', { name: c.name }));
       onchanged();
     } catch (e) {
-      toast.error(asoErrorMessage(e, 'Could not remove the competitor.'));
+      toast.error(asoErrorMessage(e, t('aso:group.removeFailed')));
     } finally {
       busyId = null;
     }
@@ -125,11 +126,11 @@
     busyId = `${s.externalId}:${s.country}`;
     try {
       const out = await api.addAsoCompetitor(workspaceId, app.id, { externalId: s.externalId, country: s.country });
-      toast.success(`Following “${out.competitor.name}”.`);
+      toast.success(t('aso:group.following', { name: out.competitor.name }));
       confirming = null;
       onchanged();
     } catch (e) {
-      toast.error(asoErrorMessage(e, 'Could not follow that app.'));
+      toast.error(asoErrorMessage(e, t('aso:group.followFailed')));
     } finally {
       busyId = null;
     }
@@ -159,17 +160,17 @@
   });
 </script>
 
-<section class="group stack roomy" aria-label="{platformLabel(app.platform)} competitors">
+<section class="group stack roomy" aria-label={t('aso:group.label', { platform: platformLabel(app.platform) })}>
   {#if multi}<h3 class="eyebrow">{platformLabel(app.platform)}</h3>{/if}
 
   {#if error}
     <Alert tone="error">{error}</Alert>
-    <div><Button icon="refresh" onclick={load}>Try again</Button></div>
+    <div><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
   {:else if loading}
     <Skeleton width="100%" height="120px" />
   {:else}
     {#if competitors.length === 0}
-      <p class="none">No competitors followed yet.{#if canWrite} Add one above{suggestions.length > 0 ? ' or from the suggestions' : ''}.{/if}</p>
+      <p class="none">{!canWrite ? t('aso:group.none') : suggestions.length > 0 ? t('aso:group.noneAddOrSuggest') : t('aso:group.noneAdd')}</p>
     {:else}
       <div class="cards">
         {#each competitors as c (c.id)}
@@ -185,17 +186,17 @@
           />
         {/each}
       </div>
-      <p class="muted count">{competitors.length} of {limit} followed</p>
+      <p class="muted count">{t('aso:group.followed', { count: competitors.length, limit })}</p>
     {/if}
 
     {#if picked.length > 0}
       <div class="table-wrap">
         <table class="compact">
-          <caption class="visually-hidden">Your app next to the competitors you picked</caption>
+          <caption class="visually-hidden">{t('aso:group.caption')}</caption>
           <thead>
             <tr>
-              <th scope="col"><span class="visually-hidden">Fact</span></th>
-              <th scope="col">{app.name} <span class="muted">(yours)</span></th>
+              <th scope="col"><span class="visually-hidden">{t('aso:group.fact')}</span></th>
+              <th scope="col">{app.name} <span class="muted">{t('aso:group.yours')}</span></th>
               {#each picked as c (c.id)}<th scope="col"><span class="truncate name" title={c.name}>{c.name}</span></th>{/each}
             </tr>
           </thead>
@@ -213,23 +214,23 @@
     {/if}
 
     {#if canWrite && suggestions.length > 0}
-      <Section title="Suggested from your keywords" key="suggestions.{app.platform}" count={suggestions.length} defaultOpen={false}>
+      <Section title={t('aso:group.suggested')} key="suggestions.{app.platform}" count={suggestions.length} defaultOpen={false}>
         <ul class="suggest">
           {#each suggestions as s (`${s.externalId}:${s.country}`)}
             {@const id = `${s.externalId}:${s.country}`}
             <li>
               <span class="who">
                 <strong>{s.name ?? s.externalId}</strong>
-                <span class="muted">{s.country.toUpperCase()} · in the results of {s.keywordCount} keywords, best rank {s.bestRank}</span>
+                <span class="muted">{t('aso:group.suggestLine', { country: s.country.toUpperCase(), count: s.keywordCount, rank: s.bestRank })}</span>
               </span>
               {#if confirming === id}
                 <span class="confirm">
-                  Follow it? This reads the store once.
-                  <Button size="sm" variant="primary" loading={busyId === id} onclick={() => follow(s)}>Follow</Button>
-                  <Button size="sm" variant="ghost" onclick={() => (confirming = null)}>Cancel</Button>
+                  {t('aso:group.followQuestion')}
+                  <Button size="sm" variant="primary" loading={busyId === id} onclick={() => follow(s)}>{t('aso:group.follow')}</Button>
+                  <Button size="sm" variant="ghost" onclick={() => (confirming = null)}>{t('common:action.cancel')}</Button>
                 </span>
               {:else}
-                <Button size="sm" onclick={() => (confirming = id)}>Follow…</Button>
+                <Button size="sm" onclick={() => (confirming = id)}>{t('aso:group.followMore')}</Button>
               {/if}
             </li>
           {/each}

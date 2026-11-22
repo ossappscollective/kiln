@@ -62,7 +62,7 @@
       locales: termList(
         c.locales
           .filter((l) => l.kind === 'reported')
-          .map((l) => t(l.present ? 'aso:budget.storefrontPresent' : 'aso:budget.storefrontAbsent', { locale: l.locale })),
+          .map((l) => (l.present ? t('aso:budget.storefrontPresent', { locale: l.locale }) : t('aso:budget.storefrontAbsent', { locale: l.locale }))),
       ),
     });
   const combos = $derived(apple ? countries.map((c) => storefrontCombos(c, listingLocales)).filter((c) => c.locales.length > 1) : []);
