@@ -4,6 +4,7 @@ import type { Row, Sql } from '@kiln/db';
 import { recipientLocale } from '../../i18n/user-locale.ts';
 import { enqueue } from '../../jobs.ts';
 import { type EventRecord, emitEvent } from '../../services/events.ts';
+import { routeAlertToChat } from '../chat/routing.ts';
 import {
   type AlertChannel,
   type AlertData,
@@ -353,6 +354,27 @@ export async function raiseAlert(sql: Sql, input: RaiseInput): Promise<RaiseResu
         mutes,
         test,
       });
+    }
+  }
+
+  // ----- chat destinations (Slack, Teams; docs/chat-integrations.md) ------------------------------------------------
+  // A workspace channel like the webhook one, routed by the destinations' own rules. Only for a new, real alert: a repeat that
+  // collapsed, a capped one and a test returned above or never get here. Best effort: chat must never undo the alert.
+  if (!test) {
+    try {
+      await routeAlertToChat(sql, {
+        workspaceId,
+        alertId,
+        type: def.id,
+        severity: def.severity,
+        appId,
+        title,
+        body,
+        data,
+        at,
+      });
+    } catch {
+      // The alert is raised; a destination that could not be queued shows no delivery.
     }
   }
 

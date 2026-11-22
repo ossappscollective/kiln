@@ -10,6 +10,7 @@ import { createLoginLimiter } from './limiter.ts';
 import { type McpDeps, mountMcp } from './mcp/routes.ts';
 import { type AiSettings, aiModule } from './modules/ai/index.ts';
 import { alertsModule } from './modules/alerts/index.ts';
+import { type ChatDeps, chatModule } from './modules/chat/index.ts';
 import { type AnalyticsDeps, analyticsModule } from './modules/analytics/index.ts';
 import { analyticsImportPath } from './modules/analytics/routes.ts';
 import { type AsoDeps, asoLimitsFor, asoModule } from './modules/aso/index.ts';
@@ -180,6 +181,11 @@ export type AppDeps = {
   webhooks?:
     | Pick<WebhookRoutesContext, 'allowPrivate' | 'resolve' | 'send' | 'limiter'>
     | undefined;
+  /**
+   * Chat destinations (Slack, Teams; docs/api/chat-integrations.md). `allowPrivate` falls back to the webhooks' setting
+   * (KILN_WEBHOOKS_ALLOW_PRIVATE); `resolve`, `send` and `limiter` are for tests. The delivery job is registered in index.ts.
+   */
+  chat?: ChatDeps | undefined;
   /**
    * CI runs and build linking (docs/api/ci.md). Uses `connectorFactory` and `repositoryTimeoutMs`.
    * `limiter` is the per workspace limit of dispatches (default 10 per minute), `matchers` the
@@ -458,6 +464,12 @@ export function createApp(deps: AppDeps) {
     }),
   );
   alertsModule.mount(app, services, undefined, shared);
+  chatModule.mount(
+    app,
+    services,
+    { allowPrivate: deps.webhooks?.allowPrivate, ...deps.chat },
+    shared,
+  );
   listingModule.mount(
     app,
     services,

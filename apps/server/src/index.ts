@@ -9,6 +9,8 @@ import { createWorker } from './jobs.ts';
 import { createAlertDeliveryHandler } from './modules/alerts/delivery.ts';
 import { ALERT_PASS_INTERVAL_MS, createAlertRunner } from './modules/alerts/runner.ts';
 import { ALERT_QUEUE } from './modules/alerts/service.ts';
+import { createChatDeliveryHandler } from './modules/chat/delivery.ts';
+import { CHAT_QUEUE } from './modules/chat/destinations.ts';
 import { analyticsIntervalMs } from './modules/analytics/schedule.ts';
 import {
   ANALYTICS_SYNC_QUEUE,
@@ -284,6 +286,13 @@ const worker = createWorker({
     }),
     // Alert emails (docs/alerts.md): one job per delivery row; the mailer is services/mailer.ts.
     [ALERT_QUEUE]: createAlertDeliveryHandler({ db: database, now: Date.now }),
+    // Chat messages (Slack, Teams; docs/chat-integrations.md): one job per delivery row, through the SSRF-safe webhook transport.
+    [CHAT_QUEUE]: createChatDeliveryHandler({
+      db: database,
+      masterKey: config.masterKey,
+      now: Date.now,
+      allowPrivate: config.webhooksAllowPrivate,
+    }),
     // Follows the EAS Workflows runs started here until they finish (modules/eas/workflows.ts).
     [EAS_POLL_QUEUE]: createEasPollHandler({
       db: database,

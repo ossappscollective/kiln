@@ -4,6 +4,7 @@ import { analyticsOperations } from '../modules/analytics/operations.ts';
 import { asoOperations } from '../modules/aso/operations.ts';
 import { searchTermsOperations } from '../modules/aso/search-terms-operations.ts';
 import { buildsOperations } from '../modules/builds/operations.ts';
+import { chatOperations } from '../modules/chat/operations.ts';
 import { ciOperations } from '../modules/ci/operations.ts';
 import { easOperations } from '../modules/eas/operations.ts';
 import { experimentsOperations } from '../modules/experiments/operations.ts';
@@ -54,6 +55,7 @@ const drafts: Draft[] = [
   ...aiOperations,
   ...analyticsOperations,
   ...alertOperations,
+  ...chatOperations,
   ...stepUpOperations,
   ...twoFactorOperations,
   ...mcpOperations,

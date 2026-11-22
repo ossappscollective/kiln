@@ -1,4 +1,5 @@
 import type { Database } from '@kiln/db';
+import { sendDueChatDigests } from '../chat/digest.ts';
 import { sendDueDigests } from './digest.ts';
 import { runAlertEvaluator } from './evaluator.ts';
 import { pruneAlerts } from './inbox.ts';
@@ -23,12 +24,13 @@ export function createAlertRunner(options: {
       const at = now();
       const evaluated = await runAlertEvaluator(options.db, at, { onError: options.onError });
       const digests = await sendDueDigests(options.db, at);
+      const chat = await sendDueChatDigests(options.db, at);
       let pruned: { alerts: number; deliveries: number } | undefined;
       if (at - lastPrune >= 60 * 60_000) {
         lastPrune = at;
         pruned = await pruneAlerts(options.db, at);
       }
-      return { evaluated, digests, ...(pruned ? { pruned } : {}) };
+      return { evaluated, digests, chat, ...(pruned ? { pruned } : {}) };
     },
   };
 }

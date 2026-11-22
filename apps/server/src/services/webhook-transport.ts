@@ -255,7 +255,13 @@ export type SendOptions = {
 };
 
 export type SendResult =
-  | { ok: true; status: number; body: string }
+  | {
+      ok: true;
+      status: number;
+      body: string;
+      /** The `Retry-After` header as sent (seconds or a date), for a caller that honours it (chat delivery). */
+      retryAfter?: string;
+    }
   | {
       ok: false;
       kind: 'blocked' | 'dns' | 'timeout' | 'network';
@@ -345,6 +351,8 @@ export async function sendPinned(
       socket.once(secure ? 'secureConnect' : 'connect', verify);
     });
     req.on('response', (res) => {
+      const header = res.headers['retry-after'];
+      const retryAfter = typeof header === 'string' ? header.slice(0, 64) : undefined;
       const chunks: Buffer[] = [];
       let size = 0;
       res.on('data', (chunk: Buffer) => {
@@ -358,6 +366,7 @@ export async function sendPinned(
             ok: true,
             status: res.statusCode ?? 0,
             body: Buffer.concat(chunks).toString('utf8'),
+            ...(retryAfter ? { retryAfter } : {}),
           });
         }
       });
@@ -366,6 +375,7 @@ export async function sendPinned(
           ok: true,
           status: res.statusCode ?? 0,
           body: Buffer.concat(chunks).toString('utf8'),
+          ...(retryAfter ? { retryAfter } : {}),
         });
       res.on('end', done);
       res.on('close', done);
