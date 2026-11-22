@@ -2,6 +2,7 @@ import type { Action, Role } from '@kiln/core';
 import type { Component } from 'svelte';
 import Alerts from '../components/Alerts.svelte';
 import Audit from '../components/Audit.svelte';
+import Chat from '../components/Chat.svelte';
 import AsoOverview from '../components/aso/AsoOverview.svelte';
 import Credentials from '../components/Credentials.svelte';
 import Members from '../components/Members.svelte';
@@ -103,6 +104,14 @@ export const views: ViewDef[] = [
     labelKey: k('shell:nav.webhooks'),
     component: Webhooks,
     requires: 'webhooks.read',
+  },
+  {
+    id: 'chat',
+    group: 'workspace',
+    icon: 'message',
+    labelKey: k('shell:nav.chat'),
+    component: Chat,
+    requires: 'chat.read',
   },
   {
     id: 'alerts',

@@ -101,6 +101,7 @@ import type { FixupBody, FixupResult, RecomputeResult } from './change-set-fixup
 import type { RefreshResult, Resolution, Staleness } from './change-set-refresh.ts';
 import type { CloneReport, PurgeResult, RepositoryClone } from './clone-upkeep.ts';
 import { isDemoStatus } from './demo.ts';
+import type { ChatDelivery, ChatDestination } from './chat/chat.ts';
 import { codedText, type ErrorBody, explicitText, legacyText, waitText } from './error-text.ts';
 import { readLocalePref } from './i18n/preference.ts';
 import { currentLocale } from './i18n/t.ts';
@@ -1439,6 +1440,35 @@ export function createApi(options: ApiOptions = {}) {
       request<{ deliveryId: string }>(
         'POST',
         `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}/deliveries/${encodeURIComponent(deliveryId)}/redeliver`,
+      ),
+    // Chat destinations (Slack, Teams). The webhook address is sent when saving and never comes back (only its last four characters).
+    chatDestinations: (workspaceId: string) =>
+      request<{ destinations: ChatDestination[] }>('GET', `${workspace(workspaceId)}/chat/destinations`),
+    createChatDestination: (workspaceId: string, input: Record<string, unknown>) =>
+      request<{ destination: ChatDestination }>('POST', `${workspace(workspaceId)}/chat/destinations`, input),
+    updateChatDestination: (workspaceId: string, id: string, patch: Record<string, unknown>) =>
+      request<{ destination: ChatDestination }>(
+        'PATCH',
+        `${workspace(workspaceId)}/chat/destinations/${encodeURIComponent(id)}`,
+        patch,
+      ),
+    setChatRoutes: (workspaceId: string, id: string, routes: Record<string, unknown>[]) =>
+      request<{ destination: ChatDestination }>(
+        'PUT',
+        `${workspace(workspaceId)}/chat/destinations/${encodeURIComponent(id)}/routes`,
+        { routes },
+      ),
+    deleteChatDestination: (workspaceId: string, id: string) =>
+      request<void>('DELETE', `${workspace(workspaceId)}/chat/destinations/${encodeURIComponent(id)}`),
+    testChatDestination: (workspaceId: string, id: string) =>
+      request<{ deliveryId: string }>(
+        'POST',
+        `${workspace(workspaceId)}/chat/destinations/${encodeURIComponent(id)}/test`,
+      ),
+    chatDeliveries: (workspaceId: string, id: string, limit = 30) =>
+      request<{ deliveries: ChatDelivery[] }>(
+        'GET',
+        `${workspace(workspaceId)}/chat/destinations/${encodeURIComponent(id)}/deliveries?limit=${limit}`,
       ),
     // Media files of the app's repository (docs/api/assets.md). Read-only. The images themselves
     // are loaded by the browser from `assetFileUrl` (lib/assets.ts), not through this client.
