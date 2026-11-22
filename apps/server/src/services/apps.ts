@@ -547,6 +547,13 @@ export async function deleteApp(
         input.workspaceId,
       ]);
     }
+    // Store experiments and custom product pages read from the store, and the manual tracker (modules/experiments).
+    for (const table of ['store_experiments', 'store_experiments_sync', 'store_experiment_notes']) {
+      await tx.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
+        input.id,
+        input.workspaceId,
+      ]);
+    }
     // The link to the app's RevenueCat project and the cached RevenueCat configuration (modules/revenuecat).
     for (const table of [
       'app_revenuecat_links',

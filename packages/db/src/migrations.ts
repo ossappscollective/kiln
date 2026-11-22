@@ -9,6 +9,7 @@ import { easStatusMigrations } from './migrations-eas-status.ts';
 import { monetizationMigrations } from './migrations-monetization.ts';
 import { revenueCatMigrations } from './migrations-revenuecat.ts';
 import { revenueCatMetricsMigrations } from './migrations-revenuecat-metrics.ts';
+import { storeExperimentsMigrations } from './migrations-store-experiments.ts';
 import { syncErrorCodeMigrations } from './migrations-sync-error-code.ts';
 import { userLocaleMigrations } from './migrations-user-locale.ts';
 
@@ -1834,4 +1835,5 @@ export const migrations: Migration[] = [
   ...revenueCatMetricsMigrations,
   ...syncErrorCodeMigrations,
   ...userLocaleMigrations,
+  ...storeExperimentsMigrations,
 ];

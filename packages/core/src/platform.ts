@@ -129,6 +129,11 @@ export const CAPABILITIES = [
   'inAppPurchases',
   /** RevenueCat has an app type for the store, so the app's products can be read from a RevenueCat project (see `revenueCatAppTypes`). */
   'revenueCat',
+  /**
+   * The store's API lists Product Page Optimization experiments and custom product pages (Apple). Google Play's API has neither store listing
+   * experiments nor custom store listings: its app gets a manual tracker and links to the Console (docs/adr/0048-store-experiments.md).
+   */
+  'storeExperimentsApi',
 ] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 export type PlatformCapabilities = Readonly<Record<Capability, boolean>>;
@@ -158,6 +163,7 @@ const APPLE_CAPABILITIES: PlatformCapabilities = {
   sideloadInstall: false,
   inAppPurchases: true,
   revenueCat: true,
+  storeExperimentsApi: true,
 };
 
 const GOOGLE_CAPABILITIES: PlatformCapabilities = {
@@ -185,6 +191,7 @@ const GOOGLE_CAPABILITIES: PlatformCapabilities = {
   sideloadInstall: true,
   inAppPurchases: true,
   revenueCat: true,
+  storeExperimentsApi: false,
 };
 
 export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {

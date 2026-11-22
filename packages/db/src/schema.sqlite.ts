@@ -2252,6 +2252,87 @@ export const storeProductClaims = sqliteTable(
 );
 
 /**
+ * Apple's Product Page Optimization experiments and custom product pages as the last sync read them (migration 53,
+ * docs/adr/0048-store-experiments.md): one row per experiment (`kind` experiment) or page (`kind` custom_page). `detailJson` holds the
+ * treatments, versions and locales. No foreign key to apps: deleteApp removes the rows.
+ */
+export const storeExperiments = sqliteTable(
+  'store_experiments',
+  {
+    appId: text('app_id').notNull(),
+    kind: text('kind').notNull(),
+    itemId: text('item_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    name: text('name').notNull(),
+    /** The normalized state (draft, in_review, approved, rejected, completed, stopped, replaced, unknown). */
+    state: text('state').notNull(),
+    rawState: text('raw_state'),
+    startsAt: integer('starts_at'),
+    endsAt: integer('ends_at'),
+    url: text('url'),
+    detailJson: text('detail_json').notNull().default('{}'),
+    syncedAt: integer('synced_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.kind, t.itemId] }),
+    index('store_experiments_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** The state of the last experiments sync of an app (migration 53). A failed sync keeps the last good snapshot. */
+export const storeExperimentsSync = sqliteTable(
+  'store_experiments_sync',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    lastAttemptAt: integer('last_attempt_at'),
+    lastSyncedAt: integer('last_synced_at'),
+    lastError: text('last_error'),
+    failures: integer('failures').notNull().default(0),
+    experimentCount: integer('experiment_count').notNull().default(0),
+    pageCount: integer('page_count').notNull().default(0),
+    complete: integer('complete').notNull().default(1),
+    warningsJson: text('warnings_json').notNull().default('[]'),
+  },
+  (t) => [index('store_experiments_sync_workspace_idx').on(t.workspaceId)],
+);
+
+/** The manual tracker of experiments and custom pages (migration 53): what a person writes down, for Google Play and for anything else. */
+export const storeExperimentNotes = sqliteTable(
+  'store_experiment_notes',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    /** experiment or custom_page. */
+    kind: text('kind').notNull(),
+    name: text('name').notNull(),
+    /** planned, running, finished or stopped. */
+    status: text('status').notNull(),
+    /** YYYY-MM-DD, or null. */
+    startedOn: text('started_on'),
+    endedOn: text('ended_on'),
+    url: text('url'),
+    /** The Google Play custom store listing parameter, or null. */
+    listing: text('listing'),
+    note: text('note').notNull().default(''),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    index('store_experiment_notes_workspace_idx').on(t.workspaceId),
+    index('store_experiment_notes_app_idx').on(t.appId),
+  ],
+);
+
+/**
  * The cached status of the EAS builds of an app record's Expo project (migration 47, docs/adr/0036-eas-build-submit-status.md). Read
  * from Expo by the status sync, never written back. No foreign key to apps: deleteApp removes the rows. The address of a build file is
  * deliberately not stored.
