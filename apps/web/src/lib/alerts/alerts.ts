@@ -4,6 +4,8 @@
  * is explained with sentences chosen here, never with text a provider said.
  */
 
+import { currentLocale, k, t } from '../i18n/t.ts';
+
 export type AlertChannel = 'in_app' | 'email' | 'desktop' | 'webhook';
 export type PersonalChannel = 'in_app' | 'email' | 'desktop';
 export type AlertSeverity = 'info' | 'warning' | 'critical';
@@ -11,18 +13,25 @@ export type AlertSeverity = 'info' | 'warning' | 'critical';
 export const personalChannels: PersonalChannel[] = ['in_app', 'email', 'desktop'];
 export const allChannels: AlertChannel[] = ['in_app', 'email', 'desktop', 'webhook'];
 
-export const channelLabels: Record<AlertChannel, string> = {
-  in_app: 'In the app',
-  email: 'Email',
-  desktop: 'Desktop notification',
-  webhook: 'Webhook',
+/** Message keys: `channelLabel(channel)` is the text. */
+export const channelKeys: Record<AlertChannel, string> = {
+  in_app: k('workspace:alerts.channel.inApp'),
+  email: k('workspace:alerts.channel.email'),
+  desktop: k('workspace:alerts.channel.desktop'),
+  webhook: k('workspace:alerts.channel.webhook'),
 };
+export const channelLabel = (channel: AlertChannel): string => t(channelKeys[channel]);
 
-export const severityLabels: Record<AlertSeverity, string> = {
-  info: 'Info',
-  warning: 'Warning',
-  critical: 'Critical',
+export const severityKeys: Record<AlertSeverity, string> = {
+  info: k('workspace:alerts.severity.info'),
+  warning: k('workspace:alerts.severity.warning'),
+  critical: k('workspace:alerts.severity.critical'),
 };
+/** Lower-case the first letter for the middle of a sentence; German keeps it (its nouns are capitalised). */
+export const lowerFirst = (text: string): string =>
+  currentLocale() === 'de' ? text : text.charAt(0).toLowerCase() + text.slice(1);
+
+export const severityLabel = (severity: AlertSeverity): string => t(severityKeys[severity]);
 export const severityTone: Record<AlertSeverity, 'info' | 'warn' | 'bad'> = {
   info: 'info',
   warning: 'warn',
@@ -127,39 +136,44 @@ export type AlertTestResult = { alertId: string; deliveries: Delivery[] };
 // ----- the delivery log, in words --------------------------------------------------------------------------
 
 /** One sentence per outcome code of the server's fixed vocabulary (a test keeps the two lists equal). */
-export const outcomeLabels: Record<string, string> = {
-  ok: 'Delivered.',
-  queued_for_client:
-    'Handed to the app on your computer. Whether it appears is up to your browser and system notification settings.',
-  queued_for_endpoints:
-    'Sent to your webhook endpoints; each has its own delivery log under Webhooks.',
-  in_digest: 'Held for your digest.',
-  digest_sent: 'Sent in a digest.',
-  quiet_hours: 'Held back by quiet hours.',
-  muted: 'Muted by you.',
-  below_minimum_severity: 'Below the lowest severity you asked for.',
-  user_rate_limited: 'Too many emails this hour; not sent.',
-  no_address: 'There is no email address for this person.',
-  recipient_gone: 'The person left the workspace.',
-  no_endpoint: 'No webhook endpoint listens for alerts. Add one under Webhooks.',
-  smtp_not_configured: 'No mail server is set up. An admin can add one in Settings.',
-  smtp_connection_failed: 'The mail server could not be reached.',
-  smtp_auth_failed: 'The mail server refused the login. Check the mail settings.',
-  smtp_tls_failed: 'A secure connection to the mail server could not be made.',
-  smtp_rejected: 'The mail server did not accept the message.',
-  smtp_timeout: 'The mail server did not answer in time.',
+export const outcomeKeys: Record<string, string> = {
+  ok: k('workspace:alerts.outcome.ok'),
+  queued_for_client: k('workspace:alerts.outcome.queuedForClient'),
+  queued_for_endpoints: k('workspace:alerts.outcome.queuedForEndpoints'),
+  in_digest: k('workspace:alerts.outcome.inDigest'),
+  digest_sent: k('workspace:alerts.outcome.digestSent'),
+  quiet_hours: k('workspace:alerts.outcome.quietHours'),
+  muted: k('workspace:alerts.outcome.muted'),
+  below_minimum_severity: k('workspace:alerts.outcome.belowMinimumSeverity'),
+  user_rate_limited: k('workspace:alerts.outcome.userRateLimited'),
+  no_address: k('workspace:alerts.outcome.noAddress'),
+  recipient_gone: k('workspace:alerts.outcome.recipientGone'),
+  no_endpoint: k('workspace:alerts.outcome.noEndpoint'),
+  smtp_not_configured: k('workspace:alerts.outcome.smtpNotConfigured'),
+  smtp_connection_failed: k('workspace:alerts.outcome.smtpConnectionFailed'),
+  smtp_auth_failed: k('workspace:alerts.outcome.smtpAuthFailed'),
+  smtp_tls_failed: k('workspace:alerts.outcome.smtpTlsFailed'),
+  smtp_rejected: k('workspace:alerts.outcome.smtpRejected'),
+  smtp_timeout: k('workspace:alerts.outcome.smtpTimeout'),
 };
 
-export const describeOutcome = (outcome: string): string =>
-  outcomeLabels[outcome] || 'Unknown result.';
+export const describeOutcome = (outcome: string): string => {
+  const key = outcomeKeys[outcome];
+  return key ? t(key) : t('workspace:alerts.outcome.unknown');
+};
 
-export const statusLabels: Record<string, string> = {
-  queued: 'Queued',
-  retrying: 'Will retry',
-  sent: 'Sent',
-  failed: 'Failed',
-  skipped: 'Skipped',
-  deferred: 'Held',
+export const statusKeys: Record<string, string> = {
+  queued: k('workspace:alerts.status.queued'),
+  retrying: k('workspace:alerts.status.retrying'),
+  sent: k('workspace:alerts.status.sent'),
+  failed: k('workspace:alerts.status.failed'),
+  skipped: k('workspace:alerts.status.skipped'),
+  deferred: k('workspace:alerts.status.deferred'),
+};
+/** The words for a delivery status; a status this version does not know is shown as it is. */
+export const statusLabel = (status: string): string => {
+  const key = statusKeys[status];
+  return key ? t(key) : status;
 };
 export const statusTone = (status: string): 'ok' | 'bad' | 'warn' | 'neutral' =>
   status === 'sent'
@@ -235,9 +249,9 @@ export function groupInbox(alerts: InboxAlert[]): InboxGroup[] {
   const info = alerts.filter((a) => a.resolvedAt === null && a.severity === 'info');
   const resolved = alerts.filter((a) => a.resolvedAt !== null);
   const out: InboxGroup[] = [
-    { id: 'attention', title: 'Needs attention', alerts: attention },
-    { id: 'info', title: 'For your information', alerts: info },
-    { id: 'resolved', title: 'Resolved', alerts: resolved },
+    { id: 'attention', title: t('workspace:alerts.group.attention'), alerts: attention },
+    { id: 'info', title: t('workspace:alerts.group.info'), alerts: info },
+    { id: 'resolved', title: t('workspace:alerts.group.resolved'), alerts: resolved },
   ];
   return out.filter((g) => g.alerts.length > 0);
 }
@@ -248,9 +262,13 @@ export function groupInbox(alerts: InboxAlert[]): InboxGroup[] {
  */
 export function inboxHeadline(groups: readonly InboxGroup[], unread: number): string {
   const need = groups.find((g) => g.id === 'attention')?.alerts.length ?? 0;
-  const first =
-    need === 0 ? 'Nothing needs attention' : `${need} ${need === 1 ? 'needs' : 'need'} attention`;
-  return unread > 0 ? `${first}, ${unread} unread` : first;
+  if (need === 0)
+    return unread > 0
+      ? t('workspace:alerts.headline.nothingUnread', { unread })
+      : t('workspace:alerts.headline.nothing');
+  return unread > 0
+    ? t('workspace:alerts.headline.attentionUnread', { count: need, unread })
+    : t('workspace:alerts.headline.attention', { count: need });
 }
 
 export const badgeCount = (n: number): string => (n <= 0 ? '' : n > 99 ? '99+' : String(n));
@@ -273,16 +291,20 @@ export function timeToMinutes(value: string): number | null {
 export function quietSummary(
   s: Pick<UserSettings, 'quietStart' | 'quietEnd' | 'timezone'>,
 ): string {
-  if (s.quietStart === null || s.quietEnd === null) return 'No quiet hours';
-  return `Quiet from ${minutesToTime(s.quietStart)} to ${minutesToTime(s.quietEnd)} (${s.timezone || 'UTC'}); critical alerts still come through`;
+  if (s.quietStart === null || s.quietEnd === null) return t('workspace:alerts.quiet.none');
+  return t('workspace:alerts.quiet.summary', {
+    from: minutesToTime(s.quietStart),
+    to: minutesToTime(s.quietEnd),
+    zone: s.timezone || 'UTC',
+  });
 }
 
-export const snoozeChoices: { hours: number | null; label: string }[] = [
-  { hours: 1, label: '1 hour' },
-  { hours: 8, label: '8 hours' },
-  { hours: 24, label: '1 day' },
-  { hours: 24 * 7, label: '1 week' },
-  { hours: null, label: 'Until I turn it back on' },
+export const snoozeChoices: { hours: number | null; labelKey: string }[] = [
+  { hours: 1, labelKey: k('workspace:alerts.snooze.hour1') },
+  { hours: 8, labelKey: k('workspace:alerts.snooze.hours8') },
+  { hours: 24, labelKey: k('workspace:alerts.snooze.day1') },
+  { hours: 24 * 7, labelKey: k('workspace:alerts.snooze.week1') },
+  { hours: null, labelKey: k('workspace:alerts.snooze.untilOn') },
 ];
 
 export function muteLabel(
@@ -290,9 +312,8 @@ export function muteLabel(
   appName: (id: string) => string,
   typeLabel: (id: string) => string,
 ): string {
-  const what = m.alertType ? typeLabel(m.alertType) : 'All alerts';
-  const where = m.appId ? ` for ${appName(m.appId)}` : '';
-  return `${what}${where}`;
+  const what = m.alertType ? typeLabel(m.alertType) : t('workspace:alerts.mute.all');
+  return m.appId ? t('workspace:alerts.mute.forApp', { what, app: appName(m.appId) }) : what;
 }
 
 export function browserTimeZone(): string {

@@ -1,3 +1,5 @@
+import { k, t } from './i18n/t.ts';
+
 /**
  * "Connect an AI assistant" (docs/mcp.md): the status the server reports, the token the card creates, and the copy and paste
  * configuration for the assistants. Pure functions, no network: the Settings card (components/settings/McpSettings.svelte) calls them.
@@ -28,22 +30,19 @@ export type McpStatus = {
 const DAY = 24 * 60 * 60 * 1000;
 
 /** The one warning that goes with every token handed to an assistant. */
-export const MCP_WARNING =
-  'An assistant that holds this token can read everything the token may read, and text from stores and customers passes through it. ' +
-  'It cannot publish, submit, release or send anything: those can only be previewed, and you confirm them here in the app.';
+export const MCP_WARNING = k('workspace:mcp.warning');
 
+/** Message keys: the screen translates them where it draws them (`groupTools` does it for its groups). */
 export const kindLabel: Record<McpToolKind, string> = {
-  read: 'Read',
-  write: "Change the workspace's own data",
-  preview: 'Preview only (you confirm in the app)',
+  read: k('workspace:mcp.kind.read'),
+  write: k('workspace:mcp.kind.write'),
+  preview: k('workspace:mcp.kind.preview'),
 };
 
 export const kindHelp: Record<McpToolKind, string> = {
-  read: 'On for the read-only token.',
-  write:
-    'Needs a token that names the action, and a server switch where a store is involved. Never reaches a store.',
-  preview:
-    'Shows what a store action would do and gives a link. Needs a token that names the action and the server switch. Never applies.',
+  read: k('workspace:mcp.kindHelp.read'),
+  write: k('workspace:mcp.kindHelp.write'),
+  preview: k('workspace:mcp.kindHelp.preview'),
 };
 
 /** The tools by kind, in a stable order, with empty groups left out. */
@@ -53,8 +52,8 @@ export function groupTools(
   return (['read', 'write', 'preview'] as const)
     .map((kind) => ({
       kind,
-      label: kindLabel[kind],
-      help: kindHelp[kind],
+      label: t(kindLabel[kind]),
+      help: t(kindHelp[kind]),
       tools: tools.filter((t) => t.kind === kind),
     }))
     .filter((g) => g.tools.length > 0);
@@ -62,9 +61,18 @@ export function groupTools(
 
 /** What a tool needs beyond a token that names its action, in words. */
 export function toolNeeds(tool: McpTool): string {
-  if (tool.kind === 'read') return tool.action ? `needs ${tool.action}` : '';
-  const parts = [tool.action ? `token names ${tool.action}` : 'token names the action'];
-  if (tool.switch) parts.push(`${tool.switch}=true${tool.switchOn ? '' : ' (off now)'}`);
+  if (tool.kind === 'read') return tool.action ? t('workspace:mcp.needs.read', { action: tool.action }) : '';
+  const parts = [
+    tool.action
+      ? t('workspace:mcp.needs.tokenNames', { action: tool.action })
+      : t('workspace:mcp.needs.tokenNamesAction'),
+  ];
+  if (tool.switch)
+    parts.push(
+      tool.switchOn
+        ? t('workspace:mcp.needs.switchOn', { switch: tool.switch })
+        : t('workspace:mcp.needs.switchOff', { switch: tool.switch }),
+    );
   return parts.join(', ');
 }
 
@@ -74,14 +82,14 @@ export function stateView(status: McpStatus): McpStateView {
   if (!status.enabled) {
     return {
       tone: 'warn',
-      label: 'Off on this server',
-      detail: `Set ${status.envName}=true in the server's environment and restart it. While it is off, ${status.endpoint} answers 404.`,
+      label: t('workspace:mcp.state.offLabel'),
+      detail: t('workspace:mcp.state.offDetail', { env: status.envName, endpoint: status.endpoint }),
     };
   }
   return {
     tone: 'ok',
-    label: 'On',
-    detail: `Assistants connect to ${status.endpoint} with an API token.`,
+    label: t('workspace:mcp.state.onLabel'),
+    detail: t('workspace:mcp.state.onDetail', { endpoint: status.endpoint }),
   };
 }
 
@@ -137,7 +145,7 @@ export function snippets(origin: string, token: string | null, endpoint = '/mcp'
       client: 'claude-code',
       transport: 'http',
       title: 'Claude Code (HTTP)',
-      where: 'Run in a terminal',
+      where: t('workspace:mcp.where.terminal'),
       language: 'sh',
       text: `claude mcp add --transport http ${SERVER_NAME} ${shellQuote(url)} --header ${shellQuote(`Authorization: Bearer ${secret}`)}`,
     },
@@ -145,7 +153,7 @@ export function snippets(origin: string, token: string | null, endpoint = '/mcp'
       client: 'claude-code',
       transport: 'stdio',
       title: 'Claude Code (stdio)',
-      where: 'Run in a terminal',
+      where: t('workspace:mcp.where.terminal'),
       language: 'sh',
       text: `claude mcp add ${SERVER_NAME} --env KILN_URL=${shellQuote(base)} --env KILN_TOKEN=${shellQuote(secret)} -- node ${BRIDGE}`,
     },
@@ -153,7 +161,7 @@ export function snippets(origin: string, token: string | null, endpoint = '/mcp'
       client: 'claude-desktop',
       transport: 'stdio',
       title: 'Claude Desktop (stdio)',
-      where: 'claude_desktop_config.json, then restart Claude Desktop',
+      where: t('workspace:mcp.where.desktop'),
       language: 'json',
       text: json({ mcpServers: { [SERVER_NAME]: stdioServer } }),
     },
@@ -179,7 +187,7 @@ export function snippets(origin: string, token: string | null, endpoint = '/mcp'
 }
 
 export const mcpErrorMessage = (status: number | undefined): string => {
-  if (status === 403) return 'Only owners and admins can connect an assistant.';
-  if (status === 404) return 'This workspace was not found.';
-  return 'Could not load the assistant settings.';
+  if (status === 403) return t('workspace:mcp.error.forbidden');
+  if (status === 404) return t('workspace:mcp.error.notFound');
+  return t('workspace:mcp.error.load');
 };

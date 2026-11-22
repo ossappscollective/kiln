@@ -7,6 +7,8 @@
  * npm package is installed for it. It was written from the plugin's documented commands and has not been run in a built shell.
  */
 
+import { k } from '../i18n/t.ts';
+
 type Internals = { invoke: (command: string, args?: Record<string, unknown>) => Promise<unknown> };
 
 const internals = (): Internals | undefined =>
@@ -73,9 +75,10 @@ export async function showNotification(title: string): Promise<boolean> {
   }
 }
 
-export const notifyStateText: Record<NotifyState, string> = {
-  unsupported: 'This window cannot show desktop notifications.',
-  default: 'Desktop notifications are not allowed yet.',
-  granted: 'Desktop notifications are allowed.',
-  denied: 'Desktop notifications are blocked. Allow them in the system or browser settings.',
+/** Message keys: translate with `t(notifyStateKeys[state])`. */
+export const notifyStateKeys: Record<NotifyState, string> = {
+  unsupported: k('workspace:notify.unsupported'),
+  default: k('workspace:notify.default'),
+  granted: k('workspace:notify.granted'),
+  denied: k('workspace:notify.denied'),
 };

@@ -1,22 +1,22 @@
 import { type Action, can, type Role, type TokenRole, tokenActions, tokenRoles } from '@kiln/core';
 import { fullTime, timeAgo } from './format.ts';
+import { k, t } from './i18n/t.ts';
 import type { ApiToken } from './types.ts';
 
 const DAY = 24 * 60 * 60 * 1000;
 
+/** The role names are the shared ones of `common`: translate with `t(tokenRoleLabel[role])`. */
 export const tokenRoleLabel: Record<TokenRole, string> = {
-  viewer: 'Viewer',
-  member: 'Member',
-  admin: 'Admin',
+  viewer: k('common:role.viewer'),
+  member: k('common:role.member'),
+  admin: k('common:role.admin'),
 };
 
-/** One line per ceiling, for the form: what a token with this role can do at most. */
+/** One line per ceiling, for the form: what a token with this role can do at most (message keys: translate with `t`). */
 export const tokenRoleHelp: Record<TokenRole, string> = {
-  viewer: 'Reads apps, releases, listings, plans and events. Changes nothing.',
-  member:
-    'Also drafts change sets, syncs apps, edits plans and starts CI workflows. Cannot approve.',
-  admin:
-    'Also approves and applies change sets and adds apps. Still cannot manage tokens, people or secrets.',
+  viewer: k('workspace:token.roleHelp.viewer'),
+  member: k('workspace:token.roleHelp.member'),
+  admin: k('workspace:token.roleHelp.admin'),
 };
 
 /** The ceilings a person may hand out: never above their own role, never owner. */
@@ -28,11 +28,11 @@ export function ceilingsFor(role: Role): TokenRole[] {
 
 export type ExpiryChoice = 'never' | '30d' | '90d' | '1y';
 
-export const expiryChoices: { id: ExpiryChoice; label: string }[] = [
-  { id: '30d', label: '30 days' },
-  { id: '90d', label: '90 days' },
-  { id: '1y', label: '1 year' },
-  { id: 'never', label: 'Never expires' },
+export const expiryChoices: { id: ExpiryChoice; labelKey: string }[] = [
+  { id: '30d', labelKey: k('workspace:token.expiry.days30') },
+  { id: '90d', labelKey: k('workspace:token.expiry.days90') },
+  { id: '1y', labelKey: k('workspace:token.expiry.year1') },
+  { id: 'never', labelKey: k('workspace:token.expiry.never') },
 ];
 
 export function expiryFor(choice: ExpiryChoice, now: number = Date.now()): number | undefined {
@@ -46,21 +46,60 @@ export function narrowableActions(ceiling: TokenRole): Action[] {
   return tokenActions.filter((action) => can(ceiling, action));
 }
 
-/** "apps.read" as "Read apps": a label for the action picker. */
+const actionKeys: Record<string, string> = {
+  'workspace.read': k('workspace:token.action.workspaceRead'),
+  'audit.read': k('workspace:token.action.auditRead'),
+  'credentials.read': k('workspace:token.action.credentialsRead'),
+  'members.read': k('workspace:token.action.membersRead'),
+  'repositories.read': k('workspace:token.action.repositoriesRead'),
+  'repositories.write': k('workspace:token.action.repositoriesWrite'),
+  'repositories.scan': k('workspace:token.action.repositoriesScan'),
+  'changesets.write': k('workspace:token.action.changesetsWrite'),
+  'changesets.approve': k('workspace:token.action.changesetsApprove'),
+  'apps.read': k('workspace:token.action.appsRead'),
+  'apps.write': k('workspace:token.action.appsWrite'),
+  'apps.sync': k('workspace:token.action.appsSync'),
+  'listing.read': k('workspace:token.action.listingRead'),
+  'ci.dispatch': k('workspace:token.action.ciDispatch'),
+  'builds.read': k('workspace:token.action.buildsRead'),
+  'builds.download': k('workspace:token.action.buildsDownload'),
+  'builds.share': k('workspace:token.action.buildsShare'),
+  'plans.read': k('workspace:token.action.plansRead'),
+  'plans.write': k('workspace:token.action.plansWrite'),
+  'releases.rollout': k('workspace:token.action.releasesRollout'),
+  'store.push_draft': k('workspace:token.action.storePushDraft'),
+  'store.submit': k('workspace:token.action.storeSubmit'),
+  'store.release': k('workspace:token.action.storeRelease'),
+  'store.publish': k('workspace:token.action.storePublish'),
+  'reviews.read': k('workspace:token.action.reviewsRead'),
+  'reviews.sync': k('workspace:token.action.reviewsSync'),
+  'reviews.triage': k('workspace:token.action.reviewsTriage'),
+  'reviews.reply': k('workspace:token.action.reviewsReply'),
+  'reviews.translate': k('workspace:token.action.reviewsTranslate'),
+  'settings.read': k('workspace:token.action.settingsRead'),
+  'settings.write': k('workspace:token.action.settingsWrite'),
+  'events.read': k('workspace:token.action.eventsRead'),
+  'aso.read': k('workspace:token.action.asoRead'),
+  'aso.write': k('workspace:token.action.asoWrite'),
+  'aso.manage': k('workspace:token.action.asoManage'),
+  'ai.use': k('workspace:token.action.aiUse'),
+  'ai.manage': k('workspace:token.action.aiManage'),
+  'analytics.read': k('workspace:token.action.analyticsRead'),
+  'analytics.manage': k('workspace:token.action.analyticsManage'),
+  'alerts.read': k('workspace:token.action.alertsRead'),
+  'alerts.write': k('workspace:token.action.alertsWrite'),
+  'alerts.manage': k('workspace:token.action.alertsManage'),
+  'monetization.write': k('workspace:token.action.monetizationWrite'),
+};
+
+/** "apps.read" as "Read apps": a label for the action picker. An action this version does not know is shown as its code. */
 export function actionLabel(action: string): string {
-  const [area = '', verb = ''] = action.split('.');
-  const noun = area.replace(/_/g, ' ');
-  const verbs: Record<string, string> = {
-    read: 'Read',
-    write: 'Change',
-    sync: 'Sync',
-    scan: 'Scan',
-    approve: 'Approve and apply',
-    dispatch: 'Start',
-  };
-  const lead = verbs[verb] ?? verb.charAt(0).toUpperCase() + verb.slice(1);
-  return `${lead} ${noun}`.trim();
+  const key = actionKeys[action];
+  return key ? t(key) : action;
 }
+
+/** True when `actionLabel` knows the action (a test keeps this list equal to the actions tokens may hold). */
+export const hasActionLabel = (action: string): boolean => actionKeys[action] !== undefined;
 
 export type TokenForm = {
   name: string;
@@ -78,11 +117,11 @@ export function validateTokenForm(form: TokenForm): TokenFormProblems {
   const problems: TokenFormProblems = {};
   const name = form.name.trim();
   if (!name)
-    problems.name = 'Give the token a name, such as the script or service that will use it.';
-  else if (name.length > 100) problems.name = 'Use at most 100 characters.';
+    problems.name = t('workspace:token.form.nameRequired');
+  else if (name.length > 100) problems.name = t('workspace:token.form.nameTooLong', { count: 100 });
   const allowed = new Set<string>(narrowableActions(form.role));
   if (form.actions.some((a) => !allowed.has(a)))
-    problems.actions = 'Some chosen actions are not allowed for this role.';
+    problems.actions = t('workspace:token.form.actionsNotAllowed');
   return problems;
 }
 
@@ -115,46 +154,54 @@ export type TokenStatusView = {
 export function tokenStatus(token: ApiToken, now: number = Date.now()): TokenStatusView {
   if (token.status === 'revoked') {
     return {
-      label: 'Revoked',
+      label: t('workspace:token.status.revoked'),
       tone: 'neutral',
-      title: token.revokedAt ? `Revoked ${fullTime(token.revokedAt)}.` : 'Revoked.',
+      title: token.revokedAt
+        ? t('workspace:token.status.revokedAt', { date: fullTime(token.revokedAt) })
+        : t('workspace:token.status.revokedTitle'),
     };
   }
   if (token.status === 'expired') {
     return {
-      label: 'Expired',
+      label: t('workspace:token.status.expired'),
       tone: 'bad',
-      title: token.expiresAt ? `Expired ${fullTime(token.expiresAt)}.` : 'Expired.',
+      title: token.expiresAt
+        ? t('workspace:token.status.expiredAt', { date: fullTime(token.expiresAt) })
+        : t('workspace:token.status.expiredTitle'),
     };
   }
   if (token.expiresAt !== null && token.expiresAt - now < 7 * DAY) {
-    return { label: 'Expires soon', tone: 'warn', title: `Expires ${fullTime(token.expiresAt)}.` };
+    return {
+      label: t('workspace:token.status.expiresSoon'),
+      tone: 'warn',
+      title: t('workspace:token.status.expiresAt', { date: fullTime(token.expiresAt) }),
+    };
   }
-  return { label: 'Active', tone: 'ok', title: 'The token works.' };
+  return { label: t('workspace:token.status.active'), tone: 'ok', title: t('workspace:token.status.activeTitle') };
 }
 
 export function lastUsed(token: ApiToken, now: number = Date.now()): string {
-  return token.lastUsedAt === null ? 'Never used' : timeAgo(token.lastUsedAt, now);
+  return token.lastUsedAt === null ? t('workspace:token.neverUsed') : timeAgo(token.lastUsedAt, now);
 }
 
 export function expiryLabel(token: ApiToken, now: number = Date.now()): string {
-  if (token.expiresAt === null) return 'Never';
-  if (token.expiresAt <= now) return `Expired ${timeAgo(token.expiresAt, now)}`;
+  if (token.expiresAt === null) return t('workspace:token.expiry.neverShort');
+  if (token.expiresAt <= now) return t('workspace:token.expiry.expiredAgo', { when: timeAgo(token.expiresAt, now) });
   const days = Math.ceil((token.expiresAt - now) / DAY);
-  return days <= 1 ? 'In under a day' : `In ${days} days`;
+  return days <= 1 ? t('workspace:token.expiry.underDay') : t('workspace:token.expiry.inDays', { count: days });
 }
 
 /** What the token is limited to, as a short phrase: "all apps · all actions of the role". */
 export function scopeSummary(token: Pick<ApiToken, 'appIds' | 'actions'>): string {
   const apps =
     token.appIds === null
-      ? 'All apps'
-      : `${token.appIds.length} app${token.appIds.length === 1 ? '' : 's'}`;
-  const acts =
+      ? t('workspace:token.scope.allApps')
+      : t('workspace:token.scope.apps', { count: token.appIds.length });
+  const actions =
     token.actions === null
-      ? 'all actions of the role'
-      : `${token.actions.length} action${token.actions.length === 1 ? '' : 's'}`;
-  return `${apps} · ${acts}`;
+      ? t('workspace:token.scope.allActions')
+      : t('workspace:token.scope.actions', { count: token.actions.length });
+  return t('workspace:token.scope.summary', { apps, actions });
 }
 
 /** A call a person can paste to check the token works. The token is never put into a URL. */

@@ -180,3 +180,12 @@ test('the event list has no duplicates and uses dotted names', () => {
   assert.equal(new Set(types).size, types.length);
   for (const type of types) assert.match(type, /^[a-z]+(\.[a-z_]+)+$/);
 });
+
+test('every event has a description in the catalog', async () => {
+  const { t } = await import('./i18n/t.ts');
+  for (const choice of webhookEventChoices) {
+    const text = t(choice.labelKey);
+    assert.notEqual(text, choice.labelKey, choice.type);
+    assert.ok(text.length > 10, choice.type);
+  }
+});

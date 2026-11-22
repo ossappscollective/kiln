@@ -11,7 +11,7 @@ import {
   inboxHeadline,
   matrixGroups,
   minutesToTime,
-  outcomeLabels,
+  outcomeKeys,
   type Preference,
   quietSummary,
   timeToMinutes,
@@ -74,7 +74,7 @@ test('every outcome code the server writes has a sentence, and no sentence is fo
     .map((s) => s.replace(/['\s]/g, ''))
     .filter((s) => s !== '');
   assert.ok(codes.length > 10);
-  assert.deepEqual(Object.keys(outcomeLabels).sort(), codes.slice().sort());
+  assert.deepEqual(Object.keys(outcomeKeys).sort(), codes.slice().sort());
   assert.equal(describeOutcome('something_new'), 'Unknown result.');
 });
 
@@ -163,4 +163,17 @@ test('inboxHeadline says what needs attention first, then how many are unread', 
   assert.equal(inboxHeadline(groupInbox([a('warning')]), 0), '1 needs attention');
   assert.equal(inboxHeadline(groupInbox([a('info')]), 1), 'Nothing needs attention, 1 unread');
   assert.equal(inboxHeadline([], 0), 'Nothing needs attention');
+});
+
+test('the fixed words of the log all come from the catalog', async () => {
+  const { t } = await import('../i18n/t.ts');
+  const { channelKeys, severityKeys, statusKeys, outcomeKeys, snoozeChoices } = await import('./alerts.ts');
+  const keys = [
+    ...Object.values(channelKeys),
+    ...Object.values(severityKeys),
+    ...Object.values(statusKeys),
+    ...Object.values(outcomeKeys),
+    ...snoozeChoices.map((c) => c.labelKey),
+  ];
+  for (const key of keys) assert.notEqual(t(key), key);
 });

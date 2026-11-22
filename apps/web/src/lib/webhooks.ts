@@ -1,119 +1,50 @@
 import { fullTime, timeAgo } from './format.ts';
+import { k, t } from './i18n/t.ts';
 import type { WebhookDelivery, WebhookDeliveryStatus, WebhookEndpoint } from './types.ts';
 
 /**
- * The event types a webhook can ask for, with a plain-words description. The server owns the list
+ * The event types a webhook can ask for, with the key of a plain-words description (translate it with `t(choice.labelKey)`). The server owns the list
  * (apps/server/src/services/event-types.ts); a server test checks that this one matches it.
  */
-export const webhookEventChoices: { type: string; label: string }[] = [
-  { type: 'app.synced', label: 'An app was synced with its store' },
-  { type: 'app.release.status_changed', label: 'A release changed status in the store' },
-  { type: 'changeset.created', label: 'A change set was drafted' },
-  { type: 'changeset.approved', label: 'A change set was approved' },
-  { type: 'changeset.applied', label: 'A change set was applied (pull request opened)' },
-  { type: 'changeset.failed', label: 'A change set could not be applied' },
-  { type: 'credential.test_failed', label: 'A credential test failed' },
-  { type: 'plan.rollout_step_done', label: 'A rollout step of a release plan was marked done' },
-  { type: 'plan.rollout_step_skipped', label: 'A rollout step of a release plan was skipped' },
-  { type: 'plan.rollout_step_reopened', label: 'A rollout step of a release plan was reopened' },
-  { type: 'plan.deadline_due_soon', label: 'A release plan’s deadline is close' },
-  { type: 'plan.deadline_overdue', label: 'A release plan’s deadline has passed' },
-  { type: 'plan.rollout_step_due', label: 'A planned rollout step’s time has passed' },
-  {
-    type: 'review.new',
-    label:
-      'A new customer review was stored, or a batch of them (ids, store and rating only; never the text)',
-  },
-  {
-    type: 'review.new_low_rating',
-    label: 'A low-rated customer review arrived (ids and rating only)',
-  },
-  { type: 'review.sync_failed', label: 'Reading customer reviews failed' },
-  {
-    type: 'review.reply_sent',
-    label: 'A reply to a customer review was published in the store (ids only)',
-  },
-  {
-    type: 'release.rollout_changed',
-    label: 'A staged rollout or phased release was changed in the store (ids and values only)',
-  },
-  {
-    type: 'listing.draft_pushed',
-    label:
-      'Staged listing changes were written to the store as a draft (ids and counts only; never submitted)',
-  },
-  {
-    type: 'listing.submitted',
-    label: 'A listing version was submitted for review in the store (ids only; never released)',
-  },
-  {
-    type: 'release.started',
-    label:
-      'A release was started in the store: an approved version released or a Play draft rolled out (ids and values only)',
-  },
-  {
-    type: 'aso.rank_changed',
-    label:
-      'A tracked keyword moved a lot in the store search results (ids and places only, never the term)',
-  },
-  {
-    type: 'aso.competitor_changed',
-    label: 'A followed competitor changed its listing, price or rating (ids and field names only)',
-  },
-  { type: 'ci.run_started', label: 'A GitHub Actions workflow run started (ids only)' },
-  {
-    type: 'release.stalled',
-    label:
-      'A release looks unfinished: a build landed and the next step did not happen (ids and hours only)',
-  },
-  {
-    type: 'review.unanswered',
-    label: 'Reviews are waiting for an answer (counts and the oldest age only)',
-  },
-  {
-    type: 'pending.published',
-    label:
-      'Pending changes were published in one go (ids, counts and the outcome of each step only)',
-  },
-  {
-    type: 'ai.suggestion_created',
-    label: 'An AI suggestion was proposed (ids and the task only; nothing is applied)',
-  },
-  { type: 'analytics.synced', label: 'Analytics data was synced for an app (ids and counts only)' },
-  { type: 'stepup.verified', label: 'Someone confirmed a hard action with a passkey or password' },
-  {
-    type: 'stepup.failed',
-    label: 'A confirmation of a hard action failed (wrong password or passkey)',
-  },
-  {
-    type: 'auth.second_factor_failed',
-    label:
-      'A second factor failed at sign-in (a wrong code after a right password; ids and a fixed reason only)',
-  },
-  {
-    type: 'stepup.recovery_used',
-    label: 'A step-up recovery code was used (ids and how many are left only; never the code)',
-  },
-  {
-    type: 'ci.run_finished',
-    label: 'A GitHub Actions workflow run finished (ids and the conclusion only)',
-  },
-  {
-    type: 'assets.pulled',
-    label: 'Store images were pulled into a change set for the repository (ids and counts only)',
-  },
-  {
-    type: 'alert.raised',
-    label: 'An alert was raised (its type, severity, title and ids; see docs/alerts.md)',
-  },
-  {
-    type: 'token.created',
-    label: 'An API token was created (its id, name and role; never the token)',
-  },
-  {
-    type: 'member.added',
-    label: 'Someone joined the workspace by accepting an invitation (ids and role)',
-  },
+export const webhookEventChoices: { type: string; labelKey: string }[] = [
+  { type: 'app.synced', labelKey: k('workspace:webhook.event.appSynced') },
+  { type: 'app.release.status_changed', labelKey: k('workspace:webhook.event.appReleaseStatusChanged') },
+  { type: 'changeset.created', labelKey: k('workspace:webhook.event.changesetCreated') },
+  { type: 'changeset.approved', labelKey: k('workspace:webhook.event.changesetApproved') },
+  { type: 'changeset.applied', labelKey: k('workspace:webhook.event.changesetApplied') },
+  { type: 'changeset.failed', labelKey: k('workspace:webhook.event.changesetFailed') },
+  { type: 'credential.test_failed', labelKey: k('workspace:webhook.event.credentialTestFailed') },
+  { type: 'plan.rollout_step_done', labelKey: k('workspace:webhook.event.planRolloutStepDone') },
+  { type: 'plan.rollout_step_skipped', labelKey: k('workspace:webhook.event.planRolloutStepSkipped') },
+  { type: 'plan.rollout_step_reopened', labelKey: k('workspace:webhook.event.planRolloutStepReopened') },
+  { type: 'plan.deadline_due_soon', labelKey: k('workspace:webhook.event.planDeadlineDueSoon') },
+  { type: 'plan.deadline_overdue', labelKey: k('workspace:webhook.event.planDeadlineOverdue') },
+  { type: 'plan.rollout_step_due', labelKey: k('workspace:webhook.event.planRolloutStepDue') },
+  { type: 'review.new', labelKey: k('workspace:webhook.event.reviewNew') },
+  { type: 'review.new_low_rating', labelKey: k('workspace:webhook.event.reviewNewLowRating') },
+  { type: 'review.sync_failed', labelKey: k('workspace:webhook.event.reviewSyncFailed') },
+  { type: 'review.reply_sent', labelKey: k('workspace:webhook.event.reviewReplySent') },
+  { type: 'release.rollout_changed', labelKey: k('workspace:webhook.event.releaseRolloutChanged') },
+  { type: 'listing.draft_pushed', labelKey: k('workspace:webhook.event.listingDraftPushed') },
+  { type: 'listing.submitted', labelKey: k('workspace:webhook.event.listingSubmitted') },
+  { type: 'release.started', labelKey: k('workspace:webhook.event.releaseStarted') },
+  { type: 'aso.rank_changed', labelKey: k('workspace:webhook.event.asoRankChanged') },
+  { type: 'aso.competitor_changed', labelKey: k('workspace:webhook.event.asoCompetitorChanged') },
+  { type: 'ci.run_started', labelKey: k('workspace:webhook.event.ciRunStarted') },
+  { type: 'release.stalled', labelKey: k('workspace:webhook.event.releaseStalled') },
+  { type: 'review.unanswered', labelKey: k('workspace:webhook.event.reviewUnanswered') },
+  { type: 'pending.published', labelKey: k('workspace:webhook.event.pendingPublished') },
+  { type: 'ai.suggestion_created', labelKey: k('workspace:webhook.event.aiSuggestionCreated') },
+  { type: 'analytics.synced', labelKey: k('workspace:webhook.event.analyticsSynced') },
+  { type: 'stepup.verified', labelKey: k('workspace:webhook.event.stepupVerified') },
+  { type: 'stepup.failed', labelKey: k('workspace:webhook.event.stepupFailed') },
+  { type: 'auth.second_factor_failed', labelKey: k('workspace:webhook.event.authSecondFactorFailed') },
+  { type: 'stepup.recovery_used', labelKey: k('workspace:webhook.event.stepupRecoveryUsed') },
+  { type: 'ci.run_finished', labelKey: k('workspace:webhook.event.ciRunFinished') },
+  { type: 'assets.pulled', labelKey: k('workspace:webhook.event.assetsPulled') },
+  { type: 'alert.raised', labelKey: k('workspace:webhook.event.alertRaised') },
+  { type: 'token.created', labelKey: k('workspace:webhook.event.tokenCreated') },
+  { type: 'member.added', labelKey: k('workspace:webhook.event.memberAdded') },
 ];
 
 export type WebhookForm = {
@@ -153,24 +84,24 @@ export function formFromEndpoint(endpoint: WebhookEndpoint): WebhookForm {
 export function validateWebhookForm(form: WebhookForm): WebhookFormProblems {
   const problems: WebhookFormProblems = {};
   const raw = form.url.trim();
-  if (!raw) problems.url = 'Enter the address the events should be sent to.';
+  if (!raw) problems.url = t('workspace:webhook.form.urlRequired');
   else {
     let parsed: URL | undefined;
     try {
       parsed = new URL(raw);
     } catch {
-      problems.url = 'That does not look like a web address. Start with https://.';
+      problems.url = t('workspace:webhook.form.urlInvalid');
     }
     if (parsed) {
       if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')
-        problems.url = 'Use an https:// address.';
+        problems.url = t('workspace:webhook.form.urlProtocol');
       else if (parsed.username || parsed.password)
-        problems.url = 'Leave the user name and password out of the address.';
-      else if (raw.length > 2048) problems.url = 'The address is too long.';
+        problems.url = t('workspace:webhook.form.urlCredentials');
+      else if (raw.length > 2048) problems.url = t('workspace:webhook.form.urlTooLong');
     }
   }
   if (!form.all && form.types.length === 0)
-    problems.types = 'Choose at least one event, or send everything.';
+    problems.types = t('workspace:webhook.form.typesRequired');
   return problems;
 }
 
@@ -205,9 +136,9 @@ export function patchFor(endpoint: WebhookEndpoint, form: WebhookForm): Record<s
 }
 
 export function eventsSummary(endpoint: Pick<WebhookEndpoint, 'eventTypes'>): string {
-  if (endpoint.eventTypes.includes('*')) return 'All events';
+  if (endpoint.eventTypes.includes('*')) return t('workspace:webhook.eventsAll');
   const n = endpoint.eventTypes.length;
-  return n === 1 ? (endpoint.eventTypes[0] ?? '1 event') : `${n} events`;
+  return n === 1 ? (endpoint.eventTypes[0] ?? t('workspace:webhook.eventsCount', { count: 1 })) : t('workspace:webhook.eventsCount', { count: n });
 }
 
 /** "example.com" from a URL, for tight places. */
@@ -221,22 +152,23 @@ export function hostOf(url: string): string {
 
 export type DeliveryTone = 'ok' | 'bad' | 'warn' | 'info';
 
-const deliveryViews: Record<WebhookDeliveryStatus, { label: string; tone: DeliveryTone }> = {
-  success: { label: 'Delivered', tone: 'ok' },
-  failed: { label: 'Failed', tone: 'bad' },
-  retrying: { label: 'Retrying', tone: 'warn' },
-  pending: { label: 'Waiting', tone: 'info' },
+const deliveryViews: Record<WebhookDeliveryStatus, { labelKey: string; tone: DeliveryTone }> = {
+  success: { labelKey: k('workspace:webhook.delivery.success'), tone: 'ok' },
+  failed: { labelKey: k('workspace:webhook.delivery.failed'), tone: 'bad' },
+  retrying: { labelKey: k('workspace:webhook.delivery.retrying'), tone: 'warn' },
+  pending: { labelKey: k('workspace:webhook.delivery.pending'), tone: 'info' },
 };
 
 export function deliveryView(status: string): { label: string; tone: DeliveryTone } {
-  return deliveryViews[status as WebhookDeliveryStatus] ?? { label: status, tone: 'info' };
+  const view = deliveryViews[status as WebhookDeliveryStatus];
+  return view ? { label: t(view.labelKey), tone: view.tone } : { label: status, tone: 'info' };
 }
 
 /** The line under a delivery: what the receiver said, or what went wrong. */
 export function deliveryDetail(delivery: WebhookDelivery): string {
   const parts: string[] = [];
-  if (delivery.responseCode !== null) parts.push(`Answered ${delivery.responseCode}`);
-  if (delivery.attempts > 1) parts.push(`${delivery.attempts} attempts`);
+  if (delivery.responseCode !== null) parts.push(t('workspace:webhook.delivery.answered', { code: delivery.responseCode }));
+  if (delivery.attempts > 1) parts.push(t('workspace:webhook.delivery.attempts', { count: delivery.attempts }));
   if (delivery.error && delivery.status !== 'success') parts.push(delivery.error);
   return parts.join(' · ');
 }
@@ -246,8 +178,8 @@ export function lastDeliveryLabel(
   now: number = Date.now(),
 ): string {
   const last = endpoint.lastDelivery;
-  if (!last) return 'No deliveries yet';
-  return `${deliveryView(last.status).label}, ${timeAgo(last.at, now)}`;
+  if (!last) return t('workspace:webhook.noDeliveries');
+  return t('workspace:webhook.lastDelivery', { status: deliveryView(last.status).label, when: timeAgo(last.at, now) });
 }
 
 export const deliveryTime = (delivery: Pick<WebhookDelivery, 'createdAt'>) =>

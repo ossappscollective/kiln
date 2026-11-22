@@ -1,3 +1,5 @@
+import { formatDate, formatDateTime, formatTime, formatList } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import type { AuditEvent } from './types.ts';
 
 const MINUTE = 60_000;
@@ -7,97 +9,178 @@ const DAY = 24 * HOUR;
 /** "just now", "5 minutes ago", "yesterday", or a date once it is over a week old. */
 export function timeAgo(then: number, now: number = Date.now(), locale?: string): string {
   const diff = now - then;
-  if (diff < MINUTE) return 'just now';
-  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'} ago`;
-  if (diff < HOUR) return plural(Math.floor(diff / MINUTE), 'minute');
-  if (diff < DAY) return plural(Math.floor(diff / HOUR), 'hour');
-  if (diff < 2 * DAY) return 'yesterday';
-  if (diff < 7 * DAY) return plural(Math.floor(diff / DAY), 'day');
-  return new Date(then).toLocaleDateString(locale, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  if (diff < MINUTE) return t('workspace:time.justNow');
+  if (diff < HOUR) return t('workspace:time.minutesAgo', { count: Math.floor(diff / MINUTE) });
+  if (diff < DAY) return t('workspace:time.hoursAgo', { count: Math.floor(diff / HOUR) });
+  if (diff < 2 * DAY) return t('workspace:time.yesterday');
+  if (diff < 7 * DAY) return t('workspace:time.daysAgo', { count: Math.floor(diff / DAY) });
+  return formatDate(then, { locale });
 }
 
 /** A calendar day in the person's language and zone, e.g. "20 Nov 2026". */
 export function dayText(at: number, locale?: string): string {
-  return new Date(at).toLocaleDateString(locale, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  return formatDate(at, { locale });
 }
 
 export function fullTime(at: number, locale?: string): string {
-  return new Date(at).toLocaleString(locale, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return formatDateTime(at, { locale });
 }
 
+const str = (v: unknown): string => String(v);
+
 const actions: Record<string, (detail: Record<string, unknown> | null) => string> = {
-  'workspace.create': (d) => `created the workspace${d?.name ? ` “${String(d.name)}”` : ''}`,
-  'credential.create': (d) => `added a credential${d?.label ? ` “${String(d.label)}”` : ''}`,
-  'credential.rotate': () => 'replaced the secret of a credential',
-  'credential.delete': () => 'deleted a credential',
+  'workspace.create': (d) =>
+    d?.name
+      ? t('workspace:audit.workspaceCreateNamed', { name: str(d.name) })
+      : t('workspace:audit.workspaceCreate'),
+  'credential.create': (d) =>
+    d?.label
+      ? t('workspace:audit.credentialCreateLabeled', { label: str(d.label) })
+      : t('workspace:audit.credentialCreate'),
+  'credential.rotate': () => t('workspace:audit.credentialRotate'),
+  'credential.delete': () => t('workspace:audit.credentialDelete'),
   'invitation.create': (d) =>
-    `invited ${d?.email ? String(d.email) : 'someone'}${d?.role ? ` as ${String(d.role)}` : ''}`,
+    d?.email
+      ? d?.role
+        ? t('workspace:audit.invitationCreate', { email: str(d.email), role: roleWord(d.role) })
+        : t('workspace:audit.invitationCreateEmail', { email: str(d.email) })
+      : d?.role
+        ? t('workspace:audit.invitationCreateRole', { role: roleWord(d.role) })
+        : t('workspace:audit.invitationCreateNone'),
   'invitation.accept': (d) =>
-    `joined the workspace${d?.role ? ` as ${String(d.role)}` : ''} from an invitation`,
-  'invitation.revoke': (d) => `revoked the invitation${d?.email ? ` for ${String(d.email)}` : ''}`,
+    d?.role
+      ? t('workspace:audit.invitationAccept', { role: roleWord(d.role) })
+      : t('workspace:audit.invitationAcceptNoRole'),
+  'invitation.revoke': (d) =>
+    d?.email
+      ? t('workspace:audit.invitationRevoke', { email: str(d.email) })
+      : t('workspace:audit.invitationRevokeNoEmail'),
   'member.role_change': (d) =>
-    `changed a member’s role${d?.from && d?.to ? ` from ${String(d.from)} to ${String(d.to)}` : ''}`,
-  'member.remove': (d) => (d?.self ? 'left the workspace' : 'removed a member from the workspace'),
-  'credential.use': (d) => `used a credential${d?.purpose ? ` for ${String(d.purpose)}` : ''}`,
-  'plan.create': (d) => `started a plan${d?.version ? ` for version ${String(d.version)}` : ''}`,
-  'plan.update': (d) => `changed a release plan${d?.version ? ` (${String(d.version)})` : ''}`,
-  'plan.delete': (d) => `deleted the plan${d?.version ? ` for version ${String(d.version)}` : ''}`,
+    d?.from && d?.to
+      ? t('workspace:audit.memberRoleChange', { from: roleWord(d.from), to: roleWord(d.to) })
+      : t('workspace:audit.memberRoleChangeNoDetail'),
+  'member.remove': (d) =>
+    d?.self ? t('workspace:audit.memberLeave') : t('workspace:audit.memberRemove'),
+  'credential.use': (d) =>
+    d?.purpose
+      ? t('workspace:audit.credentialUse', { purpose: str(d.purpose) })
+      : t('workspace:audit.credentialUseNoPurpose'),
+  'plan.create': (d) =>
+    d?.version
+      ? t('workspace:audit.planCreate', { version: str(d.version) })
+      : t('workspace:audit.planCreateNoVersion'),
+  'plan.update': (d) =>
+    d?.version
+      ? t('workspace:audit.planUpdate', { version: str(d.version) })
+      : t('workspace:audit.planUpdateNoVersion'),
+  'plan.delete': (d) =>
+    d?.version
+      ? t('workspace:audit.planDelete', { version: str(d.version) })
+      : t('workspace:audit.planDeleteNoVersion'),
   'plan.apply_template': (d) =>
-    `added checklist items${d?.template ? ` from “${String(d.template)}”` : ''}`,
-  'plan.notes_set': (d) => `edited the release notes${d?.locale ? ` for ${String(d.locale)}` : ''}`,
+    d?.template
+      ? t('workspace:audit.planApplyTemplate', { template: str(d.template) })
+      : t('workspace:audit.planApplyTemplateNone'),
+  'plan.notes_set': (d) =>
+    d?.locale
+      ? t('workspace:audit.planNotesSet', { locale: str(d.locale) })
+      : t('workspace:audit.planNotesSetNoLocale'),
   'plan.notes_delete': (d) =>
-    `removed the release notes${d?.locale ? ` for ${String(d.locale)}` : ''}`,
+    d?.locale
+      ? t('workspace:audit.planNotesDelete', { locale: str(d.locale) })
+      : t('workspace:audit.planNotesDeleteNoLocale'),
   'plan.rollout_set': (d) =>
-    `planned a staged rollout${d?.version ? ` for version ${String(d.version)}` : ''}`,
+    d?.version
+      ? t('workspace:audit.planRolloutSet', { version: str(d.version) })
+      : t('workspace:audit.planRolloutSetNoVersion'),
   'plan.rollout_clear': (d) =>
-    `removed the rollout plan${d?.version ? ` of version ${String(d.version)}` : ''}`,
+    d?.version
+      ? t('workspace:audit.planRolloutClear', { version: str(d.version) })
+      : t('workspace:audit.planRolloutClearNoVersion'),
   'plan.rollout_step_done': (d) =>
-    `marked a rollout step${d?.percent ? ` (${String(d.percent)}%)` : ''} done${d?.source === 'store' ? ' after the store reported it' : ''}`,
+    d?.source === 'store'
+      ? d?.percent
+        ? t('workspace:audit.planStepDoneStorePercent', { percent: str(d.percent) })
+        : t('workspace:audit.planStepDoneStore')
+      : d?.percent
+        ? t('workspace:audit.planStepDonePercent', { percent: str(d.percent) })
+        : t('workspace:audit.planStepDone'),
   'plan.rollout_step_skipped': (d) =>
-    `skipped a rollout step${d?.percent ? ` (${String(d.percent)}%)` : ''}`,
+    d?.percent
+      ? t('workspace:audit.planStepSkippedPercent', { percent: str(d.percent) })
+      : t('workspace:audit.planStepSkipped'),
   'plan.rollout_step_reopened': (d) =>
-    `reopened a rollout step${d?.percent ? ` (${String(d.percent)}%)` : ''}`,
+    d?.percent
+      ? t('workspace:audit.planStepReopenedPercent', { percent: str(d.percent) })
+      : t('workspace:audit.planStepReopened'),
   'plan.reminder': (d) =>
-    `sent a reminder${d?.kind ? ` (${String(d.kind).replace(/_/g, ' ')})` : ''}${d?.version ? ` for version ${String(d.version)}` : ''}`,
-  'checklist.item_add': () => 'added a checklist item to a release plan',
-  'checklist.item_update': () => 'changed a checklist item of a release plan',
-  'checklist.item_delete': () => 'removed a checklist item from a release plan',
-  'checklist.reorder': () => 'reordered the checklist of a release plan',
+    d?.kind
+      ? d?.version
+        ? t('workspace:audit.planReminderKindVersion', { kind: str(d.kind).replace(/_/g, ' '), version: str(d.version) })
+        : t('workspace:audit.planReminderKind', { kind: str(d.kind).replace(/_/g, ' ') })
+      : d?.version
+        ? t('workspace:audit.planReminderVersion', { version: str(d.version) })
+        : t('workspace:audit.planReminder'),
+  'checklist.item_add': () => t('workspace:audit.checklistItemAdd'),
+  'checklist.item_update': () => t('workspace:audit.checklistItemUpdate'),
+  'checklist.item_delete': () => t('workspace:audit.checklistItemDelete'),
+  'checklist.reorder': () => t('workspace:audit.checklistReorder'),
   'checklist_template.create': (d) =>
-    `saved a checklist template${d?.name ? ` “${String(d.name)}”` : ''}`,
+    d?.name
+      ? t('workspace:audit.templateCreateNamed', { name: str(d.name) })
+      : t('workspace:audit.templateCreate'),
   'checklist_template.update': (d) =>
-    `changed a checklist template${d?.name ? ` “${String(d.name)}”` : ''}`,
+    d?.name
+      ? t('workspace:audit.templateUpdateNamed', { name: str(d.name) })
+      : t('workspace:audit.templateUpdate'),
   'checklist_template.delete': (d) =>
-    `deleted a checklist template${d?.name ? ` “${String(d.name)}”` : ''}`,
+    d?.name
+      ? t('workspace:audit.templateDeleteNamed', { name: str(d.name) })
+      : t('workspace:audit.templateDelete'),
   'token.create': (d) =>
-    `made an API token${d?.name ? ` “${String(d.name)}”` : ''}${d?.role ? ` (${String(d.role)})` : ''}`,
-  'token.revoke': (d) => `revoked an API token${d?.name ? ` “${String(d.name)}”` : ''}`,
-  'webhook.create': (d) => `added a webhook${d?.url ? ` for ${String(d.url)}` : ''}`,
+    d?.name
+      ? d?.role
+        ? t('workspace:audit.tokenCreateNameRole', { name: str(d.name), role: roleWord(d.role) })
+        : t('workspace:audit.tokenCreateName', { name: str(d.name) })
+      : d?.role
+        ? t('workspace:audit.tokenCreateRole', { role: roleWord(d.role) })
+        : t('workspace:audit.tokenCreate'),
+  'token.revoke': (d) =>
+    d?.name
+      ? t('workspace:audit.tokenRevokeNamed', { name: str(d.name) })
+      : t('workspace:audit.tokenRevoke'),
+  'webhook.create': (d) =>
+    d?.url
+      ? t('workspace:audit.webhookCreateUrl', { url: str(d.url) })
+      : t('workspace:audit.webhookCreate'),
   'webhook.update': (d) =>
-    `changed a webhook${Array.isArray(d?.changed) && d.changed.length > 0 ? ` (${d.changed.join(', ')})` : ''}`,
-  'webhook.delete': (d) => `deleted a webhook${d?.url ? ` for ${String(d.url)}` : ''}`,
-  'webhook.rotate_secret': () => 'made a new signing secret for a webhook',
-  'webhook.test': () => 'sent a test event to a webhook',
-  'webhook.redeliver': () => 'sent a webhook delivery again',
+    Array.isArray(d?.changed) && d.changed.length > 0
+      ? t('workspace:audit.webhookUpdateFields', { fields: formatList(d.changed.map(str), { type: 'unit' }) })
+      : t('workspace:audit.webhookUpdate'),
+  'webhook.delete': (d) =>
+    d?.url
+      ? t('workspace:audit.webhookDeleteUrl', { url: str(d.url) })
+      : t('workspace:audit.webhookDelete'),
+  'webhook.rotate_secret': () => t('workspace:audit.webhookRotateSecret'),
+  'webhook.test': () => t('workspace:audit.webhookTest'),
+  'webhook.redeliver': () => t('workspace:audit.webhookRedeliver'),
+};
+
+/** A role as a lower-case word in the middle of a sentence; a role this version does not know is shown as it is. */
+const roleWords: Record<string, string> = {
+  owner: k('workspace:audit.role.owner'),
+  admin: k('workspace:audit.role.admin'),
+  member: k('workspace:audit.role.member'),
+  viewer: k('workspace:audit.role.viewer'),
+};
+const roleWord = (role: unknown): string => {
+  const key = roleWords[str(role)];
+  return key ? t(key) : str(role);
 };
 
 /** "2:14 PM" in the viewer's locale. */
 export function clockTime(at: number, locale?: string): string {
-  return new Date(at).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+  return formatTime(at, { locale });
 }
 
 /** The parts of an audit sentence, so the actor can be set in bold: `who` and `what`. */
@@ -106,8 +189,8 @@ export function describeEventParts(
 ): { who: string; what: string } {
   const who =
     event.actorType === 'token' && event.actorName
-      ? `API token “${event.actorName}”`
-      : (event.actorName ?? (event.actorType === 'user' ? 'Someone' : capitalize(event.actorType)));
+      ? t('workspace:audit.actorToken', { name: event.actorName })
+      : (event.actorName ?? actorFallback(event.actorType));
   const what = actions[event.action]?.(event.detail) ?? event.action;
   return { who, what };
 }
@@ -121,6 +204,16 @@ export function describeEvent(
 }
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Who did it when the event has no name: "Someone" for a person, "System" and "Assistant" for the others. */
+export const actorFallback = (actorType: string): string =>
+  actorType === 'user'
+    ? t('workspace:audit.actorSomeone')
+    : actorType === 'system'
+      ? t('workspace:audit.actorSystem')
+      : actorType === 'assistant'
+        ? t('workspace:audit.actorAssistant')
+        : capitalize(actorType);
 
 /** Up to two initials for an avatar: "Ada Lovelace" is "AL", "ada" is "A", "" is "?". */
 export function initials(name: string): string {
@@ -138,22 +231,23 @@ export function eventCategory(action: string): string {
 }
 
 const categoryLabels: Record<string, string> = {
-  credential: 'Credentials',
-  workspace: 'Workspace',
-  member: 'Members',
-  invite: 'Invitations',
-  invitation: 'Invitations',
-  repository: 'Repositories',
-  token: 'API tokens',
-  webhook: 'Webhooks',
-  plan: 'Release plans',
-  checklist: 'Checklists',
-  checklist_template: 'Checklist templates',
-  other: 'Other',
+  credential: k('workspace:audit.category.credential'),
+  workspace: k('workspace:audit.category.workspace'),
+  member: k('workspace:audit.category.member'),
+  invite: k('workspace:audit.category.invitation'),
+  invitation: k('workspace:audit.category.invitation'),
+  repository: k('workspace:audit.category.repository'),
+  token: k('workspace:audit.category.token'),
+  webhook: k('workspace:audit.category.webhook'),
+  plan: k('workspace:audit.category.plan'),
+  checklist: k('workspace:audit.category.checklist'),
+  checklist_template: k('workspace:audit.category.checklistTemplate'),
+  other: k('workspace:audit.category.other'),
 };
 
 export function categoryLabel(category: string): string {
-  return categoryLabels[category] ?? `${capitalize(category)}`;
+  const key = categoryLabels[category];
+  return key ? t(key) : capitalize(category);
 }
 
 /** An icon name (see components/ui/icons.ts) and a tone for an audit action. */
@@ -185,10 +279,11 @@ function startOfDay(at: number): Date {
 /** "Today", "Yesterday", or a date such as "Mon, 3 Nov". Uses the viewer's local days. */
 export function dayLabel(at: number, now: number = Date.now(), locale?: string): string {
   const days = Math.round((startOfDay(now).getTime() - startOfDay(at).getTime()) / DAY);
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Yesterday';
+  if (days === 0) return t('workspace:time.today');
+  if (days === 1) return t('workspace:time.yesterdayDay');
   const sameYear = new Date(at).getFullYear() === new Date(now).getFullYear();
-  return new Date(at).toLocaleDateString(locale, {
+  return formatDate(at, {
+    locale,
     weekday: 'short',
     day: 'numeric',
     month: 'short',

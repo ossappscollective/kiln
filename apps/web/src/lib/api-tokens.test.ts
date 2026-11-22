@@ -68,7 +68,7 @@ test('the actions a token can be narrowed to never include what tokens may not h
 test('action labels read as a short phrase', () => {
   assert.equal(actionLabel('apps.read'), 'Read apps');
   assert.equal(actionLabel('changesets.approve'), 'Approve and apply changesets');
-  assert.equal(actionLabel('ci.dispatch'), 'Start ci');
+  assert.equal(actionLabel('ci.dispatch'), 'Start CI workflows');
   assert.equal(actionLabel('listing.read'), 'Read listing');
 });
 
@@ -167,4 +167,14 @@ test('usable tokens come first, newest first within each group', () => {
     ['new', 'old', 'expired', 'old-revoked'],
   );
   assert.equal(list[0]?.id, 'old-revoked', 'the input is not changed');
+});
+
+test('every action a token may hold has a label of its own', async () => {
+  const { tokenActions } = await import('@kiln/core');
+  const { hasActionLabel } = await import('./api-tokens.ts');
+  for (const action of tokenActions) {
+    assert.equal(hasActionLabel(action), true, action);
+    assert.notEqual(actionLabel(action), action, action);
+  }
+  assert.equal(actionLabel('future.thing'), 'future.thing');
 });
