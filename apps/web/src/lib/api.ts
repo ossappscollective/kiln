@@ -101,6 +101,15 @@ import type { FixupBody, FixupResult, RecomputeResult } from './change-set-fixup
 import type { RefreshResult, Resolution, Staleness } from './change-set-refresh.ts';
 import type { CloneReport, PurgeResult, RepositoryClone } from './clone-upkeep.ts';
 import { isDemoStatus } from './demo.ts';
+import {
+  codedText,
+  type ErrorBody,
+  explicitText,
+  legacyText,
+  waitText,
+} from './error-text.ts';
+import { readLocalePref } from './i18n/preference.ts';
+import { currentLocale } from './i18n/t.ts';
 import type { McpStatus } from './mcp.ts';
 import type {
   PendingSummary,
@@ -289,9 +298,21 @@ export function waitPhrase(seconds: number): string {
 /** A sentence a person can act on, for each thing the API can say. */
 export function messageFor(
   status: number,
-  body: { error?: string; message?: string; issues?: Issue[]; paths?: string[] },
+  body: {
+    error?: string;
+    message?: string;
+    issues?: Issue[];
+    paths?: string[];
+    code?: unknown;
+    params?: unknown;
+  },
   retryAfter?: number,
 ): string {
+  // The server's stable `code` in the person's language (docs/i18n-server.md). A code the `errors`
+  // catalog does not have falls through to the English table below, and at the end to the server's
+  // own `message`.
+  const coded = explicitText(body as ErrorBody, retryAfter);
+  if (coded !== undefined) return coded;
   // Local clones: the server's messages are written to be shown (they name KILN_LOCAL_REPO_ROOTS, the
   // folder rule or the fix), so they are used as they are.
   if (body.error?.startsWith('local_') && body.message) return body.message;
@@ -301,6 +322,9 @@ export function messageFor(
   // Two-factor authentication and mail (docs/api/two-factor.md): fixed sentences for each code.
   const twoFactor = twoFactorMessage(body.error ?? '', retryAfter);
   if (twoFactor) return twoFactor;
+  // The code a response without one has implicitly (`not_found` is `errors:api.notFound`).
+  const legacy = legacyText(body as ErrorBody, retryAfter);
+  if (legacy !== undefined) return legacy;
   switch (body.error) {
     case 'invalid_credentials':
       return 'The email or password is wrong.';
@@ -485,8 +509,16 @@ export function messageFor(
         : 'Check the form and try again.';
     }
   }
-  if (status === 429) return `Too many requests. Try again in ${waitPhrase(retryAfter ?? 60)}.`;
-  return status >= 500 ? 'The server had a problem. Try again.' : `The request failed (${status}).`;
+  // A code this app does not know yet (a newer server): its English message is better than a bare status.
+  if (typeof body.code === 'string' && body.code.includes('.') && body.message) return body.message;
+  if (status === 429) {
+    return (
+      codedText('http.tooManyRequests', { wait: waitText(retryAfter ?? 60) }) ??
+      `Too many requests. Try again in ${waitPhrase(retryAfter ?? 60)}.`
+    );
+  }
+  if (status >= 500) return codedText('http.serverError') ?? 'The server had a problem. Try again.';
+  return codedText('http.requestFailed', { status }) ?? `The request failed (${status}).`;
 }
 
 export type ApiOptions = {
@@ -519,6 +551,12 @@ export function createApi(options: ApiOptions = {}) {
     extra: Record<string, string> | undefined,
   ): Record<string, string> | undefined => {
     const headers: Record<string, string> = { ...(extra || {}) };
+    // The language of the person, so the server writes emails and notes in it (docs/i18n-server.md). English
+    // without a saved choice is what the server assumes anyway, so nothing is sent then.
+    const language = currentLocale();
+    if (language !== 'pseudo' && (language !== 'en' || readLocalePref() !== null)) {
+      headers['accept-language'] = language;
+    }
     if (raw) headers['content-type'] = raw.type || 'application/octet-stream';
     else if (body !== undefined) headers['content-type'] = 'application/json';
     return Object.keys(headers).length > 0 ? headers : undefined;
@@ -545,7 +583,11 @@ export function createApi(options: ApiOptions = {}) {
         ...(raw !== undefined || body !== undefined ? { body: raw ?? JSON.stringify(body) } : {}),
       });
     } catch {
-      throw new ApiError(0, 'network', 'Cannot reach the server. Check that it is running.');
+      throw new ApiError(
+        0,
+        'network',
+        codedText('http.network') ?? 'Cannot reach the server. Check that it is running.',
+      );
     }
     if (response.status === 204) return undefined as T;
 
@@ -563,6 +605,8 @@ export function createApi(options: ApiOptions = {}) {
         message?: string;
         issues?: Issue[];
         paths?: string[];
+        code?: unknown;
+        params?: unknown;
       };
       const retryHeader = Number(response.headers.get('retry-after'));
       const retryAfter = Number.isFinite(retryHeader) && retryHeader > 0 ? retryHeader : undefined;
