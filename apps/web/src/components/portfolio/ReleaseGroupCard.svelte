@@ -4,6 +4,7 @@
   Props: group (from groupReleases), now (epoch ms, so relative times update).
 -->
 <script lang="ts">
+  import { playLiveUnconfirmed } from '../../lib/play-live.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { type ReleaseGroup, buildColumnLabel, statusInfo } from '../../lib/portfolio.ts';
@@ -52,7 +53,7 @@
           <tr>
             <th scope="row" class="version">{release.version}</th>
             <td>{release.build ?? '—'}</td>
-            <td><ReleaseStatus status={release.status} rawState={release.rawState} rolloutFraction={release.rolloutFraction} sentForReviewAt={release.sentForReviewAt} /></td>
+            <td><ReleaseStatus status={release.status} rawState={release.rawState} rolloutFraction={release.rolloutFraction} sentForReviewAt={release.sentForReviewAt} unconfirmed={playLiveUnconfirmed(release)} /></td>
             <td><code>{release.rawState}</code></td>
             <td class="muted">
               {#if release.storeUpdatedAt !== null}

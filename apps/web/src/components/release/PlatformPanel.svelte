@@ -6,6 +6,7 @@
   (the plan for this version, for the next action), primary (the app the page was opened for).
 -->
 <script lang="ts">
+  import { playLiveUnconfirmed } from '../../lib/play-live.ts';
   import { nextAction } from '../../lib/dashboard.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { appHref, platformLabel, storeName, trackLabel } from '../../lib/portfolio.ts';
@@ -57,13 +58,15 @@ import { platformMeta, supports } from '@kiln/core';
 
   <p class="observed muted small">
     <Icon name="eye" size={14} />
-    {#if app.lastSyncedAt !== null}
-      {@const syncedAt = app.lastSyncedAt}
-      <T key="release:panel.observed" params={{ store, ago: timeAgo(syncedAt, now) }} tags={{ link: syncedTime }} />
-      {#snippet syncedTime(text: string)}<time datetime={new Date(syncedAt).toISOString()} title={fullTime(syncedAt)}>{text}</time>{/snippet}
-    {:else}
-      {t('release:panel.neverObserved', { store })}
-    {/if}
+    <span class="sentence">
+      {#if app.lastSyncedAt !== null}
+        {@const syncedAt = app.lastSyncedAt}
+        <T key="release:panel.observed" params={{ store, ago: timeAgo(syncedAt, now) }} tags={{ link: syncedTime }} />
+        {#snippet syncedTime(text: string)}<time datetime={new Date(syncedAt).toISOString()} title={fullTime(syncedAt)}>{text}</time>{/snippet}
+      {:else}
+        {t('release:panel.neverObserved', { store })}
+      {/if}
+    </span>
   </p>
 
   {#if releases.length === 0}
@@ -83,7 +86,7 @@ import { platformMeta, supports } from '@kiln/core';
       <div class="release">
         {#if release.track !== null}<h3 class="track">{trackLabel(release.track)}</h3>{/if}
         <div class="line">
-          <ReleaseStatus status={release.status} rawState={release.rawState} sentForReviewAt={release.sentForReviewAt} />
+          <ReleaseStatus status={release.status} rawState={release.rawState} sentForReviewAt={release.sentForReviewAt} unconfirmed={playLiveUnconfirmed(release)} />
           <span class="muted small"><T key="release:panel.storeState" params={{ state: release.rawState }} /></span>
         </div>
         {#if release.status}
@@ -142,11 +145,21 @@ import { platformMeta, supports } from '@kiln/core';
     font-size: 0.9375rem;
   }
 
+  /* The icon beside ONE sentence: the message and its <time> are one inline run, never separate flex items. */
   .observed {
     display: flex;
     gap: var(--space-2);
-    align-items: center;
+    align-items: flex-start;
     margin: 0;
+  }
+
+  .observed :global(svg) {
+    flex: none;
+    margin-top: 0.2em;
+  }
+
+  .sentence {
+    min-width: 0;
   }
 
   .none {

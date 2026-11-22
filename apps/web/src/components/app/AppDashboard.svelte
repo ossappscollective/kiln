@@ -14,6 +14,7 @@
   components/ci/RunningNow.svelte. The run "Start release" starts shows in that same list.
 -->
 <script lang="ts">
+  import { playLiveUnconfirmed } from '../../lib/play-live.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { can, platformLabel, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
@@ -273,7 +274,7 @@
           <div>
             {#if inFlight}
               <dt>{t('app:dash.version', { version: inFlight.version })}</dt>
-              <dd><ReleaseStatus status={inFlight.status} rawState={inFlight.rawState} rolloutFraction={inFlight.rolloutFraction} sentForReviewAt={inFlight.sentForReviewAt} /></dd>
+              <dd><ReleaseStatus status={inFlight.status} rawState={inFlight.rawState} rolloutFraction={inFlight.rolloutFraction} sentForReviewAt={inFlight.sentForReviewAt} unconfirmed={playLiveUnconfirmed(inFlight)} /></dd>
             {:else}
               <dt>{t('app:dash.inFlight')}</dt>
               <dd class="muted">{t('app:dash.nothing')}</dd>

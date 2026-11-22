@@ -6,11 +6,11 @@ taken back). Design and the arguments: [ADR 0014](../adr/0014-release-management
 
 There are four parts, each with its own gate:
 
-| Part                                                              | What it does                                                                                       | Gate                                                                                                                        |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| [Reads](#reads-what-a-draft-is-made-of)                           | Lists processed builds / uploaded version codes, and shows the release fields the store holds.     | `listing.read`. No switch: they change nothing.                                                                             |
+| Part                                                              | What it does                                                                                       | Gate                                                                                                                         |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| [Reads](#reads-what-a-draft-is-made-of)                           | Lists processed builds / uploaded version codes, and shows the release fields the store holds.     | `listing.read`. No switch: they change nothing.                                                                              |
 | [Staging and the draft push](#staging-and-pushing-release-fields) | Release fields are staged items; the existing draft push writes them.                              | `changesets.write` to stage; `store.push_draft` and `KILN_STORE_DRAFT_WRITE_ENABLED` to push. Never submits, never releases. |
-| [Check with Google Play](#check-with-google-play-read-only)       | Asks Google Play whether it would refuse a proposed release. Saves nothing.                        | `listing.read`. No switch: it changes nothing.                                                                              |
+| [Check with Google Play](#check-with-google-play-read-only)       | Asks Google Play whether it would refuse a proposed release. Saves nothing.                        | `listing.read`. No switch: it changes nothing.                                                                               |
 | [Release](#release-irreversible)                                  | Releases an approved App Store version, or starts a Google Play draft release at a share you name. | `store.release` and `KILN_STORE_RELEASE_ENABLED`, a preview, a hash and a typed phrase.                                      |
 
 **Never run against a real store**: the connectors are tested with fakes only. Read [UNVERIFIED](#unverified-check-with-a-real-account)
@@ -256,10 +256,10 @@ Makes an approved App Store version available, or starts a Google Play draft rel
 
 ### Switch and right
 
-| Setting                     | Value                                                                                                                                                                                                                                   |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Setting                      | Value                                                                                                                                                                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `KILN_STORE_RELEASE_ENABLED` | Default `false`; only `true` and `false`; blank is off. **Independent of** the draft and submit switches. See [deployment](../deployment.md#releasing-a-store-write-off-by-default).                                                    |
-| `store.release`             | **admin and up** (owner, admin). **Explicit-only on API tokens**: the token's `actions` must name it (a token with no list never gets it) and the role ceiling still applies. Neither `store.push_draft` nor `store.submit` implies it. |
+| `store.release`              | **admin and up** (owner, admin). **Explicit-only on API tokens**: the token's `actions` must name it (a token with no list never gets it) and the role ceiling still applies. Neither `store.push_draft` nor `store.submit` implies it. |
 
 While the switch is off, preview and release answer `409 store_release_disabled` after the rights check and no connector is
 built; the config and state routes still work.
@@ -371,6 +371,23 @@ releases (as of the last sync) show a production release that is live, rolling o
 for iOS, `invalid_setting` for a bad value). A change is audited (`app.release_settings_update`, old and new values). The settings
 only pre-fill and hide the share input of the screens; this API still takes the typed share of each release, so nothing about the
 write gates changes. See `docs/adr/0029-direct-play-release.md`.
+
+## What Google Play does not tell
+
+Google Play's API (`edits.tracks`, `edits.commit`) has no field for the review state of a release and none for managed publishing
+(changes approved by Google but not yet published by the developer). The only review-related signal in the reference is the
+`CHANGES_ALREADY_IN_REVIEW` error of a commit made with `changesInReviewBehavior=ERROR_IF_IN_REVIEW`: a write, so it is never used to
+read. A track release therefore reads `completed` (served to everyone) or `inProgress` as soon as it is committed, and Kiln cannot
+tell "live" from "approved, waiting for you to publish it" (docs/adr/0029-direct-play-release.md).
+
+What the screens do about it:
+
+- A release this server sent in the last 7 days reads "In review" (a statement about what was sent from here; `sentForReviewAt`).
+- After that, a **production** release Play reports as `completed` or `inProgress` reads **"Live, not confirmed"** (or "Rolling out, not
+  confirmed") with the tooltip "Live status could not be confirmed", instead of "Live" (`lib/play-live.ts`). Internal, closed and
+  open testing tracks keep their word: they are not published through managed publishing the same way.
+- The raw state (`completed`, `inProgress`) is always shown beside it ("Store state"). Only Play Console says whether the release is
+  published; check it there when the difference matters.
 
 ## UNVERIFIED (check with a real account)
 

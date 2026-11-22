@@ -1,18 +1,19 @@
 <!--
   AppsOverview: the apps of the workspace, one merged row per app (the iOS, macOS and Android records of one
   product together). Read left to right: the app (icon, name, bundle id, rating), its platforms with the latest version of each
-  (platform name always written), the status pill (rowStatus; one per platform that is in review, rolling out, halted or rejected, each named), ONE next action (rowNextAction: the most urgent thing to do, or
+  (platform name always written), the status chips (one per platform of the app, in the order iOS, macOS, Android: the platform icon and the state of its most urgent release; platformStatuses), ONE next action (rowNextAction: the most urgent thing to do, or
   nothing), and the last sync with its button. Pending changes, unfinished releases and new reviews are not extra badges: the
   most urgent of them is the next action.
   Props: rows (from buildOverviewRows), now (epoch ms), canSync (shows Sync), syncing (app ids being
   synced), locked (true while "Sync all" owns the sync buttons), onsync (called with a row's group).
 -->
 <script lang="ts">
+  import { playLiveUnconfirmed, releaseStatusText } from '../../lib/play-live.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { formatNumber } from '../../lib/i18n/format.ts';
   import { type Platform, platformLabel } from '@kiln/core';
   import type { AppGroup } from '../../lib/app-groups.ts';
-  import { type OverviewRow, type PlatformCell, rowNextAction, rowStatus } from '../../lib/app-overview.ts';
+  import { type OverviewRow, type PlatformCell, platformStatuses, rowNextAction, rowStatus } from '../../lib/app-overview.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import SyncStatus from './SyncStatus.svelte';
@@ -113,22 +114,25 @@
             </ul>
           </td>
           <td>
-            <div class="status">
-              {#if status.primary.kind === 'release'}
-                {#each [status.primary.release, ...status.more] as r (r.id)}
-                  <span class="pill">
-                    <ReleaseStatus status={r.status} rawState={r.rawState} rolloutFraction={r.rolloutFraction} sentForReviewAt={r.sentForReviewAt} />
-                    {#if g.members.length > 1}<span class="muted on">{platformLabel(r.platform)}</span>{/if}
+            <ul class="chips" aria-label={t('portfolio:overviewTable.statuses')}>
+              {#each platformStatuses(row) as ps (ps.platform)}
+                {@const text = ps.kind === 'release' && ps.release ? releaseStatusText(ps.release) : ps.kind === 'loading' ? '…' : ps.kind === 'error' ? t('portfolio:overviewTable.loadFailed') : t('portfolio:overviewTable.none')}
+                <li>
+                  <span class="chip" role="img" aria-label={t('portfolio:overviewTable.platformStatus', { platform: platformLabel(ps.platform), status: text })}>
+                    <PlatformBadge platform={ps.platform} showLabel={false} />
+                    {#if ps.kind === 'release' && ps.release}
+                      <ReleaseStatus status={ps.release.status} rawState={ps.release.rawState} rolloutFraction={ps.release.rolloutFraction} sentForReviewAt={ps.release.sentForReviewAt} unconfirmed={playLiveUnconfirmed(ps.release)} />
+                    {:else if ps.kind === 'loading'}
+                      <Skeleton width="64px" height="20px" />
+                    {:else}
+                      <span class="muted">{text}</span>
+                    {/if}
                   </span>
-                {/each}
-              {:else if status.primary.kind === 'sync-failed'}
-                <Badge tone="bad" icon="alert">{t('portfolio:overviewTable.syncFailed')}</Badge>
-              {:else if status.primary.kind === 'loading'}
-                <Skeleton width="80px" height="20px" />
-              {:else}
-                <span class="muted">{status.primary.text}</span>
-              {/if}
-            </div>
+                </li>
+              {/each}
+              {#if status.primary.kind === 'sync-failed'}<li><Badge tone="bad" icon="alert">{t('portfolio:overviewTable.syncFailed')}</Badge></li>{/if}
+              {#if status.primary.kind === 'none'}<li><span class="muted">{status.primary.text}</span></li>{/if}
+            </ul>
           </td>
           <td>
             {#if next}
@@ -138,7 +142,7 @@
             {/if}
           </td>
           <td>
-            <SyncStatus app={syncMember(row)} {now} />
+            <SyncStatus app={syncMember(row)} {now} compact />
           </td>
           {#if canSync}
             <td class="actions">
@@ -189,8 +193,7 @@
     min-width: 13rem;
   }
 
-  .meta,
-  .status {
+  .meta {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-1) var(--space-2);
@@ -221,14 +224,22 @@
     white-space: nowrap;
   }
 
-  .pill {
+  /* One chip per platform: its icon and its state, side by side; the chips wrap as a whole, never inside. */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    align-items: center;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .chip {
     display: inline-flex;
     gap: var(--space-1);
     align-items: center;
-  }
-
-  .on {
-    font-size: var(--text-sm);
+    white-space: nowrap;
   }
 
   /* The next action is the one thing in the row that reads as a call to act; its tone says how urgent. */

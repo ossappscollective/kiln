@@ -63,6 +63,14 @@ For Google Play there is no separate submit. A commit **without** `changesNotSen
 8. **MCP.** The MCP server has no release write tool (store writes are API only), so there is nothing to keep consistent there;
    `check_play_release` is unchanged and stays valid for this path.
 
+## Limit: live versus approved and waiting (managed publishing)
+
+Google Play's API exposes no review state and no managed-publishing state (see "What Google Play does not tell" in
+`docs/api/releases-write.md`). A committed production release reads `completed` or `inProgress` whether Google has not yet reviewed
+it, has approved it and waits for the developer to publish it, or it is serving users. Kiln therefore does not claim "Live" for a
+production release it did not just send: it shows "Live, not confirmed" (`lib/play-live.ts`) and points to Play Console. The pipeline
+(release trains, next step) still treats such a release as quiet, because nothing in the data says it waits for the person.
+
 ## Not verified (UNVERIFIED against real Google)
 
 - That a commit without `changesNotSentForReview` of a track update sends the edit to review, and that Google publishes after review

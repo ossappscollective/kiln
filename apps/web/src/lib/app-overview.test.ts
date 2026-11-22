@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dataChips } from './app-chips.ts';
 import { groupApps } from './app-groups.ts';
-import { buildOverviewRows, overviewStats, rowNextAction, rowStatus } from './app-overview.ts';
+import { buildOverviewRows, overviewStats, platformStatuses, rowNextAction, rowStatus } from './app-overview.ts';
 import { attentionCount } from './nav-badges.ts';
 import type { ReleaseLoad } from './portfolio.ts';
 import type { PipelineSummaryApp } from './release-pipeline.ts';
@@ -309,4 +309,24 @@ test('a row offers ONE next action, the most urgent first, and none when nothing
     next([rel('i', 'ios', '2.0', 'rejected')])?.href ?? '',
     /^#\/portfolio\/.+\/release\/2\.0\?platform=ios$/,
   );
+});
+
+test('the status column has one entry per platform of the app, iOS, macOS, Android, each with its most urgent release', () => {
+  const rel = (platform: 'ios' | 'macos' | 'android', status: string, id = platform + status) =>
+    ({ id, appId: platform, platform, version: '2.0.1', track: platform === 'android' ? 'production' : null, build: null, status, rawState: 'x', rolloutFraction: null, versionCodes: null, storeUpdatedAt: null, syncedAt: 0 }) as never;
+  const live = rel('android', 'live');
+  const review = rel('android', 'in_review');
+  const row = {
+    group: {},
+    ios: { state: 'ready', latest: rel('ios', 'live') },
+    macos: null,
+    android: { state: 'ready', latest: live },
+    inFlight: [review],
+  } as never;
+  const out = platformStatuses(row);
+  assert.deepEqual(out.map((p) => p.platform), ['ios', 'android']);
+  assert.equal(out[0]?.release?.status, 'live');
+  // An android release in review wins over the newest (live) one.
+  assert.equal(out[1]?.release?.status, 'in_review');
+  assert.deepEqual(platformStatuses({ ...(row as object), ios: { state: 'loading' }, android: { state: 'error' } } as never).map((p) => p.kind), ['loading', 'error']);
 });

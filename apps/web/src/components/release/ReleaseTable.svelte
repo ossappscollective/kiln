@@ -9,6 +9,7 @@
   and a button in its details: it opens Prepare release with the track and the version codes filled in (lib/play-promote.ts).
 -->
 <script lang="ts">
+  import { playLiveUnconfirmed } from '../../lib/play-live.ts';
   import { can, type Role, supports } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { type PlatformScope, appAddress } from '../../lib/app-scope.ts';
@@ -128,7 +129,7 @@
             </td>
             <td class="tabular">{row.buildText}</td>
             <td>
-              <ReleaseStatus status={row.status} rawState={row.release.rawState} sentForReviewAt={row.release.sentForReviewAt} />
+              <ReleaseStatus status={row.status} rawState={row.release.rawState} sentForReviewAt={row.release.sentForReviewAt} unconfirmed={playLiveUnconfirmed(row.release)} />
             </td>
             <td class="num tabular">
               {#if row.rolloutText}{row.rolloutText}{:else}<span class="muted" title={supports(row.platform, 'phasedRelease') ? t('release:rt.noPhasedShare') : t('release:rt.noShare')}>—</span>{/if}

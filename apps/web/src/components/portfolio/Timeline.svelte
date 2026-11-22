@@ -1,39 +1,55 @@
 <!--
-  Timeline: the lifecycle of a release as a row of steps, from draft to live, with the release's
-  place marked. The steps come from the state machine in @kiln/core, so Android shows
-  "Propagating" and iOS does not. Done, current and upcoming are said in words for screen readers
-  and shown by an icon and a border, not by color alone.
+  Timeline: the lifecycle of a release as ONE compact progress indicator: a single row of small dots from draft to live (done filled,
+  current a ring in the accent colour or the tone of the state, upcoming muted) and, beside it, only the current step in words
+  ("In review · step 4 of 8"). The whole list is in the tooltip and, for screen readers, an ordered list in which the current item has
+  aria-current="step" and each item says whether it is done, current or not reached. The steps come from the state machine in
+  @kiln/core, so Android shows "Propagating" and iOS does not. It never wraps to several rows (it fits 360 px).
   Props: platform, status (ReleaseState or null), label (accessible name of the list).
 -->
 <script lang="ts">
   import { k, t } from '../../lib/i18n/t.ts';
   import type { Platform, ReleaseState } from '@kiln/core';
   import { timeline } from '../../lib/portfolio.ts';
-  import Icon from '../ui/Icon.svelte';
+  import { timelineProgress } from '../../lib/timeline-progress.ts';
 
   let { platform, status, label }: { platform: Platform; status: ReleaseState | null; label: string } = $props();
 
   const steps = $derived(timeline(platform, status));
+  const progress = $derived(timelineProgress(steps));
   const positionText = { done: k('portfolio:timeline.done'), current: k('portfolio:timeline.current'), upcoming: k('portfolio:timeline.upcoming') } as const;
 </script>
 
 {#if steps.length > 0}
-  <ol class="timeline" aria-label={label}>
-    {#each steps as step (step.state)}
-      <li class="step {step.position} {step.tone}" aria-current={step.position === 'current' ? 'step' : undefined}>
-        {#if step.position === 'done'}<Icon name="check" size={14} />{/if}
-        <span>{step.label}</span>
-        <span class="visually-hidden">{t('portfolio:timeline.position', { position: t(positionText[step.position]) })}</span>
-      </li>
-    {/each}
-  </ol>
+  <div class="progress" title={progress.path} data-testid="timeline">
+    <ol class="dots" aria-label={label}>
+      {#each steps as step (step.state)}
+        <li class="step {step.position} {step.tone}" aria-current={step.position === 'current' ? 'step' : undefined}>
+          <span class="dot" aria-hidden="true"></span>
+          <span class="visually-hidden">{step.label}{t('portfolio:timeline.position', { position: t(positionText[step.position]) })}</span>
+        </li>
+      {/each}
+    </ol>
+    {#if progress.current && progress.index !== null}
+      <span class="now" aria-hidden="true">{t('portfolio:timeline.now', { label: progress.current.label, n: progress.index, total: progress.total })}</span>
+    {/if}
+  </div>
 {/if}
 
 <style>
-  .timeline {
+  .progress {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
+    flex-wrap: nowrap;
+    gap: var(--space-3);
+    align-items: center;
+    min-width: 0;
+  }
+
+  .dots {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: var(--space-1);
+    align-items: center;
     padding: 0;
     margin: 0;
     list-style: none;
@@ -41,58 +57,60 @@
 
   .step {
     display: inline-flex;
-    gap: var(--space-1);
     align-items: center;
-    padding: var(--space-1) var(--space-3);
-    font-size: var(--text-sm);
-    border: 1px solid transparent;
+  }
+
+  .dot {
+    box-sizing: border-box;
+    width: 0.625rem;
+    height: 0.625rem;
+    background: var(--line-strong);
+    border: 2px solid transparent;
     border-radius: var(--radius-full);
   }
 
-  .step.done {
-    color: var(--muted);
-    background: var(--surface-sunken);
-    border-color: var(--line);
+  .step.done .dot {
+    background: var(--accent);
   }
 
-  .step.upcoming {
-    color: var(--muted);
-    border: 1px dashed var(--line-strong);
+  .step.upcoming .dot {
+    background: transparent;
+    border-color: var(--line-strong);
   }
 
-  .step.current {
-    font-weight: var(--weight-semibold);
-    color: var(--accent);
+  .step.current .dot {
+    width: 0.875rem;
+    height: 0.875rem;
     background: var(--accent-bg);
-    border: 2px solid var(--accent);
+    border-color: var(--accent);
   }
 
-  .step.current.neutral,
-  .step.current.accent {
-    color: var(--accent);
-  }
-
-  .step.current.ok {
-    color: var(--ok-ink);
+  .step.current.ok .dot {
     background: var(--ok-bg);
     border-color: var(--ok);
   }
 
-  .step.current.bad {
-    color: var(--bad-ink);
+  .step.current.bad .dot {
     background: var(--bad-bg);
     border-color: var(--bad);
   }
 
-  .step.current.warn {
-    color: var(--warn-ink);
+  .step.current.warn .dot {
     background: var(--warn-bg);
     border-color: var(--warn);
   }
 
-  .step.current.info {
-    color: var(--info-ink);
+  .step.current.info .dot {
     background: var(--info-bg);
     border-color: var(--info);
+  }
+
+  .now {
+    min-width: 0;
+    overflow: hidden;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

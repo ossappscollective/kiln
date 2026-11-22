@@ -1,4 +1,4 @@
-import { platformLabel, type ReleaseState } from '@kiln/core';
+import { type Platform, platformLabel, type ReleaseState } from '@kiln/core';
 import type { AppGroup } from './app-groups.ts';
 import { t } from './i18n/t.ts';
 import { appAddress } from './app-scope.ts';
@@ -221,7 +221,9 @@ export type RowStatus = {
 export function rowStatus(row: OverviewRow, loading: boolean): RowStatus {
   const headingOne = (stalled: SummaryStall | null, platform: string | null): string => {
     const heading = stalled ? unfinishedHeading(stalled.step) : unfinishedHeading('draft');
-    return platform === null ? heading : t('app:overview.unfinishedOnPlatform', { heading, platform });
+    return platform === null
+      ? heading
+      : t('app:overview.unfinishedOnPlatform', { heading, platform });
   };
   let primary: RowStatus['primary'];
   if (row.attention) primary = { kind: 'release', release: row.attention };
@@ -271,7 +273,9 @@ export function rowStatus(row: OverviewRow, loading: boolean): RowStatus {
             text: allReleases
               ? t('app:overview.releasesLeft', { count: items.length })
               : t('app:overview.thingsLeft', { count: items.length }),
-            action: allReleases ? t('app:overview.finishReleases') : t('app:overview.seeWhatIsLeft'),
+            action: allReleases
+              ? t('app:overview.finishReleases')
+              : t('app:overview.seeWhatIsLeft'),
             title: items
               .map((x) =>
                 t('app:overview.platformDetail', {
@@ -348,4 +352,40 @@ export function rowNextAction(row: OverviewRow, status: RowStatus): RowNextActio
       tone: 'accent',
     };
   return null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The status column: one chip per platform of the app
+
+/** The state of one platform of an app, for its chip in the status column. */
+export type PlatformStatus = {
+  platform: Platform;
+  /** `release`: the platform's most urgent release (a state in flight, else its newest); `none`: loaded, nothing reported. */
+  kind: 'release' | 'loading' | 'error' | 'none';
+  release: ReleaseSummary | null;
+};
+
+/**
+ * Every platform the app has (iOS, macOS, Android, always in that order), each with the state of its most urgent release: one that is
+ * in review, rolling out, halted or rejected before the newest one. The app-level "Next" column does not depend on this.
+ */
+export function platformStatuses(row: OverviewRow): PlatformStatus[] {
+  const out: PlatformStatus[] = [];
+  const cells: [Platform, PlatformCell | null][] = [
+    ['ios', row.ios],
+    ['macos', row.macos],
+    ['android', row.android],
+  ];
+  for (const [platform, c] of cells) {
+    if (c === null) continue;
+    if (c.state !== 'ready') {
+      out.push({ platform, kind: c.state, release: null });
+      continue;
+    }
+    const best = [c.latest, ...row.inFlight.filter((r) => r.platform === platform)]
+      .filter((r): r is ReleaseSummary => r !== null)
+      .sort((a, b) => rank(a) - rank(b))[0];
+    out.push(best ? { platform, kind: 'release', release: best } : { platform, kind: 'none', release: null });
+  }
+  return out;
 }
