@@ -10,10 +10,12 @@
   showPlatform? (name the platform in the heading, for a scope with several), visible? (steps shown before "Show all", default 4).
 -->
 <script lang="ts">
+  import type { FitField } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { type AsoCoachResponse, asoErrorMessage } from '../../lib/aso/aso.ts';
-  import { coachHref } from '../../lib/aso/budget.ts';
+  import { budgetFieldLabel, coachHref } from '../../lib/aso/budget.ts';
+  import { coachWords } from '../../lib/core-text.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -57,11 +59,12 @@
   });
 
   const nextSteps = $derived(data?.actions ?? []);
+  const words = (a: (typeof nextSteps)[number]) => coachWords(a, (field) => budgetFieldLabel(app.platform, field as FitField));
   const shown = $derived(all ? nextSteps : nextSteps.slice(0, visible));
 </script>
 
 {#if nextSteps.length > 0}
-  <Section title={showPlatform ? t('aso:coach.titlePlatform', { platform: platformLabel(app.platform) }) : t('aso:coach.title')} key="coach.{app.platform}" count={t('aso:coach.count', { count: nextSteps.length })} summary={nextSteps[0]?.title ?? ''}>
+  <Section title={showPlatform ? t('aso:coach.titlePlatform', { platform: platformLabel(app.platform) }) : t('aso:coach.title')} key="coach.{app.platform}" count={t('aso:coach.count', { count: nextSteps.length })} summary={nextSteps[0] ? words(nextSteps[0]).title : ''}>
     {#snippet actions()}
       <InfoTip label={t('aso:coach.how')} align="end">
         <p class="tip">
@@ -72,23 +75,24 @@
     <div class="coach">
     <ol class="steps">
       {#each shown as a (a.id)}
+        {@const w = words(a)}
         <li>
           <span class="pos" aria-hidden="true">{a.position}</span>
           <div class="what">
-            <strong>{a.title}</strong>
+            <strong>{w.title}</strong>
             {#if a.items.length === 0}
-              <span class="muted detail">{a.detail}</span>
+              <span class="muted detail">{w.detail}</span>
             {:else}
               <Disclosure summary={t('aso:coach.details')} stateKey="aso.coach.{app.id}.{a.id}">
-                <p class="detail muted">{a.detail}</p>
+                <p class="detail muted">{w.detail}</p>
                 <ul class="items">
-                  {#each a.items as item, i (i)}<li>{item}</li>{/each}
+                  {#each w.items as item, i (i)}<li>{item}</li>{/each}
                 </ul>
                 {#if a.more > 0}<p class="muted more">{t('aso:coach.more', { count: a.more })}</p>{/if}
               </Disclosure>
             {/if}
           </div>
-          <Button size="sm" href={coachHref(a.link, app.id, app.platform)}>{a.link.label}</Button>
+          <Button size="sm" href={coachHref(a.link, app.id, app.platform)}>{w.linkLabel}</Button>
         </li>
       {/each}
     </ol>

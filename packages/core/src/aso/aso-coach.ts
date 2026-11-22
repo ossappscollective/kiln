@@ -17,6 +17,7 @@ import {
   PLAY_FIELD_SPECS,
 } from '../listing/listing.ts';
 import { supports } from '../platform.ts';
+import { type CoreText, coreText } from '../text.ts';
 import {
   type AsoPlatform,
   checkTerm,
@@ -719,6 +720,15 @@ export type CoachAction = {
   position: number;
   title: string;
   detail: string;
+  /**
+   * The title, the detail and the lines as keys with parameters (`CoreText`), for a client that shows
+   * them in the reader's language. Keys start with `coach.`. `itemTexts` runs parallel to `items`.
+   */
+  titleText: CoreText;
+  detailText: CoreText;
+  itemTexts: CoreText[];
+  /** The label of `link`: `coach.link.keywordsAdd`, `keywords`, `listingKeywords`, `competitors`, `listing`, `listingLocale` (parameter `locale`). */
+  linkText: CoreText;
   /** What it is about, short lines (at most 5). */
   items: string[];
   /** How many more there are than `items` shows. */
@@ -735,7 +745,27 @@ const count = (n: number, one: string, many: string): string => `${n} ${n === 1 
 const ROOM_SHARE = 0.15;
 const ROOM_MIN = 5;
 
-type Draft = Omit<CoachAction, 'position' | 'items' | 'more'> & { all: string[] };
+type Draft = Omit<CoachAction, 'position' | 'items' | 'itemTexts' | 'more' | 'linkText'> & {
+  all: string[];
+  allText: CoreText[];
+};
+
+const linkLabelText = (link: CoachLink): CoreText => {
+  switch (link.to) {
+    case 'keywords_add':
+      return coreText('coach.link.keywordsAdd');
+    case 'keywords':
+      return coreText('coach.link.keywords');
+    case 'listing_keywords':
+      return coreText('coach.link.listingKeywords');
+    case 'competitors':
+      return coreText('coach.link.competitors');
+    default:
+      return link.locale === undefined
+        ? coreText('coach.link.listing')
+        : coreText('coach.link.listingLocale', { locale: link.locale });
+  }
+};
 
 function dropSize(change: RankChange | null): number {
   if (!change) return 0;
@@ -765,7 +795,10 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       title: 'Track your first keywords',
       detail:
         'A keyword is a word or phrase people might search for. Tracking one records where the app appears in the store results for it.',
+      titleText: coreText('coach.trackKeywords.title'),
+      detailText: coreText('coach.trackKeywords.detail'),
       all: [],
+      allText: [],
       link: { to: 'keywords_add', label: 'Add keywords' },
     });
   }
@@ -779,7 +812,10 @@ export function buildCoach(input: CoachInput): CoachAction[] {
         kind: 'check_ranks',
         title: 'Check the ranks for the first time',
         detail: `${count(unchecked, 'tracked keyword has', 'tracked keywords have')} not been checked yet. A check reads the public store; nothing is changed there.`,
+        titleText: coreText('coach.checkRanksFirst.title'),
+        detailText: coreText('coach.checkRanksFirst.detail', { count: unchecked }),
         all: [],
+        allText: [],
         link: { to: 'keywords', label: 'Open keywords' },
       });
     } else if (input.now - input.lastCheckAt >= stale) {
@@ -789,7 +825,10 @@ export function buildCoach(input: CoachInput): CoachAction[] {
         kind: 'check_ranks',
         title: `Ranks were last checked ${days === 1 ? '1 day' : `${days} days`} ago`,
         detail: 'Ranks only change when a check runs. Run one to see where things stand now.',
+        titleText: coreText('coach.checkRanksStale.title', { count: days }),
+        detailText: coreText('coach.checkRanksStale.detail'),
         all: [],
+        allText: [],
         link: { to: 'keywords', label: 'Open keywords' },
       });
     }
@@ -810,7 +849,23 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       kind: 'rank_dropped',
       title: `${count(drops.length, 'keyword', 'keywords')} dropped in rank`,
       detail: `Down at least ${count(input.rankMoveThreshold, 'place', 'places')}, or out of the top 10, between the last two checks.`,
+      titleText: coreText('coach.rankDropped.title', { count: drops.length }),
+      detailText: coreText('coach.rankDropped.detail', { count: input.rankMoveThreshold }),
       all: drops.map((k) => `${k.term} (${k.country.toUpperCase()}): ${dropText(k.change)}`),
+      allText: drops.map((k) =>
+        k.change?.kind === 'dropped'
+          ? coreText('coach.rankDropped.left', {
+              term: k.term,
+              country: k.country.toUpperCase(),
+              from: k.change.from ?? 0,
+            })
+          : coreText('coach.rankDropped.moved', {
+              term: k.term,
+              country: k.country.toUpperCase(),
+              from: k.change?.from ?? 0,
+              to: k.change?.to ?? 0,
+            }),
+      ),
       link: { to: 'keywords', label: 'Open keywords' },
     });
   }
@@ -831,7 +886,13 @@ export function buildCoach(input: CoachInput): CoachAction[] {
     }));
 
   // 4. Tracked keywords that are not in the listing.
-  const missingLines: { line: string; locale: string; priority: number }[] = [];
+  const missingLines: {
+    line: string;
+    term: string;
+    keywordLocale: string;
+    locale: string;
+    priority: number;
+  }[] = [];
   byLocale.forEach((entry) => {
     const listing = matchListingLocale(input.listingLocales, entry.locale);
     if (!listing) return;
@@ -844,6 +905,8 @@ export function buildCoach(input: CoachInput): CoachAction[] {
     for (const m of budget.missing)
       missingLines.push({
         line: `${m.term} (${entry.locale})`,
+        term: m.term,
+        keywordLocale: entry.locale,
         locale: listing.locale,
         priority: m.priority,
       });
@@ -857,7 +920,12 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       kind: 'not_in_listing',
       title: `${count(missingLines.length, 'tracked keyword is', 'tracked keywords are')} not in the listing`,
       detail: `None of their words appear in the ${where}, so the store has little reason to show the app for them.`,
+      titleText: coreText('coach.notInListing.title', { count: missingLines.length }),
+      detailText: coreText(isApple ? 'coach.notInListing.detailApple' : 'coach.notInListing.detailPlay'),
       all: missingLines.map((m) => m.line),
+      allText: missingLines.map((m) =>
+        coreText('coach.item.keywordLocale', { term: m.term, locale: m.keywordLocale }),
+      ),
       link: { to: 'listing', locale: first.locale, label: `Open ${first.locale} in the listing` },
     });
   }
@@ -877,6 +945,22 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       title: `${count(total, 'set keyword is', 'set keywords are')} not tracked`,
       detail:
         'These are in the keyword field of the listing, but no rank is recorded for them, so you cannot tell whether they help. Tracking one only reads the public store.',
+      titleText: coreText('coach.untrackedSet.title', { count: total }),
+      detailText: coreText('coach.untrackedSet.detail'),
+      allText: untrackedSet.map((u) =>
+        u.terms.length > 4
+          ? coreText('coach.untrackedSet.itemMore', {
+              locale: u.locale,
+              country: u.country.toUpperCase(),
+              terms: u.terms.slice(0, 4).join(', '),
+              count: u.terms.length - 4,
+            })
+          : coreText('coach.untrackedSet.item', {
+              locale: u.locale,
+              country: u.country.toUpperCase(),
+              terms: u.terms.join(', '),
+            }),
+      ),
       all: untrackedSet.map(
         (u) =>
           `${u.locale} (${u.country.toUpperCase()}): ${u.terms.slice(0, 4).join(', ')}${u.terms.length > 4 ? ` and ${u.terms.length - 4} more` : ''}`,
@@ -907,6 +991,22 @@ export function buildCoach(input: CoachInput): CoachAction[] {
         title: `${count(rows.length, 'followed competitor ranks', 'followed competitors rank')} above you`,
         detail:
           'In the stored results for tracked keywords, a competitor you follow comes before this app. Compare their name and subtitle with yours.',
+        titleText: coreText('coach.competitorAbove.title', { count: rows.length }),
+        detailText: coreText('coach.competitorAbove.detail'),
+        allText: rows.map(({ a, k }) =>
+          k.state === 'ranked' && k.rank !== null
+            ? coreText('coach.competitorAbove.itemRanked', {
+                name: a.competitorName,
+                competitorRank: a.competitorRank,
+                term: k.term,
+                rank: k.rank,
+              })
+            : coreText('coach.competitorAbove.itemUnranked', {
+                name: a.competitorName,
+                competitorRank: a.competitorRank,
+                term: k.term,
+              }),
+        ),
         all: rows.map(
           ({ a, k }) =>
             `${a.competitorName} is ${a.competitorRank} for ${k.term}; ${k.state === 'ranked' && k.rank !== null ? `you are ${k.rank}` : 'you are not in the results'}`,
@@ -943,7 +1043,12 @@ export function buildCoach(input: CoachInput): CoachAction[] {
         title: `The keyword field wastes ${count(total, 'byte', 'bytes')}`,
         detail:
           'Spaces after commas, empty or repeated entries, and entries the name or subtitle already hold take room from words that could be added. UNVERIFIED that the store ignores repeats across fields.',
+        titleText: coreText('coach.keywordFieldWaste.title', { count: total }),
+        detailText: coreText('coach.keywordFieldWaste.detail'),
         all: wasteful.map((b) => `${b.l.locale}: ${count(bytesOf(b), 'byte', 'bytes')}`),
+        allText: wasteful.map((b) =>
+          coreText('coach.keywordFieldWaste.item', { locale: b.l.locale, count: bytesOf(b) }),
+        ),
         link: { to: 'listing', locale: first, label: `Open ${first} in the listing` },
       });
     }
@@ -959,7 +1064,12 @@ export function buildCoach(input: CoachInput): CoachAction[] {
   );
 
   // 7. Characters left unused in the fields a person writes (an empty keyword field is reported as an untapped locale instead).
-  const room: { line: string; locale: string; remaining: number }[] = [];
+  const room: {
+    line: string;
+    text: CoreText;
+    locale: string;
+    remaining: number;
+  }[] = [];
   for (const { l, budget } of budgets) {
     for (const f of budget.fields) {
       if (f.field === 'description') continue;
@@ -967,6 +1077,10 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       if (f.remaining >= Math.max(ROOM_MIN, Math.ceil(f.limit * ROOM_SHARE))) {
         room.push({
           line: `${l.locale} ${f.label.toLowerCase()}: ${f.used} of ${f.limit} ${f.unit} used`,
+          text: coreText(
+            f.unit === 'bytes' ? 'coach.unusedCharacters.itemBytes' : 'coach.unusedCharacters.itemCharacters',
+            { locale: l.locale, field: f.field, used: f.used, limit: f.limit },
+          ),
           locale: l.locale,
           remaining: f.remaining,
         });
@@ -982,7 +1096,10 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       title: `${count(room.length, 'field has', 'fields have')} room left`,
       detail:
         'Characters not used are words the store cannot match. Fill them only with words that describe the app.',
+      titleText: coreText('coach.unusedCharacters.title', { count: room.length }),
+      detailText: coreText('coach.unusedCharacters.detail'),
       all: room.map((r) => r.line),
+      allText: room.map((r) => r.text),
       link: { to: 'listing', locale: first, label: `Open ${first} in the listing` },
     });
   }
@@ -1004,7 +1121,26 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       title: `${count(untapped.length, 'locale has', 'locales have')} no ${isApple ? 'keyword' : 'search'} text`,
       detail:
         'A locale with no text gives the store nothing to match in that language. A storefront may also read other locales of the listing (UNVERIFIED).',
+      titleText: coreText(
+        isApple ? 'coach.untappedLocale.titleApple' : 'coach.untappedLocale.titlePlay',
+        { count: untapped.length },
+      ),
+      detailText: coreText('coach.untappedLocale.detail'),
       all: untapped.map(what),
+      allText: untapped.map((u) => {
+        const base =
+          u.kind === 'no_locale'
+            ? 'coach.untappedLocale.itemNoLocale'
+            : isApple
+              ? 'coach.untappedLocale.itemEmptyKeywordField'
+              : 'coach.untappedLocale.itemEmptyShortDescription';
+        return u.countries.length > 0
+          ? coreText(`${base}Markets`, {
+              locale: u.locale,
+              markets: u.countries.map((c) => c.toUpperCase()).join(', '),
+            })
+          : coreText(base, { locale: u.locale });
+      }),
       link:
         first.kind === 'no_locale'
           ? { to: 'listing', label: 'Open the listing' }
@@ -1020,16 +1156,22 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       title: 'Follow a competitor',
       detail:
         'Seeing what a similar app puts in its name and subtitle shows words you may be missing. Apps that show up for several of your keywords can be suggested.',
+      titleText: coreText('coach.followCompetitors.title'),
+      detailText: coreText('coach.followCompetitors.detail'),
       all: [],
+      allText: [],
       link: { to: 'competitors', label: 'Open competitors' },
     });
   }
 
   drafts.sort((a, b) => COACH_ORDER.indexOf(a.kind) - COACH_ORDER.indexOf(b.kind));
-  return drafts.slice(0, Math.max(1, input.limit ?? 8)).map(({ all, ...rest }, i) => ({
+  return drafts.slice(0, Math.max(1, input.limit ?? 8)).map(({ all, allText, link, ...rest }, i) => ({
     ...rest,
+    link,
+    linkText: linkLabelText(link),
     position: i + 1,
     items: all.slice(0, MAX_ITEMS),
+    itemTexts: allText.slice(0, MAX_ITEMS),
     more: Math.max(0, all.length - MAX_ITEMS),
   }));
 }

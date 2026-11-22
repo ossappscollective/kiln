@@ -17,6 +17,7 @@ import {
   validateRolloutSteps,
 } from '@kiln/core';
 import { ApiError } from './api.ts';
+import { rolloutIssueMessage } from './core-text.ts';
 import { formatDate, formatDateTime, formatPercent as formatShare } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
 import { compareVersions, platformLabel } from './portfolio.ts';
@@ -141,7 +142,9 @@ export function rolloutView(
     return {
       title,
       fraction,
-      text: t('release:rolloutView.share', { percent: formatShare(fraction, { maximumFractionDigits: 1 }) }),
+      text: t('release:rolloutView.share', {
+        percent: formatShare(fraction, { maximumFractionDigits: 1 }),
+      }),
     };
   }
   if (release.status === 'rolling_out' || release.status === 'halted') {
@@ -188,10 +191,14 @@ export function dueText(
 ): DueText | null {
   if (due.daysLeft === null) return null;
   // Flags are cleared for a release that is out, which leaves a date in the past and no overdue flag.
-  if (released || (due.daysLeft < 0 && !due.overdue)) return { text: t('release:due.released'), tone: 'ok' };
+  if (released || (due.daysLeft < 0 && !due.overdue))
+    return { text: t('release:due.released'), tone: 'ok' };
   if (due.overdue) return { text: t('release:due.overdue', { count: -due.daysLeft }), tone: 'bad' };
   if (due.daysLeft === 0) return { text: t('release:due.today'), tone: 'warn' };
-  return { text: t('release:due.in', { count: due.daysLeft }), tone: due.dueSoon ? 'warn' : 'neutral' };
+  return {
+    text: t('release:due.in', { count: due.daysLeft }),
+    tone: due.dueSoon ? 'warn' : 'neutral',
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -260,8 +267,7 @@ export function checkLocale(
 ): { ok: true; locale: string } | { ok: false; message: string } {
   const locale = input.trim();
   if (locale === '') return { ok: false, message: t('release:locale.enter') };
-  if (!isPlanLocale(locale))
-    return { ok: false, message: t('release:locale.invalid') };
+  if (!isPlanLocale(locale)) return { ok: false, message: t('release:locale.invalid') };
   if (existing.some((e) => e.toLowerCase() === locale.toLowerCase()))
     return { ok: false, message: t('release:locale.exists', { locale }) };
   return { ok: true, locale };
@@ -491,7 +497,8 @@ export function draftToBody(
     const percent = /^\d{1,3}$/.test(percentText) ? Number(percentText) : Number.NaN;
     const plannedAt = parseLocalInput(row.plannedAt);
     if (Number.isNaN(percent)) rows[row.key] = t('release:draft.wholeNumber');
-    else if (plannedAt !== null && Number.isNaN(plannedAt)) rows[row.key] = t('release:draft.dateTime');
+    else if (plannedAt !== null && Number.isNaN(plannedAt))
+      rows[row.key] = t('release:draft.dateTime');
     else {
       const note = row.note.trim();
       parsed.push({
@@ -516,8 +523,8 @@ export function draftToBody(
     for (const issue of checked.issues) {
       const match = /^steps\.(\d+)\./.exec(issue.path);
       const row = match ? parsed[Number(match[1])]?.row : undefined;
-      if (row && !(row.key in rows)) rows[row.key] = issue.message;
-      else if (!row) general.push(issue.message);
+      if (row && !(row.key in rows)) rows[row.key] = rolloutIssueMessage(issue);
+      else if (!row) general.push(rolloutIssueMessage(issue));
     }
     return { ok: false, rows, general };
   }
@@ -548,7 +555,10 @@ export function planPlatformChoices(app: {
 }): { value: PlanPlatform; label: string }[] {
   return [
     { value: null, label: t('release:platform.bothShared') },
-    { value: app.platform, label: t('release:platform.only', { platform: platformLabel(app.platform) }) },
+    {
+      value: app.platform,
+      label: t('release:platform.only', { platform: platformLabel(app.platform) }),
+    },
   ];
 }
 
@@ -587,9 +597,7 @@ export function planErrorMessage(
     case 'step_changed':
       return message || fallback;
     case 'template_not_found':
-      return /rollout/i.test(message)
-        ? message
-        : t('release:error.templateGone');
+      return /rollout/i.test(message) ? message : t('release:error.templateGone');
     case 'not_found':
       return t('release:error.notFound');
     case 'payload_too_large':

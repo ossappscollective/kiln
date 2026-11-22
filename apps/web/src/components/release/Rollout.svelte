@@ -10,8 +10,9 @@
 -->
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { byFamily, checkRolloutAction, formatPercent, MAX_ROLLOUT_STEPS, platformMeta, type RolloutSummary, type RolloutTemplate, rolloutTemplatesFor } from '@kiln/core';
+  import { APPLE_PHASED_NOTE_TEXT, byFamily, checkRolloutAction, MAX_ROLLOUT_STEPS, platformMeta, type RolloutSummary, type RolloutTemplate, rolloutTemplatesFor } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
+  import { coreMessage, rolloutComparisonMessage, sharePercent, templateDescription, templateName } from '../../lib/core-text.ts';
   import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
   import T from '../ui/T.svelte';
@@ -144,7 +145,7 @@
     const result = await run(() => api.setRollout(workspaceId, plan.appId, plan.id, body));
     if (result) {
       editing = false;
-      announcement = t('release:rollout.announce.planned', { name: template.name });
+      announcement = t('release:rollout.announce.planned', { name: templateName(template) });
       toast.success(t('release:rollout.toast.saved'));
     }
   }
@@ -152,7 +153,7 @@
   async function act(step: RolloutStep, action: 'complete' | 'skip' | 'reopen', fromStore = false) {
     const result = await run(() => api.rolloutStep(workspaceId, plan.appId, plan.id, step.id, action, { fromStore }));
     if (result) {
-      const percent = formatPercent(step.percent);
+      const percent = sharePercent(step.percent);
       announcement =
         action === 'complete'
           ? fromStore
@@ -259,7 +260,7 @@
             <dt>{t('release:rollout.compare.storeSays')}</dt>
             <dd>
               {#if store && store.percent !== null}
-                {#if store.inferred}<T key="release:rollout.compare.shareInferred" params={{ percent: formatPercent(store.percent) }} />{:else}<T key="release:rollout.compare.share" params={{ percent: formatPercent(store.percent) }} />{/if}
+                {#if store.inferred}<T key="release:rollout.compare.shareInferred" params={{ percent: sharePercent(store.percent) }} />{:else}<T key="release:rollout.compare.share" params={{ percent: sharePercent(store.percent) }} />{/if}
               {:else if store}
                 {t('release:rollout.compare.noShare')}
               {:else}
@@ -280,14 +281,14 @@
             <dt>{t('release:rollout.compare.planSays')}</dt>
             <dd>
               {#if comparison.planStep}
-                <T key="release:rollout.compare.planStep" params={{ index: comparison.planStep.index, total: comparison.planStep.total, percent: formatPercent(comparison.planStep.percent) }} />
+                <T key="release:rollout.compare.planStep" params={{ index: comparison.planStep.index, total: comparison.planStep.total, percent: sharePercent(comparison.planStep.percent) }} />
               {:else}
                 {t('release:rollout.compare.noStepDone')}
               {/if}
             </dd>
           </div>
         </dl>
-        <p class="line small">{comparison.message}</p>
+        <p class="line small">{rolloutComparisonMessage(comparison)}</p>
       </div>
     {/if}
 
@@ -337,7 +338,7 @@
               <div class="step-main">
                 <div class="step-head">
                   <span class="muted small">{t('release:rollout.stepOf', { index: i + 1, total: steps.length })}</span>
-                  <strong class="percent">{formatPercent(step.percent)}</strong>
+                  <strong class="percent">{sharePercent(step.percent)}</strong>
                   <Badge tone={chip.tone} dot>{chip.label}</Badge>
                   {#if comparison?.confirmStepId === step.id}<Badge tone="info">{t('release:rollout.storeReached')}</Badge>{/if}
                 </div>
@@ -383,7 +384,7 @@
       {/if}
     {:else if view.kind === 'apple_phased' && view.apple}
       <div class="apple">
-        <p class="line small">{view.apple.note}</p>
+        <p class="line small">{coreMessage(APPLE_PHASED_NOTE_TEXT, view.apple.note)}</p>
         <table class="schedule">
           <caption class="visually-hidden">{t('release:rollout.schedule.caption')}</caption>
           <thead><tr><th scope="col">{t('release:rollout.schedule.day')}</th><th scope="col">{t('release:rollout.schedule.share')}</th><th scope="col">{t('release:rollout.schedule.date')}</th></tr></thead>
@@ -393,7 +394,7 @@
                 <th scope="row">{t('release:rollout.schedule.dayN', { day: day.day })}</th>
                 <td>
                   <div class="bar inline" aria-hidden="true"><div class="fill" style:width="{barWidth(day.percent)}%"></div></div>
-                  {formatPercent(day.percent)}
+                  {sharePercent(day.percent)}
                 </td>
                 <td>{day.date ? formatTargetDate(day.date) : t('release:rollout.schedule.notSet')}</td>
               </tr>
@@ -426,10 +427,10 @@
           <label for="{uid}-template">{view.kind === null ? t('release:rollout.template.planFrom') : t('release:rollout.template.replaceWith')}</label>
           <select id="{uid}-template" bind:value={templateId} disabled={busy}>
             {#each templates as template (template.id)}
-              <option value={template.id}>{template.name}</option>
+              <option value={template.id}>{templateName(template)}</option>
             {/each}
           </select>
-          <p class="hint">{chosen?.description ?? ''}{view.kind !== null && hasDone ? ` ${t('release:rollout.template.doneKept')}` : ''}</p>
+          <p class="hint">{chosen ? templateDescription(chosen) : ''}{view.kind !== null && hasDone ? ` ${t('release:rollout.template.doneKept')}` : ''}</p>
         </div>
         <Button disabled={busy || !chosen} loading={busy} onclick={usePlanTemplate}>{view.kind === null ? t('release:rollout.template.plan') : t('release:rollout.template.replace')}</Button>
       </div>

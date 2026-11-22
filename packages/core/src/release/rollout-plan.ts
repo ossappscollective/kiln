@@ -9,6 +9,7 @@
  */
 
 import { type Platform, storeFamilyOf, supports } from '../platform.ts';
+import { type CoreText, coreText } from '../text.ts';
 import type { ReleaseState } from './lifecycle.ts';
 
 // ---------------------------------------------------------------------------------------------
@@ -51,7 +52,18 @@ export type RolloutStepState = {
   doneAt: number | null;
 };
 
-export type RolloutIssue = { path: string; message: string };
+export type RolloutIssue = {
+  path: string;
+  message: string;
+  /** The same sentence as a key and parameters (see `CoreText`). */
+  text: CoreText;
+};
+
+const issue = (path: string, key: string, message: string, params: Record<string, string | number> = {}): RolloutIssue => ({
+  path,
+  message,
+  text: coreText(`rollout.issue.${key}`, params),
+});
 
 // ---------------------------------------------------------------------------------------------
 // Apple's phased release
@@ -80,6 +92,9 @@ export type RolloutTemplate = {
   id: string;
   name: string;
   description: string;
+  /** The name and the description as keys (see `CoreText`). */
+  nameText: CoreText;
+  descriptionText: CoreText;
   /** A platform of the store family it fits (iOS and macOS share Apple's phased release); `null` fits any. */
   platform: Platform | null;
   kind: RolloutKind;
@@ -91,6 +106,8 @@ export const ROLLOUT_TEMPLATES: readonly RolloutTemplate[] = [
   {
     id: 'builtin:play-default',
     name: 'Staged rollout: 1, 5, 20, 50, 100%',
+    nameText: coreText('rollout.template.playDefault.name'),
+    descriptionText: coreText('rollout.template.playDefault.description'),
     description:
       'A cautious ramp for Google Play. Play lets you choose any share; these numbers are our suggestion, not a Play default.',
     platform: 'android',
@@ -100,6 +117,8 @@ export const ROLLOUT_TEMPLATES: readonly RolloutTemplate[] = [
   {
     id: 'builtin:apple-phased',
     name: 'App Store phased release (7 days)',
+    nameText: coreText('rollout.template.applePhased.name'),
+    descriptionText: coreText('rollout.template.applePhased.description'),
     description:
       'Apple releases to automatic updates over 7 days: 1, 2, 5, 10, 20, 50 and 100% on days 1 to 7. The schedule is fixed by Apple, so it is shown for information and the percentages cannot be edited.',
     platform: 'ios',
@@ -109,12 +128,17 @@ export const ROLLOUT_TEMPLATES: readonly RolloutTemplate[] = [
   {
     id: 'builtin:immediate',
     name: 'Immediate release to 100%',
+    nameText: coreText('rollout.template.immediate.name'),
+    descriptionText: coreText('rollout.template.immediate.description'),
     description: 'No staging: everyone gets the version at once.',
     platform: null,
     kind: 'steps',
     steps: [{ percent: 100 }],
   },
 ];
+
+/** The fixed note the API shows with an Apple phased release (the English sits in the server), as a key. */
+export const APPLE_PHASED_NOTE_TEXT: CoreText = coreText('rollout.appleNote');
 
 export const rolloutTemplate = (id: string): RolloutTemplate | undefined =>
   ROLLOUT_TEMPLATES.find((t) => t.id === id);
@@ -145,12 +169,13 @@ export function validateRolloutSteps(
   const issues: RolloutIssue[] = [];
   const existing = new Map((options.existing ?? []).map((s) => [s.id, s]));
   if (input.length < 1)
-    issues.push({ path: 'steps', message: 'A rollout plan needs at least one step.' });
+    issues.push(issue('steps', 'needStep', 'A rollout plan needs at least one step.'));
   if (input.length > MAX_ROLLOUT_STEPS) {
-    issues.push({
-      path: 'steps',
-      message: `A rollout plan can have ${MAX_ROLLOUT_STEPS} steps at most.`,
-    });
+    issues.push(
+      issue('steps', 'tooMany', `A rollout plan can have ${MAX_ROLLOUT_STEPS} steps at most.`, {
+        max: MAX_ROLLOUT_STEPS,
+      }),
+    );
   }
   const seen = new Set<string>();
   let previousPercent = 0;
@@ -161,74 +186,89 @@ export function validateRolloutSteps(
     const stored = step.id === undefined ? undefined : existing.get(step.id);
     if (step.id !== undefined) {
       if (!stored)
-        issues.push({
-          path: `${at}.id`,
-          message: 'This step does not exist. Reload and try again.',
-        });
+        issues.push(
+          issue(`${at}.id`, 'unknownStep', 'This step does not exist. Reload and try again.'),
+        );
       else if (seen.has(step.id))
-        issues.push({ path: `${at}.id`, message: 'A step is listed twice.' });
+        issues.push(issue(`${at}.id`, 'listedTwice', 'A step is listed twice.'));
       seen.add(step.id);
     }
     statuses.push(stored?.status ?? 'planned');
     if (!Number.isInteger(step.percent) || step.percent < 1 || step.percent > 100) {
-      issues.push({ path: `${at}.percent`, message: 'A whole number from 1 to 100.' });
+      issues.push(issue(`${at}.percent`, 'wholeNumber', 'A whole number from 1 to 100.'));
     } else {
       if (step.percent <= previousPercent) {
-        issues.push({
-          path: `${at}.percent`,
-          message: `Each step must be higher than the one before (${previousPercent}%).`,
-        });
+        issues.push(
+          issue(
+            `${at}.percent`,
+            'higherThanBefore',
+            `Each step must be higher than the one before (${previousPercent}%).`,
+            { percent: previousPercent },
+          ),
+        );
       }
       previousPercent = Math.max(previousPercent, step.percent);
       if (stored?.status === 'done' && stored.percent !== step.percent) {
-        issues.push({
-          path: `${at}.percent`,
-          message: 'A step that is done keeps its percentage. Reopen it first.',
-        });
+        issues.push(
+          issue(
+            `${at}.percent`,
+            'doneKeepsPercent',
+            'A step that is done keeps its percentage. Reopen it first.',
+          ),
+        );
       }
     }
     const plannedAt = step.plannedAt ?? null;
     if (plannedAt !== null) {
       if (!validDate(plannedAt)) {
-        issues.push({ path: `${at}.plannedAt`, message: 'A date and time.' });
+        issues.push(issue(`${at}.plannedAt`, 'dateTime', 'A date and time.'));
       } else {
         if (stored?.status !== 'done' && plannedAt < options.planCreatedAt) {
-          issues.push({
-            path: `${at}.plannedAt`,
-            message: 'Plan a step after the plan was created.',
-          });
+          issues.push(
+            issue(`${at}.plannedAt`, 'afterCreated', 'Plan a step after the plan was created.'),
+          );
         }
         if (previousPlannedAt !== null && plannedAt < previousPlannedAt) {
-          issues.push({
-            path: `${at}.plannedAt`,
-            message: 'A step cannot be planned before the step above it.',
-          });
+          issues.push(
+            issue(
+              `${at}.plannedAt`,
+              'afterPrevious',
+              'A step cannot be planned before the step above it.',
+            ),
+          );
         }
         previousPlannedAt = plannedAt;
       }
     }
     const note = step.note ?? null;
     if (note !== null && (note.length > MAX_ROLLOUT_NOTE_LENGTH || /[\r\n]/.test(note))) {
-      issues.push({
-        path: `${at}.note`,
-        message: `One line of at most ${MAX_ROLLOUT_NOTE_LENGTH} characters.`,
-      });
+      issues.push(
+        issue(
+          `${at}.note`,
+          'noteLength',
+          `One line of at most ${MAX_ROLLOUT_NOTE_LENGTH} characters.`,
+          { max: MAX_ROLLOUT_NOTE_LENGTH },
+        ),
+      );
     }
   });
   for (const stored of existing.values()) {
     if (stored.status === 'done' && !seen.has(stored.id)) {
-      issues.push({
-        path: 'steps',
-        message: `The step at ${stored.percent}% is done and cannot be removed. Reopen it first.`,
-      });
+      issues.push(
+        issue(
+          'steps',
+          'doneCannotRemove',
+          `The step at ${stored.percent}% is done and cannot be removed. Reopen it first.`,
+          { percent: stored.percent },
+        ),
+      );
     }
   }
   const lastDone = statuses.lastIndexOf('done');
   if (lastDone > 0 && statuses.slice(0, lastDone).includes('planned')) {
-    issues.push({
-      path: 'steps',
-      message: 'A step before a completed step must be done or skipped.',
-    });
+    issues.push(
+      issue('steps', 'beforeDone', 'A step before a completed step must be done or skipped.'),
+    );
   }
   return issues.length === 0 ? { ok: true } : { ok: false, issues };
 }
@@ -249,6 +289,7 @@ export type TransitionCheck =
       ok: false;
       code: 'step_not_found' | 'earlier_steps_open' | 'later_steps_done' | 'invalid_transition';
       message: string;
+      text: CoreText;
     };
 
 /**
@@ -263,7 +304,13 @@ export function checkRolloutAction(
 ): TransitionCheck {
   const index = steps.findIndex((s) => s.id === stepId);
   const step = steps[index];
-  if (!step) return { ok: false, code: 'step_not_found', message: 'That step does not exist.' };
+  if (!step)
+    return {
+      ok: false,
+      code: 'step_not_found',
+      message: 'That step does not exist.',
+      text: coreText('rollout.action.notFound'),
+    };
   const target: RolloutStepStatus =
     action === 'complete' ? 'done' : action === 'skip' ? 'skipped' : 'planned';
   if (step.status === target) return { ok: true, noop: true, to: target };
@@ -273,6 +320,7 @@ export function checkRolloutAction(
         ok: false,
         code: 'earlier_steps_open',
         message: 'Complete or skip the earlier steps first.',
+        text: coreText('rollout.action.earlierOpen'),
       };
     }
     return { ok: true, noop: false, to: target };
@@ -283,6 +331,7 @@ export function checkRolloutAction(
         ok: false,
         code: 'invalid_transition',
         message: 'A step that is done cannot be skipped. Reopen it first.',
+        text: coreText('rollout.action.doneCannotSkip'),
       };
     }
     return { ok: true, noop: false, to: target };
@@ -292,6 +341,7 @@ export function checkRolloutAction(
       ok: false,
       code: 'later_steps_done',
       message: 'Reopen the later steps that are done first.',
+      text: coreText('rollout.action.laterDone'),
     };
   }
   return { ok: true, noop: false, to: target };
@@ -401,6 +451,12 @@ export type RolloutComparison = {
   confirmStepId: string | null;
   /** One or two sentences for a person. */
   message: string;
+  /**
+   * The same as a key and parameters. Keys: `rollout.compare.unknownApple`, `unknownStore`, `unknownNone`,
+   * `match`, `storeAhead`, `storeBehind`. Parameters: `storePercent`, `inferred` (0 or 1), `planIndex` and
+   * `planTotal` and `planPercent` (0 when no step is done), `halted` (0 or 1), `canConfirm` (0 or 1).
+   */
+  text: CoreText;
 };
 
 export const formatPercent = (value: number): string =>
@@ -432,6 +488,12 @@ export function compareRollout(
     halted: store?.status === 'halted',
   };
   const halted = base.halted ? ' The store has the rollout halted.' : '';
+  const planParams = {
+    planIndex: planStep?.index ?? 0,
+    planTotal: planStep?.total ?? steps.length,
+    planPercent: planStep?.percent ?? 0,
+    halted: base.halted ? 1 : 0,
+  };
   if (!store || store.percent === null) {
     const apple = store !== null && supports(store.platform, 'phasedRelease');
     return {
@@ -439,6 +501,14 @@ export function compareRollout(
       verdict: 'unknown',
       mismatch: false,
       confirmStepId: null,
+      text: coreText(
+        store
+          ? apple
+            ? 'rollout.compare.unknownApple'
+            : 'rollout.compare.unknownStore'
+          : 'rollout.compare.unknownNone',
+        { halted: base.halted ? 1 : 0 },
+      ),
       message: store
         ? `${
             apple
@@ -457,6 +527,12 @@ export function compareRollout(
       verdict: 'match',
       mismatch: false,
       confirmStepId,
+      text: coreText('rollout.compare.match', {
+        ...planParams,
+        storePercent: store.percent,
+        inferred: store.inferred ? 1 : 0,
+        canConfirm: 0,
+      }),
       message: `${said}, ${planText}: they agree.${halted}`,
     };
   }
@@ -466,6 +542,12 @@ export function compareRollout(
       verdict: 'store_ahead',
       mismatch: true,
       confirmStepId,
+      text: coreText('rollout.compare.storeAhead', {
+        ...planParams,
+        storePercent: store.percent,
+        inferred: store.inferred ? 1 : 0,
+        canConfirm: confirmStepId ? 1 : 0,
+      }),
       message: `${said}, ahead of the plan: ${planText}.${confirmStepId ? ' You can confirm the next step from the store.' : ''}${halted}`,
     };
   }
@@ -474,6 +556,12 @@ export function compareRollout(
     verdict: 'store_behind',
     mismatch: true,
     confirmStepId: null,
+    text: coreText('rollout.compare.storeBehind', {
+      ...planParams,
+      storePercent: store.percent,
+      inferred: store.inferred ? 1 : 0,
+      canConfirm: 0,
+    }),
     message: `${said}, behind the plan: ${planText}. Check the console, or reopen the steps that are not true.${halted}`,
   };
 }

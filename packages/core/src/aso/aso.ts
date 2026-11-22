@@ -15,6 +15,7 @@
  */
 
 import { type Platform, supports } from '../platform.ts';
+import { type CoreText, coreText } from '../text.ts';
 
 // ---------------------------------------------------------------------------------------------
 // Terms
@@ -55,7 +56,13 @@ export function foldedWords(text: string): string[] {
 
 export type TermCheck =
   | { ok: true; term: string; key: string; words: number }
-  | { ok: false; reason: string };
+  | { ok: false; reason: string; text: CoreText };
+
+const refused = (
+  key: string,
+  reason: string,
+  params: Record<string, string | number> = {},
+): TermCheck => ({ ok: false, reason, text: coreText(`aso.term.${key}`, params) });
 
 /**
  * A keyword as a person types it. `term` is what is shown (white space collapsed, case kept); `key`
@@ -63,18 +70,22 @@ export type TermCheck =
  * and `Hàbit tracker` are one keyword.
  */
 export function checkTerm(raw: unknown): TermCheck {
-  if (typeof raw !== 'string') return { ok: false, reason: 'A keyword is text.' };
-  if (CONTROL.test(raw)) return { ok: false, reason: 'A keyword has no control characters.' };
+  if (typeof raw !== 'string') return refused('notText', 'A keyword is text.');
+  if (CONTROL.test(raw)) return refused('control', 'A keyword has no control characters.');
   const term = raw.normalize('NFKC').replace(/\s+/g, ' ').trim();
-  if (term === '') return { ok: false, reason: 'A keyword is not empty.' };
+  if (term === '') return refused('empty', 'A keyword is not empty.');
   if (Array.from(term).length > MAX_TERM_CHARACTERS) {
-    return { ok: false, reason: `A keyword has at most ${MAX_TERM_CHARACTERS} characters.` };
+    return refused('tooLong', `A keyword has at most ${MAX_TERM_CHARACTERS} characters.`, {
+      max: MAX_TERM_CHARACTERS,
+    });
   }
   const parts = foldedWords(term);
   if (parts.length === 0)
-    return { ok: false, reason: 'A keyword needs at least one letter or digit.' };
+    return refused('noLetter', 'A keyword needs at least one letter or digit.');
   if (parts.length > MAX_TERM_WORDS)
-    return { ok: false, reason: `A keyword has at most ${MAX_TERM_WORDS} words.` };
+    return refused('tooManyWords', `A keyword has at most ${MAX_TERM_WORDS} words.`, {
+      max: MAX_TERM_WORDS,
+    });
   return { ok: true, term, key: parts.join(' '), words: parts.length };
 }
 

@@ -23,6 +23,7 @@
     parseThreshold,
   } from '../../lib/aso/aso.ts';
   import { coachHref } from '../../lib/aso/budget.ts';
+  import { coachWords } from '../../lib/core-text.ts';
   import { agoText } from '../../lib/aso/ago.ts';
   import { k, t } from '../../lib/i18n/t.ts';
   import { appLabel, platformLabel, portfolioHref, runLimited } from '../../lib/portfolio.ts';
@@ -248,10 +249,10 @@
             {#each starts as r (r.app.id)}
               <li>
                 <span class="what">
-                  <strong class="truncate">{r.step.title}</strong>
+                  <strong class="truncate">{coachWords(r.step, () => '').title}</strong>
                   <span class="muted">{r.total > 1 ? t('aso:overview.appSteps', { app: appLabel(r.app), count: r.total }) : appLabel(r.app)}</span>
                 </span>
-                <Button size="sm" href={coachHref(r.step.link, r.app.id, r.app.platform)}>{r.step.link.label}</Button>
+                <Button size="sm" href={coachHref(r.step.link, r.app.id, r.app.platform)}>{coachWords(r.step, () => '').linkLabel}</Button>
               </li>
             {/each}
           </ul>

@@ -21,6 +21,7 @@ import { appAddress, type PlatformScope, parseViewPath } from '../app-scope.ts';
 import { formatList, formatNumber } from '../i18n/format.ts';
 import { k, t } from '../i18n/t.ts';
 import type { IconName } from '../icons.ts';
+import { termReason } from '../core-text.ts';
 import { retrySeconds } from '../portfolio.ts';
 
 /**
@@ -322,7 +323,11 @@ export const keywordMainViews: AsoViewItem[] = [
 /** The keyword views behind "More", with one line each for the menu. Together with `keywordMainViews` and Search terms they are every ASO view. */
 export const keywordMoreViews: (AsoViewItem & { hintKey: string })[] = [
   { id: 'listing', labelKey: k('aso:view.listing'), hintKey: k('aso:view.listing.hint') },
-  { id: 'competitors', labelKey: k('aso:view.competitors'), hintKey: k('aso:view.competitors.hint') },
+  {
+    id: 'competitors',
+    labelKey: k('aso:view.competitors'),
+    hintKey: k('aso:view.competitors.hint'),
+  },
   { id: 'ideas', labelKey: k('aso:view.ideas'), hintKey: k('aso:view.ideas.hint') },
   { id: 'fit', labelKey: k('aso:view.fit'), hintKey: k('aso:view.fit.hint') },
   { id: 'gaps', labelKey: k('aso:view.gaps'), hintKey: k('aso:view.gaps.hint') },
@@ -591,7 +596,7 @@ export function parsePastedTerms(text: string): PastedTerms {
     if (part.trim() === '') continue;
     const checked = checkTerm(part);
     if (!checked.ok) {
-      invalid.push({ text: part.trim().slice(0, 40), reason: checked.reason });
+      invalid.push({ text: part.trim().slice(0, 40), reason: termReason(checked) });
       continue;
     }
     if (seen[checked.key]) {
@@ -693,7 +698,9 @@ export function sumAddSummary(parts: readonly AsoAddSummary[]): AsoAddSummary {
 /** "Added 8 keywords. 2 already tracked, 1 not accepted, 3 over the limit of 50." */
 export function addSummaryText(s: AsoAddSummary, maxPerApp?: number): string {
   const head =
-    s.created > 0 ? t('aso:addSummary.added', { count: s.created }) : t('aso:addSummary.nothingAdded');
+    s.created > 0
+      ? t('aso:addSummary.added', { count: s.created })
+      : t('aso:addSummary.nothingAdded');
   const rest: string[] = [];
   if (s.exists > 0) rest.push(t('aso:addSummary.exists', { count: s.exists }));
   if (s.invalid > 0) rest.push(t('aso:addSummary.invalid', { count: s.invalid }));
@@ -837,7 +844,11 @@ export function compareRows(ours: OurFacts, others: readonly AsoCompetitor[]): C
   const col = (f: (s: AsoSnapshot) => string): string[] =>
     others.map((c) => (c.latest ? f(c.latest) : '–'));
   return [
-    { label: t('aso:compare.version'), ours: ours.version ?? '–', theirs: col((s) => s.version ?? '–') },
+    {
+      label: t('aso:compare.version'),
+      ours: ours.version ?? '–',
+      theirs: col((s) => s.version ?? '–'),
+    },
     {
       label: t('aso:compare.rating'),
       ours: ratingText(ours.rating),
@@ -946,7 +957,8 @@ export function ideaWhy(idea: Pick<Idea, 'occurrences' | 'sources'>, texts: numb
 export function ideaSourceText(basedOn: AsoIdeasResponse['basedOn']): string {
   const parts: string[] = [];
   if (basedOn.ownListing) parts.push(t('aso:idea.ownListing'));
-  if (basedOn.competitors > 0) parts.push(t('aso:idea.competitors', { count: basedOn.competitors }));
+  if (basedOn.competitors > 0)
+    parts.push(t('aso:idea.competitors', { count: basedOn.competitors }));
   return parts.length > 0 ? formatList(parts) : t('aso:idea.noTexts');
 }
 
@@ -1109,12 +1121,18 @@ export function configStates(config: AsoConfig | null, androidInScope: boolean):
   const auto = config.schedule.intervalMinutes === 0;
   if (play) {
     items.push(
-      t('aso:states.playItem', { notice: config.play.notice, howToEnable: config.play.howToEnable }),
+      t('aso:states.playItem', {
+        notice: config.play.notice,
+        howToEnable: config.play.howToEnable,
+      }),
     );
   }
   if (auto) items.push(t('aso:states.autoItem'));
   if (!play && !auto) return null;
-  return { label: play && auto ? t('aso:states.both') : play ? t('aso:states.play') : t('aso:states.auto'), items };
+  return {
+    label: play && auto ? t('aso:states.both') : play ? t('aso:states.play') : t('aso:states.auto'),
+    items,
+  };
 }
 
 const checkErrors: Record<string, string> = {
@@ -1156,4 +1174,8 @@ export function fieldCell(
 }
 
 export const priorityLabel = (priority: number): string =>
-  priority >= 3 ? t('aso:priority.high') : priority <= 1 ? t('aso:priority.low') : t('aso:priority.normal');
+  priority >= 3
+    ? t('aso:priority.high')
+    : priority <= 1
+      ? t('aso:priority.low')
+      : t('aso:priority.normal');

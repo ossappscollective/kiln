@@ -27,4 +27,5 @@ export * from './release/release-pipeline.ts';
 export * from './release/release-plan.ts';
 export * from './release/store-version.ts';
 export * from './roles.ts';
+export * from './text.ts';
 export * from './translation.ts';
