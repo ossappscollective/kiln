@@ -17,6 +17,8 @@
   import { tick, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { timeAgo } from '../../lib/format.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import {
     type BlockingItem,
     type PendingItem,
@@ -53,6 +55,7 @@
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import StatusPill from '../ui/StatusPill.svelte';
+  import T from '../ui/T.svelte';
   import PublishDialog from '../publish/PublishDialog.svelte';
 
   let {
@@ -127,13 +130,13 @@
   /** Short words for the one line that says why the button cannot be pressed (the full reason is under it). */
   const pillLabel = $derived(
     availability.state === 'role'
-      ? 'Publishing everything at once needs the admin or owner role'
+      ? t('publish:pending.pill.role')
       : availability.state === 'off'
-        ? 'Publishing in one go is switched off on this server'
+        ? t('publish:pending.pill.off')
         : availability.state === 'steps_off'
-          ? 'The steps this needs are switched off on this server'
+          ? t('publish:pending.pill.stepsOff')
           : availability.state === 'unknown'
-            ? 'Could not check whether publishing in one go is switched on'
+            ? t('publish:pending.pill.unknown')
             : '',
   );
 
@@ -191,7 +194,7 @@
         const done = await api.unstageItem(workspaceId, appId, id);
         stagedStore.set(done.staged);
       }
-      announcement = `Removed ${item.label} from the staged changes.`;
+      announcement = t('publish:pending.removed', { label: item.label });
       confirming = '';
     } catch (e) {
       problem = stagingError(e);
@@ -209,8 +212,8 @@
       const done = await api.clearStaged(workspaceId, appId);
       stagedStore.set(done.staged);
       confirming = '';
-      announcement = 'Cleared all staged changes.';
-      toast.info(`Cleared the staged changes of ${platform}.`);
+      announcement = t('publish:pending.cleared');
+      toast.info(t('publish:pending.clearedToast', { platform }));
     } catch (e) {
       problem = stagingError(e);
     } finally {
@@ -242,8 +245,8 @@
   export function publishState(): { enabled: boolean; reason: string } {
     const enabled = (availability.state === 'ready' || availability.state === 'blocked') && targets.length > 0;
     if (enabled) return { enabled, reason: '' };
-    if (loading && !known) return { enabled, reason: 'Reading what is pending.' };
-    return { enabled, reason: pillLabel !== '' ? pillLabel : availability.state === 'ready' ? 'Nothing is waiting to be published.' : availability.message };
+    if (loading && !known) return { enabled, reason: t('publish:pending.stateReading') };
+    return { enabled, reason: pillLabel !== '' ? pillLabel : availability.state === 'ready' ? t('publish:pending.stateNothing') : availability.message };
   }
 
   /** "Show it": scrolls to the item and puts the focus on its row. */
@@ -255,17 +258,17 @@
   }
 </script>
 
-<section class="pending" aria-label="Pending changes" data-testid="pending-changes">
+<section class="pending" aria-label={t('publish:pending.aria')} data-testid="pending-changes">
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#if !headless}
   <div class="top">
     <div class="lead">
       <p class="line" class:muted={empty || loading}>
-        {#if loading && !known}Reading what is pending…{:else if loadProblem && !known}Could not read what is pending{:else}{empty ? 'Nothing pending' : totalsLine(totals)}{/if}
+        {#if loading && !known}{t('publish:pending.reading')}{:else if loadProblem && !known}{t('publish:pending.readFailed')}{:else}{empty ? t('publish:pending.nothing') : totalsLine(totals)}{/if}
       </p>
       {#if !compact && !empty && known}
-        <p class="muted small">Staged changes, drafts pushed and not yet submitted, and what waits for a release, in one list. Nothing is published until you confirm in the last step.</p>
+        <p class="muted small">{t('publish:pending.hint')}</p>
       {/if}
     </div>
     <div class="act">
@@ -277,7 +280,7 @@
         disabled={(availability.state !== 'ready' && availability.state !== 'blocked') || targets.length === 0}
         aria-describedby={availability.state !== 'ready' ? `${uid}-why` : undefined}
         onclick={openPublish}
-      >Review and publish all…</Button>
+      >{t('publish:pending.reviewAll')}</Button>
     </div>
   </div>
   {/if}
@@ -291,8 +294,8 @@
         <ul class="blockers" data-testid="pending-blockers">
           {#each blockers as b (b.anchor)}
             <li>
-              <span><strong>{b.label}</strong> ({platformLabel(b.platform)}): {b.messages.join(' ')}</span>
-              <Button size="sm" variant="ghost" onclick={() => showItem(b.anchor)}>Show it<span class="visually-hidden">: {b.label}</span></Button>
+              <span><T key="publish:pending.blockerLine" params={{ label: b.label, platform: platformLabel(b.platform), messages: b.messages.join(' ') }} /></span>
+              <Button size="sm" variant="ghost" aria-label={t('publish:pending.showItFor', { label: b.label })} onclick={() => showItem(b.anchor)}>{t('publish:pending.showIt')}</Button>
             </li>
           {/each}
         </ul>
@@ -311,9 +314,9 @@
   {/if}
 
   {#if loadProblem}
-    <Alert tone="error" title="Could not read what is pending">
+    <Alert tone="error" title={t('publish:pending.loadFailedTitle')}>
       {loadProblem}
-      <div class="retry"><Button size="sm" icon="refresh" onclick={load}>Try again</Button></div>
+      <div class="retry"><Button size="sm" icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
     </Alert>
   {/if}
   {#if problem}<Alert tone="error" ondismiss={() => (problem = '')}>{problem}</Alert>{/if}
@@ -321,30 +324,30 @@
   {#if !list}
     <!-- only the line and the button are wanted here -->
   {:else if loading && !known}
-    <div role="status" aria-label="Loading what is pending" class="stack">
+    <div role="status" aria-label={t('publish:pending.loadingAria')} class="stack">
       <Skeleton width="60%" height="16px" />
       <Skeleton width="80%" height="48px" />
     </div>
   {:else if empty}
-    <p class="empty muted"><Icon name="check-circle" size={16} /> Nothing is staged, pushed, approved or due. Changes you stage in the listing, the assets or the release steps appear here.</p>
+    <p class="empty muted"><Icon name="check-circle" size={16} /> {t('publish:pending.empty')}</p>
   {:else}
     {#each groups as g (g.appId + g.platform.platform)}
       {@const app = members.find((m) => m.id === g.appId)}
       {@const count = stagedCount(g.platform.items)}
-      <section class="group card" aria-label="Pending, {platformLabel(g.platform.platform)}">
+      <section class="group card" aria-label={t('publish:pending.groupAria', { platform: platformLabel(g.platform.platform) })}>
         <div class="group-head">
           {#if members.length > 1 || groups.length > 1}<PlatformBadge platform={g.platform.platform} tinted />{/if}
           <span class="muted">{totalsLine(g.platform.totals)}</span>
           <span class="spacer"></span>
           {#if mayEdit && count > 0 && app}
             {#if confirming === `clear/${g.appId}`}
-              <span class="confirm" role="group" aria-label="Clear all staged changes?">
-                <span>Remove all {count} staged {count === 1 ? 'item' : 'items'}?</span>
-                <Button size="sm" variant="danger" loading={removing === `clear/${g.appId}`} disabled={busy} onclick={() => clearAll(g.appId, platformLabel(g.platform.platform))}>Yes, clear all</Button>
-                <Button size="sm" disabled={busy} onclick={() => (confirming = '')}>Keep them</Button>
+              <span class="confirm" role="group" aria-label={t('publish:pending.clearAria')}>
+                <span>{t('publish:pending.removeAll', { count })}</span>
+                <Button size="sm" variant="danger" loading={removing === `clear/${g.appId}`} disabled={busy} onclick={() => clearAll(g.appId, platformLabel(g.platform.platform))}>{t('publish:pending.yesClear')}</Button>
+                <Button size="sm" disabled={busy} onclick={() => (confirming = '')}>{t('publish:pending.keepThem')}</Button>
               </span>
             {:else}
-              <Button size="sm" icon="trash" disabled={busy} onclick={() => (confirming = `clear/${g.appId}`)}>Discard all staged<span class="visually-hidden"> changes of {platformLabel(g.platform.platform)}</span></Button>
+              <Button size="sm" icon="trash" disabled={busy} aria-label={t('publish:pending.discardAllFor', { platform: platformLabel(g.platform.platform) })} onclick={() => (confirming = `clear/${g.appId}`)}>{t('publish:pending.discardAll')}</Button>
             {/if}
           {/if}
         </div>
@@ -363,7 +366,7 @@
                     <p class="name">
                       <strong>{item.label}</strong>
                       <Badge tone={badge.tone} icon={item.state === 'invalid' ? 'alert-triangle' : undefined}>{badge.label}</Badge>
-                      {#if item.since !== null}<span class="muted when">since {timeAgo(item.since, now)}</span>{/if}
+                      {#if item.since !== null}<span class="muted when">{t('publish:pending.since', { when: timeAgo(item.since, now) })}</span>{/if}
                     </p>
                     {#each errors as p (p.code + p.message + (p.item ?? ''))}
                       <p class="problem bad"><Icon name="x-circle" size={14} /> {p.message}</p>
@@ -371,7 +374,7 @@
                     {#each warnings as p (p.code + p.message + (p.item ?? ''))}
                       <p class="problem warn">{p.message}</p>
                     {/each}
-                    {#if item.truncated}<p class="muted small">Only the first {item.refs.length} are listed. Discarding removes those; read this page again for the rest.</p>{/if}
+                    {#if item.truncated}<p class="muted small">{t('publish:pending.truncated', { count: item.refs.length })}</p>{/if}
                     <p class="next muted">{nextStepText(item)}</p>
                   </div>
                   {#if item.nextStep !== null || isDiscardable(item)}
@@ -379,12 +382,12 @@
                       <Button size="sm" variant="ghost" href={edit.href}>{edit.label}</Button>
                       {#if mayEdit && isDiscardable(item)}
                         {#if confirming === key}
-                          <span class="confirm" role="group" aria-label="Discard {item.label}?">
-                            <Button size="sm" variant="danger" loading={removing === key} disabled={busy} onclick={() => discard(g.appId, item)}>Yes, discard</Button>
-                            <Button size="sm" disabled={busy} onclick={() => (confirming = '')}>Keep</Button>
+                          <span class="confirm" role="group" aria-label={t('publish:pending.discardAria', { label: item.label })}>
+                            <Button size="sm" variant="danger" loading={removing === key} disabled={busy} onclick={() => discard(g.appId, item)}>{t('publish:pending.yesDiscard')}</Button>
+                            <Button size="sm" disabled={busy} onclick={() => (confirming = '')}>{t('publish:pending.keep')}</Button>
                           </span>
                         {:else}
-                          <Button size="sm" variant="ghost" icon="x" disabled={busy} onclick={() => (item.refs.length > 1 ? (confirming = key) : discard(g.appId, item))}>Discard<span class="visually-hidden"> {item.label}</span></Button>
+                          <Button size="sm" variant="ghost" icon="x" disabled={busy} aria-label={t('publish:pending.discardItem', { label: item.label })} onclick={() => (item.refs.length > 1 ? (confirming = key) : discard(g.appId, item))}>{t('publish:pending.discard')}</Button>
                         {/if}
                       {/if}
                     </div>
@@ -397,9 +400,9 @@
       </section>
     {/each}
 
-    {#if emptyPlatforms.length > 0}<p class="muted small">Nothing pending on {emptyPlatforms.join(' and ')}.</p>{/if}
+    {#if emptyPlatforms.length > 0}<p class="muted small">{t('publish:pending.nothingOn', { platforms: formatList(emptyPlatforms) })}</p>{/if}
     {#if lastSynced !== null}
-      <p class="muted small">What is said about versions in review or approved is as of the last store sync, {timeAgo(lastSynced, now)}.</p>
+      <p class="muted small">{t('publish:pending.lastSynced', { when: timeAgo(lastSynced, now) })}</p>
     {/if}
   {/if}
 

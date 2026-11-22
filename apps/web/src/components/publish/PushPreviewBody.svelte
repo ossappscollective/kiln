@@ -6,6 +6,7 @@
   Props: preview (the draft preview of the server).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import {
     type DraftPreview,
     previewFieldStatus,
@@ -28,15 +29,15 @@
   <p class="summary" data-testid="push-summary">{previewSummaryText(preview.summary)}</p>
 
   {#if preview.checks && preview.checks.blocking.length > 0}
-    <Alert tone="error" title="The store says this cannot be written as it is">
+    <Alert tone="error" title={t('publish:push.blockedTitle')}>
       <ul class="plain">
         {#each preview.checks.blocking as check (check.code + (check.item ?? ''))}<li>{check.message}</li>{/each}
       </ul>
-      Nothing can be pushed until that is fixed. Close this, fix it in the release steps, then preview again.
+      {t('publish:push.blockedBody')}
     </Alert>
   {/if}
   {#if readFirst.length > 0}
-    <Alert tone="warn" title="Read before you confirm">
+    <Alert tone="warn" title={t('publish:preview.readFirst')}>
       <ul class="plain">
         {#each readFirst as text (text)}<li>{text}</li>{/each}
       </ul>
@@ -44,8 +45,8 @@
   {/if}
 
   {#if (preview.release ?? []).length > 0}
-    <section aria-label="Release" class="stack">
-      <h3>Release ({(preview.release ?? []).length})</h3>
+    <section aria-label={t('publish:push.releaseAria')} class="stack">
+      <h3>{t('publish:push.releaseHeading', { count: (preview.release ?? []).length })}</h3>
       {#each preview.release ?? [] as r (r.id)}
         {@const status = previewFieldStatus(r)}
         <div class="item">
@@ -54,15 +55,15 @@
             <Badge tone={status.tone}>{status.label}</Badge>
           </p>
           {#if r.status === 'local'}
-            <p class="small">Kept here only: {r.after}. It is never written to the store by a push. You name the share again when you release.</p>
+            <p class="small">{t('publish:push.keptHere', { after: r.after })}</p>
           {:else if r.status !== 'unchanged'}
             <div class="compare">
               <div>
-                <p class="label">In the draft now</p>
-                <p class="text">{#if r.before === null || r.before === ''}<span class="muted">Not set</span>{:else}{r.before}{/if}</p>
+                <p class="label">{t('publish:push.inDraftNow')}</p>
+                <p class="text">{#if r.before === null || r.before === ''}<span class="muted">{t('publish:push.notSet')}</span>{:else}{r.before}{/if}</p>
               </div>
               <div>
-                <p class="label">After the push</p>
+                <p class="label">{t('publish:push.afterPush')}</p>
                 <p class="text">{r.after}</p>
               </div>
             </div>
@@ -73,24 +74,24 @@
   {/if}
 
   {#if preview.text.length > 0}
-    <section aria-label="Texts" class="stack">
-      <h3>Texts ({preview.text.length})</h3>
-      {#each preview.text as t (t.id || `${t.locale}/${t.field}`)}
-        {@const status = previewTextStatus(t)}
+    <section aria-label={t('publish:push.textsAria')} class="stack">
+      <h3>{t('publish:push.textsHeading', { count: preview.text.length })}</h3>
+      {#each preview.text as item (item.id || `${item.locale}/${item.field}`)}
+        {@const status = previewTextStatus(item)}
         <div class="item">
           <p class="item-head">
-            <strong>{t.field}</strong> <span class="muted">{t.locale}</span>
+            <strong>{item.field}</strong> <span class="muted">{item.locale}</span>
             <Badge tone={status.tone}>{status.label}</Badge>
           </p>
-          {#if t.status !== 'unchanged'}
+          {#if item.status !== 'unchanged'}
             <div class="compare">
               <div>
-                <p class="label">In the draft now</p>
-                <p class="text">{#if t.before === null}<span class="muted">{t.localeExists ? 'Not set' : 'The locale is not in the draft'}</span>{:else}{t.before}{/if}</p>
+                <p class="label">{t('publish:push.inDraftNow')}</p>
+                <p class="text">{#if item.before === null}<span class="muted">{item.localeExists ? t('publish:push.notSet') : t('publish:push.localeNotInDraft')}</span>{:else}{item.before}{/if}</p>
               </div>
               <div>
-                <p class="label">After the push</p>
-                <p class="text">{t.after}</p>
+                <p class="label">{t('publish:push.afterPush')}</p>
+                <p class="text">{item.after}</p>
               </div>
             </div>
           {/if}
@@ -100,18 +101,20 @@
   {/if}
 
   {#if preview.assets.length > 0}
-    <section aria-label="Graphics" class="stack">
-      <h3>Graphics ({preview.assets.length})</h3>
+    <section aria-label={t('publish:push.graphicsAria')} class="stack">
+      <h3>{t('publish:push.graphicsHeading', { count: preview.assets.length })}</h3>
       {#each preview.assets as set (set.id)}
         <div class="item">
           <p class="item-head">
             <strong>{set.target}</strong> <span class="muted">{set.locale}</span>
-            <Badge tone={set.status === 'unchanged' ? 'neutral' : 'info'}>{set.status === 'unchanged' ? 'Already the same' : 'Will change'}</Badge>
+            <Badge tone={set.status === 'unchanged' ? 'neutral' : 'info'}>{set.status === 'unchanged' ? t('publish:staged.preview.alreadySame') : t('publish:staged.preview.willChange')}</Badge>
           </p>
           <p class="small">
-            In the draft now: {set.before.setExists ? `${set.before.files.length} ${set.before.files.length === 1 ? 'file' : 'files'}` : 'no set'}.
-            After the push: {set.after.files.length} {set.after.files.length === 1 ? 'file' : 'files'}.
-            {previewSetText(set)}
+            {t('publish:push.setLine', {
+              before: set.before.setExists ? t('publish:staged.count.files', { count: set.before.files.length }) : t('publish:push.noSet'),
+              after: t('publish:staged.count.files', { count: set.after.files.length }),
+              detail: previewSetText(set),
+            })}
           </p>
         </div>
       {/each}

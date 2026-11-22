@@ -16,6 +16,8 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import {
@@ -57,7 +59,7 @@
   import { EVERYONE, releaseInputsFor } from '../../lib/release-settings.ts';
   import { releaseSettingsStore } from '../../lib/release-settings-store.svelte.ts';
   import { storeName } from '../../lib/staged.ts';
-  import { parsePercent } from '../../lib/store-release.ts';
+  import { parsePercent, percentText } from '../../lib/store-release.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -67,6 +69,7 @@
   import Modal from '../ui/Modal.svelte';
   import SegmentTabs from '../ui/SegmentTabs.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import T from '../ui/T.svelte';
   import PushPreviewBody from './PushPreviewBody.svelte';
   import ReleasePreviewBody from './ReleasePreviewBody.svelte';
   import RolloutPreviewBody from './RolloutPreviewBody.svelte';
@@ -121,9 +124,9 @@ import { supports } from '@kiln/core';
   const offered = $derived(inputs.offer.offered);
   const stepOf = (type: PublishStepType): PlanStep | undefined => plan?.steps.filter((s) => s.type === type)[0];
   const ready = $derived(phase === 'ready' && !stale && canPublish(plan, wanted, typed, ack));
-  const store = $derived(app ? storeName(app.platform) : 'the store');
+  const store = $derived(app ? storeName(app.platform) : t('publish:dialog.theStore'));
   const phraseId = `${uid}-phrase`;
-  const title = $derived(plan ? publishTitle(plan, store) : 'Review and publish');
+  const title = $derived(plan ? publishTitle(plan, store) : t('publish:dialog.title'));
   const why = $derived(publishDisabledReason({ phase, stale, ready, wanted: wanted.length, plan }));
 
   /** Scrolls to the confirmation under the plan and puts the cursor in it (the Publish button stays off until it is done). */
@@ -206,7 +209,9 @@ import { supports } from '@kiln/core';
     if (fraction === null) return;
     void review(
       requestsFor(made, toggled(includedTypes(made), 'release', true), { release: releaseStepRequest({ track, fraction, direct: isDirectPlan(made) }) }),
-      `The release step was added for you: ${track.trim()}, ${fraction === EVERYONE ? 'everyone' : `${Math.round(fraction * 10000) / 100}% of users`}. Untick it to choose another share.`,
+      fraction === EVERYONE
+        ? t('publish:dialog.notice.addedEveryone', { track: track.trim() })
+        : t('publish:dialog.notice.addedShare', { track: track.trim(), share: percentText(fraction) }),
     );
   }
 
@@ -216,31 +221,31 @@ import { supports } from '@kiln/core';
     wanted = next;
     if (next.length === 0) {
       // The release was the only step: unticking it asks for the track and the share again (nothing is added for the person this time).
-      if (type === 'release') void review(null, 'Choose the track and the share of users, then add the release step.');
+      if (type === 'release') void review(null, t('publish:dialog.notice.chooseTrack'));
       return;
     }
-    void review(requestsFor(plan, next), 'The plan was made again for the steps you chose.');
+    void review(requestsFor(plan, next), t('publish:dialog.notice.replanSteps'));
   }
 
   function addRelease() {
     if (!plan || busy) return;
     const fraction = offered ? parsePercent(share) : EVERYONE;
     if (track.trim() === '') {
-      shareError = 'Name the track.';
+      shareError = t('publish:dialog.error.nameTrack');
       return;
     }
     if (fraction === null) {
-      shareError = 'Type the share as a percent above 0 and up to 100, for example 10 or 2.5.';
+      shareError = t('publish:dialog.error.badShare');
       return;
     }
     shareError = '';
-    void review(requestsFor(plan, toggled(wanted, 'release', true), { release: releaseStepRequest({ track, fraction, direct }) }), 'The plan was made again with the release.');
+    void review(requestsFor(plan, toggled(wanted, 'release', true), { release: releaseStepRequest({ track, fraction, direct }) }), t('publish:dialog.notice.replanRelease'));
   }
 
   /** "Save as a draft only": the push alone. Nothing is submitted or released by it. */
   function saveAsDraftOnly() {
     if (!plan || busy) return;
-    void review(draftOnlySteps(), 'The plan was made again as a draft only: nothing is sent to review or released.');
+    void review(draftOnlySteps(), t('publish:dialog.notice.replanDraft'));
   }
 
   /** Back to the default plan (the direct release when only release fields are staged). */
@@ -330,8 +335,9 @@ import { supports } from '@kiln/core';
   {/if}
 {/snippet}
 
+{#snippet phraseTag(text: string)}<strong class="phrase">{text}</strong>{/snippet}
 {#snippet pending()}
-  <div class="stack" role="status" aria-label="Making the plan">
+  <div class="stack" role="status" aria-label={t('publish:dialog.makingPlanAria')}>
     <Skeleton width="70%" height="16px" />
     <Skeleton width="90%" height="48px" />
     <Skeleton width="60%" height="16px" />
@@ -349,12 +355,12 @@ import { supports } from '@kiln/core';
   <div class="stack">
     {#if targets.length > 1}
       <div class="row tabs">
-        <SegmentTabs tabs={targets.map((t) => ({ id: t.id, label: platformLabel(t.platform) }))} bind:value={tab} label="Platform" idPrefix="{uid}-plat" />
+        <SegmentTabs tabs={targets.map((target) => ({ id: target.id, label: platformLabel(target.platform) }))} bind:value={tab} label={t('publish:dialog.platform')} idPrefix="{uid}-plat" />
       </div>
     {/if}
 
     {#if phase === 'done' && summary && result}
-      <section class="stack" aria-label="Result" data-testid="publish-result">
+      <section class="stack" aria-label={t('publish:dialog.resultAria')} data-testid="publish-result">
         <Alert tone={summary.tone} title={summary.title}>
           {summary.text}
           {#if !result.completed}<span class="para">{STOP_NOTE}</span>{/if}
@@ -371,19 +377,19 @@ import { supports } from '@kiln/core';
           {/each}
         </ol>
         {#if summary.review}
-          <p class="muted small">Review again to see where things stand. That only reads the store; it changes nothing.</p>
+          <p class="muted small">{t('publish:dialog.reviewAgainHint')}</p>
         {/if}
       </section>
     {:else if phase === 'previewing' && !plan}
       {@render pending()}
     {:else if phase === 'error' && !plan}
-      <Alert tone="error" title="No plan was made">{problem}</Alert>
+      <Alert tone="error" title={t('publish:dialog.noPlan')}>{problem}</Alert>
     {:else if plan}
       {@const head = planHeadline(plan, store)}
-      {#if plan.included > 1 && head.sequence}<p class="muted headline" data-testid="plan-headline">They run in this order and stop at the first one that fails: {head.sequence}.</p>{:else if plan.included === 0}<p class="muted headline" data-testid="plan-headline">{head.title}.</p>{/if}
+      {#if plan.included > 1 && head.sequence}<p class="muted headline" data-testid="plan-headline">{t('publish:dialog.sequence', { sequence: head.sequence })}</p>{:else if plan.included === 0}<p class="muted headline" data-testid="plan-headline">{t('publish:dialog.headlineTitle', { title: head.title })}</p>{/if}
       {#if notice}<p class="notice muted small" role="status"><Icon name="info" size={14} /> {notice}</p>{/if}
 
-      <ol class="steps" aria-label="Steps, in the order they run" aria-busy={phase === 'previewing'}>
+      <ol class="steps" aria-label={t('publish:dialog.stepsAria')} aria-busy={phase === 'previewing'}>
         {#each rows as row (row.type)}
           {@const step = stepOf(row.type)}
           {#if step}
@@ -397,11 +403,11 @@ import { supports } from '@kiln/core';
                     disabled={!row.toggleable || busy || stale || row.needsInput}
                     onchange={(e) => toggle(row.type, e.currentTarget.checked)}
                   />
-                  <span class="step-title">{row.order}. {row.label}</span>
+                  <span class="step-title">{t('publish:dialog.stepTitle', { order: row.order, label: row.label })}</span>
                 </label>
                 {#if shownStatusWord(row)}<Badge tone={row.tone}>{shownStatusWord(row)}</Badge>{/if}
-                {#if row.irreversible}<Badge tone="warn" icon="alert-triangle">Cannot be undone from here</Badge>{/if}
-                {#if row.deferred}<Badge tone="info" icon="clock">Checked later</Badge>{/if}
+                {#if row.irreversible}<Badge tone="warn" icon="alert-triangle">{t('publish:dialog.cannotUndoBadge')}</Badge>{/if}
+                {#if row.deferred}<Badge tone="info" icon="clock">{t('publish:dialog.checkedLater')}</Badge>{/if}
               </div>
               {#if step.included && !step.deferred && stepGist(step)}<p class="gist" data-testid="plan-step-gist-{row.type}">{stepGist(step)}</p>{/if}
               {#if row.reason}<p class="reason muted">{row.reason}</p>{/if}
@@ -409,23 +415,23 @@ import { supports } from '@kiln/core';
               {#if row.needsInput}
                 {#if direct}
                   <p class="small" data-testid="direct-explainer">
-                    Sends what you staged to Google Play in one step, with no draft first. Google reviews it before users get it.{offered ? ' Name the share of users below.' : ' It goes to everyone.'}
+                    {offered ? t('publish:dialog.directExplainerShare') : t('publish:dialog.directExplainerAll')}
                   </p>
                 {/if}
                 <div class="inputs">
                   <div class="field">
-                    <label for="{uid}-track">Track</label>
+                    <label for="{uid}-track">{t('publish:dialog.track')}</label>
                     <input id="{uid}-track" type="text" autocomplete="off" spellcheck="false" bind:value={track} disabled={busy || stale} />
                   </div>
                   {#if offered}
                     <div class="field">
-                      <label for="{uid}-share">Share of users (%)</label>
+                      <label for="{uid}-share">{t('publish:dialog.share')}</label>
                       <input id="{uid}-share" type="text" inputmode="decimal" autocomplete="off" placeholder="10" bind:value={share} disabled={busy || stale} aria-invalid={shareError !== '' ? 'true' : undefined} />
                     </div>
                   {:else}
                     <p class="small muted" data-testid="no-staged-rollout">{inputs.offer.message}</p>
                   {/if}
-                  <Button size="sm" disabled={busy || stale} onclick={addRelease}>Add the release step</Button>
+                  <Button size="sm" disabled={busy || stale} onclick={addRelease}>{t('publish:dialog.addRelease')}</Button>
                   {#if shareError}<p class="field-error">{shareError}</p>{/if}
                 </div>
               {/if}
@@ -445,16 +451,16 @@ import { supports } from '@kiln/core';
               {/if}
 
               {#if step.included && !step.deferred}
-                <Disclosure summary="Details of this step" open={stepGist(step) === ''}>
+                <Disclosure summary={t('publish:dialog.details')} open={stepGist(step) === ''}>
                   <div class="detail">
                     {@render details(step)}
                     {#if step.irreversible && step.stepPhrase && plan?.confirmationRequired}
-                      <p class="small muted">Its own confirmation would be “{step.stepPhrase}”. The phrase you type below confirms it as part of this plan.</p>
+                      <p class="small muted">{t('publish:dialog.ownConfirmation', { phrase: step.stepPhrase })}</p>
                     {/if}
                   </div>
                 </Disclosure>
               {:else if !step.included && step.preview}
-                <Disclosure summary="Details of what the store says">
+                <Disclosure summary={t('publish:dialog.storeDetails')}>
                   <div class="detail">{@render details(step)}</div>
                 </Disclosure>
               {/if}
@@ -463,7 +469,7 @@ import { supports } from '@kiln/core';
         {/each}
       </ol>
       {#if visible.left.length > 0}
-        <p class="muted small" data-testid="plan-left-out">Not needed for this plan, so not shown: {visible.left.join('; ')}.</p>
+        <p class="muted small" data-testid="plan-left-out">{t('publish:dialog.leftOut', { items: formatList(visible.left, { type: 'unit' }) })}</p>
       {/if}
 
       {@const planWarnings = foldWarnings(plan.warnings)}
@@ -480,29 +486,29 @@ import { supports } from '@kiln/core';
 
       {#if canDraftOnly}
         <div class="row">
-          <Button size="sm" disabled={busy || stale} onclick={saveAsDraftOnly}>Save as a draft only</Button>
-          <span class="muted small">Writes the staged release to the Google Play draft. Nothing is sent to review or released.</span>
+          <Button size="sm" disabled={busy || stale} onclick={saveAsDraftOnly}>{t('publish:dialog.draftOnly')}</Button>
+          <span class="muted small">{t('publish:dialog.draftOnlyHint')}</span>
         </div>
       {:else if offersDirect}
         <div class="row">
-          <Button size="sm" disabled={busy || stale} onclick={backToDirect}>Release to production directly instead</Button>
-          <span class="muted small">One step: Google reviews it before users get it. No draft first.</span>
+          <Button size="sm" disabled={busy || stale} onclick={backToDirect}>{t('publish:dialog.directInstead')}</Button>
+          <span class="muted small">{t('publish:dialog.directInsteadHint')}</span>
         </div>
       {/if}
 
       {#if !plan.confirmable}
-        <Alert tone="error" title="This plan cannot be published as it is">
-          {wanted.length === 0 ? 'Tick at least one step.' : 'A step you chose cannot run. Untick it, or fix what blocks it, then review again.'}
+        <Alert tone="error" title={t('publish:dialog.cannotPublishTitle')}>
+          {wanted.length === 0 ? t('publish:dialog.tickOne') : t('publish:dialog.stepCannotRun')}
         </Alert>
       {:else if plan.confirmationRequired && plan.confirmation}
         <div class="confirm" class:irrev={plan.irreversible}>
           {#if plan.irreversible}
             <p class="irrev-line" data-testid="plan-irreversible">
-              <Icon name="alert-triangle" size={16} /> <span><strong>Cannot be undone from here:</strong> {plan.irreversibleSteps.map((t) => STEP_NAME[t]).join(', ')}. Only the store's own console can cancel it. Recorded in the audit log.</span>
+              <Icon name="alert-triangle" size={16} /> <span><T key="publish:dialog.irreversibleLine" params={{ steps: formatList(plan.irreversibleSteps.map((step) => STEP_NAME[step])) }} /></span>
             </p>
           {/if}
           <div class="field">
-            <label for={phraseId}>Type <strong class="phrase">{plan.confirmation.phrase}</strong> to confirm</label>
+            <label for={phraseId}><T key="publish:dialog.typePhrase" params={{ phrase: plan.confirmation.phrase }} tags={{ link: phraseTag }} /></label>
             <p class="muted small">{plan.confirmation.instruction}</p>
             <input id={phraseId} type="text" autocomplete="off" autocapitalize="off" spellcheck="false" bind:value={typed} disabled={busy || stale} />
           </div>
@@ -511,16 +517,16 @@ import { supports } from '@kiln/core';
         <label class="confirm ack" class:irrev={plan.irreversible} data-testid={plan.irreversible ? 'plan-irreversible' : undefined}>
           <input type="checkbox" bind:checked={ack} disabled={busy || stale} data-testid="plan-confirm-ack" />
           <span>
-            {#if plan.irreversible}<strong>I understand.</strong> {plan.irreversibleSteps.map((t) => STEP_NAME[t]).join(', ')} cannot be undone from here: only the store's own console can stop it. Recorded in the audit log.{:else}<strong>I have read the plan.</strong> Nothing is submitted or released by it. Recorded in the audit log.{/if}
+            {#if plan.irreversible}<T key="publish:dialog.ackIrreversible" params={{ steps: formatList(plan.irreversibleSteps.map((step) => STEP_NAME[step])) }} />{:else}<T key="publish:dialog.ackPlain" />{/if}
           </span>
         </label>
-        <p class="muted small">When you press Publish you confirm with your password or passkey. There is no phrase to type.</p>
+        <p class="muted small">{t('publish:dialog.passwordHint')}</p>
       {/if}
 
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}
       {#if phase === 'publishing'}
         <div role="status" class="running">
-          <Alert tone="info" title="Publishing">Running the steps in order. This can take a few minutes. Keep this window open.</Alert>
+          <Alert tone="info" title={t('publish:dialog.publishingTitle')}>{t('publish:dialog.publishingBody')}</Alert>
         </div>
       {/if}
     {/if}
@@ -528,8 +534,8 @@ import { supports } from '@kiln/core';
 
   {#snippet footer()}
     {#if phase === 'done'}
-      {#if summary?.review}<Button icon="refresh" onclick={() => review(null)}>Review again</Button>{/if}
-      <Button variant="primary" onclick={close}>Close</Button>
+      {#if summary?.review}<Button icon="refresh" onclick={() => review(null)}>{t('publish:dialog.reviewAgain')}</Button>{/if}
+      <Button variant="primary" onclick={close}>{t('common:action.close')}</Button>
     {:else}
       {#if why}
         {#if plan && phase === 'ready' && !stale && plan.confirmable}
@@ -538,13 +544,13 @@ import { supports } from '@kiln/core';
           <span class="why-text" data-testid="why-publish-disabled">{why}</span>
         {/if}
       {/if}
-      <Button disabled={phase === 'publishing'} onclick={close}>Cancel</Button>
+      <Button disabled={phase === 'publishing'} onclick={close}>{t('common:action.cancel')}</Button>
       {#if stale || (phase === 'error' && !plan)}
-        <Button icon="refresh" disabled={busy} onclick={() => review(null)}>Review again</Button>
+        <Button icon="refresh" disabled={busy} onclick={() => review(null)}>{t('publish:dialog.reviewAgain')}</Button>
       {/if}
       {#if plan}
         <Button variant="primary" icon="upload" loading={phase === 'publishing'} disabled={!ready || busy} onclick={publish}>
-          Publish {plan.included} {plan.included === 1 ? 'step' : 'steps'}
+          {t('publish:dialog.publishSteps', { count: plan.included })}
         </Button>
       {/if}
     {/if}

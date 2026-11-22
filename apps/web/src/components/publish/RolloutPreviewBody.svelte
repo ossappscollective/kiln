@@ -5,6 +5,7 @@
   Props: preview (the rollout preview of the server).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { type RolloutPreview, describeState } from '../../lib/store-rollout.ts';
 
   let { preview }: { preview: RolloutPreview } = $props();
@@ -13,13 +14,13 @@
 <div class="stack">
   <p class="summary" data-testid="rollout-summary">{preview.summary}</p>
 
-  <div class="compare" aria-label="Before and after">
+  <div class="compare" aria-label={t('publish:rollout.compareAria')}>
     <div>
-      <p class="label">Now, in the store</p>
+      <p class="label">{t('publish:rollout.now')}</p>
       <p class="state">{describeState(preview.current)}</p>
     </div>
     <div>
-      <p class="label">After this change</p>
+      <p class="label">{t('publish:rollout.after')}</p>
       <p class="state">{describeState(preview.proposed)}</p>
     </div>
   </div>

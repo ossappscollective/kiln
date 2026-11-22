@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
   import { fullTime } from '../../lib/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { type SubmitPreview, buildLine, checkText, localeLine, pushedText, trackLine, versionLine } from '../../lib/store-submit.ts';
   import Alert from '../ui/Alert.svelte';
 import { supports } from '@kiln/core';
@@ -20,63 +21,62 @@ import { supports } from '@kiln/core';
 
 <div class="stack">
   <dl class="facts" data-testid="submit-facts">
-    <div><dt>App</dt><dd>{preview.app.name}</dd></div>
-    <div><dt>Version</dt><dd>{versionLine(preview)}</dd></div>
-    {#if build}<div><dt>Build</dt><dd>{build}</dd></div>{/if}
+    <div><dt>{t('publish:preview.app')}</dt><dd>{preview.app.name}</dd></div>
+    <div><dt>{t('publish:preview.version')}</dt><dd>{versionLine(preview)}</dd></div>
+    {#if build}<div><dt>{t('publish:preview.build')}</dt><dd>{build}</dd></div>{/if}
     {#if preview.contents.pushed}
       <div>
-        <dt>Pushed draft</dt>
-        <dd>{pushedText(preview.contents.pushed)} ({fullTime(preview.contents.pushed.pushedAt)}{preview.contents.pushed.pushedBy ? `, ${preview.contents.pushed.pushedBy}` : ''})</dd>
+        <dt>{t('publish:submit.pushedDraft')}</dt>
+        <dd>{preview.contents.pushed.pushedBy ? t('publish:submit.pushedLineBy', { text: pushedText(preview.contents.pushed), time: fullTime(preview.contents.pushed.pushedAt), by: preview.contents.pushed.pushedBy }) : t('publish:submit.pushedLine', { text: pushedText(preview.contents.pushed), time: fullTime(preview.contents.pushed.pushedAt) })}</dd>
       </div>
     {/if}
-    <div><dt>Store read</dt><dd>{fullTime(preview.readAt)}</dd></div>
+    <div><dt>{t('publish:preview.storeRead')}</dt><dd>{fullTime(preview.readAt)}</dd></div>
   </dl>
 
-  <section class="stack tight" aria-label="Contents">
-    <h3>What goes to review</h3>
+  <section class="stack tight" aria-label={t('publish:submit.contentsAria')}>
+    <h3>{t('publish:submit.whatGoes')}</h3>
     {#if preview.contents.locales.length === 0}
-      <p class="muted small">No locales were found in the draft.</p>
+      <p class="muted small">{t('publish:submit.noLocales')}</p>
     {:else}
       <ul class="plain">
         {#each preview.contents.locales as locale (locale.locale)}<li>{localeLine(locale)}</li>{/each}
       </ul>
     {/if}
     {#if preview.contents.includesChangesNotPushedHere}
-      <Alert tone="warn" title="Includes changes this tool did not push">
-        Google Play sends every change that is held back for review, including edits made in Play Console, and does not list them. Check Play Console if
-        someone else was editing.
+      <Alert tone="warn" title={t('publish:submit.notPushedTitle')}>
+        {t('publish:submit.notPushedBody')}
       </Alert>
     {/if}
   </section>
 
   {#if preview.tracks.length > 0}
-    <section class="stack tight" aria-label="Tracks">
-      <h3>Tracks (read only)</h3>
+    <section class="stack tight" aria-label={t('publish:submit.tracksAria')}>
+      <h3>{t('publish:submit.tracksTitle')}</h3>
       <ul class="plain">
         {#each preview.tracks as track (track.track)}<li>{trackLine(track)}</li>{/each}
       </ul>
-      <p class="muted small">A submit does not start, raise or complete a rollout on any track.</p>
+      <p class="muted small">{t('publish:submit.tracksNote')}</p>
     </section>
   {/if}
 
-  <section class="stack tight" aria-label="What cannot be undone">
-    <h3>What cannot be undone from here</h3>
+  <section class="stack tight" aria-label={t('publish:preview.cannotUndoAria')}>
+    <h3>{t('publish:preview.cannotUndoTitle')}</h3>
     <ul class="plain" data-testid="submit-irreversible">
       {#each preview.irreversible as sentence (sentence)}<li>{sentence}</li>{/each}
-      <li>It does not release or publish anything. That stays a separate decision in {ios ? 'App Store Connect' : 'Play Console'}.</li>
+      <li>{t('publish:submit.noRelease', { console: ios ? 'App Store Connect' : 'Play Console' })}</li>
     </ul>
   </section>
 
   {#if blocking.length > 0}
-    <Alert tone="error" title="Blocked: this cannot be submitted yet">
+    <Alert tone="error" title={t('publish:submit.blockedTitle')}>
       <ul class="plain" data-testid="submit-blocking">
         {#each blocking as check (check.code + check.message + (check.locale ?? '') + (check.item ?? ''))}<li>{checkText(check)}</li>{/each}
       </ul>
-      <p class="para">Fix these in the store or the repository, then preview again.</p>
+      <p class="para">{t('publish:submit.blockedFix')}</p>
     </Alert>
   {/if}
   {#if preview.checks.warnings.length > 0}
-    <Alert tone="warn" title="Read before you confirm">
+    <Alert tone="warn" title={t('publish:preview.readFirst')}>
       <ul class="plain" data-testid="submit-warnings">
         {#each preview.checks.warnings as check (check.code + check.message + (check.locale ?? '') + (check.item ?? ''))}<li>{checkText(check)}</li>{/each}
       </ul>

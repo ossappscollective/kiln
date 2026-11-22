@@ -6,7 +6,8 @@
 -->
 <script lang="ts">
   import { fullTime } from '../../lib/format.ts';
-  import { type ReleasePreview, audienceText, directText, storeConsole } from '../../lib/store-release.ts';
+  import { k, t } from '../../lib/i18n/t.ts';
+  import { type ReleasePreview, audienceText, directText, percentText, storeConsole } from '../../lib/store-release.ts';
   import Alert from '../ui/Alert.svelte';
 import { supports } from '@kiln/core';
 
@@ -16,63 +17,77 @@ import { supports } from '@kiln/core';
   const android = $derived(supports(preview.app.platform, 'releaseTracks'));
   const console_ = $derived(storeConsole(preview.app.platform));
   const directLine = $derived(directText(preview));
+  const OTHER_LINE = {
+    plain: k('publish:release.other.plain'),
+    fraction: k('publish:release.other.fraction'),
+    replaced: k('publish:release.other.replaced'),
+    fractionReplaced: k('publish:release.other.fractionReplaced'),
+  };
+  const otherLine = (other: ReleasePreview['others'][number]): string => {
+    const replaced = android && preview.audience.kind === 'all' && other.status === 'completed';
+    const fraction = other.userFraction !== null;
+    const key = fraction ? (replaced ? OTHER_LINE.fractionReplaced : OTHER_LINE.fraction) : replaced ? OTHER_LINE.replaced : OTHER_LINE.plain;
+    return t(key, {
+      name: other.name ?? t('publish:release.unnamed'),
+      status: other.status,
+      percent: other.userFraction !== null ? percentText(other.userFraction) : '',
+      codes: other.versionCodes.join(', ') || t('publish:release.none'),
+    });
+  };
 </script>
 
 <div class="stack">
   {#if directLine && preview.direct}
-    <Alert tone="warn" title={preview.direct.creates ? 'Made from what you staged and sent to Google Play in one step' : 'The existing draft is sent to Google Play'}>
+    <Alert tone="warn" title={preview.direct.creates ? t('publish:release.directCreates') : t('publish:release.directExisting')}>
       <p class="alert-text" data-testid="release-direct">{directLine}</p>
     </Alert>
   {/if}
   <dl class="facts" data-testid="release-facts">
-    <div><dt>App</dt><dd>{preview.app.name}</dd></div>
+    <div><dt>{t('publish:preview.app')}</dt><dd>{preview.app.name}</dd></div>
     {#if android}
-      <div><dt>Track</dt><dd>{preview.track ?? 'Not known'}</dd></div>
+      <div><dt>{t('publish:release.track')}</dt><dd>{preview.track ?? t('publish:release.notKnown')}</dd></div>
       {#if preview.release}
-        <div><dt>Release</dt><dd>{preview.release.name ?? 'Unnamed'} ({preview.release.status})</dd></div>
-        <div><dt>Version codes</dt><dd>{preview.release.versionCodes.length > 0 ? preview.release.versionCodes.join(', ') : 'None'}</dd></div>
-        <div><dt>Release notes</dt><dd>{preview.direct && preview.direct.notesLanguages.length > 0 ? preview.direct.notesLanguages.join(', ') : preview.release.notes === 0 ? 'None' : `${preview.release.notes} ${preview.release.notes === 1 ? 'language' : 'languages'}`}</dd></div>
+        <div><dt>{t('publish:release.release')}</dt><dd>{t('publish:release.releaseLine', { name: preview.release.name ?? t('publish:release.unnamed'), status: preview.release.status })}</dd></div>
+        <div><dt>{t('publish:release.versionCodes')}</dt><dd>{preview.release.versionCodes.length > 0 ? preview.release.versionCodes.join(', ') : t('publish:release.none')}</dd></div>
+        <div><dt>{t('publish:release.notes')}</dt><dd>{preview.direct && preview.direct.notesLanguages.length > 0 ? preview.direct.notesLanguages.join(', ') : preview.release.notes === 0 ? t('publish:release.none') : t('publish:release.notesLanguages', { count: preview.release.notes })}</dd></div>
       {/if}
     {:else}
-      <div><dt>Version</dt><dd>{preview.version?.versionString ?? 'Not known'}{preview.version ? ` (${preview.version.state})` : ''}</dd></div>
-      {#if preview.build}<div><dt>Build</dt><dd>{preview.build.buildNumber ?? 'Not known'}</dd></div>{/if}
-      <div><dt>Phased release</dt><dd>{preview.phasedRelease ? `On${preview.phasedRelease.state ? ` (${preview.phasedRelease.state})` : ''}` : 'Off'}</dd></div>
+      <div><dt>{t('publish:preview.version')}</dt><dd>{preview.version ? (preview.version.versionString ? t('publish:release.versionLine', { version: preview.version.versionString, state: preview.version.state }) : t('publish:release.notKnown')) : t('publish:release.notKnown')}</dd></div>
+      {#if preview.build}<div><dt>{t('publish:preview.build')}</dt><dd>{preview.build.buildNumber ?? t('publish:release.notKnown')}</dd></div>{/if}
+      <div><dt>{t('publish:release.phased')}</dt><dd>{preview.phasedRelease ? (preview.phasedRelease.state ? t('publish:release.phasedOnState', { state: preview.phasedRelease.state }) : t('publish:release.phasedOn')) : t('publish:release.phasedOff')}</dd></div>
     {/if}
-    <div><dt>Who gets it</dt><dd>{audienceText(preview)}</dd></div>
-    <div><dt>Store read</dt><dd>{fullTime(preview.readAt)}</dd></div>
+    <div><dt>{t('publish:release.whoGetsIt')}</dt><dd>{audienceText(preview)}</dd></div>
+    <div><dt>{t('publish:preview.storeRead')}</dt><dd>{fullTime(preview.readAt)}</dd></div>
   </dl>
 
   {#if preview.others.length > 0}
-    <section class="stack tight" aria-label="Other releases of the track">
-      <h3>Other releases of the track</h3>
+    <section class="stack tight" aria-label={t('publish:release.othersTitle')}>
+      <h3>{t('publish:release.othersTitle')}</h3>
       <ul class="plain">
         {#each preview.others as other (`${other.name}/${other.status}/${other.versionCodes.join(',')}`)}
-          <li>
-            {other.name ?? 'Unnamed'}: {other.status}{other.userFraction !== null ? ` at ${Math.round(other.userFraction * 10000) / 100}%` : ''}, codes
-            {other.versionCodes.join(', ') || 'none'}{android && preview.audience.kind === 'all' && other.status === 'completed' ? ' (replaced: Google Play allows only one completed release, so this one leaves the track)' : ''}
-          </li>
+          <li>{otherLine(other)}</li>
         {/each}
       </ul>
     </section>
   {/if}
 
-  <section class="stack tight" aria-label="What cannot be undone">
-    <h3>What cannot be undone from here</h3>
+  <section class="stack tight" aria-label={t('publish:preview.cannotUndoAria')}>
+    <h3>{t('publish:preview.cannotUndoTitle')}</h3>
     <ul class="plain" data-testid="release-irreversible">
       {#each preview.irreversible as sentence (sentence)}<li>{sentence}</li>{/each}
     </ul>
   </section>
 
   {#if blocking.length > 0}
-    <Alert tone="error" title="Blocked: this cannot be released yet">
+    <Alert tone="error" title={t('publish:release.blockedTitle')}>
       <ul class="plain" data-testid="release-blocking">
         {#each blocking as check (check.code + check.message + (check.item ?? ''))}<li>{check.message}</li>{/each}
       </ul>
-      <p class="para">Fix these in the store or in the release steps, then preview again. Look in {console_} if you are unsure.</p>
+      <p class="para">{t('publish:release.blockedFix', { console: console_ })}</p>
     </Alert>
   {/if}
   {#if preview.checks.warnings.length > 0}
-    <Alert tone="warn" title="Read before you confirm">
+    <Alert tone="warn" title={t('publish:preview.readFirst')}>
       <ul class="plain" data-testid="release-warnings">
         {#each preview.checks.warnings as check (check.code + check.message + (check.item ?? ''))}<li>{check.message}</li>{/each}
       </ul>
