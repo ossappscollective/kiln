@@ -10,7 +10,7 @@ import {
   formatRecoveryCode,
   passkeyOnlyButUnsupported,
   primaryFactor,
-  RECOVERY_CODE_HINT,
+  recoveryCodeHint,
   recoveryCodeComplete,
   recoveryCodesText,
   recoveryFailureMessage,
@@ -323,7 +323,7 @@ test('a wrong recovery code gets its own sentence; other failures do not', () =>
   );
   assert.equal(recoveryFailureMessage({ code: 'step_up_locked', body: {} }), undefined);
   assert.equal(recoveryFailureMessage(null), undefined);
-  assert.match(RECOVERY_CODE_HINT, /works once/);
+  assert.match(recoveryCodeHint(), /works once/);
 });
 
 test('the card says what is left, and when to make a new set', () => {

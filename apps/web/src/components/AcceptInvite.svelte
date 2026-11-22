@@ -6,6 +6,9 @@
   import Alert from './ui/Alert.svelte';
   import Button from './ui/Button.svelte';
   import { roleLabel } from './members/roles.ts';
+  import { k, t } from '../lib/i18n/t.ts';
+  import { msg, msgText, rawMsg, type Msg } from '../lib/message.ts';
+  import T from './ui/T.svelte';
 
   let {
     api,
@@ -26,18 +29,17 @@
 
   type Load =
     | { name: 'loading' }
-    | { name: 'invalid'; message: string }
+    | { name: 'invalid'; message: Msg }
     | { name: 'ready'; invitation: InvitationPreview; user: User | null };
 
   let load = $state<Load>({ name: 'loading' });
   let displayName = $state('');
   let password = $state('');
   let busy = $state(false);
-  let error = $state('');
+  let error = $state<Msg | null>(null);
   let accountExists = $state(false);
 
-  const INVALID =
-    'This invitation link is not valid. It may have expired, been used already or been revoked. Ask the person who invited you for a new link.';
+  const INVALID = msg(k('auth:invite.invalid'));
 
   async function start() {
     load = { name: 'loading' };
@@ -48,7 +50,7 @@
       // Not found for every kind of bad link, on purpose; say what a person can do about it.
       load = {
         name: 'invalid',
-        message: e instanceof ApiError && e.status !== 404 ? e.message : INVALID,
+        message: e instanceof ApiError && e.status !== 404 ? rawMsg(e.message) : INVALID,
       };
     }
   }
@@ -70,7 +72,7 @@
 
   async function accept(body: { displayName?: string; password?: string }) {
     busy = true;
-    error = '';
+    error = null;
     accountExists = false;
     try {
       const joined = await api.acceptInvitation(token, body);
@@ -81,7 +83,7 @@
         load = { name: 'invalid', message: INVALID };
       } else {
         accountExists = e instanceof ApiError && e.code === 'account_exists';
-        error = e instanceof ApiError ? e.message : 'Something went wrong. Try again.';
+        error = e instanceof ApiError ? rawMsg(e.message) : msg(k('common:error.genericRetry'));
       }
     } finally {
       busy = false;
@@ -99,7 +101,7 @@
       await api.logout();
       onsignedout();
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not sign out. Try again.';
+      error = e instanceof ApiError ? rawMsg(e.message) : msg(k('auth:invite.signOutFailed'));
     } finally {
       busy = false;
     }
@@ -108,48 +110,47 @@
 </script>
 
 {#if load.name === 'loading'}
-  <p class="center muted" role="status">Checking your invitation…</p>
+  <p class="center muted" role="status">{t('auth:invite.checking')}</p>
 {:else if load.name === 'invalid'}
-  <AuthCard title="Invitation not valid">
-    <Alert tone="error">{load.message}</Alert>
-    <p class="back"><Button variant="primary" size="lg" block onclick={onleave}>Go to the app</Button></p>
+  <AuthCard title={t('auth:invite.invalidTitle')}>
+    <Alert tone="error">{msgText(load.message)}</Alert>
+    <p class="back"><Button variant="primary" size="lg" block onclick={onleave}>{t('auth:invite.goToApp')}</Button></p>
   </AuthCard>
 {:else}
   {@const invitation = load.invitation}
   {@const user = load.user}
   <AuthCard
-    title="Join {invitation.workspaceName}"
-    subtitle="You were invited as {roleLabel[invitation.role].toLowerCase()} for {invitation.email}."
+    title={t('auth:invite.title', { workspace: invitation.workspaceName })}
+    subtitle={t('auth:invite.subtitle', { role: roleLabel[invitation.role].toLowerCase(), email: invitation.email })}
   >
     {#if user && sameEmail(user.email, invitation.email)}
       <div class="stack">
-        <p>You are signed in as <strong>{user.email}</strong>.</p>
-        {#if error}<Alert tone="error">{error}</Alert>{/if}
+        <p><T key="auth:invite.signedInAs" params={{ email: user.email }} /></p>
+        {#if error}<Alert tone="error">{msgText(error)}</Alert>{/if}
         <Button variant="primary" size="lg" block loading={busy} onclick={() => accept({})}>
-          {busy ? 'Joining…' : `Join ${invitation.workspaceName}`}
+          {busy ? t('auth:invite.joining') : t('auth:invite.title', { workspace: invitation.workspaceName })}
         </Button>
       </div>
     {:else if user}
       <div class="stack">
-        <Alert tone="warn" title="This invitation is for a different account">
-          It is for <strong>{invitation.email}</strong>, but you are signed in as
-          <strong>{user.email}</strong>. Sign out, then open the link again.
+        <Alert tone="warn" title={t('auth:invite.wrongAccountTitle')}>
+          <T key="auth:invite.wrongAccount" params={{ invited: invitation.email, current: user.email }} />
         </Alert>
-        {#if error}<Alert tone="error">{error}</Alert>{/if}
-        <Button variant="primary" size="lg" block loading={busy} onclick={signOut}>Sign out</Button>
+        {#if error}<Alert tone="error">{msgText(error)}</Alert>{/if}
+        <Button variant="primary" size="lg" block loading={busy} onclick={signOut}>{t('shell:account.signOut')}</Button>
       </div>
     {:else}
       <form onsubmit={submitNew} class="stack">
         <div class="field">
-          <label for="invite-account-email">Email</label>
+          <label for="invite-account-email">{t('auth:login.email')}</label>
           <input id="invite-account-email" type="email" value={invitation.email} readonly />
         </div>
         <div class="field">
-          <label for="invite-name">Your name</label>
+          <label for="invite-name">{t('auth:invite.yourName')}</label>
           <input id="invite-name" bind:value={displayName} autocomplete="name" required />
         </div>
         <div class="field">
-          <label for="invite-password">Choose a password</label>
+          <label for="invite-password">{t('auth:invite.choosePassword')}</label>
           <input
             id="invite-password"
             type="password"
@@ -158,14 +159,14 @@
             minlength="12"
             required
           />
-          <p class="hint">At least 12 characters. A few random words work well.</p>
+          <p class="hint">{t('auth:password.hint', { min: 12 })}</p>
         </div>
-        {#if error}<Alert tone="error">{error}</Alert>{/if}
+        {#if error}<Alert tone="error">{msgText(error)}</Alert>{/if}
         {#if accountExists}
-          <Button variant="primary" size="lg" block onclick={onleave}>Sign in</Button>
+          <Button variant="primary" size="lg" block onclick={onleave}>{t('auth:login.submit')}</Button>
         {/if}
         <Button type="submit" variant={accountExists ? 'secondary' : 'primary'} size="lg" block loading={busy}>
-          {busy ? 'Creating account…' : 'Create account and join'}
+          {busy ? t('auth:invite.creating') : t('auth:invite.createAndJoin')}
         </Button>
       </form>
     {/if}

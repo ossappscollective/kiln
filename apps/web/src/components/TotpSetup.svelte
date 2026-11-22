@@ -5,6 +5,7 @@
   Props: begin ({ secret, uri, issuer, account }), busy, problem, onconfirm(code), oncancel().
 -->
 <script lang="ts">
+  import { t } from '../lib/i18n/t.ts';
   import { codeComplete, groupSecret, type TotpBegin } from '../lib/two-factor.ts';
   import Alert from './ui/Alert.svelte';
   import Button from './ui/Button.svelte';
@@ -32,17 +33,17 @@
 
 <div class="stack readable-form">
   <ol class="steps">
-    <li>Open your authenticator app and add an account.</li>
-    <li>Scan this code, or type the key below.</li>
-    <li>Enter the six digits the app shows.</li>
+    <li>{t('auth:totp.step1')}</li>
+    <li>{t('auth:totp.step2')}</li>
+    <li>{t('auth:totp.step3')}</li>
   </ol>
   <div class="setup">
-    <QrCode text={begin.uri} label="QR code to add this account to an authenticator app" />
+    <QrCode text={begin.uri} label={t('auth:totp.qrLabel')} />
     <div class="key">
-      <span class="quiet">Key for typing it in ({begin.account})</span>
+      <span class="quiet">{t('auth:totp.keyLabel', { account: begin.account })}</span>
       <div class="keyline">
         <code class="secret">{groupSecret(begin.secret)}</code>
-        <CopyButton value={begin.secret} label="Copy the key" />
+        <CopyButton value={begin.secret} label={t('auth:totp.copyKey')} />
       </div>
     </div>
   </div>
@@ -50,7 +51,7 @@
     <TextField
       id="totp-setup-code"
       name="totp"
-      label="Code from the app"
+      label={t('auth:totp.codeLabel')}
       bind:value={code}
       inputmode="numeric"
       autocomplete="one-time-code"
@@ -60,8 +61,8 @@
       disabled={busy}
     />
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
-    <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || !codeComplete(code)}>Verify and turn on</Button>
-    <p class="quiet-links"><Button variant="link" disabled={busy} onclick={oncancel}>Cancel</Button></p>
+    <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || !codeComplete(code)}>{t('auth:totp.verify')}</Button>
+    <p class="quiet-links"><Button variant="link" disabled={busy} onclick={oncancel}>{t('common:action.cancel')}</Button></p>
   </form>
 </div>
 

@@ -4,6 +4,7 @@
  * server's base64url JSON and the browser's WebAuthn buffers, and `withStepUp`, the one place a call is retried.
  * No DOM, no fetch: the dialog and the API client use these. ES2017 only (the web is compiled for it).
  */
+import { k, t } from './i18n/t.ts';
 
 export type StepUpAction =
   | 'store.publish'
@@ -35,19 +36,20 @@ export const DEFAULT_COVERED: readonly StepUpAction[] = STEP_UP_ACTIONS.filter(
 );
 
 const ACTION_LABELS: Record<string, string> = {
-  'store.publish': 'Publish to the stores',
-  'store.submit': 'Submit for store review',
-  'store.release': 'Release to users',
-  rollout: 'Change a live rollout',
-  internal_sharing: 'Google Play internal app sharing',
-  'analytics.enable_apple': 'Turn on Apple analytics reports',
-  'credential.delete': 'Delete a credential',
-  flags: 'Turn a feature on',
-  'store.push_draft': 'Write a store draft',
-  'step_up.manage': 'Change how you confirm',
+  'store.publish': k('auth:stepUp.action.storePublish'),
+  'store.submit': k('auth:stepUp.action.storeSubmit'),
+  'store.release': k('auth:stepUp.action.storeRelease'),
+  rollout: k('auth:stepUp.action.rollout'),
+  internal_sharing: k('auth:stepUp.action.internalSharing'),
+  'analytics.enable_apple': k('auth:stepUp.action.analyticsApple'),
+  'credential.delete': k('auth:stepUp.action.credentialDelete'),
+  flags: k('auth:stepUp.action.flags'),
+  'store.push_draft': k('auth:stepUp.action.pushDraft'),
+  'step_up.manage': k('auth:stepUp.action.manage'),
 };
 
-export const stepUpActionLabel = (action: string): string => ACTION_LABELS[action] || 'This action';
+export const stepUpActionLabel = (action: string): string =>
+  t(ACTION_LABELS[action] ?? k('auth:stepUp.action.unknown'));
 
 export type StepUpFactor = 'passkey' | 'password' | 'recovery' | 'totp' | 'email';
 export type StepUpTarget = { id?: string; hash?: string };
@@ -171,8 +173,7 @@ export function stepUpMessage(code: string, retryAfter?: number): string | undef
 // ---------------------------------------------------------------------------------------------
 // Recovery codes (docs/api/step-up.md, "Recovery codes")
 
-export const RECOVERY_CODE_HINT =
-  'Each recovery code works once. Wrong ones count like wrong passwords.';
+export const recoveryCodeHint = (): string => t('auth:stepUp.recoveryHint');
 const RECOVERY_SYMBOLS = 20;
 
 /** What was typed as the symbols it stands for: case, dashes and spaces do not matter (the server folds O to 0 and I, L to 1). */

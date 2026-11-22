@@ -92,7 +92,9 @@
   "toast.region": "Notifications",
   "validation.emailInvalid": "Enter an email address like name@example.com.",
   "validation.emailRequired": "Enter your email address.",
+  "validation.nameRequired": "Enter your name.",
   "validation.passwordRequired": "Enter a password.",
   "validation.passwordTooShort_one": "Use at least {{count}} character. You have {{length}}.",
-  "validation.passwordTooShort_other": "Use at least {{count}} characters. You have {{length}}."
+  "validation.passwordTooShort_other": "Use at least {{count}} characters. You have {{length}}.",
+  "validation.workspaceNameRequired": "Enter a workspace name."
 }

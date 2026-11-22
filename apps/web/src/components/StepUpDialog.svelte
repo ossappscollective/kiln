@@ -15,7 +15,7 @@
     type StepUpFactor,
     type StepUpTarget,
     assertionToServer,
-    RECOVERY_CODE_HINT,
+    recoveryCodeHint,
     passkeyOnlyButUnsupported,
     primaryFactor,
     recoveryCodeComplete,
@@ -27,7 +27,9 @@
     webauthnSupported,
   } from '../lib/step-up.ts';
   import { codeComplete, resendIn, twoFactorProblem } from '../lib/two-factor.ts';
-  import { STEP_UP_VALIDITY, confirmSentence } from '../lib/auth-copy.ts';
+  import { confirmSentence, stepUpValidity } from '../lib/auth-copy.ts';
+  import { t } from '../lib/i18n/t.ts';
+  import T from './ui/T.svelte';
   import './auth-form.css';
   import Alert from './ui/Alert.svelte';
   import Button from './ui/Button.svelte';
@@ -211,41 +213,38 @@
 <Modal
   bind:open
   size="sm"
-  title="Confirm: {stepUpActionLabel(action)}"
+  title={t('auth:stepUp.title', { action: stepUpActionLabel(action) })}
   description={confirmSentence(factors, supported)}
   dismissible={!busy}
   onclose={closed}
 >
   <div class="stack readable-form">
     {#if stuck}
-      <Alert tone="warn" title="This window cannot use passkeys">
-        Your passkey cannot be used here (the desktop app's window may not offer passkeys). Open the app in a browser, or set a confirmation
-        password in Settings, Security.
-      </Alert>
+      <Alert tone="warn" title={t('auth:stepUp.stuckTitle')}>{t('auth:stepUp.stuckBody')}</Alert>
     {/if}
 
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
 
     {#if showPasskey}
-      <p class="muted">Use the passkey on this device (Touch ID, Face ID, Windows Hello) or a security key.</p>
-      <Button variant="primary" size="lg" block icon="key" loading={busy} disabled={busy} onclick={withPasskey}>Confirm with Touch ID / passkey</Button>
+      <p class="muted">{t('auth:stepUp.passkeyHint')}</p>
+      <Button variant="primary" size="lg" block icon="key" loading={busy} disabled={busy} onclick={withPasskey}>{t('auth:stepUp.passkeyButton')}</Button>
     {/if}
 
     {#if showPassword}
       <form class="stack" onsubmit={withPassword}>
         <!-- Not shown, but present for password managers (a login form is a username and a password). -->
         <input class="visually-hidden" type="text" name="username" autocomplete="username" value={email ?? ''} readonly tabindex="-1" aria-hidden="true" />
-        <TextField id="step-up-password" name="password" label="Password" type="password" reveal bind:value={password} autocomplete="current-password" required disabled={busy} />
-        <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || password === ''}>Confirm</Button>
+        <TextField id="step-up-password" name="password" label={t('auth:login.password')} type="password" reveal bind:value={password} autocomplete="current-password" required disabled={busy} />
+        <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || password === ''}>{t('auth:stepUp.confirm')}</Button>
       </form>
     {/if}
 
     {#if showRecovery}
       <form class="stack" onsubmit={withRecovery}>
         <TextField
-          label="Recovery code"
+          label={t('auth:secondFactor.recoveryCode')}
           bind:value={recoveryCode}
-          hint={RECOVERY_CODE_HINT}
+          hint={recoveryCodeHint()}
           placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
           autocomplete="off"
           autocapitalize="characters"
@@ -253,45 +252,45 @@
           required
           disabled={busy}
         />
-        <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || !recoveryCodeComplete(recoveryCode)}>Confirm</Button>
+        <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || !recoveryCodeComplete(recoveryCode)}>{t('auth:stepUp.confirm')}</Button>
       </form>
     {/if}
 
     {#if showTotp}
       <form class="stack" onsubmit={(event) => { event.preventDefault(); void withCode('totp', totpCode); }}>
-        <TextField id="step-up-totp" name="totp" label="Authenticator code" bind:value={totpCode} inputmode="numeric" autocomplete="one-time-code" placeholder="123456" hint="The six digits your authenticator app shows. Each code works once." required disabled={busy} />
-        <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || !codeComplete(totpCode)}>Confirm</Button>
+        <TextField id="step-up-totp" name="totp" label={t('auth:stepUp.totpLabel')} bind:value={totpCode} inputmode="numeric" autocomplete="one-time-code" placeholder="123456" hint={t('auth:stepUp.totpHint')} required disabled={busy} />
+        <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || !codeComplete(totpCode)}>{t('auth:stepUp.confirm')}</Button>
       </form>
     {/if}
 
     {#if showEmail}
       {#if emailSent}
         <form class="stack" onsubmit={(event) => { event.preventDefault(); void withCode('email', emailCode); }}>
-          <p class="muted">A code was sent to <strong>{emailSent.to}</strong>. It works once, for this action only.</p>
-          <TextField id="step-up-otp-email" name="otp" label="Code from the email" bind:value={emailCode} inputmode="numeric" autocomplete="one-time-code" placeholder="123456" required disabled={busy} />
-          <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || !codeComplete(emailCode)}>Confirm</Button>
-          <p class="quiet-links"><Button variant="link" disabled={busy || emailWait > 0} onclick={sendEmailCode}>{emailWait > 0 ? `Send again in ${emailWait}s` : 'Send again'}</Button></p>
+          <p class="muted"><T key="auth:stepUp.emailSent" params={{ to: emailSent.to }} /></p>
+          <TextField id="step-up-otp-email" name="otp" label={t('auth:stepUp.emailCodeLabel')} bind:value={emailCode} inputmode="numeric" autocomplete="one-time-code" placeholder="123456" required disabled={busy} />
+          <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={busy || !codeComplete(emailCode)}>{t('auth:stepUp.confirm')}</Button>
+          <p class="quiet-links"><Button variant="link" disabled={busy || emailWait > 0} onclick={sendEmailCode}>{emailWait > 0 ? t('settings:twoFactor.sendAgainIn', { seconds: emailWait }) : t('settings:twoFactor.sendAgain')}</Button></p>
         </form>
       {:else}
-        <p class="muted">We email a six digit code to your verified address. It works once, for this action only.</p>
-        <Button variant="primary" size="lg" block icon="mail" loading={busy} disabled={busy} onclick={sendEmailCode}>Email me a code</Button>
+        <p class="muted">{t('auth:stepUp.emailIntro')}</p>
+        <Button variant="primary" size="lg" block icon="mail" loading={busy} disabled={busy} onclick={sendEmailCode}>{t('settings:twoFactor.emailMe')}</Button>
       {/if}
     {/if}
 
     {#if current !== undefined && (hasPasskey || hasPassword || hasRecovery || hasTotp || hasEmail)}
       <p class="quiet-links">
-        {#if hasPasskey && current !== 'passkey'}<Button variant="link" disabled={busy} onclick={switchTo('passkey')}>Use passkey</Button>{/if}
-        {#if hasPassword && current !== 'password'}<Button variant="link" disabled={busy} onclick={switchTo('password')}>Use password</Button>{/if}
-        {#if hasTotp && current !== 'totp'}<Button variant="link" disabled={busy} onclick={switchTo('totp')}>Use an authenticator code</Button>{/if}
-        {#if hasEmail && current !== 'email'}<Button variant="link" disabled={busy} onclick={switchTo('email')}>Email me a code</Button>{/if}
-        {#if hasRecovery && current !== 'recovery'}<Button variant="link" disabled={busy} onclick={switchTo('recovery')}>Use a recovery code</Button>{/if}
+        {#if hasPasskey && current !== 'passkey'}<Button variant="link" disabled={busy} onclick={switchTo('passkey')}>{t('auth:stepUp.usePasskey')}</Button>{/if}
+        {#if hasPassword && current !== 'password'}<Button variant="link" disabled={busy} onclick={switchTo('password')}>{t('auth:stepUp.usePassword')}</Button>{/if}
+        {#if hasTotp && current !== 'totp'}<Button variant="link" disabled={busy} onclick={switchTo('totp')}>{t('auth:stepUp.useTotp')}</Button>{/if}
+        {#if hasEmail && current !== 'email'}<Button variant="link" disabled={busy} onclick={switchTo('email')}>{t('settings:twoFactor.emailMe')}</Button>{/if}
+        {#if hasRecovery && current !== 'recovery'}<Button variant="link" disabled={busy} onclick={switchTo('recovery')}>{t('auth:otherWay.recovery')}</Button>{/if}
       </p>
     {/if}
 
-    {#if current !== undefined}<p class="quiet">{STEP_UP_VALIDITY}</p>{/if}
+    {#if current !== undefined}<p class="quiet">{stepUpValidity()}</p>{/if}
   </div>
 
   {#snippet footer()}
-    <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>
+    <Button disabled={busy} onclick={() => (open = false)}>{t('common:action.cancel')}</Button>
   {/snippet}
 </Modal>

@@ -4,7 +4,7 @@ import {
   confirmSentence,
   enrollChoiceHint,
   otherWayLabel,
-  STEP_UP_VALIDITY,
+  stepUpValidity,
   waysPhrase,
 } from './auth-copy.ts';
 
@@ -12,7 +12,7 @@ test('the ways are named in a stable order, joined with commas and "or"', () => 
   assert.equal(waysPhrase(['password', 'passkey'], true), 'your passkey or your password');
   assert.equal(
     waysPhrase(['recovery', 'totp', 'password'], true),
-    'your password, an authenticator code or a recovery code',
+    'your password, an authenticator code, or a recovery code',
   );
   assert.equal(waysPhrase(['email'], true), 'an emailed code');
 });
@@ -29,7 +29,7 @@ test('the confirm sentence is one sentence and never promises a way that is not 
   );
   assert.equal(confirmSentence(['passkey'], false), 'This action needs to be confirmed again.');
   assert.equal(confirmSentence([], true), 'This action needs to be confirmed again.');
-  assert.ok(!STEP_UP_VALIDITY.includes('\n'));
+  assert.ok(!stepUpValidity().includes('\n'));
 });
 
 test('every second step has a link label and a one sentence hint', () => {

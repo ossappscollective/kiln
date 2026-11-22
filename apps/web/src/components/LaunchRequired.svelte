@@ -1,20 +1,18 @@
 <script lang="ts">
   import AuthCard from './AuthCard.svelte';
   import Button from './ui/Button.svelte';
+  import { t } from '../lib/i18n/t.ts';
 
   let { onretry }: { onretry: () => void } = $props();
 </script>
 
 <AuthCard
-  title="Open this app from the desktop shell"
-  subtitle="This server runs in single-user mode and has no sign-in page."
+  title={t('auth:launch.title')}
+  subtitle={t('auth:launch.subtitle')}
 >
   <div class="stack">
-    <p>
-      Start Kiln from its desktop app. The app opens this page with a one-time
-      key that signs you in. A browser tab or a bookmark cannot do that.
-    </p>
-    <p class="quiet">If you just closed the window, quit the desktop app and start it again.</p>
-    <Button variant="primary" size="lg" block icon="refresh" onclick={onretry}>Check again</Button>
+    <p>{t('auth:launch.body')}</p>
+    <p class="quiet">{t('auth:launch.hint')}</p>
+    <Button variant="primary" size="lg" block icon="refresh" onclick={onretry}>{t('auth:launch.retry')}</Button>
   </div>
 </AuthCard>

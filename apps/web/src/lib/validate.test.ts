@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { k } from './i18n/t.ts';
 import { emailProblem, passwordProblem, requiredProblem } from './validate.ts';
 
 test('emailProblem', () => {
@@ -17,6 +18,6 @@ test('passwordProblem counts what was typed', () => {
 });
 
 test('requiredProblem', () => {
-  assert.equal(requiredProblem('Ada', 'your name'), '');
-  assert.equal(requiredProblem('  ', 'your name'), 'Enter your name.');
+  assert.equal(requiredProblem('Ada', k('common:validation.nameRequired')), '');
+  assert.equal(requiredProblem('  ', k('common:validation.nameRequired')), 'Enter your name.');
 });

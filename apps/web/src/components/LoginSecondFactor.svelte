@@ -20,6 +20,8 @@
     twoFactorProblem,
   } from '../lib/two-factor.ts';
   import { enrollChoiceHint, otherWayLabel } from '../lib/auth-copy.ts';
+  import { t } from '../lib/i18n/t.ts';
+  import T from './ui/T.svelte';
   import AuthCard from './AuthCard.svelte';
   import TotpSetup from './TotpSetup.svelte';
   import Alert from './ui/Alert.svelte';
@@ -133,49 +135,49 @@
   const others = $derived(challenge.methods.filter((m) => m !== method));
   const showOthers = $derived(!dead && !enrolling && others.length > 0);
   const showBack = $derived(!dead && !(enrolling && !method));
-  const title = $derived(enrolling ? 'Set up a second step' : 'Confirm it is you');
+  const title = $derived(enrolling ? t('auth:secondFactor.titleEnroll') : t('auth:secondFactor.titleCheck'));
   const subtitle = $derived(
     enrolling
-      ? 'Your administrator requires a second step when signing in. Set one up now; it takes a minute.'
+      ? t('auth:secondFactor.subtitleEnroll')
       : method === 'totp'
-        ? 'Enter the six digits your authenticator app shows.'
+        ? t('auth:secondFactor.subtitleTotp')
         : method === 'email'
-          ? 'We email a six digit code to your account address.'
-          : 'Enter one of your recovery codes. Each works once.',
+          ? t('auth:secondFactor.subtitleEmail')
+          : t('auth:secondFactor.subtitleRecovery'),
   );
 </script>
 
 <AuthCard {title} {subtitle}>
   <div class="stack">
     {#if dead}
-      <Alert tone="error">{problem || 'This sign-in expired. Sign in again.'}</Alert>
-      <Button variant="primary" size="lg" block onclick={oncancel}>Back to sign in</Button>
+      <Alert tone="error">{problem || t('auth:secondFactor.expired')}</Alert>
+      <Button variant="primary" size="lg" block onclick={oncancel}>{t('auth:secondFactor.backToSignIn')}</Button>
     {:else if enrolling && !method}
-      <p class="quiet">Choose how you will get your codes.</p>
+      <p class="quiet">{t('auth:secondFactor.chooseHow')}</p>
       {#each challenge.methods as option (option)}
         <div class="choice">
-          <Button size="lg" block onclick={() => choose(option)}>{option === 'totp' ? 'Authenticator app' : 'Email me a code'}</Button>
+          <Button size="lg" block onclick={() => choose(option)}>{option === 'totp' ? t('settings:twoFactor.appTitle') : t('settings:twoFactor.emailMe')}</Button>
           <p class="quiet">{enrollChoiceHint(option)}</p>
         </div>
       {/each}
-      <p class="quiet-links"><Button variant="link" onclick={oncancel}>Back</Button></p>
+      <p class="quiet-links"><Button variant="link" onclick={oncancel}>{t('common:action.back')}</Button></p>
     {:else if enrolling && method === 'totp'}
       {#if begin}
         <TotpSetup {begin} {busy} {problem} onconfirm={confirmTotp} oncancel={() => (begin = null)} />
       {:else}
-        <Button variant="primary" size="lg" block loading={busy} onclick={startTotp}>Show the QR code</Button>
+        <Button variant="primary" size="lg" block loading={busy} onclick={startTotp}>{t('auth:secondFactor.showQr')}</Button>
         {#if problem}<Alert tone="error">{problem}</Alert>{/if}
       {/if}
-      <p class="quiet-links"><Button variant="link" onclick={() => (method = undefined)}>Choose another way</Button></p>
+      <p class="quiet-links"><Button variant="link" onclick={() => (method = undefined)}>{t('auth:secondFactor.chooseAnother')}</Button></p>
     {:else if method === 'totp' || method === 'recovery' || (method === 'email' && sent)}
       <form class="stack" onsubmit={submit} novalidate>
         {#if method === 'email' && sent}
-          <p class="quiet">A code was sent to <strong>{sent.info.to}</strong>. It works once and lasts 10 minutes.</p>
+          <p class="quiet"><T key="settings:twoFactor.codeSent" params={{ to: sent.info.to }} /></p>
         {/if}
         <TextField
           id="second-factor-code"
           name={method === 'recovery' ? 'recovery-code' : 'totp'}
-          label={method === 'recovery' ? 'Recovery code' : 'Code'}
+          label={method === 'recovery' ? t('auth:secondFactor.recoveryCode') : t('auth:secondFactor.code')}
           bind:value={code}
           inputmode={method === 'recovery' ? 'text' : 'numeric'}
           autocomplete="one-time-code"
@@ -183,17 +185,17 @@
           required
         />
         {#if problem}<Alert tone="error">{problem}</Alert>{/if}
-        <Button variant="primary" type="submit" size="lg" block loading={busy} disabled={!ready}>Continue</Button>
+        <Button variant="primary" type="submit" size="lg" block loading={busy} disabled={!ready}>{t('auth:secondFactor.continue')}</Button>
         {#if method === 'email'}
-          <p class="quiet-links"><Button variant="link" disabled={busy || wait > 0} onclick={sendEmail}>{wait > 0 ? `Send again in ${wait}s` : 'Send again'}</Button></p>
+          <p class="quiet-links"><Button variant="link" disabled={busy || wait > 0} onclick={sendEmail}>{wait > 0 ? t('settings:twoFactor.sendAgainIn', { seconds: wait }) : t('settings:twoFactor.sendAgain')}</Button></p>
         {/if}
       </form>
     {:else if method === 'email'}
-      <p class="quiet">We will email a six digit code to the address on your account.</p>
+      <p class="quiet">{t('auth:secondFactor.emailWillSend')}</p>
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}
-      <Button variant="primary" size="lg" block loading={busy} onclick={sendEmail}>Email me a code</Button>
+      <Button variant="primary" size="lg" block loading={busy} onclick={sendEmail}>{t('settings:twoFactor.emailMe')}</Button>
     {:else}
-      <Alert tone="error">There is no way to confirm this sign-in. Ask an owner or admin to reset your second factor.</Alert>
+      <Alert tone="error">{t('auth:secondFactor.noWay')}</Alert>
     {/if}
 
     {#if showOthers || showBack}
@@ -204,7 +206,7 @@
           {/each}
         {/if}
         {#if showBack}
-          <Button variant="link" onclick={oncancel}>Back to sign in</Button>
+          <Button variant="link" onclick={oncancel}>{t('auth:secondFactor.backToSignIn')}</Button>
         {/if}
       </p>
     {/if}

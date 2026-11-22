@@ -92,8 +92,10 @@
   "toast.region": "Notifications",
   "validation.emailInvalid": "Saisissez une adresse e-mail du type nom@exemple.com.",
   "validation.emailRequired": "Saisissez votre adresse e-mail.",
+  "validation.nameRequired": "Saisissez votre nom.",
   "validation.passwordRequired": "Saisissez un mot de passe.",
   "validation.passwordTooShort_many": "Utilisez au moins {{count}} de caractères. Vous en avez saisi {{length}}.",
   "validation.passwordTooShort_one": "Utilisez au moins {{count}} caractère. Vous en avez saisi {{length}}.",
-  "validation.passwordTooShort_other": "Utilisez au moins {{count}} caractères. Vous en avez saisi {{length}}."
+  "validation.passwordTooShort_other": "Utilisez au moins {{count}} caractères. Vous en avez saisi {{length}}.",
+  "validation.workspaceNameRequired": "Saisissez un nom d’espace de travail."
 }
