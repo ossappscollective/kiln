@@ -6,6 +6,7 @@
   (called with the updated build). Mount it when a build is chosen; unmount it on close.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { buildName, isPending, runTitle, shortSha, sortRuns } from '../../lib/ci/ci.ts';
@@ -55,7 +56,7 @@
       runs = sortRuns(read.runs.filter((r) => r.headSha !== null && !isPending(r)));
     } catch (e) {
       runs = [];
-      loadProblem = e instanceof ApiError ? e.message : 'Could not load the runs.';
+      loadProblem = e instanceof ApiError ? e.message : t('portfolio:link.loadRunsFailed');
     }
   }
 
@@ -64,7 +65,7 @@
   });
 
   const runId = $derived(typed.trim() !== '' ? typed.trim() : chosen);
-  const typedProblem = $derived(typed.trim() !== '' && !/^[0-9]{1,20}$/.test(typed.trim()) ? 'A run id is a number, as in the run page address.' : '');
+  const typedProblem = $derived(typed.trim() !== '' && !/^[0-9]{1,20}$/.test(typed.trim()) ? t('portfolio:link.runIdInvalid') : '');
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -73,11 +74,11 @@
     problem = '';
     try {
       const done = await api.linkBuild(workspaceId, appId, build, runId);
-      toast.success(`Linked ${buildName(build)} to run ${runId}.`);
+      toast.success(t('portfolio:link.linked', { name: buildName(build), run: runId }));
       onlinked(done.build);
       open = false;
     } catch (e) {
-      problem = e instanceof ApiError ? e.message : 'Could not link the build.';
+      problem = e instanceof ApiError ? e.message : t('portfolio:link.failed');
     } finally {
       submitting = false;
     }
@@ -87,23 +88,23 @@
 <Modal
   bind:open
   size="md"
-  title="Link build {build.buildNumber} to a run"
-  description="Tell this tool which CI run made {buildName(build)}. Its commit is then used for “What changed”."
+  title={t('portfolio:link.title', { build: build.buildNumber })}
+  description={t('portfolio:link.description', { name: buildName(build) })}
   dismissible={!submitting}
   {onclose}
 >
   <form id="{uid}-form" class="stack" novalidate onsubmit={submit}>
     {#if runs === null}
-      <div class="stack" role="status" aria-label="Loading the runs">
+      <div class="stack" role="status" aria-label={t('portfolio:link.loadingRuns')}>
         <Skeleton width="80%" height="16px" />
         <Skeleton width="65%" height="16px" />
         <Skeleton width="72%" height="16px" />
       </div>
     {:else}
-      {#if loadProblem}<Alert tone="warn" title="Could not load the runs">{loadProblem} You can still type a run id.</Alert>{/if}
+      {#if loadProblem}<Alert tone="warn" title={t('portfolio:link.loadRunsTitle')}>{loadProblem} {t('portfolio:link.stillType')}</Alert>{/if}
       {#if runs.length > 0}
         <fieldset class="runs">
-          <legend>Recent runs of {repository.owner}/{repository.repo}</legend>
+          <legend>{t('portfolio:link.recent', { repository: `${repository.owner}/${repository.repo}` })}</legend>
           {#each runs as run (run.id)}
             <label class="run">
               <input type="radio" name="{uid}-run" value={run.id} bind:group={chosen} disabled={typed.trim() !== ''} />
@@ -117,23 +118,23 @@
           {/each}
         </fieldset>
       {:else if !loadProblem}
-        <p class="muted">No runs with a commit are stored for this repository yet. Type a run id below.</p>
+        <p class="muted">{t('portfolio:link.noRuns')}</p>
       {/if}
       <TextField
-        label="Or a run id"
+        label={t('portfolio:link.orRunId')}
         bind:value={typed}
         error={typedProblem || undefined}
-        hint="The number at the end of a run's address on GitHub. It is read from GitHub, so it works for runs not listed above."
+        hint={t('portfolio:link.runIdHint')}
         inputmode="numeric"
         autocomplete="off"
       />
     {/if}
-    {#if problem}<Alert tone="error" title="Could not link the build">{problem}</Alert>{/if}
+    {#if problem}<Alert tone="error" title={t('portfolio:link.failedTitle')}>{problem}</Alert>{/if}
   </form>
 
   {#snippet footer()}
-    <Button disabled={submitting} onclick={() => (open = false)}>Cancel</Button>
-    <Button variant="primary" type="submit" form="{uid}-form" loading={submitting} disabled={runId === '' || typedProblem !== ''}>Link build</Button>
+    <Button disabled={submitting} onclick={() => (open = false)}>{t('common:action.cancel')}</Button>
+    <Button variant="primary" type="submit" form="{uid}-form" loading={submitting} disabled={runId === '' || typedProblem !== ''}>{t('portfolio:link.submit')}</Button>
   {/snippet}
 </Modal>
 

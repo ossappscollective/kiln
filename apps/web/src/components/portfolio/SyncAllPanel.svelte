@@ -6,6 +6,7 @@
   failed or were not run), onstop, onretry, ondismiss.
 -->
 <script lang="ts">
+  import { k, t } from '../../lib/i18n/t.ts';
   import type { BatchResult } from '../../lib/portfolio.ts';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
@@ -45,41 +46,47 @@
   };
 
   const words: Record<BatchResult['status'], string> = {
-    pending: 'Waiting',
-    running: 'Syncing',
-    ok: 'Synced',
-    failed: 'Failed',
-    busy: 'Already syncing',
-    skipped: 'Not run',
+    pending: k('portfolio:batch.word.pending'),
+    running: k('portfolio:batch.word.running'),
+    ok: k('portfolio:batch.word.ok'),
+    failed: k('portfolio:batch.word.failed'),
+    busy: k('portfolio:batch.word.busy'),
+    skipped: k('portfolio:batch.word.skipped'),
   };
 
-  const progress = $derived(running ? `Syncing ${Math.min(done + 1, total)} of ${total}${current ? `: ${current}` : ''}` : summary);
+  const progress = $derived(
+    running
+      ? current
+        ? t('portfolio:batch.progressApp', { n: Math.min(done + 1, total), total, name: current })
+        : t('portfolio:batch.progress', { n: Math.min(done + 1, total), total })
+      : summary,
+  );
 </script>
 
 <section class="card panel" aria-labelledby="sync-all-title">
   <div class="head">
     <div>
-      <h2 id="sync-all-title" class="title">Sync all</h2>
+      <h2 id="sync-all-title" class="title">{t('portfolio:batch.title')}</h2>
       <p class="progress-text" role="status">{progress}</p>
     </div>
     <div class="row">
       {#if running}
-        <Button size="sm" onclick={onstop}>Stop after this app</Button>
+        <Button size="sm" onclick={onstop}>{t('portfolio:batch.stop')}</Button>
       {:else}
-        {#if canRetry}<Button size="sm" icon="refresh" onclick={onretry}>Sync the rest again</Button>{/if}
-        <Button size="sm" variant="ghost" onclick={ondismiss}>Dismiss</Button>
+        {#if canRetry}<Button size="sm" icon="refresh" onclick={onretry}>{t('portfolio:batch.retry')}</Button>{/if}
+        <Button size="sm" variant="ghost" onclick={ondismiss}>{t('common:action.dismiss')}</Button>
       {/if}
     </div>
   </div>
 
-  <progress max={total} value={done} aria-label="Apps synced"></progress>
+  <progress max={total} value={done} aria-label={t('portfolio:batch.progressLabel')}></progress>
 
   <ul class="results">
     {#each results as result (result.appId)}
       <li class="result {result.status}">
         <span class="mark" class:spin={result.status === 'running'}><Icon name={icons[result.status]} size={16} /></span>
         <div>
-          <p class="name"><strong>{result.name}</strong> <span class="state">{words[result.status]}</span></p>
+          <p class="name"><strong>{result.name}</strong> <span class="state">{t(words[result.status])}</span></p>
           {#if result.message}<p class="message">{result.message}</p>{/if}
         </div>
       </li>

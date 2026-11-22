@@ -6,6 +6,7 @@
   Props: platform, status (ReleaseState or null), label (accessible name of the list).
 -->
 <script lang="ts">
+  import { k, t } from '../../lib/i18n/t.ts';
   import type { Platform, ReleaseState } from '@kiln/core';
   import { timeline } from '../../lib/portfolio.ts';
   import Icon from '../ui/Icon.svelte';
@@ -13,7 +14,7 @@
   let { platform, status, label }: { platform: Platform; status: ReleaseState | null; label: string } = $props();
 
   const steps = $derived(timeline(platform, status));
-  const positionText = { done: 'done', current: 'current', upcoming: 'not reached' } as const;
+  const positionText = { done: k('portfolio:timeline.done'), current: k('portfolio:timeline.current'), upcoming: k('portfolio:timeline.upcoming') } as const;
 </script>
 
 {#if steps.length > 0}
@@ -22,7 +23,7 @@
       <li class="step {step.position} {step.tone}" aria-current={step.position === 'current' ? 'step' : undefined}>
         {#if step.position === 'done'}<Icon name="check" size={14} />{/if}
         <span>{step.label}</span>
-        <span class="visually-hidden">, {positionText[step.position]}</span>
+        <span class="visually-hidden">{t('portfolio:timeline.position', { position: t(positionText[step.position]) })}</span>
       </li>
     {/each}
   </ol>

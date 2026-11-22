@@ -5,6 +5,8 @@
   Props: api, workspaceId, appId, build (platform and build number).
 -->
 <script lang="ts">
+  import T from '../ui/T.svelte';
+  import { t } from '../../lib/i18n/t.ts';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { changesHeadline } from '../../lib/ci/ci.ts';
@@ -41,7 +43,7 @@
       problem =
         e instanceof ApiError
           ? { message: e.message, code: e.code }
-          : { message: 'Could not read what changed.', code: 'error' };
+          : { message: t('portfolio:changes.loadFailed'), code: 'error' };
     } finally {
       loading = false;
     }
@@ -54,7 +56,7 @@
 
 <div class="changes" aria-busy={loading}>
   {#if loading}
-    <div class="stack" role="status" aria-label="Reading the commits from GitHub">
+    <div class="stack" role="status" aria-label={t('portfolio:changes.reading')}>
       <Skeleton width="55%" height="14px" />
       <Skeleton width="70%" height="14px" />
       <Skeleton width="40%" height="14px" />
@@ -64,8 +66,8 @@
       <p class="muted">{problem.message}</p>
     {:else}
       <div class="stack">
-        <Alert tone="error" title="Could not read what changed">{problem.message}</Alert>
-        <div><Button size="sm" icon="refresh" onclick={load}>Try again</Button></div>
+        <Alert tone="error" title={t('portfolio:changes.failedTitle')}>{problem.message}</Alert>
+        <div><Button size="sm" icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
       </div>
     {/if}
   {:else if changes}
@@ -73,8 +75,7 @@
       <p class="headline">
         {changesHeadline(changes)}
         <span class="muted text-sm">
-          Compared <code>{changes.base.shortSha}</code> (build {changes.base.buildNumber}, {changes.base.version}) with
-          <code>{changes.head.shortSha}</code> (build {changes.head.buildNumber}, {changes.head.version}).
+          <T key="portfolio:changes.compared" params={{ baseSha: changes.base.shortSha, baseBuild: changes.base.buildNumber, baseVersion: changes.base.version, headSha: changes.head.shortSha, headBuild: changes.head.buildNumber, headVersion: changes.head.version }} />
         </span>
       </p>
       {#if changes.commits.length > 0}
@@ -82,8 +83,8 @@
           {#each changes.commits as commit (commit.sha)}
             <li>
               {#if commit.url}
-                <a href={commit.url} target="_blank" rel="noopener noreferrer"
-                  ><code>{commit.shortSha}</code><span class="visually-hidden"> (opens in a new tab)</span></a
+                <a href={commit.url} target="_blank" rel="noopener noreferrer" aria-label={t('portfolio:changes.commitNewTab', { sha: commit.shortSha })}
+                  ><code>{commit.shortSha}</code></a
                 >
               {:else}
                 <code>{commit.shortSha}</code>
@@ -101,13 +102,13 @@
       {/if}
       {#if changes.truncated}
         <Alert tone="info">
-          GitHub reports {changes.totalCommits} commits; only the newest {changes.commits.length} are listed.
+          {t('portfolio:changes.truncated', { count: changes.totalCommits, shown: changes.commits.length })}
         </Alert>
       {/if}
       {#if changes.url}
         <p class="text-sm">
-          <a href={changes.url} target="_blank" rel="noopener noreferrer"
-            >Open the comparison on GitHub <Icon name="external-link" size={14} /><span class="visually-hidden"> (opens in a new tab)</span></a
+          <a href={changes.url} target="_blank" rel="noopener noreferrer" aria-label={t('portfolio:changes.openNewTab')}
+            >{t('portfolio:changes.open')} <Icon name="external-link" size={14} /></a
           >
         </p>
       {/if}

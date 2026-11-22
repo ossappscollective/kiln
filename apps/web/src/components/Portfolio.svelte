@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n/t.ts';
   import { type Role, can } from '@kiln/core';
   import { tick, untrack } from 'svelte';
   import type { Api } from '../lib/api.ts';
@@ -221,7 +222,7 @@
     } else {
       // The failure is stored on the app, and the server sends the app back with it.
       if (outcome.app) patch(outcome.app);
-      toast.error(`${app.name}: ${outcome.failure.message}`);
+      toast.error(t('portfolio:page.syncFailed', { name: app.name, message: outcome.failure.message }));
     }
   }
 
@@ -303,7 +304,7 @@
   );
 
   async function added(app: AppSummary) {
-    toast.success(`Added ${app.name}. Reading its releases from the store.`);
+    toast.success(t('portfolio:page.added', { name: app.name }));
     await load();
     if (canSync) await syncOne(app);
   }
@@ -314,17 +315,17 @@
 {:else}
   <section>
     <PageHeader
-      title="All apps"
-      description="Every app of this workspace, with where each platform stands and the one thing to do next. Read from the stores; nothing here is written to them."
+      title={t('portfolio:page.title')}
+      description={t('portfolio:page.description')}
     >
       {#snippet actions()}
         {#if canRead && apps !== null && apps.length > 0}
           <ViewToggle mode={viewMode} onchange={setView} />
           {#if canSync}
-            <Button icon="refresh" loading={batchRunning} disabled={busy && !batchRunning} onclick={() => syncAll(sorted)}>Sync all</Button>
+            <Button icon="refresh" loading={batchRunning} disabled={busy && !batchRunning} onclick={() => syncAll(sorted)}>{t('portfolio:batch.title')}</Button>
           {/if}
           {#if canWrite}
-            <Button variant="primary" icon="plus" onclick={() => (adding = true)}>Add app</Button>
+            <Button variant="primary" icon="plus" onclick={() => (adding = true)}>{t('portfolio:page.addApp')}</Button>
           {/if}
         {/if}
       {/snippet}
@@ -334,14 +335,14 @@
     {/if}
 
     {#if !canRead}
-      <Alert tone="info">Your role does not include apps.</Alert>
+      <Alert tone="info">{t('portfolio:page.noAccess')}</Alert>
     {:else if error}
       <div class="stack">
-        <Alert tone="error" title="Could not load the apps">{error}</Alert>
-        <div><Button icon="refresh" onclick={load}>Try again</Button></div>
+        <Alert tone="error" title={t('portfolio:page.loadFailed')}>{error}</Alert>
+        <div><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
       </div>
     {:else if apps === null}
-      <div class="card" role="status" aria-label="Loading apps">
+      <div class="card" role="status" aria-label={t('portfolio:page.loading')}>
         <div class="stack">
           {#each [0, 1, 2] as i (i)}
             <div class="skeleton-row">
@@ -372,14 +373,14 @@
         <div class="card">
           <EmptyState
             icon="smartphone"
-            title="No apps yet"
+            title={t('portfolio:page.emptyTitle')}
             description={canWrite
-              ? 'Add an iOS, macOS or Android app with a stored App Store Connect or Google Play credential. Adding it does not contact the store; the first sync does.'
-              : 'An admin or owner adds apps. Once one is added it appears here, with its latest release.'}
+              ? t('portfolio:page.emptyWrite')
+              : t('portfolio:page.emptyRead')}
           >
             {#snippet actions()}
               {#if canWrite}
-                <Button variant="primary" icon="plus" onclick={() => (adding = true)}>Add app</Button>
+                <Button variant="primary" icon="plus" onclick={() => (adding = true)}>{t('portfolio:page.addApp')}</Button>
               {/if}
             {/snippet}
           </EmptyState>

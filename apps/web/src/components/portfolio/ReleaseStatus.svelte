@@ -7,6 +7,8 @@
   Props: status (ReleaseState or null), rawState?, rolloutFraction? (0 to 1), sentForReviewAt?.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
+  import { formatDateTime } from '../../lib/i18n/format.ts';
   import type { ReleaseState } from '@kiln/core';
   import { formatRollout, statusInfo } from '../../lib/portfolio.ts';
   import { statusIcon } from '../../lib/status-icons.ts';
@@ -24,15 +26,14 @@
     sentForReviewAt?: number | null | undefined;
   } = $props();
 
-  const playReviewNote = (at: number) =>
-    `Sent to Google Play from here ${new Date(at).toLocaleString()}. Google Play does not report the review state: the release may already be live. Check Play Console.`;
+  const playReviewNote = (at: number) => t('portfolio:release.playReviewNote', { when: formatDateTime(at) });
   const info = $derived(statusInfo(status, rawState));
   const rollout = $derived(formatRollout(rolloutFraction));
 </script>
 
 <span class="status" title={sentForReviewAt ? playReviewNote(sentForReviewAt) : info.description}>
   <Badge tone={info.tone} icon={statusIcon(status)}>{info.label}</Badge>
-  {#if rollout}<span class="rollout muted"><span class="visually-hidden">Rollout </span>{rollout}</span>{/if}
+  {#if rollout}<span class="rollout muted"><span class="visually-hidden">{t('portfolio:release.rollout')} </span>{rollout}</span>{/if}
 </span>
 
 <style>

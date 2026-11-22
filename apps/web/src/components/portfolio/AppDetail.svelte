@@ -4,14 +4,18 @@
   Props: api, workspaceId, role, id (the app id from the route).
 -->
 <script lang="ts">
-  import { can, platformMeta, type Role } from '@kiln/core';
+  import T from '../ui/T.svelte';
+  import { t } from '../../lib/i18n/t.ts';
+  import { can, type Role } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {
     appErrorMessage,
     appLabel,
+    copyIdentifierLabel,
     describeError,
     groupReleases,
+    identifierLabel,
     latestRelease,
     platformLabel,
     portfolioHref,
@@ -76,7 +80,7 @@
       if (mine !== generation) return;
       app = detail.app;
       releases = detail.releases;
-      announcement = `Opened ${appLabel(detail.app)}.`;
+      announcement = t('portfolio:detail.opened', { name: appLabel(detail.app) });
     } catch (e) {
       if (mine !== generation) return;
       app = null;
@@ -131,7 +135,7 @@
       // A failed sync is stored on the app, so the server sends the app back with the new message.
       if (outcome.app) app = outcome.app;
       syncProblem = outcome.failure.message;
-      toast.error(`${appLabel(target)}: ${outcome.failure.message}`);
+      toast.error(t('portfolio:page.syncFailed', { name: appLabel(target), message: outcome.failure.message }));
     }
   }
 
@@ -143,7 +147,7 @@
     try {
       await api.deleteApp(workspaceId, target.id);
       confirmOpen = false;
-      toast.success(`Deleted ${appLabel(target)}. Nothing in the store was changed.`);
+      toast.success(t('app:settings.deleted', { name: appLabel(target) }));
       location.hash = portfolioHref;
     } catch (e) {
       deleteProblem = e instanceof ApiError ? appErrorMessage(e, 'delete') : describeError(e, 'delete');
@@ -157,21 +161,21 @@
   const failure = $derived(syncProblem || app?.lastSyncError?.trim() || '');
   /** Builds are readable by everyone who can read the app; the listing has its own right. */
   const sections = $derived([
-    { id: 'releases', label: 'Releases' },
-    ...(can(role, 'listing.read') ? [{ id: 'listing', label: 'Listing' }, { id: 'assets', label: 'Assets' }] : []),
-    { id: 'builds', label: 'Builds' },
-    ...(can(role, 'reviews.read') ? [{ id: 'reviews', label: 'Reviews' }] : []),
+    { id: 'releases', label: t('portfolio:detail.releases') },
+    ...(can(role, 'listing.read') ? [{ id: 'listing', label: t('portfolio:detail.listing') }, { id: 'assets', label: t('portfolio:detail.assets') }] : []),
+    { id: 'builds', label: t('app:nav.builds') },
+    ...(can(role, 'reviews.read') ? [{ id: 'reviews', label: t('app:nav.reviews') }] : []),
   ]);
 </script>
 
 <section aria-busy={loading}>
   <p class="back">
-    <a href={portfolioHref}><Icon name="chevron-left" size={16} /> Portfolio</a>
+    <a href={portfolioHref}><Icon name="chevron-left" size={16} /> {t('portfolio:detail.back')}</a>
   </p>
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#if loading && !app}
-    <div role="status" aria-label="Loading the app">
+    <div role="status" aria-label={t('app:shell.loading')}>
       <div class="skeleton-head">
         <Skeleton width="240px" height="28px" />
         <Skeleton width="160px" height="16px" />
@@ -181,18 +185,18 @@
   {:else if loadError}
     {#if loadError.notFound}
       <div class="card">
-        <EmptyState icon="box" title="App not found" description="This app is not in this workspace. It may have been deleted.">
+        <EmptyState icon="box" title={t('app:shell.notFound')} description={t('app:shell.notFoundHelp')}>
           {#snippet actions()}
-            <Button href={portfolioHref} variant="primary">Back to the portfolio</Button>
+            <Button href={portfolioHref} variant="primary">{t('portfolio:detail.backToPortfolio')}</Button>
           {/snippet}
         </EmptyState>
       </div>
     {:else}
       <div class="stack">
-        <Alert tone="error" title="Could not load the app">{loadError.message}</Alert>
+        <Alert tone="error" title={t('app:shell.loadFailed')}>{loadError.message}</Alert>
         <div class="row">
-          <Button icon="refresh" onclick={load}>Try again</Button>
-          <Button href={portfolioHref} variant="ghost">Back to the portfolio</Button>
+          <Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button>
+          <Button href={portfolioHref} variant="ghost">{t('portfolio:detail.backToPortfolio')}</Button>
         </div>
       </div>
     {/if}
@@ -203,10 +207,10 @@
     <PageHeader title={app.name} description="{platformLabel(app.platform)} · {storeName(app.platform)} · {app.identifier}">
       {#snippet actions()}
         {#if canSync}
-          <Button variant="primary" icon="refresh" loading={syncing} onclick={sync}>{syncing ? 'Syncing…' : 'Sync now'}</Button>
+          <Button variant="primary" icon="refresh" loading={syncing} onclick={sync}>{syncing ? t('app:statusPopover.syncing') : t('app:statusPopover.syncNow')}</Button>
         {/if}
         {#if canWrite}
-          <Button variant="danger" icon="trash" disabled={syncing} onclick={() => { deleteProblem = ''; confirmOpen = true; }}>Delete app</Button>
+          <Button variant="danger" icon="trash" disabled={syncing} onclick={() => { deleteProblem = ''; confirmOpen = true; }}>{t('app:settings.deleteApp')}</Button>
         {/if}
       {/snippet}
     </PageHeader>
@@ -215,50 +219,50 @@
 
     <div class="stack loose">
       {#if failure}
-        <Alert tone="error" title="The last sync failed">
+        <Alert tone="error" title={t('app:attention.syncFailed')}>
           <p class="alert-text">{failure}</p>
           <p class="alert-text">
             {#if app.lastSyncedAt !== null}
-              The releases below are from the last successful sync, {timeAgo(app.lastSyncedAt, now)}.
+              {t('portfolio:detail.fromLastSync', { when: timeAgo(app.lastSyncedAt, now) })}
             {:else}
-              No sync has succeeded yet, so there are no releases to show.
+              {t('portfolio:detail.noSyncYet')}
             {/if}
           </p>
         </Alert>
       {/if}
 
-      <section class="card" aria-label="About this app">
+      <section class="card" aria-label={t('portfolio:detail.about')}>
         <dl class="facts">
           <div>
-            <dt>Platform</dt>
+            <dt>{t('app:scope.label')}</dt>
             <dd><PlatformBadge platform={app.platform} /></dd>
           </div>
           <div>
-            <dt>{platformMeta(app.platform).identifierLabel}</dt>
-            <dd class="row"><code>{app.identifier}</code><CopyButton value={app.identifier} iconOnly label="Copy the identifier" /></dd>
+            <dt>{identifierLabel(app.platform)}</dt>
+            <dd class="row"><code>{app.identifier}</code><CopyButton value={app.identifier} iconOnly label={copyIdentifierLabel(app.platform)} /></dd>
           </div>
           <div>
-            <dt>Latest release</dt>
+            <dt>{t('app:dash.latestRelease')}</dt>
             <dd>
               {#if latest}
-                <span class="latest"><strong>{latest.version}</strong> <ReleaseStatus status={latest.status} rawState={latest.rawState} rolloutFraction={latest.rolloutFraction} sentForReviewAt={latest.sentForReviewAt} /> <a href={releaseHref(app.id, latest.version)}>Plan and details<span class="visually-hidden"> for version {latest.version}</span></a></span>
+                <span class="latest"><strong>{latest.version}</strong> <ReleaseStatus status={latest.status} rawState={latest.rawState} rolloutFraction={latest.rolloutFraction} sentForReviewAt={latest.sentForReviewAt} /> <a href={releaseHref(app.id, latest.version)} aria-label={t('app:dash.planAndDetailsFor', { version: latest.version })}>{t('app:dash.planAndDetails')}</a></span>
               {:else}
-                <span class="muted">None yet</span>
+                <span class="muted">{t('portfolio:detail.noneYet')}</span>
               {/if}
             </dd>
           </div>
           <div>
-            <dt>Last synced</dt>
+            <dt>{t('app:dash.lastSynced')}</dt>
             <dd>
               {#if app.lastSyncedAt !== null}
                 <time datetime={new Date(app.lastSyncedAt).toISOString()} title={fullTime(app.lastSyncedAt)}>{timeAgo(app.lastSyncedAt, now)}</time>
               {:else}
-                <span class="muted">Never</span>
+                <span class="muted">{t('app:stores.never')}</span>
               {/if}
             </dd>
           </div>
           <div>
-            <dt>Added</dt>
+            <dt>{t('portfolio:detail.added')}</dt>
             <dd>
               <time datetime={new Date(app.createdAt).toISOString()} title={fullTime(app.createdAt)}>{timeAgo(app.createdAt, now)}</time>
             </dd>
@@ -271,16 +275,16 @@
           <div class="card">
             <EmptyState
               icon="box"
-              title={current.lastSyncedAt === null ? 'Not synced yet' : 'No releases reported'}
+              title={current.lastSyncedAt === null ? t('app:status.notSynced') : t('app:dash.noReleasesReported')}
               description={current.lastSyncedAt === null
-                ? 'Adding an app does not contact the store. A sync reads its versions and tracks.'
-                : 'The last sync found no versions or tracks for this app.'}
+                ? t('portfolio:detail.notSyncedHelp')
+                : t('app:releases.syncedEmptyHelp')}
             >
               {#snippet actions()}
                 {#if canSync}
-                  <Button variant="primary" icon="refresh" loading={syncing} onclick={sync}>Sync now</Button>
+                  <Button variant="primary" icon="refresh" loading={syncing} onclick={sync}>{t('app:statusPopover.syncNow')}</Button>
                 {:else}
-                  <span class="muted">A member or admin can run the first sync.</span>
+                  <span class="muted">{t('portfolio:detail.firstSync')}</span>
                 {/if}
               {/snippet}
             </EmptyState>
@@ -290,13 +294,13 @@
             <ReleaseGroupCard {group} {now} />
           {/each}
           <p class="muted snapshot">
-            This is a snapshot of the store, not a history. Each sync replaces it, and a version the store no longer reports disappears.
+            {t('app:releases.aboutSnapshot')}
           </p>
         {/if}
       {/snippet}
 
       {#if can(role, 'apps.read')}
-        <Tabs bind:value={tab} label="Sections of this app" tabs={sections}>
+        <Tabs bind:value={tab} label={t('portfolio:detail.sections')} tabs={sections}>
           {#snippet panel(id)}
             {#if app && id === 'listing'}
               <ListingTab {api} {workspaceId} {role} {app} {now} {syncing} onrefresh={sync} refreshKey={syncRuns} />
@@ -319,19 +323,19 @@
 </section>
 
 {#if canWrite}
-  <Modal bind:open={confirmOpen} size="sm" title="Delete this app?" dismissible={!deleting}>
+  <Modal bind:open={confirmOpen} size="sm" title={t('app:settings.deleteTitle')} dismissible={!deleting}>
     {#if app}
       <div class="stack">
         <p>
-          <strong>{app.name}</strong> ({platformLabel(app.platform)}, {app.identifier}) and its stored releases will be removed from this workspace.
+          <T key="app:settings.deleteBody" params={{ name: app.name, platform: platformLabel(app.platform), identifier: app.identifier }} />
         </p>
-        <p class="muted">Nothing in {storeName(app.platform)} is changed. You can add the app again later.</p>
+        <p class="muted">{t('app:settings.deleteNote', { store: storeName(app.platform) })}</p>
         {#if deleteProblem}<Alert tone="error">{deleteProblem}</Alert>{/if}
       </div>
     {/if}
     {#snippet footer()}
-      <Button disabled={deleting} onclick={() => (confirmOpen = false)}>Cancel</Button>
-      <Button variant="danger-solid" loading={deleting} onclick={remove}>Delete app</Button>
+      <Button disabled={deleting} onclick={() => (confirmOpen = false)}>{t('common:action.cancel')}</Button>
+      <Button variant="danger-solid" loading={deleting} onclick={remove}>{t('app:settings.deleteApp')}</Button>
     {/snippet}
   </Modal>
 {/if}

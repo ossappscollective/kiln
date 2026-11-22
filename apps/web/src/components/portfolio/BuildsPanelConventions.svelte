@@ -12,6 +12,8 @@
   Mount it when the dialog is opened; unmount it on close, so every open starts clean.
 -->
 <script lang="ts">
+  import T from '../ui/T.svelte';
+  import { t } from '../../lib/i18n/t.ts';
   import { PLACEHOLDER_HELP, type PatternKind } from '@kiln/core';
   import { type Role, can, platformLabel } from '@kiln/core';
   import { untrack } from 'svelte';
@@ -106,7 +108,7 @@
     } catch (e) {
       if (mine !== generation) return;
       view = null;
-      loadProblem = e instanceof ApiError ? e.message : 'Could not load the conventions.';
+      loadProblem = e instanceof ApiError ? e.message : t('portfolio:conv.loadFailed');
     } finally {
       if (mine === generation) loading = false;
     }
@@ -119,7 +121,7 @@
       names = await api.conventionTags(workspaceId, repository.id);
     } catch (e) {
       names = null;
-      namesProblem = e instanceof ApiError ? e.message : 'Could not read the tags from GitHub.';
+      namesProblem = e instanceof ApiError ? e.message : t('portfolio:conv.tagsFailed');
     } finally {
       namesLoading = false;
     }
@@ -157,7 +159,7 @@
     helperMessage = '';
     proposed = '';
     if (!build) {
-      helperMessage = 'This app has no builds to take a number from. Sync the app first.';
+      helperMessage = t('portfolio:conv.noBuilds');
       return;
     }
     const result = proposeFromExample(example, build, kind);
@@ -174,7 +176,7 @@
     }
     if (kind === 'tag') draft.tagText = done.text;
     else draft.releaseText = done.text;
-    helperMessage = `Added to the ${kind === 'tag' ? 'tag' : 'release'} patterns. Check the preview, then save.`;
+    helperMessage = kind === 'tag' ? t('portfolio:conv.addedTag') : t('portfolio:conv.addedRelease');
     proposed = '';
   }
 
@@ -187,11 +189,11 @@
     try {
       const values = draftValues(draft);
       await api.setBuildConventions(workspaceId, repository.id, { ...(scope === 'app' ? { appId: app.id } : {}), ...values });
-      toast.success(scope === 'app' ? `Saved the build number conventions of ${app.name}.` : 'Saved the build number conventions of the repository.');
+      toast.success(scope === 'app' ? t('portfolio:conv.savedApp', { name: app.name }) : t('portfolio:conv.savedRepository'));
       onsaved({ rematch });
       open = false;
     } catch (e) {
-      problem = e instanceof ApiError ? e.message : 'Could not save the conventions.';
+      problem = e instanceof ApiError ? e.message : t('portfolio:conv.saveFailed');
     } finally {
       saving = false;
     }
@@ -203,50 +205,50 @@
 <Modal
   bind:open
   size="lg"
-  title="Build number conventions"
-  description="How {repository.owner}/{repository.repo} names the tags and releases that carry a build number. This tool follows the tag to its commit and the commit to the CI run."
+  title={t('portfolio:builds.conventions')}
+  description={t('portfolio:conv.description', { repository: `${repository.owner}/${repository.repo}` })}
   dismissible={!saving}
   {onclose}
 >
   <form id="{uid}-form" class="stack loose" novalidate onsubmit={save}>
     {#if loading && !view}
-      <div class="stack" role="status" aria-label="Loading the conventions">
+      <div class="stack" role="status" aria-label={t('portfolio:conv.loading')}>
         <Skeleton width="80%" height="16px" />
         <Skeleton width="60%" height="16px" />
         <Skeleton width="70%" height="16px" />
       </div>
     {:else if loadProblem}
       <div class="stack">
-        <Alert tone="error" title="Could not load the conventions">{loadProblem}</Alert>
-        <div><Button icon="refresh" onclick={loadConventions}>Try again</Button></div>
+        <Alert tone="error" title={t('portfolio:conv.loadFailedTitle')}>{loadProblem}</Alert>
+        <div><Button icon="refresh" onclick={loadConventions}>{t('common:action.tryAgain')}</Button></div>
       </div>
     {:else if view}
       {#if !canWrite}
-        <Alert tone="info" title="Read only">
-          Only an admin can change the conventions. You can still see them{#if canScan} and try a pattern in the preview{/if}.
+        <Alert tone="info" title={t('portfolio:conv.readOnly')}>
+          {canScan ? t('portfolio:conv.readOnlyScan') : t('portfolio:conv.readOnlyHelp')}
         </Alert>
       {/if}
 
       <fieldset class="scope">
-        <legend>Applies to</legend>
+        <legend>{t('portfolio:conv.appliesTo')}</legend>
         <label class="choice">
           <input type="radio" name="{uid}-scope" value="repository" bind:group={scope} disabled={saving} />
-          <span>All apps of this repository</span>
+          <span>{t('portfolio:conv.allApps')}</span>
         </label>
         <label class="choice">
           <input type="radio" name="{uid}-scope" value="app" bind:group={scope} disabled={saving} />
-          <span>Only {app.name}<span class="muted text-sm"> (for a monorepo: its own tag prefix)</span></span>
+          <span>{t('portfolio:conv.onlyApp', { name: app.name })}<span class="muted text-sm"> {t('portfolio:conv.onlyAppNote')}</span></span>
         </label>
       </fieldset>
 
       <p class="muted text-sm">
-        In use now: {conventionSourceLabel(view.effective)}.
-        {#if scope === 'app' && view.stored === null && view.repository}This app has none of its own, so it follows the repository's.{/if}
-        {#if view.stored === null}Nothing is stored for this scope; leave the lists empty to keep the built-in patterns.{/if}
+        {t('portfolio:conv.inUse', { source: conventionSourceLabel(view.effective) })}
+        {#if scope === 'app' && view.stored === null && view.repository}{t('portfolio:conv.followsRepository')}{/if}
+        {#if view.stored === null}{t('portfolio:conv.nothingStored')}{/if}
       </p>
 
       <div class="field">
-        <label for="{uid}-tags">Tag patterns</label>
+        <label for="{uid}-tags">{t('portfolio:conv.tagPatterns')}</label>
         <textarea
           id="{uid}-tags"
           rows="4"
@@ -259,8 +261,7 @@
           placeholder={defaults.tagPatterns.slice(0, 3).join('\n')}
         ></textarea>
         <p class="hint" id="{uid}-tags-hint">
-          One pattern per line, the first that fits wins. Empty: the built-in patterns ({defaults.tagPatterns.length}). Placeholders:
-          <code>{'{buildNumber}'}</code> (required), <code>{'{version}'}</code>, <code>{'{platform}'}</code>, <code>{'{flavor}'}</code>, <code>{'{prefix}'}</code>. Everything else is literal text.
+          <T key="portfolio:conv.tagHint" params={{ count: defaults.tagPatterns.length }} />
         </p>
         {#if problems.tags.length > 0}
           <ul class="problems" id="{uid}-tags-problems">
@@ -270,7 +271,7 @@
       </div>
 
       <div class="field">
-        <label for="{uid}-releases">Release name patterns</label>
+        <label for="{uid}-releases">{t('portfolio:conv.releasePatterns')}</label>
         <textarea
           id="{uid}-releases"
           rows="3"
@@ -283,7 +284,7 @@
           placeholder={defaults.releasePatterns.slice(0, 2).join('\n')}
         ></textarea>
         <p class="hint" id="{uid}-releases-hint">
-          For GitHub releases named like <code>Weather(ios): v1.2.3 Build 123</code>. <code>*</code> stands for any text (twice at most). Empty: the built-in patterns ({defaults.releasePatterns.length}).
+          <T key="portfolio:conv.releaseHint" params={{ count: defaults.releasePatterns.length }} />
         </p>
         {#if problems.releases.length > 0}
           <ul class="problems" id="{uid}-releases-problems">
@@ -294,67 +295,65 @@
 
       <div class="two">
         <TextField
-          label="Tag prefix"
+          label={t('portfolio:conv.prefix')}
           bind:value={draft.prefix}
           disabled={!canWrite || saving}
           error={problems.prefix}
-          hint="Fills {'{prefix}'}: the TAG_PREFIX of a monorepo, such as scanner-. {PLACEHOLDER_HELP.prefix}"
+          hint={t('portfolio:conv.prefixHint', { help: PLACEHOLDER_HELP.prefix })}
           autocomplete="off"
           spellcheck={false}
         />
         <TextField
-          label="Release workflow"
+          label={t('portfolio:conv.workflow')}
           bind:value={draft.workflow}
           disabled={!canWrite || saving}
           error={problems.workflow}
-          hint="Optional: the workflow that makes releases, such as release.yml. Empty: any workflow named like a release."
+          hint={t('portfolio:conv.workflowHint')}
           autocomplete="off"
           spellcheck={false}
         />
       </div>
 
       <details>
-        <summary>Built-in patterns</summary>
-        <p class="muted text-sm">Used while a list is empty.</p>
-        <p class="text-sm"><strong>Tags</strong></p>
+        <summary>{t('portfolio:conv.builtIn')}</summary>
+        <p class="muted text-sm">{t('portfolio:conv.usedWhenEmpty')}</p>
+        <p class="text-sm"><strong>{t('portfolio:conv.tags')}</strong></p>
         <ul class="plain">
           {#each defaults.tagPatterns as pattern (pattern)}<li><code>{pattern}</code></li>{/each}
         </ul>
-        <p class="text-sm"><strong>Releases</strong></p>
+        <p class="text-sm"><strong>{t('portfolio:conv.releases')}</strong></p>
         <ul class="plain">
           {#each defaults.releasePatterns as pattern (pattern)}<li><code>{pattern}</code></li>{/each}
         </ul>
       </details>
 
       <section class="stack" aria-labelledby="{uid}-preview">
-        <h3 id="{uid}-preview">Preview</h3>
+        <h3 id="{uid}-preview">{t('portfolio:conv.preview')}</h3>
         {#if !canScan}
-          <p class="muted">Reading the tags from GitHub needs the right to scan repositories, so the preview is not available to your role.</p>
+          <p class="muted">{t('portfolio:conv.noScan')}</p>
         {:else if namesLoading && !names}
-          <div class="stack" role="status" aria-label="Reading the tags from GitHub">
+          <div class="stack" role="status" aria-label={t('portfolio:conv.readingTags')}>
             <Skeleton width="75%" height="14px" />
             <Skeleton width="60%" height="14px" />
           </div>
         {:else if namesProblem}
-          <Alert tone="warn" title="Could not read the tags">{namesProblem}</Alert>
-          <div><Button size="sm" icon="refresh" onclick={loadNames}>Try again</Button></div>
+          <Alert tone="warn" title={t('portfolio:conv.tagsFailedTitle')}>{namesProblem}</Alert>
+          <div><Button size="sm" icon="refresh" onclick={loadNames}>{t('common:action.tryAgain')}</Button></div>
         {:else if names && preview}
           <p class="muted text-sm">
-            {names.tags.length} tag{names.tags.length === 1 ? '' : 's'}{names.tagsTruncated ? ' (more exist)' : ''} and
-            {names.releases.length} release{names.releases.length === 1 ? '' : 's'}{names.releasesTruncated ? ' (more exist)' : ''}, read
-            <time datetime={new Date(names.readAt).toISOString()}>{timeAgo(names.readAt, now)}</time>.
-            {preview.tagFits} tag{preview.tagFits === 1 ? '' : 's'} and {preview.releaseFits} release{preview.releaseFits === 1 ? '' : 's'} fit a pattern for {platformLabel(app.platform)}.
+            {#snippet readTime(text: string)}<time datetime={new Date(names.readAt).toISOString()}>{text}</time>{/snippet}
+            <T key="portfolio:conv.read" params={{ tags: names.tagsTruncated ? t('portfolio:conv.tagCountMore', { count: names.tags.length }) : t('portfolio:conv.tagCount', { count: names.tags.length }), releases: names.releasesTruncated ? t('portfolio:conv.releaseCountMore', { count: names.releases.length }) : t('portfolio:conv.releaseCount', { count: names.releases.length }), when: timeAgo(names.readAt, now) }} tags={{ link: readTime }} />
+            {t('portfolio:conv.fits', { tags: t('portfolio:conv.tagCount', { count: preview.tagFits }), releases: t('portfolio:conv.releaseCount', { count: preview.releaseFits }), platform: platformLabel(app.platform) })}
           </p>
-          {#if names.releasesError}<Alert tone="warn" title="Releases could not be read">{names.releasesError}</Alert>{/if}
+          {#if names.releasesError}<Alert tone="warn" title={t('portfolio:conv.releasesFailed')}>{names.releasesError}</Alert>{/if}
           {#if build && forBuild}
             <p aria-live="polite">
               {#if forBuild.tags.length + forBuild.releases.length > 0}
-                <Badge tone="ok">Found</Badge>
-                Build {build.buildNumber} is carried by {forBuild.tags.length + forBuild.releases.length} name{forBuild.tags.length + forBuild.releases.length === 1 ? '' : 's'}, for example
-                <code>{(forBuild.tags[0] ?? forBuild.releases[0])?.name}</code>.
+                <Badge tone="ok">{t('portfolio:conv.foundBadge')}</Badge>
+                <T key="portfolio:conv.found" params={{ count: forBuild.tags.length + forBuild.releases.length, build: build.buildNumber, example: (forBuild.tags[0] ?? forBuild.releases[0])?.name ?? '' }} />
               {:else}
-                <Badge tone="warn">Not found</Badge>
-                No tag or release name reads as build {build.buildNumber} with these patterns.
+                <Badge tone="warn">{t('portfolio:conv.notFoundBadge')}</Badge>
+                {t('portfolio:conv.notFound', { build: build.buildNumber })}
               {/if}
             </p>
           {/if}
@@ -362,9 +361,9 @@
           {#if names.tags.length > 0}
             <div class="table-wrap">
               <table>
-                <caption class="visually-hidden">Tags and what the patterns read from them</caption>
+                <caption class="visually-hidden">{t('portfolio:conv.tagsCaption')}</caption>
                 <thead>
-                  <tr><th scope="col">Tag</th><th scope="col">Read as</th></tr>
+                  <tr><th scope="col">{t('portfolio:conv.tag')}</th><th scope="col">{t('portfolio:conv.readAs')}</th></tr>
                 </thead>
                 <tbody>
                   {#each tagRows as row (row.name)}
@@ -377,16 +376,16 @@
               </table>
             </div>
             {#if preview.tags.length > SHOWN}
-              <div><Button size="sm" variant="ghost" onclick={() => (showAllTags = !showAllTags)}>{showAllTags ? 'Show fewer tags' : `Show all ${preview.tags.length} tags`}</Button></div>
+              <div><Button size="sm" variant="ghost" onclick={() => (showAllTags = !showAllTags)}>{showAllTags ? t('portfolio:conv.fewerTags') : t('portfolio:conv.allTags', { count: preview.tags.length })}</Button></div>
             {/if}
           {/if}
 
           {#if names.releases.length > 0}
             <div class="table-wrap">
               <table>
-                <caption class="visually-hidden">Releases and what the patterns read from them</caption>
+                <caption class="visually-hidden">{t('portfolio:conv.releasesCaption')}</caption>
                 <thead>
-                  <tr><th scope="col">Release</th><th scope="col">Read as</th></tr>
+                  <tr><th scope="col">{t('portfolio:conv.release')}</th><th scope="col">{t('portfolio:conv.readAs')}</th></tr>
                 </thead>
                 <tbody>
                   {#each releaseRows as row, i (`${i}-${row.name}`)}
@@ -399,42 +398,42 @@
               </table>
             </div>
             {#if preview.releases.length > SHOWN}
-              <div><Button size="sm" variant="ghost" onclick={() => (showAllReleases = !showAllReleases)}>{showAllReleases ? 'Show fewer releases' : `Show all ${preview.releases.length} releases`}</Button></div>
+              <div><Button size="sm" variant="ghost" onclick={() => (showAllReleases = !showAllReleases)}>{showAllReleases ? t('portfolio:conv.fewerReleases') : t('portfolio:conv.allReleases', { count: preview.releases.length })}</Button></div>
             {/if}
           {/if}
           {#if names.tags.length === 0 && names.releases.length === 0}
-            <p class="muted">This repository has no tags or releases to read.</p>
+            <p class="muted">{t('portfolio:conv.noTags')}</p>
           {/if}
         {/if}
       </section>
 
       {#if canWrite}
         <section class="stack helper" aria-labelledby="{uid}-helper">
-          <h3 id="{uid}-helper">Add a pattern from an example</h3>
+          <h3 id="{uid}-helper">{t('portfolio:conv.helperTitle')}</h3>
           <p class="muted text-sm">
-            Paste a tag or release name that carries {build ? `build ${build.buildNumber}` : 'a build number'}; the number, version and platform in it become placeholders.
+            {build ? t('portfolio:conv.helperBuild', { build: build.buildNumber }) : t('portfolio:conv.helperNoBuild')}
           </p>
           <fieldset class="scope inline">
-            <legend class="visually-hidden">The example is a</legend>
-            <label class="choice"><input type="radio" name="{uid}-kind" value="tag" bind:group={kind} /> <span>Tag</span></label>
-            <label class="choice"><input type="radio" name="{uid}-kind" value="release" bind:group={kind} /> <span>Release name</span></label>
+            <legend class="visually-hidden">{t('portfolio:conv.exampleIs')}</legend>
+            <label class="choice"><input type="radio" name="{uid}-kind" value="tag" bind:group={kind} /> <span>{t('portfolio:conv.tag')}</span></label>
+            <label class="choice"><input type="radio" name="{uid}-kind" value="release" bind:group={kind} /> <span>{t('portfolio:conv.releaseName')}</span></label>
           </fieldset>
           <TextField
-            label="Example name"
+            label={t('portfolio:conv.exampleName')}
             bind:value={example}
             list="{uid}-examples"
             autocomplete="off"
             spellcheck={false}
-            hint={unmatched.length > 0 ? 'Pick one of the names that fit no pattern, or type one.' : 'Type the name.'}
+            hint={unmatched.length > 0 ? t('portfolio:conv.examplePick') : t('portfolio:conv.exampleType')}
           />
           <datalist id="{uid}-examples">
             {#each unmatched as name (name)}<option value={name}></option>{/each}
           </datalist>
           <div class="buttons">
-            <Button size="sm" onclick={propose} disabled={example.trim() === ''}>Propose a pattern</Button>
-            {#if proposed}<Button size="sm" variant="primary" icon="plus" onclick={addProposed}>Add to the {kind === 'tag' ? 'tag' : 'release'} patterns</Button>{/if}
+            <Button size="sm" onclick={propose} disabled={example.trim() === ''}>{t('portfolio:conv.propose')}</Button>
+            {#if proposed}<Button size="sm" variant="primary" icon="plus" onclick={addProposed}>{kind === 'tag' ? t('portfolio:conv.addToTag') : t('portfolio:conv.addToRelease')}</Button>{/if}
           </div>
-          {#if proposed}<p>Proposed: <code>{proposed}</code></p>{/if}
+          {#if proposed}<p><T key="portfolio:conv.proposed" params={{ pattern: proposed }} /></p>{/if}
           <p class="text-sm" role="status">{helperMessage}</p>
         </section>
       {/if}
@@ -442,18 +441,18 @@
       {#if canWrite}
         <label class="choice">
           <input type="checkbox" bind:checked={rematch} disabled={saving} />
-          <span>Match this app's builds to runs again after saving</span>
+          <span>{t('portfolio:conv.rematch')}</span>
         </label>
-        {#if usingDefaults && changed}<p class="muted text-sm">Both lists are empty: the built-in patterns will be used.</p>{/if}
+        {#if usingDefaults && changed}<p class="muted text-sm">{t('portfolio:conv.bothEmpty')}</p>{/if}
       {/if}
-      {#if problem}<Alert tone="error" title="Could not save">{problem}</Alert>{/if}
+      {#if problem}<Alert tone="error" title={t('portfolio:conv.saveFailedTitle')}>{problem}</Alert>{/if}
     {/if}
   </form>
 
   {#snippet footer()}
-    <Button disabled={saving} onclick={() => (open = false)}>{canWrite ? 'Cancel' : 'Close'}</Button>
+    <Button disabled={saving} onclick={() => (open = false)}>{canWrite ? t('common:action.cancel') : t('common:action.close')}</Button>
     {#if canWrite}
-      <Button variant="primary" type="submit" form="{uid}-form" loading={saving} disabled={!view || !changed || (tried && invalid)}>Save conventions</Button>
+      <Button variant="primary" type="submit" form="{uid}-form" loading={saving} disabled={!view || !changed || (tried && invalid)}>{t('portfolio:conv.save')}</Button>
     {/if}
   {/snippet}
 </Modal>

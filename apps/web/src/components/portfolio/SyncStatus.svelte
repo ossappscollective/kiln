@@ -5,6 +5,8 @@
   A failed attempt keeps the time of the last good sync, because the releases shown are from it.
 -->
 <script lang="ts">
+  import T from '../ui/T.svelte';
+  import { t } from '../../lib/i18n/t.ts';
   import { fullTime } from '../../lib/format.ts';
   import { syncInfo } from '../../lib/portfolio.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -24,7 +26,7 @@
   {#if info.error}
     <p class="error" title={info.error}>
       <Icon name="alert" size={14} />
-      <span><strong>Sync failed.</strong> {info.error}</span>
+      <span><T key="portfolio:sync.failed" params={{ error: info.error }} /></span>
     </p>
     {#if info.attempt}<p class="attempt muted">{info.attempt}</p>{/if}
   {/if}

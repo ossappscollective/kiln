@@ -9,12 +9,15 @@
   (closes the dialog), busy (bindable; true while a request runs, so the dialog is not dismissed).
 -->
 <script lang="ts">
+  import T from '../ui/T.svelte';
+  import { k, t } from '../../lib/i18n/t.ts';
   import { credentialKindInfo, isCredentialKind } from '@kiln/core';
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { repositoryName } from '../../lib/repositories.ts';
   import {
     MAX_IMPORT_BATCH,
+    MAX_PACKAGES,
     type BatchResult,
     type CredentialKind,
     appLabel,
@@ -230,39 +233,46 @@
   }
 
   const syncWords: Record<BatchResult['status'], string> = {
-    pending: 'Waiting',
-    running: 'Syncing',
-    ok: 'Synced',
-    failed: 'Failed',
-    busy: 'Already syncing',
-    skipped: 'Not run',
+    pending: k('portfolio:batch.word.pending'),
+    running: k('portfolio:batch.word.running'),
+    ok: k('portfolio:batch.word.ok'),
+    failed: k('portfolio:batch.word.failed'),
+    busy: k('portfolio:batch.word.busy'),
+    skipped: k('portfolio:batch.word.skipped'),
   };
 
   const syncProgress = $derived(
-    syncResults ? (syncing ? `Syncing${syncCurrent ? `: ${syncCurrent}` : '…'}` : batchSummary(syncResults)) : '',
+    syncResults
+      ? syncing
+        ? syncCurrent
+          ? t('portfolio:import.syncingApp', { name: syncCurrent })
+          : t('portfolio:import.syncing')
+        : batchSummary(syncResults)
+      : '',
   );
 </script>
 
+{#snippet credentialsLink(text: string)}<a href="#/credentials" onclick={onclose}>{text}</a>{/snippet}
+
 <div class="stack">
   {#if usable.length === 0}
-    <Alert tone="info" title="No store credential yet">
-      Add an App Store Connect or Google Play credential on the <a href="#/credentials" onclick={onclose}>Credentials</a>
-      screen, then come back to find your apps. You can also add one by hand with the other tab.
+    <Alert tone="info" title={t('portfolio:import.noCredentialTitle')}>
+      <T key="portfolio:import.noCredential" tags={{ link: credentialsLink }} />
     </Alert>
   {:else if imported}
     <div class="stack tight" aria-labelledby="{uid}-done-title" role="group">
-      <h3 id="{uid}-done-title" class="section-title" tabindex="-1" bind:this={doneHeading}>Import finished</h3>
+      <h3 id="{uid}-done-title" class="section-title" tabindex="-1" bind:this={doneHeading}>{t('portfolio:import.finished')}</h3>
       <Alert tone={imported.summary.failed > 0 || importError ? 'warn' : 'ok'}>
         {importSummaryText(imported.summary, imported.results)}
         {#if createdApps.length > 0 && !syncResults}
-          Nothing has been read from the store yet.
+          {t('portfolio:import.nothingRead')}
         {/if}
       </Alert>
       {#if kind && imported.summary.created > 0}
         <p class="muted scope">{importScopeNote(platformForKind(kind))}</p>
       {/if}
       {#if importError}
-        <Alert tone="error" title="Part of the import did not run">{importError}</Alert>
+        <Alert tone="error" title={t('portfolio:import.partial')}>{importError}</Alert>
       {/if}
       <ul class="results">
         {#each imported.results as result, index (index)}
@@ -275,7 +285,7 @@
                 <strong>{result.app?.name ?? result.identifier}</strong>
                 <PlatformBadge platform={result.platform} />
                 <span class="mono muted">{result.identifier}</span>
-                <span class="state">{result.status === 'created' ? 'Added' : result.status === 'skipped' ? 'Skipped' : 'Not added'}</span>
+                <span class="state">{result.status === 'created' ? t('portfolio:import.stateAdded') : result.status === 'skipped' ? t('portfolio:import.stateSkipped') : t('portfolio:import.stateNotAdded')}</span>
               </p>
               {#if result.status !== 'created'}
                 <p class="message">{importItemMessage(result)}</p>
@@ -298,7 +308,7 @@
                   />
                 </span>
                 <div>
-                  <p class="line"><strong>{result.name}</strong> <span class="state">{syncWords[result.status]}</span></p>
+                  <p class="line"><strong>{result.name}</strong> <span class="state">{t(syncWords[result.status])}</span></p>
                   {#if result.message}<p class="message">{result.message}</p>{/if}
                 </div>
               </li>
@@ -310,16 +320,16 @@
       <div class="actions">
         {#if canSync && createdApps.length > 0 && !syncResults}
           <Button variant="primary" icon="refresh" onclick={syncImported}>
-            Sync imported apps ({createdApps.length})
+            {t('portfolio:import.syncImported', { count: createdApps.length })}
           </Button>
         {/if}
-        <Button disabled={syncing} onclick={importMore}>Import more</Button>
-        <Button variant={canSync && createdApps.length > 0 && !syncResults ? 'secondary' : 'primary'} disabled={syncing} onclick={onclose}>Done</Button>
+        <Button disabled={syncing} onclick={importMore}>{t('portfolio:import.more')}</Button>
+        <Button variant={canSync && createdApps.length > 0 && !syncResults ? 'secondary' : 'primary'} disabled={syncing} onclick={onclose}>{t('common:action.done')}</Button>
       </div>
     </div>
   {:else}
     <div class="field">
-      <label for="{uid}-credential" class="required">Credential</label>
+      <label for="{uid}-credential" class="required">{t('app:stores.credential')}</label>
       <select
         id="{uid}-credential"
         bind:value={credentialId}
@@ -327,33 +337,33 @@
         onchange={chooseCredential}
         aria-describedby="{uid}-credential-hint"
       >
-        <option value="" disabled>Choose a credential</option>
+        <option value="" disabled>{t('portfolio:add.chooseCredential')}</option>
         {#each usable as c (c.id)}
           <option value={c.id}>{c.label} ({kindLabel(c.kind)})</option>
         {/each}
       </select>
       {#if kind}<div class="row"><StoreBadge store={storeForCredentialKind(kind).store} variant="full" size="sm" /></div>{/if}
       <p class="hint" id="{uid}-credential-hint">
-        The credential reads the store. Nothing is ever written to it, and the secret is never shown.
+        {t('portfolio:import.credentialHint')}
       </p>
     </div>
 
     {#if discoverError}
-      <Alert tone="error" title="Could not find apps">{discoverError}</Alert>
+      <Alert tone="error" title={t('portfolio:import.findFailed')}>{discoverError}</Alert>
     {/if}
 
     {#if !discovery}
       {#if kind === 'app_store_connect'}
-        <p class="muted">Lists every app this App Store Connect key can see.</p>
+        <p class="muted">{t('portfolio:import.listsAll')}</p>
         <div class="actions">
           <Button variant="primary" icon="search" loading={discovering} onclick={() => discover()}>
-            {discovering ? 'Finding apps…' : 'Find apps'}
+            {discovering ? t('portfolio:import.finding') : t('portfolio:import.find')}
           </Button>
         </div>
       {:else if kind === 'google_play'}
         <form class="stack tight" onsubmit={discover} novalidate>
           <div class="field">
-            <label for="{uid}-packages" class="required">Package names</label>
+            <label for="{uid}-packages" class="required">{t('portfolio:import.packages')}</label>
             <textarea
               id="{uid}-packages"
               bind:value={packagesText}
@@ -367,8 +377,7 @@
               aria-describedby="{uid}-packages-hint{packagesProblem ? ` ${uid}-packages-error` : ''}"
             ></textarea>
             <p class="hint" id="{uid}-packages-hint">
-              One per line, up to 50. Google Play cannot list the apps of an account, so enter the ones you want. Each is
-              checked read-only with this service account.
+              {t('portfolio:import.packagesHint', { max: MAX_PACKAGES })}
             </p>
             {#if packagesProblem}
               <p class="field-error" id="{uid}-packages-error">
@@ -379,7 +388,7 @@
           </div>
           <div class="actions">
             <Button type="submit" variant="primary" icon="search" loading={discovering}>
-              {discovering ? 'Checking…' : 'Check packages'}
+              {discovering ? t('portfolio:import.checking') : t('portfolio:import.check')}
             </Button>
           </div>
         </form>
@@ -387,23 +396,23 @@
     {:else}
       <div class="stack tight">
         <h3 class="section-title" tabindex="-1" bind:this={reviewHeading}>
-          {discovery.kind === 'google_play' ? 'Verified apps' : 'Apps found'}
+          {discovery.kind === 'google_play' ? t('portfolio:import.verified') : t('portfolio:import.found')}
         </h3>
         <p class="muted" role="status">{discoverSummaryText(discovery)}</p>
         {#if kind}<p class="muted scope">{importScopeNote(platformForKind(kind))}</p>{/if}
 
         {#if discovery.candidates.length > 0}
           <div class="row wrap between">
-            <p class="count" aria-live="polite">{selectedCount} of {addable.length} selected</p>
+            <p class="count" aria-live="polite">{t('portfolio:import.selected', { selected: selectedCount, total: addable.length })}</p>
             {#if addable.length > 0}
               <div class="row">
-                <Button size="sm" variant="ghost" disabled={selectedCount === addable.length || importing} onclick={selectAll}>Select all</Button>
-                <Button size="sm" variant="ghost" disabled={selectedCount === 0 || importing} onclick={selectNone}>Select none</Button>
+                <Button size="sm" variant="ghost" disabled={selectedCount === addable.length || importing} onclick={selectAll}>{t('portfolio:import.selectAll')}</Button>
+                <Button size="sm" variant="ghost" disabled={selectedCount === 0 || importing} onclick={selectNone}>{t('portfolio:import.selectNone')}</Button>
               </div>
             {/if}
           </div>
           <fieldset class="list-set" disabled={importing}>
-            <legend class="visually-hidden">Apps to add</legend>
+            <legend class="visually-hidden">{t('portfolio:import.toAdd')}</legend>
             <ul class="candidates">
               {#each discovery.candidates as c (candidateKey(c))}
                 {@const key = candidateKey(c)}
@@ -423,13 +432,13 @@
                   </label>
                   <span class="badges">
                     <PlatformBadge platform={c.platform} />
-                    {#if c.alreadyAdded}<Badge tone="ok">Already added</Badge>{/if}
+                    {#if c.alreadyAdded}<Badge tone="ok">{t('portfolio:import.alreadyAdded')}</Badge>{/if}
                   </span>
                   {#if !c.alreadyAdded && selected.has(key) && repositories.length > 0}
                     <div class="repo">
-                      <label for="{uid}-repo-{key}" class="visually-hidden">Repository for {c.name}</label>
+                      <label for="{uid}-repo-{key}" class="visually-hidden">{t('portfolio:import.repositoryFor', { name: c.name })}</label>
                       <select id="{uid}-repo-{key}" bind:value={repositoryFor[key]}>
-                        <option value="">No repository</option>
+                        <option value="">{t('portfolio:import.noRepository')}</option>
                         {#each repositories as repository (repository.id)}
                           <option value={repository.id}>{repositoryName(repository)}</option>
                         {/each}
@@ -444,7 +453,7 @@
 
         {#if discovery.failures.length > 0}
           <div class="failures">
-            <h4 class="section-title small">Could not be verified</h4>
+            <h4 class="section-title small">{t('portfolio:import.unverified')}</h4>
             <ul class="results">
               {#each discovery.failures as failure (failure.identifier)}
                 <li class="result failed">
@@ -460,15 +469,15 @@
         {/if}
 
         {#if importError}
-          <Alert tone="error" title="Could not add the apps">{importError}</Alert>
+          <Alert tone="error" title={t('portfolio:import.addFailed')}>{importError}</Alert>
         {/if}
 
         <div class="actions">
           <Button disabled={importing} onclick={backToChoose}>
-            {discovery.kind === 'google_play' ? 'Edit the list' : 'Back'}
+            {discovery.kind === 'google_play' ? t('portfolio:import.editList') : t('common:action.back')}
           </Button>
           <Button variant="primary" icon="plus" loading={importing} disabled={selectedCount === 0} onclick={runImport}>
-            {importing ? 'Adding…' : `Import selected (${selectedCount})`}
+            {importing ? t('portfolio:add.adding') : t('portfolio:import.importSelected', { count: selectedCount })}
           </Button>
         </div>
       </div>

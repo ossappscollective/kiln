@@ -8,6 +8,8 @@
   synced), locked (true while "Sync all" owns the sync buttons), onsync (called with a row's group).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
+  import { formatNumber } from '../../lib/i18n/format.ts';
   import { type Platform, platformLabel } from '@kiln/core';
   import type { AppGroup } from '../../lib/app-groups.ts';
   import { type OverviewRow, type PlatformCell, rowNextAction, rowStatus } from '../../lib/app-overview.ts';
@@ -53,11 +55,11 @@
       {#if c.state === 'loading'}
         <Skeleton width="56px" height="14px" />
       {:else if c.state === 'error'}
-        <span class="muted">Could not load</span>
+        <span class="muted">{t('portfolio:overviewTable.loadFailed')}</span>
       {:else if c.latest}
         <strong>{c.latest.version}</strong>
       {:else}
-        <span class="muted">None</span>
+        <span class="muted">{t('portfolio:overviewTable.none')}</span>
       {/if}
     </li>
   {/if}
@@ -65,15 +67,15 @@
 
 <div class="table-wrap">
   <table>
-    <caption class="visually-hidden">Apps in this workspace</caption>
+    <caption class="visually-hidden">{t('portfolio:table.caption')}</caption>
     <thead>
       <tr>
-        <th scope="col">App</th>
-        <th scope="col">Platforms</th>
-        <th scope="col">Status</th>
-        <th scope="col">Next</th>
-        <th scope="col">Last synced</th>
-        {#if canSync}<th scope="col"><span class="visually-hidden">Actions</span></th>{/if}
+        <th scope="col">{t('portfolio:table.app')}</th>
+        <th scope="col">{t('portfolio:overviewTable.platforms')}</th>
+        <th scope="col">{t('portfolio:release.status')}</th>
+        <th scope="col">{t('app:board.next')}</th>
+        <th scope="col">{t('portfolio:table.lastSynced')}</th>
+        {#if canSync}<th scope="col"><span class="visually-hidden">{t('portfolio:table.actions')}</span></th>{/if}
       </tr>
     </thead>
     <tbody>
@@ -97,14 +99,14 @@
                 <div class="meta">
                   <code class="identifier">{g.members[0]?.identifier}</code>
                   {#if row.rating !== null}
-                    <span class="rating" title="{row.ratingCount} stored {row.ratingCount === 1 ? 'review' : 'reviews'}"><Icon name="star-filled" size={14} /> {row.rating.toFixed(1)}</span>
+                    <span class="rating" title={t('portfolio:overviewTable.storedReviews', { count: row.ratingCount })}><Icon name="star-filled" size={14} /> {formatNumber(row.rating, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
                   {/if}
                 </div>
               </div>
             </div>
           </td>
           <td>
-            <ul class="versions" aria-label="Latest version per platform">
+            <ul class="versions" aria-label={t('portfolio:overviewTable.versions')}>
               {@render version(row.ios, 'ios')}
               {@render version(row.macos, 'macos')}
               {@render version(row.android, 'android')}
@@ -120,7 +122,7 @@
                   </span>
                 {/each}
               {:else if status.primary.kind === 'sync-failed'}
-                <Badge tone="bad" icon="alert">Sync failed</Badge>
+                <Badge tone="bad" icon="alert">{t('portfolio:overviewTable.syncFailed')}</Badge>
               {:else if status.primary.kind === 'loading'}
                 <Skeleton width="80px" height="20px" />
               {:else}
@@ -130,9 +132,9 @@
           </td>
           <td>
             {#if next}
-              <a class="next {next.tone}" href={next.href} title={next.title}>{next.label}<Icon name="arrow-right" size={14} /><span class="visually-hidden"> for {g.name}</span></a>
+              <a class="next {next.tone}" href={next.href} title={next.title} aria-label={t('portfolio:overviewTable.nextFor', { label: next.label, name: g.name })}>{next.label}<Icon name="arrow-right" size={14} /></a>
             {:else}
-              <span class="muted" aria-label="Nothing to do">–</span>
+              <span class="muted" aria-label={t('portfolio:overviewTable.nothingToDo')}>–</span>
             {/if}
           </td>
           <td>
@@ -145,8 +147,8 @@
                 icon="refresh"
                 loading={isSyncing(g)}
                 disabled={locked && !isSyncing(g)}
-                label="Sync {g.name}"
-                onclick={() => onsync(g)}>Sync</Button
+                label={t('portfolio:table.syncApp', { name: g.name })}
+                onclick={() => onsync(g)}>{t('app:shell.sync')}</Button
               >
             </td>
           {/if}

@@ -11,6 +11,9 @@
   Props: api, workspaceId, role, app, refreshKey (changes when a sync finished, so this reloads).
 -->
 <script lang="ts">
+  import T from '../ui/T.svelte';
+  import { t } from '../../lib/i18n/t.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
   import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
@@ -90,7 +93,7 @@
     } catch (e) {
       if (mine !== generation) return;
       data = null;
-      loadProblem = e instanceof ApiError ? e.message : 'Could not load the builds.';
+      loadProblem = e instanceof ApiError ? e.message : t('portfolio:builds.loadFailed');
     } finally {
       if (mine === generation) loading = false;
     }
@@ -117,10 +120,10 @@
     try {
       const done = await api.unlinkBuild(workspaceId, app.id, build);
       replace(done.build, build);
-      toast.success(`Removed the link of ${buildName(build)}.`);
-      announcement = `Removed the link of build ${build.buildNumber}.`;
+      toast.success(t('portfolio:builds.unlinked', { name: buildName(build) }));
+      announcement = t('portfolio:builds.unlinkedAnnounce', { build: build.buildNumber });
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : 'Could not remove the link.');
+      toast.error(e instanceof ApiError ? e.message : t('portfolio:builds.unlinkFailed'));
     } finally {
       unlinking = '';
     }
@@ -129,7 +132,7 @@
   function linked(updated: AppBuild) {
     if (!linkTarget) return;
     replace(updated, linkTarget);
-    announcement = `Linked build ${updated.buildNumber}.`;
+    announcement = t('portfolio:builds.linkedAnnounce', { build: updated.buildNumber });
   }
 
   const unlinkedCount = $derived(data?.builds.filter((b) => b.linkState === 'unlinked').length ?? 0);
@@ -151,20 +154,20 @@
       open = {};
       const linkedNow = rest.builds.filter((b) => b.linkState !== 'unlinked').length;
       if (result.error) {
-        toast.error(`Matching could not read the tags: ${result.error}`);
-        announcement = 'Matching could not read the tags.';
+        toast.error(t('portfolio:builds.matchTagsFailed', { error: result.error }));
+        announcement = t('portfolio:builds.matchTagsFailedAnnounce');
       } else if (!quiet) {
         toast.success(
           result.scanned
-            ? `Matched again: ${linkedNow} of ${rest.builds.length} builds have a link or a tag.`
-            : 'Every build already has a settled link, so nothing was searched.',
+            ? t('portfolio:builds.matchedAgain', { count: rest.builds.length, linked: linkedNow })
+            : t('portfolio:builds.nothingSearched'),
         );
-        announcement = `Matched again. ${linkedNow} of ${rest.builds.length} builds have a link or a tag.`;
+        announcement = t('portfolio:builds.matchedAgainAnnounce', { count: rest.builds.length, linked: linkedNow });
       } else {
-        announcement = `Searched the tags: ${linkedNow} of ${rest.builds.length} builds have a link or a tag.`;
+        announcement = t('portfolio:builds.searchedTags', { count: rest.builds.length, linked: linkedNow });
       }
     } catch (e) {
-      if (!quiet) toast.error(e instanceof ApiError ? e.message : 'Could not match the builds.');
+      if (!quiet) toast.error(e instanceof ApiError ? e.message : t('portfolio:builds.matchFailed'));
     } finally {
       rematching = false;
     }
@@ -198,7 +201,7 @@
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#if loading && !data}
-    <div class="card" role="status" aria-label="Loading the builds">
+    <div class="card" role="status" aria-label={t('portfolio:builds.loading')}>
       <div class="stack">
         <Skeleton width="70%" height="16px" />
         <Skeleton width="55%" height="16px" />
@@ -207,16 +210,16 @@
     </div>
   {:else if loadProblem}
     <div class="stack">
-      <Alert tone="error" title="Could not load the builds">{loadProblem}</Alert>
-      <div><Button icon="refresh" onclick={load}>Try again</Button></div>
+      <Alert tone="error" title={t('portfolio:builds.loadFailed')}>{loadProblem}</Alert>
+      <div><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
     </div>
   {:else if data}
     {#if data.builds.length === 0}
       <div class="card">
         <EmptyState
           icon="box"
-          title="No builds yet"
-          description="Builds come from the store. Sync the app to read its iOS builds or Android version codes."
+          title={t('portfolio:builds.emptyTitle')}
+          description={t('portfolio:builds.emptyHelp')}
         />
       </div>
     {:else}
@@ -226,31 +229,31 @@
         headline={lead.headline}
         hint={data.repository
           ? data.diagnostics?.scannedAt
-            ? `Tags and releases were last searched ${timeAgo(data.diagnostics.scannedAt, now)}.`
-            : 'Tags and releases have not been searched yet.'
-          : 'No repository is linked, so builds cannot be matched to CI runs. These come from the last store sync.'}
+            ? t('portfolio:builds.searchedAt', { when: timeAgo(data.diagnostics.scannedAt, now) })
+            : t('portfolio:builds.notSearched')
+          : t('portfolio:builds.noRepository')}
       >
         {#snippet actions()}
           {#if data?.repository}
             {#if canMatch}
-              <Button icon="refresh" loading={rematching} onclick={() => rematch()}>Re-run matching</Button>
+              <Button icon="refresh" loading={rematching} onclick={() => rematch()}>{t('portfolio:builds.rerun')}</Button>
             {/if}
-            <Button variant="ghost" icon="settings" onclick={() => (conventionsOpen = true)}>Build number conventions</Button>
+            <Button variant="ghost" icon="settings" onclick={() => (conventionsOpen = true)}>{t('portfolio:builds.conventions')}</Button>
           {/if}
         {/snippet}
       </PageLead>
 
-      <Section title="Builds" key="builds" count={data.builds.length} flush>
+      <Section title={t('app:nav.builds')} key="builds" count={data.builds.length} flush>
       <div class="table-wrap">
         <table>
-          <caption class="visually-hidden">Builds of {app.name}</caption>
+          <caption class="visually-hidden">{t('portfolio:builds.caption', { name: app.name })}</caption>
           <thead>
             <tr>
-              <th scope="col">Build</th>
-              <th scope="col">In the store</th>
-              <th scope="col">CI run</th>
-              <th scope="col">Commit</th>
-              <th scope="col"><span class="visually-hidden">Actions</span></th>
+              <th scope="col">{t('portfolio:release.build')}</th>
+              <th scope="col">{t('portfolio:builds.inStore')}</th>
+              <th scope="col">{t('portfolio:builds.ciRun')}</th>
+              <th scope="col">{t('portfolio:builds.commit')}</th>
+              <th scope="col"><span class="visually-hidden">{t('portfolio:table.actions')}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -270,7 +273,7 @@
                     <ReleaseStatus status={build.status} rawState={build.rawState} />
                     {#if build.uploadedAt !== null}
                       <span class="muted text-sm"
-                        >Uploaded <time datetime={new Date(build.uploadedAt).toISOString()} title={fullTime(build.uploadedAt)}>{timeAgo(build.uploadedAt, now)}</time></span
+                        >{t('portfolio:builds.uploaded')} <time datetime={new Date(build.uploadedAt).toISOString()} title={fullTime(build.uploadedAt)}>{timeAgo(build.uploadedAt, now)}</time></span
                       >
                     {/if}
                   </div>
@@ -282,9 +285,9 @@
                       <span class="text-sm">{tagFoundText(link)}</span>
                       {#if link.evidence}
                         <details class="evidence">
-                          <summary>Why this tag</summary>
+                          <summary>{t('portfolio:builds.whyTag')}</summary>
                           <p class="muted text-sm">{link.evidence.reason}</p>
-                          <p class="muted text-sm">Pattern <code>{link.evidence.pattern}</code></p>
+                          <p class="muted text-sm"><T key="portfolio:builds.pattern" params={{ pattern: link.evidence.pattern }} /></p>
                         </details>
                       {/if}
                     </div>
@@ -294,30 +297,30 @@
                         <span class="line">
                           {#if link.run.status !== 'unknown'}<RunStatus run={link.run} />{/if}
                           {#if link.run.url}
-                            <a href={link.run.url} target="_blank" rel="noopener noreferrer"
-                              >Run {link.run.id}<Icon name="external-link" size={14} /><span class="visually-hidden"> on GitHub (opens in a new tab)</span></a
+                            <a href={link.run.url} target="_blank" rel="noopener noreferrer" aria-label={t('portfolio:builds.runOnGithub', { id: link.run.id })}
+                              >{t('portfolio:builds.run', { id: link.run.id })}<Icon name="external-link" size={14} /></a
                             >
                           {:else}
-                            <span>Run {link.run.id}</span>
+                            <span>{t('portfolio:builds.run', { id: link.run.id })}</span>
                           {/if}
                         </span>
                         {#if link.run.workflow}<span class="muted text-sm">{link.run.workflow}</span>{/if}
                       {:else}
-                        <span class="muted">The run is no longer stored.</span>
+                        <span class="muted">{t('portfolio:builds.runGone')}</span>
                       {/if}
                       <span class="muted text-sm" title={link.reason}>{linkSourceLabel(link.source)}</span>
                       {#if link.source === 'tag' || link.source === 'release'}
                         {@const confidence = confidenceBadge(link.confidence)}
                         <span class="line"><Badge tone={confidence.tone}>{confidence.label}</Badge></span>
                         {#if isUncertain(link)}
-                          <span class="muted text-sm">Several runs could have made this build. Link the right one by hand if this is wrong.</span>
+                          <span class="muted text-sm">{t('portfolio:builds.uncertain')}</span>
                         {/if}
                         {#if link.evidence}
                           <details class="evidence">
-                            <summary>Why this run</summary>
+                            <summary>{t('portfolio:builds.whyRun')}</summary>
                             <p class="muted text-sm">{link.evidence.reason}</p>
                             <p class="muted text-sm">
-                              {link.evidence.kind === 'release' ? 'Release' : 'Tag'} <code>{link.evidence.tag}</code>, pattern <code>{link.evidence.pattern}</code>
+                              {#if link.evidence.kind === 'release'}<T key="portfolio:builds.evidenceRelease" params={{ tag: link.evidence.tag, pattern: link.evidence.pattern }} />{:else}<T key="portfolio:builds.evidenceTag" params={{ tag: link.evidence.tag, pattern: link.evidence.pattern }} />{/if}
                             </p>
                           </details>
                         {/if}
@@ -325,9 +328,9 @@
                     </div>
                   {:else}
                     <div class="cell">
-                      <Badge tone="warn">Unlinked</Badge>
+                      <Badge tone="warn">{t('portfolio:builds.unlinkedBadge')}</Badge>
                       <span class="muted text-sm"
-                        >{build.diagnostic?.message ?? `No CI run with build number ${build.buildNumber} was found.`}</span
+                        >{build.diagnostic?.message ?? t('portfolio:builds.noRun', { build: build.buildNumber })}</span
                       >
                     </div>
                   {/if}
@@ -336,8 +339,8 @@
                   {#if link?.commit}
                     <div class="cell">
                       {#if link.commit.url}
-                        <a href={link.commit.url} target="_blank" rel="noopener noreferrer"
-                          ><code>{link.commit.shortSha}</code><span class="visually-hidden"> on GitHub (opens in a new tab)</span></a
+                        <a href={link.commit.url} target="_blank" rel="noopener noreferrer" aria-label={t('portfolio:builds.commitOnGithub', { sha: link.commit.shortSha })}
+                          ><code>{link.commit.shortSha}</code></a
                         >
                       {:else}
                         <code>{shortSha(link.commit.sha)}</code>
@@ -345,7 +348,7 @@
                       {#if link.commit.message}<span class="muted text-sm">{link.commit.message}</span>{/if}
                     </div>
                   {:else}
-                    <span class="muted">None</span>
+                    <span class="muted">{t('portfolio:overviewTable.none')}</span>
                   {/if}
                 </td>
                 <td class="actions">
@@ -357,14 +360,14 @@
                         icon={open[key] ? 'chevron-up' : 'chevron-down'}
                         aria-expanded={open[key] ? 'true' : 'false'}
                         aria-controls="changes-{key.replace(':', '-')}"
-                        onclick={() => (open = { ...open, [key]: !open[key] })}>What changed</Button
+                        onclick={() => (open = { ...open, [key]: !open[key] })}>{t('portfolio:builds.whatChanged')}</Button
                       >
                     {/if}
                     {#if canLink && data.repository}
-                      <Button size="sm" icon="git-branch" onclick={() => (linkTarget = build)}>{link?.manual ? 'Change link' : 'Link'}</Button>
+                      <Button size="sm" icon="git-branch" onclick={() => (linkTarget = build)}>{link?.manual ? t('portfolio:builds.changeLink') : t('portfolio:builds.link')}</Button>
                       {#if link?.manual}
                         <Button size="sm" variant="ghost" icon="x" loading={unlinking === key} onclick={() => unlink(build)}
-                          >Remove link<span class="visually-hidden"> of build {build.buildNumber}</span></Button
+                           label={t('portfolio:builds.removeLinkOf', { build: build.buildNumber })}>{t('portfolio:builds.removeLink')}</Button
                         >
                       {/if}
                     {/if}
@@ -385,34 +388,35 @@
       </Section>
 
       <details class="how">
-        <summary>How builds are matched to runs</summary>
+        <summary>{t('portfolio:builds.how')}</summary>
         <p class="muted">
-          A build is matched to a run by its number, never by guessing. {#if unlinkedCount > 0}{unlinkedCount} of {data.builds.length}
-            {unlinkedCount === 1 ? 'build is' : 'builds are'} unlinked.{/if}
-          {#if tagOnlyCount > 0}{tagOnlyCount} {tagOnlyCount === 1 ? 'build has' : 'builds have'} a tag but no run yet.{/if} The matchers, in order:
+          {t('portfolio:builds.howIntro')}
+          {#if unlinkedCount > 0}{t('portfolio:builds.howUnlinked', { count: unlinkedCount, total: data.builds.length })}{/if}
+          {#if tagOnlyCount > 0}{t('portfolio:builds.howTagOnly', { count: tagOnlyCount })}{/if}
+          {t('portfolio:builds.howMatchers')}
         </p>
         <ul>
           {#each data.matchers as matcher (matcher.id)}
             <li><code>{matcher.id}</code>: {matcher.description}</li>
           {/each}
           <li>
-            <code>tag</code>: the build number is in a tag or GitHub release name (such as <code>ios/appstore/1.2.3/123</code>); the tag's commit leads to the run that made it.
+            <T key="portfolio:builds.tagMatcher" />
           </li>
         </ul>
-        {#if canLink}<p class="muted">A build that nothing finds can be linked to a run by hand.</p>{/if}
+        {#if canLink}<p class="muted">{t('portfolio:builds.howManual')}</p>{/if}
 
         {#if data.diagnostics}
           {@const d = data.diagnostics}
-          <h3 class="diag-title">What was searched</h3>
+          <h3 class="diag-title">{t('portfolio:builds.searched')}</h3>
           <ul>
             {#each diagnosticsLines(d) as line (line)}<li>{line}</li>{/each}
           </ul>
           <p class="muted">
-            Patterns in use: {conventionSourceLabel(d.patterns)}{d.patterns.prefix ? `, prefix ${d.patterns.prefix}` : ''}{d.patterns.workflow ? `, workflow ${d.patterns.workflow}` : ''}.
-            {#if d.tags && d.tags.sample.length > 0}Some of the tags read: {#each d.tags.sample.slice(0, 5) as tag, i (tag)}{#if i > 0}, {/if}<code>{tag}</code>{/each}.{/if}
+            {t('portfolio:builds.patternsInUse', { list: formatList([conventionSourceLabel(d.patterns), ...(d.patterns.prefix ? [t('portfolio:builds.prefix', { prefix: d.patterns.prefix })] : []), ...(d.patterns.workflow ? [t('portfolio:builds.workflow', { workflow: d.patterns.workflow })] : [])], { type: 'unit' }) })}
+            {#if d.tags && d.tags.sample.length > 0}{t('portfolio:builds.someTags')} {#each d.tags.sample.slice(0, 5) as tag, i (tag)}{#if i > 0}, {/if}<code>{tag}</code>{/each}.{/if}
           </p>
           <div>
-            <Button size="sm" icon="settings" onclick={() => (conventionsOpen = true)}>Build number conventions</Button>
+            <Button size="sm" icon="settings" onclick={() => (conventionsOpen = true)}>{t('portfolio:builds.conventions')}</Button>
           </div>
         {/if}
       </details>

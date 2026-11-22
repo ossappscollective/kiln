@@ -4,11 +4,11 @@
   Props: group (from groupReleases), now (epoch ms, so relative times update).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
-  import { type ReleaseGroup, statusInfo } from '../../lib/portfolio.ts';
+  import { type ReleaseGroup, buildColumnLabel, statusInfo } from '../../lib/portfolio.ts';
   import ReleaseStatus from './ReleaseStatus.svelte';
   import Timeline from './Timeline.svelte';
-import { platformMeta } from '@kiln/core';
 
   let { group, now }: { group: ReleaseGroup; now: number } = $props();
 
@@ -21,30 +21,30 @@ import { platformMeta } from '@kiln/core';
 <section class="card flush" aria-labelledby="{uid}-title">
   <div class="head">
     <h2 id="{uid}-title">{group.title}</h2>
-    <span class="muted">{group.releases.length} {group.releases.length === 1 ? 'release' : 'releases'}</span>
+    <span class="muted">{t('app:board.releaseCount', { count: group.releases.length })}</span>
   </div>
 
   <div class="lifecycle">
-    <p class="eyebrow">Newest: {latest.version}</p>
+    <p class="eyebrow">{t('portfolio:release.newest', { version: latest.version })}</p>
     {#if latest.status}
-      <Timeline platform={group.platform} status={latest.status} label="Lifecycle of version {latest.version}" />
+      <Timeline platform={group.platform} status={latest.status} label={t('portfolio:release.lifecycle', { version: latest.version })} />
       <p class="muted note">{info.description}</p>
     {:else}
-      <p class="muted note">{info.description} It has no place on the timeline.</p>
+      <p class="muted note">{t('portfolio:release.noTimeline', { description: info.description })}</p>
     {/if}
   </div>
 
   <div class="table-scroll">
     <table class="compact">
-      <caption class="visually-hidden">Releases on {group.title}, newest first</caption>
+      <caption class="visually-hidden">{t('portfolio:release.caption', { title: group.title })}</caption>
       <thead>
         <tr>
-          <th scope="col">Version</th>
-          <th scope="col">{platformMeta(group.platform).buildLabel}</th>
-          <th scope="col">Status</th>
-          <th scope="col">Store state</th>
-          <th scope="col">Store updated</th>
-          <th scope="col">Confirmed</th>
+          <th scope="col">{t('portfolio:release.version')}</th>
+          <th scope="col">{buildColumnLabel(group.platform)}</th>
+          <th scope="col">{t('portfolio:release.status')}</th>
+          <th scope="col">{t('portfolio:release.storeState')}</th>
+          <th scope="col">{t('portfolio:release.storeUpdated')}</th>
+          <th scope="col">{t('portfolio:release.confirmed')}</th>
         </tr>
       </thead>
       <tbody>
@@ -58,7 +58,7 @@ import { platformMeta } from '@kiln/core';
               {#if release.storeUpdatedAt !== null}
                 <time datetime={new Date(release.storeUpdatedAt).toISOString()} title={fullTime(release.storeUpdatedAt)}>{timeAgo(release.storeUpdatedAt, now)}</time>
               {:else}
-                <span aria-label="Not reported by the store">—</span>
+                <span aria-label={t('portfolio:release.notReported')}>—</span>
               {/if}
             </td>
             <td class="muted">
@@ -72,7 +72,7 @@ import { platformMeta } from '@kiln/core';
 
   {#if unmapped > 0}
     <p class="muted footnote">
-      {unmapped === 1 ? 'One release has' : `${unmapped} releases have`} a store state with no normalized status. The store’s own state is shown instead.
+      {t('portfolio:release.unmapped', { count: unmapped })}
     </p>
   {/if}
 </section>

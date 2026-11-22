@@ -13,6 +13,8 @@
   the manual form with these values: platform, identifier, name, credentialId, repositoryId).
 -->
 <script lang="ts">
+  import T from '../ui/T.svelte';
+  import { t } from '../../lib/i18n/t.ts';
   import { PLATFORMS, type Platform, credentialKindInfo, isCredentialKind, platformMeta } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { repositoryName } from '../../lib/repositories.ts';
@@ -81,7 +83,7 @@
     try {
       credentials = (await api.credentials(workspaceId)).credentials;
     } catch (e) {
-      loadError = e instanceof ApiError ? e.message : 'Could not load credentials.';
+      loadError = e instanceof ApiError ? e.message : t('portfolio:add.loadFailed');
       return;
     }
     // The repository is optional, so a failure here only hides the choice.
@@ -144,13 +146,13 @@
 
 <Modal
   bind:open
-  title="Add apps"
-  description="An app is one store listing. It is read from the store with a stored credential; nothing is ever written to the store."
+  title={t('portfolio:add.title')}
+  description={t('portfolio:add.description')}
   size="lg"
   dismissible={!busy && !importBusy}
 >
   {#if credentials === null && !loadError}
-    <div class="stack" role="status" aria-label="Loading credentials">
+    <div class="stack" role="status" aria-label={t('portfolio:add.loading')}>
       <Skeleton width="30%" height="14px" />
       <Skeleton height="36px" />
       <Skeleton width="30%" height="14px" />
@@ -159,15 +161,15 @@
   {:else if loadError}
     <div class="stack">
       <Alert tone="error">{loadError}</Alert>
-      <div><Button icon="refresh" onclick={load}>Try again</Button></div>
+      <div><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
     </div>
   {:else if credentials}
     <Tabs
-      label="How to add apps"
+      label={t('portfolio:add.how')}
       bind:value={tab}
       tabs={[
-        { id: 'import', label: 'Import from a credential' },
-        { id: 'manual', label: 'Add manually' },
+        { id: 'import', label: t('portfolio:add.tabImport') },
+        { id: 'manual', label: t('portfolio:add.tabManual') },
       ]}
     >
       {#snippet panel(id)}
@@ -192,20 +194,21 @@
 
   {#snippet footer()}
     {#if credentials && tab === 'manual'}
-      <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>
+      <Button disabled={busy} onclick={() => (open = false)}>{t('common:action.cancel')}</Button>
       <Button type="submit" form={formId} variant="primary" loading={busy} disabled={matching.length === 0}>
-        {busy ? 'Adding…' : 'Add app'}
+        {busy ? t('portfolio:add.adding') : t('portfolio:page.addApp')}
       </Button>
     {:else}
-      <Button disabled={importBusy} onclick={() => (open = false)}>Close</Button>
+      <Button disabled={importBusy} onclick={() => (open = false)}>{t('common:action.close')}</Button>
     {/if}
   {/snippet}
 </Modal>
 
+{#snippet credentialsLink(text: string)}<a href="#/credentials" onclick={() => (open = false)}>{text}</a>{/snippet}
 {#snippet manual()}
   <form id={formId} class="stack" onsubmit={submit} novalidate>
     <fieldset class="platform">
-      <legend>Platform</legend>
+      <legend>{t('app:scope.label')}</legend>
       <div class="choices">
         {#each PLATFORMS as p (p)}
           <label class="check">
@@ -217,13 +220,12 @@
     </fieldset>
 
     {#if matching.length === 0}
-      <Alert tone="info" title="No {kindName} credential yet">
-        Add a {kindName} credential on the <a href="#/credentials" onclick={() => (open = false)}>Credentials</a> screen,
-        then come back to add this app.
+      <Alert tone="info" title={t('portfolio:add.noCredentialTitle', { kind: kindName })}>
+        <T key="portfolio:add.noCredential" params={{ kind: kindName }} tags={{ link: credentialsLink }} />
       </Alert>
     {:else}
       <div class="field">
-        <label for="{formId}-credential" class="required">Credential</label>
+        <label for="{formId}-credential" class="required">{t('app:stores.credential')}</label>
         <select
           id="{formId}-credential"
           bind:value={credentialId}
@@ -231,7 +233,7 @@
           aria-invalid={problems.credentialId ? 'true' : undefined}
           aria-describedby={problems.credentialId ? `${formId}-credential-error` : undefined}
         >
-          <option value="" disabled>Choose a credential</option>
+          <option value="" disabled>{t('portfolio:add.chooseCredential')}</option>
           {#each matching as credential (credential.id)}
             <option value={credential.id}>{credential.label} ({kindLabel(credential.kind)})</option>
           {/each}
@@ -258,29 +260,29 @@
     />
 
     <TextField
-      label="Name"
+      label={t('portfolio:add.name')}
       bind:value={name}
       autocomplete="off"
       maxlength={100}
-      hint="Optional. Shown in the portfolio. Defaults to the identifier."
+      hint={t('portfolio:add.nameHint')}
       error={problems.name}
     />
 
     {#if repositories.length > 0}
       <div class="field">
-        <label for="{formId}-repository">Repository</label>
+        <label for="{formId}-repository">{t('app:chips.repository')}</label>
         <select
           id="{formId}-repository"
           bind:value={repositoryId}
           aria-invalid={problems.repositoryId ? 'true' : undefined}
           aria-describedby="{formId}-repository-hint{problems.repositoryId ? ` ${formId}-repository-error` : ''}"
         >
-          <option value="">None</option>
+          <option value="">{t('portfolio:overviewTable.none')}</option>
           {#each repositories as repository (repository.id)}
             <option value={repository.id}>{repositoryName(repository)}</option>
           {/each}
         </select>
-        <p class="hint" id="{formId}-repository-hint">Optional. The repository that holds this app’s fastlane or Expo project.</p>
+        <p class="hint" id="{formId}-repository-hint">{t('portfolio:add.repositoryHint')}</p>
         {#if problems.repositoryId}
           <p class="field-error" id="{formId}-repository-error">
             <Icon name="alert" size={14} class="field-error-icon" />
@@ -291,7 +293,7 @@
     {/if}
 
     {#if formProblem}
-      <Alert tone="error" title="Could not add the app">{formProblem}</Alert>
+      <Alert tone="error" title={t('portfolio:add.failed')}>{formProblem}</Alert>
     {/if}
   </form>
 {/snippet}

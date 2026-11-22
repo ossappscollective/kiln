@@ -594,6 +594,15 @@ export const identifierLabel = (platform: Platform): string =>
     }),
   );
 
+/** The header of the column that holds the builds of a release: "Build" on Apple, "Version codes" on Google Play. */
+export const buildColumnLabel = (platform: Platform): string =>
+  t(
+    byFamily(platform, {
+      apple: k('portfolio:release.build'),
+      google: k('portfolio:release.versionCodes'),
+    }),
+  );
+
 /** "Copy the bundle ID" / "Copy the package name": the label of the copy button beside an identifier. */
 export const copyIdentifierLabel = (platform: Platform): string =>
   t(
