@@ -134,6 +134,11 @@ export const CAPABILITIES = [
    * experiments nor custom store listings: its app gets a manual tracker and links to the Console (docs/adr/0048-store-experiments.md).
    */
   'storeExperimentsApi',
+  /**
+   * The store's API lists beta tester feedback and crash submissions (Apple's TestFlight). Google Play's Developer API has no counterpart
+   * (docs/adr/0049-testflight-feedback.md).
+   */
+  'testflightFeedbackApi',
 ] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 export type PlatformCapabilities = Readonly<Record<Capability, boolean>>;
@@ -164,6 +169,7 @@ const APPLE_CAPABILITIES: PlatformCapabilities = {
   inAppPurchases: true,
   revenueCat: true,
   storeExperimentsApi: true,
+  testflightFeedbackApi: true,
 };
 
 const GOOGLE_CAPABILITIES: PlatformCapabilities = {
@@ -192,6 +198,7 @@ const GOOGLE_CAPABILITIES: PlatformCapabilities = {
   inAppPurchases: true,
   revenueCat: true,
   storeExperimentsApi: false,
+  testflightFeedbackApi: false,
 };
 
 export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {

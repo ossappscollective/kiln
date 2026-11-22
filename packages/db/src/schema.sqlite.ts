@@ -2680,3 +2680,89 @@ export const chatDeliveries = sqliteTable(
     index('chat_deliveries_workspace_idx').on(t.workspaceId, t.createdAt),
   ],
 );
+
+/**
+ * TestFlight beta feedback and crash submissions of an app record as the syncs read them (migration 54, docs/adr/0049-testflight-feedback.md):
+ * `kind` is feedback (a screenshot feedback) or crash. The tester email is personal data (administrators only); screenshot LINKS are never stored,
+ * only their sizes; `status`, `assigneeUserId` and `internalNote` are Kiln's own triage and never sent to Apple. No foreign key to apps: deleteApp
+ * removes the rows.
+ */
+export const testflightFeedback = sqliteTable(
+  'testflight_feedback',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    appleId: text('apple_id').notNull(),
+    /** feedback or crash. */
+    kind: text('kind').notNull(),
+    createdAt: integer('created_at').notNull(),
+    buildId: text('build_id'),
+    buildNumber: text('build_number'),
+    version: text('version'),
+    platform: text('platform'),
+    bundleId: text('bundle_id'),
+    testerKey: text('tester_key'),
+    testerEmail: text('tester_email'),
+    deviceModel: text('device_model'),
+    deviceFamily: text('device_family'),
+    osVersion: text('os_version'),
+    locale: text('locale'),
+    timeZone: text('time_zone'),
+    architecture: text('architecture'),
+    connectionType: text('connection_type'),
+    pairedWatch: text('paired_watch'),
+    appUptimeMs: integer('app_uptime_ms'),
+    diskFreeBytes: integer('disk_free_bytes'),
+    diskTotalBytes: integer('disk_total_bytes'),
+    batteryPercent: integer('battery_percent'),
+    screenWidth: integer('screen_width'),
+    screenHeight: integer('screen_height'),
+    comment: text('comment').notNull().default(''),
+    /** JSON array of { width, height }: sizes only, never a link. */
+    screenshotsJson: text('screenshots_json').notNull().default('[]'),
+    crashLog: text('crash_log'),
+    crashLogTruncated: integer('crash_log_truncated').notNull().default(0),
+    /** none, stored or missing. */
+    crashLogState: text('crash_log_state').notNull().default('none'),
+    signature: text('signature'),
+    symbolicated: integer('symbolicated'),
+    /** Our own triage state: new, seen, in_progress, resolved or ignored. */
+    status: text('status').notNull().default('new'),
+    assigneeUserId: text('assignee_user_id'),
+    internalNote: text('internal_note'),
+    statusChangedAt: integer('status_changed_at'),
+    statusChangedBy: text('status_changed_by'),
+    firstSeenAt: integer('first_seen_at').notNull(),
+    fetchedAt: integer('fetched_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('testflight_feedback_apple_idx').on(t.appId, t.appleId),
+    index('testflight_feedback_app_kind_idx').on(t.appId, t.kind, t.createdAt),
+    index('testflight_feedback_app_build_idx').on(t.appId, t.buildNumber),
+    index('testflight_feedback_app_status_idx').on(t.appId, t.status),
+    index('testflight_feedback_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** The state of the last TestFlight sync of an app (migration 54). A failed sync keeps what was stored. */
+export const testflightSync = sqliteTable(
+  'testflight_sync',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    lastAttemptAt: integer('last_attempt_at'),
+    lastSyncedAt: integer('last_synced_at'),
+    lastError: text('last_error'),
+    failures: integer('failures').notNull().default(0),
+    feedbackCount: integer('feedback_count').notNull().default(0),
+    crashCount: integer('crash_count').notNull().default(0),
+    complete: integer('complete').notNull().default(1),
+    warningsJson: text('warnings_json').notNull().default('[]'),
+  },
+  (t) => [index('testflight_sync_workspace_idx').on(t.workspaceId)],
+);
