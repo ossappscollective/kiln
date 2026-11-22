@@ -4,11 +4,12 @@
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { t } from '../../lib/i18n/t.ts';
 
-  let { children, label = 'Actions' }: { children: Snippet; label?: string | undefined } = $props();
+  let { children, label }: { children: Snippet; label?: string | undefined } = $props();
 </script>
 
-<div class="asobar" role="toolbar" aria-label={label}>{@render children()}</div>
+<div class="asobar" role="toolbar" aria-label={label ?? t('aso:bar.actions')}>{@render children()}</div>
 
 <style>
   .asobar {

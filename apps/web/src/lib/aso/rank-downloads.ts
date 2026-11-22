@@ -8,6 +8,8 @@ import {
 } from '@kiln/core';
 import { formatCountExact, formatDay } from '../analytics/analytics.ts';
 import { type Box, type Geometry, niceTicks, plot } from '../analytics/chart.ts';
+import { formatList, formatNumber, formatPercent } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 
 /**
  * Rank versus downloads in the web (docs/api/aso.md): the shape of `GET /aso/rank-vs-downloads` and the pure logic of the view. The numbers
@@ -42,12 +44,9 @@ export type RankVsDownloadsResponse = RankDownloadsView & {
 export type RankVsDownloadsQuery = { country?: string; keywords?: string[]; days?: number };
 
 /** The ranges the view offers, in days. */
-export const rangeChoices: { days: number; label: string }[] = [
-  { days: 30, label: '30 days' },
-  { days: 60, label: '60 days' },
-  { days: 90, label: '90 days' },
-  { days: 180, label: '180 days' },
-];
+export const rangeChoices: { days: number }[] = [{ days: 30 }, { days: 60 }, { days: 90 }, { days: 180 }];
+/** "Last 30 days". */
+export const rangeLabel = (days: number): string => t('aso:rd.rangeLast', { count: days });
 export const DEFAULT_DAYS = 90;
 /** The keywords drawn at once: each has its own line pattern, so the lines can be told apart without color. */
 export const MAX_DRAWN = 3;
@@ -92,17 +91,11 @@ export type Gate =
 
 const missingText: Record<
   RankDownloadsMissing,
-  { text: string; action: 'analytics' | 'keywords' | 'refresh' | 'none' }
+  { textKey: string; action: 'analytics' | 'keywords' | 'refresh' | 'none' }
 > = {
-  turn_on_analytics: { text: 'Turn on Analytics to see downloads.', action: 'analytics' },
-  no_downloads: {
-    text: 'No download numbers are stored for this app and period yet. Sync or import them in Analytics.',
-    action: 'analytics',
-  },
-  no_rank_checks: {
-    text: 'No rank checks of these keywords in this period. Check the keywords first.',
-    action: 'refresh',
-  },
+  turn_on_analytics: { textKey: k('aso:rd.missing.turnOnAnalytics'), action: 'analytics' },
+  no_downloads: { textKey: k('aso:rd.missing.noDownloads'), action: 'analytics' },
+  no_rank_checks: { textKey: k('aso:rd.missing.noRankChecks'), action: 'refresh' },
 };
 
 /** Whether to draw, and what to say when not. Fewer than 14 days of either series hides the chart and the comparisons. */
@@ -112,17 +105,24 @@ export function gateOf(
   if (view.available.length === 0)
     return {
       kind: 'missing',
-      text: 'No keywords are tracked for this storefront. Track some to compare their rank with downloads.',
+      text: t('aso:rd.gate.noKeywords'),
       action: 'keywords',
     };
-  if (view.missing) return { kind: 'missing', ...missingText[view.missing] };
+  if (view.missing) {
+    const m = missingText[view.missing];
+    return { kind: 'missing', text: t(m.textKey), action: m.action };
+  }
   if (view.selected.length === 0)
-    return { kind: 'missing', text: 'Choose a keyword to draw.', action: 'none' };
+    return { kind: 'missing', text: t('aso:rd.gate.choose'), action: 'none' };
   if (!view.enough) {
     const c = view.coverage;
     return {
       kind: 'too_few',
-      text: `Needs at least ${c.minDays} days of both. This period has ${formatCountExact(c.rankDays)} ${c.rankDays === 1 ? 'day' : 'days'} with a rank and ${formatCountExact(c.downloadDays)} with downloads.`,
+      text: t('aso:rd.gate.tooFew', {
+        min: c.minDays,
+        count: c.rankDays,
+        downloadDays: formatCountExact(c.downloadDays),
+      }),
     };
   }
   return { kind: 'chart' };
@@ -132,18 +132,19 @@ export function gateOf(
 export function delayLine(view: Pick<RankVsDownloadsResponse, 'downloads'>): string | null {
   const d = view.downloads;
   if (!d) return null;
-  const lag =
-    d.source === 'apple'
-      ? 'Apple reports downloads about 2 days late'
-      : 'Play files reach this server 3 to 7 days late';
-  return `${lag}. The shaded days at the right edge may still change, and a move is not compared until the days after it have settled (through ${formatDay(d.settledThrough, true)}).`;
+  return t(d.source === 'apple' ? 'aso:rd.delay.apple' : 'aso:rd.delay.play', {
+    date: formatDay(d.settledThrough, true),
+  });
 }
 
 /** "First-time downloads, from Apple" and the like. */
 export function downloadsName(view: Pick<RankVsDownloadsResponse, 'downloads'>): string {
   const d = view.downloads;
-  if (!d) return 'Downloads';
-  return `${d.label}, from ${d.source === 'apple' ? 'Apple' : 'Google Play'}`;
+  if (!d) return t('aso:rd.downloads');
+  return t('aso:rd.downloadsFrom', {
+    label: d.label,
+    source: d.source === 'apple' ? 'Apple' : 'Google Play',
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -208,13 +209,15 @@ function outLevel(series: readonly RankSeries[]): { out: number; anyOut: boolean
 
 /** The words of a marker: "coffee timer: 30 to 5 on 2026-10-12". */
 export function markerText(m: RankMarker, term: string): string {
-  const move =
+  const params = { term, from: m.from ?? '', to: m.to ?? '', day: formatDay(m.day, true) };
+  return t(
     m.kind === 'entered'
-      ? `entered the results at ${m.to}`
+      ? 'aso:rd.marker.entered'
       : m.kind === 'dropped'
-        ? `left the results (was ${m.from})`
-        : `${m.from} to ${m.to}`;
-  return `${term}: ${move} on ${formatDay(m.day, true)}`;
+        ? 'aso:rd.marker.dropped'
+        : 'aso:rd.marker.moved',
+    params,
+  );
 }
 
 /** The inverted rank panel: rank 1 at the top, "not ranked" at the bottom, a gap where there was no check, a marker where a big move showed. */
@@ -286,7 +289,7 @@ export function rankPanel(
   });
   for (const m of view.markers) {
     const i = dayIndex[m.day];
-    const s = view.keywords.filter((k) => k.id === m.keywordId)[0];
+    const s = view.keywords.filter((row) => row.id === m.keywordId)[0];
     if (i === undefined || !s) continue;
     const sample = s.samples[i];
     if (!sample) continue;
@@ -367,15 +370,16 @@ export function tipFor(
   const provisional = from >= 0 && i >= from;
   return {
     heading: formatDay(day, true),
-    downloads: value === null || value === undefined ? 'No number' : formatCountExact(value),
+    downloads:
+      value === null || value === undefined ? t('aso:rd.tip.noNumber') : formatCountExact(value),
     provisional,
     ranks: view.keywords.map((s, pattern) => {
       const sample = s.samples[i];
       const text = !sample
-        ? 'No check'
+        ? t('aso:rd.tip.noCheck')
         : sample.rank === null
-          ? `Not in the first ${sample.total}`
-          : `Rank ${sample.rank}`;
+          ? t('aso:rd.tip.outside', { count: sample.total })
+          : t('aso:rd.tip.rank', { rank: sample.rank });
       return { id: s.id, term: s.term, pattern: pattern % dashes.length, text };
     }),
   };
@@ -387,8 +391,16 @@ export function chartName(
 ): string {
   const first = view.days[0];
   const last = view.days[view.days.length - 1];
-  const terms = view.keywords.map((k) => k.term).join(', ');
-  return `Rank of ${terms} (rank 1 at the top) above ${view.downloads ? view.downloads.label.toLowerCase() : 'downloads'} per day, ${first ? formatDay(first, true) : ''} to ${last ? formatDay(last, true) : ''}.`;
+  const terms = formatList(
+    view.keywords.map((row) => row.term),
+    { type: 'unit' },
+  );
+  return t('aso:rd.chart', {
+    terms,
+    what: view.downloads ? view.downloads.label.toLowerCase() : t('aso:rd.chartDownloads'),
+    from: first ? formatDay(first, true) : '',
+    to: last ? formatDay(last, true) : '',
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -411,33 +423,47 @@ export type WhatChanged = {
   gap: string | null;
 };
 
-const avg = (n: number | null): string => (n === null ? 'none' : String(Math.round(n * 10) / 10));
+const avg = (n: number | null): string =>
+  n === null ? t('aso:value.none') : formatNumber(n, { maximumFractionDigits: 1 });
 
 /** A plain sentence per comparison. No causal wording; the days compared are in the label. */
 export function whatChanged(c: MoveComparison, term: string): WhatChanged {
   const m = c.marker;
-  const move =
+  const head = t(
     m.kind === 'entered'
-      ? `entered the results at ${m.to}`
+      ? 'aso:rd.head.entered'
       : m.kind === 'dropped'
-        ? `left the results (was ${m.from})`
-        : `moved from ${m.from} to ${m.to}`;
-  const head = `${term} ${move} on ${formatDay(m.day, true)}`;
+        ? 'aso:rd.head.dropped'
+        : 'aso:rd.head.moved',
+    { term, from: m.from ?? '', to: m.to ?? '', day: formatDay(m.day, true) },
+  );
   let detail: string;
   let label: string;
   if (c.status === 'waiting') {
-    detail = `The days after it have not settled yet. Downloads must be settled through ${c.settledNeededThrough ? formatDay(c.settledNeededThrough, true) : 'a later day'} before they are compared.`;
-    label = 'Correlation, not proof. Nothing compared yet.';
+    detail = c.settledNeededThrough
+      ? t('aso:rd.detail.waiting', { date: formatDay(c.settledNeededThrough, true) })
+      : t('aso:rd.detail.waitingLater');
+    label = t('aso:rd.label.waiting');
   } else if (c.status === 'too_few_days') {
-    detail = `Not enough days with a download number: ${c.before.days} before and ${c.after.days} after (at least ${rankDownloadsLimits.minWindowDays} each).`;
-    label = `Correlation, not proof. ${c.before.days} days before and ${c.after.days} days after had numbers.`;
+    detail = t('aso:rd.detail.tooFew', {
+      before: c.before.days,
+      after: c.after.days,
+      min: rankDownloadsLimits.minWindowDays,
+    });
+    label = t('aso:rd.label.tooFew', { before: c.before.days, after: c.after.days });
   } else {
     const pct =
       c.changePercent === null
-        ? 'no change figure, there were no downloads before'
-        : `${c.changePercent > 0 ? '+' : ''}${c.changePercent}%`;
-    detail = `Downloads per day: ${avg(c.before.perDay)} in the ${c.before.days} days before, ${avg(c.after.perDay)} in the ${c.after.days} days after (${pct}).`;
-    label = `Correlation, not proof. Compared ${c.before.days} days before with ${c.after.days} days after.`;
+        ? t('aso:rd.pct.none')
+        : formatPercent(c.changePercent / 100, { signDisplay: 'exceptZero', maximumFractionDigits: 2 });
+    detail = t('aso:rd.detail.ok', {
+      before: avg(c.before.perDay),
+      beforeDays: c.before.days,
+      after: avg(c.after.perDay),
+      afterDays: c.after.days,
+      pct,
+    });
+    label = t('aso:rd.label.ok', { before: c.before.days, after: c.after.days });
   }
   return {
     keywordId: m.keywordId,
@@ -446,13 +472,8 @@ export function whatChanged(c: MoveComparison, term: string): WhatChanged {
     label,
     percent: c.status === 'ok' ? c.changePercent : null,
     status: c.status,
-    overlap: c.overlapsOtherMove
-      ? 'Another rank move falls in these days, so the two share them.'
-      : null,
-    gap:
-      c.checkGapDays > 1
-        ? `The ranks were checked ${c.checkGapDays} days apart, so the move happened on one of those days.`
-        : null,
+    overlap: c.overlapsOtherMove ? t('aso:rd.overlap') : null,
+    gap: c.checkGapDays > 1 ? t('aso:rd.gap', { count: c.checkGapDays }) : null,
   };
 }
 
@@ -462,6 +483,6 @@ export const whatChangedList = (
   view.comparisons.map((c) =>
     whatChanged(
       c,
-      view.keywords.filter((k) => k.id === c.marker.keywordId)[0]?.term ?? 'A keyword',
+      view.keywords.filter((row) => row.id === c.marker.keywordId)[0]?.term ?? t('aso:rd.aKeyword'),
     ),
   );

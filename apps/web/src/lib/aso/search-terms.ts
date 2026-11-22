@@ -13,6 +13,8 @@ import {
   formatPercent,
 } from '../analytics/analytics.ts';
 import { ApiError } from '../api.ts';
+import { formatList } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 
 /**
  * Google Play search terms in the web (docs/api/aso.md): the shapes of the two endpoints and the pure logic of the "Search terms" view
@@ -132,45 +134,53 @@ export const importPeriodText = (period: ImportPeriod | null): string =>
 // ---------------------------------------------------------------------------------------------
 // What the view says
 
-/** Where to get the file. The Console's menus move and are not verified here (docs/research/play-search-terms.md), so the first step says what the report is called and how to find it, not a fixed menu path. */
-export const exportSteps: string[] = [
-  'Open Google Play Console and choose the app.',
-  'Find the report that breaks down store listing visitors by how they found your app. The menus change: type "acquisition" or "search terms" into the search box at the top of the Console, or look under Grow users. Google calls this the user acquisition (organic) report, with a Search row that opens the search terms.',
-  'Choose the breakdown "Search term" and the period you want. Pick a country first if you want one country only.',
-  'Press "Export report" next to the table and keep the downloaded .csv (or .zip) file.',
-  'Switch the console to English before exporting: the column names are read by name and other languages may not be recognised.',
+/** The steps to get the file, as message keys. The Console's menus move and are not verified here (docs/research/play-search-terms.md), so the first step says what the report is called and how to find it, not a fixed menu path. */
+export const exportStepKeys: string[] = [
+  k('aso:terms.step.open'),
+  k('aso:terms.step.find'),
+  k('aso:terms.step.breakdown'),
+  k('aso:terms.step.export'),
+  k('aso:terms.step.english'),
 ];
 
+/** Where to get the file, in the active language. */
+export const exportSteps = (): string[] => exportStepKeys.map((key) => t(key));
+
 /** The note under the empty state: what the numbers are and what they are not. */
-export const exportCaveat =
-  'The file lists the terms people searched on Google Play and then opened your listing from. Terms too small to report are grouped by Google into "Other". Nothing is read from Google: the file goes to this server only.';
+export const exportCaveat = (): string => t('aso:terms.caveat');
 
 export type ListingBadge = { text: string; tone: 'ok' | 'warn' | 'neutral'; title: string };
 
-const listingBadges: Record<TermListing, ListingBadge> = {
+const listingBadges: Record<
+  TermListing,
+  { textKey: string; tone: ListingBadge['tone']; titleKey: string }
+> = {
   in_listing: {
-    text: 'In listing',
+    textKey: k('aso:terms.badge.inListing'),
     tone: 'ok',
-    title: 'Every word of the term is in the stored listing text.',
+    titleKey: k('aso:terms.badge.inListing.title'),
   },
   partly: {
-    text: 'Partly in listing',
+    textKey: k('aso:terms.badge.partly'),
     tone: 'warn',
-    title: 'Some words of the term are in the stored listing text, not all.',
+    titleKey: k('aso:terms.badge.partly.title'),
   },
   not_in_listing: {
-    text: 'Not in listing',
+    textKey: k('aso:terms.badge.notInListing'),
     tone: 'warn',
-    title: 'No word of the term is in the stored listing text.',
+    titleKey: k('aso:terms.badge.notInListing.title'),
   },
   unknown: {
-    text: 'Listing unknown',
+    textKey: k('aso:terms.badge.unknown'),
     tone: 'neutral',
-    title: 'No listing text is stored for this language. Sync the app to read it.',
+    titleKey: k('aso:terms.badge.unknown.title'),
   },
 };
 
-export const listingBadge = (listing: TermListing): ListingBadge => listingBadges[listing];
+export const listingBadge = (listing: TermListing): ListingBadge => {
+  const b = listingBadges[listing];
+  return { text: t(b.textKey), tone: b.tone, title: t(b.titleKey) };
+};
 
 /** "12.5%", or a dash when there is no rate. */
 export const conversionText = (conversion: number | null): string =>
@@ -181,7 +191,9 @@ export const countText = (n: number | null): string => (n === null ? '–' : for
 /** The hint for a term that brought installs and is not fully in the listing text. A suggestion for a person to weigh. */
 export const hintText = (term: Pick<SearchTermInsight, 'hint' | 'installs'>): string | null =>
   term.hint === 'add_to_listing'
-    ? `Brought ${term.installs === null ? 'installs' : `${formatCountExact(term.installs)} ${term.installs === 1 ? 'install' : 'installs'}`} and is not fully in your listing text. Add it to the description?`
+    ? term.installs === null
+      ? t('aso:terms.hintNoCount')
+      : t('aso:terms.hint', { count: term.installs })
     : null;
 
 export type TermRow = {
@@ -200,23 +212,25 @@ export type TermRow = {
 };
 
 export function termRows(terms: readonly SearchTermInsight[]): TermRow[] {
-  return terms.map((t) => ({
-    key: t.key,
-    term: t.term,
-    installs: countText(t.installs),
-    visitors: countText(t.visitors),
-    conversion: conversionText(t.conversion),
-    listing: listingBadge(t.listing),
-    tracked: t.trackedKeywordId !== null,
-    trackedIn: t.trackedCountries.map((c) => c.toUpperCase()).join(', '),
-    hint: hintText(t),
-    canTrack: t.trackedKeywordId === null,
+  return terms.map((term) => ({
+    key: term.key,
+    term: term.term,
+    installs: countText(term.installs),
+    visitors: countText(term.visitors),
+    conversion: conversionText(term.conversion),
+    listing: listingBadge(term.listing),
+    tracked: term.trackedKeywordId !== null,
+    trackedIn: term.trackedCountries.map((c) => c.toUpperCase()).join(', '),
+    hint: hintText(term),
+    canTrack: term.trackedKeywordId === null,
   }));
 }
 
 function periodText(from: string | null, to: string | null): string {
-  if (from === null || to === null) return 'the dates in the file';
-  return from === to ? formatDay(from, true) : `${formatDay(from, true)} to ${formatDay(to, true)}`;
+  if (from === null || to === null) return t('aso:terms.period.none');
+  return from === to
+    ? formatDay(from, true)
+    : t('aso:terms.period.range', { from: formatDay(from, true), to: formatDay(to, true) });
 }
 
 /** "Imported from a file on 12 Nov 2026, covering 1 Oct 2026 to 31 Oct 2026." Null when nothing was imported. */
@@ -230,20 +244,23 @@ export function freshnessLine(
       ? periodText(view.imported.periodFrom, view.imported.periodTo)
       : view.stored
         ? periodText(view.stored.from, view.stored.to)
-        : 'the dates in the file';
-  return `Imported from a file on ${formatDay(today(view.imported.at), true)}, covering ${covers}.`;
+        : t('aso:terms.period.none');
+  return t('aso:terms.fresh', { date: formatDay(today(view.imported.at), true), covers });
 }
 
 /** The line over the table: the period shown and the number of terms. */
 export function periodLine(
   view: Pick<SearchTermsResponse, 'from' | 'to' | 'termCount' | 'terms' | 'country'>,
 ): string {
-  const where = view.country ? ` in ${view.country.toUpperCase()}` : '';
-  const shown =
-    view.terms.length < view.termCount
-      ? `the top ${formatCountExact(view.terms.length)} of ${formatCountExact(view.termCount)} terms`
-      : `${formatCountExact(view.termCount)} ${view.termCount === 1 ? 'term' : 'terms'}`;
-  return `${shown}${where}, ${periodText(view.from, view.to)}.`;
+  const country = view.country ? view.country.toUpperCase() : '';
+  const period = periodText(view.from, view.to);
+  if (view.terms.length < view.termCount) {
+    const params = { shown: formatCountExact(view.terms.length), count: view.termCount, period };
+    return country ? t('aso:terms.line.topIn', { ...params, country }) : t('aso:terms.line.top', params);
+  }
+  return country
+    ? t('aso:terms.line.allIn', { count: view.termCount, country, period })
+    : t('aso:terms.line.all', { count: view.termCount, period });
 }
 
 export type TotalsLine = { text: string } | null;
@@ -252,18 +269,16 @@ export type TotalsLine = { text: string } | null;
 export function totalsLine(view: Pick<SearchTermsResponse, 'totals' | 'other'>): string | null {
   const one = (v: { visitors: number | null; installs: number | null }) => {
     const parts: string[] = [];
-    if (v.visitors !== null)
-      parts.push(`${formatCountExact(v.visitors)} ${v.visitors === 1 ? 'visitor' : 'visitors'}`);
-    if (v.installs !== null)
-      parts.push(`${formatCountExact(v.installs)} ${v.installs === 1 ? 'install' : 'installs'}`);
-    return parts.join(', ');
+    if (v.visitors !== null) parts.push(t('aso:terms.visitors', { count: v.visitors }));
+    if (v.installs !== null) parts.push(t('aso:terms.installs', { count: v.installs }));
+    return formatList(parts, { type: 'unit' });
   };
   const all = one(view.totals);
   if (all === '') return null;
   const other = view.other ? one(view.other) : '';
   return other === ''
-    ? `In the period: ${all}.`
-    : `In the period: ${all}, of which ${other} are grouped by Google as "Other" and cannot be listed.`;
+    ? t('aso:terms.totals', { all })
+    : t('aso:terms.totalsOther', { all, other });
 }
 
 /** The day of a stored time, in UTC, for the freshness line. */
@@ -273,14 +288,15 @@ export const dayOfMs = (ms: number): string => new Date(ms).toISOString().slice(
 // Errors
 
 const sentences: Record<string, string> = {
-  not_google_play_app: 'Search terms are only for Google Play apps.',
-  import_not_supported: 'Search terms can only be imported for a Google Play app.',
-  forbidden: 'Only an owner or an admin can import search terms.',
+  not_google_play_app: k('aso:terms.error.notGooglePlayApp'),
+  import_not_supported: k('aso:terms.error.importNotSupported'),
+  forbidden: k('aso:terms.error.forbidden'),
 };
 
 /** A sentence for a failed read or import: from a fixed list, never the file's text. */
 export function searchTermsErrorText(error: unknown): string {
-  if (error instanceof ApiError && sentences[error.code]) return sentences[error.code] as string;
+  const key = error instanceof ApiError ? sentences[error.code] : undefined;
+  if (key !== undefined) return t(key);
   return analyticsErrorText(error);
 }
 
@@ -291,19 +307,19 @@ export const MAX_SEARCH_TERMS_FILE_BYTES = 10 * 1024 * 1024;
 
 /** Why a file cannot be sent, or '' when it can. The server checks the content. */
 export function checkSearchTermsFile(file: { name: string; size: number }): string {
-  if (file.size <= 0) return 'The file is empty.';
-  if (file.size > MAX_SEARCH_TERMS_FILE_BYTES) return 'The file is larger than 10 MiB.';
-  if (file.name.length > 200) return 'The file name is longer than 200 characters.';
+  if (file.size <= 0) return t('aso:terms.file.empty');
+  if (file.size > MAX_SEARCH_TERMS_FILE_BYTES) return t('aso:terms.file.tooLarge');
+  if (file.name.length > 200) return t('aso:terms.file.nameTooLong');
   return '';
 }
 
 /** Why the two days cannot be the period of a file, or '' when they can. Both are needed together. */
 export function checkImportPeriod(from: string, to: string, today: string): string {
-  if (!isIsoDate(from) || !isIsoDate(to)) return 'Give both days as year-month-day.';
-  if (from > to) return 'The first day is after the last day.';
-  if (to > today) return 'The last day is in the future.';
+  if (!isIsoDate(from) || !isIsoDate(to)) return t('aso:terms.period.invalid');
+  if (from > to) return t('aso:terms.period.order');
+  if (to > today) return t('aso:terms.period.future');
   if (daysBetween(from, to) + 1 > searchTermLimits.maxPeriodDays)
-    return `A period is at most ${searchTermLimits.maxPeriodDays} days.`;
+    return t('aso:terms.period.tooLong', { count: searchTermLimits.maxPeriodDays });
   return '';
 }
 
@@ -410,57 +426,60 @@ export type PreviewFacts = {
 /** What the preview says before anything is stored: the period, the rows read and left out, the terms, the countries, the biggest terms. */
 export function previewFacts(plan: SearchTermsPlan): PreviewFacts {
   const s = plan.stats;
-  const rows = [`${formatCountExact(s.rowsRead)} rows read, ${formatCountExact(s.rowsUsed)} used`];
-  if (s.rowsOther > 0) rows.push(`${formatCountExact(s.rowsOther)} grouped by Google as "Other"`);
+  const rows = [
+    t('aso:terms.preview.rowsRead', { count: s.rowsRead, used: formatCountExact(s.rowsUsed) }),
+  ];
+  if (s.rowsOther > 0) rows.push(t('aso:terms.preview.rowsOther', { count: formatCountExact(s.rowsOther) }));
   if (s.rowsFiltered > 0)
-    rows.push(
-      `${formatCountExact(s.rowsFiltered)} left out because they are not Google Play search`,
-    );
-  if (s.rowsUnreadable > 0) rows.push(`${formatCountExact(s.rowsUnreadable)} could not be read`);
+    rows.push(t('aso:terms.preview.rowsFiltered', { count: formatCountExact(s.rowsFiltered) }));
+  if (s.rowsUnreadable > 0)
+    rows.push(t('aso:terms.preview.rowsUnreadable', { count: formatCountExact(s.rowsUnreadable) }));
   const from = plan.hasDates ? plan.dateFrom : (plan.period?.from ?? null);
   const to = plan.hasDates ? plan.dateTo : (plan.period?.to ?? null);
   const period =
     from === null || to === null
-      ? 'No dates found'
-      : `${periodText(from, to)}${plan.hasDates ? ` (${formatCountExact(plan.days)} ${plan.days === 1 ? 'day' : 'days'}, from the file)` : ' (typed by you)'}`;
+      ? t('aso:terms.preview.noDates')
+      : plan.hasDates
+        ? t('aso:terms.preview.periodFile', { range: periodText(from, to), count: plan.days })
+        : t('aso:terms.preview.periodTyped', { range: periodText(from, to) });
   const warnings: string[] = [];
-  if (plan.overlapsStored > 0)
-    warnings.push(
-      'Part of this period is already stored from another file, so some days could be counted twice in the totals.',
-    );
+  if (plan.overlapsStored > 0) warnings.push(t('aso:terms.preview.overlap'));
   return {
     period,
     rows,
-    terms: `${formatCountExact(plan.terms)} ${plan.terms === 1 ? 'term' : 'terms'}`,
+    terms: t('aso:terms.preview.terms', { count: plan.terms }),
     countries:
       plan.countries.length === 0
-        ? 'No country in the file'
+        ? t('aso:terms.preview.noCountry')
         : plan.countries.map((c) => c.toUpperCase()).join(', '),
     totals: totalsLine({ totals: plan.totals, other: plan.other }),
-    top: plan.top.map((t) => ({
-      term: t.term,
-      visitors: countText(t.visitors),
-      installs: countText(t.installs),
-      conversion: conversionText(t.conversion),
+    top: plan.top.map((term) => ({
+      term: term.term,
+      visitors: countText(term.visitors),
+      installs: countText(term.installs),
+      conversion: conversionText(term.conversion),
     })),
     warnings,
     willStore:
       plan.rows > 0
-        ? `${formatCountExact(plan.rows)} ${plan.rows === 1 ? 'row' : 'rows'} can be stored.`
-        : 'Nothing in this file can be stored.',
+        ? t('aso:terms.preview.willStore', { count: plan.rows })
+        : t('aso:terms.preview.willStoreNone'),
   };
 }
 
 /** The line after a successful import. A repeat of the same file stores nothing, and says so. */
 export function importedLine(result: SearchTermsImported): string {
-  if (result.written === 0) return 'Nothing new was stored: every row was already there.';
-  const parts = [
-    `Stored ${formatCountExact(result.written)} ${result.written === 1 ? 'row' : 'rows'}`,
-  ];
-  if (result.unchanged > 0) parts.push(`${formatCountExact(result.unchanged)} were already there`);
-  const range =
-    result.dateFrom && result.dateTo ? ` for ${periodText(result.dateFrom, result.dateTo)}` : '';
-  return `${parts.join(', ')}${range}.`;
+  if (result.written === 0) return t('aso:terms.imported.nothing');
+  const parts = [t('aso:terms.imported.stored', { count: result.written })];
+  if (result.unchanged > 0)
+    parts.push(t('aso:terms.imported.unchanged', { count: result.unchanged }));
+  const list = formatList(parts, { type: 'unit' });
+  return result.dateFrom && result.dateTo
+    ? t('aso:terms.imported.lineRange', {
+        parts: list,
+        range: periodText(result.dateFrom, result.dateTo),
+      })
+    : t('aso:terms.imported.line', { parts: list });
 }
 
 // ---------------------------------------------------------------------------------------------

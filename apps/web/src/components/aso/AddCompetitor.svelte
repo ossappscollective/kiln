@@ -8,6 +8,7 @@
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
   import { type AsoConfig, asoErrorMessage } from '../../lib/aso/aso.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -37,7 +38,7 @@ import { needsStoreAppId, supports } from '@kiln/core';
   let tried = $state(false);
 
   const target = $derived(choices.find((m) => m.id === appId) ?? choices[0]);
-  const hint = $derived(target !== undefined && !needsStoreAppId(target.platform) ? 'A package name such as com.example.app, or a play.google.com link.' : 'An App Store id such as 1500000002, or an apps.apple.com link.');
+  const hint = $derived(target !== undefined && !needsStoreAppId(target.platform) ? t('aso:follow.hintPackage') : t('aso:follow.hintAppStore'));
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -48,10 +49,10 @@ import { needsStoreAppId, supports } from '@kiln/core';
     busy = true;
     try {
       const out = await api.addAsoCompetitor(workspaceId, target.id, { externalId: externalId.trim(), ...(country.trim() ? { country: country.trim().toLowerCase() } : {}) });
-      toast.success(`Following “${out.competitor.name}”.`);
+      toast.success(t('aso:follow.toast', { name: out.competitor.name }));
       ondone();
     } catch (e) {
-      error = asoErrorMessage(e, 'Could not follow that app.');
+      error = asoErrorMessage(e, t('aso:err.followApp'));
     } finally {
       busy = false;
     }
@@ -60,13 +61,13 @@ import { needsStoreAppId, supports } from '@kiln/core';
 
 <form class="card stack" onsubmit={submit} novalidate>
   {#if choices.length === 0}
-    <Alert tone="info">Google Play reading is switched off on this server, so competitors cannot be followed for Android.</Alert>
-    <div><Button variant="ghost" onclick={oncancel}>Close</Button></div>
+    <Alert tone="info">{t('aso:follow.playOff')}</Alert>
+    <div><Button variant="ghost" onclick={oncancel}>{t('common:action.close')}</Button></div>
   {:else}
     <div class="row fields">
       {#if choices.length > 1}
         <div class="field">
-          <label for="{uid}-store">Store</label>
+          <label for="{uid}-store">{t('aso:label.store')}</label>
           <select id="{uid}-store" bind:value={appId}>
             {#each choices as m (m.id)}<option value={m.id}>{platformLabel(m.platform)}</option>{/each}
           </select>
@@ -74,22 +75,22 @@ import { needsStoreAppId, supports } from '@kiln/core';
       {/if}
       <div class="field grow">
         <label for="{uid}-id">
-          Store link or id
-          <InfoTip label="What following does" text="Following reads the public store once so the name is real and the first snapshot exists. After that, checks keep it current. It is rate limited per workspace." />
+          {t('aso:follow.linkOrId')}
+          <InfoTip label={t('aso:follow.whatLabel')} text={t('aso:follow.whatText')} />
         </label>
         <input id="{uid}-id" bind:value={externalId} autocomplete="off" aria-invalid={tried && externalId.trim() === ''} aria-describedby="{uid}-hint" />
         <p class="hint" id="{uid}-hint">{hint}</p>
       </div>
       <div class="field">
-        <label for="{uid}-country">Country</label>
+        <label for="{uid}-country">{t('aso:label.country')}</label>
         <input id="{uid}-country" class="country" maxlength="2" bind:value={country} autocomplete="off" />
       </div>
     </div>
-    {#if tried && externalId.trim() === ''}<p class="field-error">Enter a store link, id or package name.</p>{/if}
+    {#if tried && externalId.trim() === ''}<p class="field-error">{t('aso:follow.required')}</p>{/if}
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     <div class="row">
-      <Button type="submit" variant="primary" loading={busy}>Follow</Button>
-      <Button variant="ghost" onclick={oncancel}>Cancel</Button>
+      <Button type="submit" variant="primary" loading={busy}>{t('aso:action.follow')}</Button>
+      <Button variant="ghost" onclick={oncancel}>{t('common:action.cancel')}</Button>
     </div>
   {/if}
 </form>

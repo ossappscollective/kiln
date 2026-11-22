@@ -7,6 +7,7 @@
 <script lang="ts">
   import { type Role, can } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { AsoCompetitor, AsoConfig } from '../../lib/aso/aso.ts';
   import { competitorCounts, competitorsLead } from '../../lib/aso/lead.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
@@ -68,15 +69,15 @@
     <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="competitors-lead">
       {#snippet actions()}
         {#if canWrite}
-          <div class="acts" role="toolbar" aria-label="Competitor actions">
-            <Button variant="primary" icon="plus" onclick={() => (adding = !adding)} aria-expanded={adding}>Add competitor</Button>
+          <div class="acts" role="toolbar" aria-label={t('aso:competitors.actions')}>
+            <Button variant="primary" icon="plus" onclick={() => (adding = !adding)} aria-expanded={adding}>{t('aso:competitors.add')}</Button>
           </div>
         {/if}
       {/snippet}
     </PageLead>
   {:else if canWrite}
-    <div class="acts" role="toolbar" aria-label="Competitor actions">
-      <Button variant="primary" icon="plus" onclick={() => (adding = !adding)} aria-expanded={adding}>Add competitor</Button>
+    <div class="acts" role="toolbar" aria-label={t('aso:competitors.actions')}>
+      <Button variant="primary" icon="plus" onclick={() => (adding = !adding)} aria-expanded={adding}>{t('aso:competitors.add')}</Button>
     </div>
   {/if}
   {#if adding && canWrite}

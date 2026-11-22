@@ -8,6 +8,7 @@
 -->
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import {
     type AsoConfig,
     type MarketChoice,
@@ -58,6 +59,13 @@
   const validMarkets = $derived(checks.filter((c): c is MarketChoice => c !== null));
   const total = $derived(parsed.terms.length * validMarkets.length);
   const perRequest = $derived(config?.limits.maxKeywordsPerRequest ?? 50);
+  const countsText = $derived.by(() => {
+    const p = { toAdd: parsed.terms.length, repeated: parsed.duplicates, invalid: parsed.invalid.length };
+    if (p.repeated > 0 && p.invalid > 0) return t('aso:add.counts.both', p);
+    if (p.repeated > 0) return t('aso:add.counts.repeated', p);
+    if (p.invalid > 0) return t('aso:add.counts.invalid', p);
+    return t('aso:add.counts', p);
+  });
 
   function setCountry(row: MarketRow, value: string) {
     row.country = value;
@@ -89,7 +97,7 @@
         note = message;
       }
     } catch (e) {
-      error = asoErrorMessage(e, 'Could not add the keywords.');
+      error = asoErrorMessage(e, t('aso:err.addKeywords'));
     } finally {
       busy = false;
     }
@@ -98,35 +106,35 @@
 
 <form class="card add stack" onsubmit={submit} novalidate>
   <div class="field">
-    <label for="{uid}-text">Keywords</label>
-    <textarea id="{uid}-text" rows="4" bind:value={text} placeholder="water reminder&#10;habit tracker" aria-invalid={tried && parsed.terms.length === 0}></textarea>
+    <label for="{uid}-text">{t('aso:add.keywords')}</label>
+    <textarea id="{uid}-text" rows="4" bind:value={text} placeholder={t('aso:add.placeholderTerms')} aria-invalid={tried && parsed.terms.length === 0}></textarea>
     <p class="hint">
-      One per line, or separated by commas.
+      {t('aso:add.hintLines')}
       {#if parsed.terms.length > 0 || parsed.duplicates > 0 || parsed.invalid.length > 0}
         <span class="tabular">
-          {parsed.terms.length} to add{#if parsed.duplicates > 0}, {parsed.duplicates} repeated{/if}{#if parsed.invalid.length > 0}, {parsed.invalid.length} not valid{/if}.
+          {countsText}
         </span>
       {/if}
       {#if parsed.invalid.length > 0}
-        <InfoTip label="Which keywords are not valid" align="start">
+        <InfoTip label={t('aso:add.invalidLabel')} align="start">
           <ul class="plain">
             {#each parsed.invalid.slice(0, 8) as bad, i (i)}<li><strong>{bad.text}</strong>: {bad.reason}</li>{/each}
           </ul>
         </InfoTip>
       {/if}
     </p>
-    {#if tried && parsed.terms.length === 0}<p class="field-error">Enter at least one keyword.</p>{/if}
+    {#if tried && parsed.terms.length === 0}<p class="field-error">{t('aso:add.required')}</p>{/if}
   </div>
 
   <fieldset class="markets">
     <legend>
-      Markets
-      <InfoTip label="About markets" text="The same term in two countries is two keywords. The locale is the language of the listing the store searches; it follows the country until you change it." />
+      {t('aso:add.markets')}
+      <InfoTip label={t('aso:add.marketsLabel')} text={t('aso:add.marketsText')} />
     </legend>
     {#each markets as row, i (row.id)}
       <div class="row market">
         <div class="field">
-          <label for="{uid}-c{row.id}">Country</label>
+          <label for="{uid}-c{row.id}">{t('aso:label.country')}</label>
           <input
             id="{uid}-c{row.id}"
             class="country"
@@ -139,7 +147,7 @@
           />
         </div>
         <div class="field">
-          <label for="{uid}-l{row.id}">Locale</label>
+          <label for="{uid}-l{row.id}">{t('aso:label.locale')}</label>
           <input
             id="{uid}-l{row.id}"
             class="locale"
@@ -151,37 +159,37 @@
           />
         </div>
         {#if markets.length > 1}
-          <Button variant="ghost" icon="x" iconOnly label="Remove this market" onclick={() => markets.splice(i, 1)} />
+          <Button variant="ghost" icon="x" iconOnly label={t('aso:add.removeMarket')} onclick={() => markets.splice(i, 1)} />
         {/if}
       </div>
     {/each}
     <datalist id="{uid}-countries">
       {#each commonCountries as c (c)}<option value={c}>{territoryName(c)}</option>{/each}
     </datalist>
-    {#if tried && validMarkets.length !== markets.length}<p class="field-error">Use a two letter country such as us and a locale such as en-US.</p>{/if}
-    <div><Button size="sm" icon="plus" variant="ghost" onclick={addMarket}>Add a market</Button></div>
+    {#if tried && validMarkets.length !== markets.length}<p class="field-error">{t('aso:add.marketInvalid')}</p>{/if}
+    <div><Button size="sm" icon="plus" variant="ghost" onclick={addMarket}>{t('aso:add.addMarket')}</Button></div>
   </fieldset>
 
   <div class="row options">
     {#if members.length > 1}
       <div class="field">
-        <label for="{uid}-store">Store</label>
+        <label for="{uid}-store">{t('aso:label.store')}</label>
         <select id="{uid}-store" bind:value={appId}>
           {#each members as m (m.id)}<option value={m.id}>{platformLabel(m.platform)}</option>{/each}
         </select>
       </div>
     {/if}
     <div class="field">
-      <label for="{uid}-prio">Priority</label>
+      <label for="{uid}-prio">{t('aso:label.priority')}</label>
       <select id="{uid}-prio" bind:value={priority}>
-        <option value="3">High</option>
-        <option value="2">Normal</option>
-        <option value="1">Low</option>
+        <option value="3">{t('aso:priority.high')}</option>
+        <option value="2">{t('aso:priority.normal')}</option>
+        <option value="1">{t('aso:priority.low')}</option>
       </select>
     </div>
     <div class="field grow">
-      <label for="{uid}-tag">Tag <span class="muted">(optional)</span></label>
-      <input id="{uid}-tag" maxlength="40" bind:value={tag} placeholder="core" />
+      <label for="{uid}-tag">{t('aso:label.tag')} <span class="muted">{t('aso:label.optional')}</span></label>
+      <input id="{uid}-tag" maxlength="40" bind:value={tag} placeholder={t('aso:add.tagPlaceholder')} />
     </div>
   </div>
 
@@ -190,10 +198,10 @@
 
   <div class="row">
     <Button type="submit" variant="primary" loading={busy} disabled={total === 0 && tried}>
-      {total > 0 ? `Add ${total} ${total === 1 ? 'keyword' : 'keywords'}` : 'Add keywords'}
+      {total > 0 ? t('aso:add.submit', { count: total }) : t('aso:add.submitNone')}
     </Button>
-    <Button variant="ghost" onclick={oncancel}>Cancel</Button>
-    {#if total > perRequest}<span class="muted hint">Sent in {Math.ceil(total / perRequest)} requests.</span>{/if}
+    <Button variant="ghost" onclick={oncancel}>{t('common:action.cancel')}</Button>
+    {#if total > perRequest}<span class="muted hint">{t('aso:add.requests', { count: Math.ceil(total / perRequest) })}</span>{/if}
   </div>
 </form>
 

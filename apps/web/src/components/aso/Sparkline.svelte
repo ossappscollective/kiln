@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import { type AsoCheck, sparkline } from '../../lib/aso/aso.ts';
+  import { t } from '../../lib/i18n/t.ts';
 
   let { checks, label, width = 72, height = 20 }: { checks: Pick<AsoCheck, 'rank' | 'total'>[]; label: string; width?: number | undefined; height?: number | undefined } = $props();
 
@@ -13,7 +14,7 @@
 </script>
 
 {#if spark.samples === 0}
-  <span class="none muted" title="No history yet">–</span>
+  <span class="none muted" title={t('aso:spark.noHistory')}>–</span>
 {:else}
   <svg viewBox="0 0 {spark.width} {spark.height}" {width} {height} role="img" aria-label={label}>
     <title>{label}</title>

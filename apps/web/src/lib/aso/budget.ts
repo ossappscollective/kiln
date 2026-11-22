@@ -13,8 +13,10 @@ import {
 } from '@kiln/core';
 import { withHeaderParams } from '../app-header.ts';
 import { appAddress, type PlatformScope, parseViewPath } from '../app-scope.ts';
+import { formatList } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 import type { DriftField } from '../types.ts';
-import { type AsoKeyword, asoViewHref } from './aso.ts';
+import { type AsoKeyword, asoViewHref, fitFieldLabels } from './aso.ts';
 
 /**
  * The budget meters and the coach in the web (docs/api/aso.md): the pure parts. What counts and what is
@@ -134,46 +136,51 @@ export const meterNumber = (f: Pick<FieldBudget, 'used' | 'limit'>): string =>
 export function meterTitle(
   f: Pick<FieldBudget, 'used' | 'limit' | 'unit' | 'remaining' | 'over'>,
 ): string {
+  const unit = f.unit === 'bytes' ? t('aso:bud.unit.bytes') : t('aso:bud.unit.characters');
   return f.over
-    ? `${-f.remaining} over the limit of ${f.limit} ${f.unit}`
-    : `${f.used} of ${f.limit} ${f.unit}, ${f.remaining} left`;
+    ? t('aso:bud.title.over', { over: -f.remaining, limit: f.limit, unit })
+    : t('aso:bud.title.left', { used: f.used, limit: f.limit, unit, left: f.remaining });
 }
 
+/** Message keys: `t(wasteReasonText[reason])`. */
 export const wasteReasonText: Record<WasteReason, string> = {
-  space: 'space around a comma',
-  empty_entry: 'empty entry',
-  repeated_entry: 'repeated entry',
-  plural_variant: 'plural of an earlier entry',
-  in_title_or_subtitle: 'already in the name or subtitle',
+  space: k('aso:bud.waste.space'),
+  empty_entry: k('aso:bud.waste.emptyEntry'),
+  repeated_entry: k('aso:bud.waste.repeatedEntry'),
+  plural_variant: k('aso:bud.waste.pluralVariant'),
+  in_title_or_subtitle: k('aso:bud.waste.inTitleOrSubtitle'),
 };
+
+/** The label of a budget field: the Google Play title and full description have their own words. */
+export function budgetFieldLabel(platform: AsoPlatform, field: FitField): string {
+  const apple = supports(platform, 'keywordField');
+  if (!apple && field === 'title') return t('aso:field.titlePlay');
+  if (!apple && field === 'description') return t('aso:field.fullDescription');
+  return t(fitFieldLabels[field] ?? k('aso:field.title'));
+}
 
 /** "name", "keyword field": the label of a field in a sentence. */
 export const fieldWord = (f: FitField): string =>
   f === 'title'
-    ? 'name'
+    ? t('aso:lst.source.name')
     : f === 'shortDescription'
-      ? 'short description'
+      ? t('aso:lst.source.shortDescription')
       : f === 'keywords'
-        ? 'keyword field'
+        ? t('aso:lst.source.keywords')
         : f === 'description'
-          ? 'description'
-          : 'subtitle';
+          ? t('aso:lst.source.description')
+          : t('aso:lst.source.subtitle');
 
 /** The one muted line under the bars: what is worth a look, or '' when there is nothing. */
 export function budgetHeadline(b: ListingBudget): string {
   const parts: string[] = [];
   const over = b.fields.filter((f) => f.over).length;
-  if (over > 0) parts.push(`${over} over the limit`);
-  if (b.wastedTotal > 0) parts.push(`${b.wastedTotal} characters could be freed`);
-  if (b.missing.length > 0)
-    parts.push(
-      `${b.missing.length} tracked ${b.missing.length === 1 ? 'keyword' : 'keywords'} not in the listing`,
-    );
+  if (over > 0) parts.push(t('aso:bud.headline.over', { count: over }));
+  if (b.wastedTotal > 0) parts.push(t('aso:bud.headline.freed', { count: b.wastedTotal }));
+  if (b.missing.length > 0) parts.push(t('aso:bud.headline.missing', { count: b.missing.length }));
   if (!supports(b.platform, 'keywordField') && b.repeated.length > 0)
-    parts.push(
-      `${b.repeated.length} ${b.repeated.length === 1 ? 'term' : 'terms'} in several fields`,
-    );
-  return parts.join(', ');
+    parts.push(t('aso:bud.headline.repeated', { count: b.repeated.length }));
+  return formatList(parts, { type: 'unit' });
 }
 
 // ---------------------------------------------------------------------------------------------

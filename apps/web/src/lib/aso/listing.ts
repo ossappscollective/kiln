@@ -7,7 +7,9 @@ import {
   storeShortName,
   type TermSource,
 } from '@kiln/core';
-import { timeAgo } from '../format.ts';
+import { agoText } from './ago.ts';
+import { formatList } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 import type { AsoKeywordInput } from './aso.ts';
 
 /**
@@ -23,89 +25,84 @@ export const storeName = (platform: AsoPlatform): string => storeShortName(platf
 
 /** "Read from the App Store 3 hours ago", or that nothing was read yet. */
 export function freshnessText(platform: AsoPlatform, readAt: number | null, now: number): string {
-  const store = byFamily(platform, { apple: 'the App Store', google: 'Google Play' });
+  const store = t(byFamily(platform, { apple: k('aso:lst.storeApple'), google: k('aso:lst.storeGoogle') }));
   return readAt === null
-    ? `Not read from ${store} yet`
-    : `Read from ${store} ${timeAgo(readAt, now)}`;
+    ? t('aso:lst.notRead', { store })
+    : t('aso:lst.read', { store, when: agoText(readAt, now) });
 }
 
-/** The one line about Google Play: there is no hidden keyword field. */
-export const PLAY_NO_KEYWORD_FIELD =
-  'Google Play has no hidden keyword field. These terms are extracted from the text of the listing; Play does not keep them as keywords.';
+/** The one line about Google Play: there is no hidden keyword field (a message key: `t(PLAY_NO_KEYWORD_FIELD)`). */
+export const PLAY_NO_KEYWORD_FIELD = k('aso:lst.playNoKeywordField');
 
 /** The field in words: "keyword field", "name" (App Store) or "title" (Google Play). */
 export function sourceLabel(platform: AsoPlatform, source: TermSource): string {
   switch (source) {
     case 'keywords':
-      return 'keyword field';
+      return t('aso:lst.source.keywords');
     case 'title':
-      return byFamily(platform, { apple: 'name', google: 'title' });
+      return t(byFamily(platform, { apple: k('aso:lst.source.name'), google: k('aso:lst.source.title') }));
     case 'subtitle':
-      return 'subtitle';
+      return t('aso:lst.source.subtitle');
     case 'shortDescription':
-      return 'short description';
+      return t('aso:lst.source.shortDescription');
     default:
-      return 'description';
+      return t('aso:lst.source.description');
   }
 }
 
 /** A short mark of the field, for a chip: the full word is in the title and for screen readers. */
 export const sourceMark = (source: TermSource): string =>
   source === 'keywords'
-    ? 'kw'
+    ? t('aso:lst.mark.keywords')
     : source === 'title'
-      ? 'name'
+      ? t('aso:lst.mark.name')
       : source === 'subtitle'
-        ? 'sub'
+        ? t('aso:lst.mark.subtitle')
         : source === 'shortDescription'
-          ? 'short'
-          : 'desc';
+          ? t('aso:lst.mark.short')
+          : t('aso:lst.mark.description');
 
 /** "In the keyword field and the name". */
 export function sourcesText(platform: AsoPlatform, sources: readonly TermSource[]): string {
-  const names = sources.map((s) => sourceLabel(platform, s));
-  return names.length <= 1
-    ? (names[0] ?? '')
-    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return formatList(sources.map((s) => sourceLabel(platform, s)));
 }
 
 export type TermMarkInfo = { text: string; title: string; tone: 'warn' | 'info' };
 
 /** The waste or repeat mark of a term, or null. The words say it; the tone is only a tint. */
 export function termMark(
-  t: Pick<ListingRowTerm, 'waste' | 'duplicate' | 'entries'>,
+  term: Pick<ListingRowTerm, 'waste' | 'duplicate' | 'entries'>,
 ): TermMarkInfo | null {
-  if (t.waste === 'in_title_or_subtitle') {
+  if (term.waste === 'in_title_or_subtitle') {
     return {
-      text: 'wasted',
+      text: t('aso:lst.mark.wasted'),
       tone: 'warn',
-      title:
-        'Already in the name or subtitle, which the store searches anyway (unverified), so the keyword field spends room on it.',
+      title: t('aso:lst.mark.wasted.title'),
     };
   }
-  if (t.waste === 'repeated_entry' || t.waste === 'plural_variant') {
+  if (term.waste === 'repeated_entry' || term.waste === 'plural_variant') {
     return {
-      text: 'repeated',
+      text: t('aso:lst.mark.repeated'),
       tone: 'warn',
-      title: `${t.entries} entries of the keyword field have these words (a repeat or a plural), so room is spent twice.`,
+      title: t('aso:lst.mark.repeated.title', { count: term.entries }),
     };
   }
-  if (t.duplicate)
-    return { text: 'twice', tone: 'info', title: 'The word is in more than one searched field.' };
+  if (term.duplicate)
+    return { text: t('aso:lst.mark.twice'), tone: 'info', title: t('aso:lst.mark.twice.title') };
   return null;
 }
 
 /** The rank today of a tracked term as a small number: "12", "50+" (not within the results read), a dash (not checked yet). */
 export function rankMark(
-  t: Pick<ListingRowTerm, 'tracked' | 'state' | 'rank'>,
+  term: Pick<ListingRowTerm, 'tracked' | 'state' | 'rank'>,
   depth = 50,
 ): { text: string; title: string } | null {
-  if (!t.tracked) return null;
-  if (t.state === 'ranked' && t.rank !== null)
-    return { text: String(t.rank), title: `Tracked, rank ${t.rank} today` };
-  if (t.state === 'not_ranked')
-    return { text: `${depth}+`, title: `Tracked, not within the first ${depth} results` };
-  return { text: '–', title: 'Tracked, not checked yet' };
+  if (!term.tracked) return null;
+  if (term.state === 'ranked' && term.rank !== null)
+    return { text: String(term.rank), title: t('aso:lst.rank.ranked', { rank: term.rank }) };
+  if (term.state === 'not_ranked')
+    return { text: `${depth}+`, title: t('aso:lst.rank.notRanked', { count: depth }) };
+  return { text: '–', title: t('aso:lst.rank.notChecked') };
 }
 
 /** "42 of 100 bytes, 58 left" or "12 over the limit of 100 bytes". */
@@ -116,8 +113,8 @@ export function keywordFieldText(f: {
   over: boolean;
 }): string {
   return f.over
-    ? `${-f.remaining} bytes over the limit of ${f.limit}`
-    : `${f.bytes} of ${f.limit} bytes, ${f.remaining} left`;
+    ? t('aso:lst.bytesOver', { count: -f.remaining, limit: f.limit })
+    : t('aso:meter.left', { bytes: f.bytes, count: f.limit, left: f.remaining });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -193,6 +190,6 @@ export function roomText(limit: number | undefined, tracked: number, adding: num
   if (!limit) return '';
   const room = Math.max(0, limit - tracked);
   return adding > room
-    ? `Only ${room} more fit in the limit of ${limit} keywords an app tracks, so the rest will not be added.`
-    : `Room for ${room} more of ${limit}.`;
+    ? t('aso:lst.room.over', { room, limit })
+    : t('aso:lst.room.left', { room, limit });
 }

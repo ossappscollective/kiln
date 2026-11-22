@@ -14,6 +14,7 @@
   import type { Api } from '../../lib/api.ts';
   import { type AsoCoachResponse, asoErrorMessage } from '../../lib/aso/aso.ts';
   import { coachHref } from '../../lib/aso/budget.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
@@ -50,7 +51,7 @@
           }
         })
         .catch((e) => {
-          if (mine === generation) failed = asoErrorMessage(e, 'Could not work out the next steps.');
+          if (mine === generation) failed = asoErrorMessage(e, t('aso:coach.error'));
         });
     });
   });
@@ -60,13 +61,11 @@
 </script>
 
 {#if nextSteps.length > 0}
-  <Section title={`Next steps${showPlatform ? ` · ${platformLabel(app.platform)}` : ''}`} key="coach.{app.platform}" count={`${nextSteps.length} ${nextSteps.length === 1 ? 'step' : 'steps'}`} summary={nextSteps[0]?.title ?? ''}>
+  <Section title={showPlatform ? t('aso:coach.titlePlatform', { platform: platformLabel(app.platform) }) : t('aso:coach.title')} key="coach.{app.platform}" count={t('aso:coach.count', { count: nextSteps.length })} summary={nextSteps[0]?.title ?? ''}>
     {#snippet actions()}
-      <InfoTip label="How the next steps are chosen" align="end">
+      <InfoTip label={t('aso:coach.how')} align="end">
         <p class="tip">
-          Worked out from what this server already holds: your tracked keywords and their ranks, the stored listing, and the competitors you follow. They are
-          ordered by what blocks the rest, then by what moved, then by tidying up. Nothing here is a search volume or a promise of more downloads, and
-          nothing is changed for you. Which fields a store searches is unverified.
+          {t('aso:coach.howText')}
         </p>
       </InfoTip>
     {/snippet}
@@ -80,12 +79,12 @@
             {#if a.items.length === 0}
               <span class="muted detail">{a.detail}</span>
             {:else}
-              <Disclosure summary="Details" stateKey="aso.coach.{app.id}.{a.id}">
+              <Disclosure summary={t('aso:coach.details')} stateKey="aso.coach.{app.id}.{a.id}">
                 <p class="detail muted">{a.detail}</p>
                 <ul class="items">
                   {#each a.items as item, i (i)}<li>{item}</li>{/each}
                 </ul>
-                {#if a.more > 0}<p class="muted more">and {a.more} more</p>{/if}
+                {#if a.more > 0}<p class="muted more">{t('aso:coach.more', { count: a.more })}</p>{/if}
               </Disclosure>
             {/if}
           </div>
@@ -94,7 +93,7 @@
       {/each}
     </ol>
     {#if nextSteps.length > visible}
-      <div><Button size="sm" variant="link" onclick={() => (all = !all)}>{all ? 'Show fewer' : `Show all ${nextSteps.length}`}</Button></div>
+      <div><Button size="sm" variant="link" onclick={() => (all = !all)}>{all ? t('aso:coach.showFewer') : t('aso:coach.showAll', { count: nextSteps.length })}</Button></div>
     {/if}
     </div>
   </Section>

@@ -18,6 +18,8 @@ import {
 } from '@kiln/core';
 import { ApiError } from '../api.ts';
 import { appAddress, type PlatformScope, parseViewPath } from '../app-scope.ts';
+import { formatList, formatNumber } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 import type { IconName } from '../icons.ts';
 import { retrySeconds } from '../portfolio.ts';
 
@@ -276,20 +278,23 @@ export type AsoView =
   | 'terms'
   | 'rank';
 
-export const asoViews: { id: AsoView; label: string }[] = [
-  { id: 'keywords', label: 'Keywords' },
-  { id: 'listing', label: 'In your listing' },
-  { id: 'competitors', label: 'Competitors' },
-  { id: 'ideas', label: 'Ideas' },
-  { id: 'fit', label: 'Fit' },
-  { id: 'gaps', label: 'Gaps' },
-  { id: 'markets', label: 'Markets' },
-  { id: 'terms', label: 'Search terms' },
-  { id: 'rank', label: 'Rank and downloads' },
+/** A view with the key of its label (`t(labelKey)` where it is drawn). */
+export type AsoViewItem = { id: AsoView; labelKey: string };
+
+export const asoViews: AsoViewItem[] = [
+  { id: 'keywords', labelKey: k('aso:view.keywords') },
+  { id: 'listing', labelKey: k('aso:view.listing') },
+  { id: 'competitors', labelKey: k('aso:view.competitors') },
+  { id: 'ideas', labelKey: k('aso:view.ideas') },
+  { id: 'fit', labelKey: k('aso:view.fit') },
+  { id: 'gaps', labelKey: k('aso:view.gaps') },
+  { id: 'markets', labelKey: k('aso:view.markets') },
+  { id: 'terms', labelKey: k('aso:view.terms') },
+  { id: 'rank', labelKey: k('aso:view.rank') },
 ];
 
 /** The views an app section offers: Search terms is for Google Play apps only (a Play Console file), so it is left out without one. */
-export const asoViewsFor = (androidInScope: boolean): { id: AsoView; label: string }[] =>
+export const asoViewsFor = (androidInScope: boolean): AsoViewItem[] =>
   asoViews.filter((v) => v.id !== 'terms' || androidInScope);
 
 /** The view to draw: the one asked for when this section offers it, else Keywords. */
@@ -309,27 +314,19 @@ export function asoViewFromHash(hash: string): AsoView {
  * The views of the Keywords page of Insights that are one click away (the segmented control); every other keyword view
  * (`keywordMoreViews`) is behind its "More" menu. Search terms is not here: it is a view of Insights of its own (Google Play only).
  */
-export const keywordMainViews: { id: AsoView; label: string }[] = [
-  { id: 'keywords', label: 'Keywords' },
-  { id: 'rank', label: 'Rank and downloads' },
+export const keywordMainViews: AsoViewItem[] = [
+  { id: 'keywords', labelKey: k('aso:view.keywords') },
+  { id: 'rank', labelKey: k('aso:view.rank') },
 ];
 
 /** The keyword views behind "More", with one line each for the menu. Together with `keywordMainViews` and Search terms they are every ASO view. */
-export const keywordMoreViews: { id: AsoView; label: string; hint: string }[] = [
-  {
-    id: 'listing',
-    label: 'In your listing',
-    hint: 'Where each keyword appears in your listing text.',
-  },
-  {
-    id: 'competitors',
-    label: 'Competitors',
-    hint: 'Apps you follow and the keywords they rank for.',
-  },
-  { id: 'ideas', label: 'Ideas', hint: 'Terms taken from your listing and your competitors.' },
-  { id: 'fit', label: 'Fit', hint: 'How well the live listing covers your keywords.' },
-  { id: 'gaps', label: 'Gaps', hint: 'Terms competitors use that you do not.' },
-  { id: 'markets', label: 'Markets', hint: 'One term across countries.' },
+export const keywordMoreViews: (AsoViewItem & { hintKey: string })[] = [
+  { id: 'listing', labelKey: k('aso:view.listing'), hintKey: k('aso:view.listing.hint') },
+  { id: 'competitors', labelKey: k('aso:view.competitors'), hintKey: k('aso:view.competitors.hint') },
+  { id: 'ideas', labelKey: k('aso:view.ideas'), hintKey: k('aso:view.ideas.hint') },
+  { id: 'fit', labelKey: k('aso:view.fit'), hintKey: k('aso:view.fit.hint') },
+  { id: 'gaps', labelKey: k('aso:view.gaps'), hintKey: k('aso:view.gaps.hint') },
+  { id: 'markets', labelKey: k('aso:view.markets'), hintKey: k('aso:view.markets.hint') },
 ];
 
 /** Whether a keyword view is behind the "More" menu. */
@@ -360,47 +357,38 @@ export const asoOverviewHref = '#/aso';
 // Errors
 
 const messages: Record<string, string> = {
-  play_unofficial_disabled:
-    'Google Play reading is switched off on this server. Nothing was requested.',
-  refresh_in_progress: 'A check of this app is already running. Try again in a moment.',
-  already_followed: 'That app is already followed.',
-  limit_reached: 'The limit of followed competitors is reached. Remove one first.',
-  own_app: 'That is your own app. Follow another one.',
-  invalid_external_id: 'That is not an App Store id, package name or store link.',
-  invalid_country: 'That is not a two-letter storefront such as us.',
-  refresh_failed:
-    'The store could not be read just now. Nothing was recorded as not ranked. Try again later.',
-  source_unavailable:
-    'The store could not be read just now. Nothing was recorded. Try again later.',
-  source_failed: 'The store could not be read just now. Nothing was recorded. Try again later.',
-  source_timeout: 'The store did not answer in time. Try again later.',
+  play_unofficial_disabled: k('aso:error.playUnofficialDisabled'),
+  refresh_in_progress: k('aso:error.refreshInProgress'),
+  already_followed: k('aso:error.alreadyFollowed'),
+  limit_reached: k('aso:error.limitReached'),
+  own_app: k('aso:error.ownApp'),
+  invalid_external_id: k('aso:error.invalidExternalId'),
+  invalid_country: k('aso:error.invalidCountry'),
+  refresh_failed: k('aso:error.refreshFailed'),
+  source_unavailable: k('aso:error.sourceUnavailable'),
+  source_failed: k('aso:error.sourceUnavailable'),
+  source_timeout: k('aso:error.sourceTimeout'),
 };
 
 /** "45 seconds", "2 minutes". */
 export function waitText(seconds: number): string {
-  if (seconds < 60) {
-    const n = Math.max(1, Math.ceil(seconds));
-    return `${n} second${n === 1 ? '' : 's'}`;
-  }
-  const m = Math.ceil(seconds / 60);
-  return `${m} minute${m === 1 ? '' : 's'}`;
+  if (seconds < 60) return t('aso:wait.seconds', { count: Math.max(1, Math.ceil(seconds)) });
+  return t('aso:wait.minutes', { count: Math.ceil(seconds / 60) });
 }
 
-/** A sentence for an ASO call that failed. A limit says when to try again. */
-export function asoErrorMessage(
-  error: unknown,
-  fallback = 'That did not work. Try again.',
-): string {
-  if (!(error instanceof ApiError)) return fallback;
-  if (error.status === 422 && error.code === 'not_found')
-    return 'The store has no app with that id.';
+/** A sentence for an ASO call that failed. A limit says when to try again. The server's own message (English) is the last resort. */
+export function asoErrorMessage(error: unknown, fallback?: string): string {
+  const otherwise = fallback ?? t('aso:error.generic');
+  if (!(error instanceof ApiError)) return otherwise;
+  if (error.status === 422 && error.code === 'not_found') return t('aso:error.notFound');
   if (error.status === 429) {
     const seconds = retrySeconds(error);
     return seconds !== null
-      ? `The limit was reached. Try again in ${waitText(seconds)}.`
-      : 'The limit was reached. Try again in a minute.';
+      ? t('aso:error.limitWait', { wait: waitText(seconds) })
+      : t('aso:error.limitMinute');
   }
-  return messages[error.code] ?? error.message ?? fallback;
+  const key = messages[error.code];
+  return key !== undefined ? t(key) : (error.message ?? otherwise);
 }
 
 /** Seconds to wait before another refresh after a 429; null for any other error. */
@@ -418,12 +406,12 @@ export function rankText(k: Pick<AsoKeyword, 'state' | 'rank' | 'total'>): {
   muted: boolean;
 } {
   if (k.state === 'ranked' && k.rank !== null)
-    return { text: String(k.rank), title: `Position ${k.rank} in the results`, muted: false };
+    return { text: String(k.rank), title: t('aso:rank.position', { rank: k.rank }), muted: false };
   if (k.state === 'not_ranked') {
     const n = k.total ?? 50;
-    return { text: `${n}+`, title: `Not within the first ${n} results`, muted: true };
+    return { text: `${n}+`, title: t('aso:rank.notWithin', { count: n }), muted: true };
   }
-  return { text: '–', title: 'Not checked yet', muted: true };
+  return { text: '–', title: t('aso:rank.notChecked'), muted: true };
 }
 
 export type ChangeInfo = {
@@ -435,7 +423,7 @@ export type ChangeInfo = {
 
 /** "+3" (better), "-4" (worse), "New", "Entered", "Left", or a dash. Words and icons say it, not the colour. */
 export function changeInfo(change: RankChange | null, checked: boolean): ChangeInfo {
-  if (!checked) return { text: '–', tone: 'neutral', icon: null, title: 'Not checked yet' };
+  if (!checked) return { text: '–', tone: 'neutral', icon: null, title: t('aso:rank.notChecked') };
   const kind: RankChangeKind = change?.kind ?? 'first';
   switch (kind) {
     case 'up':
@@ -443,44 +431,44 @@ export function changeInfo(change: RankChange | null, checked: boolean): ChangeI
         text: `+${change?.delta ?? 0}`,
         tone: 'ok',
         icon: 'arrow-up',
-        title: `Up ${change?.delta ?? 0} places since the last check`,
+        title: t('aso:change.up', { count: change?.delta ?? 0 }),
       };
     case 'down':
       return {
         text: `${change?.delta ?? 0}`,
         tone: 'bad',
         icon: 'arrow-down',
-        title: `Down ${Math.abs(change?.delta ?? 0)} places since the last check`,
+        title: t('aso:change.down', { count: Math.abs(change?.delta ?? 0) }),
       };
     case 'entered':
       return {
-        text: 'Entered',
+        text: t('aso:change.entered'),
         tone: 'ok',
         icon: 'arrow-up',
-        title: 'Was not in the results at the last check',
+        title: t('aso:change.enteredTitle'),
       };
     case 'dropped':
       return {
-        text: 'Left',
+        text: t('aso:change.left'),
         tone: 'bad',
         icon: 'arrow-down',
-        title: 'Was in the results at the last check',
+        title: t('aso:change.leftTitle'),
       };
     case 'same':
-      return { text: '0', tone: 'neutral', icon: null, title: 'No change since the last check' };
+      return { text: '0', tone: 'neutral', icon: null, title: t('aso:change.sameTitle') };
     case 'still_unranked':
       return {
         text: '–',
         tone: 'neutral',
         icon: null,
-        title: 'Not in the results at the last two checks',
+        title: t('aso:change.stillUnrankedTitle'),
       };
     default:
       return {
-        text: 'New',
+        text: t('aso:change.new'),
         tone: 'neutral',
         icon: null,
-        title: 'First check, nothing to compare with',
+        title: t('aso:change.newTitle'),
       };
   }
 }
@@ -494,11 +482,11 @@ export function moveSize(change: RankChange | null): number {
 }
 
 export type KeywordSort = 'rank' | 'move' | 'term' | 'checked';
-export const keywordSorts: { id: KeywordSort; label: string }[] = [
-  { id: 'rank', label: 'Best rank first' },
-  { id: 'move', label: 'Biggest move' },
-  { id: 'term', label: 'Keyword A to Z' },
-  { id: 'checked', label: 'Last checked' },
+export const keywordSorts: { id: KeywordSort; labelKey: string }[] = [
+  { id: 'rank', labelKey: k('aso:sort.rank') },
+  { id: 'move', labelKey: k('aso:sort.move') },
+  { id: 'term', labelKey: k('aso:sort.term') },
+  { id: 'checked', labelKey: k('aso:sort.checked') },
 ];
 
 const rankOrder = (k: AsoKeyword): number =>
@@ -702,17 +690,22 @@ export function sumAddSummary(parts: readonly AsoAddSummary[]): AsoAddSummary {
   return total;
 }
 
-const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
-
 /** "Added 8 keywords. 2 already tracked, 1 not accepted, 3 over the limit of 50." */
 export function addSummaryText(s: AsoAddSummary, maxPerApp?: number): string {
   const head =
-    s.created > 0 ? `Added ${plural(s.created, 'keyword', 'keywords')}.` : 'Nothing was added.';
+    s.created > 0 ? t('aso:addSummary.added', { count: s.created }) : t('aso:addSummary.nothingAdded');
   const rest: string[] = [];
-  if (s.exists > 0) rest.push(`${s.exists} already tracked`);
-  if (s.invalid > 0) rest.push(`${s.invalid} not accepted`);
-  if (s.limit > 0) rest.push(`${s.limit} over the limit${maxPerApp ? ` of ${maxPerApp}` : ''}`);
-  return rest.length > 0 ? `${head} ${rest.join(', ')}.` : head;
+  if (s.exists > 0) rest.push(t('aso:addSummary.exists', { count: s.exists }));
+  if (s.invalid > 0) rest.push(t('aso:addSummary.invalid', { count: s.invalid }));
+  if (s.limit > 0)
+    rest.push(
+      maxPerApp
+        ? t('aso:addSummary.limitOf', { count: s.limit, max: maxPerApp })
+        : t('aso:addSummary.limit', { count: s.limit }),
+    );
+  return rest.length > 0
+    ? t('aso:addSummary.withRest', { head, rest: formatList(rest, { type: 'unit' }) })
+    : head;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -722,21 +715,26 @@ export function addSummaryText(s: AsoAddSummary, maxPerApp?: number): string {
 export function refreshText(result: AsoRefreshResult): string {
   const k = result.keywords;
   const c = result.competitors;
-  let text = `Checked ${k.checked} of ${plural(k.due, 'keyword', 'keywords')}`;
-  if (c.due > 0) text += ` and ${c.checked} of ${plural(c.due, 'competitor', 'competitors')}`;
-  text += '.';
-  if (k.moved > 0) text += ` ${plural(k.moved, 'keyword', 'keywords')} moved.`;
+  const keywords = t('aso:refresh.keywordsOf', { checked: k.checked, count: k.due });
+  let text =
+    c.due > 0
+      ? t('aso:refresh.checkedBoth', {
+          keywords,
+          competitors: t('aso:refresh.competitorsOf', { checked: c.checked, count: c.due }),
+        })
+      : t('aso:refresh.checkedKeywords', { keywords });
+  if (k.moved > 0) text += ` ${t('aso:refresh.moved', { count: k.moved })}`;
   if (result.deferred) {
     const why: Record<string, string> = {
-      cap: 'The rest is left for the next check.',
-      time: 'It ran out of time; the rest is left for the next check.',
+      cap: t('aso:refresh.stop.cap'),
+      time: t('aso:refresh.stop.time'),
       rate_limit: result.retryAfterSeconds
-        ? `The store asked to slow down; try again in ${waitText(result.retryAfterSeconds)}.`
-        : 'The store asked to slow down.',
-      unavailable: 'The store could not be read for the rest.',
-      errors: 'It stopped after repeated errors.',
+        ? t('aso:refresh.stop.rateLimitWait', { wait: waitText(result.retryAfterSeconds) })
+        : t('aso:refresh.stop.rateLimit'),
+      unavailable: t('aso:refresh.stop.unavailable'),
+      errors: t('aso:refresh.stop.errors'),
     };
-    text += ` ${why[result.stoppedBecause ?? 'cap'] ?? 'The rest is left for the next check.'}`;
+    text += ` ${why[result.stoppedBecause ?? 'cap'] ?? t('aso:refresh.stop.cap')}`;
   }
   return text;
 }
@@ -752,36 +750,46 @@ export function resultWaitSeconds(result: AsoRefreshResult): number | null {
 // Competitors
 
 const fieldLabels: Record<string, string> = {
-  version: 'Version',
-  title: 'Name',
-  subtitle: 'Subtitle',
-  price: 'Price',
-  description: 'Description',
-  media: 'Icon or screenshots',
-  screenshots: 'Screenshots',
-  rating: 'Rating',
-  ratingCount: 'Rating count',
-  rating_count: 'Rating count',
+  version: k('aso:field.version'),
+  title: k('aso:field.title'),
+  subtitle: k('aso:field.subtitle'),
+  price: k('aso:field.price'),
+  description: k('aso:field.description'),
+  media: k('aso:field.media'),
+  screenshots: k('aso:field.screenshots'),
+  rating: k('aso:field.rating'),
+  ratingCount: k('aso:field.ratingCount'),
+  rating_count: k('aso:field.ratingCount'),
+  keywords: k('aso:field.keywords'),
+  shortDescription: k('aso:field.shortDescription'),
 };
 
-export const fieldLabel = (field: string): string => fieldLabels[field] ?? field;
+/** The label of a field; a field this app does not know is shown as the store sent it. */
+export const fieldLabel = (field: string): string => {
+  const key = fieldLabels[field];
+  return key !== undefined ? t(key) : field;
+};
 
 const shown = (v: string | number | null | undefined): string =>
-  v === null || v === undefined || v === '' ? 'none' : String(v);
+  v === null || v === undefined || v === '' ? t('aso:value.none') : String(v);
 
 /** "Version 2.0 to 2.1", "Description changed". The values are public short texts, shown as plain text. */
 export function changeText(c: AsoChange): string {
-  const label = fieldLabel(c.field);
-  if (c.from === undefined && c.to === undefined) return `${label} changed`;
+  const field = fieldLabel(c.field);
+  if (c.from === undefined && c.to === undefined) return t('aso:changeText.changed', { field });
   const count = c.field === 'ratingCount' || c.field === 'rating_count';
-  const f = count && typeof c.from === 'number' ? c.from.toLocaleString('en') : shown(c.from);
-  const t = count && typeof c.to === 'number' ? c.to.toLocaleString('en') : shown(c.to);
-  return `${label} ${f} to ${t}`;
+  const from = count && typeof c.from === 'number' ? formatNumber(c.from) : shown(c.from);
+  const to = count && typeof c.to === 'number' ? formatNumber(c.to) : shown(c.to);
+  return t('aso:changeText.fromTo', { field, from, to });
 }
 
 const daysAgo = (at: number, now: number): string => {
   const days = Math.floor((now - at) / 86_400_000);
-  return days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+  return days <= 0
+    ? t('aso:time.today')
+    : days === 1
+      ? t('aso:time.yesterday')
+      : t('aso:time.daysAgo', { count: days });
 };
 
 /** The one line on a competitor card about the last change. */
@@ -792,21 +800,30 @@ export function lastChangeText(
 ): string {
   if (h?.diff && h.diff.changes.length > 0) {
     const more = h.diff.changes.length - 1;
-    return `${changeText(h.diff.changes[0] as AsoChange)}${more > 0 ? ` and ${more} more` : ''}, ${daysAgo(h.diff.at, now)}`;
+    const change = changeText(h.diff.changes[0] as AsoChange);
+    const when = daysAgo(h.diff.at, now);
+    return more > 0
+      ? t('aso:lastChange.withMore', { change, count: more, when })
+      : t('aso:lastChange.at', { change, when });
   }
   const latest = c.latest;
   if (latest?.changes && latest.changes.length > 0)
-    return `${changeText(latest.changes[0] as AsoChange)}, ${daysAgo(latest.checkedAt, now)}`;
-  if (c.state === 'not_found') return 'No longer in the store';
-  return latest ? 'No change seen since the first look' : 'Not looked at yet';
+    return t('aso:lastChange.at', {
+      change: changeText(latest.changes[0] as AsoChange),
+      when: daysAgo(latest.checkedAt, now),
+    });
+  if (c.state === 'not_found') return t('aso:lastChange.gone');
+  return latest ? t('aso:lastChange.none') : t('aso:lastChange.notYet');
 }
 
 /** Stars with one decimal: "4.6". */
 export const ratingText = (rating: number | null | undefined): string =>
-  rating === null || rating === undefined ? '–' : rating.toFixed(1);
+  rating === null || rating === undefined
+    ? '–'
+    : formatNumber(rating, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 export const countText = (n: number | null | undefined): string =>
-  n === null || n === undefined ? '–' : n.toLocaleString('en');
+  n === null || n === undefined ? '–' : formatNumber(n);
 
 export type CompareRow = { label: string; ours: string; theirs: string[] };
 export type OurFacts = {
@@ -820,16 +837,20 @@ export function compareRows(ours: OurFacts, others: readonly AsoCompetitor[]): C
   const col = (f: (s: AsoSnapshot) => string): string[] =>
     others.map((c) => (c.latest ? f(c.latest) : '–'));
   return [
-    { label: 'Version', ours: ours.version ?? '–', theirs: col((s) => s.version ?? '–') },
-    { label: 'Rating', ours: ratingText(ours.rating), theirs: col((s) => ratingText(s.rating)) },
+    { label: t('aso:compare.version'), ours: ours.version ?? '–', theirs: col((s) => s.version ?? '–') },
     {
-      label: 'Ratings',
+      label: t('aso:compare.rating'),
+      ours: ratingText(ours.rating),
+      theirs: col((s) => ratingText(s.rating)),
+    },
+    {
+      label: t('aso:compare.ratings'),
       ours: countText(ours.ratingCount),
       theirs: col((s) => countText(s.ratingCount)),
     },
-    { label: 'Price', ours: '–', theirs: col((s) => s.price ?? '–') },
+    { label: t('aso:compare.price'), ours: '–', theirs: col((s) => s.price ?? '–') },
     {
-      label: 'Screenshots',
+      label: t('aso:compare.screenshots'),
       ours: '–',
       theirs: col((s) => (s.screenshotCount === null ? '–' : String(s.screenshotCount))),
     },
@@ -839,39 +860,29 @@ export function compareRows(ours: OurFacts, others: readonly AsoCompetitor[]): C
 // ---------------------------------------------------------------------------------------------
 // Fit
 
+/** `labelKey` and `hintKey` are message keys: `t(info.labelKey)` where it is drawn. */
 export const fitStatusInfo: Record<
   FitStatus,
-  { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral'; hint: string }
+  { labelKey: string; tone: 'ok' | 'warn' | 'bad' | 'neutral'; hintKey: string }
 > = {
-  strong: {
-    label: 'Strong',
-    tone: 'ok',
-    hint: 'The phrase is in the name or subtitle (Android: title or short description).',
-  },
-  covered: {
-    label: 'Covered',
-    tone: 'ok',
-    hint: 'Every word is in the searched fields, but not as a phrase in the name or subtitle.',
-  },
-  partial: {
-    label: 'Partial',
-    tone: 'warn',
-    hint: 'Some of the words are in the searched fields.',
-  },
+  strong: { labelKey: k('aso:fit.strong'), tone: 'ok', hintKey: k('aso:fit.strong.hint') },
+  covered: { labelKey: k('aso:fit.covered'), tone: 'ok', hintKey: k('aso:fit.covered.hint') },
+  partial: { labelKey: k('aso:fit.partial'), tone: 'warn', hintKey: k('aso:fit.partial.hint') },
   description_only: {
-    label: 'Description only',
+    labelKey: k('aso:fit.descriptionOnly'),
     tone: 'warn',
-    hint: 'Only in the description, which the App Store may not search. Unverified.',
+    hintKey: k('aso:fit.descriptionOnly.hint'),
   },
-  missing: { label: 'Missing', tone: 'bad', hint: 'None of the words are in the searched fields.' },
+  missing: { labelKey: k('aso:fit.missing'), tone: 'bad', hintKey: k('aso:fit.missing.hint') },
 };
 
+/** Message keys of the listing fields (`t(fitFieldLabels[field])`). */
 export const fitFieldLabels: Record<string, string> = {
-  title: 'Name',
-  subtitle: 'Subtitle',
-  keywords: 'Keyword field',
-  shortDescription: 'Short description',
-  description: 'Description',
+  title: k('aso:field.title'),
+  subtitle: k('aso:field.subtitle'),
+  keywords: k('aso:field.keywords'),
+  shortDescription: k('aso:field.shortDescription'),
+  description: k('aso:field.description'),
 };
 
 /** The listing fields to show a column for, per platform. */
@@ -892,7 +903,10 @@ export function keywordMeter(
   return {
     percent,
     tone,
-    text: `${bytes} of ${max} bytes, ${left < 0 ? `${-left} over` : `${left} left`}`,
+    text:
+      left < 0
+        ? t('aso:meter.over', { bytes, count: max, over: -left })
+        : t('aso:meter.left', { bytes, count: max, left }),
   };
 }
 
@@ -922,15 +936,18 @@ export function localesOf(keywords: readonly Pick<AsoKeyword, 'locale'>[]): stri
 
 /** "6 times in 3 of 4 texts". */
 export function ideaWhy(idea: Pick<Idea, 'occurrences' | 'sources'>, texts: number): string {
-  return `${idea.occurrences} ${idea.occurrences === 1 ? 'time' : 'times'} in ${idea.sources} of ${texts} ${texts === 1 ? 'text' : 'texts'}`;
+  return t('aso:idea.why', {
+    count: idea.occurrences,
+    texts: t('aso:idea.texts', { count: texts, sources: idea.sources }),
+  });
 }
 
 /** What the ideas were read from: "your listing and 3 competitors". */
 export function ideaSourceText(basedOn: AsoIdeasResponse['basedOn']): string {
   const parts: string[] = [];
-  if (basedOn.ownListing) parts.push('your listing');
-  if (basedOn.competitors > 0) parts.push(plural(basedOn.competitors, 'competitor', 'competitors'));
-  return parts.length > 0 ? parts.join(' and ') : 'no texts yet';
+  if (basedOn.ownListing) parts.push(t('aso:idea.ownListing'));
+  if (basedOn.competitors > 0) parts.push(t('aso:idea.competitors', { count: basedOn.competitors }));
+  return parts.length > 0 ? formatList(parts) : t('aso:idea.noTexts');
 }
 
 export const ideaTexts = (basedOn: AsoIdeasResponse['basedOn']): number =>
@@ -952,19 +969,21 @@ export type MatrixCell = { text: string; title: string; best: boolean; muted: bo
 export function marketCell(term: TermAcrossMarkets, country: string): MatrixCell {
   const here = term.markets.filter((m) => m.country === country);
   if (here.length === 0)
-    return { text: '', title: 'Not tracked in this country', best: false, muted: true };
+    return { text: '', title: t('aso:market.notTracked'), best: false, muted: true };
   const ranked = here
     .filter((m) => m.state === 'ranked' && m.rank !== null)
     .map((m) => m.rank as number);
   const state = (m: (typeof here)[number]) =>
     m.state === 'ranked'
-      ? `position ${m.rank}`
+      ? t('aso:market.position', { rank: m.rank ?? '' })
       : m.state === 'not_ranked'
-        ? 'not in the results'
+        ? t('aso:market.notInResults')
         : m.state === 'unavailable'
-          ? 'not readable'
-          : 'not checked';
-  const title = here.map((m) => `${m.locale}: ${state(m)}`).join('; ');
+          ? t('aso:market.notReadable')
+          : t('aso:market.notChecked');
+  const title = here
+    .map((m) => t('aso:market.localeState', { locale: m.locale, state: state(m) }))
+    .join('; ');
   if (ranked.length > 0) {
     const best = Math.min(...ranked);
     return {
@@ -975,7 +994,7 @@ export function marketCell(term: TermAcrossMarkets, country: string): MatrixCell
     };
   }
   if (here.some((m) => m.state === 'not_ranked'))
-    return { text: 'not ranked', title, best: false, muted: true };
+    return { text: t('aso:market.notRanked'), title, best: false, muted: true };
   return { text: '–', title, best: false, muted: true };
 }
 
@@ -1059,10 +1078,10 @@ export function isBigDrop(
 
 export const moverText = (m: Pick<AsoMover, 'kind' | 'from' | 'to'>): string =>
   m.kind === 'entered'
-    ? `entered at ${m.to}`
+    ? t('aso:mover.entered', { to: m.to ?? '' })
     : m.kind === 'dropped'
-      ? `left the results (was ${m.from})`
-      : `${m.from} to ${m.to}`;
+      ? t('aso:mover.dropped', { from: m.from ?? '' })
+      : t('aso:mover.fromTo', { from: m.from ?? '', to: m.to ?? '' });
 
 export const moverMarket = (m: Pick<AsoMover, 'country' | 'locale'>): string =>
   `${m.country.toUpperCase()} · ${m.locale}`;
@@ -1086,33 +1105,30 @@ export type ConfigStates = { label: string; items: string[] } | null;
 export function configStates(config: AsoConfig | null, androidInScope: boolean): ConfigStates {
   if (config === null) return null;
   const items: string[] = [];
-  const short: string[] = [];
-  if (androidInScope && !config.play.enabled) {
-    short.push('Google Play reads off');
-    items.push(`Google Play: ${config.play.notice} ${config.play.howToEnable}`);
-  }
-  if (config.schedule.intervalMinutes === 0) {
-    short.push('automatic checks off');
+  const play = androidInScope && !config.play.enabled;
+  const auto = config.schedule.intervalMinutes === 0;
+  if (play) {
     items.push(
-      'Automatic checks are off on this server, so ranks change only when someone presses Check now.',
+      t('aso:states.playItem', { notice: config.play.notice, howToEnable: config.play.howToEnable }),
     );
   }
-  if (short.length === 0) return null;
-  const label = short.join(', ');
-  return { label: label.charAt(0).toUpperCase() + label.slice(1), items };
+  if (auto) items.push(t('aso:states.autoItem'));
+  if (!play && !auto) return null;
+  return { label: play && auto ? t('aso:states.both') : play ? t('aso:states.play') : t('aso:states.auto'), items };
 }
 
 const checkErrors: Record<string, string> = {
-  rate_limited: 'The store asked us to slow down. The rank shown is the last one read.',
-  unavailable_layout_changed:
-    'The store page could not be understood, so the rank shown is the last one read.',
-  play_unofficial_disabled: 'Google Play reading is switched off, so this was not checked.',
-  server: 'The server could not finish the check. The rank shown is the last one read.',
+  rate_limited: k('aso:checkError.rateLimited'),
+  unavailable_layout_changed: k('aso:checkError.unavailableLayoutChanged'),
+  play_unofficial_disabled: k('aso:checkError.playUnofficialDisabled'),
+  server: k('aso:checkError.server'),
 };
 
 /** What a failed attempt means, for the InfoTip beside a rank. The rank itself is kept from the last success. */
-export const checkErrorText = (code: string): string =>
-  checkErrors[code] ?? `The last check failed (${code}). The rank shown is the last one read.`;
+export const checkErrorText = (code: string): string => {
+  const key = checkErrors[code];
+  return key !== undefined ? t(key) : t('aso:checkError.other', { code });
+};
 
 /** One cell of the fit table: is the keyword in this listing field, as a phrase or only some of its words. */
 export function fieldCell(
@@ -1123,21 +1139,21 @@ export function fieldCell(
   field: string,
 ): { mark: 'phrase' | 'words' | 'none'; text: string; title: string } {
   const m = k.where.filter((w) => w.field === field)[0];
-  if (!m || m.wordsPresent === 0) return { mark: 'none', text: '', title: 'Not in this field' };
+  if (!m || m.wordsPresent === 0) return { mark: 'none', text: '', title: t('aso:fieldCell.none') };
   if (m.phrase)
     return {
       mark: 'phrase',
       text: m.occurrences > 1 ? `x${m.occurrences}` : '',
-      title: 'The phrase is in this field',
+      title: t('aso:fieldCell.phrase'),
     };
   const checked = checkTerm(k.term);
   const n = checked.ok ? checked.words : m.wordsPresent;
   return {
     mark: 'words',
     text: `${m.wordsPresent}/${n}`,
-    title: `${m.wordsPresent} of ${n} words are in this field, not as a phrase`,
+    title: t('aso:fieldCell.words', { present: m.wordsPresent, count: n }),
   };
 }
 
 export const priorityLabel = (priority: number): string =>
-  priority >= 3 ? 'High' : priority <= 1 ? 'Low' : 'Normal';
+  priority >= 3 ? t('aso:priority.high') : priority <= 1 ? t('aso:priority.low') : t('aso:priority.normal');

@@ -14,7 +14,9 @@
 -->
 <script lang="ts">
   import { type AsoPlatform, type FitField, type FitFields, type FitKeyword, listingBudget, storefrontCombos, supports } from '@kiln/core';
-  import { budgetHeadline, fieldWord, wasteReasonText } from '../../lib/aso/budget.ts';
+  import { budgetFieldLabel, budgetHeadline, wasteReasonText } from '../../lib/aso/budget.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import CopyButton from '../ui/CopyButton.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import BudgetMeter from './BudgetMeter.svelte';
@@ -28,7 +30,7 @@
     listingLocales = [],
     countries = [],
     addHref,
-    title = 'Keyword budget' }: {
+    title }: {
     platform: AsoPlatform;
     locale: string;
     fields: FitFields;
@@ -43,27 +45,46 @@
   const budget = $derived(listingBudget({ platform, locale, fields, keywords }));
   const headline = $derived(budgetHeadline(budget));
   const apple = $derived(supports(platform, 'keywordField'));
-  const labelOf = (field: FitField): string => budget.fields.find((f) => f.field === field)?.label ?? fieldWord(field);
+  const heading = $derived(title ?? t('aso:budget.title'));
+  const labelOf = (field: FitField): string => budgetFieldLabel(platform, field);
+  const bytesText = (n: number): string => t('aso:budget.bytes', { count: n });
+  const termList = (terms: string[]): string => formatList(terms, { type: 'unit' });
+  const laterText = (r: { word: string; fields: FitField[]; wastedCharacters: number }): string => {
+    const fields = termList(r.fields.map(labelOf));
+    if (r.wastedCharacters <= 0) return t('aso:budget.repeatedItem', { word: r.word, fields });
+    return r.fields.length > 2
+      ? t('aso:budget.repeatedLaterMany', { word: r.word, fields, count: r.wastedCharacters })
+      : t('aso:budget.repeatedLater', { word: r.word, fields, count: r.wastedCharacters });
+  };
+  const storefrontText = (c: { country: string; locales: { locale: string; kind: string; present: boolean }[] }): string =>
+    t('aso:budget.storefrontLine', {
+      country: c.country.toUpperCase(),
+      locales: termList(
+        c.locales
+          .filter((l) => l.kind === 'reported')
+          .map((l) => t(l.present ? 'aso:budget.storefrontPresent' : 'aso:budget.storefrontAbsent', { locale: l.locale })),
+      ),
+    });
   const combos = $derived(apple ? countries.map((c) => storefrontCombos(c, listingLocales)).filter((c) => c.locales.length > 1) : []);
   const uid = $props.id();
 </script>
 
-<div class="budget" role="group" aria-label="{title}, {locale}">
+<div class="budget" role="group" aria-label={t('aso:budget.group', { title: heading, locale })}>
   <div class="head">
-    <span class="eyebrow">{title}</span>
-    <InfoTip label="Details of the keyword budget" align="start" width="30rem">
+    <span class="eyebrow">{heading}</span>
+    <InfoTip label={t('aso:budget.details')} align="start" width="30rem">
       <div class="tip stack tight">
-        <section aria-label="Tracked keywords by field">
-          <h4>Tracked keywords by field</h4>
+        <section aria-label={t('aso:budget.byField')}>
+          <h4>{t('aso:budget.byField')}</h4>
           {#if keywords.length === 0}
             <p class="muted">
-              No keywords are tracked in {locale}.
-              {#if addHref}<a href={addHref}>Add keywords</a>{/if}
+              {t('aso:budget.noneTracked', { locale })}
+              {#if addHref}<a href={addHref}>{t('aso:budget.addKeywords')}</a>{/if}
             </p>
           {:else}
             <ul class="plain">
               {#each budget.fields as f (f.field)}
-                <li><strong>{f.label}:</strong> {f.keywords.length > 0 ? f.keywords.map((k) => k.term).join(', ') : 'none'}</li>
+                <li><strong>{t('aso:budget.fieldLabel', { label: labelOf(f.field) })}</strong> {f.keywords.length > 0 ? f.keywords.map((k) => k.term).join(', ') : t('aso:budget.none')}</li>
               {/each}
             </ul>
           {/if}
@@ -71,71 +92,66 @@
 
         {#if budget.keywordField && budget.keywordField.items.length > 0}
           {@const kf = budget.keywordField}
-          <section aria-label="Wasted space in the keyword field">
-            <h4>Wasted in the keyword field ({kf.totalBytes} {kf.totalBytes === 1 ? 'byte' : 'bytes'})</h4>
+          <section aria-label={t('aso:budget.wasteAria')}>
+            <h4>{t('aso:budget.wasteTitle', { count: kf.totalBytes })}</h4>
             <ul class="plain">
               {#each kf.items as item, i (i)}
-                <li>{item.text === '' ? '(empty)' : item.text}: {wasteReasonText[item.reason]}, {item.bytes} {item.bytes === 1 ? 'byte' : 'bytes'}</li>
+                <li>{t('aso:budget.wasteItem', { text: item.text === '' ? t('aso:budget.empty') : item.text, reason: t(wasteReasonText[item.reason]), bytes: bytesText(item.bytes) })}</li>
               {/each}
             </ul>
             <p class="row compact-row">
-              <span class="muted">Without them ({kf.compactedBytes} bytes):</span>
-              <code class="truncate">{kf.compacted === '' ? '(empty)' : kf.compacted}</code>
-              {#if kf.compacted !== ''}<CopyButton value={kf.compacted} iconOnly label="Copy the keyword field without the waste" />{/if}
+              <span class="muted">{t('aso:budget.without', { count: kf.compactedBytes })}</span>
+              <code class="truncate">{kf.compacted === '' ? t('aso:budget.empty') : kf.compacted}</code>
+              {#if kf.compacted !== ''}<CopyButton value={kf.compacted} iconOnly label={t('aso:budget.copyCompact')} />{/if}
             </p>
           </section>
         {/if}
 
         {#if budget.repeated.length > 0}
-          <section aria-label="Words in several fields">
-            <h4>{apple ? 'Words in more than one field' : 'Tracked terms in more than one field'}</h4>
+          <section aria-label={t('aso:budget.repeatedAria')}>
+            <h4>{apple ? t('aso:budget.repeatedApple') : t('aso:budget.repeatedPlay')}</h4>
             <ul class="plain">
               {#each budget.repeated as r (r.word)}
-                <li>
-                  {r.word}: {r.fields.map(labelOf).join(', ')}{r.wastedCharacters > 0 ? ` (${r.wastedCharacters} characters in the later ${r.fields.length > 2 ? 'fields' : 'field'})` : ''}
-                </li>
+                <li>{laterText(r)}</li>
               {/each}
             </ul>
           </section>
         {/if}
 
         {#if budget.missing.length > 0 || budget.partial.length > 0}
-          <section aria-label="Tracked keywords the fields lack">
-            <h4>Tracked keywords not covered</h4>
+          <section aria-label={t('aso:budget.missingAria')}>
+            <h4>{t('aso:budget.missingTitle')}</h4>
             <ul class="plain">
-              {#if budget.missing.length > 0}<li>In no field: {budget.missing.map((m) => m.term).join(', ')}</li>{/if}
-              {#if budget.partial.length > 0}<li>Only some words: {budget.partial.map((m) => m.term).join(', ')}</li>{/if}
+              {#if budget.missing.length > 0}<li>{t('aso:budget.inNoField', { terms: termList(budget.missing.map((m) => m.term)) })}</li>{/if}
+              {#if budget.partial.length > 0}<li>{t('aso:budget.onlySome', { terms: termList(budget.partial.map((m) => m.term)) })}</li>{/if}
             </ul>
           </section>
         {/if}
 
         {#if budget.untracked.length > 0}
-          <section aria-label="Words no tracked keyword uses">
-            <h4>Words no tracked keyword uses</h4>
+          <section aria-label={t('aso:budget.untracked')}>
+            <h4>{t('aso:budget.untracked')}</h4>
             <ul class="plain">
-              {#each budget.untracked as u (u.field)}<li><strong>{u.label}:</strong> {u.terms.join(', ')}</li>{/each}
+              {#each budget.untracked as u (u.field)}<li><strong>{t('aso:budget.fieldLabel', { label: labelOf(u.field) })}</strong> {u.terms.join(', ')}</li>{/each}
             </ul>
-            <p class="muted">A brand name in the name is fine. Track a word to see where the app ranks for it.</p>
+            <p class="muted">{t('aso:budget.untrackedNote')}</p>
           </section>
         {/if}
 
         {#if combos.length > 0}
-          <section aria-label="Storefronts">
-            <h4>Storefronts (UNVERIFIED)</h4>
+          <section aria-label={t('aso:budget.storefrontsAria')}>
+            <h4>{t('aso:budget.storefronts')}</h4>
             <ul class="plain">
               {#each combos as c (c.country)}
-                <li>
-                  {c.country.toUpperCase()}: reported to also read
-                  {#each c.locales.filter((l) => l.kind === 'reported') as l, i (l.locale)}{i > 0 ? ', ' : ' '}{l.locale} ({l.present ? 'in your listing' : 'no text yet'}){/each}
-                </li>
+                <li>{storefrontText(c)}</li>
               {/each}
             </ul>
             <p class="muted">{combos[0]?.note}</p>
           </section>
         {/if}
 
-        <section aria-label="What is assumed">
-          <h4>What is assumed</h4>
+        <section aria-label={t('aso:budget.assumed')}>
+          <h4>{t('aso:budget.assumed')}</h4>
           <ul class="plain">{#each budget.assumptions as a (a)}<li>{a}</li>{/each}</ul>
         </section>
       </div>
@@ -146,8 +162,8 @@
     {#each budget.fields as f (f.field)}
       <BudgetMeter
         id="{uid}-{f.field}"
-        label={f.label}
-        suffix={staged.indexOf(f.field) >= 0 ? ' (staged)' : ''}
+        label={labelOf(f.field)}
+        suffix={staged.indexOf(f.field) >= 0 ? t('aso:budget.staged') : ''}
         used={f.used}
         limit={f.limit}
         unit={f.unit}

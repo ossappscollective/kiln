@@ -331,6 +331,6 @@ test('errors use the fixed sentences, never the server text', () => {
 });
 
 test('the export steps say where to look and to use English', () => {
-  assert.ok(exportSteps.some((s) => /Export report/.test(s)));
-  assert.ok(exportSteps.some((s) => /English/.test(s)));
+  assert.ok(exportSteps().some((s) => /Export report/.test(s)));
+  assert.ok(exportSteps().some((s) => /English/.test(s)));
 });

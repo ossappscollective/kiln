@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ApiError } from '../api.ts';
 import { attentionItems } from '../app-attention.ts';
+import { t } from '../i18n/t.ts';
+import { useLocale } from '../i18n/test-setup.ts';
 import {
   type AsoCompetitor,
   type AsoConfig,
@@ -36,11 +38,13 @@ import {
   overviewStats,
   parsePastedTerms,
   parseThreshold,
+  priorityLabel,
   rankText,
   refreshText,
   resultWaitSeconds,
   sortKeywords,
   sparkline,
+  waitText,
   withAsoView,
 } from './aso.ts';
 
@@ -654,5 +658,32 @@ test('every ASO view stays reachable: two in the switch, the rest behind More, S
   assert.equal(isMoreKeywordView('fit'), true);
   assert.equal(isMoreKeywordView('rank'), false);
   assert.equal(isMoreKeywordView('terms'), false);
-  for (const v of keywordMoreViews) assert.ok(v.hint.length > 0, v.id);
+  for (const v of keywordMoreViews) assert.ok(t(v.hintKey).length > 0, v.id);
+});
+
+test('the texts follow the active language: plural forms, a list and a number in French', () => {
+  useLocale('fr');
+  try {
+    assert.equal(waitText(1), '1 seconde');
+    assert.equal(waitText(130), '3 minutes');
+    assert.equal(
+      addSummaryText({ created: 1, exists: 2, invalid: 0, limit: 0 }),
+      '1 mot-clé ajouté. 2 déjà suivis.',
+    );
+    assert.equal(t(asoViews[1]?.labelKey as string), 'Dans votre fiche');
+    assert.equal(priorityLabel(3), 'Haute');
+  } finally {
+    useLocale('en');
+  }
+});
+
+test('a place moved says "place" once and "places" otherwise', () => {
+  assert.equal(
+    changeInfo({ kind: 'up', from: 4, to: 3, delta: 1 }, true).title,
+    'Up 1 place since the last check',
+  );
+  assert.equal(
+    changeInfo({ kind: 'down', from: 3, to: 7, delta: -4 }, true).title,
+    'Down 4 places since the last check',
+  );
 });

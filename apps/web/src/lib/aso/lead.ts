@@ -1,3 +1,4 @@
+import { t } from '../i18n/t.ts';
 import type { LeadTone } from '../page-lead.ts';
 
 /**
@@ -6,8 +7,6 @@ import type { LeadTone } from '../page-lead.ts';
  */
 
 export type AsoLead = { headline: string; hint: string; tone: LeadTone };
-
-const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
 const RECENT_CHANGE_MS = 7 * 24 * 60 * 60_000;
 
@@ -39,31 +38,28 @@ export function competitorsLead(input: {
   suggestions: number;
 }): AsoLead {
   const { total, changed, notFound, suggestions } = input;
-  const more =
-    suggestions > 0
-      ? ` ${plural(suggestions, 'suggestion')} from your keywords ${suggestions === 1 ? 'is' : 'are'} below.`
-      : '';
+  const more = suggestions > 0 ? t('aso:lead.suggestionsBelow', { count: suggestions }) : '';
   if (total === 0)
     return {
-      headline: 'No competitors followed yet',
-      hint: `Follow the apps you compete with to see when their version, rating or listing changes.${more}`,
+      headline: t('aso:lead.competitors.none.headline'),
+      hint: t('aso:lead.competitors.none.hint', { more }).trim(),
       tone: 'neutral',
     };
   if (changed > 0)
     return {
-      headline: `${plural(changed, 'competitor')} changed recently`,
-      hint: `In the last 7 days. The Last change line on each card says what.${more}`,
+      headline: t('aso:lead.competitors.changed.headline', { count: changed }),
+      hint: t('aso:lead.competitors.changed.hint', { more }).trim(),
       tone: 'info',
     };
   if (notFound > 0)
     return {
-      headline: `${plural(notFound, 'competitor')} ${notFound === 1 ? 'is' : 'are'} no longer in the store`,
-      hint: `Stop following ${notFound === 1 ? 'it' : 'them'} if the app is gone for good.${more}`,
+      headline: t('aso:lead.competitors.gone.headline', { count: notFound }),
+      hint: t('aso:lead.competitors.gone.hint', { count: notFound, more }).trim(),
       tone: 'warn',
     };
   return {
-    headline: `Following ${plural(total, 'competitor')}, none changed this week`,
-    hint: `Each card shows the version, rating and price from the last look.${more}`,
+    headline: t('aso:lead.competitors.steady.headline', { count: total }),
+    hint: t('aso:lead.competitors.steady.hint', { more }).trim(),
     tone: 'neutral',
   };
 }
@@ -75,19 +71,19 @@ export function ideasLead(
   const ideas = parts.reduce((n, p) => n + p.ideas, 0);
   if (ideas > 0)
     return {
-      headline: `${plural(ideas, 'keyword idea')} not tracked yet`,
-      hint: 'Phrases your listing and your competitors repeat. The score counts how often a phrase occurs; it is not a search volume.',
+      headline: t('aso:lead.ideas.some.headline', { count: ideas }),
+      hint: t('aso:lead.ideas.some.hint'),
       tone: 'info',
     };
   const needsListing = parts.some((p) => !p.ownListing);
   const needsCompetitors = parts.some((p) => p.competitors === 0);
   return {
-    headline: 'No new keyword ideas',
+    headline: t('aso:lead.ideas.none.headline'),
     hint: needsListing
-      ? 'Sync the app to read its listing, or follow a competitor to give it more text to read.'
+      ? t('aso:lead.ideas.none.needsListing')
       : needsCompetitors
-        ? 'Follow a competitor to give it more text to read.'
-        : 'Every phrase your listing and your competitors repeat is already tracked.',
+        ? t('aso:lead.ideas.none.needsCompetitors')
+        : t('aso:lead.ideas.none.allTracked'),
     tone: 'neutral',
   };
 }
@@ -98,19 +94,19 @@ export function gapsLead(parts: readonly { gaps: number; competitors: number }[]
   const gaps = parts.reduce((n, p) => n + p.gaps, 0);
   if (competitors === 0)
     return {
-      headline: 'No competitors to compare with',
-      hint: 'Follow a competitor to see which terms it uses that your listing does not.',
+      headline: t('aso:lead.gaps.noCompetitors.headline'),
+      hint: t('aso:lead.gaps.noCompetitors.hint'),
       tone: 'neutral',
     };
   if (gaps === 0)
     return {
-      headline: 'No gaps found',
-      hint: 'Your listing has the terms the competitors use.',
+      headline: t('aso:lead.gaps.none.headline'),
+      hint: t('aso:lead.gaps.none.hint'),
       tone: 'ok',
     };
   return {
-    headline: `${plural(gaps, 'term')} competitors use that you do not`,
-    hint: 'Taken from their names, subtitles and descriptions. It compares stored text; it does not know what people search for.',
+    headline: t('aso:lead.gaps.some.headline', { count: gaps }),
+    hint: t('aso:lead.gaps.some.hint'),
     tone: 'info',
   };
 }
@@ -124,28 +120,29 @@ export function fitLead(
   const partial = parts.reduce((n, p) => n + p.partial, 0);
   if (keywords === 0)
     return {
-      headline: 'No keywords to check yet',
-      hint: 'Add keywords to see how the listing covers them.',
+      headline: t('aso:lead.fit.noKeywords.headline'),
+      hint: t('aso:lead.fit.noKeywords.hint'),
       tone: 'neutral',
     };
+  const phrase = t('aso:lead.keywordsCount', { count: keywords });
   if (missing > 0)
     return {
-      headline: `${missing} of ${plural(keywords, 'keyword')} ${missing === 1 ? 'is' : 'are'} missing from the listing`,
+      headline: t('aso:lead.fit.missing.headline', { count: missing, keywords: phrase }),
       hint:
         partial > 0
-          ? `${partial} more ${partial === 1 ? 'is' : 'are'} only partly covered. The table says where each one appears.`
-          : 'The table says where each keyword appears.',
+          ? t('aso:lead.fit.missing.partialHint', { count: partial })
+          : t('aso:lead.fit.missing.hint'),
       tone: 'warn',
     };
   if (partial > 0)
     return {
-      headline: `${partial} of ${plural(keywords, 'keyword')} ${partial === 1 ? 'is' : 'are'} only partly covered`,
-      hint: 'Every word is in the listing, but not always as a phrase in the name or subtitle.',
+      headline: t('aso:lead.fit.partial.headline', { count: partial, keywords: phrase }),
+      hint: t('aso:lead.fit.partial.hint'),
       tone: 'info',
     };
   return {
-    headline: `The listing covers all ${plural(keywords, 'keyword')}`,
-    hint: 'Each keyword is in the searched fields of the listing.',
+    headline: t('aso:lead.fit.all.headline', { count: keywords }),
+    hint: t('aso:lead.fit.all.hint'),
     tone: 'ok',
   };
 }
@@ -159,17 +156,18 @@ export function marketsLead(input: {
   const { terms, countries, unranked } = input;
   if (terms === 0)
     return {
-      headline: 'No keywords tracked yet',
-      hint: 'Add keywords on the Keywords view, in more than one country to compare.',
+      headline: t('aso:lead.markets.none.headline'),
+      hint: t('aso:lead.markets.none.hint'),
       tone: 'neutral',
     };
-  const head = `${plural(terms, 'keyword')} in ${plural(countries, 'country', 'countries')}`;
+  const head = t('aso:lead.markets.head', {
+    terms: t('aso:lead.keywordsCount', { count: terms }),
+    countries: t('aso:lead.markets.countries', { count: countries }),
+  });
   const hint =
-    countries < 2
-      ? 'Track a keyword in a second country to compare. Each cell is the best position in that storefront.'
-      : 'Each cell is the best position of the app in that storefront. An empty cell means the term is not tracked there.';
+    countries < 2 ? t('aso:lead.markets.hintOne') : t('aso:lead.markets.hintMany');
   return unranked > 0
-    ? { headline: `${head}, ${unranked} not ranked anywhere`, hint, tone: 'info' }
+    ? { headline: t('aso:lead.markets.unranked', { head, count: unranked }), hint, tone: 'info' }
     : { headline: head, hint, tone: 'neutral' };
 }
 
@@ -181,25 +179,25 @@ export function listingLead(input: {
 }): AsoLead {
   if (!input.loaded)
     return {
-      headline: 'Keywords in your listing',
-      hint: 'Reading the stored listing text.',
+      headline: t('aso:lead.listing.loading.headline'),
+      hint: t('aso:lead.listing.loading.hint'),
       tone: 'neutral',
     };
   if (input.localeRows === 0)
     return {
-      headline: 'No listing text is stored yet',
-      hint: 'Read it from the store in the Store listing page, then come back.',
+      headline: t('aso:lead.listing.empty.headline'),
+      hint: t('aso:lead.listing.empty.hint'),
       tone: 'neutral',
     };
   if (input.untracked > 0)
     return {
-      headline: `${plural(input.untracked, 'term')} in your listing ${input.untracked === 1 ? 'is' : 'are'} not tracked`,
-      hint: 'Track them to see where they rank. Nothing is read from a store until you press Check now.',
+      headline: t('aso:lead.listing.untracked.headline', { count: input.untracked }),
+      hint: t('aso:lead.listing.untracked.hint'),
       tone: 'info',
     };
   return {
-    headline: 'Every term in your listing is tracked',
-    hint: 'What your synced store listing sets, per locale, and the rank of each term today.',
+    headline: t('aso:lead.listing.allTracked.headline'),
+    hint: t('aso:lead.listing.allTracked.hint'),
     tone: 'ok',
   };
 }
@@ -211,8 +209,8 @@ export function searchTermsLead(
   const stored = parts.filter((p) => p.stored);
   if (stored.length === 0)
     return {
-      headline: 'No search terms imported yet',
-      hint: 'Import the search terms file from Google Play Console to see what people typed before they installed.',
+      headline: t('aso:lead.searchTerms.none.headline'),
+      hint: t('aso:lead.searchTerms.none.hint'),
       tone: 'neutral',
     };
   const terms = stored.reduce((n, p) => n + p.terms, 0);
@@ -220,11 +218,11 @@ export function searchTermsLead(
   return {
     headline:
       terms === 0
-        ? 'No search terms in this period'
-        : `${plural(terms, 'search term')} from Google Play`,
+        ? t('aso:lead.searchTerms.empty.headline')
+        : t('aso:lead.searchTerms.some.headline', { count: terms }),
     hint: period
-      ? `${period}. Terms you do not track yet have a Track button.`
-      : 'Terms you do not track yet have a Track button.',
+      ? t('aso:lead.searchTerms.hintPeriod', { period })
+      : t('aso:lead.searchTerms.hint'),
     tone: 'neutral',
   };
 }

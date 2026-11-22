@@ -69,7 +69,7 @@ test('words for fields, marks for waste and repeats, the rank as a small number'
   assert.equal(sourcesText('ios', ['keywords']), 'keyword field');
   assert.equal(
     sourcesText('ios', ['keywords', 'title', 'subtitle']),
-    'keyword field, name and subtitle',
+    'keyword field, name, and subtitle',
   );
   assert.equal(
     sourcesText('android', ['title', 'shortDescription']),

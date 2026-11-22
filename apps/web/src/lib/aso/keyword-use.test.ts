@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { t } from '../i18n/t.ts';
 import {
   defaultLocale,
   NOT_READ_TEXT,
@@ -149,7 +150,7 @@ test('Google Play: no keyword field, terms are derived from the title, short des
   assert.ok(l);
   assert.equal(l.derived, true);
   assert.equal(l.keywordField, null);
-  assert.match(PLAY_DERIVED_NOTE, /no keyword field/);
+  assert.match(t(PLAY_DERIVED_NOTE), /no keyword field/);
   const hydration = l.keywords.find((k) => k.term === 'hydration');
   assert.ok(hydration, 'a frequent word of the full description');
   assert.ok(hydration.sources.indexOf('description') >= 0);
@@ -199,7 +200,7 @@ test('a locale with no text is reported as having none (the empty state of the v
   })[0];
   assert.equal(l?.hasText, false);
   assert.deepEqual(l?.keywords, []);
-  assert.match(NOT_READ_TEXT, /changes nothing in the store/);
+  assert.match(t(NOT_READ_TEXT), /changes nothing in the store/);
 });
 
 test('the view opens on the locale with most tracked keywords, else the first', () => {

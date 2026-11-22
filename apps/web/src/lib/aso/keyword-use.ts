@@ -14,6 +14,7 @@ import {
   termKeyOf,
   trackingOf,
 } from '@kiln/core';
+import { k, t } from '../i18n/t.ts';
 import {
   editableFields,
   type FieldInfo,
@@ -31,17 +32,15 @@ import {
  * and each field of the locale is measured so it can be edited. Nothing here reads a store or writes anything. ES2017 web build.
  */
 
-export const APP_STORE_NOTE =
-  'The App Store has a hidden keyword field of 100 bytes. The other words come from the name and the subtitle.';
+/** These four are message keys: `t(APP_STORE_NOTE)` where they are drawn. */
+export const APP_STORE_NOTE = k('aso:kw.appStoreNote');
 
-export const PLAY_DERIVED_NOTE =
-  'Google Play has no keyword field. These words and phrases are found in your title, short description and full description. The list is worked out by this tool from your listing text; Google Play does not keep it as keywords.';
+export const PLAY_DERIVED_NOTE = k('aso:kw.playDerivedNote');
 
-export const NOT_READ_TITLE = 'The listing has not been read from the store yet';
+export const NOT_READ_TITLE = k('aso:kw.notReadTitle');
 
 /** What to say when no listing text is stored: the tool cannot know what the listing uses. */
-export const NOT_READ_TEXT =
-  'Nothing is stored for this app yet, so this tool cannot tell which keywords your listing uses. Read the listing from the store first. Reading only copies the text into this tool; it changes nothing in the store.';
+export const NOT_READ_TEXT = k('aso:kw.notReadText');
 
 /** Phrases only count from this many words (a single word is already a term) up to this many. */
 const PHRASE_MIN_WORDS = 2;
@@ -133,11 +132,14 @@ export type UsedLocale = {
   untracked: UsedKeyword[];
 };
 
-export function rankText(t: Pick<TermTracking, 'tracked' | 'state' | 'rank'>, depth = 50): string {
-  if (!t.tracked) return 'Not tracked';
-  if (t.state === 'ranked' && t.rank !== null) return `Rank ${t.rank}`;
-  if (t.state === 'not_ranked') return `Not in the first ${depth} results`;
-  return 'Tracked, not checked yet';
+export function rankText(
+  term: Pick<TermTracking, 'tracked' | 'state' | 'rank'>,
+  depth = 50,
+): string {
+  if (!term.tracked) return t('aso:kw.rank.notTracked');
+  if (term.state === 'ranked' && term.rank !== null) return t('aso:kw.rank.rank', { rank: term.rank });
+  if (term.state === 'not_ranked') return t('aso:kw.rank.notRanked', { count: depth });
+  return t('aso:kw.rank.notChecked');
 }
 
 const FIT_KEY: Record<string, keyof FitFields> = {
@@ -263,8 +265,7 @@ export function usedKeywords(input: {
 
 /** "14 keywords, 5 tracked". */
 export function usedSummary(l: Pick<UsedLocale, 'keywords' | 'trackedCount'>): string {
-  const n = l.keywords.length;
-  return `${n} ${n === 1 ? 'keyword' : 'keywords'}, ${l.trackedCount} tracked`;
+  return t('aso:kw.summary', { count: l.keywords.length, tracked: l.trackedCount });
 }
 
 /** The locale a view opens on: the one with most tracked keywords, else the first. */
