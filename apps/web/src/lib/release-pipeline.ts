@@ -215,7 +215,9 @@ const HEADINGS: Readonly<Record<StallStep, string>> = {
   build_invalid: k('release:unfinished.heading.buildInvalid'),
   ci_run: k('release:unfinished.heading.ciRun'),
 };
-export const unfinishedHeading = (step: StallStep): string => t(HEADINGS[step]);
+/** A step this version does not know gets the plain heading, as before. */
+export const unfinishedHeading = (step: StallStep): string =>
+  t(HEADINGS[step] ?? k('release:unfinished.heading.default'));
 
 export type UnfinishedInput = {
   appId: string;
@@ -240,11 +242,14 @@ export function unfinishedItem(input: UnfinishedInput): AttentionItem | null {
     tone: s.stale ? 'info' : 'warn',
     icon: 'clock',
     text: input.several
-      ? t('release:unfinished.withPlatform', { platform: platformLabel(input.platform), text: aged })
+      ? t('release:unfinished.withPlatform', {
+          platform: platformLabel(input.platform),
+          text: aged,
+        })
       : aged,
     detail: s.message,
     href: releaseStepHref(input.appId, input.scope, stepForStall(s.step), stallVersion(s.evidence)),
-    action: t(ACTIONS[s.step]),
+    action: t(ACTIONS[s.step] ?? k('release:row.openRelease')),
   };
 }
 
