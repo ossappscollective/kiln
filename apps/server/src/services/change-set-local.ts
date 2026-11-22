@@ -42,6 +42,7 @@ import {
   withTimeout,
 } from './repositories.ts';
 
+import { coded } from '../i18n/problem.ts';
 /**
  * Applying a change set as a commit on a new branch of the repository's local clone, with an
  * optional push and an optional pull request (docs/adr/0005-local-clone-reads.md, "Writing to a
@@ -194,6 +195,7 @@ export async function preflight(
       409,
       'no_local_checkout',
       'This repository has no local clone. Attach one (Local clone on the repository page) to commit to it.',
+      coded('changeSet.noLocalClone'),
     );
   }
   const off = unavailable(ctx);
@@ -207,6 +209,7 @@ export async function preflight(
       422,
       'invalid_request',
       'A pull request needs the branch on GitHub: turn on "push" as well.',
+      coded('changeSet.pushNeeded'),
     );
   }
   if (!want.push) return undefined;
@@ -215,6 +218,7 @@ export async function preflight(
       409,
       'local_only',
       'A local-only repository has no GitHub connection, so there is nothing to push to.',
+      coded('changeSet.localOnlyNoPush'),
     );
   }
   const check = await validateLocalPath(
@@ -505,10 +509,16 @@ export async function publishLocalCommit(
       409,
       'not_local_commit',
       'This change set was applied as a pull request through GitHub: there is no local commit to push.',
+      coded('changeSet.appliedAsPr'),
     );
   }
   const repository = await getRepository(db, workspaceId, String(row.repository_id));
-  if (!repository) return failure(404, 'not_found', 'The repository of this change set is gone.');
+  if (!repository) return failure(
+    404,
+    'not_found',
+    'The repository of this change set is gone.',
+    coded('changeSet.repositoryGone'),
+  );
   const refused = await preflight(ctx, repository, { push: true, openPr: input.openPr });
   if (refused) return refused;
   if (outcome.push.status === 'pushed' && (!input.openPr || outcome.pr.status === 'opened')) {
@@ -523,7 +533,12 @@ export async function publishLocalCommit(
     [now, id, workspaceId, now - PUBLISH_CLAIM_TTL_MS],
   );
   if (claimed === 0)
-    return failure(409, 'publish_in_progress', 'This change set is being pushed right now.');
+    return failure(
+      409,
+      'publish_in_progress',
+      'This change set is being pushed right now.',
+      coded('changeSet.pushing'),
+    );
   try {
     const opened = await openConnectorForRepository(
       ctx,
@@ -583,7 +598,12 @@ export async function applyChangeSetLocally(
   if (String(row.status) === 'applied')
     return { ok: true, changeSet: toView(row, true), alreadyApplied: true };
   const repository = await getRepository(db, workspaceId, String(row.repository_id));
-  if (!repository) return failure(404, 'not_found', 'The repository of this change set is gone.');
+  if (!repository) return failure(
+    404,
+    'not_found',
+    'The repository of this change set is gone.',
+    coded('changeSet.repositoryGone'),
+  );
   const refused = await preflight(ctx, repository, input);
   if (refused) return refused;
 
@@ -600,7 +620,12 @@ export async function applyChangeSetLocally(
     if (status === 'applied' && fresh)
       return { ok: true, changeSet: toView(fresh, true), alreadyApplied: true };
     if (status === 'applying')
-      return failure(409, 'apply_in_progress', 'This change set is being applied right now.');
+      return failure(
+        409,
+        'apply_in_progress',
+        'This change set is being applied right now.',
+        coded('changeSet.applying'),
+      );
     return invalidState(status, 'approved');
   }
 
@@ -648,7 +673,12 @@ export async function applyChangeSetLocally(
     });
   } catch (error) {
     await release(
-      failure(502, 'local_git_failed', 'Committing to the local clone failed unexpectedly.'),
+      failure(
+        502,
+        'local_git_failed',
+        'Committing to the local clone failed unexpectedly.',
+        coded('changeSet.commitFailed'),
+      ),
     );
     throw error;
   }

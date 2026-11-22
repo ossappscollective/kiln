@@ -15,6 +15,7 @@ import {
   WebAuthnError,
 } from './webauthn.ts';
 
+import { coded } from '../i18n/problem.ts';
 /**
  * Step-up confirmation (docs/adr/0019-step-up-confirmation.md): a second, fresh proof before a hard
  * action. A person proves themselves with a passkey (WebAuthn, user verification required) or a
@@ -976,6 +977,7 @@ async function enforce(
       {
         error: 'step_up_required_human',
         message: 'This action needs a person to confirm it in the app. An API token cannot.',
+        ...coded('stepUp.humanRequired'),
         ...info,
       },
       403,
@@ -988,6 +990,7 @@ async function enforce(
         error: 'step_up_not_enrolled',
         message:
           'This action needs a confirmation, and you have no way to confirm yet. Add a passkey or set a confirmation password in Settings, Security.',
+        ...coded('stepUp.notEnrolled'),
         ...info,
       },
       403,
@@ -1006,6 +1009,7 @@ async function enforce(
         error: 'step_up_required',
         message:
           'Confirm this action with a passkey, your password, an authenticator code or an emailed code.',
+        ...coded('stepUp.required'),
         reason,
         factors: factors.list,
         ...info,

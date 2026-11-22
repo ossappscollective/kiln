@@ -9,7 +9,6 @@ import {
 } from '@kiln/connectors';
 import { normalizeReleaseValue, supports, versionCodesOf } from '@kiln/core';
 import type { Database } from '@kiln/db';
-import { codingOf } from '../i18n/problem.ts';
 import type {
   ReleaseConnectorFactory,
   ReleaseConnectorInput,
@@ -18,6 +17,7 @@ import { credentialKindFor, type ManagedApp } from './apps.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { type Failure, failure } from './repositories.ts';
 
+import { type Coding, coded, codingOf } from '../i18n/problem.ts';
 /**
  * "Check with Google Play" (docs/api/releases-write.md, docs/adr/0025-play-release-checks.md): asks Google Play whether a release as
  * a person proposes it would be refused, WITHOUT saving anything. The connector opens an edit, stages the proposed release in the
@@ -74,8 +74,8 @@ export type PlayCheckView = {
 
 const TRACK = /^[A-Za-z0-9][A-Za-z0-9_:.-]{0,99}$/;
 const LOCALE = /^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8}){0,2}$/;
-const invalid = (code: string, message: string, field: string): Failure =>
-  failure(422, code, message, { field });
+const invalid = (code: string, message: string, field: string, coding?: Coding): Failure =>
+  failure(422, code, message, { field, ...coding });
 
 /** The release the connector validates, or why the request is not one. */
 export function playCheckRequestOf(
@@ -87,12 +87,14 @@ export function playCheckRequestOf(
       'not_applicable',
       'Check with Google Play is for Android apps. An App Store release has its own checks in the preview.',
       'track',
+      coded('playCheck.androidOnly'),
     );
   if (!TRACK.test(input.track))
     return invalid(
       'track_required',
       'Name the track of the release (for example production).',
       'track',
+      coded('publish.trackRequired'),
     );
   const codes = versionCodesOf(normalizeReleaseValue('version_codes', input.versionCodes));
   if (codes.length === 0 || codes.length > 20 || codes.some((c) => !/^[0-9]{1,10}$/.test(c)))
@@ -205,6 +207,7 @@ const mapFailure = (error: unknown, secret: string): Failure => {
     502,
     'check_failed',
     'The check could not be made. Nothing was saved in Google Play.',
+    coded('playCheck.failed'),
   );
 };
 
@@ -226,12 +229,18 @@ export async function checkPlayReleaseOf(
     [app.credentialId, input.workspaceId],
   );
   if (!credential)
-    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+    return failure(
+      422,
+      'credential_not_found',
+      'The credential of this app no longer exists.',
+      coded('credential.gone'),
+    );
   if (String(credential.kind) !== credentialKindFor[app.platform])
     return failure(
       422,
       'credential_kind',
       "This app's credential is not the kind its platform needs.",
+      coded('credential.wrongKind'),
     );
   let secret: string | undefined;
   try {
@@ -247,10 +256,16 @@ export async function checkPlayReleaseOf(
       422,
       'credential_unreadable',
       'The credential could not be decrypted. Enter its secret again.',
+      coded('credential.undecryptable'),
     );
   }
   if (secret === undefined)
-    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+    return failure(
+      422,
+      'credential_not_found',
+      'The credential of this app no longer exists.',
+      coded('credential.gone'),
+    );
 
   const connectorInput: Omit<ReleaseConnectorInput, 'fetch'> = {
     kind: credentialKindFor[app.platform],
@@ -309,6 +324,7 @@ export async function checkPlayReleaseOf(
         504,
         'timeout',
         'Google Play did not answer in time. Nothing was saved in Google Play.',
+        coded('playCheck.timeout'),
       );
     return mapFailure(error, secret);
   } finally {

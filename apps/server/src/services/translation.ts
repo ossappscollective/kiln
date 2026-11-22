@@ -23,6 +23,7 @@ import { getUsage, refundChars, reserveChars } from './translation-usage.ts';
 import type { Resolver } from './webhook-transport.ts';
 import { getSettings } from './workspace-settings.ts';
 
+import { coded } from '../i18n/problem.ts';
 /**
  * Translation of review text (and, for other features, any text) through the workspace's provider.
  *
@@ -380,6 +381,7 @@ export async function translateText(
         budget: reservation.budget,
         used: reservation.used,
         provider,
+        ...coded('translation.dailyBudget'),
       },
     );
   }

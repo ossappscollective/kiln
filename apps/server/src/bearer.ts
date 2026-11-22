@@ -10,6 +10,7 @@ import { runAsToken } from './services/audit.ts';
 import { createTestLimiter, type TestLimiter } from './services/credential-tests.ts';
 import { authenticateToken, type TokenPrincipal, touchToken } from './services/tokens.ts';
 
+import { coded } from './i18n/problem.ts';
 /**
  * Authentication for `/api/workspaces/*` and `/api/openapi.json`: the session cookie, as before, or
  * `Authorization: Bearer kiln_...`.
@@ -96,6 +97,7 @@ export function requireAuth(
         {
           error: 'invalid_token',
           message: 'The API token is not valid. It may be revoked or expired.',
+          ...coded('auth.tokenInvalid'),
         },
         {
           'WWW-Authenticate': 'Bearer error="invalid_token"',
@@ -111,6 +113,7 @@ export function requireAuth(
         {
           error: 'rate_limited',
           message: `Too many requests for this token. Try again in ${wait} seconds.`,
+          ...coded('rate.token', { count: wait }),
           retryAfterSeconds: wait,
         },
         {
@@ -153,6 +156,7 @@ function check(c: Context<AppEnv>, principal: TokenPrincipal): Response | undefi
       {
         error: 'token_not_allowed',
         message: 'API tokens cannot call this endpoint. Use a signed-in session.',
+        ...coded('auth.tokenEndpoint'),
       },
       403,
     );
@@ -162,7 +166,14 @@ function check(c: Context<AppEnv>, principal: TokenPrincipal): Response | undefi
     typeof op.access === 'object' &&
     !canToken(principal.ceiling, principal.actions, op.access.action)
   ) {
-    return c.json({ error: 'forbidden', message: 'This token does not allow that.' }, 403);
+    return c.json(
+      {
+        error: 'forbidden',
+        message: 'This token does not allow that.',
+        ...coded('auth.tokenForbidden'),
+      },
+      403,
+    );
   }
   // Workspace wide endpoints are closed to an app restricted token. The OpenAPI document is not in a workspace.
   if (principal.appIds !== null && workspace !== undefined) {
@@ -172,6 +183,7 @@ function check(c: Context<AppEnv>, principal: TokenPrincipal): Response | undefi
         {
           error: 'forbidden',
           message: 'This token is limited to some apps; this endpoint is workspace wide.',
+          ...coded('auth.tokenScopedApps'),
         },
         403,
       );

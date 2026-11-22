@@ -16,6 +16,7 @@ import {
 } from '../services/invitations.ts';
 import { SESSION_COOKIE } from './auth.ts';
 
+import { coded } from '../i18n/problem.ts';
 const param = (c: Context, name: string) => c.req.param(name) ?? '';
 
 const createBody = z.object({
@@ -34,6 +35,7 @@ const disabled = (c: Context) =>
     {
       error: 'disabled_in_single_user_mode',
       message: 'Invitations are not available in single-user mode.',
+      ...coded('invitations.singleUser'),
     },
     403,
   );

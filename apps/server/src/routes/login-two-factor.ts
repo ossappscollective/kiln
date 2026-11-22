@@ -23,6 +23,7 @@ import { negotiateLocale } from '../i18n/runtime.ts';
 import { startLoginSession } from './auth.ts';
 import { codeFailure, sendFailure } from './two-factor.ts';
 
+import { coded } from '../i18n/problem.ts';
 /**
  * The second step of signing in (docs/api/two-factor.md, docs/adr/0021-two-factor-and-smtp.md). Mounted under /api/auth, only on a server
  * with accounts. `POST /api/auth/login` answers `twoFactorRequired` with a `challenge` token INSTEAD of starting a session; these routes
@@ -44,7 +45,11 @@ export const loginChallengeCodeBody = z.object({ challenge: token, code });
 
 const gone = (c: Context) =>
   c.json(
-    { error: 'challenge_invalid', message: 'This sign-in expired or was used up. Sign in again.' },
+    {
+      error: 'challenge_invalid',
+      message: 'This sign-in expired or was used up. Sign in again.',
+      ...coded('auth.challengeExpired'),
+    },
     401,
   );
 
@@ -69,6 +74,7 @@ export function loginTwoFactorRoutes(ctx: LoginTwoFactorContext) {
         {
           error: 'wrong_challenge',
           message: 'This step does not apply to your sign-in. Sign in again.',
+          ...coded('auth.wrongChallenge'),
         },
         409,
       );
@@ -101,6 +107,7 @@ export function loginTwoFactorRoutes(ctx: LoginTwoFactorContext) {
       {
         error: 'invalid_second_factor',
         message: 'That code did not work. Try again, or sign in again.',
+        ...coded('auth.secondFactorFailed'),
       },
       401,
     );
@@ -172,6 +179,7 @@ export function loginTwoFactorRoutes(ctx: LoginTwoFactorContext) {
           error: 'factor_not_enrolled',
           reason: 'email',
           message: 'No verified email address is set up for codes.',
+          ...coded('auth.noVerifiedEmail'),
         },
         409,
       );

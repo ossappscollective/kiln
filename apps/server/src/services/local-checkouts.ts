@@ -26,6 +26,7 @@ import {
   type Repository,
 } from './repositories.ts';
 
+import { coded } from '../i18n/problem.ts';
 /**
  * Attaching a folder on this machine to a repository, or connecting it as a repository of its
  * own (docs/adr/0005-local-clone-reads.md). Reading from it is in local-reads.ts. Every function
@@ -118,7 +119,12 @@ async function examine(
   const available = localAvailability(ctx.reads);
   const off = refusal(available);
   if (off || !ctx.reads)
-    return off ?? failure(409, 'local_not_enabled', 'Local clones are not enabled.');
+    return off ?? failure(
+      409,
+      'local_not_enabled',
+      'Local clones are not enabled.',
+      coded('local.notEnabled'),
+    );
   const check = await validateLocalPath(input.path, ctx.reads.local ?? { roots: [], excluded: [] });
   if (!check.ok) return pathProblem(check);
   const inspected = await inspectLocalRepo({
@@ -272,12 +278,14 @@ export async function connectLocalRepository(
       422,
       'local_detached_head',
       'HEAD is detached in that repository. Choose the branch to read.',
+      coded('local.detachedHead'),
     );
   }
   const taken = await findByPath(ctx, input.workspaceId, done.realPath);
   if (taken) {
     return failure(409, 'already_connected', `That folder is already connected as ${taken.name}.`, {
       repositoryId: taken.id,
+      ...coded('local.folderConnected', { name: taken.name }),
     });
   }
   const id = randomUUID();
@@ -313,7 +321,7 @@ export async function connectLocalRepository(
           409,
           'already_connected',
           `That folder is already connected as ${again.name}.`,
-          { repositoryId: again.id },
+          { repositoryId: again.id, ...coded('local.folderConnected', { name: again.name }) },
         );
     }
     throw error;
@@ -345,7 +353,12 @@ export async function attachLocalCheckout(
   const stored = repository.local;
   const path = input.path ?? stored?.path;
   if (path === undefined) {
-    return failure(422, 'local_path_required', 'Enter the path of the local clone to attach.');
+    return failure(
+      422,
+      'local_path_required',
+      'Enter the path of the local clone to attach.',
+      coded('local.pathRequired'),
+    );
   }
   const pathChanged = stored !== null && input.path !== undefined && input.path !== stored.path;
   // A new folder starts on its own checked out branch; the same folder keeps its branch.
@@ -358,6 +371,7 @@ export async function attachLocalCheckout(
       422,
       'local_detached_head',
       'HEAD is detached in that repository. Choose the branch to read.',
+      coded('local.detachedHead'),
     );
   }
   const remote = done.inspection.remote;
@@ -375,6 +389,12 @@ export async function attachLocalCheckout(
       {
         origin: `${remote.owner}/${remote.repo}`,
         repository: `${repository.owner}/${repository.repo}`,
+        ...coded('local.originMismatch', {
+          remoteOwner: remote.owner,
+          remoteRepo: remote.repo,
+          repoOwner: repository.owner,
+          repoRepo: repository.repo,
+        }),
       },
     );
   }
@@ -382,6 +402,7 @@ export async function attachLocalCheckout(
   if (taken && taken.id !== repository.id) {
     return failure(409, 'path_in_use', `That folder is already used by ${taken.name}.`, {
       repositoryId: taken.id,
+      ...coded('local.folderUsedBy', { name: taken.name }),
     });
   }
 
@@ -438,7 +459,12 @@ export async function attachLocalCheckout(
     });
   } catch (error) {
     if (isUniqueViolation(error)) {
-      return failure(409, 'path_in_use', 'That folder is already used by another repository.');
+      return failure(
+        409,
+        'path_in_use',
+        'That folder is already used by another repository.',
+        coded('local.folderUsedByOther'),
+      );
     }
     // The repository was disconnected while the folder was being checked.
     if (error instanceof Error && /foreign key/i.test(error.message))
@@ -464,10 +490,16 @@ export async function detachLocalCheckout(
       409,
       'local_only',
       'A local-only repository is only its folder. Disconnect the repository instead of detaching the folder.',
+      coded('local.onlyFolder'),
     );
   }
   if (!repository.local)
-    return failure(404, 'no_local_checkout', 'This repository has no local clone attached.');
+    return failure(
+      404,
+      'no_local_checkout',
+      'This repository has no local clone attached.',
+      coded('local.noClone'),
+    );
   const now = ctx.now();
   await ctx.db.transaction(async (tx) => {
     await tx.execute(

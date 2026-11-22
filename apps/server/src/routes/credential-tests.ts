@@ -19,6 +19,7 @@ import {
 } from '../services/credentials.ts';
 import { type TranslationContext, testLibreTranslateSecret } from '../services/translation.ts';
 
+import { coded } from '../i18n/problem.ts';
 export type CredentialTestDeps = CredentialTesterOptions & {
   /**
    * The LibreTranslate key is tested against the address saved in the workspace settings, through the
@@ -70,6 +71,7 @@ export function credentialTestRoutes(services: Services, deps: CredentialTestDep
       {
         error: 'rate_limited',
         message: `Too many connection tests. Try again in ${wait} seconds.`,
+        ...coded('rate.tests', { count: wait }),
       },
       429,
     );

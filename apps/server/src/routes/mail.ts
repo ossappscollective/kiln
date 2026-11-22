@@ -22,6 +22,7 @@ import { requireManage } from '../services/step-up.ts';
 import { activeEmail } from '../services/two-factor.ts';
 import type { Resolver } from '../services/webhook-transport.ts';
 
+import { coded } from '../i18n/problem.ts';
 /**
  * Mail settings (docs/api/mail.md). Mounted under /api/workspaces. The setting is for the whole server, not for the workspace: the
  * workspace id in the path is only the door (an owner or admin of it may change the server's mail setting). Closed to API tokens.
@@ -89,6 +90,7 @@ export function mailRoutes(ctx: MailRoutesContext) {
             error: 'smtp_locked',
             message:
               'The mail server is set by the server environment (KILN_SMTP_HOST). Change it there.',
+            ...coded('mail.smtpLocked'),
           },
           409,
         );
@@ -97,6 +99,7 @@ export function mailRoutes(ctx: MailRoutesContext) {
           {
             error: 'password_required',
             message: 'Type the password again when the host, the port or the user name changes.',
+            ...coded('mail.passwordRequired'),
           },
           400,
         );
@@ -130,6 +133,7 @@ export function mailRoutes(ctx: MailRoutesContext) {
           error: 'smtp_locked',
           message:
             'The mail server is set by the server environment (KILN_SMTP_HOST). Change it there.',
+          ...coded('mail.smtpLocked'),
         },
         409,
       );
@@ -152,6 +156,7 @@ export function mailRoutes(ctx: MailRoutesContext) {
           error: 'rate_limited',
           retryAfterSeconds: wait,
           message: 'Too many test messages. Try again later.',
+          ...coded('mail.testRateLimited'),
         },
         429,
       );
@@ -163,14 +168,22 @@ export function mailRoutes(ctx: MailRoutesContext) {
         : ((await activeEmail(db, user.id)) ?? undefined);
       if (!to)
         return c.json(
-          { error: 'email_required', message: 'Enter the address to send the test message to.' },
+          {
+            error: 'email_required',
+            message: 'Enter the address to send the test message to.',
+            ...coded('mail.addressRequired'),
+          },
           400,
         );
     } else {
       to = user.email;
       if (body.data?.to && body.data.to.trim().toLowerCase() !== user.email.toLowerCase()) {
         return c.json(
-          { error: 'forbidden', message: 'A test message goes to your own account email only.' },
+          {
+            error: 'forbidden',
+            message: 'A test message goes to your own account email only.',
+            ...coded('mail.ownEmailOnly'),
+          },
           403,
         );
       }

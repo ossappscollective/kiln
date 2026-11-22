@@ -380,7 +380,7 @@ dbTest(
       challenge: 'lgc_unknown',
     });
     assert.equal(res.status, 401);
-    assert.deepEqual(Object.keys(res.body).sort(), ['error', 'message']);
+    assert.deepEqual(Object.keys(res.body).sort(), ['code', 'error', 'message']);
     const big = await t.raw('POST', '/api/auth/login/two-factor', {
       challenge: 'x'.repeat(5000),
       method: 'totp',

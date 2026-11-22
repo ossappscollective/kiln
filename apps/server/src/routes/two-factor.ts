@@ -34,6 +34,7 @@ import {
 } from '../services/two-factor.ts';
 import { negotiateLocale } from '../i18n/runtime.ts';
 
+import { coded } from '../i18n/problem.ts';
 /**
  * Two-factor routes (docs/api/two-factor.md, docs/adr/0021-two-factor-and-smtp.md). Mounted under /api/workspaces. Every route is a
  * person's: closed to API tokens in the registry. Changing a factor needs a fresh step-up confirmation (class `step_up.manage`) whenever
@@ -77,13 +78,18 @@ export function sendFailure(c: Context, result: Exclude<BeginEmailResult, { ok: 
           error: 'rate_limited',
           retryAfterSeconds: result.retryAfterSeconds,
           message: 'A code was sent a moment ago, or too many were sent. Try again later.',
+          ...coded('twoFactor.codeRateLimited'),
         },
         429,
       );
     case 'busy':
       c.header('Retry-After', '1');
       return c.json(
-        { error: 'busy', message: 'Another code is being sent. Try again in a moment.' },
+        {
+          error: 'busy',
+          message: 'Another code is being sent. Try again in a moment.',
+          ...coded('twoFactor.sending'),
+        },
         429,
       );
     case 'mail_failed':
@@ -98,17 +104,29 @@ export function sendFailure(c: Context, result: Exclude<BeginEmailResult, { ok: 
       );
     case 'email_required':
       return c.json(
-        { error: 'email_required', message: 'Enter the email address to send the code to.' },
+        {
+          error: 'email_required',
+          message: 'Enter the email address to send the code to.',
+          ...coded('twoFactor.emailRequired'),
+        },
         400,
       );
     case 'invalid_email':
       return c.json(
-        { error: 'invalid_email', message: 'That does not look like an email address.' },
+        {
+          error: 'invalid_email',
+          message: 'That does not look like an email address.',
+          ...coded('twoFactor.invalidEmail'),
+        },
         400,
       );
     case 'already_verified':
       return c.json(
-        { error: 'already_verified', message: 'This address is already verified.' },
+        {
+          error: 'already_verified',
+          message: 'This address is already verified.',
+          ...coded('twoFactor.alreadyVerified'),
+        },
         409,
       );
   }
@@ -118,15 +136,26 @@ export function sendFailure(c: Context, result: Exclude<BeginEmailResult, { ok: 
 export function codeFailure(c: Context, result: Extract<MailCodeResult, { ok: false }>): Response {
   if (result.reason === 'too_many_attempts')
     return c.json(
-      { error: 'too_many_attempts', message: 'Too many wrong codes. Ask for a new one.' },
+      {
+        error: 'too_many_attempts',
+        message: 'Too many wrong codes. Ask for a new one.',
+        ...coded('twoFactor.tooManyWrong'),
+      },
       429,
     );
   if (result.reason === 'missing')
     return c.json(
-      { error: 'code_expired', message: 'That code expired or was never sent. Ask for a new one.' },
+      {
+        error: 'code_expired',
+        message: 'That code expired or was never sent. Ask for a new one.',
+        ...coded('twoFactor.codeExpired'),
+      },
       400,
     );
-  return c.json({ error: 'invalid_code', message: 'That code is not right.' }, 400);
+  return c.json(
+    { error: 'invalid_code', message: 'That code is not right.', ...coded('twoFactor.codeWrong') },
+    400,
+  );
 }
 
 export function twoFactorRoutes(ctx: TwoFactorRoutesContext) {
@@ -183,6 +212,7 @@ export function twoFactorRoutes(ctx: TwoFactorRoutesContext) {
         {
           error: 'already_enrolled',
           message: 'An authenticator app is already set up. Remove it first to set up another.',
+          ...coded('twoFactor.alreadyEnrolled'),
         },
         409,
       );
@@ -211,13 +241,18 @@ export function twoFactorRoutes(ctx: TwoFactorRoutesContext) {
     if (!checked.ok) {
       if (checked.reason === 'not_enrolled')
         return c.json(
-          { error: 'not_started', message: 'Start setting up the authenticator app first.' },
+          {
+            error: 'not_started',
+            message: 'Start setting up the authenticator app first.',
+            ...coded('twoFactor.notStarted'),
+          },
           409,
         );
       return c.json(
         {
           error: 'invalid_code',
           message: 'That code is not right. Check the clock on your phone and try the next code.',
+          ...coded('twoFactor.codeWrongClock'),
         },
         400,
       );
@@ -322,6 +357,7 @@ export function twoFactorRoutes(ctx: TwoFactorRoutesContext) {
           error: 'factor_not_enrolled',
           reason: 'email',
           message: 'No verified email address is set up for codes.',
+          ...coded('auth.noVerifiedEmail'),
         },
         409,
       );
@@ -365,6 +401,7 @@ export function twoFactorRoutes(ctx: TwoFactorRoutesContext) {
           error: 'single_user_mode',
           message:
             'Signing in with a second factor needs a server with accounts. Here, the authenticator app and email codes confirm hard actions.',
+          ...coded('twoFactor.singleUserMode'),
         },
         409,
       );
@@ -380,6 +417,7 @@ export function twoFactorRoutes(ctx: TwoFactorRoutesContext) {
             error: 'two_factor_not_enrolled',
             message:
               'Set up an authenticator app or verify your email first, so you can still sign in.',
+            ...coded('twoFactor.enrolFirst'),
           },
           409,
         );
@@ -408,6 +446,7 @@ export function twoFactorRoutes(ctx: TwoFactorRoutesContext) {
         {
           error: 'forbidden',
           message: 'Use the Security settings to change your own second factor.',
+          ...coded('twoFactor.useSecuritySettings'),
         },
         403,
       );
@@ -415,9 +454,23 @@ export function twoFactorRoutes(ctx: TwoFactorRoutesContext) {
     if (!targetRole) return c.json({ error: 'not_found' }, 404);
     const mine = c.get('role');
     if (targetRole === 'owner' && mine !== 'owner')
-      return c.json({ error: 'forbidden', message: 'Only an owner can reset an owner.' }, 403);
+      return c.json(
+        {
+          error: 'forbidden',
+          message: 'Only an owner can reset an owner.',
+          ...coded('twoFactor.ownerResetOwner'),
+        },
+        403,
+      );
     if (targetRole === 'admin' && mine !== 'owner')
-      return c.json({ error: 'forbidden', message: 'Only an owner can reset an admin.' }, 403);
+      return c.json(
+        {
+          error: 'forbidden',
+          message: 'Only an owner can reset an admin.',
+          ...coded('twoFactor.ownerResetAdmin'),
+        },
+        403,
+      );
     const refusal = await requireManage(guard, c);
     if (refusal) return refusal;
     await resetTwoFactor(db, target, now());

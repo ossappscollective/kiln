@@ -466,6 +466,7 @@ export async function openConnector(
       422,
       'credential_not_found',
       'That credential does not exist in this workspace (it may have been deleted).',
+      coded('credential.notInWorkspace'),
     );
   }
   const kind = String(cred.kind);
@@ -474,6 +475,7 @@ export async function openConnector(
       422,
       'credential_kind',
       'A repository needs a GitHub App or a GitHub token credential.',
+      coded('repository.credentialKind'),
     );
   }
   let secret: string | undefined;
@@ -490,10 +492,16 @@ export async function openConnector(
       422,
       'credential_unreadable',
       'The credential could not be decrypted. Enter its secret again.',
+      coded('credential.undecryptable'),
     );
   }
   if (secret === undefined)
-    return failure(422, 'credential_not_found', 'That credential does not exist.');
+    return failure(
+      422,
+      'credential_not_found',
+      'That credential does not exist.',
+      coded('credential.notFound'),
+    );
   try {
     const api = ctx.connectorFactory(kind, secret, { owner: input.owner, repo: input.repo });
     const { repository, workspaceId } = input;
@@ -642,7 +650,12 @@ export async function connectRepository(
       )
     ).length > 0;
   const duplicate = () =>
-    failure(409, 'already_connected', `${input.owner}/${input.repo} is already connected.`);
+    failure(
+      409,
+      'already_connected',
+      `${input.owner}/${input.repo} is already connected.`,
+      coded('repository.alreadyConnected', { owner: input.owner, repo: input.repo }),
+    );
   if (await taken()) return duplicate();
 
   const opened = await openConnector(ctx, input, actor, 'repository.connect');
@@ -708,6 +721,7 @@ export async function disconnectRepository(
         409,
         'open_change_sets',
         'A change set was just created for this repository. Discard or finish it first.',
+        coded('repository.changeSetJustCreated'),
       );
     }
     throw error;
@@ -732,6 +746,7 @@ async function disconnect(
         409,
         'open_change_sets',
         'Discard or finish the open change sets of this repository first.',
+        coded('repository.openChangeSets'),
       );
     }
     await tx.execute(
@@ -919,6 +934,7 @@ export async function readRepositoryListing(
         404,
         'target_not_found',
         'That detected listing target is not in the repository any more. Scan again and choose another.',
+        coded('repository.targetGone'),
       );
     }
     throw error;

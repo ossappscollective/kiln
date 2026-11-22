@@ -13,6 +13,7 @@ import { getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { type Failure, failure } from './repositories.ts';
 
+import { coded } from '../i18n/problem.ts';
 /**
  * Per-app settings of a Google Play release (docs/adr/0029-direct-play-release.md, docs/api/releases-write.md): the default share the
  * release steps start from, and whether a staged rollout is offered at all. Plain configuration, never a secret.
@@ -137,6 +138,7 @@ export async function updateAppReleaseSettings(
       422,
       'not_applicable',
       'These settings are for Google Play releases. An App Store release has no share.',
+      coded('app.releaseSettingsGooglePlay'),
     );
   const issues: { path: string; message: string }[] = [];
   const next: Partial<AppReleaseSettings> = {};
@@ -152,7 +154,12 @@ export async function updateAppReleaseSettings(
     } else issues.push({ path: key, message: 'Not a release setting of an app.' });
   }
   if (issues.length > 0)
-    return failure(422, 'invalid_setting', 'A release setting is not valid.', { issues });
+    return failure(
+      422,
+      'invalid_setting',
+      'A release setting is not valid.',
+      { issues, ...coded('app.releaseSettingInvalid') },
+    );
   return db.transaction(async (tx) => {
     const before = await readAppReleaseSettings(tx, input.workspaceId, input.appId);
     const after: AppReleaseSettings = { ...before, ...next };

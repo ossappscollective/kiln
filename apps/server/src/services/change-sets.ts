@@ -28,6 +28,7 @@ import {
   withTimeout,
 } from './repositories.ts';
 
+import { coded } from '../i18n/problem.ts';
 type Actor = { type: ActorType; id: string };
 
 /** An `applying` claim older than this is taken to be abandoned (a crash) and may be re-claimed. */
@@ -381,6 +382,7 @@ export async function createChangeSet(
   if (files.length === 0) {
     return failure(422, 'no_changes', 'The listing is the same as in the repository.', {
       warnings,
+      ...coded('changeSet.listingSame'),
     });
   }
   const origin = typeof input.origin === 'function' ? input.origin() : input.origin;
@@ -396,6 +398,7 @@ export async function createChangeSet(
         404,
         'not_found',
         'The repository was disconnected while this was being made.',
+        coded('changeSet.repositoryDisconnected'),
       );
     }
     throw error;
@@ -424,7 +427,12 @@ export async function createFileChangeSet(
   const repository = await getRepository(ctx.db, input.workspaceId, input.repositoryId);
   if (!repository) return failure(404, 'not_found');
   if (input.files.length === 0)
-    return failure(422, 'no_changes', 'There is nothing to put in a change set.');
+    return failure(
+      422,
+      'no_changes',
+      'There is nothing to put in a change set.',
+      coded('changeSet.nothingToPut'),
+    );
   const id = randomUUID();
   const now = ctx.now();
   try {
@@ -435,6 +443,7 @@ export async function createFileChangeSet(
         404,
         'not_found',
         'The repository was disconnected while this was being made.',
+        coded('changeSet.repositoryDisconnected'),
       );
     throw error;
   }
@@ -508,6 +517,7 @@ export async function approveChangeSet(
         422,
         'nothing_to_apply',
         'Nothing left to apply: the repository already has this change. Discard the change set.',
+        coded('changeSet.nothingToApply'),
       );
     }
     const changed = await tx.execute(
@@ -554,7 +564,12 @@ export async function discardChangeSet(
     if (!input.mayDiscardAny) {
       const own = row.created_by_type === actor.type && row.created_by_id === actor.id;
       if (!own || status !== 'draft') {
-        return failure(403, 'forbidden', 'You can discard only your own drafts.');
+        return failure(
+          403,
+          'forbidden',
+          'You can discard only your own drafts.',
+          coded('changeSet.ownDraftsOnly'),
+        );
       }
     }
     const now = ctx.now();
@@ -656,7 +671,12 @@ export async function applyChangeSet(
     if (status === 'applied')
       return { ok: true, changeSet: toView(row, true), alreadyApplied: true };
     if (status === 'applying') {
-      return failure(409, 'apply_in_progress', 'This change set is being applied right now.');
+      return failure(
+        409,
+        'apply_in_progress',
+        'This change set is being applied right now.',
+        coded('changeSet.applying'),
+      );
     }
     return invalidState(status, 'approved');
   }
@@ -685,7 +705,12 @@ export async function applyChangeSet(
   });
 
   if (!repository) {
-    const f = failure(404, 'not_found', 'The repository of this change set is gone.');
+    const f = failure(
+      404,
+      'not_found',
+      'The repository of this change set is gone.',
+      coded('changeSet.repositoryGone'),
+    );
     await release(f);
     return withSet(f);
   }
@@ -758,6 +783,11 @@ export async function applyChangeSet(
       `GitHub did not answer within ${Math.round(ctx.timeoutMs / 1000)} seconds and the request was cancelled. ` +
         `The branch ${branch} or its pull request may already exist on GitHub: check there. ` +
         `This change set stays "applying" and can be applied again after ${Math.round(APPLY_CLAIM_TTL_MS / 60_000)} minutes.`,
+      coded('changeSet.applyTimeout', {
+        count: Math.round(ctx.timeoutMs / 1000),
+        branch,
+        minutes: Math.round(APPLY_CLAIM_TTL_MS / 60_000),
+      }),
     );
     await db.transaction(async (tx) => {
       const at = ctx.now();
@@ -799,7 +829,12 @@ export async function applyChangeSet(
       f = githubFailure(error, opened.secret);
     } catch (unknown) {
       // Not a connector error. Do not leave the change set claimed.
-      await failed(failure(502, 'github_unavailable', 'Applying failed unexpectedly.'));
+      await failed(failure(
+        502,
+        'github_unavailable',
+        'Applying failed unexpectedly.',
+        coded('changeSet.applyFailed'),
+      ));
       throw unknown;
     }
     // A plain rate limit is refused before anything is written, so the set can be retried.
@@ -815,7 +850,12 @@ export async function applyChangeSet(
 
   if (!proposal.url && !proposal.commitSha) {
     return failed(
-      failure(502, 'github_unavailable', 'GitHub did not return a pull request or a commit.'),
+      failure(
+        502,
+        'github_unavailable',
+        'GitHub did not return a pull request or a commit.',
+        coded('changeSet.noPullRequestReturned'),
+      ),
       proposal.branch ? { branch: proposal.branch } : {},
     );
   }

@@ -13,6 +13,7 @@ import { parseOrigin, rowOf } from '../services/change-sets.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
 import type { Failure, RepoContext } from '../services/repositories.ts';
 
+import { coded } from '../i18n/problem.ts';
 /**
  * The two operations that can take the content of a change set from somewhere other than the
  * stored files: fixing up a branch that exists (docs/api/repositories.md, "Fix up a branch") and
@@ -80,6 +81,7 @@ export function changeSetFixupRoutes(ctx: ChangeSetFixupRoutesContext) {
       body: {
         error: 'rate_limited',
         message: `Too many ${what}. Try again in ${wait} seconds.`,
+        ...coded('rate.requests', { count: wait }),
         retryAfterSeconds: wait,
       },
     };
@@ -136,7 +138,11 @@ export function changeSetFixupRoutes(ctx: ChangeSetFixupRoutesContext) {
         return {
           ok: false,
           status: 422,
-          body: { error: 'refresh_unavailable', message: 'This server cannot read the store.' },
+          body: {
+            error: 'refresh_unavailable',
+            message: 'This server cannot read the store.',
+            ...coded('listing.cannotReadStore'),
+          },
         };
       const waited = limited(sync.limiter, c, 'store reads');
       if (waited) return waited;
@@ -222,7 +228,11 @@ export function changeSetFixupRoutes(ctx: ChangeSetFixupRoutesContext) {
       if (refresh && !can(c.get('role'), 'apps.sync')) return c.json({ error: 'forbidden' }, 403);
       if (refresh && !ctx.sync) {
         return c.json(
-          { error: 'refresh_unavailable', message: 'This server cannot read the store.' },
+          {
+            error: 'refresh_unavailable',
+            message: 'This server cannot read the store.',
+            ...coded('listing.cannotReadStore'),
+          },
           422,
         );
       }

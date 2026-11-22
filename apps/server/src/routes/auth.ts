@@ -25,6 +25,7 @@ import { mailConfigured } from '../services/mailer.ts';
 import { createLoginChallenge, loginMethods, loginNeed } from '../services/two-factor.ts';
 import { LOCAL_USER_EMAIL } from '../single-user.ts';
 
+import { coded } from '../i18n/problem.ts';
 export const SESSION_COOKIE = SESSION_COOKIE_NAME;
 
 const registerBody = z.object({
@@ -61,6 +62,7 @@ export function authRoutes(services: Services) {
         {
           error: 'disabled_in_single_user_mode',
           message: 'This server is in single-user mode. Open the app from the desktop shell.',
+          ...coded('auth.singleUserShell'),
         },
         403,
       );

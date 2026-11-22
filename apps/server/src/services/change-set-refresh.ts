@@ -21,6 +21,7 @@ import {
 } from './repositories.ts';
 import { mergeText } from './text-merge.ts';
 
+import { coded } from '../i18n/problem.ts';
 /**
  * Refreshing a stale change set (docs/api/repositories.md, "Refresh a change set"). A change set
  * records, per file, the text it was made against (`before`) and the text it wants (`after`). When
@@ -144,7 +145,12 @@ export async function readCurrent(
   actor: Actor,
 ): Promise<Outcome<{ current: Current }>> {
   const repository = await getRepository(ctx.db, input.workspaceId, input.repositoryId);
-  if (!repository) return failure(404, 'not_found', 'The repository of this change set is gone.');
+  if (!repository) return failure(
+    404,
+    'not_found',
+    'The repository of this change set is gone.',
+    coded('changeSet.repositoryGone'),
+  );
   const opened = await openConnectorForRepository(
     ctx,
     input.workspaceId,
@@ -256,6 +262,7 @@ async function load(
       409,
       'branch_created',
       'A branch was created for this change set before it failed, so it cannot be refreshed in place. Use "Fix up" (POST /change-sets/{id}/fixup) to add a commit to that branch, or discard the change set and create a new one.',
+      coded('changeSet.branchCreatedRefresh'),
     );
   }
   const files = parseFiles(row);
@@ -264,6 +271,7 @@ async function load(
       422,
       'binary_change_set',
       'This change set holds images, which cannot be refreshed in place. Discard it and make the change again.',
+      coded('changeSet.hasImagesRefresh'),
     );
   }
   const read = await readCurrent(
@@ -325,6 +333,7 @@ export async function refreshChangeSet(
   if (unknown.length > 0) {
     return failure(422, 'unknown_path', 'A choice names a file that is not in this change set.', {
       paths: unknown.slice(0, 50),
+      ...coded('changeSet.unknownFile'),
     });
   }
 
@@ -430,6 +439,7 @@ export async function refreshChangeSet(
         409,
         'changed_meanwhile',
         'This change set was changed while it was being refreshed (approved, applied or refreshed by someone else). Look again and retry.',
+        coded('changeSet.refreshChanged'),
       );
     }
     await recordAudit(tx, {

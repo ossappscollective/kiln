@@ -55,6 +55,7 @@ import {
   withTimeout,
 } from './repositories.ts';
 
+import { coded } from '../i18n/problem.ts';
 /**
  * Fixing up a branch (docs/adr/0005-local-clone-reads.md, "Fixing up a branch"): refresh the
  * content of a change set whose branch ALREADY EXISTS, and add ONE new commit on top of that
@@ -265,12 +266,18 @@ export async function fixupChangeSet(
       409,
       'no_branch',
       'This change set has no branch to fix up. Refresh it (or recompute it) instead.',
+      coded('changeSet.noBranchFixup'),
     );
   }
   const localOutcome = parseOutcome(row);
   const mode: FixupResult['mode'] = localOutcome ? 'local_branch' : 'github_pr';
   const repository = await getRepository(db, workspaceId, String(row.repository_id));
-  if (!repository) return failure(404, 'not_found', 'The repository of this change set is gone.');
+  if (!repository) return failure(
+    404,
+    'not_found',
+    'The repository of this change set is gone.',
+    coded('changeSet.repositoryGone'),
+  );
   const push = input.push === true;
   const openPr = input.openPr === true;
   if (mode === 'github_pr' && (push || openPr)) {
@@ -278,6 +285,7 @@ export async function fixupChangeSet(
       422,
       'invalid_request',
       '"push" and "openPr" apply to a change set applied as a local commit only. A pull request through GitHub is updated by the new commit.',
+      coded('changeSet.pushOnlyLocal'),
     );
   }
   if (mode === 'local_branch') {
@@ -291,6 +299,7 @@ export async function fixupChangeSet(
       422,
       'binary_change_set',
       'This change set holds images, which are applied as they are. A fix-up works on text files only: discard it and make the change again.',
+      coded('changeSet.hasImagesFixup'),
     );
   }
   const known = new Set(stored.map((f) => f.path));
@@ -298,6 +307,7 @@ export async function fixupChangeSet(
   if (unknown.length > 0) {
     return failure(422, 'unknown_path', 'A choice names a file that is not in this change set.', {
       paths: unknown.slice(0, 50),
+      ...coded('changeSet.unknownFile'),
     });
   }
   const universe = [
@@ -307,6 +317,7 @@ export async function fixupChangeSet(
   if (stray.length > 0) {
     return failure(422, 'unknown_path', 'A choice names a file that is not in this change set.', {
       paths: stray.slice(0, 50),
+      ...coded('changeSet.unknownFile'),
     });
   }
 
@@ -325,6 +336,7 @@ export async function fixupChangeSet(
         409,
         'fixup_in_progress',
         'This change set is being pushed or fixed up right now.',
+        coded('changeSet.fixupBusy'),
       );
     }
   }
@@ -574,6 +586,7 @@ async function run(
             422,
             'fixup_unsupported',
             'This connector cannot add a commit to an existing branch.',
+            coded('changeSet.noCommitToBranch'),
           ),
           false,
         );
@@ -589,6 +602,7 @@ async function run(
             409,
             'branch_missing',
             `The branch ${branch} does not exist on GitHub any more. Discard this change set and create a new one.`,
+            coded('changeSet.branchGone', { branch }),
           ),
         );
       }
@@ -621,6 +635,7 @@ async function run(
           504,
           'timeout',
           `GitHub did not answer within ${Math.round(ctx.timeoutMs / 1000)} seconds. Nothing was changed.`,
+          coded('changeSet.githubTimeout', { count: Math.round(ctx.timeoutMs / 1000) }),
         ),
         false,
       );
@@ -852,6 +867,7 @@ async function run(
               409,
               'branch_moved',
               `The branch ${branch} moved while this was being prepared. Nothing was changed; look at it again and retry.`,
+              coded('changeSet.branchMoved', { branch }),
             ),
           );
         }
@@ -861,6 +877,7 @@ async function run(
               409,
               'branch_missing',
               `The branch ${branch} does not exist on GitHub any more. Discard this change set and create a new one.`,
+              coded('changeSet.branchGone', { branch }),
             ),
           );
         }
@@ -875,6 +892,7 @@ async function run(
               504,
               'timeout',
               `GitHub did not answer within ${Math.round(ctx.timeoutMs / 1000)} seconds and the request was cancelled. The commit may already be on ${branch}: look at the branch, then fix up again (a commit that landed is found and not repeated).`,
+              coded('changeSet.fixupTimeout', { count: Math.round(ctx.timeoutMs / 1000), branch }),
             ),
           );
         } else {
@@ -920,6 +938,7 @@ async function run(
                 504,
                 'timeout',
                 'GitHub did not answer in time. The pull request may exist: check GitHub before trying again.',
+                coded('changeSet.pullRequestTimeout'),
               )
             : githubFailure(error, opened?.secret);
         } catch (unknown) {
@@ -932,6 +951,7 @@ async function run(
         422,
         'pr_unsupported',
         'This connector cannot open a pull request for an existing branch.',
+        coded('changeSet.noPullRequestExisting'),
       );
     }
   }

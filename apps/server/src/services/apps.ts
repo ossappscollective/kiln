@@ -367,6 +367,7 @@ export async function registerApp(
       422,
       'credential_not_found',
       'That credential does not exist in this workspace (it may have been deleted).',
+      coded('credential.notInWorkspace'),
     );
   }
   const needed = credentialKindFor[input.platform];
@@ -389,6 +390,7 @@ export async function registerApp(
         422,
         'repository_not_found',
         'That repository is not connected in this workspace.',
+        coded('repository.notConnected'),
       );
     }
   }
@@ -407,7 +409,12 @@ export async function registerApp(
     return rows.length > 0;
   };
   const duplicate = () =>
-    failure(409, 'already_exists', `${input.identifier} is already added for ${input.platform}.`);
+    failure(
+      409,
+      'already_exists',
+      `${input.identifier} is already added for ${input.platform}.`,
+      coded('app.alreadyAdded', { identifier: input.identifier, platform: input.platform }),
+    );
   if (await taken()) return duplicate();
 
   const id = randomUUID();
@@ -1296,6 +1303,7 @@ async function discoverableCredential(
       422,
       'credential_not_found',
       'That credential does not exist in this workspace (it may have been deleted).',
+      coded('credential.notInWorkspace'),
     );
   }
   const kind = String(credential.kind);
@@ -1304,6 +1312,7 @@ async function discoverableCredential(
       422,
       'credential_kind',
       'Apps can be found with an App Store Connect API key or a Google Play service account credential.',
+      coded('app.discoverKinds'),
     );
   }
   return { ok: true, kind };
@@ -1347,6 +1356,7 @@ export async function discoverApps(
       422,
       'packages_required',
       'Google Play cannot list the apps of an account. Enter the package names to check.',
+      coded('app.playCannotList'),
     );
   }
   const wait = take(workspaceId);
@@ -1354,6 +1364,7 @@ export async function discoverApps(
     return {
       ...failure(429, 'rate_limited', `Too many store reads. Try again in ${wait} seconds.`, {
         retryAfterSeconds: wait,
+        ...coded('rate.storeReads', { count: wait }),
       }),
       headers: { 'Retry-After': String(wait) },
     };
@@ -1373,10 +1384,16 @@ export async function discoverApps(
       422,
       'credential_unreadable',
       'The credential could not be decrypted. Enter its secret again.',
+      coded('credential.undecryptable'),
     );
   }
   if (secret === undefined) {
-    return failure(422, 'credential_not_found', 'That credential no longer exists.');
+    return failure(
+      422,
+      'credential_not_found',
+      'That credential no longer exists.',
+      coded('credential.noLongerExists'),
+    );
   }
 
   // Aborting also cancels the request the connector has in flight.
@@ -1479,6 +1496,7 @@ export async function discoverApps(
               identifier: name,
               error: 'store_not_found',
               message: `Google Play returned no app named ${name}.`,
+              ...coded('app.playNotFound', { name }),
             });
             continue;
           }
@@ -1577,6 +1595,7 @@ export async function importApps(
             status: 'failed',
             error: 'repository_not_found',
             message: 'That repository is not connected in this workspace.',
+            ...coded('repository.notConnected'),
           });
           continue;
         }
@@ -1588,6 +1607,7 @@ export async function importApps(
             status: 'skipped',
             error: 'already_exists',
             message: `${item.identifier} is already added for ${item.platform}.`,
+            ...coded('app.alreadyAdded', { identifier: item.identifier, platform: item.platform }),
             ...(app ? { app } : {}),
           });
           continue;

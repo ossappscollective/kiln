@@ -33,6 +33,7 @@ import {
   verifyFactor,
 } from '../services/step-up.ts';
 
+import { coded } from '../i18n/problem.ts';
 /**
  * Step-up confirmation (docs/api/step-up.md, docs/adr/0019-step-up-confirmation.md). Mounted under
  * /api/workspaces. Every route is a person's: closed to API tokens in the registry.
@@ -176,6 +177,7 @@ export function stepUpRoutes(ctx: StepUpRoutesContext) {
         {
           error: 'webauthn_unavailable',
           message: 'Passkeys need https, or http://localhost. Use a confirmation password here.',
+          ...coded('stepUp.passkeysNeedHttpsPassword'),
         },
         409,
       );
@@ -225,6 +227,7 @@ export function stepUpRoutes(ctx: StepUpRoutesContext) {
         {
           error: 'challenge_invalid',
           message: 'The request expired or was already used. Start again.',
+          ...coded('stepUp.challengeExpired'),
         },
         400,
       );
@@ -248,6 +251,7 @@ export function stepUpRoutes(ctx: StepUpRoutesContext) {
           error: 'passkey_rejected',
           reason: added.code,
           message: 'This passkey could not be added.',
+          ...coded('stepUp.passkeyRejected'),
         },
         400,
       );
@@ -284,6 +288,7 @@ export function stepUpRoutes(ctx: StepUpRoutesContext) {
         {
           error: 'account_password_used',
           message: 'This server confirms with your account password. Change that password instead.',
+          ...coded('stepUp.accountPassword'),
         },
         409,
       );
@@ -316,6 +321,7 @@ export function stepUpRoutes(ctx: StepUpRoutesContext) {
           error: 'factor_not_enrolled',
           message:
             'Recovery codes stand in for a passkey or a confirmation password. Add one of those first.',
+          ...coded('stepUp.recoveryNeedsOther'),
         },
         409,
       );
@@ -347,6 +353,7 @@ export function stepUpRoutes(ctx: StepUpRoutesContext) {
         {
           error: 'webauthn_unavailable',
           message: 'Passkeys need https, or http://localhost. Use your password.',
+          ...coded('stepUp.passkeysNeedHttps'),
         },
         409,
       );

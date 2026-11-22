@@ -171,6 +171,7 @@ export async function createToken(
       status: 400,
       error: 'invalid_request',
       message: 'The expiry must be in the future.',
+      ...coded('tokens.expiryPast'),
     };
   }
   const list = input.actions ? [...new Set(input.actions)] : undefined;
@@ -181,6 +182,7 @@ export async function createToken(
         status: 400,
         error: 'action_not_allowed',
         message: `A token can never hold "${action}". Managing tokens, members, credential values and webhooks is for people.`,
+        ...coded('tokens.actionNeverAllowed', { action }),
       };
     }
     if (!can(input.role, action)) {
