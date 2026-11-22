@@ -10,6 +10,6 @@
 </script>
 
 <Card title={t('common:language.title')} collapseKey="language" description={t('common:language.description')}>
-  <LanguageSelect layout="stacked" />
+  <LanguageSelect layout="stacked" account />
   <p class="hint"><T key="common:language.help" /></p>
 </Card>

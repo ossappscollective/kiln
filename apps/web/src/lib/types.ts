@@ -27,7 +27,8 @@ import type {
 } from '@kiln/core';
 import type { RevenueCatStep } from './revenuecat/revenuecat.ts';
 
-export type User = { id: string; email: string; displayName: string };
+/** `locale`: the language of emails sent without a request (en, fr, es, de), or null for none; set with `api.setMyLocale`. */
+export type User = { id: string; email: string; displayName: string; locale?: string | null };
 export type WorkspaceSummary = { id: string; name: string; role: Role };
 export type AuthStatus = {
   /** Sent only by a single-user server (the desktop app). Missing means a multi-user server. */

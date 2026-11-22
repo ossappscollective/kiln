@@ -5,16 +5,27 @@
 -->
 <script lang="ts">
   import { i18n, pickerLocales, setLocale } from '../../lib/i18n/i18n.svelte.ts';
+  import { createApi } from '../../lib/api.ts';
+  import { saveAccountLocale } from '../../lib/i18n/account-locale.ts';
   import { t } from '../../lib/i18n/t.ts';
 
-  let { layout = 'inline', block = false }: { layout?: 'inline' | 'stacked' | undefined; block?: boolean | undefined } = $props();
+  // `account`: a signed-in person's choice is also saved in the account, so emails the server sends in the background come in it.
+  let {
+    layout = 'inline',
+    block = false,
+    account = false,
+  }: { layout?: 'inline' | 'stacked' | undefined; block?: boolean | undefined; account?: boolean | undefined } = $props();
+
+  async function choose(code: string) {
+    if ((await setLocale(code)) && account) void saveAccountLocale(code, (c) => createApi().setMyLocale(c));
+  }
 
   const uid = $props.id();
 </script>
 
 <div class="language {layout}" class:block>
   <label for="{uid}-language" class:eyebrow={layout === 'stacked'}>{t('common:language.label')}</label>
-  <select id="{uid}-language" value={i18n.locale} aria-busy={i18n.switching} onchange={(e) => void setLocale(e.currentTarget.value)}>
+  <select id="{uid}-language" value={i18n.locale} aria-busy={i18n.switching} onchange={(e) => void choose(e.currentTarget.value)}>
     {#each pickerLocales as l (l.code)}
       <option value={l.code} lang={l.htmlLang}>{l.name}</option>
     {/each}

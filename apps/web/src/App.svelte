@@ -13,6 +13,9 @@
   import ToastHost from './components/ui/ToastHost.svelte';
   import { tokenFromHash } from './components/members/links.ts';
   import { ApiError, createApi } from './lib/api.ts';
+  import { adoptAccountLocale } from './lib/i18n/account-locale.ts';
+  import { setLocale } from './lib/i18n/i18n.svelte.ts';
+  import { readLocalePref } from './lib/i18n/preference.ts';
   import { t } from './lib/i18n/t.ts';
   import { initTheme } from './lib/theme.ts';
   import type { Me } from './lib/types.ts';
@@ -40,13 +43,20 @@
     },
   });
 
+  // The server's copy of the person's language: adopted when this browser has no choice of its own (a new device, a cleared browser).
+  async function loadMe(): Promise<Me> {
+    const me = await api.me();
+    void adoptAccountLocale(me.user.locale, { stored: readLocalePref, activate: (code) => setLocale(code) });
+    return me;
+  }
+
   async function start() {
     try {
       const status = await api.status();
       singleUser = status.mode === 'single_user';
-      if (singleUser) phase = status.user ? { name: 'app', me: await api.me() } : { name: 'launch' };
+      if (singleUser) phase = status.user ? { name: 'app', me: await loadMe() } : { name: 'launch' };
       else if (status.setupRequired) phase = { name: 'setup' };
-      else if (status.user) phase = { name: 'app', me: await api.me() };
+      else if (status.user) phase = { name: 'app', me: await loadMe() };
       else phase = { name: 'login' };
     } catch (e) {
       phase = { name: 'unreachable', message: e instanceof ApiError ? e.message : t('common:error.generic') };
@@ -55,7 +65,7 @@
 
   async function enter() {
     try {
-      phase = { name: 'app', me: await api.me() };
+      phase = { name: 'app', me: await loadMe() };
     } catch (e) {
       phase = { name: 'unreachable', message: e instanceof ApiError ? e.message : t('common:error.generic') };
     }

@@ -518,7 +518,7 @@
               <ThemeToggle block />
             </div>
             <div class="menu-section">
-              <LanguageSelect layout="stacked" block />
+              <LanguageSelect layout="stacked" block account />
             </div>
             {#if canSignOut}
               <div class="menu-section">

@@ -653,6 +653,9 @@ export function createApi(options: ApiOptions = {}) {
       request<TotpBegin>('POST', '/api/auth/login/enroll/totp', { challenge }),
     loginEnrollTotpConfirm: (challenge: string, code: string) =>
       request<{ user: User }>('POST', '/api/auth/login/enroll/totp/confirm', { challenge, code }),
+    /** The language of emails the server sends without a request (alerts, the digest); null clears it. */
+    setMyLocale: (locale: string | null) =>
+      request<{ user: User }>('PATCH', '/api/me', { locale }),
     loginEnrollEmail: (challenge: string) =>
       request<CodeSent>('POST', '/api/auth/login/enroll/email', { challenge }),
     loginEnrollEmailConfirm: (challenge: string, code: string) =>
