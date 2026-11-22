@@ -43,6 +43,9 @@ Web UI · Tauri shell · CLI and webhooks
 - **In-app products.** `modules/monetization/` reads in-app purchases and subscriptions into a stored snapshot (capability
   `inAppPurchases`) and has one gated write, the display name and description of one locale; prices and availability are read-only
   ([ADR 0034](adr/0034-in-app-products.md), [api/products](api/products.md)).
+- **Store experiments.** `modules/experiments/` reads Apple's Product Page Optimization experiments and custom product pages into a stored
+  snapshot (capability `storeExperimentsApi`; read only) and keeps a manual tracker for what no API exposes (Google Play)
+  ([ADR 0048](adr/0048-store-experiments.md), [api/experiments](api/experiments.md), [spike](spikes/store-experiments.md)).
 - **Store writes.** `modules/publish/` holds everything that writes to a store: staged changes, the draft push,
   version, submit, release, rollout and the pending/publish batch. Each step keeps its own switch, right and
   test seams (`PublishDeps`); the listing module reads staged state from it.

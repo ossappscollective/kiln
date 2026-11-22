@@ -21,7 +21,7 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   All apps (apps that need attention), Inbox (unanswered, workspace). The current page has a bar, a tint and a heavier label. Text is 15px.
   The header of an app page is the page name (24px) over the app name and bundle id.
 - **Views inside a page** (`ViewSwitch`, `?view=` in the address, platform, version and locale stay): Store listing = Text, Graphics;
-  Insights = Overview, Keywords, Search terms (phase 2, see 0a); Builds = Builds,
+  Insights = Overview, Keywords, Search terms (phase 2, see 0a), Experiments (`?view=experiments`, every platform: Apple tests and custom product pages, Google link-out and the manual tracker); Builds = Builds,
   Workflows, Test builds.
 - **Old addresses redirect** (`canonicalAppHash`, replaces the history entry): `/workflows` to `/builds?view=workflows`,
   `/test-builds` to `/builds?view=tests`, `/assets` to `/listing?view=graphics`, `/analytics` to `/insights`, `/aso[?view=x]` to
