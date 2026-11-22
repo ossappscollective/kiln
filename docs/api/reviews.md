@@ -332,6 +332,8 @@ Review text and display names are personal data of people who are not users of t
   and not used to build any URL.
 - `KILN_REVIEW_RETENTION_DAYS` (default 365, `0` keeps everything) deletes reviews older than that by
   the store's date, 1000 at most per run, at most once an hour in the scheduler's process.
+  The same setting prunes the stored TestFlight feedback and crash reports ([testflight-feedback](testflight-feedback.md)), and the
+  review job also reads TestFlight for Apple apps after the reviews of the same app.
 - Deleting the app deletes its reviews, sync state and rating snapshots in the same transaction.
 - Reviews are not encrypted at rest beyond what your database and disk provide.
 - A reply draft and the template bodies are stored as plain text. A draft is deleted with its review

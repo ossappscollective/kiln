@@ -64,6 +64,8 @@ thresholds. Channels are the workspace defaults. The webhook is only on where li
 | `review.new`             | A new customer review                       | info     | app       | `review.new`                                            | inbox                          | 30d           |                                                                                      |
 | `review.sync_failed`     | Reading reviews keeps failing               | warning  | app       | `review.sync_failed`                                    | inbox                          | 24h           |                                                                                      |
 | `review.unanswered`      | Reviews are waiting for an answer           | info     | workspace | `review.unanswered`                                     | inbox                          | 24h           |                                                                                      |
+| `testflight.crash`| A beta tester sent a TestFlight crash| warning| app       | `testflight.crash`| inbox                          | 30d           |                                                                                      |
+| `testflight.feedback`| A beta tester sent TestFlight feedback| info| app       | `testflight.feedback`| inbox                          | 30d           |                                                                                      |
 | `rating.dropped`         | The average rating dropped                  | warning  | app       | state, every 5 minutes                                  | inbox, email                   | 7d            | Drop that counts: 20 hundredths of a star (5 to 200); compared with 7 days (1 to 60) |
 | `store.sync_failed`      | A store sync failed                         | warning  | app       | state, every 5 minutes                                  | inbox, email                   | 24h           |                                                                                      |
 | `credential.invalid`     | A credential does not work                  | critical | workspace | `credential.test_failed`, and state                     | inbox, email, desktop, webhook | 24h           |                                                                                      |
@@ -83,7 +85,7 @@ thresholds. Channels are the workspace defaults. The webhook is only on where li
 | `system.smtp_failing`    | Alert email is failing                      | critical | workspace | state, every 5 minutes                                  | inbox, desktop, webhook        | 24h           | Failed emails in a row: 3 (2 to 50)                                                  |
 
 Who is told, by type: the `release.*`, `store.sync_failed` and `pending.stale` types go to people who can read apps; `plan.*` to plans;
-`review.*` and `rating.dropped` to reviews; `credential.invalid` to credentials; `listing.*` to listings; `ci.run_failed` and
+`review.*`, `testflight.*` and `rating.dropped` to reviews; `credential.invalid` to credentials; `listing.*` to listings; `ci.run_failed` and
 `changeset.failed` to repositories; `analytics.sync_failing` to analytics; `aso.*` to ASO; `ai.suggestion_ready` to AI use; the
 `security.*` and `system.*` types to people who can change workspace settings, except `security.member_added` (people who manage
 members). The exact action of each type is `audience` in `GET /alerts/catalog`.
@@ -97,6 +99,12 @@ review read sends **one grouped event** (`grouped: true`, `count`) instead of on
 or **more than 10 reviews** are new in one read; the alert then says "12 new reviews for App". Up to 10 new reviews are one alert each
 ("New 4-star review for App"), once per store review. The alert and its event carry ids, the store, the platform, the rating and
 counts only: not the review text, not the title, not the name ([ADR 0027](adr/0027-review-feed-and-new-review-alert.md)).
+
+### TestFlight feedback and crashes
+
+`testflight.feedback` (info) and `testflight.crash` (warning) follow the same rules as `review.new`: inbox by default, the first read of an app
+is a baseline and raises nothing, up to 10 one by one per read, then one grouped alert. The data is ids, build number, version and platform
+only: never the comment, the tester's email or the crash log ([ADR 0049](adr/0049-testflight-feedback.md)).
 
 ### Events that never alert
 

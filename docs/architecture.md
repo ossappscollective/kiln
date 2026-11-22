@@ -46,6 +46,10 @@ Web UI · Tauri shell · CLI and webhooks
 - **Store experiments.** `modules/experiments/` reads Apple's Product Page Optimization experiments and custom product pages into a stored
   snapshot (capability `storeExperimentsApi`; read only) and keeps a manual tracker for what no API exposes (Google Play)
   ([ADR 0048](adr/0048-store-experiments.md), [api/experiments](api/experiments.md), [spike](spikes/store-experiments.md)).
+- **TestFlight feedback.** `modules/testflight/` reads Apple's beta feedback and crash reports into a stored copy (capability
+  `testflightFeedbackApi`; read only), groups crashes by signature, triages them like reviews and raises `testflight.feedback` and
+  `testflight.crash` alerts; the read rides on the review job ([ADR 0049](adr/0049-testflight-feedback.md),
+  [api/testflight-feedback](api/testflight-feedback.md), [spike](spikes/testflight-feedback.md)).
 - **Store writes.** `modules/publish/` holds everything that writes to a store: staged changes, the draft push,
   version, submit, release, rollout and the pending/publish batch. Each step keeps its own switch, right and
   test seams (`PublishDeps`); the listing module reads staged state from it.
