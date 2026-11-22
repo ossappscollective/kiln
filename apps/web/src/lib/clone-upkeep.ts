@@ -3,6 +3,9 @@
  * shapes the API returns and the words for them. Pure functions; CloneCard.svelte draws them.
  */
 
+import { formatBytes as formatBytesLocal } from './i18n/format.ts';
+import { t } from './i18n/t.ts';
+
 export type CloneView = {
   repositoryId: string;
   name: string | null;
@@ -31,51 +34,34 @@ export type CloneReport = {
 
 export type PurgeResult = { removed: number; freedBytes: number };
 
-const UNITS = ['B', 'KB', 'MB', 'GB', 'TB'];
-
-/** `1.5 MB`: binary multiples, one decimal under 10, none above. `at least` is for a lower bound. */
-export function formatBytes(bytes: number, lowerBound = false): string {
-  let value = Math.max(bytes, 0);
-  let unit = 0;
-  while (value >= 1024 && unit < UNITS.length - 1) {
-    value /= 1024;
-    unit++;
-  }
-  const text =
-    unit === 0
-      ? String(Math.round(value))
-      : value < 10
-        ? value.toFixed(1)
-        : String(Math.round(value));
-  return `${lowerBound ? 'at least ' : ''}${text} ${UNITS[unit]}`;
+/** `1.5 MB` in the active language (binary multiples). */
+export function formatBytes(bytes: number): string {
+  return formatBytesLocal(bytes);
 }
 
 /** What the server does with idle clones, in a sentence (the limits come from the server's settings). */
 export function limitsSentence(limits: CloneLimits): string {
-  const parts: string[] = [];
-  if (limits.idleDays > 0)
-    parts.push(
-      `removed after ${limits.idleDays} ${limits.idleDays === 1 ? 'day' : 'days'} without use`,
-    );
-  if (limits.maxBytes > 0)
-    parts.push(
-      `the least recently used are removed above ${formatBytes(limits.maxBytes)} in total`,
-    );
-  if (parts.length === 0) return 'Clones are kept until the repository is disconnected.';
-  return `Clones are ${parts.join('; ')}. A removed clone is fetched again by the next read.`;
+  const size = formatBytes(limits.maxBytes);
+  if (limits.idleDays > 0 && limits.maxBytes > 0)
+    return t('builds:clone.limitsBoth', { count: limits.idleDays, size });
+  if (limits.idleDays > 0) return t('builds:clone.limitsIdle', { count: limits.idleDays });
+  if (limits.maxBytes > 0) return t('builds:clone.limitsSize', { size });
+  return t('builds:clone.limitsNone');
 }
 
 /** The card's line about the clone, or the reason there is none. */
 export function cloneSummary(state: Pick<RepositoryClone, 'enabled' | 'clone'>): string {
-  if (!state.enabled)
-    return 'Reads use the GitHub API (KILN_READS=api), so nothing is kept on disk.';
-  if (!state.clone) return 'No clone on disk yet. The next scan or listing makes one.';
-  return `${formatBytes(state.clone.bytes, state.clone.sizeIsLowerBound)} on the server.`;
+  if (!state.enabled) return t('builds:clone.summaryApi');
+  if (!state.clone) return t('builds:clone.summaryNone');
+  const key = state.clone.sizeIsLowerBound
+    ? 'builds:clone.onServerAtLeast'
+    : 'builds:clone.onServer';
+  return t(key, { size: formatBytes(state.clone.bytes) });
 }
 
 /** What "Free space" reported. */
 export function purgeMessage(result: PurgeResult): string {
   return result.removed === 0
-    ? 'There was no clone to remove.'
-    : `Removed the clone and freed ${formatBytes(result.freedBytes)}. The next read fetches it again.`;
+    ? t('builds:clone.purgeNone')
+    : t('builds:clone.purgeDone', { size: formatBytes(result.freedBytes) });
 }

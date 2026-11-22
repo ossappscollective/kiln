@@ -10,7 +10,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import {
-    APPLY_LOCAL_EXPLANATION,
+    applyLocalExplanation,
     type ApplyBody,
     type ApplyChoice,
     type ApplyContext,
@@ -110,7 +110,7 @@
           <span class="option-label">{t('repositories:apply.optionLocal')}</span>
           <span class="muted small" id="{uid}-local-note">
             {#if localBranch.available}
-              {APPLY_LOCAL_EXPLANATION}
+              {applyLocalExplanation()}
             {:else}
               {localBranch.reason}
             {/if}

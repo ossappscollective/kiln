@@ -424,6 +424,9 @@ export type AppSummary = {
   lastSyncAttemptAt: number | null;
   /** A short message for a person, set when the last attempt failed and cleared by the next success. */
   lastSyncError: string | null;
+  /** The stable code of that message (docs/i18n-server.md) and its params; `noteText()` in error-text.ts shows it in the person's language. */
+  lastSyncErrorCode?: string | null;
+  lastSyncErrorParams?: Record<string, string | number | boolean | null> | null;
   /** Whether the server holds an icon for the app right now. A hint: `iconUrl` is what to load. */
   hasIcon?: boolean;
   /** Where to load the icon from (same origin), or null when the last look found none. */
