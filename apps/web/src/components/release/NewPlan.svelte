@@ -7,6 +7,7 @@
 <script lang="ts">
   import type { PlanPlatform } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { planErrorMessage, planPlatformChoices } from '../../lib/release.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ChecklistTemplate, PlanDetail } from '../../lib/types.ts';
@@ -73,7 +74,7 @@
         ...(targetDate ? { targetDate } : {}),
         ...(templateId ? { templateId } : {}),
       });
-      toast.success(`Started a plan for ${version}. Nothing was sent to a store.`);
+      toast.success(t('release:newPlan.toast', { version }));
       oncreated(result.plan);
     } catch (e) {
       problem = planErrorMessage(e);
@@ -86,34 +87,34 @@
 <section class="card" aria-labelledby="{uid}-title">
   <div class="card-header">
     <div>
-      <h2 id="{uid}-title">Plan this release</h2>
-      <p>A checklist, release notes and a target date for version {version}. Nothing is sent to a store.</p>
+      <h2 id="{uid}-title">{t('release:newPlan.title')}</h2>
+      <p>{t('release:newPlan.intro', { version })}</p>
     </div>
   </div>
   <form class="stack" onsubmit={create}>
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
     <div class="field">
-      <label for="{uid}-platform">Platforms</label>
+      <label for="{uid}-platform">{t('release:newPlan.platforms')}</label>
       <select id="{uid}-platform" bind:value={platformKey}>
         {#each choices as choice (choice.label)}
           <option value={choice.value === null ? 'both' : choice.value}>{choice.label}</option>
         {/each}
       </select>
-      <p class="hint">A plan for both platforms must fit the smaller notes limit (500 characters on Google Play).</p>
+      <p class="hint">{t('release:newPlan.platformsHint', { count: 500 })}</p>
     </div>
     <div class="field">
-      <label for="{uid}-date">Target date (optional)</label>
+      <label for="{uid}-date">{t('release:newPlan.targetDate')}</label>
       <input id="{uid}-date" type="date" bind:value={targetDate} />
     </div>
     <div class="field">
-      <label for="{uid}-template">Start the checklist from</label>
+      <label for="{uid}-template">{t('release:newPlan.templateLabel')}</label>
       <select id="{uid}-template" bind:value={templateId}>
-        <option value="">An empty checklist</option>
+        <option value="">{t('release:newPlan.emptyChecklist')}</option>
         {#each templates as template (template.id)}
-          <option value={template.id}>{template.name}{template.builtin ? ' (built in)' : ''} · {template.items.length} items</option>
+          <option value={template.id}>{template.builtin ? t('release:newPlan.templateBuiltin', { name: template.name, count: template.items.length }) : t('release:newPlan.template', { name: template.name, count: template.items.length })}</option>
         {/each}
       </select>
     </div>
-    <div><Button type="submit" variant="primary" loading={busy}>Create plan</Button></div>
+    <div><Button type="submit" variant="primary" loading={busy}>{t('release:newPlan.create')}</Button></div>
   </form>
 </section>

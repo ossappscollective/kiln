@@ -1,4 +1,6 @@
 import type { Platform, ReleaseState } from '@kiln/core';
+import { formatList } from './i18n/format.ts';
+import { t } from './i18n/t.ts';
 import { formatRollout, platformLabel, statusInfo } from './portfolio.ts';
 import { dueText, formatTargetDate, planPlatformLabel } from './release.ts';
 import type { StepId } from './release-stepper.ts';
@@ -40,10 +42,9 @@ export type ReleaseLead = {
 export function elapsedText(since: number | null, now: number): string {
   if (since === null || !Number.isFinite(since) || since > now) return '';
   const hours = Math.floor((now - since) / 3_600_000);
-  if (hours < 1) return 'less than an hour';
-  if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
-  const days = Math.floor(hours / 24);
-  return `${days} ${days === 1 ? 'day' : 'days'}`;
+  if (hours < 1) return t('release:elapsed.lessThanHour');
+  if (hours < 24) return t('release:elapsed.hours', { count: hours });
+  return t('release:elapsed.days', { count: Math.floor(hours / 24) });
 }
 
 type Kind =
@@ -124,59 +125,65 @@ export function releaseLead(input: {
   if (!lead) {
     out = input.planned
       ? {
-          headline: `Version ${v} is planned, not in the store yet`,
-          hint: 'Add the version in the store console and choose a build.',
+          headline: t('release:lead.plannedHeadline', { version: v }),
+          hint: t('release:lead.plannedHint'),
           tone: 'neutral',
-          action: { label: 'Open the release steps', appId: input.appId, step: 'build' },
+          action: { label: t('release:lead.openSteps'), appId: input.appId, step: 'build' },
         }
       : {
-          headline: `Version ${v} is not in the store yet`,
-          hint: 'Sync the app to read its state, or start a plan below.',
+          headline: t('release:lead.notInStoreHeadline', { version: v }),
+          hint: t('release:lead.notInStoreHint'),
           tone: 'neutral',
           action: null,
         };
   } else {
-    const on = platforms.length > 1 ? ` on ${platformLabel(lead.platform)}` : '';
+    // With two platforms the headline names the one it is about: a message of its own, never a spliced fragment.
+    const on = platforms.length > 1;
+    const params = { version: v, platform: platformLabel(lead.platform) };
     const share = formatRollout(lead.rolloutFraction);
     const go = (label: string, step: StepId): LeadAction => ({ label, appId: lead.appId, step });
     switch (kindOf(lead.status)) {
       case 'rejected':
         out = {
-          headline: `Version ${v}${on} was rejected by the store`,
-          hint: 'Fix what the store names, then send it again.',
+          headline: on ? t('release:lead.rejectedOn', params) : t('release:lead.rejected', params),
+          hint: t('release:lead.rejectedHint'),
           tone: 'bad',
-          action: go('See what to fix', 'review'),
+          action: go(t('release:lead.rejectedAction'), 'review'),
         };
         break;
       case 'approved':
         out = {
-          headline: `Version ${v}${on} is approved: waiting for you to release it`,
-          hint: 'Nothing goes out to people until you release it.',
+          headline: on ? t('release:lead.approvedOn', params) : t('release:lead.approved', params),
+          hint: t('release:lead.approvedHint'),
           tone: 'warn',
-          action: go('Release it', 'confirm'),
+          action: go(t('release:lead.approvedAction'), 'confirm'),
         };
         break;
       case 'preparing':
         out = {
-          headline: `Version ${v}${on} is being prepared, not sent to review yet`,
-          hint: 'Finish the steps, then send it to the store.',
+          headline: on ? t('release:lead.preparingOn', params) : t('release:lead.preparing', params),
+          hint: t('release:lead.preparingHint'),
           tone: 'info',
-          action: go('Finish the release', 'confirm'),
+          action: go(t('release:lead.preparingAction'), 'confirm'),
         };
         break;
       case 'halted':
         out = {
-          headline: `The rollout of ${v}${on} is halted${share ? ` at ${share} of users` : ''}`,
-          hint: 'The store is not sending it to more people. Resume or finish it when you are ready.',
+          headline: share
+            ? on ? t('release:lead.haltedOnAt', { ...params, share }) : t('release:lead.haltedAt', { ...params, share })
+            : on ? t('release:lead.haltedOn', params) : t('release:lead.halted', params),
+          hint: t('release:lead.haltedHint'),
           tone: 'warn',
-          action: go('Open the release steps', 'confirm'),
+          action: go(t('release:lead.openSteps'), 'confirm'),
         };
         break;
       case 'in_review': {
         const elapsed = elapsedText(lead.since, input.now);
         out = {
-          headline: `Version ${v}${on} is in store review${elapsed ? ` for ${elapsed}` : ''}`,
-          hint: 'Waiting on the store. Nobody here can speed it up.',
+          headline: elapsed
+            ? on ? t('release:lead.inReviewOnFor', { ...params, elapsed }) : t('release:lead.inReviewFor', { ...params, elapsed })
+            : on ? t('release:lead.inReviewOn', params) : t('release:lead.inReview', params),
+          hint: t('release:lead.inReviewHint'),
           tone: 'info',
           // This page is where the review is followed: there is nothing to open (Prepare release has no step for it).
           action: null,
@@ -185,32 +192,34 @@ export function releaseLead(input: {
       }
       case 'rolling_out':
         out = {
-          headline: `Version ${v}${on} is rolling out${share ? `: ${share} of users` : ''}`,
-          hint: 'It is going out in stages. Nothing is waiting for you.',
+          headline: share
+            ? on ? t('release:lead.rollingOutOnShare', { ...params, share }) : t('release:lead.rollingOutShare', { ...params, share })
+            : on ? t('release:lead.rollingOutOn', params) : t('release:lead.rollingOut', params),
+          hint: t('release:lead.rollingOutHint'),
           tone: 'info',
-          action: go('Open the release steps', 'confirm'),
+          action: go(t('release:lead.openSteps'), 'confirm'),
         };
         break;
       case 'propagating':
         out = {
-          headline: `Version ${v}${on} was released and is reaching the store`,
-          hint: 'The store is still making it visible. Nothing is waiting for you.',
+          headline: on ? t('release:lead.propagatingOn', params) : t('release:lead.propagating', params),
+          hint: t('release:lead.propagatingHint'),
           tone: 'info',
           action: null,
         };
         break;
       case 'live':
         out = {
-          headline: `Version ${v}${on} is live`,
-          hint: 'Available to users. Nothing is waiting for you.',
+          headline: on ? t('release:lead.liveOn', params) : t('release:lead.live', params),
+          hint: t('release:lead.liveHint'),
           tone: 'ok',
           action: null,
         };
         break;
       default:
         out = {
-          headline: `Version ${v}${on} is in a store state this tool does not know`,
-          hint: 'Sync the app to read it again.',
+          headline: on ? t('release:lead.unknownOn', params) : t('release:lead.unknown', params),
+          hint: t('release:lead.unknownHint'),
           tone: 'neutral',
           action: null,
         };
@@ -221,7 +230,7 @@ export function releaseLead(input: {
     out = {
       ...out,
       tone: 'warn',
-      hint: 'The plan is blocked: read the reason below before you go on.',
+      hint: t('release:lead.blockedHint'),
     };
   return { ...out, words };
 }
@@ -239,12 +248,16 @@ export function checklistView<T extends { required: boolean; done: boolean }>(
   const openRequired = items.filter((i) => !i.done && i.required);
   const open = [...openRequired, ...items.filter((i) => !i.done && !i.required)];
   const done = items.filter((i) => i.done);
-  const headline = items.length === 0 ? 'No items yet' : `${done.length} of ${items.length} done`;
+  const headline =
+    items.length === 0
+      ? t('release:checklist.none')
+      : t('release:checklist.progress', { done: done.length, total: items.length });
   let hint = '';
   if (items.length > 0) {
     if (openRequired.length > 0)
-      hint = `${openRequired.length} required ${openRequired.length === 1 ? 'item is' : 'items are'} still open.`;
-    else hint = open.length > 0 ? 'Every required item is done.' : 'Everything is done.';
+      hint = t('release:checklist.requiredOpen', { count: openRequired.length });
+    else
+      hint = open.length > 0 ? t('release:checklist.requiredDone') : t('release:checklist.allDone');
   }
   return { open, done, headline, hint };
 }
@@ -259,13 +272,14 @@ export function planLine(
   const parts: string[] = [planPlatformLabel(plan.platform)];
   if (plan.targetDate) {
     const due = dueText(plan.due, plan.released);
-    parts.push(`Target ${formatTargetDate(plan.targetDate)}${due ? ` (${due.text})` : ''}`);
-  } else parts.push('No target date');
+    const date = formatTargetDate(plan.targetDate);
+    parts.push(
+      due ? t('release:planLine.targetDue', { date, due: due.text }) : t('release:planLine.target', { date }),
+    );
+  } else parts.push(t('release:planLine.noTarget'));
   const { notes } = plan.readiness;
   if (notes.locales > 0)
-    parts.push(
-      `Release notes in ${notes.filled} of ${notes.locales} ${notes.locales === 1 ? 'locale' : 'locales'}`,
-    );
+    parts.push(t('release:planLine.notes', { filled: notes.filled, count: notes.locales }));
   return parts.join(' · ');
 }
 
@@ -278,29 +292,29 @@ export function rolloutNowLine(state: RolloutState): string {
     const share = formatRollout(state.userFraction);
     switch (state.status) {
       case 'inProgress':
-        return share ? `Rolling out: ${share} of users` : 'Rolling out';
+        return share ? t('release:rolloutNow.rollingShare', { share }) : t('release:rolloutNow.rolling');
       case 'halted':
-        return share ? `Halted at ${share} of users` : 'Halted';
+        return share ? t('release:rolloutNow.haltedShare', { share }) : t('release:rolloutNow.halted');
       case 'completed':
-        return 'Released to 100% of users';
+        return t('release:rolloutNow.completed');
       case 'draft':
-        return 'Not started yet';
+        return t('release:rolloutNow.draft');
       default:
-        return `Store state: ${state.status}`;
+        return t('release:rolloutNow.storeState', { status: state.status });
     }
   }
   const day = state.currentDayNumber;
   switch (state.phasedReleaseState) {
     case null:
-      return 'No phased release';
+      return t('release:rolloutNow.noPhased');
     case 'ACTIVE':
-      return day !== null ? `Rolling out: day ${day} of 7` : 'Rolling out';
+      return day !== null ? t('release:rolloutNow.activeDay', { day }) : t('release:rolloutNow.rolling');
     case 'PAUSED':
-      return day !== null ? `Paused on day ${day} of 7` : 'Paused';
+      return day !== null ? t('release:rolloutNow.pausedDay', { day }) : t('release:rolloutNow.paused');
     case 'COMPLETE':
-      return 'Released to all users';
+      return t('release:rolloutNow.complete');
     default:
-      return `Phased release ${state.phasedReleaseState.toLowerCase()}`;
+      return t('release:rolloutNow.phasedOther', { state: state.phasedReleaseState.toLowerCase() });
   }
 }
 
@@ -313,7 +327,5 @@ export function irreversibleLine(
 ): string | null {
   const names = buttons.filter((b) => b.irreversible && !b.disabled).map((b) => b.label);
   if (names.length === 0) return null;
-  const list =
-    names.length < 3 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
-  return `${list} cannot be undone.`;
+  return t('release:irreversible', { count: names.length, list: formatList(names) });
 }

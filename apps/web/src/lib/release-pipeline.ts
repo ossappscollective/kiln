@@ -7,6 +7,7 @@ import {
   type StallStep,
 } from '@kiln/core';
 import type { AttentionItem } from './app-attention.ts';
+import { k, t } from './i18n/t.ts';
 import type { PlatformScope } from './app-scope.ts';
 import { releaseStepHref, type StepId } from './release-stepper.ts';
 
@@ -63,9 +64,9 @@ export type Waiting = { who: 'you' | 'store' | 'ci'; text: string };
 
 /** "Waiting for you" (a person has to act) or "Waiting on the store" (review, processing) or "Waiting on CI"; null when nobody is. */
 export function waitingOf(waitingOn: 'ci' | 'store' | 'you' | null): Waiting | null {
-  if (waitingOn === 'you') return { who: 'you', text: 'Waiting for you' };
-  if (waitingOn === 'store') return { who: 'store', text: 'Waiting on the store' };
-  if (waitingOn === 'ci') return { who: 'ci', text: 'Waiting on CI' };
+  if (waitingOn === 'you') return { who: 'you', text: t('release:waiting.you') };
+  if (waitingOn === 'store') return { who: 'store', text: t('release:waiting.store') };
+  if (waitingOn === 'ci') return { who: 'ci', text: t('release:waiting.ci') };
   return null;
 }
 
@@ -113,23 +114,27 @@ export function stallVersion(evidence: readonly StallEvidence[]): string | null 
 // ---------------------------------------------------------------------------------------------
 // The strip
 
-export const STRIP_LABELS: Readonly<Record<PipelineStepRow['id'], string>> = {
-  ci: 'CI',
-  build: 'Build',
-  prepare: 'Prepare',
-  review: 'Review',
-  release: 'Release',
+/** Message keys (not text): translate where the strip is built, so a change of language shows. */
+export const STRIP_LABEL_KEYS: Readonly<Record<PipelineStepRow['id'], string>> = {
+  ci: k('release:strip.ci'),
+  build: k('release:strip.build'),
+  prepare: k('release:strip.prepare'),
+  review: k('release:strip.review'),
+  release: k('release:strip.release'),
 };
+export const stripLabel = (id: PipelineStepRow['id']): string => t(STRIP_LABEL_KEYS[id]);
 
-const STATUS_WORDS: Readonly<Record<PipelineStepStatus, string>> = {
-  done: 'Done',
-  current: 'Now',
-  waiting: 'Waiting',
-  failed: 'Failed',
-  stalled: 'Stalled',
-  todo: 'Not yet',
-  unknown: 'Not known',
+const STATUS_WORD_KEYS: Readonly<Record<PipelineStepStatus, string>> = {
+  done: k('release:strip.word.done'),
+  current: k('release:strip.word.current'),
+  waiting: k('release:strip.word.waiting'),
+  failed: k('release:strip.word.failed'),
+  stalled: k('release:strip.word.stalled'),
+  todo: k('release:strip.word.todo'),
+  unknown: k('release:strip.word.unknown'),
 };
+/** The word of a step's status ("Done", "Now", "Waiting"). */
+export const statusWord = (status: PipelineStepStatus): string => t(STATUS_WORD_KEYS[status]);
 
 export type StripStep = {
   id: PipelineStepRow['id'];
@@ -167,9 +172,9 @@ export function stripModel(
   return {
     steps: pipeline.steps.map((s, i) => ({
       id: s.id,
-      label: STRIP_LABELS[s.id],
+      label: stripLabel(s.id),
       status: s.status,
-      word: STATUS_WORDS[s.status],
+      word: statusWord(s.status),
       detail: s.detail,
       current: i === mark,
     })),
@@ -188,27 +193,29 @@ export const stripVisible = (pipeline: Pick<Pipeline, 'state'>): boolean =>
 // "Release left unfinished"
 
 const ACTIONS: Readonly<Record<StallStep, string>> = {
-  approved: 'Release it',
-  rejected: 'See what to fix',
-  draft: 'Finish the release',
-  build_ready: 'Create a version',
-  build_invalid: 'See the build',
-  build_processing: 'See the build',
-  ci_run: 'Check for the build',
+  approved: k('release:unfinished.release'),
+  rejected: k('release:lead.rejectedAction'),
+  draft: k('release:lead.preparingAction'),
+  build_ready: k('release:unfinished.createVersion'),
+  build_invalid: k('release:unfinished.seeBuild'),
+  build_processing: k('release:unfinished.seeBuild'),
+  ci_run: k('release:unfinished.checkBuild'),
 };
 
 /**
  * What is left, in words: a release that was started and not finished, or, for a build (or a CI run) nobody has taken further, the
  * build. "Release left unfinished" for a build with no version was misleading: there is no release to finish yet.
  */
-const HEADINGS: Readonly<Partial<Record<StallStep, string>>> = {
-  build_ready: 'A new build has no version yet',
-  build_processing: 'A build is still processing',
-  build_invalid: 'A build failed processing',
-  ci_run: 'A CI run produced no build',
+const HEADINGS: Readonly<Record<StallStep, string>> = {
+  approved: k('release:unfinished.heading.default'),
+  rejected: k('release:unfinished.heading.default'),
+  draft: k('release:unfinished.heading.default'),
+  build_ready: k('release:unfinished.heading.buildReady'),
+  build_processing: k('release:unfinished.heading.buildProcessing'),
+  build_invalid: k('release:unfinished.heading.buildInvalid'),
+  ci_run: k('release:unfinished.heading.ciRun'),
 };
-export const unfinishedHeading = (step: StallStep): string =>
-  HEADINGS[step] ?? 'Release left unfinished';
+export const unfinishedHeading = (step: StallStep): string => t(HEADINGS[step]);
 
 export type UnfinishedInput = {
   appId: string;
@@ -226,15 +233,18 @@ export type UnfinishedInput = {
 export function unfinishedItem(input: UnfinishedInput): AttentionItem | null {
   const s = input.stalled;
   if (s === null) return null;
-  const who = input.several ? `${platformLabel(input.platform)}: ` : '';
+  const heading = unfinishedHeading(s.step);
+  const aged = s.stale ? t('release:unfinished.stale', { text: heading }) : heading;
   return {
     id: `${input.appId}:unfinished`,
     tone: s.stale ? 'info' : 'warn',
     icon: 'clock',
-    text: `${who}${unfinishedHeading(s.step)}${s.stale ? ' (more than 14 days ago)' : ''}`,
+    text: input.several
+      ? t('release:unfinished.withPlatform', { platform: platformLabel(input.platform), text: aged })
+      : aged,
     detail: s.message,
     href: releaseStepHref(input.appId, input.scope, stepForStall(s.step), stallVersion(s.evidence)),
-    action: ACTIONS[s.step] ?? 'Open the release',
+    action: t(ACTIONS[s.step]),
   };
 }
 
@@ -253,6 +263,6 @@ export function summaryByApp(
 
 /** "Waiting 10 h" / "waiting 2 days" for a stall, from its hours. */
 export function stalledFor(hours: number): string {
-  if (hours < 48) return `${Math.max(0, Math.floor(hours))} h`;
-  return `${Math.floor(hours / 24)} days`;
+  if (hours < 48) return t('release:stalledFor.hours', { count: Math.max(0, Math.floor(hours)) });
+  return t('release:stalledFor.days', { count: Math.floor(hours / 24) });
 }

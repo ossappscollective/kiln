@@ -5,8 +5,16 @@ import {
   type Platform,
   platformLabel,
 } from '@kiln/core';
+import { formatList } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import type { AppPipeline, StripStep, Waiting } from './release-pipeline.ts';
-import { STRIP_LABELS, stepForState, stripVisible, waitingOf } from './release-pipeline.ts';
+import {
+  statusWord,
+  stepForState,
+  stripLabel,
+  stripVisible,
+  waitingOf,
+} from './release-pipeline.ts';
 import type { StepId } from './release-stepper.ts';
 
 /**
@@ -86,15 +94,6 @@ const RANK: Readonly<Record<PipelineStepStatus, number>> = {
   stalled: 5,
   failed: 6,
 };
-const WORDS: Readonly<Record<PipelineStepStatus, string>> = {
-  done: 'Done',
-  current: 'Now',
-  waiting: 'Waiting',
-  failed: 'Failed',
-  stalled: 'Stalled',
-  todo: 'Not yet',
-  unknown: 'Not known',
-};
 const STEP_ORDER: readonly PipelineStepRow['id'][] = [
   'ci',
   'build',
@@ -103,15 +102,13 @@ const STEP_ORDER: readonly PipelineStepRow['id'][] = [
   'release',
 ];
 
-/** What each of the five steps means, for the hover text and the "About these steps" tip. */
+/** What each of the five steps means, for the hover text and the "About these steps" tip. Message keys: translate where drawn. */
 export const STEP_HELP: Readonly<Record<PipelineStepRow['id'], string>> = {
-  ci: 'CI: the workflow run on GitHub that builds the app and uploads it to the store.',
-  build:
-    'Build: the file the store has received from CI and finished processing. A version needs one before it can go to review.',
-  prepare:
-    'Prepare: the version in the store that you edit, with its build, notes and screenshots. Nothing is sent to review yet.',
-  review: 'Review: the store checks the version you submitted. Nobody here can speed it up.',
-  release: 'Release: the approved version goes out to people, all at once or in a staged rollout.',
+  ci: k('release:strip.help.ci'),
+  build: k('release:strip.help.build'),
+  prepare: k('release:strip.help.prepare'),
+  review: k('release:strip.help.review'),
+  release: k('release:strip.help.release'),
 };
 
 const WHO_RANK: Readonly<Record<'you' | 'store' | 'ci', number>> = { you: 3, store: 2, ci: 1 };
@@ -130,7 +127,7 @@ function mergeSteps(items: readonly TrainInput[]): StripStep[] {
         detail = row.detail;
       }
     }
-    return { id, label: STRIP_LABELS[id], status, word: WORDS[status], detail, current: false };
+    return { id, label: stripLabel(id), status, word: statusWord(status), detail, current: false };
   });
   const active = merged.findIndex(
     (s) =>
@@ -150,8 +147,9 @@ function mergeSteps(items: readonly TrainInput[]): StripStep[] {
   return merged.map((s, i) => ({ ...s, current: i === mark }));
 }
 
+/** " (iOS and Android)" when the train has several platforms, else nothing: a parameter of the sentences below. */
 const names = (items: readonly TrainInput[], several: boolean): string =>
-  several ? ` (${items.map((i) => platformLabel(i.platform)).join(' and ')})` : '';
+  several ? ` (${formatList(items.map((i) => platformLabel(i.platform)))})` : '';
 
 /** The version a build with no version of its own could go to: the only version on its way in the same app, else none. */
 function carrierOf(item: TrainInput, versions: readonly string[]): string | null {
@@ -192,13 +190,13 @@ export function releaseTrains(all: readonly TrainInput[]): Train[] {
   return trains.map((t) => describe(t));
 }
 
-function describe(t: {
+function describe(train: {
   key: string;
   version: string | null;
   items: TrainInput[];
   spare: TrainInput[];
 }): Train {
-  const members = [...t.items, ...t.spare];
+  const members = [...train.items, ...train.spare];
   const several = members.length > 1;
   const steps = mergeSteps(members);
   const who =
@@ -210,89 +208,76 @@ function describe(t: {
   let button: TrainButton;
   const first = members[0] as TrainInput;
 
-  if (t.version === null) {
+  if (train.version === null) {
     // Only a build: no version in the store takes it yet.
     const b = first.build;
     const number = b ? b.number : '';
     if (first.state === 'ci_running') {
-      lines.push('CI is building the app. Nothing is waiting for you yet.');
-      button = { label: 'Open the release steps', appId: first.appId, step: 'build' };
+      lines.push(t('release:train.ciBuilding'));
+      button = { label: t('release:lead.openSteps'), appId: first.appId, step: 'build' };
     } else if (first.state === 'ci_failed') {
-      lines.push(
-        'The last CI run failed, so there is no new build. Waiting for you to look at it.',
-      );
-      button = { label: 'See the build', appId: first.appId, step: 'build' };
+      lines.push(t('release:train.ciFailed'));
+      button = { label: t('release:unfinished.seeBuild'), appId: first.appId, step: 'build' };
     } else if (b && !b.processed) {
-      lines.push(
-        `New build ${number} is still being processed by the store. Nothing is waiting for you yet.`,
-      );
-      button = { label: 'See the build', appId: first.appId, step: 'build' };
+      lines.push(t('release:train.buildProcessing', { number }));
+      button = { label: t('release:unfinished.seeBuild'), appId: first.appId, step: 'build' };
     } else {
-      lines.push(
-        `New build ${number} is ready, and no version has it. Waiting for you: create a version for it or pick an existing one.`,
-      );
-      button = { label: 'Create or pick a version', appId: first.appId, step: 'build' };
+      lines.push(t('release:train.buildReady', { number }));
+      button = { label: t('release:train.createOrPick'), appId: first.appId, step: 'build' };
     }
   } else {
-    const v = t.version;
+    const v = train.version;
     // A processed build the version does not have: from a record with no version, or the newest build of the version's own record
     // while that version can still take it (draft or build ready).
     const unattached = [
-      ...t.spare,
-      ...t.items.filter((i) => i.state === 'draft' || i.state === 'build_ready'),
+      ...train.spare,
+      ...train.items.filter((i) => i.state === 'draft' || i.state === 'build_ready'),
     ].filter((s) => s.build?.processed && !s.build.attached);
-    const own = t.items.filter(
+    const own = train.items.filter(
       (i) => i.state === 'draft' || i.state === 'build_ready' || i.state === 'build_processing',
     );
-    const state = t.items.map((i) => i.state)[0] as string;
-    const stateOf = (s: string) => t.items.some((i) => i.state === s);
+    const state = train.items.map((i) => i.state)[0] as string;
+    const stateOf = (s: string) => train.items.some((i) => i.state === s);
+    const platforms = names(train.items, several);
     if (stateOf('rejected')) {
-      lines.push(
-        `Version ${v}${names(t.items, several)} was rejected by the store. Waiting for you to fix what it names.`,
-      );
+      lines.push(t('release:train.rejected', { version: v, platforms }));
       button = {
-        label: 'See what to fix',
-        appId: (t.items.filter((i) => i.state === 'rejected')[0] as TrainInput).appId,
+        label: t('release:lead.rejectedAction'),
+        appId: (train.items.filter((i) => i.state === 'rejected')[0] as TrainInput).appId,
         step: 'review',
       };
     } else if (stateOf('approved')) {
-      lines.push(
-        `Version ${v}${names(t.items, several)} is approved. Waiting for you to release it.`,
-      );
+      lines.push(t('release:train.approved', { version: v, platforms }));
       button = {
-        label: 'Release it',
-        appId: (t.items.filter((i) => i.state === 'approved')[0] as TrainInput).appId,
+        label: t('release:lead.approvedAction'),
+        appId: (train.items.filter((i) => i.state === 'approved')[0] as TrainInput).appId,
         step: 'confirm',
       };
     } else if (stateOf('in_review')) {
-      lines.push(
-        `Version ${v}${names(t.items, several)} is in store review. Waiting on the store.`,
-      );
+      lines.push(t('release:train.inReview', { version: v, platforms }));
       button = {
-        label: 'Follow the review',
-        appId: (t.items.filter((i) => i.state === 'in_review')[0] as TrainInput).appId,
+        label: t('release:train.followReview'),
+        appId: (train.items.filter((i) => i.state === 'in_review')[0] as TrainInput).appId,
         step: 'confirm',
         // Nothing is left to do in Prepare release: the release page shows where the review stands.
         page: 'release',
       };
     } else if (own.length > 0) {
       const mine = own[0] as TrainInput;
-      lines.push(
-        `Version ${v}${names(t.items, several)} is being prepared and has not been submitted. Waiting for you.`,
-      );
-      button = { label: 'Finish the release', appId: mine.appId, step: 'confirm' };
+      lines.push(t('release:train.preparing', { version: v, platforms }));
+      button = { label: t('release:lead.preparingAction'), appId: mine.appId, step: 'confirm' };
     } else {
       lines.push(
-        `Version ${v}${names(t.items, several)} is on its way (${state.replace(/_/g, ' ')}).`,
+        t('release:train.onItsWay', { version: v, platforms, state: state.replace(/_/g, ' ') }),
       );
-      button = { label: 'Open the release steps', appId: first.appId, step: stepForState(state) };
+      button = { label: t('release:lead.openSteps'), appId: first.appId, step: stepForState(state) };
     }
     if (unattached.length > 0) {
       const b = (unattached[0] as TrainInput).build as NonNullable<TrainInput['build']>;
-      lines.push(`Build ${b.number} is ready: attach it to ${v}.`);
+      lines.push(t('release:train.buildReadyAttach', { number: b.number, version: v }));
       // The build is what blocks the version, so it is the one button.
       button = {
-        label: `Attach build ${b.number}`,
+        label: t('release:train.attachBuild', { number: b.number }),
         appId: (unattached[0] as TrainInput).appId,
         step: 'build',
       };
@@ -300,16 +285,16 @@ function describe(t: {
   }
 
   return {
-    key: t.key,
-    version: t.version,
+    key: train.key,
+    version: train.version,
     platforms: Array.from(new Set(members.map((m) => m.platform))),
     appIds: members.map((m) => m.appId),
     title:
-      t.version !== null
-        ? `Version ${t.version}`
+      train.version !== null
+        ? t('release:train.title.version', { version: train.version })
         : first.build
-          ? `New build ${first.build.number}`
-          : 'Release',
+          ? t('release:train.title.build', { number: first.build.number })
+          : t('release:train.title.release'),
     steps,
     waiting: waitingOf(who),
     lines,

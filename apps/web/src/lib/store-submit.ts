@@ -1,5 +1,7 @@
 import { can, type Platform, platformMeta, type Role, supports } from '@kiln/core';
 import { ApiError } from './api.ts';
+import { formatPercent } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 
 /**
  * Submitting the pushed draft for the store's review (docs/api/submit.md, docs/adr/0010-store-submit.md): the
@@ -11,7 +13,8 @@ import { ApiError } from './api.ts';
 
 export const SUBMIT_ENV = 'KILN_STORE_SUBMIT_ENABLED';
 
-export const SUBMIT_ROLE_REASON = 'Submitting a draft for review needs the admin or owner role.';
+/** A message key: show it with `t(SUBMIT_ROLE_REASON)`. */
+export const SUBMIT_ROLE_REASON = k('release-store:submit.roleReason');
 
 // ---------------------------------------------------------------------------------------------
 // API shapes
@@ -120,16 +123,16 @@ export type SubmitResult = {
 export const canSubmit = (role: Role): boolean => can(role, 'store.submit');
 
 export const storeLabel = (platform: Platform): string =>
-  `${platformMeta(platform).storeName} review`;
+  t('release-store:submit.storeReview', { store: platformMeta(platform).storeName });
 
 /** What a submit never does, for the dialog and the result. */
 export const releaseStatement = (platform: Platform): string =>
   !supports(platform, 'releaseTracks')
-    ? 'This hands the version to App Review. It does not release it: after approval it stays unreleased until somebody releases it in App Store Connect. This tool never publishes.'
-    : 'This sends the held-back changes to Google Play review. It does not publish them and does not start, raise or complete a rollout. This tool never publishes.';
+    ? t('release-store:submit.statementApple')
+    : t('release-store:submit.statementGoogle');
 
 export const OFF_NOTE = (envName: string): string =>
-  `Submitting a draft for store review is switched off on this server. Someone who runs it sets ${envName || SUBMIT_ENV}=true and restarts it (see docs/api/submit.md). Nothing here can be submitted until then. Meanwhile, submit the draft in App Store Connect or Play Console.`;
+  t('release-store:submit.offNote', { env: envName || SUBMIT_ENV });
 
 export type SubmitLineInput = {
   role: Role;
@@ -158,33 +161,35 @@ export function submitLine(input: SubmitLineInput): SubmitLine {
       ? {
           kind: 'note',
           tone: 'bad',
-          text: 'Could not check whether a pushed draft is waiting to be submitted.',
+          text: t('release-store:submit.line.checkFailed'),
           retry: true,
         }
       : { kind: 'hidden' };
   }
   const unknown = input.state.unknownOutcome.submit;
   if (!input.state.pushed && !unknown) return { kind: 'hidden' };
-  const text = unknown ? 'Last submit: outcome unknown' : 'Draft pushed — ready to submit?';
+  const text = unknown
+    ? t('release-store:submit.line.unknown')
+    : t('release-store:submit.line.ready');
   if (input.configFailed)
     return {
       kind: 'note',
       tone: 'bad',
-      text: `${text} Could not check whether submitting is switched on.`,
+      text: t('release-store:submit.line.configFailed', { text }),
       retry: true,
     };
   if (input.config === null)
     return {
       kind: 'ready',
       text,
-      button: 'Submit for review…',
+      button: t('release-store:submit.line.button'),
       disabled: true,
-      reason: 'Checking whether submitting is switched on.',
+      reason: t('release-store:submit.line.checking'),
     };
   if (!input.config.enabled) {
     return {
       kind: 'off',
-      text: unknown ? text : 'Draft pushed. Submitting is switched off',
+      text: unknown ? text : t('release-store:submit.line.off'),
       note: OFF_NOTE(input.config.envName),
     };
   }
@@ -192,21 +197,27 @@ export function submitLine(input: SubmitLineInput): SubmitLine {
     return {
       kind: 'ready',
       text,
-      button: 'Submit for review…',
+      button: t('release-store:submit.line.button'),
       disabled: true,
-      reason: 'A submit or a draft push for this app is running.',
+      reason: t('release-store:submit.line.running'),
     };
   }
   if (unknown) {
     return {
       kind: 'ready',
       text,
-      button: 'Check the store, then preview…',
+      button: t('release-store:submit.line.checkThenPreview'),
       disabled: false,
       reason: null,
     };
   }
-  return { kind: 'ready', text, button: 'Submit for review…', disabled: false, reason: null };
+  return {
+    kind: 'ready',
+    text,
+    button: t('release-store:submit.line.button'),
+    disabled: false,
+    reason: null,
+  };
 }
 
 /** The muted detail after the line: "2.1 · pushed 3 hours ago by Ana". */
@@ -214,14 +225,16 @@ export function pushDetail(push: SubmitPushRecord | null, ago: (at: number) => s
   if (push === null) return '';
   const parts: string[] = [];
   if (push.versionString) parts.push(push.versionString);
-  parts.push(`pushed ${ago(push.pushedAt)}${push.pushedBy ? ` by ${push.pushedBy}` : ''}`);
+  parts.push(
+    push.pushedBy
+      ? t('release-store:submit.pushedAgoBy', { ago: ago(push.pushedAt), name: push.pushedBy })
+      : t('release-store:submit.pushedAgo', { ago: ago(push.pushedAt) }),
+  );
   return parts.join(' · ');
 }
 
 // ---------------------------------------------------------------------------------------------
 // The preview
-
-const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
 export function isSubmitPreview(value: unknown): value is SubmitPreview {
   if (typeof value !== 'object' || value === null) return false;
@@ -245,19 +258,30 @@ export function versionLine(preview: Pick<SubmitPreview, 'app' | 'version'>): st
   const v = preview.version;
   if (v === null)
     return supports(preview.app.platform, 'releaseTracks')
-      ? 'The changes held back in Google Play'
-      : 'No editable version';
-  const parts: string[] = [v.versionString ? `Version ${v.versionString}` : 'The editable version'];
-  if (v.state) parts[0] = `${parts[0]} (${v.state})`;
-  if (v.releaseType) parts.push(`release type ${v.releaseType}`);
+      ? t('release-store:submit.version.googleHeld')
+      : t('release-store:submit.version.none');
+  const named = v.versionString !== null && v.versionString !== '';
+  const head = v.state
+    ? named
+      ? t('release-store:submit.version.namedState', { version: v.versionString, state: v.state })
+      : t('release-store:submit.version.unnamedState', { state: v.state })
+    : named
+      ? t('release-store:submit.version.named', { version: v.versionString })
+      : t('release-store:submit.version.unnamed');
+  const parts: string[] = [head];
+  if (v.releaseType) parts.push(t('release-store:submit.version.releaseType', { type: v.releaseType }));
   return parts.join(', ');
 }
 
 export function buildLine(build: SubmitPreview['build']): string | null {
   if (build === null) return null;
-  const parts: string[] = [build.version ? `Build ${build.version}` : 'A build'];
+  const parts: string[] = [
+    build.version
+      ? t('release-store:submit.build.named', { version: build.version })
+      : t('release-store:submit.build.unnamed'),
+  ];
   if (build.processingState) parts.push(build.processingState);
-  if (build.expired) parts.push('expired');
+  if (build.expired) parts.push(t('release-store:submit.build.expired'));
   return parts.join(', ');
 }
 
@@ -267,26 +291,49 @@ export function localeLine(locale: SubmitLocale): string {
   const images = sets.reduce((n, s) => n + s.images, 0);
   const shots =
     sets.length === 0
-      ? 'no screenshots'
-      : `${plural(sets.length, 'screenshot set', 'screenshot sets')} (${plural(images, 'image', 'images')})`;
-  return `${locale.locale}: ${plural(locale.textFields, 'text field', 'text fields')}, ${shots}`;
+      ? t('release-store:submit.locale.noShots')
+      : t('release-store:submit.locale.sets', {
+          count: sets.length,
+          images: t('release-store:submit.locale.images', { count: images }),
+        });
+  return t('release-store:submit.locale.line', {
+    locale: locale.locale,
+    fields: t('release-store:submit.locale.fields', { count: locale.textFields }),
+    shots,
+  });
 }
 
 export function pushedText(push: SubmitPushRecord | null): string {
   if (push === null) return '';
-  return `${plural(push.texts, 'text', 'texts')} and ${plural(push.assetSets, 'graphic set', 'graphic sets')} were pushed`;
+  return t('release-store:submit.pushed.line', {
+    texts: t('release-store:submit.pushed.texts', { count: push.texts }),
+    sets: t('release-store:submit.pushed.sets', { count: push.assetSets }),
+  });
 }
 
 export function trackLine(track: SubmitTrack): string {
   const releases = track.releases.map((r) => {
-    const parts: string[] = [r.name ?? 'Unnamed release'];
+    const parts: string[] = [r.name ?? t('release-store:submit.track.unnamed')];
     if (r.status) parts.push(r.status);
     if (r.userFraction !== null && r.userFraction !== undefined)
-      parts.push(`${Math.round(r.userFraction * 10000) / 100}% of users`);
-    if (r.versionCodes.length > 0) parts.push(`version code ${r.versionCodes.join(', ')}`);
+      parts.push(
+        t('release-store:submit.track.share', {
+          share: formatPercent(r.userFraction, { maximumFractionDigits: 2 }),
+        }),
+      );
+    if (r.versionCodes.length > 0)
+      parts.push(
+        t('release-store:submit.track.codes', {
+          count: r.versionCodes.length,
+          codes: r.versionCodes.join(', '),
+        }),
+      );
     return parts.join(', ');
   });
-  return `${track.track}: ${releases.length === 0 ? 'no release' : releases.join('; ')}`;
+  return t('release-store:submit.track.line', {
+    track: track.track,
+    releases: releases.length === 0 ? t('release-store:submit.track.none') : releases.join('; '),
+  });
 }
 
 /** A check as one sentence: the message, and where (locale, item) when the server names it. */
@@ -294,7 +341,9 @@ export function checkText(check: SubmitCheck): string {
   const where = [check.locale, check.item]
     .filter((p): p is string => typeof p === 'string' && p !== '')
     .join(' / ');
-  return where === '' ? check.message : `${check.message} (${where})`;
+  return where === ''
+    ? check.message
+    : t('release-store:submit.check.where', { message: check.message, where });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -350,8 +399,11 @@ const bodyMessage = (error: ApiError): string =>
     ? error.body.message
     : error.message;
 
-export const UNKNOWN_SUBMIT_HINT =
-  'Do not submit again yet. Look at the store console (App Store Connect or Play Console) to see whether the version is in review, then preview again here: that only reads the store.';
+/** A message key: show it with `t(UNKNOWN_SUBMIT_HINT)`. */
+export const UNKNOWN_SUBMIT_HINT = k('release-store:submit.unknownHint');
+
+const withHint = (message: string): string =>
+  t('release-store:submit.fail.withHint', { message, hint: t(UNKNOWN_SUBMIT_HINT) });
 
 /**
  * Sorts an error of the preview or the submit. Nothing here retries. `outcome_unknown`, and a cut connection or
@@ -365,7 +417,7 @@ export function classifySubmitFailure(
     return {
       kind: 'other',
       code: 'error',
-      message: 'The request failed. Check your connection, then read the state again.',
+      message: t('release-store:submit.fail.request'),
     };
   const message = bodyMessage(error);
   const body = error.body;
@@ -373,21 +425,22 @@ export function classifySubmitFailure(
     case 'store_submit_disabled':
       return {
         kind: 'disabled',
-        message: `Submitting for review is switched off on this server (${SUBMIT_ENV}). Nothing was submitted. Someone who runs the server sets ${SUBMIT_ENV}=true and restarts it.`,
+        message: t('release-store:submit.fail.disabled', { env: SUBMIT_ENV }),
       };
     case 'forbidden':
-      return { kind: 'forbidden', message: SUBMIT_ROLE_REASON };
+      return { kind: 'forbidden', message: t(SUBMIT_ROLE_REASON) };
     case 'nothing_pushed':
       return {
         kind: 'nothing_pushed',
-        message:
-          'No pushed draft is recorded for this app (it may have been submitted already). Nothing was submitted. Push the draft first.',
+        message: t('release-store:submit.fail.nothingPushed'),
       };
     case 'confirmation_mismatch': {
       const phrase = typeof body.phrase === 'string' ? body.phrase : null;
       return {
         kind: 'mismatch',
-        message: `The text you typed is not the phrase.${phrase ? ` Type exactly: ${phrase}.` : ''} Nothing was read or submitted.`,
+        message: phrase
+          ? t('release-store:submit.fail.mismatchPhrase', { phrase })
+          : t('release-store:submit.fail.mismatch'),
       };
     }
     case 'blocked': {
@@ -395,55 +448,53 @@ export function classifySubmitFailure(
       return {
         kind: 'blocked',
         checks,
-        message:
-          'Something blocks the submit on the store as it is now. Nothing was submitted. Fix it, then preview again.',
+        message: t('release-store:submit.fail.blocked'),
       };
     }
     case 'state_changed':
       return {
         kind: 'state_changed',
         next: isSubmitPreview(body.preview) ? body.preview : null,
-        message:
-          'The store is not what you previewed (version, build, listing, draft or tracks changed), so nothing was submitted. Read the new preview and confirm again.',
+        message: t('release-store:submit.fail.stateChanged'),
       };
     case 'write_in_progress':
       return {
         kind: 'write_in_progress',
-        message: `${message} Nothing was submitted by this request. Wait a moment, then confirm again.`,
+        message: t('release-store:submit.fail.writeInProgress', { message }),
       };
     case 'push_outcome_unknown':
       return {
         kind: 'push_unknown',
-        message:
-          'The last draft push has an unknown outcome, so nothing was submitted. Preview that push again from the staged changes first (that only reads the store), then come back.',
+        message: t('release-store:submit.fail.pushUnknown'),
       };
     case 'outcome_unknown':
-      return { kind: 'outcome_unknown', message: `${message} ${UNKNOWN_SUBMIT_HINT}` };
+      return { kind: 'outcome_unknown', message: withHint(message) };
     case 'write_failed':
       return body.outcome === 'not_applied'
         ? {
             kind: 'not_applied',
-            message: `${message} The store did not submit the version. You can preview and confirm again.`,
+            message: t('release-store:submit.fail.notApplied', { message }),
           }
-        : { kind: 'outcome_unknown', message: `${message} ${UNKNOWN_SUBMIT_HINT}` };
+        : { kind: 'outcome_unknown', message: withHint(message) };
     case 'changes_in_review':
       return {
         kind: 'other',
         code: error.code,
-        message:
-          'Google Play already has changes in review for this app. Nothing was sent. Wait until they are decided. This tool never cancels a review.',
+        message: t('release-store:submit.fail.changesInReview'),
       };
     case 'no_editable_version':
       return {
         kind: 'other',
         code: error.code,
-        message: `${message} Create the next version in App Store Connect, push the draft, then preview again.`,
+        message: t('release-store:submit.fail.noEditable', { message }),
       };
     case 'rate_limited':
       return {
         kind: 'rate_limited',
         retryAfter: error.retryAfter ?? null,
-        message: `The store is limiting requests. ${error.retryAfter ? `Try again in ${error.retryAfter} seconds.` : 'Try again in a minute.'} This app never retries by itself.`,
+        message: error.retryAfter
+          ? t('release-store:submit.fail.rateLimitedSeconds', { count: error.retryAfter })
+          : t('release-store:submit.fail.rateLimited'),
       };
     case 'store_auth':
     case 'store_forbidden':
@@ -452,23 +503,26 @@ export function classifySubmitFailure(
       return {
         kind: 'other',
         code: error.code,
-        message: `The store refused the request: ${message}`,
+        message: t('release-store:submit.fail.refused', { message }),
       };
     case 'store_unavailable':
       return {
         kind: 'other',
         code: error.code,
-        message: `${message} The store could not be reached before anything was sent; nothing was submitted.`,
+        message: t('release-store:submit.fail.unavailable', { message }),
       };
     case 'timeout':
       return {
         kind: 'other',
         code: error.code,
-        message:
-          'A read of the store did not answer in time. If you are unsure whether the version went to review, preview again (that reads the store) and check the store console.',
+        message: t('release-store:submit.fail.timeout'),
       };
     case 'app_not_synced':
-      return { kind: 'other', code: error.code, message: `${message} Sync the app first.` };
+      return {
+        kind: 'other',
+        code: error.code,
+        message: t('release-store:submit.fail.syncFirst', { message }),
+      };
     default:
   }
   if (error.code.startsWith('credential_')) return { kind: 'other', code: error.code, message };
@@ -476,7 +530,9 @@ export function classifySubmitFailure(
   if (phase === 'submit' && (error.status === 0 || error.status >= 500)) {
     return {
       kind: 'outcome_unknown',
-      message: `${error.status === 0 ? 'The connection broke while the submit was running, so it is not known whether the server received it.' : message} ${UNKNOWN_SUBMIT_HINT}`,
+      message: withHint(
+        error.status === 0 ? t('release-store:submit.fail.connectionBroke') : message,
+      ),
     };
   }
   return { kind: 'other', code: error.code, message };
@@ -500,10 +556,20 @@ export const shouldReloadState = (failure: SubmitFailure): boolean =>
 
 /** The sentence after a successful submit. Always says it was not released or published. */
 export function resultText(result: SubmitResult): string {
-  const version = result.version?.versionString ? ` (version ${result.version.versionString})` : '';
-  const how = result.confirmedByReread
-    ? ' The answer of the store was lost, and reading it back shows the version is in review.'
-    : '';
-  const state = result.submission?.state ? ` Review state: ${result.submission.state}.` : '';
-  return `Sent to ${supports(result.app.platform, 'releaseTracks') ? 'Google Play review' : 'App Review'}${version}.${how}${state} Nothing was released or published.`;
+  const version = result.version?.versionString ?? '';
+  const google = supports(result.app.platform, 'releaseTracks');
+  const sent = google
+    ? version
+      ? t('release-store:submit.result.sentGoogleVersion', { version })
+      : t('release-store:submit.result.sentGoogle')
+    : version
+      ? t('release-store:submit.result.sentAppleVersion', { version })
+      : t('release-store:submit.result.sentApple');
+  // Each part is a whole sentence of its own, so they are joined with a space.
+  const parts = [sent];
+  if (result.confirmedByReread) parts.push(t('release-store:submit.result.reread'));
+  if (result.submission?.state)
+    parts.push(t('release-store:submit.result.state', { state: result.submission.state }));
+  parts.push(t('release-store:submit.result.nothingReleased'));
+  return parts.join(' ');
 }

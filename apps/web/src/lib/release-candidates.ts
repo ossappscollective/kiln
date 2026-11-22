@@ -1,4 +1,6 @@
 import type { Platform } from '@kiln/core';
+import { formatDateTime, formatList } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import type { AppBuild } from './types.ts';
 
 /**
@@ -120,23 +122,24 @@ export type EligibilityView = {
   label: string;
 };
 
-/** What a machine code says when the server sent no sentence (an older server). */
+/** What a machine code says when the server sent no sentence (an older server): message keys. */
 const CODE_SENTENCES: Record<string, string> = {
-  ok: 'This build can be chosen.',
-  processing: 'Apple is still processing this build. Try again in a few minutes.',
-  failed: 'Apple could not process this build. Upload a new build.',
-  invalid: 'Apple marked this build invalid. Upload a new build.',
-  state_unknown: 'Apple did not say whether this build is processed, so it cannot be chosen.',
-  expired: 'This build has expired. Upload a new build.',
-  wrong_version:
-    'This build was made as another version than the one being prepared. It can still be chosen: the name of the version is only a label.',
-  no_editable_version:
-    'No version is in Prepare for Submission, so no build can be attached yet. Create the version in App Store Connect first.',
-  already_attached: 'This is the build of the version already.',
-  export_compliance_missing:
-    'Apple has no export compliance answer for this build. It can be chosen; App Store Connect may ask for it later.',
-  already_in_draft: 'The draft release of this track holds this version code already.',
-  already_live: 'A release of this track that is live or rolling out holds this version code.',
+  ok: k('release-stepper:cand.code.ok'),
+  processing: k('release-stepper:cand.code.processing'),
+  failed: k('release-stepper:cand.code.failed'),
+  invalid: k('release-stepper:cand.code.invalid'),
+  state_unknown: k('release-stepper:cand.code.stateUnknown'),
+  expired: k('release-stepper:cand.code.expired'),
+  wrong_version: k('release-stepper:cand.code.wrongVersion'),
+  no_editable_version: k('release-stepper:cand.code.noEditableVersion'),
+  already_attached: k('release-stepper:cand.code.alreadyAttached'),
+  export_compliance_missing: k('release-stepper:cand.code.exportMissing'),
+  already_in_draft: k('release-stepper:cand.code.alreadyInDraft'),
+  already_live: k('release-stepper:cand.code.alreadyLive'),
+};
+const codeSentence = (code: string): string | null => {
+  const key = CODE_SENTENCES[code];
+  return key === undefined ? null : t(key);
 };
 
 /** The eligibility of one build or code as a person sees it. Never an empty sentence, never just "not eligible". */
@@ -150,31 +153,41 @@ export function eligibilityView(item: {
     const sentence =
       e.message.trim() !== ''
         ? e.message.trim()
-        : (CODE_SENTENCES[e.code] ??
-          (e.eligible ? 'This can be chosen.' : 'This cannot be chosen now.'));
+        : (codeSentence(e.code) ??
+          (e.eligible ? t('release-stepper:cand.eligible') : t('release-stepper:cand.notEligible')));
     if (e.eligible) {
       return e.severity === 'warning'
-        ? { selectable: true, tone: 'warn', sentence, label: 'Read first' }
-        : { selectable: true, tone: 'ok', sentence, label: 'Can be chosen' };
+        ? { selectable: true, tone: 'warn', sentence, label: t('release-stepper:cand.label.readFirst') }
+        : { selectable: true, tone: 'ok', sentence, label: t('release-stepper:cand.label.canChoose') };
     }
     // Not eligible and not blocked: it is the build or code the draft has already.
     if (e.severity !== 'blocked')
-      return { selectable: false, tone: 'ok', sentence, label: 'Already chosen' };
-    return { selectable: false, tone: 'bad', sentence, label: 'Cannot be chosen' };
+      return {
+        selectable: false,
+        tone: 'ok',
+        sentence,
+        label: t('release-stepper:cand.label.alreadyChosen'),
+      };
+    return {
+      selectable: false,
+      tone: 'bad',
+      sentence,
+      label: t('release-stepper:cand.label.cannotChoose'),
+    };
   }
   if (item.selectable === true)
     return {
       selectable: true,
       tone: 'ok',
-      sentence: CODE_SENTENCES.ok as string,
-      label: 'Can be chosen',
+      sentence: t('release-stepper:cand.code.ok'),
+      label: t('release-stepper:cand.label.canChoose'),
     };
   const reason = (item.reason ?? '').trim();
   return {
     selectable: false,
     tone: 'bad',
-    sentence: reason !== '' ? reason : 'This build cannot be chosen now.',
-    label: 'Cannot be chosen',
+    sentence: reason !== '' ? reason : t('release-stepper:cand.buildNotEligible'),
+    label: t('release-stepper:cand.label.cannotChoose'),
   };
 }
 
@@ -188,17 +201,17 @@ export function sourceRunOf(
   buildNumber: string | null,
   builds: readonly Pick<AppBuild, 'buildNumber' | 'link' | 'linkState'>[],
 ): SourceRun {
-  if (buildNumber === null) return { text: 'No CI run linked', url: null };
+  if (buildNumber === null) return { text: t('release-stepper:cand.run.none'), url: null };
   const found = builds.filter((b) => b.buildNumber === buildNumber)[0];
   if (!found)
-    return { text: 'No CI run linked (this build is not in the builds of the app yet)', url: null };
+    return { text: t('release-stepper:cand.run.notInBuilds'), url: null };
   const run = found.link?.run ?? null;
   if (run === null) {
     return {
       text:
         found.linkState === 'tag'
-          ? 'A tag carries this number, but no CI run was found'
-          : 'No CI run linked',
+          ? t('release-stepper:cand.run.tag')
+          : t('release-stepper:cand.run.none'),
       url: null,
     };
   }
@@ -206,30 +219,35 @@ export function sourceRunOf(
   return { text: `${run.workflow}${title}`, url: run.url };
 }
 
-/** "2026-11-19 10:30" in UTC, or "date unknown". Pure: no locale, so the text is the same everywhere. */
+/** "Nov 19, 2026, 10:30 AM UTC" (the store's time, in UTC), or "date unknown". */
 export function uploadedText(iso: string | null): string {
-  if (iso === null) return 'date unknown';
+  if (iso === null) return t('release-stepper:cand.uploaded.unknown');
   const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) return 'date unknown';
-  return `${new Date(ms).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+  if (Number.isNaN(ms)) return t('release-stepper:cand.uploaded.unknown');
+  return formatDateTime(ms, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'UTC',
+    timeZoneName: 'short',
+  });
 }
 
 /** What the TestFlight notes of a build are, in one sentence: read or not, how many languages, why not. */
 export function testNotesLine(notes: TestNotes | undefined): string {
-  if (!notes) return 'TestFlight notes: this server did not say.';
+  if (!notes) return t('release-stepper:cand.testNotes.unsaid');
   if (!notes.read) {
-    if (notes.error === 'forbidden')
-      return 'TestFlight notes: not read. The credential of this app may not read them.';
-    if (notes.error === 'rate_limited')
-      return 'TestFlight notes: not read. Apple is limiting requests; try again in a minute.';
-    if (notes.error === 'not_found')
-      return 'TestFlight notes: not read. Apple has no test details for this build.';
-    if (notes.error) return 'TestFlight notes: not read. Apple could not be reached.';
-    return 'TestFlight notes: not read. Only the newest eight processed builds are read.';
+    if (notes.error === 'forbidden') return t('release-stepper:cand.testNotes.forbidden');
+    if (notes.error === 'rate_limited') return t('release-stepper:cand.testNotes.rateLimited');
+    if (notes.error === 'not_found') return t('release-stepper:cand.testNotes.notFound');
+    if (notes.error) return t('release-stepper:cand.testNotes.unreachable');
+    return t('release-stepper:cand.testNotes.notAsked');
   }
   const n = notes.locales.length;
-  if (n === 0) return 'TestFlight notes: read, and this build has none.';
-  return `TestFlight notes: ${n} ${n === 1 ? 'language' : 'languages'}.`;
+  if (n === 0) return t('release-stepper:cand.testNotes.none');
+  return t('release-stepper:cand.testNotes.languages', { count: n });
 }
 
 /** The notes can be used: they were read and hold at least one text. */
@@ -254,7 +272,10 @@ export function buildRows(
 ): BuildRow[] {
   return builds.map((b) => ({
     id: b.id,
-    title: b.buildNumber !== null ? `Build ${b.buildNumber}` : 'Build (number unknown)',
+    title:
+      b.buildNumber !== null
+        ? t('release-stepper:cand.build.title', { number: b.buildNumber })
+        : t('release-stepper:cand.build.titleUnknown'),
     version: b.version,
     uploaded: uploadedText(b.uploadedDate),
     run: sourceRunOf(b.buildNumber, appBuilds),
@@ -275,7 +296,7 @@ export function noBuildSentence(
 ): string | null {
   if (builds.some((b) => eligibilityView(b).selectable)) return null;
   if (builds.length === 0) {
-    return 'App Store Connect lists no builds for this app yet. Start the release workflow, or upload a build, then read this list again.';
+    return t('release-stepper:cand.noBuild.empty');
   }
   const counts: Record<string, number> = {};
   const order: string[] = [];
@@ -286,28 +307,30 @@ export function noBuildSentence(
     if (counts[key] === undefined) order.push(key);
     counts[key] = (counts[key] ?? 0) + 1;
   }
-  const word = (key: string, n: number): string => {
-    const one = n === 1;
+  const word = (key: string, count: number): string => {
     switch (key) {
       case 'processing':
-        return `${n} ${one ? 'is' : 'are'} still processing`;
+        return t('release-stepper:cand.noBuild.processing', { count });
       case 'failed':
       case 'invalid':
-        return `${n} could not be processed`;
+        return t('release-stepper:cand.noBuild.failed', { count });
       case 'expired':
-        return `${n} ${one ? 'has' : 'have'} expired`;
+        return t('release-stepper:cand.noBuild.expired', { count });
       case 'wrong_version':
-        return `${n} ${one ? 'is' : 'are'} for another version${versionString ? ` than ${versionString}` : ''}`;
+        return versionString
+          ? t('release-stepper:cand.noBuild.wrongVersionThan', { count, version: versionString })
+          : t('release-stepper:cand.noBuild.wrongVersion', { count });
       case 'no_editable_version':
-        return `${n} ${one ? 'is' : 'are'} processed, but no version is in Prepare for Submission`;
+        return t('release-stepper:cand.noBuild.noEditable', { count });
       case 'attached':
-        return `${n} ${one ? 'is' : 'are'} chosen already`;
+        return t('release-stepper:cand.noBuild.attached', { count });
       default:
-        return `${n} cannot be chosen`;
+        return t('release-stepper:cand.noBuild.other', { count });
     }
   };
-  const reasons = order.map((k) => word(k, counts[k] as number));
-  return `${builds.length} ${builds.length === 1 ? 'build is' : 'builds are'} listed and none can be chosen now: ${reasons.join('; ')}.`;
+  const reasons = order.map((key) => word(key, counts[key] as number));
+  // Each reason is a whole clause with its own count; they are listed with semicolons in every language.
+  return t('release-stepper:cand.noBuild.summary', { count: builds.length, reasons: reasons.join('; ') });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -335,9 +358,20 @@ export function codeRows(
 ): CodeRow[] {
   const rows = codes.map((c) => ({
     versionCode: c.versionCode,
-    source: c.source === 'bundle' ? 'App bundle' : 'APK',
+    source:
+      c.source === 'bundle'
+        ? t('release-stepper:cand.code.sourceBundle')
+        : t('release-stepper:cand.code.sourceApk'),
     eligibility: eligibilityView(c),
-    where: c.inTrack.map((t) => `${t.name ?? 'unnamed release'} (${t.status})`).join(', '),
+    where: formatList(
+      c.inTrack.map((entry) =>
+        t('release-stepper:cand.code.inTrackItem', {
+          name: entry.name ?? t('release-stepper:cand.code.unnamedRelease'),
+          status: entry.status,
+        }),
+      ),
+      { type: 'unit' },
+    ),
     inSource: inFrom.indexOf(c.versionCode) >= 0,
   }));
   const num = (r: CodeRow) => Number(r.versionCode) || 0;
@@ -352,16 +386,13 @@ export function codesInTrack(codes: readonly CodeCandidate[]): string[] {
 export function noCodeSentence(rows: readonly CodeRow[], track: string): string | null {
   if (rows.some((r) => r.eligibility.selectable)) return null;
   if (rows.length === 0)
-    return `Google Play lists no uploaded version codes for this app. Upload a bundle (the release workflow does) and read this list again for ${track}.`;
+    return t('release-stepper:cand.noCode.empty', { track });
   const live = rows.filter((r) => r.eligibility.tone === 'bad').length;
   const chosen = rows.length - live;
   const parts: string[] = [];
-  if (live > 0)
-    parts.push(
-      `${live} ${live === 1 ? 'is' : 'are'} in a release of ${track} that is live or rolling out`,
-    );
-  if (chosen > 0) parts.push(`${chosen} ${chosen === 1 ? 'is' : 'are'} in the draft already`);
-  return `${rows.length} version ${rows.length === 1 ? 'code is' : 'codes are'} listed and none can be added: ${parts.join('; ')}.`;
+  if (live > 0) parts.push(t('release-stepper:cand.noCode.live', { count: live, track }));
+  if (chosen > 0) parts.push(t('release-stepper:cand.noCode.draft', { count: chosen }));
+  return t('release-stepper:cand.noCode.summary', { count: rows.length, reasons: parts.join('; ') });
 }
 
 // ---------------------------------------------------------------------------------------------

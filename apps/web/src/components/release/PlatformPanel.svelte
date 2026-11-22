@@ -10,11 +10,13 @@
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { appHref, platformLabel, storeName, trackLabel } from '../../lib/portfolio.ts';
   import type { AppSummary, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import PlatformBadge from '../portfolio/PlatformBadge.svelte';
   import ReleaseStatus from '../portfolio/ReleaseStatus.svelte';
   import Timeline from '../portfolio/Timeline.svelte';
   import AppIcon from '../ui/AppIcon.svelte';
   import Icon from '../ui/Icon.svelte';
+  import T from '../ui/T.svelte';
   import RolloutObserved from './RolloutObserved.svelte';
 import { platformMeta, supports } from '@kiln/core';
 
@@ -44,9 +46,9 @@ import { platformMeta, supports } from '@kiln/core';
     <div class="ident">
     <AppIcon name={app.name} url={app.iconUrl} platform={app.platform} seed={app.id} size="md" />
     <div class="who">
-      <h2 id="{uid}-title" class="title">{platformLabel(app.platform)} · {store}</h2>
+      <h2 id="{uid}-title" class="title">{t('release:panel.title', { platform: platformLabel(app.platform), store })}</h2>
       <p class="muted small">
-        <a href={appHref(app.id)}>{app.name}</a> · <code>{app.identifier}</code>{#if !primary} · the same product on the other platform{/if}
+        <a href={appHref(app.id)}>{app.name}</a> · <code>{app.identifier}</code>{#if !primary} · {t('release:panel.otherPlatform')}{/if}
       </p>
     </div>
     </div>
@@ -56,16 +58,18 @@ import { platformMeta, supports } from '@kiln/core';
   <p class="observed muted small">
     <Icon name="eye" size={14} />
     {#if app.lastSyncedAt !== null}
-      Read from {store} <time datetime={new Date(app.lastSyncedAt).toISOString()} title={fullTime(app.lastSyncedAt)}>{timeAgo(app.lastSyncedAt, now)}</time>. Read only: this page cannot change it.
+      {@const syncedAt = app.lastSyncedAt}
+      <T key="release:panel.observed" params={{ store, ago: timeAgo(syncedAt, now) }} tags={{ link: syncedTime }} />
+      {#snippet syncedTime(text: string)}<time datetime={new Date(syncedAt).toISOString()} title={fullTime(syncedAt)}>{text}</time>{/snippet}
     {:else}
-      Not read from {store} yet. Sync the app to see its state. This page cannot change it.
+      {t('release:panel.neverObserved', { store })}
     {/if}
   </p>
 
   {#if releases.length === 0}
     <p class="none">
-      Version {version} is not in the {store} snapshot{plan ? ' yet' : ''}.
-      {#if plan}{nextAction({ platform: app.platform, status: null, planned: true, readiness: plan.readiness, blocked: plan.blocked ? { kind: 'other', reason: plan.blockedReason ?? '' } : null }).text}.{/if}
+      {plan ? t('release:panel.notInSnapshotYet', { version, store }) : t('release:panel.notInSnapshot', { version, store })}
+      {#if plan}{t('release:panel.nextSentence', { text: nextAction({ platform: app.platform, status: null, planned: true, readiness: plan.readiness, blocked: plan.blocked ? { kind: 'other', reason: plan.blockedReason ?? '' } : null }).text })}{/if}
     </p>
   {:else}
     {#each releases as release (release.id)}
@@ -74,16 +78,16 @@ import { platformMeta, supports } from '@kiln/core';
         status: release.status,
         rawState: release.rawState,
         readiness: plan?.readiness ?? null,
-        blocked: plan?.blocked ? { kind: 'other', reason: plan.blockedReason ?? '' } : release.status === 'rejected' ? { kind: 'rejection', reason: 'The store rejected this version.' } : null,
+        blocked: plan?.blocked ? { kind: 'other', reason: plan.blockedReason ?? '' } : release.status === 'rejected' ? { kind: 'rejection', reason: t('release:panel.storeRejected') } : null,
       })}
       <div class="release">
         {#if release.track !== null}<h3 class="track">{trackLabel(release.track)}</h3>{/if}
         <div class="line">
           <ReleaseStatus status={release.status} rawState={release.rawState} sentForReviewAt={release.sentForReviewAt} />
-          <span class="muted small">Store state <code>{release.rawState}</code></span>
+          <span class="muted small"><T key="release:panel.storeState" params={{ state: release.rawState }} /></span>
         </div>
         {#if release.status}
-          <Timeline platform={release.platform} status={release.status} label="Lifecycle of {platformLabel(release.platform)} version {release.version}{release.track ? `, ${trackLabel(release.track)}` : ''}" />
+          <Timeline platform={release.platform} status={release.status} label={release.track ? t('release:panel.lifecycleTrack', { platform: platformLabel(release.platform), version: release.version, track: trackLabel(release.track) }) : t('release:panel.lifecycle', { platform: platformLabel(release.platform), version: release.version })} />
         {/if}
         <dl class="facts">
           <div>
@@ -91,7 +95,7 @@ import { platformMeta, supports } from '@kiln/core';
             <dd>{supports(release.platform, 'releaseTracks') ? (release.versionCodes?.join(', ') ?? '—') : (release.build ?? '—')}</dd>
           </div>
           <div>
-            <dt>Store updated</dt>
+            <dt>{t('release:panel.storeUpdated')}</dt>
             <dd>
               {#if release.storeUpdatedAt !== null}
                 <time datetime={new Date(release.storeUpdatedAt).toISOString()} title={fullTime(release.storeUpdatedAt)}>{timeAgo(release.storeUpdatedAt, now)}</time>
@@ -100,7 +104,7 @@ import { platformMeta, supports } from '@kiln/core';
           </div>
         </dl>
         <RolloutObserved {release} />
-        <p class="next"><span class="eyebrow">Next</span> <span class="next-text">{next.text}</span></p>
+        <p class="next"><span class="eyebrow">{t('release:panel.next')}</span> <span class="next-text">{next.text}</span></p>
       </div>
     {/each}
   {/if}

@@ -8,6 +8,7 @@ import {
   resetText,
 } from './ai/ai.ts';
 import { ApiError } from './api.ts';
+import { k, t } from './i18n/t.ts';
 import { type Drafts, normalizeLocale } from './release-notes.ts';
 import { translationErrorMessage } from './reviews/translation.ts';
 import type { TranslationConfig } from './settings.ts';
@@ -87,7 +88,7 @@ export function machineEngine(input: {
     return {
       visible: true,
       enabled: false,
-      reason: 'Checking the translation settings.',
+      reason: t('release-stepper:tr.checkingTranslation'),
       href: null,
       sends: '',
     };
@@ -97,26 +98,28 @@ export function machineEngine(input: {
       enabled: true,
       reason: null,
       href: null,
-      sends: 'The text is sent to the translation provider of this workspace.',
+      sends: t('release-stepper:tr.sendsProvider'),
     };
   if (!config.enabled || config.mode === 'off') {
     return {
       visible: true,
       enabled: false,
       reason: can(role, 'settings.write')
-        ? 'Machine translation is off. Turn it on in Settings, in the Translation card.'
-        : 'Machine translation is off. An admin can turn it on in Settings, in the Translation card.',
+        ? t('release-stepper:tr.machineOffAdmin')
+        : t('release-stepper:tr.machineOffMember'),
       href: MACHINE_SETTINGS_HREF,
       sends: '',
     };
   }
-  const label = translationProviderInfo[config.provider]?.label ?? 'the translation provider';
+  const label = translationProviderInfo[config.provider]?.label;
   return {
     visible: true,
     enabled: true,
     reason: null,
     href: null,
-    sends: `The text is sent to ${label}.`,
+    sends: label
+      ? t('release-stepper:tr.sendsTo', { provider: label })
+      : t('release-stepper:tr.sendsProvider'),
   };
 }
 
@@ -145,12 +148,12 @@ export function aiEngine(input: {
           enabled: true,
           reason: null,
           href: null,
-          sends: 'The text is sent to the AI provider of this workspace.',
+          sends: t('release-stepper:tr.sendsAi'),
         }
       : {
           visible: true,
           enabled: false,
-          reason: 'Checking the AI settings.',
+          reason: t('release-stepper:tr.checkingAi'),
           href: null,
           sends: '',
         };
@@ -160,8 +163,7 @@ export function aiEngine(input: {
     return {
       visible: true,
       enabled: false,
-      reason:
-        'AI assistance is switched off on this server. Whoever runs the server turns it on with KILN_AI_ENABLED=true.',
+      reason: t('release-stepper:tr.aiOffServer', { env: 'KILN_AI_ENABLED' }),
       href: null,
       sends: '',
     };
@@ -170,7 +172,9 @@ export function aiEngine(input: {
     return {
       visible: true,
       enabled: false,
-      reason: `AI assistance is off for this workspace. ${admin ? 'Turn it on' : 'An admin can turn it on'} in Settings, in the AI view.`,
+      reason: admin
+        ? t('release-stepper:tr.aiOffWorkspaceAdmin')
+        : t('release-stepper:tr.aiOffWorkspaceMember'),
       href: AI_SETTINGS_HREF,
       sends: '',
     };
@@ -179,7 +183,9 @@ export function aiEngine(input: {
     return {
       visible: true,
       enabled: false,
-      reason: `AI assistance is not set up yet. ${admin ? 'Finish it' : 'An admin can finish it'} in Settings, in the AI view.`,
+      reason: admin
+        ? t('release-stepper:tr.aiNotSetUpAdmin')
+        : t('release-stepper:tr.aiNotSetUpMember'),
       href: AI_SETTINGS_HREF,
       sends: '',
     };
@@ -189,7 +195,9 @@ export function aiEngine(input: {
     return {
       visible: true,
       enabled: false,
-      reason: `The monthly AI limit is used up. It starts again on ${resetText(config.usage.resetsAt)}${admin ? '; you can raise it in Settings, in the AI view' : ''}.`,
+      reason: admin
+        ? t('release-stepper:tr.aiLimitAdmin', { date: resetText(config.usage.resetsAt) })
+        : t('release-stepper:tr.aiLimit', { date: resetText(config.usage.resetsAt) }),
       href: admin ? AI_SETTINGS_HREF : null,
       sends: '',
     };
@@ -214,7 +222,7 @@ export const providerName = (engine: TranslateEngine, id: string): string =>
   )[id]?.label ?? id;
 
 export const engineLabel = (engine: TranslateEngine): string =>
-  engine === 'ai' ? 'AI' : 'machine translation';
+  engine === 'ai' ? t('release-stepper:tr.engine.ai') : t('release-stepper:tr.engine.machine');
 
 // ---------------------------------------------------------------------------------------------
 // What to translate
@@ -263,15 +271,18 @@ export function translatePlan(
   for (let i = 0; i < targets.length; i += NOTES_TRANSLATE_MAX_TARGETS)
     chunks.push(targets.slice(i, i + NOTES_TRANSLATE_MAX_TARGETS));
   let problem: string | null = null;
-  if (text === '') problem = `Write the ${source} text first, or choose a language that has text.`;
+  if (text === '') problem = t('release-stepper:tr.problem.writeFirst', { source });
   else if (text.length > NOTES_TRANSLATE_MAX_CHARS)
-    problem = `The ${source} text has ${text.length} characters. At most ${NOTES_TRANSLATE_MAX_CHARS} can be translated at once.`;
-  else if (targets.length === 0) problem = 'There is no other language to translate into.';
+    problem = t('release-stepper:tr.problem.tooLong', {
+      source,
+      chars: text.length,
+      max: NOTES_TRANSLATE_MAX_CHARS,
+    });
+  else if (targets.length === 0) problem = t('release-stepper:tr.problem.noTarget');
   return { source, text, targets, replaces, fills: targets.length - replaces, chunks, problem };
 }
 
-export const replaceText = (n: number): string =>
-  `This replaces ${n} ${n === 1 ? 'text' : 'texts'} that ${n === 1 ? 'is' : 'are'} not empty.`;
+export const replaceText = (n: number): string => t('release-stepper:tr.replaces', { count: n });
 
 // ---------------------------------------------------------------------------------------------
 // Putting the answers in the editors
@@ -313,7 +324,7 @@ export function applyTranslations(
     usageWarning: null,
   };
   const mine = (locale: string): string | undefined =>
-    targets.filter((t) => normalizeLocale(t) === normalizeLocale(locale))[0];
+    targets.filter((target) => normalizeLocale(target) === normalizeLocale(locale))[0];
   const settled: Record<string, boolean> = {};
   for (const answer of answers) {
     if (!answer.ok) {
@@ -346,16 +357,16 @@ export function applyTranslations(
       settled[locale] = true;
     }
   }
-  for (const t of targets) {
-    if (!settled[t])
-      out.failed.push({ locale: t, message: 'No answer came back for this language.' });
+  for (const target of targets) {
+    if (!settled[target])
+      out.failed.push({ locale: target, message: t('release-stepper:tr.noAnswer') });
   }
   return out;
 }
 
 const WARNING_WORDS: Record<string, string> = {
-  version_missing: 'a version number of the source is missing',
-  brand_term_missing: 'a name to keep as written is missing',
+  version_missing: k('release-stepper:tr.warn.versionMissing'),
+  brand_term_missing: k('release-stepper:tr.warn.brandMissing'),
 };
 
 /** The lines under the buttons after a translation. The first line is always whether anything was put in the editors, and that nothing is staged. */
@@ -366,25 +377,47 @@ export function translateLines(
 ): { tone: 'ok' | 'warn' | 'error'; lines: string[] } {
   const lines: string[] = [];
   const n = applied.applied.length;
-  const by = provider ? ` by ${provider}` : '';
+  const params = { engine: engineLabel(engine), provider, count: n, list: applied.applied.join(', ') };
   if (n > 0)
     lines.push(
-      `Put the ${engineLabel(engine)}${by} text in ${n} ${n === 1 ? 'language' : 'languages'}: ${applied.applied.join(', ')}. Read it before you stage it. Not staged yet.`,
+      provider
+        ? t('release-stepper:tr.lines.appliedBy', params)
+        : t('release-stepper:tr.lines.applied', params),
     );
-  else lines.push('Nothing was translated. The editors are as they were.');
-  if (applied.failed.length > 0)
+  else lines.push(t('release-stepper:tr.lines.nothing'));
+  if (applied.failed.length > 0) {
+    const list = applied.failed
+      .slice(0, 5)
+      .map((f) => t('release-stepper:tr.lines.item', { locale: f.locale, message: f.message }))
+      .join('; ');
     lines.push(
-      `Not translated: ${applied.failed
-        .slice(0, 5)
-        .map((f) => `${f.locale} (${f.message})`)
-        .join('; ')}${applied.failed.length > 5 ? `; and ${applied.failed.length - 5} more` : ''}.`,
+      applied.failed.length > 5
+        ? t('release-stepper:tr.lines.failedMore', { list, more: applied.failed.length - 5 })
+        : t('release-stepper:tr.lines.failed', { list }),
     );
+  }
   if (applied.over.length > 0)
     lines.push(
-      `Too long for the store, shorten before staging: ${applied.over.map((o) => `${o.locale} (${o.chars} of ${o.limit})`).join(', ')}.`,
+      t('release-stepper:tr.lines.over', {
+        list: applied.over
+          .map((o) =>
+            t('release-stepper:tr.lines.overItem', { locale: o.locale, chars: o.chars, limit: o.limit }),
+          )
+          .join(', '),
+      }),
     );
   for (const w of applied.warnings.slice(0, 5))
-    lines.push(`Check ${w.locale}: ${w.codes.map((c) => WARNING_WORDS[c] ?? c).join('; ')}.`);
+    lines.push(
+      t('release-stepper:tr.lines.check', {
+        locale: w.locale,
+        what: w.codes
+          .map((c) => {
+            const key = WARNING_WORDS[c];
+            return key === undefined ? c : t(key);
+          })
+          .join('; '),
+      }),
+    );
   if (applied.usageWarning) lines.push(applied.usageWarning);
   return {
     tone: n === 0 ? 'error' : applied.failed.length > 0 || applied.over.length > 0 ? 'warn' : 'ok',
@@ -397,8 +430,8 @@ export function translateErrorMessage(error: unknown): string {
   if (error instanceof ApiError && error.code.indexOf('translation_') === 0)
     return translationErrorMessage(error);
   if (error instanceof ApiError && error.code === 'forbidden')
-    return 'Your role does not allow that, or this access token does not have the right for it.';
+    return t('release-stepper:tr.err.forbidden');
   if (error instanceof ApiError && error.code === 'invalid_request')
-    return 'The text or the languages cannot be translated. Check them and try again.';
-  return aiErrorMessage(error, 'That did not work. Try again.');
+    return t('release-stepper:tr.err.invalid');
+  return aiErrorMessage(error, t('release-stepper:tr.err.generic'));
 }

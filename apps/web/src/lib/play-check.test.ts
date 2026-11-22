@@ -15,6 +15,7 @@ import {
   proposalOf,
   stateLine,
 } from './play-check.ts';
+import { t } from './i18n/t.ts';
 import type { EditableRelease } from './release-candidates.ts';
 
 const editable: EditableRelease = {
@@ -128,7 +129,7 @@ test('the words: no errors never says there are no warnings, and says the Play C
   assert.match(text, /Play Console may still show warnings/);
   assert.match(text, /Nothing was saved or released/);
   assert.doesNotMatch(text, /no warnings/i);
-  assert.match(NO_ERRORS_SENTENCE, /Play Console may still show warnings/);
+  assert.match(t(NO_ERRORS_SENTENCE), /Play Console may still show warnings/);
   const bad = outcomeView({
     ...answer,
     outcome: 'errors',

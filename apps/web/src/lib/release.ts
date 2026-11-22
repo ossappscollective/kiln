@@ -1,7 +1,6 @@
 import {
   byFamily,
   type DueFlags,
-  formatPercent,
   isPlanLocale,
   MAX_ROLLOUT_STEPS,
   type PlanPlatform,
@@ -18,6 +17,8 @@ import {
   validateRolloutSteps,
 } from '@kiln/core';
 import { ApiError } from './api.ts';
+import { formatDate, formatDateTime, formatPercent as formatShare } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import { compareVersions, platformLabel } from './portfolio.ts';
 import type { AppSummary, ReleaseSummary, RolloutStep } from './types.ts';
 
@@ -131,7 +132,7 @@ export function rolloutView(
   release: Pick<ReleaseSummary, 'platform' | 'status' | 'rolloutFraction'>,
 ): RolloutView {
   const ios = !supports(release.platform, 'releaseTracks');
-  const title = ios ? 'Phased release' : 'Staged rollout';
+  const title = ios ? t('release:rolloutView.titlePhased') : t('release:rolloutView.titleStaged');
   const fraction =
     release.rolloutFraction === null || !Number.isFinite(release.rolloutFraction)
       ? null
@@ -140,7 +141,7 @@ export function rolloutView(
     return {
       title,
       fraction,
-      text: `${percent(fraction)} of eligible users, as the store reports it.`,
+      text: t('release:rolloutView.share', { percent: formatShare(fraction, { maximumFractionDigits: 1 }) }),
     };
   }
   if (release.status === 'rolling_out' || release.status === 'halted') {
@@ -148,35 +149,28 @@ export function rolloutView(
       title,
       fraction: null,
       text: ios
-        ? 'The store has this version going out in phases. The share is not read from Apple yet.'
-        : 'The store reports no rollout share for this version.',
+        ? t('release:rolloutView.phasedShareUnknown')
+        : t('release:rolloutView.stagedShareUnknown'),
     };
   }
   if (release.status === 'live') {
     return {
       title,
       fraction: null,
-      text: ios
-        ? 'Live for everyone. No phased release is reported.'
-        : 'Live for everyone. No staged rollout is reported.',
+      text: ios ? t('release:rolloutView.livePhased') : t('release:rolloutView.liveStaged'),
     };
   }
-  return { title, fraction: null, text: 'Not rolling out yet.' };
-}
-
-function percent(fraction: number): string {
-  const value = Math.round(fraction * 1000) / 10;
-  return Number.isInteger(value) ? `${value}%` : `${value.toFixed(1)}%`;
+  return { title, fraction: null, text: t('release:rolloutView.notYet') };
 }
 
 // ---------------------------------------------------------------------------------------------
 // Dates
 
 /** "Tue, 1 Dec 2026" for a `YYYY-MM-DD` date, read as that calendar day in UTC. */
-export function formatTargetDate(date: string, locale?: string): string {
+export function formatTargetDate(date: string): string {
   const time = Date.parse(`${date}T00:00:00Z`);
   if (!Number.isFinite(time)) return date;
-  return new Date(time).toLocaleDateString(locale, {
+  return formatDate(time, {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -193,12 +187,11 @@ export function dueText(
   released = false,
 ): DueText | null {
   if (due.daysLeft === null) return null;
-  const days = (n: number) => `${n} day${n === 1 ? '' : 's'}`;
   // Flags are cleared for a release that is out, which leaves a date in the past and no overdue flag.
-  if (released || (due.daysLeft < 0 && !due.overdue)) return { text: 'Released', tone: 'ok' };
-  if (due.overdue) return { text: `Overdue by ${days(-due.daysLeft)}`, tone: 'bad' };
-  if (due.daysLeft === 0) return { text: 'Due today', tone: 'warn' };
-  return { text: `Due in ${days(due.daysLeft)}`, tone: due.dueSoon ? 'warn' : 'neutral' };
+  if (released || (due.daysLeft < 0 && !due.overdue)) return { text: t('release:due.released'), tone: 'ok' };
+  if (due.overdue) return { text: t('release:due.overdue', { count: -due.daysLeft }), tone: 'bad' };
+  if (due.daysLeft === 0) return { text: t('release:due.today'), tone: 'warn' };
+  return { text: t('release:due.in', { count: due.daysLeft }), tone: due.dueSoon ? 'warn' : 'neutral' };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -224,8 +217,8 @@ export function noteCounter(text: string, platform: PlanPlatform): NoteCounter {
     over,
     remaining: limit - count,
     label: over
-      ? `${count - limit} ${count - limit === 1 ? 'character' : 'characters'} over the limit of ${limit}`
-      : `${count} of ${limit} characters`,
+      ? t('release:notes.counter.over', { count: count - limit, limit })
+      : t('release:notes.counter.within', { count: limit, used: count }),
   };
 }
 
@@ -233,11 +226,14 @@ export function noteCounter(text: string, platform: PlanPlatform): NoteCounter {
 export function limitNote(platform: PlanPlatform): string {
   const limit = releaseNotesLimit(platform);
   if (platform !== null) {
-    const store = platformMeta(platform).storeNameWithArticle;
-    const what = byFamily(platform, { apple: '“What’s new”', google: 'release notes' });
-    return `${store.charAt(0).toUpperCase()}${store.slice(1)} allows ${limit} characters of ${what}.`;
+    const store = platformMeta(platform).storeName;
+    const key = byFamily(platform, {
+      apple: k('release:notes.limit.apple'),
+      google: k('release:notes.limit.google'),
+    });
+    return t(key, { store, count: limit });
   }
-  return `This plan covers every platform, so the stricter limit applies: ${limit} characters (Google Play). The App Store allows ${releaseNotesLimit('ios')}.`;
+  return t('release:notes.limit.both', { google: limit, apple: releaseNotesLimit('ios') });
 }
 
 /** Locales worth offering before a person types one. */
@@ -263,11 +259,11 @@ export function checkLocale(
   existing: readonly string[],
 ): { ok: true; locale: string } | { ok: false; message: string } {
   const locale = input.trim();
-  if (locale === '') return { ok: false, message: 'Enter a locale code such as en-US or de.' };
+  if (locale === '') return { ok: false, message: t('release:locale.enter') };
   if (!isPlanLocale(locale))
-    return { ok: false, message: 'Use a locale code such as en-US, de or pt_BR, or default.' };
+    return { ok: false, message: t('release:locale.invalid') };
   if (existing.some((e) => e.toLowerCase() === locale.toLowerCase()))
-    return { ok: false, message: `${locale} is already on this plan.` };
+    return { ok: false, message: t('release:locale.exists', { locale }) };
   return { ok: true, locale };
 }
 
@@ -287,7 +283,9 @@ export function moveId(order: readonly string[], index: number, delta: -1 | 1): 
 /** "Done by Ada" with the time, or an empty string when the item is open. */
 export function doneBy(item: { done: boolean; doneBy: { name: string | null } | null }): string {
   if (!item.done) return '';
-  return item.doneBy?.name ? `Done by ${item.doneBy.name}` : 'Done';
+  return item.doneBy?.name
+    ? t('release:checklist.doneBy', { name: item.doneBy.name })
+    : t('release:checklist.done');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -297,17 +295,17 @@ export type Chip = { label: string; tone: 'ok' | 'warn' | 'neutral' | 'info' | '
 
 /** The status chip of a step. It says the state in words; color is only a hint. */
 export function stepChip(step: Pick<RolloutStep, 'status' | 'due'>): Chip {
-  if (step.status === 'done') return { label: 'Done', tone: 'ok' };
-  if (step.status === 'skipped') return { label: 'Skipped', tone: 'neutral' };
+  if (step.status === 'done') return { label: t('release:stepChip.done'), tone: 'ok' };
+  if (step.status === 'skipped') return { label: t('release:stepChip.skipped'), tone: 'neutral' };
   return step.due
-    ? { label: 'Planned time has passed', tone: 'warn' }
-    : { label: 'Planned', tone: 'info' };
+    ? { label: t('release:stepChip.overdue'), tone: 'warn' }
+    : { label: t('release:stepChip.planned'), tone: 'info' };
 }
 
 /** "Tue, 12 Jan 2027, 09:00" in the viewer's time zone; "No time set" without one. */
-export function formatPlannedAt(at: number | null, locale?: string): string {
-  if (at === null) return 'No time set';
-  return new Date(at).toLocaleString(locale, {
+export function formatPlannedAt(at: number | null): string {
+  if (at === null) return t('release:plannedAt.none');
+  return formatDateTime(at, {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -324,25 +322,42 @@ export function rolloutHeadline(
     'kind' | 'total' | 'planned' | 'current' | 'next' | 'dueSteps'
   > | null,
 ): string {
-  if (summary === null) return 'No rollout planned.';
-  if (summary.kind === 'apple_phased')
-    return 'Apple phased release over 7 days (fixed schedule, for information).';
-  const steps = `${summary.total} ${summary.total === 1 ? 'step' : 'steps'}`;
+  if (summary === null) return t('release:headline.none');
+  if (summary.kind === 'apple_phased') return t('release:headline.applePhased');
   if (summary.planned === 0)
-    return summary.current ? `All ${steps} done or skipped.` : `${steps}, none open.`;
+    return summary.current
+      ? t('release:headline.allDone', { count: summary.total })
+      : t('release:headline.noneOpen', { count: summary.total });
   const head = summary.current
-    ? `Step ${summary.current.index} of ${summary.total} done (${formatPercent(summary.current.percent)}).`
-    : `Not started: ${steps} planned.`;
-  return `${head} Next: ${summary.next ? formatPercent(summary.next.percent) : 'none'}.${summary.dueSteps > 0 ? ` ${summary.dueSteps} past its planned time.` : ''}`;
+    ? t('release:headline.stepOf', {
+        index: summary.current.index,
+        total: summary.total,
+        percent: stepShare(summary.current.percent),
+      })
+    : t('release:headline.notStarted', { count: summary.total });
+  const next = summary.next
+    ? t('release:headline.nextPercent', { percent: stepShare(summary.next.percent) })
+    : t('release:headline.nextNone');
+  // Each part is a whole sentence of its own, so they can be joined with a space.
+  const parts = [head, next];
+  if (summary.dueSteps > 0) parts.push(t('release:headline.pastDue', { count: summary.dueSteps }));
+  return parts.join(' ');
 }
+
+/** A rollout step's percent (0 to 100) as text in the active language. */
+const stepShare = (percent: number): string =>
+  formatShare(percent / 100, { maximumFractionDigits: 1 });
 
 /** A short badge for boards and headers: "Rollout 2 of 5" or "Rollout step due". Null when there is nothing to say. */
 export function rolloutBadge(summary: RolloutSummary | null): Chip | null {
   if (summary === null || summary.kind === 'apple_phased')
-    return summary ? { label: 'Phased release planned', tone: 'info' } : null;
-  if (summary.dueSteps > 0) return { label: 'Rollout step due', tone: 'warn' };
-  if (summary.planned === 0) return { label: 'Rollout plan complete', tone: 'ok' };
-  return { label: `Rollout ${summary.done} of ${summary.total} done`, tone: 'neutral' };
+    return summary ? { label: t('release:badge.phasedPlanned'), tone: 'info' } : null;
+  if (summary.dueSteps > 0) return { label: t('release:badge.stepDue'), tone: 'warn' };
+  if (summary.planned === 0) return { label: t('release:badge.planComplete'), tone: 'ok' };
+  return {
+    label: t('release:badge.progress', { done: summary.done, total: summary.total }),
+    tone: 'neutral',
+  };
 }
 
 /** How loud the comparison of the plan with the store should be. */
@@ -353,13 +368,15 @@ export function comparisonTone(
   return comparison.verdict === 'match' ? 'ok' : 'neutral';
 }
 
+const COMPARISON_LABELS = {
+  match: k('release:comparison.match'),
+  store_ahead: k('release:comparison.storeAhead'),
+  store_behind: k('release:comparison.storeBehind'),
+  unknown: k('release:comparison.unknown'),
+} as const;
+
 export const comparisonLabel = (comparison: Pick<RolloutComparison, 'verdict'>): string =>
-  ({
-    match: 'Plan and store agree',
-    store_ahead: 'Store is ahead of the plan',
-    store_behind: 'Store is behind the plan',
-    unknown: 'Cannot compare',
-  })[comparison.verdict];
+  t(COMPARISON_LABELS[comparison.verdict]);
 
 // A step as it is edited: text fields, so a half typed value is not lost.
 
@@ -473,8 +490,8 @@ export function draftToBody(
     const percentText = row.percent.trim();
     const percent = /^\d{1,3}$/.test(percentText) ? Number(percentText) : Number.NaN;
     const plannedAt = parseLocalInput(row.plannedAt);
-    if (Number.isNaN(percent)) rows[row.key] = 'A whole number from 1 to 100.';
-    else if (plannedAt !== null && Number.isNaN(plannedAt)) rows[row.key] = 'A date and time.';
+    if (Number.isNaN(percent)) rows[row.key] = t('release:draft.wholeNumber');
+    else if (plannedAt !== null && Number.isNaN(plannedAt)) rows[row.key] = t('release:draft.dateTime');
     else {
       const note = row.note.trim();
       parsed.push({
@@ -522,7 +539,7 @@ export const barWidth = (percent: number): number => Math.min(100, Math.max(0, p
 // Platform of a plan
 
 export function planPlatformLabel(platform: PlanPlatform): string {
-  return platform === null ? 'Both platforms' : platformLabel(platform);
+  return platform === null ? t('release:platform.both') : platformLabel(platform);
 }
 
 /** The plan platforms a new plan for this app can have: its own, or both. */
@@ -530,8 +547,8 @@ export function planPlatformChoices(app: {
   platform: Platform;
 }): { value: PlanPlatform; label: string }[] {
   return [
-    { value: null, label: 'Both platforms (shared checklist)' },
-    { value: app.platform, label: `${platformLabel(app.platform)} only` },
+    { value: null, label: t('release:platform.bothShared') },
+    { value: app.platform, label: t('release:platform.only', { platform: platformLabel(app.platform) }) },
   ];
 }
 
@@ -541,14 +558,14 @@ export function planPlatformChoices(app: {
 /** A sentence for each thing the plans API can say. */
 export function planErrorMessage(
   error: unknown,
-  fallback = 'Something went wrong. Try again.',
+  fallback = t('common:error.genericRetry'),
 ): string {
   if (!(error instanceof ApiError)) return fallback;
   const body = error.body ?? {};
   const message = typeof body.message === 'string' ? body.message.trim() : '';
   switch (error.code) {
     case 'already_exists':
-      return message || 'That already exists.';
+      return message || t('release:error.exists');
     case 'platform_mismatch':
     case 'notes_too_long':
     case 'reason_required':
@@ -572,11 +589,11 @@ export function planErrorMessage(
     case 'template_not_found':
       return /rollout/i.test(message)
         ? message
-        : 'That checklist template no longer exists. Reload and pick another.';
+        : t('release:error.templateGone');
     case 'not_found':
-      return 'That no longer exists. It may have been deleted. Reload to see the current state.';
+      return t('release:error.notFound');
     case 'payload_too_large':
-      return 'That is too large to save.';
+      return t('release:error.tooLarge');
     default:
       return error.message || fallback;
   }

@@ -1,5 +1,6 @@
 import { supports } from '@kiln/core';
 import { parseViewPath } from './app-scope.ts';
+import { currentLocale, t } from './i18n/t.ts';
 import { trackLabel } from './portfolio.ts';
 import { releaseStepHref } from './release-stepper.ts';
 import type { ReleaseSummary } from './types.ts';
@@ -39,6 +40,10 @@ export type PromoteOption = Promote & {
  */
 export const defaultTarget = (_from: string): string => PRODUCTION;
 
+/** A track name inside a sentence: lower case, except in German where nouns keep their capital. */
+const inSentence = (label: string): string =>
+  currentLocale() === 'de' ? label : label.toLowerCase();
+
 const sameTrack = (a: string | null, b: string) => (a ?? '').toLowerCase() === b.toLowerCase();
 
 const SERVING = ['live', 'rolling_out'];
@@ -72,8 +77,8 @@ export function promoteOption(
     to,
     codes: [...codes],
     version: release.version,
-    label: `Promote to ${trackLabel(to).toLowerCase()}`,
-    fromLabel: trackLabel(release.track).toLowerCase(),
+    label: t('release-store:promote.label', { track: inSentence(trackLabel(to)) }),
+    fromLabel: inSentence(trackLabel(release.track)),
   };
 }
 
@@ -114,7 +119,12 @@ export function promoteFromHash(hash: string): Promote | null {
 
 /** The sentence under the first step that says what was filled in. */
 export const promoteNote = (p: Promote): string =>
-  `Promoting from ${trackLabel(p.from).toLowerCase()} to ${trackLabel(p.to).toLowerCase()}: version code${p.codes.length === 1 ? '' : 's'} ${p.codes.join(', ')} ${p.codes.length === 1 ? 'is' : 'are'} selected. Check the choice, then use it. Nothing is sent to Google Play until the last step.`;
+  t('release-store:promote.note', {
+    count: p.codes.length,
+    from: inSentence(trackLabel(p.from)),
+    to: inSentence(trackLabel(p.to)),
+    codes: p.codes.join(', '),
+  });
 
 /** The same address without the promotion (`from`, `to`, `codes`), so closing the steps does not leave a stale choice behind. */
 export function withoutPromote(hash: string): string {

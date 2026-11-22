@@ -1,6 +1,8 @@
 import type { Platform, ReleaseState } from '@kiln/core';
 import { isDesktop, platformMeta, supports } from '@kiln/core';
 import { runBadge } from './ci/ci.ts';
+import { formatDate } from './i18n/format.ts';
+import { t } from './i18n/t.ts';
 import {
   type BadgeTone,
   compareReleases,
@@ -63,17 +65,17 @@ export function ciFor(
       label: '—',
       tone: 'neutral',
       dot: false,
-      title: 'CI data is not available.',
+      title: t('release:table.ci.unavailable'),
     };
   }
   const matches = buildsForRelease(release, builds);
   if (matches.length === 0) {
     return {
       state: 'unlinked',
-      label: 'No build',
+      label: t('release:table.ci.noBuild'),
       tone: 'neutral',
       dot: false,
-      title: 'No build with this number was found for this release.',
+      title: t('release:table.ci.noBuildTitle'),
     };
   }
   const best = [...matches].sort((a, b) => rank(b) - rank(a))[0] as AppBuild;
@@ -85,24 +87,24 @@ export function ciFor(
       label: badge.label,
       tone: badge.tone,
       dot: badge.dot,
-      title: `CI run of build ${best.buildNumber}: ${badge.label}.`,
+      title: t('release:table.ci.run', { number: best.buildNumber, label: badge.label }),
     };
   }
   if (best.linkState === 'tag') {
     return {
       state: 'tag',
-      label: 'Tag found',
+      label: t('release:table.ci.tag'),
       tone: 'info',
       dot: false,
-      title: 'A tag carries this build number; no CI run was found.',
+      title: t('release:table.ci.tagTitle'),
     };
   }
   return {
     state: 'unlinked',
-    label: 'Not linked',
+    label: t('release:table.ci.notLinked'),
     tone: 'neutral',
     dot: false,
-    title: 'No CI run is linked to this build.',
+    title: t('release:table.ci.notLinkedTitle'),
   };
 }
 
@@ -122,8 +124,11 @@ export type PlanCell =
 
 const checklistText = (plan: Pick<PlanSummary, 'checklist'>): string =>
   plan.checklist.total === 0
-    ? 'no checklist items'
-    : `${plan.checklist.done} of ${plan.checklist.total} checklist items done`;
+    ? t('release:table.plan.noChecklist')
+    : t('release:table.plan.progress', {
+        done: plan.checklist.done,
+        count: plan.checklist.total,
+      });
 
 /**
  * The plan that covers a release. A plan belongs to one app record and names a platform, or none
@@ -157,11 +162,16 @@ export function planCell(
     return plansLoaded
       ? {
           kind: 'none',
-          label: 'No plan',
+          label: t('release:table.plan.none'),
           tone: 'neutral',
-          title: 'No release plan for this version.',
+          title: t('release:table.plan.noneTitle'),
         }
-      : { kind: 'none', label: '—', tone: 'neutral', title: 'Plans are not available.' };
+      : {
+          kind: 'none',
+          label: '—',
+          tone: 'neutral',
+          title: t('release:table.plan.unavailable'),
+        };
   }
   const { plan, viaApp } = found;
   const base = (label: string, tone: BadgeTone, extra: string): PlanCell => ({
@@ -170,33 +180,42 @@ export function planCell(
     label,
     tone,
     viaApp,
-    title: `${extra}${viaApp ? ' The plan is on the other platform’s app and covers both.' : ''}`,
+    // Two whole sentences, joined with a space.
+    title: viaApp ? `${extra} ${t('release:table.plan.viaApp')}` : extra,
   });
   if (plan.blocked)
     return base(
-      'Blocked',
+      t('release:table.plan.blocked'),
       'bad',
-      plan.blockedReason ? `Blocked: ${plan.blockedReason}` : 'The plan is blocked.',
+      plan.blockedReason
+        ? t('release:table.plan.blockedReason', { reason: plan.blockedReason })
+        : t('release:table.plan.blockedTitle'),
     );
-  if (plan.released) return base('Released', 'ok', 'The last sync saw this version live.');
+  if (plan.released)
+    return base(
+      t('release:table.plan.released'),
+      'ok',
+      t('release:table.plan.releasedTitle'),
+    );
   if (plan.due.overdue)
     return base(
-      'Overdue',
+      t('release:table.plan.overdue'),
       'bad',
       plan.targetDate
-        ? `The target date ${plan.targetDate} has passed.`
-        : 'The target date has passed.',
+        ? t('release:table.plan.overdueDate', { date: formatDate(plan.targetDate) })
+        : t('release:table.plan.overdueNoDate'),
     );
   if (plan.due.dueSoon)
-    return base('Due soon', 'warn', `The target date is ${plan.targetDate ?? 'soon'}.`);
-  if (plan.readiness.ready)
     return base(
-      'Ready',
-      'ok',
-      'Every required checklist item is done and the release notes are complete.',
+      t('release:table.plan.dueSoon'),
+      'warn',
+      plan.targetDate
+        ? t('release:table.plan.dueSoonDate', { date: formatDate(plan.targetDate) })
+        : t('release:table.plan.dueSoonNoDate'),
     );
-  const progress = checklistText(plan);
-  return base('In progress', 'info', `${progress.charAt(0).toUpperCase()}${progress.slice(1)}.`);
+  if (plan.readiness.ready)
+    return base(t('release:table.plan.ready'), 'ok', t('release:table.plan.readyTitle'));
+  return base(t('release:table.plan.inProgress'), 'info', checklistText(plan));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -337,8 +356,10 @@ export function filterGroups(
 /** "3 versions, 5 releases". */
 export function tableSummary(groups: readonly VersionGroup[]): string {
   const releases = groups.reduce((n, g) => n + g.rows.length, 0);
-  const versions = `${groups.length} ${groups.length === 1 ? 'version' : 'versions'}`;
-  return `${versions}, ${releases} ${releases === 1 ? 'release' : 'releases'}`;
+  return t('release:table.summary', {
+    versions: t('release:table.versions', { count: groups.length }),
+    releases: t('release:table.releases', { count: releases }),
+  });
 }
 
 // ---------------------------------------------------------------------------------------------

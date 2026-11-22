@@ -1,6 +1,7 @@
 import { type Platform, platformLabel } from '@kiln/core';
 import { canDispatchWorkflow } from './ci/ci.ts';
 import type { WorkflowEntry } from './ci/workflows.ts';
+import { t } from './i18n/t.ts';
 import { releaseStepHref } from './release-stepper.ts';
 import type { ActiveRun, AppBuild, CiWorkflow, WorkflowInputSpec } from './types.ts';
 
@@ -111,13 +112,18 @@ export function dispatchHints(
 
 /** The sentence under the button that says what was filled in, or '' when nothing was. */
 export function prefillNote(chosen: ChosenWorkflow, hint: DispatchHint): string {
-  const where =
-    chosen.why === 'configured'
-      ? 'the release workflow of this app'
-      : 'the only release workflow found';
-  const scope =
-    hint.platforms.length === 1 ? ` for ${platformLabel(hint.platforms[0] as Platform)}` : '';
-  return `${chosen.workflow.name}: ${where}${scope}.`;
+  const params = {
+    workflow: chosen.workflow.name,
+    platform: hint.platforms.length === 1 ? platformLabel(hint.platforms[0] as Platform) : '',
+  };
+  const configured = chosen.why === 'configured';
+  if (hint.platforms.length === 1)
+    return configured
+      ? t('release:start.prefill.configuredFor', params)
+      : t('release:start.prefill.onlyFor', params);
+  return configured
+    ? t('release:start.prefill.configured', params)
+    : t('release:start.prefill.only', params);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -184,10 +190,13 @@ export function startedLine(input: {
   build: Pick<AppBuild, 'buildNumber' | 'version'> | null;
   failed?: boolean;
 }): string {
-  if (input.failed) return `${input.workflow} did not succeed, so no build is expected from it.`;
+  if (input.failed) return t('release:start.line.failed', { workflow: input.workflow });
   if (input.build)
-    return `Build ${input.build.buildNumber} (version ${input.build.version}) is ready.`;
+    return t('release:start.line.buildReady', {
+      number: input.build.buildNumber,
+      version: input.build.version,
+    });
   return input.running
-    ? `${input.workflow} was started. Waiting for it to produce a build.`
-    : `${input.workflow} has finished. No new build was found yet.`;
+    ? t('release:start.line.running', { workflow: input.workflow })
+    : t('release:start.line.finished', { workflow: input.workflow });
 }

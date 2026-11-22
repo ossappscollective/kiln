@@ -1,5 +1,6 @@
 import type { Platform, StoreId } from '@kiln/core';
 import { releaseNotesLimit } from '@kiln/core';
+import { k, t } from './i18n/t.ts';
 import type { TestNotes } from './release-candidates.ts';
 
 /**
@@ -55,39 +56,59 @@ export type NotesHistory = {
 };
 
 const STATE_WORDS: Record<string, string> = {
-  READY_FOR_DISTRIBUTION: 'live',
-  READY_FOR_SALE: 'live',
-  PREPARE_FOR_SUBMISSION: 'prepare for submission',
-  WAITING_FOR_REVIEW: 'waiting for review',
-  IN_REVIEW: 'in review',
-  REJECTED: 'rejected',
-  PENDING_DEVELOPER_RELEASE: 'approved',
-  REPLACED_WITH_NEW_VERSION: 'replaced',
-  completed: 'completed',
-  inProgress: 'rolling out',
-  halted: 'halted',
-  draft: 'draft',
+  READY_FOR_DISTRIBUTION: k('release:notes.state.live'),
+  READY_FOR_SALE: k('release:notes.state.live'),
+  PREPARE_FOR_SUBMISSION: k('release:notes.state.prepare'),
+  WAITING_FOR_REVIEW: k('release:notes.state.waiting'),
+  IN_REVIEW: k('release:notes.state.inReview'),
+  REJECTED: k('release:notes.state.rejected'),
+  PENDING_DEVELOPER_RELEASE: k('release:notes.state.approved'),
+  REPLACED_WITH_NEW_VERSION: k('release:notes.state.replaced'),
+  completed: k('release:notes.state.completed'),
+  inProgress: k('release:notes.state.rollingOut'),
+  halted: k('release:notes.state.halted'),
+  draft: k('release:notes.state.draft'),
 };
 
 const stateWord = (state: string | null): string | null => {
   if (state === null || state === '') return null;
-  return STATE_WORDS[state] ?? state.toLowerCase().replace(/_/g, ' ');
+  const key = STATE_WORDS[state];
+  return key === undefined ? state.toLowerCase().replace(/_/g, ' ') : t(key);
 };
 
 /** Where one text was used: "App Store version 2.4.0 (live), 12 Nov 2026"; "Google Play release Winter on production (completed), no date"; "Release plan 2.3.0". */
 export function useLine(use: NoteUse, date: (at: number) => string): string {
   const state = stateWord(use.state);
+  // The date (or the missing date) follows the description after a comma, the same in every language.
   const when =
     use.at !== null
-      ? `, ${date(use.at)}`
+      ? date(use.at)
       : use.source === 'googleplay'
-        ? ', no date (Google Play does not give one)'
+        ? t('release:notes.use.noDate')
         : '';
+  const join = (head: string, tail: string): string => (tail === '' ? head : `${head}, ${tail}`);
   if (use.source === 'plan')
-    return `Release plan${use.version ? ` ${use.version}` : ''}${use.at !== null ? `, ${date(use.at)}` : ''}`;
+    return join(
+      use.version
+        ? t('release:notes.use.planVersion', { version: use.version })
+        : t('release:notes.use.plan'),
+      use.at !== null ? date(use.at) : '',
+    );
+  const version = use.version ?? t('release:notes.use.unnamed');
   if (use.source === 'appstoreconnect')
-    return `App Store version ${use.version ?? '(unnamed)'}${state ? ` (${state})` : ''}${when}`;
-  return `Google Play release ${use.version ?? '(unnamed)'}${use.track ? ` on ${use.track}` : ''}${state ? ` (${state})` : ''}${when}`;
+    return join(
+      state
+        ? t('release:notes.use.appleState', { version, state })
+        : t('release:notes.use.apple', { version }),
+      when,
+    );
+  const track = use.track ?? '';
+  let head: string;
+  if (track && state) head = t('release:notes.use.googleTrackState', { version, track, state });
+  else if (track) head = t('release:notes.use.googleTrack', { version, track });
+  else if (state) head = t('release:notes.use.googleState', { version, state });
+  else head = t('release:notes.use.google', { version });
+  return join(head, when);
 }
 
 export type ReuseOption = {
@@ -146,23 +167,22 @@ export function reuseOptions(
 /** Why the store could not be read, in words ("the store is limiting requests"). */
 export const storeErrorWhy = (error: string | null): string =>
   error === 'rate_limited'
-    ? 'the store is limiting requests'
+    ? t('release:notes.why.rateLimited')
     : error === 'store_forbidden' || error === 'credential_unreadable'
-      ? 'the credential of this app cannot read them'
+      ? t('release:notes.why.forbidden')
       : error === 'timeout'
-        ? 'the store did not answer in time'
-        : 'the store could not be read';
+        ? t('release:notes.why.timeout')
+        : t('release:notes.why.other');
 
 /** One sentence when the store history could not be read in full (the plan notes are still listed). */
 export function historyStoreLine(store: NotesHistory['store'] | undefined): string | null {
   if (!store) return null;
   if (!store.read) {
-    return `Earlier notes from the store were not read (${storeErrorWhy(store.error)}). Only the notes of your release plans are listed.`;
+    return t('release:notes.history.notRead', { why: storeErrorWhy(store.error) });
   }
   const parts: string[] = [];
-  if (store.truncated) parts.push('Only the newest versions were read.');
-  if (store.failed > 0)
-    parts.push(`${store.failed} ${store.failed === 1 ? 'version' : 'versions'} could not be read.`);
+  if (store.truncated) parts.push(t('release:notes.history.truncated'));
+  if (store.failed > 0) parts.push(t('release:notes.history.failed', { count: store.failed }));
   return parts.length > 0 ? parts.join(' ') : null;
 }
 
@@ -221,14 +241,15 @@ export function useTestFlightNotes(drafts: Drafts, notes: TestNotes | undefined)
 
 /** The sentence under "Use TestFlight notes". Says plainly when there is nothing to use. */
 export function testFlightLine(notes: TestNotes | undefined, buildLabel: string): string {
-  if (!notes) return `${buildLabel}: this server did not say whether it has TestFlight notes.`;
+  const build = buildLabel;
+  if (!notes) return t('release:notes.testflight.unsaid', { build });
   if (!notes.read) {
     return notes.error
-      ? `${buildLabel}: its TestFlight notes could not be read (${notes.error.replace(/_/g, ' ')}).`
-      : `${buildLabel}: its TestFlight notes were not read. Only the newest eight processed builds are.`;
+      ? t('release:notes.testflight.error', { build, error: notes.error.replace(/_/g, ' ') })
+      : t('release:notes.testflight.notRead', { build });
   }
-  if (notes.locales.length === 0) return `${buildLabel}: read, and it has no TestFlight notes.`;
-  return `${buildLabel}: TestFlight notes in ${notes.locales.length} ${notes.locales.length === 1 ? 'language' : 'languages'}.`;
+  if (notes.locales.length === 0) return t('release:notes.testflight.none', { build });
+  return t('release:notes.testflight.languages', { build, count: notes.locales.length });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -330,37 +351,36 @@ export function promoteNotesLine(
   fromLabel: string,
   codes: readonly string[],
 ): { tone: 'info' | 'ok' | 'warn'; text: string } {
-  const release = `the ${fromLabel} release`;
-  if (state.status === 'loading') return { tone: 'info', text: `Reading the notes of ${release}.` };
+  const from = fromLabel;
+  if (state.status === 'loading')
+    return { tone: 'info', text: t('release:notes.promote.reading', { from }) };
   if (state.status === 'error')
     return {
       tone: 'warn',
-      text: `The notes of ${release} could not be read (${state.message}). Write them or reuse earlier ones.`,
+      text: t('release:notes.promote.error', { from, message: state.message }),
     };
   if (!state.storeRead)
     return {
       tone: 'warn',
-      text: `The notes of ${release} were not read (${storeErrorWhy(state.storeError)}). Write them or reuse earlier ones.`,
+      text: t('release:notes.promote.notRead', { from, why: storeErrorWhy(state.storeError) }),
     };
-  if (state.none)
-    return {
-      tone: 'warn',
-      text: `The ${fromLabel} release has no notes; write them or reuse earlier ones.`,
-    };
+  if (state.none) return { tone: 'warn', text: t('release:notes.promote.none', { from }) };
+  // " (version code 12)" with its leading space, or nothing: a parameter of the sentences below.
   const code =
-    codes.length > 0 ? ` (version code${codes.length === 1 ? '' : 's'} ${list(codes)})` : '';
+    codes.length > 0
+      ? ` ${t('release:notes.promote.codePart', { count: codes.length, codes: list(codes) })}`
+      : '';
   if (state.filled.length === 0)
     return {
       tone: 'info',
-      text: `The ${fromLabel} release${code} has notes in ${list(state.kept)}, but text is already written or staged there, so nothing was replaced.`,
+      text: t('release:notes.promote.keptOnly', { from, code, kept: list(state.kept) }),
     };
-  const parts = [
-    `Put in the editors from ${release}${code}: ${list(state.filled)}. Nothing is staged yet.`,
-  ];
+  // Each part is a whole sentence of its own, so they are joined with a space.
+  const parts = [t('release:notes.promote.filled', { from, code, filled: list(state.filled) })];
   if (state.kept.length > 0)
-    parts.push(`Not replaced, because you already wrote or staged text: ${list(state.kept)}.`);
+    parts.push(t('release:notes.promote.keptSome', { kept: list(state.kept) }));
   if (state.tooLong.length > 0)
-    parts.push(`Too long for the store (shorten it before staging): ${list(state.tooLong)}.`);
+    parts.push(t('release:notes.promote.tooLong', { tooLong: list(state.tooLong) }));
   return { tone: 'ok', text: parts.join(' ') };
 }
 
@@ -424,12 +444,12 @@ export const unsavedLocales = (rows: readonly NoteRow[]): string[] =>
 
 export const stateLabel = (state: LocaleState): string =>
   state === 'edited'
-    ? 'Not staged yet'
+    ? t('release:notes.stateLabel.edited')
     : state === 'staged'
-      ? 'Staged'
+      ? t('release:notes.stateLabel.staged')
       : state === 'same'
-        ? 'As in the store'
-        : 'No text yet';
+        ? t('release:notes.stateLabel.same')
+        : t('release:notes.stateLabel.new');
 
 /** A locale code the server accepts for notes (`en-US`, `de`, `pt_BR`). */
 export const isNoteLocale = (value: string): boolean =>

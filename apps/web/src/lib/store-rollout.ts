@@ -1,5 +1,6 @@
 import { byFamily, can, type Platform, platformMeta, type Role, supports } from '@kiln/core';
 import { ApiError } from './api.ts';
+import { k, t } from './i18n/t.ts';
 import { formatRollout, trackLabel } from './portfolio.ts';
 import type { AppSummary, ReleaseSummary } from './types.ts';
 
@@ -16,10 +17,10 @@ import type { AppSummary, ReleaseSummary } from './types.ts';
 export const ROLLOUT_ENV = 'KILN_STORE_ROLLOUT_ENABLED';
 
 /** The sentence a confirmation must show, word for word (docs/ux-ia.md, section 5). */
-export const LIVE_STORE_WARNING = 'This changes the live store.';
+/** Message keys: show them with `t(...)`. */
+export const LIVE_STORE_WARNING = k('release-store:rollout.liveWarning');
 
-export const IRREVERSIBLE_WARNING =
-  'This cannot be undone: nothing in this tool or in the store can take it back.';
+export const IRREVERSIBLE_WARNING = k('release-store:rollout.irreversible');
 
 export type RolloutAction =
   | 'set_fraction'
@@ -136,15 +137,14 @@ export function controlsAvailability(
   if (loadFailed) {
     return {
       state: 'unknown',
-      message:
-        'Could not find out whether rollout changes are switched on. Reload the page to try again.',
+      message: t('release-store:rollout.controls.unknown'),
     };
   }
   if (!config) return { state: 'loading' };
   if (!config.enabled) {
     return {
       state: 'off',
-      message: `Changing a rollout in the store is switched off on this server. Someone who runs it sets ${config.envName || ROLLOUT_ENV}=true and restarts it (see docs/api/rollout.md). Nothing here can reach a store until then.`,
+      message: t('release-store:rollout.controls.off', { env: config.envName || ROLLOUT_ENV }),
     };
   }
   return { state: 'ready' };
@@ -189,15 +189,26 @@ export function rolloutTargets(
     if (supports(app.platform, 'releaseTracks')) {
       const codes = [...(r.versionCodes ?? [])].sort();
       const share = formatRollout(r.rolloutFraction);
+      const params = {
+        version: r.version,
+        track: trackLabel(r.track),
+        codes: codes.join(', '),
+        share,
+      };
       return {
         key: `${r.track}/${codes.join(',')}`,
-        label: `${r.version} on ${trackLabel(r.track)} (build ${codes.join(', ')})${share ? `, ${share}` : ''}`,
+        label: share
+          ? t('release-store:rollout.target.googleShare', params)
+          : t('release-store:rollout.target.google', params),
         base: { track: r.track as string, versionCodes: codes },
       };
     }
     return {
       key: r.version,
-      label: `${r.version} (${r.rawState || 'App Store'})`,
+      label: t('release-store:rollout.target.apple', {
+        version: r.version,
+        state: r.rawState || 'App Store',
+      }),
       base: { version: r.version },
     };
   });
@@ -218,17 +229,19 @@ export function stateQuery(base: RolloutTarget['base']): string {
 // Actions
 
 const ACTION_LABELS: Record<string, string> = {
-  set_fraction: 'Increase rollout',
-  halt: 'Halt rollout',
-  resume: 'Resume rollout',
-  complete: 'Release to 100%',
-  pause: 'Pause phased release',
-  release_to_all: 'Release to all users',
+  set_fraction: k('release-store:rollout.action.setFraction'),
+  halt: k('release-store:rollout.action.halt'),
+  resume: k('release-store:rollout.action.resume'),
+  complete: k('release-store:rollout.action.complete'),
+  pause: k('release-store:rollout.action.pause'),
+  release_to_all: k('release-store:rollout.action.releaseToAll'),
 };
 
 export const actionLabel = (action: string, platform: Platform): string => {
-  if (action === 'resume' && supports(platform, 'phasedRelease')) return 'Resume phased release';
-  return ACTION_LABELS[action] ?? action;
+  if (action === 'resume' && supports(platform, 'phasedRelease'))
+    return t('release-store:rollout.action.resumePhased');
+  const key = ACTION_LABELS[action];
+  return key === undefined ? action : t(key);
 };
 
 /** What the actions of an app are, in the order of the buttons; the server's `config.actions` decides which exist. */
@@ -260,10 +273,10 @@ export function actionButtons(
       : config.irreversible.indexOf(action) >= 0;
     let reason: string | null = null;
     if (blocked !== null) reason = blocked;
-    else if (!state) reason = 'Read the state from the store first.';
-    else if (!allowed) reason = 'The store state does not offer this change.';
+    else if (!state) reason = t('release-store:rollout.button.readFirst');
+    else if (!allowed) reason = t('release-store:rollout.button.notOffered');
     else if (!allowed.allowed)
-      reason = allowed.reason ?? 'The store state does not allow this change.';
+      reason = allowed.reason ?? t('release-store:rollout.button.notAllowed');
     return {
       action,
       label: actionLabel(action, platform),
@@ -285,29 +298,27 @@ export type FractionCheck = { ok: true; fraction: number } | { ok: false; messag
  */
 export function parsePercent(input: string, min: number | null): FractionCheck {
   const text = input.trim().replace(/%$/, '').trim().replace(',', '.');
-  if (text === '') return { ok: false, message: 'Enter the new share in percent, for example 25.' };
+  if (text === '') return { ok: false, message: t('release-store:rollout.percent.enter') };
   if (!/^\d+(\.\d+)?$/.test(text))
-    return { ok: false, message: 'Enter a number, for example 25 or 12.5.' };
+    return { ok: false, message: t('release-store:rollout.percent.number') };
   const percent = Number(text);
   const fraction = Math.round(percent * 100) / 10000;
   if (!(percent > 0) || !(percent < 100)) {
     return {
       ok: false,
-      message:
-        'The share must be more than 0% and less than 100%. Use "Release to 100%" to finish a rollout.',
+      message: t('release-store:rollout.percent.range'),
     };
   }
   if (Math.abs(fraction * 100 - percent) > 1e-9) {
     return {
       ok: false,
-      message:
-        'Use at most two decimals in the percentage (the store takes four decimals of the fraction).',
+      message: t('release-store:rollout.percent.decimals'),
     };
   }
   if (min !== null && fraction <= min) {
     return {
       ok: false,
-      message: `Google Play only raises a rollout: the new share must be above the current ${formatRollout(min)}.`,
+      message: t('release-store:rollout.percent.raiseOnly', { share: formatRollout(min) }),
     };
   }
   return { ok: true, fraction };
@@ -332,26 +343,44 @@ export function describeState(state: RolloutState): string {
   if (state.store === 'googleplay') {
     const name = state.name ?? state.versionCodes.join(', ');
     const share = formatRollout(state.userFraction);
-    const status = STATUS_WORDS[state.status] ?? state.status;
-    return `${name} on ${trackLabel(state.track)}: ${status}${share ? ` at ${share}` : ''}`;
+    const statusKey = STATUS_WORDS[state.status];
+    const params = {
+      name,
+      track: trackLabel(state.track),
+      status: statusKey === undefined ? state.status : t(statusKey),
+      share,
+    };
+    return share
+      ? t('release-store:rollout.state.googleShare', params)
+      : t('release-store:rollout.state.google', params);
   }
   const phase = state.phasedReleaseState;
   let line: string;
-  if (phase === null) line = 'no phased release';
+  if (phase === null) line = t('release-store:rollout.state.none');
   else if (phase === 'ACTIVE')
-    line = `phased release active${state.currentDayNumber !== null ? ` (day ${state.currentDayNumber} of 7)` : ''}`;
+    line =
+      state.currentDayNumber !== null
+        ? t('release-store:rollout.state.activeDay', { day: state.currentDayNumber })
+        : t('release-store:rollout.state.active');
   else if (phase === 'PAUSED')
-    line = `phased release paused${state.totalPauseDays !== null ? ` (${state.totalPauseDays} of 30 pause days used)` : ''}`;
-  else if (phase === 'COMPLETE') line = 'phased release complete (released to all users)';
-  else line = `phased release ${phase.toLowerCase()}`;
-  return `${state.version} on the ${platformMeta(state.platform).storeName}: ${line}`;
+    line =
+      state.totalPauseDays !== null
+        ? t('release-store:rollout.state.pausedDays', { days: state.totalPauseDays })
+        : t('release-store:rollout.state.paused');
+  else if (phase === 'COMPLETE') line = t('release-store:rollout.state.complete');
+  else line = t('release-store:rollout.state.other', { state: phase.toLowerCase() });
+  return t('release-store:rollout.state.apple', {
+    version: state.version,
+    store: platformMeta(state.platform).storeName,
+    line,
+  });
 }
 
 const STATUS_WORDS: Record<string, string> = {
-  inProgress: 'rolling out',
-  halted: 'halted',
-  completed: 'completed',
-  draft: 'draft',
+  inProgress: k('release-store:rollout.status.inProgress'),
+  halted: k('release-store:rollout.status.halted'),
+  completed: k('release-store:rollout.status.completed'),
+  draft: k('release-store:rollout.status.draft'),
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -405,10 +434,7 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
  */
 export function classifyFailure(error: unknown, previous: RolloutPreview | null): RolloutFailure {
   if (!(error instanceof ApiError))
-    return {
-      kind: 'other',
-      message: 'The request failed. Check your connection and read the state again.',
-    };
+    return { kind: 'other', message: t('release-store:rollout.fail.request') };
   const body = error.body;
   const message =
     typeof body.message === 'string' && body.message !== '' ? body.message : error.message;
@@ -436,31 +462,29 @@ export function classifyFailure(error: unknown, previous: RolloutPreview | null)
     case 'outcome_unknown':
       return {
         kind: 'outcome_unknown',
-        message: `${message} Do not try again yet: read the state from the store (Refresh state) and check it before changing anything.`,
+        message: t('release-store:rollout.fail.outcomeUnknown', { message }),
       };
     case 'write_failed':
       return body.outcome === 'not_applied'
         ? { kind: 'not_applied', message }
         : {
             kind: 'outcome_unknown',
-            message: `${message} Read the state from the store (Refresh state) before changing anything.`,
+            message: t('release-store:rollout.fail.writeFailedUnknown', { message }),
           };
     case 'timeout':
       return {
         kind: 'outcome_unknown',
-        message:
-          'The store did not answer in time. Read the state from the store (Refresh state) to see whether the change went through. Do not repeat it before that.',
+        message: t('release-store:rollout.fail.timeout'),
       };
     case 'rollout_disabled':
       return {
         kind: 'disabled',
-        message: `Changing a rollout is switched off on this server (${ROLLOUT_ENV}).`,
+        message: t('release-store:rollout.fail.disabled', { env: ROLLOUT_ENV }),
       };
     case 'changes_in_review':
       return {
         kind: 'other',
-        message:
-          'Google Play has changes in review for this app. Wait until they are decided, then try again. This tool never cancels a review.',
+        message: t('release-store:rollout.fail.changesInReview'),
       };
     case 'rollout_not_allowed':
     case 'invalid_rollout':
@@ -468,10 +492,12 @@ export function classifyFailure(error: unknown, previous: RolloutPreview | null)
     case 'rate_limited':
       return {
         kind: 'other',
-        message: `The store is limiting requests. ${error.retryAfter ? `Try again in ${error.retryAfter} seconds.` : 'Try again in a minute.'}`,
+        message: error.retryAfter
+          ? t('release-store:rollout.fail.rateLimitedSeconds', { count: error.retryAfter })
+          : t('release-store:rollout.fail.rateLimited'),
       };
     case 'forbidden':
-      return { kind: 'other', message: 'Only an admin or owner can change a rollout.' };
+      return { kind: 'other', message: t('release-store:rollout.fail.forbidden') };
     default:
       return { kind: 'other', message };
   }

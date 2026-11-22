@@ -6,6 +6,7 @@
 <script lang="ts">
   import type { StripStep } from '../../lib/release-pipeline.ts';
   import { STEP_HELP } from '../../lib/release-trains.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import InfoTip from '../ui/InfoTip.svelte';
 
   let { steps }: { steps: StripStep[] } = $props();
@@ -13,16 +14,16 @@
 
 <ol class="steps">
   {#each steps as s (s.id)}
-    <li class="s {s.status}" class:current={s.current} aria-current={s.current ? 'step' : undefined} title={s.detail ? `${STEP_HELP[s.id]} ${s.detail}` : STEP_HELP[s.id]}>
+    <li class="s {s.status}" class:current={s.current} aria-current={s.current ? 'step' : undefined} title={s.detail ? `${t(STEP_HELP[s.id])} ${s.detail}` : t(STEP_HELP[s.id])}>
       <span class="dot" aria-hidden="true"></span>
       <span class="name">{s.label}</span>
       <span class="visually-hidden">: {s.word}</span>
     </li>
   {/each}
 </ol>
-<InfoTip label="About these steps" width="24rem">
+<InfoTip label={t('release:strip.about')} width="24rem">
   <ul class="help">
-    {#each steps as s (s.id)}<li>{STEP_HELP[s.id]}</li>{/each}
+    {#each steps as s (s.id)}<li>{t(STEP_HELP[s.id])}</li>{/each}
   </ul>
 </InfoTip>
 

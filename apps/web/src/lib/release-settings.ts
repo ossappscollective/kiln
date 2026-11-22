@@ -9,6 +9,7 @@ import {
   type StagedRolloutMode,
   sharePrefill,
 } from '@kiln/core';
+import { t } from './i18n/t.ts';
 
 export type ReleaseSettingsView = {
   settings: PlayReleaseSettings;
@@ -16,10 +17,17 @@ export type ReleaseSettingsView = {
   earlierProductionRelease: boolean;
 };
 
+/** The label of each mode in the active language (read when used, so a change of language shows). */
 export const STAGED_ROLLOUT_LABEL: Readonly<Record<StagedRolloutMode, string>> = {
-  auto: 'Auto: offered when an earlier production release exists',
-  always_ask: 'Always ask for a share',
-  never: 'Never: always release to everyone (100%)',
+  get auto() {
+    return t('release:settings.staged.auto');
+  },
+  get always_ask() {
+    return t('release:settings.staged.alwaysAsk');
+  },
+  get never() {
+    return t('release:settings.staged.never');
+  },
 };
 
 export type ReleaseInputs = {

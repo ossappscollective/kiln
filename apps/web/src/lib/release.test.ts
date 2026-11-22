@@ -182,7 +182,7 @@ test('the note counter uses the limit of the platform and counts code points', (
     limit: 4000,
     over: false,
     remaining: 3997,
-    label: '3 of 4000 characters',
+    label: '3 of 4,000 characters',
   });
   const over = noteCounter('x'.repeat(503), 'android');
   assert.equal(over.over, true);
@@ -191,7 +191,7 @@ test('the note counter uses the limit of the platform and counts code points', (
   assert.equal(noteCounter('😀'.repeat(501), null).over, true);
   assert.equal(noteCounter('x'.repeat(501), 'android').label, '1 character over the limit of 500');
   assert.match(limitNote(null), /stricter limit applies: 500/);
-  assert.match(limitNote('ios'), /4000/);
+  assert.match(limitNote('ios'), /4,000/);
   assert.match(limitNote('android'), /500/);
 });
 

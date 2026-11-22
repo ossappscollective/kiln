@@ -5,10 +5,11 @@ import {
   type PlayLocalCheck,
   type PlayProposal,
   type PlayStatus,
-  playStateText,
   playStatusOf,
   type StagedChangesView,
 } from '@kiln/core';
+import { formatPercent } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import type { EditableRelease } from './release-candidates.ts';
 import { stagedField } from './release-stepper.ts';
 import { percentText } from './store-release.ts';
@@ -131,12 +132,13 @@ export const bodyKey = (body: PlayCheckBody): string => JSON.stringify(body);
 
 /** Whether the check can be asked now, and if not why (never sends something Google would refuse for being incomplete). */
 export function canCheck(proposal: PlayProposal): { ok: true } | { ok: false; reason: string } {
-  if (proposal.track.trim() === '') return { ok: false, reason: 'Name the track first.' };
+  if (proposal.track.trim() === '')
+    return { ok: false, reason: t('release-store:playCheck.nameTrack') };
   if (proposal.versionCodes.length === 0)
-    return { ok: false, reason: 'Choose the version codes first.' };
+    return { ok: false, reason: t('release-store:playCheck.chooseCodes') };
   const f = proposal.userFraction;
   if (f !== null && !(f > 0 && f <= 1))
-    return { ok: false, reason: 'The share of users must be above 0% and at most 100%.' };
+    return { ok: false, reason: t('release-store:playCheck.shareRange') };
   return { ok: true };
 }
 
@@ -148,13 +150,19 @@ export function stateLine(proposal: PlayProposal): string {
   const f = proposal.userFraction;
   const valid = f !== null && f > 0 && f <= 1;
   const status = playStatusOf(valid ? f : null);
-  return playStateText(status, valid ? f : null, proposal.track.trim() || 'the track');
+  const track = proposal.track.trim() || t('release-store:playCheck.theTrack');
+  if (status === 'draft') return t('release-store:playCheck.stateDraft', { track });
+  if (status === 'completed') return t('release-store:playCheck.stateCompleted', { track });
+  return t('release-store:playCheck.stateRollout', {
+    share: formatPercent(valid && f !== null ? f : 0, { maximumFractionDigits: 2 }),
+    track,
+  });
 }
 
 /** The sentence that must stay next to every "no errors": the API reports errors only. */
-export const NO_ERRORS_SENTENCE =
-  'Google found no errors. The Play Console may still show warnings: the API reports errors only, so notices such as a missing deobfuscation file or the target API level are not covered here.';
-export const NOTHING_SAVED = 'Nothing was saved or released in Google Play.';
+/** Message keys: show them with `t(...)`. */
+export const NO_ERRORS_SENTENCE = k('release-store:playCheck.noErrorsSentence');
+export const NOTHING_SAVED = k('release-store:playCheck.nothingSaved');
 
 export type OutcomeView = {
   tone: 'ok' | 'bad';
@@ -170,8 +178,8 @@ export function outcomeView(answer: PlayCheckAnswer): OutcomeView {
   if (answer.outcome === 'no_errors') {
     return {
       tone: 'ok',
-      title: 'Google found no errors',
-      lines: [NO_ERRORS_SENTENCE.replace(/^Google found no errors\. /, ''), NOTHING_SAVED],
+      title: t('release-store:playCheck.titleOk'),
+      lines: [t('release-store:playCheck.noErrorsCaveat'), t(NOTHING_SAVED)],
       findings: [],
       rolloutNotice: null,
     };
@@ -179,11 +187,8 @@ export function outcomeView(answer: PlayCheckAnswer): OutcomeView {
   const n = answer.findings.length;
   return {
     tone: 'bad',
-    title: n === 1 ? 'Google reported an error' : `Google reported ${n} errors`,
-    lines: [
-      'Fix this before you release. Google Play would refuse the release as it is.',
-      NOTHING_SAVED,
-    ],
+    title: t('release-store:playCheck.titleErrors', { count: n }),
+    lines: [t('release-store:playCheck.fixBefore'), t(NOTHING_SAVED)],
     findings: answer.findings.map((f) => f.message),
     rolloutNotice:
       answer.findings
@@ -194,11 +199,15 @@ export function outcomeView(answer: PlayCheckAnswer): OutcomeView {
 
 /** "This check was made for 10%, as a rollout in production, codes 241." */
 export function checkedLine(answer: PlayCheckAnswer): string {
-  const how =
-    answer.status === 'draft'
-      ? 'as a draft'
-      : answer.status === 'completed'
-        ? 'for everybody (100%)'
-        : `as a rollout to ${percentText(answer.userFraction ?? 0)}`;
-  return `Checked ${how} in ${answer.track}, version code${answer.versionCodes.length === 1 ? '' : 's'} ${answer.versionCodes.join(', ')}.`;
+  const params = {
+    count: answer.versionCodes.length,
+    track: answer.track,
+    codes: answer.versionCodes.join(', '),
+  };
+  if (answer.status === 'draft') return t('release-store:playCheck.checkedDraft', params);
+  if (answer.status === 'completed') return t('release-store:playCheck.checkedAll', params);
+  return t('release-store:playCheck.checkedRollout', {
+    ...params,
+    share: percentText(answer.userFraction ?? 0),
+  });
 }

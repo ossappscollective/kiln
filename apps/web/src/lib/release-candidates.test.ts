@@ -134,8 +134,8 @@ test('the source run of a build is its linked run, or a plain reason', () => {
   assert.equal(sourceRunOf(null, []).text, 'No CI run linked');
 });
 
-test('the upload time is plain UTC text', () => {
-  assert.equal(uploadedText('2026-11-19T10:30:12Z'), '2026-11-19 10:30 UTC');
+test('the upload time is written in UTC', () => {
+  assert.equal(uploadedText('2026-11-19T10:30:12Z'), 'Nov 19, 2026, 10:30 AM UTC');
   assert.equal(uploadedText(null), 'date unknown');
   assert.equal(uploadedText('not a date'), 'date unknown');
 });
@@ -163,7 +163,7 @@ test('build rows carry the number, the date, the run and the eligibility', () =>
     [{ buildNumber: '412', linkState: 'unlinked', link: null }],
   );
   assert.equal(rows[0]?.title, 'Build 412');
-  assert.equal(rows[0]?.uploaded, '2026-11-19 10:30 UTC');
+  assert.equal(rows[0]?.uploaded, 'Nov 19, 2026, 10:30 AM UTC');
   assert.equal(rows[0]?.run.text, 'No CI run linked');
   assert.equal(rows[0]?.eligibility.selectable, true);
 });

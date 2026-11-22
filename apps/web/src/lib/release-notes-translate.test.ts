@@ -101,7 +101,7 @@ test('AI: hidden without ai.use, off with the setting to change, off when the mo
   const used = { used: 1000, remaining: 0 };
   assert.match(
     aiEngine({ role: 'member', config: aiConfig({}, used) }).reason ?? '',
-    /monthly AI limit is used up\. It starts again on 1 December\.$/,
+    /monthly AI limit is used up\. It starts again on (?:1 December|December 1)\.$/,
   );
   assert.match(
     aiEngine({ role: 'admin', config: aiConfig({}, used) }).reason ?? '',
@@ -265,7 +265,7 @@ test('provider names and error sentences come from fixed codes', () => {
   );
   assert.match(
     translateErrorMessage(err(429, 'ai_budget_exhausted', { resetsAt: Date.UTC(2026, 11, 1) })),
-    /starts again on 1 December/,
+    /starts again on (?:1 December|December 1)/,
   );
   assert.match(translateErrorMessage(err(403, 'forbidden')), /Your role does not allow that/);
   assert.equal(translateErrorMessage(new Error('boom')), 'That did not work. Try again.');

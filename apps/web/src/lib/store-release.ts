@@ -7,6 +7,8 @@ import {
   supports,
 } from '@kiln/core';
 import { ApiError } from './api.ts';
+import { formatPercent } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import { confirmationMatches } from './store-submit.ts';
 
 /**
@@ -18,7 +20,8 @@ import { confirmationMatches } from './store-submit.ts';
  */
 
 export const RELEASE_ENV = 'KILN_STORE_RELEASE_ENABLED';
-export const RELEASE_ROLE_REASON = 'Releasing needs the admin or owner role.';
+/** A message key: show it with `t(RELEASE_ROLE_REASON)`. */
+export const RELEASE_ROLE_REASON = k('release-store:rel.roleReason');
 
 // ---------------------------------------------------------------------------------------------
 // API shapes
@@ -128,15 +131,16 @@ export const canRelease = (role: Role): boolean => can(role, 'store.release');
 
 /** The share as the person types it ("10", "10%", "2.5") to a fraction for the request, or null when it is not one. */
 export function parsePercent(text: string): number | null {
-  const t = text.trim().replace(/%$/, '').trim().replace(',', '.');
-  if (!/^[0-9]+(\.[0-9]{1,2})?$/.test(t)) return null;
-  const n = Number(t);
+  const typed = text.trim().replace(/%$/, '').trim().replace(',', '.');
+  if (!/^[0-9]+(\.[0-9]{1,2})?$/.test(typed)) return null;
+  const n = Number(typed);
   if (!(n > 0) || n > 100) return null;
   return Math.round(n * 100) / 10000;
 }
 
 /** A fraction as a percent for words: 0.1 is "10%", 0.025 is "2.5%", 1 is "100%". */
-export const percentText = (fraction: number): string => `${Math.round(fraction * 10000) / 100}%`;
+export const percentText = (fraction: number): string =>
+  formatPercent(fraction, { maximumFractionDigits: 2 });
 
 /** The percent of a staged intended share (`0.1`) as the text of the input, or '' when it is not one. */
 export function percentFromFraction(value: string | null | undefined): string {
@@ -164,7 +168,10 @@ export type ReleaseLine =
   | { kind: 'ready'; button: string; disabled: boolean; reason: string | null };
 
 export const OFF_NOTE = (envName: string): string =>
-  `Releasing from this tool is switched off on this server. Someone who runs it sets ${envName || RELEASE_ENV}=true and restarts it (see docs/api/releases-write.md). Meanwhile, release in ${'App Store Connect or Play Console'}.`;
+  t('release-store:rel.offNote', {
+    env: envName || RELEASE_ENV,
+    console: t('release-store:rel.consoles'),
+  });
 
 /** What the release control of the Confirm step shows. Nothing for a role below admin. The button asks for a preview first. */
 export function releaseLine(input: ReleaseLineInput): ReleaseLine {
@@ -173,37 +180,41 @@ export function releaseLine(input: ReleaseLineInput): ReleaseLine {
     return {
       kind: 'note',
       tone: 'bad',
-      text: 'Could not check whether a release is running for this app.',
+      text: t('release-store:rel.line.stateFailed'),
       retry: true,
     };
   if (input.configFailed)
     return {
       kind: 'note',
       tone: 'bad',
-      text: 'Could not check whether releasing is switched on.',
+      text: t('release-store:rel.line.configFailed'),
       retry: true,
     };
   if (input.config === null || input.state === null)
     return {
       kind: 'ready',
-      button: 'Release…',
+      button: t('release-store:rel.line.button'),
       disabled: true,
-      reason: 'Checking whether releasing is switched on.',
+      reason: t('release-store:rel.line.checking'),
     };
   if (!input.config.enabled)
-    return { kind: 'off', text: 'Releasing is switched off', note: OFF_NOTE(input.config.envName) };
+    return {
+      kind: 'off',
+      text: t('release-store:rel.line.off'),
+      note: OFF_NOTE(input.config.envName),
+    };
   const unknown = input.state.unknownOutcome.release;
   const label = unknown
-    ? 'Check the store, then preview…'
+    ? t('release-store:rel.line.checkThenPreview')
     : supports(input.platform, 'releaseTracks')
-      ? 'Preview the release…'
-      : 'Release…';
+      ? t('release-store:rel.line.previewButton')
+      : t('release-store:rel.line.button');
   if (input.state.inFlight.release || input.state.inFlight.push || input.state.inFlight.submit) {
     return {
       kind: 'ready',
       button: label,
       disabled: true,
-      reason: 'A release, a push or a submit for this app is running.',
+      reason: t('release-store:rel.line.running'),
     };
   }
   if (supports(input.platform, 'releaseTracks') && input.fraction === null) {
@@ -211,8 +222,7 @@ export function releaseLine(input: ReleaseLineInput): ReleaseLine {
       kind: 'ready',
       button: label,
       disabled: true,
-      reason:
-        'Type the share of users to release to first (for example 10). It is never filled in for you.',
+      reason: t('release-store:rel.line.typeShare'),
     };
   }
   return { kind: 'ready', button: label, disabled: false, reason: null };
@@ -289,11 +299,14 @@ export function releaseTitle(
 ): string {
   if (supports(preview.app.platform, 'releaseTracks')) {
     const share = preview.audience.userFraction;
-    return `${preview.track ?? 'the track'}${share !== null ? ` at ${percentText(share)}` : ''}`;
+    const track = preview.track ?? t('release-store:rel.title.theTrack');
+    return share !== null
+      ? t('release-store:rel.title.trackAt', { track, share: percentText(share) })
+      : track;
   }
   return preview.version?.versionString
-    ? `Version ${preview.version.versionString}`
-    : 'The version waiting for release';
+    ? t('release-store:rel.title.versionNamed', { version: preview.version.versionString })
+    : t('release-store:rel.title.versionWaiting');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -319,8 +332,11 @@ const bodyMessage = (error: ApiError): string =>
     ? error.body.message
     : error.message;
 
-export const UNKNOWN_RELEASE_HINT =
-  'Do not release again yet. Look at the store console (App Store Connect or Play Console) to see whether the release went out, then preview again here: that only reads the store.';
+/** A message key: show it with `t(UNKNOWN_RELEASE_HINT)`. */
+export const UNKNOWN_RELEASE_HINT = k('release-store:rel.unknownHint');
+
+const withHint = (message: string): string =>
+  t('release-store:rel.fail.withHint', { message, hint: t(UNKNOWN_RELEASE_HINT) });
 
 export function classifyReleaseFailure(
   error: unknown,
@@ -346,7 +362,7 @@ function classifyReleaseFailureBase(error: unknown, phase: 'preview' | 'release'
     return {
       kind: 'other',
       code: 'error',
-      message: 'The request failed. Check your connection, then read the state again.',
+      message: t('release-store:rel.fail.request'),
     };
   const message = bodyMessage(error);
   const body = error.body;
@@ -354,57 +370,59 @@ function classifyReleaseFailureBase(error: unknown, phase: 'preview' | 'release'
     case 'store_release_disabled':
       return {
         kind: 'disabled',
-        message: `Releasing is switched off on this server (${RELEASE_ENV}). Nothing was released. Someone who runs the server sets ${RELEASE_ENV}=true and restarts it.`,
+        message: t('release-store:rel.fail.disabled', { env: RELEASE_ENV }),
       };
     case 'forbidden':
-      return { kind: 'forbidden', message: RELEASE_ROLE_REASON };
+      return { kind: 'forbidden', message: t(RELEASE_ROLE_REASON) };
     case 'confirmation_mismatch': {
       const phrase = typeof body.phrase === 'string' ? body.phrase : null;
       return {
         kind: 'mismatch',
-        message: `The text you typed is not the phrase.${phrase ? ` Type exactly: ${phrase}.` : ''} Nothing was read or released.`,
+        message: phrase
+          ? t('release-store:rel.fail.mismatchPhrase', { phrase })
+          : t('release-store:rel.fail.mismatch'),
       };
     }
     case 'blocked':
       return {
         kind: 'blocked',
         checks: Array.isArray(body.checks) ? (body.checks as ReleaseCheck[]) : [],
-        message:
-          'Something blocks the release on the store as it is now. Nothing was released. Fix it, then preview again.',
+        message: t('release-store:rel.fail.blocked'),
       };
     case 'state_changed':
       return {
         kind: 'state_changed',
         next: isReleasePreview(body.preview) ? body.preview : null,
-        message:
-          'The store is not what you previewed (the version, the build, the draft release or the other releases of the track changed), so nothing was released. Read the new preview and confirm again.',
+        message: t('release-store:rel.fail.stateChanged'),
       };
     case 'write_in_progress':
       return {
         kind: 'write_in_progress',
-        message: `${message} Nothing was released by this request. Wait a moment, then confirm again.`,
+        message: t('release-store:rel.fail.writeInProgress', { message }),
       };
     case 'push_outcome_unknown':
     case 'submit_outcome_unknown':
       return {
         kind: 'other_unknown',
-        message: `${message} The last ${error.code === 'push_outcome_unknown' ? 'draft push' : 'submit'} has an unknown outcome, so nothing was released. Preview that one again first (that only reads the store), then come back.`,
+        message:
+          error.code === 'push_outcome_unknown'
+            ? t('release-store:rel.fail.pushUnknown', { message })
+            : t('release-store:rel.fail.submitUnknown', { message }),
       };
     case 'outcome_unknown':
-      return { kind: 'outcome_unknown', message: `${message} ${UNKNOWN_RELEASE_HINT}` };
+      return { kind: 'outcome_unknown', message: withHint(message) };
     case 'write_failed':
       return body.outcome === 'not_applied'
         ? {
             kind: 'not_applied',
-            message: `${message} The store did not release the version. You can preview and confirm again.`,
+            message: t('release-store:rel.fail.notApplied', { message }),
           }
-        : { kind: 'outcome_unknown', message: `${message} ${UNKNOWN_RELEASE_HINT}` };
+        : { kind: 'outcome_unknown', message: withHint(message) };
     case 'changes_in_review':
       return {
         kind: 'other',
         code: error.code,
-        message:
-          'Google Play already has changes in review for this app. Nothing was released. Wait until they are decided. This tool never cancels a review.',
+        message: t('release-store:rel.fail.changesInReview'),
       };
     case 'track_required':
     case 'user_fraction_required':
@@ -416,7 +434,9 @@ function classifyReleaseFailureBase(error: unknown, phase: 'preview' | 'release'
     case 'rate_limited':
       return {
         kind: 'rate_limited',
-        message: `The store is limiting requests. ${error.retryAfter ? `Try again in ${error.retryAfter} seconds.` : 'Try again in a minute.'} This app never retries by itself.`,
+        message: error.retryAfter
+          ? t('release-store:submit.fail.rateLimitedSeconds', { count: error.retryAfter })
+          : t('release-store:submit.fail.rateLimited'),
       };
     case 'store_auth':
     case 'store_forbidden':
@@ -425,23 +445,26 @@ function classifyReleaseFailureBase(error: unknown, phase: 'preview' | 'release'
       return {
         kind: 'other',
         code: error.code,
-        message: `The store refused the request: ${message}`,
+        message: t('release-store:submit.fail.refused', { message }),
       };
     case 'store_unavailable':
       return {
         kind: 'other',
         code: error.code,
-        message: `${message} The store could not be reached before anything was sent; nothing was released.`,
+        message: t('release-store:rel.fail.unavailable', { message }),
       };
     case 'timeout':
       return {
         kind: 'other',
         code: error.code,
-        message:
-          'A read of the store did not answer in time. If you are unsure whether the release went out, preview again (that reads the store) and check the store console.',
+        message: t('release-store:rel.fail.timeout'),
       };
     case 'app_not_synced':
-      return { kind: 'other', code: error.code, message: `${message} Sync the app first.` };
+      return {
+        kind: 'other',
+        code: error.code,
+        message: t('release-store:submit.fail.syncFirst', { message }),
+      };
     default:
   }
   if (error.code.startsWith('credential_')) return { kind: 'other', code: error.code, message };
@@ -449,7 +472,9 @@ function classifyReleaseFailureBase(error: unknown, phase: 'preview' | 'release'
   if (phase === 'release' && (error.status === 0 || error.status >= 500)) {
     return {
       kind: 'outcome_unknown',
-      message: `${error.status === 0 ? 'The connection broke while the release was running, so it is not known whether the server received it.' : message} ${UNKNOWN_RELEASE_HINT}`,
+      message: withHint(
+        error.status === 0 ? t('release-store:rel.fail.connectionBroke') : message,
+      ),
     };
   }
   return { kind: 'other', code: error.code, message };
@@ -471,12 +496,20 @@ export const shouldReloadState = (failure: ReleaseFailure): boolean =>
 
 /** The sentence after a successful release. */
 export function resultText(result: ReleaseResult): string {
-  const how = result.confirmedByReread
-    ? ' The answer of the store was lost, and reading it back shows the release went out.'
-    : '';
+  // Each part is a whole sentence (the last one comes from the server), so they are joined with a space.
+  const how = result.confirmedByReread ? t('release-store:rel.result.reread') : '';
+  let first: string;
   if (supports(result.app.platform, 'releaseTracks')) {
     const share = result.audience.userFraction;
-    return `Release started on ${result.track ?? 'the track'}${share !== null ? ` at ${percentText(share)} of users` : ''}.${how} ${result.note}`.trim();
+    const track = result.track ?? t('release-store:rel.title.theTrack');
+    first =
+      share !== null
+        ? t('release-store:rel.result.startedAt', { track, share: percentText(share) })
+        : t('release-store:rel.result.started', { track });
+  } else {
+    first = result.version?.versionString
+      ? t('release-store:rel.result.versionReleased', { version: result.version.versionString })
+      : t('release-store:rel.result.theVersionReleased');
   }
-  return `${result.version?.versionString ? `Version ${result.version.versionString}` : 'The version'} was released.${how} ${result.note}`.trim();
+  return [first, how, result.note].filter((part) => part !== '').join(' ');
 }

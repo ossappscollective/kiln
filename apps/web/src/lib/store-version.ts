@@ -1,5 +1,6 @@
 import { newestDottedVersion, nextVersion, type Platform } from '@kiln/core';
 import { ApiError } from './api.ts';
+import { k, t } from './i18n/t.ts';
 import { stepUpMessage } from './step-up.ts';
 
 /**
@@ -10,12 +11,11 @@ import { stepUpMessage } from './step-up.ts';
  */
 
 export const VERSION_ENV = 'KILN_STORE_DRAFT_WRITE_ENABLED';
-export const VERSION_ROLE_REASON = 'Creating a version needs the admin or owner role.';
-export const VERSION_NOTE =
-  'Creates an editable draft version in App Store Connect. Nothing is submitted.';
+/** The three sentences below are message keys: show them with `t(...)`. */
+export const VERSION_ROLE_REASON = k('release-store:version.roleReason');
+export const VERSION_NOTE = k('release-store:version.note');
 /** What the build step said before there was a way to create it here: still the text when this app cannot. */
-export const NO_VERSION_SENTENCE =
-  'App Store Connect has no version a build can be attached to. Create the next version in App Store Connect, sync this app, then read again here.';
+export const NO_VERSION_SENTENCE = k('release-store:version.noneSentence');
 
 export type VersionCheck = { code: string; message: string };
 export type VersionPreview = {
@@ -82,8 +82,7 @@ export function classifyVersionFailure(error: unknown): VersionFailure {
   if (!(error instanceof ApiError))
     return {
       kind: 'other',
-      message:
-        'The request failed. Check your connection, then try again. Nothing is known to have been created.',
+      message: t('release-store:version.failRequest'),
     };
   const message = bodyMessage(error);
   const step = stepUpMessage(error.code, error.retryAfter);
@@ -92,38 +91,41 @@ export function classifyVersionFailure(error: unknown): VersionFailure {
     case 'store_draft_disabled':
       return {
         kind: 'disabled',
-        message: `Writing drafts to a store is switched off on this server (${VERSION_ENV}). Nothing was created. Someone who runs the server sets ${VERSION_ENV}=true and restarts it.`,
+        message: t('release-store:version.failDisabled', { env: VERSION_ENV }),
       };
     case 'forbidden':
-      return { kind: 'forbidden', message: VERSION_ROLE_REASON };
+      return { kind: 'forbidden', message: t(VERSION_ROLE_REASON) };
     case 'blocked': {
       const checks = error.body.checks as { blocking?: unknown } | undefined;
       const list = checks && Array.isArray(checks.blocking) ? checks.blocking.filter(isCheck) : [];
       return {
         kind: 'blocked',
-        message: `${list.length > 0 ? blockingText(list) : message} Nothing was created.`,
+        message: t('release-store:version.nothingCreated', {
+          message: list.length > 0 ? blockingText(list) : message,
+        }),
       };
     }
     case 'state_changed':
       return {
         kind: 'state_changed',
-        message:
-          'The versions in App Store Connect changed since you looked, so nothing was created. Check the version and try again.',
+        message: t('release-store:version.stateChanged'),
       };
     case 'outcome_unknown':
       return {
         kind: 'outcome_unknown',
-        message: `${message} Look at the app in App Store Connect before you try again.`,
+        message: t('release-store:version.outcomeUnknown', { message }),
       };
     case 'store_rejected': {
       const why = reasonsOf(error);
       return {
         kind: 'other',
-        message: `${message}${why !== '' && message.indexOf(why) < 0 ? ` ${why}` : ''} Nothing was created.`,
+        message: t('release-store:version.nothingCreated', {
+          message: `${message}${why !== '' && message.indexOf(why) < 0 ? ` ${why}` : ''}`,
+        }),
       };
     }
     case 'rate_limited':
-      return { kind: 'other', message: `${message} Nothing was created.` };
+      return { kind: 'other', message: t('release-store:version.nothingCreated', { message }) };
     default:
       return { kind: 'other', message };
   }
