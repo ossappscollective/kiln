@@ -9,6 +9,7 @@
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { t } from '../../lib/i18n/t.ts';
   import Icon from './Icon.svelte';
 
   let {
@@ -82,7 +83,7 @@
           {#if description}<p id="{uid}-desc" class="muted">{description}</p>{/if}
         </div>
         {#if dismissible}
-          <button type="button" class="ghost icon sm" aria-label="Close" onclick={() => (open = false)}>
+          <button type="button" class="ghost icon sm" aria-label={t('common:action.close')} onclick={() => (open = false)}>
             <Icon name="x" />
           </button>
         {/if}

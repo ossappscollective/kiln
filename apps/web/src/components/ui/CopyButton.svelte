@@ -1,18 +1,19 @@
 <!--
   CopyButton: copies `value` to the clipboard and says so. Falls back to a hidden textarea and
   execCommand where the async Clipboard API is unavailable (plain http, older webviews).
-  Props: value, label = 'Copy', copiedLabel = 'Copied', iconOnly (square, label becomes the
+  Props: value, label (default: the translated "Copy"), copiedLabel (default: "Copied"), iconOnly (square, label becomes the
   accessible name), size = 'sm' | 'md', variant = 'ghost' | 'secondary', oncopy?, onerror?.
   The feedback is read aloud through a live region and resets after 2 seconds.
 -->
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import { t } from '../../lib/i18n/t.ts';
   import Button from './Button.svelte';
 
   let {
     value,
-    label = 'Copy',
-    copiedLabel = 'Copied',
+    label,
+    copiedLabel,
     iconOnly = false,
     size = 'sm',
     variant = 'ghost',
@@ -71,7 +72,9 @@
 
   onDestroy(() => clearTimeout(timer));
 
-  const shown = $derived(state === 'copied' ? copiedLabel : state === 'failed' ? 'Copy failed' : label);
+  const labelText = $derived(label ?? t('common:action.copy'));
+  const copiedText = $derived(copiedLabel ?? t('common:action.copied'));
+  const shown = $derived(state === 'copied' ? copiedText : state === 'failed' ? t('common:copy.failed') : labelText);
 </script>
 
 <Button
@@ -84,4 +87,4 @@
 >
   {#if !iconOnly}{shown}{/if}
 </Button>
-<span class="visually-hidden" role="status">{state === 'copied' ? copiedLabel : state === 'failed' ? 'Copy failed' : ''}</span>
+<span class="visually-hidden" role="status">{state === 'copied' ? copiedText : state === 'failed' ? t('common:copy.failed') : ''}</span>

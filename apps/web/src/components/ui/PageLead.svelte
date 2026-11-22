@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { t } from '../../lib/i18n/t.ts';
 
   let {
     headline,
@@ -25,7 +26,7 @@
   } = $props();
 </script>
 
-<div class="lead" data-tone={tone} data-testid={testid} role="group" aria-label="Where this page stands">
+<div class="lead" data-tone={tone} data-testid={testid} role="group" aria-label={t('common:pageLead.label')}>
   <div class="text">
     <p class="headline">{headline}</p>
     {#if hint}<p class="hint">{hint}</p>{/if}

@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import { toast, visibleToasts } from '../../lib/toast.svelte.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Icon from './Icon.svelte';
   import type { IconName } from './icons.ts';
 
@@ -16,23 +17,23 @@
   };
 </script>
 
-<section class="host no-print" aria-label="Notifications">
-  {#each visibleToasts() as t (t.id)}
-    <div class="toast {t.kind}" role={t.kind === 'error' ? 'alert' : 'status'}>
-      <span class="glyph"><Icon name={icons[t.kind] ?? 'info'} size={18} /></span>
+<section class="host no-print" aria-label={t('common:toast.region')}>
+  {#each visibleToasts() as item (item.id)}
+    <div class="toast {item.kind}" role={item.kind === 'error' ? 'alert' : 'status'}>
+      <span class="glyph"><Icon name={icons[item.kind] ?? 'info'} size={18} /></span>
       <div class="text">
-        {#if t.title}<strong>{t.title}</strong>{/if}
-        <span>{t.message}</span>
-        {#if t.action}
-          {@const action = t.action}
+        {#if item.title}<strong>{item.title}</strong>{/if}
+        <span>{item.message}</span>
+        {#if item.action}
+          {@const action = item.action}
           {#if action.href}
-            <a class="action" href={action.href} onclick={() => { action.onclick?.(); toast.dismiss(t.id); }}>{action.label}</a>
+            <a class="action" href={action.href} onclick={() => { action.onclick?.(); toast.dismiss(item.id); }}>{action.label}</a>
           {:else}
-            <button type="button" class="link action" onclick={() => { action.onclick?.(); toast.dismiss(t.id); }}>{action.label}</button>
+            <button type="button" class="link action" onclick={() => { action.onclick?.(); toast.dismiss(item.id); }}>{action.label}</button>
           {/if}
         {/if}
       </div>
-      <button type="button" class="ghost icon sm" aria-label="Dismiss notification" onclick={() => toast.dismiss(t.id)}>
+      <button type="button" class="ghost icon sm" aria-label={t('common:toast.dismiss')} onclick={() => toast.dismiss(item.id)}>
         <Icon name="x" />
       </button>
     </div>

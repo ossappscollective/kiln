@@ -4,6 +4,8 @@ import type { PendingItem, PublishStepType } from './pending.ts';
 import type { BuildRow } from './release-candidates.ts';
 import type { Chosen, Level, StagedFacts, StepId } from './release-stepper.ts';
 import { STEP_LABELS } from './release-stepper.ts';
+import { formatList } from './i18n/format.ts';
+import { t } from './i18n/t.ts';
 import { storeName } from './staged.ts';
 
 /**
@@ -52,20 +54,20 @@ export function footerFor(current: StepId, visible: readonly StepId[]): Footer {
   const i = visible.indexOf(current);
   const next = i >= 0 ? visible[i + 1] : undefined;
   const back = i > 0 ? (visible[i - 1] ?? null) : null;
-  const position = `Step ${i < 0 ? 1 : i + 1} of ${visible.length}`;
+  const position = t('common:stepper.position', { n: i < 0 ? 1 : i + 1, total: visible.length });
   if (next !== undefined)
     return {
       position,
       back,
-      primary: { kind: 'step', to: next, label: `Next: ${STEP_LABELS[next]}` },
+      primary: { kind: 'step', to: next, label: t('common:stepper.next', { step: STEP_LABELS[next] }) },
     };
   return {
     position,
     back,
     primary:
       current === 'confirm'
-        ? { kind: 'publish', label: 'Review and publish' }
-        : { kind: 'close', label: 'Close' },
+        ? { kind: 'publish', label: t('common:stepper.reviewPublish') }
+        : { kind: 'close', label: t('common:action.close') },
   };
 }
 
@@ -83,8 +85,6 @@ export type ConfirmStep = {
 
 const ORDER: readonly PublishStepType[] = ['push_draft', 'submit', 'release', 'rollout'];
 
-const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
-
 /**
  * What waits to be written, in the order the steps run, from the pending items of the app. The server still makes the real plan when
  * the person presses "Review and publish"; this is the same order in plain words, so the last step shows what the button will do.
@@ -101,21 +101,21 @@ export function confirmSteps(items: readonly PendingItem[], platform: Platform):
       const sets = mine.filter((i) => i.kind === 'asset_set').length;
       const fields = mine.filter((i) => i.kind === 'release_field').length;
       const parts: string[] = [];
-      if (texts > 0) parts.push(plural(texts, 'text change', 'text changes'));
-      if (sets > 0) parts.push(plural(sets, 'graphics set', 'graphics sets'));
-      if (fields > 0) parts.push(plural(fields, 'release field', 'release fields'));
+      if (texts > 0) parts.push(t('common:stepper.detail.texts', { count: texts }));
+      if (sets > 0) parts.push(t('common:stepper.detail.sets', { count: sets }));
+      if (fields > 0) parts.push(t('common:stepper.detail.fields', { count: fields }));
       out.push({
         type,
-        title: 'Push the staged changes to the store draft',
-        detail: parts.join(', '),
-        note: 'Can be changed again',
+        title: t('common:stepper.confirm.push'),
+        detail: formatList(parts),
+        note: t('common:stepper.confirm.pushNote'),
         irreversible: false,
       });
     } else if (type === 'submit') {
       out.push({
         type,
-        title: 'Submit the draft for review',
-        detail: mine.map((i) => i.label).join(', '),
+        title: t('common:stepper.confirm.submit'),
+        detail: formatList(mine.map((i) => i.label)),
         note: null,
         irreversible: false,
       });
@@ -123,17 +123,17 @@ export function confirmSteps(items: readonly PendingItem[], platform: Platform):
       out.push({
         type,
         title: supports(platform, 'releaseTracks')
-          ? 'Release to users'
-          : 'Release the approved version',
-        detail: mine.map((i) => i.label).join(', '),
-        note: 'Cannot be undone from here',
+          ? t('common:stepper.confirm.releaseUsers')
+          : t('common:stepper.confirm.releaseApproved'),
+        detail: formatList(mine.map((i) => i.label)),
+        note: t('common:stepper.confirm.releaseNote'),
         irreversible: true,
       });
     } else {
       out.push({
         type,
-        title: 'Change the rollout',
-        detail: mine.map((i) => i.label).join(', '),
+        title: t('common:stepper.confirm.rollout'),
+        detail: formatList(mine.map((i) => i.label)),
         note: null,
         irreversible: false,
       });
@@ -161,64 +161,74 @@ export function stepIntro(step: StepId, f: IntroFacts): { title: string; sentenc
   const apple = !supports(f.platform, 'releaseTracks');
   if (step === 'build') {
     const title = apple
-      ? `Choose the build for ${f.version ?? 'this version'}`
-      : 'Choose the version codes';
+      ? f.version !== null
+        ? t('common:stepper.build.titleVersion', { version: f.version })
+        : t('common:stepper.build.titleThisVersion')
+      : t('common:stepper.build.titleCodes');
     if (f.chosen !== null) {
-      const where =
-        f.chosen.where === 'staged' ? 'is chosen' : apple ? 'is attached' : 'is in the draft';
+      const label = f.chosen.label;
       return {
         title,
-        sentence: `${f.chosen.label} ${where}, so you can go straight to the next step.`,
+        sentence:
+          f.chosen.where === 'staged'
+            ? t('common:stepper.build.chosen', { label })
+            : apple
+              ? t('common:stepper.build.attached', { label })
+              : t('common:stepper.build.inDraft', { label }),
       };
     }
     return {
       title,
-      sentence: apple
-        ? 'Pick the build App Store Connect should use for this version.'
-        : 'Pick what to promote and where to release it.',
+      sentence: apple ? t('common:stepper.build.pickApple') : t('common:stepper.build.pickGoogle'),
     };
   }
   if (step === 'notes') {
-    const title = f.version !== null ? `Write what is new in ${f.version}` : 'Write what is new';
+    const title =
+      f.version !== null
+        ? t('common:stepper.notes.titleVersion', { version: f.version })
+        : t('common:stepper.notes.title');
     return {
       title,
       sentence:
         f.notes.withText > 0
-          ? `${plural(f.notes.withText, 'language has', 'languages have')} notes. Check them, or go on.`
-          : 'Add the text people read in the store, one language at a time.',
+          ? t('common:stepper.notes.have', { count: f.notes.withText })
+          : t('common:stepper.notes.add'),
     };
   }
   if (step === 'assets') {
     return {
-      title: 'Check the screenshots',
-      sentence: 'This step is optional. Nothing here changes anything.',
+      title: t('common:stepper.assets.title'),
+      sentence: t('common:stepper.assets.sentence'),
     };
   }
   if (step === 'review') {
     return {
-      title: 'Check what will be sent',
+      title: t('common:stepper.review.title'),
       sentence:
         f.staged.total === 0
-          ? 'Nothing is staged, so there is nothing to check.'
-          : `${plural(f.staged.total, 'change is', 'changes are')} staged. Remove what you do not want. Nothing is sent yet.`,
+          ? t('common:stepper.review.nothing')
+          : t('common:stepper.review.staged', { count: f.staged.total }),
     };
   }
   const n = f.confirm === null ? null : f.confirm.length;
-  if (n === null) return { title: 'Publish', sentence: 'Reading what waits to be published.' };
+  if (n === null)
+    return { title: t('common:stepper.publish.title'), sentence: t('common:stepper.publish.reading') };
   if (n === 0 && f.inReview === true)
     return {
-      title: `${f.version !== null ? `Version ${f.version} is` : 'This version is'} in store review`,
-      sentence:
-        'Waiting on the store. Nothing is waiting to be published, and nobody here can speed up the review.',
+      title:
+        f.version !== null
+          ? t('common:stepper.publish.inReviewVersion', { version: f.version })
+          : t('common:stepper.publish.inReview'),
+      sentence: t('common:stepper.publish.inReviewSentence'),
     };
   if (n === 0)
     return {
-      title: 'Nothing waits to be published',
-      sentence: 'Stage a change in an earlier step, or come back when a draft is ready.',
+      title: t('common:stepper.publish.nothingTitle'),
+      sentence: t('common:stepper.publish.nothingSentence'),
     };
   return {
-    title: `Publish ${plural(n, 'step', 'steps')} to ${storeName(f.platform)}`,
-    sentence: 'They run in this order and stop at the first one that fails.',
+    title: t('common:stepper.publish.steps', { count: n, store: storeName(f.platform) }),
+    sentence: t('common:stepper.publish.order'),
   };
 }
 
@@ -232,11 +242,11 @@ export function buildChip(
   row: Pick<BuildRow, 'eligibility'>,
   flags: { attached: boolean; staged: boolean },
 ): { text: string; tone: ChipTone } {
-  if (row.eligibility.tone === 'bad') return { text: 'Cannot be chosen', tone: 'bad' };
-  if (flags.staged) return { text: 'Chosen', tone: 'info' };
-  if (flags.attached) return { text: 'Attached', tone: 'ok' };
-  if (row.eligibility.tone === 'warn') return { text: 'Read first', tone: 'warn' };
-  return { text: 'Can be chosen', tone: 'neutral' };
+  if (row.eligibility.tone === 'bad') return { text: t('common:stepper.chip.cannot'), tone: 'bad' };
+  if (flags.staged) return { text: t('common:stepper.chip.chosen'), tone: 'info' };
+  if (flags.attached) return { text: t('common:stepper.chip.attached'), tone: 'ok' };
+  if (row.eligibility.tone === 'warn') return { text: t('common:stepper.chip.readFirst'), tone: 'warn' };
+  return { text: t('common:stepper.chip.can'), tone: 'neutral' };
 }
 
 /**

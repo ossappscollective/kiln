@@ -1,4 +1,5 @@
 import { ApiError } from './api.ts';
+import { t } from './i18n/t.ts';
 
 /**
  * A small cache for the reads a page makes when it opens (the version and builds of a release, the live listing, the asset
@@ -48,7 +49,7 @@ export function createReadCache(now: () => number = Date.now): ReadCache {
     },
     async read({ workspaceId, group, key, load, force = false, ttlMs = READ_TTL_MS }) {
       const wait = remaining(workspaceId, group);
-      if (wait > 0) throw new ApiError(429, 'rate_limited', 'Reads are paused for a moment.', wait);
+      if (wait > 0) throw new ApiError(429, 'rate_limited', t('common:readCache.paused'), wait);
       const id = cacheKey(workspaceId, key);
       const hit = kept.get(id);
       if (!force && hit && now() - hit.at < ttlMs) return hit.value as never;

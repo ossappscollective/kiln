@@ -16,6 +16,7 @@
   import { onMount, untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { runProvider, runTitle } from '../../lib/ci/ci.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {
@@ -128,7 +129,7 @@
   /** The names of the apps the run was started for (several for a workflow that builds more than one app), or null for none. */
   const appName = (run: ActiveRun): string | null => {
     const names = runAppNames(run, apps);
-    return names.length === 0 ? null : names.join(', ');
+    return names.length === 0 ? null : formatList(names, { type: 'unit' });
   };
 
   function follow(run: ActiveRun) {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { type CredentialKind, credentialKindInfo } from '@kiln/core';
+  import { t } from '../lib/i18n/t.ts';
 
   let {
     kind,
@@ -22,7 +23,7 @@
     fileError = '';
     if (!file) return;
     if (file.size > MAX_FILE) {
-      fileError = 'That file is too large to be a key.';
+      fileError = t('common:secret.fileTooLarge');
     } else {
       values[name] = await file.text();
     }
@@ -41,11 +42,11 @@
         {disabled}
         autocomplete="off"
         spellcheck="false"
-        placeholder={field.accept ? 'Paste the contents, or load from a file' : ''}
+        placeholder={field.accept ? t('common:secret.placeholder') : ''}
       ></textarea>
       <p class="hint">
         <label class="file">
-          Load from a file
+          {t('common:secret.loadFromFile')}
           <input
             class="visually-hidden"
             type="file"

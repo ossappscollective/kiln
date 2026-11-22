@@ -74,7 +74,7 @@ test('the Confirm list is in the order the steps run, with the badge on the step
     list.map((s) => s.type),
     ['push_draft', 'submit', 'release'],
   );
-  assert.equal(list[0]?.detail, '3 text changes, 1 graphics set');
+  assert.equal(list[0]?.detail, '3 text changes and 1 graphics set');
   assert.deepEqual(
     list.map((s) => s.irreversible),
     [false, false, true],

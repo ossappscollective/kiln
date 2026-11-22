@@ -8,6 +8,7 @@
 -->
 <script lang="ts">
   import { isPending, runDuration, runProvider, runTitle, shortSha } from '../../lib/ci/ci.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { githubUrl } from '../../lib/repositories.ts';
@@ -111,7 +112,7 @@
                 {#if run.inputs && Object.keys(run.inputs).length > 0}
                   <div>
                     <dt>{t('builds:runs.inputs')}</dt>
-                    <dd>{Object.entries(run.inputs).map(([k, v]) => `${k}=${v}`).join(', ')}</dd>
+                    <dd>{formatList(Object.entries(run.inputs).map(([k, v]) => `${k}=${v}`), { type: 'unit' })}</dd>
                   </div>
                 {/if}
                 {#if isPending(run)}

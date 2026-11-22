@@ -1,5 +1,6 @@
 import { type Platform, parsePlatform } from '@kiln/core';
 import type { IconName } from './icons.ts';
+import { t } from './i18n/t.ts';
 
 /**
  * Which store, platform or tool something is, as a name, a label and an icon. Pure: the badge
@@ -74,12 +75,27 @@ export const storeInfo: Record<StoreId, StoreInfo> = {
   },
   git: {
     store: 'git',
-    label: 'Git host',
-    fullLabel: 'Git host',
+    // Getters: read where drawn, in the language of that moment.
+    get label() {
+      return t('common:store.gitHost');
+    },
+    get fullLabel() {
+      return t('common:store.gitHost');
+    },
     icon: 'git-branch',
     tint: 'neutral',
   },
-  generic: { store: 'generic', label: 'Store', fullLabel: 'Store', icon: 'store', tint: 'neutral' },
+  generic: {
+    store: 'generic',
+    get label() {
+      return t('common:store.generic');
+    },
+    get fullLabel() {
+      return t('common:store.generic');
+    },
+    icon: 'store',
+    tint: 'neutral',
+  },
 };
 
 export const storeIds = Object.keys(storeInfo) as StoreId[];
@@ -160,7 +176,15 @@ export const platformInfo: Record<PlatformId, PlatformInfo> = {
   ios: { platform: 'ios', label: 'iOS', icon: 'platform-ios', tint: 'ios' },
   macos: { platform: 'macos', label: 'macOS', icon: 'platform-macos', tint: 'macos' },
   android: { platform: 'android', label: 'Android', icon: 'platform-android', tint: 'android' },
-  unknown: { platform: 'unknown', label: 'Unknown platform', icon: 'smartphone', tint: 'neutral' },
+  unknown: {
+    platform: 'unknown',
+    // A getter: the label is read where it is drawn, in the language of that moment.
+    get label() {
+      return t('common:platform.unknown');
+    },
+    icon: 'smartphone',
+    tint: 'neutral',
+  },
 };
 
 /** A platform string (`ios`, `android`, any case). Anything else is the neutral smartphone. */

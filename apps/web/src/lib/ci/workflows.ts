@@ -257,12 +257,9 @@ export function scopeNote(input: {
   fellBack: boolean;
 }): string {
   if (input.fellBack)
-    return t(
-      input.noun === 'run'
-        ? 'builds:workflows.scope.fellBackRuns'
-        : 'builds:workflows.scope.fellBackWorkflows',
-      { scope: input.scopeLabel },
-    );
+    return input.noun === 'run'
+      ? t('builds:workflows.scope.fellBackRuns', { scope: input.scopeLabel })
+      : t('builds:workflows.scope.fellBackWorkflows', { scope: input.scopeLabel });
   if (input.hidden === 0) return '';
   return input.noun === 'run'
     ? t('builds:workflows.scope.hiddenRuns', { count: input.hidden })
