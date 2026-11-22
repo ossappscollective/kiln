@@ -33,7 +33,6 @@ import {
 } from '@kiln/connectors';
 import { type ActorType, needsStoreAppId, type Platform, supports } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
-import { messageCoding } from '../../i18n/problem.ts';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
@@ -41,6 +40,7 @@ import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { storeFor } from '../reviews/sync.ts';
 
+import { coded, messageCoding } from '../../i18n/problem.ts';
 /**
  * Changing a LIVE ROLLOUT in a store: a STORE WRITE (what users receive). The design copies the one
  * of review replies (docs/adr/0007-review-replies.md) and is written down in
@@ -406,6 +406,7 @@ async function takeClaim(
           409,
           'write_in_progress',
           'A rollout change for this app is in progress. Wait for it to finish.',
+          coded('publish.inProgress.rollout'),
         );
   }
   if (String(existing.status) === 'unknown') {
@@ -413,6 +414,7 @@ async function takeClaim(
       409,
       'outcome_unknown',
       'It is not known whether the last rollout change of this app reached the store. Preview the rollout again: that reads the store and shows where it stands. Nothing is changed until you confirm a new preview.',
+      coded('publish.unknown.rollout'),
     );
   }
   const startedAt = Number(existing.claim_at);
@@ -421,6 +423,7 @@ async function takeClaim(
       409,
       'write_in_progress',
       'A rollout change for this app is in progress. Wait for it to finish.',
+      coded('publish.inProgress.rollout'),
     );
   }
   // A write that started long ago and never finished (a process died): its outcome is unknown, so it
@@ -444,6 +447,7 @@ async function takeClaim(
         409,
         'write_in_progress',
         'A rollout change for this app is in progress. Wait for it to finish.',
+        coded('publish.inProgress.rollout'),
       );
 }
 
@@ -483,12 +487,18 @@ async function connect(
     [app.credentialId, workspaceId],
   );
   if (!credential)
-    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+    return failure(
+      422,
+      'credential_not_found',
+      'The credential of this app no longer exists.',
+      coded('credential.gone'),
+    );
   if (String(credential.kind) !== credentialKindFor[app.platform]) {
     return failure(
       422,
       'credential_kind',
       "This app's credential is not the kind its platform needs.",
+      coded('credential.wrongKind'),
     );
   }
   if (needsStoreAppId(app.platform) && !app.storeAppId) {
@@ -496,6 +506,7 @@ async function connect(
       422,
       'app_not_synced',
       'The App Store id of this app is not known yet. Sync the app first.',
+      coded('app.storeIdUnknown'),
     );
   }
   let secret: string | undefined;
@@ -512,10 +523,16 @@ async function connect(
       422,
       'credential_unreadable',
       'The credential could not be decrypted. Enter its secret again.',
+      coded('credential.undecryptable'),
     );
   }
   if (secret === undefined)
-    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+    return failure(
+      422,
+      'credential_not_found',
+      'The credential of this app no longer exists.',
+      coded('credential.gone'),
+    );
   return {
     ok: true,
     connection: {
@@ -544,7 +561,12 @@ async function readLive(
     return { ok: true, state };
   } catch (error) {
     if (error instanceof RolloutTimeout)
-      return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
+      return failure(
+        504,
+        'timeout',
+        'The store did not answer in time. Nothing was changed.',
+        coded('store.noAnswerNothingChanged'),
+      );
     return mapStoreError(error, connection.secret).failure;
   }
 }
@@ -860,6 +882,7 @@ export async function applyRollout(
                 problem: plan.message,
                 allowedActions: allowedActionsOf(error.current),
               }),
+          ...coded('publish.changedSinceRollout'),
         },
       );
     }
@@ -915,6 +938,7 @@ export async function applyRollout(
       409,
       'outcome_unknown',
       'It is not known whether the change reached the store: the store did not answer and its state could not be read back. Preview the rollout again to see where it stands; nothing is changed until you confirm a new preview.',
+      coded('publish.unknown.rolloutReached'),
     );
   }
   const plan = planFor(accepted, change);
@@ -948,7 +972,7 @@ export async function applyRollout(
         502,
         'write_failed',
         'The store did not answer, and reading its state back shows the old state, so the change was not applied. Nothing was changed. Preview again to try again.',
-        { outcome: 'not_applied', current },
+        { outcome: 'not_applied', current, ...coded('publish.rolloutNotApplied') },
       );
     }
     // Google Play can be slow to show a committed change: the old state is not proof.
@@ -966,7 +990,7 @@ export async function applyRollout(
       409,
       'outcome_unknown',
       'Google Play did not answer, and it still shows the old state. A commit can take a while to show: check Play Console, then preview the rollout again. Nothing is changed until you confirm a new preview.',
-      { current },
+      { current, ...coded('publish.playRolloutUnchanged') },
     );
   }
   // Neither the old state nor the asked one: somebody else changed it too. Nothing more is done.
@@ -984,7 +1008,7 @@ export async function applyRollout(
     409,
     'state_changed',
     'The store shows a state that is neither the old one nor the requested one. Nothing more was done. Review it and preview again.',
-    { current },
+    { current, ...coded('publish.rolloutOther') },
   );
 }
 

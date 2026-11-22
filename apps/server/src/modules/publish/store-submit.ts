@@ -38,6 +38,7 @@ import {
   requestOfManifest,
 } from './store-draft-record.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Submitting the store's DRAFT for review: the most consequential STORE WRITE of this server, and one it cannot take
  * back. It is written down in docs/adr/0010-store-submit.md and docs/api/submit.md. The design copies the other store
@@ -168,6 +169,7 @@ async function takeClaim(
       409,
       'write_in_progress',
       'A submit for this app is in progress. Wait for it to finish.',
+      coded('publish.inProgress.submit'),
     );
   const insert = () =>
     db.execute(
@@ -186,6 +188,7 @@ async function takeClaim(
       409,
       'outcome_unknown',
       'It is not known whether the last submit of this app reached the store. Look at the app in App Store Connect or Play Console, then preview the submit again: that reads the store and shows where it stands. Nothing is submitted until you confirm a new preview.',
+      coded('publish.unknown.submit'),
     );
   }
   const startedAt = Number(existing.claim_at);
@@ -262,18 +265,25 @@ async function connect(
     [app.credentialId, workspaceId],
   );
   if (!credential)
-    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+    return failure(
+      422,
+      'credential_not_found',
+      'The credential of this app no longer exists.',
+      coded('credential.gone'),
+    );
   if (String(credential.kind) !== credentialKindFor[app.platform])
     return failure(
       422,
       'credential_kind',
       "This app's credential is not the kind its platform needs.",
+      coded('credential.wrongKind'),
     );
   if (needsStoreAppId(app.platform) && !app.storeAppId)
     return failure(
       422,
       'app_not_synced',
       'The App Store id of this app is not known yet. Sync the app first.',
+      coded('app.storeIdUnknown'),
     );
   let secret: string | undefined;
   try {
@@ -289,10 +299,16 @@ async function connect(
       422,
       'credential_unreadable',
       'The credential could not be decrypted. Enter its secret again.',
+      coded('credential.undecryptable'),
     );
   }
   if (secret === undefined)
-    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+    return failure(
+      422,
+      'credential_not_found',
+      'The credential of this app no longer exists.',
+      coded('credential.gone'),
+    );
   return {
     ok: true,
     connection: {
@@ -822,6 +838,7 @@ const noPush = (): Failure =>
     409,
     'nothing_pushed',
     'No draft push of this app is recorded, so there is nothing to submit. Push the staged changes as a draft first (staged changes), then submit.',
+    coded('publish.noDraftPush'),
   );
 
 /** `POST .../store-submit/preview`: reads the store and shows what would go to review and what stands in the way. Writes nothing. */
@@ -844,7 +861,12 @@ export async function previewSubmit(
     );
   } catch (error) {
     if (error instanceof SubmitTimeout)
-      return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
+      return failure(
+        504,
+        'timeout',
+        'The store did not answer in time. Nothing was changed.',
+        coded('store.noAnswerNothingChanged'),
+      );
     return mapStoreError(error, connection.secret).failure;
   }
   await clearUnknown(ctx.db, app);
@@ -1016,7 +1038,7 @@ export async function applySubmit(
       422,
       'confirmation_mismatch',
       `The confirmation does not match. Type "${phrase}" exactly. Nothing was submitted.`,
-      { phrase },
+      { phrase, ...coded('confirm.mismatchSubmitted', { phrase }) },
     );
   }
   const flights = await inFlightOf(ctx, app);
@@ -1025,12 +1047,14 @@ export async function applySubmit(
       409,
       'write_in_progress',
       'A draft push for this app is in progress. Wait for it to finish.',
+      coded('publish.inProgress.draftPush'),
     );
   if (flights.push === 'unknown') {
     return failure(
       409,
       'push_outcome_unknown',
       'It is not known whether the last draft push reached the store. Preview that push again first (staged changes), then submit.',
+      coded('publish.unknown.draftBeforeSubmit'),
     );
   }
 
@@ -1082,7 +1106,7 @@ export async function applySubmit(
           409,
           'blocked',
           'Something stands in the way of submitting, so nothing was submitted. See `checks`.',
-          { checks: blocked },
+          { checks: blocked, ...coded('publish.blocked.submit') },
         );
       }
       await auditFailed(ctx, input, app, error.current, {
@@ -1103,6 +1127,7 @@ export async function applySubmit(
             inFlight: { submit: null, push: null },
             stepUpCovers: input.stepUpCovers,
           }),
+          ...coded('publish.changedSinceSubmit'),
         },
       );
     }
@@ -1138,6 +1163,7 @@ export async function applySubmit(
       409,
       'outcome_unknown',
       'Google Play did not answer, so it is not known whether the changes were sent to review. Google Play shows no review state through its API: look at the app in Play Console. Nothing is sent again until you preview and confirm again (Google refuses a second send while changes are in review).',
+      coded('publish.playSubmitUnknown'),
     );
   }
   let current: SubmitState | undefined;
@@ -1159,6 +1185,7 @@ export async function applySubmit(
       409,
       'outcome_unknown',
       'It is not known whether the version was submitted: the store did not answer and could not be read back. Look at the app in App Store Connect, then preview again. Nothing is submitted until you confirm a new preview.',
+      coded('publish.unknown.submitReached'),
     );
   }
   if (current.alreadySubmitted && accepted !== undefined) {
@@ -1179,6 +1206,6 @@ export async function applySubmit(
     502,
     'write_failed',
     'The store did not answer, and reading it back shows the version was not submitted. Nothing was submitted as far as the store shows. Preview again to try again.',
-    { outcome: 'not_applied' },
+    { outcome: 'not_applied', ...coded('publish.submitNotApplied') },
   );
 }

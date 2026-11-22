@@ -56,6 +56,7 @@ import { getDrift } from '../listing/live.ts';
 import { storeFor } from '../reviews/sync.ts';
 import { deleteUnreferencedBlobs } from './staged-asset-blobs.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Staged changes (docs/api/staged-changes.md, docs/adr/0009-staged-store-drafts.md): the listing
  * texts and graphics a person has collected for ONE app, to be written into the store as a DRAFT
@@ -575,6 +576,7 @@ export async function stageText(
   if (!isStageableLocale(input.locale))
     return invalid('invalid_locale', 'locale must be a store locale code such as en-US.', {
       field: 'locale',
+      ...coded('staged.badLocale'),
     });
   if (!isStageableTextField(app.platform, input.field)) {
     const known = isListingField(app.platform, input.field);
@@ -625,13 +627,18 @@ export async function stageText(
     return invalid(
       'empty_text',
       'An empty text is not staged: this server does not clear a store field. Remove the item instead.',
-      { field: 'value' },
+      { field: 'value', ...coded('staged.emptyText') },
     );
   if (value.length > STAGED_LIMITS.maxTextChars) {
     return invalid(
       'text_too_long',
       `A staged text is at most ${STAGED_LIMITS.maxTextChars} characters.`,
-      { field: 'value', limit: STAGED_LIMITS.maxTextChars, actual: value.length },
+      {
+        field: 'value',
+        limit: STAGED_LIMITS.maxTextChars,
+        actual: value.length,
+        ...coded('staged.textTooLong', { max: STAGED_LIMITS.maxTextChars }),
+      },
     );
   }
   const hash = hashListingValue(value);
@@ -651,7 +658,10 @@ export async function stageText(
         return invalid(
           'too_many_items',
           `At most ${STAGED_LIMITS.maxItems} items can be staged for an app.`,
-          { limit: STAGED_LIMITS.maxItems },
+          {
+            limit: STAGED_LIMITS.maxItems,
+            ...coded('staged.tooManyItems', { max: STAGED_LIMITS.maxItems }),
+          },
         );
       }
       await tx.execute(
@@ -734,6 +744,7 @@ export async function stageAssets(
   if (!isStageableLocale(input.locale))
     return invalid('invalid_locale', 'locale must be a store locale code such as en-US.', {
       field: 'locale',
+      ...coded('staged.badLocale'),
     });
   if (!(ASSET_KINDS as readonly string[]).includes(input.kind))
     return invalid('invalid_staged', 'Not a kind of graphic.', { field: 'kind' });
@@ -758,11 +769,16 @@ export async function stageAssets(
   if (!opened.ok) return opened;
   const view = opened.handle.view;
   if (view.status === 'no_repository' || view.commit === null)
-    return invalid('no_repository', 'This app has no linked repository to take graphics from.');
+    return invalid(
+      'no_repository',
+      'This app has no linked repository to take graphics from.',
+      coded('staged.noRepositoryGraphics'),
+    );
   if (!isCommitSha(view.commit))
     return invalid(
       'no_commit',
       'The repository read did not name a commit, so the files cannot be pinned.',
+      coded('staged.noCommit'),
     );
   const candidates = view.assets
     .filter(
@@ -776,7 +792,11 @@ export async function stageAssets(
   let chosen = candidates;
   if (input.paths !== undefined) {
     if (new Set(input.paths).size !== input.paths.length)
-      return invalid('invalid_staged', 'A path is listed twice.', { field: 'paths' });
+      return invalid(
+        'invalid_staged',
+        'A path is listed twice.',
+        { field: 'paths', ...coded('staged.pathTwice') },
+      );
     const byPath = new Map(candidates.map((a) => [a.path, a]));
     const picked = [];
     for (const path of input.paths) {
@@ -785,7 +805,7 @@ export async function stageAssets(
         return invalid(
           'not_in_index',
           'A path is not a file of this set in the asset index of the repository.',
-          { field: 'paths', path },
+          { field: 'paths', path, ...coded('staged.notInIndex') },
         );
       picked.push(asset);
     }
@@ -795,6 +815,7 @@ export async function stageAssets(
     return invalid(
       'no_assets',
       'The asset index of the repository lists no file for this locale and slot.',
+      coded('staged.noAssets'),
     );
   for (const a of chosen) {
     const name = a.path.split('/').pop() ?? a.path;
@@ -802,19 +823,26 @@ export async function stageAssets(
       return invalid(
         'asset_not_pushable',
         `${name} was not opened by the asset index (too large, over the read budget or unreadable), so it cannot be staged.`,
-        { path: a.path },
+        { path: a.path, ...coded('staged.notOpened', { name }) },
       );
     if (a.format !== 'png' && a.format !== 'jpeg')
       return invalid(
         'asset_not_pushable',
         `${name} is not a PNG or JPEG: only those are uploaded.`,
-        { path: a.path },
+        { path: a.path, ...coded('staged.notImage', { name }) },
       );
     if (a.bytes === null || a.bytes > STAGED_LIMITS.maxAssetFileBytes) {
       return invalid(
         'asset_not_pushable',
         `${name} is larger than the ${STAGED_LIMITS.maxAssetFileBytes / (1024 * 1024)} MB this server uploads.`,
-        { path: a.path, limit: STAGED_LIMITS.maxAssetFileBytes },
+        {
+          path: a.path,
+          limit: STAGED_LIMITS.maxAssetFileBytes,
+          ...coded('staged.fileTooBig', {
+            name,
+            mb: STAGED_LIMITS.maxAssetFileBytes / (1024 * 1024),
+          }),
+        },
       );
     }
   }
@@ -833,14 +861,25 @@ export async function stageAssets(
       return invalid(
         'too_many_files',
         `A push uploads at most ${STAGED_LIMITS.maxAssetFilesPerPush} files; this would stage ${files}.`,
-        { limit: STAGED_LIMITS.maxAssetFilesPerPush, actual: files },
+        {
+          limit: STAGED_LIMITS.maxAssetFilesPerPush,
+          actual: files,
+          ...coded('staged.tooManyFiles', { max: STAGED_LIMITS.maxAssetFilesPerPush, files }),
+        },
       );
     }
     if (bytes > STAGED_LIMITS.maxAssetBytesPerPush) {
       return invalid(
         'too_many_bytes',
         `A push uploads at most ${STAGED_LIMITS.maxAssetBytesPerPush / (1024 * 1024)} MB; this would stage ${Math.ceil(bytes / (1024 * 1024))} MB.`,
-        { limit: STAGED_LIMITS.maxAssetBytesPerPush, actual: bytes },
+        {
+          limit: STAGED_LIMITS.maxAssetBytesPerPush,
+          actual: bytes,
+          ...coded('staged.tooManyBytes', {
+            mb: STAGED_LIMITS.maxAssetBytesPerPush / (1024 * 1024),
+            staged: Math.ceil(bytes / (1024 * 1024)),
+          }),
+        },
       );
     }
     if (
@@ -852,7 +891,10 @@ export async function stageAssets(
       return invalid(
         'too_many_items',
         `At most ${STAGED_LIMITS.maxItems} items can be staged for an app.`,
-        { limit: STAGED_LIMITS.maxItems },
+        {
+          limit: STAGED_LIMITS.maxItems,
+          ...coded('staged.tooManyItems', { max: STAGED_LIMITS.maxItems }),
+        },
       );
     }
     const [first] = await tx.query(

@@ -19,6 +19,7 @@ import { type Failure, failure } from '../../services/repositories.ts';
 import { hashListingValue } from '../listing/drift.ts';
 import { buildStagedView, isStageableLocale, type StagedContext } from './staged-changes.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Staging the release fields of a DRAFT release (docs/api/releases-write.md, docs/adr/0014-release-management.md): the App
  * Store version's build, version string, release type, earliest release date, copyright and phased release, or the Google Play
@@ -71,10 +72,12 @@ export async function stageReleaseField(
     if (locale === '' || !isStageableLocale(locale))
       return invalid('invalid_locale', 'locale must be a store language code such as en-US.', {
         field: 'locale',
+        ...coded('staged.badLocale'),
       });
   } else if (locale !== '') {
     return invalid('invalid_locale', `${spec.label} has no language: leave locale out.`, {
       field: 'locale',
+      ...coded('staged.noLanguage', { label: spec.label }),
     });
   }
   const value = normalizeReleaseValue(field, input.value);
@@ -82,13 +85,18 @@ export async function stageReleaseField(
     return invalid(
       'empty_value',
       'An empty value is not staged: this server does not clear a store field. Remove the item instead.',
-      { field: 'value' },
+      { field: 'value', ...coded('staged.emptyText') },
     );
   if (value.length > STAGED_LIMITS.maxTextChars) {
     return invalid(
       'text_too_long',
       `A staged value is at most ${STAGED_LIMITS.maxTextChars} characters.`,
-      { field: 'value', limit: STAGED_LIMITS.maxTextChars, actual: value.length },
+      {
+        field: 'value',
+        limit: STAGED_LIMITS.maxTextChars,
+        actual: value.length,
+        ...coded('staged.textTooLong', { max: STAGED_LIMITS.maxTextChars }),
+      },
     );
   }
   const at = ctx.now();
@@ -117,7 +125,10 @@ export async function stageReleaseField(
         return invalid(
           'too_many_items',
           `At most ${STAGED_LIMITS.maxItems} items can be staged for an app.`,
-          { limit: STAGED_LIMITS.maxItems },
+          {
+            limit: STAGED_LIMITS.maxItems,
+            ...coded('staged.tooManyItems', { max: STAGED_LIMITS.maxItems }),
+          },
         );
       }
       await tx.execute(

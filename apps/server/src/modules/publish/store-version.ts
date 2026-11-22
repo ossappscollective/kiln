@@ -25,6 +25,7 @@ import { type Failure, failure } from '../../services/repositories.ts';
 import { storeFor } from '../reviews/sync.ts';
 import { connect, DRAFT_ENV, mapStoreError } from './store-draft.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * CREATING the next App Store version (docs/api/store-version.md, docs/adr/0031-create-app-store-version.md): the dead end of the
  * release stepper ("no version a build can be attached to"). A STORE WRITE, but a reversible one: the version starts in
@@ -141,6 +142,7 @@ async function takeClaim(
       409,
       'write_in_progress',
       'A draft push or a version for this app is being written. Wait for it to finish.',
+      coded('publish.inProgress.version'),
     );
   const insert = () =>
     db.execute(
@@ -306,6 +308,7 @@ function ready(app: ManagedApp): Failure | null {
       422,
       'not_supported',
       'Google Play has no versions to create: a version there is a release, made in the release steps.',
+      coded('publish.playNoVersions'),
     );
   return null;
 }
@@ -384,7 +387,12 @@ export async function previewVersion(
     state = await withConnector(ctx, connection.input, (c) => c.readVersions());
   } catch (error) {
     if (error instanceof VersionTimeout)
-      return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
+      return failure(
+        504,
+        'timeout',
+        'The store did not answer in time. Nothing was changed.',
+        coded('store.noAnswerNothingChanged'),
+      );
     return mapped(error, connection.secret).failure;
   }
   await clearUnknown(ctx.db, app);
@@ -542,7 +550,7 @@ export async function applyVersion(
           409,
           'blocked',
           'Something stands in the way of creating this version, so nothing was created. See `checks`.',
-          { checks: blocked },
+          { checks: blocked, ...coded('publish.blocked.version') },
         );
       }
       await audit(ctx, input, app, 'store.version_create_failed', {
@@ -554,7 +562,10 @@ export async function applyVersion(
         409,
         'state_changed',
         'The versions in App Store Connect changed since this was previewed, so nothing was created. Review the new preview and confirm it.',
-        { preview: previewOf(input.workspaceId, app, request, error.current) },
+        {
+          preview: previewOf(input.workspaceId, app, request, error.current),
+          ...coded('publish.versionsChanged'),
+        },
       );
     }
     if (error instanceof VersionOutcomeUnknownError || error instanceof VersionTimeout) {
@@ -617,6 +628,7 @@ export async function applyVersion(
     409,
     'outcome_unknown',
     'It is not known whether the version was created: App Store Connect did not answer in a way that says. Look at the app in App Store Connect, then preview again. Nothing is created until you confirm a new preview.',
+    coded('publish.unknown.version'),
   );
 }
 

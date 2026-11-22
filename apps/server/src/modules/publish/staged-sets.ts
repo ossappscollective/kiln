@@ -37,6 +37,7 @@ import {
   type StagedRow,
 } from './staged-changes.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Staged sets of graphics that are composed here: an image uploaded or fixed in the app is added to a set, replaces a file of
  * it, or a file is taken out (docs/adr/0012-assets-two-way-sync.md, docs/api/staged-changes.md). A staged set is what a push
@@ -109,6 +110,7 @@ export function slotOf(
   if (!isStageableLocale(locale))
     return invalid('invalid_locale', 'locale must be a store locale code such as en-US.', {
       field: 'locale',
+      ...coded('staged.badLocale'),
     });
   if (!(ASSET_KINDS as readonly string[]).includes(kind))
     return invalid('invalid_staged', 'Not a kind of graphic.', { field: 'kind' });
@@ -320,7 +322,10 @@ export async function loadEffectiveSet(
       return invalid(
         'asset_not_pushable',
         `${a.path.split('/').pop() ?? a.path} was not read by the asset index, or is not a PNG or JPEG, so the set cannot be staged as it is.`,
-        { path: a.path },
+        {
+          path: a.path,
+          ...coded('staged.notReadByIndex', { name: a.path.split('/').pop() ?? a.path }),
+        },
       );
     }
     entries.push({
@@ -363,6 +368,7 @@ export async function replaceAssetSet(
     return invalid(
       'empty_set',
       'A set cannot be emptied here: a push replaces a store set with the files it holds and cannot clear it. Stage at least one file, or remove the images in the store console.',
+      coded('staged.setEmpty'),
     );
   }
   const max = slotMaxFiles(app.platform, input.slot);
@@ -386,13 +392,24 @@ export async function replaceAssetSet(
       return invalid(
         'too_many_files',
         `A push uploads at most ${STAGED_LIMITS.maxAssetFilesPerPush} files; this would stage ${files}.`,
-        { limit: STAGED_LIMITS.maxAssetFilesPerPush, actual: files },
+        {
+          limit: STAGED_LIMITS.maxAssetFilesPerPush,
+          actual: files,
+          ...coded('staged.tooManyFiles', { max: STAGED_LIMITS.maxAssetFilesPerPush, files }),
+        },
       );
     if (bytes > STAGED_LIMITS.maxAssetBytesPerPush)
       return invalid(
         'too_many_bytes',
         `A push uploads at most ${STAGED_LIMITS.maxAssetBytesPerPush / (1024 * 1024)} MB; this would stage ${Math.ceil(bytes / (1024 * 1024))} MB.`,
-        { limit: STAGED_LIMITS.maxAssetBytesPerPush, actual: bytes },
+        {
+          limit: STAGED_LIMITS.maxAssetBytesPerPush,
+          actual: bytes,
+          ...coded('staged.tooManyBytes', {
+            mb: STAGED_LIMITS.maxAssetBytesPerPush / (1024 * 1024),
+            staged: Math.ceil(bytes / (1024 * 1024)),
+          }),
+        },
       );
     const mine = all.filter(
       (r) => r.kind === 'asset' && r.locale === input.locale && r.target === key,
@@ -401,7 +418,10 @@ export async function replaceAssetSet(
       return invalid(
         'too_many_items',
         `At most ${STAGED_LIMITS.maxItems} items can be staged for an app.`,
-        { limit: STAGED_LIMITS.maxItems },
+        {
+          limit: STAGED_LIMITS.maxItems,
+          ...coded('staged.tooManyItems', { max: STAGED_LIMITS.maxItems }),
+        },
       );
     for (const e of entries) {
       if (e.blob === undefined) continue;

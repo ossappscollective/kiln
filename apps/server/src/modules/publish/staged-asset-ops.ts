@@ -28,6 +28,7 @@ import {
   slotOf,
 } from './staged-sets.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Add, replace, remove and fix a file of a staged set, and put staged sets in the repository
  * (docs/adr/0012-assets-two-way-sync.md). Everything here stages or drafts: the store is written only by a push
@@ -56,6 +57,7 @@ const specFailure = (problems: AssetProblem[], advice: FixAdvice): Failure =>
     {
       problems: problems.map((p) => ({ rule: p.rule, severity: p.severity, message: p.message })),
       fix: advice,
+      ...coded('staged.specs'),
     },
   );
 
@@ -114,12 +116,14 @@ export async function stageUpload(
     if (!Number.isInteger(position) || position < 1 || position > entries.length)
       return failure(422, 'invalid_position', 'There is no file at that position to replace.', {
         field: 'position',
+        ...coded('staged.noFileAtPosition'),
       });
   } else {
     position = input.position ?? entries.length + 1;
     if (!Number.isInteger(position) || position < 1 || position > entries.length + 1)
       return failure(422, 'invalid_position', 'The position is after the end of the set.', {
         field: 'position',
+        ...coded('staged.positionAfterEnd'),
       });
   }
   let bytes = input.bytes;
@@ -191,6 +195,7 @@ export async function removeFromSet(
   )
     return failure(422, 'invalid_position', 'There is no such file in this set.', {
       field: 'position',
+      ...coded('staged.noSuchFile'),
     });
   const entries = base.entries.slice();
   const [gone] = entries.splice(input.position - 1, 1);
@@ -237,6 +242,7 @@ export async function fixFile(
   if (!Number.isInteger(input.position) || !entry)
     return failure(422, 'invalid_position', 'There is no such file in this set.', {
       field: 'position',
+      ...coded('staged.noSuchFile'),
     });
   // The bytes: kept here (an upload), or the repository's at the staged commit, held to the blob id.
   let bytes: Uint8Array | undefined;
@@ -262,7 +268,12 @@ export async function fixFile(
       return failure(file.status === 404 ? 422 : 502, 'asset_unreadable', file.message);
   }
   if (!bytes)
-    return failure(422, 'asset_changed', 'The file is no longer what was staged. Stage it again.');
+    return failure(
+      422,
+      'asset_changed',
+      'The file is no longer what was staged. Stage it again.',
+      coded('staged.fileChanged'),
+    );
   const name = entry.assetPath.split('/').pop() ?? 'image.png';
   const fixed = fixImage({
     platform: app.platform,
@@ -331,16 +342,31 @@ export async function stagedSetsToRepo(
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   if (!app.repositoryId)
-    return failure(422, 'no_repository', 'This app has no linked repository to put the images in.');
+    return failure(
+      422,
+      'no_repository',
+      'This app has no linked repository to put the images in.',
+      coded('staged.noRepositoryImages'),
+    );
   const rows = await loadStagedRows(ctx.db, input.workspaceId, app.id);
   const all = assetSetsOf(rows);
   if (all.length === 0)
-    return failure(422, 'nothing_staged', 'No graphics are staged for this app.');
+    return failure(
+      422,
+      'nothing_staged',
+      'No graphics are staged for this app.',
+      coded('staged.noGraphics'),
+    );
   const chosen =
     input.sets === undefined || input.sets.length === 0
       ? all
       : all.filter((s) => input.sets?.includes(s.key));
-  if (chosen.length === 0) return failure(404, 'not_found', 'None of these sets is staged.');
+  if (chosen.length === 0) return failure(
+    404,
+    'not_found',
+    'None of these sets is staged.',
+    coded('staged.noSets'),
+  );
   const opened = await openAssets(
     ctx.assets,
     { workspaceId: input.workspaceId, app },
@@ -351,7 +377,12 @@ export async function stagedSetsToRepo(
   const { handle } = opened;
   const view = handle.view;
   if (view.status === 'no_repository' || view.commit === null || view.target === null)
-    return failure(422, 'no_repository', 'This app has no linked repository to put the images in.');
+    return failure(
+      422,
+      'no_repository',
+      'This app has no linked repository to put the images in.',
+      coded('staged.noRepositoryImages'),
+    );
   const repoSets = repoSetsOf(view.assets);
   const existing = view.assets
     .filter((a) => a.origin === 'store')

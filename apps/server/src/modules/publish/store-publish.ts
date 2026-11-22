@@ -47,6 +47,7 @@ import {
   type SubmitContext,
 } from './store-submit.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * The BATCH PUBLISH of an app: one plan, ONE final confirmation, several gated store steps in order
  * (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md).
@@ -987,6 +988,7 @@ async function takeClaim(
       409,
       'publish_in_progress',
       'A publish of this app is in progress. Wait for it to finish.',
+      coded('publish.inProgress.publish'),
     );
   const insert = () =>
     db.execute(
@@ -1304,7 +1306,7 @@ export async function applyPublish(
       422,
       'confirmation_mismatch',
       `The confirmation does not match. Type "${phrase}" exactly. Nothing was published.`,
-      { phrase },
+      { phrase, ...coded('confirm.mismatchPublished', { phrase }) },
     );
   }
 
@@ -1325,7 +1327,7 @@ export async function applyPublish(
         409,
         'plan_blocked',
         'Something stands in the way of one of the steps, so nothing was published. Review the new plan.',
-        { plan },
+        { plan, ...coded('publish.blocked.publish') },
       );
     }
     if (plan.planHash !== input.planHash) {
@@ -1333,7 +1335,7 @@ export async function applyPublish(
         409,
         'plan_changed',
         'The plan is not the one that was previewed (the staged changes or the store changed), so nothing was published. Review the new plan and confirm it.',
-        { plan },
+        { plan, ...coded('publish.planChanged') },
       );
     }
 
@@ -1366,6 +1368,7 @@ export async function applyPublish(
           outcome: 'unknown',
           message:
             'The step stopped unexpectedly, so it is not known whether it reached the store. Look at the app in the store, then preview again.',
+          ...coded('publish.stepStopped'),
         };
       }
       results.push(result);

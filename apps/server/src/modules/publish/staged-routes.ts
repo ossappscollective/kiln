@@ -27,6 +27,7 @@ import {
   previewDraftPush,
 } from './store-draft.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Staged listing text and graphics of an app, and writing them to the store as a DRAFT
  * (docs/api/staged-changes.md, docs/adr/0009-staged-store-drafts.md). Staging reads and writes the
@@ -130,7 +131,12 @@ export function stagedRoutes(ctx: StagedRoutesContext) {
     const wait = ctx.limiter.take(ws(c));
     if (wait <= 0) return undefined;
     return {
-      ...failure(429, 'rate_limited', `Too many repository reads. Try again in ${wait} seconds.`),
+      ...failure(
+        429,
+        'rate_limited',
+        `Too many repository reads. Try again in ${wait} seconds.`,
+        coded('rate.repositoryReads', { count: wait }),
+      ),
       headers: { 'Retry-After': String(wait) },
     };
   };

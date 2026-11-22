@@ -32,6 +32,7 @@ import { storeFor } from '../reviews/sync.ts';
 import { mapStoreError } from './store-draft.ts';
 import { clearPushedRelease } from './store-draft-record.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * RELEASING: making an approved App Store version available to users, or starting a Google Play draft release at a chosen
  * share of users. The most consequential STORE WRITE after a submit, and one this server cannot take back. It is written down in
@@ -160,6 +161,7 @@ async function takeClaim(
       409,
       'write_in_progress',
       'A release of this app is in progress. Wait for it to finish.',
+      coded('publish.inProgress.release'),
     );
   const insert = () =>
     db.execute(
@@ -178,6 +180,7 @@ async function takeClaim(
       409,
       'outcome_unknown',
       'It is not known whether the last release of this app reached the store. Look at the app in App Store Connect or Play Console, then preview the release again: that reads the store and shows where it stands. Nothing is released until you confirm a new preview.',
+      coded('publish.unknown.release'),
     );
   }
   const startedAt = Number(existing.claim_at);
@@ -250,18 +253,25 @@ async function connect(
     [app.credentialId, workspaceId],
   );
   if (!credential)
-    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+    return failure(
+      422,
+      'credential_not_found',
+      'The credential of this app no longer exists.',
+      coded('credential.gone'),
+    );
   if (String(credential.kind) !== credentialKindFor[app.platform])
     return failure(
       422,
       'credential_kind',
       "This app's credential is not the kind its platform needs.",
+      coded('credential.wrongKind'),
     );
   if (needsStoreAppId(app.platform) && !app.storeAppId)
     return failure(
       422,
       'app_not_synced',
       'The App Store id of this app is not known yet. Sync the app first.',
+      coded('app.storeIdUnknown'),
     );
   let secret: string | undefined;
   try {
@@ -277,10 +287,16 @@ async function connect(
       422,
       'credential_unreadable',
       'The credential could not be decrypted. Enter its secret again.',
+      coded('credential.undecryptable'),
     );
   }
   if (secret === undefined)
-    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+    return failure(
+      422,
+      'credential_not_found',
+      'The credential of this app no longer exists.',
+      coded('credential.gone'),
+    );
   return {
     ok: true,
     connection: {
@@ -356,14 +372,14 @@ export function requestOfInput(
     return invalid(
       'track_required',
       'Name the track of the draft release (for example production).',
-      { field: 'track' },
+      { field: 'track', ...coded('publish.trackRequired') },
     );
   const fraction = input.userFraction;
   if (fraction === undefined)
     return invalid(
       'user_fraction_required',
       'Name the share of users to release to, more than 0 and at most 1 (1 is everybody). It is never implied.',
-      { field: 'userFraction' },
+      { field: 'userFraction', ...coded('publish.shareRequired') },
     );
   if (
     !Number.isFinite(fraction) ||
@@ -1019,7 +1035,12 @@ export async function previewRelease(
     );
   } catch (error) {
     if (error instanceof ReleaseTimeout)
-      return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
+      return failure(
+        504,
+        'timeout',
+        'The store did not answer in time. Nothing was changed.',
+        coded('store.noAnswerNothingChanged'),
+      );
     return mapStoreError(error, connection.secret).failure;
   }
   await clearUnknown(ctx.db, app);
@@ -1278,7 +1299,7 @@ export async function applyRelease(
       422,
       'confirmation_mismatch',
       `The confirmation does not match. Type "${early}" exactly. Nothing was released.`,
-      { phrase: early },
+      { phrase: early, ...coded('confirm.mismatchReleased', { phrase: early }) },
     );
   }
   const flights = await inFlightOf(ctx, app);
@@ -1287,18 +1308,21 @@ export async function applyRelease(
       409,
       'write_in_progress',
       'A draft push or a submit for this app is in progress. Wait for it to finish.',
+      coded('publish.inProgress.draftOrSubmit'),
     );
   if (flights.push === 'unknown')
     return failure(
       409,
       'push_outcome_unknown',
       'It is not known whether the last draft push reached the store. Preview that push again first (staged changes), then release.',
+      coded('publish.unknown.draftBeforeRelease'),
     );
   if (flights.submit === 'unknown')
     return failure(
       409,
       'submit_outcome_unknown',
       'It is not known whether the last submit for review reached the store. Preview that submit again first, then release.',
+      coded('publish.unknown.submitBeforeRelease'),
     );
 
   const taken = await takeClaim(ctx, { workspaceId: input.workspaceId, app, actor: input.actor });
@@ -1365,7 +1389,7 @@ export async function applyRelease(
           409,
           'blocked',
           'Something stands in the way of releasing, so nothing was released. See `checks`.',
-          { checks: blocked },
+          { checks: blocked, ...coded('publish.blocked.release') },
         );
       }
       if (wrongPhrase !== undefined) {
@@ -1378,7 +1402,7 @@ export async function applyRelease(
           422,
           'confirmation_mismatch',
           `The confirmation does not match. Type "${wrongPhrase}" exactly. Nothing was released.`,
-          { phrase: wrongPhrase },
+          { phrase: wrongPhrase, ...coded('confirm.mismatchReleased', { phrase: wrongPhrase }) },
         );
       }
       await auditFailed(ctx, input, app, request, { code: 'state_changed', outcome: 'refused' });
@@ -1397,6 +1421,7 @@ export async function applyRelease(
             unpushed,
             stepUpCovers: input.stepUpCovers,
           }),
+          ...coded('publish.changedSinceRelease'),
         },
       );
     }
@@ -1442,6 +1467,7 @@ export async function applyRelease(
       409,
       'outcome_unknown',
       'It is not known whether the release reached the store: the store did not answer and could not be read back. Look at the app in App Store Connect or Play Console, then preview again. Nothing is released until you confirm a new preview.',
+      coded('publish.unknown.releaseReached'),
     );
   }
   const shown = showsRelease(accepted, current);
@@ -1463,7 +1489,7 @@ export async function applyRelease(
       502,
       'write_failed',
       'The store did not answer, and reading it back shows the version is still waiting for release. Nothing was released as far as the store shows. Preview again to try again.',
-      { outcome: 'not_applied' },
+      { outcome: 'not_applied', ...coded('publish.releaseNotApplied') },
     );
   }
   // Google Play: a committed edit can take a while to show, so the old draft is not proof. Anything else unclear stays unknown.

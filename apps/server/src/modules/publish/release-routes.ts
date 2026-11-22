@@ -33,6 +33,7 @@ import {
   releaseDisabledFailure,
 } from './store-release.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Releasing from the app (docs/api/releases-write.md, docs/adr/0014-release-management.md). Two kinds of route:
  *
@@ -153,7 +154,12 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
     const wait = limiter.take(ws(c));
     if (wait <= 0) return undefined;
     return {
-      ...failure(429, 'rate_limited', `Too many store reads. Try again in ${wait} seconds.`),
+      ...failure(
+        429,
+        'rate_limited',
+        `Too many store reads. Try again in ${wait} seconds.`,
+        coded('rate.storeReads', { count: wait }),
+      ),
       headers: { 'Retry-After': String(wait) },
     };
   };
@@ -227,6 +233,7 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
           422,
           'platform_mismatch',
           `This app is on ${app.platform}; the notes of ${platform} are not read for it.`,
+          coded('plan.notesPlatform', { appPlatform: app.platform, platform }),
         ),
       );
     }
@@ -277,7 +284,12 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
     const wait = checkLimiter.take(ws(c));
     if (wait > 0)
       return respond(c, {
-        ...failure(429, 'rate_limited', `Too many checks. Try again in ${wait} seconds.`),
+        ...failure(
+          429,
+          'rate_limited',
+          `Too many checks. Try again in ${wait} seconds.`,
+          coded('rate.checks', { count: wait }),
+        ),
         headers: { 'Retry-After': String(wait) },
       });
     const done = await checkPlayReleaseOf(release, {

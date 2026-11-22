@@ -49,7 +49,6 @@ import {
   versionCodesOf,
 } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
-import { messageCoding } from '../../i18n/problem.ts';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
@@ -70,6 +69,7 @@ import {
 import { type ReleaseCheck, releaseFieldChecks } from './staged-release.ts';
 import { fileEntry, type PushedManifest, recordPush, textEntry } from './store-draft-record.ts';
 
+import { coded, messageCoding } from '../../i18n/problem.ts';
 /**
  * Writing staged listing text and graphics into a store as a DRAFT: a STORE WRITE. The design copies
  * review replies and rollout changes (docs/adr/0007-review-replies.md, docs/adr/0008-store-rollout-writes.md)
@@ -295,6 +295,7 @@ async function takeClaim(
       409,
       'write_in_progress',
       'A draft push for this app is in progress. Wait for it to finish.',
+      coded('publish.inProgress.draftPush'),
     );
   const insert = () =>
     db.execute(
@@ -313,6 +314,7 @@ async function takeClaim(
       409,
       'outcome_unknown',
       'It is not known whether the last draft push of this app reached the store. Preview the push again: that reads the store and shows where it stands. Nothing is written until you confirm a new preview.',
+      coded('publish.unknown.draftPush'),
     );
   }
   const startedAt = Number(existing.claim_at);
@@ -364,18 +366,25 @@ export async function connect(
     [app.credentialId, workspaceId],
   );
   if (!credential)
-    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+    return failure(
+      422,
+      'credential_not_found',
+      'The credential of this app no longer exists.',
+      coded('credential.gone'),
+    );
   if (String(credential.kind) !== credentialKindFor[app.platform])
     return failure(
       422,
       'credential_kind',
       "This app's credential is not the kind its platform needs.",
+      coded('credential.wrongKind'),
     );
   if (needsStoreAppId(app.platform) && !app.storeAppId)
     return failure(
       422,
       'app_not_synced',
       'The App Store id of this app is not known yet. Sync the app first.',
+      coded('app.storeIdUnknown'),
     );
   let secret: string | undefined;
   try {
@@ -391,10 +400,16 @@ export async function connect(
       422,
       'credential_unreadable',
       'The credential could not be decrypted. Enter its secret again.',
+      coded('credential.undecryptable'),
     );
   }
   if (secret === undefined)
-    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+    return failure(
+      422,
+      'credential_not_found',
+      'The credential of this app no longer exists.',
+      coded('credential.gone'),
+    );
   return {
     ok: true,
     connection: {
@@ -441,7 +456,7 @@ export async function readStoreImagesOf(
     return { ok: true, read };
   } catch (error) {
     if (error instanceof DraftTimeout)
-      return failure(504, 'timeout', 'The store did not answer in time.');
+      return failure(504, 'timeout', 'The store did not answer in time.', coded('store.noAnswer'));
     return mapStoreError(error, connection.secret).failure;
   }
 }
@@ -471,7 +486,12 @@ export async function readReleaseCandidatesOf(
     supports(app.platform, 'releaseTracks') &&
     (input.track === undefined || input.track === '')
   ) {
-    return failure(422, 'track_required', 'Name the track (for example production).');
+    return failure(
+      422,
+      'track_required',
+      'Name the track (for example production).',
+      coded('publish.trackRequired'),
+    );
   }
   const connected = await connect(ctx, input.workspaceId, app, input.actor, RELEASE_READ_PURPOSE);
   if (!connected.ok) return connected;
@@ -492,7 +512,7 @@ export async function readReleaseCandidatesOf(
     return { ok: true, read };
   } catch (error) {
     if (error instanceof DraftTimeout)
-      return failure(504, 'timeout', 'The store did not answer in time.');
+      return failure(504, 'timeout', 'The store did not answer in time.', coded('store.noAnswer'));
     return mapStoreError(error, connection.secret).failure;
   }
 }
@@ -523,7 +543,7 @@ export async function readNotesHistoryOf(
     return { ok: true, read };
   } catch (error) {
     if (error instanceof DraftTimeout)
-      return failure(504, 'timeout', 'The store did not answer in time.');
+      return failure(504, 'timeout', 'The store did not answer in time.', coded('store.noAnswer'));
     return mapStoreError(error, connection.secret).failure;
   }
 }
@@ -538,7 +558,12 @@ export async function readEditableReleaseOf(
     supports(app.platform, 'releaseTracks') &&
     (input.track === undefined || input.track === '')
   ) {
-    return failure(422, 'track_required', 'Name the track (for example production).');
+    return failure(
+      422,
+      'track_required',
+      'Name the track (for example production).',
+      coded('publish.trackRequired'),
+    );
   }
   const connected = await connect(ctx, input.workspaceId, app, input.actor, RELEASE_READ_PURPOSE);
   if (!connected.ok) return connected;
@@ -556,7 +581,7 @@ export async function readEditableReleaseOf(
     return { ok: true, read };
   } catch (error) {
     if (error instanceof DraftTimeout)
-      return failure(504, 'timeout', 'The store did not answer in time.');
+      return failure(504, 'timeout', 'The store did not answer in time.', coded('store.noAnswer'));
     return mapStoreError(error, connection.secret).failure;
   }
 }
@@ -610,7 +635,12 @@ async function prepare(
 ): Promise<{ ok: true; prepared: Prepared } | Failure> {
   const { app } = input;
   const rows = await loadStagedRows(ctx.db, input.workspaceId, app.id);
-  if (rows.length === 0) return failure(422, 'nothing_staged', 'Nothing is staged for this app.');
+  if (rows.length === 0) return failure(
+    422,
+    'nothing_staged',
+    'Nothing is staged for this app.',
+    coded('staged.nothingStaged'),
+  );
   const view = await buildStagedView(ctx, input.workspaceId, app, rows);
   if (!view.valid) {
     const errors = [
@@ -638,7 +668,7 @@ async function prepare(
       422,
       'staged_invalid',
       'Some staged items have errors. Fix or remove them first.',
-      { problems: errors.slice(0, 30), total: errors.length },
+      { problems: errors.slice(0, 30), total: errors.length, ...coded('staged.itemsHaveErrors') },
     );
   }
   const texts: DraftTextWrite[] = rows
@@ -663,7 +693,12 @@ async function prepare(
       height: first.assetHeight,
     });
     if (target === undefined)
-      return failure(422, 'staged_invalid', 'A staged set has no store name.', { item: set.key });
+      return failure(
+        422,
+        'staged_invalid',
+        'A staged set has no store name.',
+        { item: set.key, ...coded('staged.setNoName') },
+      );
     sets.push({
       locale: set.locale,
       slot: set.slot,
@@ -681,6 +716,7 @@ async function prepare(
     return failure(422, 'staged_invalid', 'The staged files are more than one push can upload.', {
       limit: STAGED_LIMITS.maxAssetFilesPerPush,
       actual: count,
+      ...coded('staged.tooMuchToUpload'),
     });
   }
   // One read of the index per commit the files were staged at.
@@ -705,7 +741,7 @@ async function prepare(
           422,
           'asset_changed',
           `${name} is no longer kept by this server. Upload it again.`,
-          { item: set.key },
+          { item: set.key, ...coded('staged.blobGone', { name }) },
         );
       read += blob.bytes.length;
       if (
@@ -714,11 +750,17 @@ async function prepare(
       ) {
         return failure(422, 'staged_invalid', `${name} is larger than a push uploads.`, {
           item: set.key,
+          ...coded('staged.fileLargerPush', { name }),
         });
       }
       const format = sniffImageFormat(blob.bytes);
       if (format !== 'png' && format !== 'jpeg')
-        return failure(422, 'asset_changed', `${name} is not a PNG or JPEG.`, { item: set.key });
+        return failure(
+          422,
+          'asset_changed',
+          `${name} is not a PNG or JPEG.`,
+          { item: set.key, ...coded('staged.notPngJpeg', { name }) },
+        );
       set.files[r.ordinal] = {
         name: fileNameOf(r.assetPath ?? '', r.ordinal),
         mime: format === 'png' ? 'image/png' : 'image/jpeg',
@@ -758,7 +800,7 @@ async function prepare(
             422,
             'asset_changed',
             `${name} is no longer a file of this set in the repository's asset index at the staged commit. Stage the set again.`,
-            { item: set.key },
+            { item: set.key, ...coded('staged.noLongerInIndex', { name }) },
           );
         }
         const file = await handle.readFile(r.assetPath);
@@ -770,6 +812,7 @@ async function prepare(
         ) {
           return failure(422, 'staged_invalid', `${name} is larger than a push uploads.`, {
             item: set.key,
+            ...coded('staged.fileLargerPush', { name }),
           });
         }
         if (file.oid !== r.valueHash)
@@ -777,11 +820,16 @@ async function prepare(
             422,
             'asset_changed',
             `${name} does not match the staged blob id. Stage the set again.`,
-            { item: set.key },
+            { item: set.key, ...coded('staged.blobMismatch', { name }) },
           );
         const format = sniffImageFormat(file.bytes);
         if (format !== 'png' && format !== 'jpeg')
-          return failure(422, 'asset_changed', `${name} is not a PNG or JPEG.`, { item: set.key });
+          return failure(
+            422,
+            'asset_changed',
+            `${name} is not a PNG or JPEG.`,
+            { item: set.key, ...coded('staged.notPngJpeg', { name }) },
+          );
         set.files[r.ordinal] = {
           name: fileNameOf(r.assetPath, r.ordinal),
           mime: format === 'png' ? 'image/png' : 'image/jpeg',
@@ -1162,7 +1210,12 @@ export async function previewDraftPush(
     );
   } catch (error) {
     if (error instanceof DraftTimeout)
-      return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
+      return failure(
+        504,
+        'timeout',
+        'The store did not answer in time. Nothing was changed.',
+        coded('store.noAnswerNothingChanged'),
+      );
     return mapStoreError(error, connection.secret).failure;
   }
   await clearUnknown(ctx.db, app);
@@ -1459,7 +1512,7 @@ export async function applyDraftPush(
           409,
           'blocked',
           'Something stands in the way of writing the release fields, so nothing was written. See `checks`.',
-          { checks: blocked },
+          { checks: blocked, ...coded('publish.blocked.draft') },
         );
       }
       await audit(ctx, input, app, error.current, { code: 'state_changed', outcome: 'refused' });
@@ -1470,6 +1523,7 @@ export async function applyDraftPush(
         'The staged changes or the store’s draft changed since this was previewed, so nothing was written. Review the new preview and confirm it.',
         {
           preview: previewOf(ctx, app, input.workspaceId, p, error.current),
+          ...coded('publish.changedSinceDraft'),
         },
       );
     }
@@ -1543,6 +1597,7 @@ export async function applyDraftPush(
       409,
       'outcome_unknown',
       'It is not known whether the draft reached the store: the store did not answer and its draft could not be read back. Preview the push again to see where it stands; nothing is written until you confirm a new preview.',
+      coded('publish.unknown.draftReached'),
     );
   }
   const now = itemMatches(current, p);
@@ -1567,7 +1622,7 @@ export async function applyDraftPush(
         502,
         'write_failed',
         'The store did not answer, and reading its draft back shows nothing was written. Nothing was changed. Preview again to try again.',
-        { outcome: 'not_applied' },
+        { outcome: 'not_applied', ...coded('publish.draftNotWritten') },
       );
     }
     // Google Play can be slow to show a committed edit: the old draft is not proof.
@@ -1577,6 +1632,7 @@ export async function applyDraftPush(
       409,
       'outcome_unknown',
       'Google Play did not answer, and the draft it shows is unchanged. A commit can take a while to show: check Play Console, then preview the push again. Nothing is written until you confirm a new preview.',
+      coded('publish.playDraftUnchanged'),
     );
   }
   // Neither the old draft nor the asked one: part of it was written (App Store), or somebody else changed it too.
@@ -1610,6 +1666,6 @@ export async function applyDraftPush(
     409,
     'draft_partial',
     'The store did not answer, and its draft now holds some of the changes but not all. Preview and push again to finish: items that already match are skipped.',
-    { items: itemsDone },
+    { items: itemsDone, ...coded('publish.draftPartial') },
   );
 }
