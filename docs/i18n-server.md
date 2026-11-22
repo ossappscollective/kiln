@@ -39,6 +39,8 @@ guide of each alert email, the frame; 207 keys) and `digest` (the digest; 10 key
 use `count` (`_one`/`_other`), numbers, dates and durations go through `Intl` in the recipient's language, names, ids, codes and URLs pass
 through untouched.
 
+**Chat messages** (Slack, Teams; [chat-integrations](chat-integrations.md)) use the **destination's** language (`chat_destinations.locale`, chosen by the admin who sets it up: a channel has no user), with the `alerts` catalog for the sentences of each alert and the `chat` namespace (`apps/server/locales/chat`, 24 keys) for the frame.
+
 ### Which language
 
 - **Interactive** emails answer a request, so they use the requester's `Accept-Language` (`negotiateLocale`): sign-in code, step-up code,

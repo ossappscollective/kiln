@@ -39,6 +39,8 @@ leads is `guides` in `apps/server/src/modules/alerts/email.ts`; the frame is sha
 `https://kiln.example.com`): a background job cannot know the address you reach the server at. Without it the email still names the
 screen ("open Kiln, Credentials") but has no link, so set it when you run the server for a team.
 
+**Chat** (Slack, Microsoft Teams) is a second workspace level channel: each chat destination has its own routing rules and daily summary, and every new alert (after the rule, dedupe and cap above) is offered to them; see [chat-integrations](chat-integrations.md).
+
 The webhook channel is a workspace choice, not a personal one: when it is on for a type and an enabled webhook listens for `alert.raised` (or for everything), the event is
 written once and delivered. With no listening webhook nothing is written to the event log and the delivery log says `no_endpoint`.
 

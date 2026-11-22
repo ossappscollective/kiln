@@ -15,6 +15,7 @@ anything here.
 - [docs/open-decisions.md](docs/open-decisions.md): decisions that wait for a person
 - [docs/ux-ia.md](docs/ux-ia.md): the shell, the pages and their views (including workspace Settings in four views)
 - [docs/alerts.md](docs/alerts.md): alerts, the inbox, email, desktop and webhook delivery ([API](docs/api/alerts.md))
+- [docs/chat-integrations.md](docs/chat-integrations.md): alerts, release events and a daily summary in Slack and Microsoft Teams ([API](docs/api/chat-integrations.md), [ADR 0047](docs/adr/0047-chat-integrations.md))
 - [docs/api/two-factor.md](docs/api/two-factor.md) and [docs/api/mail.md](docs/api/mail.md): authenticator app and email codes, and the SMTP server they use
 - [docs/mcp.md](docs/mcp.md): connect Claude, Cursor and other AI assistants ([API](docs/api/mcp.md))
 - [docs/ai-features.md](docs/ai-features.md): the AI assistant for reviews, listings and ASO ([API](docs/api/ai.md))
