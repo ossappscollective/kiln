@@ -6,7 +6,7 @@
   under the section; the state lives here, so it survives a change of section, and the other sections say that changes wait to be saved
   (the rail marks the form sections with a dot). Language is this browser's and applies at once. Security (confirm hard actions, recovery
   codes, authenticator app and email, mail) and AI (the AI assistant with its own save, "Connect an AI assistant") save on their own.
-  Integrations lists Slack and Teams (#/chat) and Webhooks (#/webhooks), which have their own pages.
+  Integrations draws Slack and Teams here (the same screen as #/chat, with `embedded`) and links to Webhooks (#/webhooks).
   Cards are drawn open and without a toggle here (provideFlatCards): a section is the only thing on screen.
   Secrets are never settings: keys live under Credentials (the AI key is written from its card into the same vault).
 -->
@@ -48,6 +48,7 @@
   import Button from './ui/Button.svelte';
   import PageHeader from './ui/PageHeader.svelte';
   import Icon from './ui/Icon.svelte';
+  import Chat from './Chat.svelte';
   import Skeleton from './ui/Skeleton.svelte';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
@@ -285,6 +286,8 @@
             <AiSettings {api} {workspaceId} {role} />
           {:else if section === 'mcp'}
             <McpSettings {api} {workspaceId} {role} />
+          {:else if section === 'chat'}
+            <Chat {api} {workspaceId} {role} embedded />
           {/if}
         </div>
       {/if}

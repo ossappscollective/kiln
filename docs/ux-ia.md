@@ -149,15 +149,15 @@ and one section at a time on the right, kept in the address as `?section=`. Pure
 | Just for you | Language (this browser)                                            | applies at once                       |
 | Security     | Confirm hard actions (with recovery codes), Authenticator and email, Mail server (admins) | each card saves on its own |
 | AI           | AI assistant (`ai.use`), Connect an AI assistant                   | own save                              |
-| Integrations | Slack and Teams (`#/chat`), Webhooks (`#/webhooks`)                | links to their own pages              |
+| Integrations | Slack and Teams (the `#/chat` screen, drawn here), Webhooks (`#/webhooks`) | destinations save on their own; Webhooks is a link |
 
 - `#/settings` is Store refresh. The old `?view=general|analytics|security|ai` addresses (emails, other pages) open the first section of
   that view, so nothing that links to them breaks.
-- The rail is sticky, has a search (matches a section or group name; Enter opens the first match) and marks the form sections with a
+- The rail is sticky, has a search (matches a section name, its group name or the keywords of the section, e.g. "smtp" or "deepl"; Enter opens the first match) and marks the form sections with a
   dot while changes are unsaved. Under 48rem it stacks above the section.
 - Cards are drawn open and without a toggle on this page (`provideFlatCards`, read by `Card`): a section is alone on screen.
 - Role gating is unchanged: a role without `settings.read` only gets Language and Connect an AI assistant (plus AI assistant with
-  `ai.use`); Mail needs `settings.write`; Slack and Teams needs `chat.read`.
+  `ai.use`); Mail needs `settings.write`; Slack and Teams needs `chat.read`. The nav item and `#/chat` stay (same screen; `Chat` takes `embedded` inside Settings).
 - The workspace form keeps one state held by the page and one save bar under the open section, so a change of section keeps what was
   typed. On the other sections a note says changes are waiting, with a link. A save blocked by a value in another section says which.
 

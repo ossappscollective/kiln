@@ -25,12 +25,12 @@ test('the groups are Workspace, Just for you, Security, AI and Integrations, in 
   );
 });
 
-test('Slack and Teams, and webhooks, are links to their own pages', () => {
+test('Slack and Teams is drawn in Settings; webhooks is a link to its page', () => {
   const integrations = settingsGroupsFor(all).find((g) => g.id === 'integrations');
   assert.deepEqual(
     integrations?.items.map((i) => [i.id, i.kind, i.href]),
     [
-      ['chat', 'link', '#/chat'],
+      ['chat', 'page', undefined],
       ['webhooks', 'link', '#/webhooks'],
     ],
   );
@@ -60,7 +60,8 @@ test('the address names a section; the old ?view= addresses open the first secti
 test('the section drawn is the one named when allowed, else the first allowed; a link is never drawn', () => {
   assert.equal(resolveSettingsSection('#/settings', all), 'store-refresh');
   assert.equal(resolveSettingsSection('#/settings?section=translation', all), 'translation');
-  assert.equal(resolveSettingsSection('#/settings?section=chat', all), 'store-refresh');
+  assert.equal(resolveSettingsSection('#/settings?section=chat', all), 'chat');
+  assert.equal(resolveSettingsSection('#/settings?section=webhooks', all), 'store-refresh');
   assert.equal(resolveSettingsSection('#/settings?section=mail', none), 'language');
   assert.equal(resolveSettingsSection('#/settings?view=ai', none), 'language');
 });
@@ -81,13 +82,19 @@ test('Save settings belongs to the form sections only', () => {
 test('search matches a section name or its group name, ignoring case and accents', () => {
   const groups = settingsGroupsFor(all);
   assert.deepEqual(
-    filterSettingsGroups(groups, 'REVI').flatMap((g) => g.items.map((i) => i.id)),
+    filterSettingsGroups(groups, 'REVIEWS').flatMap((g) => g.items.map((i) => i.id)),
     ['reviews'],
   );
   assert.deepEqual(
     filterSettingsGroups(groups, 'security').flatMap((g) => g.items.map((i) => i.id)),
     ['confirm', 'second-factor', 'mail'],
   );
+  // The keywords of a section count too: "smtp" finds the mail server, "deepl" finds Translation.
+  assert.deepEqual(
+    filterSettingsGroups(groups, 'smtp').flatMap((g) => g.items.map((i) => i.id)),
+    ['mail'],
+  );
+  assert.ok(filterSettingsGroups(groups, 'deepl').some((g) => g.items.some((i) => i.id === 'translation')));
   assert.deepEqual(filterSettingsGroups(groups, 'zzz'), []);
   assert.equal(filterSettingsGroups(groups, '  ').length, groups.length);
 });

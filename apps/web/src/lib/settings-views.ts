@@ -11,7 +11,7 @@ import { k, t } from './i18n/t.ts';
  *   Just for you  Language                                                   (this browser; applies at once)
  *   Security      Confirm hard actions, Authenticator and email, Mail server
  *   AI            AI assistant, Connect an AI assistant
- *   Integrations  Slack and Teams, Webhooks                                  (links to their own pages)
+ *   Integrations  Slack and Teams (drawn here; `#/chat` is the same screen), Webhooks (a link to its page)
  */
 
 export type SettingsGroup = 'workspace' | 'personal' | 'security' | 'ai' | 'integrations';
@@ -38,6 +38,8 @@ type SectionKeyDef = {
   id: SettingsSectionId;
   group: SettingsGroup;
   labelKey: string;
+  /** The words a search also matches (a message with the terms of the section, space separated). */
+  keywordsKey: string;
   kind: SettingsSectionKind;
   /** The right needed to see it; none means every role. */
   requires?: Action;
@@ -46,19 +48,19 @@ type SectionKeyDef = {
 };
 
 export const settingsSections: readonly SectionKeyDef[] = [
-  { id: 'store-refresh', group: 'workspace', labelKey: k('settings:section.storeRefresh'), kind: 'form', requires: 'settings.read' },
-  { id: 'reviews', group: 'workspace', labelKey: k('settings:section.reviews'), kind: 'form', requires: 'settings.read' },
-  { id: 'releases', group: 'workspace', labelKey: k('settings:section.releases'), kind: 'form', requires: 'settings.read' },
-  { id: 'translation', group: 'workspace', labelKey: k('settings:section.translation'), kind: 'form', requires: 'settings.read' },
-  { id: 'analytics', group: 'workspace', labelKey: k('settings:section.analytics'), kind: 'form', requires: 'settings.read' },
-  { id: 'language', group: 'personal', labelKey: k('settings:section.language'), kind: 'page' },
-  { id: 'confirm', group: 'security', labelKey: k('settings:section.confirm'), kind: 'page', requires: 'settings.read' },
-  { id: 'second-factor', group: 'security', labelKey: k('settings:section.secondFactor'), kind: 'page', requires: 'settings.read' },
-  { id: 'mail', group: 'security', labelKey: k('settings:section.mail'), kind: 'page', requires: 'settings.write' },
-  { id: 'ai', group: 'ai', labelKey: k('settings:section.ai'), kind: 'page', requires: 'ai.use' },
-  { id: 'mcp', group: 'ai', labelKey: k('settings:section.mcp'), kind: 'page' },
-  { id: 'chat', group: 'integrations', labelKey: k('settings:section.chat'), kind: 'link', requires: 'chat.read', href: '#/chat' },
-  { id: 'webhooks', group: 'integrations', labelKey: k('settings:section.webhooks'), kind: 'link', requires: 'webhooks.read', href: '#/webhooks' },
+  { id: 'store-refresh', group: 'workspace', labelKey: k('settings:section.storeRefresh'), keywordsKey: k('settings:keywords.storeRefresh'), kind: 'form', requires: 'settings.read' },
+  { id: 'reviews', group: 'workspace', labelKey: k('settings:section.reviews'), keywordsKey: k('settings:keywords.reviews'), kind: 'form', requires: 'settings.read' },
+  { id: 'releases', group: 'workspace', labelKey: k('settings:section.releases'), keywordsKey: k('settings:keywords.releases'), kind: 'form', requires: 'settings.read' },
+  { id: 'translation', group: 'workspace', labelKey: k('settings:section.translation'), keywordsKey: k('settings:keywords.translation'), kind: 'form', requires: 'settings.read' },
+  { id: 'analytics', group: 'workspace', labelKey: k('settings:section.analytics'), keywordsKey: k('settings:keywords.analytics'), kind: 'form', requires: 'settings.read' },
+  { id: 'language', group: 'personal', labelKey: k('settings:section.language'), keywordsKey: k('settings:keywords.language'), kind: 'page' },
+  { id: 'confirm', group: 'security', labelKey: k('settings:section.confirm'), keywordsKey: k('settings:keywords.confirm'), kind: 'page', requires: 'settings.read' },
+  { id: 'second-factor', group: 'security', labelKey: k('settings:section.secondFactor'), keywordsKey: k('settings:keywords.secondFactor'), kind: 'page', requires: 'settings.read' },
+  { id: 'mail', group: 'security', labelKey: k('settings:section.mail'), keywordsKey: k('settings:keywords.mail'), kind: 'page', requires: 'settings.write' },
+  { id: 'ai', group: 'ai', labelKey: k('settings:section.ai'), keywordsKey: k('settings:keywords.ai'), kind: 'page', requires: 'ai.use' },
+  { id: 'mcp', group: 'ai', labelKey: k('settings:section.mcp'), keywordsKey: k('settings:keywords.mcp'), kind: 'page' },
+  { id: 'chat', group: 'integrations', labelKey: k('settings:section.chat'), keywordsKey: k('settings:keywords.chat'), kind: 'page', requires: 'chat.read' },
+  { id: 'webhooks', group: 'integrations', labelKey: k('settings:section.webhooks'), keywordsKey: k('settings:keywords.webhooks'), kind: 'link', requires: 'webhooks.read', href: '#/webhooks' },
 ];
 
 const groupLabelKeys: Record<SettingsGroup, string> = {
@@ -74,6 +76,7 @@ const groupOrder: readonly SettingsGroup[] = ['workspace', 'personal', 'security
 export type SettingsSectionDef = {
   id: SettingsSectionId;
   label: string;
+  keywords: string;
   kind: SettingsSectionKind;
   href?: string;
 };
@@ -91,17 +94,17 @@ export function settingsGroupsFor(allowed: (action: Action) => boolean): Setting
       label: t(groupLabelKeys[group]),
       items: settingsSections
         .filter((s) => s.group === group && (!s.requires || allowed(s.requires)))
-        .map((s) => ({ id: s.id, label: t(s.labelKey), kind: s.kind, ...(s.href ? { href: s.href } : {}) })),
+        .map((s) => ({ id: s.id, label: t(s.labelKey), keywords: t(s.keywordsKey), kind: s.kind, ...(s.href ? { href: s.href } : {}) })),
     }))
     .filter((g) => g.items.length > 0);
 }
 
-/** The groups narrowed by a search: a section stays when its name or its group's name has the text in it (case and accents ignored). */
+/** The groups narrowed by a search: a section stays when its name, its group's name or its keywords have the text in it (case and accents ignored). */
 export function filterSettingsGroups(groups: readonly SettingsGroupDef[], query: string): SettingsGroupDef[] {
   const needle = fold(query);
   if (needle === '') return [...groups];
   return groups
-    .map((g) => ({ ...g, items: fold(g.label).includes(needle) ? g.items : g.items.filter((i) => fold(i.label).includes(needle)) }))
+    .map((g) => ({ ...g, items: fold(g.label).includes(needle) ? g.items : g.items.filter((i) => fold(`${i.label} ${i.keywords}`).includes(needle)) }))
     .filter((g) => g.items.length > 0);
 }
 

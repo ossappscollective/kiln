@@ -32,7 +32,8 @@
   import Modal from './ui/Modal.svelte';
   import PageHeader from './ui/PageHeader.svelte';
 
-  let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
+  /** `embedded`: drawn inside the Settings page, which already has the page title; the description and the new button stay. */
+  let { api, workspaceId, role, embedded = false }: { api: Api; workspaceId: string; role: Role; embedded?: boolean } = $props();
 
   const canRead = $derived(can(role, 'chat.read'));
   const canManage = $derived(can(role, 'chat.manage'));
@@ -168,13 +169,21 @@
 </script>
 
 <section>
-  <PageHeader title={t('chat:page.title')} description={t('chat:page.description')}>
-    {#snippet actions()}
-      {#if canManage && !adding}
-        <Button variant="primary" icon="plus" id="new-chat-destination" onclick={() => { adding = true; panel = null; notice = ''; }}>{t('chat:page.new')}</Button>
-      {/if}
-    {/snippet}
-  </PageHeader>
+  {#snippet newButton()}
+    {#if canManage && !adding}
+      <Button variant="primary" icon="plus" id="new-chat-destination" onclick={() => { adding = true; panel = null; notice = ''; }}>{t('chat:page.new')}</Button>
+    {/if}
+  {/snippet}
+  {#if embedded}
+    <div class="embedded-head">
+      <p class="lead">{t('chat:page.description')}</p>
+      {@render newButton()}
+    </div>
+  {:else}
+    <PageHeader title={t('chat:page.title')} description={t('chat:page.description')}>
+      {#snippet actions()}{@render newButton()}{/snippet}
+    </PageHeader>
+  {/if}
 
   {#if !canRead}
     <Alert tone="info">{t('chat:page.noRead')}</Alert>
@@ -364,5 +373,20 @@
 
   .notice.shown {
     display: block;
+  }
+
+  .embedded-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
+  }
+
+  .embedded-head .lead {
+    flex: 1 1 18rem;
+    margin: 0;
+    color: var(--muted);
   }
 </style>
