@@ -12,6 +12,7 @@ import { type Api, ApiError } from './api.ts';
 import { timeAgo } from './format.ts';
 import { formatList, formatPercent } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
+import { compareTracks } from './play-tracks.ts';
 import type {
   AppSummary,
   DiscoverCandidate,
@@ -195,21 +196,6 @@ export function compareVersions(a: string, b: string): number {
     }
   }
   return 0;
-}
-
-const TRACK_ORDER = ['production', 'beta', 'alpha', 'internal'];
-
-/** Production first, then beta, alpha, internal, then custom tracks by name. iOS (no track) first of all. */
-function trackRank(track: string | null): number {
-  if (track === null) return -1;
-  const i = TRACK_ORDER.indexOf(track);
-  return i === -1 ? TRACK_ORDER.length : i;
-}
-
-function compareTracks(a: string | null, b: string | null): number {
-  const diff = trackRank(a) - trackRank(b);
-  if (diff !== 0) return diff;
-  return (a ?? '') < (b ?? '') ? -1 : (a ?? '') > (b ?? '') ? 1 : 0;
 }
 
 /** Newest version first. A tie goes to the more public track, then the higher build. */

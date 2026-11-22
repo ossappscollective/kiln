@@ -155,8 +155,8 @@ test('groups are per platform and track, iOS first, production before testing tr
     [
       'iOS · App Store',
       'Android · Production',
-      'Android · Internal testing',
       'Android · zeta-wear',
+      'Android · Internal testing',
     ],
   );
   assert.deepEqual(

@@ -18,6 +18,7 @@ import {
 } from '@kiln/core';
 import { ApiError } from './api.ts';
 import { rolloutIssueMessage } from './core-text.ts';
+import { compareTracks } from './play-tracks.ts';
 import { formatDate, formatDateTime, formatPercent as formatShare } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
 import { compareVersions, platformLabel } from './portfolio.ts';
@@ -98,7 +99,7 @@ export function releasesOfVersion(
     .filter((r) => r.version === version)
     .sort(
       (a, b) =>
-        (a.track ?? '').localeCompare(b.track ?? '') ||
+        compareTracks(a.track, b.track) ||
         compareVersions(b.build ?? '', a.build ?? ''),
     );
 }

@@ -52,7 +52,7 @@ const isServing = (r: Pick<ReleaseSummary, 'status'>) =>
 
 /**
  * Whether this release can be promoted: Android, a track that is not production, serving users (live or rolling out), with version
- * codes, and not already live in production with the same codes (`siblings` are the releases to look at, for example the same version).
+ * codes, and not already in production with the same codes in any state (a draft, in review, approved, rolling out or live) (`siblings` are the releases to look at, for example the same version).
  */
 export function promoteOption(
   release: ReleaseSummary,
@@ -66,7 +66,6 @@ export function promoteOption(
     (s) =>
       s.appId === release.appId &&
       sameTrack(s.track, PRODUCTION) &&
-      isServing(s) &&
       codes.every((c) => (s.versionCodes ?? []).indexOf(c) >= 0),
   );
   if (done) return null;

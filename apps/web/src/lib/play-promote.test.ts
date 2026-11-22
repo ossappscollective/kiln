@@ -54,8 +54,7 @@ test('nothing to promote: production, iOS, a draft, a halted release, no codes, 
   assert.equal(promoteOption(release({ versionCodes: null })), null);
   const live = release({ id: 'r2', track: 'production', versionCodes: ['241', '242'] });
   assert.equal(promoteOption(release(), [live]), null);
-  // A production draft, or another app's release, does not count as promoted.
-  assert.ok(promoteOption(release(), [{ ...live, status: 'draft' }]));
+  // A production draft already carries the codes (see the test below); another app's release does not count.
   assert.ok(promoteOption(release(), [{ ...live, appId: 'other' }]));
   assert.ok(promoteOption(release(), [{ ...live, versionCodes: ['100'] }]));
 });
@@ -119,4 +118,15 @@ test('closing the steps drops the promotion but keeps the rest of the address', 
     '#/portfolio/app1/releases',
   );
   assert.equal(withoutPromote('#/portfolio/app1/releases'), '#/portfolio/app1/releases');
+});
+
+test('no promotion for a build that already sits in production in any state', () => {
+  const internal = release();
+  for (const status of ['in_review', 'approved', 'draft', 'rejected', 'rolling_out', 'live', 'halted'] as const) {
+    const production = release({ id: `p-${status}`, track: 'production', status });
+    assert.equal(promoteOption(internal, [internal, production]), null, status);
+  }
+  // Another version code in production does not hide it.
+  const other = release({ id: 'p', track: 'production', status: 'in_review', versionCodes: ['240'] });
+  assert.ok(promoteOption(internal, [internal, other]));
 });
