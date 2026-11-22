@@ -18,6 +18,8 @@ import {
   supports,
 } from '@kiln/core';
 import { ApiError, waitPhrase } from './api.ts';
+import { formatList, formatNumber } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import type { AssetItem, DriftField } from './types.ts';
 
 /**
@@ -33,15 +35,12 @@ import type { AssetItem, DriftField } from './types.ts';
 export const DRAFT_ENV = 'KILN_STORE_DRAFT_WRITE_ENABLED';
 
 /** The sentence the dialog and the tray keep saying: a push is not a submit. */
-export const NOT_SUBMITTED =
-  'Nothing is submitted for review or published by a push. Submitting is a separate step with its own switch and confirmation.';
+export const notSubmittedNote = (): string => t('publish:staged.notSubmitted');
 
 /** The note under the tray: where the next step is, and what this tool never does. */
-export const SUBMIT_NEXT_STEP =
-  'After a push, "Submit for review…" (admin and up, when the server allows it) hands the draft to the store\'s review. Releasing is a separate step with its own switch and confirmation.';
+export const submitNextStepNote = (): string => t('publish:staged.submitNextStep');
 
-export const REVERSE_IMAGE_SYNC_NOTE =
-  'The store\'s images cannot be staged directly. "Pull from store" puts them into the repository as a draft change set to review and apply; after that they can be staged from there. Files you upload here are staged as they are.';
+export const reverseImageSyncNote = (): string => t('publish:staged.reverseImageSyncNote');
 
 // ---------------------------------------------------------------------------------------------
 // API shapes (the staged view itself comes from @kiln/core)
@@ -165,8 +164,8 @@ export const canStage = (role: Role): boolean => can(role, 'changesets.write');
 /** Preview and push: admin and up (`store.push_draft`). */
 export const canPush = (role: Role): boolean => can(role, 'store.push_draft');
 
-export const STAGE_ROLE_REASON = 'Your role cannot stage changes. A member, admin or owner can.';
-export const PUSH_ROLE_REASON = 'Pushing a draft to a store needs the admin or owner role.';
+export const stageRoleReason = (): string => t('publish:staged.stageRoleReason');
+export const pushRoleReason = (): string => t('publish:staged.pushRoleReason');
 
 export type PushAvailability =
   | { state: 'ready' }
@@ -181,19 +180,19 @@ export function pushAvailability(
   config: StoreDraftConfig | null,
   loadFailed: boolean,
 ): PushAvailability {
-  if (!canPush(role)) return { state: 'role', message: PUSH_ROLE_REASON };
+  if (!canPush(role)) return { state: 'role', message: pushRoleReason() };
   if (loadFailed) {
     return {
       state: 'unknown',
       message:
-        'Could not find out whether pushing drafts is switched on. Reload the page to try again.',
+        t('publish:staged.availability.unknown'),
     };
   }
   if (!config) return { state: 'loading' };
   if (!config.enabled) {
     return {
       state: 'off',
-      message: `Writing drafts to a store is switched off on this server. Someone who runs it sets ${config.envName || DRAFT_ENV}=true and restarts it (see docs/api/staged-changes.md). Staging works meanwhile; nothing here can reach a store until then.`,
+      message: t('publish:staged.availability.off', { env: config.envName || DRAFT_ENV }),
     };
   }
   return { state: 'ready' };
@@ -211,29 +210,30 @@ export const releaseCount = (view: StagedChangesView | null): number =>
 export const itemCount = (view: StagedChangesView | null): number =>
   view === null ? 0 : view.text.length + view.assets.length + releaseCount(view);
 
-const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
-
 /** "3 texts, 2 graphic sets (7 files)", or "Nothing staged". */
 export function trayCountText(view: StagedChangesView | null): string {
-  if (view === null || itemCount(view) === 0) return 'Nothing staged';
+  if (view === null || itemCount(view) === 0) return t('publish:staged.nothingStaged');
   const parts: string[] = [];
-  if (view.text.length > 0) parts.push(plural(view.text.length, 'text', 'texts'));
+  if (view.text.length > 0) parts.push(t('publish:staged.count.texts', { count: view.text.length }));
   if (releaseCount(view) > 0)
-    parts.push(plural(releaseCount(view), 'release field', 'release fields'));
+    parts.push(t('publish:staged.count.releaseFields', { count: releaseCount(view) }));
   if (view.assets.length > 0) {
     const files = view.assets.reduce((n, s) => n + s.files.length, 0);
     parts.push(
-      `${plural(view.assets.length, 'graphic set', 'graphic sets')} (${plural(files, 'file', 'files')})`,
+      t('publish:staged.count.graphicSets', {
+        count: view.assets.length,
+        files: t('publish:staged.count.files', { count: files }),
+      }),
     );
   }
-  return parts.join(', ');
+  return formatList(parts, { type: 'unit' });
 }
 
 /** Why a push cannot start for this staged view, or null. */
 export function pushBlockedReason(view: StagedChangesView | null): string | null {
-  if (view === null) return 'The staged changes are not loaded yet.';
-  if (itemCount(view) === 0) return 'Nothing is staged.';
-  if (!view.valid) return 'Some staged items have an error. Fix or remove them first.';
+  if (view === null) return t('publish:staged.blocked.notLoaded');
+  if (itemCount(view) === 0) return t('publish:staged.blocked.nothingStaged');
+  if (!view.valid) return t('publish:staged.blocked.invalid');
   return null;
 }
 
@@ -242,13 +242,14 @@ export const problemsOf = (
   severity: 'error' | 'warning',
 ): StagedProblem[] => item.problems.filter((p) => p.severity === severity);
 
-export const SOURCE_LABELS: Readonly<Record<string, string>> = {
-  repo: 'From the repository',
-  local: 'Typed or uploaded here',
-  store: 'From the store',
+const SOURCE_LABELS: Readonly<Record<string, string>> = {
+  repo: k('publish:staged.source.repo'),
+  local: k('publish:staged.source.local'),
+  store: k('publish:staged.source.store'),
 };
 
-export const sourceLabel = (source: string): string => SOURCE_LABELS[source] ?? source;
+export const sourceLabel = (source: string): string =>
+  SOURCE_LABELS[source] ? t(SOURCE_LABELS[source]) : source;
 
 export type StagedTone = 'neutral' | 'ok' | 'warn' | 'bad' | 'info';
 
@@ -256,18 +257,18 @@ export function textStatus(item: Pick<StagedTextView, 'status'>): {
   label: string;
   tone: StagedTone;
 } {
-  if (item.status === 'invalid') return { label: 'Has an error', tone: 'bad' };
-  if (item.status === 'unchanged') return { label: 'Same as the store', tone: 'neutral' };
-  return { label: 'Differs from the store', tone: 'info' };
+  if (item.status === 'invalid') return { label: t('publish:staged.status.error'), tone: 'bad' };
+  if (item.status === 'unchanged') return { label: t('publish:staged.status.same'), tone: 'neutral' };
+  return { label: t('publish:staged.status.differs'), tone: 'info' };
 }
 
 /** "Pushed to the draft" only while the staged value is still the one that was pushed. */
 export const pushedLabel = (item: { pushed: boolean }): string | null =>
-  item.pushed ? 'In the store draft' : null;
+  item.pushed ? t('publish:staged.inStoreDraft') : null;
 
 /** A label for a graphic set: "en-US: Screenshots, iphone_6_5" from the server's label, plus the locale. */
 export const setTitle = (set: Pick<StagedAssetView, 'locale' | 'label'>): string =>
-  `${set.locale}: ${set.label}`;
+  t('publish:staged.setTitle', { locale: set.locale, label: set.label });
 
 // ---------------------------------------------------------------------------------------------
 // Staging a text
@@ -294,7 +295,7 @@ export function findStagedText(
   field: string,
 ): StagedTextView | null {
   if (view === null) return null;
-  for (const t of view.text) if (t.locale === locale && t.field === field) return t;
+  for (const item of view.text) if (item.locale === locale && item.field === field) return item;
   return null;
 }
 
@@ -307,13 +308,10 @@ export type FieldStage = {
   upToDate: boolean;
 };
 
-const APPLE_NOT_PUSHABLE =
-  'A draft push cannot write this field: the App Store keeps the name, subtitle and privacy policy URL on the app information, not on the version.';
-
 const NOT_PUSHABLE: Record<Platform, string> = {
-  ios: APPLE_NOT_PUSHABLE,
-  macos: APPLE_NOT_PUSHABLE,
-  android: 'A draft push cannot write this field.',
+  ios: k('publish:staged.notPushable.apple'),
+  macos: k('publish:staged.notPushable.apple'),
+  android: k('publish:staged.notPushable.generic'),
 };
 
 /** What the "Stage from repo" control of one listing field does. */
@@ -332,18 +330,18 @@ export function fieldStage(input: {
     normalizeText(staged.value) === normalizeText(repoValue);
   const base = { staged, upToDate };
   if (!isStageableTextField(input.platform, field.field))
-    return { state: 'not_pushable', reason: NOT_PUSHABLE[input.platform], ...base };
+    return { state: 'not_pushable', reason: t(NOT_PUSHABLE[input.platform]), ...base };
   if (field.status === 'identical' && staged === null)
     return { state: 'hidden', reason: null, ...base };
-  if (!canStage(input.role)) return { state: 'disabled', reason: STAGE_ROLE_REASON, ...base };
+  if (!canStage(input.role)) return { state: 'disabled', reason: stageRoleReason(), ...base };
   if (!isStageableLocale(field.locale))
     return {
       state: 'disabled',
-      reason: 'This is not a store locale code, so it cannot be staged.',
+      reason: t('publish:staged.field.notStoreLocale'),
       ...base,
     };
   if (repoValue === null || repoValue.trim() === '')
-    return { state: 'disabled', reason: 'The repository has no value for this field.', ...base };
+    return { state: 'disabled', reason: t('publish:staged.field.noRepoValue'), ...base };
   if (field.status === 'identical') return { state: 'hidden', reason: null, ...base };
   return { state: 'available', reason: null, ...base };
 }
@@ -419,41 +417,33 @@ export function setStaging(input: {
   });
   const maxFile = input.maxFileBytes ?? 8 * MiB;
 
-  if (!canStage(input.role)) return no(STAGE_ROLE_REASON);
-  if (input.assets.length === 0) return no('The set has no files.');
+  if (!canStage(input.role)) return no(stageRoleReason());
+  if (input.assets.length === 0) return no(t('publish:staged.set.noFiles'));
   if (input.commit === null)
-    return no(
-      'The repository read named no commit, so the files cannot be pinned. Read the repository again.',
-    );
+    return no(t('publish:staged.set.noCommit'));
   if (!isStageableLocale(input.locale))
-    return no(
-      'Files in the project folder or a flat folder have no store locale, so they cannot be staged.',
-    );
+    return no(t('publish:staged.set.noLocale'));
   const support = assetSlotSupport(input.platform, { kind: input.kind, device: input.device });
   if (!support.ok) return no(support.reason);
   const max = slotMaxFiles(input.platform, { kind: input.kind, device: input.device });
   if (input.assets.length > max)
-    return no(
-      `The store takes at most ${max} ${max === 1 ? 'file' : 'files'} in this set and the repository has ${input.assets.length}. Remove the extra files from the repository first.`,
-    );
+    return no(t('publish:staged.set.tooMany', { count: max, have: input.assets.length }));
   for (const a of input.assets) {
     const name = a.path.slice(a.path.lastIndexOf('/') + 1);
-    if (a.origin !== 'store') return no(`${name} is the icon of the project, not a store file.`);
+    if (a.origin !== 'store') return no(t('publish:staged.set.iconNotStore', { name }));
     if (a.read !== 'read' || a.oid === null)
-      return no(
-        `${name} was not read (too large, over the read budget or unreadable), so it cannot be staged.`,
-      );
+      return no(t('publish:staged.set.notRead', { name }));
     if (a.format === null || PUSHABLE_IMAGE_FORMATS.indexOf(a.format) === -1)
-      return no(`${name} is not a PNG or JPEG: only those are uploaded.`);
+      return no(t('publish:staged.set.notImage', { name }));
     if (a.bytes === null || a.bytes > maxFile)
-      return no(`${name} is larger than the ${Math.round(maxFile / MiB)} MB this server uploads.`);
+      return no(t('publish:staged.set.tooLarge', { name, mb: formatNumber(Math.round(maxFile / MiB)) }));
   }
   const errors: AssetProblem[] = [];
   for (const p of input.setProblems) if (p.severity === 'error') errors.push(p);
   for (const a of input.assets)
     for (const p of input.problemsByPath[a.path] ?? []) if (p.severity === 'error') errors.push(p);
   if (errors.length > 0)
-    return no(`Fix the spec problem first: ${(errors[0] as AssetProblem).message}`);
+    return no(t('publish:staged.set.fixSpec', { message: (errors[0] as AssetProblem).message }));
   return { canStage: true, reason: null, paths, id, staged, stagedState };
 }
 
@@ -488,26 +478,33 @@ const bodyMessage = (error: ApiError): string =>
 /** A sentence for an error of staging, unstaging or clearing (the server's messages are written to be shown). */
 /** Plain words for a 429 on a read of the repository or the store: what happened, how long to wait. Never the server's wording. */
 export function rateLimitedMessage(retryAfter: number | undefined): string {
-  return `The repository is being read too often. Try again in ${waitPhrase(retryAfter && retryAfter > 0 ? retryAfter : 60)}.`;
+  return t('publish:staged.error.rateLimited', {
+    wait: waitPhrase(retryAfter && retryAfter > 0 ? retryAfter : 60),
+  });
 }
 
 export function stagingError(error: unknown): string {
-  if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
+  if (!(error instanceof ApiError)) return t('publish:staged.error.generic');
   switch (error.code) {
     case 'forbidden':
-      return STAGE_ROLE_REASON;
+      return stageRoleReason();
     case 'not_found':
-      return 'That no longer exists. Reload the page.';
+      return t('publish:staged.error.notFound');
     case 'field_not_pushable': {
       const allowed = Array.isArray(error.body.allowed)
         ? (error.body.allowed as unknown[]).filter((a): a is string => typeof a === 'string')
         : [];
-      return `${bodyMessage(error)}${allowed.length > 0 ? ` Fields a draft push can write: ${allowed.join(', ')}.` : ''}`;
+      return allowed.length > 0
+        ? t('publish:staged.error.fieldNotPushable', {
+            message: bodyMessage(error),
+            fields: formatList(allowed, { type: 'unit' }),
+          })
+        : bodyMessage(error);
     }
     case 'no_source_value':
-      return `${bodyMessage(error)} Read the repository again, then stage it.`;
+      return t('publish:staged.error.noSourceValue', { message: bodyMessage(error) });
     case 'source_not_supported':
-      return REVERSE_IMAGE_SYNC_NOTE;
+      return reverseImageSyncNote();
     case 'rate_limited':
       return rateLimitedMessage(error.retryAfter);
     case 'field_not_stageable':
@@ -558,9 +555,6 @@ export type PushFailure =
   | { kind: 'forbidden'; message: string }
   | { kind: 'other'; message: string; code: string };
 
-const UNKNOWN_HINT =
-  'Do not push again yet: preview again (that only reads the store), then check the draft in the store console.';
-
 function isPreview(value: unknown): value is DraftPreview {
   return (
     isObject(value) &&
@@ -584,7 +578,7 @@ export function classifyPushFailure(
     return {
       kind: 'other',
       code: 'error',
-      message: 'The request failed. Check your connection and read the staged changes again.',
+      message: t('publish:staged.fail.request'),
     };
   const message = bodyMessage(error);
   const body = error.body;
@@ -592,24 +586,23 @@ export function classifyPushFailure(
     case 'store_draft_disabled':
       return {
         kind: 'disabled',
-        message: `Writing drafts to a store is switched off on this server (${DRAFT_ENV}). Nothing was written. Someone who runs the server sets ${DRAFT_ENV}=true and restarts it.`,
+        message: t('publish:staged.fail.disabled', { env: DRAFT_ENV }),
       };
     case 'forbidden':
-      return { kind: 'forbidden', message: PUSH_ROLE_REASON };
+      return { kind: 'forbidden', message: pushRoleReason() };
     case 'state_changed':
       return {
         kind: 'state_changed',
         next: isPreview(body.preview) ? body.preview : null,
-        message:
-          'The staged changes or the store’s draft changed since you previewed this, so nothing was written. Read the new preview and confirm again.',
+        message: t('publish:staged.fail.stateChanged'),
       };
     case 'write_in_progress':
       return {
         kind: 'write_in_progress',
-        message: `${message} Nothing was written by this request. Wait a moment, then confirm again.`,
+        message: t('publish:staged.fail.writeInProgress', { message }),
       };
     case 'outcome_unknown':
-      return { kind: 'outcome_unknown', message: `${message} ${UNKNOWN_HINT}` };
+      return { kind: 'outcome_unknown', message: t('publish:staged.fail.outcomeUnknown', { message }) };
     case 'draft_partial': {
       const completed = Array.isArray(body.completed) ? (body.completed as DraftStep[]) : [];
       const failed = isObject(body.failed)
@@ -631,35 +624,33 @@ export function classifyPushFailure(
     case 'write_failed':
       return body.outcome === 'not_applied'
         ? { kind: 'not_applied', message }
-        : { kind: 'outcome_unknown', message: `${message} ${UNKNOWN_HINT}` };
+        : { kind: 'outcome_unknown', message: t('publish:staged.fail.outcomeUnknown', { message }) };
     case 'draft_not_allowed':
       return {
         kind: 'other',
         code: error.code,
-        message: `${message} Nothing was committed. This tool never retries without holding the changes back, because that could send them for review.`,
+        message: t('publish:staged.fail.draftNotAllowed', { message }),
       };
     case 'changes_in_review':
       return {
         kind: 'other',
         code: error.code,
-        message:
-          'The store has changes in review for this app. Wait until they are decided, then try again. This tool never cancels a review.',
+        message: t('publish:staged.fail.changesInReview'),
       };
     case 'no_editable_version':
       return {
         kind: 'other',
         code: error.code,
-        message: `${message} Create the next version in App Store Connect, then preview again.`,
+        message: t('publish:staged.fail.noEditableVersion', { message }),
       };
     case 'blocked':
       return {
         kind: 'blocked',
         checks: Array.isArray(body.checks) ? (body.checks as PushCheck[]) : [],
-        message:
-          'The store says something staged cannot be written as it is. Nothing was written. Fix it in the stepper or remove it, then preview again.',
+        message: t('publish:staged.fail.blocked'),
       };
     case 'nothing_staged':
-      return { kind: 'invalid', message: 'Nothing is staged for this app.', problems: [] };
+      return { kind: 'invalid', message: t('publish:staged.fail.nothingStaged'), problems: [] };
     case 'staged_invalid':
       return {
         kind: 'invalid',
@@ -670,13 +661,18 @@ export function classifyPushFailure(
     case 'asset_unreadable':
       return {
         kind: 'restage',
-        message: `${message}${error.code === 'asset_unreadable' ? ' Stage the set again from the Assets tab.' : ''}`,
+        message:
+          error.code === 'asset_unreadable'
+            ? t('publish:staged.fail.restageUnreadable', { message })
+            : message,
       };
     case 'rate_limited':
       return {
         kind: 'rate_limited',
         retryAfter: error.retryAfter ?? null,
-        message: `The store is limiting requests. ${error.retryAfter ? `Try again in ${error.retryAfter} seconds.` : 'Try again in a minute.'} This app never retries by itself.`,
+        message: error.retryAfter
+          ? t('publish:staged.fail.rateLimitedSeconds', { count: error.retryAfter })
+          : t('publish:staged.fail.rateLimitedMinute'),
       };
     case 'store_auth':
     case 'store_forbidden':
@@ -685,23 +681,22 @@ export function classifyPushFailure(
       return {
         kind: 'other',
         code: error.code,
-        message: `The store refused the request: ${message}`,
+        message: t('publish:staged.fail.storeRefused', { message }),
       };
     case 'store_unavailable':
       return {
         kind: 'other',
         code: error.code,
-        message: `${message} The store could not be reached; nothing was changed.`,
+        message: t('publish:staged.fail.storeUnavailable', { message }),
       };
     case 'timeout':
       return {
         kind: 'other',
         code: error.code,
-        message:
-          'A read of the store did not answer in time. If you are not sure whether anything was written, preview again: that reads the draft.',
+        message: t('publish:staged.fail.timeout'),
       };
     case 'app_not_synced':
-      return { kind: 'other', code: error.code, message: `${message} Sync the app first.` };
+      return { kind: 'other', code: error.code, message: t('publish:staged.fail.appNotSynced', { message }) };
     default:
   }
   if (error.code.startsWith('credential_')) return { kind: 'other', code: error.code, message };
@@ -709,7 +704,10 @@ export function classifyPushFailure(
   if (phase === 'push' && (error.status === 0 || error.status >= 500)) {
     return {
       kind: 'outcome_unknown',
-      message: `${error.status === 0 ? 'The connection broke while the push was running, so it is not known whether the server received it.' : message} ${UNKNOWN_HINT}`,
+      message:
+        error.status === 0
+          ? t('publish:staged.fail.connectionBroke')
+          : t('publish:staged.fail.outcomeUnknown', { message }),
     };
   }
   return { kind: 'other', code: error.code, message };
@@ -752,83 +750,79 @@ export function canConfirmPush(
 }
 
 export function previewSummaryText(summary: DraftPreview['summary']): string {
-  if (summary.nothingToDo)
-    return 'Nothing to do: the store’s draft already holds everything that is staged.';
+  if (summary.nothingToDo) return t('publish:staged.summary.nothingToDo');
   const parts: string[] = [];
-  if (summary.textChanged > 0)
-    parts.push(`${plural(summary.textChanged, 'text', 'texts')} will change`);
-  if (summary.textUnchanged > 0)
-    parts.push(`${plural(summary.textUnchanged, 'text is', 'texts are')} already the same`);
-  if ((summary.fieldsChanged ?? 0) > 0)
-    parts.push(
-      `${plural(summary.fieldsChanged ?? 0, 'release field', 'release fields')} will change`,
-    );
-  if ((summary.fieldsUnchanged ?? 0) > 0)
-    parts.push(
-      `${plural(summary.fieldsUnchanged ?? 0, 'release field is', 'release fields are')} already the same`,
-    );
-  if (summary.assetSetsChanged > 0)
-    parts.push(`${plural(summary.assetSetsChanged, 'graphic set', 'graphic sets')} will change`);
-  if (summary.assetSetsUnchanged > 0)
-    parts.push(
-      `${plural(summary.assetSetsUnchanged, 'graphic set is', 'graphic sets are')} already the same`,
-    );
-  if (summary.filesToUpload > 0)
-    parts.push(`${plural(summary.filesToUpload, 'file', 'files')} will be uploaded`);
-  if (summary.filesToRemove > 0)
-    parts.push(`${plural(summary.filesToRemove, 'file', 'files')} will be removed from the draft`);
-  return `${parts.join('; ')}.`;
+  const add = (key: string, count: number | undefined): void => {
+    if ((count ?? 0) > 0) parts.push(t(key, { count: count ?? 0 }));
+  };
+  add(k('publish:staged.summary.textsChange'), summary.textChanged);
+  add(k('publish:staged.summary.textsSame'), summary.textUnchanged);
+  add(k('publish:staged.summary.fieldsChange'), summary.fieldsChanged);
+  add(k('publish:staged.summary.fieldsSame'), summary.fieldsUnchanged);
+  add(k('publish:staged.summary.setsChange'), summary.assetSetsChanged);
+  add(k('publish:staged.summary.setsSame'), summary.assetSetsUnchanged);
+  add(k('publish:staged.summary.upload'), summary.filesToUpload);
+  add(k('publish:staged.summary.remove'), summary.filesToRemove);
+  return t('publish:staged.summary.sentence', { parts: formatList(parts, { type: 'unit' }) });
 }
 
-export function previewTextStatus(t: Pick<PreviewText, 'status'>): {
+export function previewTextStatus(item: Pick<PreviewText, 'status'>): {
   label: string;
   tone: StagedTone;
 } {
-  if (t.status === 'new_locale') return { label: 'New locale in the draft', tone: 'warn' };
-  if (t.status === 'unchanged') return { label: 'Already the same', tone: 'neutral' };
-  return { label: 'Will change', tone: 'info' };
+  if (item.status === 'new_locale') return { label: t('publish:staged.preview.newLocale'), tone: 'warn' };
+  if (item.status === 'unchanged') return { label: t('publish:staged.preview.alreadySame'), tone: 'neutral' };
+  return { label: t('publish:staged.preview.willChange'), tone: 'info' };
 }
 
 export function previewFieldStatus(f: Pick<PreviewReleaseField, 'status'>): {
   label: string;
   tone: StagedTone;
 } {
-  if (f.status === 'local') return { label: 'Kept here only', tone: 'neutral' };
-  if (f.status === 'unchanged') return { label: 'Already the same', tone: 'neutral' };
-  return { label: 'Will change', tone: 'info' };
+  if (f.status === 'local') return { label: t('publish:staged.preview.keptHere'), tone: 'neutral' };
+  if (f.status === 'unchanged') return { label: t('publish:staged.preview.alreadySame'), tone: 'neutral' };
+  return { label: t('publish:staged.preview.willChange'), tone: 'info' };
 }
 
 export function previewSetText(set: PreviewAssetSet): string {
-  if (set.status === 'unchanged') return 'Already the same in the draft.';
+  if (set.status === 'unchanged') return t('publish:staged.preview.setSame');
   const parts: string[] = [];
-  if (set.willUpload > 0) parts.push(`upload ${plural(set.willUpload, 'file', 'files')}`);
-  if (set.willRemove > 0) parts.push(`remove ${plural(set.willRemove, 'file', 'files')}`);
-  const head = set.before.setExists
-    ? 'The draft’s set is replaced'
-    : 'A new set is created in the draft';
-  return `${head}${parts.length > 0 ? `: ${parts.join(', ')}` : ''}.`;
+  if (set.willUpload > 0) parts.push(t('publish:staged.preview.upload', { count: set.willUpload }));
+  if (set.willRemove > 0) parts.push(t('publish:staged.preview.remove', { count: set.willRemove }));
+  const list = formatList(parts, { type: 'unit' });
+  if (set.before.setExists)
+    return parts.length > 0
+      ? t('publish:staged.preview.setReplaced', { parts: list })
+      : t('publish:staged.preview.setReplacedPlain');
+  return parts.length > 0
+    ? t('publish:staged.preview.setCreated', { parts: list })
+    : t('publish:staged.preview.setCreatedPlain');
 }
 
 export function versionText(preview: Pick<DraftPreview, 'app' | 'version'>): string {
   if (preview.version === null)
-    return supports(preview.app.platform, 'releaseTracks')
-      ? 'A Google Play edit, committed as changes not sent for review'
-      : '';
-  const name = preview.version.versionString
-    ? `version ${preview.version.versionString}`
-    : 'the editable version';
-  return `${name} (${preview.version.state})`;
+    return supports(preview.app.platform, 'releaseTracks') ? t('publish:staged.version.playEdit') : '';
+  return preview.version.versionString
+    ? t('publish:staged.version.named', {
+        version: preview.version.versionString,
+        state: preview.version.state,
+      })
+    : t('publish:staged.version.editable', { state: preview.version.state });
 }
 
 /** The sentence after a successful push. Always says nothing was submitted. */
 export function resultText(result: DraftPushResult): string {
   const parts: string[] = [
-    `${plural(result.counts.applied, 'change', 'changes')} written to the draft`,
+    t('publish:staged.result.written', { count: result.counts.applied }),
   ];
-  if (result.counts.alreadySame > 0) parts.push(`${result.counts.alreadySame} already the same`);
+  if (result.counts.alreadySame > 0)
+    parts.push(t('publish:staged.result.alreadySame', { count: result.counts.alreadySame }));
   if (result.counts.filesUploaded > 0)
-    parts.push(`${plural(result.counts.filesUploaded, 'file', 'files')} uploaded`);
+    parts.push(t('publish:staged.result.uploaded', { count: result.counts.filesUploaded }));
   if (result.counts.filesRemoved > 0)
-    parts.push(`${plural(result.counts.filesRemoved, 'file', 'files')} removed`);
-  return `${parts.join(', ')}. ${NOT_SUBMITTED}`;
+    parts.push(t('publish:staged.result.removed', { count: result.counts.filesRemoved }));
+  return t('publish:staged.result.sentence', {
+    parts: formatList(parts, { type: 'unit' }),
+    note: notSubmittedNote(),
+  });
 }

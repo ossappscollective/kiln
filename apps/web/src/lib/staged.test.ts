@@ -659,7 +659,7 @@ test('release fields count in the tray, the preview text and the push gate', () 
   };
   assert.match(
     previewSummaryText(summary),
-    /1 release field will change; 1 release field is already the same/,
+    /1 release field will change, 1 release field is already the same/,
   );
   const app = { id: 'a', name: 'Acme', platform: 'ios' as const, store: 'appstoreconnect' };
   assert.equal(canConfirmPush({ app, summary }, 'Acme', true), true);

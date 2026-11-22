@@ -5,6 +5,7 @@
  * screen from offering what the server will refuse, and says why in words.
  */
 import { can, type Role } from '@kiln/core';
+import { t } from './i18n/t.ts';
 import type { ChangeSetView, LocalOutcome, LocalSigningConfig, LocalWriteConfig } from './types.ts';
 
 export type ApplyMode = 'github_pr' | 'local_branch';
@@ -33,9 +34,7 @@ const ok: Availability = { available: true };
 /** Why a pull request cannot be opened by Apply, or ok. A local-only repository has no GitHub. */
 export function githubPrAvailability(ctx: Pick<ApplyContext, 'localOnly'>): Availability {
   return ctx.localOnly
-    ? unavailable(
-        'This repository has no GitHub connection, so there is no pull request to open. Commit to a branch of the local clone instead.',
-      )
+    ? unavailable(t('publish:apply.githubPr.noConnection'))
     : ok;
 }
 
@@ -44,19 +43,15 @@ export function localBranchAvailability(
   ctx: Pick<ApplyContext, 'hasLocalClone' | 'write'>,
 ): Availability {
   if (!ctx.hasLocalClone) {
-    return unavailable(
-      'No local clone is attached to this repository. Attach a folder in the Local clone card first.',
-    );
+    return unavailable(t('publish:apply.local.noClone'));
   }
   if (ctx.write === null) {
-    return unavailable(
-      'Could not read the server setting for writing to local clones. Reload the page and try again.',
-    );
+    return unavailable(t('publish:apply.local.settingUnknown'));
   }
   if (!ctx.write.enabled) {
     return unavailable(
       ctx.write.message ??
-        `Writing to local clones is not enabled. Set ${ctx.write.envName || WRITE_ENV_NAME}=true on the server and restart it.`,
+        t('publish:apply.local.notEnabled', { env: ctx.write.envName || WRITE_ENV_NAME }),
     );
   }
   return ok;
@@ -67,9 +62,7 @@ export function pushAvailability(ctx: ApplyContext): Availability {
   const local = localBranchAvailability(ctx);
   if (!local.available) return local;
   if (ctx.localOnly)
-    return unavailable(
-      'This repository has no GitHub connection, so there is nowhere to push the branch.',
-    );
+    return unavailable(t('publish:apply.push.noConnection'));
   return ok;
 }
 
@@ -78,9 +71,7 @@ export function openPrAvailability(ctx: ApplyContext, pushChosen: boolean): Avai
   const push = pushAvailability(ctx);
   if (!push.available) return push;
   if (!pushChosen)
-    return unavailable(
-      'A pull request needs the branch on GitHub. Tick "Push the branch to GitHub" first.',
-    );
+    return unavailable(t('publish:apply.pr.needsPush'));
   return ok;
 }
 
@@ -112,7 +103,7 @@ export function normalizeChoice(choice: ApplyChoice, ctx: ApplyContext): ApplyCh
 export function applyBlocker(choice: ApplyChoice, ctx: ApplyContext): string | null {
   const available =
     choice.mode === 'github_pr' ? githubPrAvailability(ctx) : localBranchAvailability(ctx);
-  if (!available.available) return available.reason ?? 'This cannot be applied.';
+  if (!available.available) return available.reason ?? t('publish:apply.blocker.generic');
   if (choice.mode === 'local_branch') return branchNameProblem(choice.branch);
   return null;
 }
@@ -144,16 +135,16 @@ export function defaultBranchName(id: string, summary: string): string {
 export function branchNameProblem(name: string): string | null {
   const value = name.trim();
   if (value === '') return null;
-  if (value !== name) return 'The branch name must not start or end with a space.';
-  if (value.length > 200) return 'The branch name is longer than 200 characters.';
-  if (value.startsWith('-')) return 'The branch name must not start with "-".';
+  if (value !== name) return t('publish:apply.branch.spaces');
+  if (value.length > 200) return t('publish:apply.branch.tooLong');
+  if (value.startsWith('-')) return t('publish:apply.branch.dash');
   if (value === 'HEAD' || value === '@' || value.startsWith('refs/')) {
-    return 'That branch name is reserved. Pick a name such as kiln/update-listing.';
+    return t('publish:apply.branch.reserved');
   }
-  if (value.includes('..')) return 'The branch name must not contain "..".';
-  if (value.includes('@{')) return 'The branch name must not contain "@{".';
+  if (value.includes('..')) return t('publish:apply.branch.dots');
+  if (value.includes('@{')) return t('publish:apply.branch.atBrace');
   if (value.split('/').some((part) => part.endsWith('.lock')))
-    return 'A part of the branch name must not end in ".lock".';
+    return t('publish:apply.branch.lock');
   if (
     !/^[A-Za-z0-9_][A-Za-z0-9._/-]*$/.test(value) ||
     value.includes('//') ||
@@ -161,7 +152,7 @@ export function branchNameProblem(name: string): string | null {
     value.endsWith('/') ||
     value.endsWith('.')
   ) {
-    return 'Use letters, digits and . _ - / only, starting with a letter or digit, without "//", "/." or a trailing "/" or ".".';
+    return t('publish:apply.branch.chars');
   }
   return null;
 }
@@ -203,50 +194,55 @@ export type OutcomeStep = {
 
 /** The three steps of a commit in the local clone, each with its own status and, when it failed, why. */
 export function outcomeSteps(outcome: LocalOutcome): OutcomeStep[] {
+  const label = {
+    commit: t('publish:apply.step.commit'),
+    push: t('publish:apply.step.push'),
+    pr: t('publish:apply.step.pr'),
+  };
   const commit: OutcomeStep = {
     id: 'commit',
-    label: 'Commit',
-    status: `Committed to ${outcome.commit.branch}`,
+    label: label.commit,
+    status: t('publish:apply.step.committed', { branch: outcome.commit.branch }),
     tone: 'ok',
   };
   const push: OutcomeStep =
     outcome.push.status === 'pushed'
-      ? { id: 'push', label: 'Push', status: 'Pushed to GitHub', tone: 'ok' }
+      ? { id: 'push', label: label.push, status: t('publish:apply.step.pushed'), tone: 'ok' }
       : outcome.push.status === 'behind'
         ? {
             id: 'push',
-            label: 'Push',
-            status: 'The latest fix up is not on GitHub yet',
+            label: label.push,
+            status: t('publish:apply.step.behind'),
             tone: 'warn',
           }
         : outcome.push.status === 'failed'
           ? {
               id: 'push',
-              label: 'Push',
-              status: 'Push failed',
+              label: label.push,
+              status: t('publish:apply.step.pushFailed'),
               tone: 'bad',
               ...(outcome.push.error ? { detail: outcome.push.error } : {}),
             }
-          : { id: 'push', label: 'Push', status: 'Not pushed', tone: 'neutral' };
+          : { id: 'push', label: label.push, status: t('publish:apply.step.notPushed'), tone: 'neutral' };
   const pr: OutcomeStep =
     outcome.pr.status === 'opened'
-      ? { id: 'pr', label: 'Pull request', status: 'Pull request opened', tone: 'ok' }
+      ? { id: 'pr', label: label.pr, status: t('publish:apply.step.prOpened'), tone: 'ok' }
       : outcome.pr.status === 'failed'
         ? {
             id: 'pr',
-            label: 'Pull request',
-            status: 'Pull request failed',
+            label: label.pr,
+            status: t('publish:apply.step.prFailed'),
             tone: 'bad',
             ...(outcome.pr.error ? { detail: outcome.pr.error } : {}),
           }
         : outcome.pr.status === 'skipped'
           ? {
               id: 'pr',
-              label: 'Pull request',
-              status: 'Pull request waiting for the push',
+              label: label.pr,
+              status: t('publish:apply.step.prWaiting'),
               tone: 'warn',
             }
-          : { id: 'pr', label: 'Pull request', status: 'No pull request', tone: 'neutral' };
+          : { id: 'pr', label: label.pr, status: t('publish:apply.step.noPr'), tone: 'neutral' };
   return [commit, push, pr];
 }
 
@@ -273,12 +269,18 @@ export function retryOptions(
     return [
       {
         id: 'push',
-        label: failed ? 'Retry the push' : behind ? 'Push the new commit' : 'Push the branch',
+        label: failed
+          ? t('publish:apply.retry.push')
+          : behind
+            ? t('publish:apply.retry.pushNew')
+            : t('publish:apply.retry.pushBranch'),
         openPr: false,
       },
       {
         id: 'push_pr',
-        label: failed ? 'Retry the push and open a pull request' : 'Push and open a pull request',
+        label: failed
+          ? t('publish:apply.retry.pushPrRetry')
+          : t('publish:apply.retry.pushPr'),
         openPr: true,
       },
     ];
@@ -287,7 +289,10 @@ export function retryOptions(
     return [
       {
         id: 'pr',
-        label: outcome.pr.status === 'failed' ? 'Retry the pull request' : 'Open a pull request',
+        label:
+          outcome.pr.status === 'failed'
+            ? t('publish:apply.retry.prRetry')
+            : t('publish:apply.retry.pr'),
         openPr: true,
       },
     ];
@@ -300,16 +305,17 @@ export function applyDoneMessage(
   changeSet: Pick<ChangeSetView, 'outcome'>,
   alreadyApplied: boolean | undefined,
 ): string {
-  if (alreadyApplied) return 'This change set was already applied.';
+  if (alreadyApplied) return t('publish:apply.done.already');
   const outcome = changeSet.outcome;
-  if (!outcome) return 'Pull request opened.';
+  if (!outcome) return t('publish:apply.done.prOpened');
   if (outcome.push.status === 'failed')
-    return `Committed to ${outcome.commit.branch}, but the push failed. The commit is kept; you can retry the push.`;
+    return t('publish:apply.done.pushFailed', { branch: outcome.commit.branch });
   if (outcome.pr.status === 'failed')
-    return `Committed and pushed ${outcome.commit.branch}, but the pull request was not opened. You can retry it.`;
-  if (outcome.pr.status === 'opened') return 'Committed, pushed and opened a pull request.';
-  if (outcome.push.status === 'pushed') return `Committed and pushed ${outcome.commit.branch}.`;
-  return `Committed to ${outcome.commit.branch} in the local clone.`;
+    return t('publish:apply.done.prFailed', { branch: outcome.commit.branch });
+  if (outcome.pr.status === 'opened') return t('publish:apply.done.pushedAndPr');
+  if (outcome.push.status === 'pushed')
+    return t('publish:apply.done.pushed', { branch: outcome.commit.branch });
+  return t('publish:apply.done.local', { branch: outcome.commit.branch });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -326,10 +332,12 @@ export function signingNote(
   if (signing.enabled) {
     return {
       signed: true,
-      text: `The commit will be signed${signing.format ? ` (${signing.format})` : ''}.`,
+      text: signing.format
+        ? t('publish:apply.signing.signedFormat', { format: signing.format })
+        : t('publish:apply.signing.signed'),
     };
   }
-  return { signed: false, text: `Commits are not signed (set ${SIGN_ENV_NAME} to enable).` };
+  return { signed: false, text: t('publish:apply.signing.notSigned', { env: SIGN_ENV_NAME }) };
 }
 
 /**
@@ -342,13 +350,12 @@ export function outcomeSignature(
 ): { label: string; tip: string } | null {
   const signature = outcome?.signature;
   if (signature?.status !== 'signed') return null;
-  const key =
-    signature.format === 'gpg'
-      ? 'public GPG key'
-      : 'public SSH key (as a signing key, not only an authentication key)';
   return {
-    label: `Signed (${signature.format})`,
-    tip: `GitHub shows "Verified" on this commit only if the ${key} is added to your GitHub account, and the commit's email is a verified email of that account. The signature is not checked here.`,
+    label: t('publish:apply.signature.label', { format: signature.format }),
+    tip:
+      signature.format === 'gpg'
+        ? t('publish:apply.signature.tipGpg')
+        : t('publish:apply.signature.tipSsh'),
   };
 }
 
@@ -357,21 +364,19 @@ export const outcomeHasProblem = (outcome: LocalOutcome | null): boolean =>
   outcome !== null && (outcome.push.status === 'failed' || outcome.pr.status === 'failed');
 
 /** Words for Apply when the change set is only applicable as a local commit. */
-export const APPLY_LOCAL_EXPLANATION =
-  'This writes one commit to a new branch of the local clone on the server. Your checked out branch, the working folder and the index are not touched, so nothing you have open changes. Hooks do not run. Look at it later with git switch.';
+export const applyLocalExplanation = (): string => t('publish:apply.localExplanation');
 
 /**
  * The note on a local-only repository (the Local clone card, the connect dialog): what applying a
  * change set does there, and, when the server has writing off, how to turn it on.
  */
 export function localOnlyNotice(write: WriteConfig): { title: string; text: string } {
-  const base =
-    'This repository is only a folder on the server, so there is no pull request to open. Applying an approved change set commits the files to a new branch of the folder; you merge that branch yourself.';
+  const base = t('publish:apply.localOnly.base');
   if (write?.enabled)
-    return { title: 'Local-only: changes are committed to a new branch', text: base };
+    return { title: t('publish:apply.localOnly.titleOn'), text: base };
   const env = write?.envName || WRITE_ENV_NAME;
   return {
-    title: 'Local-only: committing to a branch is off',
-    text: `${base} Writing to local clones is not enabled: set ${env}=true on the server and restart it.`,
+    title: t('publish:apply.localOnly.titleOff'),
+    text: t('publish:apply.localOnly.off', { base, env }),
   };
 }

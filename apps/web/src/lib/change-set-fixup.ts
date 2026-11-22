@@ -5,6 +5,8 @@
  * screens from offering what it will refuse, and puts the server's answers into words.
  */
 import { can, type Role } from '@kiln/core';
+import { formatList } from './i18n/format.ts';
+import { t } from './i18n/t.ts';
 import type { ConflictReason, FileState, Resolution } from './change-set-refresh.ts';
 import type { ChangeSetView } from './types.ts';
 
@@ -148,20 +150,31 @@ export const fixupCount = (changeSet: Pick<ChangeSetView, 'fixups'>): number =>
 // ---------------------------------------------------------------------------------------------
 // Words
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-
 /** The promise the dialog makes before anything is written. */
 export function fixupPromise(branch: string): string {
-  return `This adds one commit to the branch ${branch}. It does not rewrite history, and nothing is forced.`;
+  return t('publish:fixup.promise', { branch });
 }
 
+/** The words below are looked up when read, so they follow the active language. */
 export const outcomeLabel: Record<FixupFile['outcome'], string> = {
-  commit: 'In the new commit',
-  unchanged: 'Already right on the branch',
-  kept_branch: "The branch's own text stays",
-  kept_mine: 'Overwrites the branch',
-  kept_theirs: "Kept the branch's text",
-  conflict: 'Conflict',
+  get commit() {
+    return t('publish:fixup.outcome.commit');
+  },
+  get unchanged() {
+    return t('publish:fixup.outcome.unchanged');
+  },
+  get kept_branch() {
+    return t('publish:fixup.outcome.keptBranch');
+  },
+  get kept_mine() {
+    return t('publish:fixup.outcome.keptMine');
+  },
+  get kept_theirs() {
+    return t('publish:fixup.outcome.keptTheirs');
+  },
+  get conflict() {
+    return t('publish:fixup.outcome.conflict');
+  },
 };
 
 export const outcomeTone: Record<FixupFile['outcome'], 'ok' | 'info' | 'warn' | 'neutral'> = {
@@ -177,44 +190,67 @@ export const outcomeTone: Record<FixupFile['outcome'], 'ok' | 'info' | 'warn' | 
 export function fixupStateLabel(state: FixupFile['state']): string {
   switch (state) {
     case 'same':
-      return 'Repository unchanged';
+      return t('publish:fixup.state.same');
     case 'changed':
-      return 'Merged with the repository';
+      return t('publish:fixup.state.changed');
     case 'already_applied':
-      return 'Already in the repository';
+      return t('publish:fixup.state.applied');
     case 'conflict':
-      return 'Conflict with the repository';
+      return t('publish:fixup.state.conflict');
     case 'recomputed':
-      return 'Made again from the store';
+      return t('publish:fixup.state.recomputed');
     case 'removed':
-      return 'No longer part of the pull';
+      return t('publish:fixup.state.removed');
   }
 }
 
 export const stageLabel: Record<'repository' | 'branch', string> = {
-  repository: 'The repository changed this file in the same place.',
-  branch: 'The branch has another change to this file in the same place.',
+  get repository() {
+    return t('publish:fixup.stage.repository');
+  },
+  get branch() {
+    return t('publish:fixup.stage.branch');
+  },
 };
 
 export const fixupChoiceInfo: Record<
   'repository' | 'branch',
-  Record<Resolution, { label: string; description: string }>
+  Record<Resolution, { readonly label: string; readonly description: string }>
 > = {
   repository: {
-    mine: { label: 'Keep mine', description: 'Overwrites what the repository has with your text.' },
+    mine: {
+      get label() {
+        return t('publish:fixup.choice.repoMine');
+      },
+      get description() {
+        return t('publish:fixup.choice.repoMineDesc');
+      },
+    },
     theirs: {
-      label: 'Keep theirs',
-      description: "Drops your change; the branch gets the repository's text.",
+      get label() {
+        return t('publish:fixup.choice.repoTheirs');
+      },
+      get description() {
+        return t('publish:fixup.choice.repoTheirsDesc');
+      },
     },
   },
   branch: {
     mine: {
-      label: 'Keep mine',
-      description: "Overwrites the branch's text with yours, in the new commit.",
+      get label() {
+        return t('publish:fixup.choice.branchMine');
+      },
+      get description() {
+        return t('publish:fixup.choice.branchMineDesc');
+      },
     },
     theirs: {
-      label: 'Keep the branch',
-      description: "Leaves the branch's text as it is and adds nothing for this file.",
+      get label() {
+        return t('publish:fixup.choice.branchTheirs');
+      },
+      get description() {
+        return t('publish:fixup.choice.branchTheirsDesc');
+      },
     },
   },
 };
@@ -286,27 +322,31 @@ export function fixupBody(
 export function fixupPreviewMessage(
   result: Pick<FixupResult, 'nothingToFix' | 'willCommit'>,
 ): string {
-  if (result.nothingToFix) return 'Nothing to fix up: the branch already has everything.';
+  if (result.nothingToFix) return t('publish:fixup.preview.nothing');
   const n = result.willCommit.length;
   return n === 0
-    ? 'No file changes, but a step is left to finish.'
-    : `${plural(n, 'file')} would be in the new commit.`;
+    ? t('publish:fixup.preview.noFiles')
+    : t('publish:fixup.preview.files', { count: n });
 }
 
 /** What to tell the person after a fix up. */
 export function fixupDoneMessage(
   result: Pick<FixupResult, 'nothingToFix' | 'commit' | 'branch' | 'pullRequest'>,
 ): string {
-  if (result.nothingToFix) return 'Nothing to fix up: the branch already has everything.';
-  const opened = result.pullRequest.state === 'opened' ? ' The pull request is open.' : '';
-  if (!result.commit) return `The branch ${result.branch} is up to date.${opened}`;
-  return `Added commit ${result.commit.sha.slice(0, 7)} to ${result.branch}.${opened}`;
+  if (result.nothingToFix) return t('publish:fixup.preview.nothing');
+  const opened = result.pullRequest.state === 'opened';
+  if (!result.commit)
+    return opened
+      ? t('publish:fixup.done.upToDatePr', { branch: result.branch })
+      : t('publish:fixup.done.upToDate', { branch: result.branch });
+  const args = { sha: result.commit.sha.slice(0, 7), branch: result.branch };
+  return opened ? t('publish:fixup.done.addedPr', args) : t('publish:fixup.done.added', args);
 }
 
 /** The push step after a fix up: said when the remote is behind. */
 export function behindNote(changeSet: Pick<ChangeSetView, 'outcome'>): string | null {
   return changeSet.outcome?.push.status === 'behind'
-    ? 'The commit is in the local clone only. Push the branch to put it on GitHub.'
+    ? t('publish:fixup.behind')
     : null;
 }
 
@@ -315,27 +355,47 @@ export function behindNote(changeSet: Pick<ChangeSetView, 'outcome'>): string | 
 
 export const fieldChangeInfo: Record<
   FieldChange,
-  { label: string; tone: 'ok' | 'info' | 'warn' | 'neutral' }
+  { readonly label: string; readonly tone: 'ok' | 'info' | 'warn' | 'neutral' }
 > = {
-  store_changed: { label: 'Store text changed', tone: 'info' },
-  unchanged: { label: 'Same as before', tone: 'neutral' },
-  added: { label: 'New in the pull', tone: 'ok' },
-  dropped: { label: 'Left out', tone: 'warn' },
+  store_changed: {
+    get label() {
+      return t('publish:fixup.field.storeChanged');
+    },
+    tone: 'info',
+  },
+  unchanged: {
+    get label() {
+      return t('publish:fixup.field.unchanged');
+    },
+    tone: 'neutral',
+  },
+  added: {
+    get label() {
+      return t('publish:fixup.field.added');
+    },
+    tone: 'ok',
+  },
+  dropped: {
+    get label() {
+      return t('publish:fixup.field.dropped');
+    },
+    tone: 'warn',
+  },
 };
 
 /** Why a field left the pull. */
 export function droppedReason(reason: string | undefined): string {
   switch (reason) {
     case 'identical':
-      return 'The repository has the store text already.';
+      return t('publish:fixup.dropped.identical');
     case 'repo_ahead':
-      return 'The repository changed after it matched the store, so pulling would undo that.';
+      return t('publish:fixup.dropped.repoAhead');
     case 'missing_in_store':
-      return 'The store has no value for it any more.';
+      return t('publish:fixup.dropped.missingInStore');
     case 'over_limit':
-      return 'The store text is over its limit, so it was not pulled.';
+      return t('publish:fixup.dropped.overLimit');
     default:
-      return 'It cannot be pulled right now.';
+      return t('publish:fixup.dropped.other');
   }
 }
 
@@ -348,11 +408,12 @@ export function diffSummary(diff: readonly FieldDiff[]): string {
   const count = (change: FieldChange) => diff.filter((d) => d.change === change).length;
   const parts: string[] = [];
   if (count('store_changed') > 0)
-    parts.push(`${plural(count('store_changed'), 'field')} changed in the store`);
-  if (count('added') > 0) parts.push(`${count('added')} new`);
-  if (count('dropped') > 0) parts.push(`${count('dropped')} left out`);
-  if (parts.length === 0) return 'The store text is the same as when the pull was made.';
-  return `${parts.join(', ')}.`;
+    parts.push(t('publish:fixup.diff.changed', { count: count('store_changed') }));
+  if (count('added') > 0) parts.push(t('publish:fixup.diff.added', { count: count('added') }));
+  if (count('dropped') > 0)
+    parts.push(t('publish:fixup.diff.dropped', { count: count('dropped') }));
+  if (parts.length === 0) return t('publish:fixup.diff.same');
+  return t('publish:fixup.diff.sentence', { parts: formatList(parts, { type: 'unit' }) });
 }
 
 /** What to tell the person after a recompute. */
@@ -362,12 +423,12 @@ export function recomputeDoneMessage(
     'nothingLeft' | 'unchanged' | 'approvalCleared' | 'diffFromPrevious'
   >,
 ): string {
-  if (result.nothingLeft)
-    return 'Nothing left to pull: the repository has everything the store has. Discard the change set.';
-  if (result.unchanged)
-    return 'The store and the repository are as they were: the change set is unchanged.';
-  const done = `Recomputed from the live store. ${diffSummary(result.diffFromPrevious)}`;
-  return result.approvalCleared ? `${done} It is a draft again and needs approval.` : done;
+  if (result.nothingLeft) return t('publish:fixup.recompute.nothingLeft');
+  if (result.unchanged) return t('publish:fixup.recompute.unchanged');
+  const summary = diffSummary(result.diffFromPrevious);
+  return result.approvalCleared
+    ? t('publish:fixup.recompute.doneDraft', { summary })
+    : t('publish:fixup.recompute.done', { summary });
 }
 
 /** The body of a recompute request. */

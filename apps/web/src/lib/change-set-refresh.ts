@@ -5,6 +5,8 @@
  * decides; this file only keeps the screen from offering what the server will refuse.
  */
 import { can, type Role } from '@kiln/core';
+import { formatList } from './i18n/format.ts';
+import { t } from './i18n/t.ts';
 import type { ChangeSetView } from './types.ts';
 
 export type FileState = 'same' | 'changed' | 'already_applied' | 'conflict';
@@ -91,52 +93,99 @@ export function looksStale(
 
 export const fileStateInfo: Record<
   FileState,
-  { label: string; tone: 'ok' | 'info' | 'warn' | 'neutral'; hint: string }
+  { readonly label: string; readonly tone: 'ok' | 'info' | 'warn' | 'neutral'; readonly hint: string }
 > = {
-  same: { label: 'Unchanged', tone: 'neutral', hint: 'The repository has not changed this file.' },
+  same: {
+    get label() {
+      return t('publish:refresh.state.same');
+    },
+    tone: 'neutral',
+    get hint() {
+      return t('publish:refresh.state.sameHint');
+    },
+  },
   changed: {
-    label: 'Can be merged',
+    get label() {
+      return t('publish:refresh.state.changed');
+    },
     tone: 'info',
-    hint: 'The file changed elsewhere; your change fits on top of it.',
+    get hint() {
+      return t('publish:refresh.state.changedHint');
+    },
   },
   already_applied: {
-    label: 'Already there',
+    get label() {
+      return t('publish:refresh.state.applied');
+    },
     tone: 'ok',
-    hint: 'The repository already has this change. It leaves the change set.',
+    get hint() {
+      return t('publish:refresh.state.appliedHint');
+    },
   },
   conflict: {
-    label: 'Conflict',
+    get label() {
+      return t('publish:refresh.state.conflict');
+    },
     tone: 'warn',
-    hint: 'The file changed in the same place. You choose.',
+    get hint() {
+      return t('publish:refresh.state.conflictHint');
+    },
   },
 };
 
+/** The words are looked up when read, so they follow the active language. */
 export const conflictReasonText: Record<ConflictReason, string> = {
-  overlap: 'Both changed the same lines.',
-  added_upstream: 'Your change adds this file, but the repository added it with other text.',
-  edited_upstream: 'Your change deletes this file, but the repository edited it.',
-  deleted_upstream: 'Your change edits this file, but the repository deleted it.',
-  invalid_json: 'The merged file would not be valid JSON.',
-  too_large: 'The two versions differ too much to merge line by line.',
+  get overlap() {
+    return t('publish:refresh.reason.overlap');
+  },
+  get added_upstream() {
+    return t('publish:refresh.reason.addedUpstream');
+  },
+  get edited_upstream() {
+    return t('publish:refresh.reason.editedUpstream');
+  },
+  get deleted_upstream() {
+    return t('publish:refresh.reason.deletedUpstream');
+  },
+  get invalid_json() {
+    return t('publish:refresh.reason.invalidJson');
+  },
+  get too_large() {
+    return t('publish:refresh.reason.tooLarge');
+  },
 };
 
-export const resolutionInfo: Record<Resolution, { label: string; description: string }> = {
-  mine: { label: 'Keep mine', description: 'Overwrites what the repository has with your text.' },
-  theirs: { label: 'Keep theirs', description: 'Drops your change to this file.' },
+export const resolutionInfo: Record<Resolution, { readonly label: string; readonly description: string }> = {
+  mine: {
+    get label() {
+      return t('publish:refresh.resolution.mine');
+    },
+    get description() {
+      return t('publish:refresh.resolution.mineDesc');
+    },
+  },
+  theirs: {
+    get label() {
+      return t('publish:refresh.resolution.theirs');
+    },
+    get description() {
+      return t('publish:refresh.resolution.theirsDesc');
+    },
+  },
 };
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** One sentence for the result of "Check for updates". */
 export function stalenessSummary(result: Pick<Staleness, 'stale' | 'files'>): string {
-  if (!result.stale) return 'Up to date: the repository has not changed these files.';
+  if (!result.stale) return t('publish:refresh.summary.upToDate');
   const count = (state: FileState) => result.files.filter((f) => f.state === state).length;
   const parts: string[] = [];
-  if (count('changed') > 0) parts.push(`${plural(count('changed'), 'file')} can be merged`);
+  if (count('changed') > 0)
+    parts.push(t('publish:refresh.summary.mergeable', { count: count('changed') }));
   if (count('already_applied') > 0)
-    parts.push(`${count('already_applied')} already in the repository`);
-  if (count('conflict') > 0) parts.push(`${plural(count('conflict'), 'file')} in conflict`);
-  return `Out of date: ${parts.join(', ')}.`;
+    parts.push(t('publish:refresh.summary.alreadyIn', { count: count('already_applied') }));
+  if (count('conflict') > 0)
+    parts.push(t('publish:refresh.summary.conflict', { count: count('conflict') }));
+  return t('publish:refresh.summary.outOfDate', { parts: formatList(parts, { type: 'unit' }) });
 }
 
 /** The unresolved conflicts in a refresh answer. */
@@ -165,18 +214,22 @@ export function refreshDoneMessage(
   result: Pick<RefreshResult, 'files' | 'nothingLeft' | 'unchanged' | 'approvalCleared'>,
 ): string {
   if (result.nothingLeft)
-    return 'Nothing left to apply: the repository already has this change. Discard the change set.';
-  if (result.unchanged) return 'Nothing changed in the repository: the change set is as it was.';
+    return t('publish:refresh.done.nothingLeft');
+  if (result.unchanged) return t('publish:refresh.done.unchanged');
   const count = (outcome: RefreshFile['outcome']) =>
     result.files.filter((f) => f.outcome === outcome).length;
   const parts: string[] = [];
-  if (count('merged') > 0) parts.push(`${plural(count('merged'), 'file')} merged`);
-  if (count('dropped') > 0) parts.push(`${count('dropped')} already in the repository, dropped`);
-  if (count('kept_mine') > 0) parts.push(`${count('kept_mine')} kept as yours`);
+  if (count('merged') > 0) parts.push(t('publish:refresh.done.merged', { count: count('merged') }));
+  if (count('dropped') > 0) parts.push(t('publish:refresh.done.dropped', { count: count('dropped') }));
+  if (count('kept_mine') > 0)
+    parts.push(t('publish:refresh.done.keptMine', { count: count('kept_mine') }));
   if (count('kept_theirs') > 0)
-    parts.push(`${count('kept_theirs')} dropped for the repository's text`);
-  const done = parts.length > 0 ? `Refreshed: ${parts.join(', ')}.` : 'Refreshed.';
-  return result.approvalCleared ? `${done} It is a draft again and needs approval.` : done;
+    parts.push(t('publish:refresh.done.keptTheirs', { count: count('kept_theirs') }));
+  const done =
+    parts.length > 0
+      ? t('publish:refresh.done.refreshedParts', { parts: formatList(parts, { type: 'unit' }) })
+      : t('publish:refresh.done.refreshed');
+  return result.approvalCleared ? t('publish:refresh.done.draftAgain', { message: done }) : done;
 }
 
 /** The conflict answer of a refresh, from an ApiError body, or undefined when it is something else. */

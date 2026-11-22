@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  APPLY_LOCAL_EXPLANATION,
+  applyLocalExplanation,
   type ApplyContext,
   applyBlocker,
   applyBody,
@@ -209,7 +209,7 @@ test('the request: nothing for a pull request; for a local commit only what diff
 
 test('the hint to look at the commit is git switch with the branch', () => {
   assert.equal(switchHint('kiln/update-1'), 'git switch kiln/update-1');
-  assert.match(APPLY_LOCAL_EXPLANATION, /git switch/);
+  assert.match(applyLocalExplanation(), /git switch/);
 });
 
 const outcome = (patch: Partial<LocalOutcome> = {}): LocalOutcome => ({
@@ -372,8 +372,8 @@ test('the Apply dialog says whether the commit will be signed, and how; nothing 
 });
 
 test('the explanation of a local commit no longer says that signing never runs', () => {
-  assert.doesNotMatch(APPLY_LOCAL_EXPLANATION, /signing do not run/i);
-  assert.match(APPLY_LOCAL_EXPLANATION, /Hooks do not run/);
+  assert.doesNotMatch(applyLocalExplanation(), /signing do not run/i);
+  assert.match(applyLocalExplanation(), /Hooks do not run/);
 });
 
 test('a signed outcome has a badge and a tip that says Verified depends on the GitHub account; an unsigned one has neither', () => {

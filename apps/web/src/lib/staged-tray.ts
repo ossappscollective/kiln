@@ -1,3 +1,4 @@
+import { t } from './i18n/t.ts';
 import type { PushAvailability } from './staged.ts';
 
 /**
@@ -26,16 +27,16 @@ export type TrayLineInput = {
 export const trayIsFull = (input: Pick<TrayLineInput, 'items'>): boolean => input.items > 0;
 
 export function trayLine(input: TrayLineInput): TrayLine {
-  if (input.loadFailed) return { tone: 'bad', text: 'Could not load the staged changes' };
-  if (input.loading) return { tone: 'neutral', text: 'Checking the staged changes…' };
+  if (input.loadFailed) return { tone: 'bad', text: t('publish:tray.loadFailed') };
+  if (input.loading) return { tone: 'neutral', text: t('publish:tray.checking') };
   switch (input.availability) {
     case 'off':
-      return { tone: 'info', text: 'Nothing staged. Pushing drafts is switched off' };
+      return { tone: 'info', text: t('publish:tray.pushOff') };
     case 'unknown':
-      return { tone: 'info', text: 'Nothing staged. Could not check whether pushing drafts is on' };
+      return { tone: 'info', text: t('publish:tray.pushUnknown') };
     case 'role':
-      return { tone: 'info', text: 'Nothing staged. Pushing needs the admin or owner role' };
+      return { tone: 'info', text: t('publish:tray.pushRole') };
     default:
-      return { tone: 'neutral', text: 'Nothing staged' };
+      return { tone: 'neutral', text: t('publish:staged.nothingStaged') };
   }
 }
