@@ -1,6 +1,6 @@
 import { type Platform, platformLabel } from '@kiln/core';
 import { formatList } from '../i18n/format.ts';
-import { t } from '../i18n/t.ts';
+import { k, t } from '../i18n/t.ts';
 
 /**
  * The "For apps" choice of the dispatch dialog (docs/api/ci.md): a run can be started for several apps of one repository (one
@@ -44,7 +44,7 @@ export function appsLine(apps: readonly DispatchApp[], selected: readonly string
   const chosen = apps.filter((a) => selected.indexOf(a.id) >= 0);
   if (chosen.length === 0) return t('builds:apps.none');
   const list = formatList(chosen.map(label), { type: 'unit' });
-  const key = chosen.length === 1 ? 'builds:apps.one' : 'builds:apps.many';
+  const key = chosen.length === 1 ? k('builds:apps.one') : k('builds:apps.many');
   return t(key, { apps: list });
 }
 

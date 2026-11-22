@@ -178,7 +178,7 @@
                   <tr>
                     <th scope="col">{t('aso:markets.keyword')}</th>
                     <th scope="col">{t('aso:fit.fit')}</th>
-                    {#each fitColumns[app.platform] as f (f)}<th scope="col" class="mid">{t(fitFieldLabels[f] ?? f)}</th>{/each}
+                    {#each fitColumns[app.platform] as f (f)}<th scope="col" class="mid">{fitFieldLabels[f] ? t(fitFieldLabels[f]) : f}</th>{/each}
                   </tr>
                 </thead>
                 <tbody>

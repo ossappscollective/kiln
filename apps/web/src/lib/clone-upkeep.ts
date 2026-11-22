@@ -4,7 +4,7 @@
  */
 
 import { formatBytes as formatBytesLocal } from './i18n/format.ts';
-import { t } from './i18n/t.ts';
+import { k, t } from './i18n/t.ts';
 
 export type CloneView = {
   repositoryId: string;
@@ -54,8 +54,8 @@ export function cloneSummary(state: Pick<RepositoryClone, 'enabled' | 'clone'>):
   if (!state.enabled) return t('builds:clone.summaryApi');
   if (!state.clone) return t('builds:clone.summaryNone');
   const key = state.clone.sizeIsLowerBound
-    ? 'builds:clone.onServerAtLeast'
-    : 'builds:clone.onServer';
+    ? k('builds:clone.onServerAtLeast')
+    : k('builds:clone.onServer');
   return t(key, { size: formatBytes(state.clone.bytes) });
 }
 

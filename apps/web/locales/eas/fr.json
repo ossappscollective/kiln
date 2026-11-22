@@ -302,6 +302,7 @@
   "workflows.openRunNewTab": "Ouvrir {{workflow}} sur {{host}} (s’ouvre dans un nouvel onglet)",
   "workflows.problem.file": "Saisissez un fichier de workflow dans .eas/workflows, par exemple build.yml.",
   "workflows.problem.ref": "Utilisez une branche, un tag ou un commit comme référence, ou laissez vide pour la branche par défaut.",
+  "workflows.problem.tooManyInputs": "{{max}} entrées au maximum.",
   "workflows.reading": "Lecture des exécutions.",
   "workflows.refLabel": "Branche, tag ou commit",
   "workflows.refPlaceholder": "La branche par défaut du dépôt",

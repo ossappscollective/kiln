@@ -1,5 +1,5 @@
 import { ApiError } from '../api.ts';
-import { parseFreeFormInputs } from '../ci/ci.ts';
+import { MAX_DISPATCH_INPUTS, parseFreeFormInputs } from '../ci/ci.ts';
 import { t } from '../i18n/t.ts';
 import { waitText } from './eas.ts';
 import type { WorkflowRun } from '../types.ts';
@@ -43,16 +43,31 @@ export function workflowFileName(text: string): string {
 export type StartForm = { workflow: string; ref: string; inputsText: string };
 
 /** What is wrong with the form, as sentences; empty when it can be sent. `body` is then what to send. */
-export function startForm(form: StartForm): { problems: string[]; body: EasWorkflowDispatchBody | null } {
+export function startForm(form: StartForm): {
+  problems: string[];
+  body: EasWorkflowDispatchBody | null;
+} {
   const problems: string[] = [];
   const file = workflowFileName(form.workflow);
   if (file === '') problems.push(t('eas:workflows.problem.file'));
   const ref = form.ref.trim();
-  if (ref !== '' && (!GIT_REF.test(ref) || ref.indexOf('..') !== -1 || ref.slice(-1) === '/' || ref.slice(-5) === '.lock')) {
+  if (
+    ref !== '' &&
+    (!GIT_REF.test(ref) ||
+      ref.indexOf('..') !== -1 ||
+      ref.slice(-1) === '/' ||
+      ref.slice(-5) === '.lock')
+  ) {
     problems.push(t('eas:workflows.problem.ref'));
   }
   const parsed = parseFreeFormInputs(form.inputsText);
-  for (const p of parsed.problems) problems.push(p.replace('GitHub accepts at most', 'At most'));
+  // The count problem has its own short sentence here (the CI form's says "GitHub accepts at most ...").
+  const tooMany = Object.keys(parsed.inputs).length > MAX_DISPATCH_INPUTS;
+  const tooManyText = t('builds:ci.free.tooMany', { max: MAX_DISPATCH_INPUTS });
+  for (const p of parsed.problems) {
+    if (!(tooMany && p === tooManyText)) problems.push(p);
+  }
+  if (tooMany) problems.push(t('eas:workflows.problem.tooManyInputs', { max: MAX_DISPATCH_INPUTS }));
   if (problems.length > 0) return { problems, body: null };
   return {
     problems,
@@ -65,15 +80,29 @@ export function startForm(form: StartForm): { problems: string[]; body: EasWorkf
 }
 
 /** The confirmation sentence: what is about to run at Expo, on which ref, with how many inputs. */
-export function startSummary(input: { workflow: string; ref: string; project: string; inputCount: number }): string {
+export function startSummary(input: {
+  workflow: string;
+  ref: string;
+  project: string;
+  inputCount: number;
+}): string {
   const { workflow, project, inputCount: count } = input;
   const ref = input.ref.trim();
-  if (ref === '') return count === 0 ? t('eas:workflows.summary.defaultNone', { workflow, project }) : t('eas:workflows.summary.defaultInputs', { workflow, project, count });
-  return count === 0 ? t('eas:workflows.summary.refNone', { workflow, ref, project }) : t('eas:workflows.summary.refInputs', { workflow, ref, project, count });
+  if (ref === '')
+    return count === 0
+      ? t('eas:workflows.summary.defaultNone', { workflow, project })
+      : t('eas:workflows.summary.defaultInputs', { workflow, project, count });
+  return count === 0
+    ? t('eas:workflows.summary.refNone', { workflow, ref, project })
+    : t('eas:workflows.summary.refInputs', { workflow, ref, project, count });
 }
 
 /** Whether the card can offer to start a workflow, and if not, why not (one sentence). */
-export function startBlocker(input: { credentialAvailable: boolean; hasRepository: boolean; canStart: boolean }): string {
+export function startBlocker(input: {
+  credentialAvailable: boolean;
+  hasRepository: boolean;
+  canStart: boolean;
+}): string {
   if (!input.credentialAvailable) return t('eas:workflows.blocker.credential');
   if (!input.hasRepository) return t('eas:workflows.blocker.repository');
   if (!input.canStart) return t('eas:workflows.blocker.role');
@@ -116,4 +145,5 @@ export function easWorkflowErrorText(error: unknown): string {
 }
 
 /** Runs not finished yet: the ones to ask Expo about. */
-export const activeRuns = (runs: readonly WorkflowRun[]): WorkflowRun[] => runs.filter((r) => r.active);
+export const activeRuns = (runs: readonly WorkflowRun[]): WorkflowRun[] =>
+  runs.filter((r) => r.active);

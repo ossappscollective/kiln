@@ -568,8 +568,9 @@
           {#snippet panel(id)}
             {@const gAvail = groupAvailability(asGroupId(id), app.platform)}
             {@const here = summaries.filter((g) => g.id === id)[0]}
+            {@const hintKey = groupDef(asGroupId(id)).hintKey}
             <div class="stack group-panel">
-              <p class="muted small">{t(groupDef(asGroupId(id)).hintKey)}</p>
+              <p class="muted small">{t(hintKey)}</p>
               {#if !gAvail.available}
                 <div class="card"><EmptyState icon="lock" title={t('assets:tab.notOnStore')} description={gAvail.reason ?? ''} /></div>
               {:else if here && here.files === 0}

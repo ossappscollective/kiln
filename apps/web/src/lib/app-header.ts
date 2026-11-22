@@ -227,7 +227,10 @@ const LOCK_APPROVED: LockWords = {
   is: k('app:lock.is.approved'),
   version: k('app:lock.version.approved'),
 };
-const LOCK_HALTED: LockWords = { is: k('app:lock.is.halted'), version: k('app:lock.version.halted') };
+const LOCK_HALTED: LockWords = {
+  is: k('app:lock.is.halted'),
+  version: k('app:lock.version.halted'),
+};
 const LOCK_ROLLING_OUT: LockWords = {
   is: k('app:lock.is.rollingOut'),
   version: k('app:lock.version.rollingOut'),
@@ -298,7 +301,8 @@ export function lockInfo(
   );
   let text: string;
   if (editable.length === 0 && words.length === 1) {
-    text = t((words[0] as LockWords).version);
+    const versionKey = (words[0] as LockWords).version;
+    text = t(versionKey);
   } else if (editable.length === 0) {
     text = t('app:lock.allLocked', { said });
   } else {

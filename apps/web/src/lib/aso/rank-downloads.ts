@@ -44,7 +44,12 @@ export type RankVsDownloadsResponse = RankDownloadsView & {
 export type RankVsDownloadsQuery = { country?: string; keywords?: string[]; days?: number };
 
 /** The ranges the view offers, in days. */
-export const rangeChoices: { days: number }[] = [{ days: 30 }, { days: 60 }, { days: 90 }, { days: 180 }];
+export const rangeChoices: { days: number }[] = [
+  { days: 30 },
+  { days: 60 },
+  { days: 90 },
+  { days: 180 },
+];
 /** "Last 30 days". */
 export const rangeLabel = (days: number): string => t('aso:rd.rangeLast', { count: days });
 export const DEFAULT_DAYS = 90;
@@ -132,7 +137,7 @@ export function gateOf(
 export function delayLine(view: Pick<RankVsDownloadsResponse, 'downloads'>): string | null {
   const d = view.downloads;
   if (!d) return null;
-  return t(d.source === 'apple' ? 'aso:rd.delay.apple' : 'aso:rd.delay.play', {
+  return t(d.source === 'apple' ? k('aso:rd.delay.apple') : k('aso:rd.delay.play'), {
     date: formatDay(d.settledThrough, true),
   });
 }
@@ -212,10 +217,10 @@ export function markerText(m: RankMarker, term: string): string {
   const params = { term, from: m.from ?? '', to: m.to ?? '', day: formatDay(m.day, true) };
   return t(
     m.kind === 'entered'
-      ? 'aso:rd.marker.entered'
+      ? k('aso:rd.marker.entered')
       : m.kind === 'dropped'
-        ? 'aso:rd.marker.dropped'
-        : 'aso:rd.marker.moved',
+        ? k('aso:rd.marker.dropped')
+        : k('aso:rd.marker.moved'),
     params,
   );
 }
@@ -431,10 +436,10 @@ export function whatChanged(c: MoveComparison, term: string): WhatChanged {
   const m = c.marker;
   const head = t(
     m.kind === 'entered'
-      ? 'aso:rd.head.entered'
+      ? k('aso:rd.head.entered')
       : m.kind === 'dropped'
-        ? 'aso:rd.head.dropped'
-        : 'aso:rd.head.moved',
+        ? k('aso:rd.head.dropped')
+        : k('aso:rd.head.moved'),
     { term, from: m.from ?? '', to: m.to ?? '', day: formatDay(m.day, true) },
   );
   let detail: string;
@@ -455,7 +460,10 @@ export function whatChanged(c: MoveComparison, term: string): WhatChanged {
     const pct =
       c.changePercent === null
         ? t('aso:rd.pct.none')
-        : formatPercent(c.changePercent / 100, { signDisplay: 'exceptZero', maximumFractionDigits: 2 });
+        : formatPercent(c.changePercent / 100, {
+            signDisplay: 'exceptZero',
+            maximumFractionDigits: 2,
+          });
     detail = t('aso:rd.detail.ok', {
       before: avg(c.before.perDay),
       beforeDays: c.before.days,

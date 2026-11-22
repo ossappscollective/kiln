@@ -83,7 +83,8 @@ export function checkReply(
   limit: number,
 ): { ok: true } | { ok: false; problem: ReplyProblem; message: string } {
   const value = normalizeReplyText(text);
-  if (value === '') return { ok: false, problem: 'empty', message: t('reviews:reply.problem.empty') };
+  if (value === '')
+    return { ok: false, problem: 'empty', message: t('reviews:reply.problem.empty') };
   if (CONTROL.test(value)) {
     return {
       ok: false,
@@ -200,7 +201,7 @@ export const replyStatusKeys: Record<ReplyStatus, string> = {
 };
 
 export const replyStatusLabel = (status: ReplyState['status']): string =>
-  status === 'none' ? t('reviews:reply.status.none') : t(replyStatusKeys[status] ?? status);
+  status === 'none' ? t('reviews:reply.status.none') : t(replyStatusKeys[status]);
 
 export const replyStatusTone = (
   status: ReplyState['status'],
@@ -278,7 +279,10 @@ export function confirmFacts(input: {
       },
       {
         label: t('reviews:reply.confirm.length'),
-        value: t('reviews:reply.length.of', { count: input.draft.length, limit: input.draft.limit }),
+        value: t('reviews:reply.length.of', {
+          count: input.draft.length,
+          limit: input.draft.limit,
+        }),
       },
       ...(input.replacing
         ? [
@@ -324,14 +328,15 @@ export function replyErrorMessage(
   error: unknown,
   action: 'draft' | 'send' | 'template' | 'translate' = 'send',
 ): string {
-  if (!(error instanceof ApiError))
-    return t('reviews:error.genericReply');
+  if (!(error instanceof ApiError)) return t('reviews:error.genericReply');
   const server = typeof error.body.message === 'string' ? error.body.message : '';
   switch (error.code) {
     case 'reply_disabled':
       return replyOffText();
     case 'forbidden':
-      return action === 'send' ? t('reviews:error.forbiddenSend') : t('reviews:error.forbiddenDraft');
+      return action === 'send'
+        ? t('reviews:error.forbiddenSend')
+        : t('reviews:error.forbiddenDraft');
     case 'not_found':
       return t('reviews:error.notFound');
     case 'stale_draft':

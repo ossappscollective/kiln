@@ -278,7 +278,7 @@
             {/if}
           </div>
 
-          <p class="muted note">{t(used.derived ? PLAY_DERIVED_NOTE : APP_STORE_NOTE)}</p>
+          <p class="muted note">{used.derived ? t(PLAY_DERIVED_NOTE) : t(APP_STORE_NOTE)}</p>
 
           <div class="table-wrap">
             <table class="compact">

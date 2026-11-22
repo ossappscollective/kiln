@@ -302,6 +302,7 @@
   "workflows.openRunNewTab": "Abrir {{workflow}} en {{host}} (se abre en una pestaña nueva)",
   "workflows.problem.file": "Introduce un archivo de workflow en .eas/workflows, como build.yml.",
   "workflows.problem.ref": "Usa una rama, una etiqueta o un commit como referencia, o déjala vacía para usar la rama predeterminada.",
+  "workflows.problem.tooManyInputs": "Como máximo {{max}} entradas.",
   "workflows.reading": "Leyendo las ejecuciones.",
   "workflows.refLabel": "Rama, etiqueta o commit",
   "workflows.refPlaceholder": "La rama predeterminada del repositorio",

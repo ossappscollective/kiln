@@ -880,37 +880,37 @@ export function summaryParts(step: Pick<PlanStep, 'type' | 'summary'>): string[]
     const t = num('textChanged');
     const a = num('assetSetsChanged');
     const f = num('fieldsChanged');
-    if (t !== null) parts.push(translate('app:pending.summary.textChanges', { count: t }));
-    if (a !== null) parts.push(translate('app:pending.summary.graphicsSets', { count: a }));
+    if (t !== null) parts.push(translate(k('app:pending.summary.textChanges'), { count: t }));
+    if (a !== null) parts.push(translate(k('app:pending.summary.graphicsSets'), { count: a }));
     if (f !== null && f > 0)
-      parts.push(translate('app:pending.summary.releaseFields', { count: f }));
+      parts.push(translate(k('app:pending.summary.releaseFields'), { count: f }));
   } else if (step.type === 'submit') {
     const v = str('versionString');
     const t = num('texts');
     const a = num('assetSets');
-    if (v) parts.push(translate('app:pending.summary.version', { version: v }));
-    if (t !== null) parts.push(translate('app:pending.summary.texts', { count: t }));
-    if (a !== null) parts.push(translate('app:pending.summary.graphicsSets', { count: a }));
+    if (v) parts.push(translate(k('app:pending.summary.version'), { version: v }));
+    if (t !== null) parts.push(translate(k('app:pending.summary.texts'), { count: t }));
+    if (a !== null) parts.push(translate(k('app:pending.summary.graphicsSets'), { count: a }));
   } else if (step.type === 'release') {
     const v = str('version');
     const track = str('track');
     const share = num('userFraction');
     const audience = str('audience');
-    if (v) parts.push(translate('app:pending.summary.version', { version: v }));
-    if (track) parts.push(translate('app:pending.summary.track', { track }));
+    if (v) parts.push(translate(k('app:pending.summary.version'), { version: v }));
+    if (track) parts.push(translate(k('app:pending.summary.track'), { track }));
     if (share !== null)
       parts.push(
-        translate('app:pending.summary.share', {
+        translate(k('app:pending.summary.share'), {
           share: formatPercent(share, { maximumFractionDigits: 2 }),
         }),
       );
     if (audience)
       parts.push(
         audience === 'all'
-          ? translate('app:pending.summary.allUsers')
+          ? translate(k('app:pending.summary.allUsers'))
           : audience === 'phased'
-            ? translate('app:pending.summary.phased')
-            : translate('app:pending.summary.someUsers'),
+            ? translate(k('app:pending.summary.phased'))
+            : translate(k('app:pending.summary.someUsers')),
       );
   }
   return parts;
