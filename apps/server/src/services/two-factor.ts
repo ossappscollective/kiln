@@ -4,7 +4,15 @@ import { decryptSecret, encryptSecret } from '@kiln/vault';
 import { translator } from '../i18n/catalogs.ts';
 import { recordAudit } from './audit.ts';
 import { plainAddress } from './mail-mime.ts';
-import { escapeHtml, mailBar, mailFooter, mailShell } from './mail-template.ts';
+import {
+  emailCodeBox,
+  emailFooter,
+  emailHeading,
+  emailParagraph,
+  emailRow,
+  emailShell,
+} from '../mail/layout.ts';
+import { escapeHtml } from './mail-template.ts';
 import type { MailErrorCode, Mailer, MailHint } from './mailer.ts';
 import {
   base32Decode,
@@ -268,20 +276,18 @@ export const codeMessage = (
   const intro = t(`email:code.${p}.intro`);
   const warning = t(`email:code.${p}.warning`, { count: minutes });
   const ignore = t('email:code.ignore');
-  const html = mailShell(
-    `${mailBar('#2e6bd3')}
-<tr><td style="padding:24px 28px 0;">
-<h1 style="margin:0 0 8px;font-size:20px;line-height:1.3;">${escapeHtml(heading)}</h1>
-<p style="margin:0;font-size:15px;line-height:1.55;color:#323f4b;">${escapeHtml(intro)}</p>
-</td></tr>
-<tr><td style="padding:16px 28px 0;"><div style="background:#f5f7fa;border-radius:8px;padding:16px;text-align:center;font:700 32px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.3em;color:#1f2933;">${escapeHtml(code)}</div></td></tr>
-<tr><td style="padding:16px 28px 24px;font-size:14px;line-height:1.55;color:#52606d;">${escapeHtml(warning)}<br><br>${escapeHtml(ignore)}</td></tr>
-${mailFooter(escapeHtml(t('email:code.footer')))}`,
+  const subject = t('email:code.subject', { code });
+  const html = emailShell(
+    `${emailRow(emailHeading(heading) + emailParagraph(intro), 28)}
+${emailRow(emailCodeBox(code), 18)}
+${emailRow(emailParagraph(warning, true) + '<div style="height:12px;line-height:12px;font-size:0;">&nbsp;</div>' + emailParagraph(ignore, true), 18, 28)}
+${emailFooter(escapeHtml(t('email:code.footer')))}`,
     t(`email:code.${p}.preheader`, { code }),
     locale,
+    subject,
   );
   return {
-    subject: t('email:code.subject', { code }),
+    subject,
     text: [t(`email:code.${p}.text`, { code }), '', `${warning}`, ignore, '', 'Kiln'].join('\n'),
     html,
   };

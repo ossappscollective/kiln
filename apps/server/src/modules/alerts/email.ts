@@ -1,12 +1,19 @@
+import { escapeHtml, mailLink, setMailLinkOrigin } from '../../services/mail-template.ts';
 import {
-  escapeHtml,
-  mailBar,
-  mailButton,
-  mailFooter,
-  mailLink,
-  mailShell,
-  setMailLinkOrigin,
-} from '../../services/mail-template.ts';
+  emailButton,
+  emailCalloutHtml,
+  emailChip,
+  emailFooter,
+  emailHeading,
+  emailItemRow,
+  emailLinkHtml,
+  emailMutedSpan,
+  emailParagraphHtml,
+  emailRow,
+  emailShell,
+  emailSpacer,
+  type EmailTone,
+} from '../../mail/layout.ts';
 import { translator } from '../../i18n/catalogs.ts';
 import { isServerLocale, SOURCE_LOCALE } from '../../i18n/runtime.ts';
 import type { AlertData, AlertDef, AlertSeverity } from './catalog-core.ts';
@@ -188,11 +195,8 @@ export const alertTitleIn = (
 
 const linkTo = (a: AlertAction): string | undefined => mailLink(a.path);
 
-const toneOf: Record<AlertSeverity, { bar: string; chip: string }> = {
-  critical: { bar: '#c0392b', chip: '#fdecea' },
-  warning: { bar: '#d68910', chip: '#fef5e7' },
-  info: { bar: '#2e6bd3', chip: '#eaf1fc' },
-};
+/** The status colours (mail/layout.ts) each severity wears. */
+const toneOf: Record<AlertSeverity, EmailTone> = { critical: 'bad', warning: 'warn', info: 'info' };
 
 export type RenderedEmail = { subject: string; text: string; html: string };
 
@@ -201,10 +205,10 @@ const alertsPath = '#/alerts';
 /** The quiet last row: why the person gets this email, with a link to the alert settings when the origin is known. */
 const footerRow = (t: ReturnType<typeof translator>): string => {
   const href = mailLink(alertsPath);
-  return mailFooter(
+  return emailFooter(
     href
       ? t.html('alerts:mail.footer.link', undefined, {
-          link: (inner) => `<a href="${escapeHtml(href)}" style="color:#52606d;">${inner}</a>`,
+          link: (inner) => emailLinkHtml(href, inner),
         })
       : t.html('alerts:mail.footer.noLink'),
   );
@@ -237,7 +241,6 @@ export function renderAlertEmail(
   const body = translated?.body ?? input.body;
   const count = input.count ?? 1;
   const guide = alertGuide(def.id, data, locale);
-  const tone = toneOf[severity];
   const subject = t('alerts:mail.subject', {
     severity: t(`alerts:mail.severityTag.${severity}`),
     title,
@@ -268,35 +271,35 @@ export function renderAlertEmail(
   const secondary = (guide.secondary ?? [])
     .map((a) => {
       const href = linkTo(a);
-      return href
-        ? `<a href="${escapeHtml(href)}" style="color:${tone.bar};font-weight:600;">${escapeHtml(a.label)}</a>`
-        : '';
+      return href ? emailLinkHtml(href, escapeHtml(a.label), true) : '';
     })
     .filter((s) => s !== '');
   const primary = guide.primary
-    ? mailButton(
-        { label: guide.primary.label, href: linkTo(guide.primary), where: guide.primary.where },
-        tone.bar,
-        t,
-      )
+    ? emailButton({
+        label: guide.primary.label,
+        href: linkTo(guide.primary),
+        where: guide.primary.where,
+      }, t)
     : '';
-  const inner = `${mailBar(tone.bar)}
-<tr><td style="padding:24px 28px 4px;">
-<span style="display:inline-block;background:${tone.chip};color:${tone.bar};font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:999px;">${escapeHtml(t(`alerts:mail.severity.${severity}`))}</span>
-<h1 style="margin:12px 0 8px;font-size:20px;line-height:1.3;">${escapeHtml(title)}</h1>
-<p style="margin:0;font-size:15px;line-height:1.55;color:#323f4b;">${escapeHtml(body)}${count > 1 ? ` <span style="color:#7b8794;">${escapeHtml(t('alerts:mail.repeated.inline', { count }))}</span>` : ''}</p>
-</td></tr>
-${
-  guide.hint
-    ? `<tr><td style="padding:16px 28px 0;"><div style="background:#f5f7fa;border-radius:8px;padding:12px 14px;font-size:14px;line-height:1.55;color:#323f4b;">${t.html('alerts:mail.whatToDo.html', { hint: guide.hint })}</div></td></tr>`
-    : ''
-}
-${primary ? `<tr><td style="padding:20px 28px 0;">${primary}</td></tr>` : ''}
-${secondary.length > 0 ? `<tr><td style="padding:14px 28px 0;font-size:14px;">${escapeHtml(t('alerts:mail.also'))} ${secondary.join(' &nbsp;·&nbsp; ')}</td></tr>` : ''}
-<tr><td style="height:24px;font-size:0;line-height:0;">&nbsp;</td></tr>
-${footerRow(t)}`;
+  const repeated = count > 1 ? ` ${emailMutedSpan(t('alerts:mail.repeated.inline', { count }))}` : '';
+  const inner = [
+    emailRow(
+      `<div style="margin:0 0 14px;">${emailChip(t(`alerts:mail.severity.${severity}`), toneOf[severity])}</div>${emailHeading(title)}${emailParagraphHtml(escapeHtml(body) + repeated)}`,
+      28,
+    ),
+    guide.hint ? emailRow(emailCalloutHtml(t.html('alerts:mail.whatToDo.html', { hint: guide.hint })), 20) : '',
+    primary ? emailRow(primary, 24) : '',
+    secondary.length > 0
+      ? emailRow(
+          emailParagraphHtml(`${escapeHtml(t('alerts:mail.also'))} ${secondary.join(' &nbsp;·&nbsp; ')}`, true),
+          18,
+        )
+      : '',
+    emailSpacer(28),
+    footerRow(t),
+  ].join('\n');
 
-  return { subject, text: textLines.join('\n'), html: mailShell(inner, title, locale) };
+  return { subject, text: textLines.join('\n'), html: emailShell(inner, title, locale, subject) };
 }
 
 /** The digest in `locale`: one line per alert, each with where to go, in the same frame. A `title` is shown as given (see `alertTitleIn`). */
@@ -330,16 +333,16 @@ export function renderDigestEmail(
   ].join('\n');
   const rows = items
     .map((i) => {
-      const tone = toneOf[i.severity];
       const href = i.action ? linkTo(i.action) : undefined;
-      return `<tr><td style="padding:12px 28px;border-top:1px solid #e4e7eb;font-size:14px;line-height:1.5;">
-<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tone.bar};margin-right:8px;"></span>${escapeHtml(i.title)}${i.count > 1 ? ` <span style="color:#7b8794;">${escapeHtml(t('alerts:mail.repeated.inline', { count: i.count }))}</span>` : ''}
-${href && i.action ? `<br><a href="${escapeHtml(href)}" style="color:${tone.bar};font-weight:600;font-size:13px;">${escapeHtml(i.action.label)}</a>` : ''}</td></tr>`;
+      const repeated =
+        i.count > 1 ? ` ${emailMutedSpan(t('alerts:mail.repeated.inline', { count: i.count }))}` : '';
+      const link = href && i.action ? `<br>${emailLinkHtml(href, escapeHtml(i.action.label), true)}` : '';
+      return emailItemRow(`${emailChip(t(`alerts:mail.severity.${i.severity}`), toneOf[i.severity])}<div style="height:8px;line-height:8px;font-size:0;">&nbsp;</div>${emailParagraphHtml(escapeHtml(i.title) + repeated + link)}`);
     })
     .join('\n');
-  const inner = `${mailBar('#2e6bd3')}
-<tr><td style="padding:24px 28px 16px;"><h1 style="margin:0;font-size:20px;line-height:1.3;">${escapeHtml(t('digest:heading', { count: n }))}</h1></td></tr>
+  const inner = `${emailRow(emailHeading(t('digest:heading', { count: n })), 28, 18)}
 ${rows}
+${emailSpacer(8)}
 ${footerRow(t)}`;
-  return { subject, text, html: mailShell(inner, subject, language) };
+  return { subject, text, html: emailShell(inner, subject, language, subject) };
 }

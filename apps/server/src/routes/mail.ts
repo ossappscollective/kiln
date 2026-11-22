@@ -16,14 +16,15 @@ import {
   smtpView,
 } from '../services/mail-config.ts';
 import { plainAddress } from '../services/mail-mime.ts';
+import { escapeHtml, mailLink } from '../services/mail-template.ts';
 import {
-  escapeHtml,
-  mailBar,
-  mailButton,
-  mailFooter,
-  mailLink,
-  mailShell,
-} from '../services/mail-template.ts';
+  emailButton,
+  emailFooter,
+  emailHeading,
+  emailParagraph,
+  emailRow,
+  emailShell,
+} from '../mail/layout.ts';
 import { MAIL_ERROR_MESSAGES, type Mailer } from '../services/mailer.ts';
 import { requireManage } from '../services/step-up.ts';
 import { activeEmail } from '../services/two-factor.ts';
@@ -225,21 +226,18 @@ export function mailRoutes(ctx: MailRoutesContext) {
 }
 
 /** The HTML of the test message: a plain confirmation with a way back to the mail settings. */
-function testMessageHtml(t: Translate): string {
+export function testMessageHtml(t: Translate): string {
   const back = {
     label: t('email:test.back'),
     href: mailLink('#/settings?view=security'),
     where: t('email:test.where'),
   };
-  return mailShell(
-    `${mailBar('#1f9d55')}
-<tr><td style="padding:24px 28px 0;">
-<h1 style="margin:0 0 8px;font-size:20px;line-height:1.3;">${escapeHtml(t('email:test.heading'))}</h1>
-<p style="margin:0;font-size:15px;line-height:1.55;color:#323f4b;">${escapeHtml(t('email:test.body'))}</p>
-</td></tr>
-<tr><td style="padding:20px 28px 24px;">${mailButton(back, '#1f9d55', t)}</td></tr>
-${mailFooter(escapeHtml(t('email:test.footer')))}`,
+  return emailShell(
+    `${emailRow(emailHeading(t('email:test.heading')) + emailParagraph(t('email:test.body')), 28)}
+${emailRow(emailButton(back, t), 22, 28)}
+${emailFooter(escapeHtml(t('email:test.footer')))}`,
     t('email:test.preheader'),
     t.locale,
+    t('email:test.subject'),
   );
 }

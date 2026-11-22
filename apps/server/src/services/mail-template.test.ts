@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { escapeHtml, mailButton, mailLink, setMailLinkOrigin } from './mail-template.ts';
+import { escapeHtml, mailLink, setMailLinkOrigin } from './mail-template.ts';
 import { codeMessage } from './two-factor.ts';
 
 afterEach(() => setMailLinkOrigin(undefined));
@@ -11,12 +11,7 @@ test('links are built on the public origin, and there are none without it', () =
   assert.equal(mailLink('#/credentials'), 'https://kiln.example.com/#/credentials');
 });
 
-test('a button without a link says where to go; one with a link escapes it', () => {
-  const where = { label: 'Fix it', href: undefined, where: 'Credentials' };
-  assert.doesNotMatch(mailButton(where, '#000'), /href=/);
-  assert.match(mailButton(where, '#000'), /go to <strong>Credentials<\/strong>/);
-  const link = mailButton({ ...where, href: 'https://x.example/?a=1&b="2"' }, '#000');
-  assert.match(link, /href="https:\/\/x\.example\/\?a=1&amp;b=&quot;2&quot;"/);
+test('escapeHtml escapes the four characters that matter', () => {
   assert.equal(escapeHtml('<a & "b">'), '&lt;a &amp; &quot;b&quot;&gt;');
 });
 
