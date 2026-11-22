@@ -13,6 +13,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { timeAgo, fullTime } from '../../lib/format.ts';
+  import { k, t } from '../../lib/i18n/t.ts';
   import {
     comparison,
     statusExplanation,
@@ -31,7 +32,7 @@
 
   let {
     field,
-    storeLabel = 'Live store',
+    storeLabel,
     now,
     onhistory,
     pullable = false,
@@ -69,16 +70,25 @@
   const note = $derived(fieldLimitNote(field));
   const lines = $derived(blockingLines(field));
   const columns = $derived([
-    { key: 'repo', title: 'Repository', side: field.repo, hint: 'The listing files in the linked repository, as last read.' },
-    { key: 'db', title: 'Last synced', side: field.db, hint: 'What this tool last knew: the last store sync, or a change set applied since.' },
-    { key: 'live', title: storeLabel, side: field.live, hint: 'What the store had at the last sync.' },
+    { key: 'repo', title: t('listing:compare.col.repo'), side: field.repo, hint: t('listing:compare.col.repoHint') },
+    { key: 'db', title: t('listing:compare.col.db'), side: field.db, hint: t('listing:compare.col.dbHint') },
+    { key: 'live', title: storeLabel ?? t('listing:compare.liveStore'), side: field.live, hint: t('listing:compare.col.liveHint') },
   ]);
 
+  const SOURCE_KEYS = {
+    changeSet: k('listing:compare.source.changeSet'),
+    changeSetRef: k('listing:compare.source.changeSetRef'),
+    since: k('listing:compare.source.since'),
+    sinceRef: k('listing:compare.source.sinceRef'),
+  };
   const sourceNote = (side: DriftSide): string => {
     if (side.observedAt === null) return '';
     const ref = side.source ? shortRef(side.source, side.sourceRef) : null;
-    return `${side.source === 'change_set' ? 'Change set' : 'Since'} ${timeAgo(side.observedAt, now)}${ref ? ` (${ref})` : ''}`;
+    const changeSet = side.source === 'change_set';
+    const key = changeSet ? (ref ? SOURCE_KEYS.changeSetRef : SOURCE_KEYS.changeSet) : ref ? SOURCE_KEYS.sinceRef : SOURCE_KEYS.since;
+    return t(key, { when: timeAgo(side.observedAt, now), ref: ref ?? '' });
   };
+  const who = $derived({ label: field.label, locale: field.locale });
 </script>
 
 <details class="field" open={status !== 'sync'}>
@@ -87,10 +97,10 @@
     <span class="name">{field.label}</span>
     <Badge tone={info.tone} icon={info.icon}>{fieldWord(status)}</Badge>
     {#if lines.length > 0 && status !== 'over'}
-      <Badge tone="warn">Limit problem</Badge>
+      <Badge tone="warn">{t('listing:compare.limitProblem')}</Badge>
     {/if}
     {#if stage?.staged}
-      <Badge tone="accent" icon="layers">Staged</Badge>
+      <Badge tone="accent" icon="layers">{t('listing:compare.staged')}</Badge>
     {/if}
     {#if note}<span class="count" class:over={note.over}>{note.text}</span>{/if}
   </summary>
@@ -106,57 +116,65 @@
           <input
             type="checkbox"
             checked={selected}
+            aria-label={t('listing:compare.selectFor', who)}
             disabled={pullDisabled !== null}
             onchange={(e) => onselect?.(field, e.currentTarget.checked)}
           />
-          <span>Select<span class="visually-hidden"> {field.label} ({field.locale}) to pull into the repository</span></span>
+          <span>{t('listing:compare.select')}</span>
         </label>
-        <Button size="sm" icon="git-pull-request" disabled={pullDisabled !== null} onclick={() => onpull?.(field)}>Pull into repository<span class="visually-hidden">: {field.label} ({field.locale})</span></Button>
+        <Button size="sm" icon="git-pull-request" disabled={pullDisabled !== null} aria-label={t('listing:compare.pullFor', who)} onclick={() => onpull?.(field)}>{t('listing:compare.pull')}</Button>
       {/if}
       {#if stage && stage.staged}
         <span class="staged-note">
-          {stage.upToDate ? 'Staged: the repository text, for the draft push.' : 'Staged, but not the repository text as it is now.'}
+          {stage.upToDate ? t('listing:compare.stagedUpToDate') : t('listing:compare.stagedOutdated')}
         </span>
       {/if}
       {#if stage && stage.state === 'available'}
-        <Button size="sm" icon="layers" loading={stageBusy} disabled={stageBusy || stage.upToDate} onclick={() => onstage?.(field)}>
-          {stage.staged ? (stage.upToDate ? 'Staged from repo' : 'Stage from repo again') : 'Stage from repo'}<span class="visually-hidden">: {field.label} ({field.locale})</span>
+        <Button
+          size="sm"
+          icon="layers"
+          loading={stageBusy}
+          disabled={stageBusy || stage.upToDate}
+          aria-label={stage.staged ? (stage.upToDate ? t('listing:compare.stagedFromRepoFor', who) : t('listing:compare.stageAgainFor', who)) : t('listing:compare.stageFor', who)}
+          onclick={() => onstage?.(field)}
+        >
+          {stage.staged ? (stage.upToDate ? t('listing:compare.stagedFromRepo') : t('listing:compare.stageAgain')) : t('listing:compare.stageFromRepo')}
         </Button>
       {:else if stage && stage.state === 'disabled'}
-        <Button size="sm" icon="layers" disabled title={stage.reason ?? undefined}>Stage from repo<span class="visually-hidden">: {field.label} ({field.locale}). {stage.reason}</span></Button>
+        <Button size="sm" icon="layers" disabled title={stage.reason ?? undefined} aria-label={t('listing:compare.stageDisabledFor', { ...who, reason: stage.reason ?? '' })}>{t('listing:compare.stageFromRepo')}</Button>
       {:else if stage && stage.state === 'not_pushable'}
-        <span class="muted small" title={stage.reason ?? undefined}>Not part of a draft push</span>
+        <span class="muted small" title={stage.reason ?? undefined}>{t('listing:compare.notPartOfPush')}</span>
       {/if}
       {#if stage && stage.staged}
-        <Button size="sm" variant="ghost" icon="x" disabled={stageBusy} onclick={() => stage.staged && onunstage?.(stage.staged.id, field)}>Unstage<span class="visually-hidden"> {field.label} ({field.locale})</span></Button>
+        <Button size="sm" variant="ghost" icon="x" disabled={stageBusy} aria-label={t('listing:compare.unstageFor', who)} onclick={() => stage.staged && onunstage?.(stage.staged.id, field)}>{t('listing:compare.unstage')}</Button>
       {/if}
     </div>
     {#if extra}{@render extra()}{/if}
     <div class="quiet">
-      <button type="button" class="link" aria-expanded={showCompare} aria-controls="{uid}-compare" onclick={() => (showCompare = !showCompare)}>
-        {showCompare ? 'Hide the comparison' : 'Compare repository and store'}<span class="visually-hidden"> for {field.label} ({field.locale})</span>
+      <button type="button" class="link" aria-expanded={showCompare} aria-controls="{uid}-compare" aria-label={showCompare ? t('listing:compare.hideFor', who) : t('listing:compare.showFor', who)} onclick={() => (showCompare = !showCompare)}>
+        {showCompare ? t('listing:compare.hide') : t('listing:compare.show')}
       </button>
-      <Button size="sm" variant="ghost" icon="history" onclick={() => onhistory(field)}>History<span class="visually-hidden"> of {field.label} ({field.locale})</span></Button>
+      <Button size="sm" variant="ghost" icon="history" aria-label={t('listing:compare.historyFor', who)} onclick={() => onhistory(field)}>{t('listing:compare.history')}</Button>
     </div>
     <div class="columns" id="{uid}-compare" hidden={!showCompare}>
       {#each columns as col (col.key)}
         {@const u = usage(col.side.value, field.limit, field.unit)}
-        <section class="col" aria-label="{field.label}, {col.title}">
+        <section class="col" aria-label={t('listing:compare.colAria', { field: field.label, column: col.title })}>
           <h4 title={col.hint}>{col.title}</h4>
           {#if col.side.value === null}
-            <p class="none muted">{col.side.observedAt === null ? 'No value' : 'Removed'}</p>
+            <p class="none muted">{col.side.observedAt === null ? t('listing:compare.noValue') : t('listing:compare.removed')}</p>
           {:else}
             <div class="value">
               {#if diff && col.key === 'repo'}
-                <DiffText from={diff.fromValue} to={diff.toValue} side="to" fromName="the store" toName="the repository" />
+                <DiffText from={diff.fromValue} to={diff.toValue} side="to" fromName={t('listing:diff.name.store')} toName={t('listing:diff.name.repository')} />
               {:else if diff && col.key === 'live'}
-                <DiffText from={diff.fromValue} to={diff.toValue} side="from" fromName="the store" toName="the repository" />
+                <DiffText from={diff.fromValue} to={diff.toValue} side="from" fromName={t('listing:diff.name.store')} toName={t('listing:diff.name.repository')} />
               {:else}
                 {col.side.value}
               {/if}
             </div>
             <p class="meta" class:over={u.over}>
-              {usageText(u)}{#if u.over}<span class="visually-hidden"> (over the limit)</span>{/if}
+              {usageText(u)}{#if u.over}<span class="visually-hidden"> {t('listing:history.overLimit')}</span>{/if}
             </p>
           {/if}
           {#if col.side.observedAt !== null}

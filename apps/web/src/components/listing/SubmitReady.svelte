@@ -17,6 +17,7 @@
   import type { Api } from '../../lib/api.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { timeAgo } from '../../lib/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import {
     type SubmitFailure,
@@ -127,7 +128,7 @@ import { byFamily } from '@kiln/core';
       if (mine !== seq) return;
       const failure = classifySubmitFailure(e, 'preview');
       if (failure.kind === 'disabled') submitStore.markDisabled(workspaceId);
-      notice = { tone: failure.kind === 'disabled' ? 'warn' : 'error', title: 'No preview was made', text: failure.message };
+      notice = { tone: failure.kind === 'disabled' ? 'warn' : 'error', title: t('listing:submitReady.noPreview'), text: failure.message };
       if (shouldReloadState(failure)) void submitStore.load(api, workspaceId, app.id);
     } finally {
       if (mine === seq) previewing = false;
@@ -158,7 +159,7 @@ import { byFamily } from '@kiln/core';
       notice = null;
       submitStore.markSubmitted(app.id);
       announcePublished(app.id);
-      announcement = 'The version was sent to the store review. Nothing was released or published.';
+      announcement = t('listing:submitReady.announce');
       toast.success(resultText(done.result));
       void submitStore.load(api, workspaceId, app.id);
     } catch (e) {
@@ -180,17 +181,17 @@ import { byFamily } from '@kiln/core';
           dialogProblem = '';
         } else {
           closeDialog();
-          notice = { tone: 'warn', title: 'Things changed', text: `${failure.message} Preview again.` };
+          notice = { tone: 'warn', title: t('listing:submitReady.changedTitle'), text: t('listing:submitReady.changedText', { message: failure.message }) };
         }
         break;
       case 'outcome_unknown':
         closeDialog();
         submitStore.markUnknown(app.id);
-        notice = { tone: 'error', title: 'Not known whether it was submitted', text: failure.message };
+        notice = { tone: 'error', title: t('listing:submitReady.unknownTitle'), text: failure.message };
         break;
       case 'not_applied':
         // The store did not submit it. The same preview may be confirmed again, by the person, not by this app.
-        dialogProblem = `${failure.message}`;
+        dialogProblem = failure.message;
         break;
       case 'mismatch':
       case 'write_in_progress':
@@ -199,29 +200,29 @@ import { byFamily } from '@kiln/core';
       case 'blocked': {
         closeDialog();
         const items = failure.checks.map((c) => c.message).slice(0, 5);
-        notice = { tone: 'error', title: 'Blocked, nothing was submitted', text: `${failure.message}${items.length > 0 ? ` ${items.join(' ')}` : ''}` };
+        notice = { tone: 'error', title: t('listing:submitReady.blockedTitle'), text: [failure.message, ...items].join(' ') };
         break;
       }
       case 'nothing_pushed':
         closeDialog();
-        notice = { tone: 'info', title: 'Nothing to submit', text: failure.message };
+        notice = { tone: 'info', title: t('listing:submitReady.nothingTitle'), text: failure.message };
         break;
       case 'push_unknown':
         closeDialog();
-        notice = { tone: 'warn', title: 'Preview the draft push first', text: failure.message };
+        notice = { tone: 'warn', title: t('listing:submitReady.previewFirstTitle'), text: failure.message };
         break;
       case 'disabled':
         closeDialog();
         submitStore.markDisabled(workspaceId);
-        notice = { tone: 'warn', title: 'Switched off', text: failure.message };
+        notice = { tone: 'warn', title: t('listing:submitReady.switchedOff'), text: failure.message };
         break;
       case 'forbidden':
         closeDialog();
-        notice = { tone: 'error', title: 'Not allowed', text: failure.message };
+        notice = { tone: 'error', title: t('listing:submitReady.notAllowed'), text: failure.message };
         break;
       default:
         // A refusal of the store, a rate limit and the rest: shown in the dialog; nothing is sent again by itself.
-        dialogProblem = mayConfirmAgain(failure) ? `${failure.message} You can confirm again.` : failure.message;
+        dialogProblem = mayConfirmAgain(failure) ? t('listing:submitReady.confirmAgain', { message: failure.message }) : failure.message;
     }
   }
 </script>
@@ -230,7 +231,7 @@ import { byFamily } from '@kiln/core';
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#if line.kind !== 'hidden'}
-    <div class="ready" class:bare data-testid="submit-ready" role="group" aria-label="Submit for review, {platformLabel(app.platform)}">
+    <div class="ready" class:bare data-testid="submit-ready" role="group" aria-label={t('listing:submitReady.aria', { platform: platformLabel(app.platform) })}>
       {#if !bare}
         <span class="mark"><Icon name="upload" size={14} /></span>
         {#if showPlatform}<PlatformBadge platform={app.platform} tinted />{/if}
@@ -253,19 +254,19 @@ import { byFamily } from '@kiln/core';
         >{line.button}</Button>
       {:else if line.kind === 'off'}
         {#if bare}<span class="text muted">{line.text}</span>{/if}
-        <InfoTip label="About submitting for review" align="end" text={line.note} />
+        <InfoTip label={t('listing:submitReady.infoLabel')} align="end" text={line.note} />
       {:else if line.retry}
-        <Button size="sm" icon="refresh" onclick={retryReads}>Try again</Button>
+        <Button size="sm" icon="refresh" onclick={retryReads}>{t('common:action.tryAgain')}</Button>
       {/if}
     </div>
   {/if}
 
   {#if notice}<Alert tone={notice.tone} title={notice.title} ondismiss={() => (notice = null)}>{notice.text}</Alert>{/if}
   {#if result}
-    <Alert tone="ok" title="Sent for review" ondismiss={() => (result = null)}>
+    <Alert tone="ok" title={t('listing:submitReady.sentTitle')} ondismiss={() => (result = null)}>
       <p class="alert-text">{resultText(result)}</p>
       {#if result.note}<p class="alert-text">{result.note}</p>{/if}
-      <p class="alert-text">To release it, use {byFamily(result.app.platform, { apple: 'App Store Connect', google: 'Play Console' })}; this tool does not publish.</p>
+      <p class="alert-text">{t('listing:submitReady.releaseHint', { console: byFamily(result.app.platform, { apple: 'App Store Connect', google: 'Play Console' }) })}</p>
     </Alert>
   {/if}
 {/if}

@@ -11,6 +11,7 @@
   Give it a {#key preview.confirmHash} so a new preview starts with an empty confirmation.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import {
     type SubmitPreview,
     canConfirmSubmit,
@@ -21,6 +22,7 @@
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
+  import T from '../ui/T.svelte';
   import SubmitPreviewBody from '../publish/SubmitPreviewBody.svelte';
 import { supports } from '@kiln/core';
 
@@ -50,48 +52,49 @@ import { supports } from '@kiln/core';
   const ios = $derived(!supports(preview.app.platform, 'releaseTracks'));
 </script>
 
+{#snippet phraseTag(text: string)}<strong class="phrase">{text}</strong>{/snippet}
 <Modal
   bind:open
   size="lg"
-  title="Submit for {storeLabel(preview.app.platform)}: confirm"
+  title={t('listing:submitDialog.title', { review: storeLabel(preview.app.platform) })}
   description="{preview.app.name} · {versionLine(preview)}"
   dismissible={!busy}
   onclose={oncancel}
 >
   <div class="stack">
-    {#if notice}<Alert tone="warn" title="Something changed">{notice}</Alert>{/if}
+    {#if notice}<Alert tone="warn" title={t('listing:submitDialog.changed')}>{notice}</Alert>{/if}
 
-    <Alert tone="warn" title="This goes to the store's review and cannot be taken back from here.">
+    <Alert tone="warn" title={t('listing:submitDialog.warnTitle')}>
       <p class="para">{releaseStatement(preview.app.platform)}</p>
-      <p class="para">{ios ? 'A submission is cancelled only in App Store Connect.' : 'A review is cancelled only in Play Console.'} It is recorded in the audit log.</p>
+      <p class="para">{ios ? t('listing:submitDialog.cancelApple') : t('listing:submitDialog.cancelGoogle')}</p>
     </Alert>
 
     <SubmitPreviewBody {preview} />
 
     {#if preview.confirmation !== null && preview.confirmationRequired !== false && blocking.length === 0}
       <div class="field">
-        <label for="{uid}-typed">Type <strong class="phrase">{preview.confirmation.phrase}</strong> to confirm</label>
+        <label for="{uid}-typed"><T key="listing:submitDialog.typePhrase" params={{ phrase: preview.confirmation.phrase }} tags={{ link: phraseTag }} /></label>
         {#if preview.confirmation.instruction}<p class="muted small">{preview.confirmation.instruction}</p>{/if}
         <input id="{uid}-typed" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" bind:value={typed} disabled={busy} />
       </div>
     {/if}
 
     {#if preview.confirmationRequired === false && preview.confirmation !== null && blocking.length === 0}
-      <p class="muted small" data-testid="confirm-by-step-up">You will be asked for your password or passkey to confirm. Nothing needs typing.</p>
+      <p class="muted small" data-testid="confirm-by-step-up">{t('listing:submitDialog.stepUp')}</p>
     {/if}
 
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
   </div>
 
   {#snippet footer()}
-    <Button disabled={busy} onclick={() => (open = false)}>{blocking.length > 0 ? 'Close' : 'Cancel'}</Button>
+    <Button disabled={busy} onclick={() => (open = false)}>{blocking.length > 0 ? t('common:action.close') : t('common:action.cancel')}</Button>
     <Button
       variant="danger-solid"
       icon="upload"
       loading={busy}
       disabled={!ready || busy}
       onclick={() => onconfirm(typed)}
-    >Submit for review</Button>
+    >{t('listing:submitDialog.submit')}</Button>
   {/snippet}
 </Modal>
 

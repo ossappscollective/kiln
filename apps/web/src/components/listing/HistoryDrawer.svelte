@@ -9,6 +9,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { actorText, describeSource, historySteps, usage, usageText } from '../../lib/listing/drift.ts';
   import type { ListingHistoryEntry } from '../../lib/types.ts';
@@ -48,19 +49,19 @@
     steps.some((st) => !st.removed && typeof st.previous === 'string' && st.entry.value !== null && st.previous !== st.entry.value),
   );
 
-  const message = (e: unknown) => (e instanceof ApiError ? e.message : 'Something went wrong. Try again.');
+  const message = (e: unknown) => (e instanceof ApiError ? e.message : t('common:error.genericRetry'));
 
   async function load(cursor: string | null) {
     if (!target) return;
     const mine = generation;
-    const t = target;
+    const tgt = target;
     if (cursor === null) loading = true;
     else loadingMore = true;
     problem = '';
     try {
       const page = await api.appListingHistory(workspaceId, appId, {
-        locale: t.locale,
-        field: t.field,
+        locale: tgt.locale,
+        field: tgt.field,
         limit: PAGE,
         ...(cursor === null ? {} : { cursor }),
       });
@@ -118,33 +119,30 @@
     <div class="surface">
       <header>
         <div>
-          <h2 id="{uid}-title">History of {target.label}</h2>
-          <p class="muted">Locale {target.locale}. A new entry is stored only when the value changed.</p>
+          <h2 id="{uid}-title">{t('listing:history.title', { label: target.label })}</h2>
+          <p class="muted">{t('listing:history.intro', { locale: target.locale })}</p>
         </div>
-        <button type="button" class="ghost icon sm" aria-label="Close" onclick={() => (open = false)}>
+        <button type="button" class="ghost icon sm" aria-label={t('common:action.close')} onclick={() => (open = false)}>
           <Icon name="x" />
         </button>
       </header>
 
       <div class="body">
         {#if loading}
-          <div role="status" aria-label="Loading the history" class="stack">
+          <div role="status" aria-label={t('listing:history.loadingAria')} class="stack">
             <Skeleton width="60%" height="16px" />
             <Skeleton width="100%" height="48px" />
             <Skeleton width="40%" height="16px" />
           </div>
         {:else if problem && entries.length === 0}
           <div class="stack">
-            <Alert tone="error" title="Could not load the history">{problem}</Alert>
-            <div><Button icon="refresh" onclick={() => load(null)}>Try again</Button></div>
+            <Alert tone="error" title={t('listing:history.loadFailed')}>{problem}</Alert>
+            <div><Button icon="refresh" onclick={() => load(null)}>{t('common:action.tryAgain')}</Button></div>
           </div>
         {:else if entries.length === 0}
-          <p class="muted">
-            Nothing is recorded for this field yet. Values are recorded when the app is synced with the store
-            and when its repository listing is read.
-          </p>
+          <p class="muted">{t('listing:history.empty')}</p>
         {:else}
-          {#if hasDiff}<p class="muted legend">Underlined words are new compared with the earlier value from the same source.</p>{/if}
+          {#if hasDiff}<p class="muted legend">{t('listing:history.legend')}</p>{/if}
           <ol class="timeline">
             {#each steps as step (step.entry.id)}
               {@const e = step.entry}
@@ -155,21 +153,21 @@
                   {#if e.actor}<span class="muted">{actorText(e.actor)}</span>{/if}
                 </div>
                 {#if step.removed}
-                  <p class="removed muted">The field was removed or is empty{step.previous ? ', it was:' : '.'}</p>
+                  <p class="removed muted">{step.previous ? t('listing:history.removedWas') : t('listing:history.removed')}</p>
                   {#if step.previous}<div class="value old">{step.previous}</div>{/if}
                 {:else if typeof step.previous === 'string' && e.value !== null && step.previous !== e.value}
                   <div class="value">
-                    <DiffText from={step.previous} to={e.value} side="to" fromName="the earlier value" toName="this value" />
+                    <DiffText from={step.previous} to={e.value} side="to" fromName={t('listing:diff.name.earlierValue')} toName={t('listing:diff.name.thisValue')} />
                   </div>
                 {:else if e.value !== null}
                   <div class="value">{e.value}</div>
                 {/if}
                 {#if e.value !== null}
                   {@const u = usage(e.value, target.limit, target.unit)}
-                  <p class="meta" class:over={u.over}>{usageText(u)}{#if u.over}<span class="visually-hidden"> (over the limit)</span>{/if}</p>
+                  <p class="meta" class:over={u.over}>{usageText(u)}{#if u.over}<span class="visually-hidden"> {t('listing:history.overLimit')}</span>{/if}</p>
                 {/if}
                 {#if step.previous === undefined && nextCursor === null}
-                  <p class="meta muted">First recorded value from this source.</p>
+                  <p class="meta muted">{t('listing:history.first')}</p>
                 {/if}
               </li>
             {/each}
@@ -177,7 +175,7 @@
           {#if problem}<Alert tone="error">{problem}</Alert>{/if}
           {#if nextCursor}
             <div class="more">
-              <Button loading={loadingMore} onclick={() => load(nextCursor)}>Load older entries</Button>
+              <Button loading={loadingMore} onclick={() => load(nextCursor)}>{t('listing:history.loadOlder')}</Button>
             </div>
           {/if}
         {/if}

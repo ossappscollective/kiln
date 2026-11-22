@@ -11,10 +11,11 @@
   is never retried (the person previews again, which reads the store); no button submits or publishes.
 -->
 <script lang="ts">
-  import { type Role } from '@kiln/core';
+  import { type Role, platformMeta } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { fileName } from '../../lib/assets/assets.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { usage, usageText } from '../../lib/listing/drift.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import {
@@ -35,7 +36,6 @@
     shouldReloadStaged,
     sourceLabel,
     stagingError,
-    storeName,
     textStatus,
     trayCountText,
   } from '../../lib/staged.ts';
@@ -99,10 +99,10 @@
   const blocked = $derived(pushBlockedReason(view));
   const mayEdit = $derived(canStage(role));
   const pushReason = $derived(
-    availability.state === 'ready' ? blocked : availability.state === 'loading' ? 'Checking whether pushing drafts is switched on.' : availability.message,
+    availability.state === 'ready' ? blocked : availability.state === 'loading' ? t('listing:trayApp.checkingSwitch') : availability.message,
   );
   const busy = $derived(previewing || applying || clearing || removing !== '');
-  const store = $derived(storeName(app.platform));
+  const store = $derived(platformMeta(app.platform).storeName);
 
   let shownFor = '';
   $effect(() => {
@@ -148,7 +148,7 @@
     try {
       const done = await api.unstageItem(workspaceId, app.id, id);
       stagedStore.set(done.staged);
-      announcement = `Removed ${label} from the staged changes.`;
+      announcement = t('listing:trayApp.removed', { label });
       result = null;
     } catch (e) {
       problem = stagingError(e);
@@ -166,8 +166,8 @@
       stagedStore.set(done.staged);
       confirmingClear = false;
       result = null;
-      announcement = 'Cleared all staged changes.';
-      toast.info(`Cleared the staged changes of ${platformLabel(app.platform)}.`);
+      announcement = t('listing:trayApp.cleared');
+      toast.info(t('listing:trayApp.clearedToast', { platform: platformLabel(app.platform) }));
     } catch (e) {
       problem = stagingError(e);
     } finally {
@@ -193,7 +193,7 @@
       if (mine !== seq) return;
       const failure = classifyPushFailure(e, 'preview');
       if (failure.kind === 'disabled') stagedStore.markDisabled(workspaceId);
-      notice = { tone: failure.kind === 'disabled' ? 'warn' : 'error', title: 'No preview was made', text: failure.message };
+      notice = { tone: failure.kind === 'disabled' ? 'warn' : 'error', title: t('listing:trayApp.noPreview'), text: failure.message };
       if (shouldReloadStaged(failure)) void reload();
     } finally {
       if (mine === seq) previewing = false;
@@ -220,7 +220,7 @@
       result = done.result;
       closeDialog();
       notice = null;
-      announcement = 'The staged changes were written to the store draft. Nothing was submitted.';
+      announcement = t('listing:trayApp.written');
       void reload();
     } catch (e) {
       if (mine !== seq) return;
@@ -241,57 +241,54 @@
           dialogProblem = '';
         } else {
           closeDialog();
-          notice = { tone: 'warn', title: 'Things changed', text: `${failure.message} Preview again.` };
+          notice = { tone: 'warn', title: t('listing:trayApp.changedTitle'), text: t('listing:trayApp.changedText', { message: failure.message }) };
         }
         break;
       case 'outcome_unknown':
         closeDialog();
         unknown = true;
-        notice = { tone: 'error', title: 'Not known whether the draft was written', text: failure.message };
+        notice = { tone: 'error', title: t('listing:trayApp.unknownTitle'), text: failure.message };
         break;
       case 'partial': {
         closeDialog();
-        const counts =
-          failure.completed.length > 0
-            ? ` ${failure.completed.length} ${failure.completed.length === 1 ? 'step' : 'steps'} reached the draft.`
-            : failure.matching !== null && failure.total !== null
-              ? ` ${failure.matching} of ${failure.total} items now match.`
-              : '';
-        const failedAt = failure.failed ? ` It stopped at ${failure.failed.target} (${failure.failed.locale}).` : '';
-        notice = {
-          tone: 'error',
-          title: 'Only part of it reached the draft',
-          text: `${failure.message}${counts}${failedAt} What was written stays in the draft. Preview and push again to finish: items that already match are skipped.`,
-        };
+        const parts: string[] = [failure.message];
+        if (failure.completed.length > 0)
+          parts.push(t('listing:trayApp.partial.steps', { count: failure.completed.length }));
+        else if (failure.matching !== null && failure.total !== null)
+          parts.push(t('listing:trayApp.partial.match', { matching: failure.matching, count: failure.total }));
+        if (failure.failed)
+          parts.push(t('listing:trayApp.partial.stoppedAt', { target: failure.failed.target, locale: failure.failed.locale }));
+        parts.push(t('listing:trayApp.partial.closing'));
+        notice = { tone: 'error', title: t('listing:trayApp.partial.title'), text: parts.join(' ') };
         break;
       }
       case 'not_applied':
         closeDialog();
-        notice = { tone: 'info', title: 'Nothing was changed', text: failure.message };
+        notice = { tone: 'info', title: t('listing:trayApp.notChanged'), text: failure.message };
         break;
       case 'disabled':
         closeDialog();
         stagedStore.markDisabled(workspaceId);
-        notice = { tone: 'warn', title: 'Switched off', text: failure.message };
+        notice = { tone: 'warn', title: t('listing:trayApp.switchedOff'), text: failure.message };
         break;
       case 'blocked':
         closeDialog();
         notice = {
           tone: 'error',
-          title: 'Nothing was pushed',
-          text: `${failure.message}${failure.checks.length > 0 ? ` ${failure.checks.map((c) => c.message).slice(0, 3).join(' ')}` : ''}`,
+          title: t('listing:trayApp.nothingPushed'),
+          text: [failure.message, ...failure.checks.map((c) => c.message).slice(0, 3)].join(' '),
         };
         break;
       case 'restage':
         closeDialog();
-        notice = { tone: 'error', title: 'A staged file changed', text: failure.message };
+        notice = { tone: 'error', title: t('listing:trayApp.fileChanged'), text: failure.message };
         break;
       case 'invalid':
         closeDialog();
         notice = {
           tone: 'error',
-          title: 'Nothing was pushed',
-          text: `${failure.message}${failure.problems.length > 0 ? ` ${failure.problems.map((p) => p.message).slice(0, 3).join(' ')}` : ''}`,
+          title: t('listing:trayApp.nothingPushed'),
+          text: [failure.message, ...failure.problems.map((p) => p.message).slice(0, 3)].join(' '),
         };
         break;
       case 'write_in_progress':
@@ -299,11 +296,11 @@
         break;
       case 'forbidden':
         closeDialog();
-        notice = { tone: 'error', title: 'Not allowed', text: failure.message };
+        notice = { tone: 'error', title: t('listing:trayApp.notAllowed'), text: failure.message };
         break;
       default:
         // A refusal of the store, a rate limit and the rest: shown in the dialog; nothing is sent again by itself.
-        dialogProblem = mayConfirmAgain(failure) ? `${failure.message} You can confirm again.` : failure.message;
+        dialogProblem = mayConfirmAgain(failure) ? t('listing:trayApp.confirmAgain', { message: failure.message }) : failure.message;
     }
   }
 
@@ -311,26 +308,26 @@
   const releaseFields = $derived(view?.release ?? []);
 </script>
 
-<div class="app" data-testid="staged-app" aria-label="Staged changes, {platformLabel(app.platform)}" role="group">
+<div class="app" data-testid="staged-app" aria-label={t('listing:trayApp.aria', { platform: platformLabel(app.platform) })} role="group">
   <p class="visually-hidden" role="status">{announcement}</p>
 
   <div class="head">
     <h4>
       {#if showPlatform}<PlatformBadge platform={app.platform} tinted />{/if}
       <span class="muted">{trayCountText(view)}</span>
-      {#if view && view.totals.errors > 0}<Badge tone="bad">{view.totals.errors} {view.totals.errors === 1 ? 'error' : 'errors'}</Badge>{/if}
-      {#if view && view.totals.warnings > 0}<Badge tone="warn">{view.totals.warnings} {view.totals.warnings === 1 ? 'warning' : 'warnings'}</Badge>{/if}
+      {#if view && view.totals.errors > 0}<Badge tone="bad">{t('listing:trayApp.errors', { count: view.totals.errors })}</Badge>{/if}
+      {#if view && view.totals.warnings > 0}<Badge tone="warn">{t('listing:trayApp.warnings', { count: view.totals.warnings })}</Badge>{/if}
     </h4>
     <span class="spacer"></span>
     {#if showItems && mayEdit && !empty}
       {#if confirmingClear}
-        <span class="confirm" role="group" aria-label="Clear all staged changes?">
-          <span>Remove all {itemCount(view)} staged {itemCount(view) === 1 ? 'item' : 'items'}?</span>
-          <Button size="sm" variant="danger" loading={clearing} disabled={busy} onclick={clearAll}>Yes, clear all</Button>
-          <Button size="sm" disabled={clearing} onclick={() => (confirmingClear = false)}>Keep them</Button>
+        <span class="confirm" role="group" aria-label={t('listing:trayApp.clearAria')}>
+          <span>{t('listing:trayApp.removeAll', { count: itemCount(view) })}</span>
+          <Button size="sm" variant="danger" loading={clearing} disabled={busy} onclick={clearAll}>{t('listing:trayApp.yesClear')}</Button>
+          <Button size="sm" disabled={clearing} onclick={() => (confirmingClear = false)}>{t('listing:trayApp.keepThem')}</Button>
         </span>
       {:else}
-        <Button size="sm" icon="trash" disabled={busy} onclick={() => (confirmingClear = true)}>Clear all</Button>
+        <Button size="sm" icon="trash" disabled={busy} onclick={() => (confirmingClear = true)}>{t('listing:trayApp.clearAll')}</Button>
       {/if}
     {/if}
     {#if !showPush}
@@ -345,38 +342,38 @@
         title={pushReason ?? undefined}
         onclick={startPreview}
       >
-        {unknown ? 'Read the draft again…' : 'Push as draft…'}
+        {unknown ? t('listing:trayApp.readDraftAgain') : t('listing:trayApp.pushAsDraft')}
       </Button>
     {:else}
-      <Button size="sm" icon="upload" disabled title={availability.state === 'role' ? availability.message : undefined}>Push as draft…</Button>
+      <Button size="sm" icon="upload" disabled title={availability.state === 'role' ? availability.message : undefined}>{t('listing:trayApp.pushAsDraft')}</Button>
     {/if}
   </div>
 
   {#if !showPush}
     <!-- notes about the push are on its step -->
   {:else if !canPush(role)}
-    <p class="muted note">Pushing a draft to {store} needs the admin or owner role. You can still stage changes{mayEdit ? '' : ' if your role allows it'}.</p>
+    <p class="muted note">{mayEdit ? t('listing:trayApp.roleNote', { store }) : t('listing:trayApp.roleNoteViewer', { store })}</p>
   {:else if availability.state === 'off' || availability.state === 'unknown'}
-    <Alert tone="warn" title={availability.state === 'off' ? 'Pushing drafts is switched off' : 'Could not check the switch'}>{availability.message}</Alert>
+    <Alert tone="warn" title={availability.state === 'off' ? t('listing:trayApp.offTitle') : t('listing:trayApp.unknownSwitchTitle')}>{availability.message}</Alert>
   {:else if blocked !== null && !empty}
     <p class="muted note">{blocked}</p>
   {/if}
 
   {#if loadProblem}
-    <Alert tone="error" title="Could not load the staged changes">
+    <Alert tone="error" title={t('listing:trayApp.loadFailed')}>
       {loadProblem}
-      <div class="retry"><Button size="sm" icon="refresh" onclick={load}>Try again</Button></div>
+      <div class="retry"><Button size="sm" icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
     </Alert>
   {/if}
   {#if problem}<Alert tone="error" ondismiss={() => (problem = '')}>{problem}</Alert>{/if}
   {#if notice && showPush}<Alert tone={notice.tone} title={notice.title} ondismiss={() => (notice = null)}>{notice.text}</Alert>{/if}
   {#if result && showPush}
-    <Alert tone="ok" title={result.confirmedByReread ? 'Written to the draft (confirmed by reading the store back)' : 'Written to the draft'} ondismiss={() => (result = null)}>
+    <Alert tone="ok" title={result.confirmedByReread ? t('listing:trayApp.writtenConfirmed') : t('listing:trayApp.writtenTitle')} ondismiss={() => (result = null)}>
       <p class="alert-text">{resultText(result)}</p>
       {#if result.commit === 'not_sent_for_review'}
-        <p class="alert-text">Google Play holds the changes back from review. Send them for review in Play Console when you are ready.</p>
+        <p class="alert-text">{t('listing:trayApp.playHeld')}</p>
       {:else if result.commit === 'draft_release'}
-        <p class="alert-text">Google Play would not hold the changes back from review for this app, so the draft release was saved without that. A draft release is not served to users: roll it out in the last step or in Play Console.</p>
+        <p class="alert-text">{t('listing:trayApp.playDraftRelease')}</p>
       {/if}
       {#if result.note}<p class="alert-text">{result.note}</p>{/if}
     </Alert>
@@ -385,38 +382,35 @@
   {#if !showItems}
     <!-- the items are on the Review step -->
   {:else if loading && !view}
-    <div role="status" aria-label="Loading the staged changes"><Skeleton width="60%" height="16px" /></div>
+    <div role="status" aria-label={t('listing:trayApp.loadingAria')}><Skeleton width="60%" height="16px" /></div>
   {:else if view && empty}
-    <p class="muted note">
-      Nothing is staged for {platformLabel(app.platform)}. The release steps on the Releases tab stage a build and the notes; on the Listing tab, a field that differs from the store has a "Stage from repo" button;
-      on the Assets tab, a set of repository files has "Stage for store".
-    </p>
+    <p class="muted note">{t('listing:trayApp.empty', { platform: platformLabel(app.platform) })}</p>
   {:else if view}
     {#if view.text.length > 0}
       <section aria-labelledby="{uid}-texts">
-        <h5 id="{uid}-texts">Texts</h5>
+        <h5 id="{uid}-texts">{t('listing:trayApp.texts')}</h5>
         <ul class="items">
-          {#each view.text as t (t.id)}
-            {@const status = textStatus(t)}
-            {@const errors = problemsOf(t, 'error')}
-            {@const warnings = problemsOf(t, 'warning')}
+          {#each view.text as txt (txt.id)}
+            {@const status = textStatus(txt)}
+            {@const errors = problemsOf(txt, 'error')}
+            {@const warnings = problemsOf(txt, 'warning')}
             <li class="item">
               <div class="main">
                 <p class="name">
-                  <strong>{t.label}</strong> <span class="muted">{t.locale}</span>
+                  <strong>{txt.label}</strong> <span class="muted">{txt.locale}</span>
                   <Badge tone={status.tone}>{status.label}</Badge>
-                  <Badge tone="neutral">{sourceLabel(t.source)}</Badge>
-                  {#if pushedLabel(t)}<Badge tone="ok" icon="check">{pushedLabel(t)}</Badge>{/if}
+                  <Badge tone="neutral">{sourceLabel(txt.source)}</Badge>
+                  {#if pushedLabel(txt)}<Badge tone="ok" icon="check">{pushedLabel(txt)}</Badge>{/if}
                 </p>
                 <div class="compare">
                   <div>
-                    <p class="label">In the store (last read)</p>
-                    <p class="text">{#if t.before === null}<span class="muted">No value known</span>{:else}{t.before}{/if}</p>
+                    <p class="label">{t('listing:trayApp.inStoreLastRead')}</p>
+                    <p class="text">{#if txt.before === null}<span class="muted">{t('listing:trayApp.noValueKnown')}</span>{:else}{txt.before}{/if}</p>
                   </div>
                   <div>
-                    <p class="label">Staged</p>
-                    <p class="text">{t.value}</p>
-                    <p class="meta" class:over={errors.length > 0}>{usageText(usage(t.value, t.limit, t.unit))}</p>
+                    <p class="label">{t('listing:trayApp.staged')}</p>
+                    <p class="text">{txt.value}</p>
+                    <p class="meta" class:over={errors.length > 0}>{usageText(usage(txt.value, txt.limit, txt.unit))}</p>
                   </div>
                 </div>
                 {#each errors as p (p.code + p.message)}<p class="problem bad">{p.message}</p>{/each}
@@ -427,10 +421,11 @@
                   size="sm"
                   variant="ghost"
                   icon="x"
-                  loading={removing === t.id}
+                  loading={removing === txt.id}
                   disabled={busy}
-                  onclick={() => remove(t.id, `${t.label} (${t.locale})`)}
-                >Remove<span class="visually-hidden"> {t.label} ({t.locale}) from the staged changes</span></Button>
+                  aria-label={t('listing:trayApp.removeItem', { label: t('listing:trayApp.itemWithLocale', { label: txt.label, locale: txt.locale }) })}
+                  onclick={() => remove(txt.id, t('listing:trayApp.itemWithLocale', { label: txt.label, locale: txt.locale }))}
+                >{t('listing:trayApp.remove')}</Button>
               {/if}
             </li>
           {/each}
@@ -440,7 +435,7 @@
 
     {#if releaseFields.length > 0}
       <section aria-labelledby="{uid}-release">
-        <h5 id="{uid}-release">Release</h5>
+        <h5 id="{uid}-release">{t('listing:trayApp.release')}</h5>
         <ul class="items">
           {#each releaseFields as r (r.id)}
             {@const errors = problemsOf(r, 'error')}
@@ -449,11 +444,11 @@
               <div class="main">
                 <p class="name">
                   <strong>{r.label}</strong>{#if r.locale} <span class="muted">{r.locale}</span>{/if}
-                  <Badge tone={r.status === 'invalid' ? 'bad' : r.localOnly ? 'neutral' : 'info'}>{r.status === 'invalid' ? 'Has an error' : r.localOnly ? 'Kept here only' : 'Staged'}</Badge>
-                  {#if r.pushed}<Badge tone="ok" icon="check">In the store draft</Badge>{/if}
+                  <Badge tone={r.status === 'invalid' ? 'bad' : r.localOnly ? 'neutral' : 'info'}>{r.status === 'invalid' ? t('publish:staged.status.error') : r.localOnly ? t('publish:staged.preview.keptHere') : t('listing:trayApp.staged')}</Badge>
+                  {#if r.pushed}<Badge tone="ok" icon="check">{t('publish:staged.inStoreDraft')}</Badge>{/if}
                 </p>
                 <p class="text">{r.value}</p>
-                {#if r.localOnly}<p class="meta">Never written to the store by a push. You name the share again when you release.</p>{/if}
+                {#if r.localOnly}<p class="meta">{t('listing:trayApp.neverWritten')}</p>{/if}
                 {#each errors as p (p.code + p.message)}<p class="problem bad">{p.message}</p>{/each}
                 {#each warnings as p (p.code + p.message)}<p class="problem warn">{p.message}</p>{/each}
               </div>
@@ -464,8 +459,9 @@
                   icon="x"
                   loading={removing === r.id}
                   disabled={busy}
+                  aria-label={t('listing:trayApp.removeItem', { label: r.locale ? t('listing:trayApp.itemWithLocale', { label: r.label, locale: r.locale }) : r.label })}
                   onclick={() => remove(r.id, r.label)}
-                >Remove<span class="visually-hidden"> {r.label}{r.locale ? ` (${r.locale})` : ''} from the staged changes</span></Button>
+                >{t('listing:trayApp.remove')}</Button>
               {/if}
             </li>
           {/each}
@@ -475,7 +471,7 @@
 
     {#if view.assets.length > 0}
       <section aria-labelledby="{uid}-assets">
-        <h5 id="{uid}-assets">Graphics</h5>
+        <h5 id="{uid}-assets">{t('listing:trayApp.graphics')}</h5>
         <ul class="items">
           {#each view.assets as s (s.id)}
             {@const errors = problemsOf(s, 'error')}
@@ -484,7 +480,7 @@
               <div class="main">
                 <p class="name">
                   <strong>{setTitle(s)}</strong>
-                  <Badge tone={s.status === 'invalid' ? 'bad' : 'info'}>{s.status === 'invalid' ? 'Has an error' : `${s.files.length} ${s.files.length === 1 ? 'file' : 'files'}`}</Badge>
+                  <Badge tone={s.status === 'invalid' ? 'bad' : 'info'}>{s.status === 'invalid' ? t('publish:staged.status.error') : t('publish:staged.count.files', { count: s.files.length })}</Badge>
                   <Badge tone="neutral">{sourceLabel(s.source)}</Badge>
                   {#if pushedLabel(s)}<Badge tone="ok" icon="check">{pushedLabel(s)}</Badge>{/if}
                 </p>
@@ -499,8 +495,9 @@
                   icon="x"
                   loading={removing === s.id}
                   disabled={busy}
+                  aria-label={t('listing:trayApp.removeItem', { label: setTitle(s) })}
                   onclick={() => remove(s.id, setTitle(s))}
-                >Remove<span class="visually-hidden"> {setTitle(s)} from the staged changes</span></Button>
+                >{t('listing:trayApp.remove')}</Button>
               {/if}
             </li>
           {/each}

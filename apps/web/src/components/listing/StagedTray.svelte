@@ -14,7 +14,8 @@
   import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { NOT_SUBMITTED, SUBMIT_NEXT_STEP, itemCount, pushAvailability } from '../../lib/staged.ts';
+  import { t } from '../../lib/i18n/t.ts';
+  import { itemCount, notSubmittedNote, pushAvailability, submitNextStepNote } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { trayIsFull, trayLine } from '../../lib/staged-tray.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -84,11 +85,11 @@
     {/each}
 
     <details class="how">
-      <summary>How staged changes reach a store</summary>
+      <summary>{t('listing:tray.howTitle')}</summary>
       <p class="muted note">
-        Changes collect here, one tray per store, and are pushed to the store's draft in one batch after a preview. {NOT_SUBMITTED}
+        {t('listing:tray.howBody', { note: notSubmittedNote() })}
       </p>
-      <p class="muted note submit-note"><Icon name="info" size={14} /> {SUBMIT_NEXT_STEP}</p>
+      <p class="muted note submit-note"><Icon name="info" size={14} /> {submitNextStepNote()}</p>
     </details>
   </div>
 {/snippet}
@@ -97,25 +98,25 @@
   <section class="tray card" aria-labelledby="{uid}-title" data-testid="staged-tray">
     <div class="stack">
       <div class="head">
-        <h3 id="{uid}-title"><Icon name="layers" size={16} /> Staged changes</h3>
-        <Badge tone="neutral">Store write, gated</Badge>
+        <h3 id="{uid}-title"><Icon name="layers" size={16} /> {t('listing:tray.title')}</h3>
+        <Badge tone="neutral">{t('listing:tray.badge')}</Badge>
       </div>
       {@render content()}
     </div>
   </section>
 {:else}
   <!-- Nothing staged, switched off or failed to load: one slim line. The full tray is one click away. -->
-  <section class="tray slim" aria-label="Staged changes" data-testid="staged-tray">
+  <section class="tray slim" aria-label={t('listing:tray.title')} data-testid="staged-tray">
     <Disclosure stateKey="staged.slim" variant="boxed">
       {#snippet summary()}
-        <span class="title"><Icon name="layers" size={14} /> Staged changes</span>
+        <span class="title"><Icon name="layers" size={14} /> {t('listing:tray.title')}</span>
         <span class="line {line.tone}">{line.text}</span>
       {/snippet}
-      {#snippet meta()}<Badge tone="neutral">Store write, gated</Badge>{/snippet}
+      {#snippet meta()}<Badge tone="neutral">{t('listing:tray.badge')}</Badge>{/snippet}
       {@render content()}
     </Disclosure>
     {#if retry}
-      <div class="retry"><Button size="sm" icon="refresh" onclick={() => loadAll(true)}>Try again</Button></div>
+      <div class="retry"><Button size="sm" icon="refresh" onclick={() => loadAll(true)}>{t('common:action.tryAgain')}</Button></div>
     {/if}
   </section>
 {/if}

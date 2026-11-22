@@ -8,17 +8,18 @@
   Give it a {#key preview.confirmHash} so a new preview starts with an empty confirmation.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import {
-    NOT_SUBMITTED,
     type DraftPreview,
     canConfirmPush,
     confirmPhrase,
-    storeName,
+    notSubmittedNote,
     versionText,
   } from '../../lib/staged.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
+  import T from '../ui/T.svelte';
   import PushPreviewBody from '../publish/PushPreviewBody.svelte';
 import { platformMeta } from '@kiln/core';
 
@@ -46,46 +47,42 @@ import { platformMeta } from '@kiln/core';
 
   const phrase = $derived(confirmPhrase(preview));
   const ready = $derived(canConfirmPush(preview, typed, ack));
-  const store = $derived(storeName(preview.app.platform));
+  const store = $derived(platformMeta(preview.app.platform).storeName);
   const version = $derived(versionText(preview));
 </script>
 
 <Modal
   bind:open
   size="lg"
-  title="Push to the {platformMeta(preview.app.platform).storeName} draft: confirm"
+  title={t('listing:pushDialog.title', { store })}
   description="{preview.app.name}{version ? ` · ${version}` : ''}"
   dismissible={!busy}
   onclose={oncancel}
 >
   <div class="stack">
-    {#if notice}<Alert tone="warn" title="Something changed">{notice}</Alert>{/if}
+    {#if notice}<Alert tone="warn" title={t('listing:pushDialog.changed')}>{notice}</Alert>{/if}
 
-    <Alert tone="info" title="This writes a draft. It does not submit anything.">
-      {NOT_SUBMITTED}
-      The items below replace what the draft in {store} holds for those fields. If someone else is editing the draft there, their edit
-      to these fields is replaced. It is recorded in the audit log.
+    <Alert tone="info" title={t('listing:pushDialog.draftTitle')}>
+      {t('listing:pushDialog.draftBody', { note: notSubmittedNote(), store })}
     </Alert>
 
     <PushPreviewBody {preview} />
 
     <div class="field">
-      <label for="{uid}-typed">Type <strong>{phrase}</strong> to confirm</label>
+      <label for="{uid}-typed"><T key="listing:pushDialog.typeName" params={{ phrase }} /></label>
       <input id="{uid}-typed" type="text" autocomplete="off" spellcheck="false" bind:value={typed} disabled={busy || preview.summary.nothingToDo} />
     </div>
 
     <label class="check">
       <input type="checkbox" bind:checked={ack} disabled={busy || preview.summary.nothingToDo} />
-      <span>
-        I have read the changes above. I want them written to the {store} draft now, and I know that nothing is submitted or published by this.
-      </span>
+      <span>{t('listing:pushDialog.ack', { store })}</span>
     </label>
 
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
   </div>
 
   {#snippet footer()}
-    <Button disabled={busy} onclick={() => (open = false)}>{preview.summary.nothingToDo ? 'Close' : 'Cancel'}</Button>
-    <Button variant="danger-solid" icon="upload" loading={busy} disabled={!ready || busy} onclick={onconfirm}>Push to the draft</Button>
+    <Button disabled={busy} onclick={() => (open = false)}>{preview.summary.nothingToDo ? t('common:action.close') : t('common:action.cancel')}</Button>
+    <Button variant="danger-solid" icon="upload" loading={busy} disabled={!ready || busy} onclick={onconfirm}>{t('listing:pushDialog.push')}</Button>
   {/snippet}
 </Modal>

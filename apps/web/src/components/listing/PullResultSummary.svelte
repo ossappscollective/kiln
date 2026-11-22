@@ -5,11 +5,13 @@
   (called before the link to the change set is followed), ondismiss.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { groupSkipped, skipSubject, summarizePull, targetText } from '../../lib/listing/pull.ts';
   import { reviewHref } from '../../lib/repository-intent.ts';
   import type { PullResult } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
+  import T from '../ui/T.svelte';
 
   let {
     result,
@@ -27,7 +29,7 @@
   const groups = $derived(groupSkipped(result.skipped));
 </script>
 
-<Alert tone={summary.tone} title="Pull into the repository" {ondismiss}>
+<Alert tone={summary.tone} title={t('listing:pullResult.title')} {ondismiss}>
   <p class="line">{summary.headline}</p>
   {#each summary.details as detail (detail)}
     <p class="line">{detail}</p>
@@ -35,16 +37,16 @@
   <p class="line muted">{targetText(result.target)}</p>
   {#if result.changeSet}
     <p class="line">
-      <a href={reviewHref} onclick={() => onreview(result)}>Review the draft in the Change sets tab of {result.target.repository}</a>
+      <T key="listing:pullResult.reviewLink" params={{ repository: result.target.repository }} tags={{ link: reviewLink }} />
     </p>
     <details>
-      <summary>What changes ({result.changes.length})</summary>
+      <summary>{t('listing:pullResult.changes', { count: result.changes.length })}</summary>
       <ul>
         {#each result.changes as change (change.locale + change.field)}
           <li>
-            {change.locale} · {change.label}
-            {#if change.newLocale}<Badge tone="info">new locale</Badge>{/if}
-            {#if change.repoLocale !== change.locale}<span class="muted">(written to {change.repoLocale})</span>{/if}
+            {t('listing:pullResult.changeLine', { locale: change.locale, label: change.label })}
+            {#if change.newLocale}<Badge tone="info">{t('listing:pullResult.newLocale')}</Badge>{/if}
+            {#if change.repoLocale !== change.locale}<span class="muted">{t('listing:pullResult.writtenTo', { locale: change.repoLocale })}</span>{/if}
           </li>
         {/each}
       </ul>
@@ -52,18 +54,19 @@
   {/if}
   {#if groups.length > 0}
     <details>
-      <summary>Left out ({result.skipped.length})</summary>
+      <summary>{t('listing:pullResult.leftOut', { count: result.skipped.length })}</summary>
       {#each groups as group (group.reason)}
         <h4>{group.label}</h4>
         <ul>
           {#each group.items as item (item.locale + (item.field ?? ''))}
-            <li><strong>{skipSubject(item, labelOf)}.</strong> {item.message}</li>
+            <li><T key="listing:pullResult.skipLine" params={{ subject: skipSubject(item, labelOf), message: item.message }} /></li>
           {/each}
         </ul>
       {/each}
     </details>
   {/if}
 </Alert>
+{#snippet reviewLink(text: string)}<a href={reviewHref} onclick={() => onreview(result)}>{text}</a>{/snippet}
 
 <style>
   .line {
