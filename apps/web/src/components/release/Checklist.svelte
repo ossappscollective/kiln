@@ -7,7 +7,8 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { doneBy, moveId, planErrorMessage } from '../../lib/release.ts';
   import { checklistView } from '../../lib/release-detail.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -56,7 +57,7 @@
       .then((r) => {
         if (!live) return;
         templates = r.templates;
-        if (!templates.some((t) => t.id === untrack(() => templateId))) templateId = templates[0]?.id ?? '';
+        if (!templates.some((tpl) => tpl.id === untrack(() => templateId))) templateId = templates[0]?.id ?? '';
       })
       .catch(() => {
         if (live) templates = [];
@@ -89,7 +90,7 @@
   async function toggle(item: PlanItem, box: HTMLInputElement) {
     const done = box.checked;
     const result = await run(() => api.updateChecklistItem(workspaceId, plan.appId, plan.id, item.id, { done }));
-    if (result) announcement = `${done ? 'Checked' : 'Unchecked'}: ${item.text}`;
+    if (result) announcement = done ? t('release:cl.announce.checked', { text: item.text }) : t('release:cl.announce.unchecked', { text: item.text });
     // The server did not take it: show what is stored.
     else box.checked = item.done;
   }
@@ -101,7 +102,7 @@
     const result = await run(() => api.addChecklistItem(workspaceId, plan.appId, plan.id, { text, required: newRequired }));
     if (result) {
       newText = '';
-      announcement = `Added: ${text}`;
+      announcement = t('release:cl.announce.added', { text });
     }
   }
 
@@ -123,14 +124,14 @@
 
   async function remove(item: PlanItem) {
     const result = await run(() => api.deleteChecklistItem(workspaceId, plan.appId, plan.id, item.id));
-    if (result) announcement = `Removed: ${item.text}`;
+    if (result) announcement = t('release:cl.announce.removed', { text: item.text });
   }
 
   async function move(item: PlanItem, index: number, delta: -1 | 1) {
     const order = moveId(items.map((i) => i.id), index, delta);
     const result = await run(() => api.reorderChecklist(workspaceId, plan.appId, plan.id, order));
     if (result) {
-      announcement = `Moved ${item.text} ${delta === -1 ? 'up' : 'down'}`;
+      announcement = delta === -1 ? t('release:cl.announce.movedUp', { text: item.text }) : t('release:cl.announce.movedDown', { text: item.text });
       // Keep the keyboard where it was: the same item's button at its new place.
       queueMicrotask(() => document.getElementById(`${uid}-${item.id}-${delta === -1 ? 'up' : 'down'}`)?.focus());
     }
@@ -138,13 +139,15 @@
 
   async function applyTemplate() {
     if (!templateId) return;
-    const picked = templates.find((t) => t.id === templateId);
+    const picked = templates.find((tpl) => tpl.id === templateId);
     const result = await run(() => api.applyChecklistTemplate(workspaceId, plan.appId, plan.id, templateId));
     if (result && picked) {
       const text =
         result.added === 0
-          ? `Everything in “${picked.name}” is already on the checklist.`
-          : `Added ${result.added} ${result.added === 1 ? 'item' : 'items'} from “${picked.name}”${result.skipped > 0 ? `, ${result.skipped} already there` : ''}.`;
+          ? t('release:cl.allThere', { name: picked.name })
+          : result.skipped > 0
+            ? t('release:cl.addedSkipped', { count: result.added, name: picked.name, skipped: result.skipped })
+            : t('release:cl.added', { count: result.added, name: picked.name });
       toast.success(text);
       announcement = text;
     }
@@ -154,9 +157,9 @@
 <section class="card" aria-labelledby="{uid}-title">
   <div class="card-header">
     <div>
-      <h2 id="{uid}-title">Checklist</h2>
+      <h2 id="{uid}-title">{t('release:cl.title')}</h2>
       <p>
-        {view.headline}.{view.hint ? ` ${view.hint}` : ''}
+        {view.hint ? t('release:cl.headlineHint', { headline: view.headline, hint: view.hint }) : t('release:cl.headline', { headline: view.headline })}
       </p>
     </div>
   </div>
@@ -166,7 +169,7 @@
 
   {#if items.length === 0}
     <p class="empty muted">
-      {canWrite ? 'Add the things to check before this version goes out, or start from a template below.' : 'Nobody has added checklist items yet.'}
+      {canWrite ? t('release:cl.emptyCanWrite') : t('release:cl.empty')}
     </p>
   {:else}
     {#snippet row(item: PlanItem)}
@@ -181,10 +184,10 @@
                   void saveEdit(item);
                 }}
               >
-                <TextField label="Item text" bind:value={editText} maxlength={300} disabled={busy} />
+                <TextField label={t('release:cl.itemText')} bind:value={editText} maxlength={300} disabled={busy} />
                 <div class="row">
-                  <Button type="submit" size="sm" variant="primary" loading={busy}>Save</Button>
-                  <Button size="sm" disabled={busy} onclick={() => (editingId = null)}>Cancel</Button>
+                  <Button type="submit" size="sm" variant="primary" loading={busy}>{t('common:action.save')}</Button>
+                  <Button size="sm" disabled={busy} onclick={() => (editingId = null)}>{t('common:action.cancel')}</Button>
                 </div>
               </form>
             {:else}
@@ -193,11 +196,11 @@
                 <span class="text">{item.text}</span>
               </label>
               <span class="tags">
-                {#if item.required}<Badge tone={item.done ? 'accent' : 'warn'}>Required</Badge>{:else}<Badge>Optional</Badge>{/if}
+                {#if item.required}<Badge tone={item.done ? 'accent' : 'warn'}>{t('release:cl.required')}</Badge>{:else}<Badge>{t('release:cl.optional')}</Badge>{/if}
                 {#if item.done && item.doneAt !== null}
                   <span class="muted small">
                     {doneBy(item)},
-                    <time datetime={new Date(item.doneAt).toISOString()} title={fullTime(item.doneAt)}>{timeAgo(item.doneAt, now)}</time>
+                    <time datetime={new Date(item.doneAt).toISOString()} title={formatDateTime(item.doneAt)}>{formatRelativeTime(item.doneAt, { now })}</time>
                   </span>
                 {/if}
               </span>
@@ -207,12 +210,12 @@
             <div class="tools">
               <label class="check small">
                 <input type="checkbox" checked={item.required} disabled={busy} onchange={(e) => setRequired(item, e.currentTarget)} />
-                <span>Required</span>
+                <span>{t('release:cl.required')}</span>
               </label>
-              <Button id="{uid}-{item.id}-up" size="sm" variant="ghost" iconOnly icon="chevron-up" label="Move “{item.text}” up" disabled={busy || index === 0} onclick={() => move(item, index, -1)} />
-              <Button id="{uid}-{item.id}-down" size="sm" variant="ghost" iconOnly icon="chevron-down" label="Move “{item.text}” down" disabled={busy || index === items.length - 1} onclick={() => move(item, index, 1)} />
-              <Button size="sm" variant="ghost" iconOnly icon="edit" label="Edit “{item.text}”" disabled={busy} onclick={() => { editingId = item.id; editText = item.text; }} />
-              <Button size="sm" variant="ghost" iconOnly icon="trash" label="Remove “{item.text}”" disabled={busy} onclick={() => remove(item)} />
+              <Button id="{uid}-{item.id}-up" size="sm" variant="ghost" iconOnly icon="chevron-up" label={t('release:cl.moveUp', { text: item.text })} disabled={busy || index === 0} onclick={() => move(item, index, -1)} />
+              <Button id="{uid}-{item.id}-down" size="sm" variant="ghost" iconOnly icon="chevron-down" label={t('release:cl.moveDown', { text: item.text })} disabled={busy || index === items.length - 1} onclick={() => move(item, index, 1)} />
+              <Button size="sm" variant="ghost" iconOnly icon="edit" label={t('release:cl.edit', { text: item.text })} disabled={busy} onclick={() => { editingId = item.id; editText = item.text; }} />
+              <Button size="sm" variant="ghost" iconOnly icon="trash" label={t('release:cl.remove', { text: item.text })} disabled={busy} onclick={() => remove(item)} />
             </div>
           {/if}
         </li>
@@ -224,7 +227,7 @@
     {/if}
     {#if view.done.length > 0}
       <div class="donegroup">
-        <Disclosure summary="Done ({view.done.length})" open={view.open.length === 0}>
+        <Disclosure summary={t('release:cl.doneGroup', { count: view.done.length })} open={view.open.length === 0}>
           <ul class="items">
             {#each view.done as item (item.id)}{@render row(item)}{/each}
           </ul>
@@ -235,23 +238,23 @@
 
   {#if canWrite}
     <form class="add" onsubmit={add}>
-      <TextField label="Add an item" bind:value={newText} maxlength={300} placeholder="For example: Screenshots uploaded for every device size" disabled={busy} />
-      <label class="check"><input type="checkbox" bind:checked={newRequired} /> <span>Required</span></label>
-      <Button type="submit" icon="plus" loading={busy} disabled={newText.trim() === ''}>Add item</Button>
+      <TextField label={t('release:cl.addItem')} bind:value={newText} maxlength={300} placeholder={t('release:cl.addPlaceholder')} disabled={busy} />
+      <label class="check"><input type="checkbox" bind:checked={newRequired} /> <span>{t('release:cl.required')}</span></label>
+      <Button type="submit" icon="plus" loading={busy} disabled={newText.trim() === ''}>{t('release:cl.addItemButton')}</Button>
     </form>
 
-    <Disclosure summary="Start from a template" open={items.length === 0}>
+    <Disclosure summary={t('release:cl.startTemplate')} open={items.length === 0}>
     <div class="template">
       <div class="field">
-        <label for="{uid}-template">Add the items of a template</label>
+        <label for="{uid}-template">{t('release:cl.addTemplate')}</label>
         <select id="{uid}-template" bind:value={templateId} disabled={busy || templates.length === 0}>
           {#each templates as template (template.id)}
-            <option value={template.id}>{template.name}{template.builtin ? ' (built in)' : ''} · {template.items.length} items</option>
+            <option value={template.id}>{template.builtin ? t('release:cl.templateBuiltin', { name: template.name, count: template.items.length }) : t('release:cl.template', { name: template.name, count: template.items.length })}</option>
           {/each}
         </select>
-        <p class="hint">Items already on the checklist are skipped. Existing items and ticks are not changed.</p>
+        <p class="hint">{t('release:cl.templateHint')}</p>
       </div>
-      <Button disabled={busy || !templateId} onclick={applyTemplate}>Add items</Button>
+      <Button disabled={busy || !templateId} onclick={applyTemplate}>{t('release:cl.addItems')}</Button>
     </div>
     </Disclosure>
   {/if}

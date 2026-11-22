@@ -61,6 +61,8 @@
   import InfoTip from '../../ui/InfoTip.svelte';
   import Skeleton from '../../ui/Skeleton.svelte';
   import { untrack } from 'svelte';
+  import { formatDate, formatList } from '../../../lib/i18n/format.ts';
+  import { t } from '../../../lib/i18n/t.ts';
 
   let {
     api,
@@ -134,7 +136,7 @@
   const builds = $derived<BuildCandidate[]>(candidates !== null && candidates.store === 'appstoreconnect' ? candidates.builds : []);
   const chosenFirst = $derived([...builds].sort((a, b) => Number(b.id === chosenBuildId) - Number(a.id === chosenBuildId)));
   const withNotes = $derived(chosenFirst.filter((b) => hasTestNotes(b.testNotes)));
-  const dateText = (at: number): string => new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  const dateText = (at: number): string => formatDate(at, { day: 'numeric', month: 'short', year: 'numeric' });
 
   /** What the editors show now, per language (a language nobody wrote in yet shows what is staged or in the store). */
   const shown = $derived(rows.reduce<Record<string, string>>((acc, r) => ({ ...acc, [r.locale]: r.draft }), {}));
@@ -217,7 +219,10 @@
   function doCopy(locale: string) {
     const out = copyToLocales(rows.reduce<Record<string, string>>((acc, r) => ({ ...acc, [r.locale]: r.draft }), {}), locale, copyTargets);
     drafts = { ...drafts, ...out.drafts };
-    done = `Copied the ${locale} text to ${out.copied} ${out.copied === 1 ? 'language' : 'languages'}${out.overwritten > 0 ? `, replacing ${out.overwritten} text${out.overwritten === 1 ? '' : 's'}` : ''}. Not staged yet.`;
+    done =
+      out.overwritten > 0
+        ? t('release-stepper:sn.copiedReplacing', { count: out.copied, locale, replaced: t('release-stepper:sn.texts', { count: out.overwritten }) })
+        : t('release-stepper:sn.copied', { count: out.copied, locale });
     copyFor = '';
   }
 
@@ -227,8 +232,10 @@
     drafts = { ...drafts, ...out.drafts };
     tfNote =
       out.filled.length === 0
-        ? 'None of the TestFlight languages matches the languages shown here. Add the language first.'
-        : `Filled ${out.filled.join(', ')} from the TestFlight notes of build ${build.buildNumber ?? ''}.${out.skipped.length > 0 ? ` Not used (not shown here): ${out.skipped.join(', ')}.` : ''} Not staged yet.`;
+        ? t('release-stepper:sn.tfNone')
+        : out.skipped.length > 0
+          ? t('release-stepper:sn.tfFilledSkipped', { filled: formatList(out.filled), number: build.buildNumber ?? '', skipped: formatList(out.skipped) })
+          : t('release-stepper:sn.tfFilled', { filled: formatList(out.filled), number: build.buildNumber ?? '' });
   }
 
   function addLocale() {
@@ -243,13 +250,13 @@
     staging = true;
     problem = '';
     done = '';
-    const failed: string[] = [];
+    const failed: { locale: string; message: string }[] = [];
     let last: StagedChangesView | null = null;
     try {
       if (!apple && stagedField(view, 'track') === null) {
         // Google Play: a release note belongs to a track, and the server asks for it whenever anything of the release is staged.
-        const t = await api.stageReleaseField(workspaceId, app.id, { field: 'track', value: track.trim() === '' ? 'production' : track.trim() });
-        last = t.staged;
+        const staged = await api.stageReleaseField(workspaceId, app.id, { field: 'track', value: track.trim() === '' ? 'production' : track.trim() });
+        last = staged.staged;
       }
       for (const locale of unsaved) {
         const text = (drafts[locale] ?? '').replace(/\r\n?/g, '\n').trim();
@@ -259,16 +266,16 @@
             : await api.stageReleaseField(workspaceId, app.id, { field: 'release_notes', locale, value: text });
           last = out.staged;
         } catch (e) {
-          failed.push(`${locale}: ${stagingError(e)}`);
+          failed.push({ locale, message: stagingError(e) });
         }
       }
       if (last) stagedStore.set(last);
       const ok = unsaved.length - failed.length;
-      if (failed.length > 0) problem = failed.slice(0, 3).join(' ');
+      if (failed.length > 0) problem = failed.slice(0, 3).map((f) => t('release-stepper:sn.failedLocale', { locale: f.locale, message: f.message })).join(' ');
       if (ok > 0) {
-        done = `Staged the notes of ${ok} ${ok === 1 ? 'language' : 'languages'}. Nothing was sent to the store.`;
+        done = t('release-stepper:sn.staged', { count: ok });
         const keep: Record<string, string> = {};
-        for (const k of Object.keys(drafts)) if (unsaved.indexOf(k) < 0 || failed.some((f) => f.startsWith(`${k}:`))) keep[k] = drafts[k] as string;
+        for (const k of Object.keys(drafts)) if (unsaved.indexOf(k) < 0 || failed.some((f) => f.locale === k)) keep[k] = drafts[k] as string;
         drafts = keep;
       }
     } catch (e) {
@@ -286,35 +293,35 @@
       <label for="{pid}-src">{sourceLabel}</label>
       <select id="{pid}-src" bind:value={trSource} disabled={trBusy !== ''}>
         {#each sources as l (l)}<option value={l}>{l}</option>{/each}
-        {#if sources.length === 0}<option value="">No language has text yet</option>{/if}
+        {#if sources.length === 0}<option value="">{t('release-stepper:sn.noLanguageText')}</option>{/if}
       </select>
     </div>
     {#if plan === null || plan.problem !== null}
-      <p class="small bad">{plan === null ? 'Choose a language that has text.' : plan.problem}</p>
+      <p class="small bad">{plan === null ? t('release-stepper:sn.chooseLanguage') : plan.problem}</p>
     {:else if plan.replaces > 0}
-      <p class="small bad">{scope === '*' ? replaceText(plan.replaces) : `The current ${scope} text is replaced.`} {scope === '*' ? `${plan.fills} ${plan.fills === 1 ? 'language is' : 'languages are'} empty.` : ''}</p>
+      <p class="small bad">{scope === '*' ? `${replaceText(plan.replaces)} ${t('release-stepper:sn.fillsEmpty', { count: plan.fills })}` : t('release-stepper:sn.replacesLocale', { locale: scope })}</p>
     {:else}
-      <p class="muted small">{scope === '*' ? `Translates into ${plan.targets.length} ${plan.targets.length === 1 ? 'language' : 'languages'}: ${plan.targets.join(', ')}.` : `Fills the empty ${scope} text.`}</p>
+      <p class="muted small">{scope === '*' ? t('release-stepper:sn.translatesInto', { count: plan.targets.length, list: formatList(plan.targets) }) : t('release-stepper:sn.fillsLocale', { locale: scope })}</p>
     {/if}
     <div class="row">
       {#if machine.visible}
-        <Button size="sm" variant="primary" loading={trBusy === 'machine'} disabled={!machine.enabled || trBusy !== '' || plan === null || plan.problem !== null} onclick={() => translate('machine')}>{scope === '*' ? 'Translate all' : 'Translate'}</Button>
+        <Button size="sm" variant="primary" loading={trBusy === 'machine'} disabled={!machine.enabled || trBusy !== '' || plan === null || plan.problem !== null} onclick={() => translate('machine')}>{scope === '*' ? t('release-stepper:sn.translateAll') : t('release-stepper:sn.translate')}</Button>
       {/if}
       {#if aiState.visible}
-        <Button size="sm" variant="primary" loading={trBusy === 'ai'} disabled={!aiState.enabled || trBusy !== '' || plan === null || plan.problem !== null} onclick={() => translate('ai')}>{scope === '*' ? 'Translate all with AI' : 'Translate with AI'}</Button>
+        <Button size="sm" variant="primary" loading={trBusy === 'ai'} disabled={!aiState.enabled || trBusy !== '' || plan === null || plan.problem !== null} onclick={() => translate('ai')}>{scope === '*' ? t('release-stepper:sn.translateAllAi') : t('release-stepper:sn.translateAi')}</Button>
       {/if}
-      <Button size="sm" variant="ghost" disabled={trBusy !== ''} onclick={() => (trOpen = '')}>Close</Button>
+      <Button size="sm" variant="ghost" disabled={trBusy !== ''} onclick={() => (trOpen = '')}>{t('common:action.close')}</Button>
     </div>
     {#each [machine, aiState] as e, i (i)}
       {#if e.visible && !e.enabled && e.reason}
-        <p class="muted small">{i === 0 ? 'Translate' : 'Translate with AI'}: {e.reason}{#if e.href} <a class="link" href={e.href}>Open Settings</a>{/if}</p>
+        <p class="muted small">{t('release-stepper:sn.engineReason', { engine: i === 0 ? t('release-stepper:sn.translate') : t('release-stepper:sn.translateAi'), reason: e.reason })}{#if e.href} <a class="link" href={e.href}>{t('release-stepper:sn.openSettings')}</a>{/if}</p>
       {/if}
     {/each}
     {#if (machine.visible && machine.enabled && machine.sends) || (aiState.visible && aiState.enabled && aiState.sends)}
       <p class="muted small">
-        {#if machine.visible && machine.enabled}<span>Translate: {machine.sends}</span>{/if}
-        {#if aiState.visible && aiState.enabled}<span>With AI: {aiState.sends}</span>{/if}
-        Nothing is staged and nothing reaches the store; the result only changes the text in the editors.
+        {#if machine.visible && machine.enabled}<span>{t('release-stepper:sn.sendsMachine', { sends: machine.sends })}</span>{/if}
+        {#if aiState.visible && aiState.enabled}<span>{t('release-stepper:sn.sendsAi', { sends: aiState.sends })}</span>{/if}
+        {t('release-stepper:sn.translateNote')}
       </p>
     {/if}
     {#if trResult}
@@ -325,8 +332,8 @@
 
 <div class="stack">
   <p class="lead muted">
-    Staging saves the text in this tool. It reaches the store when you push the draft in the last step.
-    <InfoTip label="About the notes" text="Apple allows 4000 characters, Google Play 500. An empty text cannot be staged here; this tool does not clear a store field." />
+    {t('release-stepper:sn.lead')}
+    <InfoTip label={t('release-stepper:sn.tipLabel')} text={t('release-stepper:sn.tipText')} />
   </p>
 
   {#if !apple && promote !== null && promoteNotes !== null}
@@ -335,25 +342,25 @@
   {/if}
 
   {#if apple}
-    <Disclosure summary="Reuse TestFlight notes" stateKey="stepper-notes-testflight-{app.id}">
-    <section class="tf" aria-label="TestFlight notes">
+    <Disclosure summary={t('release-stepper:sn.reuseTf')} stateKey="stepper-notes-testflight-{app.id}">
+    <section class="tf" aria-label={t('release-stepper:sn.tfNotes')}>
       {#if candidates === null}
-        <p class="muted small">The builds were not read yet. Choose the build in the first step.</p>
+        <p class="muted small">{t('release-stepper:sn.buildsNotRead')}</p>
       {:else if builds.length === 0}
-        <p class="muted small">No builds are listed, so there are no TestFlight notes to use.</p>
+        <p class="muted small">{t('release-stepper:sn.noBuilds')}</p>
       {:else}
         <ul class="tfs">
           {#each chosenFirst.slice(0, 6) as b (b.id)}
-            {@const label = b.buildNumber !== null ? `Build ${b.buildNumber}` : 'This build'}
+            {@const label = b.buildNumber !== null ? t('release-stepper:chosen.build', { number: b.buildNumber }) : t('release-stepper:sn.thisBuild')}
             <li>
-              <span class="small">{testFlightLine(b.testNotes, label)}{b.id === chosenBuildId ? ' (chosen)' : ''}</span>
+              <span class="small">{b.id === chosenBuildId ? t('release-stepper:sn.lineChosen', { line: testFlightLine(b.testNotes, label) }) : testFlightLine(b.testNotes, label)}</span>
               {#if hasTestNotes(b.testNotes)}
-                <Button size="sm" disabled={!mayEdit} onclick={() => useTestFlight(b)}>Use TestFlight notes</Button>
+                <Button size="sm" disabled={!mayEdit} onclick={() => useTestFlight(b)}>{t('release-stepper:sn.useTf')}</Button>
               {/if}
             </li>
           {/each}
         </ul>
-        {#if withNotes.length === 0}<p class="muted small">None of the listed builds has TestFlight notes that could be read.</p>{/if}
+        {#if withNotes.length === 0}<p class="muted small">{t('release-stepper:sn.noTfNotes')}</p>{/if}
         {#if tfNote}<p class="small" role="status">{tfNote}</p>{/if}
       {/if}
     </section>
@@ -361,14 +368,14 @@
   {/if}
 
   {#if mayTranslate && rows.length > 1}
-    <section class="locale" aria-label="Translate all languages">
+    <section class="locale" aria-label={t('release-stepper:sn.translateAllLanguages')}>
       <div class="head">
-        <h3>All languages</h3>
+        <h3>{t('release-stepper:sn.allLanguages')}</h3>
         <span class="spacer"></span>
-        <Button size="sm" aria-expanded={trOpen === '*'} disabled={staging || trBusy !== ''} onclick={() => openTranslate('*')}>Translate all from…</Button>
+        <Button size="sm" aria-expanded={trOpen === '*'} disabled={staging || trBusy !== ''} onclick={() => openTranslate('*')}>{t('release-stepper:sn.translateAllFrom')}</Button>
       </div>
       {#if trOpen === '*'}
-        {@render translatePanel(`${uid}-all`, 'Translate all languages', 'Translate all from', '*')}
+        {@render translatePanel(`${uid}-all`, t('release-stepper:sn.translateAllLanguages'), t('release-stepper:sn.translateAllFromLabel'), '*')}
       {/if}
     </section>
   {/if}
@@ -381,18 +388,18 @@
         <Badge tone={row.state === 'edited' ? 'warn' : row.state === 'staged' ? 'info' : row.state === 'same' ? 'ok' : 'neutral'}>{stateLabel(row.state)}</Badge>
         <span class="count" class:over={row.over}>{row.chars} / {row.limit}</span>
         <span class="spacer"></span>
-        <Button size="sm" aria-expanded={menuFor === row.locale} disabled={!mayEdit} onclick={() => openMenu(row.locale)}>Reuse earlier notes</Button>
-        {#if locales.length > 1}<Button size="sm" aria-expanded={copyFor === row.locale} disabled={!mayEdit || row.draft.trim() === ''} onclick={() => openCopy(row.locale)}>Copy to other languages</Button>{/if}
-        {#if mayTranslate}<Button size="sm" aria-expanded={trOpen === row.locale} aria-label="Translate into {row.locale}" disabled={staging || trBusy !== ''} onclick={() => openTranslate(row.locale)}>Translate…</Button>{/if}
+        <Button size="sm" aria-expanded={menuFor === row.locale} disabled={!mayEdit} onclick={() => openMenu(row.locale)}>{t('release-stepper:sn.reuseEarlier')}</Button>
+        {#if locales.length > 1}<Button size="sm" aria-expanded={copyFor === row.locale} disabled={!mayEdit || row.draft.trim() === ''} onclick={() => openCopy(row.locale)}>{t('release-stepper:sn.copyToOthers')}</Button>{/if}
+        {#if mayTranslate}<Button size="sm" aria-expanded={trOpen === row.locale} aria-label={t('release-stepper:sn.translateInto', { locale: row.locale })} disabled={staging || trBusy !== ''} onclick={() => openTranslate(row.locale)}>{t('release-stepper:sn.translateEllipsis')}</Button>{/if}
       </div>
-      <label class="visually-hidden" for="{id}-text">What is new, {row.locale}</label>
+      <label class="visually-hidden" for="{id}-text">{t('release-stepper:sn.whatIsNew', { locale: row.locale })}</label>
       <textarea id="{id}-text" rows="5" value={row.draft} disabled={!mayEdit || staging || trBusy !== ''} oninput={(e) => setDraft(row.locale, e.currentTarget.value)}></textarea>
-      {#if row.over}<p class="small bad">Over the limit by {row.chars - row.limit} characters. The store would refuse it.</p>{/if}
+      {#if row.over}<p class="small bad">{t('release-stepper:sn.overLimit', { count: row.chars - row.limit })}</p>{/if}
 
       {#if menuFor === row.locale}
-        <div class="panel" role="region" aria-label="Earlier notes, {row.locale}">
+        <div class="panel" role="region" aria-label={t('release-stepper:sn.earlierNotes', { locale: row.locale })}>
           {#if historyState === 'loading'}
-            <div role="status" aria-label="Reading earlier notes"><Skeleton width="60%" height="14px" /></div>
+            <div role="status" aria-label={t('release-stepper:sn.readingEarlier')}><Skeleton width="60%" height="14px" /></div>
           {:else if historyState === 'error'}
             <p class="small bad">{historyMessage}</p>
           {:else if history}
@@ -400,69 +407,69 @@
             {@const line = historyStoreLine(history.store)}
             {#if line}<p class="muted small">{line}</p>{/if}
             {#if options.length === 0}
-              <p class="muted small">No earlier notes were found in {row.locale}.</p>
+              <p class="muted small">{t('release-stepper:sn.noEarlier', { locale: row.locale })}</p>
             {:else}
               <ul class="options">
                 {#each options as o (o.text)}
                   <li>
                     <button type="button" class="option" disabled={o.same} onclick={() => reuse(row.locale, o.text)}>
-                      <span class="pv">{o.preview || 'Empty text'}</span>
+                      <span class="pv">{o.preview || t('release-stepper:sn.emptyText')}</span>
                       {#each o.uses as u (u)}<span class="use">{u}</span>{/each}
-                      {#if o.usesMore > 0}<span class="use">and {o.usesMore} more</span>{/if}
-                      {#if o.same}<span class="use">The editor has this text already.</span>{/if}
-                      {#if o.overLimit !== null}<span class="use bad">{o.overLimit} characters: over the limit for this store.</span>{/if}
-                      {#if o.truncated}<span class="use">The store text was cut when it was read.</span>{/if}
+                      {#if o.usesMore > 0}<span class="use">{t('release-stepper:sn.andMore', { count: o.usesMore })}</span>{/if}
+                      {#if o.same}<span class="use">{t('release-stepper:sn.sameText')}</span>{/if}
+                      {#if o.overLimit !== null}<span class="use bad">{t('release-stepper:sn.overStoreLimit', { count: o.overLimit })}</span>{/if}
+                      {#if o.truncated}<span class="use">{t('release-stepper:sn.cutText')}</span>{/if}
                     </button>
                   </li>
                 {/each}
               </ul>
-              <p class="muted small">Choosing one puts the text in the editor. It replaces what is there. Nothing is staged until you stage the notes.</p>
+              <p class="muted small">{t('release-stepper:sn.chooseNote')}</p>
             {/if}
           {/if}
         </div>
       {/if}
 
       {#if copyFor === row.locale}
-        <div class="panel" role="region" aria-label="Copy {row.locale} to other languages">
+        <div class="panel" role="region" aria-label={t('release-stepper:sn.copyAria', { locale: row.locale })}>
           <fieldset class="targets">
-            <legend class="small">Copy the {row.locale} text to</legend>
+            <legend class="small">{t('release-stepper:sn.copyLegend', { locale: row.locale })}</legend>
             {#each locales.filter((l) => l !== row.locale) as target (target)}
-              <label class="check"><input type="checkbox" checked={copyTargets.indexOf(target) >= 0} onchange={(e) => (copyTargets = e.currentTarget.checked ? [...copyTargets, target] : copyTargets.filter((t) => t !== target))} /> <span>{target}</span></label>
+              <label class="check"><input type="checkbox" checked={copyTargets.indexOf(target) >= 0} onchange={(e) => (copyTargets = e.currentTarget.checked ? [...copyTargets, target] : copyTargets.filter((c) => c !== target))} /> <span>{target}</span></label>
             {/each}
           </fieldset>
-          {#if copyOverwrites > 0}<p class="small bad">This replaces {copyOverwrites} {copyOverwrites === 1 ? 'text' : 'texts'} that {copyOverwrites === 1 ? 'is' : 'are'} not empty.</p>{/if}
+          {#if copyOverwrites > 0}<p class="small bad">{t('release-stepper:sn.replacesTexts', { count: copyOverwrites })}</p>{/if}
           <div class="row">
-            <Button size="sm" variant="primary" disabled={copyTargets.length === 0} onclick={() => doCopy(row.locale)}>Copy</Button>
-            <Button size="sm" variant="ghost" onclick={() => (copyFor = '')}>Cancel</Button>
+            <Button size="sm" variant="primary" disabled={copyTargets.length === 0} onclick={() => doCopy(row.locale)}>{t('common:action.copy')}</Button>
+            <Button size="sm" variant="ghost" onclick={() => (copyFor = '')}>{t('common:action.cancel')}</Button>
           </div>
         </div>
       {/if}
 
       {#if trOpen === row.locale}
-        {@render translatePanel(`${id}-tr`, `Translate into ${row.locale}`, `Translate from`, row.locale)}
+        {@render translatePanel(`${id}-tr`, t('release-stepper:sn.translateInto', { locale: row.locale }), t('release-stepper:sn.translateFrom'), row.locale)}
       {/if}
     </section>
   {/each}
 
   {#if rows.length === 0}
-    <p class="muted">No language is known for this release yet. Add one below.</p>
+    <p class="muted">{t('release-stepper:sn.noLanguages')}</p>
   {/if}
 
   {#if mayEdit}
     <div class="add">
-      <label for="{uid}-add">Add a language</label>
-      <input id="{uid}-add" type="text" placeholder="For example de-DE" autocomplete="off" spellcheck="false" bind:value={newLocale} onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocale(); } }} />
-      <Button size="sm" disabled={!isNoteLocale(newLocale) || locales.indexOf(newLocale.trim().replace(/_/g, '-')) >= 0} onclick={addLocale}>Add</Button>
+      <label for="{uid}-add">{t('release-stepper:sn.addLanguage')}</label>
+      <input id="{uid}-add" type="text" placeholder={t('release-stepper:sn.addPlaceholder')} autocomplete="off" spellcheck="false" bind:value={newLocale} onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocale(); } }} />
+      <Button size="sm" disabled={!isNoteLocale(newLocale) || locales.indexOf(newLocale.trim().replace(/_/g, '-')) >= 0} onclick={addLocale}>{t('release-stepper:sn.add')}</Button>
     </div>
 
     <div class="row step-actions">
       <Button loading={staging} disabled={unsaved.length === 0 || staging || overs > 0} onclick={stageNotes}>
-        Stage the notes{unsaved.length > 0 ? ` (${unsaved.length})` : ''}
+        {unsaved.length > 0 ? t('release-stepper:sn.stageCount', { count: unsaved.length }) : t('release-stepper:sn.stage')}
       </Button>
-      {#if overs > 0}<span class="small bad">Shorten the texts over the limit first.</span>{:else if unsaved.length === 0}<span class="muted small">Nothing to stage: every language is as staged or as in the store.</span>{/if}
+      {#if overs > 0}<span class="small bad">{t('release-stepper:sn.shorten')}</span>{:else if unsaved.length === 0}<span class="muted small">{t('release-stepper:sn.nothingToStage')}</span>{/if}
     </div>
   {:else}
-    <p class="muted small">Staging needs the member role or above.</p>
+    <p class="muted small">{t('release-stepper:sn.needMember')}</p>
   {/if}
 
   {#if problem}<Alert tone="error" ondismiss={() => (problem = '')}>{problem}</Alert>{/if}

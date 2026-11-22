@@ -16,6 +16,7 @@
 <script lang="ts">
   import type { Role } from '@kiln/core';
   import type { Api } from '../../../lib/api.ts';
+  import { t } from '../../../lib/i18n/t.ts';
   import { fractionOf } from '../../../lib/play-check.ts';
   import { canRelease, percentFromFraction } from '../../../lib/store-release.ts';
   import { canSubmit } from '../../../lib/store-submit.ts';
@@ -72,7 +73,7 @@
 
   /** Whether "Review and publish" can be pressed, and the one line that says why not. */
   export function publishState(): { enabled: boolean; reason: string } {
-    return pending ? pending.publishState() : { enabled: false, reason: 'Reading what is pending.' };
+    return pending ? pending.publishState() : { enabled: false, reason: t('release-stepper:sc.reading') };
   }
 </script>
 
@@ -82,7 +83,7 @@
   {/if}
 
   {#if steps !== null && steps.length > 0}
-    <ol class="plan" aria-label="What will be written, in order" data-testid="confirm-plan">
+    <ol class="plan" aria-label={t('release-stepper:sc.planAria')} data-testid="confirm-plan">
       {#each steps as s, i (s.type)}
         <li class="item">
           <span class="num" aria-hidden="true">{i + 1}</span>
@@ -98,33 +99,33 @@
 
   <PendingChanges bind:this={pending} {api} {workspaceId} {role} members={[app]} compact list={false} headless onpublished={onreleased} />
 
-  <Disclosure summary="Do just one step (advanced)" stateKey="stepper-advanced-{app.id}">
+  <Disclosure summary={t('release-stepper:sc.advanced')} stateKey="stepper-advanced-{app.id}">
     <div class="stack loose">
       <p class="muted small">
-        These steps write to the store. Each one shows what will happen first and asks you to confirm. They are separate: pushing a draft does not submit it, and submitting does not release it.
+        {t('release-stepper:sc.advancedNote')}
       </p>
-      <section class="part" aria-label="Push the draft">
-        <h4>1. Push the draft</h4>
+      <section class="part" aria-label={t('release-stepper:sc.pushAria')}>
+        <h4>{t('release-stepper:sc.push')}</h4>
         <StagedTrayApp {api} {workspaceId} {role} {app} part="push" />
       </section>
       {#if canSubmit(role)}
-        <section class="part" aria-label="Submit for review">
-          <h4>2. Submit for review</h4>
+        <section class="part" aria-label={t('release-stepper:sc.submitAria')}>
+          <h4>{t('release-stepper:sc.submit')}</h4>
           <SubmitReady {api} {workspaceId} {role} {app} />
-          <p class="muted small">A line appears here once a draft push is waiting to be submitted.</p>
+          <p class="muted small">{t('release-stepper:sc.submitNote')}</p>
         </section>
       {/if}
       {#if canRelease(role)}
-        <section class="part" aria-label="Release">
-          <h4>3. Release</h4>
+        <section class="part" aria-label={t('release-stepper:sc.releaseAria')}>
+          <h4>{t('release-stepper:sc.release')}</h4>
           <StoreRelease {api} {workspaceId} {role} {app} version={apple ? version : null} track={apple ? '' : track} versionCodes={apple ? [] : codes} {stagedShare} stagedFields={!apple && track.trim() !== '' && codes.length > 0} {onreleased} />
           {#if !apple && percentFromFraction(stagedShare) !== ''}
-            <p class="muted small">You staged an intended share earlier. It is not used: you type the share again when you release.</p>
+            <p class="muted small">{t('release-stepper:sc.shareNote')}</p>
           {/if}
         </section>
       {/if}
-      <section class="part" aria-label="Rollout">
-        <h4>{canRelease(role) ? '4' : '3'}. Rollout</h4>
+      <section class="part" aria-label={t('release-stepper:sc.rolloutAria')}>
+        <h4>{t('release-stepper:sc.rollout', { n: canRelease(role) ? 4 : 3 })}</h4>
         <RolloutControls {api} {workspaceId} {role} members={[app]} {releases} />
       </section>
     </div>

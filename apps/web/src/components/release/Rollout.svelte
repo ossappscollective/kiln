@@ -12,7 +12,9 @@
   import { untrack } from 'svelte';
   import { byFamily, checkRolloutAction, formatPercent, MAX_ROLLOUT_STEPS, platformMeta, type RolloutSummary, type RolloutTemplate, rolloutTemplatesFor } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
-  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
+  import T from '../ui/T.svelte';
   import {
     type DraftStep,
     addDraftStep,
@@ -70,7 +72,7 @@
   let confirmClear = $state(false);
 
   const templates = $derived<RolloutTemplate[]>(rolloutTemplatesFor(plan.appPlatform));
-  const chosen = $derived(templates.find((t) => t.id === templateId) ?? templates[0]);
+  const chosen = $derived(templates.find((tpl) => tpl.id === templateId) ?? templates[0]);
   const steps = $derived(view?.steps ?? []);
   const comparison = $derived(view?.comparison ?? null);
   const store = $derived(view?.store ?? null);
@@ -142,16 +144,23 @@
     const result = await run(() => api.setRollout(workspaceId, plan.appId, plan.id, body));
     if (result) {
       editing = false;
-      announcement = `Planned: ${template.name}.`;
-      toast.success('Rollout plan saved. Nothing was sent to a store.');
+      announcement = t('release:rollout.announce.planned', { name: template.name });
+      toast.success(t('release:rollout.toast.saved'));
     }
   }
 
   async function act(step: RolloutStep, action: 'complete' | 'skip' | 'reopen', fromStore = false) {
     const result = await run(() => api.rolloutStep(workspaceId, plan.appId, plan.id, step.id, action, { fromStore }));
     if (result) {
-      const verb = action === 'complete' ? (fromStore ? 'Confirmed from the store' : 'Done') : action === 'skip' ? 'Skipped' : 'Reopened';
-      announcement = `${verb}: step at ${formatPercent(step.percent)}.`;
+      const percent = formatPercent(step.percent);
+      announcement =
+        action === 'complete'
+          ? fromStore
+            ? t('release:rollout.announce.confirmedFromStore', { percent })
+            : t('release:rollout.announce.done', { percent })
+          : action === 'skip'
+            ? t('release:rollout.announce.skipped', { percent })
+            : t('release:rollout.announce.reopened', { percent });
     }
   }
 
@@ -179,7 +188,7 @@
     );
     if (result) {
       editing = false;
-      announcement = 'Rollout steps saved.';
+      announcement = t('release:rollout.announce.stepsSaved');
     }
   }
 
@@ -187,13 +196,13 @@
     event.preventDefault();
     const startsAt = parseLocalInput(startDraft);
     if (startsAt !== null && Number.isNaN(startsAt)) {
-      startProblem = 'A date and time.';
+      startProblem = t('release:rollout.startInvalid');
       return;
     }
     startProblem = '';
     const template = view?.template;
     const result = await run(() => api.setRollout(workspaceId, plan.appId, plan.id, { kind: 'apple_phased', ...(template ? { template } : {}), startsAt }));
-    if (result) announcement = 'Expected start saved.';
+    if (result) announcement = t('release:rollout.announce.startSaved');
   }
 
   async function clear() {
@@ -201,7 +210,7 @@
     if (result) {
       confirmClear = false;
       editing = false;
-      toast.success('The rollout plan was removed. Nothing in a store was changed.');
+      toast.success(t('release:rollout.toast.removed'));
     }
   }
 </script>
@@ -209,15 +218,13 @@
 <section class="card" aria-labelledby="{uid}-title" aria-busy={loading}>
   <div class="card-header">
     <div>
-      <h2 id="{uid}-title">Staged rollout</h2>
-      <p>
-        Planning only: this does not start, change or stop a rollout in {platformMeta(plan.appPlatform).consoleName}. Marking a step done only records it here.
-      </p>
+      <h2 id="{uid}-title">{t('release:rollout.title')}</h2>
+      <p>{t('release:rollout.planningOnly', { console: platformMeta(plan.appPlatform).consoleName })}</p>
     </div>
     {#if view && view.kind !== null && canWrite && !editing}
       <div class="row">
-        {#if view.kind === 'steps'}<Button size="sm" icon="edit" disabled={busy} onclick={startEdit}>Edit steps</Button>{/if}
-        <Button size="sm" variant="ghost" icon="trash" disabled={busy} onclick={() => { problem = ''; confirmClear = true; }}>Remove the plan</Button>
+        {#if view.kind === 'steps'}<Button size="sm" icon="edit" disabled={busy} onclick={startEdit}>{t('release:rollout.editSteps')}</Button>{/if}
+        <Button size="sm" variant="ghost" icon="trash" disabled={busy} onclick={() => { problem = ''; confirmClear = true; }}>{t('release:rollout.removePlan')}</Button>
       </div>
     {/if}
   </div>
@@ -226,16 +233,16 @@
   {#if problem}<Alert tone="error">{problem}</Alert>{/if}
 
   {#if loading}
-    <div role="status" aria-label="Loading the rollout plan" class="stack">
+    <div role="status" aria-label={t('release:rollout.loading')} class="stack">
       <Skeleton width="60%" height="16px" />
       <Skeleton width="80%" height="16px" />
     </div>
   {:else if loadProblem}
-    <Alert tone="error" title="Could not load the rollout plan">{loadProblem}</Alert>
+    <Alert tone="error" title={t('release:rollout.loadFailed')}>{loadProblem}</Alert>
   {:else if view}
     {#if view.kind === null}
       <p class="muted line">
-        {canWrite ? 'No rollout is planned for this version. Pick a template to start; you can change the steps afterwards.' : 'No rollout is planned for this version.'}
+        {canWrite ? t('release:rollout.noneCanWrite') : t('release:rollout.none')}
       </p>
     {:else}
       <p class="line headline">{rolloutHeadline(view.summary)}</p>
@@ -244,34 +251,38 @@
     {#if view.kind === 'steps' && comparison}
       <div class="compare" class:warn={comparisonTone(comparison) === 'warn'} class:ok={comparisonTone(comparison) === 'ok'}>
         <div class="compare-head">
-          <h3>Store and plan</h3>
+          <h3>{t('release:rollout.compare.title')}</h3>
           <Badge tone={comparisonTone(comparison)} dot>{comparisonLabel(comparison)}</Badge>
         </div>
         <dl class="facts">
           <div>
-            <dt>The store says</dt>
+            <dt>{t('release:rollout.compare.storeSays')}</dt>
             <dd>
               {#if store && store.percent !== null}
-                <strong>{formatPercent(store.percent)}</strong>{store.inferred ? ' (live for everyone)' : ''}
+                {#if store.inferred}<T key="release:rollout.compare.shareInferred" params={{ percent: formatPercent(store.percent) }} />{:else}<T key="release:rollout.compare.share" params={{ percent: formatPercent(store.percent) }} />{/if}
               {:else if store}
-                No share reported
+                {t('release:rollout.compare.noShare')}
               {:else}
-                Nothing synced for this version
+                {t('release:rollout.compare.nothingSynced')}
               {/if}
               {#if store}
                 <span class="muted small">
-                  Observed from {storeSource}, read only{store.syncedAt !== null ? ', synced ' : ''}{#if store.syncedAt !== null}<time datetime={new Date(store.syncedAt).toISOString()} title={fullTime(store.syncedAt)}>{timeAgo(store.syncedAt, now)}</time>{/if}.
+                  {#if store.syncedAt !== null}
+                    <T key="release:rollout.compare.observedSynced" params={{ source: storeSource, ago: formatRelativeTime(store.syncedAt, { now }) }} tags={{ link: syncedTime }} />
+                  {:else}
+                    {t('release:rollout.compare.observed', { source: storeSource })}
+                  {/if}
                 </span>
               {/if}
             </dd>
           </div>
           <div>
-            <dt>The plan says</dt>
+            <dt>{t('release:rollout.compare.planSays')}</dt>
             <dd>
               {#if comparison.planStep}
-                <strong>Step {comparison.planStep.index} of {comparison.planStep.total}</strong> = {formatPercent(comparison.planStep.percent)}
+                <T key="release:rollout.compare.planStep" params={{ index: comparison.planStep.index, total: comparison.planStep.total, percent: formatPercent(comparison.planStep.percent) }} />
               {:else}
-                No step done yet
+                {t('release:rollout.compare.noStepDone')}
               {/if}
             </dd>
           </div>
@@ -291,31 +302,31 @@
               <li class="edit-row">
                 <div class="edit-grid">
                   <div class="field">
-                    <label for="{uid}-p-{row.key}">Step {i + 1} percent</label>
+                    <label for="{uid}-p-{row.key}">{t('release:rollout.edit.percent', { index: i + 1 })}</label>
                     <input id="{uid}-p-{row.key}" type="text" inputmode="numeric" maxlength="3" autocomplete="off" bind:value={row.percent} disabled={busy || row.status === 'done'} aria-invalid={rowProblems[row.key] !== undefined} aria-describedby={rowProblems[row.key] ? `${uid}-e-${row.key}` : undefined} />
                   </div>
                   <div class="field">
-                    <label for="{uid}-t-{row.key}">Planned time (your time zone)</label>
+                    <label for="{uid}-t-{row.key}">{t('release:rollout.edit.plannedTime')}</label>
                     <input id="{uid}-t-{row.key}" type="datetime-local" bind:value={row.plannedAt} disabled={busy || row.status === 'done'} />
                   </div>
                   <div class="field">
-                    <label for="{uid}-n-{row.key}">Note</label>
+                    <label for="{uid}-n-{row.key}">{t('release:rollout.edit.note')}</label>
                     <input id="{uid}-n-{row.key}" type="text" maxlength="200" bind:value={row.note} disabled={busy} />
                   </div>
                   <div class="edit-tools">
-                    <Button size="sm" variant="ghost" iconOnly icon="trash" label="Remove step {i + 1}" disabled={busy || row.status === 'done'} onclick={() => { draft = draft.filter((d) => d.key !== row.key); }} />
+                    <Button size="sm" variant="ghost" iconOnly icon="trash" label={t('release:rollout.edit.removeStep', { index: i + 1 })} disabled={busy || row.status === 'done'} onclick={() => { draft = draft.filter((d) => d.key !== row.key); }} />
                   </div>
                 </div>
-                {#if row.status !== 'planned'}<p class="hint">This step is {row.status === 'done' ? 'done, so its percentage and time are kept' : 'skipped'}.</p>{/if}
+                {#if row.status !== 'planned'}<p class="hint">{row.status === 'done' ? t('release:rollout.edit.stepDone') : t('release:rollout.edit.stepSkipped')}</p>{/if}
                 {#if rowProblems[row.key]}<p id="{uid}-e-{row.key}" class="field-error" role="alert">{rowProblems[row.key]}</p>{/if}
               </li>
             {/each}
           </ul>
-          <p class="hint">Percentages must go up from one step to the next. Steps are put in order of percentage when you save.</p>
+          <p class="hint">{t('release:rollout.edit.orderHint')}</p>
           <div class="row">
-            <Button icon="plus" disabled={busy || draft.length >= MAX_ROLLOUT_STEPS} onclick={() => { draft = addDraftStep(draft); }}>Add a step</Button>
-            <Button type="submit" variant="primary" loading={busy}>Save steps</Button>
-            <Button disabled={busy} onclick={() => { editing = false; }}>Cancel</Button>
+            <Button icon="plus" disabled={busy || draft.length >= MAX_ROLLOUT_STEPS} onclick={() => { draft = addDraftStep(draft); }}>{t('release:rollout.edit.addStep')}</Button>
+            <Button type="submit" variant="primary" loading={busy}>{t('release:rollout.edit.saveSteps')}</Button>
+            <Button disabled={busy} onclick={() => { editing = false; }}>{t('common:action.cancel')}</Button>
           </div>
         </form>
       {:else}
@@ -325,18 +336,26 @@
             <li class="step" class:done={step.status === 'done'} class:skipped={step.status === 'skipped'}>
               <div class="step-main">
                 <div class="step-head">
-                  <span class="muted small">Step {i + 1} of {steps.length}</span>
+                  <span class="muted small">{t('release:rollout.stepOf', { index: i + 1, total: steps.length })}</span>
                   <strong class="percent">{formatPercent(step.percent)}</strong>
                   <Badge tone={chip.tone} dot>{chip.label}</Badge>
-                  {#if comparison?.confirmStepId === step.id}<Badge tone="info">The store has reached this</Badge>{/if}
+                  {#if comparison?.confirmStepId === step.id}<Badge tone="info">{t('release:rollout.storeReached')}</Badge>{/if}
                 </div>
                 <div class="bar" aria-hidden="true"><div class="fill" style:width="{barWidth(step.percent)}%"></div></div>
                 <p class="meta muted small">
-                  <span>Planned: {step.plannedAt === null ? 'no time set' : formatPlannedAt(step.plannedAt)}</span>
+                  <span>{step.plannedAt === null ? t('release:rollout.plannedNone') : t('release:rollout.planned', { when: formatPlannedAt(step.plannedAt) })}</span>
                   {#if step.status === 'done' && step.doneAt !== null}
+                    {@const doneAt = step.doneAt}
+                    {@const doneParams = { name: step.doneBy?.name ?? '', ago: formatRelativeTime(doneAt, { now }) }}
+                    {#snippet doneTime(text: string)}<time datetime={new Date(doneAt).toISOString()} title={formatDateTime(doneAt)}>{text}</time>{/snippet}
                     <span>
-                      {step.doneBy?.name ? `Done by ${step.doneBy.name}` : 'Done'},
-                      <time datetime={new Date(step.doneAt).toISOString()} title={fullTime(step.doneAt)}>{timeAgo(step.doneAt, now)}</time>{step.doneSource === 'store' ? ', confirmed from the store' : ''}
+                      {#if step.doneBy?.name}
+                        {#if step.doneSource === 'store'}<T key="release:rollout.doneByStore" params={doneParams} tags={{ link: doneTime }} />{:else}<T key="release:rollout.doneBy" params={doneParams} tags={{ link: doneTime }} />{/if}
+                      {:else if step.doneSource === 'store'}
+                        <T key="release:rollout.doneAnonStore" params={doneParams} tags={{ link: doneTime }} />
+                      {:else}
+                        <T key="release:rollout.doneAnon" params={doneParams} tags={{ link: doneTime }} />
+                      {/if}
                     </span>
                   {/if}
                   {#if step.note}<span>{step.note}</span>{/if}
@@ -346,12 +365,12 @@
                 <div class="tools">
                   {#if step.status === 'planned'}
                     {#if comparison?.confirmStepId === step.id}
-                      <Button size="sm" variant="primary" disabled={busy} onclick={() => act(step, 'complete', true)}>Confirm from the store</Button>
+                      <Button size="sm" variant="primary" disabled={busy} onclick={() => act(step, 'complete', true)}>{t('release:rollout.confirmFromStore')}</Button>
                     {/if}
-                    <Button size="sm" variant={comparison?.confirmStepId === step.id ? 'secondary' : 'primary'} disabled={busy || !checkRolloutAction(steps, step.id, 'complete').ok} onclick={() => act(step, 'complete')}>Mark done</Button>
-                    <Button size="sm" variant="ghost" disabled={busy} onclick={() => act(step, 'skip')}>Skip</Button>
+                    <Button size="sm" variant={comparison?.confirmStepId === step.id ? 'secondary' : 'primary'} disabled={busy || !checkRolloutAction(steps, step.id, 'complete').ok} onclick={() => act(step, 'complete')}>{t('release:rollout.markDone')}</Button>
+                    <Button size="sm" variant="ghost" disabled={busy} onclick={() => act(step, 'skip')}>{t('release:rollout.skip')}</Button>
                   {:else}
-                    <Button size="sm" disabled={busy || !checkRolloutAction(steps, step.id, 'reopen').ok} onclick={() => act(step, 'reopen')}>Reopen</Button>
+                    <Button size="sm" disabled={busy || !checkRolloutAction(steps, step.id, 'reopen').ok} onclick={() => act(step, 'reopen')}>{t('release:rollout.reopen')}</Button>
                   {/if}
                 </div>
               {/if}
@@ -359,41 +378,43 @@
           {/each}
         </ol>
         {#if canWrite && steps.some((s) => s.status === 'planned') && !checkRolloutAction(steps, steps.find((s) => s.status === 'planned')?.id ?? '', 'complete').ok}
-          <p class="hint">Earlier steps are completed or skipped first.</p>
+          <p class="hint">{t('release:rollout.earlierFirst')}</p>
         {/if}
       {/if}
     {:else if view.kind === 'apple_phased' && view.apple}
       <div class="apple">
         <p class="line small">{view.apple.note}</p>
         <table class="schedule">
-          <caption class="visually-hidden">Apple's phased release schedule</caption>
-          <thead><tr><th scope="col">Day</th><th scope="col">Share of users</th><th scope="col">Date (UTC)</th></tr></thead>
+          <caption class="visually-hidden">{t('release:rollout.schedule.caption')}</caption>
+          <thead><tr><th scope="col">{t('release:rollout.schedule.day')}</th><th scope="col">{t('release:rollout.schedule.share')}</th><th scope="col">{t('release:rollout.schedule.date')}</th></tr></thead>
           <tbody>
             {#each view.apple.schedule as day (day.day)}
               <tr>
-                <th scope="row">Day {day.day}</th>
+                <th scope="row">{t('release:rollout.schedule.dayN', { day: day.day })}</th>
                 <td>
                   <div class="bar inline" aria-hidden="true"><div class="fill" style:width="{barWidth(day.percent)}%"></div></div>
                   {formatPercent(day.percent)}
                 </td>
-                <td>{day.date ? formatTargetDate(day.date) : 'Not set'}</td>
+                <td>{day.date ? formatTargetDate(day.date) : t('release:rollout.schedule.notSet')}</td>
               </tr>
             {/each}
           </tbody>
         </table>
         {#if store}
           <p class="line small muted">
-            The store reports this version as “{store.rawState ?? 'unknown'}”{store.status ? ` (${store.status.replace(/_/g, ' ')})` : ''}. Apple's phased release is not read from the store, so the share it has reached is not shown and nothing is compared.
+            {store.status
+              ? t('release:rollout.appleStoreStateStatus', { state: store.rawState ?? t('release:rollout.unknown'), status: store.status.replace(/_/g, ' ') })
+              : t('release:rollout.appleStoreState', { state: store.rawState ?? t('release:rollout.unknown') })}
           </p>
         {/if}
         {#if canWrite}
           <form class="start" onsubmit={saveStart}>
             <div class="field">
-              <label for="{uid}-start">Expected day 1 (your time zone)</label>
+              <label for="{uid}-start">{t('release:rollout.start.label')}</label>
               <input id="{uid}-start" type="datetime-local" bind:value={startDraft} disabled={busy} aria-invalid={startProblem !== ''} />
               {#if startProblem}<p class="field-error" role="alert">{startProblem}</p>{/if}
             </div>
-            <Button type="submit" loading={busy}>Save</Button>
+            <Button type="submit" loading={busy}>{t('common:action.save')}</Button>
           </form>
         {/if}
       </div>
@@ -402,33 +423,37 @@
     {#if canWrite && !editing}
       <div class="template">
         <div class="field">
-          <label for="{uid}-template">{view.kind === null ? 'Plan a rollout from a template' : 'Replace the plan with a template'}</label>
+          <label for="{uid}-template">{view.kind === null ? t('release:rollout.template.planFrom') : t('release:rollout.template.replaceWith')}</label>
           <select id="{uid}-template" bind:value={templateId} disabled={busy}>
             {#each templates as template (template.id)}
               <option value={template.id}>{template.name}</option>
             {/each}
           </select>
-          <p class="hint">{chosen?.description ?? ''}{view.kind !== null && hasDone ? ' Steps that are done cannot be replaced: reopen them first.' : ''}</p>
+          <p class="hint">{chosen?.description ?? ''}{view.kind !== null && hasDone ? ` ${t('release:rollout.template.doneKept')}` : ''}</p>
         </div>
-        <Button disabled={busy || !chosen} loading={busy} onclick={usePlanTemplate}>{view.kind === null ? 'Plan this rollout' : 'Replace'}</Button>
+        <Button disabled={busy || !chosen} loading={busy} onclick={usePlanTemplate}>{view.kind === null ? t('release:rollout.template.plan') : t('release:rollout.template.replace')}</Button>
       </div>
     {/if}
   {/if}
 </section>
 
 {#if canWrite}
-  <Modal bind:open={confirmClear} size="sm" title="Remove the rollout plan?" dismissible={!busy}>
+  <Modal bind:open={confirmClear} size="sm" title={t('release:rollout.confirm.title')} dismissible={!busy}>
     <div class="stack">
-      <p>The steps of this plan{hasDone ? ', including the ones marked done,' : ''} will be removed.</p>
-      <p class="muted">Nothing in a store is changed.</p>
+      <p>{hasDone ? t('release:rollout.confirm.bodyDone') : t('release:rollout.confirm.body')}</p>
+      <p class="muted">{t('release:rollout.confirm.noStoreChange')}</p>
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}
     </div>
     {#snippet footer()}
-      <Button disabled={busy} onclick={() => (confirmClear = false)}>Cancel</Button>
-      <Button variant="danger-solid" loading={busy} onclick={clear}>Remove the plan</Button>
+      <Button disabled={busy} onclick={() => (confirmClear = false)}>{t('common:action.cancel')}</Button>
+      <Button variant="danger-solid" loading={busy} onclick={clear}>{t('release:rollout.removePlan')}</Button>
     {/snippet}
   </Modal>
 {/if}
+
+{#snippet syncedTime(text: string)}
+  {#if store && store.syncedAt !== null}<time datetime={new Date(store.syncedAt).toISOString()} title={formatDateTime(store.syncedAt)}>{text}</time>{:else}{text}{/if}
+{/snippet}
 
 <style>
   .line {

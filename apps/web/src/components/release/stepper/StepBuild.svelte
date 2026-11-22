@@ -17,6 +17,9 @@
 <script lang="ts">
   import { can, type Role, supports } from '@kiln/core';
   import { untrack } from 'svelte';
+  import { formatList } from '../../../lib/i18n/format.ts';
+  import { t } from '../../../lib/i18n/t.ts';
+  import T from '../../ui/T.svelte';
   import type { Api } from '../../../lib/api.ts';
   import { buildNumberOfTitle, testBuildsHref } from '../../../lib/builds.ts';
   import {
@@ -164,7 +167,7 @@
       const out = await api.stageReleaseField(workspaceId, app.id, { field: 'build', value: picked });
       stagedStore.set(out.staged);
       const row = rows.filter((r) => r.id === picked)[0];
-      done = `${row ? row.title : 'The build'} is staged for this release. Nothing was sent to the store.`;
+      done = t('release-stepper:sb.buildStaged', { title: row ? row.title : t('release-stepper:sb.theBuild') });
     } catch (e) {
       problem = stagingError(e);
     } finally {
@@ -183,7 +186,10 @@
       out = await api.stageReleaseField(workspaceId, app.id, { field: 'version_codes', value: pickedCodes.join(',') });
       if (fraction !== null) out = await api.stageReleaseField(workspaceId, app.id, { field: 'user_fraction', value: String(fraction) });
       stagedStore.set(out.staged);
-      done = `Version codes ${pickedCodes.join(', ')} are staged for ${track.trim()}${fraction !== null ? ` at ${percentText(fraction)} (kept here only)` : ''}. Nothing was sent to the store.`;
+      done =
+        fraction !== null
+          ? t('release-stepper:sb.codesStagedShare', { count: pickedCodes.length, codes: formatList(pickedCodes), track: track.trim(), share: percentText(fraction) })
+          : t('release-stepper:sb.codesStaged', { count: pickedCodes.length, codes: formatList(pickedCodes), track: track.trim() });
     } catch (e) {
       problem = stagingError(e);
       void stagedStore.load(api, workspaceId, app.id);
@@ -196,49 +202,49 @@
 <div class="stack">
   {#if apple}
     {#if editableState.state === 'none'}
-      <Alert tone="warn" title="No version is in Prepare for Submission">
+      <Alert tone="warn" title={t('release-stepper:build.noVersionApple')}>
         <CreateVersion {api} {workspaceId} {role} {app} {onread} />
       </Alert>
     {:else if editableState.state === 'error'}
-      <Alert tone="error" title="Could not read the version">{editableState.message}</Alert>
+      <Alert tone="error" title={t('release-stepper:sb.readVersionFailed')}>{editableState.message}</Alert>
     {/if}
 
     {#if candidatesState.state === 'loading'}
-      <div role="status" aria-label="Reading the builds"><Skeleton width="70%" height="16px" /></div>
+      <div role="status" aria-label={t('release-stepper:sb.readingBuilds')}><Skeleton width="70%" height="16px" /></div>
     {:else if candidatesState.state === 'error'}
-      <Alert tone="error" title="Could not read the builds">
+      <Alert tone="error" title={t('release-stepper:sb.readBuildsFailed')}>
         {candidatesState.message}
-        <div class="retry"><Button size="sm" icon="refresh" onclick={onread}>Try again</Button></div>
+        <div class="retry"><Button size="sm" icon="refresh" onclick={onread}>{t('common:action.tryAgain')}</Button></div>
       </Alert>
     {:else if applePart}
-      {#if none && editableState.state !== 'none'}<Alert tone="warn" title="No build can be chosen yet">{none}</Alert>{/if}
+      {#if none && editableState.state !== 'none'}<Alert tone="warn" title={t('release-stepper:build.noBuildApple')}>{none}</Alert>{/if}
       {#if rows.length > 0}
         <fieldset class="builds" disabled={!mayEdit || staging}>
-          <legend class="visually-hidden">Builds</legend>
+          <legend class="visually-hidden">{t('release-stepper:sb.builds')}</legend>
           {#each listed.shown as row (row.id)}
             {@const chip = buildChip(row, { attached: row.id === attachedId, staged: stagedBuild !== null && row.id === stagedBuild.value })}
             <label class="build" class:off={!row.eligibility.selectable} class:on={picked === row.id || (picked === '' && row.id === ordered.firstId)} data-testid="build-row">
               <input type="radio" name="{uid}-build" value={row.id} bind:group={picked} disabled={!row.eligibility.selectable} />
               <span class="num">{row.title}</span>
-              <span class="ver">{#if row.version}version {row.version}{/if}</span>
-              <span class="when">Uploaded {row.uploaded}</span>
+              <span class="ver">{#if row.version}{t('release-stepper:sb.version', { version: row.version })}{/if}</span>
+              <span class="when">{t('release-stepper:sb.uploaded', { when: row.uploaded })}</span>
               <Badge tone={chip.tone} icon={chip.tone === 'ok' ? 'check' : undefined}>{chip.text}</Badge>
             </label>
           {/each}
         </fieldset>
         <p class="muted small more">
-          {#if listed.hidden > 0}Showing {listed.shown.length} of {rows.length} builds. <button type="button" class="link" onclick={() => (showAll = true)}>Show all</button>{:else if showAll && rows.length > 3}Showing all {rows.length} builds. <button type="button" class="link" onclick={() => (showAll = false)}>Show fewer</button>{:else}{rows.length === 1 ? '1 build' : `${rows.length} builds`}.{/if}
-          {#if applePart.truncatedAt !== null}Only the newest {applePart.truncatedAt} are listed.{/if}
-          <button type="button" class="link" disabled={staging} onclick={onread}>Read the builds again</button>
+          {#if listed.hidden > 0}{t('release-stepper:sb.showing', { count: rows.length, shown: listed.shown.length })} <button type="button" class="link" onclick={() => (showAll = true)}>{t('release-stepper:sb.showAll')}</button>{:else if showAll && rows.length > 3}{t('release-stepper:sb.showingAll', { count: rows.length })} <button type="button" class="link" onclick={() => (showAll = false)}>{t('release-stepper:sb.showFewer')}</button>{:else}{t('release-stepper:sb.buildCount', { count: rows.length })}{/if}
+          {#if applePart.truncatedAt !== null}{t('release-stepper:sb.newestOnly', { count: applePart.truncatedAt })}{/if}
+          <button type="button" class="link" disabled={staging} onclick={onread}>{t('release-stepper:sb.readAgain')}</button>
         </p>
 
         {#if selectedRow}
-          <Disclosure summary="Details of the selected build (CI run, install to test, version label)" open={problemOpen} stateKey="stepper-build-details-{app.id}-{selectedRow.id}">
+          <Disclosure summary={t('release-stepper:sb.details')} open={problemOpen} stateKey="stepper-build-details-{app.id}-{selectedRow.id}">
             <div class="details" data-testid="build-details">
               <p class="sentence" class:bad={selectedRow.eligibility.tone === 'bad'}>{selectedRow.eligibility.sentence}</p>
               <p class="meta">
-                {#if selectedRow.run.url}Made by <a href={selectedRow.run.url} target="_blank" rel="noreferrer">{selectedRow.run.text}</a>.{:else}{selectedRow.run.text}.{/if}
-                {#if canTest}<a href={testBuildsHref(app.id, app.platform, buildNumberOfTitle(selectedRow.title))}>Install to test</a>{/if}
+                {#if selectedRow.run.url}<T key="release-stepper:sb.madeBy" params={{ run: selectedRow.run.text }} tags={{ link: runLink }} />{:else}{t('release-stepper:sb.runText', { text: selectedRow.run.text })}{/if}
+                {#if canTest}<a href={testBuildsHref(app.id, app.platform, buildNumberOfTitle(selectedRow.title))}>{t('release-stepper:sb.installToTest')}</a>{/if}
               </p>
               <p class="meta">{selectedRow.testNotes}</p>
             </div>
@@ -248,52 +254,52 @@
 
       <div class="row step-actions">
         {#if !mayEdit}
-          <span class="muted small">Staging needs the member role or above.</span>
+          <span class="muted small">{t('release-stepper:sn.needMember')}</span>
         {:else if unstaged}
           <Button loading={staging} disabled={staging || rows.every((r) => r.id !== picked || !r.eligibility.selectable)} onclick={stageBuild}>
-            Use {selectedRow ? selectedRow.title : 'this build'}
+            {selectedRow ? t('release-stepper:sb.useBuild', { title: selectedRow.title }) : t('release-stepper:sb.useThisBuild')}
           </Button>
-          <span class="muted small">Not used yet. Press the button to keep this choice.</span>
+          <span class="muted small">{t('release-stepper:sb.notUsedYet')}</span>
         {/if}
-        <InfoTip label="About choosing a build" text="Choosing a build stages it in this tool. It reaches App Store Connect only when you push the draft in the last step." />
+        <InfoTip label={t('release-stepper:sb.tipBuildLabel')} text={t('release-stepper:sb.tipBuildText')} />
       </div>
     {/if}
   {:else}
-    {#if promote !== null}<Alert tone="info" title="Promote to {promote.to}">{promoteNote(promote)}</Alert>{/if}
+    {#if promote !== null}<Alert tone="info" title={t('release-stepper:sb.promoteTitle', { to: promote.to })}>{promoteNote(promote)}</Alert>{/if}
     <div class="tracks">
       <div class="field">
-        <label for="{uid}-source">Promote from</label>
+        <label for="{uid}-source">{t('release-stepper:sb.promoteFrom')}</label>
         <input id="{uid}-source" type="text" list="{uid}-tracks" autocomplete="off" spellcheck="false" bind:value={source} />
       </div>
       <div class="field">
-        <label for="{uid}-track">Release in</label>
+        <label for="{uid}-track">{t('release-stepper:sb.releaseIn')}</label>
         <input id="{uid}-track" type="text" list="{uid}-tracks" autocomplete="off" spellcheck="false" bind:value={track} aria-invalid={!trackOk} />
       </div>
       <datalist id="{uid}-tracks">{#each SUGGESTED_TRACKS as name (name)}<option value={name}></option>{/each}</datalist>
-      <Button size="sm" icon="refresh" disabled={!trackOk || !sourceOk} onclick={onreadtracks}>Read the tracks</Button>
+      <Button size="sm" icon="refresh" disabled={!trackOk || !sourceOk} onclick={onreadtracks}>{t('release-stepper:sb.readTracks')}</Button>
     </div>
-    {#if !trackOk}<p class="small bad">A track name uses letters, digits and . _ : - only.</p>{/if}
+    {#if !trackOk}<p class="small bad">{t('release-stepper:sb.trackInvalid')}</p>{/if}
 
     {#if editableState.state === 'ready' && editable && editable.store === 'googleplay'}
       <p class="muted small">
-        {#if draft}The draft release of {track} holds version codes {draft.versionCodes.join(', ') || 'none yet'}.{:else}{track} has no draft release yet. Staging codes creates one when you push.{/if}
+        {#if draft}{draft.versionCodes.length === 0 ? t('release-stepper:sb.draftNone', { track }) : t('release-stepper:sb.draftHolds', { count: draft.versionCodes.length, track, codes: formatList(draft.versionCodes.map(String)) })}{:else}{t('release-stepper:sb.noDraft', { track })}{/if}
       </p>
     {:else if editableState.state === 'error'}
-      <Alert tone="error" title="Could not read the track">{editableState.message}</Alert>
+      <Alert tone="error" title={t('release-stepper:sb.readTrackFailed')}>{editableState.message}</Alert>
     {/if}
 
     {#if candidatesState.state === 'loading'}
-      <div role="status" aria-label="Reading the version codes"><Skeleton width="70%" height="16px" /></div>
+      <div role="status" aria-label={t('release-stepper:sb.readingCodes')}><Skeleton width="70%" height="16px" /></div>
     {:else if candidatesState.state === 'error'}
-      <Alert tone="error" title="Could not read the version codes">
+      <Alert tone="error" title={t('release-stepper:sb.readCodesFailed')}>
         {candidatesState.message}
-        <div class="retry"><Button size="sm" icon="refresh" onclick={onreadtracks}>Try again</Button></div>
+        <div class="retry"><Button size="sm" icon="refresh" onclick={onreadtracks}>{t('common:action.tryAgain')}</Button></div>
       </Alert>
     {:else if playPart}
-      {#if noCodes}<Alert tone="warn" title="No version code can be added yet">{noCodes}</Alert>{/if}
+      {#if noCodes}<Alert tone="warn" title={t('release-stepper:build.noCodeGoogle')}>{noCodes}</Alert>{/if}
       {#if codes.length > 0}
         <fieldset class="builds" disabled={!mayEdit || staging}>
-          <legend class="visually-hidden">Version codes</legend>
+          <legend class="visually-hidden">{t('release-stepper:sb.versionCodes')}</legend>
           {#each shownCodes as row (row.versionCode)}
             <label class="build" class:off={!row.eligibility.selectable} class:on={pickedCodes.indexOf(row.versionCode) >= 0}>
               <input
@@ -302,16 +308,16 @@
                 disabled={!row.eligibility.selectable}
                 onchange={(e) => toggleCode(row.versionCode, e.currentTarget.checked)}
               />
-              <span class="num">Version code {row.versionCode}</span>
-              <span class="ver">{row.source}{#if row.inSource}, in {source}{/if}</span>
-              <span class="when">{#if row.where}Held by {row.where}{/if}{#if canTest}{row.where ? '. ' : ''}<a href={testBuildsHref(app.id, app.platform, row.versionCode)}>Install to test</a>{/if}</span>
+              <span class="num">{t('release-stepper:sb.versionCode', { code: row.versionCode })}</span>
+              <span class="ver">{row.inSource ? t('release-stepper:sb.sourceIn', { source: row.source, track: source }) : row.source}</span>
+              <span class="when">{#if row.where}{t('release-stepper:sb.heldBy', { where: row.where })}{/if}{#if canTest}{row.where ? ' ' : ''}<a href={testBuildsHref(app.id, app.platform, row.versionCode)}>{t('release-stepper:sb.installToTest')}</a>{/if}</span>
               <Badge tone={row.eligibility.tone === 'warn' ? 'warn' : row.eligibility.tone === 'bad' ? 'bad' : row.eligibility.tone === 'ok' ? 'ok' : 'neutral'}>{row.eligibility.label}</Badge>
             </label>
             {#if row.eligibility.tone !== 'ok' || !row.eligibility.selectable}<p class="sentence code-sentence" class:bad={row.eligibility.tone === 'bad'}>{row.eligibility.sentence}</p>{/if}
           {/each}
         </fieldset>
         {#if codes.length > 3}
-          <p class="muted small more">{showAllCodes ? `Showing all ${codes.length} version codes.` : `Showing 3 of ${codes.length} version codes.`} <button type="button" class="link" onclick={() => (showAllCodes = !showAllCodes)}>{showAllCodes ? 'Show fewer' : 'Show all'}</button></p>
+          <p class="muted small more">{showAllCodes ? t('release-stepper:sb.codesShowingAll', { count: codes.length }) : t('release-stepper:sb.codesShowing', { count: codes.length, shown: 3 })} <button type="button" class="link" onclick={() => (showAllCodes = !showAllCodes)}>{showAllCodes ? t('release-stepper:sb.showFewer') : t('release-stepper:sb.showAll')}</button></p>
         {/if}
       {/if}
 
@@ -320,23 +326,23 @@
       {:else}
       <div class="field share">
         <label for="{uid}-share">
-          Intended share of users (%)
-          <InfoTip label="About the intended share" text="Google Play cannot hold a share in a draft. This is a note kept here only. When you release, you type the share again, and that is what is used." />
+          {t('release-stepper:sb.shareLabel')}
+          <InfoTip label={t('release-stepper:sb.shareTipLabel')} text={t('release-stepper:sb.shareTipText')} />
         </label>
-        <input id="{uid}-share" type="text" inputmode="decimal" autocomplete="off" placeholder="Optional, for example 10" bind:value={shareText} disabled={!mayEdit || staging} />
-        {#if shareText.trim() !== '' && fraction === null}<p class="small bad">Type a number from 0.01 to 100.</p>{/if}
+        <input id="{uid}-share" type="text" inputmode="decimal" autocomplete="off" placeholder={t('release-stepper:sb.sharePlaceholder')} bind:value={shareText} disabled={!mayEdit || staging} />
+        {#if shareText.trim() !== '' && fraction === null}<p class="small bad">{t('release-stepper:sb.shareInvalid')}</p>{/if}
       </div>
       {/if}
 
       <div class="row step-actions">
         {#if mayEdit}
           <Button loading={staging} disabled={pickedCodes.length === 0 || !trackOk || staging || (offered && shareText.trim() !== '' && fraction === null)} onclick={stageCodes}>
-            Use these version codes
+            {t('release-stepper:sb.useCodes')}
           </Button>
         {:else}
-          <span class="muted small">Staging needs the member role or above.</span>
+          <span class="muted small">{t('release-stepper:sn.needMember')}</span>
         {/if}
-        {#if stagedTrack !== null}<span class="muted small">Staged track: {stagedTrack.value}.</span>{/if}
+        {#if stagedTrack !== null}<span class="muted small">{t('release-stepper:sb.stagedTrack', { track: stagedTrack.value })}</span>{/if}
       </div>
     {/if}
   {/if}
@@ -344,6 +350,10 @@
   {#if problem}<Alert tone="error" ondismiss={() => (problem = '')}>{problem}</Alert>{/if}
   {#if done}<Alert tone="ok" ondismiss={() => (done = '')}>{done}</Alert>{/if}
 </div>
+
+{#snippet runLink(text: string)}
+  {#if selectedRow?.run.url}<a href={selectedRow.run.url} target="_blank" rel="noreferrer">{text}</a>{:else}{text}{/if}
+{/snippet}
 
 <style>
   .builds {

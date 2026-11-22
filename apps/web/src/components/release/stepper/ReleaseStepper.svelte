@@ -19,6 +19,7 @@
   import { ApiError, type Api } from '../../../lib/api.ts';
   import { fitToViewport } from '../../../lib/fit-viewport.ts';
   import { readCache } from '../../../lib/read-cache.ts';
+  import { t } from '../../../lib/i18n/t.ts';
   import type { PlatformScope } from '../../../lib/app-scope.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
   import { type EditableRelease, type ReleaseCandidates, type PlayCandidates, type BuildCandidate } from '../../../lib/release-candidates.ts';
@@ -200,7 +201,7 @@
       out = await api.stageReleaseField(workspaceId, app.id, { field: 'version_codes', value: wanted });
       stagedStore.set(out.staged);
     } catch (e) {
-      promoteStageProblem = `The version codes could not be staged: ${stagingError(e)} Choose them in the first step.`;
+      promoteStageProblem = stagingError(e);
       void stagedStore.load(api, workspaceId, app.id);
     }
   }
@@ -359,17 +360,17 @@
   const publishState = $derived(footer !== null && footer.primary.kind === 'publish' && confirmStep ? confirmStep.publishState() : { enabled: true, reason: '' });
 </script>
 
-<section class="stepper" aria-label="Prepare release, {platformLabel(app.platform)}" data-testid="release-stepper" use:fitToViewport={{ margin: 16, min: 420, fill: true }}>
+<section class="stepper" aria-label={t('release-stepper:rs.aria', { platform: platformLabel(app.platform) })} data-testid="release-stepper" use:fitToViewport={{ margin: 16, min: 420, fill: true }}>
   <header class="head">
-    <h3>Prepare release</h3>
+    <h3>{t('release-stepper:rs.title')}</h3>
     {#if showPlatform}<PlatformBadge platform={app.platform} />{/if}
-    {#if releaseVersion}<span class="muted">version {releaseVersion}</span>{/if}
+    {#if releaseVersion}<span class="muted">{t('release-stepper:sb.version', { version: releaseVersion })}</span>{/if}
     <span class="spacer"></span>
-    <Button size="sm" variant="ghost" icon="x" onclick={onclose}>Close</Button>
+    <Button size="sm" variant="ghost" icon="x" onclick={onclose}>{t('common:action.close')}</Button>
   </header>
 
   <div class="shell">
-    <nav class="rail" aria-label="Steps">
+    <nav class="rail" aria-label={t('release-stepper:rs.steps')}>
       <ol class="steps">
         {#each statuses as s, i (s.id)}
           {@const mark = railMark(s.level, current === s.id)}
@@ -377,19 +378,19 @@
             <button type="button" class="step" class:current={current === s.id} aria-current={current === s.id ? 'step' : undefined} onclick={() => onstep(s.id)}>
               <span class="mark {mark}" aria-hidden="true">{#if mark === 'done'}<Icon name="check" size={14} />{:else if mark === 'optional'}{:else}{i + 1}{/if}</span>
               <span class="what">
-                <span class="label">{s.label}<span class="visually-hidden">, step {i + 1} of {statuses.length}, {LEVEL_WORD[s.level]}</span></span>
+                <span class="label">{s.label}<span class="visually-hidden">{t('release-stepper:rs.stepOf', { index: i + 1, total: statuses.length, level: t(LEVEL_WORD[s.level]) })}</span></span>
                 <span class="text" title={s.text}>{s.text}</span>
               </span>
             </button>
           </li>
         {/each}
       </ol>
-      <p class="muted foot-note">Nothing is sent to the store before the last step.</p>
+      <p class="muted foot-note">{t('release-stepper:rs.nothingSent')}</p>
       {#if hidden}<p class="muted foot-note">{hidden}</p>{/if}
     </nav>
 
     <div class="main">
-      {#if promoteStageProblem}<div class="problem"><Alert tone="error" ondismiss={() => (promoteStageProblem = '')}>{promoteStageProblem}</Alert></div>{/if}
+      {#if promoteStageProblem}<div class="problem"><Alert tone="error" ondismiss={() => (promoteStageProblem = '')}>{t('release-stepper:rs.promoteStageFailed', { detail: promoteStageProblem })}</Alert></div>{/if}
 
       <div class="body" id="{uid}-body">
         {#if intro}
@@ -441,13 +442,13 @@
             onreleased={() => void loadPipeline()}
           />
         {:else}
-          <Alert tone="info">No step is available for your role.</Alert>
+          <Alert tone="info">{t('release-stepper:rs.noStep')}</Alert>
         {/if}
       </div>
 
       {#if footer}
         <footer class="foot" data-testid="stepper-footer">
-          <Button disabled={footer.back === null} onclick={() => footer.back !== null && onstep(footer.back)}>Back</Button>
+          <Button disabled={footer.back === null} onclick={() => footer.back !== null && onstep(footer.back)}>{t('common:action.back')}</Button>
           <span class="position muted">{footer.position}</span>
           <span class="spacer"></span>
           {#if footer.primary.kind === 'publish' && !publishState.enabled && publishState.reason}<span class="reason muted" data-testid="stepper-why">{publishState.reason}</span>{/if}

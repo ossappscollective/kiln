@@ -11,6 +11,7 @@
   import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { type RolloutConfig, controlsAvailability } from '../../lib/store-rollout.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -67,13 +68,13 @@
   <section class="slim" aria-labelledby="{uid}-title">
     <Disclosure stateKey="releases.rollout-controls-off">
       {#snippet summary()}
-        <span id="{uid}-title" class="slimtitle"><Icon name="rocket" size={14} /> Rollout controls</span>
-        <Badge tone="neutral" icon="lock">Switched off</Badge>
+        <span id="{uid}-title" class="slimtitle"><Icon name="rocket" size={14} /> {t('release-store:rc.title')}</span>
+        <Badge tone="neutral" icon="lock">{t('release-store:rc.off')}</Badge>
       {/snippet}
       <div class="stack">
-        <Alert tone="info" title="Rollout changes are off">{availability.message}</Alert>
+        <Alert tone="info" title={t('release-store:rc.offTitle')}>{availability.message}</Alert>
         <p class="muted note">
-          The rollout plan in each release row is planning data and does not touch a store; it works without this switch.
+          {t('release-store:rc.planNote')}
         </p>
       </div>
     </Disclosure>
@@ -82,11 +83,11 @@
   <section class="controls" aria-labelledby="{uid}-title">
     <div class="head">
       <div class="titles">
-        <h3 id="{uid}-title"><Icon name="rocket" size={18} /> Rollout controls</h3>
-        <p class="muted lead">Raise, pause, halt or finish a rollout in the store.</p>
+        <h3 id="{uid}-title"><Icon name="rocket" size={18} /> {t('release-store:rc.title')}</h3>
+        <p class="muted lead">{t('release-store:rc.lead')}</p>
       </div>
       {#if availability.state === 'ready'}
-        <Badge tone="warn" icon="lock">Changes the live store</Badge>
+        <Badge tone="warn" icon="lock">{t('release-store:rc.live')}</Badge>
       {/if}
     </div>
 
@@ -96,7 +97,7 @@
       <Alert tone="warn">{availability.message}</Alert>
     {:else if config}
       <p class="muted note">
-        Every change is previewed first, needs your confirmation and is recorded in the audit log.
+        {t('release-store:rc.every')}
       </p>
       <div class="stack">
         {#each members as app (app.id)}

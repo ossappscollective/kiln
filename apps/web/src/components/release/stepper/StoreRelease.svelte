@@ -18,6 +18,7 @@
   import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { announcePublished } from '../../../lib/app-page.ts';
+  import { t } from '../../../lib/i18n/t.ts';
   import type { Api } from '../../../lib/api.ts';
   import { confirmed } from '../../../lib/step-up-prompt.svelte.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
@@ -169,7 +170,7 @@ import { supports } from '@kiln/core';
       if (mine !== seq) return;
       const failure = classifyReleaseFailure(e, 'preview', fraction);
       if (failure.kind === 'disabled') releaseStore.markDisabled(workspaceId);
-      notice = { tone: failure.kind === 'disabled' ? 'warn' : 'error', title: 'No preview was made', text: failure.message };
+      notice = { tone: failure.kind === 'disabled' ? 'warn' : 'error', title: t('release-stepper:sr.noPreview'), text: failure.message };
       if (shouldReloadState(failure)) void releaseStore.load(api, workspaceId, app.id);
     } finally {
       if (mine === seq) previewing = false;
@@ -200,7 +201,7 @@ import { supports } from '@kiln/core';
       notice = null;
       releaseStore.markReleased(app.id);
       announcePublished(app.id);
-      announcement = 'The release was started.';
+      announcement = t('release-stepper:sr.started');
       toast.success(resultText(done.result));
       void releaseStore.load(api, workspaceId, app.id);
       onreleased?.();
@@ -223,36 +224,36 @@ import { supports } from '@kiln/core';
           dialogProblem = '';
         } else {
           closeDialog();
-          notice = { tone: 'warn', title: 'Things changed', text: `${failure.message} Preview again.` };
+          notice = { tone: 'warn', title: t('release-stepper:sr.changed'), text: t('release-stepper:sr.previewAgain', { message: failure.message }) };
         }
         break;
       case 'outcome_unknown':
         closeDialog();
         releaseStore.markUnknown(app.id);
-        notice = { tone: 'error', title: 'Not known whether it was released', text: failure.message };
+        notice = { tone: 'error', title: t('release-stepper:sr.unknown'), text: failure.message };
         break;
       case 'other_unknown':
         closeDialog();
-        notice = { tone: 'warn', title: 'Preview the earlier step first', text: failure.message };
+        notice = { tone: 'warn', title: t('release-stepper:sr.earlierFirst'), text: failure.message };
         break;
       case 'blocked': {
         closeDialog();
         const items = failure.checks.map((c) => c.message).slice(0, 5);
-        notice = { tone: 'error', title: 'Blocked, nothing was released', text: `${failure.message}${items.length > 0 ? ` ${items.join(' ')}` : ''}` };
+        notice = { tone: 'error', title: t('release-stepper:sr.blocked'), text: [failure.message, ...items].join(' ') };
         break;
       }
       case 'disabled':
         closeDialog();
         releaseStore.markDisabled(workspaceId);
-        notice = { tone: 'warn', title: 'Switched off', text: failure.message };
+        notice = { tone: 'warn', title: t('release-stepper:sr.switchedOff'), text: failure.message };
         break;
       case 'forbidden':
         closeDialog();
-        notice = { tone: 'error', title: 'Not allowed', text: failure.message };
+        notice = { tone: 'error', title: t('release-stepper:sr.notAllowed'), text: failure.message };
         break;
       default:
         // A refusal of the store, a rate limit and the rest: shown in the dialog; nothing is sent again by itself.
-        dialogProblem = mayConfirmAgain(failure) ? `${failure.message} You can confirm again.` : failure.message;
+        dialogProblem = mayConfirmAgain(failure) ? t('release-stepper:sr.confirmAgain', { message: failure.message }) : failure.message;
     }
   }
 </script>
@@ -261,40 +262,40 @@ import { supports } from '@kiln/core';
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#if line.kind !== 'hidden'}
-    <div class="release" data-testid="release-control" role="group" aria-label="Release, {platformLabel(app.platform)}">
+    <div class="release" data-testid="release-control" role="group" aria-label={t('release-stepper:sr.aria', { platform: platformLabel(app.platform) })}>
       {#if line.kind === 'ready'}
         {#if android && stagedFields}
           <label class="check direct-option">
             <input type="checkbox" bind:checked={direct} disabled={busy} />
-            <span>Make the release from what is staged and send it to Google for review in one step (no draft needed)</span>
+            <span>{t('release-stepper:sr.direct')}</span>
           </label>
         {/if}
         {#if android && !offered}
           <p class="muted small" data-testid="no-staged-rollout">{inputs.offer.message}</p>
         {:else if android}
           <div class="share">
-            <label for="{uid}-share">Share of users to release to (%)</label>
+            <label for="{uid}-share">{t('release-stepper:sr.shareLabel')}</label>
             <input
               id="{uid}-share"
               type="text"
               inputmode="decimal"
               autocomplete="off"
-              placeholder="For example 10"
+              placeholder={t('release-stepper:sr.sharePlaceholder')}
               aria-describedby="{uid}-share-help"
               bind:value={shareText}
               disabled={busy}
             />
             <p id="{uid}-share-help" class="muted small">
               {#if fraction !== null}
-                That is {percentText(fraction)} of users on {track || 'the track'}.
+                {track ? t('release-stepper:sr.shareThat', { share: percentText(fraction), track }) : t('release-stepper:sr.shareThatNoTrack', { share: percentText(fraction) })}
               {:else if shareText.trim() !== ''}
-                Type a number from 0.01 to 100.
+                {t('release-stepper:sb.shareInvalid')}
               {:else if reminder !== '' && shareText.trim() === reminder}
-                You staged {reminder}%. Check that it is still right.
+                {t('release-stepper:sr.staged', { share: reminder })}
               {:else if shareText.trim() !== '' && shareText.trim() === lastStart}
-                Starts from the default of this app. Change it if needed; you confirm the share in the phrase.
+                {t('release-stepper:sr.fromDefault')}
               {:else}
-                You always name the share yourself. 100 is everyone.
+                {t('release-stepper:sr.nameShare')}
               {/if}
             </p>
           </div>
@@ -304,23 +305,23 @@ import { supports } from '@kiln/core';
           icon="upload"
           loading={previewing}
           disabled={busy || line.disabled || needsTrack}
-          title={needsTrack ? 'Choose the track in the Build step first.' : (line.reason ?? undefined)}
+          title={needsTrack ? t('release-stepper:sr.chooseTrack') : (line.reason ?? undefined)}
           onclick={startPreview}
         >{line.button}</Button>
-        {#if line.disabled && line.reason}<span class="muted small">{line.reason}</span>{:else if needsTrack}<span class="muted small">Choose the track in the Build step first.</span>{/if}
+        {#if line.disabled && line.reason}<span class="muted small">{line.reason}</span>{:else if needsTrack}<span class="muted small">{t('release-stepper:sr.chooseTrack')}</span>{/if}
       {:else if line.kind === 'off'}
         <span class="text">{line.text}</span>
-        <InfoTip label="About releasing" align="end" text={line.note} />
+        <InfoTip label={t('release-stepper:sr.about')} align="end" text={line.note} />
       {:else}
         <span class="text" class:bad={line.tone === 'bad'}>{line.text}</span>
-        {#if line.retry}<Button size="sm" icon="refresh" onclick={retryReads}>Try again</Button>{/if}
+        {#if line.retry}<Button size="sm" icon="refresh" onclick={retryReads}>{t('common:action.tryAgain')}</Button>{/if}
       {/if}
     </div>
   {/if}
 
   {#if notice}<Alert tone={notice.tone} title={notice.title} ondismiss={() => (notice = null)}>{notice.text}</Alert>{/if}
   {#if result}
-    <Alert tone="ok" title={result.confirmedByReread ? 'Released (confirmed by reading the store back)' : 'Released'} ondismiss={() => (result = null)}>
+    <Alert tone="ok" title={result.confirmedByReread ? t('release-stepper:sr.releasedConfirmed') : t('release-stepper:sr.released')} ondismiss={() => (result = null)}>
       <p class="alert-text">{resultText(result)}</p>
     </Alert>
   {/if}

@@ -13,6 +13,8 @@
 -->
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { t } from '../../../lib/i18n/t.ts';
+  import T from '../../ui/T.svelte';
   import type { Api } from '../../../lib/api.ts';
   import { readCache } from '../../../lib/read-cache.ts';
   import {
@@ -137,30 +139,27 @@
 
 <section class="check" aria-labelledby="{uid}-title" data-testid="play-check">
   <header class="head">
-    <h4 id="{uid}-title">Check this release</h4>
-    <InfoTip
-      label="About the checks"
-      text="The checks below are made here from what this tool knows. 'Check with Google Play' asks Google whether it would refuse the release. Google reports errors only: Play Console can show warnings that the API does not give."
-    />
+    <h4 id="{uid}-title">{t('release-stepper:pc.title')}</h4>
+    <InfoTip label={t('release-stepper:pc.tipLabel')} text={t('release-stepper:pc.tipText')} />
   </header>
 
   <p class="muted small">{stateLine(proposal)}</p>
 
   {#if readFailed}
     <p class="muted small">
-      The draft and the track could not be read, so the checks that need them are left out.
-      <Button size="sm" variant="ghost" onclick={() => read(true)}>Read again</Button>
+      {t('release-stepper:pc.readFailed')}
+      <Button size="sm" variant="ghost" onclick={() => read(true)}>{t('release-stepper:pc.readAgain')}</Button>
     </p>
   {/if}
 
   {#if local.length === 0}
-    <p class="small"><Badge tone="ok" icon="check">Checked here</Badge> Nothing to fix in the notes, the codes, the share or the name.</p>
+    <p class="small"><Badge tone="ok" icon="check">{t('release-stepper:pc.checkedHere')}</Badge> {t('release-stepper:pc.nothingToFix')}</p>
   {:else}
-    <ul class="list" aria-label="Checks made here">
+    <ul class="list" aria-label={t('release-stepper:pc.checksHere')}>
       {#each local as c (`${c.code}/${c.item ?? ''}`)}
         <li>
           <Badge tone={c.severity === 'problem' ? 'bad' : c.severity === 'warning' ? 'warn' : 'info'}>
-            {c.severity === 'problem' ? 'Fix' : c.severity === 'warning' ? 'Check' : 'Note'}
+            {c.severity === 'problem' ? t('release-stepper:pc.fix') : c.severity === 'warning' ? t('release-stepper:pc.check') : t('release-stepper:pc.note')}
           </Badge>
           <span>{c.message}</span>
         </li>
@@ -169,26 +168,26 @@
   {/if}
 
   <div class="row">
-    <Button icon="shield" loading={checking} disabled={checking || !ready.ok} onclick={check}>Check with Google Play</Button>
+    <Button icon="shield" loading={checking} disabled={checking || !ready.ok} onclick={check}>{t('release-stepper:pc.checkWithGoogle')}</Button>
     {#if !ready.ok}<span class="muted small">{ready.reason}</span>{/if}
-    {#if ready.ok && problems > 0}<span class="muted small">{problems} {problems === 1 ? 'problem' : 'problems'} above would be refused by Google Play.</span>{/if}
+    {#if ready.ok && problems > 0}<span class="muted small">{t('release-stepper:pc.wouldRefuse', { count: problems })}</span>{/if}
   </div>
-  <p class="muted small">Asks Google Play whether it would refuse this release. Nothing is saved or released.</p>
+  <p class="muted small">{t('release-stepper:pc.asks')}</p>
 
-  {#if problem}<Alert tone="error" title="Could not check with Google Play">{problem}</Alert>{/if}
+  {#if problem}<Alert tone="error" title={t('release-stepper:pc.failed')}>{problem}</Alert>{/if}
 
   {#if answer !== null && outcome !== null}
     <div role="status" aria-live="polite" class="answer">
       <Alert tone={outcome.tone === 'ok' ? 'ok' : 'error'} title={outcome.title}>
         <p class="para">{checkedLine(answer)}</p>
         {#if outcome.findings.length > 0}
-          <ul class="findings" aria-label="What Google Play reported">
+          <ul class="findings" aria-label={t('release-stepper:pc.reported')}>
             {#each outcome.findings as finding, i (i)}<li>{finding}</li>{/each}
           </ul>
         {/if}
         {#if outcome.rolloutNotice}<p class="para" data-testid="rollout-refused"><strong>{outcome.rolloutNotice}</strong></p>{/if}
         {#each outcome.lines as line (line)}<p class="para">{line}</p>{/each}
-        {#if stale}<p class="para"><strong>The release changed after this check.</strong> Check again.</p>{/if}
+        {#if stale}<p class="para"><T key="release-stepper:pc.stale" /></p>{/if}
       </Alert>
     </div>
   {/if}

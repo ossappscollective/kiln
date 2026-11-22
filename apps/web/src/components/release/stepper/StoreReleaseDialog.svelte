@@ -13,6 +13,8 @@
 -->
 <script lang="ts">
   import type { Api } from '../../../lib/api.ts';
+  import { t } from '../../../lib/i18n/t.ts';
+  import T from '../../ui/T.svelte';
   import { type ReleasePreview, audienceText, canConfirmRelease, releaseTitle } from '../../../lib/store-release.ts';
   import Alert from '../../ui/Alert.svelte';
   import Button from '../../ui/Button.svelte';
@@ -54,21 +56,18 @@ import { supports } from '@kiln/core';
 <Modal
   bind:open
   size="lg"
-  title="Release: confirm"
-  description="{preview.app.name} · {releaseTitle(preview)}"
+  title={t('release-stepper:sd.title')}
+  description={t('release-stepper:sd.description', { app: preview.app.name, title: releaseTitle(preview) })}
   dismissible={!busy}
   onclose={oncancel}
 >
   <div class="stack">
-    {#if notice}<Alert tone="warn" title="Something changed">{notice}</Alert>{/if}
+    {#if notice}<Alert tone="warn" title={t('release-stepper:sd.changed')}>{notice}</Alert>{/if}
 
-    <Alert tone="warn" title="This reaches real users and cannot be taken back from here.">
+    <Alert tone="warn" title={t('release-stepper:sd.warning')}>
       <p class="para">{audienceText(preview)}</p>
       <p class="para">
-        {android
-          ? 'A rollout is paused or changed only through the rollout controls of this app, or in Play Console.'
-          : 'Pulling a released version is done only in App Store Connect.'}
-        It is recorded in the audit log.
+        {android ? t('release-stepper:sd.noteAndroid') : t('release-stepper:sd.noteApple')}
       </p>
     </Alert>
 
@@ -88,24 +87,26 @@ import { supports } from '@kiln/core';
 
     {#if preview.confirmation !== null && preview.confirmationRequired !== false && blocking.length === 0}
       <div class="field">
-        <label for="{uid}-typed">Type <strong class="phrase">{preview.confirmation.phrase}</strong> to confirm</label>
+        <label for="{uid}-typed"><T key="release-stepper:sd.type" params={{ phrase: preview.confirmation.phrase }} tags={{ strong: phrase }} /></label>
         {#if preview.confirmation.instruction}<p class="muted small">{preview.confirmation.instruction}</p>{/if}
         <input id="{uid}-typed" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" bind:value={typed} disabled={busy} />
       </div>
     {/if}
 
     {#if preview.confirmationRequired === false && preview.confirmation !== null && blocking.length === 0}
-      <p class="muted small" data-testid="confirm-by-step-up">You will be asked for your password or passkey to confirm. Nothing needs typing.</p>
+      <p class="muted small" data-testid="confirm-by-step-up">{t('release-stepper:sd.stepUp')}</p>
     {/if}
 
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
   </div>
 
   {#snippet footer()}
-    <Button disabled={busy} onclick={() => (open = false)}>{blocking.length > 0 ? 'Close' : 'Cancel'}</Button>
-    <Button variant="danger-solid" icon="upload" loading={busy} disabled={!ready || busy} onclick={() => onconfirm(typed)}>Release now</Button>
+    <Button disabled={busy} onclick={() => (open = false)}>{blocking.length > 0 ? t('common:action.close') : t('common:action.cancel')}</Button>
+    <Button variant="danger-solid" icon="upload" loading={busy} disabled={!ready || busy} onclick={() => onconfirm(typed)}>{t('release-stepper:sd.releaseNow')}</Button>
   {/snippet}
 </Modal>
+
+{#snippet phrase(text: string)}<strong class="phrase">{text}</strong>{/snippet}
 
 <style>
   .para {

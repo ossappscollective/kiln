@@ -24,7 +24,9 @@
     classifyVersionFailure,
     suggestedVersion,
   } from '../../../lib/store-version.ts';
+  import { t } from '../../../lib/i18n/t.ts';
   import { toast } from '../../../lib/toast.svelte.ts';
+  import T from '../../ui/T.svelte';
   import type { AppSummary } from '../../../lib/types.ts';
   import Button from '../../ui/Button.svelte';
   import TextField from '../../ui/TextField.svelte';
@@ -79,14 +81,14 @@
       const looked = await api.previewStoreVersion(workspaceId, app.id, { versionString: wanted });
       const preview = looked.preview;
       if (!preview.checks.canCreate || preview.confirmHash === null) {
-        problem = `${blockingText(preview.checks.blocking)} Nothing was created.`;
+        problem = t('release-store:version.nothingCreated', { message: blockingText(preview.checks.blocking) });
         return;
       }
       const body = { versionString: wanted, confirmHash: preview.confirmHash };
       // The only call that writes to the store. Sent once per click, with the hash of the preview.
       const done = await confirmed((grant) => api.createStoreVersion(workspaceId, app.id, body, grant), body.confirmHash);
       const warnings = done.result.warnings.map((w) => w.message).join(' ');
-      const text = `Version ${done.result.version.versionString} was created as an editable draft. Nothing was submitted.${warnings !== '' ? ` ${warnings}` : ''}`;
+      const text = [t('release-stepper:cv.created', { version: done.result.version.versionString }), warnings].filter((s) => s !== '').join(' ');
       announcement = text;
       toast.success(text);
       // The app reads its store again (the same announcement a publish makes) and the stepper looks for the version.
@@ -104,13 +106,13 @@
 </script>
 
 {#if !mayCreate}
-  <p class="small">{NO_VERSION_SENTENCE}</p>
-  <p class="small muted">{VERSION_ROLE_REASON}</p>
+  <p class="small">{t(NO_VERSION_SENTENCE)}</p>
+  <p class="small muted">{t(VERSION_ROLE_REASON)}</p>
 {:else if off}
-  <p class="small">{NO_VERSION_SENTENCE}</p>
-  <p class="small muted">Creating it from here is switched off on this server. Someone who runs it sets {VERSION_ENV}=true and restarts it.</p>
+  <p class="small">{t(NO_VERSION_SENTENCE)}</p>
+  <p class="small muted"><T key="release-stepper:cv.off" params={{ env: `${VERSION_ENV}=true` }} /></p>
 {:else}
-  <p class="small">App Store Connect has no version a build can be attached to. Create the next one here.</p>
+  <p class="small">{t('release-stepper:cv.none')}</p>
   <form
     class="create"
     onsubmit={(event) => {
@@ -119,7 +121,7 @@
     }}
   >
     <TextField
-      label="Version"
+      label={t('release-stepper:cv.version')}
       bind:value={versionText}
       oninput={() => (touched = true)}
       disabled={busy}
@@ -129,10 +131,10 @@
       maxlength={40}
     />
     <Button type="submit" variant="primary" loading={busy} disabled={versionText.trim() === ''}>
-      Create version {versionText.trim()}
+      {t('release-stepper:cv.create', { version: versionText.trim() })}
     </Button>
   </form>
-  <p class="small muted">{VERSION_NOTE}</p>
+  <p class="small muted">{t(VERSION_NOTE)}</p>
   {#if problem !== ''}<p class="small bad" role="alert">{problem}</p>{/if}
   <p class="visually-hidden" role="status">{announcement}</p>
 {/if}

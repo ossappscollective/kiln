@@ -7,6 +7,8 @@
 <script lang="ts">
   import { formatRollout } from '../../lib/portfolio.ts';
   import { rolloutView } from '../../lib/release.ts';
+  import { t } from '../../lib/i18n/t.ts';
+  import T from '../ui/T.svelte';
   import type { ReleaseSummary } from '../../lib/types.ts';
 import { byFamily } from '@kiln/core';
 
@@ -22,7 +24,7 @@ import { byFamily } from '@kiln/core';
   <p class="head">
     <span class="title" id="{uid}-title">{view.title}</span>
     {#if view.fraction !== null}
-      <span class="value"><strong>{percent}</strong> <span class="muted">of eligible users</span></span>
+      <span class="value"><T key="release-store:ro.value" params={{ percent: percent ?? '' }} tags={{ em: mutedText }} /></span>
     {:else}
       <span class="text muted">{view.text}</span>
     {/if}
@@ -35,13 +37,15 @@ import { byFamily } from '@kiln/core';
       aria-valuemin="0"
       aria-valuemax="100"
       aria-valuenow={Math.round(view.fraction * 1000) / 10}
-      aria-valuetext="{percent} of eligible users"
+      aria-valuetext={t('release-store:ro.valueText', { percent: percent ?? '' })}
     >
       <div class="fill" style:width="{view.fraction * 100}%"></div>
     </div>
   {/if}
-  <p class="source muted">Observed from {source}, read only</p>
+  <p class="source muted">{t('release-store:ro.observed', { source })}</p>
 </div>
+
+{#snippet mutedText(text: string)}<span class="muted">{text}</span>{/snippet}
 
 <style>
   .rollout {

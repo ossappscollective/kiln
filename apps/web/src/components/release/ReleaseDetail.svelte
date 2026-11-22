@@ -16,6 +16,7 @@
   import { findSiblings, planPlatformLabel, releaseHref, releasesOfVersion } from '../../lib/release.ts';
   import { releaseLead } from '../../lib/release-detail.ts';
   import { releaseStepHref } from '../../lib/release-stepper.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { AppSummary, PlanDetail, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
   import AttentionStrip from '../dashboard/AttentionStrip.svelte';
   import Alert from '../ui/Alert.svelte';
@@ -27,6 +28,7 @@
   import PageLead from '../ui/PageLead.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import T from '../ui/T.svelte';
   import Checklist from './Checklist.svelte';
   import { PLANS_ENABLED } from '../../lib/features.ts';
   import NewPlan from './NewPlan.svelte';
@@ -83,7 +85,7 @@
     await Promise.all([loadSibling(current, mine), loadPlans(current, mine)]);
     if (mine !== generation) return;
     loading = false;
-    announcement = `Opened version ${version} of ${appLabel(current)}.`;
+    announcement = t('release:rd.opened', { version, app: appLabel(current) });
   }
 
   async function loadSibling(current: AppSummary, mine: number) {
@@ -196,13 +198,13 @@
 
 <section aria-busy={loading}>
   <p class="back">
-    <a href={backHref}><Icon name="chevron-left" size={16} /> Releases</a>
+    <a href={backHref}><Icon name="chevron-left" size={16} /> {t('release:rd.back')}</a>
     {#if app}<span aria-hidden="true"> / </span><span>{app.name} {version}</span>{/if}
   </p>
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#if loading && !app}
-    <div role="status" aria-label="Loading the release">
+    <div role="status" aria-label={t('release:rd.loading')}>
       <div class="skeleton-head">
         <Skeleton width="260px" height="28px" />
         <Skeleton width="180px" height="16px" />
@@ -215,18 +217,18 @@
   {:else if loadError}
     {#if loadError.notFound}
       <div class="card">
-        <EmptyState icon="box" title="App not found" description="This app is not in this workspace. It may have been deleted.">
+        <EmptyState icon="box" title={t('release:rd.notFound')} description={t('release:rd.notFoundHint')}>
           {#snippet actions()}
-            <Button href={portfolioHref} variant="primary">Back to all apps</Button>
+            <Button href={portfolioHref} variant="primary">{t('release:rd.backToApps')}</Button>
           {/snippet}
         </EmptyState>
       </div>
     {:else}
       <div class="stack">
-        <Alert tone="error" title="Could not load the release">{loadError.message}</Alert>
+        <Alert tone="error" title={t('release:rd.loadFailed')}>{loadError.message}</Alert>
         <div class="row">
-          <Button icon="refresh" onclick={load}>Try again</Button>
-          <Button href={portfolioHref} variant="ghost">Back to all apps</Button>
+          <Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button>
+          <Button href={portfolioHref} variant="ghost">{t('release:rd.backToApps')}</Button>
         </div>
       </div>
     {/if}
@@ -234,7 +236,7 @@
     <div class="release-head">
       <AppIcon name={app.name} url={app.iconUrl} platform={app.platform} seed={app.id} size="lg" />
       <div class="release-head-main">
-    <PageHeader title="{app.name} {version}" description={PLANS_ENABLED ? 'Where this version is on each platform, and the plan for getting it out.' : 'Where this version is on each platform.'} />
+    <PageHeader title="{app.name} {version}" description={PLANS_ENABLED ? t('release:rd.descPlans') : t('release:rd.desc')} />
       </div>
     </div>
 
@@ -243,7 +245,7 @@
         {@const l = lead}
         <PageLead headline={l.headline} hint={l.hint} tone={l.tone} testid="release-lead">
           {#snippet aside()}
-            <ul class="words" aria-label="Status per platform">
+            <ul class="words" aria-label={t('release:rd.statusPerPlatform')}>
               {#each l.words as w (w.platform)}
                 <li><PlatformBadge platform={w.platform} /> <span class="word">{w.word}</span></li>
               {/each}
@@ -257,7 +259,7 @@
         </PageLead>
       {/if}
       {#if plan?.blocked}
-        <Alert tone="warn" title="Blocked">{plan.blockedReason}</Alert>
+        <Alert tone="warn" title={t('release:plan.blocked')}>{plan.blockedReason}</Alert>
       {/if}
       {#if attention}<AttentionStrip items={[attention]} compact />{/if}
 
@@ -268,17 +270,17 @@
       </div>
       {#if siblings.length === 0}
         <p class="muted note">
-          Only {platformLabel(app.platform)} is shown. If this product is also on another platform, add that app with the same identifier or name and it appears beside this one.
+          {t('release:rd.onlyShown', { platform: platformLabel(app.platform) })}
         </p>
       {/if}
 
       {#if !PLANS_ENABLED}
         <!-- Release plans are switched off (lib/features.ts). -->
       {:else if !canReadPlans}
-        <Alert tone="info">Your role does not include release plans.</Alert>
+        <Alert tone="info">{t('release:rd.noRolePlans')}</Alert>
       {:else if plansProblem}
-        <Alert tone="error" title="Could not load the plan">{plansProblem}</Alert>
-        <div><Button icon="refresh" onclick={load}>Try again</Button></div>
+        <Alert tone="error" title={t('release:row.loadFailed')}>{plansProblem}</Alert>
+        <div><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
       {:else if plan}
         <PlanOverview {api} {workspaceId} {plan} {canWrite} onplan={setPlan} ondelete={() => { plan = null; }} />
         <Checklist {api} {workspaceId} {plan} {canWrite} onplan={setPlan} />
@@ -287,19 +289,27 @@
       {:else if canWrite}
         {#if siblingPlan}
           <Alert tone="info">
-            The {planPlatformLabel(siblingPlan.app.platform)} app has a plan for {version}{siblingPlan.plan.platform === null ? ' that covers every platform' : ''}.
-            <a href={releaseHref(siblingPlan.app.id, version)}>Open it there</a>.
+            {@const sibling = siblingPlan}
+            {#if sibling.plan.platform === null}
+              <T key="release:rd.siblingPlanAll" params={{ platform: planPlatformLabel(sibling.app.platform), version }} tags={{ link: openThere }} />
+            {:else}
+              <T key="release:rd.siblingPlan" params={{ platform: planPlatformLabel(sibling.app.platform), version }} tags={{ link: openThere }} />
+            {/if}
           </Alert>
         {/if}
         <NewPlan {api} {workspaceId} {app} {version} {hasPlans} oncreated={setPlan} />
       {:else}
         <div class="card">
-          <EmptyState icon="file-text" title="No plan for this version" description="A member or admin can start a plan with a checklist, release notes and a target date." />
+          <EmptyState icon="file-text" title={t('release:rd.noPlan')} description={t('release:rd.noPlanHint')} />
         </div>
       {/if}
     </div>
   {/if}
 </section>
+
+{#snippet openThere(text: string)}
+  {#if siblingPlan}<a href={releaseHref(siblingPlan.app.id, version)}>{text}</a>{:else}{text}{/if}
+{/snippet}
 
 <style>
   .release-head {

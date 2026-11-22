@@ -8,6 +8,7 @@
 <script lang="ts">
   import type { Role } from '@kiln/core';
   import type { Api } from '../../../lib/api.ts';
+  import { t } from '../../../lib/i18n/t.ts';
   import type { AppSummary } from '../../../lib/types.ts';
   import StagedTrayApp from '../../listing/StagedTrayApp.svelte';
   import PendingChanges from '../../publish/PendingChanges.svelte';
@@ -18,7 +19,7 @@
 
 <div class="stack">
   <PendingChanges {api} {workspaceId} {role} members={[app]} compact headless />
-  <Disclosure summary="Advanced: compare each staged item with the store" stateKey="stepper-review-advanced-{app.id}">
+  <Disclosure summary={t('release-stepper:srv.advanced')} stateKey="stepper-review-advanced-{app.id}">
     <StagedTrayApp {api} {workspaceId} {role} {app} part="items" />
   </Disclosure>
 </div>

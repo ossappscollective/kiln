@@ -10,6 +10,9 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { formatNumber, formatTime } from '../../lib/i18n/format.ts';
+  import { k, t } from '../../lib/i18n/t.ts';
+  import T from '../ui/T.svelte';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import {
@@ -72,13 +75,13 @@
   let result = $state<RolloutResult | null>(null);
   let seq = 0;
 
-  const target = $derived(targets.filter((t) => t.key === targetKey)[0] ?? null);
-  const buttons = $derived(actionButtons(config, app.platform, view, reading || applying ? 'Wait for the request to finish.' : blocked));
+  const target = $derived(targets.filter((tg) => tg.key === targetKey)[0] ?? null);
+  const buttons = $derived(actionButtons(config, app.platform, view, reading || applying ? t('release-store:ra.wait') : blocked !== null ? t(blocked) : null));
 
   // Another app, or a list of releases without the chosen one, starts clean.
   $effect(() => {
     const first = targets[0]?.key ?? '';
-    const has = targets.some((t) => t.key === untrack(() => targetKey));
+    const has = targets.some((tg) => tg.key === untrack(() => targetKey));
     if (!has) {
       untrack(() => {
         targetKey = first;
@@ -166,7 +169,7 @@
     } catch (e) {
       if (mine !== seq) return;
       const failure = classifyFailure(e, null);
-      notice = { tone: 'error', title: 'No preview was made', text: failure.message };
+      notice = { tone: 'error', title: t('release-store:ra.noPreview'), text: failure.message };
     } finally {
       if (mine === seq) previewing = '';
     }
@@ -193,13 +196,13 @@
       if (mine !== seq) return;
       result = done.result;
       closeDialog();
-      blocked = 'The change was made. Refresh the state to see what the store shows and allows now.';
+      blocked = k('release-store:ra.blockedMade');
       sharing = false;
       percent = '';
       notice = {
         tone: 'ok',
-        title: done.result.confirmedByReread ? 'Done (confirmed by reading the store back)' : 'Done',
-        text: `${describeState(done.result.after)}. ${done.result.note}`,
+        title: done.result.confirmedByReread ? t('release-store:ra.doneConfirmed') : t('release-store:ra.done'),
+        text: t('release-store:ra.doneText', { state: describeState(done.result.after), note: done.result.note }),
       };
     } catch (e) {
       if (mine !== seq) return;
@@ -215,29 +218,29 @@
         if (failure.next) {
           // The store is not what was previewed. Nothing was written. Show the new preview: it must be confirmed again.
           preview = failure.next;
-          dialogNotice = 'The store changed after you previewed this, so nothing was sent. The numbers below are the new ones; read them and confirm again.';
+          dialogNotice = t('release-store:ra.changedAfterPreview');
           dialogProblem = '';
         } else {
           closeDialog();
-          notice = { tone: 'warn', title: 'The store changed', text: `${failure.message} That change no longer fits the state of the store.` };
-          blocked = 'Refresh the state to see what the store shows now.';
+          notice = { tone: 'warn', title: t('release-store:ra.storeChanged'), text: t('release-store:ra.noLongerFits', { message: failure.message }) };
+          blocked = k('release-store:ra.blockedRefresh');
         }
         break;
       case 'write_in_progress':
-        dialogProblem = `${failure.message} Wait a moment, then confirm again.`;
+        dialogProblem = t('release-store:ra.waitConfirm', { message: failure.message });
         break;
       case 'outcome_unknown':
         closeDialog();
-        blocked = 'The outcome of the last change is not known. Refresh the state from the store before changing anything.';
-        notice = { tone: 'error', title: 'Not known whether the change was made', text: failure.message };
+        blocked = k('release-store:ra.blockedUnknown');
+        notice = { tone: 'error', title: t('release-store:ra.unknown'), text: failure.message };
         break;
       case 'not_applied':
         closeDialog();
-        notice = { tone: 'info', title: 'Nothing was changed', text: failure.message };
+        notice = { tone: 'info', title: t('release-store:ra.nothingChanged'), text: failure.message };
         break;
       case 'disabled':
         closeDialog();
-        notice = { tone: 'warn', title: 'Switched off', text: failure.message };
+        notice = { tone: 'warn', title: t('release-store:ra.switchedOff'), text: failure.message };
         break;
       default:
         dialogProblem = failure.message;
@@ -256,18 +259,16 @@
 
   {#if targets.length === 0}
     <p class="muted note">
-      {app.lastSyncedAt === null
-        ? 'This app was not synced yet, so there is no release to change. Sync it first.'
-        : 'The last sync found no release here that a rollout change can name.'}
+      {app.lastSyncedAt === null ? t('release-store:ra.notSynced') : t('release-store:ra.noRelease')}
     </p>
   {:else}
     <div class="row wrap">
-      <label for="{uid}-release">Release</label>
+      <label for="{uid}-release">{t('release-store:ra.release')}</label>
       <select id="{uid}-release" value={targetKey} disabled={reading || applying} onchange={(e) => pick(e.currentTarget.value)}>
-        {#each targets as t (t.key)}<option value={t.key}>{t.label}</option>{/each}
+        {#each targets as tg (tg.key)}<option value={tg.key}>{tg.label}</option>{/each}
       </select>
       <Button size="sm" icon="refresh" loading={reading} disabled={applying || previewing !== ''} onclick={refresh}>
-        {view ? 'Refresh state' : 'Read state from the store'}
+        {view ? t('release-store:ra.refresh') : t('release-store:ra.readState')}
       </Button>
     </div>
 
@@ -276,14 +277,14 @@
     {#if view}
       <p class="state" aria-live="polite" title={describeState(view.current)}>
         <strong class="now">{rolloutNowLine(view.current)}</strong>
-        <span class="muted">In the store, read {new Date(view.readAt).toLocaleTimeString()}</span>
+        <span class="muted">{t('release-store:ra.readAt', { time: formatTime(view.readAt) })}</span>
       </p>
     {:else if !readError}
-      <p class="muted note">Read the state from the store first: this only reads, it changes nothing.</p>
+      <p class="muted note">{t('release-store:ra.readFirst')}</p>
     {/if}
 
     {#if notice}<Alert tone={notice.tone} title={notice.title}>{notice.text}</Alert>{/if}
-    {#if blocked && !notice}<p class="muted note">{blocked}</p>{/if}
+    {#if blocked && !notice}<p class="muted note">{t(blocked)}</p>{/if}
 
     <div class="row wrap actions">
       {#each buttons as b (b.action)}
@@ -294,7 +295,7 @@
           loading={previewing === b.action}
           onclick={() => begin(b.action)}
         >
-          {b.label}{b.action === 'set_fraction' ? '…' : ''}
+          {b.action === 'set_fraction' ? t('release-store:ra.ellipsis', { label: b.label }) : b.label}
         </Button>
       {/each}
     </div>
@@ -302,13 +303,13 @@
 
     {#if sharing && view}
       <div class="field share">
-        <label for={shareId}>New share of users (percent, more than {view.minUserFraction !== null ? Math.round(view.minUserFraction * 10000) / 100 : 0}%)</label>
+        <label for={shareId}>{t('release-store:ra.newShare', { min: formatNumber(view.minUserFraction !== null ? Math.round(view.minUserFraction * 10000) / 100 : 0) })}</label>
         <div class="row">
           <input id={shareId} type="text" inputmode="decimal" autocomplete="off" bind:value={percent} aria-invalid={percentProblem !== ''} />
-          <Button size="sm" variant="primary" loading={previewing === 'set_fraction'} disabled={previewing !== ''} onclick={submitShare}>Preview change</Button>
+          <Button size="sm" variant="primary" loading={previewing === 'set_fraction'} disabled={previewing !== ''} onclick={submitShare}>{t('release-store:ra.previewChange')}</Button>
         </div>
         {#if percentProblem}<p class="error" role="alert">{percentProblem}</p>{/if}
-        <p class="hint">Google Play only raises a rollout. The only way down is to halt it.</p>
+        <p class="hint">{t('release-store:ra.raiseOnly')}</p>
       </div>
     {/if}
   {/if}

@@ -10,6 +10,7 @@
   import type { Api } from '../../lib/api.ts';
   import { formatTargetDate, planErrorMessage } from '../../lib/release.ts';
   import { planLine } from '../../lib/release-detail.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { PlanChanges, PlanDetail } from '../../lib/types.ts';
@@ -18,6 +19,7 @@
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
   import Modal from '../ui/Modal.svelte';
+  import T from '../ui/T.svelte';
 
   let {
     api,
@@ -81,17 +83,17 @@
     event.preventDefault();
     const reason = reasonDraft.trim();
     if (!reason) {
-      reasonProblem = 'Say why the release is blocked.';
+      reasonProblem = t('release:plan.reasonRequired');
       return;
     }
     if (await change({ blocked: true, blockedReason: reason })) {
       editingBlock = false;
-      toast.success('Marked as blocked.');
+      toast.success(t('release:plan.toast.blocked'));
     }
   }
 
   async function unblock() {
-    if (await change({ blocked: false })) toast.success('The block was cleared.');
+    if (await change({ blocked: false })) toast.success(t('release:plan.toast.unblocked'));
   }
 
   async function saveNotes() {
@@ -105,7 +107,7 @@
     try {
       await api.deletePlan(workspaceId, plan.appId, plan.id);
       confirmDelete = false;
-      toast.success(`Deleted the plan for ${plan.version}. Nothing in a store was changed.`);
+      toast.success(t('release:plan.toast.deleted', { version: plan.version }));
       ondelete();
     } catch (e) {
       deleteProblem = planErrorMessage(e);
@@ -118,12 +120,12 @@
 <section class="card" aria-labelledby="{uid}-title">
   <div class="card-header">
     <div>
-      <h2 id="{uid}-title">Plan</h2>
+      <h2 id="{uid}-title">{t('release:plan.title')}</h2>
       <p data-testid="plan-line">{planLine(plan)}</p>
     </div>
     <div class="row">
-      {#if plan.blocked}<Badge tone="bad" icon={toneIcon('bad')}>Blocked</Badge>{/if}
-      <Badge tone={readiness.ready ? 'ok' : 'warn'} icon={toneIcon(readiness.ready ? 'ok' : 'warn')}>{readiness.ready ? 'Ready by our checks' : 'Not ready'}</Badge>
+      {#if plan.blocked}<Badge tone="bad" icon={toneIcon('bad')}>{t('release:plan.blocked')}</Badge>{/if}
+      <Badge tone={readiness.ready ? 'ok' : 'warn'} icon={toneIcon(readiness.ready ? 'ok' : 'warn')}>{readiness.ready ? t('release:plan.ready') : t('release:plan.notReady')}</Badge>
     </div>
   </div>
 
@@ -132,75 +134,75 @@
   <div class="stack loose">
     <div class="readiness">
       {#if readiness.reasons.length > 0}
-        <p class="line"><strong>What still stands in the way</strong></p>
+        <p class="line"><strong>{t('release:plan.standsInTheWay')}</strong></p>
         <ul class="reasons">
           {#each readiness.reasons as reason (reason)}<li>{reason}</li>{/each}
         </ul>
       {:else}
-        <p class="muted line">Every required item is done and every locale has release notes. The store runs its own checks too.</p>
+        <p class="muted line">{t('release:plan.allReady')}</p>
       {/if}
     </div>
 
-    <Disclosure summary="Details" stateKey="release-plan-details" open={plan.blocked}>
+    <Disclosure summary={t('release:plan.details')} stateKey="release-plan-details" open={plan.blocked}>
     <div class="stack loose">
-    <p class="muted line quiet">Our own notes and checks; nothing here is sent to a store.</p>
+    <p class="muted line quiet">{t('release:plan.ownNotes')}</p>
     <div class="grid">
       <div class="field">
-        <label for="{uid}-date">Target date</label>
+        <label for="{uid}-date">{t('release:plan.targetDate')}</label>
         <div class="row">
           <input id="{uid}-date" type="date" value={plan.targetDate ?? ''} disabled={!canWrite || busy} onchange={(e) => setDate(e.currentTarget)} aria-describedby="{uid}-date-hint" />
           {#if canWrite && plan.targetDate}
-            <Button size="sm" variant="ghost" disabled={busy} onclick={() => change({ targetDate: null })}>Clear date</Button>
+            <Button size="sm" variant="ghost" disabled={busy} onclick={() => change({ targetDate: null })}>{t('release:plan.clearDate')}</Button>
           {/if}
         </div>
         <p id="{uid}-date-hint" class="hint">
           {#if plan.targetDate}
-            {formatTargetDate(plan.targetDate)}. Counted as a calendar day in UTC.
+            {t('release:plan.dateHint', { date: formatTargetDate(plan.targetDate) })}
           {:else}
-            No deadline set. A date is counted as a calendar day in UTC.
+            {t('release:plan.dateHintNone')}
           {/if}
         </p>
       </div>
     </div>
 
     <div class="block">
-      <h3>Blocked</h3>
+      <h3>{t('release:plan.blockedHeading')}</h3>
       {#if editingBlock}
         <form class="stack" onsubmit={saveBlock}>
           <div class="field">
-            <label for="{uid}-reason">Why is it blocked?</label>
+            <label for="{uid}-reason">{t('release:plan.whyBlocked')}</label>
             <textarea id="{uid}-reason" rows="3" maxlength="500" bind:value={reasonDraft} aria-invalid={reasonProblem !== ''} aria-describedby="{uid}-reason-hint"></textarea>
             {#if reasonProblem}<p class="field-error" role="alert">{reasonProblem}</p>{/if}
-            <p id="{uid}-reason-hint" class="hint">Shown on the portfolio board next to the app. For example: waiting for legal to approve the privacy policy.</p>
+            <p id="{uid}-reason-hint" class="hint">{t('release:plan.whyBlockedHint')}</p>
           </div>
           <div class="row">
-            <Button type="submit" variant="primary" loading={busy}>{plan.blocked ? 'Save reason' : 'Mark as blocked'}</Button>
-            <Button disabled={busy} onclick={() => (editingBlock = false)}>Cancel</Button>
+            <Button type="submit" variant="primary" loading={busy}>{plan.blocked ? t('release:plan.saveReason') : t('release:plan.markBlocked')}</Button>
+            <Button disabled={busy} onclick={() => (editingBlock = false)}>{t('common:action.cancel')}</Button>
           </div>
         </form>
       {:else if plan.blocked}
-        <p class="line"><strong>Blocked:</strong> {plan.blockedReason}</p>
+        <p class="line"><strong>{t('release:plan.blockedLabel')}</strong> {plan.blockedReason}</p>
         {#if canWrite}
           <div class="row actions">
-            <Button disabled={busy} onclick={startBlock}>Change reason</Button>
-            <Button loading={busy} onclick={unblock}>Clear the block</Button>
+            <Button disabled={busy} onclick={startBlock}>{t('release:plan.changeReason')}</Button>
+            <Button loading={busy} onclick={unblock}>{t('release:plan.clearBlock')}</Button>
           </div>
         {/if}
       {:else}
-        <p class="muted line">Not blocked.</p>
+        <p class="muted line">{t('release:plan.notBlocked')}</p>
         {#if canWrite}
-          <div class="row actions"><Button disabled={busy} icon="alert-triangle" onclick={startBlock}>Mark as blocked</Button></div>
+          <div class="row actions"><Button disabled={busy} icon="alert-triangle" onclick={startBlock}>{t('release:plan.markBlocked')}</Button></div>
         {/if}
       {/if}
     </div>
 
     {#if canWrite || plan.notes}
       <div class="field">
-        <label for="{uid}-notes">Notes for the team</label>
+        <label for="{uid}-notes">{t('release:plan.teamNotes')}</label>
         <textarea id="{uid}-notes" rows="3" maxlength="4000" value={notes} readonly={!canWrite} oninput={(e) => (notesDraft = e.currentTarget.value)}></textarea>
         {#if canWrite}
           <div class="row actions">
-            <Button size="sm" disabled={!notesDirty || busy} onclick={saveNotes}>Save notes</Button>
+            <Button size="sm" disabled={!notesDirty || busy} onclick={saveNotes}>{t('release:plan.saveNotes')}</Button>
           </div>
         {/if}
       </div>
@@ -208,7 +210,7 @@
 
     {#if canWrite}
       <div class="danger-zone">
-        <Button variant="danger" icon="trash" disabled={busy} onclick={() => { deleteProblem = ''; confirmDelete = true; }}>Delete this plan</Button>
+        <Button variant="danger" icon="trash" disabled={busy} onclick={() => { deleteProblem = ''; confirmDelete = true; }}>{t('release:plan.deleteThis')}</Button>
       </div>
     {/if}
     </div>
@@ -217,17 +219,20 @@
 </section>
 
 {#if canWrite}
-  <Modal bind:open={confirmDelete} size="sm" title="Delete this plan?" dismissible={!busy}>
+  <Modal bind:open={confirmDelete} size="sm" title={t('release:plan.confirm.title')} dismissible={!busy}>
     <div class="stack">
       <p>
-        The plan for <strong>{plan.version}</strong>, its checklist ({plan.items.length} {plan.items.length === 1 ? 'item' : 'items'}) and its release notes ({plan.releaseNotes.length} {plan.releaseNotes.length === 1 ? 'locale' : 'locales'}) will be removed.
+        <T
+          key="release:plan.confirm.body"
+          params={{ version: plan.version, items: t('release:plan.confirm.items', { count: plan.items.length }), locales: t('release:plan.confirm.locales', { count: plan.releaseNotes.length }) }}
+        />
       </p>
-      <p class="muted">Nothing in a store is changed.</p>
+      <p class="muted">{t('release:plan.confirm.noStoreChange')}</p>
       {#if deleteProblem}<Alert tone="error">{deleteProblem}</Alert>{/if}
     </div>
     {#snippet footer()}
-      <Button disabled={busy} onclick={() => (confirmDelete = false)}>Cancel</Button>
-      <Button variant="danger-solid" loading={busy} onclick={removePlan}>Delete plan</Button>
+      <Button disabled={busy} onclick={() => (confirmDelete = false)}>{t('common:action.cancel')}</Button>
+      <Button variant="danger-solid" loading={busy} onclick={removePlan}>{t('release:plan.confirm.delete')}</Button>
     {/snippet}
   </Modal>
 {/if}

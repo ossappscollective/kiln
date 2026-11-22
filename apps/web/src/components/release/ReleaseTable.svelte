@@ -13,7 +13,8 @@
   import type { Api } from '../../lib/api.ts';
   import { type PlatformScope, appAddress } from '../../lib/app-scope.ts';
   import { promoteHref, promoteOption } from '../../lib/play-promote.ts';
-  import { dayText, fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatDate, formatDateTime, formatList, formatRelativeTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { VersionGroup } from '../../lib/releases-table.ts';
   import type { AppBuild, AppSummary } from '../../lib/types.ts';
@@ -58,34 +59,45 @@
     else next.add(key);
     open = next;
   }
+
+  const rowName = (row: { platform: Parameters<typeof platformLabel>[0]; version: string; track: string | null; trackText: string }): string =>
+    row.track ? t('release:rt.rowNameTrack', { platform: platformLabel(row.platform), version: row.version, track: row.trackText }) : t('release:rt.rowName', { platform: platformLabel(row.platform), version: row.version });
+
+  function dateTitle(at: number, source: string | null, platform: Parameters<typeof supports>[0]): string {
+    const params = { when: formatDateTime(at), ago: formatRelativeTime(at, { now }) };
+    if (source === 'seen') return t('release:rt.dateSeen', params);
+    return supports(platform, 'releaseTracks') ? t('release:rt.dateTitle', params) : t('release:rt.dateBuild', params);
+  }
 </script>
 
 <div class="card flush table-scroll">
   <table class="releases compact">
     <caption class="visually-hidden">
-      Releases by version{showPlatform ? ', by platform' : ''}. Open a row for the store and plan detail.
+      {showPlatform ? t('release:rt.captionPlatform') : t('release:rt.caption')}
     </caption>
     <thead>
       <tr>
-        <th scope="col" class="expander"><span class="visually-hidden">Details</span></th>
-        <th scope="col">Version</th>
-        <th scope="col">Platform</th>
-        <th scope="col">Build</th>
-        <th scope="col">Status</th>
-        <th scope="col" class="num">Rollout</th>
-        <th scope="col" title="The day of the build upload (App Store). Google Play gives no date: then the day this server first saw the release.">Date</th>
-        <th scope="col">CI</th>
-        {#if PLANS_ENABLED}<th scope="col">Plan</th>{/if}
+        <th scope="col" class="expander"><span class="visually-hidden">{t('release:rt.details')}</span></th>
+        <th scope="col">{t('release:rt.version')}</th>
+        <th scope="col">{t('release:rt.platform')}</th>
+        <th scope="col">{t('release:rt.build')}</th>
+        <th scope="col">{t('release:rt.status')}</th>
+        <th scope="col" class="num">{t('release:rt.rollout')}</th>
+        <th scope="col" title={t('release:rt.dateHint')}>{t('release:rt.date')}</th>
+        <th scope="col">{t('release:rt.ci')}</th>
+        {#if PLANS_ENABLED}<th scope="col">{t('release:rt.plan')}</th>{/if}
       </tr>
     </thead>
     {#each groups as group (group.version)}
       <tbody>
         <tr class="group">
           <th scope="colgroup" colspan={columns}>
-            <span class="gv">Version {group.version}</span>
+            <span class="gv">{t('release:rt.groupVersion', { version: group.version })}</span>
             <span class="muted">
-              {group.rows.length} {group.rows.length === 1 ? 'release' : 'releases'}{showPlatform ? ` · ${group.platforms.map(platformLabel).join(' and ')}` : ''}
-              {#if !group.inProgress} · all live{/if}
+              {showPlatform
+                ? t('release:rt.groupCountPlatforms', { count: group.rows.length, platforms: formatList(group.platforms.map(platformLabel)) })
+                : t('release:rt.groupCount', { count: group.rows.length })}
+              {#if !group.inProgress}{t('release:rt.allLive')}{/if}
             </span>
           </th>
         </tr>
@@ -100,7 +112,7 @@
                 class="bare toggle"
                 aria-expanded={isOpen}
                 aria-controls="{uid}-{row.key}"
-                aria-label="{isOpen ? 'Hide' : 'Show'} details of {platformLabel(row.platform)} {row.version}{row.track ? `, ${row.trackText}` : ''}"
+                aria-label={isOpen ? t('release:rt.hideDetails', { what: rowName(row) }) : t('release:rt.showDetails', { what: rowName(row) })}
                 onclick={() => toggle(row.key)}
               >
                 <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} size={16} />
@@ -111,7 +123,7 @@
               <span class="plat">
                 <PlatformBadge platform={row.platform} />
                 {#if row.track !== null}<span class="muted track">{row.trackText}</span>{/if}
-                {#if promote}<a class="promote" href={promoteHref(promote)} title="Open Prepare release with these version codes, to release them in {promote.to}.">{promote.label}</a>{/if}
+                {#if promote}<a class="promote" href={promoteHref(promote)} title={t('release:rt.promoteTitle', { to: promote.to })}>{promote.label}</a>{/if}
               </span>
             </td>
             <td class="tabular">{row.buildText}</td>
@@ -119,16 +131,16 @@
               <ReleaseStatus status={row.status} rawState={row.release.rawState} sentForReviewAt={row.release.sentForReviewAt} />
             </td>
             <td class="num tabular">
-              {#if row.rolloutText}{row.rolloutText}{:else}<span class="muted" title={supports(row.platform, 'phasedRelease') ? 'Apple’s phased release share is not read yet.' : 'The store reports no rollout share.'}>—</span>{/if}
+              {#if row.rolloutText}{row.rolloutText}{:else}<span class="muted" title={supports(row.platform, 'phasedRelease') ? t('release:rt.noPhasedShare') : t('release:rt.noShare')}>—</span>{/if}
             </td>
             <td class="muted">
               {#if row.at !== null}
                 <time
                   datetime={new Date(row.at).toISOString()}
-                  title="{row.atSource === 'seen' ? 'First seen here ' : supports(row.platform, 'releaseTracks') ? '' : 'Build uploaded '}{fullTime(row.at)} ({timeAgo(row.at, now)})"
-                >{dayText(row.at)}{#if row.atSource === 'seen'}<span class="seen"> · seen</span>{/if}</time>
+                  title={dateTitle(row.at, row.atSource, row.platform)}
+                >{formatDate(row.at, { year: 'numeric', month: 'short', day: 'numeric' })}{#if row.atSource === 'seen'}<span class="seen"> {t('release:rt.seen')}</span>{/if}</time>
               {:else}
-                <span aria-label="Not reported by the store">—</span>
+                <span aria-label={t('release:rt.notReported')}>—</span>
               {/if}
             </td>
             <td>

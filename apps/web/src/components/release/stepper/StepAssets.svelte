@@ -9,6 +9,7 @@
   import type { Api } from '../../../lib/api.ts';
   import { appAddress, type PlatformScope } from '../../../lib/app-scope.ts';
   import { stagingError } from '../../../lib/staged.ts';
+  import { t } from '../../../lib/i18n/t.ts';
   import { readCache } from '../../../lib/read-cache.ts';
   import { assetsLine, stagedSetsLine } from '../../../lib/release-assets.ts';
   import type { AppSummary } from '../../../lib/types.ts';
@@ -66,32 +67,32 @@
 
 <div class="stack">
   {#if loading && diff === null}
-    <div role="status" aria-label="Comparing the screenshots"><Skeleton width="60%" height="16px" /></div>
+    <div role="status" aria-label={t('release-stepper:sa.comparing')}><Skeleton width="60%" height="16px" /></div>
   {:else if problem}
-    <Alert tone="error" title="Could not compare the screenshots">
+    <Alert tone="error" title={t('release-stepper:sa.failed')}>
       {problem}
-      <div class="retry"><Button size="sm" icon="refresh" onclick={() => read(true)}>Try again</Button></div>
+      <div class="retry"><Button size="sm" icon="refresh" onclick={() => read(true)}>{t('common:action.tryAgain')}</Button></div>
     </Alert>
   {:else}
     <p class="status">
-      <Badge tone={line.tone === 'warn' ? 'warn' : line.tone === 'ok' ? 'ok' : 'neutral'} icon={line.tone === 'ok' ? 'check' : undefined}>{line.tone === 'warn' ? 'May need an update' : line.tone === 'ok' ? 'Up to date' : 'Not known'}</Badge>
+      <Badge tone={line.tone === 'warn' ? 'warn' : line.tone === 'ok' ? 'ok' : 'neutral'} icon={line.tone === 'ok' ? 'check' : undefined}>{line.tone === 'warn' ? t('release-stepper:sa.mayNeedUpdate') : line.tone === 'ok' ? t('release-stepper:sa.upToDate') : t('release-stepper:sa.notKnown')}</Badge>
       <span>{line.text}</span>
     </p>
     {#if diff && diff.version && line.tone === 'warn'}
-      <p class="muted small">Compared with {diff.version.versionString ? `version ${diff.version.versionString}` : 'the version in the store'}.</p>
+      <p class="muted small">{diff.version.versionString ? t('release-stepper:sa.comparedVersion', { version: diff.version.versionString }) : t('release-stepper:sa.comparedStore')}</p>
     {/if}
   {/if}
 
   {#if sets > 0}
     <p class="status">
-      <Badge tone="info">{sets} staged</Badge>
+      <Badge tone="info">{t('release-stepper:sa.staged', { count: sets })}</Badge>
       <span>{stagedSetsLine(sets, files)}</span>
     </p>
   {/if}
 
   <div class="row">
-    <Button href={appAddress(app.id, 'assets', scope)} icon="grid">Open the Assets tab</Button>
-    <Button size="sm" icon="refresh" disabled={loading} onclick={() => read(true)}>Compare again</Button>
+    <Button href={appAddress(app.id, 'assets', scope)} icon="grid">{t('release-stepper:sa.openAssets')}</Button>
+    <Button size="sm" icon="refresh" disabled={loading} onclick={() => read(true)}>{t('release-stepper:sa.compareAgain')}</Button>
   </div>
 </div>
 

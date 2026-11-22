@@ -13,7 +13,8 @@
   import type { Api } from '../../lib/api.ts';
   import { type PlatformScope, appAddress } from '../../lib/app-scope.ts';
   import { runBadge } from '../../lib/ci/ci.ts';
-  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatDateTime, formatList, formatRelativeTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { describeError, storeName } from '../../lib/portfolio.ts';
   import { dueText, formatTargetDate, rolloutHeadline } from '../../lib/release.ts';
   import { type PromoteOption, promoteHref } from '../../lib/play-promote.ts';
@@ -95,87 +96,87 @@
 
 <div class="detail">
   <div class="row wrap actions">
-    <Button variant={promote ? 'secondary' : 'primary'} icon="rocket" href={releaseHref}>Open the release</Button>
-    <Button variant="ghost" icon="pipeline" href={buildsHref}>Builds and CI</Button>
+    <Button variant={promote ? 'secondary' : 'primary'} icon="rocket" href={releaseHref}>{t('release:row.openRelease')}</Button>
+    <Button variant="ghost" icon="pipeline" href={buildsHref}>{t('release:row.buildsAndCi')}</Button>
   </div>
   <div class="grid">
-    <section class="part" aria-label="Store">
-      <h4>In the store <span class="muted">· {storeName(row.platform)}, read only</span></h4>
+    <section class="part" aria-label={t('release:row.store')}>
+      <h4>{t('release:row.inStore')} <span class="muted">{t('release:row.inStoreNote', { store: storeName(row.platform) })}</span></h4>
       <dl>
-        <div><dt>State</dt><dd><code>{row.release.rawState}</code></dd></div>
+        <div><dt>{t('release:row.state')}</dt><dd><code>{row.release.rawState}</code></dd></div>
         <div><dt>{platformMeta(row.platform).buildLabel}</dt><dd>{row.buildText}</dd></div>
-        {#if row.release.track !== null}<div><dt>Track</dt><dd>{row.trackText}</dd></div>{/if}
+        {#if row.release.track !== null}<div><dt>{t('release:row.track')}</dt><dd>{row.trackText}</dd></div>{/if}
         <div>
-          <dt>Changed in the store</dt>
+          <dt>{t('release:row.changedInStore')}</dt>
           <dd>
             {#if row.release.storeUpdatedAt !== null}
-              <time datetime={new Date(row.release.storeUpdatedAt).toISOString()} title={fullTime(row.release.storeUpdatedAt)}>{timeAgo(row.release.storeUpdatedAt, now)}</time>
+              <time datetime={new Date(row.release.storeUpdatedAt).toISOString()} title={formatDateTime(row.release.storeUpdatedAt)}>{formatRelativeTime(row.release.storeUpdatedAt, { now })}</time>
             {:else}
-              <span class="muted">not reported</span>
+              <span class="muted">{t('release:row.notReported')}</span>
             {/if}
           </dd>
         </div>
         <div>
-          <dt>Last read</dt>
-          <dd><time datetime={new Date(row.release.syncedAt).toISOString()} title={fullTime(row.release.syncedAt)}>{timeAgo(row.release.syncedAt, now)}</time></dd>
+          <dt>{t('release:row.lastRead')}</dt>
+          <dd><time datetime={new Date(row.release.syncedAt).toISOString()} title={formatDateTime(row.release.syncedAt)}>{formatRelativeTime(row.release.syncedAt, { now })}</time></dd>
         </div>
       </dl>
       <RolloutObserved release={row.release} />
       {#if promote}
         <p class="promote-line">
           <Button size="sm" variant="primary" icon="arrow-right" href={promoteHref(promote)}>{promote.label}</Button>
-          <span class="muted note">Opens Prepare release with version code{promote.codes.length === 1 ? '' : 's'} {promote.codes.join(', ')} from {promote.fromLabel}. You set the notes and the share, and confirm at the end.</span>
+          <span class="muted note">{t('release:row.promoteNote', { count: promote.codes.length, codes: formatList(promote.codes.map(String)), from: promote.fromLabel })}</span>
         </p>
       {/if}
     </section>
 
     {#if PLANS_ENABLED}
-    <section class="part" aria-label="Plan">
-      <h4>Plan <span class="muted">· our own planning data</span></h4>
+    <section class="part" aria-label={t('release:row.plan')}>
+      <h4>{t('release:row.plan')} <span class="muted">{t('release:row.planNote')}</span></h4>
       {#if plan === null}
         <p class="muted">{row.plan.kind === 'none' ? row.plan.title : ''}</p>
-        {#if canReadPlans}<p class="muted">Open the release to start a plan with a checklist, release notes and a target date.</p>{/if}
+        {#if canReadPlans}<p class="muted">{t('release:row.startPlan')}</p>{/if}
       {:else}
         <p class="chips">
           <Badge tone={row.plan.tone}>{row.plan.label}</Badge>
           {#if due}<Badge tone={due.tone}>{due.text}</Badge>{/if}
         </p>
         <dl>
-          <div><dt>Target date</dt><dd>{plan.targetDate ? formatTargetDate(plan.targetDate) : 'Not set'}</dd></div>
-          <div><dt>Checklist</dt><dd>{plan.checklist.done} of {plan.checklist.total} done</dd></div>
-          <div><dt>Rollout plan</dt><dd>{rolloutHeadline(plan.rollout)}</dd></div>
+          <div><dt>{t('release:row.targetDate')}</dt><dd>{plan.targetDate ? formatTargetDate(plan.targetDate) : t('release:row.notSet')}</dd></div>
+          <div><dt>{t('release:row.checklist')}</dt><dd>{t('release:checklist.progress', { done: plan.checklist.done, total: plan.checklist.total })}</dd></div>
+          <div><dt>{t('release:row.rolloutPlan')}</dt><dd>{rolloutHeadline(plan.rollout)}</dd></div>
         </dl>
-        {#if plan.blocked}<Alert tone="warn" title="Blocked">{plan.blockedReason}</Alert>{/if}
-        {#if row.plan.kind === 'plan' && row.plan.viaApp}<p class="muted note">This plan is on the other platform's app and covers both.</p>{/if}
+        {#if plan.blocked}<Alert tone="warn" title={t('release:plan.blocked')}>{plan.blockedReason}</Alert>{/if}
+        {#if row.plan.kind === 'plan' && row.plan.viaApp}<p class="muted note">{t('release:row.viaApp')}</p>{/if}
       {/if}
     </section>
     {/if}
   </div>
 
   {#if plan !== null && canReadPlans}
-    <section class="wide" aria-label="Rollout plan and store comparison">
+    <section class="wide" aria-label={t('release:row.rolloutSection')}>
       {#if planLoading}
-        <div role="status" aria-label="Loading the plan" class="stack"><Skeleton width="40%" height="16px" /><Skeleton width="100%" height="64px" /></div>
+        <div role="status" aria-label={t('release:row.loadingPlan')} class="stack"><Skeleton width="40%" height="16px" /><Skeleton width="100%" height="64px" /></div>
       {:else if planProblem}
-        <Alert tone="error" title="Could not load the plan">{planProblem}</Alert>
+        <Alert tone="error" title={t('release:row.loadFailed')}>{planProblem}</Alert>
       {:else if detail}
         <Rollout {api} {workspaceId} plan={detail} {canWrite} onsummary={(summary) => { if (detail) detail = { ...detail, rollout: summary }; }} />
       {/if}
     </section>
   {/if}
 
-  <section class="wide" aria-label="Builds">
-    <h4>Builds <span class="muted">· read from the store and matched to CI runs</span></h4>
+  <section class="wide" aria-label={t('release:row.builds')}>
+    <h4>{t('release:row.builds')} <span class="muted">{t('release:row.buildsNote')}</span></h4>
     {#if builds === null}
-      <p class="muted">Build data is not available.</p>
+      <p class="muted">{t('release:row.noBuildData')}</p>
     {:else if matching.length === 0}
-      <p class="muted">No build with {supports(row.platform, 'releaseTracks') ? 'these version codes' : 'this build number'} was found. A sync reads builds from the store.</p>
+      <p class="muted">{supports(row.platform, 'releaseTracks') ? t('release:row.noBuildCodes') : t('release:row.noBuildNumber')}</p>
     {:else}
       <div class="table-scroll">
         <table class="compact">
-          <caption class="visually-hidden">Builds of {row.version} on {storeName(row.platform)}</caption>
+          <caption class="visually-hidden">{t('release:row.buildsCaption', { version: row.version, store: storeName(row.platform) })}</caption>
           <thead>
-            <tr><th scope="col">Build</th><th scope="col">Uploaded</th><th scope="col">CI</th><th scope="col">Commit</th></tr>
+            <tr><th scope="col">{t('release:row.col.build')}</th><th scope="col">{t('release:row.col.uploaded')}</th><th scope="col">{t('release:row.col.ci')}</th><th scope="col">{t('release:row.col.commit')}</th></tr>
           </thead>
           <tbody>
             {#each matching as b (b.buildNumber)}
@@ -183,16 +184,16 @@
               <tr>
                 <th scope="row">{b.buildNumber}</th>
                 <td class="muted">
-                  {#if b.uploadedAt !== null}<time datetime={new Date(b.uploadedAt).toISOString()} title={fullTime(b.uploadedAt)}>{timeAgo(b.uploadedAt, now)}</time>{:else}—{/if}
+                  {#if b.uploadedAt !== null}<time datetime={new Date(b.uploadedAt).toISOString()} title={formatDateTime(b.uploadedAt)}>{formatRelativeTime(b.uploadedAt, { now })}</time>{:else}—{/if}
                 </td>
                 <td>
                   {#if badge}
                     <Badge tone={badge.tone} dot={badge.dot}>{badge.label}</Badge>
                     {#if b.link?.run?.url}<a href={b.link.run.url} target="_blank" rel="noreferrer noopener">{b.link.run.workflow}</a>{/if}
                   {:else if b.linkState === 'tag'}
-                    <Badge tone="info">Tag found</Badge>
+                    <Badge tone="info">{t('release:row.tagFound')}</Badge>
                   {:else}
-                    <span class="muted">Not linked</span>
+                    <span class="muted">{t('release:row.notLinked')}</span>
                   {/if}
                 </td>
                 <td class="muted">{b.link?.commit ? b.link.commit.shortSha : '—'}</td>

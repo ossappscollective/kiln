@@ -7,6 +7,7 @@
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
   import { SUGGESTED_LOCALES, checkLocale, limitNote, noteCounter, planErrorMessage } from '../../lib/release.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { PlanDetail } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -55,7 +56,7 @@
   async function save(locale: string, text: string) {
     if (await call(locale, () => api.setReleaseNotes(workspaceId, plan.appId, plan.id, locale, text))) {
       drafts[locale] = undefined;
-      toast.success(`Saved the release notes for ${locale}. Nothing was sent to a store.`);
+      toast.success(t('release:rn.saved', { locale }));
     }
   }
 
@@ -86,12 +87,12 @@
 <section class="card" aria-labelledby="{uid}-title">
   <div class="card-header">
     <div>
-      <h2 id="{uid}-title">Release notes</h2>
+      <h2 id="{uid}-title">{t('release:rn.title')}</h2>
       <p>
         {#if readiness.locales === 0}
-          No locales yet.
+          {t('release:rn.noLocales')}
         {:else}
-          {readiness.filled} of {readiness.locales} {readiness.locales === 1 ? 'locale' : 'locales'} written.
+          {t('release:rn.written', { count: readiness.locales, filled: readiness.filled })}
         {/if}
         {limitNote(plan.platform)}
       </p>
@@ -102,7 +103,7 @@
 
   {#if notes.length === 0}
     <p class="muted empty">
-      {canWrite ? 'Add a locale for each language this version ships in, then write the notes.' : 'No release notes have been written yet.'}
+      {canWrite ? t('release:rn.emptyCanWrite') : t('release:rn.empty')}
     </p>
   {/if}
 
@@ -114,8 +115,8 @@
       <div class="locale">
         <div class="locale-head">
           <label for={textId}><strong>{note.locale}</strong></label>
-          {#if note.text.trim() === '' && !dirty(note.locale, note.text)}<span class="muted small">Not written yet</span>{/if}
-          {#if dirty(note.locale, note.text)}<span class="muted small">Unsaved changes</span>{/if}
+          {#if note.text.trim() === '' && !dirty(note.locale, note.text)}<span class="muted small">{t('release:rn.notWritten')}</span>{/if}
+          {#if dirty(note.locale, note.text)}<span class="muted small">{t('release:rn.unsaved')}</span>{/if}
         </div>
         <textarea
           id={textId}
@@ -131,21 +132,21 @@
           <span>{counter.label}</span>
         </p>
         {#if counter.over}
-          <p class="field-error" role="status"><Icon name="alert" size={14} /> Too long for the store. Shorten it before saving.</p>
+          <p class="field-error" role="status"><Icon name="alert" size={14} /> {t('release:rn.tooLong')}</p>
         {/if}
         {#if canWrite}
           <div class="row">
-            <Button size="sm" variant="primary" loading={busy === note.locale} disabled={!dirty(note.locale, note.text) || counter.over || (busy !== null && busy !== note.locale)} onclick={() => save(note.locale, value)}>Save {note.locale}</Button>
+            <Button size="sm" variant="primary" loading={busy === note.locale} disabled={!dirty(note.locale, note.text) || counter.over || (busy !== null && busy !== note.locale)} onclick={() => save(note.locale, value)}>{t('release:rn.saveLocale', { locale: note.locale })}</Button>
             {#if dirty(note.locale, note.text)}
-              <Button size="sm" variant="ghost" disabled={busy !== null} onclick={() => (drafts[note.locale] = undefined)}>Discard changes</Button>
+              <Button size="sm" variant="ghost" disabled={busy !== null} onclick={() => (drafts[note.locale] = undefined)}>{t('release:rn.discard')}</Button>
             {/if}
             <span class="spacer"></span>
             {#if confirming === note.locale}
-              <span class="muted small">Remove {note.locale} and its text?</span>
-              <Button size="sm" variant="danger" loading={busy === note.locale} onclick={() => remove(note.locale)}>Yes, remove</Button>
-              <Button size="sm" variant="ghost" onclick={() => (confirming = null)}>Cancel</Button>
+              <span class="muted small">{t('release:rn.removeAsk', { locale: note.locale })}</span>
+              <Button size="sm" variant="danger" loading={busy === note.locale} onclick={() => remove(note.locale)}>{t('release:rn.yesRemove')}</Button>
+              <Button size="sm" variant="ghost" onclick={() => (confirming = null)}>{t('common:action.cancel')}</Button>
             {:else}
-              <Button size="sm" variant="ghost" icon="trash" disabled={busy !== null} onclick={() => (confirming = note.locale)}>Remove locale<span class="visually-hidden"> {note.locale}</span></Button>
+              <Button size="sm" variant="ghost" icon="trash" aria-label={t('release:rn.removeLocaleAria', { locale: note.locale })} disabled={busy !== null} onclick={() => (confirming = note.locale)}>{t('release:rn.removeLocale')}</Button>
             {/if}
           </div>
         {/if}
@@ -156,7 +157,7 @@
   {#if canWrite}
     <form class="add" onsubmit={addLocale}>
       <div class="field">
-        <label for="{uid}-locale">Add a locale</label>
+        <label for="{uid}-locale">{t('release:rn.addLocale')}</label>
         <input id="{uid}-locale" list="{uid}-locales" bind:value={localeInput} maxlength="35" autocomplete="off" aria-invalid={localeProblem !== ''} aria-describedby="{uid}-locale-hint" placeholder="en-US" />
         <datalist id="{uid}-locales">
           {#each unused as locale (locale)}<option value={locale}></option>{/each}
@@ -164,9 +165,9 @@
         {#if localeProblem}
           <p class="field-error" role="alert"><Icon name="alert" size={14} /> {localeProblem}</p>
         {/if}
-        <p id="{uid}-locale-hint" class="hint">A locale code such as en-US, de or pt_BR, or default.</p>
+        <p id="{uid}-locale-hint" class="hint">{t('release:rn.localeHint')}</p>
       </div>
-      <Button type="submit" icon="plus" loading={busy === 'add'} disabled={busy !== null && busy !== 'add'}>Add locale</Button>
+      <Button type="submit" icon="plus" loading={busy === 'add'} disabled={busy !== null && busy !== 'add'}>{t('release:rn.addLocaleButton')}</Button>
     </form>
   {/if}
 </section>
