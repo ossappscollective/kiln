@@ -35,7 +35,6 @@
     roomText,
     sourceMark,
     sourcesText,
-    storeName,
     termKeywordItem,
     termMark,
   } from '../../lib/aso/listing.ts';

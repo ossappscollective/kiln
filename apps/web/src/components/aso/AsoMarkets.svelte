@@ -10,7 +10,7 @@
   import { marketsLead } from '../../lib/aso/lead.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
-  import { countOf, summaryLine } from '../../lib/section-state.ts';
+  import { summaryLine } from '../../lib/section-state.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import InfoTip from '../ui/InfoTip.svelte';

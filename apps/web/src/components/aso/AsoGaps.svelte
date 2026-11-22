@@ -96,8 +96,8 @@
   function usedBy(app: AppSummary, ids: string[]): string {
     const map = names[app.id] ?? {};
     const shown = ids.slice(0, 2).map((id) => map[id] ?? t('aso:gaps.aCompetitor'));
-    const names = formatList(shown, { type: 'unit' });
-    return ids.length > 2 ? t('aso:gaps.usedByMore', { names, count: ids.length - 2 }) : names;
+    const joined = formatList(shown, { type: 'unit' });
+    return ids.length > 2 ? t('aso:gaps.usedByMore', { names: joined, count: ids.length - 2 }) : joined;
   }
 
   const lead = $derived(

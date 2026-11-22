@@ -38,7 +38,6 @@
     whatChangedList,
   } from '../../lib/aso/rank-downloads.ts';
   import { floating } from '../../lib/floating.ts';
-  import { formatList } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { pointAnchor } from '../../lib/virtual-anchor.ts';

@@ -173,7 +173,6 @@
     {/if}
   </form>
 
-  {#snippet muted(text: string)}<span class="muted">{text}</span>{/snippet}
 
   {#snippet footer()}
     {#if phase === 'done'}
@@ -198,6 +197,8 @@
     {/if}
   {/snippet}
 </Modal>
+
+{#snippet muted(text: string)}<span class="muted">{text}</span>{/snippet}
 
 <style>
   .small {
