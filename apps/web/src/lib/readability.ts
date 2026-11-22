@@ -1,3 +1,4 @@
+import { t } from './i18n/t.ts';
 import {
   type PlanStep,
   type PublishPlan,
@@ -50,9 +51,10 @@ export function planHeadline(
   return {
     title:
       n === 0
-        ? 'Nothing is included yet'
-        : `${n} ${n === 1 ? 'step' : 'steps'} will be written to ${store}`,
-    sequence: names.join(', then '),
+        ? t('shell:publish.nothing')
+        : t('shell:publish.written', { count: n, store }),
+    // Each step name is a whole phrase, so the order is said by a message with room for both sides.
+    sequence: names.slice(1).reduce((before, next) => t('shell:publish.then', { before, next }), names[0] ?? ''),
   };
 }
 
@@ -95,22 +97,25 @@ export function publishTitle(plan: Pick<PublishPlan, 'steps'>, store: string): s
   const top = TITLE_ORDER.map((t) => included.filter((s) => s.type === t)[0]).filter(
     (s): s is PlanStep => s !== undefined,
   )[0];
-  if (top === undefined) return `Publish to ${store}`;
+  if (top === undefined) return t('shell:publish.title.publish', { store });
   const summary = top.summary ?? {};
   const pick = (key: string): string =>
     typeof summary[key] === 'string' ? (summary[key] as string).trim() : '';
   const version =
     top.type === 'release' ? pick('version') : top.type === 'submit' ? pick('versionString') : '';
-  const v = version !== '' ? ` ${version}` : '';
   switch (top.type) {
     case 'release':
-      return `Release${v} to ${store}`;
+      return version !== ''
+        ? t('shell:publish.title.releaseVersion', { version, store })
+        : t('shell:publish.title.release', { store });
     case 'submit':
-      return `Submit${v} for review on ${store}`;
+      return version !== ''
+        ? t('shell:publish.title.submitVersion', { version, store })
+        : t('shell:publish.title.submit', { store });
     case 'push_draft':
-      return `Update the draft on ${store}`;
+      return t('shell:publish.title.pushDraft', { store });
     default:
-      return `Change the rollout on ${store}`;
+      return t('shell:publish.title.rollout', { store });
   }
 }
 
@@ -126,15 +131,15 @@ export function publishDisabledReason(input: {
   plan: Pick<PublishPlan, 'confirmable' | 'confirmationRequired' | 'confirmation'> | null;
 }): string {
   if (input.ready || input.phase === 'publishing' || input.phase === 'done') return '';
-  if (input.phase === 'previewing') return 'Making the plan.';
+  if (input.phase === 'previewing') return t('shell:publish.reason.making');
   const plan = input.plan;
   if (plan === null) return '';
-  if (input.stale) return 'The plan is out of date. Review again to publish.';
+  if (input.stale) return t('shell:publish.reason.stale');
   if (!plan.confirmable)
     return input.wanted === 0
-      ? 'Tick at least one step to publish.'
-      : 'A step cannot run. Untick it or fix what blocks it.';
+      ? t('shell:publish.reason.tickOne')
+      : t('shell:publish.reason.cannotRun');
   if (plan.confirmationRequired && plan.confirmation)
-    return `Type "${plan.confirmation.phrase}" to publish.`;
-  return 'Tick the box above to publish.';
+    return t('shell:publish.reason.typePhrase', { phrase: plan.confirmation.phrase });
+  return t('shell:publish.reason.tickBox');
 }

@@ -1,3 +1,4 @@
+import { t } from './i18n/t.ts';
 import { canonicalAppHash, canonicalSection, viewOf } from './app-nav.ts';
 import { parseAppAddress, parseViewPath } from './app-scope.ts';
 
@@ -93,7 +94,7 @@ export const showsToggleAll = (sectionCount: number): boolean => sectionCount >=
 
 /** The label of the one button: it collapses while any section is open, and expands when all are closed. */
 export const toggleAllLabel = (anyOpen: boolean): string =>
-  anyOpen ? 'Collapse all' : 'Expand all';
+  anyOpen ? t('shell:section.collapseAll') : t('shell:section.expandAll');
 
 /** The one-line summary of a collapsed section: the parts that have something to say, joined as `12 locales · 3 need attention`. */
 export function summaryLine(

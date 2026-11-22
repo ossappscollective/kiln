@@ -68,6 +68,30 @@ test('settingsLead: a failing sync first, then a record never synced, then all c
       { platform: 'macos', lastSyncError: 'x', lastSyncedAt: 1 },
       { platform: 'android', lastSyncError: 'x', lastSyncedAt: 1 },
     ]).headline,
-    'The last sync failed for iOS, macOS and Android',
+    'The last sync failed for iOS, macOS, and Android',
   );
+});
+
+test('the lead words, the publish title and the shortcut labels follow the language', async () => {
+  const { useLocale } = await import('./i18n/test-setup.ts');
+  const { shortcutRegistry, shortcutGroupLabel } = await import('./shortcuts.ts');
+  const { publishTitle } = await import('./readability.ts');
+  useLocale('fr');
+  try {
+    assert.equal(
+      needsAnswerText('3 sans réponse, le plus ancien : 2 j'),
+      '3 avis attendent une réponse, le plus ancien : 2 j',
+    );
+    assert.equal(needsAnswerText('5 unanswered'), '5 unanswered', 'text of another language is kept');
+    assert.equal(buildsLead(0, 0).headline, 'Aucun build pour l’instant');
+    assert.equal(buildsLead(12, 3).headline, '12 builds, dont 3 sans exécution CI');
+    assert.equal(keywordsLead([]).headline, 'Aucun mot-clé suivi pour l’instant');
+    assert.equal(settingsLead([{ platform: 'ios', lastSyncError: null, lastSyncedAt: null }]).headline, 'iOS n’a pas encore été synchronisé');
+    const registry = shortcutRegistry('workspace');
+    assert.ok(registry.some((s) => s.label === 'Toutes les applications'));
+    assert.equal(shortcutGroupLabel('Go to'), 'Aller à');
+    assert.equal(publishTitle({ steps: [] }, 'Google Play'), 'Publier sur Google Play');
+  } finally {
+    useLocale('en');
+  }
 });

@@ -1,3 +1,5 @@
+import { t } from './i18n/t.ts';
+
 /** One item of the breadcrumb in the top bar. The last item is the current page and has no link. */
 export type Crumb = {
   label: string;
@@ -56,7 +58,7 @@ const widthOf = (items: readonly ShownCrumb[]): number =>
 
 const more = (menu: Crumb[]): ShownCrumb => ({
   kind: 'more',
-  label: 'More of the path',
+  label: t('shell:breadcrumb.moreOfPath'),
   href: null,
   current: false,
   menu,

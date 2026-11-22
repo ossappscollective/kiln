@@ -14,45 +14,48 @@
  * on a held key.
  */
 
+import { k, t } from './i18n/t.ts';
+
 export const CHORD_LEADER = 'g';
 /** How long the letter after `g` is waited for. */
 export const CHORD_TIMEOUT_MS = 1500;
 
 export type ShortcutContext = 'app' | 'workspace';
-export type SectionChord = { key: string; target: string; label: string };
+/** `labelKey` is a message key (`t(chord.labelKey)`): the registry is built once, the words follow the language. */
+export type SectionChord = { key: string; target: string; labelKey: string };
 
 /** Inside an app: the target is an app section id (lib/app-scope.ts). */
 export const appChords: readonly SectionChord[] = [
-  { key: 'd', target: 'dashboard', label: 'Overview' },
-  { key: 'r', target: 'releases', label: 'Releases' },
-  { key: 'l', target: 'listing', label: 'Store listing' },
-  { key: 'c', target: 'products', label: 'Products' },
-  { key: 'v', target: 'reviews', label: 'Reviews' },
-  { key: 'i', target: 'insights', label: 'Insights' },
-  { key: 'b', target: 'builds', label: 'Builds' },
+  { key: 'd', target: 'dashboard', labelKey: k('shell:shortcut.app.overview') },
+  { key: 'r', target: 'releases', labelKey: k('shell:shortcut.app.releases') },
+  { key: 'l', target: 'listing', labelKey: k('shell:shortcut.app.listing') },
+  { key: 'c', target: 'products', labelKey: k('shell:shortcut.app.products') },
+  { key: 'v', target: 'reviews', labelKey: k('shell:shortcut.app.reviews') },
+  { key: 'i', target: 'insights', labelKey: k('shell:shortcut.app.insights') },
+  { key: 'b', target: 'builds', labelKey: k('shell:shortcut.app.builds') },
   // The pages that now sit inside another page keep their keys: the address redirects (lib/app-nav.ts).
-  { key: 'p', target: 'pending', label: 'Pending changes' },
-  { key: 'a', target: 'assets', label: 'Graphics (in Store listing)' },
-  { key: 'o', target: 'aso', label: 'ASO (in Insights)' },
-  { key: 'n', target: 'analytics', label: 'Analytics (in Insights)' },
-  { key: 'w', target: 'workflows', label: 'Workflows (in Builds)' },
-  { key: 't', target: 'test-builds', label: 'Test builds (in Builds)' },
-  { key: 's', target: 'settings', label: 'App settings' },
+  { key: 'p', target: 'pending', labelKey: k('shell:shortcut.app.pending') },
+  { key: 'a', target: 'assets', labelKey: k('shell:shortcut.app.assets') },
+  { key: 'o', target: 'aso', labelKey: k('shell:shortcut.app.aso') },
+  { key: 'n', target: 'analytics', labelKey: k('shell:shortcut.app.analytics') },
+  { key: 'w', target: 'workflows', labelKey: k('shell:shortcut.app.workflows') },
+  { key: 't', target: 'test-builds', labelKey: k('shell:shortcut.app.testBuilds') },
+  { key: 's', target: 'settings', labelKey: k('shell:shortcut.app.settings') },
 ];
 
 /** In the workspace: the target is a view id (lib/views.ts). */
 export const workspaceChords: readonly SectionChord[] = [
-  { key: 'a', target: 'portfolio', label: 'All apps' },
-  { key: 'v', target: 'reviews', label: 'Reviews inbox' },
-  { key: 'o', target: 'aso', label: 'ASO' },
-  { key: 'r', target: 'repositories', label: 'Repositories' },
-  { key: 'w', target: 'workflows', label: 'Workflows' },
-  { key: 'c', target: 'credentials', label: 'Credentials' },
-  { key: 'm', target: 'members', label: 'Members' },
-  { key: 't', target: 'tokens', label: 'API tokens' },
-  { key: 'h', target: 'webhooks', label: 'Webhooks' },
-  { key: 's', target: 'settings', label: 'Settings' },
-  { key: 'u', target: 'audit', label: 'Audit log' },
+  { key: 'a', target: 'portfolio', labelKey: k('shell:shortcut.ws.portfolio') },
+  { key: 'v', target: 'reviews', labelKey: k('shell:shortcut.ws.reviews') },
+  { key: 'o', target: 'aso', labelKey: k('shell:shortcut.ws.aso') },
+  { key: 'r', target: 'repositories', labelKey: k('shell:shortcut.ws.repositories') },
+  { key: 'w', target: 'workflows', labelKey: k('shell:shortcut.ws.workflows') },
+  { key: 'c', target: 'credentials', labelKey: k('shell:shortcut.ws.credentials') },
+  { key: 'm', target: 'members', labelKey: k('shell:shortcut.ws.members') },
+  { key: 't', target: 'tokens', labelKey: k('shell:shortcut.ws.tokens') },
+  { key: 'h', target: 'webhooks', labelKey: k('shell:shortcut.ws.webhooks') },
+  { key: 's', target: 'settings', labelKey: k('shell:shortcut.ws.settings') },
+  { key: 'u', target: 'audit', labelKey: k('shell:shortcut.ws.audit') },
 ];
 
 export const chordsFor = (context: ShortcutContext): readonly SectionChord[] =>
@@ -77,20 +80,33 @@ export const reservedKeys: readonly string[] = [
   'End',
 ];
 
-export type ShortcutDef = { keys: string; label: string; group: 'Anywhere' | 'Go to' | 'Reviews' };
+export type ShortcutGroup = 'Anywhere' | 'Go to' | 'Reviews';
+/** `group` is a stable code; `shortcutGroupLabel` writes it. */
+export type ShortcutDef = { keys: string; label: string; group: ShortcutGroup };
 
-/** Everything the shortcuts help lists, from the same tables the keys are read from. */
+const GROUP_LABELS: Record<ShortcutGroup, string> = {
+  Anywhere: k('shell:shortcut.group.anywhere'),
+  'Go to': k('shell:shortcut.group.goTo'),
+  Reviews: k('shell:shortcut.group.reviews'),
+};
+export const shortcutGroupLabel = (group: ShortcutGroup): string => t(GROUP_LABELS[group]);
+
+/** Everything the shortcuts help lists, from the same tables the keys are read from, in the active language. */
 export function shortcutRegistry(context: ShortcutContext, mod = 'Ctrl'): ShortcutDef[] {
   return [
-    { keys: `${mod} K`, label: 'Search apps and open one', group: 'Anywhere' },
-    { keys: `${mod} 1 to 9`, label: 'Open the first nine apps', group: 'Anywhere' },
+    { keys: `${mod} K`, label: t('shell:shortcut.any.search'), group: 'Anywhere' },
+    { keys: `${mod} 1 to 9`, label: t('shell:shortcut.any.openNine'), group: 'Anywhere' },
     ...chordsFor(context).map(
-      (c): ShortcutDef => ({ keys: `${CHORD_LEADER} ${c.key}`, label: c.label, group: 'Go to' }),
+      (c): ShortcutDef => ({
+        keys: `${CHORD_LEADER} ${c.key}`,
+        label: t(c.labelKey),
+        group: 'Go to',
+      }),
     ),
-    { keys: 'j k', label: 'Next and previous review', group: 'Reviews' },
-    { keys: 't', label: 'Mark the review triaged', group: 'Reviews' },
-    { keys: 'r', label: 'Reply to the review', group: 'Reviews' },
-    { keys: '/', label: 'Search the reviews', group: 'Reviews' },
+    { keys: 'j k', label: t('shell:shortcut.reviews.step'), group: 'Reviews' },
+    { keys: 't', label: t('shell:shortcut.reviews.triage'), group: 'Reviews' },
+    { keys: 'r', label: t('shell:shortcut.reviews.reply'), group: 'Reviews' },
+    { keys: '/', label: t('shell:shortcut.reviews.search'), group: 'Reviews' },
   ];
 }
 

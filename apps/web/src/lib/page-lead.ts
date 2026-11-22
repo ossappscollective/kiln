@@ -3,13 +3,21 @@
  * the page stands in a few words and which action comes first, so the component only draws.
  */
 
+import { formatList } from './i18n/format.ts';
+import { t } from './i18n/t.ts';
+
 export type LeadTone = 'neutral' | 'ok' | 'warn' | 'bad' | 'info';
 
-/** "5 unanswered (3 stars or fewer), oldest 3 d" becomes "5 reviews need an answer (3 stars or fewer), oldest 3 d". */
+/**
+ * "5 unanswered (3 stars or fewer), oldest 3 d" becomes "5 reviews need an answer (3 stars or fewer), oldest 3 d": the start of
+ * the chip (its count and the word for "unanswered", in the active language) is replaced, the rest is kept as it is.
+ */
 export function needsAnswerText(chipText: string): string {
-  return chipText.replace(/^(\d+) unanswered/, (_all, n: string) =>
-    n === '1' ? '1 review needs an answer' : `${n} reviews need an answer`,
-  );
+  const count = /^\d+/.exec(chipText);
+  if (!count) return chipText;
+  const start = t('reviews:tab.chip', { count: Number(count[0]) });
+  if (!chipText.startsWith(start)) return chipText;
+  return t('shell:lead.reviews.needAnswer', { count: Number(count[0]) }) + chipText.slice(start.length);
 }
 
 export interface ReviewsLead {
@@ -24,21 +32,22 @@ export function reviewsLead(input: {
   stored: number;
   chip: { text: string } | null;
 }): ReviewsLead {
-  if (!input.loaded) return { headline: 'Customer reviews', tone: 'neutral', primary: 'none' };
+  if (!input.loaded)
+    return { headline: t('shell:lead.reviews.title'), tone: 'neutral', primary: 'none' };
   if (input.stored === 0)
-    return { headline: 'No reviews stored yet', tone: 'neutral', primary: 'none' };
+    return { headline: t('shell:lead.reviews.none'), tone: 'neutral', primary: 'none' };
   if (input.chip)
     return { headline: needsAnswerText(input.chip.text), tone: 'warn', primary: 'show' };
-  return { headline: 'No review is waiting for an answer', tone: 'ok', primary: 'read' };
+  return { headline: t('shell:lead.reviews.allAnswered'), tone: 'ok', primary: 'read' };
 }
 
 /** "12 builds, 3 without a CI run" for the Builds page; the tone is info, since an unlinked build is not an error. */
 export function buildsLead(total: number, unlinked: number): { headline: string; tone: LeadTone } {
-  const builds = `${total} ${total === 1 ? 'build' : 'builds'}`;
-  if (total === 0) return { headline: 'No builds yet', tone: 'neutral' };
-  if (unlinked === 0) return { headline: `${builds}, each matched to a CI run`, tone: 'ok' };
+  if (total === 0) return { headline: t('shell:lead.builds.none'), tone: 'neutral' };
+  if (unlinked === 0)
+    return { headline: t('shell:lead.builds.allLinked', { count: total }), tone: 'ok' };
   return {
-    headline: `${builds}, ${unlinked} without a CI run`,
+    headline: t('shell:lead.builds.someUnlinked', { count: total, unlinked }),
     tone: 'info',
   };
 }
@@ -52,8 +61,8 @@ export function keywordsLead(keywords: readonly { state: string | null; rank: nu
   const n = keywords.length;
   if (n === 0)
     return {
-      headline: 'No keywords tracked yet',
-      hint: 'Add the words people search for to see where your app ranks in the store.',
+      headline: t('shell:lead.keywords.none'),
+      hint: t('shell:lead.keywords.noneHint'),
       tone: 'neutral',
     };
   const top10 = keywords.filter(
@@ -61,22 +70,16 @@ export function keywordsLead(keywords: readonly { state: string | null; rank: nu
   ).length;
   const unchecked = keywords.filter((k) => k.state === null).length;
   return {
-    headline: `${n} ${n === 1 ? 'keyword' : 'keywords'} tracked, ${top10} in the top 10`,
+    headline: t('shell:lead.keywords.tracked', { count: n, top: top10 }),
     hint:
       unchecked > 0
-        ? `${unchecked} not checked yet. Press Check now to read their rank.`
-        : 'Where your app ranks in the store search for the words you follow.',
+        ? t('shell:lead.keywords.unchecked', { count: unchecked })
+        : t('shell:lead.keywords.ranks'),
     tone: unchecked > 0 ? 'info' : 'neutral',
   };
 }
 
 const PLATFORM_NAMES: Record<string, string> = { ios: 'iOS', macos: 'macOS', android: 'Android' };
-
-function joinNames(names: string[]): string {
-  return names.length < 3
-    ? names.join(' and ')
-    : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
-}
 
 /** The top of the app Settings: a failing sync first (with where to look), a record never synced second, otherwise that all is connected. */
 export function settingsLead(
@@ -90,20 +93,23 @@ export function settingsLead(
   const failed = records.filter((r) => r.lastSyncError !== null && r.lastSyncError !== '');
   if (failed.length > 0)
     return {
-      headline: `The last sync failed for ${joinNames(failed.map(name))}`,
-      hint: 'Check the credential under Stores and credentials, then sync again from Status.',
+      headline: t('shell:lead.settings.failed', { platforms: formatList(failed.map(name)) }),
+      hint: t('shell:lead.settings.failedHint'),
       tone: 'warn',
     };
   const never = records.filter((r) => r.lastSyncedAt === null);
   if (never.length > 0)
     return {
-      headline: `${joinNames(never.map(name))} ${never.length === 1 ? 'has' : 'have'} not synced yet`,
-      hint: 'Test the credential under Stores and credentials, then sync from Status.',
+      headline: t('shell:lead.settings.never', {
+        count: never.length,
+        platforms: formatList(never.map(name)),
+      }),
+      hint: t('shell:lead.settings.neverHint'),
       tone: 'info',
     };
   return {
-    headline: 'Stores are connected',
-    hint: 'Change the repository, defaults and alerts of this app below.',
+    headline: t('shell:lead.settings.connected'),
+    hint: t('shell:lead.settings.connectedHint'),
     tone: 'ok',
   };
 }

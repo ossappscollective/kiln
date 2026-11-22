@@ -3,6 +3,8 @@
  * word, so the cards say "Added", "Missing" or "Works" and keep the sentence for the one line under it.
  */
 
+import { t } from './i18n/t.ts';
+
 export type WordTone = 'ok' | 'warn' | 'bad' | 'neutral';
 
 export interface Word {
@@ -20,17 +22,17 @@ export function credentialWord(input: {
   changed?: boolean;
   optionalLabel?: string;
 }): Word {
-  if (input.changed === true) return { tone: 'neutral', label: 'Save first' };
-  if (input.configured) return { tone: 'ok', label: 'Added' };
-  if (input.required) return { tone: 'warn', label: 'Missing' };
-  return { tone: 'neutral', label: input.optionalLabel ?? 'Optional' };
+  if (input.changed === true) return { tone: 'neutral', label: t('shell:word.saveFirst') };
+  if (input.configured) return { tone: 'ok', label: t('shell:word.added') };
+  if (input.required) return { tone: 'warn', label: t('shell:word.missing') };
+  return { tone: 'neutral', label: input.optionalLabel ?? t('shell:word.optional') };
 }
 
 /** The result of a test, in one word: not run yet, running, worked, or did not. */
 export function testWord(state: { testing?: boolean; ok: boolean | null }): Word {
-  if (state.testing === true) return { tone: 'neutral', label: 'Testing' };
-  if (state.ok === null) return { tone: 'neutral', label: 'Not tested' };
-  return state.ok ? { tone: 'ok', label: 'Works' } : { tone: 'bad', label: 'Failed' };
+  if (state.testing === true) return { tone: 'neutral', label: t('shell:word.testing') };
+  if (state.ok === null) return { tone: 'neutral', label: t('shell:word.notTested') };
+  return state.ok ? { tone: 'ok', label: t('shell:word.works') } : { tone: 'bad', label: t('shell:word.failed') };
 }
 
 /**
@@ -41,9 +43,9 @@ export function bucketTestWord(
   result: { code: string; ok: boolean } | null,
   testing = false,
 ): Word {
-  if (testing) return { tone: 'neutral', label: 'Testing' };
-  if (result === null) return { tone: 'neutral', label: 'Not tested' };
-  if (result.code === 'ok') return { tone: 'ok', label: 'Works' };
-  if (result.ok) return { tone: 'neutral', label: 'Reachable' };
-  return { tone: 'warn', label: 'Failed' };
+  if (testing) return { tone: 'neutral', label: t('shell:word.testing') };
+  if (result === null) return { tone: 'neutral', label: t('shell:word.notTested') };
+  if (result.code === 'ok') return { tone: 'ok', label: t('shell:word.works') };
+  if (result.ok) return { tone: 'neutral', label: t('shell:word.reachable') };
+  return { tone: 'warn', label: t('shell:word.failed') };
 }
