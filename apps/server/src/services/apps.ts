@@ -28,6 +28,7 @@ import {
   supports,
 } from '@kiln/core';
 import { type Database, mapOrNull, oneOf, type Row, type Sql } from '@kiln/db';
+import { coded, messageCoding } from '../i18n/problem.ts';
 import { enqueue, type JobHandler } from '../jobs.ts';
 import { deleteAiData } from '../modules/ai/ai-suggestions.ts';
 import { deleteAnalyticsData } from '../modules/analytics/store.ts';
@@ -105,6 +106,13 @@ export type ManagedApp = {
   lastSyncAttemptAt: number | null;
   lastSyncError: string | null;
   /**
+   * The stable code of `lastSyncError` and the values its sentence needs (docs/i18n-server.md): the web app shows
+   * `errors:<code>` in the person's language and `lastSyncError` (English) when the code is null or unknown. Both are null for a note
+   * written before codes existed, and for a failure that has no code.
+   */
+  lastSyncErrorCode: string | null;
+  lastSyncErrorParams: Record<string, string | number | boolean | null> | null;
+  /**
    * Whether the tool holds an icon for the app right now (app-icons.ts). A hint for the UI, not a
    * promise: `GET .../icon` is the truth.
    */
@@ -151,8 +159,23 @@ const toApp = (r: Row): ManagedApp => ({
   lastSyncedAt: mapOrNull(r.last_synced_at, Number),
   lastSyncAttemptAt: mapOrNull(r.last_sync_attempt_at, Number),
   lastSyncError: mapOrNull(r.last_sync_error, String),
+  lastSyncErrorCode: mapOrNull(r.last_sync_error_code, String),
+  lastSyncErrorParams: parsedParams(r.last_sync_error_params),
   ...iconHint(r),
 });
+
+/** The stored JSON parameters of a failure note, or null when there are none or the text is not a JSON object. */
+function parsedParams(raw: unknown): ManagedApp['lastSyncErrorParams'] {
+  if (typeof raw !== 'string' || raw === '') return null;
+  try {
+    const value: unknown = JSON.parse(raw);
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as NonNullable<ManagedApp['lastSyncErrorParams']>)
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 /** The icon hint of an app row joined with its app_icons row (the columns of APP_COLUMNS). */
 function iconHint(r: Row): { hasIcon: boolean; iconUrl: string | null } {
@@ -207,7 +230,8 @@ const toRelease = (r: Row): AppRelease => {
 const APP_COLUMNS = `a.id, a.name, a.platform, a.identifier, a.store_app_id, a.credential_id,
   (SELECT r.id FROM repositories r WHERE r.id = a.repository_id AND r.workspace_id = a.workspace_id)
     AS repository_id,
-  a.created_at, a.last_synced_at, a.last_sync_attempt_at, a.last_sync_error, a.workspace_id,
+  a.created_at, a.last_synced_at, a.last_sync_attempt_at, a.last_sync_error, a.last_sync_error_code,
+  a.last_sync_error_params, a.workspace_id,
   CASE WHEN i.data IS NULL THEN 0 ELSE 1 END AS icon_has, i.etag AS icon_etag,
   i.backoff_until AS icon_backoff, i.checked_at AS icon_checked`;
 const APP_FROM = `apps a LEFT JOIN app_icons i ON i.app_id = a.id AND i.workspace_id = a.workspace_id`;
@@ -570,7 +594,7 @@ function classify(error: unknown, secret: string): Classified {
       failure: {
         ok: false,
         status,
-        body: { error: code, message: safe, ...extra },
+        body: { error: code, message: safe, ...messageCoding(error, message), ...extra },
         ...(headers ? { headers } : {}),
       },
       message: safe,
@@ -578,7 +602,13 @@ function classify(error: unknown, secret: string): Classified {
     };
   };
   if (error instanceof SyncTimeout) {
-    return make(504, 'timeout', 'The store did not answer in time. Try again.', true);
+    return make(
+      504,
+      'timeout',
+      'The store did not answer in time. Try again.',
+      true,
+      coded('sync.timeout'),
+    );
   }
   if (error instanceof StoreRateLimitError) {
     const wait = error.retryAfterSeconds;
@@ -613,7 +643,13 @@ function classify(error: unknown, secret: string): Classified {
     }
   }
   // Not ours to explain, and the text may echo what was sent. Nothing of it is kept.
-  return make(502, 'sync_failed', 'The sync could not be completed. Try again in a moment.', false);
+  return make(
+    502,
+    'sync_failed',
+    'The sync could not be completed. Try again in a moment.',
+    false,
+    coded('sync.failed'),
+  );
 }
 
 /** Apps being synced right now, in this process. A second sync of the same app is refused. */
@@ -848,10 +884,14 @@ async function recordSyncFailure(
   trigger: SyncTrigger,
 ): Promise<void> {
   const at = ctx.now();
+  const code = typeof c.failure.body.code === 'string' ? c.failure.body.code : null;
+  const params = code !== null && c.failure.body.params ? JSON.stringify(c.failure.body.params) : null;
   await ctx.db.transaction(async (tx) => {
     const changed = await tx.execute(
-      `UPDATE apps SET last_sync_attempt_at = ?, last_sync_error = ? WHERE id = ? AND workspace_id = ?`,
-      [at, c.message, app.id, workspaceId],
+      `UPDATE apps SET last_sync_attempt_at = ?, last_sync_error = ?, last_sync_error_code = ?,
+              last_sync_error_params = ?
+        WHERE id = ? AND workspace_id = ?`,
+      [at, c.message, code, params, app.id, workspaceId],
     );
     if (changed === 0) return;
     await recordAudit(tx, {
@@ -891,7 +931,12 @@ export async function syncApp(
   if (!app) return { ...failure(404, 'not_found'), transient: false };
   if (running.has(app.id)) {
     return {
-      ...failure(409, 'sync_in_progress', 'A sync of this app is already running.'),
+      ...failure(
+        409,
+        'sync_in_progress',
+        'A sync of this app is already running.',
+        coded('sync.inProgress'),
+      ),
       transient: false,
     };
   }
@@ -1091,7 +1136,7 @@ async function runSync(
     });
     await tx.execute(
       `UPDATE apps SET store_app_id = ?, last_synced_at = ?, last_sync_attempt_at = ?,
-              last_sync_error = NULL
+              last_sync_error = NULL, last_sync_error_code = NULL, last_sync_error_params = NULL
         WHERE id = ? AND workspace_id = ?`,
       [read.appStoreId, at, at, app.id, workspaceId],
     );

@@ -3,6 +3,7 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody, type Services } from '../http.ts';
+import { coded } from '../i18n/problem.ts';
 import { memberRole } from '../services/accounts.ts';
 import { changeMemberRole, listMembers, removeMember } from '../services/members.ts';
 
@@ -31,6 +32,7 @@ export function memberRoutes(services: Services) {
         {
           error: 'last_owner',
           message: 'A workspace needs at least one owner. Make someone else an owner first.',
+          ...coded('members.lastOwner'),
         },
         409,
       );

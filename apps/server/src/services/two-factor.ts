@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import type { Database, Sql } from '@kiln/db';
 import { decryptSecret, encryptSecret } from '@kiln/vault';
+import { translator } from '../i18n/catalogs.ts';
 import { recordAudit } from './audit.ts';
 import { plainAddress } from './mail-mime.ts';
 import { escapeHtml, mailBar, mailFooter, mailShell } from './mail-template.ts';
@@ -254,41 +255,35 @@ async function mailLimit(
     : wait('workspace_id IS NULL AND created_at > ?', [since], MAIL_INSTANCE_PER_HOUR);
 }
 
+/** The email that carries a code, in `locale` (the requester's Accept-Language, negotiated by the route; English when unknown). */
 export const codeMessage = (
   purpose: MailPurpose,
   code: string,
+  locale = 'en',
 ): { subject: string; text: string; html: string } => {
+  const t = translator(locale);
   const minutes = EMAIL_CODE_TTL_MS / 60_000;
-  const what =
-    purpose === 'verify_email'
-      ? 'verify your email address'
-      : purpose === 'login'
-        ? 'finish signing in'
-        : 'confirm an action';
-  const heading =
-    purpose === 'verify_email'
-      ? 'Verify your email address'
-      : purpose === 'login'
-        ? 'Your sign-in code'
-        : 'Confirm this action';
-  const warning = `It works once and expires in ${minutes} minutes. Anyone who has it can ${what}, so do not share it.`;
-  const ignore =
-    'If you did not ask for it, you can ignore this message; nothing changes until the code is entered.';
+  const p = purpose === 'verify_email' ? 'verifyEmail' : purpose === 'login' ? 'login' : 'stepUp';
+  const heading = t(`email:code.${p}.heading`);
+  const intro = t(`email:code.${p}.intro`);
+  const warning = t(`email:code.${p}.warning`, { count: minutes });
+  const ignore = t('email:code.ignore');
   const html = mailShell(
     `${mailBar('#2e6bd3')}
 <tr><td style="padding:24px 28px 0;">
 <h1 style="margin:0 0 8px;font-size:20px;line-height:1.3;">${escapeHtml(heading)}</h1>
-<p style="margin:0;font-size:15px;line-height:1.55;color:#323f4b;">Enter this code to ${escapeHtml(what)}:</p>
+<p style="margin:0;font-size:15px;line-height:1.55;color:#323f4b;">${escapeHtml(intro)}</p>
 </td></tr>
 <tr><td style="padding:16px 28px 0;"><div style="background:#f5f7fa;border-radius:8px;padding:16px;text-align:center;font:700 32px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.3em;color:#1f2933;">${escapeHtml(code)}</div></td></tr>
 <tr><td style="padding:16px 28px 24px;font-size:14px;line-height:1.55;color:#52606d;">${escapeHtml(warning)}<br><br>${escapeHtml(ignore)}</td></tr>
-${mailFooter('This is an automatic message about your account. Please do not reply.')}`,
-    `${code} is your code to ${what}`,
+${mailFooter(escapeHtml(t('email:code.footer')))}`,
+    t(`email:code.${p}.preheader`, { code }),
+    locale,
   );
   return {
-    subject: `${code} is your Kiln code`,
+    subject: t('email:code.subject', { code }),
     text: [
-      `Your code to ${what} is ${code}.`,
+      t(`email:code.${p}.text`, { code }),
       '',
       `${warning}`,
       ignore,
@@ -312,6 +307,8 @@ export async function issueMailCode(
     action?: string;
     targetId?: string;
     targetHash?: string;
+    /** The language of the email (negotiated from the requester's Accept-Language); English when absent. */
+    locale?: string;
   },
   now: number,
 ): Promise<SendResult> {
@@ -347,7 +344,7 @@ export async function issueMailCode(
         ],
       );
     });
-    const message = codeMessage(input.purpose, code);
+    const message = codeMessage(input.purpose, code, input.locale);
     const sent = await deps.mailer.send({
       to: input.email,
       subject: message.subject,
@@ -452,7 +449,7 @@ export type BeginEmailResult =
 export async function beginEmailVerification(
   db: Database,
   deps: { masterKey: Buffer; mailer: Mailer },
-  input: { userId: string; workspaceId?: string; requested?: string },
+  input: { userId: string; workspaceId?: string; requested?: string; locale?: string },
   now: number,
 ): Promise<BeginEmailResult> {
   const [user] = await db.query('SELECT email, password_hash FROM users WHERE id = ?', [
@@ -489,6 +486,7 @@ export async function beginEmailVerification(
       purpose: 'verify_email',
       email,
       ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
+      ...(input.locale ? { locale: input.locale } : {}),
     },
     now,
   );

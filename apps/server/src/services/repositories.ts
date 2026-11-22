@@ -17,6 +17,7 @@ import {
 import type { ActorType, Listing, ListingProblem } from '@kiln/core';
 import { validateListing } from '@kiln/core';
 import { type Database, mapOrNull, type Row, type Sql } from '@kiln/db';
+import { coded, messageCoding } from '../i18n/problem.ts';
 import {
   type DetectedSources,
   detectedSources,
@@ -160,7 +161,12 @@ export async function withTimeout<T>(
 export function githubFailure(error: unknown, secret = ''): Failure {
   const clean = (text: string) => redactSecrets(text, secret ? secretStrings(secret) : []);
   if (error instanceof TimeoutError) {
-    return failure(504, 'timeout', 'GitHub did not answer in time. Try again.');
+    return failure(
+      504,
+      'timeout',
+      'GitHub did not answer in time. Try again.',
+      coded('github.timeout'),
+    );
   }
   // A local clone that cannot be read: a code and a message written for a person.
   if (error instanceof LocalReadError) return failure(error.status, error.code, error.message);
@@ -169,7 +175,12 @@ export function githubFailure(error: unknown, secret = ''): Failure {
     return {
       ok: false,
       status: 429,
-      body: { error: 'rate_limited', message: clean(error.message), retryAfterSeconds: wait },
+      body: {
+        error: 'rate_limited',
+        message: clean(error.message),
+        retryAfterSeconds: wait,
+        ...messageCoding(error, clean(error.message)),
+      },
       headers: { 'Retry-After': String(wait) },
     };
   }
@@ -177,26 +188,27 @@ export function githubFailure(error: unknown, secret = ''): Failure {
   const message = clean(error.message);
   switch (error.kind) {
     case 'auth':
-      return failure(422, 'github_auth', message);
+      return failure(422, 'github_auth', message, messageCoding(error, message));
     case 'forbidden':
-      return failure(422, 'github_forbidden', message);
+      return failure(422, 'github_forbidden', message, messageCoding(error, message));
     case 'not_found':
-      return failure(422, 'github_not_found', message);
+      return failure(422, 'github_not_found', message, messageCoding(error, message));
     case 'validation':
     case 'invalid_input':
     case 'blocked_path':
     case 'not_text':
     case 'too_large':
-      return failure(422, 'github_invalid', message);
+      return failure(422, 'github_invalid', message, messageCoding(error, message));
     case 'conflict':
     case 'branch_exists':
     case 'default_branch':
     case 'no_changes':
-      return failure(409, error.kind, message);
+      return failure(409, error.kind, message, messageCoding(error, message));
     case 'change_conflict': {
       const paths = (error as { paths?: string[] }).paths ?? [];
       return failure(409, 'change_conflict', message, {
         paths,
+        ...messageCoding(error, message),
         hint: 'The repository changed after this change set was made. Refresh it to re-base the change onto the repository, or discard it, read the listing again and create a new change set.',
       });
     }
@@ -205,10 +217,11 @@ export function githubFailure(error: unknown, secret = ''): Failure {
       return failure(502, 'pull_request_failed', message, {
         branch: e.branch,
         commitSha: e.commitSha,
+        ...messageCoding(error, message),
       });
     }
     default:
-      return failure(502, 'github_unavailable', message);
+      return failure(502, 'github_unavailable', message, messageCoding(error, message));
   }
 }
 

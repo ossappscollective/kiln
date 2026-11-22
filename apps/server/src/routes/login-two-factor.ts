@@ -19,6 +19,7 @@ import {
   loadLoginChallenge,
   spendLoginChallenge,
 } from '../services/two-factor.ts';
+import { negotiateLocale } from '../i18n/runtime.ts';
 import { startLoginSession } from './auth.ts';
 import { codeFailure, sendFailure } from './two-factor.ts';
 
@@ -177,7 +178,13 @@ export function loginTwoFactorRoutes(ctx: LoginTwoFactorContext) {
     const sent = await issueMailCode(
       db,
       { masterKey, mailer },
-      { userId: opened.user.id, purpose: 'login', email: address, binding: opened.challenge.id },
+      {
+        userId: opened.user.id,
+        purpose: 'login',
+        email: address,
+        binding: opened.challenge.id,
+        locale: negotiateLocale(c.req.header('accept-language')),
+      },
       now(),
     );
     if (!sent.ok) return sendFailure(c, sent);

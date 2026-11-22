@@ -2,6 +2,8 @@ import { type Action, can } from '@kiln/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { type Translate, translator } from '../i18n/catalogs.ts';
+import { negotiateLocale } from '../i18n/runtime.ts';
 import { type AppEnv, parseBody, type Services } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { recordAudit } from '../services/audit.ts';
@@ -14,7 +16,7 @@ import {
   smtpView,
 } from '../services/mail-config.ts';
 import { plainAddress } from '../services/mail-mime.ts';
-import { mailBar, mailButton, mailFooter, mailLink, mailShell } from '../services/mail-template.ts';
+import { escapeHtml, mailBar, mailButton, mailFooter, mailLink, mailShell } from '../services/mail-template.ts';
 import { MAIL_ERROR_MESSAGES, type Mailer } from '../services/mailer.ts';
 import { requireManage } from '../services/step-up.ts';
 import { activeEmail } from '../services/two-factor.ts';
@@ -175,11 +177,12 @@ export function mailRoutes(ctx: MailRoutesContext) {
     }
     recent.push(at);
     tests.set(user.id, recent);
+    const t = translator(negotiateLocale(c.req.header('accept-language')));
     const sent = await mailer.send({
       to,
-      subject: 'Test message from Kiln',
-      text: 'This is a test message. If you can read it, this server can send email.\n\nNo action is needed.',
-      html: testMessageHtml(),
+      subject: t('email:test.subject'),
+      text: t('email:test.text'),
+      html: testMessageHtml(t),
     });
     await recordAudit(db, {
       workspaceId: ws(c),
@@ -202,20 +205,21 @@ export function mailRoutes(ctx: MailRoutesContext) {
 }
 
 /** The HTML of the test message: a plain confirmation with a way back to the mail settings. */
-function testMessageHtml(): string {
+function testMessageHtml(t: Translate): string {
   const back = {
-    label: 'Back to the mail settings',
+    label: t('email:test.back'),
     href: mailLink('#/settings?view=security'),
-    where: 'Settings, Security, Mail server',
+    where: t('email:test.where'),
   };
   return mailShell(
     `${mailBar('#1f9d55')}
 <tr><td style="padding:24px 28px 0;">
-<h1 style="margin:0 0 8px;font-size:20px;line-height:1.3;">Email works</h1>
-<p style="margin:0;font-size:15px;line-height:1.55;color:#323f4b;">This is a test message. If you can read it, this server can send email, so alerts and sign-in codes will reach you. No action is needed.</p>
+<h1 style="margin:0 0 8px;font-size:20px;line-height:1.3;">${escapeHtml(t('email:test.heading'))}</h1>
+<p style="margin:0;font-size:15px;line-height:1.55;color:#323f4b;">${escapeHtml(t('email:test.body'))}</p>
 </td></tr>
-<tr><td style="padding:20px 28px 24px;">${mailButton(back, '#1f9d55')}</td></tr>
-${mailFooter('You sent this test yourself from the mail settings.')}`,
-    'This server can send email',
+<tr><td style="padding:20px 28px 24px;">${mailButton(back, '#1f9d55', t)}</td></tr>
+${mailFooter(escapeHtml(t('email:test.footer')))}`,
+    t('email:test.preheader'),
+    t.locale,
   );
 }

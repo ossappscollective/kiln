@@ -3,6 +3,7 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { type AppEnv, parseBody, type Services } from '../http.ts';
+import { codingOf } from '../i18n/problem.ts';
 import { memberRole } from '../services/accounts.ts';
 import { createToken, createTokenBody, listTokens, revokeToken } from '../services/tokens.ts';
 
@@ -50,7 +51,9 @@ export function tokenRoutes(services: Services) {
         { id: c.get('user').id, role: c.get('role') },
         now(),
       );
-      if (!done.ok) return c.json({ error: done.error, message: done.message }, done.status);
+      if (!done.ok) {
+        return c.json({ error: done.error, message: done.message, ...codingOf(done) }, done.status);
+      }
       // The token is in this response and nowhere else, ever.
       c.header('Cache-Control', 'no-store');
       return c.json({ token: done.token, summary: done.summary }, 201);

@@ -17,6 +17,7 @@ import {
 } from '@kiln/connectors';
 import { type ActorType, needsStoreAppId, type Platform, storeOf, supports } from '@kiln/core';
 import type { Database, Param, Row, Sql } from '@kiln/db';
+import { coded, messageCoding } from '../../i18n/problem.ts';
 import { enqueue, type JobHandler } from '../../jobs.ts';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
@@ -264,7 +265,7 @@ function classify(error: unknown, secret: string): Classified {
       failure: {
         ok: false,
         status,
-        body: { error: code, message: safe, ...extra },
+        body: { error: code, message: safe, ...messageCoding(error, message), ...extra },
         ...(headers ? { headers } : {}),
       },
       message: safe,
@@ -272,7 +273,13 @@ function classify(error: unknown, secret: string): Classified {
     };
   };
   if (error instanceof SyncTimeout)
-    return make(504, 'timeout', 'The store did not answer in time. Try again.', true);
+    return make(
+      504,
+      'timeout',
+      'The store did not answer in time. Try again.',
+      true,
+      coded('sync.timeout'),
+    );
   if (error instanceof StoreRateLimitError) {
     const wait = error.retryAfterSeconds;
     return {
@@ -312,6 +319,7 @@ function classify(error: unknown, secret: string): Classified {
     'sync_failed',
     'The review sync could not be completed. Try again in a moment.',
     false,
+    coded('sync.reviewsFailed'),
   );
 }
 

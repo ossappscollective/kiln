@@ -3,6 +3,7 @@ import type { ActorType } from '@kiln/core';
 import type { Database, Row, Sql } from '@kiln/db';
 import { decryptSecret, encryptSecret } from '@kiln/vault';
 import { z } from 'zod';
+import { coded, type ErrorParams } from '../i18n/problem.ts';
 import { DEFAULT_MAX_ATTEMPTS, enqueue, type JobHandler } from '../jobs.ts';
 import { recordAudit } from './audit.ts';
 import { eventTypes } from './event-types.ts';
@@ -84,6 +85,8 @@ export type WebhookFailure = {
   status: 400 | 404 | 409;
   error: string;
   message?: string;
+  code?: string;
+  params?: ErrorParams;
 };
 
 export type WebhookContext = {
@@ -244,6 +247,7 @@ export async function createWebhook(
       status: 409,
       error: 'too_many_webhooks',
       message: `A workspace can have at most ${MAX_WEBHOOKS_PER_WORKSPACE} webhooks.`,
+      ...coded('webhooks.tooMany', { count: MAX_WEBHOOKS_PER_WORKSPACE }),
     };
   }
   const endpoint = (await getWebhook(ctx.db, input.workspaceId, id)) as WebhookEndpoint;

@@ -3,6 +3,7 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
+import { coded } from '../i18n/problem.ts';
 import { detectedSources } from '../modules/listing/sources.ts';
 import {
   createListingTarget,
@@ -325,6 +326,7 @@ export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
         {
           error: 'clone_busy',
           message: 'The repository is being read right now. Try again in a moment.',
+          ...coded('repositories.cloneBusy'),
         },
         409,
       );

@@ -32,6 +32,7 @@ import {
   setLoginMode,
   twoFactorStatus,
 } from '../services/two-factor.ts';
+import { negotiateLocale } from '../i18n/runtime.ts';
 
 /**
  * Two-factor routes (docs/api/two-factor.md, docs/adr/0021-two-factor-and-smtp.md). Mounted under /api/workspaces. Every route is a
@@ -260,6 +261,7 @@ export function twoFactorRoutes(ctx: TwoFactorRoutesContext) {
         userId: user.id,
         workspaceId: ws(c),
         ...(body.data?.email ? { requested: body.data.email } : {}),
+        locale: negotiateLocale(c.req.header('accept-language')),
       },
       now(),
     );
@@ -336,6 +338,7 @@ export function twoFactorRoutes(ctx: TwoFactorRoutesContext) {
         action,
         ...(target?.id ? { targetId: target.id } : {}),
         ...(target?.hash ? { targetHash: target.hash } : {}),
+        locale: negotiateLocale(c.req.header('accept-language')),
       },
       now(),
     );

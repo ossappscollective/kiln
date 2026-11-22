@@ -3,6 +3,7 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { type AppEnv, parseBody, queryInt } from '../http.ts';
+import { codingOf } from '../i18n/problem.ts';
 import { memberRole } from '../services/accounts.ts';
 import { createTestLimiter, type TestLimiter } from '../services/credential-tests.ts';
 import {
@@ -73,7 +74,9 @@ export function webhookRoutes(ctx: WebhookRoutesContext) {
     const body = await parseBody(c, createWebhookBody);
     if (!body.ok) return body.response;
     const done = await createWebhook(ctx, { workspaceId: ws(c), ...body.data }, actor(c));
-    if (!done.ok) return c.json({ error: done.error, message: done.message }, done.status);
+    if (!done.ok) {
+      return c.json({ error: done.error, message: done.message, ...codingOf(done) }, done.status);
+    }
     // The secret is in this response and nowhere else, ever.
     c.header('Cache-Control', 'no-store');
     return c.json({ webhook: done.endpoint, secret: done.secret }, 201);
@@ -92,7 +95,9 @@ export function webhookRoutes(ctx: WebhookRoutesContext) {
       { workspaceId: ws(c), id: param(c, 'id'), ...body.data },
       actor(c),
     );
-    if (!done.ok) return c.json({ error: done.error, message: done.message }, done.status);
+    if (!done.ok) {
+      return c.json({ error: done.error, message: done.message, ...codingOf(done) }, done.status);
+    }
     return c.json({ webhook: done.endpoint });
   });
 

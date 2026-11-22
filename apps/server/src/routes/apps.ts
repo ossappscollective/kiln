@@ -5,6 +5,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
+import { coded } from '../i18n/problem.ts';
 import { memberRole } from '../services/accounts.ts';
 import {
   type AppsContext,
@@ -184,6 +185,7 @@ export function appRoutes(ctx: AppRoutesContext) {
           error: 'rate_limited',
           message: `Too many syncs. Try again in ${wait} seconds.`,
           retryAfterSeconds: wait,
+          ...coded('sync.tooManySyncs', { count: wait }),
         },
         429,
       );

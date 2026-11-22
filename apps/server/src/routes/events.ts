@@ -3,6 +3,7 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { type AppEnv, queryInt, type Services } from '../http.ts';
+import { coded } from '../i18n/problem.ts';
 import { memberRole } from '../services/accounts.ts';
 import { eventReadAction, eventTypes } from '../services/event-types.ts';
 import {
@@ -146,6 +147,7 @@ export function eventRoutes(services: Services, hub: EventStreamHub) {
         {
           error: 'too_many_streams',
           message: 'Too many event streams are open. Close one and try again.',
+          ...coded('events.tooManyStreams'),
         },
         429,
         { 'Retry-After': '5' },

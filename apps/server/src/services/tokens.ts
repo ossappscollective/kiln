@@ -13,6 +13,7 @@ import {
 } from '@kiln/core';
 import type { Database, Row, Sql } from '@kiln/db';
 import { z } from 'zod';
+import { coded, type ErrorParams } from '../i18n/problem.ts';
 import { recordAudit } from './audit.ts';
 
 /**
@@ -72,6 +73,8 @@ export type TokenFailure = {
   status: 400 | 403 | 404 | 409;
   error: string;
   message?: string;
+  code?: string;
+  params?: ErrorParams;
 };
 
 const parseList = (value: unknown): string[] | null => {
@@ -159,6 +162,7 @@ export async function createToken(
       status: 403,
       error: 'role_above_yours',
       message: 'A token cannot have a higher role than the person who creates it.',
+      ...coded('tokens.roleAboveYours'),
     };
   }
   if (input.expiresAt !== undefined && input.expiresAt <= now) {
@@ -247,6 +251,7 @@ export async function createToken(
       status: 400,
       error: 'unknown_app',
       message: 'One of the apps is not in this workspace.',
+      ...coded('tokens.unknownApp'),
     };
   }
   if (outcome === 'too_many') {
@@ -255,6 +260,7 @@ export async function createToken(
       status: 409,
       error: 'too_many_tokens',
       message: `A workspace can have at most ${MAX_ACTIVE_TOKENS} active tokens. Revoke some first.`,
+      ...coded('tokens.tooMany', { count: MAX_ACTIVE_TOKENS }),
     };
   }
   const summary = (await getToken(db, input.workspaceId, id, now)) as TokenSummary;

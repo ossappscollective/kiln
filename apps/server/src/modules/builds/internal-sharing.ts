@@ -13,6 +13,7 @@ import type { Platform } from '@kiln/core';
 import { supports } from '@kiln/core';
 import type { Sql } from '@kiln/db';
 import { decryptSecret, encryptSecret } from '@kiln/vault';
+import { codingOf } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
@@ -513,6 +514,7 @@ export function mapShareError(error: unknown, secret: string): BuildsFailure {
     return {
       ...fail(429, 'rate_limited', clean(error.message), {
         retryAfterSeconds: error.retryAfterSeconds,
+        ...codingOf(error),
       }),
       headers: { 'Retry-After': String(error.retryAfterSeconds) },
     };
@@ -521,22 +523,23 @@ export function mapShareError(error: unknown, secret: string): BuildsFailure {
     switch (error.kind) {
       case 'auth':
       case 'clock_skew':
-        return fail(422, 'store_auth', clean(error.message));
+        return fail(422, 'store_auth', clean(error.message), codingOf(error));
       case 'forbidden':
       case 'api_disabled':
       case 'unsupported':
-        return fail(422, 'store_forbidden', clean(error.message));
+        return fail(422, 'store_forbidden', clean(error.message), codingOf(error));
       case 'not_found':
-        return fail(422, 'store_not_found', clean(error.message));
+        return fail(422, 'store_not_found', clean(error.message), codingOf(error));
       case 'too_large':
-        return fail(413, 'artifact_too_large', clean(error.message));
+        return fail(413, 'artifact_too_large', clean(error.message), codingOf(error));
       case 'invalid_input':
-        return fail(422, 'artifact_rejected', clean(error.message));
+        return fail(422, 'artifact_rejected', clean(error.message), codingOf(error));
       default:
         return fail(
           error.status !== undefined && error.status >= 400 && error.status < 500 ? 422 : 502,
           'store_rejected',
           clean(error.message),
+          codingOf(error),
         );
     }
   }

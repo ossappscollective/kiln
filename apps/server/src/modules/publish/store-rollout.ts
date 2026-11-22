@@ -33,6 +33,7 @@ import {
 } from '@kiln/connectors';
 import { type ActorType, needsStoreAppId, type Platform, supports } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
+import { messageCoding } from '../../i18n/problem.ts';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
@@ -294,7 +295,7 @@ function mapStoreError(error: unknown, secret: string): Mapped {
   ): Mapped => ({
     code,
     failure: {
-      ...failure(status, code, clean(message, secret), extra),
+      ...failure(status, code, clean(message, secret), { ...extra, ...messageCoding(error, message) }),
       ...(headers ? { headers } : {}),
     },
   });

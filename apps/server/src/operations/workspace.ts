@@ -109,6 +109,16 @@ const appSchema = z.object({
   lastSyncedAt: timestamp.nullable(),
   lastSyncAttemptAt: timestamp.nullable(),
   lastSyncError: z.string().nullable(),
+  lastSyncErrorCode: z
+    .string()
+    .nullable()
+    .describe(
+      'The stable code (dot.case) of `lastSyncError`, for translation. Null for a note written before codes existed or a failure with no code.',
+    ),
+  lastSyncErrorParams: z
+    .record(z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    .nullable()
+    .describe('What the sentence of `lastSyncErrorCode` needs (a store name, a number). Never a secret.'),
   hasIcon: z
     .boolean()
     .describe(

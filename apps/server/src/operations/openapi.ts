@@ -377,7 +377,21 @@ export function buildOpenApiDocument(
           type: 'object',
           properties: {
             error: { type: 'string', description: 'A stable code.' },
-            message: { type: 'string' },
+            message: {
+              type: 'string',
+              description: 'The English text, always present as a fallback.',
+            },
+            code: {
+              type: 'string',
+              description:
+                'A stable dot.case code for the sentence a person reads, for example store.google.noAccess. Clients translate it with the params; the list is in docs/i18n-server.md. Absent when the response has none.',
+            },
+            params: {
+              type: 'object',
+              additionalProperties: true,
+              description:
+                'What the sentence of `code` needs: scalars only (strings, numbers, booleans), never a secret.',
+            },
           },
           required: ['error'],
         },

@@ -9,6 +9,7 @@ import {
 } from '@kiln/connectors';
 import { normalizeReleaseValue, supports, versionCodesOf } from '@kiln/core';
 import type { Database } from '@kiln/db';
+import { codingOf } from '../i18n/problem.ts';
 import type {
   ReleaseConnectorFactory,
   ReleaseConnectorInput,
@@ -166,7 +167,7 @@ const mapFailure = (error: unknown, secret: string): Failure => {
   if (error instanceof StoreRateLimitError) {
     const wait = error.retryAfterSeconds;
     return {
-      ...failure(429, 'rate_limited', clean(error.message), { retryAfterSeconds: wait }),
+      ...failure(429, 'rate_limited', clean(error.message), { retryAfterSeconds: wait, ...codingOf(error) }),
       headers: { 'Retry-After': String(wait) },
     };
   }
@@ -174,15 +175,15 @@ const mapFailure = (error: unknown, secret: string): Failure => {
     switch (error.kind) {
       case 'auth':
       case 'clock_skew':
-        return failure(422, 'store_auth', clean(error.message));
+        return failure(422, 'store_auth', clean(error.message), codingOf(error));
       case 'forbidden':
       case 'api_disabled':
       case 'unsupported':
-        return failure(422, 'store_forbidden', clean(error.message));
+        return failure(422, 'store_forbidden', clean(error.message), codingOf(error));
       case 'not_found':
-        return failure(422, 'store_not_found', clean(error.message));
+        return failure(422, 'store_not_found', clean(error.message), codingOf(error));
       case 'invalid_input':
-        return failure(422, 'store_rejected', clean(error.message));
+        return failure(422, 'store_rejected', clean(error.message), codingOf(error));
       case 'server':
       case 'network':
       case 'edit_invalid':
@@ -196,6 +197,7 @@ const mapFailure = (error: unknown, secret: string): Failure => {
           error.status !== undefined && error.status >= 400 && error.status < 500 ? 422 : 502,
           'store_rejected',
           clean(error.message),
+          codingOf(error),
         );
     }
   }
