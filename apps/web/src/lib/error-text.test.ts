@@ -163,3 +163,46 @@ describe('the errors catalog', () => {
     }
   });
 });
+
+describe('one-off server sentences (codes added in the localisation of the remaining messages)', () => {
+  it('plural seconds follow the language and the number', () => {
+    try {
+      useLocale('fr');
+      assert.equal(
+        codedText('rate.requests', { count: 1 }),
+        'Trop de requêtes. Réessayez dans 1 seconde.',
+      );
+      assert.match(codedText('rate.requests', { count: 30 }) ?? '', /30 secondes/);
+      useLocale('de');
+      assert.equal(
+        codedText('rate.requests', { count: 1 }),
+        'Zu viele Anfragen. Versuchen Sie es in 1 Sekunde erneut.',
+      );
+      useLocale('en');
+      assert.equal(
+        codedText('rate.requests', { count: 1 }),
+        'Too many requests. Try again in 1 second.',
+      );
+    } finally {
+      useLocale('en');
+    }
+  });
+
+  it('fills the params of a sentence in every language', () => {
+    try {
+      for (const lang of ['en', 'fr', 'es', 'de']) {
+        useLocale(lang as 'en');
+        const text = codedText('confirm.mismatchPublished', { phrase: 'publish MyApp' });
+        assert.match(text ?? '', /publish MyApp/, lang);
+        assert.doesNotMatch(text ?? '', /\{\{/, lang);
+      }
+    } finally {
+      useLocale('en');
+    }
+  });
+
+  it('an unknown code still falls back to the server message', () => {
+    assert.equal(codedText('nothing.here', {}), undefined);
+    assert.equal(errorText({ error: 'x', code: 'nothing.here', message: 'English' }), undefined);
+  });
+});

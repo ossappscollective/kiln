@@ -1,7 +1,7 @@
 # ADR 0045: Localising the sentences the server produces
 
-Status: built for API errors, persisted failure notes and the two interactive emails. Alert emails, the digest and most one-off error
-sentences are still English (see the inventory in [docs/i18n-server.md](../i18n-server.md)). Builds on [ADR 0044](0044-localisation.md).
+Status: built for API errors (including the one-off sentences a person reads from the UI), persisted failure notes and the two interactive
+emails. Alert emails, the digest, validation field hints and operator hints are still English (see the inventory in [docs/i18n-server.md](../i18n-server.md)). Builds on [ADR 0044](0044-localisation.md).
 
 ## Context
 
