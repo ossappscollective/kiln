@@ -1,4 +1,6 @@
-import { ASSET_KIND_LABELS, type AssetKind, type AssetProblem, type AssetSet } from '@kiln/core';
+import type { AssetKind, AssetProblem, AssetSet } from '@kiln/core';
+import { formatBytes as formatBytesIntl, formatList, formatNumber } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 import type { AssetIndex, AssetItem } from '../types.ts';
 
 /**
@@ -16,34 +18,38 @@ export const NO_FILTER: AssetFilter = { locale: ALL, device: ALL, kind: ALL };
 const NO_LOCALE = new Set(['', 'default']);
 
 export function localeLabel(locale: string): string {
-  if (locale === '') return 'Project (no locale)';
-  if (locale === 'default') return 'Default folder';
+  if (locale === '') return t('assets:locale.project');
+  if (locale === 'default') return t('assets:locale.default');
   return locale;
 }
 
+const KIND_LABELS: Record<AssetKind, string> = {
+  screenshot: k('assets:kind.screenshot'),
+  preview: k('assets:kind.preview'),
+  feature_graphic: k('assets:kind.featureGraphic'),
+  promo_graphic: k('assets:kind.promoGraphic'),
+  tv_banner: k('assets:kind.tvBanner'),
+  icon: k('assets:kind.icon'),
+  app_icon: k('assets:kind.appIcon'),
+};
+
 export function kindLabel(kind: AssetKind): string {
-  return ASSET_KIND_LABELS[kind] ?? kind;
+  const key = KIND_LABELS[kind];
+  return key !== undefined ? t(key) : kind;
 }
 
 // ---------------------------------------------------------------------------------------------
 // Texts
 
 export function formatBytes(bytes: number | null | undefined): string {
-  if (bytes === null || bytes === undefined || Number.isNaN(bytes)) return 'Size unknown';
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ['KB', 'MB', 'GB'];
-  let value = bytes / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value >= 100 || Number.isInteger(value) ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+  if (bytes === null || bytes === undefined || Number.isNaN(bytes)) return t('assets:size.unknown');
+  return formatBytesIntl(bytes);
 }
 
 export function dimensionsText(asset: Pick<AssetItem, 'width' | 'height' | 'format'>): string {
-  if (asset.width !== null && asset.height !== null) return `${asset.width} x ${asset.height} px`;
-  return asset.format === 'video' ? 'Video' : 'Dimensions unknown';
+  if (asset.width !== null && asset.height !== null)
+    return t('assets:dimensions', { width: asset.width, height: asset.height });
+  return asset.format === 'video' ? t('assets:media.video') : t('assets:dimensions.unknown');
 }
 
 export function fileName(path: string): string {
@@ -53,15 +59,13 @@ export function fileName(path: string): string {
 
 /** "Local clone (fast)" or "GitHub (slower)": where the files were read, and how fast that is. */
 export function sourceText(source: AssetIndex['source']): string {
-  if (!source) return 'No repository linked';
+  if (!source) return t('assets:source.none');
   return source.label;
 }
 
 export function sourceHint(source: AssetIndex['source']): string {
   if (!source) return '';
-  return source.fast
-    ? 'Read from a clone on the server: large sets are read in full.'
-    : 'Read over the network, so only a limited number of images is opened and large sets may be partial.';
+  return source.fast ? t('assets:source.hintFast') : t('assets:source.hintSlow');
 }
 
 export function shortCommit(commit: string | null): string {
@@ -78,7 +82,11 @@ export function severityTone(severity: AssetProblem['severity']): Tone {
 }
 
 export function severityLabel(severity: AssetProblem['severity']): string {
-  return severity === 'error' ? 'Error' : severity === 'warning' ? 'Warning' : 'Note';
+  return severity === 'error'
+    ? t('assets:severity.error')
+    : severity === 'warning'
+      ? t('assets:severity.warning')
+      : t('assets:severity.note');
 }
 
 const SEVERITY_RANK: Record<AssetProblem['severity'], number> = { error: 0, warning: 1, info: 2 };
@@ -138,11 +146,11 @@ export function previewState(asset: AssetItem, maxServedBytes: number): PreviewS
 export function previewNote(state: PreviewState, maxServedBytes: number): string {
   switch (state) {
     case 'video':
-      return 'App previews are listed, not played.';
+      return t('assets:preview.video');
     case 'too_large':
-      return `Larger than ${formatBytes(maxServedBytes)}: not shown here.`;
+      return t('assets:preview.tooLarge', { size: formatBytes(maxServedBytes) });
     case 'unavailable':
-      return 'The file was not opened, so there is no preview.';
+      return t('assets:preview.unavailable');
     default:
       return '';
   }
@@ -184,8 +192,8 @@ const KIND_ORDER: Record<string, number> = {};
   'tv_banner',
   'icon',
   'app_icon',
-].forEach((k, i) => {
-  KIND_ORDER[k] = i;
+].forEach((kind, i) => {
+  KIND_ORDER[kind] = i;
 });
 
 export function groupKey(locale: string, kind: AssetKind, device: string | null): string {
@@ -340,23 +348,26 @@ export function isFiltered(filter: AssetFilter): boolean {
 // Counts, partial reads, the store-side seam
 
 export function countText(group: Pick<DeviceGroup, 'count' | 'max'>): string {
-  return group.max === null ? `${group.count}` : `${group.count} of at most ${group.max}`;
+  return group.max === null
+    ? formatNumber(group.count)
+    : t('assets:count.atMost', { count: group.count, max: group.max });
 }
 
 export function summaryText(index: Pick<AssetIndex, 'totals'>): string {
-  const t = index.totals;
-  const files = `${t.assets} ${t.assets === 1 ? 'file' : 'files'}`;
-  const locales = t.locales > 0 ? `, ${t.locales} ${t.locales === 1 ? 'locale' : 'locales'}` : '';
-  return `${files}${locales}, ${formatBytes(t.bytes)}`;
+  const totals = index.totals;
+  const parts = [t('assets:summary.files', { count: totals.assets })];
+  if (totals.locales > 0) parts.push(t('assets:summary.locales', { count: totals.locales }));
+  parts.push(formatBytes(totals.bytes));
+  return formatList(parts, { type: 'unit' });
 }
 
 export function problemCountsText(index: Pick<AssetIndex, 'totals'>): string {
-  const t = index.totals;
+  const totals = index.totals;
   const parts: string[] = [];
-  if (t.errors > 0) parts.push(`${t.errors} ${t.errors === 1 ? 'error' : 'errors'}`);
-  if (t.warnings > 0) parts.push(`${t.warnings} ${t.warnings === 1 ? 'warning' : 'warnings'}`);
-  if (t.infos > 0) parts.push(`${t.infos} ${t.infos === 1 ? 'note' : 'notes'}`);
-  return parts.length > 0 ? parts.join(', ') : 'No problems found';
+  if (totals.errors > 0) parts.push(t('assets:problems.errors', { count: totals.errors }));
+  if (totals.warnings > 0) parts.push(t('assets:problems.warnings', { count: totals.warnings }));
+  if (totals.infos > 0) parts.push(t('assets:problems.notes', { count: totals.infos }));
+  return parts.length > 0 ? formatList(parts, { type: 'unit' }) : t('assets:problems.none');
 }
 
 export type StoreCompare =
@@ -364,7 +375,8 @@ export type StoreCompare =
   | { state: 'same'; text: string; storeCount: number }
   | { state: 'differs'; text: string; storeCount: number };
 
-export const NOT_COMPARED = 'Not yet compared with the store';
+/** A message key: `t(NOT_COMPARED)`. `StoreCompare.text` already holds the translated text. */
+export const NOT_COMPARED = k('assets:compare.notYet');
 
 /**
  * The repository count of a set next to what the store has. `storeSide` is null until the listing
@@ -375,17 +387,17 @@ export function compareWithStore(
   group: Pick<DeviceGroup, 'count' | 'kind' | 'device'>,
   locale: string,
 ): StoreCompare {
-  if (!storeSide) return { state: 'not_compared', text: NOT_COMPARED };
+  if (!storeSide) return { state: 'not_compared', text: t(NOT_COMPARED) };
   const entry = storeSide.counts.find(
     (c) =>
       c.locale === locale && c.kind === group.kind && (c.device ?? '') === (group.device ?? ''),
   );
-  if (!entry) return { state: 'not_compared', text: NOT_COMPARED };
+  if (!entry) return { state: 'not_compared', text: t(NOT_COMPARED) };
   return entry.count === group.count
-    ? { state: 'same', text: `The store has ${entry.count}, the same`, storeCount: entry.count }
+    ? { state: 'same', text: t('assets:compare.same', { count: entry.count }), storeCount: entry.count }
     : {
         state: 'differs',
-        text: `The store has ${entry.count}, the repository ${group.count}`,
+        text: t('assets:compare.differs', { store: entry.count, repo: group.count }),
         storeCount: entry.count,
       };
 }

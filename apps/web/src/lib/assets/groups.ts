@@ -1,5 +1,5 @@
 import type { AssetKind, Platform } from '@kiln/core';
-import { platformMeta } from '@kiln/core';
+import { k, t } from '../i18n/t.ts';
 import type { AssetIndex } from '../types.ts';
 import type { StoreCompare } from './assets.ts';
 
@@ -13,36 +13,47 @@ export type AssetGroupId = 'icon' | 'play_graphics' | 'screenshots';
 
 export type AssetGroupDef = {
   id: AssetGroupId;
-  label: string;
+  /** Message keys: `t(def.labelKey)`, `t(def.hintKey)`. */
+  labelKey: string;
   kinds: AssetKind[];
   /** The only platform that has this group, or null for both. */
   platform: Platform | null;
-  hint: string;
+  hintKey: string;
 };
 
 export const ASSET_GROUPS: readonly AssetGroupDef[] = [
   {
     id: 'icon',
-    label: 'Icon',
+    labelKey: k('assets:group.icon.label'),
     kinds: ['icon', 'app_icon'],
     platform: null,
-    hint: 'The app icon of the project and the store icon.',
+    hintKey: k('assets:group.icon.hint'),
   },
   {
     id: 'play_graphics',
-    label: 'Google Play graphics',
+    labelKey: k('assets:group.playGraphics.label'),
     kinds: ['feature_graphic', 'promo_graphic', 'tv_banner'],
     platform: 'android',
-    hint: 'Feature graphic, promo graphic and TV banner (Android only).',
+    hintKey: k('assets:group.playGraphics.hint'),
   },
   {
     id: 'screenshots',
-    label: 'Screenshots',
+    labelKey: k('assets:group.screenshots.label'),
     kinds: ['screenshot', 'preview'],
     platform: null,
-    hint: 'Screenshots and app previews, by locale and device.',
+    hintKey: k('assets:group.screenshots.hint'),
   },
 ];
+
+/** The store of a platform with its article, in the active language ("the App Store", "Google Play"). */
+const storeWithArticle = (platform: Platform): string =>
+  t(
+    platform === 'android'
+      ? k('assets:group.storeGoogle')
+      : platform === 'macos'
+        ? k('assets:group.storeMac')
+        : k('assets:group.storeApple'),
+  );
 
 /** A tab id as a group id (anything unknown is the screenshots). */
 export const asGroupId = (id: string): AssetGroupId =>
@@ -63,10 +74,13 @@ export function groupAvailability(
 ): { available: boolean; reason: string | null } {
   const def = groupDef(id);
   if (def.platform !== null && def.platform !== platform) {
-    const where = (p: Platform) => platformMeta(p).storeNameWithArticle;
     return {
       available: false,
-      reason: `${def.label} exist on ${where(def.platform)} only. This record is on ${where(platform)}.`,
+      reason: t('assets:group.unavailable', {
+        group: t(def.labelKey),
+        store: storeWithArticle(def.platform),
+        current: storeWithArticle(platform),
+      }),
     };
   }
   return { available: true, reason: null };
@@ -115,7 +129,7 @@ export function groupSummaries(
     }
     return {
       id: g.id,
-      label: g.label,
+      label: t(g.labelKey),
       files: slice.assets.length,
       errors,
       warnings,
@@ -149,14 +163,14 @@ export type StoreStatus = {
  */
 export function storeStatusOf(compare: StoreCompare): StoreStatus {
   if (compare.state === 'same')
-    return { id: 'in_both', label: 'In repo and store', tone: 'ok', title: compare.text };
+    return { id: 'in_both', label: t('assets:status.inBoth'), tone: 'ok', title: compare.text };
   if (compare.state === 'differs')
-    return { id: 'differs', label: 'Differs from store', tone: 'warn', title: compare.text };
+    return { id: 'differs', label: t('assets:status.differs'), tone: 'warn', title: compare.text };
   return {
     id: 'in_repo',
-    label: 'In repo',
+    label: t('assets:status.inRepo'),
     tone: 'neutral',
-    title: `In the repository. ${compare.text}.`,
+    title: t('assets:status.inRepoTitle', { text: compare.text }),
   };
 }
 

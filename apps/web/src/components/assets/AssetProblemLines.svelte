@@ -7,6 +7,7 @@
   import type { AssetProblem } from '@kiln/core';
   import { fileName } from '../../lib/assets/assets.ts';
   import { problemAction } from '../../lib/assets/lead.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Badge from '../ui/Badge.svelte';
 
   let { problems, onopenpath }: { problems: AssetProblem[]; onopenpath?: ((path: string) => void) | undefined } = $props();
@@ -14,11 +15,11 @@
   const safeSource = (url: string) => (url.startsWith('https://') ? url : null);
 </script>
 
-<ul class="lines" aria-label="Problems to fix">
+<ul class="lines" aria-label={t('assets:problems.toFix')}>
   {#each problems as problem, i (`${problem.rule}|${problem.path ?? ''}|${problem.locale ?? ''}|${problem.device ?? ''}|${i}`)}
     {@const action = problemAction(problem.rule)}
     <li>
-      <Badge tone="bad" icon="x-circle">Error</Badge>
+      <Badge tone="bad" icon="x-circle">{t('assets:severity.error')}</Badge>
       <span class="text">
         {#if problem.path}
           {#if onopenpath}
@@ -30,7 +31,7 @@
         <span class="message">{problem.message}</span>
         {#if action}<strong class="do">{action}</strong>{/if}
         {#if safeSource(problem.source)}
-          <a class="rule" href={safeSource(problem.source)} target="_blank" rel="noopener noreferrer">Rule<span class="visually-hidden"> (opens in a new tab)</span></a>
+          <a class="rule" href={safeSource(problem.source)} target="_blank" rel="noopener noreferrer">{t('assets:problems.rule')}<span class="visually-hidden"> {t('assets:problems.newTab')}</span></a>
         {/if}
       </span>
     </li>

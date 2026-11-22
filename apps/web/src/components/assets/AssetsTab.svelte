@@ -55,8 +55,10 @@
   } from '../../lib/assets/groups.ts';
   import { SYNC_ROLE_REASON, type EditorSet, canChangeAssets, setIdOf, storeKeyOf } from '../../lib/assets/sync.ts';
   import { assetsLead, otherCountsText, splitProblems } from '../../lib/assets/lead.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
+  import { k, t } from '../../lib/i18n/t.ts';
   import { describeError } from '../../lib/portfolio.ts';
-  import { REVERSE_IMAGE_SYNC_NOTE, STAGE_ROLE_REASON, canStage, setStaging, stageAssetsBody, stagingError } from '../../lib/staged.ts';
+  import { reverseImageSyncNote, stageRoleReason, canStage, setStaging, stageAssetsBody, stagingError } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { DeviceGroup } from '../../lib/assets/assets.ts';
@@ -69,6 +71,7 @@
   import InfoTip from '../ui/InfoTip.svelte';
   import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import T from '../ui/T.svelte';
   import Tabs from '../ui/Tabs.svelte';
   import AssetCompareDialog from './AssetCompareDialog.svelte';
   import AssetGallery from './AssetGallery.svelte';
@@ -104,6 +107,15 @@
 
   const allowed = $derived(can(role, 'listing.read'));
 
+  /** "Screenshots iPhone (en-US)": the set a message is about. */
+  const setLabel = (kind: string, device: string, locale: string) =>
+    device ? t('assets:tab.setTitleDevice', { kind, device, locale }) : t('assets:tab.setTitle', { kind, locale });
+  const NONE_FOUND: Record<AssetGroupId, string> = {
+    icon: k('assets:tab.noneFound.icon'),
+    play_graphics: k('assets:tab.noneFound.playGraphics'),
+    screenshots: k('assets:tab.noneFound.screenshots'),
+  };
+
   let index = $state<AssetIndex | null>(null);
   let loading = $state(true);
   let reloading = $state(false);
@@ -137,7 +149,7 @@
         group = autoGroup;
       }
       filter = { ...NO_FILTER };
-      announcement = `Read ${next.totals.assets} store media files: ${problemCountsText(next)}.`;
+      announcement = t('assets:tab.announceRead', { count: next.totals.assets, problems: problemCountsText(next) });
     } catch (e) {
       if (mine !== generation) return;
       loadProblem = describeError(e, 'load');
@@ -245,7 +257,7 @@
   /** Stages one set's repository files for the draft push. Returns '' on success, else the reason it failed. */
   async function stageOne(locale: string, set: DeviceGroup): Promise<string> {
     const st = stageFor(locale, set);
-    if (!st.canStage) return st.reason ?? 'This set cannot be staged.';
+    if (!st.canStage) return st.reason ?? t('assets:tab.cannotStage');
     try {
       const done = await api.stageAssets(workspaceId, app.id, stageAssetsBody(locale, set.kind, set.device, st.paths, index?.commit ?? null));
       stagedStore.set(done.staged);
@@ -261,8 +273,8 @@
     const problem = await stageOne(locale, set);
     stagingId = '';
     if (problem === '') {
-      announcement = `Staged ${set.kindLabel} ${set.deviceLabel} (${locale}) for the store.`;
-      toast.success(`Staged ${set.kindLabel}${set.deviceLabel ? ` ${set.deviceLabel}` : ''} (${locale}). It is not in the store yet: push it from the staged changes above.`);
+      announcement = t('assets:tab.announceStaged', { set: setLabel(set.kindLabel, set.deviceLabel, locale) });
+      toast.success(t('assets:tab.toastStaged', { set: setLabel(set.kindLabel, set.deviceLabel, locale) }));
     } else toast.error(problem);
   }
 
@@ -272,7 +284,7 @@
     try {
       const done = await api.unstageItem(workspaceId, app.id, id);
       stagedStore.set(done.staged);
-      announcement = 'Removed the set from the staged changes.';
+      announcement = t('assets:tab.announceUnstaged');
     } catch (e) {
       toast.error(stagingError(e));
     } finally {
@@ -291,8 +303,8 @@
       done += 1;
     }
     stagingAll = false;
-    if (problem === '') toast.success(`Staged ${done} ${done === 1 ? 'set' : 'sets'} for the store. Nothing is in the store yet: push from the staged changes above.`);
-    else toast.error(`Staged ${done} of ${stageableShown.length} sets, then stopped: ${problem}`);
+    if (problem === '') toast.success(t('assets:tab.toastStagedMany', { count: done }));
+    else toast.error(t('assets:tab.toastStagedStopped', { count: stageableShown.length, done, problem }));
   }
 
   // ---- Two way sync: pull, compare, edit the files of a set, bulk actions ------------------------------
@@ -318,7 +330,7 @@
             .filter((a) => a.locale === key.locale && a.kind === key.kind && a.device === key.device)
             .sort((a, b) => a.order - b.order || a.path.localeCompare(b.path));
           const device = files.length > 0 ? (files[0]?.deviceLabel ?? '') : '';
-          return { ...key, title: `${kindLabel(key.kind)}${key.device !== null && device ? ` ${device}` : ''} (${key.locale})`, files, commit: index.commit };
+          return { ...key, title: setLabel(kindLabel(key.kind), key.device !== null ? device : '', key.locale), files, commit: index.commit };
         })()
       : null,
   );
@@ -377,9 +389,9 @@
     }
     bulkBusy = false;
     selection = selection.filter((p) => left.indexOf(p.id) !== -1);
-    if (problem !== '') toast.error(`Staged ${done} ${done === 1 ? 'set' : 'sets'}, then stopped: ${problem}`);
-    else if (left.length > 0) toast.warning(`Staged ${done} ${done === 1 ? 'set' : 'sets'}. ${left.length} could not be staged (a set says why next to it); they stay selected.`);
-    else toast.success(`Staged ${done} ${done === 1 ? 'set' : 'sets'} for the store. Nothing is in the store yet: push from the staged changes above.`);
+    if (problem !== '') toast.error(t('assets:tab.toastBulkStopped', { count: done, problem }));
+    else if (left.length > 0) toast.warning(t('assets:tab.toastBulkLeft', { count: left.length, done }));
+    else toast.success(t('assets:tab.toastStagedMany', { count: done }));
   }
   const searched = $derived(index ? [...index.folders.screenshots, ...index.folders.previews, ...(index.folders.androidImages ? [index.folders.androidImages] : [])] : []);
   const problemSplit = $derived(splitProblems(index?.problems ?? []));
@@ -393,21 +405,21 @@
 
   {#if !allowed}
     <div class="card">
-      <EmptyState icon="lock" title="No access to the assets" description="Reading the store media of a repository needs the right to read the listing." />
+      <EmptyState icon="lock" title={t('assets:tab.noAccess')} description={t('assets:tab.noAccessText')} />
     </div>
   {:else if loading && !index}
-    <div role="status" aria-label="Reading the store media">
+    <div role="status" aria-label={t('assets:tab.reading')}>
       <Skeleton width="50%" height="16px" />
       <div class="card"><div class="stack"><Skeleton width="30%" height="16px" /><Skeleton width="100%" height="180px" /></div></div>
     </div>
   {:else if loadProblem && !index}
     <div class="stack">
-      <Alert tone="error" title="Could not read the store media">{loadProblem}</Alert>
-      <div class="row"><Button icon="refresh" onclick={load}>Try again</Button></div>
+      <Alert tone="error" title={t('assets:tab.readFailed')}>{loadProblem}</Alert>
+      <div class="row"><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
     </div>
   {:else if index}
     {#if loadProblem}
-      <Alert tone="error" title="Could not read the media again">{loadProblem} The files below are from before.</Alert>
+      <Alert tone="error" title={t('assets:tab.rereadFailed')}>{t('assets:tab.rereadFailedText', { problem: loadProblem })}</Alert>
     {/if}
 
     {#if !locked}<StagedTray {api} {workspaceId} {role} members={[app]} />{/if}
@@ -416,26 +428,26 @@
       <div class="card">
         <EmptyState
           icon="repo"
-          title="No repository linked"
-          description="The store media of an app is read from its repository (screenshots, app previews and the Google Play graphics of fastlane). Link a repository to this app to see it here."
+          title={t('assets:tab.noRepo')}
+          description={t('assets:tab.noRepoText')}
         >
           {#snippet actions()}
-            <Button href="#/repositories" variant="primary" icon="repo">Go to repositories</Button>
+            <Button href="#/repositories" variant="primary" icon="repo">{t('assets:tab.goRepos')}</Button>
           {/snippet}
         </EmptyState>
       </div>
     {:else}
-      <section aria-label="Source of the assets" class="sourcebar">
+      <section aria-label={t('assets:tab.sourceLabel')} class="sourcebar">
         <AssetSource {index} {now} {reloading} onreload={load} />
       </section>
 
       {#if index.partial.partial}
-        <Alert tone="warn" title="Only part of the media was read">
+        <Alert tone="warn" title={t('assets:tab.partial')}>
           <ul class="plain">
             {#each index.partial.reasons as reason (reason)}<li>{reason}</li>{/each}
           </ul>
           <p class="alert-text">
-            {index.source?.fast ? 'The folder holds more than the limit of a clone.' : 'GitHub is read over the network, so the limit is small. A local clone of the repository has no such limit.'}
+            {index.source?.fast ? t('assets:tab.partialFast') : t('assets:tab.partialSlow')}
           </p>
         </Alert>
       {/if}
@@ -448,12 +460,12 @@
         <div class="card">
           <EmptyState
             icon="images"
-            title="No store media found"
-            description="The repository was read{index.target ? ` (${index.target.label})` : ''}, but it holds no screenshots, app previews or store graphics in the places fastlane uses."
+            title={t('assets:tab.noMedia')}
+            description={index.target ? t('assets:tab.noMediaTarget', { target: index.target.label }) : t('assets:tab.noMediaText')}
           >
             {#snippet actions()}
               {#if searched.length > 0}
-                <p class="muted searched">Searched: {searched.join(', ')}</p>
+                <p class="muted searched">{t('assets:tab.searched', { paths: formatList(searched, { type: 'unit' }) })}</p>
               {/if}
             {/snippet}
           </EmptyState>
@@ -464,47 +476,47 @@
             {#snippet aside()}
               <span class="row wrap staging">
                 <SectionsToggle />
-                <InfoTip label="About staging" buttonText="About staging" align="start" width="24rem">
-                  <p>Stage collects repository files for a draft push. {REVERSE_IMAGE_SYNC_NOTE}</p>
+                <InfoTip label={t('assets:tab.aboutStaging')} buttonText={t('assets:tab.aboutStaging')} align="start" width="24rem">
+                  <p>{t('assets:tab.stagingAbout', { note: reverseImageSyncNote() })}</p>
                 </InfoTip>
               </span>
             {/snippet}
             {#snippet actions()}
-              <div class="row wrap staging" role="group" aria-label="Summary">
+              <div class="row wrap staging" role="group" aria-label={t('assets:tab.summaryLabel')}>
                 {#if !locked}
                 <Button
                   variant={stagePrimary ? 'primary' : 'secondary'}
                   icon="layers"
                   loading={stagingAll}
                   disabled={stageableShown.length === 0 || stagingId !== '' || stagingAll}
-                  title={!canStage(role) ? STAGE_ROLE_REASON : stageableShown.length === 0 ? 'No set shown here can be staged, or all of them are staged already. A set says why next to it.' : undefined}
+                  title={!canStage(role) ? stageRoleReason() : stageableShown.length === 0 ? t('assets:tab.nothingToStage') : undefined}
                   onclick={stageAll}
-                >Stage for store{stageableShown.length > 0 ? ` (${stageableShown.length} ${stageableShown.length === 1 ? 'set' : 'sets'} shown)` : ''}</Button>
+                >{stageableShown.length > 0 ? t('assets:tab.stageShown', { count: stageableShown.length }) : t('assets:gallery.stageForStore')}</Button>
                 {/if}
-                <Button icon="eye" onclick={() => openCompare('', null)} title="Reads what the store holds now (a read, nothing is written there) and shows how it differs from the repository.">Compare with the store</Button>
-                <Button icon="download" disabled={!mayChange} title={!mayChange ? SYNC_ROLE_REASON : 'Downloads the store\'s images into a draft change set.'} onclick={() => pullFromStore(null)}>Pull from store</Button>
+                <Button icon="eye" onclick={() => openCompare('', null)} title={t('assets:tab.compareHint')}>{t('assets:gallery.compare')}</Button>
+                <Button icon="download" disabled={!mayChange} title={!mayChange ? t(SYNC_ROLE_REASON) : t('assets:tab.pullHint')} onclick={() => pullFromStore(null)}>{t('assets:tab.pullFromStore')}</Button>
               </div>
             {/snippet}
           </PageLead>
         {/if}
 
         {#if selection.length > 0}
-          <section class="bulk" aria-label="Selected sets">
-            <span><strong>{selection.length}</strong> {selection.length === 1 ? 'set' : 'sets'} selected</span>
-            {#if !locked}<Button size="sm" icon="layers" loading={bulkBusy} disabled={bulkBusy || stagingAll || stagingId !== '' || !canStage(role)} title={!canStage(role) ? STAGE_ROLE_REASON : undefined} onclick={stageSelected}>Stage selected</Button>{/if}
-            <Button size="sm" icon="download" disabled={bulkBusy || !mayChange} title={!mayChange ? SYNC_ROLE_REASON : 'Pulls the store\'s images of the selected sets into a draft change set.'} onclick={() => pullFromStore(selection.map((p) => storeKeyOf(app.platform, p.locale, p.kind, p.device)))}>Pull selected</Button>
-            <Button size="sm" variant="ghost" disabled={bulkBusy} onclick={() => (selection = [])}>Clear selection</Button>
+          <section class="bulk" aria-label={t('assets:tab.selectedLabel')}>
+            <span><T key="assets:tab.selected" params={{ count: selection.length }} /></span>
+            {#if !locked}<Button size="sm" icon="layers" loading={bulkBusy} disabled={bulkBusy || stagingAll || stagingId !== '' || !canStage(role)} title={!canStage(role) ? stageRoleReason() : undefined} onclick={stageSelected}>{t('assets:tab.stageSelected')}</Button>{/if}
+            <Button size="sm" icon="download" disabled={bulkBusy || !mayChange} title={!mayChange ? t(SYNC_ROLE_REASON) : t('assets:tab.pullSelectedHint')} onclick={() => pullFromStore(selection.map((p) => storeKeyOf(app.platform, p.locale, p.kind, p.device)))}>{t('assets:tab.pullSelected')}</Button>
+            <Button size="sm" variant="ghost" disabled={bulkBusy} onclick={() => (selection = [])}>{t('assets:tab.clearSelection')}</Button>
           </section>
         {/if}
 
         {#if problemSplit.blocking.length > 0}
-          <section class="blocking" aria-label="Problems to fix">
+          <section class="blocking" aria-label={t('assets:problems.toFix')}>
             <AssetProblemLines problems={problemSplit.blocking} onopenpath={openPath} />
           </section>
         {/if}
 
         {#if problemSplit.other.length > 0}
-          <Section title="Problems found" key="problems" count={problemSplit.other.length} summary={otherCountsText(problemSplit.other)} defaultOpen={false}>
+          <Section title={t('assets:problems.label')} key="problems" count={problemSplit.other.length} summary={otherCountsText(problemSplit.other)} defaultOpen={false}>
             <div class="problem-list"><AssetProblems problems={problemSplit.other} onopenpath={openPath} /></div>
           </Section>
         {/if}
@@ -512,29 +524,29 @@
         {#if groupShown}
           <div class="filters">
             <div class="field">
-              <label for="asset-locale-{app.id}">Locale</label>
+              <label for="asset-locale-{app.id}">{t('assets:tab.filterLocale')}</label>
               <select id="asset-locale-{app.id}" value={active.locale} onchange={(e) => {
                   filter = { ...filter, locale: e.currentTarget.value };
                   writeLocale(e.currentTarget.value);
                 }}>
-                <option value={ALL}>All locales</option>
+                <option value={ALL}>{t('assets:tab.allLocales')}</option>
                 {#each options.locales as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
               </select>
             </div>
             {#if options.devices.length > 1 || active.device !== ALL}
               <div class="field">
-                <label for="asset-device-{app.id}">Device</label>
+                <label for="asset-device-{app.id}">{t('assets:tab.filterDevice')}</label>
                 <select id="asset-device-{app.id}" value={active.device} onchange={(e) => (filter = { ...filter, device: e.currentTarget.value })}>
-                  <option value={ALL}>All devices</option>
+                  <option value={ALL}>{t('assets:tab.allDevices')}</option>
                   {#each options.devices as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
                 </select>
               </div>
             {/if}
             {#if options.kinds.length > 1 || active.kind !== ALL}
               <div class="field">
-                <label for="asset-kind-{app.id}">Kind</label>
+                <label for="asset-kind-{app.id}">{t('assets:tab.filterKind')}</label>
                 <select id="asset-kind-{app.id}" value={active.kind} onchange={(e) => (filter = { ...filter, kind: e.currentTarget.value })}>
-                  <option value={ALL}>All kinds</option>
+                  <option value={ALL}>{t('assets:tab.allKinds')}</option>
                   {#each options.kinds as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
                 </select>
               </div>
@@ -543,13 +555,13 @@
               <Button variant="ghost" onclick={() => {
                 filter = { ...NO_FILTER };
                 writeLocale(ALL);
-              }}>Clear filters</Button>
+              }}>{t('assets:tab.clearFilters')}</Button>
             {/if}
           </div>
         {/if}
 
         <Tabs
-          label="Asset groups"
+          label={t('assets:tab.groupsLabel')}
           bind:value={group}
           tabs={summaries.map((g) => ({ id: g.id, label: g.label, count: g.files }))}
         >
@@ -557,22 +569,22 @@
             {@const gAvail = groupAvailability(asGroupId(id), app.platform)}
             {@const here = summaries.filter((g) => g.id === id)[0]}
             <div class="stack group-panel">
-              <p class="muted small">{groupDef(asGroupId(id)).hint}</p>
+              <p class="muted small">{t(groupDef(asGroupId(id)).hintKey)}</p>
               {#if !gAvail.available}
-                <div class="card"><EmptyState icon="lock" title="Not on this store" description={gAvail.reason ?? ''} /></div>
+                <div class="card"><EmptyState icon="lock" title={t('assets:tab.notOnStore')} description={gAvail.reason ?? ''} /></div>
               {:else if here && here.files === 0}
                 <div class="card">
-                  <EmptyState icon="images" title="No {groupDef(asGroupId(id)).label.toLowerCase()} found" description="The repository holds none in the places the stores' tooling uses." />
+                  <EmptyState icon="images" title={t(NONE_FOUND[asGroupId(id)])} description={t('assets:tab.noneFoundText')} />
                 </div>
               {:else}
                 {#if groups.length === 0}
                   <div class="card">
-                    <EmptyState icon="filter" title="Nothing matches the filters" description="Choose another locale, device or kind.">
+                    <EmptyState icon="filter" title={t('assets:tab.noMatch')} description={t('assets:tab.noMatchText')}>
                       {#snippet actions()}
                         <Button onclick={() => {
                       filter = { ...NO_FILTER };
                       writeLocale(ALL);
-                    }}>Clear filters</Button>
+                    }}>{t('assets:tab.clearFilters')}</Button>
                       {/snippet}
                     </EmptyState>
                   </div>
@@ -603,17 +615,17 @@
         </Tabs>
       {/if}
 
-      <Section title="How these checks work" key="specs" defaultOpen={false}>
+      <Section title={t('assets:tab.howChecks')} key="specs" defaultOpen={false}>
         <div class="stack spec-body">
           <p>{index.specs.basis}</p>
-          <p class="muted">Rules come from these pages:</p>
+          <p class="muted">{t('assets:tab.rulesFrom')}</p>
           <ul class="plain">
             {#each Object.entries(index.specs.sources) as [name, url] (name)}
-              <li>{#if url.startsWith('https://')}<a href={url} target="_blank" rel="noopener noreferrer">{url}<span class="visually-hidden"> (opens in a new tab)</span></a>{:else}{url}{/if}</li>
+              <li>{#if url.startsWith('https://')}<a href={url} target="_blank" rel="noopener noreferrer">{url}<span class="visually-hidden"> {t('assets:problems.newTab')}</span></a>{:else}{url}{/if}</li>
             {/each}
           </ul>
           {#if index.specs.unverified.length > 0}
-            <p class="muted">Not confirmed on an official page (shown as information only, never as an error):</p>
+            <p class="muted">{t('assets:tab.unconfirmed')}</p>
             <ul class="plain">
               {#each index.specs.unverified as u (u.id)}<li><code>{u.id}</code> {u.text}</li>{/each}
             </ul>

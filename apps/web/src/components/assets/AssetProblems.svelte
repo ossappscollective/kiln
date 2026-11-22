@@ -9,6 +9,7 @@
 <script lang="ts">
   import type { AssetProblem } from '@kiln/core';
   import { fileName, severityLabel, severityTone } from '../../lib/assets/assets.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import Badge from '../ui/Badge.svelte';
 
@@ -21,13 +22,13 @@
   const safeSource = (url: string) => (url.startsWith('https://') ? url : null);
 </script>
 
-<ul class="problems" aria-label="Problems found">
+<ul class="problems" aria-label={t('assets:problems.label')}>
   {#each problems as problem, i (`${problem.rule}|${problem.path ?? ''}|${problem.locale ?? ''}|${problem.device ?? ''}|${i}`)}
     {@const tone = severityTone(problem.severity)}
     <li>
       <span class="head">
         <Badge {tone} icon={toneIcon(tone)}>{severityLabel(problem.severity)}</Badge>
-        {#if !problem.verified}<Badge tone="neutral" icon="help">Unverified rule</Badge>{/if}
+        {#if !problem.verified}<Badge tone="neutral" icon="help">{t('assets:problems.unverified')}</Badge>{/if}
         {#if showPath && problem.path}
           {#if onopenpath}
             <button type="button" class="link path" onclick={() => onopenpath?.(problem.path as string)} title={problem.path}>{fileName(problem.path)}</button>
@@ -40,7 +41,7 @@
       <span class="meta muted">
         <code>{problem.rule}</code>
         {#if safeSource(problem.source)}
-          <a href={safeSource(problem.source)} target="_blank" rel="noopener noreferrer">Source of the rule<span class="visually-hidden"> (opens in a new tab)</span></a>
+          <a href={safeSource(problem.source)} target="_blank" rel="noopener noreferrer">{t('assets:problems.ruleSource')}<span class="visually-hidden"> {t('assets:problems.newTab')}</span></a>
         {/if}
       </span>
     </li>

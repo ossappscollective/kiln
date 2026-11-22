@@ -23,6 +23,8 @@
     specErrorsOf,
   } from '../../lib/assets/sync.ts';
   import { formatBytes } from '../../lib/assets/assets.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { stagingError } from '../../lib/staged.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
@@ -57,7 +59,7 @@
   let dragging = $state(false);
   let busy = $state(false);
   let notes = $state<string[]>([]);
-  let staged = $state<string[]>([]);
+  let staged = $state<{ name: string; fixed: boolean }[]>([]);
   let refused = $state<Refused[]>([]);
   let nextId = 1;
 
@@ -77,7 +79,7 @@
     try {
       const done = await api.uploadStagedAsset(workspaceId, appId, query(file, fix, background), file);
       onstaged(done.staged);
-      staged = [...staged, `${file.name}${fix ? ' (fixed)' : ''}`];
+      staged = [...staged, { name: file.name, fixed: fix !== undefined }];
       if (again) refused = refused.filter((r) => r.id !== again.id);
       return true;
     } catch (e) {
@@ -86,7 +88,7 @@
         if (again) refused = refused.map((r) => (r.id === again.id ? { ...r, problems: spec.problems, advice: spec.advice, working: false } : r));
         else refused = [...refused, { id: nextId++, file, problems: spec.problems, advice: spec.advice, background: DEFAULT_BACKGROUND, working: false }];
       } else {
-        notes = [...notes, `${file.name}: ${stagingError(e)}`];
+        notes = [...notes, t('assets:upload.fileError', { name: file.name, error: stagingError(e) })];
         if (again) refused = refused.map((r) => (r.id === again.id ? { ...r, working: false } : r));
       }
       return false;
@@ -111,7 +113,7 @@
       if (await send(file)) ok += 1;
       else if (refused.length > 0 && i < files.length - 1) {
         // Stop at the first file that was refused, so the order of the rest stays what was chosen.
-        notes = [...notes, 'The files after it were not sent. Fix or skip it, then add them again.'];
+        notes = [...notes, t('assets:upload.restNotSent')];
         break;
       }
     }
@@ -123,7 +125,7 @@
   async function applyFix(r: Refused, fix: FixKind) {
     if (busy || r.working) return;
     if (fix === 'remove_alpha' && !isHexColour(r.background)) {
-      notes = [...notes, 'Choose the background as a colour such as #ffffff.'];
+      notes = [...notes, t('assets:upload.backgroundHint')];
       return;
     }
     busy = true;
@@ -139,6 +141,8 @@
     void take(imageFilesOf(event.dataTransfer?.files));
   }
 
+  const stagedText = $derived(formatList(staged.map((s) => (s.fixed ? t('assets:upload.fixedName', { name: s.name }) : s.name))));
+
   function onDragOver(event: DragEvent) {
     if (disabledReason !== '') return;
     event.preventDefault();
@@ -152,14 +156,14 @@
     class:dragging
     class:disabled={disabledReason !== ''}
     role="group"
-    aria-label={mode === 'replace' ? 'Replace the file' : 'Add files'}
+    aria-label={mode === 'replace' ? t('assets:upload.replaceLabel') : t('assets:upload.addLabel')}
     ondragover={onDragOver}
     ondragleave={() => (dragging = false)}
     ondrop={onDrop}
   >
     <Icon name="upload" size={20} />
-    <p class="lead">{mode === 'replace' ? 'Drop the new file here' : 'Drop PNG or JPEG files here'}</p>
-    <p class="muted small">or</p>
+    <p class="lead">{mode === 'replace' ? t('assets:upload.dropReplace') : t('assets:upload.dropAdd')}</p>
+    <p class="muted small">{t('assets:upload.or')}</p>
     <input
       bind:this={input}
       id="asset-file-{uid}"
@@ -171,19 +175,19 @@
       onchange={(e) => void take(imageFilesOf(e.currentTarget.files))}
     />
     <Button size="sm" icon="image" loading={busy} disabled={busy || disabledReason !== ''} title={disabledReason || undefined} onclick={() => input?.click()}>
-      {mode === 'replace' ? 'Choose a file' : 'Choose files'}
+      {mode === 'replace' ? t('assets:upload.chooseOne') : t('assets:upload.chooseMany')}
     </Button>
-    <p class="muted small">{disabledReason !== '' ? disabledReason : 'PNG or JPEG, up to 8 MB each. Checked against the store\'s rules before it is staged.'}</p>
+    <p class="muted small">{disabledReason !== '' ? disabledReason : t('assets:upload.hint')}</p>
   </div>
 
   {#if staged.length > 0}
-    <p class="ok small" role="status">Staged {staged.join(', ')}. It is not in the store yet: push it from the staged changes.</p>
+    <p class="ok small" role="status">{t('assets:upload.staged', { files: stagedText })}</p>
   {/if}
   {#each notes as n (n)}<Alert tone="error">{n}</Alert>{/each}
 
   {#each refused as r (r.id)}
     <div class="refused">
-      <p class="name"><strong>{r.file.name}</strong> <span class="muted">({formatBytes(r.file.size)}) was not staged</span></p>
+      <p class="name"><strong>{r.file.name}</strong> <span class="muted">{t('assets:upload.notStaged', { size: formatBytes(r.file.size) })}</span></p>
       <ul class="plain">
         {#each r.problems as p (p.rule + p.message)}<li>{p.message}</li>{/each}
       </ul>
@@ -192,7 +196,7 @@
           {#each r.advice.options as o (o.kind)}
             <div class="fix">
               {#if o.kind === 'remove_alpha'}
-                <label class="bg">Background <input type="color" bind:value={r.background} disabled={busy} aria-label="Background colour for the flattened picture" /></label>
+                <label class="bg">{t('assets:upload.background')} <input type="color" bind:value={r.background} disabled={busy} aria-label={t('assets:upload.backgroundColour')} /></label>
               {/if}
               <Button size="sm" variant="primary" icon="check" loading={r.working} disabled={busy} onclick={() => applyFix(r, o.kind)} title={o.detail}>{fixLabel(o.kind)}</Button>
               <span class="muted small">{o.detail}</span>
@@ -201,7 +205,7 @@
         </div>
       {/if}
       {#each r.advice.manual as m (m)}<p class="manual small">{m}</p>{/each}
-      <div class="row"><Button size="sm" variant="ghost" disabled={busy} onclick={() => (refused = refused.filter((x) => x.id !== r.id))}>Skip this file</Button></div>
+      <div class="row"><Button size="sm" variant="ghost" disabled={busy} onclick={() => (refused = refused.filter((x) => x.id !== r.id))}>{t('assets:upload.skip')}</Button></div>
     </div>
   {/each}
 </div>

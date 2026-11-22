@@ -23,7 +23,8 @@
   } from '../../lib/assets/assets.ts';
   import { storeOnlyCount, storeStatusOf } from '../../lib/assets/groups.ts';
   import { diffBadge, diffSetOf, setIdOf } from '../../lib/assets/sync.ts';
-  import { STAGE_ROLE_REASON, type SetStaging } from '../../lib/staged.ts';
+  import { t } from '../../lib/i18n/t.ts';
+  import { stageRoleReason, type SetStaging } from '../../lib/staged.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import type { AssetItem, AssetStoreSide } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
@@ -69,11 +70,13 @@
     onedit?: ((locale: string, set: DeviceGroup) => void) | undefined;
     oncompare?: ((locale: string, set: DeviceGroup) => void) | undefined;
   } = $props();
+
+  const setName = (locale: LocaleGroup, group: DeviceGroup) => t('assets:gallery.setName', { kind: group.kindLabel, device: group.deviceLabel, locale: locale.label });
 </script>
 
 <div class="gallery">
   {#each groups as locale (locale.locale)}
-    <Section title={locale.label} key="locale.{locale.locale || 'project'}" count={`${locale.assetCount} ${locale.assetCount === 1 ? 'file' : 'files'}`} summary={locale.groups.map((g) => `${g.kindLabel} ${g.count}`).join(' · ')}>
+    <Section title={locale.label} key="locale.{locale.locale || 'project'}" count={t('assets:summary.files', { count: locale.assetCount })} summary={locale.groups.map((g) => t('assets:gallery.summaryItem', { kind: g.kindLabel, number: g.count })).join(' · ')}>
     <div class="locale">
       {#each locale.groups as group (group.key)}
         {@const compare = compareWithStore(storeSide, group, locale.locale)}
@@ -82,11 +85,11 @@
         {@const storeOnly = storeOnlyCount(compare, group.count)}
         <div class="set">
           <div class="set-head">
-            <h4>{group.kindLabel}{group.deviceLabel && group.device !== null ? `: ${group.deviceLabel}` : ''}</h4>
+            <h4>{group.deviceLabel && group.device !== null ? t('assets:gallery.setTitle', { kind: group.kindLabel, device: group.deviceLabel }) : group.kindLabel}</h4>
             <span class="count-text">
               <Badge tone={over ? 'bad' : 'neutral'} icon={over ? toneIcon('bad') : undefined}>{countText(group)}</Badge>
             </span>
-            <span class="store muted" class:differs={compare.state === 'differs'}>{compare.text}{storeOnly > 0 ? ` (${storeOnly} only in the store)` : ''}</span>
+            <span class="store muted" class:differs={compare.state === 'differs'}>{storeOnly > 0 ? t('assets:gallery.storeOnly', { text: compare.text, count: storeOnly }) : compare.text}</span>
             {#if diff}
               {@const badge = diffBadge(diffSetOf(diff, locale.locale, group.kind, group.device))}
               {#if badge}<Badge tone={badge.tone}>{badge.text}</Badge>{/if}
@@ -94,7 +97,7 @@
             {#if ontoggle}
               <label class="pick">
                 <input type="checkbox" checked={selected.indexOf(setIdOf(locale.locale, group.kind, group.device)) !== -1} onchange={() => ontoggle?.(locale.locale, group)} />
-                <span>Select<span class="visually-hidden"> {group.kindLabel} {group.deviceLabel}, {locale.label}</span></span>
+                <span><span aria-hidden="true">{t('assets:gallery.select')}</span><span class="visually-hidden">{t('assets:gallery.selectSet', { set: setName(locale, group) })}</span></span>
               </label>
             {/if}
           </div>
@@ -102,8 +105,8 @@
             {@const st = stageFor(locale.locale, group)}
             <div class="stage-row">
               {#if st.staged}
-                <Badge tone="accent" icon="layers">{st.stagedState === 'current' ? 'Staged' : 'Staged: the repository files changed since'}</Badge>
-                {#if st.staged.pushed}<Badge tone="ok" icon="check">In the store draft</Badge>{/if}
+                <Badge tone="accent" icon="layers">{st.stagedState === 'current' ? t('assets:gallery.staged') : t('assets:gallery.stagedStale')}</Badge>
+                {#if st.staged.pushed}<Badge tone="ok" icon="check">{t('assets:gallery.inDraft')}</Badge>{/if}
               {/if}
               <Button
                 size="sm"
@@ -112,27 +115,27 @@
                 disabled={!st.canStage || stagingId !== '' || st.stagedState === 'current'}
                 title={st.reason ?? undefined}
                 onclick={() => onstage?.(locale.locale, group)}
-              >{st.stagedState === 'current' ? 'Staged for store' : st.staged ? 'Stage again' : 'Stage for store'}<span class="visually-hidden">: {group.kindLabel} {group.deviceLabel}, {locale.label}</span></Button>
+              >{st.stagedState === 'current' ? t('assets:gallery.stagedForStore') : st.staged ? t('assets:gallery.stageAgain') : t('assets:gallery.stageForStore')}<span class="visually-hidden">{t('assets:gallery.forSet', { set: setName(locale, group) })}</span></Button>
               {#if st.staged}
-                <Button size="sm" variant="ghost" icon="x" disabled={stagingId !== ''} onclick={() => st.staged && onunstage?.(st.staged.id, locale.locale, group)}>Unstage<span class="visually-hidden"> {group.kindLabel} {group.deviceLabel}, {locale.label}</span></Button>
+                <Button size="sm" variant="ghost" icon="x" disabled={stagingId !== ''} onclick={() => st.staged && onunstage?.(st.staged.id, locale.locale, group)}>{t('assets:gallery.unstage')}<span class="visually-hidden">{t('assets:gallery.forSet', { set: setName(locale, group) })}</span></Button>
               {/if}
-              {#if onedit}<Button size="sm" variant="ghost" icon="image" onclick={() => onedit?.(locale.locale, group)}>Edit files<span class="visually-hidden">: {group.kindLabel} {group.deviceLabel}, {locale.label}</span></Button>{/if}
-              {#if oncompare}<Button size="sm" variant="ghost" icon="eye" onclick={() => oncompare?.(locale.locale, group)}>Compare with the store<span class="visually-hidden">: {group.kindLabel} {group.deviceLabel}, {locale.label}</span></Button>{/if}
-              {#if !st.canStage && st.reason && st.reason !== STAGE_ROLE_REASON}
+              {#if onedit}<Button size="sm" variant="ghost" icon="image" onclick={() => onedit?.(locale.locale, group)}>{t('assets:gallery.editFiles')}<span class="visually-hidden">{t('assets:gallery.forSet', { set: setName(locale, group) })}</span></Button>{/if}
+              {#if oncompare}<Button size="sm" variant="ghost" icon="eye" onclick={() => oncompare?.(locale.locale, group)}>{t('assets:gallery.compare')}<span class="visually-hidden">{t('assets:gallery.forSet', { set: setName(locale, group) })}</span></Button>{/if}
+              {#if !st.canStage && st.reason && st.reason !== stageRoleReason()}
                 <span class="muted why">{st.reason}</span>
               {/if}
             </div>
           {/if}
           {#if !stageFor && (onedit || oncompare)}
             <div class="stage-row">
-              {#if onedit}<Button size="sm" variant="ghost" icon="image" onclick={() => onedit?.(locale.locale, group)}>Edit files<span class="visually-hidden">: {group.kindLabel} {group.deviceLabel}, {locale.label}</span></Button>{/if}
-              {#if oncompare}<Button size="sm" variant="ghost" icon="eye" onclick={() => oncompare?.(locale.locale, group)}>Compare with the store<span class="visually-hidden">: {group.kindLabel} {group.deviceLabel}, {locale.label}</span></Button>{/if}
+              {#if onedit}<Button size="sm" variant="ghost" icon="image" onclick={() => onedit?.(locale.locale, group)}>{t('assets:gallery.editFiles')}<span class="visually-hidden">{t('assets:gallery.forSet', { set: setName(locale, group) })}</span></Button>{/if}
+              {#if oncompare}<Button size="sm" variant="ghost" icon="eye" onclick={() => oncompare?.(locale.locale, group)}>{t('assets:gallery.compare')}<span class="visually-hidden">{t('assets:gallery.forSet', { set: setName(locale, group) })}</span></Button>{/if}
             </div>
           {/if}
           {#if group.setProblems.length > 0}
             <AssetProblems problems={group.setProblems} showPath={false} />
           {/if}
-          <ul class="grid" aria-label="{group.kindLabel}, {group.deviceLabel}, {locale.label}">
+          <ul class="grid" aria-label={setName(locale, group)}>
             {#each group.assets as asset (asset.path)}
               {@const kind = previewState(asset, maxServedBytes)}
               <AssetThumb

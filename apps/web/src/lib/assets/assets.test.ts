@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AssetProblem, AssetSet } from '@kiln/core';
+import { t } from '../i18n/t.ts';
 import type { AssetItem } from '../types.ts';
 import {
   ALL,
@@ -236,9 +237,9 @@ test('problems by path are worst first; no-path problems are left out', () => {
 
 test('texts', () => {
   assert.equal(formatBytes(null), 'Size unknown');
-  assert.equal(formatBytes(512), '512 B');
-  assert.equal(formatBytes(2048), '2 KB');
-  assert.equal(formatBytes(1536), '1.5 KB');
+  assert.equal(formatBytes(512), '512 byte');
+  assert.equal(formatBytes(2048), '2 kB');
+  assert.equal(formatBytes(1536), '1.5 kB');
   assert.equal(formatBytes(5 * 1024 * 1024), '5 MB');
   assert.equal(formatBytes(3 * 1024 * 1024 * 1024), '3 GB');
   assert.equal(dimensionsText({ width: 1320, height: 2868, format: 'png' }), '1320 x 2868 px');
@@ -266,7 +267,7 @@ test('source text names the speed of the source', () => {
 
 test('summary and problem counts', () => {
   const totals = { assets: 1, read: 1, bytes: 2048, errors: 0, warnings: 0, infos: 0, locales: 1 };
-  assert.equal(summaryText({ totals }), '1 file, 1 locale, 2 KB');
+  assert.equal(summaryText({ totals }), '1 file, 1 locale, 2 kB');
   assert.equal(problemCountsText({ totals }), 'No problems found');
   assert.equal(
     problemCountsText({ totals: { ...totals, errors: 1, warnings: 2, infos: 3 } }),
@@ -303,7 +304,7 @@ test('without store counts a set is "not yet compared"', () => {
   const group = { count: 3, kind: 'screenshot' as const, device: 'iphone_6_9' };
   assert.deepEqual(compareWithStore(null, group, 'en-US'), {
     state: 'not_compared',
-    text: NOT_COMPARED,
+    text: t(NOT_COMPARED),
   });
   const side = {
     observedAt: 1,

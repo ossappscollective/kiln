@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AssetProblem, AssetSet } from '@kiln/core';
+import { t } from '../i18n/t.ts';
 import type { AssetItem } from '../types.ts';
 import { NOT_COMPARED } from './assets.ts';
 import {
@@ -105,7 +106,7 @@ test('summaries count files, errors and warnings per group', () => {
 });
 
 test('store status: not compared says so, same and differs follow the counts', () => {
-  const none = storeStatusOf({ state: 'not_compared', text: NOT_COMPARED });
+  const none = storeStatusOf({ state: 'not_compared', text: t(NOT_COMPARED) });
   assert.equal(none.id, 'in_repo');
   assert.ok(none.title.includes('Not yet compared'));
   assert.equal(storeStatusOf({ state: 'same', text: 't', storeCount: 3 }).id, 'in_both');

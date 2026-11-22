@@ -21,6 +21,7 @@
     worstSeverity,
   } from '../../lib/assets/assets.ts';
   import type { StoreStatus } from '../../lib/assets/groups.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import type { AssetItem } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
@@ -60,12 +61,14 @@
   const sorted = $derived([...problems].sort(bySeverity));
   const canShow = $derived(preview === 'image' && src !== null && !failed);
   const label = $derived(
-    `${fileName(asset.path)}, number ${asset.order}, ${dimensionsText(asset)}, ${formatBytes(asset.bytes)}${worst ? `, ${sorted.length} ${sorted.length === 1 ? 'problem' : 'problems'}` : ''}`,
+    worst
+      ? t('assets:thumb.labelProblems', { name: fileName(asset.path), order: asset.order, dimensions: dimensionsText(asset), size: formatBytes(asset.bytes), count: sorted.length })
+      : t('assets:thumb.label', { name: fileName(asset.path), order: asset.order, dimensions: dimensionsText(asset), size: formatBytes(asset.bytes) }),
   );
 </script>
 
 <li class="thumb">
-  <button type="button" class="open" onclick={onopen} aria-label="{label}. Open the large view.">
+  <button type="button" class="open" onclick={onopen} aria-label={t('assets:thumb.open', { label })}>
     <span class="box" class:loaded>
       {#if canShow && src}
         <img
@@ -87,7 +90,7 @@
         <span class="placeholder">
           <Icon name={preview === 'video' ? 'play' : 'image'} size="lg" />
           <span class="note">
-            {#if preview === 'image' && failed}Could not load the preview{:else if preview === 'image'}&nbsp;{:else}{note}{/if}
+            {#if preview === 'image' && failed}{t('assets:thumb.loadFailed')}{:else if preview === 'image'}&nbsp;{:else}{note}{/if}
           </span>
         </span>
       {/if}
@@ -103,7 +106,7 @@
   </button>
   {#if worst}
     <span class="flag">
-      <Badge tone={severityTone(worst)} icon={toneIcon(severityTone(worst))}>{severityLabel(worst)}{sorted.length > 1 ? ` (${sorted.length})` : ''}</Badge>
+      <Badge tone={severityTone(worst)} icon={toneIcon(severityTone(worst))}>{sorted.length > 1 ? t('assets:thumb.flagMany', { label: severityLabel(worst), number: sorted.length }) : severityLabel(worst)}</Badge>
     </span>
   {/if}
 </li>

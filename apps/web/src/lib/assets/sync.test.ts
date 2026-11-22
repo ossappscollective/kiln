@@ -5,6 +5,8 @@ import { ApiError } from '../api.ts';
 import {
   canChangeAssets,
   checkPickedFile,
+  compareLabel,
+  compareSummary,
   compareTone,
   diffBadge,
   diffSetOf,
@@ -89,7 +91,7 @@ test('a comparison row says what is different, and which images a pull would tak
   assert.equal(compareTone('only_store'), 'accent');
   assert.equal(shortChecksum(null), 'none');
   assert.equal(shortChecksum('abcdef0123456789'), 'abcdef012345...');
-  assert.equal(sizeLine(1290, 2796, 2048), '1290 x 2796, 2 KB');
+  assert.equal(sizeLine(1290, 2796, 2048), '1290 x 2796, 2 kB');
   assert.equal(sizeLine(null, null, null), 'unknown size');
   const s = set({
     rows: [
@@ -242,4 +244,11 @@ test('staged sets are found by their id and listed in order with their upload ma
   assert.deepEqual(stagedFileRows(null), []);
   assert.ok(canChangeAssets('owner'));
   assert.ok(!canChangeAssets('viewer'));
+});
+
+test('compareLabel and compareSummary read in words, with plurals', () => {
+  assert.equal(compareLabel('only_store'), 'Only in the store');
+  assert.equal(compareSummary({ identical: 3, likely_same: 0, differs: 1, only_repo: 0, only_store: 2 }), '3 identical, 1 differs, 2 only in the store');
+  assert.equal(compareSummary({ identical: 0, likely_same: 0, differs: 2, only_repo: 1, only_store: 0 }), '2 differ, 1 only in the repository');
+  assert.equal(compareSummary({ identical: 0, likely_same: 0, differs: 0, only_repo: 0, only_store: 0 }), '');
 });

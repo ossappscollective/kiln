@@ -30,6 +30,7 @@
     type ToRepoResult,
   } from '../../lib/assets/sync.ts';
   import { assetFileUrl, fileName } from '../../lib/assets/assets.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { stagingError } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
@@ -95,16 +96,16 @@
   const full = $derived(max > 0 && rows.length >= max);
   const slot = $derived(set ? { locale: set.locale, kind: set.kind as string, device: set.device } : { locale: '', kind: '', device: null });
   const urlOf = (r: StagedFileRow) => (r.upload ? stagedBlobUrl(workspaceId, app.id, r.oid) : r.commit !== '' ? assetFileUrl(workspaceId, app.id, r.path, r.commit) : null);
-  const reason = $derived(may ? '' : SYNC_ROLE_REASON);
+  const reason = $derived(may ? '' : t(SYNC_ROLE_REASON));
 
   function itemsFor(r: StagedFileRow): MenuItem[] {
     const last = rows.length <= 1;
     return [
-      { id: 'replace', label: 'Replace with another file', icon: 'upload', disabled: !may, reason: SYNC_ROLE_REASON },
-      { id: 'alpha', label: 'Fix: remove the alpha channel', icon: 'image', disabled: !may || r.hasAlpha === false || r.format === 'jpeg', reason: !may ? SYNC_ROLE_REASON : 'This file has no alpha channel.' },
-      { id: 'resize', label: 'Fix: resize to a required size', icon: 'image', disabled: !may || r.format !== 'png', reason: !may ? SYNC_ROLE_REASON : 'Only a PNG can be resized here.' },
-      { id: 'compare', label: 'Compare with the store', icon: 'eye' },
-      { id: 'remove', label: 'Remove from the set', icon: 'trash', danger: true, disabled: !may || last, reason: !may ? SYNC_ROLE_REASON : EMPTY_SET_REASON },
+      { id: 'replace', label: t('assets:editor.menu.replace'), icon: 'upload', disabled: !may, reason: t(SYNC_ROLE_REASON) },
+      { id: 'alpha', label: t('assets:editor.menu.alpha'), icon: 'image', disabled: !may || r.hasAlpha === false || r.format === 'jpeg', reason: !may ? t(SYNC_ROLE_REASON) : t('assets:editor.menu.noAlpha') },
+      { id: 'resize', label: t('assets:editor.menu.resize'), icon: 'image', disabled: !may || r.format !== 'png', reason: !may ? t(SYNC_ROLE_REASON) : t('assets:editor.menu.pngOnly') },
+      { id: 'compare', label: t('assets:gallery.compare'), icon: 'eye' },
+      { id: 'remove', label: t('assets:editor.menu.remove'), icon: 'trash', danger: true, disabled: !may || last, reason: !may ? t(SYNC_ROLE_REASON) : t(EMPTY_SET_REASON) },
     ];
   }
 
@@ -130,7 +131,7 @@
     try {
       const done = await api.removeStagedAssetFile(workspaceId, app.id, { locale: set.locale, kind: set.kind, device: set.device, position: r.position });
       stagedStore.set(done.staged);
-      message = `Removed ${r.name} from the staged set. It is still in the store until the set is pushed.`;
+      message = t('assets:editor.removed', { name: r.name });
     } catch (e) {
       problem = stagingError(e);
     } finally {
@@ -141,7 +142,7 @@
   async function applyFix() {
     if (!set || !fixing || working !== '') return;
     if (fixing.kind === 'remove_alpha' && !isHexColour(background)) {
-      problem = 'Choose the background as a colour such as #ffffff.';
+      problem = t('assets:upload.backgroundHint');
       return;
     }
     working = `fix:${fixing.position}`;
@@ -156,7 +157,7 @@
         ...(fixing.kind === 'remove_alpha' ? { background } : {}),
       });
       stagedStore.set(done.staged);
-      message = `${done.summary} The corrected file is staged; the original is unchanged.`;
+      message = t('assets:editor.fixed', { summary: done.summary });
       fixing = null;
     } catch (e) {
       problem = stagingError(e);
@@ -174,7 +175,7 @@
       const done = await api.stagedAssetsToRepo(workspaceId, app.id, [setIdOf(set.locale, set.kind, set.device)]);
       toRepo = done.result;
       const cs = done.result.changeSet;
-      if (cs) toast.success(summarizeToRepo(done.result).headline, { action: { label: 'Review the draft', href: reviewHref, onclick: () => requestChangeSetReview({ repositoryId: cs.repositoryId, changeSetId: cs.id }) } });
+      if (cs) toast.success(summarizeToRepo(done.result).headline, { action: { label: t('assets:compare.review'), href: reviewHref, onclick: () => requestChangeSetReview({ repositoryId: cs.repositoryId, changeSetId: cs.id }) } });
     } catch (e) {
       problem = stagingError(e);
     } finally {
@@ -189,33 +190,33 @@
   bind:open
   size="lg"
   dismissible={working === ''}
-  title={set ? `Files of ${set.title}` : 'Files'}
-  description="Changes here are staged in this app, not sent to a store. Push the staged set from the staged changes, or put it into the repository as a draft change set."
+  title={set ? t('assets:editor.title', { title: set.title }) : t('assets:editor.titleEmpty')}
+  description={t('assets:editor.description')}
 >
   <div class="stack">
     <div class="row wrap state">
-      {#if stagedSet}<Badge tone="accent" icon="layers">Staged set{stagedSet.pushed ? ', in the store draft' : ''}</Badge>{:else}<Badge tone="neutral">Shows the repository's files</Badge>{/if}
-      <span class="muted small">{rows.length} {rows.length === 1 ? 'file' : 'files'}{max > 0 ? `, the store takes at most ${max}` : ''}</span>
+      {#if stagedSet}<Badge tone="accent" icon="layers">{stagedSet.pushed ? t('assets:editor.stagedPushed') : t('assets:editor.staged')}</Badge>{:else}<Badge tone="neutral">{t('assets:editor.showsRepo')}</Badge>{/if}
+      <span class="muted small">{max > 0 ? t('assets:editor.countMax', { count: rows.length, max }) : t('assets:summary.files', { count: rows.length })}</span>
     </div>
 
     {#if message}<p class="ok small" role="status">{message}</p>{/if}
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
 
     {#if rows.length === 0}
-      <p class="muted">This set has no files yet. Add some below.</p>
+      <p class="muted">{t('assets:editor.noFiles')}</p>
     {:else}
       <ol class="files">
         {#each rows as r (r.position + ':' + r.oid)}
           {@const url = urlOf(r)}
           <li class="file">
             <span class="pos">{r.position}</span>
-            <span class="box">{#if url}<img src={url} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />{:else}<span class="muted small">No preview</span>{/if}</span>
+            <span class="box">{#if url}<img src={url} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />{:else}<span class="muted small">{t('assets:compare.noPreview')}</span>{/if}</span>
             <span class="info">
               <span class="name" title={r.path}>{r.name}</span>
-              <span class="muted small">{sizeLine(r.width, r.height, r.bytes)}{r.hasAlpha ? ', has alpha' : ''}</span>
-              <span>{#if r.upload}<Badge tone="info">Uploaded</Badge>{:else}<Badge tone="neutral">From the repository</Badge>{/if}</span>
+              <span class="muted small">{r.hasAlpha ? t('assets:editor.sizeAlpha', { size: sizeLine(r.width, r.height, r.bytes) }) : sizeLine(r.width, r.height, r.bytes)}</span>
+              <span>{#if r.upload}<Badge tone="info">{t('assets:editor.uploaded')}</Badge>{:else}<Badge tone="neutral">{t('assets:editor.fromRepo')}</Badge>{/if}</span>
             </span>
-            <AssetFileMenu label="Actions for {r.name}, number {r.position}" items={itemsFor(r)} onselect={(id) => act(r, id)} />
+            <AssetFileMenu label={t('assets:editor.actionsFor', { name: r.name, number: r.position })} items={itemsFor(r)} onselect={(id) => act(r, id)} />
             {#if replacing === r.position}
               <div class="inline">
                 <AssetUploadPanel
@@ -233,13 +234,13 @@
             {/if}
             {#if fixing && fixing.position === r.position}
               <div class="inline fixbar">
-                <p class="small">{fixing.kind === 'remove_alpha' ? 'Flattens the transparent parts onto a background colour. The original file is not changed.' : 'Resizes the picture to the nearest size this store requires. The original file is not changed.'}</p>
+                <p class="small">{fixing.kind === 'remove_alpha' ? t('assets:editor.fixAlphaText') : t('assets:editor.fixResizeText')}</p>
                 {#if fixing.kind === 'remove_alpha'}
-                  <label class="bg">Background <input type="color" bind:value={background} disabled={working !== ''} aria-label="Background colour" /></label>
+                  <label class="bg">{t('assets:upload.background')} <input type="color" bind:value={background} disabled={working !== ''} aria-label={t('assets:editor.backgroundColour')} /></label>
                 {/if}
                 <div class="row">
-                  <Button size="sm" variant="primary" loading={working === `fix:${r.position}`} disabled={working !== ''} onclick={applyFix}>Make the corrected file</Button>
-                  <Button size="sm" variant="ghost" disabled={working !== ''} onclick={() => (fixing = null)}>Cancel</Button>
+                  <Button size="sm" variant="primary" loading={working === `fix:${r.position}`} disabled={working !== ''} onclick={applyFix}>{t('assets:editor.makeFix')}</Button>
+                  <Button size="sm" variant="ghost" disabled={working !== ''} onclick={() => (fixing = null)}>{t('common:action.cancel')}</Button>
                 </div>
               </div>
             {/if}
@@ -248,15 +249,15 @@
       </ol>
     {/if}
 
-    <section aria-label="Add files" class="add">
-      <h3>Add files</h3>
+    <section aria-label={t('assets:upload.addLabel')} class="add">
+      <h3>{t('assets:upload.addLabel')}</h3>
       <AssetUploadPanel
         {api}
         {workspaceId}
         appId={app.id}
         {slot}
         mode="add"
-        disabledReason={reason || (full ? `This set already has the most the store takes (${max}).` : '')}
+        disabledReason={reason || (full ? t('assets:editor.full', { max }) : '')}
         onstaged={(v) => stagedStore.set(v)}
       />
     </section>
@@ -273,11 +274,11 @@
       icon="repo"
       loading={working === 'repo'}
       disabled={!stagedSet || working !== '' || !may}
-      title={!may ? SYNC_ROLE_REASON : !stagedSet ? 'Nothing is staged for this set yet: the repository already has these files.' : 'Makes a draft change set that writes the staged files into the repository.'}
+      title={!may ? t(SYNC_ROLE_REASON) : !stagedSet ? t('assets:editor.nothingStaged') : t('assets:editor.toRepoHint')}
       onclick={putInRepository}
-    >Put into the repository</Button>
-    {#if oncompare}<Button icon="eye" disabled={working !== ''} onclick={oncompare}>Compare with the store</Button>{/if}
-    <Button disabled={working !== ''} onclick={() => (open = false)}>Close</Button>
+    >{t('assets:editor.toRepo')}</Button>
+    {#if oncompare}<Button icon="eye" disabled={working !== ''} onclick={oncompare}>{t('assets:gallery.compare')}</Button>{/if}
+    <Button disabled={working !== ''} onclick={() => (open = false)}>{t('common:action.close')}</Button>
   {/snippet}
 </Modal>
 

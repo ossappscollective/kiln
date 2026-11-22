@@ -17,6 +17,8 @@ import {
   UPLOAD_FORMATS,
 } from '@kiln/core';
 import { ApiError } from '../api.ts';
+import { formatList } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 import type { IconName } from '../icons.ts';
 import type { AssetItem, ChangeSetView } from '../types.ts';
 import { formatBytes } from './assets.ts';
@@ -147,8 +149,8 @@ export type MenuItem = {
 // ---------------------------------------------------------------------------------------------
 // Who may, and why not
 
-export const SYNC_ROLE_REASON =
-  'Changing the graphics needs the right to change change sets (developer and up).';
+/** A message key: `t(SYNC_ROLE_REASON)`. */
+export const SYNC_ROLE_REASON = k('assets:sync.roleReason');
 
 export function canChangeAssets(role: Role): boolean {
   return can(role, 'changesets.write');
@@ -168,15 +170,22 @@ export type PickedFile = { name: string; size: number; type?: string };
  * or the declared type) and decides; this only spares a request for a file that is clearly wrong.
  */
 export function checkPickedFile(file: PickedFile): string {
-  if (file.size === 0) return `${file.name} is empty.`;
+  if (file.size === 0) return t('assets:sync.file.empty', { name: file.name });
   if (file.size > ASSET_SYNC_LIMITS.maxUploadBytes)
-    return `${file.name} is ${formatBytes(file.size)}. A file can be at most ${formatBytes(ASSET_SYNC_LIMITS.maxUploadBytes)}.`;
+    return t('assets:sync.file.tooBig', {
+      name: file.name,
+      size: formatBytes(file.size),
+      max: formatBytes(ASSET_SYNC_LIMITS.maxUploadBytes),
+    });
   const typed = file.type === undefined || file.type === '' ? null : file.type.toLowerCase();
   if (
     !EXTENSION.test(file.name) &&
     !(typed !== null && (typed === 'image/png' || typed === 'image/jpeg'))
   ) {
-    return `${file.name} is not a PNG or JPEG. The stores take ${UPLOAD_FORMATS.map((f) => f.toUpperCase()).join(' and ')}.`;
+    return t('assets:sync.file.notImage', {
+      name: file.name,
+      formats: formatList(UPLOAD_FORMATS.map((f) => f.toUpperCase())),
+    });
   }
   return '';
 }
@@ -212,8 +221,30 @@ export const compareTone = (status: AssetCompareStatus): StatusTone => {
 };
 
 /** The first characters of a checksum, for a table cell; the whole value is in the title. */
+const COMPARE_LABEL_KEYS: Record<AssetCompareStatus, string> = {
+  identical: k('assets:compare.label.identical'),
+  likely_same: k('assets:compare.label.likelySame'),
+  differs: k('assets:compare.label.differs'),
+  only_repo: k('assets:compare.label.onlyRepo'),
+  only_store: k('assets:compare.label.onlyStore'),
+};
+
+/** The badge text of one compared position. */
+export const compareLabel = (status: AssetCompareStatus): string => t(COMPARE_LABEL_KEYS[status]);
+
+/** One line for a set: "3 identical, 1 differs". Empty when there is nothing. */
+export function compareSummary(totals: AssetDiffSet['totals']): string {
+  const parts: string[] = [];
+  if (totals.identical > 0) parts.push(t('assets:compare.total.identical', { count: totals.identical }));
+  if (totals.likely_same > 0) parts.push(t('assets:compare.total.likelySame', { count: totals.likely_same }));
+  if (totals.differs > 0) parts.push(t('assets:compare.total.differs', { count: totals.differs }));
+  if (totals.only_repo > 0) parts.push(t('assets:compare.total.onlyRepo', { count: totals.only_repo }));
+  if (totals.only_store > 0) parts.push(t('assets:compare.total.onlyStore', { count: totals.only_store }));
+  return formatList(parts, { type: 'unit' });
+}
+
 export const shortChecksum = (sum: string | null): string =>
-  sum === null ? 'none' : sum.length > 12 ? `${sum.slice(0, 12)}...` : sum;
+  sum === null ? t('assets:sync.checksum.none') : sum.length > 12 ? `${sum.slice(0, 12)}...` : sum;
 
 export const sizeLine = (
   width: number | null,
@@ -223,7 +254,7 @@ export const sizeLine = (
   const parts: string[] = [];
   if (width !== null && height !== null) parts.push(`${width} x ${height}`);
   if (bytes !== null) parts.push(formatBytes(bytes));
-  return parts.length > 0 ? parts.join(', ') : 'unknown size';
+  return parts.length > 0 ? formatList(parts, { type: 'unit' }) : t('assets:sync.size.unknown');
 };
 
 /** The comparison of one set, found by its id. */
@@ -242,11 +273,11 @@ export function diffSetOf(
 /** What differs in a set, in a few words for a badge: '' when the set is the same on both sides or not compared. */
 export function diffBadge(set: AssetDiffSet | null): { tone: StatusTone; text: string } | null {
   if (!set) return null;
-  if (set.inSync) return { tone: 'ok', text: 'Same as the store' };
-  const t = set.totals;
-  const n = t.differs + t.only_repo + t.only_store;
-  if (n === 0) return { tone: 'info', text: 'Probably the same as the store' };
-  return { tone: 'warn', text: `${n} ${n === 1 ? 'file differs' : 'files differ'} from the store` };
+  if (set.inSync) return { tone: 'ok', text: t('assets:sync.badge.same') };
+  const totals = set.totals;
+  const n = totals.differs + totals.only_repo + totals.only_store;
+  if (n === 0) return { tone: 'info', text: t('assets:sync.badge.probablySame') };
+  return { tone: 'warn', text: t('assets:sync.badge.differs', { count: n }) };
 }
 
 /** The image keys (`ios/en-US/screenshot:iphone_6_9#2`) of the rows that exist in the store and are not identical. */
@@ -264,31 +295,31 @@ export function pullableKeys(set: AssetDiffSet, platform: Platform): string[] {
 
 export type Summary = { tone: 'ok' | 'warn' | 'info'; headline: string; details: string[] };
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+/** "Made a draft change set: 3 files written, 1 file deleted, 2 already the same." */
+function madeChangeSet(r: { written: number; deleted: number; unchanged: number }): string {
+  const parts = [t('assets:sync.pull.written', { count: r.written })];
+  if (r.deleted > 0) parts.push(t('assets:sync.pull.deleted', { count: r.deleted }));
+  if (r.unchanged > 0) parts.push(t('assets:sync.pull.same', { count: r.unchanged }));
+  return t('assets:sync.pull.madeChangeSet', { parts: formatList(parts, { type: 'unit' }) });
+}
 
 export function summarizePull(report: PullReport): Summary {
   const details: string[] = [];
-  if (report.unverified.length > 0) {
-    details.push(
-      `${plural(report.unverified.length, 'file was', 'files were')} taken without a checksum from the store to check it against (App Store Connect gives none). Look at them in the change set.`,
-    );
-  }
+  if (report.unverified.length > 0)
+    details.push(t('assets:sync.pull.unverified', { count: report.unverified.length }));
   if (report.skipped.length > 0)
-    details.push(`${plural(report.skipped.length, 'image was', 'images were')} left out.`);
-  if (report.left.length > 0)
-    details.push(
-      `${plural(report.left.length, 'file of the repository is', 'files of the repository are')} not in the store and ${report.left.length === 1 ? 'was' : 'were'} left alone.`,
-    );
+    details.push(t('assets:sync.pull.skipped', { count: report.skipped.length }));
+  if (report.left.length > 0) details.push(t('assets:sync.pull.left', { count: report.left.length }));
   for (const n of report.notes) details.push(n);
   if (report.changeSet === null) {
     return {
       tone: report.skipped.length > 0 ? 'warn' : 'info',
       headline:
-        report.unchanged > 0 ? 'The repository already has these images.' : 'Nothing was pulled.',
+        report.unchanged > 0 ? t('assets:sync.pull.alreadyHas') : t('assets:sync.pull.nothing'),
       details,
     };
   }
-  const headline = `Made a draft change set: ${plural(report.written, 'file', 'files')} written${report.deleted > 0 ? `, ${plural(report.deleted, 'file', 'files')} deleted` : ''}${report.unchanged > 0 ? `, ${report.unchanged} already the same` : ''}.`;
+  const headline = madeChangeSet(report);
   return {
     tone: report.skipped.length > 0 || report.unverified.length > 0 ? 'warn' : 'ok',
     headline,
@@ -300,10 +331,10 @@ export function summarizeToRepo(result: ToRepoResult): Summary {
   const details = result.skipped.slice();
   for (const n of result.notes) details.push(n);
   if (result.changeSet === null)
-    return { tone: 'info', headline: 'The repository already has these files.', details };
+    return { tone: 'info', headline: t('assets:sync.toRepo.alreadyHas'), details };
   return {
     tone: result.skipped.length > 0 ? 'warn' : 'ok',
-    headline: `Made a draft change set: ${plural(result.written, 'file', 'files')} written${result.deleted > 0 ? `, ${plural(result.deleted, 'file', 'files')} deleted` : ''}${result.unchanged > 0 ? `, ${result.unchanged} already the same` : ''}.`,
+    headline: madeChangeSet(result),
     details,
   };
 }
@@ -338,10 +369,10 @@ export const isHexColour = (v: string): boolean => HEX.test(v);
 /** The fixes that make a new file, one sentence each, for a button. */
 export const fixLabel = (kind: FixKind): string =>
   kind === 'remove_alpha'
-    ? 'Remove the alpha channel'
+    ? t('assets:sync.fix.removeAlpha')
     : kind === 'resize'
-      ? 'Resize to the required size'
-      : 'Fix the file extension';
+      ? t('assets:sync.fix.resize')
+      : t('assets:sync.fix.extension');
 
 export type StagedFileRow = {
   position: number;
@@ -388,8 +419,8 @@ export function stagedFileRows(set: StagedAssetView | null): StagedFileRow[] {
 }
 
 /** Why removing the last file of a set is not offered, or ''. A push cannot empty a store's set. */
-export const EMPTY_SET_REASON =
-  'A push cannot empty a set in the store, so the last file of a set cannot be removed here. Delete the set in the store console.';
+/** A message key: `t(EMPTY_SET_REASON)`. */
+export const EMPTY_SET_REASON = k('assets:sync.emptySetReason');
 
 /** The set the editor shows: its place, a title, and the repository's files of it (shown until a change is staged). */
 export type EditorSet = {

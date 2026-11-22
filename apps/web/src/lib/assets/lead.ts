@@ -1,4 +1,6 @@
 import type { AssetKind, AssetProblem } from '@kiln/core';
+import { formatList } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 import type { LeadTone } from '../page-lead.ts';
 
 /**
@@ -22,9 +24,9 @@ export function otherCountsText(other: readonly AssetProblem[]): string {
   const warnings = other.filter((p) => p.severity === 'warning').length;
   const notes = other.length - warnings;
   const parts: string[] = [];
-  if (warnings > 0) parts.push(`${warnings} ${warnings === 1 ? 'warning' : 'warnings'}`);
-  if (notes > 0) parts.push(`${notes} ${notes === 1 ? 'note' : 'notes'}`);
-  return parts.join(', ');
+  if (warnings > 0) parts.push(t('assets:problems.warnings', { count: warnings }));
+  if (notes > 0) parts.push(t('assets:problems.notes', { count: notes }));
+  return formatList(parts, { type: 'unit' });
 }
 
 const setKey = (p: Pick<AssetProblem, 'locale' | 'kind' | 'device'>): string | null =>
@@ -49,15 +51,19 @@ export function affectedSets(problems: readonly AssetProblem[]): {
   return { count, kind: only };
 }
 
-const KIND_NOUN: Partial<Record<AssetKind, string>> = {
-  screenshot: 'screenshot',
-  preview: 'app preview',
-  feature_graphic: 'feature graphic',
-  promo_graphic: 'promo graphic',
-  tv_banner: 'TV banner',
-  icon: 'icon',
-  app_icon: 'app icon',
+const SET_PHRASE: Record<AssetKind, string> = {
+  screenshot: k('assets:lead.set.screenshot'),
+  preview: k('assets:lead.set.preview'),
+  feature_graphic: k('assets:lead.set.featureGraphic'),
+  promo_graphic: k('assets:lead.set.promoGraphic'),
+  tv_banner: k('assets:lead.set.tvBanner'),
+  icon: k('assets:lead.set.icon'),
+  app_icon: k('assets:lead.set.appIcon'),
 };
+
+/** "2 screenshot sets", or "2 sets" when the sets are of more than one kind. */
+const setsText = (count: number, kind: AssetKind | null): string =>
+  t(kind !== null && SET_PHRASE[kind] !== undefined ? SET_PHRASE[kind] : k('assets:lead.set'), { count });
 
 export type AssetsLead = { headline: string; hint: string; tone: LeadTone; blocking: number };
 
@@ -70,11 +76,9 @@ export function assetsLead(input: {
   const { blocking, other } = splitProblems(input.problems);
   if (blocking.length > 0) {
     const { count, kind } = affectedSets(blocking);
-    const noun = kind ? `${KIND_NOUN[kind] ?? kind} set` : 'set';
-    const sets = count === 1 ? noun : `${noun}s`;
     return {
-      headline: `${count} ${sets} ${count === 1 ? 'has a problem' : 'have problems'}`,
-      hint: `${input.summary}. The stores will not take these files as they are; each line below says what to change.`,
+      headline: t('assets:lead.blocking.headline', { count, sets: setsText(count, kind) }),
+      hint: t('assets:lead.blocking.hint', { summary: input.summary }),
       tone: 'bad',
       blocking: blocking.length,
     };
@@ -82,18 +86,16 @@ export function assetsLead(input: {
   const warnings = other.filter((p) => p.severity === 'warning');
   if (warnings.length > 0) {
     const { count, kind } = affectedSets(warnings);
-    const noun = kind ? `${KIND_NOUN[kind] ?? kind} set` : 'set';
-    const sets = count === 1 ? noun : `${noun}s`;
     return {
-      headline: `${count} ${sets} ${count === 1 ? 'has a warning' : 'have warnings'}`,
-      hint: `${input.summary}. The stores accept them, but read the warnings under Problems found.`,
+      headline: t('assets:lead.warning.headline', { count, sets: setsText(count, kind) }),
+      hint: t('assets:lead.warning.hint', { summary: input.summary }),
       tone: 'warn',
       blocking: 0,
     };
   }
   return {
-    headline: 'All files pass the store checks',
-    hint: `${input.summary}. Checked against the sizes and counts the stores document; nothing is written to a store from here.`,
+    headline: t('assets:lead.ok.headline'),
+    hint: t('assets:lead.ok.hint', { summary: input.summary }),
     tone: 'ok',
     blocking: 0,
   };
@@ -106,17 +108,17 @@ export function problemAction(rule: string): string {
     case 'size':
     case 'dimension':
     case 'ratio':
-      return 'Replace the file with one of an accepted size.';
+      return t('assets:lead.action.size');
     case 'bytes':
-      return 'Export it again as a smaller file.';
+      return t('assets:lead.action.bytes');
     case 'format':
-      return 'Convert it to an accepted format.';
+      return t('assets:lead.action.format');
     case 'count':
-      return 'Remove files from the set, or split it, to stay within the limit.';
+      return t('assets:lead.action.count');
     case 'minimum':
-      return 'Add more files to this set.';
+      return t('assets:lead.action.minimum');
     case 'unread':
-      return 'Open the file to check it is not damaged, or replace it.';
+      return t('assets:lead.action.unread');
     default:
       return '';
   }

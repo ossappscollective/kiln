@@ -8,7 +8,9 @@
   (the partial notice says so).
 -->
 <script lang="ts">
-  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatDateTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
+  import { agoText } from '../../lib/aso/ago.ts';
   import { shortCommit, sourceHint, sourceText } from '../../lib/assets/assets.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import type { AssetIndex } from '../../lib/types.ts';
@@ -16,6 +18,7 @@
   import Button from '../ui/Button.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import StoreBadge from '../ui/StoreBadge.svelte';
+  import T from '../ui/T.svelte';
 
   let {
     index,
@@ -34,19 +37,19 @@
     {#if index.source}
       <Badge {tone} icon={toneIcon(tone)}>{sourceText(index.source)}</Badge>
     {/if}
-    {#if index.repository}<span class="muted">Repository <strong>{index.repository.name}</strong></span>{/if}
-    {#if index.commit}<span class="muted">Commit <code>{shortCommit(index.commit)}</code></span>{/if}
+    {#if index.repository}<span class="muted"><T key="assets:source.repository" params={{ name: index.repository.name }} /></span>{/if}
+    {#if index.commit}<span class="muted"><T key="assets:source.commit" params={{ commit: shortCommit(index.commit) }} /></span>{/if}
     {#if index.readAt !== null}
       <span class="muted">
-        Read <time datetime={new Date(index.readAt).toISOString()} title={fullTime(index.readAt)}>{timeAgo(index.readAt, now)}</time>{index.cached ? ' (from the server cache)' : ''}
+        <time datetime={new Date(index.readAt).toISOString()} title={formatDateTime(index.readAt)}>{t(index.cached ? 'assets:source.readCached' : 'assets:source.read', { ago: agoText(index.readAt, now) })}</time>
       </span>
     {/if}
-    <InfoTip label="How these files were read and checked" buttonText="Details" width="28rem">
+    <InfoTip label={t('assets:source.detailsLabel')} buttonText={t('assets:source.details')} width="28rem">
       {#if index.source}<p>{sourceHint(index.source)}</p>{/if}
       <p class="muted">{index.specs.basis}</p>
     </InfoTip>
     </div>
-    <Button size="sm" icon="refresh" loading={reloading} onclick={onreload}>{reloading ? 'Reading…' : 'Read again'}</Button>
+    <Button size="sm" icon="refresh" loading={reloading} onclick={onreload}>{reloading ? t('assets:source.reading') : t('assets:source.readAgain')}</Button>
   </div>
 </div>
 

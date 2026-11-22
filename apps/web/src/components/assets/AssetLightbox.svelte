@@ -19,6 +19,7 @@
     localeLabel,
     shortCommit,
   } from '../../lib/assets/assets.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { AssetItem } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
@@ -51,6 +52,11 @@
   let failedSrc = $state<string | null>(null);
   const canShow = $derived(shown === 'image' && src !== null && failedSrc !== src);
 
+  const kindText = $derived(asset ? t('assets:lightbox.kindLine', { kind: kindLabel(asset.kind), device: asset.deviceLabel, locale: localeLabel(asset.locale) }) : '');
+  const formatText = $derived(
+    asset ? (asset.hasAlpha === true ? t('assets:lightbox.formatAlpha', { format: asset.format ?? t('assets:lightbox.notRead') }) : asset.hasAlpha === false ? t('assets:lightbox.formatNoAlpha', { format: asset.format ?? t('assets:lightbox.notRead') }) : (asset.format ?? t('assets:lightbox.notRead'))) : '',
+  );
+
   const hasPrev = $derived(index > 0);
   const hasNext = $derived(index < assets.length - 1);
   const go = (delta: number) => {
@@ -74,15 +80,15 @@
 
 <svelte:window {onkeydown} />
 
-<Modal bind:open size="lg" title={asset ? fileName(asset.path) : 'File'} description={asset ? `${kindLabel(asset.kind)} · ${asset.deviceLabel} · ${localeLabel(asset.locale)}` : undefined}>
+<Modal bind:open size="lg" title={asset ? fileName(asset.path) : t('assets:lightbox.file')} description={asset ? kindText : undefined}>
   {#if asset}
     <div class="lightbox">
-      <div class="stage" role="group" aria-label="Preview of {fileName(asset.path)}">
+      <div class="stage" role="group" aria-label={t('assets:lightbox.previewOf', { name: fileName(asset.path) })}>
         {#if canShow && src}
           {#key src}
             <img
               {src}
-              alt="{kindLabel(asset.kind)} {asset.order}, {asset.deviceLabel}, {localeLabel(asset.locale)}: {fileName(asset.path)}"
+              alt={t('assets:lightbox.alt', { kind: kindLabel(asset.kind), order: asset.order, device: asset.deviceLabel, locale: localeLabel(asset.locale), name: fileName(asset.path) })}
               decoding="async"
               referrerpolicy="no-referrer"
               onerror={() => {
@@ -93,23 +99,23 @@
         {:else}
           <p class="placeholder muted">
             <Icon name={shown === 'video' ? 'play' : 'image'} size="xl" />
-            <span>{shown === 'image' ? 'Could not load the preview.' : noteFor(shown)}</span>
+            <span>{shown === 'image' ? t('assets:lightbox.loadFailed') : noteFor(shown)}</span>
           </p>
         {/if}
       </div>
 
       <dl class="facts">
-        <div><dt>Path</dt><dd class="row"><code class="path">{asset.path}</code><CopyButton value={asset.path} iconOnly label="Copy the path" /></dd></div>
-        <div><dt>Position</dt><dd>{asset.order} in its set</dd></div>
-        <div><dt>Size</dt><dd>{dimensionsText(asset)}</dd></div>
-        <div><dt>File size</dt><dd>{formatBytes(asset.bytes)}</dd></div>
-        <div><dt>Format</dt><dd>{asset.format ?? 'Not read'}{asset.hasAlpha === true ? ', with alpha channel' : asset.hasAlpha === false ? ', no alpha channel' : ''}</dd></div>
-        {#if asset.oid}<div><dt>Content id</dt><dd><code>{shortCommit(asset.oid)}</code></dd></div>{/if}
+        <div><dt>{t('assets:lightbox.path')}</dt><dd class="row"><code class="path">{asset.path}</code><CopyButton value={asset.path} iconOnly label={t('assets:lightbox.copyPath')} /></dd></div>
+        <div><dt>{t('assets:lightbox.position')}</dt><dd>{t('assets:lightbox.inSet', { order: asset.order })}</dd></div>
+        <div><dt>{t('assets:lightbox.dimensions')}</dt><dd>{dimensionsText(asset)}</dd></div>
+        <div><dt>{t('assets:lightbox.fileSize')}</dt><dd>{formatBytes(asset.bytes)}</dd></div>
+        <div><dt>{t('assets:lightbox.format')}</dt><dd>{formatText}</dd></div>
+        {#if asset.oid}<div><dt>{t('assets:lightbox.contentId')}</dt><dd><code>{shortCommit(asset.oid)}</code></dd></div>{/if}
       </dl>
 
-      <section aria-label="Problems with this file">
+      <section aria-label={t('assets:lightbox.problems')}>
         {#if problems.length === 0}
-          <p class="muted">No problems found for this file against the documented specs.</p>
+          <p class="muted">{t('assets:lightbox.noProblems')}</p>
         {:else}
           <AssetProblems {problems} showPath={false} />
         {/if}
@@ -117,10 +123,10 @@
     </div>
   {/if}
   {#snippet footer()}
-    <span class="position muted" aria-live="polite">{assets.length > 0 ? `${index + 1} of ${assets.length}` : ''}</span>
-    <Button icon="chevron-left" disabled={!hasPrev} onclick={() => go(-1)}>Previous</Button>
-    <Button disabled={!hasNext} onclick={() => go(1)}>Next <Icon name="chevron-right" size="sm" /></Button>
-    <Button variant="primary" onclick={() => (open = false)}>Close</Button>
+    <span class="position muted" aria-live="polite">{assets.length > 0 ? t('assets:lightbox.positionOf', { number: index + 1, total: assets.length }) : ''}</span>
+    <Button icon="chevron-left" disabled={!hasPrev} onclick={() => go(-1)}>{t('assets:lightbox.previous')}</Button>
+    <Button disabled={!hasNext} onclick={() => go(1)}>{t('assets:lightbox.next')} <Icon name="chevron-right" size="sm" /></Button>
+    <Button variant="primary" onclick={() => (open = false)}>{t('common:action.close')}</Button>
   {/snippet}
 </Modal>
 

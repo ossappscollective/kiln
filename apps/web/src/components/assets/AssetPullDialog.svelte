@@ -14,6 +14,7 @@
   import type { Api } from '../../lib/api.ts';
   import { type PullReport, canChangeAssets, skipText, storeKeyOf, summarizePull, SYNC_ROLE_REASON } from '../../lib/assets/sync.ts';
   import { formatBytes, localeLabel } from '../../lib/assets/assets.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { stagingError } from '../../lib/staged.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -21,6 +22,7 @@
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import T from '../ui/T.svelte';
 
   let {
     open = $bindable(false),
@@ -112,14 +114,14 @@
   bind:open
   size="lg"
   dismissible={phase !== 'pulling'}
-  title="Pull images from the store"
-  description="Downloads the images the store holds now into the repository, as a draft change set. Nothing changes in the store, and nothing in the repository until a person approves the change set and it is applied."
+  title={t('assets:pull.title')}
+  description={t('assets:pull.description')}
 >
   <form id="asset-pull-{uid}" class="stack" onsubmit={submit}>
     {#if phase === 'loading'}
-      <div role="status" aria-label="Reading the store"><Skeleton width="60%" height="14px" /><Skeleton width="100%" height="90px" /></div>
+      <div role="status" aria-label={t('assets:pull.reading')}><Skeleton width="60%" height="14px" /><Skeleton width="100%" height="90px" /></div>
     {:else if phase === 'error'}
-      <Alert tone="error" title="Could not read the store's images">{problem}</Alert>
+      <Alert tone="error" title={t('assets:pull.readFailed')}>{problem}</Alert>
     {:else if phase === 'done' && report && summary}
       <Alert tone={summary.tone} title={summary.headline}>
         {#if summary.details.length > 0}
@@ -128,30 +130,30 @@
       </Alert>
       {#if report.skipped.length > 0}
         <details>
-          <summary>Left out ({report.skipped.length})</summary>
+          <summary>{t('assets:pull.leftOut', { count: report.skipped.length })}</summary>
           <ul class="plain skipped">{#each report.skipped as s (s.key)}<li><code>{s.key}</code> {skipText(s)}</li>{/each}</ul>
         </details>
       {/if}
-      <p class="muted small">Downloaded {formatBytes(report.bytes)}. The files are in the draft change set, not in the repository.</p>
+      <p class="muted small">{t('assets:pull.downloaded', { size: formatBytes(report.bytes) })}</p>
     {:else if view}
       {#if view.version}
-        <p class="muted small">Read from {view.store === 'app_store' ? 'App Store Connect' : 'Google Play'}{view.version.versionString ? `, version ${view.version.versionString}` : ''} ({view.version.state}).</p>
+        <p class="muted small">{view.version.versionString ? t('assets:pull.readFromVersion', { store: view.store === 'app_store' ? 'App Store Connect' : 'Google Play', version: view.version.versionString, state: view.version.state }) : t('assets:pull.readFrom', { store: view.store === 'app_store' ? 'App Store Connect' : 'Google Play', state: view.version.state })}</p>
       {/if}
       {#if sets.length === 0}
-        <Alert tone="info" title="The store holds no images">There is nothing to pull.</Alert>
+        <Alert tone="info" title={t('assets:pull.noImages')}>{t('assets:pull.nothingToPull')}</Alert>
       {:else}
         <fieldset class="sets">
-          <legend>Sets to pull ({picked.length} of {sets.length}, {fileCount} {fileCount === 1 ? 'image' : 'images'})</legend>
+          <legend>{t('assets:pull.setsLegend', { picked: picked.length, total: sets.length, count: fileCount })}</legend>
           <div class="row wrap tools">
-            <Button size="sm" variant="ghost" onclick={() => (picked = sets.map(keyOf))} disabled={phase === 'pulling'}>Select all</Button>
-            <Button size="sm" variant="ghost" onclick={() => (picked = [])} disabled={phase === 'pulling'}>Select none</Button>
+            <Button size="sm" variant="ghost" onclick={() => (picked = sets.map(keyOf))} disabled={phase === 'pulling'}>{t('assets:pull.selectAll')}</Button>
+            <Button size="sm" variant="ghost" onclick={() => (picked = [])} disabled={phase === 'pulling'}>{t('assets:pull.selectNone')}</Button>
           </div>
           <ul class="plain list">
             {#each sets as s (keyOf(s))}
               <li>
                 <label class="check">
                   <input type="checkbox" checked={picked.indexOf(keyOf(s)) !== -1} onchange={() => toggle(keyOf(s))} disabled={phase === 'pulling'} />
-                  <span>{localeLabel(s.locale)} · {s.deviceLabel || s.kind} <span class="muted">· {s.files.length} {s.files.length === 1 ? 'image' : 'images'}</span></span>
+                  <span><T key="assets:pull.setItem" params={{ title: t('assets:compare.setTitle', { locale: localeLabel(s.locale), device: s.deviceLabel || s.kind }), count: s.files.length }} tags={{ link: muted }} /></span>
                 </label>
               </li>
             {/each}
@@ -159,29 +161,31 @@
         </fieldset>
         <label class="check">
           <input type="checkbox" bind:checked={prune} disabled={phase === 'pulling'} />
-          <span>Remove files the store does not have <span class="muted">(off by default: files only the repository has are kept)</span></span>
+          <span><T key="assets:pull.prune" tags={{ link: muted }} /></span>
         </label>
       {/if}
       {#if view.unplaced > 0}
-        <p class="muted small">{view.unplaced} {view.unplaced === 1 ? 'image' : 'images'} of a size this app does not know cannot be placed, so {view.unplaced === 1 ? 'it is' : 'they are'} not offered.</p>
+        <p class="muted small">{t('assets:pull.unplaced', { count: view.unplaced })}</p>
       {/if}
       {#each view.notes as n (n)}<p class="muted small">{n}</p>{/each}
-      {#if problem}<Alert tone="error" title="Could not pull the images">{problem}</Alert>{/if}
-      {#if !mayPull}<p class="muted small">{SYNC_ROLE_REASON}</p>{/if}
+      {#if problem}<Alert tone="error" title={t('assets:pull.pullFailed')}>{problem}</Alert>{/if}
+      {#if !mayPull}<p class="muted small">{t(SYNC_ROLE_REASON)}</p>{/if}
     {/if}
   </form>
+
+  {#snippet muted(text: string)}<span class="muted">{text}</span>{/snippet}
 
   {#snippet footer()}
     {#if phase === 'done'}
       {#if report?.changeSet}
-        <Button variant="primary" href={reviewHref} onclick={review}>Review the draft</Button>
+        <Button variant="primary" href={reviewHref} onclick={review}>{t('assets:compare.review')}</Button>
       {/if}
-      <Button onclick={() => (open = false)}>Close</Button>
+      <Button onclick={() => (open = false)}>{t('common:action.close')}</Button>
     {:else}
       {#if phase === 'ready' || phase === 'error'}
-        <Button icon="refresh" onclick={() => load(true)} title="Reads the store again. Counts toward the limit of store reads a minute.">Read the store again</Button>
+        <Button icon="refresh" onclick={() => load(true)} title={t('assets:compare.readAgainHint')}>{t('assets:compare.readAgain')}</Button>
       {/if}
-      <Button disabled={phase === 'pulling'} onclick={() => (open = false)}>Cancel</Button>
+      <Button disabled={phase === 'pulling'} onclick={() => (open = false)}>{t('common:action.cancel')}</Button>
       <Button
         type="submit"
         form="asset-pull-{uid}"
@@ -189,8 +193,8 @@
         icon="download"
         loading={phase === 'pulling'}
         disabled={phase !== 'ready' || picked.length === 0 || !mayPull}
-        title={!mayPull ? SYNC_ROLE_REASON : picked.length === 0 ? 'Choose at least one set.' : undefined}
-      >Pull {fileCount} {fileCount === 1 ? 'image' : 'images'}</Button>
+        title={!mayPull ? t(SYNC_ROLE_REASON) : picked.length === 0 ? t('assets:pull.chooseOne') : undefined}
+      >{t('assets:compare.pullSet', { count: fileCount })}</Button>
     {/if}
   {/snippet}
 </Modal>
