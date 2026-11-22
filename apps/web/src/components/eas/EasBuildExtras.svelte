@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import type { EasBuildView } from '../../lib/eas/eas-status.ts';
+  import { t } from '../../lib/i18n/t.ts';
 
   let { build }: { build: EasBuildView } = $props();
 </script>
@@ -14,7 +15,7 @@
 {/if}
 {#if build.error}
   <div class="error text-sm" role="note" data-testid="eas-build-error">
-    <strong>The build failed.</strong>
+    <strong>{t('eas:build.failed')}</strong>
     {#if build.error.message}{build.error.message}{/if}
     {#if build.error.code}<span class="code">{build.error.code}</span>{/if}
   </div>

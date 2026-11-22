@@ -1,5 +1,7 @@
-import { ApiError, waitPhrase } from '../api.ts';
+import { ApiError } from '../api.ts';
 import { parseFreeFormInputs } from '../ci/ci.ts';
+import { t } from '../i18n/t.ts';
+import { waitText } from './eas.ts';
 import type { WorkflowRun } from '../types.ts';
 
 /**
@@ -44,10 +46,10 @@ export type StartForm = { workflow: string; ref: string; inputsText: string };
 export function startForm(form: StartForm): { problems: string[]; body: EasWorkflowDispatchBody | null } {
   const problems: string[] = [];
   const file = workflowFileName(form.workflow);
-  if (file === '') problems.push('Enter a workflow file in .eas/workflows, such as build.yml.');
+  if (file === '') problems.push(t('eas:workflows.problem.file'));
   const ref = form.ref.trim();
   if (ref !== '' && (!GIT_REF.test(ref) || ref.indexOf('..') !== -1 || ref.slice(-1) === '/' || ref.slice(-5) === '.lock')) {
-    problems.push('Use a branch, a tag or a commit for the ref, or leave it empty for the default branch.');
+    problems.push(t('eas:workflows.problem.ref'));
   }
   const parsed = parseFreeFormInputs(form.inputsText);
   for (const p of parsed.problems) problems.push(p.replace('GitHub accepts at most', 'At most'));
@@ -64,50 +66,52 @@ export function startForm(form: StartForm): { problems: string[]; body: EasWorkf
 
 /** The confirmation sentence: what is about to run at Expo, on which ref, with how many inputs. */
 export function startSummary(input: { workflow: string; ref: string; project: string; inputCount: number }): string {
-  const withInputs = input.inputCount === 0 ? 'with no inputs' : `with ${input.inputCount} input${input.inputCount === 1 ? '' : 's'}`;
-  return `Run ${input.workflow} on ${input.ref} in ${input.project} at Expo ${withInputs}. It runs with the EAS secrets of the project.`;
+  const { workflow, project, inputCount: count } = input;
+  const ref = input.ref.trim();
+  if (ref === '') return count === 0 ? t('eas:workflows.summary.defaultNone', { workflow, project }) : t('eas:workflows.summary.defaultInputs', { workflow, project, count });
+  return count === 0 ? t('eas:workflows.summary.refNone', { workflow, ref, project }) : t('eas:workflows.summary.refInputs', { workflow, ref, project, count });
 }
 
 /** Whether the card can offer to start a workflow, and if not, why not (one sentence). */
 export function startBlocker(input: { credentialAvailable: boolean; hasRepository: boolean; canStart: boolean }): string {
-  if (!input.credentialAvailable) return 'The Expo credential of the link was deleted. Choose another above first.';
-  if (!input.hasRepository) return 'Connect this app to its repository first: its runs are listed with the runs of the repository.';
-  if (!input.canStart) return 'Starting a workflow needs the member or admin role.';
+  if (!input.credentialAvailable) return t('eas:workflows.blocker.credential');
+  if (!input.hasRepository) return t('eas:workflows.blocker.repository');
+  if (!input.canStart) return t('eas:workflows.blocker.role');
   return '';
 }
 
 /** A sentence for what the API said while starting or reading a run. */
 export function easWorkflowErrorText(error: unknown): string {
-  if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
+  if (!(error instanceof ApiError)) return t('common:error.genericRetry');
   const own = typeof error.body.message === 'string' ? error.body.message : '';
   switch (error.code) {
     case 'forbidden':
-      return 'Starting a workflow needs the member or admin role.';
+      return t('eas:workflows.blocker.role');
     case 'not_found':
-      return 'That app or run no longer exists. Reload the page.';
+      return t('eas:workflows.err.notFound');
     case 'expo_not_linked':
-      return 'This app is not linked to an Expo project.';
+      return t('eas:workflows.err.notLinked');
     case 'repository_required':
-      return own || 'Connect this app to its repository first.';
+      return own || t('eas:workflows.err.repository');
     case 'invalid_workflow':
     case 'invalid_ref':
     case 'invalid_request':
-      return own || 'Check the workflow file, the ref and the inputs.';
+      return own || t('eas:workflows.err.invalid');
     case 'credential_not_found':
     case 'credential_kind':
     case 'credential_unreadable':
-      return own || 'The Expo credential cannot be used. Choose another one.';
+      return own || t('eas:workflows.err.credential');
     case 'expo_auth':
     case 'expo_forbidden':
     case 'expo_not_found':
     case 'expo_unavailable':
-      return own || 'Expo could not be asked. Try again in a moment.';
+      return own || t('eas:err.expoAsk');
     case 'rate_limited':
-      return `Too many requests. Try again in ${waitPhrase(error.retryAfter ?? 60)}.`;
+      return t('eas:err.rateLimited', { wait: waitText(error.retryAfter ?? 60) });
     case 'timeout':
-      return own || 'Expo took too long to answer. The workflow may have started: look at the runs in Expo before trying again.';
+      return own || t('eas:workflows.err.timeout');
     default:
-      return error.status >= 500 ? 'The server had a problem. Try again.' : error.message;
+      return error.status >= 500 ? t('errors:http.serverError') : error.message;
   }
 }
 

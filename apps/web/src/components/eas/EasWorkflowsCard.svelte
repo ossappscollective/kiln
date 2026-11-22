@@ -19,7 +19,8 @@
     startSummary,
     type EasWorkflowDispatchBody,
   } from '../../lib/eas/eas-workflows.ts';
-  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { WorkflowRun } from '../../lib/types.ts';
   import RunStatus from '../ci/RunStatus.svelte';
@@ -98,7 +99,7 @@
       workflow = '';
       ref = '';
       inputsText = '';
-      toast.success(`Asked Expo to start ${body.workflow}. The run is followed below.`);
+      toast.success(t('eas:workflows.started', { workflow: body.workflow }));
     } catch (e) {
       problem = easWorkflowErrorText(e);
       confirming = null;
@@ -127,45 +128,45 @@
 </script>
 
 <div class="stack readable-card">
-  <h4 class="title">Workflows</h4>
-  <p class="muted">Start a workflow of {link.fullName} and follow it here. Runs also appear with the runs of the repository and in the release pipeline.</p>
+  <h4 class="title">{t('eas:workflows.title')}</h4>
+  <p class="muted">{t('eas:workflows.intro', { project: link.fullName })}</p>
 
   {#if blocker !== ''}
     <p class="muted">{blocker}</p>
   {:else if confirming === null}
     <div class="field">
-      <label for="{uid}-workflow">Workflow file</label>
+      <label for="{uid}-workflow">{t('eas:workflows.fileLabel')}</label>
       <input id="{uid}-workflow" type="text" autocomplete="off" spellcheck="false" placeholder=".eas/workflows/build.yml" bind:value={workflow} disabled={starting} />
     </div>
     <div class="field">
-      <label for="{uid}-ref">Branch, tag or commit</label>
-      <input id="{uid}-ref" type="text" autocomplete="off" spellcheck="false" placeholder="The default branch of the repository" bind:value={ref} disabled={starting} />
+      <label for="{uid}-ref">{t('eas:workflows.refLabel')}</label>
+      <input id="{uid}-ref" type="text" autocomplete="off" spellcheck="false" placeholder={t('eas:workflows.refPlaceholder')} bind:value={ref} disabled={starting} />
     </div>
     <div class="field">
-      <label for="{uid}-inputs">Inputs</label>
-      <textarea id="{uid}-inputs" rows="3" spellcheck="false" placeholder="name=value, one per line" bind:value={inputsText} disabled={starting}></textarea>
-      <p class="hint">Only the inputs the workflow file declares under on.workflow_dispatch. Leave empty to use their defaults.</p>
+      <label for="{uid}-inputs">{t('eas:workflows.inputsLabel')}</label>
+      <textarea id="{uid}-inputs" rows="3" spellcheck="false" placeholder={t('eas:workflows.inputsPlaceholder')} bind:value={inputsText} disabled={starting}></textarea>
+      <p class="hint">{t('eas:workflows.inputsHint')}</p>
     </div>
     {#if problems.length > 0}<Alert tone="error">{#each problems as p (p)}<div>{p}</div>{/each}</Alert>{/if}
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
     <div class="row">
-      <Button variant="primary" icon="play" disabled={workflow.trim() === ''} onclick={review}>Review and start</Button>
+      <Button variant="primary" icon="play" disabled={workflow.trim() === ''} onclick={review}>{t('eas:workflows.review')}</Button>
     </div>
   {:else}
     <Alert tone="warn">
-      {startSummary({ workflow: confirming.workflow, ref: confirming.ref ?? 'the default branch', project: link.fullName, inputCount: Object.keys(confirming.inputs ?? {}).length })}
+      {startSummary({ workflow: confirming.workflow, ref: confirming.ref ?? '', project: link.fullName, inputCount: Object.keys(confirming.inputs ?? {}).length })}
     </Alert>
     <div class="row">
-      <Button variant="primary" loading={starting} disabled={starting} onclick={() => void start()}>Start the run</Button>
-      <Button variant="ghost" disabled={starting} onclick={() => (confirming = null)}>Back</Button>
+      <Button variant="primary" loading={starting} disabled={starting} onclick={() => void start()}>{t('eas:workflows.start')}</Button>
+      <Button variant="ghost" disabled={starting} onclick={() => (confirming = null)}>{t('eas:workflows.back')}</Button>
     </div>
   {/if}
 
   {#if readProblem}<Alert tone="info">{readProblem}</Alert>{/if}
   {#if runs === null}
-    <p class="muted">Reading the runs.</p>
+    <p class="muted">{t('eas:workflows.reading')}</p>
   {:else if shown.length === 0}
-    <p class="muted">No workflow has been started from here yet.</p>
+    <p class="muted">{t('eas:workflows.none')}</p>
   {:else}
     <ul class="runs plain">
       {#each shown as run (run.id)}
@@ -175,10 +176,10 @@
             <strong>{runTitle(run)}</strong>
             {#if run.branch}<span class="muted"> <code>{run.branch}</code></span>{/if}
           </span>
-          <span class="muted"><time datetime={new Date(run.startedAt).toISOString()} title={fullTime(run.startedAt)}>{timeAgo(run.startedAt, now)}</time></span>
+          <span class="muted"><time datetime={new Date(run.startedAt).toISOString()} title={formatDateTime(run.startedAt)}>{formatRelativeTime(run.startedAt, { now })}</time></span>
           {#if run.url}
-            <a class="icon-link" href={run.url} target="_blank" rel="noopener noreferrer" title="Open on {runProvider(run).host}">
-              <Icon name="external-link" size={14} /><span class="visually-hidden">Open {run.workflow} on {runProvider(run).host} (opens in a new tab)</span>
+            <a class="icon-link" href={run.url} target="_blank" rel="noopener noreferrer" title={t('eas:workflows.openOn', { host: runProvider(run).host })}>
+              <Icon name="external-link" size={14} /><span class="visually-hidden">{t('eas:workflows.openRunNewTab', { workflow: run.workflow, host: runProvider(run).host })}</span>
             </a>
           {/if}
         </li>
@@ -186,7 +187,7 @@
     </ul>
     {#if going > 0 && canAsk}
       <div class="row">
-        <Button size="sm" variant="ghost" icon="refresh" loading={refreshing} disabled={refreshing} onclick={() => void refreshFromExpo()}>Ask Expo about {going === 1 ? 'the run' : `${going} runs`} going</Button>
+        <Button size="sm" variant="ghost" icon="refresh" loading={refreshing} disabled={refreshing} onclick={() => void refreshFromExpo()}>{t('eas:workflows.askExpo', { count: going })}</Button>
       </div>
     {/if}
   {/if}

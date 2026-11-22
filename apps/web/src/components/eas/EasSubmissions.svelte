@@ -6,7 +6,8 @@
 -->
 <script lang="ts">
   import { easSubmissionBuild, easSubmissionState, easSubmissionTarget, type EasStatusView } from '../../lib/eas/eas-status.ts';
-  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import PlatformBadge from '../portfolio/PlatformBadge.svelte';
   import Badge from '../ui/Badge.svelte';
   import Icon from '../ui/Icon.svelte';
@@ -16,8 +17,8 @@
 </script>
 
 {#if status.project && status.submissions.length > 0}
-  <Section title="EAS submissions" key="eas-submissions" count={status.submissions.length} flush>
-    <ul class="rows" aria-label="EAS submissions of this app">
+  <Section title={t('eas:submissions.title')} key="eas-submissions" count={status.submissions.length} flush>
+    <ul class="rows" aria-label={t('eas:submissions.listLabel')}>
       {#each status.submissions as s (s.id)}
         {@const state = easSubmissionState(s)}
         <li class="row">
@@ -31,15 +32,15 @@
           </div>
           <div class="meta muted text-sm">
             <span>{easSubmissionTarget(s)}</span>
-            {#if s.createdAt !== null}<time datetime={new Date(s.createdAt).toISOString()} title={fullTime(s.createdAt)}>{timeAgo(s.createdAt, now)}</time>{/if}
-            {#if s.releaseStatus}<span>Release {s.releaseStatus.toLowerCase()}</span>{/if}
+            {#if s.createdAt !== null}<time datetime={new Date(s.createdAt).toISOString()} title={formatDateTime(s.createdAt)}>{formatRelativeTime(s.createdAt, { now })}</time>{/if}
+            {#if s.releaseStatus}<span>{t('eas:submissions.release', { status: s.releaseStatus.toLowerCase() })}</span>{/if}
             {#if s.expoUrl}
-              <a href={s.expoUrl} target="_blank" rel="noopener noreferrer">Open on Expo<Icon name="external-link" size={12} /><span class="visually-hidden"> (opens in a new tab)</span></a>
+              <a href={s.expoUrl} target="_blank" rel="noopener noreferrer">{t('eas:submissions.openOnExpo')}<Icon name="external-link" size={12} /><span class="visually-hidden"> {t('eas:link.newTab')}</span></a>
             {/if}
           </div>
           {#if s.error}
             <div class="error text-sm" role="note" data-testid="eas-submission-error">
-              <strong>The submission failed.</strong>
+              <strong>{t('eas:submissions.failed')}</strong>
               {#if s.error.message}{s.error.message}{/if}
               {#if s.error.code}<span class="code">{s.error.code}</span>{/if}
             </div>
@@ -47,7 +48,7 @@
         </li>
       {/each}
     </ul>
-    {#if status.sync.submissionsTruncated}<p class="more muted text-sm">Only the newest submissions of the project were read.</p>{/if}
+    {#if status.sync.submissionsTruncated}<p class="more muted text-sm">{t('eas:submissions.truncated')}</p>{/if}
   </Section>
 {/if}
 

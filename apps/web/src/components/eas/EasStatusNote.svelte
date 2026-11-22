@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import { type EasStatusView, easSyncLine } from '../../lib/eas/eas-status.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Icon from '../ui/Icon.svelte';
 
   let { status, problem, now }: { status: EasStatusView; problem: string; now: number } = $props();
@@ -17,7 +18,7 @@
   <div class="note {tone}" role={problem ? 'alert' : 'status'} data-testid="eas-status-note">
     <Icon name={tone === 'warn' ? 'alert-triangle' : 'info'} size={16} />
     <span class="text">{problem || line?.text || ''}</span>
-    <a href={status.project.url} target="_blank" rel="noopener noreferrer">{status.project.fullName} on Expo<Icon name="external-link" size={12} /><span class="visually-hidden"> (opens in a new tab)</span></a>
+    <a href={status.project.url} target="_blank" rel="noopener noreferrer">{t('eas:note.onExpo', { project: status.project.fullName })}<Icon name="external-link" size={12} /><span class="visually-hidden"> {t('eas:link.newTab')}</span></a>
   </div>
 {/if}
 

@@ -9,10 +9,12 @@
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { type EasRolloutPreview, parseShare, rolloutFailure } from '../../lib/eas/eas-update.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
+  import T from '../ui/T.svelte';
   import TextField from '../ui/TextField.svelte';
 
   let {
@@ -79,7 +81,8 @@
       const body = { group: sent.group, percentage: sent.to, confirmHash: sent.confirmHash };
       const done = await confirmed((grant) => api.easUpdateRolloutApply(workspaceId, appId, body, grant), sent.confirmHash);
       open = false;
-      ondone(`The rollout was raised from ${done.result.from}% to ${done.result.to}%${done.result.confirmedByReread ? ' (confirmed by reading it back)' : ''}.`);
+      const raised = { from: done.result.from, to: done.result.to };
+      ondone(done.result.confirmedByReread ? t('eas:rollout.doneReread', raised) : t('eas:rollout.done', raised));
     } catch (e) {
       const failure = rolloutFailure(e);
       if (failure.kind === 'unknown') unknown = true;
@@ -100,41 +103,43 @@
   }
 </script>
 
-<Modal bind:open size="md" title="Raise the rollout" description="{appName} · channel {target.channel} · branch {target.branch}" dismissible={!busy} onclose={onclose}>
+<Modal bind:open size="md" title={t('eas:rollout.title')} description={t('eas:rollout.description', { app: appName, channel: target.channel, branch: target.branch })} dismissible={!busy} onclose={onclose}>
   <div class="stack">
-    {#if notice}<Alert tone="warn" title="Expo changed">{notice}</Alert>{/if}
+    {#if notice}<Alert tone="warn" title={t('eas:rollout.changedTitle')}>{notice}</Alert>{/if}
     {#if preview === null}
-      <p>Update group <span class="mono">{target.group.slice(0, 8)}</span> is at <strong>{target.current}%</strong>. A rollout can only be raised here; lowering or reverting it needs the Expo CLI.</p>
-      <TextField label="New share (percent)" bind:value={share} error={fieldProblem} inputmode="numeric" autocomplete="off" hint="A whole percent above {target.current}, up to 100." />
+      <p><T key="eas:rollout.intro" params={{ group: target.group.slice(0, 8), current: target.current }} tags={{ link: group }} /></p>
+      <TextField label={t('eas:rollout.shareLabel')} bind:value={share} error={fieldProblem} inputmode="numeric" autocomplete="off" hint={t('eas:rollout.shareHint', { current: target.current })} />
     {:else}
       <p class="headline">{preview.summary}</p>
-      <p><strong>This changes what clients of the app receive, at Expo.</strong> It is recorded in the audit log.</p>
+      <p><T key="eas:rollout.warning" /></p>
       {#if preview.warnings.length > 0}
         <ul class="warnings">
           {#each preview.warnings as warning (warning)}<li>{warning}</li>{/each}
         </ul>
       {/if}
       {#if preview.irreversible}
-        <p role="alert"><strong>At 100% the rollout ends. This cannot be lowered from here.</strong></p>
-        <TextField label="Type {preview.to}% to confirm" bind:value={typed} autocomplete="off" spellcheck={false} disabled={busy} />
+        <p role="alert"><strong>{t('eas:rollout.irreversible')}</strong></p>
+        <TextField label={t('eas:rollout.typeToConfirm', { percent: preview.to })} bind:value={typed} autocomplete="off" spellcheck={false} disabled={busy} />
       {/if}
       <label class="check">
         <input type="checkbox" bind:checked={ack} disabled={busy || unknown} />
-        <span>I have read the change above and I want it made at Expo now.</span>
+        <span>{t('eas:rollout.ack')}</span>
       </label>
     {/if}
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
   </div>
 
   {#snippet footer()}
-    <Button disabled={busy} onclick={cancel}>{unknown ? 'Close' : 'Cancel'}</Button>
+    <Button disabled={busy} onclick={cancel}>{unknown ? t('eas:rollout.close') : t('eas:rollout.cancel')}</Button>
     {#if preview === null}
-      <Button variant="primary" loading={busy} disabled={busy} onclick={ask}>Preview</Button>
+      <Button variant="primary" loading={busy} disabled={busy} onclick={ask}>{t('eas:rollout.preview')}</Button>
     {:else if !unknown}
-      <Button variant="danger-solid" loading={busy} disabled={!ready || busy} onclick={confirm}>Raise to {preview.to}%</Button>
+      <Button variant="danger-solid" loading={busy} disabled={!ready || busy} onclick={confirm}>{t('eas:rollout.raiseTo', { percent: preview.to })}</Button>
     {/if}
   {/snippet}
 </Modal>
+
+{#snippet group(text: string)}<span class="mono">{text}</span>{/snippet}
 
 <style>
   .headline {

@@ -1,5 +1,7 @@
-import { ApiError, waitPhrase } from '../api.ts';
-import { timeAgo } from '../format.ts';
+import { ApiError } from '../api.ts';
+import { formatBytes as formatByteSize, formatList, formatNumber, formatPercent, formatRelativeTime } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
+import { waitText } from './eas.ts';
 
 /**
  * Pure helpers of the "EAS Update" card (components/eas/EasUpdateCard.svelte, docs/api/eas-update.md, docs/adr/0037-eas-update.md):
@@ -140,21 +142,18 @@ export type BadgeTone = 'ok' | 'warn' | 'bad' | 'info' | 'neutral';
 export const checkTone = (check: RuntimeCheck): BadgeTone =>
   check.severity === 'error' ? 'bad' : check.severity === 'warning' ? 'warn' : check.status === 'ok' ? 'ok' : 'neutral';
 
+const CHECK_LABELS = {
+  ok: k('eas:update.check.ok'),
+  mismatch: k('eas:update.check.mismatch'),
+  newest_build_unreached: k('eas:update.check.newestBuildUnreached'),
+  no_updates: k('eas:update.check.noUpdates'),
+  no_builds: k('eas:update.check.noBuilds'),
+  unknown: k('eas:update.check.unknown'),
+} as const;
+
 export function checkLabel(status: RuntimeCheckStatus): string {
-  switch (status) {
-    case 'ok':
-      return 'Runtime matches';
-    case 'mismatch':
-      return 'Reaches no shipped build';
-    case 'newest_build_unreached':
-      return 'Newest build gets no update';
-    case 'no_updates':
-      return 'No updates';
-    case 'no_builds':
-      return 'No store build';
-    default:
-      return 'Cannot compare';
-  }
+  const key = CHECK_LABELS[status] ?? CHECK_LABELS.unknown;
+  return t(key);
 }
 
 /** The channels whose newest update would not reach what was shipped (an error or a warning), errors first. */
@@ -166,14 +165,12 @@ export function channelsWithMismatch(state: EasUpdateState): EasUpdateChannel[] 
 
 /** The one line of the collapsed card. */
 export function updateSummary(state: EasUpdateState | null, loading: boolean): string {
-  if (state === null) return loading ? 'Reading from Expo' : 'Not read yet';
-  const n = state.channels.length;
-  const channels = `${n} ${n === 1 ? 'channel' : 'channels'}`;
+  if (state === null) return loading ? t('eas:update.summary.loading') : t('eas:update.summary.notRead');
   const bad = channelsWithMismatch(state).length;
   const rollouts = state.channels.reduce((sum, c) => sum + c.rollouts.length, 0);
-  const parts = [channels];
-  if (bad > 0) parts.push(`${bad} ${bad === 1 ? 'warning' : 'warnings'}`);
-  if (rollouts > 0) parts.push(`${rollouts} ${rollouts === 1 ? 'rollout' : 'rollouts'}`);
+  const parts = [t('eas:update.summary.channels', { count: state.channels.length })];
+  if (bad > 0) parts.push(t('eas:update.summary.warnings', { count: bad }));
+  if (rollouts > 0) parts.push(t('eas:update.summary.rollouts', { count: rollouts }));
   return parts.join(' · ');
 }
 
@@ -183,58 +180,59 @@ export function updateSummary(state: EasUpdateState | null, loading: boolean): s
 /** Where a channel's clients get their updates from, in a sentence. */
 export function mappingText(channel: EasUpdateChannel): string {
   const m = channel.mapping;
-  const name = (e: { branchName: string | null; branchId: string }) => e.branchName ?? 'another branch';
-  if (m.kind === 'none') return 'Points at no branch: clients get no update.';
-  if (m.kind === 'unreadable') return 'The branch mapping could not be read.';
+  const name = (e: { branchName: string | null; branchId: string }) => e.branchName ?? t('eas:update.mapping.otherBranch');
+  if (m.kind === 'none') return t('eas:update.mapping.none');
+  if (m.kind === 'unreadable') return t('eas:update.mapping.unreadable');
   const first = m.entries[0];
   if (m.kind === 'branch' && first) {
-    return first.logic === 'always' ? `Every client gets branch ${name(first)}.` : `Branch ${name(first)} for the clients its condition selects.`;
+    return first.logic === 'always'
+      ? t('eas:update.mapping.always', { branch: name(first) })
+      : t('eas:update.mapping.conditional', { branch: name(first) });
   }
-  const names = m.entries.map(name);
+  const branches = formatList(m.entries.map(name));
   const condition = m.entries.filter((e) => e.condition !== null).map((e) => e.condition);
-  return `Rollout between branches ${names.join(' and ')}${condition.length > 0 ? ` (${condition.join('; ')})` : ''}.`;
+  return condition.length > 0
+    ? t('eas:update.mapping.rolloutCondition', { branches, condition: condition.join('; ') })
+    : t('eas:update.mapping.rollout', { branches });
 }
 
 export const shortCommit = (hash: string | null): string => (hash ? hash.slice(0, 7) : '');
 
 /** "Fix the login button", or what the update is when it has no message. */
 export function updateTitle(u: EasUpdateRow): string {
-  if (u.isRollBackToEmbedded) return u.message ? `${u.message} (roll back to the embedded update)` : 'Roll back to the embedded update';
-  return u.message && u.message.trim() !== '' ? u.message : 'No message';
+  if (u.isRollBackToEmbedded) return u.message ? t('eas:update.title.rollbackMessage', { message: u.message }) : t('eas:update.title.rollback');
+  return u.message && u.message.trim() !== '' ? u.message : t('eas:update.title.none');
 }
 
 /** "runtime 1.4.0 · 3 days ago · a1b2c3d". */
 export function updateDetail(u: EasUpdateRow, now: number): string {
   const parts: string[] = [];
-  parts.push(u.runtimeVersion ? `runtime ${u.runtimeVersion}` : 'no runtime version');
-  if (u.createdAt !== null) parts.push(timeAgo(u.createdAt, now));
+  parts.push(u.runtimeVersion ? t('eas:update.detail.runtime', { version: u.runtimeVersion }) : t('eas:update.detail.noRuntime'));
+  if (u.createdAt !== null) parts.push(formatRelativeTime(u.createdAt, { now }));
   const commit = shortCommit(u.gitCommitHash);
   if (commit) parts.push(commit);
   return parts.join(' · ');
 }
 
 export function formatBytes(bytes: number | null): string {
-  if (bytes === null) return 'not reported';
-  if (bytes < 1024) return `${Math.round(bytes)} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return bytes === null ? t('eas:update.notReported') : formatByteSize(bytes);
 }
 
-export const formatCount = (n: number | null): string => (n === null ? 'not reported' : String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+export const formatCount = (n: number | null): string => (n === null ? t('eas:update.notReported') : formatNumber(Math.round(n)));
 
 export function crashRateText(rate: number | null): string {
-  return rate === null ? 'no launches yet' : `${rate}%`;
+  return rate === null ? t('eas:update.noLaunches') : formatPercent(rate / 100, { maximumFractionDigits: 2 });
 }
 
 /** The lines of the insights panel, label and text. */
 export function insightLines(i: EasUpdateInsights): { label: string; text: string }[] {
   const x = i.insights;
   return [
-    { label: 'Launches', text: formatCount(x.launches) },
-    { label: 'Failed launches', text: formatCount(x.failedLaunches) },
-    { label: 'Crash rate', text: crashRateText(x.crashRatePercent) },
-    { label: 'Unique users', text: formatCount(x.uniqueUsers) },
-    { label: 'Payload size', text: formatBytes(x.averagePayloadBytes) },
+    { label: t('eas:update.insight.launches'), text: formatCount(x.launches) },
+    { label: t('eas:update.insight.failedLaunches'), text: formatCount(x.failedLaunches) },
+    { label: t('eas:update.insight.crashRate'), text: crashRateText(x.crashRatePercent) },
+    { label: t('eas:update.insight.uniqueUsers'), text: formatCount(x.uniqueUsers) },
+    { label: t('eas:update.insight.payload'), text: formatBytes(x.averagePayloadBytes) },
   ];
 }
 
@@ -244,10 +242,10 @@ export function insightLines(i: EasUpdateInsights): { label: string; text: strin
 /** The new share as typed: a whole percent above the current one and at most 100. A sentence when it is not, else the number. */
 export function parseShare(text: string, current: number): { ok: true; percentage: number } | { ok: false; message: string } {
   const value = text.trim().replace(/%$/, '').trim();
-  if (!/^\d{1,3}$/.test(value)) return { ok: false, message: 'Enter a whole percent, such as 50.' };
+  if (!/^\d{1,3}$/.test(value)) return { ok: false, message: t('eas:update.share.whole') };
   const percentage = Number(value);
-  if (percentage > 100) return { ok: false, message: 'A share cannot be more than 100%.' };
-  if (percentage <= current) return { ok: false, message: `The rollout is at ${current}%. It can only be raised here.` };
+  if (percentage > 100) return { ok: false, message: t('eas:update.share.max') };
+  if (percentage <= current) return { ok: false, message: t('eas:update.share.raiseOnly', { current }) };
   return { ok: true, percentage };
 }
 
@@ -255,22 +253,22 @@ export type RolloutFailure = { kind: 'changed' | 'unknown' | 'off' | 'other'; me
 
 /** What a failed preview or apply means for the dialog. */
 export function rolloutFailure(error: unknown): RolloutFailure {
-  if (!(error instanceof ApiError)) return { kind: 'other', message: 'Something went wrong. Nothing was confirmed as changed; read the state again.' };
+  if (!(error instanceof ApiError)) return { kind: 'other', message: t('eas:update.rollout.other') };
   switch (error.code) {
     case 'eas_update_write_disabled':
-      return { kind: 'off', message: 'Raising a rollout is switched off on this server (KILN_EAS_UPDATE_ROLLOUT_ENABLED).' };
+      return { kind: 'off', message: t('eas:update.rollout.off') };
     case 'state_changed':
-      return { kind: 'changed', message: 'The rollout changed at Expo since it was previewed. Nothing was changed. Review the new state and preview again.' };
+      return { kind: 'changed', message: t('eas:update.rollout.changed') };
     case 'rollout_not_found':
-      return { kind: 'changed', message: 'That update is no longer mid-rollout. Read the state again.' };
+      return { kind: 'changed', message: t('eas:update.rollout.notFound') };
     case 'rollout_not_raised':
-      return { kind: 'other', message: 'The share can only be raised here. Lowering or reverting a rollout needs the Expo CLI.' };
+      return { kind: 'other', message: t('eas:update.rollout.notRaised') };
     case 'write_failed':
-      return { kind: 'other', message: 'Expo did not apply the change. The rollout is as before.' };
+      return { kind: 'other', message: t('eas:update.rollout.writeFailed') };
     case 'outcome_unknown':
-      return { kind: 'unknown', message: 'Expo did not answer and the result could not be read back. Check the rollout in Expo, then read the state again before trying anything.' };
+      return { kind: 'unknown', message: t('eas:update.rollout.unknown') };
     case 'write_in_progress':
-      return { kind: 'other', message: 'A change of this rollout is already in progress. Wait for it to finish.' };
+      return { kind: 'other', message: t('eas:update.rollout.inProgress') };
     default:
       return { kind: 'other', message: easUpdateErrorText(error) };
   }
@@ -281,36 +279,36 @@ export function rolloutFailure(error: unknown): RolloutFailure {
 
 /** A sentence for what a read of EAS Update said. */
 export function easUpdateErrorText(error: unknown): string {
-  if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
+  if (!(error instanceof ApiError)) return t('common:error.genericRetry');
   const own = typeof error.body.message === 'string' ? error.body.message : '';
   switch (error.code) {
     case 'forbidden':
-      return 'Your role does not allow that.';
+      return t('eas:update.err.forbidden');
     case 'not_found':
-      return 'That app no longer exists. Reload the page.';
+      return t('eas:err.appGone');
     case 'expo_not_linked':
-      return 'This app is not linked to an Expo project. Link it in the app Settings.';
+      return t('eas:update.err.notLinked');
     case 'credential_not_found':
-      return 'The Expo credential of this link was deleted. Choose another in the app Settings.';
+      return t('eas:update.err.credentialDeleted');
     case 'platform_unsupported':
-      return 'EAS Update has no updates for this platform.';
+      return t('eas:update.err.platform');
     case 'credential_unreadable':
-      return 'The Expo credential could not be decrypted. Enter its token again under Credentials.';
+      return t('eas:update.err.credentialUnreadable');
     case 'expo_auth':
     case 'expo_forbidden':
     case 'expo_not_found':
     case 'expo_unavailable':
     case 'invalid_group':
     case 'invalid_days':
-      return own || 'Expo could not be asked. Try again in a moment.';
+      return own || t('eas:err.expoAsk');
     case 'rate_limited':
-      return `Too many requests. Try again in ${waitPhrase(error.retryAfter ?? 60)}.`;
+      return t('eas:err.rateLimited', { wait: waitText(error.retryAfter ?? 60) });
     case 'timeout':
-      return 'Expo took too long to answer. Try again.';
+      return t('eas:err.timeout');
     default:
-      return error.status >= 500 ? 'The server had a problem. Try again.' : error.message;
+      return error.status >= 500 ? t('errors:http.serverError') : error.message;
   }
 }
 
 /** "Read from Expo 2 minutes ago." */
-export const readCaption = (state: EasUpdateState, now: number): string => `Read from Expo ${timeAgo(state.readAt, now)}.`;
+export const readCaption = (state: EasUpdateState, now: number): string => t('eas:update.readCaption', { ago: formatRelativeTime(state.readAt, { now }) });

@@ -9,6 +9,7 @@
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { type ExpoLinkView, expoCredentials, expoSummary, showExpoCard } from '../../lib/eas/eas.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { AppSummary, CredentialSummary, RepositorySummary } from '../../lib/types.ts';
   import SettingsCard from '../app/settings/SettingsCard.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
@@ -82,13 +83,13 @@
 
 {#if show}
   <SettingsCard
-    title="Expo project"
+    title={t('eas:project.card.title')}
     icon="code"
-    description="The Expo (EAS) project this app is built with. Linking only lets this tool read it; nothing in Expo is changed."
+    description={t('eas:project.card.description')}
     summary={expoSummary(allLinks)}
   >
     {#each members as app (app.id)}
-      <section class="stack tight" aria-label="{app.platform} Expo project">
+      <section class="stack tight" aria-label={t('eas:project.platformLabel', { platform: app.platform })}>
         {#if members.length > 1}<PlatformBadge platform={app.platform} />{/if}
         <ExpoProjectField
           {api}

@@ -1,6 +1,8 @@
 import type { Platform } from '@kiln/core';
-import { ApiError, waitPhrase } from '../api.ts';
-import { timeAgo } from '../format.ts';
+import { ApiError } from '../api.ts';
+import { formatRelativeTime } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
+import { waitText } from './eas.ts';
 
 /**
  * Pure helpers of the EAS builds and submissions in "Builds to test" (docs/adr/0036-eas-build-submit-status.md, docs/api/eas-builds.md): the types
@@ -81,43 +83,50 @@ export type EasStatusView = {
 // ---------------------------------------------------------------------------------------------
 // Words
 
-const BUILD_WORDS: Record<string, { label: string; tone: EasTone }> = {
-  new: { label: 'Waiting', tone: 'info' },
-  in_queue: { label: 'In the queue', tone: 'info' },
-  in_progress: { label: 'Building', tone: 'info' },
-  pending_cancel: { label: 'Being cancelled', tone: 'warn' },
-  finished: { label: 'Finished', tone: 'ok' },
-  errored: { label: 'Failed', tone: 'bad' },
-  canceled: { label: 'Cancelled', tone: 'neutral' },
+// The label is a catalog key (`k()` keeps it a literal for the checker); it is translated where the state is asked for.
+const BUILD_WORDS: Record<string, { key: string; tone: EasTone }> = {
+  new: { key: k('eas:status.waiting'), tone: 'info' },
+  in_queue: { key: k('eas:status.inQueue'), tone: 'info' },
+  in_progress: { key: k('eas:status.building'), tone: 'info' },
+  pending_cancel: { key: k('eas:status.cancelling'), tone: 'warn' },
+  finished: { key: k('eas:status.finished'), tone: 'ok' },
+  errored: { key: k('eas:status.failed'), tone: 'bad' },
+  canceled: { key: k('eas:status.cancelled'), tone: 'neutral' },
 };
 
-const SUBMISSION_WORDS: Record<string, { label: string; tone: EasTone }> = {
-  awaiting_build: { label: 'Waiting for the build', tone: 'info' },
-  in_queue: { label: 'In the queue', tone: 'info' },
-  in_progress: { label: 'Submitting', tone: 'info' },
-  finished: { label: 'Submitted', tone: 'ok' },
-  errored: { label: 'Failed', tone: 'bad' },
-  canceled: { label: 'Cancelled', tone: 'neutral' },
+const SUBMISSION_WORDS: Record<string, { key: string; tone: EasTone }> = {
+  awaiting_build: { key: k('eas:status.awaitingBuild'), tone: 'info' },
+  in_queue: { key: k('eas:status.inQueue'), tone: 'info' },
+  in_progress: { key: k('eas:status.submitting'), tone: 'info' },
+  finished: { key: k('eas:status.submitted'), tone: 'ok' },
+  errored: { key: k('eas:status.failed'), tone: 'bad' },
+  canceled: { key: k('eas:status.cancelled'), tone: 'neutral' },
 };
 
+// An unknown status of Expo is shown as Expo wrote it, in sentence case.
 const sentence = (raw: string | null): string =>
-  raw ? raw.toLowerCase().replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()) : 'Unknown status';
+  raw ? raw.toLowerCase().replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()) : t('eas:status.unknown');
+
+function stateOf(words: Record<string, { key: string; tone: EasTone }>, status: string, raw: string | null): { label: string; tone: EasTone } {
+  const known = words[status];
+  return known ? { label: t(known.key), tone: known.tone } : { label: sentence(raw), tone: 'neutral' };
+}
 
 export function easBuildState(b: Pick<EasBuildView, 'status' | 'rawStatus'>): { label: string; tone: EasTone } {
-  return BUILD_WORDS[b.status] || { label: sentence(b.rawStatus), tone: 'neutral' };
+  return stateOf(BUILD_WORDS, b.status, b.rawStatus);
 }
 
 export function easSubmissionState(s: Pick<EasSubmissionView, 'status' | 'rawStatus'>): { label: string; tone: EasTone } {
-  return SUBMISSION_WORDS[s.status] || { label: sentence(s.rawStatus), tone: 'neutral' };
+  return stateOf(SUBMISSION_WORDS, s.status, s.rawStatus);
 }
 
 export const easDistributionLabel = (distribution: string | null): string =>
   distribution === 'internal'
-    ? 'Internal distribution'
+    ? t('eas:status.distribution.internal')
     : distribution === 'store'
-      ? 'Store distribution'
+      ? t('eas:status.distribution.store')
       : distribution === 'simulator'
-        ? 'Simulator'
+        ? t('eas:status.distribution.simulator')
         : '';
 
 const shortId = (id: string): string => id.slice(0, 8);
@@ -127,24 +136,24 @@ export function easBuildTitle(b: Pick<EasBuildView, 'appVersion' | 'buildNumber'
   const parts: string[] = [];
   if (b.appVersion) parts.push(b.appVersion);
   if (b.buildNumber) parts.push(`(${b.buildNumber})`);
-  return parts.length > 0 ? parts.join(' ') : `Build ${shortId(b.id)}`;
+  return parts.length > 0 ? parts.join(' ') : t('eas:status.buildTitle', { id: shortId(b.id) });
 }
 
 /** The muted line under a build: profile, channel, distribution, runtime and commit. */
 export function easBuildDetail(b: EasBuildView): string {
   const parts: string[] = [];
-  if (b.buildProfile) parts.push(`Profile ${b.buildProfile}`);
-  if (b.channel) parts.push(`Channel ${b.channel}`);
+  if (b.buildProfile) parts.push(t('eas:status.detail.profile', { name: b.buildProfile }));
+  if (b.channel) parts.push(t('eas:status.detail.channel', { name: b.channel }));
   const distribution = easDistributionLabel(b.distribution);
   if (distribution) parts.push(distribution);
-  if (b.runtimeVersion) parts.push(`Runtime ${b.runtimeVersion}`);
+  if (b.runtimeVersion) parts.push(t('eas:status.detail.runtime', { version: b.runtimeVersion }));
   if (b.gitCommitHash) parts.push(b.gitCommitHash.slice(0, 7));
   return parts.join(' · ');
 }
 
 /** The version of a submission's build, when the build is known: "1.4.0 (57)". */
 export function easSubmissionBuild(s: EasSubmissionView): string {
-  if (!s.build) return s.buildId ? `Build ${shortId(s.buildId)}` : 'No build named';
+  if (!s.build) return s.buildId ? t('eas:status.buildTitle', { id: shortId(s.buildId) }) : t('eas:status.noBuild');
   return easBuildTitle({ appVersion: s.build.appVersion, buildNumber: s.build.buildNumber, id: s.buildId || '' });
 }
 
@@ -152,7 +161,7 @@ export function easSubmissionBuild(s: EasSubmissionView): string {
 export function easSubmissionTarget(s: EasSubmissionView): string {
   const parts: string[] = [s.store.name];
   if (s.identifier) parts.push(s.identifier);
-  if (s.track) parts.push(`${s.track.toLowerCase()} track`);
+  if (s.track) parts.push(t('eas:status.track', { track: s.track.toLowerCase() }));
   return parts.join(' · ');
 }
 
@@ -166,17 +175,28 @@ export function easSyncLine(
 ): { tone: 'info' | 'warn'; text: string } | null {
   const sync = status.sync;
   if (sync.lastError) {
-    const when = sync.readAt !== null ? ` The builds shown were read ${timeAgo(sync.readAt, now)}.` : '';
-    return { tone: 'warn', text: `Expo could not be read (${sync.lastError.replace(/_/g, ' ')}).${when}` };
+    const reason = sync.lastError.replace(/_/g, ' ');
+    return {
+      tone: 'warn',
+      text:
+        sync.readAt !== null
+          ? t('eas:status.sync.errorKnown', { reason, ago: formatRelativeTime(sync.readAt, { now }) })
+          : t('eas:status.sync.error', { reason }),
+    };
   }
   if (sync.readAt === null) {
-    return { tone: 'info', text: 'The EAS builds of this app have not been read yet. Use Read again.' };
+    return { tone: 'info', text: t('eas:status.sync.never') };
   }
-  const truncated = sync.buildsTruncated || sync.submissionsTruncated ? ' Older builds exist at Expo and are not shown.' : '';
-  return {
-    tone: 'info',
-    text: `EAS builds read ${timeAgo(sync.readAt, now)}${status.active ? '; a build is still running, so they are read again every few minutes' : ''}.${truncated}`,
-  };
+  const ago = formatRelativeTime(sync.readAt, { now });
+  const truncated = sync.buildsTruncated || sync.submissionsTruncated;
+  const key = status.active
+    ? truncated
+      ? k('eas:status.sync.readActiveTruncated')
+      : k('eas:status.sync.readActive')
+    : truncated
+      ? k('eas:status.sync.readTruncated')
+      : k('eas:status.sync.read');
+  return { tone: 'info', text: t(key, { ago }) };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -184,32 +204,32 @@ export function easSyncLine(
 
 /** A sentence for what the API said when reading or refreshing the status. */
 export function easStatusErrorText(error: unknown): string {
-  if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
+  if (!(error instanceof ApiError)) return t('common:error.genericRetry');
   const own = typeof error.body.message === 'string' ? error.body.message : '';
   switch (error.code) {
     case 'forbidden':
-      return 'Reading EAS builds needs the member role.';
+      return t('eas:err.status.forbidden');
     case 'not_found':
-      return 'That app no longer exists. Reload the page.';
+      return t('eas:err.appGone');
     case 'not_linked':
-      return own || 'This app is not linked to an Expo project. Link it in the app settings.';
+      return own || t('eas:err.status.notLinked');
     case 'platform_unsupported':
-      return own || 'EAS builds and submits iOS and Android apps only.';
+      return own || t('eas:err.status.platform');
     case 'credential_not_found':
     case 'credential_kind':
     case 'credential_unreadable':
-      return own || 'The Expo credential of this link cannot be used. Choose another in the app settings.';
+      return own || t('eas:err.status.credential');
     case 'expo_auth':
     case 'expo_forbidden':
     case 'expo_not_found':
     case 'expo_unavailable':
-      return own || 'Expo could not be asked. Try again in a moment.';
+      return own || t('eas:err.expoAsk');
     case 'rate_limited':
-      return `Too many reads. Try again in ${waitPhrase(error.retryAfter || 60)}.`;
+      return t('eas:err.status.rateLimited', { wait: waitText(error.retryAfter || 60) });
     case 'timeout':
-      return 'Expo took too long to answer. Try again.';
+      return t('eas:err.timeout');
     default:
-      return error.status >= 500 ? 'The server had a problem. Try again.' : error.message;
+      return error.status >= 500 ? t('errors:http.serverError') : error.message;
   }
 }
 

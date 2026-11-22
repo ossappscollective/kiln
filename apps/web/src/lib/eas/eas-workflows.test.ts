@@ -69,3 +69,10 @@ test('only runs that are not finished are asked about', () => {
   const run = (id: string, active: boolean) => ({ id, active }) as never;
   assert.deepEqual(activeRuns([run('a', true), run('b', false)]).map((r) => r.id), ['a']);
 });
+
+test('an empty ref says the default branch', () => {
+  assert.equal(
+    startSummary({ workflow: 'build.yml', ref: '', project: '@acme/trail', inputCount: 2 }),
+    'Run build.yml on the default branch in @acme/trail at Expo with 2 inputs. It runs with the EAS secrets of the project.',
+  );
+});

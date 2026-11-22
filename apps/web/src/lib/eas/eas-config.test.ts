@@ -321,8 +321,8 @@ test('version source in words', () => {
 test('what was read: commit, branch and age', () => {
   assert.equal(shortCommit('0123456789abcdef'), '0123456');
   assert.equal(readCaption(view(), 1_000_000 + 120_000), 'Read from eas.json at 0123456 on main, 2 minutes ago.');
-  assert.equal(readCaption(view({ commit: null }), 1_000_000), 'Read from eas.json on main, just now.');
-  assert.equal(readCaption(view({ commit: null, branch: null, path: null }), 1_000_000), 'Read from eas.json, just now.');
+  assert.equal(readCaption(view({ commit: null }), 1_000_000), 'Read from eas.json on main, now.');
+  assert.equal(readCaption(view({ commit: null, branch: null, path: null }), 1_000_000), 'Read from eas.json, now.');
 });
 
 test('the collapsed summary: before reading, while reading, after, and when nothing was found', () => {

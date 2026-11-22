@@ -1,5 +1,6 @@
-import { ApiError, waitPhrase } from '../api.ts';
-import { timeAgo } from '../format.ts';
+import { ApiError } from '../api.ts';
+import { formatRelativeTime } from '../i18n/format.ts';
+import { t } from '../i18n/t.ts';
 import type { CredentialSummary } from '../types.ts';
 
 /**
@@ -61,9 +62,9 @@ const FULL_NAME = /^@?[A-Za-z0-9][A-Za-z0-9._-]{0,99}\/[A-Za-z0-9][A-Za-z0-9._-]
 /** A sentence when the text cannot be a project reference, else ''. The server checks it again, and Expo has the last word. */
 export function projectReferenceProblem(text: string): string {
   const value = text.trim();
-  if (value === '') return 'Enter the project id or its name as @account/slug.';
+  if (value === '') return t('eas:link.refEmpty');
   if (UUID.test(value) || FULL_NAME.test(value)) return '';
-  return 'That is neither a project id (a UUID, as in app.json under extra.eas.projectId) nor a name like @account/slug.';
+  return t('eas:link.refInvalid');
 }
 
 /** The Expo credentials of the workspace, in the order given. */
@@ -106,28 +107,25 @@ export function showExpoCard(input: {
 /** The one line of the collapsed card. */
 export function expoSummary(links: readonly (ExpoLinkView | null)[]): string {
   const linked = links.filter((l): l is ExpoLinkView => l !== null);
-  if (linked.length === 0) return 'Not linked';
+  if (linked.length === 0) return t('eas:link.summaryNone');
   const names = linked.map((l) => l.fullName).filter((n, i, all) => all.indexOf(n) === i);
-  return names.length === 1 ? names[0] ?? '' : `${names.length} projects`;
+  return names.length === 1 ? names[0] ?? '' : t('eas:link.summaryMany', { count: names.length });
 }
 
 /** "Confirmed with Expo 3 minutes ago.", or what is wrong with the credential. */
 export function linkStatus(link: ExpoLinkView, now: number): { tone: 'ok' | 'warn'; text: string } {
   if (!link.credentialAvailable) {
-    return {
-      tone: 'warn',
-      text: 'The Expo credential of this link was deleted. Choose another and save.',
-    };
+    return { tone: 'warn', text: t('eas:link.credentialDeleted') };
   }
-  return { tone: 'ok', text: `Confirmed with Expo ${timeAgo(link.verifiedAt, now)}.` };
+  return { tone: 'ok', text: t('eas:link.confirmed', { ago: formatRelativeTime(link.verifiedAt, { now }) }) };
 }
 
 /** What the detection button says when it found a project, and when it did not. */
 export function detectionText(detection: ExpoDetection): string {
   const found = detection.detected;
-  if (found === null) return detection.message ?? 'No Expo project was found in the repository.';
-  if (found.projectId !== null) return 'Found the project id in app.json. Save to confirm it with Expo.';
-  return 'app.json names the project but has no project id. Save to look it up by name.';
+  if (found === null) return detection.message ?? t('eas:detect.none');
+  if (found.projectId !== null) return t('eas:detect.foundId');
+  return t('eas:detect.foundName');
 }
 
 /** The text the form takes from a detection: the project id when there is one, else `@owner/slug`. */
@@ -140,35 +138,41 @@ export function detectedProject(detection: ExpoDetection): string {
 // ---------------------------------------------------------------------------------------------
 // Errors
 
+/** "30 seconds", "1 minute", "10 minutes": how long to wait, rounded up (the same words as `waitPhrase` of the API client). */
+export function waitText(seconds: number): string {
+  if (seconds < 60) return t('eas:wait.seconds', { count: Math.max(1, Math.ceil(seconds)) });
+  return t('eas:wait.minutes', { count: Math.ceil(seconds / 60) });
+}
+
 /** A sentence for what the API said. The generic messages of the API client are written for GitHub, so these codes are said here. */
 export function easErrorText(error: unknown): string {
-  if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
+  if (!(error instanceof ApiError)) return t('common:error.genericRetry');
   const own = typeof error.body.message === 'string' ? error.body.message : '';
   switch (error.code) {
     case 'forbidden':
-      return 'Only an owner or an admin can change the Expo project of an app.';
+      return t('eas:err.link.forbidden');
     case 'not_found':
-      return 'That app or link no longer exists. Reload the page.';
+      return t('eas:err.link.notFound');
     case 'credential_not_found':
-      return 'That credential no longer exists. Choose another one.';
+      return t('eas:err.link.credentialNotFound');
     case 'credential_kind':
-      return 'Choose a credential of the Expo access token kind.';
+      return t('eas:err.link.credentialKind');
     case 'credential_unreadable':
-      return 'The credential could not be decrypted. Enter its token again under Credentials.';
+      return t('eas:err.link.credentialUnreadable');
     case 'invalid_request':
     case 'invalid_project':
-      return own || 'Choose a credential and enter the project id or @account/slug.';
+      return own || t('eas:err.link.invalid');
     case 'expo_auth':
     case 'expo_forbidden':
     case 'expo_not_found':
     case 'expo_unavailable':
-      return own || 'Expo could not be asked. Try again in a moment.';
+      return own || t('eas:err.expoAsk');
     case 'rate_limited':
-      return `Too many requests. Try again in ${waitPhrase(error.retryAfter ?? 60)}.`;
+      return t('eas:err.rateLimited', { wait: waitText(error.retryAfter ?? 60) });
     case 'timeout':
-      return 'Expo took too long to answer. Try again.';
+      return t('eas:err.timeout');
     default:
-      return error.status >= 500 ? 'The server had a problem. Try again.' : error.message;
+      return error.status >= 500 ? t('errors:http.serverError') : error.message;
   }
 }
 

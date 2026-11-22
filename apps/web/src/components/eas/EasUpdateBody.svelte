@@ -24,6 +24,7 @@
     updateDetail,
     updateTitle,
   } from '../../lib/eas/eas-update.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -31,6 +32,7 @@
   import Disclosure from '../ui/Disclosure.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import T from '../ui/T.svelte';
   import EasRolloutDialog from './EasRolloutDialog.svelte';
 
   let {
@@ -118,29 +120,29 @@
 
 <div class="stack loose" aria-busy={loading}>
   {#if loading && !view}
-    <div class="stack" role="status" aria-label="Reading EAS Update">
+    <div class="stack" role="status" aria-label={t('eas:update.body.reading')}>
       <Skeleton width="70%" height="16px" />
       <Skeleton width="55%" height="16px" />
       <Skeleton width="62%" height="16px" />
     </div>
   {:else if problem && !view}
     <div class="stack">
-      <Alert tone="error" title="Could not read EAS Update">{problem}</Alert>
-      <div><Button icon="refresh" onclick={load}>Try again</Button></div>
+      <Alert tone="error" title={t('eas:update.body.readErrorTitle')}>{problem}</Alert>
+      <div><Button icon="refresh" onclick={load}>{t('eas:config.body.tryAgain')}</Button></div>
     </div>
   {:else if view}
-    {#if problem}<Alert tone="warn" title="Could not read it again">{problem} What is shown was read earlier.</Alert>{/if}
+    {#if problem}<Alert tone="warn" title={t('eas:config.body.rereadErrorTitle')}>{t('eas:config.body.rereadError', { problem })}</Alert>{/if}
     {#if raisedNotice}<Alert tone="ok" ondismiss={() => (raisedNotice = '')}>{raisedNotice}</Alert>{/if}
     <div class="row caption">
       <span class="muted text-sm">{readCaption(view, now)} <span class="mono">{view.project.fullName}</span></span>
       <span class="spacer"></span>
-      <Button size="sm" icon="refresh" {loading} onclick={load}>Read again</Button>
+      <Button size="sm" icon="refresh" {loading} onclick={load}>{t('eas:config.body.readAgain')}</Button>
     </div>
 
     {#if problems.length > 0}
       <div class="stack tight" data-testid="eas-update-warnings">
         {#each problems as channel (channel.id)}
-          <Alert tone={channel.runtimeCheck.severity === 'error' ? 'error' : 'warn'} title="Channel {channel.name}: {checkLabel(channel.runtimeCheck.status)}">
+          <Alert tone={channel.runtimeCheck.severity === 'error' ? 'error' : 'warn'} title={t('eas:update.body.channelAlert', { name: channel.name, check: checkLabel(channel.runtimeCheck.status) })}>
             {channel.runtimeCheck.message}
           </Alert>
         {/each}
@@ -148,16 +150,16 @@
     {/if}
 
     {#if view.channels.length === 0}
-      <EmptyState icon="git-branch" title="No update channels" description="This Expo project has no EAS Update channel yet. Create one with eas channel:create when the app uses expo-updates." />
+      <EmptyState icon="git-branch" title={t('eas:update.body.noChannelsTitle')} description={t('eas:update.body.noChannelsDesc')} />
     {:else}
       {#each view.channels as channel (channel.id)}
         {@const updateCount = channel.branches.reduce((n, b) => n + b.groups.length, 0)}
-        <section class="channel stack tight" aria-label="Channel {channel.name}">
+        <section class="channel stack tight" aria-label={t('eas:update.body.channelLabel', { name: channel.name })}>
           <div class="row head">
             <strong>{channel.name}</strong>
             <Badge tone={checkTone(channel.runtimeCheck)}>{checkLabel(channel.runtimeCheck.status)}</Badge>
-            {#if channel.isPaused}<Badge tone="warn">Paused</Badge>{/if}
-            {#if channel.isProtected}<Badge tone="info">Protected</Badge>{/if}
+            {#if channel.isPaused}<Badge tone="warn">{t('eas:update.body.paused')}</Badge>{/if}
+            {#if channel.isProtected}<Badge tone="info">{t('eas:update.body.protected')}</Badge>{/if}
           </div>
           <p class="text-sm">{mappingText(channel)}</p>
           {#if channel.runtimeCheck.status === 'ok' || channel.runtimeCheck.severity === 'info'}
@@ -167,23 +169,26 @@
           {#each channel.rollouts as r (r.updateId)}
             <div class="rollout row">
               <span class="text-sm">
-                Rollout in progress: update group <span class="mono">{r.group.slice(0, 8)}</span> on branch <strong>{r.branch}</strong> is at
-                <strong>{r.percentage}%</strong>{#if r.runtimeVersion} (runtime {r.runtimeVersion}){/if}.
+                {#if r.runtimeVersion}
+                  <T key="eas:update.body.rolloutRuntime" params={{ group: r.group.slice(0, 8), branch: r.branch, percentage: r.percentage, runtime: r.runtimeVersion }} tags={{ link: mono }} />
+                {:else}
+                  <T key="eas:update.body.rollout" params={{ group: r.group.slice(0, 8), branch: r.branch, percentage: r.percentage }} tags={{ link: mono }} />
+                {/if}
               </span>
               <span class="spacer"></span>
-              {#if mayRaise}<Button size="sm" onclick={() => raise(channel, r)}>Raise</Button>{/if}
+              {#if mayRaise}<Button size="sm" onclick={() => raise(channel, r)}>{t('eas:update.body.raise')}</Button>{/if}
             </div>
           {/each}
 
           {#if updateCount === 0}
-            <p class="muted text-sm">No update of this platform on this channel.</p>
+            <p class="muted text-sm">{t('eas:update.body.noUpdates')}</p>
           {:else}
-            <Disclosure summary="Newest updates ({updateCount})" stateKey="eas-update-{app.id}-{channel.id}">
+            <Disclosure summary={t('eas:update.body.newest', { count: updateCount })} stateKey="eas-update-{app.id}-{channel.id}">
               <div class="stack tight">
                 {#each channel.branches as branch (branch.id)}
                   {#if branch.groups.length > 0}
                     <div class="stack tight">
-                      <span class="text-sm"><strong>Branch {branch.name}</strong>{#if !branch.mapped} <span class="muted">(not in the channel's mapping)</span>{/if}</span>
+                      <span class="text-sm"><strong>{t('eas:update.body.branch', { name: branch.name })}</strong>{#if !branch.mapped} <span class="muted">{t('eas:update.body.notMapped')}</span>{/if}</span>
                       <ul class="plain stack tight">
                         {#each branch.groups as g (g.group)}
                           {#each g.updates as u (u.id)}
@@ -193,10 +198,10 @@
                                 <span class="what">
                                   {updateTitle(u)}
                                   <span class="muted text-sm">{updateDetail(u, now)}</span>
-                                  {#if u.rolloutPercentage !== null}<Badge tone="info">{u.rolloutPercentage}% rollout</Badge>{/if}
+                                  {#if u.rolloutPercentage !== null}<Badge tone="info">{t('eas:update.body.rolloutBadge', { percent: u.rolloutPercentage })}</Badge>{/if}
                                 </span>
                                 <span class="spacer"></span>
-                                <Button size="sm" variant="ghost" loading={entry?.loading === true} onclick={() => readInsights(g.group)}>Insights</Button>
+                                <Button size="sm" variant="ghost" loading={entry?.loading === true} onclick={() => readInsights(g.group)}>{t('eas:update.body.insights')}</Button>
                               </div>
                               {#if entry?.error}<p class="text-sm err">{entry.error}</p>{/if}
                               {#if entry?.data}
@@ -206,7 +211,7 @@
                                     <dd>{line.text}</dd>
                                   {/each}
                                 </dl>
-                                <p class="muted text-sm">Last {entry.data.days} days, as Expo reports them.</p>
+                                <p class="muted text-sm">{t('eas:update.body.insightsDays', { count: entry.data.days })}</p>
                               {/if}
                             </li>
                           {/each}
@@ -221,38 +226,40 @@
         </section>
       {/each}
       {#if view.channelsTruncated}
-        <p class="muted text-sm">Expo returned a full page of channels. There may be more than the ones shown.</p>
+        <p class="muted text-sm">{t('eas:update.body.truncated')}</p>
       {/if}
     {/if}
 
     {#if view.builds.length > 0}
-      <Disclosure summary="Store builds compared ({view.builds.length})" stateKey="eas-update-builds-{app.id}">
+      <Disclosure summary={t('eas:update.body.buildsCompared', { count: view.builds.length })} stateKey="eas-update-builds-{app.id}">
         <div class="table-wrap">
           <table class="compact">
-            <caption class="visually-hidden">Finished store builds and their runtime version</caption>
+            <caption class="visually-hidden">{t('eas:update.body.buildsCaption')}</caption>
             <thead>
               <tr>
-                <th scope="col">Version</th>
-                <th scope="col">Runtime version</th>
-                <th scope="col">Update channel</th>
+                <th scope="col">{t('eas:update.body.colVersion')}</th>
+                <th scope="col">{t('eas:config.runtime.label')}</th>
+                <th scope="col">{t('eas:update.body.colChannel')}</th>
               </tr>
             </thead>
             <tbody>
               {#each view.builds as b (b.id)}
                 <tr>
-                  <td>{b.appVersion ?? 'unknown'}{#if b.appBuildVersion} <span class="muted">({b.appBuildVersion})</span>{/if}</td>
-                  <td class="mono">{b.runtimeVersion ?? 'none'}</td>
-                  <td>{b.channel ?? 'none'}</td>
+                  <td>{b.appVersion ?? t('eas:update.body.unknown')}{#if b.appBuildVersion} <span class="muted">({b.appBuildVersion})</span>{/if}</td>
+                  <td class="mono">{b.runtimeVersion ?? t('eas:update.body.none')}</td>
+                  <td>{b.channel ?? t('eas:update.body.none')}</td>
                 </tr>
               {/each}
             </tbody>
           </table>
         </div>
-        <p class="muted text-sm">Finished builds with store distribution. Whether a build was submitted to a store is not checked.</p>
+        <p class="muted text-sm">{t('eas:update.body.buildsNote')}</p>
       </Disclosure>
     {/if}
   {/if}
 </div>
+
+{#snippet mono(text: string)}<span class="mono">{text}</span>{/snippet}
 
 {#if raising}
   {#key raising.group}

@@ -23,6 +23,7 @@
     updatesText,
     versionSourceText,
   } from '../../lib/eas/eas-config.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { AppSummary, EasConfigView, EasSeverity } from '../../lib/types.ts';
   import type { IconName } from '../../lib/icons.ts';
   import Alert from '../ui/Alert.svelte';
@@ -62,7 +63,7 @@
       onread?.(read, 'idle');
     } catch (e) {
       if (mine !== generation) return;
-      problem = e instanceof ApiError ? e.message : 'Could not read the EAS configuration.';
+      problem = e instanceof ApiError ? e.message : t('eas:config.body.readError');
       onread?.(view, 'error');
     } finally {
       if (mine === generation) loading = false;
@@ -85,15 +86,15 @@
     const out: { label: string; text: string; mono?: boolean }[] = [];
     if (!view || !config) return out;
     const expo = view.expoApp;
-    out.push({ label: 'App version source', text: versionSourceText(config.cli) });
-    if (config.cli.version) out.push({ label: 'EAS CLI version', text: config.cli.version, mono: true });
+    out.push({ label: t('eas:config.fact.versionSource'), text: versionSourceText(config.cli) });
+    if (config.cli.version) out.push({ label: t('eas:config.fact.cliVersion'), text: config.cli.version, mono: true });
     if (expo) {
-      if (expo.version) out.push({ label: 'App version', text: expo.version, mono: true });
+      if (expo.version) out.push({ label: t('eas:config.fact.appVersion'), text: expo.version, mono: true });
       for (const line of runtimeLines(expo)) out.push({ label: line.label, text: line.text });
-      out.push({ label: 'Expo Updates', text: updatesText(expo) });
-      if (expo.easProjectId) out.push({ label: 'EAS project id', text: expo.easProjectId, mono: true });
-      if (expo.iosBundleIdentifier) out.push({ label: 'Bundle identifier', text: expo.iosBundleIdentifier, mono: true });
-      if (expo.androidPackage) out.push({ label: 'Package name', text: expo.androidPackage, mono: true });
+      out.push({ label: t('eas:config.fact.expoUpdates'), text: updatesText(expo) });
+      if (expo.easProjectId) out.push({ label: t('eas:config.fact.projectId'), text: expo.easProjectId, mono: true });
+      if (expo.iosBundleIdentifier) out.push({ label: t('eas:config.fact.bundleId'), text: expo.iosBundleIdentifier, mono: true });
+      if (expo.androidPackage) out.push({ label: t('eas:config.fact.packageName'), text: expo.androidPackage, mono: true });
     }
     return out;
   });
@@ -101,43 +102,43 @@
 
 <div class="stack loose" aria-busy={loading}>
   {#if loading && !view}
-    <div class="stack" role="status" aria-label="Reading eas.json">
+    <div class="stack" role="status" aria-label={t('eas:config.collapsed.loading')}>
       <Skeleton width="70%" height="16px" />
       <Skeleton width="55%" height="16px" />
       <Skeleton width="62%" height="16px" />
     </div>
   {:else if problem && !view}
     <div class="stack">
-      <Alert tone="error" title="Could not read the EAS configuration">{problem}</Alert>
-      <div><Button icon="refresh" onclick={load}>Try again</Button></div>
+      <Alert tone="error" title={t('eas:config.body.readErrorTitle')}>{problem}</Alert>
+      <div><Button icon="refresh" onclick={load}>{t('eas:config.body.tryAgain')}</Button></div>
     </div>
   {:else if view}
-    {#if problem}<Alert tone="warn" title="Could not read it again">{problem} What is shown was read earlier.</Alert>{/if}
+    {#if problem}<Alert tone="warn" title={t('eas:config.body.rereadErrorTitle')}>{t('eas:config.body.rereadError', { problem })}</Alert>{/if}
     <div class="row caption">
       {#if view.found}<span class="muted text-sm">{readCaption(view, now)}</span>{/if}
       <span class="spacer"></span>
-      <Button size="sm" icon="refresh" loading={loading} onclick={load}>Read again</Button>
+      <Button size="sm" icon="refresh" loading={loading} onclick={load}>{t('eas:config.body.readAgain')}</Button>
     </div>
 
     {#if !view.found}
       {@const empty = emptyState(view)}
       <EmptyState icon="file-text" title={empty.title} description={empty.description} />
     {:else if config === null}
-      <Alert tone="error" title="eas.json could not be read">The file was found but its content could not be turned into profiles. The checks below say why.</Alert>
+      <Alert tone="error" title={t('eas:config.empty.unreadableTitle')}>{t('eas:config.body.unreadableDesc')}</Alert>
     {:else}
       <section class="stack tight" aria-labelledby="eas-build-heading-{app.id}">
-        <h4 id="eas-build-heading-{app.id}">Build profiles <span class="muted count">{config.build.length}</span></h4>
+        <h4 id="eas-build-heading-{app.id}">{t('eas:config.body.buildProfiles')} <span class="muted count">{config.build.length}</span></h4>
         {#if config.build.length === 0}
-          <p class="muted">No build profiles are defined.</p>
+          <p class="muted">{t('eas:config.body.noBuildProfiles')}</p>
         {:else}
           <div class="table-wrap">
             <table class="compact">
-              <caption class="visually-hidden">Build profiles of eas.json</caption>
+              <caption class="visually-hidden">{t('eas:config.body.buildCaption')}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Profile</th>
-                  <th scope="col">Settings</th>
-                  <th scope="col">Env variables</th>
+                  <th scope="col">{t('eas:config.body.colProfile')}</th>
+                  <th scope="col">{t('eas:config.body.colSettings')}</th>
+                  <th scope="col">{t('eas:config.body.colEnv')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -150,7 +151,7 @@
                     </td>
                     <td>
                       {#if chips.length === 0}
-                        <span class="muted">Defaults</span>
+                        <span class="muted">{t('eas:config.body.defaults')}</span>
                       {:else}
                         <span class="chips">
                           {#each chips as chip (chip.text)}<Badge tone={chip.tone}>{chip.text}</Badge>{/each}
@@ -167,9 +168,9 @@
       </section>
 
       <section class="stack tight" aria-labelledby="eas-submit-heading-{app.id}">
-        <h4 id="eas-submit-heading-{app.id}">Submit profiles <span class="muted count">{config.submit.length}</span></h4>
+        <h4 id="eas-submit-heading-{app.id}">{t('eas:config.body.submitProfiles')} <span class="muted count">{config.submit.length}</span></h4>
         {#if config.submit.length === 0}
-          <p class="muted">No submit profiles are defined.</p>
+          <p class="muted">{t('eas:config.body.noSubmitProfiles')}</p>
         {:else}
           <ul class="plain stack tight">
             {#each config.submit as profile (profile.name)}
@@ -181,10 +182,10 @@
                   {#if inherits}<span class="muted text-sm">{inherits}</span>{/if}
                 </span>
                 {#if lines.length === 0}
-                  <span class="muted text-sm">No store section.</span>
+                  <span class="muted text-sm">{t('eas:config.body.noStoreSection')}</span>
                 {:else}
                   {#each lines as line (line.label)}
-                    <span class="text-sm"><span class="muted">{line.label}:</span> {line.text}</span>
+                    <span class="text-sm"><span class="muted">{t('eas:config.body.lineLabel', { label: line.label })}</span> {line.text}</span>
                   {/each}
                 {/if}
               </li>
@@ -195,7 +196,7 @@
 
       {#if facts.length > 0}
         <section class="stack tight" aria-labelledby="eas-versions-heading-{app.id}">
-          <h4 id="eas-versions-heading-{app.id}">Versions and updates</h4>
+          <h4 id="eas-versions-heading-{app.id}">{t('eas:config.body.versions')}</h4>
           <dl class="facts">
             {#each facts as fact (fact.label)}
               <dt class="muted">{fact.label}</dt>
@@ -208,21 +209,21 @@
 
     {#if findings.length > 0}
       <section class="stack tight" aria-labelledby="eas-checks-heading-{app.id}">
-        <h4 id="eas-checks-heading-{app.id}">Checks <span class="muted count">{findingsHeadline(findings)}</span></h4>
+        <h4 id="eas-checks-heading-{app.id}">{t('eas:config.body.checks')} <span class="muted count">{findingsHeadline(findings)}</span></h4>
         <ul class="plain stack tight">
           {#each findings as finding, i (i)}
             <li class="finding">
               <Badge tone={badgeTone(finding.severity)} icon={severityIcon[finding.severity]}>{severityLabel(finding.severity)}</Badge>
               <span class="what">
                 {finding.message}
-                {#if finding.profile}<span class="muted text-sm"> Profile {finding.profile}.</span>{/if}
+                {#if finding.profile}<span class="muted text-sm"> {t('eas:config.body.findingProfile', { profile: finding.profile })}</span>{/if}
               </span>
             </li>
           {/each}
         </ul>
       </section>
     {:else if view.found && config !== null}
-      <p class="muted text-sm">No problems found in eas.json.</p>
+      <p class="muted text-sm">{t('eas:config.body.noProblems')}</p>
     {/if}
   {/if}
 </div>

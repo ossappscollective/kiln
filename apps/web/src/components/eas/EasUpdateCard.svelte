@@ -11,6 +11,7 @@
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { type EasUpdateState, updateSummary } from '../../lib/eas/eas-update.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Section from '../ui/Section.svelte';
   import EasUpdateBody from './EasUpdateBody.svelte';
@@ -45,7 +46,7 @@
 </script>
 
 {#if linked === true}
-  <Section title="EAS Update" key="eas-update-{app.id}" defaultOpen={false} {summary}>
+  <Section title={t('eas:update.card.title')} key="eas-update-{app.id}" defaultOpen={false} {summary}>
     <EasUpdateBody {api} {workspaceId} {role} {app} onread={(state, loading) => (read = { appId: app.id, state, loading })} />
   </Section>
 {/if}

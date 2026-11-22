@@ -10,6 +10,7 @@
   import { type Role, can } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { collapsedSummary } from '../../lib/eas/eas-config.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { AppSummary, EasConfigView } from '../../lib/types.ts';
   import Section from '../ui/Section.svelte';
   import EasConfigBody from './EasConfigBody.svelte';
@@ -24,7 +25,7 @@
 </script>
 
 {#if show}
-  <Section title="EAS configuration" key="eas-config-{app.id}" defaultOpen={false} {summary}>
+  <Section title={t('eas:config.card.title')} key="eas-config-{app.id}" defaultOpen={false} {summary}>
     <EasConfigBody {api} {workspaceId} {app} onread={(view, state) => (read = { appId: app.id, view, state })} />
   </Section>
 {/if}

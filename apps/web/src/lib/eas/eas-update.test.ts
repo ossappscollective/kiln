@@ -152,12 +152,12 @@ test('insights are shown as counts, a crash rate and sizes, and what Expo did no
     { label: 'Failed launches', text: '20' },
     { label: 'Crash rate', text: '0.16%' },
     { label: 'Unique users', text: '900' },
-    { label: 'Payload size', text: '470.8 KB' },
+    { label: 'Payload size', text: '471 kB' },
   ]);
   assert.equal(crashRateText(null), 'no launches yet');
   assert.equal(formatBytes(null), 'not reported');
-  assert.equal(formatBytes(512), '512 B');
-  assert.equal(formatBytes(5 * 1024 * 1024), '5.0 MB');
+  assert.equal(formatBytes(512), '512 byte');
+  assert.equal(formatBytes(5 * 1024 * 1024), '5 MB');
   assert.equal(formatCount(null), 'not reported');
 });
 

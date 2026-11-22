@@ -24,11 +24,13 @@
     linkStatus,
     projectReferenceProblem,
   } from '../../lib/eas/eas.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { CredentialSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
+  import T from '../ui/T.svelte';
   import '../readable-card.css';
 
   let {
@@ -102,7 +104,7 @@
     try {
       const out = await api.setExpoLink(workspaceId, app.id, { credentialId, project: typed });
       onchanged(out.link);
-      toast.success(`Linked to ${out.link.fullName}. Nothing in Expo was changed.`);
+      toast.success(t('eas:field.linked', { project: out.link.fullName }));
     } catch (e) {
       problem = easErrorText(e);
     } finally {
@@ -117,7 +119,7 @@
     try {
       await api.removeExpoLink(workspaceId, app.id);
       onchanged(null);
-      toast.success('Removed the link. Nothing in Expo was changed.');
+      toast.success(t('eas:field.removed'));
     } catch (e) {
       problem = easErrorText(e);
     } finally {
@@ -150,71 +152,73 @@
   {#if link}
     <dl class="facts">
       <div>
-        <dt>Project</dt>
+        <dt>{t('eas:field.project')}</dt>
         <dd>{link.projectName} <span class="muted">({link.fullName})</span></dd>
       </div>
       <div>
-        <dt>Project id</dt>
+        <dt>{t('eas:field.projectId')}</dt>
         <dd><code>{link.projectId}</code></dd>
       </div>
       <div>
-        <dt>Credential</dt>
-        <dd>{link.credentialLabel ?? 'Deleted'}</dd>
+        <dt>{t('eas:field.credential')}</dt>
+        <dd>{link.credentialLabel ?? t('eas:field.credentialDeleted')}</dd>
       </div>
     </dl>
-    {#if status}<p class="row"><Badge tone={status.tone} icon={status.tone === 'ok' ? 'check' : 'alert'}>{status.tone === 'ok' ? 'Linked' : 'Needs a credential'}</Badge> <span class="muted">{status.text}</span></p>{/if}
+    {#if status}<p class="row"><Badge tone={status.tone} icon={status.tone === 'ok' ? 'check' : 'alert'}>{status.tone === 'ok' ? t('eas:field.badgeLinked') : t('eas:field.badgeNeedsCredential')}</Badge> <span class="muted">{status.text}</span></p>{/if}
   {:else}
-    <p class="muted">This record is not linked to an Expo project.</p>
+    <p class="muted">{t('eas:field.notLinked')}</p>
   {/if}
 
   {#if canWrite}
     {#if choices.length === 0}
       <Alert tone="info">
-        Add an Expo access token first. In <a href={expoLinks.credentials}>Credentials</a>, choose “Expo access token”; the guide there explains how to create a robot user.
+        <T key="eas:link.credentialsHint" tags={{ link: credentialsLink }} />
       </Alert>
     {:else}
-      {#if fromSibling}<p class="muted">Filled in from the other record of this app. Save to link this one too.</p>{/if}
+      {#if fromSibling}<p class="muted">{t('eas:field.fromSibling')}</p>{/if}
       <div class="field">
-        <label for="{uid}-credential">Expo credential</label>
+        <label for="{uid}-credential">{t('eas:field.expoCredential')}</label>
         <select id="{uid}-credential" bind:value={credentialId} disabled={saving}>
-          <option value="">Choose a credential</option>
+          <option value="">{t('eas:field.chooseCredential')}</option>
           {#each choices as c (c.id)}
             <option value={c.id}>{c.label}</option>
           {/each}
         </select>
       </div>
       <div class="field">
-        <label for="{uid}-project">Project</label>
+        <label for="{uid}-project">{t('eas:field.project')}</label>
         <input
           id="{uid}-project"
           type="text"
           autocomplete="off"
           spellcheck="false"
-          placeholder="@account/slug or the project id"
+          placeholder={t('eas:field.projectPlaceholder')}
           bind:value={project}
           disabled={saving}
           aria-invalid={typed !== '' && reference !== '' ? 'true' : undefined}
         />
         <p class="hint">
-          {typed !== '' && reference !== '' ? reference : 'The project id is in app.json under extra.eas.projectId. Expo is asked before anything is saved.'}
+          {typed !== '' && reference !== '' ? reference : t('eas:field.projectHint')}
         </p>
       </div>
       {#if detection}<Alert tone={detection.detected ? 'ok' : 'info'}>{detectionText(detection)}</Alert>{/if}
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}
       <div class="row">
-        <Button variant="primary" loading={saving} disabled={!canSave} onclick={() => void save()}>{link ? 'Save changes' : 'Link project'}</Button>
+        <Button variant="primary" loading={saving} disabled={!canSave} onclick={() => void save()}>{link ? t('eas:field.saveChanges') : t('eas:field.linkProject')}</Button>
         {#if app.repositoryId}
-          <Button size="sm" variant="ghost" icon="search" loading={detecting} disabled={detecting || saving} onclick={() => void detect()}>Read from the repository</Button>
+          <Button size="sm" variant="ghost" icon="search" loading={detecting} disabled={detecting || saving} onclick={() => void detect()}>{t('eas:field.readFromRepository')}</Button>
         {/if}
         {#if link}
-          <Button size="sm" variant="ghost" icon="trash" loading={removing} disabled={removing || saving} onclick={() => void remove()}>Remove the link</Button>
+          <Button size="sm" variant="ghost" icon="trash" loading={removing} disabled={removing || saving} onclick={() => void remove()}>{t('eas:field.removeLink')}</Button>
         {/if}
       </div>
     {/if}
   {:else if link === null}
-    <p class="muted">Ask an owner or an admin to link it.</p>
+    <p class="muted">{t('eas:field.askAdmin')}</p>
   {/if}
 </div>
+
+{#snippet credentialsLink(text: string)}<a href={expoLinks.credentials}>{text}</a>{/snippet}
 
 <style>
   .field {
