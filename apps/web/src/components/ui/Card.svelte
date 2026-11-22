@@ -9,6 +9,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Section from './Section.svelte';
+  import { flatCards } from '../../lib/section-host.svelte.ts';
 
   let {
     title,
@@ -33,9 +34,12 @@
     defaultOpen?: boolean | undefined;
     children: Snippet;
   } = $props();
+
+  /** In a page that shows one section at a time the card is always open: it has nothing to collapse into. */
+  const flat = flatCards();
 </script>
 
-{#if collapseKey !== undefined && title}
+{#if collapseKey !== undefined && title && !flat}
   <Section {title} key={collapseKey} {summary} {count} {defaultOpen} {flush} {actions}>
     {#if description}<p class="desc">{description}</p>{/if}
     {@render children()}

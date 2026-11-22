@@ -136,28 +136,30 @@ Pure logic: `section-state.ts`, `scroll-keep.ts`, `app-switcher.ts` (`appSwitchH
 - **All apps, Board**: one status pill per card plus the "N pending" badge; the deadline and rollout plan are quiet text unless late.
 - **Tooltips and chart tips** are drawn by the `floating` action (top layer), centred or beside the crosshair; nothing clips them.
 
-## 0c. Workspace Settings in views (built)
+## 0c. Workspace Settings: a rail and one section at a time (built)
 
-`#/settings` was one list of twelve cards. It is now four views behind the same small segmented control (`ViewSwitch`), kept in the
-address as `?view=`. Pure logic: `settings-views.ts` (`settingsViews`, `settingsViewOf`, `resolveSettingsView`, `withSettingsView`).
+`#/settings` was one list of twelve cards, then four views behind a segmented control with a "Jump to" row, with cards that opened
+collapsed. It is now two panes, like the preferences of Slack and VS Code: a rail on the left (a search box, then sections in groups)
+and one section at a time on the right, kept in the address as `?section=`. Pure logic: `settings-views.ts` (`settingsGroupsFor`,
+`filterSettingsGroups`, `resolveSettingsSection`, `withSettingsSection`, `isFormSection`).
 
-| Address                                 | View      | Cards                                                                             |
-| --------------------------------------- | --------- | --------------------------------------------------------------------------------- |
-| `#/settings` (also an unknown `?view=`) | General   | Reviews, Releases, Translation                                                    |
-| `#/settings?view=analytics`             | Analytics | the opt-in, the Apple vendor number, the Play bucket                              |
-| `#/settings?view=security`              | Security  | Security: confirm hard actions, Recovery codes, Authenticator app and email, Mail |
-| `#/settings?view=ai`                    | AI        | AI assistant (with "What is sent" per task), Connect an AI assistant              |
+| Group        | Sections                                                           | Save                                  |
+| ------------ | ------------------------------------------------------------------ | ------------------------------------- |
+| Workspace    | Store refresh, Reviews, Releases, Translation, Analytics           | one form, one "Save settings" bar     |
+| Just for you | Language (this browser)                                            | applies at once                       |
+| Security     | Confirm hard actions (with recovery codes), Authenticator and email, Mail server (admins) | each card saves on its own |
+| AI           | AI assistant (`ai.use`), Connect an AI assistant                   | own save                              |
+| Integrations | Slack and Teams (`#/chat`), Webhooks (`#/webhooks`)                | links to their own pages              |
 
-- General is the default and is not written, so the old address keeps working. The links from Analytics ("Open Settings", the Play bucket
-  link) open the Analytics view.
-- Role gating is unchanged. A role without `settings.read` only gets the AI view (Connect an AI assistant is open to every role; the AI
-  assistant card needs `ai.use`), and with a single view there is no switch.
-- General and Analytics are one form with one state, held by the page, and one "Save settings" bar (with "Discard changes") under the
-  open form view. A switch of view keeps what was typed. On Security and AI a note says that changes are still waiting in General or
-  Analytics, with a link. A save that is blocked by a value on the other form view says which view to fix. The AI assistant card and
-  the Security cards keep their own saves.
-- Sections keep their collapse state (keys unique per card, page `settings`); "Collapse all" appears from three sections on a view.
-  The scroll position stays across a switch of view (query-only change, section 0b).
+- `#/settings` is Store refresh. The old `?view=general|analytics|security|ai` addresses (emails, other pages) open the first section of
+  that view, so nothing that links to them breaks.
+- The rail is sticky, has a search (matches a section or group name; Enter opens the first match) and marks the form sections with a
+  dot while changes are unsaved. Under 48rem it stacks above the section.
+- Cards are drawn open and without a toggle on this page (`provideFlatCards`, read by `Card`): a section is alone on screen.
+- Role gating is unchanged: a role without `settings.read` only gets Language and Connect an AI assistant (plus AI assistant with
+  `ai.use`); Mail needs `settings.write`; Slack and Teams needs `chat.read`.
+- The workspace form keeps one state held by the page and one save bar under the open section, so a change of section keeps what was
+  typed. On the other sections a note says changes are waiting, with a link. A save blocked by a value in another section says which.
 
 ## 1. IA tree (original proposal; the built navigation is in section 0)
 

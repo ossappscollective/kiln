@@ -70,3 +70,8 @@ export function createSectionHost(
 export const provideSectionHost = (host: SectionHost): void => void setContext(HOST, host);
 export const sectionHost = (): SectionHost | null =>
   getContext<SectionHost | undefined>(HOST) ?? null;
+
+const FLAT = Symbol('kiln.flat-cards');
+/** A page that shows one section at a time (Settings) draws its cards open and without a toggle: call this once in the page. */
+export const provideFlatCards = (): void => void setContext(FLAT, true);
+export const flatCards = (): boolean => getContext<boolean | undefined>(FLAT) === true;

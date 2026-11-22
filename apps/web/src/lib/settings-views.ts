@@ -1,112 +1,155 @@
 import type { Action } from '@kiln/core';
-import type { SectionView } from './app-nav.ts';
 import { parseViewPath } from './app-scope.ts';
 import { k, t } from './i18n/t.ts';
 
 /**
- * The views of the workspace Settings page (`#/settings?view=security`), as pure functions like lib/app-nav.ts. The page was one long
- * list of cards; it is now four views behind the small segmented control (ViewSwitch):
- *   General   Reviews, Releases, Translation (the form with the "Save settings" bar)
- *   Analytics the opt-in, the Apple vendor number, the Play bucket (the same form)
- *   Security  confirm hard actions, recovery codes, authenticator app and email, mail
- *   AI        the AI assistant and "Connect an AI assistant"
- * `#/settings` is General and stays a valid address. General is the default and is not written. An unknown `?view=` is General.
+ * The sections of the workspace Settings page (`#/settings?section=reviews`), as pure functions like lib/app-nav.ts. The page is a
+ * list of sections in a rail on the left (grouped, with a search) and one section at a time on the right, like the preferences of
+ * Slack and VS Code. The old addresses stay valid: `?view=general|analytics|security|ai` opens the first section of that old view.
+ *
+ *   Workspace     Store refresh, Reviews, Releases, Translation, Analytics   (one form, one "Save settings" bar)
+ *   Just for you  Language                                                   (this browser; applies at once)
+ *   Security      Confirm hard actions, Authenticator and email, Mail server
+ *   AI            AI assistant, Connect an AI assistant
+ *   Integrations  Slack and Teams, Webhooks                                  (links to their own pages)
  */
 
-export type SettingsView = 'general' | 'analytics' | 'security' | 'ai';
+export type SettingsGroup = 'workspace' | 'personal' | 'security' | 'ai' | 'integrations';
 
-export type SettingsViewDef = SectionView & { id: SettingsView };
+export type SettingsSectionId =
+  | 'store-refresh'
+  | 'reviews'
+  | 'releases'
+  | 'translation'
+  | 'analytics'
+  | 'language'
+  | 'confirm'
+  | 'second-factor'
+  | 'mail'
+  | 'ai'
+  | 'mcp'
+  | 'chat'
+  | 'webhooks';
 
-/** A view as the table below holds it: `labelKey` is a message key (translated when the views are listed). */
-type SettingsViewKeyDef = Omit<SettingsViewDef, 'label'> & { labelKey: string };
+/** `form`: part of the settings form (the save bar is drawn). `page`: a section with its own save. `link`: opens another page. */
+export type SettingsSectionKind = 'form' | 'page' | 'link';
 
-/**
- * `requires` is the right to read the workspace settings. The AI view has none: "Connect an AI assistant" is open to every role
- * (the cards inside gate themselves).
- */
-export const settingsViews: readonly SettingsViewKeyDef[] = [
-  { id: 'general', labelKey: k('settings:views.general'), requires: 'settings.read' },
-  { id: 'analytics', labelKey: k('settings:views.analytics'), requires: 'settings.read' },
-  { id: 'security', labelKey: k('settings:views.security'), requires: 'settings.read' },
-  { id: 'ai', labelKey: k('settings:views.ai') },
+type SectionKeyDef = {
+  id: SettingsSectionId;
+  group: SettingsGroup;
+  labelKey: string;
+  kind: SettingsSectionKind;
+  /** The right needed to see it; none means every role. */
+  requires?: Action;
+  /** For a link: the address it opens. */
+  href?: string;
+};
+
+export const settingsSections: readonly SectionKeyDef[] = [
+  { id: 'store-refresh', group: 'workspace', labelKey: k('settings:section.storeRefresh'), kind: 'form', requires: 'settings.read' },
+  { id: 'reviews', group: 'workspace', labelKey: k('settings:section.reviews'), kind: 'form', requires: 'settings.read' },
+  { id: 'releases', group: 'workspace', labelKey: k('settings:section.releases'), kind: 'form', requires: 'settings.read' },
+  { id: 'translation', group: 'workspace', labelKey: k('settings:section.translation'), kind: 'form', requires: 'settings.read' },
+  { id: 'analytics', group: 'workspace', labelKey: k('settings:section.analytics'), kind: 'form', requires: 'settings.read' },
+  { id: 'language', group: 'personal', labelKey: k('settings:section.language'), kind: 'page' },
+  { id: 'confirm', group: 'security', labelKey: k('settings:section.confirm'), kind: 'page', requires: 'settings.read' },
+  { id: 'second-factor', group: 'security', labelKey: k('settings:section.secondFactor'), kind: 'page', requires: 'settings.read' },
+  { id: 'mail', group: 'security', labelKey: k('settings:section.mail'), kind: 'page', requires: 'settings.write' },
+  { id: 'ai', group: 'ai', labelKey: k('settings:section.ai'), kind: 'page', requires: 'ai.use' },
+  { id: 'mcp', group: 'ai', labelKey: k('settings:section.mcp'), kind: 'page' },
+  { id: 'chat', group: 'integrations', labelKey: k('settings:section.chat'), kind: 'link', requires: 'chat.read', href: '#/chat' },
+  { id: 'webhooks', group: 'integrations', labelKey: k('settings:section.webhooks'), kind: 'link', requires: 'webhooks.read', href: '#/webhooks' },
 ];
 
-/** The views of the form that share one state and one "Save settings" bar. */
-export const settingsFormViews: readonly SettingsView[] = ['general', 'analytics'];
+const groupLabelKeys: Record<SettingsGroup, string> = {
+  workspace: k('settings:group.workspace'),
+  personal: k('settings:group.personal'),
+  security: k('settings:group.security'),
+  ai: k('settings:group.ai'),
+  integrations: k('settings:group.integrations'),
+};
 
-export const isSettingsView = (value: string | null | undefined): value is SettingsView =>
-  settingsViews.some((v) => v.id === value);
+const groupOrder: readonly SettingsGroup[] = ['workspace', 'personal', 'security', 'ai', 'integrations'];
 
-/** The view an address names; nothing or an unknown value is General. */
-export function settingsViewOf(hash: string): SettingsView {
-  const asked = parseViewPath(hash).query.get('view');
-  return isSettingsView(asked) ? asked : 'general';
+export type SettingsSectionDef = {
+  id: SettingsSectionId;
+  label: string;
+  kind: SettingsSectionKind;
+  href?: string;
+};
+
+export type SettingsGroupDef = { id: SettingsGroup; label: string; items: SettingsSectionDef[] };
+
+const isSection = (value: string | null | undefined): value is SettingsSectionId =>
+  settingsSections.some((s) => s.id === value);
+
+/** The sections a role may see, grouped in order; a group with nothing in it is left out. */
+export function settingsGroupsFor(allowed: (action: Action) => boolean): SettingsGroupDef[] {
+  return groupOrder
+    .map((group) => ({
+      id: group,
+      label: t(groupLabelKeys[group]),
+      items: settingsSections
+        .filter((s) => s.group === group && (!s.requires || allowed(s.requires)))
+        .map((s) => ({ id: s.id, label: t(s.labelKey), kind: s.kind, ...(s.href ? { href: s.href } : {}) })),
+    }))
+    .filter((g) => g.items.length > 0);
 }
 
-const openViews = (allowed: (action: Action) => boolean): SettingsViewDef[] =>
-  settingsViews
-    .filter((v) => !v.requires || allowed(v.requires))
-    .map(({ labelKey, ...rest }) => ({ ...rest, label: t(labelKey) }));
-
-/** The views a role may open, in order; empty when there is nothing to switch between (fewer than two). */
-export function settingsViewsFor(allowed: (action: Action) => boolean): SettingsViewDef[] {
-  const list = openViews(allowed);
-  return list.length > 1 ? list : [];
+/** The groups narrowed by a search: a section stays when its name or its group's name has the text in it (case and accents ignored). */
+export function filterSettingsGroups(groups: readonly SettingsGroupDef[], query: string): SettingsGroupDef[] {
+  const needle = fold(query);
+  if (needle === '') return [...groups];
+  return groups
+    .map((g) => ({ ...g, items: fold(g.label).includes(needle) ? g.items : g.items.filter((i) => fold(i.label).includes(needle)) }))
+    .filter((g) => g.items.length > 0);
 }
 
-/** The view to draw: the one the address names when the role may open it, else the first the role may open. */
-export function resolveSettingsView(
-  hash: string,
-  allowed: (action: Action) => boolean,
-): SettingsView {
-  const list = openViews(allowed);
-  const asked = settingsViewOf(hash);
-  return list.find((v) => v.id === asked)?.id ?? list[0]?.id ?? 'general';
+const fold = (text: string): string =>
+  text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
+
+/** What the old `?view=` addresses open now (emails and other pages still link to them). */
+const legacyView: Record<string, SettingsSectionId> = {
+  general: 'store-refresh',
+  analytics: 'analytics',
+  security: 'confirm',
+  ai: 'ai',
+};
+
+/** The section an address names (a link section never is the current one); null when it names none. */
+export function settingsSectionOf(hash: string): SettingsSectionId | null {
+  const query = parseViewPath(hash).query;
+  const asked = query.get('section');
+  if (isSection(asked)) return asked;
+  const old = query.get('view');
+  return old ? (legacyView[old] ?? null) : null;
 }
 
-/** The same address on another view. General is the default and is not written; other query parts stay. */
-export function withSettingsView(hash: string, view: string): string {
-  if (!isSettingsView(view)) return hash;
+/** The section to draw: the one the address names when the role may open it, else the first the role may open. */
+export function resolveSettingsSection(hash: string, allowed: (action: Action) => boolean): SettingsSectionId {
+  const open = settingsSections.filter((s) => s.kind !== 'link' && (!s.requires || allowed(s.requires)));
+  const asked = settingsSectionOf(hash);
+  return open.find((s) => s.id === asked)?.id ?? open[0]?.id ?? 'language';
+}
+
+/** The same address on another section; the old `view` is dropped and other query parts stay. */
+export function withSettingsSection(hash: string, section: string): string {
+  if (!isSection(section)) return hash;
   const at = hash.indexOf('?');
   const path = at < 0 ? hash : hash.slice(0, at);
   const params = new URLSearchParams(at < 0 ? '' : hash.slice(at + 1));
-  if (view === 'general') params.delete('view');
-  else params.set('view', view);
-  const search = params.toString();
-  return search === '' ? path : `${path}?${search}`;
+  params.delete('view');
+  params.set('section', section);
+  return `${path}?${params.toString()}`;
 }
 
-/** Whether a view holds the settings form (so "Save settings" is drawn there). */
-export const isFormView = (view: SettingsView): boolean => settingsFormViews.includes(view);
+/** Whether a section is part of the settings form (so "Save settings" is drawn there). */
+export const isFormSection = (section: SettingsSectionId): boolean =>
+  settingsSections.some((s) => s.id === section && s.kind === 'form');
 
-/** The views of the form with their label, for the note on another view that unsaved changes wait on. */
-export const unsavedViewsNote = (view: SettingsView): string =>
-  isFormView(view) ? '' : t('settings:views.unsavedNote');
-
-/** One part of a Settings view the person can jump to: `id` is the element id of its wrapper on the page. */
+/** One part of a page the person can jump to: `id` is the element id of its wrapper on the page (the "Jump to" row of the app settings). */
 export type SettingsSection = { id: string; label: string };
-
-/**
- * The parts of a view, in the order they are drawn, for the "Jump to" row. Store refresh is the first part of General: it is what makes
- * alerts work, so it is not buried under the reviews and translation choices. Security keeps every sign-in and confirmation item
- * together: confirming hard actions (with the recovery codes), the second factor, and the mail server (admins only). A view with fewer
- * than three parts has no row. Pass `isAdmin` for the mail part.
- */
-export function settingsSectionsFor(view: SettingsView, isAdmin = false): SettingsSection[] {
-  const list: SettingsSection[] =
-    view === 'general'
-      ? [
-          { id: 'settings-store-refresh', label: t('settings:section.storeRefresh') },
-          { id: 'settings-reviews', label: t('settings:section.reviews') },
-          { id: 'settings-releases', label: t('settings:section.releases') },
-          { id: 'settings-translation', label: t('settings:section.translation') },
-        ]
-      : view === 'security'
-        ? [
-            { id: 'settings-confirm', label: t('settings:section.confirm') },
-            { id: 'settings-second-factor', label: t('settings:section.secondFactor') },
-            ...(isAdmin ? [{ id: 'settings-mail', label: t('settings:section.mail') }] : []),
-          ]
-        : [];
-  return list.length >= 3 ? list : [];
-}

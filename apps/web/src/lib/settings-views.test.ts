@@ -2,92 +2,92 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { can, roles } from '@kiln/core';
 import {
-  isFormView,
-  resolveSettingsView,
-  settingsSectionsFor,
-  settingsViewOf,
-  settingsViews,
-  settingsViewsFor,
-  unsavedViewsNote,
-  withSettingsView,
+  filterSettingsGroups,
+  isFormSection,
+  resolveSettingsSection,
+  settingsGroupsFor,
+  settingsSectionOf,
+  withSettingsSection,
 } from './settings-views.ts';
 
 const all = () => true;
 const none = () => false;
 
-test('the views are General, Analytics, Security and AI, in that order', () => {
+test('the groups are Workspace, Just for you, Security, AI and Integrations, in that order', () => {
+  const groups = settingsGroupsFor(all);
   assert.deepEqual(
-    settingsViews.map((v) => v.id),
-    ['general', 'analytics', 'security', 'ai'],
+    groups.map((g) => g.id),
+    ['workspace', 'personal', 'security', 'ai', 'integrations'],
   );
   assert.deepEqual(
-    settingsViewsFor(all).map((v) => v.label),
-    ['General', 'Analytics', 'Security', 'AI'],
+    groups[0]?.items.map((i) => i.label),
+    ['Store refresh', 'Reviews', 'Releases', 'Translation', 'Analytics'],
   );
 });
 
-test('the old address and unknown values are General', () => {
-  assert.equal(settingsViewOf('#/settings'), 'general');
-  assert.equal(settingsViewOf('#/settings?view=nope'), 'general');
-  assert.equal(settingsViewOf(''), 'general');
-  assert.equal(settingsViewOf('#/settings?view=security'), 'security');
-  assert.equal(settingsViewOf('#/settings?view=ai&x=1'), 'ai');
-});
-
-test('a role without settings.read only has the AI view, and nothing to switch', () => {
+test('Slack and Teams, and webhooks, are links to their own pages', () => {
+  const integrations = settingsGroupsFor(all).find((g) => g.id === 'integrations');
   assert.deepEqual(
-    settingsViewsFor(none).map((v) => v.id),
-    [],
+    integrations?.items.map((i) => [i.id, i.kind, i.href]),
+    [
+      ['chat', 'link', '#/chat'],
+      ['webhooks', 'link', '#/webhooks'],
+    ],
   );
-  assert.equal(resolveSettingsView('#/settings', none), 'ai');
-  assert.equal(resolveSettingsView('#/settings?view=security', none), 'ai');
 });
 
-test('every role that can read the settings gets all four views', () => {
+test('a role only sees what it may open; empty groups are left out', () => {
+  const ids = settingsGroupsFor(none).flatMap((g) => g.items.map((i) => i.id));
+  assert.deepEqual(ids, ['language', 'mcp']);
   for (const role of roles) {
     const allowed = (a: Parameters<typeof can>[1]) => can(role, a);
-    const ids = settingsViewsFor(allowed).map((v) => v.id);
-    if (can(role, 'settings.read'))
-      assert.deepEqual(ids, ['general', 'analytics', 'security', 'ai'], role);
-    else assert.deepEqual(ids, [], role);
+    const list = settingsGroupsFor(allowed).flatMap((g) => g.items.map((i) => i.id));
+    assert.equal(list.includes('mail'), can(role, 'settings.write'), role);
+    assert.equal(list.includes('chat'), can(role, 'chat.read'), role);
   }
 });
 
-test('withSettingsView writes the view, drops it for General and keeps other query parts', () => {
-  assert.equal(withSettingsView('#/settings', 'security'), '#/settings?view=security');
-  assert.equal(withSettingsView('#/settings?view=security', 'general'), '#/settings');
-  assert.equal(
-    withSettingsView('#/settings?view=ai&x=1', 'analytics'),
-    '#/settings?view=analytics&x=1',
-  );
-  assert.equal(withSettingsView('#/settings', 'bogus'), '#/settings');
+test('the address names a section; the old ?view= addresses open the first section of the old view', () => {
+  assert.equal(settingsSectionOf('#/settings'), null);
+  assert.equal(settingsSectionOf('#/settings?section=reviews'), 'reviews');
+  assert.equal(settingsSectionOf('#/settings?section=nope'), null);
+  assert.equal(settingsSectionOf('#/settings?view=general'), 'store-refresh');
+  assert.equal(settingsSectionOf('#/settings?view=analytics'), 'analytics');
+  assert.equal(settingsSectionOf('#/settings?view=security'), 'confirm');
+  assert.equal(settingsSectionOf('#/settings?view=ai'), 'ai');
 });
 
-test('Save settings belongs to the form views; the others warn about unsaved changes', () => {
-  assert.equal(isFormView('general'), true);
-  assert.equal(isFormView('analytics'), true);
-  assert.equal(isFormView('security'), false);
-  assert.equal(isFormView('ai'), false);
-  assert.equal(unsavedViewsNote('general'), '');
-  assert.notEqual(unsavedViewsNote('ai'), '');
+test('the section drawn is the one named when allowed, else the first allowed; a link is never drawn', () => {
+  assert.equal(resolveSettingsSection('#/settings', all), 'store-refresh');
+  assert.equal(resolveSettingsSection('#/settings?section=translation', all), 'translation');
+  assert.equal(resolveSettingsSection('#/settings?section=chat', all), 'store-refresh');
+  assert.equal(resolveSettingsSection('#/settings?section=mail', none), 'language');
+  assert.equal(resolveSettingsSection('#/settings?view=ai', none), 'language');
 });
 
-test('General lists Store refresh first, then the other parts in the order they are drawn', () => {
+test('withSettingsSection writes the section, drops the old view and keeps other query parts', () => {
+  assert.equal(withSettingsSection('#/settings', 'reviews'), '#/settings?section=reviews');
+  assert.equal(withSettingsSection('#/settings?view=ai&x=1', 'mail'), '#/settings?x=1&section=mail');
+  assert.equal(withSettingsSection('#/settings', 'nope'), '#/settings');
+});
+
+test('Save settings belongs to the form sections only', () => {
+  assert.equal(isFormSection('reviews'), true);
+  assert.equal(isFormSection('analytics'), true);
+  assert.equal(isFormSection('language'), false);
+  assert.equal(isFormSection('mail'), false);
+});
+
+test('search matches a section name or its group name, ignoring case and accents', () => {
+  const groups = settingsGroupsFor(all);
   assert.deepEqual(
-    settingsSectionsFor('general').map((s) => s.label),
-    ['Store refresh', 'Reviews', 'Releases', 'Translation'],
+    filterSettingsGroups(groups, 'REVI').flatMap((g) => g.items.map((i) => i.id)),
+    ['reviews'],
   );
-});
-
-test('Security keeps confirmation, the second factor and (for admins) mail together', () => {
-  assert.deepEqual(settingsSectionsFor('security'), [], 'two parts need no jump row');
   assert.deepEqual(
-    settingsSectionsFor('security', true).map((s) => s.label),
-    ['Confirm hard actions', 'Authenticator and email', 'Mail server'],
+    filterSettingsGroups(groups, 'security').flatMap((g) => g.items.map((i) => i.id)),
+    ['confirm', 'second-factor', 'mail'],
   );
-});
-
-test('views with fewer than three parts have no jump row', () => {
-  assert.deepEqual(settingsSectionsFor('analytics'), []);
-  assert.deepEqual(settingsSectionsFor('ai'), []);
+  assert.deepEqual(filterSettingsGroups(groups, 'zzz'), []);
+  assert.equal(filterSettingsGroups(groups, '  ').length, groups.length);
 });
