@@ -17,6 +17,7 @@ import { getSettings } from '../../services/workspace-settings.ts';
 import { resolvePlayBucket } from './store.ts';
 import { type AnalyticsContext, classifyAnalyticsError } from './sync.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * The Google Play reports bucket (docs/api/analytics.md, docs/research/analytics-apis.md). Google keeps ONE private Cloud Storage bucket
  * per Play developer account and organises the reports inside by package name. A workspace can hold apps of SEVERAL Play accounts, so
@@ -68,7 +69,12 @@ export type SetBucketInput = {
 };
 
 const notAndroid = () =>
-  failure(422, 'not_an_android_app', 'The Play reports bucket is for Android apps.');
+  failure(
+    422,
+    'not_an_android_app',
+    'The Play reports bucket is for Android apps.',
+    coded('analytics.playBucketAndroid'),
+  );
 
 export async function setPlayBucket(
   db: Database,

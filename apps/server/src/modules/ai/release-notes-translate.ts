@@ -20,6 +20,7 @@ import {
 import { currentAiWarning, runAiDirect } from './ai-direct.ts';
 import type { ConcurrencyGate, UsageWarning } from './ai-usage.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Translating the "what is new" text of a release into other languages (docs/api/releases-write.md, docs/adr/0028-release-notes-translation.md).
  *
@@ -261,7 +262,7 @@ async function translateAi(
         429,
         'ai_busy',
         'This workspace already has AI runs in progress. Try again in a few seconds.',
-        { retryAfterSeconds: 5 },
+        { retryAfterSeconds: 5, ...coded('ai.runsInProgress') },
         { 'Retry-After': '5' },
       ),
       provider,

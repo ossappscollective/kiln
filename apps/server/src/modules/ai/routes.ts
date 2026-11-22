@@ -24,6 +24,7 @@ import {
   testAiConnection,
 } from './service.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * AI assistance (docs/api/ai.md, docs/adr/0016-ai-foundation.md). Mounted under /api/workspaces.
  *
@@ -175,6 +176,7 @@ export function aiRoutes(ctx: AiRoutesContext) {
       {
         error: 'rate_limited',
         message: `Too many AI requests. Try again in ${wait} seconds.`,
+        ...coded('rate.ai', { count: wait }),
         retryAfterSeconds: wait,
       },
       429,

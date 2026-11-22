@@ -14,6 +14,7 @@ import {
   withDeadline,
 } from './sync.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * "Enable Apple analytics" (docs/adr/0017-analytics-foundation.md): the ONE store write of analytics. It creates an
  * `analyticsReportRequest` at Apple, so Apple starts producing the reports (ONGOING), and optionally one ONE_TIME_SNAPSHOT for the
@@ -90,6 +91,7 @@ async function prepare(
       422,
       'not_apple_app',
       'Analytics reports are an App Store feature. This app is not an iOS or macOS app.',
+      coded('analytics.appStoreOnly'),
     );
   }
   const settings = (await getSettings(ctx.db, input.workspaceId)).values;
@@ -98,6 +100,7 @@ async function prepare(
       409,
       'analytics_disabled',
       'Analytics is off for this workspace. An admin turns it on in the settings (analytics.enabled).',
+      coded('analytics.off'),
     );
   }
   if (!app.storeAppId) return failure(422, 'app_not_synced', analyticsErrorMessages.app_not_synced);
@@ -239,10 +242,12 @@ export async function applyEnable(
           409,
           'plan_changed',
           'What Apple has changed since the preview. Review the new plan and confirm it.',
+          coded('analytics.planChanged'),
         ),
         body: {
           error: 'plan_changed',
           message: 'What Apple has changed since the preview. Review the new plan and confirm it.',
+          ...coded('analytics.planChanged'),
           plan: preview.plan,
           confirmHash: preview.confirmHash,
         },

@@ -26,6 +26,7 @@ import {
   type TaskContext,
 } from './ai-task-types.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Task `keyword_ideas` (version 1): candidate search keywords for an app in one language and storefront, each with a
  * reason and the listing field it would help in. The result is a PROPOSAL: accepting it adds the chosen terms to the keywords the
@@ -185,7 +186,7 @@ export const keywordIdeasTask: ReadyTask = {
         422,
         'no_listing_text',
         'No listing text is stored for this language yet. Sync the app or read the repository first.',
-        { field: 'locale' },
+        { field: 'locale', ...coded('ai.noListingText') },
       );
     }
     const specs = (store === 'app_store' ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS) as Record<

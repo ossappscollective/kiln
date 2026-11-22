@@ -69,6 +69,7 @@ import {
   usageWarning,
 } from './ai-usage.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Running AI tasks, and accepting or dismissing what they proposed (docs/adr/0016-ai-foundation.md, docs/api/ai.md).
  *
@@ -340,14 +341,16 @@ async function buildRun(ctx: AiServices, input: RunInput): Promise<Built | AiFai
   if (!task)
     return aiFail(404, 'unknown_task', 'There is no such AI task.', {
       taskId: input.taskId.slice(0, 60),
+      ...coded('notFound.aiTask'),
     });
   if (task.status !== 'ready') {
     return aiFail(409, 'task_not_available', 'This task is registered but not built yet.', {
       task: task.id,
+      ...coded('ai.taskNotBuilt'),
     });
   }
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
-  if (!app) return aiFail(404, 'not_found', 'There is no such app.');
+  if (!app) return aiFail(404, 'not_found', 'There is no such app.', coded('notFound.app'));
   const context = (await getAppContext(ctx.db, input.workspaceId, app.id)).context;
 
   const prepared = await task.prepare(
@@ -373,6 +376,7 @@ async function buildRun(ctx: AiServices, input: RunInput): Promise<Built | AiFai
       {
         estimatedTokens: estimatedInput,
         maxInputTokens: values.maxInputTokens,
+        ...coded('ai.inputTooLarge'),
       },
     );
   }
@@ -466,7 +470,7 @@ export async function runAiTask(
       429,
       'ai_busy',
       'This workspace already has AI runs in progress. Try again in a few seconds.',
-      { retryAfterSeconds: 5 },
+      { retryAfterSeconds: 5, ...coded('ai.runsInProgress') },
       { 'Retry-After': '5' },
     );
   }
@@ -486,6 +490,7 @@ export async function runAiTask(
             capCents: values.monthlyCostCapCents,
             estimatedCents: spent.costCents,
             resetsAt: month.resetsAt,
+            ...coded('ai.costCap'),
           },
         );
       }
@@ -512,7 +517,12 @@ export async function runAiTask(
         429,
         'ai_budget_exhausted',
         'The monthly token budget of this workspace is used up. It resets at the start of next month, or an admin can raise it in the AI settings.',
-        { budget: reserved.budget, used: reserved.used, resetsAt: usage.resetsAt },
+        {
+          budget: reserved.budget,
+          used: reserved.used,
+          resetsAt: usage.resetsAt,
+          ...coded('ai.tokenBudget'),
+        },
       );
     }
     const inputHash = sha(inputText);
@@ -733,7 +743,7 @@ export async function testAiConnection(
       429,
       'ai_busy',
       'This workspace already has AI runs in progress. Try again in a few seconds.',
-      { retryAfterSeconds: 5 },
+      { retryAfterSeconds: 5, ...coded('ai.runsInProgress') },
       { 'Retry-After': '5' },
     );
   const runId = newId();
@@ -760,7 +770,12 @@ export async function testAiConnection(
         429,
         'ai_budget_exhausted',
         'The monthly token budget of this workspace is used up.',
-        { budget: reserved.budget, used: reserved.used, resetsAt: usage.resetsAt },
+        {
+          budget: reserved.budget,
+          used: reserved.used,
+          resetsAt: usage.resetsAt,
+          ...coded('ai.tokenBudgetUsed'),
+        },
       );
     }
     const built = await buildAiClient(ctx, input.workspaceId, availability, input.actor);
@@ -871,7 +886,12 @@ export async function dismissSuggestion(
   id: string,
 ): Promise<AiOutcome<{ suggestion: AiSuggestionView }>> {
   const found = await getSuggestion(ctx.db, who.workspaceId, id);
-  if (!found) return aiFail(404, 'not_found', 'There is no such suggestion.');
+  if (!found) return aiFail(
+    404,
+    'not_found',
+    'There is no such suggestion.',
+    coded('notFound.suggestion'),
+  );
   if (found.status !== 'proposed') return notProposed(found);
   const at = ctx.now();
   const won = await ctx.db.transaction(async (tx) => {
@@ -920,7 +940,12 @@ export async function acceptSuggestion(
   body: AcceptBody,
 ): Promise<AiOutcome<{ suggestion: AiSuggestionView; result: AiAcceptedRef }>> {
   const found = await getSuggestion(ctx.db, who.workspaceId, id);
-  if (!found) return aiFail(404, 'not_found', 'There is no such suggestion.');
+  if (!found) return aiFail(
+    404,
+    'not_found',
+    'There is no such suggestion.',
+    coded('notFound.suggestion'),
+  );
   if (found.status !== 'proposed') return notProposed(found);
   const action = aiAcceptAction[found.kind];
   if (!who.allowed(action)) {
@@ -928,11 +953,16 @@ export async function acceptSuggestion(
       403,
       'forbidden',
       `Accepting this kind of suggestion needs the right ${action}.`,
-      { action },
+      { action, ...coded('ai.suggestionNeedsRight', { action }) },
     );
   }
   const app = await getApp(ctx.db, who.workspaceId, found.appId);
-  if (!app) return aiFail(404, 'not_found', 'The app of this suggestion no longer exists.');
+  if (!app) return aiFail(
+    404,
+    'not_found',
+    'The app of this suggestion no longer exists.',
+    coded('ai.suggestionAppGone'),
+  );
 
   // What would be created is decided (and refused) BEFORE the claim, so a refusal changes nothing.
   const plan = planAccept(found.proposal, body);
@@ -1321,14 +1351,19 @@ async function applyPlan(
     case 'reply_draft': {
       const review = await getReviewView(ctx.db, workspaceId, app.id, plan.reviewId);
       if (!review)
-        return aiFail(404, 'not_found', 'The review of this suggestion no longer exists.');
+        return aiFail(
+          404,
+          'not_found',
+          'The review of this suggestion no longer exists.',
+          coded('ai.suggestionReviewGone'),
+        );
       const existing = review.replyDraft;
       if (existing && existing.status !== 'draft') {
         return aiFail(
           409,
           'reply_not_editable',
           'This review already has a reply that was sent, or is being sent. A draft cannot replace it.',
-          { status: existing.status },
+          { status: existing.status, ...coded('ai.replyExists') },
         );
       }
       if (existing && existing.text !== plan.text && !replace) {

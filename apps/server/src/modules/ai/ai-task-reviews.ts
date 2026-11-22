@@ -34,6 +34,7 @@ import {
 import { bool, int, line, oneOf, paragraphOf, str, strings } from './ai-task-lenient.ts';
 import { checkScope, clip, type PreparedRun, type ReadyTask } from './ai-task-types.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * The review tasks (docs/adr/0024-ai-features.md): `review_summary`, `review_classify` and `fix_next`.
  *
@@ -171,7 +172,7 @@ export const reviewSummaryTask: ReadyTask = {
         422,
         'no_reviews',
         'There are no reviews with text in this period. Sync the reviews, or choose more days.',
-        { field: 'days' },
+        { field: 'days', ...coded('ai.noReviewsInPeriod') },
       );
     }
     const input = {
@@ -405,6 +406,7 @@ export const reviewClassifyTask: ReadyTask = {
         if (!review)
           return aiFail(404, 'not_found', 'There is no such review in this app.', {
             reviewId: id.slice(0, 60),
+            ...coded('notFound.review'),
           });
         if ((review.title ?? '').trim() === '' && review.body.trim() === '') continue;
         pool.push(toAiReview(review, `r${pool.length + 1}`, 80, 240));
@@ -649,7 +651,7 @@ export const fixNextTask: ReadyTask = {
         422,
         'no_reviews',
         'There are no reviews of 3 stars or fewer with text in this period.',
-        { field: 'days' },
+        { field: 'days', ...coded('ai.noLowReviews') },
       );
     }
     const rows = await ctx.db.query(

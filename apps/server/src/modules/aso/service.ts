@@ -39,6 +39,7 @@ import { type Failure, failure } from '../../services/repositories.ts';
 import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
 import type { AsoSources, PublicApp } from './net.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * ASO data and its refresh: tracked keywords and their rank checks, followed competitors and their
  * public snapshots (docs/adr/0011-aso-keywords-competitors.md, docs/api/aso.md). Everything read here
@@ -138,7 +139,12 @@ export function asoFailure(error: unknown): Failure {
         return failure(502, 'source_failed', error.message);
     }
   }
-  return failure(502, 'source_failed', 'The store could not be read. Try again in a moment.');
+  return failure(
+    502,
+    'source_failed',
+    'The store could not be read. Try again in a moment.',
+    coded('aso.storeUnreadable'),
+  );
 }
 
 export const playDisabledFailure = (): Failure =>
@@ -794,7 +800,7 @@ export async function addCompetitor(
   if (!country)
     return failure(422, 'invalid_country', 'The country is two letters, such as us or de.');
   if (externalId === storeSideId(app.platform, app)) {
-    return failure(422, 'own_app', 'That is this app itself.');
+    return failure(422, 'own_app', 'That is this app itself.', coded('aso.competitorSelf'));
   }
   const store = platformStore(app.platform);
   const [counted] = await ctx.db.query(
@@ -806,12 +812,18 @@ export async function addCompetitor(
     [app.id, store, externalId, country],
   );
   if (dup)
-    return failure(409, 'already_followed', 'This competitor is already followed in that country.');
+    return failure(
+      409,
+      'already_followed',
+      'This competitor is already followed in that country.',
+      coded('aso.competitorExists'),
+    );
   if (Number(counted?.n ?? 0) >= ctx.limits.maxCompetitorsPerApp) {
     return failure(
       409,
       'limit_reached',
       `An app follows at most ${ctx.limits.maxCompetitorsPerApp} competitors (KILN_ASO_MAX_COMPETITORS_PER_APP).`,
+      coded('aso.competitorLimit', { max: ctx.limits.maxCompetitorsPerApp }),
     );
   }
   let found: PublicApp | undefined;
@@ -825,7 +837,12 @@ export async function addCompetitor(
   } catch (error) {
     return asoFailure(error);
   }
-  if (!found) return failure(422, 'not_found', 'The store has no such app in that country.');
+  if (!found) return failure(
+    422,
+    'not_found',
+    'The store has no such app in that country.',
+    coded('aso.noStoreApp'),
+  );
   const at = ctx.now();
   const id = randomUUID();
   try {
@@ -866,7 +883,12 @@ export async function addCompetitor(
     });
   } catch {
     // The unique index: somebody added it a moment ago.
-    return failure(409, 'already_followed', 'This competitor is already followed in that country.');
+    return failure(
+      409,
+      'already_followed',
+      'This competitor is already followed in that country.',
+      coded('aso.competitorExists'),
+    );
   }
   return {
     ok: true,
@@ -1038,7 +1060,12 @@ export async function refreshApp(
     !(await claim(ctx.db, input.workspaceId, app.id, ctx.now(), actor.id))
   ) {
     return {
-      ...failure(409, 'refresh_in_progress', 'This app is being refreshed right now.'),
+      ...failure(
+        409,
+        'refresh_in_progress',
+        'This app is being refreshed right now.',
+        coded('aso.refreshing'),
+      ),
       transient: true,
     };
   }
@@ -1053,6 +1080,7 @@ export async function refreshApp(
         502,
         'refresh_failed',
         'The ASO refresh could not be completed. Try again in a moment.',
+        coded('aso.refreshFailed'),
       ),
       transient: true,
     };
@@ -1316,7 +1344,7 @@ async function run(
       502,
       'refresh_failed',
       'No store check could be made. The reasons are in the result.',
-      { result },
+      { result, ...coded('aso.noStoreCheck') },
     );
     return { ...failure502, transient: result.errors.some((e) => !e.startsWith('unavailable_')) };
   }

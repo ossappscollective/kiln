@@ -62,6 +62,7 @@ import {
   upsertPoints,
 } from './store.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Reads the analytics of an app from its stores into `analytics_daily` (docs/adr/0017-analytics-foundation.md). Read only toward the
  * stores: the one store write of analytics (creating an Apple report request) is a separate, explicit action (analytics-enable.ts).
@@ -936,13 +937,19 @@ export async function syncAnalytics(
         409,
         'analytics_disabled',
         'Analytics is off for this workspace. An admin turns it on in the settings (analytics.enabled).',
+        coded('analytics.off'),
       ),
       transient: false,
     };
   }
   if (running.has(app.id)) {
     return {
-      ...failure(409, 'sync_in_progress', 'The analytics of this app are already being read.'),
+      ...failure(
+        409,
+        'sync_in_progress',
+        'The analytics of this app are already being read.',
+        coded('analytics.alreadyReading'),
+      ),
       transient: false,
     };
   }

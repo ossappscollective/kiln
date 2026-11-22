@@ -40,6 +40,7 @@ import {
   type ReadyTask,
 } from './ai-task-types.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * The ASO insight tasks (docs/adr/0024-ai-features.md): `listing_audit`, `aso_health` and `keyword_ideas_reviews`.
  *
@@ -188,7 +189,7 @@ export const listingAuditTask: ReadyTask = {
         422,
         'no_listing_text',
         'No listing text is stored for this language yet. Sync the app or read the repository first.',
-        { field: 'locale' },
+        { field: 'locale', ...coded('ai.noListingText') },
       );
     const specs = specsFor(apple);
     const names = AUDIT_FIELDS[store];
@@ -495,6 +496,7 @@ export const asoHealthTask: ReadyTask = {
         422,
         'no_data',
         'There is nothing to report on yet. Track some keywords, run a rank check or turn on analytics first.',
+        coded('ai.nothingToReport'),
       );
     }
     const ranks: number[] = [];
@@ -707,7 +709,7 @@ export const keywordIdeasFromReviewsTask: ReadyTask = {
         422,
         'no_listing_text',
         'No listing text is stored for this language yet. Sync the app or read the repository first.',
-        { field: 'locale' },
+        { field: 'locale', ...coded('ai.noListingText') },
       );
     const listing: Record<string, string> = {};
     for (const field of KEYWORD_FIELDS[store]) {

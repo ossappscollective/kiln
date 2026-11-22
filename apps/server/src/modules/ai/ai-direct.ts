@@ -26,6 +26,7 @@ import {
   usageWarning,
 } from './ai-usage.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * ONE answer from the workspace's AI provider, returned to the caller and stored nowhere (docs/adr/0028-release-notes-translation.md).
  *
@@ -82,7 +83,11 @@ export async function runAiDirect(
       422,
       'ai_input_too_large',
       'The data for this run is larger than the input limit of this workspace. Nothing was sent.',
-      { estimatedTokens: estimatedInput, maxInputTokens: values.maxInputTokens },
+      {
+        estimatedTokens: estimatedInput,
+        maxInputTokens: values.maxInputTokens,
+        ...coded('ai.inputTooLarge'),
+      },
     );
   }
   const maxTokens = Math.min(run.maxOutputTokens, values.maxOutputTokens);
@@ -104,6 +109,7 @@ export async function runAiDirect(
           capCents: values.monthlyCostCapCents,
           estimatedCents: spent.costCents,
           resetsAt: month.resetsAt,
+          ...coded('ai.costCap'),
         },
       );
     }
@@ -131,7 +137,12 @@ export async function runAiDirect(
       429,
       'ai_budget_exhausted',
       'The monthly token budget of this workspace is used up. It resets at the start of next month, or an admin can raise it in the AI settings.',
-      { budget: reserved.budget, used: reserved.used, resetsAt: usage.resetsAt },
+      {
+        budget: reserved.budget,
+        used: reserved.used,
+        resetsAt: usage.resetsAt,
+        ...coded('ai.tokenBudget'),
+      },
     );
   }
   const built: BuiltClient | AiFailure = await buildAiClient(

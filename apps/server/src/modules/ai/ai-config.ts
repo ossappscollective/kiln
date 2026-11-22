@@ -32,6 +32,7 @@ import {
   resolveAllowed,
 } from '../../services/webhook-transport.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * The AI configuration of a workspace and the failure vocabulary of the AI routes (docs/api/ai.md,
  * docs/adr/0016-ai-foundation.md).
@@ -385,7 +386,11 @@ export async function updateAiConfig(
     return {
       ok: false,
       status: 403,
-      body: { error: 'forbidden', message: 'Only an admin may change the AI settings.' },
+      body: {
+        error: 'forbidden',
+        message: 'Only an admin may change the AI settings.',
+        ...coded('ai.adminOnly'),
+      },
     };
   const issues: { path: string; message: string; code?: AddressHint }[] = [];
   const next = new Map<AiConfigKey, unknown>();
@@ -412,7 +417,12 @@ export async function updateAiConfig(
     return {
       ok: false,
       status: 400,
-      body: { error: 'invalid_setting', message: 'An AI setting is not valid.', issues },
+      body: {
+        error: 'invalid_setting',
+        message: 'An AI setting is not valid.',
+        ...coded('ai.settingInvalid'),
+        issues,
+      },
     };
 
   return db.transaction(async (tx): Promise<UpdateAiConfigResult> => {

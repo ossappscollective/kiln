@@ -31,6 +31,7 @@ import {
   type ReadyTask,
 } from './ai-task-types.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Task `listing_improve` (version 1): rewrites the text of chosen listing fields of one language within the store's limits.
  *
@@ -220,7 +221,7 @@ export const listingImproveTask: ReadyTask = {
         422,
         'no_listing_text',
         'No listing text is stored for this language yet. Sync the app or read the repository first.',
-        { field: 'locale' },
+        { field: 'locale', ...coded('ai.noListingText') },
       );
     }
     const specs = byFamily(ctx.app.platform, {

@@ -33,6 +33,7 @@ import {
   upsertPoints,
 } from './store.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Importing a report file by hand (docs/adr/0017-analytics-foundation.md): the way in for an app whose key may not create report
  * requests (`analytics_role_required`), and for history. For an Android app the file is a Play Console statistics CSV (installs,
@@ -136,6 +137,7 @@ export async function parseImport(
           422,
           'unknown_report',
           'This file is not a Play Console statistics report (installs, ratings or store listing). Download it from Play Console under Download reports, Statistics.',
+          coded('analytics.notPlayReport'),
         );
       source = 'play_reports';
       kind = parsed.report;
@@ -258,10 +260,12 @@ export async function applyImport(
         409,
         'confirm_mismatch',
         'The file is not the one that was previewed. Preview it again and confirm.',
+        coded('analytics.fileChanged'),
       ),
       body: {
         error: 'confirm_mismatch',
         message: 'The file is not the one that was previewed. Preview it again and confirm.',
+        ...coded('analytics.fileChanged'),
       },
     };
   }

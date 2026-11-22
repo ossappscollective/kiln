@@ -14,6 +14,7 @@ import {
   translateReleaseNotes,
 } from './release-notes-translate.ts';
 
+import { coded } from '../../i18n/problem.ts';
 export type ReleaseNotesTranslateRoutesContext = NotesTranslateContext & {
   /** Requests per workspace per minute (default built in createApp: 10). */
   limiter: TestLimiter;
@@ -98,6 +99,7 @@ export function releaseNotesTranslateRoutes(ctx: ReleaseNotesTranslateRoutesCont
           {
             error: 'rate_limited',
             message: `Too many translation requests. Try again in ${wait} seconds.`,
+            ...coded('rate.translation', { count: wait }),
             retryAfterSeconds: wait,
           },
           429,

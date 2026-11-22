@@ -194,7 +194,14 @@ export async function listDeliveries(
 
 export type TestAlertResult =
   | { ok: true; alertId: string; deliveries: DeliveryView[] }
-  | { ok: false; status: 403 | 400; error: string; message?: string };
+  | {
+      ok: false;
+      status: 403 | 400;
+      error: string;
+      message?: string;
+      code?: string;
+      params?: ErrorParams;
+    };
 
 /**
  * Sends a test alert on one channel to the person who asked (the webhook channel goes to the workspace's endpoints and needs an
@@ -211,6 +218,7 @@ export async function sendTestAlert(
       status: 403,
       error: 'forbidden',
       message: 'Only an admin can send a test to the workspace webhooks.',
+      ...coded('alerts.testAdminOnly'),
     };
   }
   const def = alertDef('test.alert');

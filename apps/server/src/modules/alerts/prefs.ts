@@ -17,18 +17,27 @@ import {
 } from './catalog.ts';
 import { type DigestMode, digestModes, isValidTimeZone } from './time.ts';
 
+import { coded, type Coding, type ErrorParams } from '../../i18n/problem.ts';
 /**
  * What people and admins decided about alerts (docs/alerts.md): the workspace rule of each type (admins), a person's own settings,
  * channels per type and app, and mutes (everyone for themselves). Pure reads and writes of choices; nothing here sends anything.
  */
 
 type Actor = { type: ActorType; id: string };
-export type PrefsFailure = { ok: false; status: 400 | 404; error: string; message?: string };
-const bad = (error: string, message: string): PrefsFailure => ({
+export type PrefsFailure = {
+  ok: false;
+  status: 400 | 404;
+  error: string;
+  message?: string;
+  code?: string;
+  params?: ErrorParams;
+};
+const bad = (error: string, message: string, coding?: Coding): PrefsFailure => ({
   ok: false,
   status: 400,
   error,
   message,
+  ...coding,
 });
 
 const parseJson = <T>(value: unknown, fallback: T): T => {
@@ -369,7 +378,11 @@ export async function setPreference(
   if (!def || def.source.kind === 'internal') return { ok: false, status: 404, error: 'not_found' };
   if (input.appId !== null) {
     if (def.scope !== 'app')
-      return bad('not_app_scoped', 'This alert is about the whole workspace, not one app.');
+      return bad(
+        'not_app_scoped',
+        'This alert is about the whole workspace, not one app.',
+        coded('alerts.notAppScoped'),
+      );
     const [app] = await ctx.db.query('SELECT id FROM apps WHERE id = ? AND workspace_id = ?', [
       input.appId,
       input.workspaceId,
@@ -460,7 +473,11 @@ export async function createMute(
     alertType !== null &&
     (!alertDef(alertType) || alertDef(alertType)?.source.kind === 'internal')
   )
-    return bad('unknown_alert_type', 'That alert type does not exist.');
+    return bad(
+      'unknown_alert_type',
+      'That alert type does not exist.',
+      coded('alerts.unknownType'),
+    );
   if (
     input.until !== null &&
     (!Number.isInteger(input.until) || input.until <= at || input.until > at + 366 * 24 * 3_600_000)
@@ -468,6 +485,7 @@ export async function createMute(
     return bad(
       'invalid_until',
       'A snooze ends in the future, within a year. Leave it out to mute until you turn it back on.',
+      coded('alerts.snoozeInvalid'),
     );
   }
   if (appId !== null) {
@@ -479,7 +497,11 @@ export async function createMute(
   }
   const active = await listMutes(ctx.db, input.workspaceId, input.userId, at);
   if (active.length >= MAX_MUTES_PER_USER)
-    return bad('too_many_mutes', 'There are too many mutes. Remove some you no longer need.');
+    return bad(
+      'too_many_mutes',
+      'There are too many mutes. Remove some you no longer need.',
+      coded('alerts.tooManyMutes'),
+    );
   const id = randomUUID();
   await ctx.db.execute(
     'INSERT INTO alert_mutes (id, workspace_id, user_id, app_id, alert_type, until, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',

@@ -34,6 +34,7 @@ import {
 } from './prefs.ts';
 import { digestModes } from './time.ts';
 
+import { coded, codingOf } from '../../i18n/problem.ts';
 /** Bodies, exported for the operations registry (services/api-operations-alerts.ts). */
 export const markReadBody = z
   .object({
@@ -121,8 +122,20 @@ export function alertRoutes(ctx: AlertRoutesContext) {
     onError: (c) =>
       c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413),
   });
-  const failure = (c: Context<AppEnv>, f: { status: 400 | 404; error: string; message?: string }) =>
-    c.json({ error: f.error, ...(f.message ? { message: f.message } : {}) }, f.status);
+  const failure = (
+    c: Context<AppEnv>,
+    f: {
+      status: 400 | 404;
+      error: string;
+      message?: string;
+      code?: string;
+      params?: unknown;
+    },
+  ) =>
+    c.json(
+      { error: f.error, ...(f.message ? { message: f.message } : {}), ...codingOf(f) },
+      f.status,
+    );
   const badQuery = (c: Context<AppEnv>, path: string, max: number) =>
     c.json(
       {
@@ -303,6 +316,7 @@ export function alertRoutes(ctx: AlertRoutesContext) {
         {
           error: 'rate_limited',
           message: `Too many tests. Try again in ${wait} seconds.`,
+          ...coded('rate.tests', { count: wait }),
           retryAfterSeconds: wait,
         },
         429,
@@ -316,7 +330,7 @@ export function alertRoutes(ctx: AlertRoutesContext) {
     });
     if (!done.ok)
       return c.json(
-        { error: done.error, ...(done.message ? { message: done.message } : {}) },
+        { error: done.error, ...(done.message ? { message: done.message } : {}), ...codingOf(done) },
         done.status,
       );
     return c.json({ alertId: done.alertId, deliveries: done.deliveries }, 202);

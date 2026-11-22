@@ -52,6 +52,7 @@ import {
   updateKeyword,
 } from './service.ts';
 
+import { coded } from '../../i18n/problem.ts';
 export type AsoRoutesContext = AsoContext & {
   /** Store lookups and refreshes per workspace per minute (default 10, built in createApp). */
   limiter: TestLimiter;
@@ -122,6 +123,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       {
         error: 'rate_limited',
         message: `Too many store lookups. Try again in ${wait} seconds.`,
+        ...coded('rate.lookups', { count: wait }),
         retryAfterSeconds: wait,
       },
       429,
@@ -193,6 +195,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
         {
           error: 'not_google_play_app',
           message: 'Search terms are a Google Play report. This app is an iOS or macOS app.',
+          ...coded('aso.playOnly'),
         },
         422,
       );

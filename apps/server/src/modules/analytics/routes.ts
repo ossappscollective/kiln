@@ -27,6 +27,7 @@ import { productSales } from './product-sales.ts';
 import { checkOverviewQuery, overview, status } from './query.ts';
 import { type AnalyticsContext, syncAnalytics } from './sync.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Analytics: daily metrics from the stores (docs/api/analytics.md, docs/adr/0017-analytics-foundation.md). Mounted under /api/workspaces.
  *
@@ -98,7 +99,14 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
   };
   const notFound = (c: Context<AppEnv>) => c.json({ error: 'not_found' }, 404);
   const tooLarge = (c: Context) =>
-    c.json({ error: 'payload_too_large', message: 'The file is too large.' }, 413);
+    c.json(
+      {
+        error: 'payload_too_large',
+        message: 'The file is too large.',
+        ...coded('analytics.fileTooLarge'),
+      },
+      413,
+    );
   const limited = (c: Context<AppEnv>) => {
     const wait = ctx.limiter.take(ws(c));
     if (wait <= 0) return undefined;
@@ -107,6 +115,7 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
       {
         error: 'rate_limited',
         message: `Too many analytics requests. Try again in ${wait} seconds.`,
+        ...coded('rate.analytics', { count: wait }),
         retryAfterSeconds: wait,
       },
       429,
@@ -228,7 +237,11 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
     if (!app) return notFound(c);
     if (!supports(app.platform, 'playReportsBucket'))
       return c.json(
-        { error: 'not_an_android_app', message: 'The Play reports bucket is for Android apps.' },
+        {
+          error: 'not_an_android_app',
+          message: 'The Play reports bucket is for Android apps.',
+          ...coded('analytics.playBucketAndroid'),
+        },
         422,
       );
     return c.json({ playBucket: await getPlayBucket(db, ws(c), app) });

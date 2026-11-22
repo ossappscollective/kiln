@@ -32,6 +32,7 @@ import {
   type ReadyTask,
 } from './ai-task-types.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * `listing_variants` and `listing_translate` (docs/adr/0024-ai-features.md): several alternative texts for a field, and a translation of
  * the listing text into another language. Both end in text a person reads and STAGES (`changesets.write`, source `ai`): the same
@@ -209,7 +210,7 @@ export const listingVariantsTask: ReadyTask = {
         422,
         'no_listing_text',
         'No listing text is stored for this language yet. Sync the app or read the repository first.',
-        { field: 'locale' },
+        { field: 'locale', ...coded('ai.noListingText') },
       );
     const goal = cleanGoal(scope.goal, aiLimits.maxGoalChars);
     if (chosen.includes('release_notes') && chosen.length === 1 && !goal) {
@@ -217,7 +218,7 @@ export const listingVariantsTask: ReadyTask = {
         422,
         'goal_needed',
         'Say what changed in this release (the goal) so the "What is new" variants are about something true.',
-        { field: 'goal' },
+        { field: 'goal', ...coded('ai.goalRequired') },
       );
     }
     const specs = specsFor(ctx.app.platform);
@@ -446,6 +447,7 @@ export const listingTranslateTask: ReadyTask = {
     if (target.toLowerCase() === source.toLowerCase()) {
       return aiFail(400, 'invalid_request', 'The target language is the source language.', {
         issues: [{ path: 'locale', message: 'Choose another language.' }],
+        ...coded('ai.sameLanguage'),
       });
     }
     const allowed = TRANSLATE_FIELDS[storeFamilyOf(ctx.app.platform)];
@@ -478,7 +480,7 @@ export const listingTranslateTask: ReadyTask = {
         422,
         'no_listing_text',
         'No listing text is stored for the source language. Sync the app or read the repository first.',
-        { field: 'sourceLocale' },
+        { field: 'sourceLocale', ...coded('ai.noSourceText') },
       );
     const into = await loadLocaleTexts(ctx, target);
     const have = chosen.filter((f) => (from.values.get(f) ?? '').trim() !== '');
@@ -487,7 +489,7 @@ export const listingTranslateTask: ReadyTask = {
         422,
         'no_listing_text',
         'The source language has no text in the fields you chose.',
-        { field: 'fields' },
+        { field: 'fields', ...coded('ai.sourceFieldsEmpty') },
       );
     const specs = specsFor(ctx.app.platform);
     const fields = have.map((field) => ({
