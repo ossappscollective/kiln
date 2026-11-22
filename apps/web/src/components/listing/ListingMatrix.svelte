@@ -27,6 +27,8 @@
   import { ApiError, type Api } from '../../lib/api.ts';
   import type { AsoKeyword } from '../../lib/aso/aso.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { openStatusPopover } from '../../lib/app-page.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { shortRef } from '../../lib/listing/drift.ts';
@@ -72,6 +74,7 @@
   import Section from '../ui/Section.svelte';
   import SectionsToggle from '../ui/SectionsToggle.svelte';
   import StatusPill from '../ui/StatusPill.svelte';
+  import T from '../ui/T.svelte';
   import FieldEditor from './FieldEditor.svelte';
   import HistoryDrawer from './HistoryDrawer.svelte';
   import ListingSections from './ListingSections.svelte';
@@ -80,7 +83,7 @@
   import PullResultSummary from './PullResultSummary.svelte';
   import StagedTray from './StagedTray.svelte';
   import StatusDot from './StatusDot.svelte';
-  import { countOf, summaryLine } from '../../lib/section-state.ts';
+  import { summaryLine } from '../../lib/section-state.ts';
 
   let {
     api,
@@ -168,7 +171,7 @@
       ]);
       if (mine !== generations[app.id]) return;
       views[app.id] = { drift, live: live ?? before.live, loading: false, reloading: false, problem: '' };
-      announcement = `Listing of ${platformLabel(app.platform)} compared.`;
+      announcement = t('listing:matrixView.compared', { platform: platformLabel(app.platform) });
     } catch (e) {
       if (mine !== generations[app.id]) return;
       const current = views[app.id] ?? before;
@@ -345,7 +348,7 @@
     const repositoryId = result.target.repositoryId;
     const options = {
       action: {
-        label: 'Review the draft',
+        label: t('listing:tab.reviewDraft'),
         href: reviewHref,
         onclick: () => requestChangeSetReview({ repositoryId, changeSetId }),
       },
@@ -361,18 +364,25 @@
       for (const app of readable) {
         try {
           const result = await api.refreshAppRepoListing(workspaceId, app.id);
-          const who = both ? `${platformLabel(app.platform)}: ` : '';
+          const platform = platformLabel(app.platform);
           if (!result.found) {
-            toast.warning(`${who}The repository has no store listing for this app. Check the listing settings of the repository.`);
+            toast.warning(both ? t('listing:matrixView.repoNoneFor', { platform }) : t('listing:tab.noRepoListing'));
           } else {
             const ref = shortRef('repo', result.ref);
+            const counts = { changed: result.changed, removed: result.removed, unchanged: result.unchanged };
             toast.success(
-              `${who}Read the repository listing${ref ? ` at ${ref}` : ''}: ${result.changed} changed, ${result.removed} removed, ${result.unchanged} unchanged.`,
+              both
+                ? ref
+                  ? t('listing:matrixView.repoReadForAt', { platform, ref, ...counts })
+                  : t('listing:matrixView.repoReadFor', { platform, ...counts })
+                : ref
+                  ? t('listing:tab.repoReadAt', { ref, ...counts })
+                  : t('listing:tab.repoRead', counts),
             );
           }
           await load(app);
         } catch (e) {
-          toast.error(e instanceof ApiError ? e.message : 'Something went wrong. Try again.');
+          toast.error(e instanceof ApiError ? e.message : t('common:error.genericRetry'));
         }
       }
     } finally {
@@ -389,8 +399,8 @@
     try {
       const done = await api.stageText(workspaceId, app.id, { locale: field.locale, field: field.field, from: 'repo' });
       stagedStore.set(done.staged);
-      announcement = `Staged ${field.label} (${field.locale}) from the repository.`;
-      toast.success(`Staged ${field.label} (${field.locale}) from the repository. It is not in the store yet: push it from the staged changes below.`);
+      announcement = t('listing:matrixView.stagedAnnounce', { label: field.label, locale: field.locale });
+      toast.success(t('listing:matrixView.stagedToast', { label: field.label, locale: field.locale }));
     } catch (e) {
       toast.error(stagingMessage(e));
     } finally {
@@ -404,7 +414,7 @@
     try {
       const done = await api.unstageItem(workspaceId, app.id, id);
       stagedStore.set(done.staged);
-      announcement = `Removed ${field.label} (${field.locale}) from the staged changes.`;
+      announcement = t('listing:matrixView.unstagedAnnounce', { label: field.label, locale: field.locale });
     } catch (e) {
       toast.error(stagingMessage(e));
     } finally {
@@ -425,7 +435,7 @@
   }
 
   const dimmed = (status: CellStatus) => filter.mode !== 'all' && !cellMatchesMode(status, filter.mode);
-  const platformNames = (platforms: Platform[]) => platforms.map(platformLabel).join(' and ');
+  const platformNames = (platforms: Platform[]) => formatList(platforms.map(platformLabel));
 </script>
 
 <div class="stack listing" aria-busy={loading}>
@@ -434,9 +444,9 @@
   {#each members as app (app.id)}
     {@const view = views[app.id]}
     {#if view?.problem}
-      <Alert tone="error" title="Could not load the {platformLabel(app.platform)} listing">
-        {view.problem}{view.drift ? ' The values below are from before.' : ''}
-        {#if !view.drift}<div class="retry"><Button size="sm" icon="refresh" onclick={() => load(app)}>Try again</Button></div>{/if}
+      <Alert tone="error" title={t('listing:matrixView.loadFailed', { platform: platformLabel(app.platform) })}>
+        {view.drift ? t('listing:tab.updateFailed', { problem: view.problem }) : view.problem}
+        {#if !view.drift}<div class="retry"><Button size="sm" icon="refresh" onclick={() => load(app)}>{t('common:action.tryAgain')}</Button></div>{/if}
       </Alert>
     {/if}
   {/each}
@@ -445,12 +455,12 @@
     <PageLead
       testid="listing-status-line"
       tone={line.tone === 'ok' ? 'ok' : line.tone === 'warn' ? 'warn' : 'neutral'}
-      headline={`${line.text}${anySyncing ? ' · reading the store…' : ''}`}
-      hint="{listingContext(shown, matrix.rows.length)}. Press the pencil in a cell to edit it; changes are staged, and nothing reaches a store until you publish them."
+      headline={anySyncing ? t('listing:matrixView.reading', { text: line.text }) : line.text}
+      hint={t('listing:matrixView.hint', { context: listingContext(shown, matrix.rows.length) })}
     >
       {#snippet actions()}
         {#if line.attention > 0 && filter.mode !== 'differing'}
-          <Button variant="primary" onclick={() => setMode('differing')}>Show the {line.attention === 1 ? 'locale' : `${line.attention} locales`} that need attention</Button>
+          <Button variant="primary" onclick={() => setMode('differing')}>{t('listing:matrixView.showAttention', { count: line.attention })}</Button>
         {/if}
       {/snippet}
     </PageLead>
@@ -459,52 +469,45 @@
   <div class="toolbar">
     <div class="filters">
       {#if hasRows}
-        <div class="chips" role="group" aria-label="Filter the locales">
+        <div class="chips" role="group" aria-label={t('listing:matrixView.filterAria')}>
           {#each MODE_ORDER as mode (mode)}
             <button type="button" class="bare chip" aria-pressed={filter.mode === mode} onclick={() => setMode(mode)}>
-              {MODE_LABELS[mode]} <span class="count tabular">{counts[mode]}</span>
+              {t(MODE_LABELS[mode])} <span class="count tabular">{counts[mode]}</span>
             </button>
           {/each}
         </div>
-        <label class="visually-hidden" for="listing-locale-query">Search locales</label>
-        <input id="listing-locale-query" type="search" placeholder="Search locale or language" bind:value={filter.query} />
+        <label class="visually-hidden" for="listing-locale-query">{t('listing:matrixView.searchLabel')}</label>
+        <input id="listing-locale-query" type="search" placeholder={t('listing:matrixView.searchPlaceholder')} bind:value={filter.query} />
       {/if}
       {#if !nothingLoaded}
         {#if warningCount > 0}
           <StatusPill
             tone="warn"
-            label="{warningCount} read {warningCount === 1 ? 'warning' : 'warnings'}"
+            label={t('listing:matrixView.warnings', { count: warningCount })}
             bind:open={warningsOpen}
             stateKey="listing.warnings"
             controls="listing-warnings"
           />
         {/if}
-        {#if members.some((m) => views[m.id]?.reloading)}<span class="muted updating">updating…</span>{/if}
+        {#if members.some((m) => views[m.id]?.reloading)}<span class="muted updating">{t('listing:matrixView.updating')}</span>{/if}
       {/if}
     </div>
     {#if !nothingLoaded}
       <div class="actions row wrap">
         <SectionsToggle />
-        <InfoTip label="Legend and sources of this grid" buttonText="Legend and sources" icon="info" align="end" width="min(28rem, 92vw)">
+        <InfoTip label={t('listing:matrixView.legendLabel')} buttonText={t('listing:matrixView.legendButton')} icon="info" align="end" width="min(28rem, 92vw)">
           {#if hasRows}
-            <p>
-              Each cell compares one listing field of one locale between the repository and the store
-              ({members.map((m) => storeName(m.platform)).join(' and ')}). This view only reads: it never changes a store.
-              Open a locale for the full comparison.
-            </p>
-            <ul class="legend" aria-label="What the marks mean">
+            <p>{t('listing:matrixView.legendIntro', { stores: formatList(members.map((m) => storeName(m.platform))) })}</p>
+            <ul class="legend" aria-label={t('listing:matrixView.legendMarksAria')}>
               {#each LEGEND_ORDER as status (status)}
                 <li><StatusDot {status} /> <span>{cellInfo(status).short}</span></li>
               {/each}
-              {#if both}<li><StatusDot status="na" /> <span>Not on that store</span></li>{/if}
-              <li><span class="staged-mark"><Icon name="layers" size={14} /></span> <span>Staged for a draft push</span></li>
+              {#if both}<li><StatusDot status="na" /> <span>{t('listing:matrixView.notOnStore')}</span></li>{/if}
+              <li><span class="staged-mark"><Icon name="layers" size={14} /></span> <span>{t('listing:matrixView.stagedMark')}</span></li>
             </ul>
-            <p class="muted">
-              A dimmed cell is one the filter is not about. A field only one store has is marked "iOS only" or "Android only";
-              a field with a different limit on each store shows both limits.
-            </p>
+            <p class="muted">{t('listing:matrixView.legendNote')}</p>
           {/if}
-          <p class="eyebrow">Sources</p>
+          <p class="eyebrow">{t('listing:matrixView.sources')}</p>
           <dl class="sources">
             {#each members as app (app.id)}
               {@const view = views[app.id]}
@@ -513,19 +516,19 @@
                   <dt>{both ? platformLabel(app.platform) : storeName(app.platform)}</dt>
                   <dd>
                     {#if view.drift.store.readAt !== null}
-                      store read <time datetime={new Date(view.drift.store.readAt).toISOString()} title={fullTime(view.drift.store.readAt)}>{timeAgo(view.drift.store.readAt, now)}</time>
-                      {#if view.drift.channel === 'editable'}<span class="muted"> (editable version: no version is live yet)</span>{/if}
+                      <time datetime={new Date(view.drift.store.readAt).toISOString()} title={fullTime(view.drift.store.readAt)}>{t('listing:matrixView.storeReadAgo', { when: timeAgo(view.drift.store.readAt, now) })}</time>
+                      {#if view.drift.channel === 'editable'}<span class="muted"> {t('listing:matrixView.editableNote')}</span>{/if}
                     {:else}
-                      <span class="muted">store not read yet</span>
+                      <span class="muted">{t('listing:matrixView.storeNotRead')}</span>
                     {/if}
                     <span class="muted"> · </span>
                     {#if app.repositoryId === null}
-                      <span class="muted">no repository linked</span>
+                      <span class="muted">{t('listing:matrixView.noRepoLinked')}</span>
                     {:else if view.drift.repo.readAt !== null}
-                      repository read <time datetime={new Date(view.drift.repo.readAt).toISOString()} title={fullTime(view.drift.repo.readAt)}>{timeAgo(view.drift.repo.readAt, now)}</time>
-                      {#if view.drift.repo.ref}<span class="muted"> at <code>{shortRef('repo', view.drift.repo.ref)}</code></span>{/if}
+                      <time datetime={new Date(view.drift.repo.readAt).toISOString()} title={fullTime(view.drift.repo.readAt)}>{t('listing:matrixView.repoReadAgo', { when: timeAgo(view.drift.repo.readAt, now) })}</time>
+                      {#if view.drift.repo.ref}<span class="muted"> <T key="listing:matrixView.atRef" params={{ ref: shortRef('repo', view.drift.repo.ref) }} /></span>{/if}
                     {:else}
-                      <span class="muted">repository not read yet</span>
+                      <span class="muted">{t('listing:matrixView.repoNotRead')}</span>
                     {/if}
                   </dd>
                 </div>
@@ -534,29 +537,29 @@
           </dl>
           {#if canSync}
             <p class="pullnote muted">
-              To read the store again, use Sync now in Status.
-              <Button size="sm" variant="link" onclick={() => openStatusPopover()}>Open Status</Button>
+              {t('listing:matrixView.syncHint')}
+              <Button size="sm" variant="link" onclick={() => openStatusPopover()}>{t('listing:matrixView.openStatus')}</Button>
             </p>
           {/if}
           {#if hasRows}
             <p class="pullnote muted">
               {#if pullBlocked !== null}
-                Pulling into the repository is not available. {pullBlocked}
+                {t('listing:pullBar.unavailable', { reason: pullBlocked })}
               {:else if !anyPullable}
-                No differences to pull: the repository already has the store's text, or is ahead of it.
+                {t('listing:pullBar.noDifferences')}
               {:else}
-                Where the store is ahead of the repository, its text can be pulled into the repository as a draft change set.
+                {t('listing:matrixView.pullAhead')}
               {/if}
             </p>
           {/if}
         </InfoTip>
         {#if readable.length > 0 || (hasRows && anyPullable)}
-          <InfoTip label="More listing actions" buttonText="More" icon="more" align="end" width="min(20rem, 92vw)" bind:open={moreOpen}>
+          <InfoTip label={t('listing:matrixView.moreLabel')} buttonText={t('listing:matrixView.moreButton')} icon="more" align="end" width="min(20rem, 92vw)" bind:open={moreOpen}>
             <ul class="menu">
               {#if readable.length > 0}
                 <li>
-                  <Button icon="git-branch" loading={repoReading} onclick={() => { moreOpen = false; void readRepository(); }}>{repoReading ? 'Reading…' : 'Read repository'}</Button>
-                  <span class="muted">Reads the listing files of the linked repository. Nothing is sent to a store.</span>
+                  <Button icon="git-branch" loading={repoReading} onclick={() => { moreOpen = false; void readRepository(); }}>{repoReading ? t('listing:tab.reading') : t('listing:tab.readRepository')}</Button>
+                  <span class="muted">{t('listing:matrixView.readRepoNote')}</span>
                 </li>
               {/if}
               {#if hasRows}
@@ -566,12 +569,12 @@
                       <Button
                         icon="git-pull-request"
                         disabled={p.reason !== null}
-                        title={p.reason ?? "Pull the store's text into the repository as a draft change set"}
+                        title={p.reason ?? t('listing:matrixView.pullTitle')}
                         onclick={() => { moreOpen = false; openPull(p.app, p.fields); }}
                       >
-                        Pull {both ? `${platformLabel(p.app.platform)} ` : ''}differences… ({p.fields.length})
+                        {both ? t('listing:matrixView.pullDifferencesFor', { platform: platformLabel(p.app.platform), count: p.fields.length }) : t('listing:matrixView.pullDifferences', { count: p.fields.length })}
                       </Button>
-                      <span class="muted">{p.reason ?? 'A draft change set you review in the repository.'}</span>
+                      <span class="muted">{p.reason ?? t('listing:matrixView.pullDraftNote')}</span>
                     </li>
                   {/if}
                 {/each}
@@ -601,7 +604,7 @@
   {/if}
 
   {#if loading && nothingLoaded && failed.length === 0}
-    <div role="status" aria-label="Loading the listing" class="stack">
+    <div role="status" aria-label={t('listing:tab.loadingAria')} class="stack">
       <div class="card"><div class="stack"><Skeleton width="30%" height="16px" /><Skeleton width="100%" height="96px" /></div></div>
     </div>
   {:else}
@@ -609,14 +612,14 @@
       <div class="card">
         <EmptyState
           icon="file-text"
-          title="No listing values yet"
-          description="The store and the repository have no listing values to compare. The listing is read when the app is synced; a new app may not have one yet."
+          title={t('listing:tab.emptyTitle')}
+          description={t('listing:matrixView.emptyDescription')}
         >
           {#snippet actions()}
             {#if canSync}
-              <Button variant="primary" icon="activity" onclick={() => openStatusPopover()}>Open Status to sync</Button>
+              <Button variant="primary" icon="activity" onclick={() => openStatusPopover()}>{t('listing:matrixView.openStatusToSync')}</Button>
             {:else}
-              <span class="muted">A member or admin can sync the app.</span>
+              <span class="muted">{t('listing:matrixView.canSync')}</span>
             {/if}
           {/snippet}
         </EmptyState>
@@ -635,28 +638,28 @@
 
       {#if rows.length === 0}
         <div class="card">
-          <EmptyState icon="search" title="No locales match" description="Change the filter or the search to see more.">
+          <EmptyState icon="search" title={t('listing:matrixView.noLocalesMatch')} description={t('listing:tab.noMatchHint')}>
             {#snippet actions()}
-              {#if filtering}<Button onclick={() => (filter = defaultMatrixFilter())}>Clear the filter</Button>{/if}
+              {#if filtering}<Button onclick={() => (filter = defaultMatrixFilter())}>{t('listing:tab.clearFilter')}</Button>{/if}
             {/snippet}
           </EmptyState>
         </div>
       {:else}
-        <Section title="Locales" key="locales" flush summary={summaryLine([countOf(rows.length, 'locale'), line.attention > 0 ? `${line.attention} need attention` : 'all in sync'])}>
+        <Section title={t('listing:matrixView.localesTitle')} key="locales" flush summary={summaryLine([t('listing:matrix.localesCount', { count: rows.length }), line.attention > 0 ? t('listing:matrix.summary.needAttention', { count: line.attention }) : t('listing:matrix.summary.allInSync')])}>
         <div class="grid-scroll">
           <table class="matrix compact">
             <caption class="visually-hidden">
-              Listing status by locale and field{both ? ` for ${platformNames(shown)}` : ''}. Open a locale for the full comparison.
+              {both ? t('listing:matrixView.captionFor', { platforms: platformNames(shown) }) : t('listing:matrixView.caption')}
             </caption>
             <thead>
               <tr>
-                <th scope="col" class="loc">Locale</th>
-                {#if both}<th scope="col" class="stores">Stores</th>{/if}
+                <th scope="col" class="loc">{t('listing:matrixView.colLocale')}</th>
+                {#if both}<th scope="col" class="stores">{t('listing:matrixView.colStores')}</th>{/if}
                 {#each matrix.columns as column (column.key)}
                   {@const note = columnScopeNote(column, shown)}
                   <th scope="col" class="col">
                     <span class="label">{column.label}</span>
-                    <span class="sub muted">{limitText(column)}{note ? `${limitText(column) ? ' · ' : ''}${note}` : ''}</span>
+                    <span class="sub muted">{summaryLine([limitText(column), note])}</span>
                     {#if both}
                       <span class="plats" aria-hidden="true">
                         {#each shown as platform (platform)}
@@ -674,7 +677,7 @@
               {#each rows as row (row.locale)}
                 <tr class:current={drawerOpen && drawerLocale === row.locale}>
                   <th scope="row" class="loc">
-                    <button type="button" class="bare locale-btn" onclick={() => openLocale(row.locale)} aria-label="Open locale {row.locale}{row.name === row.locale ? '' : `, ${row.name}`}">
+                    <button type="button" class="bare locale-btn" onclick={() => openLocale(row.locale)} aria-label={row.name === row.locale ? t('listing:matrixView.openLocale', { locale: row.locale }) : t('listing:matrixView.openLocaleNamed', { locale: row.locale, name: row.name })}>
                       <span class="code">{row.locale}</span>
                       {#if row.name !== row.locale}<span class="name muted">{row.name}</span>{/if}
                     </button>
@@ -692,13 +695,17 @@
                         type="button"
                         class="bare dots"
                         class:dim={cells.every((c) => dimmed(c.status))}
-                        aria-label="{column.label}, {row.locale}: {cellsSummary(cells, both)}.{staged.length > 0 ? ` Staged for a draft push${both ? ` on ${platformNames(staged.map((c) => c.platform))}` : ''}.` : ''} Open the locale."
+                        aria-label={staged.length === 0
+                          ? t('listing:matrixView.cellAria', { column: column.label, locale: row.locale, summary: cellsSummary(cells, both) })
+                          : both
+                            ? t('listing:matrixView.cellAriaStagedOn', { column: column.label, locale: row.locale, summary: cellsSummary(cells, both), platforms: platformNames(staged.map((c) => c.platform)) })
+                            : t('listing:matrixView.cellAriaStaged', { column: column.label, locale: row.locale, summary: cellsSummary(cells, both) })}
                         onclick={() => openLocale(row.locale)}
                       >
                         {#each cells as cell (cell.platform)}
                           <StatusDot status={cell.status} label={cellText(column, cell, both)} />
                         {/each}
-                        {#if staged.length > 0}<span class="staged-mark" aria-hidden="true" title="Staged for a draft push"><Icon name="layers" size={14} /></span>{/if}
+                        {#if staged.length > 0}<span class="staged-mark" aria-hidden="true" title={t('listing:matrixView.stagedMark')}><Icon name="layers" size={14} /></span>{/if}
                       </button>
                       {#each cells as cell (cell.platform)}
                         {@const editable = editableField(cell)}
@@ -707,8 +714,12 @@
                           <button
                             type="button"
                             class="bare edit"
-                            aria-label="Edit {column.label.toLowerCase()}, {row.locale}{both ? `, ${platformLabel(cell.platform)}` : ''}"
-                            title="Edit {column.label.toLowerCase()} ({row.locale}){both ? `, ${platformLabel(cell.platform)}` : ''}"
+                            aria-label={both
+                              ? t('listing:matrixView.editAriaFor', { field: column.label.toLowerCase(), locale: row.locale, platform: platformLabel(cell.platform) })
+                              : t('listing:matrixView.editAria', { field: column.label.toLowerCase(), locale: row.locale })}
+                            title={both
+                              ? t('listing:matrixView.editTitleFor', { field: column.label.toLowerCase(), locale: row.locale, platform: platformLabel(cell.platform) })
+                              : t('listing:matrixView.editTitle', { field: column.label.toLowerCase(), locale: row.locale })}
                             onclick={() => openEditor(owner, editable)}
                           >
                             <Icon name="edit" size={14} />
@@ -729,7 +740,7 @@
     {#each members as app (app.id)}
       {@const view = views[app.id]}
       {#if view?.drift?.sections && view.drift.sections.length > 0}
-        <section aria-label="{platformLabel(app.platform)} sections beyond the texts" class="stack">
+        <section aria-label={t('listing:matrixView.sectionsAria', { platform: platformLabel(app.platform) })} class="stack">
           {#if both}<h2 class="phead"><PlatformBadge platform={app.platform} tinted /></h2>{/if}
           <ListingSections
             sections={view.drift.sections}

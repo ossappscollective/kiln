@@ -23,6 +23,7 @@
   import { type Platform, type Role, platformLabel } from '@kiln/core';
   import { coachHref, countriesForLocale, fieldsFromDrift, keywordsForLocale } from '../../lib/aso/budget.ts';
   import type { Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { AsoKeyword } from '../../lib/aso/aso.ts';
   import { localeSummary } from '../../lib/listing/drift.ts';
   import type { MatrixRow } from '../../lib/listing/matrix.ts';
@@ -189,13 +190,13 @@
     <div class="surface">
       <header>
         <div class="who">
-          <h2 id="{uid}-title">Locale {row.locale}</h2>
-          <p class="muted">{row.name === row.locale ? '' : `${row.name} · `}{position.index + 1} of {position.count}</p>
+          <h2 id="{uid}-title">{t('listing:localeDrawer.title', { locale: row.locale })}</h2>
+          <p class="muted">{row.name === row.locale ? t('listing:localeDrawer.position', { index: position.index + 1, total: position.count }) : t('listing:localeDrawer.positionNamed', { name: row.name, index: position.index + 1, total: position.count })}</p>
         </div>
         <div class="nav">
-          <Button size="sm" variant="ghost" iconOnly icon="chevron-left" label="Previous locale" disabled={position.index <= 0} onclick={() => onstep(-1)} />
-          <Button size="sm" variant="ghost" iconOnly icon="chevron-right" label="Next locale" disabled={position.index >= position.count - 1} onclick={() => onstep(1)} />
-          <button type="button" class="ghost icon sm" aria-label="Close" onclick={() => (open = false)}>
+          <Button size="sm" variant="ghost" iconOnly icon="chevron-left" label={t('listing:localeDrawer.previous')} disabled={position.index <= 0} onclick={() => onstep(-1)} />
+          <Button size="sm" variant="ghost" iconOnly icon="chevron-right" label={t('listing:localeDrawer.next')} disabled={position.index >= position.count - 1} onclick={() => onstep(1)} />
+          <button type="button" class="ghost icon sm" aria-label={t('common:action.close')} onclick={() => (open = false)}>
             <Icon name="x" />
           </button>
         </div>
@@ -230,7 +231,7 @@
           {#snippet fieldRow(field: DriftField)}
             <FieldCompare
               {field}
-              storeLabel={channels[platform] === 'editable' ? 'Editable version' : 'Live store'}
+              storeLabel={channels[platform] === 'editable' ? t('listing:compare.editableVersion') : t('listing:compare.liveStore')}
               {now}
               onhistory={(f) => app && onhistory(app, f)}
               pullable={canPullField(field)}
@@ -246,7 +247,7 @@
               {#snippet extra()}
                 {#if app && onedit && locked.indexOf(platform) < 0 && fieldInfo(platform, field.field) !== null}
                   <div class="editrow">
-                    <Button size="sm" icon="edit" onclick={() => onedit(app, field)}>Edit {field.label.toLowerCase()}</Button>
+                    <Button size="sm" icon="edit" onclick={() => onedit(app, field)}>{t('listing:localeDrawer.edit', { field: field.label.toLowerCase() })}</Button>
                   </div>
                 {/if}
                 {#if app && api && workspaceId && locked.indexOf(platform) < 0}
@@ -257,7 +258,7 @@
                     {app}
                     {field}
                     current={field.live.value ?? field.db.value ?? ''}
-                    buttonLabel="Suggest with AI"
+                    buttonLabel={t('listing:editor.suggest')}
                     onaccepted={async () => {
                       await stagedStore.load(api, workspaceId, app.id);
                     }}
@@ -266,33 +267,33 @@
               {/snippet}
             </FieldCompare>
           {/snippet}
-          <section class="platform card flush" aria-label="{platformLabel(platform)} listing, locale {row.locale}">
+          <section class="platform card flush" aria-label={t('listing:localeDrawer.sectionAria', { platform: platformLabel(platform), locale: row.locale })}>
             <div class="phead">
               <h3><PlatformBadge {platform} tinted /></h3>
-              <span class="muted">{storeName(platform)} · {localeSummary({ locale: row.locale, fields })}</span>
+              <span class="muted">{t('listing:localeDrawer.storeLine', { store: storeName(platform), summary: localeSummary({ locale: row.locale, fields }) })}</span>
             </div>
 
             {#if app !== undefined && pullable.length > 0}
               <div class="pullrow">
                 {#if reason !== null}
-                  <p class="muted note"><Icon name="info" size={14} /> Pulling into the repository is not available. {reason}</p>
+                  <p class="muted note"><Icon name="info" size={14} /> {t('listing:pullBar.unavailable', { reason })}</p>
                 {:else}
                   {#if !(primary?.kind === 'pull' && primary.platform === platform)}
                     <Button size="sm" icon="git-pull-request" onclick={() => onpull(app, pullable)}>
-                      Pull {row.locale} into repository ({pullable.length})
+                      {t('listing:localeDrawer.pullLocale', { locale: row.locale, count: pullable.length })}
                     </Button>
                   {/if}
                   <Button size="sm" variant="ghost" icon="git-pull-request" disabled={selection.length === 0} onclick={() => onpull(app, selection)}>
-                    Pull selected{selection.length > 0 ? ` (${selection.length})` : ''}
+                    {selection.length > 0 ? t('listing:pullBar.pullSelectedCount', { count: selection.length }) : t('listing:pullBar.pullSelected')}
                   </Button>
                 {/if}
               </div>
             {/if}
 
             {#if fields.length === 0}
-              <p class="muted empty">This locale has no fields on this store.</p>
+              <p class="muted empty">{t('listing:localeDrawer.noFields')}</p>
             {/if}
-            <div class="fields" role="group" aria-label="Status of each field">
+            <div class="fields" role="group" aria-label={t('listing:localeDrawer.fieldsAria')}>
               {#each split.attention as field (field.field)}
                 {@render fieldRow(field)}
               {/each}
@@ -300,9 +301,7 @@
                 <details class="insync" open={split.attention.length === 0}>
                   <summary>
                     <span class="chev"><Icon name="chevron-right" size={16} /></span>
-                    {split.inSync.length === fields.length ? 'All' : ''}
-                    {split.inSync.length}
-                    {split.inSync.length === 1 ? 'field' : 'fields'} in sync
+                    {split.inSync.length === fields.length ? t('listing:localeDrawer.allInSync', { count: split.inSync.length }) : t('listing:localeDrawer.inSync', { count: split.inSync.length })}
                   </summary>
                   {#each split.inSync as field (field.field)}
                     {@render fieldRow(field)}
@@ -323,18 +322,17 @@
                   keywords={keywordsForLocale(tracked, row.locale)}
                   countries={countriesForLocale(tracked, row.locale)}
                   listingLocales={allLocales}
-                  addHref={coachHref({ to: 'keywords_add', label: 'Add keywords' }, app.id, platform)}
+                  addHref={coachHref({ to: 'keywords_add', label: t('listing:localeDrawer.addKeywords') }, app.id, platform)}
                 />
               </div>
             {/if}
           </section>
         {/each}
 
-        <Disclosure summary="How staging and pulling work">
+        <Disclosure summary={t('listing:localeDrawer.howTitle')}>
           <p class="muted foot">
-            "Stage from repo" collects the repository's text of a field that differs for the draft push in the staged-changes tray; it
-            changes nothing in a store. Other edits are made in the repository, as change sets.
-            {#if members.some((m) => m.repositoryId !== null)}<a href="#/repositories">Open repositories</a>{/if}
+            {t('listing:localeDrawer.howBody')}
+            {#if members.some((m) => m.repositoryId !== null)}<a href="#/repositories">{t('listing:localeDrawer.openRepos')}</a>{/if}
           </p>
         </Disclosure>
       </div>

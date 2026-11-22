@@ -19,6 +19,7 @@
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import {
     DRIFT_ORDER,
     defaultFilter,
@@ -56,6 +57,7 @@
   import EmptyState from '../ui/EmptyState.svelte';
   import Icon from '../ui/Icon.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import T from '../ui/T.svelte';
   import FieldCompare from './FieldCompare.svelte';
   import HistoryDrawer from './HistoryDrawer.svelte';
   import ListingSections from './ListingSections.svelte';
@@ -126,7 +128,7 @@
       if (mine !== generation) return;
       drift = next;
       if (nextLive !== null) live = nextLive;
-      announcement = `Listing compared: ${driftSummaryText(next)}.`;
+      announcement = t('listing:tab.compared', { summary: driftSummaryText(next) });
     } catch (e) {
       if (mine !== generation) return;
       loadProblem = describeError(e, 'load');
@@ -167,16 +169,15 @@
     try {
       const result = await api.refreshAppRepoListing(workspaceId, app.id);
       if (!result.found) {
-        toast.warning('The repository has no store listing for this app. Check the listing settings of the repository.');
+        toast.warning(t('listing:tab.noRepoListing'));
       } else {
         const ref = shortRef('repo', result.ref);
-        toast.success(
-          `Read the repository listing${ref ? ` at ${ref}` : ''}: ${result.changed} changed, ${result.removed} removed, ${result.unchanged} unchanged.`,
-        );
+        const counts = { changed: result.changed, removed: result.removed, unchanged: result.unchanged };
+        toast.success(ref ? t('listing:tab.repoReadAt', { ref, ...counts }) : t('listing:tab.repoRead', counts));
       }
       await load();
     } catch (e) {
-      repoProblem = e instanceof ApiError ? e.message : 'Something went wrong. Try again.';
+      repoProblem = e instanceof ApiError ? e.message : t('common:error.genericRetry');
       toast.error(repoProblem);
     } finally {
       repoReading = false;
@@ -223,7 +224,7 @@
     const repositoryId = result.target.repositoryId;
     const options = {
       action: {
-        label: 'Review the draft',
+        label: t('listing:tab.reviewDraft'),
         href: reviewHref,
         onclick: () => requestChangeSetReview({ repositoryId, changeSetId }),
       },
@@ -235,16 +236,16 @@
 
   const visible = $derived(drift ? filterLocales(drift.locales, filter) : []);
   const filtering = $derived(filter.status !== 'all' || filter.query.trim() !== '');
-  const storeLabel = $derived(drift?.channel === 'editable' ? 'Editable version' : 'Live store');
+  const storeLabel = $derived(drift?.channel === 'editable' ? t('listing:compare.editableVersion') : t('listing:compare.liveStore'));
   const schedule = $derived(scheduleView(live?.schedule, now));
   const warnings = $derived(cleanWarnings(live?.warnings));
   const lastAttempt = $derived(lastAttemptText(live?.schedule, now));
   const statusOptions = $derived(
     drift
       ? [
-          { value: 'all', label: 'All fields' },
-          { value: 'differing', label: 'Only differing' },
-          ...DRIFT_ORDER.map((s) => ({ value: s, label: `${statusLabel(s)} (${drift?.summary[s] ?? 0})` })),
+          { value: 'all', label: t('listing:tab.filterAll') },
+          { value: 'differing', label: t('listing:tab.filterDiffering') },
+          ...DRIFT_ORDER.map((s) => ({ value: s, label: t('listing:tab.filterOption', { label: statusLabel(s), count: drift?.summary[s] ?? 0 }) })),
         ]
       : [],
   );
@@ -254,38 +255,34 @@
   <p class="visually-hidden" role="status">{announcement}</p>
 
   <div class="intro">
-    <p class="muted">
-      Compares each listing field of {storeName(app.platform)} between the repository, what this tool last
-      knew, and the live store. This view only reads: it never changes the store. To change a listing, make a
-      change set on the repository.
-    </p>
+    <p class="muted">{t('listing:tab.intro', { store: storeName(app.platform) })}</p>
     <div class="row wrap">
       {#if canSync}
-        <Button variant="primary" icon="refresh" loading={syncing} onclick={onrefresh}>{syncing ? 'Reading…' : 'Refresh from store'}</Button>
+        <Button variant="primary" icon="refresh" loading={syncing} onclick={onrefresh}>{syncing ? t('listing:tab.reading') : t('listing:tab.refreshFromStore')}</Button>
       {/if}
       {#if canReadRepo}
-        <Button icon="git-branch" loading={repoReading} onclick={readRepository}>{repoReading ? 'Reading…' : 'Read repository'}</Button>
+        <Button icon="git-branch" loading={repoReading} onclick={readRepository}>{repoReading ? t('listing:tab.reading') : t('listing:tab.readRepository')}</Button>
       {/if}
     </div>
   </div>
 
   {#if repoProblem}
-    <Alert tone="error" title="Could not read the repository" ondismiss={() => (repoProblem = '')}>{repoProblem}</Alert>
+    <Alert tone="error" title={t('listing:tab.repoReadFailed')} ondismiss={() => (repoProblem = '')}>{repoProblem}</Alert>
   {/if}
 
   {#if loading && !drift}
-    <div role="status" aria-label="Loading the listing" class="stack">
+    <div role="status" aria-label={t('listing:tab.loadingAria')} class="stack">
       <Skeleton width="50%" height="16px" />
       <div class="card"><div class="stack"><Skeleton width="30%" height="16px" /><Skeleton width="100%" height="64px" /></div></div>
     </div>
   {:else if loadProblem && !drift}
     <div class="stack">
-      <Alert tone="error" title="Could not load the listing">{loadProblem}</Alert>
-      <div><Button icon="refresh" onclick={load}>Try again</Button></div>
+      <Alert tone="error" title={t('listing:tab.loadFailed')}>{loadProblem}</Alert>
+      <div><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
     </div>
   {:else if drift}
     {#if loadProblem}
-      <Alert tone="error" title="Could not update the comparison">{loadProblem} The values below are from before.</Alert>
+      <Alert tone="error" title={t('listing:tab.updateFailedTitle')}>{t('listing:tab.updateFailed', { problem: loadProblem })}</Alert>
     {/if}
 
     <dl class="sources">
@@ -293,55 +290,55 @@
         <dt>{storeName(app.platform)}</dt>
         <dd>
           {#if drift.store.readAt !== null}
-            read <time datetime={new Date(drift.store.readAt).toISOString()} title={fullTime(drift.store.readAt)}>{timeAgo(drift.store.readAt, now)}</time>
-            {#if drift.channel === 'editable'}<span class="muted"> · shows the editable version: no version is live yet</span>{/if}
+            <time datetime={new Date(drift.store.readAt).toISOString()} title={fullTime(drift.store.readAt)}>{t('listing:tab.readAgo', { when: timeAgo(drift.store.readAt, now) })}</time>
+            {#if drift.channel === 'editable'}<span class="muted"> {t('listing:tab.editableShown')}</span>{/if}
           {:else}
-            <span class="muted">not read yet</span>
+            <span class="muted">{t('listing:tab.notReadYet')}</span>
           {/if}
         </dd>
       </div>
       <div>
-        <dt>Repository</dt>
+        <dt>{t('listing:tab.repository')}</dt>
         <dd>
           {#if app.repositoryId === null}
-            <span class="muted">not linked to this app</span>
+            <span class="muted">{t('listing:tab.notLinked')}</span>
           {:else if drift.repo.readAt !== null}
-            read <time datetime={new Date(drift.repo.readAt).toISOString()} title={fullTime(drift.repo.readAt)}>{timeAgo(drift.repo.readAt, now)}</time>
-            {#if drift.repo.ref}<span class="muted"> · at <code>{shortRef('repo', drift.repo.ref)}</code></span>{/if}
+            <time datetime={new Date(drift.repo.readAt).toISOString()} title={fullTime(drift.repo.readAt)}>{t('listing:tab.readAgo', { when: timeAgo(drift.repo.readAt, now) })}</time>
+            {#if drift.repo.ref}<span class="muted"> <T key="listing:tab.atRef" params={{ ref: shortRef('repo', drift.repo.ref) }} /></span>{/if}
           {:else}
-            <span class="muted">not read yet</span>
+            <span class="muted">{t('listing:tab.notReadYet')}</span>
           {/if}
         </dd>
       </div>
       {#if live}
         <div>
-          <dt>Scheduled read</dt>
+          <dt>{t('listing:tab.scheduledRead')}</dt>
           <dd>
             {schedule.headline}
-            <span class="muted"> · {schedule.detail}{lastAttempt ? ` Last attempt ${lastAttempt}.` : ''}</span>
+            <span class="muted"> {lastAttempt ? t('listing:tab.scheduleLineAttempt', { detail: schedule.detail, attempt: lastAttempt }) : t('listing:tab.scheduleLine', { detail: schedule.detail })}</span>
           </dd>
         </div>
       {/if}
     </dl>
 
     {#if drift.store.error}
-      <Alert tone="warn" title="The last read of the store listing failed">
+      <Alert tone="warn" title={t('listing:tab.storeReadFailed')}>
         <p class="alert-text">{drift.store.error}</p>
-        <p class="alert-text">The values in the store column are from the last successful read. The release sync is not affected.</p>
+        <p class="alert-text">{t('listing:tab.storeReadFailedNote')}</p>
       </Alert>
     {/if}
     {#if warnings.length > 0}
-      <Alert tone="warn" title="The store read had warnings">
+      <Alert tone="warn" title={t('listing:tab.warningsTitle')}>
         <ul class="alert-list">
           {#each warnings as warning (warning)}
             <li>{warning}</li>
           {/each}
         </ul>
-        <p class="alert-text">Parts of the listing that could not be read are left out, not shown as empty.</p>
+        <p class="alert-text">{t('listing:tab.warningsNote')}</p>
       </Alert>
     {/if}
     {#if drift.repo.error && app.repositoryId !== null}
-      <Alert tone="warn" title="The last read of the repository listing failed">
+      <Alert tone="warn" title={t('listing:tab.repoListingFailed')}>
         <p class="alert-text">{drift.repo.error}</p>
       </Alert>
     {/if}
@@ -350,32 +347,30 @@
       <div class="card">
         <EmptyState
           icon="file-text"
-          title="No listing values yet"
-          description={drift.store.readAt === null
-            ? 'The listing is read when the app is synced. Refresh from the store to read the name, description and the other fields.'
-            : 'The store and the repository have no listing values to compare. A new app may not have a listing yet.'}
+          title={t('listing:tab.emptyTitle')}
+          description={drift.store.readAt === null ? t('listing:tab.emptyNeverRead') : t('listing:tab.emptyNothing')}
         >
           {#snippet actions()}
             {#if canSync}
-              <Button variant="primary" icon="refresh" loading={syncing} onclick={onrefresh}>Refresh from store</Button>
+              <Button variant="primary" icon="refresh" loading={syncing} onclick={onrefresh}>{t('listing:tab.refreshFromStore')}</Button>
             {:else}
-              <span class="muted">A member or admin can refresh the listing.</span>
+              <span class="muted">{t('listing:tab.canRefresh')}</span>
             {/if}
           {/snippet}
         </EmptyState>
       </div>
     {:else}
       <div class="toolbar">
-        <p class="summary" aria-live="polite">{driftSummaryText(drift)}{reloading ? ' · updating…' : ''}</p>
+        <p class="summary" aria-live="polite">{reloading ? t('listing:tab.summaryUpdating', { summary: driftSummaryText(drift) }) : driftSummaryText(drift)}</p>
         <div class="filters">
-          <label class="visually-hidden" for="listing-status-{app.id}">Show</label>
+          <label class="visually-hidden" for="listing-status-{app.id}">{t('listing:tab.show')}</label>
           <select id="listing-status-{app.id}" bind:value={filter.status}>
             {#each statusOptions as option (option.value)}
               <option value={option.value}>{option.label}</option>
             {/each}
           </select>
-          <label class="visually-hidden" for="listing-query-{app.id}">Search the listing</label>
-          <input id="listing-query-{app.id}" type="search" placeholder="Search locale or text" bind:value={filter.query} />
+          <label class="visually-hidden" for="listing-query-{app.id}">{t('listing:tab.search')}</label>
+          <input id="listing-query-{app.id}" type="search" placeholder={t('listing:tab.searchPlaceholder')} bind:value={filter.query} />
         </div>
       </div>
 
@@ -388,14 +383,14 @@
         />
       {/if}
 
-      <div class="pullbar" aria-label="Pull into the repository">
+      <div class="pullbar" aria-label={t('listing:pullResult.title')}>
         {#if pullReason !== null}
-          <p class="muted pullnote"><Icon name="info" size={14} /> Pulling into the repository is not available. {pullReason}</p>
+          <p class="muted pullnote"><Icon name="info" size={14} /> {t('listing:pullBar.unavailable', { reason: pullReason })}</p>
         {:else if pullable.length === 0}
-          <p class="muted pullnote"><Icon name="check" size={14} /> No differences to pull: the repository already has the store's text, or is ahead of it.</p>
+          <p class="muted pullnote"><Icon name="check" size={14} /> {t('listing:pullBar.noDifferences')}</p>
         {:else}
           <p class="pullnote">
-            {pullable.length} {pullable.length === 1 ? 'field differs' : 'fields differ'} where the store can be pulled into the repository.
+            {t('listing:pullBar.differ', { count: pullable.length })}
           </p>
           <div class="row wrap">
             <label class="check">
@@ -404,10 +399,10 @@
                 checked={allPicked}
                 onchange={() => (selected = toggleAllDifferences(drift?.locales ?? [], selected))}
               />
-              <span>Select all differences</span>
+              <span>{t('listing:pullBar.selectAll')}</span>
             </label>
             <Button variant="primary" icon="git-pull-request" disabled={picked.length === 0} onclick={() => openPull(picked)}>
-              Pull selected into repository…{picked.length > 0 ? ` (${picked.length})` : ''}
+              {picked.length > 0 ? t('listing:pullBar.pullSelectedCount', { count: picked.length }) : t('listing:pullBar.pullSelected')}
             </Button>
           </div>
         {/if}
@@ -415,22 +410,22 @@
 
       {#if visible.length === 0}
         <div class="card">
-          <EmptyState icon="search" title="No fields match" description="Change the filter or the search to see more.">
+          <EmptyState icon="search" title={t('listing:tab.noMatchTitle')} description={t('listing:tab.noMatchHint')}>
             {#snippet actions()}
-              {#if filtering}<Button onclick={() => (filter = defaultFilter())}>Clear the filter</Button>{/if}
+              {#if filtering}<Button onclick={() => (filter = defaultFilter())}>{t('listing:tab.clearFilter')}</Button>{/if}
             {/snippet}
           </EmptyState>
         </div>
       {:else}
         {#each visible as locale (locale.locale)}
-          <section class="card flush locale" aria-label="Locale {locale.locale}">
+          <section class="card flush locale" aria-label={t('listing:localeDrawer.title', { locale: locale.locale })}>
             <header>
               <h3>{locale.locale}</h3>
-              <span class="muted">{localeName(locale.locale) === locale.locale ? '' : `${localeName(locale.locale)} · `}{localeSummary(locale)}</span>
+              <span class="muted">{localeName(locale.locale) === locale.locale ? localeSummary(locale) : t('listing:tab.localeLineNamed', { name: localeName(locale.locale), summary: localeSummary(locale) })}</span>
               {#if pullableInLocale(locale).length > 0}
                 <span class="locale-pull">
                   <Button size="sm" icon="git-pull-request" disabled={pullReason !== null} onclick={() => pullLocale(locale)}>
-                    Pull {locale.locale} into repository ({pullableInLocale(locale).length})
+                    {t('listing:localeDrawer.pullLocale', { locale: locale.locale, count: pullableInLocale(locale).length })}
                   </Button>
                 </span>
               {/if}
@@ -451,7 +446,7 @@
           </section>
         {/each}
         <p class="muted legend">
-          <Icon name="info" size={14} /> In a differing field, words only in the store are struck through and words only in the repository are underlined.
+          <Icon name="info" size={14} /> {t('listing:tab.legend')}
         </p>
       {/if}
     {/if}
