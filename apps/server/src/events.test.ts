@@ -777,7 +777,7 @@ test('the web screen offers exactly the event types the server emits', async () 
   const { readFile } = await import('node:fs/promises');
   const { eventTypes } = await import('./services/event-types.ts');
   const source = await readFile(new URL('../../web/src/lib/webhooks.ts', import.meta.url), 'utf8');
-  const offered = [...source.matchAll(/type: '([a-z._]+)',\s*label:/g)].map((m) => m[1]);
+  const offered = [...source.matchAll(/type: '([a-z._]+)',\s*labelKey:/g)].map((m) => m[1]);
   assert.deepEqual(
     [...offered].sort(),
     [...eventTypes].sort(),
