@@ -751,6 +751,34 @@ export function scanLib(source) {
   return items;
 }
 
+/**
+ * What the scan does not report, on purpose (docs/i18n.md, "Intentionally not translated"). Files whose strings are data or developer
+ * tooling, and single items that are product names or sample values.
+ */
+const NOT_TRANSLATED_FILES = [
+  // SVG path data, not words.
+  /\/src\/lib\/icons\.ts$/,
+  // Developer-only page that lists every icon with its name; it is not reachable from the product.
+  /\/src\/components\/ui\/IconGallery\.svelte$/,
+  // Demo data for the analytics tests and the demo mode: sample metric labels, not product text.
+  /\/src\/lib\/analytics\/fixtures\.ts$/,
+  // Code and config snippets that a person copies into another tool; they are not prose.
+  /\/src\/lib\/mcp\.ts$/,
+  /\/src\/lib\/webhooks\.ts$/,
+  // A character-class regular expression the scan reads as text.
+  /\/src\/lib\/app-icon\.ts$/,
+];
+/** Product and store names are the same in every language. */
+const BRAND_NAME =
+  /^(?:(?:Mac )?App Store(?: Connect)?|Google Play(?: Console)?|Play Console|Amazon Appstore|RevenueCat(?: Web Billing)?|TestFlight|EAS|SHA-256|ASO|Android|Android App Bundle \(\.aab\))$/;
+
+/** True for an item that needs no key: a brand name, or a placeholder that is a sample path, address, locale or code. */
+function isIntentional(item) {
+  const value = item.kind === 'attr' ? item.text.replace(/^[\w-]+: /, '') : item.text;
+  if (BRAND_NAME.test(value)) return true;
+  return item.kind === 'attr' && item.text.startsWith('placeholder: ') && /^\S*[^A-Za-z\s]\S*$|[/@=:]|^MacBook Touch ID$/.test(value);
+}
+
 /** Scans every component and lib module: `[{ path, kind, ns, items, converted }]` (`converted` counts t() and <T> uses). */
 export function runScan() {
   const rows = [];
@@ -772,7 +800,9 @@ export function runScan() {
       path,
       kind: svelte ? 'component' : 'lib',
       ns: namespaceOfSource(path),
-      items: svelte ? scanSvelte(source) : scanLib(source),
+      items: NOT_TRANSLATED_FILES.some((re) => re.test(`/${path}`))
+        ? []
+        : (svelte ? scanSvelte(source) : scanLib(source)).filter((item) => !isIntentional(item)),
       converted,
     });
   }
