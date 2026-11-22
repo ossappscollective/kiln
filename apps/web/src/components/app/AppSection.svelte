@@ -2,8 +2,9 @@
   AppSection: the screen of the open page, for the platforms in scope. The existing screens (listing, assets, reviews, builds, workflows,
   test builds, ASO, analytics, release) are mounted as they are, once per platform record where they are per platform; with several
   platforms in scope they sit under an iOS | macOS | Android tab list, one visible at a time.
-  Three pages hold several old pages as views, chosen with a small segmented control (ViewSwitch) and kept in the address as `?view=`:
-  Store listing (text, graphics), Insights (analytics, ASO and keywords) and Builds (builds, workflows, test builds). The old addresses
+  Four pages hold several old pages as views, chosen with a small segmented control (ViewSwitch) and kept in the address as `?view=`:
+  Store listing (text, graphics), Insights (analytics, ASO and keywords), Builds (builds, workflows, test builds) and Reviews (store reviews,
+  TestFlight feedback and crashes). The old addresses
   redirect to them (lib/app-nav.ts).
   Props: api, workspaceId, role, section (a page of the left panel, or pending or settings), view (the open view of a page with views,
   '' otherwise), members (records in scope), all? (every record of the app, to tell that a macOS record's reviews are the iOS record's;
@@ -40,6 +41,7 @@
   import AiSuggestions from '../ai/AiSuggestions.svelte';
   import AsoSection from '../aso/AsoSection.svelte';
   import ExperimentsTab from '../experiments/ExperimentsTab.svelte';
+  import TestflightTab from '../testflight/TestflightTab.svelte';
   import AnalyticsSection from '../analytics/AnalyticsSection.svelte';
   import AppDashboard from './AppDashboard.svelte';
   import AppReleases from './AppReleases.svelte';
@@ -118,6 +120,9 @@
   {:else}
     <ProductsTab {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
   {/if}
+{/snippet}
+{#snippet testflight(app: AppSummary)}
+  <TestflightTab {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
 {/snippet}
 {#snippet experiments(app: AppSummary)}
   <ExperimentsTab {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
@@ -198,7 +203,12 @@
 {:else if section === 'products'}
   {@render perPlatform(products)}
 {:else if section === 'reviews'}
-  {@render perPlatform(reviews)}
+  {@render switcher('reviews')}
+  {#if view === 'testflight'}
+    {@render perPlatform(testflight)}
+  {:else}
+    {@render perPlatform(reviews)}
+  {/if}
 {:else if section === 'builds'}
   {@render switcher('builds')}
   {#if view === 'workflows'}

@@ -499,6 +499,7 @@ const COMPONENT_DIRS = {
   dashboard: 'app',
   eas: 'eas',
   experiments: 'experiments',
+  testflight: 'testflight',
   listing: 'listing',
   members: 'workspace',
   portfolio: 'portfolio',
@@ -547,6 +548,7 @@ const LIB_DIRS = {
   ci: 'builds',
   eas: 'eas',
   experiments: 'experiments',
+  testflight: 'testflight',
   listing: 'listing',
   revenuecat: 'products',
   reviews: 'reviews',
@@ -567,6 +569,7 @@ const LIB_ROOT_PREFIX = [
   [/^portfolio/, 'portfolio'],
   [/^products/, 'products'],
   [/^experiments/, 'experiments'],
+  [/^testflight/, 'testflight'],
   [/^repositor/, 'repositories'],
 ];
 

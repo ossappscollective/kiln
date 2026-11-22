@@ -592,6 +592,8 @@
   "webhook.event.stepupFailed": "A confirmation of a hard action failed (wrong password or passkey)",
   "webhook.event.stepupRecoveryUsed": "A step-up recovery code was used (ids and how many are left only; never the code)",
   "webhook.event.stepupVerified": "Someone confirmed a hard action with a passkey or password",
+  "webhook.event.testflightCrash": "A tester sent a TestFlight crash that was stored (ids, build and platform only; never the log)",
+  "webhook.event.testflightFeedback": "A tester sent TestFlight feedback that was stored (ids, build and platform only; never the comment)",
   "webhook.event.tokenCreated": "An API token was created (its id, name and role; never the token)",
   "webhook.eventsAll": "All events",
   "webhook.eventsCount_one": "{{count}} event",

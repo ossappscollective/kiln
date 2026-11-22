@@ -24,6 +24,14 @@ import { appSectionDefs, parseAppAddress } from './app-scope.ts';
 
 const all = () => true;
 
+test('Reviews has a TestFlight view for Apple apps only, with the reviews right', () => {
+  assert.deepEqual(viewsFor('reviews', all, {}).map((v) => v.id), ['reviews', 'testflight']);
+  assert.deepEqual(viewsFor('reviews', all, { appleInScope: false }), [], 'one view is nothing to switch');
+  assert.equal(viewOf('reviews', '#/portfolio/a1/reviews?view=testflight'), 'testflight');
+  assert.equal(viewOf('reviews', '#/portfolio/a1/reviews'), 'reviews');
+  assert.equal(resolveView('reviews', '#/portfolio/a1/reviews?view=testflight', all, { appleInScope: false }), 'reviews');
+});
+
 test('the left panel has exactly seven entries, in order, and no pending changes', () => {
   assert.deepEqual(
     primaryNav.map((e) => t(e.labelKey)),
@@ -223,7 +231,8 @@ test('views: the first is the default; unknown values fall back to it', () => {
   assert.equal(viewOf('builds', '#/portfolio/a1/builds?view=tests'), 'tests');
   assert.equal(viewOf('builds', '#/portfolio/a1/builds?view=workflows'), 'workflows');
   assert.equal(viewOf('builds', '#/portfolio/a1/builds'), 'builds');
-  assert.equal(viewOf('reviews', '#/portfolio/a1/reviews?view=text'), '');
+  assert.equal(viewOf('reviews', '#/portfolio/a1/reviews?view=text'), 'reviews');
+  assert.equal(viewOf('dashboard', '#/portfolio/a1?view=text'), '');
 });
 
 test('Insights: the old values map to Overview, Keywords and Search terms', () => {
@@ -328,7 +337,11 @@ test('a page offers a switch only for the views the role may open, and only when
     viewsFor('listing', all).map((v) => v.id),
     ['text', 'graphics'],
   );
-  assert.deepEqual(viewsFor('reviews', all), []);
+  assert.deepEqual(
+    viewsFor('reviews', all).map((v) => v.id),
+    ['reviews', 'testflight'],
+  );
+  assert.deepEqual(viewsFor('dashboard', all), []);
 });
 
 test('resolveView falls back to a view the role may open', () => {

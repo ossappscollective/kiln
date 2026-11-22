@@ -592,6 +592,8 @@
   "webhook.event.stepupFailed": "Falló la confirmación de una acción crítica (contraseña o passkey incorrecta)",
   "webhook.event.stepupRecoveryUsed": "Se usó un código de recuperación de confirmación (solo ID y cuántos quedan; nunca el código)",
   "webhook.event.stepupVerified": "Alguien confirmó una acción crítica con una passkey o una contraseña",
+  "webhook.event.testflightCrash": "Se guardó un cierre inesperado de TestFlight de un probador (solo identificadores, compilación y plataforma; nunca el registro)",
+  "webhook.event.testflightFeedback": "Se guardó un comentario de TestFlight de un probador (solo identificadores, compilación y plataforma; nunca el comentario)",
   "webhook.event.tokenCreated": "Se creó un token de API (su ID, nombre y rol; nunca el token)",
   "webhook.eventsAll": "Todos los eventos",
   "webhook.eventsCount_one": "{{count}} evento",

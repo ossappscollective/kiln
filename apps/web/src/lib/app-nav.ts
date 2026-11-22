@@ -98,6 +98,8 @@ export type SectionView = {
   label: string;
   requires?: Action /** Only drawn when a Google Play app is in scope (Search terms comes from a Play Console file). */;
   androidOnly?: boolean;
+  /** Only drawn when an App Store Connect app (iOS, macOS) is in scope (TestFlight has no Google Play counterpart). */
+  appleOnly?: boolean;
 };
 
 /** A view as the table below holds it: `labelKey` is a message key (translated when the views are listed). */
@@ -105,6 +107,10 @@ export type SectionViewDef = Omit<SectionView, 'label'> & { labelKey: string };
 
 /** The pages that hold several old pages as views; a page opens on its first view. */
 export const sectionViews: Readonly<Partial<Record<AppSection, readonly SectionViewDef[]>>> = {
+  reviews: [
+    { id: 'reviews', labelKey: k('app:view.reviews') },
+    { id: 'testflight', labelKey: k('app:view.testflight'), requires: 'reviews.read', appleOnly: true },
+  ],
   listing: [
     { id: 'text', labelKey: k('app:view.text') },
     { id: 'graphics', labelKey: k('app:view.graphics') },
@@ -123,7 +129,7 @@ export const sectionViews: Readonly<Partial<Record<AppSection, readonly SectionV
 };
 
 /** What the views of a page may depend on besides the role: whether a Google Play app is in scope (default: yes). */
-export type ViewContext = { androidInScope?: boolean };
+export type ViewContext = { androidInScope?: boolean; /** Whether an App Store Connect app is in scope (default: yes). */ appleInScope?: boolean };
 
 const openViews = (
   section: AppSection,
@@ -134,7 +140,8 @@ const openViews = (
     .filter(
       (v) =>
         (!v.requires || allowed(v.requires)) &&
-        (!v.androidOnly || context.androidInScope !== false),
+        (!v.androidOnly || context.androidInScope !== false) &&
+        (!v.appleOnly || context.appleInScope !== false),
     )
     .map(({ labelKey, ...rest }) => ({ ...rest, label: t(labelKey) }));
 

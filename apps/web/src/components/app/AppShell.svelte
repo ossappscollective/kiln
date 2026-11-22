@@ -87,8 +87,9 @@
   /** The page the address names (an old page as the page that replaced it), or the overview when the role may not open it. */
   const section = $derived<AppSection>(open && visibleSections(allowed).some((s) => s.id === canonicalSection(open.section)) ? canonicalSection(open.section) : 'dashboard');
   const androidInScope = $derived(scoped.some((m) => supports(m.platform, 'searchTermsImport')));
-  const views = $derived(viewsFor(section, allowed, { androidInScope }));
-  const view = $derived(resolveView(section, hash, allowed, { androidInScope }));
+  const appleInScope = $derived(scoped.some((m) => supports(m.platform, 'testflightFeedbackApi')));
+  const views = $derived(viewsFor(section, allowed, { androidInScope, appleInScope }));
+  const view = $derived(resolveView(section, hash, allowed, { androidInScope, appleInScope }));
   const anySyncing = $derived(scoped.some((m) => syncing[m.id] === true));
   /** What is pending for the app, from the workspace summary (all its records, not only those in scope); null draws no chip. */
   const lineOf = (list: readonly AppSummary[]) => lineFor(pendingStore.summary(workspaceId), list.map((m) => m.id), pendingStore.viewsOf(list.map((m) => m.id)));

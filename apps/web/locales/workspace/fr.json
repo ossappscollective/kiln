@@ -592,6 +592,8 @@
   "webhook.event.stepupFailed": "La confirmation d’une action critique a échoué (mot de passe ou clé d’accès incorrect)",
   "webhook.event.stepupRecoveryUsed": "Un code de récupération de confirmation a été utilisé (identifiants et nombre de codes restants uniquement ; jamais le code)",
   "webhook.event.stepupVerified": "Quelqu’un a confirmé une action critique avec une clé d’accès ou un mot de passe",
+  "webhook.event.testflightCrash": "Un plantage TestFlight d’un testeur a été enregistré (identifiants, build et plateforme uniquement ; jamais le journal)",
+  "webhook.event.testflightFeedback": "Un retour TestFlight d’un testeur a été enregistré (identifiants, build et plateforme uniquement ; jamais le commentaire)",
   "webhook.event.tokenCreated": "Un jeton d’API a été créé (son identifiant, son nom et son rôle ; jamais le jeton)",
   "webhook.eventsAll": "Tous les événements",
   "webhook.eventsCount_one": "{{count}} événement",

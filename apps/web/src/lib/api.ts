@@ -178,6 +178,14 @@ import type {
   ExperimentsView,
   NoteInput,
 } from './experiments.ts';
+import type {
+  CrashGroups,
+  ScreenshotLink,
+  TestflightItem,
+  TestflightSyncResult,
+  TestflightView,
+  TriageInput,
+} from './testflight.ts';
 import type { VersionPreview, VersionResult } from './store-version.ts';
 import {
   type CodeSent,
@@ -2525,6 +2533,38 @@ export function createApi(options: ApiOptions = {}) {
       request<ProductSyncResult>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products/sync`,
+      ),
+    // TestFlight beta feedback and crashes (docs/api/testflight-feedback.md). Reads and the sync never change App Store Connect; triage is Kiln's own.
+    appTestflight: (workspaceId: string, appId: string, query: string) =>
+      request<TestflightView>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/testflight${query === '' ? '' : `?${query}`}`,
+      ),
+    appTestflightItem: (workspaceId: string, appId: string, id: string) =>
+      request<{ item: TestflightItem }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/testflight/${encodeURIComponent(id)}`,
+      ),
+    appTestflightCrashGroups: (workspaceId: string, appId: string) =>
+      request<CrashGroups>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/testflight/crash-groups`,
+      ),
+    appTestflightScreenshots: (workspaceId: string, appId: string, id: string) =>
+      request<{ screenshots: ScreenshotLink[] }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/testflight/${encodeURIComponent(id)}/screenshots`,
+      ),
+    syncAppTestflight: (workspaceId: string, appId: string) =>
+      request<TestflightSyncResult>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/testflight/sync`,
+      ),
+    triageTestflightItem: (workspaceId: string, appId: string, id: string, input: TriageInput) =>
+      request<{ item: TestflightItem }>(
+        'PATCH',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/testflight/${encodeURIComponent(id)}`,
+        input,
       ),
     // Store experiments and custom product pages (docs/api/experiments.md). Reads and the sync never change a store; notes are the manual tracker.
     appExperiments: (workspaceId: string, appId: string) =>

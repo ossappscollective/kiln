@@ -33,6 +33,8 @@ export const webhookEventChoices: { type: string; labelKey: string }[] = [
   { type: 'review.new_low_rating', labelKey: k('workspace:webhook.event.reviewNewLowRating') },
   { type: 'review.sync_failed', labelKey: k('workspace:webhook.event.reviewSyncFailed') },
   { type: 'review.reply_sent', labelKey: k('workspace:webhook.event.reviewReplySent') },
+  { type: 'testflight.feedback', labelKey: k('workspace:webhook.event.testflightFeedback') },
+  { type: 'testflight.crash', labelKey: k('workspace:webhook.event.testflightCrash') },
   { type: 'release.rollout_changed', labelKey: k('workspace:webhook.event.releaseRolloutChanged') },
   { type: 'listing.draft_pushed', labelKey: k('workspace:webhook.event.listingDraftPushed') },
   { type: 'listing.submitted', labelKey: k('workspace:webhook.event.listingSubmitted') },
