@@ -52,7 +52,7 @@ the layout must keep their files disjoint and the conventions must be checkable.
 
 ## Not decided / not built
 
-- Server messages shown to people (emails, alert text, API error messages): the server will define an `errors` namespace keyed by error
+- Server messages shown to people: decided in [ADR 0045](0045-server-message-localisation.md). Originally: the server will define an `errors` namespace keyed by error
   code and a language for outgoing mail. The web maps `code` to `errors:<code>` and falls back to the server's English message.
 - Desktop (Tauri) menus and window titles.
 - A user-profile language field and an "Automatic" picker entry.

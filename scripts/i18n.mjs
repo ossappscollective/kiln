@@ -377,7 +377,11 @@ export function checkUsage(usage, english) {
 export function runCheck({ strict = false } = {}) {
   const catalogs = checkCatalogs(readCatalogFiles());
   const usage = checkUsage(scanKeyUsage(readSourceFiles()), catalogs.english);
-  const errors = [...catalogs.errors, ...usage.errors];
+  // The server's catalogs (emails) and the desktop's (menus) follow the same rules; their keys are read by their own code, so they are
+  // checked as catalogs only, not against the web sources.
+  const server = checkCatalogs(readCatalogFiles(join(ROOT, 'apps/server/locales')));
+  const desktop = checkCatalogs(readCatalogFiles(join(ROOT, 'apps/desktop/locales')));
+  const errors = [...catalogs.errors, ...server.errors, ...desktop.errors, ...usage.errors];
   if (strict) for (const key of usage.unused) errors.push(`${key} is in English but never used.`);
   return { errors, warnings: usage.warnings, unused: usage.unused, indirect: usage.indirect, coverage: catalogs.coverage };
 }
@@ -621,7 +625,11 @@ function printScan(rows, { files, items }) {
 
 function fix() {
   let changed = 0;
-  for (const file of readCatalogFiles()) {
+  for (const file of [
+    ...readCatalogFiles(),
+    ...readCatalogFiles(join(ROOT, 'apps/server/locales')),
+    ...readCatalogFiles(join(ROOT, 'apps/desktop/locales')),
+  ]) {
     if (file.lang === null) continue;
     let value;
     try {

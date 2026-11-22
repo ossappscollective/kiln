@@ -38,7 +38,12 @@ The layout is fixed so Weblate can find every file by itself:
 apps/web/locales/<namespace>/<language>.json        e.g. apps/web/locales/shell/fr.json
 apps/web/locales/<namespace>/en.json                the source (monolingual base) of that namespace
 apps/web/locales/empty.json                         {}  the template for a new language
+apps/server/locales/<namespace>/<language>.json     e.g. apps/server/locales/email/fr.json (emails the server sends)
+apps/desktop/locales/<namespace>/<language>.json    e.g. apps/desktop/locales/desktop/fr.json (menus, see i18n-desktop.md)
 ```
+
+The web app's sentences for server errors are in `apps/web/locales/errors` (a normal web component, `Errors`); see
+[i18n-server.md](i18n-server.md).
 
 ### 1. The project
 
@@ -71,6 +76,19 @@ Then **Add-ons, Component discovery** on that component:
 | Language filter | `^(en\|fr\|es\|de)$` (add a language here when you register it, step 4) |
 | Remove components for inexistent files | on |
 | Copy translation settings from the main component | on (so every discovered component gets the same format and add-ons) |
+
+The server and the desktop have their own catalogs with the same format and rules. Add **one Component discovery add-on per app** on the
+same component (the add-on can be installed several times), with the same values as above and only these fields changed:
+
+| App | Regular expression | Monolingual base filename |
+| --- | --- | --- |
+| server | `apps/server/locales/(?P<component>[^/]*)/(?P<language>[^/.]*)\.json` | `apps/server/locales/{{ component }}/en.json` |
+| desktop | `apps/desktop/locales/(?P<component>[^/]*)/(?P<language>[^/.]*)\.json` | `apps/desktop/locales/{{ component }}/en.json` |
+
+One expression for the three apps is also possible, `apps/(?P<app>[^/]*)/locales/(?P<component>[^/]*)/(?P<language>[^/.]*)\.json` with
+the base file `apps/{{ app }}/locales/{{ component }}/en.json`, if your Weblate version exposes extra named groups to the templates.
+Namespace names must stay unique across the three apps (a component is named after its folder): `email` is the server's, `desktop` the
+desktop's, the web uses the rest. `pnpm i18n:check` checks all three folders.
 
 The regex is the one place that knows the layout: it matches `apps/web/locales/shell/fr.json` as component `shell`, language `fr`.
 `apps/web/locales/empty.json` has no namespace folder, so the expression never matches it; `en.json` matches as the source-language file of its
