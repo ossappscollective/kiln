@@ -2608,3 +2608,87 @@ export const revenuecatMetrics = pgTable(
   },
   (t) => [index('revenuecat_metrics_workspace_idx').on(t.workspaceId)],
 );
+
+/** Chat integrations (migration 52, docs/adr/0047-chat-integrations.md): a Slack or Teams incoming webhook. The URL is a secret, kept encrypted. */
+export const chatDestinations = pgTable(
+  'chat_destinations',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    provider: text('provider').notNull(),
+    name: text('name').notNull(),
+    /** The webhook URL, encrypted with the vault. */
+    ciphertext: text('ciphertext').notNull(),
+    /** The last four characters of the URL: the only part ever shown. */
+    urlHint: text('url_hint').notNull(),
+    locale: text('locale').notNull().default('en'),
+    enabled: integer('enabled').notNull().default(1),
+    allowAnyHost: integer('allow_any_host').notNull().default(0),
+    digest: text('digest').notNull().default('off'),
+    digestHour: integer('digest_hour').notNull().default(8),
+    timezone: text('timezone').notNull().default('UTC'),
+    lastDigestAt: epochMs('last_digest_at'),
+    lastSentAt: epochMs('last_sent_at'),
+    createdBy: text('created_by').notNull(),
+    createdAt: epochMs('created_at').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [index('chat_destinations_workspace_idx').on(t.workspaceId)],
+);
+
+/** Which alerts go to a chat destination (migration 52). */
+export const chatRoutes = pgTable(
+  'chat_routes',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    destinationId: text('destination_id')
+      .notNull()
+      .references(() => chatDestinations.id),
+    /** JSON array of alert types, or ["*"]. */
+    alertTypes: text('alert_types').notNull(),
+    minSeverity: text('min_severity').notNull().default('info'),
+    /** JSON array of app ids; null means all apps. */
+    appIds: text('app_ids'),
+    /** JSON array of platforms; null means all. */
+    platforms: text('platforms'),
+    enabled: integer('enabled').notNull().default(1),
+    position: integer('position').notNull().default(0),
+    createdAt: epochMs('created_at').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [index('chat_routes_destination_idx').on(t.destinationId)],
+);
+
+/** One message to a chat destination: status, an outcome from a fixed vocabulary, the rendered body (migration 52). */
+export const chatDeliveries = pgTable(
+  'chat_deliveries',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    destinationId: text('destination_id')
+      .notNull()
+      .references(() => chatDestinations.id),
+    alertId: text('alert_id'),
+    kind: text('kind').notNull(),
+    status: text('status').notNull(),
+    outcome: text('outcome').notNull(),
+    httpStatus: integer('http_status'),
+    attempts: integer('attempts').notNull().default(0),
+    /** The JSON that is sent. Titles, names and links only. */
+    payload: text('payload'),
+    createdAt: epochMs('created_at').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+    deliveredAt: epochMs('delivered_at'),
+  },
+  (t) => [
+    index('chat_deliveries_destination_idx').on(t.destinationId, t.createdAt),
+    index('chat_deliveries_workspace_idx').on(t.workspaceId, t.createdAt),
+  ],
+);

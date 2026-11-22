@@ -105,6 +105,8 @@ test('only owners and admins manage tokens and webhooks', () => {
     'tokens.manage',
     'webhooks.read',
     'webhooks.manage',
+    'chat.read',
+    'chat.manage',
   ] as const) {
     assert.equal(can('owner', action), true, action);
     assert.equal(can('admin', action), true, action);

@@ -3,6 +3,7 @@ import { aiFeatureMigrations } from './migrations-ai-features.ts';
 import { alertEmailMigrations } from './migrations-alert-email.ts';
 import { alertMigrations } from './migrations-alerts.ts';
 import { analyticsBucketMigrations } from './migrations-analytics-bucket.ts';
+import { chatMigrations } from './migrations-chat.ts';
 import { ciProviderMigrations } from './migrations-ci-provider.ts';
 import { easMigrations } from './migrations-eas.ts';
 import { easStatusMigrations } from './migrations-eas-status.ts';
@@ -1835,5 +1836,6 @@ export const migrations: Migration[] = [
   ...revenueCatMetricsMigrations,
   ...syncErrorCodeMigrations,
   ...userLocaleMigrations,
+  ...chatMigrations,
   ...storeExperimentsMigrations,
 ];

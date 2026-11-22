@@ -43,6 +43,9 @@ export const actions = [
   'tokens.manage',
   'webhooks.read',
   'webhooks.manage',
+  // Chat integrations (docs/adr/0047-chat-integrations.md): the Slack and Teams destinations hold a secret URL, so owner and admin only, never a token.
+  'chat.read',
+  'chat.manage',
   'events.read',
   'aso.read',
   'aso.write',
@@ -134,6 +137,8 @@ export const tokenForbiddenActions: readonly Action[] = [
   'credentials.write',
   'webhooks.read',
   'webhooks.manage',
+  'chat.read',
+  'chat.manage',
 ];
 
 /** The actions a token may be given, in the order of `actions`. */
