@@ -24,10 +24,10 @@
   import type { Api } from '../../lib/api.ts';
   import type { AttentionItem } from '../../lib/app-attention.ts';
   import type { PlatformScope } from '../../lib/app-scope.ts';
-  import { chooseNextStep } from '../../lib/next-step.ts';
+  import { chooseNextStep, nextStepTrains } from '../../lib/next-step.ts';
   import { pipelineStore } from '../../lib/pipeline-store.svelte.ts';
   import { promoteHref, promoteOptions } from '../../lib/play-promote.ts';
-  import { releaseTrainsByPlatform, trainInputOf } from '../../lib/release-trains.ts';
+  import { reviewUrl } from '../../lib/store-links.ts';
   import { releaseStepHref } from '../../lib/release-stepper.ts';
   import type { StartedRun } from '../../lib/start-release.ts';
   import type { ActiveRuns, AppSummary, ReleaseSummary } from '../../lib/types.ts';
@@ -76,17 +76,18 @@
     start?.observe(data);
   }
 
+  // The card is about the whole app: the releases of every record (iOS, macOS, Android), whatever platform the page is scoped to.
+  const records = $derived(all ?? members);
   const trains = $derived(
-    releaseTrainsByPlatform(
-      members
-        .map((m) => pipelineStore.app(m.id))
-        .filter((d): d is NonNullable<typeof d> => d !== null)
-        .map(trainInputOf),
-    ),
+    nextStepTrains(records.map((m) => pipelineStore.app(m.id)).filter((d): d is NonNullable<typeof d> => d !== null)),
   );
+  const reviewUrlOf = (appId: string) => {
+    const record = records.find((m) => m.id === appId);
+    return record ? reviewUrl(record) : null;
+  };
   const canStart = $derived(can(role, 'ci.dispatch') && can(role, 'repositories.read') && members.some((m) => m.repositoryId !== null));
   const canPrepare = $derived(can(role, 'listing.read') && members.length > 0);
-  const step = $derived(chooseNextStep({ trains, attention, scope, canStart, canPrepare }));
+  const step = $derived(chooseNextStep({ trains, attention, scope, canStart, canPrepare, reviewUrlOf }));
   // A Google Play release that sits in internal, closed or open testing can be promoted: one quiet line with its own button.
   const promotion = $derived.by(() => {
     if (!canPrepare || !releases) return null;
@@ -100,7 +101,8 @@
   const prepareHref = $derived(members[0] ? releaseStepHref(members[0].id, scope, 'build') : '');
   const startsHere = $derived(step.primary !== null && 'action' in step.primary && step.primary.action === 'start-release');
   const preparesHere = $derived(step.primary !== null && 'action' in step.primary && step.primary.action === 'prepare-release');
-  const startButton = $derived<'primary' | 'secondary' | 'none'>(startsHere ? 'primary' : step.offerStart ? 'secondary' : 'none');
+  // "Start release" is offered as the primary action only, when nothing is in flight; beside a release in flight it is not on the card.
+  const startButton = $derived<'primary' | 'none'>(startsHere ? 'primary' : 'none');
 
   $effect(() => {
     const rest = step.items;
@@ -110,9 +112,9 @@
   let loadedKey = '';
   let lastRefresh = 0;
   $effect(() => {
-    const key = `${workspaceId}/${members.map((m) => m.id).join(',')}`;
+    const key = `${workspaceId}/${records.map((m) => m.id).join(',')}`;
     const again = refreshKey;
-    const list = members.map((m) => m.id);
+    const list = records.map((m) => m.id);
     untrack(() => {
       // A finished sync reads again; opening the page or changing the scope reuses what was read a moment ago.
       const force = key === loadedKey && again !== lastRefresh;
@@ -128,6 +130,7 @@
   <div class="main">
     <div class="text">
       <h2 id="{uid}-title">
+        {#if step.train}{#each step.train.platforms as p (p)}<PlatformBadge platform={p} showLabel={false} />{/each}{/if}
         {step.title}
         {#if step.waiting}<Badge tone={step.waiting.who === 'you' ? 'warn' : 'neutral'}>{step.waiting.text}</Badge>{/if}
       </h2>
@@ -136,7 +139,7 @@
     </div>
     <div class="actions">
       {#if step.primary && 'href' in step.primary}
-        <Button variant="primary" size="lg" icon="arrow-right" href={step.primary.href}>{step.primary.label}</Button>
+        <Button variant="primary" size="lg" icon={step.primary.external ? 'external-link' : 'arrow-right'} href={step.primary.href} target={step.primary.external ? '_blank' : undefined}>{step.primary.label}</Button>
       {:else if preparesHere && step.primary}
         {#if onprepare}
           <Button variant="primary" size="lg" icon="play" onclick={onprepare}>{step.primary.label}</Button>
@@ -175,7 +178,7 @@
             <span>{r.text}</span>
             {#if r.waiting}<Badge tone={r.waiting.who === 'you' ? 'warn' : 'neutral'}>{r.waiting.text}</Badge>{/if}
           </span>
-          <Button variant={r.urgent ? 'primary' : 'secondary'} icon="arrow-right" href={r.href}>{r.label}</Button>
+          <Button variant={r.urgent ? 'primary' : 'secondary'} icon={r.external ? 'external-link' : 'arrow-right'} href={r.href} target={r.external ? '_blank' : undefined}>{r.label}</Button>
         </li>
       {/each}
     </ul>
@@ -195,7 +198,7 @@
   {#if step.otherTrains.length > 0}
     <ul class="others" aria-label={t('app:nextStep.otherOnTheirWay')}>
       {#each step.otherTrains as o (o.title)}
-        <li><strong>{o.title}</strong> <span class="muted">{o.text}</span> <a href={o.href}>{o.label}</a></li>
+        <li><strong>{o.title}</strong> <span class="muted">{o.text}</span> <a href={o.href} target={o.external ? '_blank' : undefined} rel={o.external ? 'noopener noreferrer' : undefined}>{o.label}</a></li>
       {/each}
     </ul>
   {/if}

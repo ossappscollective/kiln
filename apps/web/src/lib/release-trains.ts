@@ -66,7 +66,14 @@ export function trainInputOf(data: Pick<AppPipeline, 'app' | 'pipeline'>): Train
 }
 
 /** `page: 'release'`: the button opens the release page of the version (its state), not a step of Prepare release. */
-export type TrainButton = { label: string; appId: string; step: StepId; page?: 'release' };
+export type TrainButton = {
+  label: string;
+  appId: string;
+  step: StepId;
+  page?: 'release';
+  /** "Follow the review": the screen links to the store's own page for the review (lib/store-links.ts) when it can build one. */
+  review?: true;
+};
 
 export type Train = {
   /** `version:3.1.1`, or `build:<app id>` for a build with no version. */
@@ -147,9 +154,9 @@ function mergeSteps(items: readonly TrainInput[]): StripStep[] {
   return merged.map((s, i) => ({ ...s, current: i === mark }));
 }
 
-/** " (iOS and Android)" when the train has several platforms, else nothing: a parameter of the sentences below. */
-const names = (items: readonly TrainInput[], several: boolean): string =>
-  several ? ` (${formatList(items.map((i) => platformLabel(i.platform)))})` : '';
+/** "Android", or "iOS and macOS" when the train has several platforms: the platform parameter of the sentences below. */
+const names = (items: readonly TrainInput[]): string =>
+  formatList(Array.from(new Set(items.map((i) => platformLabel(i.platform)))));
 
 /** The version a build with no version of its own could go to: the only version on its way in the same app, else none. */
 function carrierOf(item: TrainInput, versions: readonly string[]): string | null {
@@ -197,7 +204,6 @@ function describe(train: {
   spare: TrainInput[];
 }): Train {
   const members = [...train.items, ...train.spare];
-  const several = members.length > 1;
   const steps = mergeSteps(members);
   const who =
     members
@@ -238,39 +244,44 @@ function describe(train: {
     );
     const state = train.items.map((i) => i.state)[0] as string;
     const stateOf = (s: string) => train.items.some((i) => i.state === s);
-    const platforms = names(train.items, several);
+    const platform = names(train.items);
     if (stateOf('rejected')) {
-      lines.push(t('release:train.rejected', { version: v, platforms }));
+      lines.push(t('release:train.rejected', { version: v, platform }));
       button = {
         label: t('release:lead.rejectedAction'),
         appId: (train.items.filter((i) => i.state === 'rejected')[0] as TrainInput).appId,
         step: 'review',
       };
     } else if (stateOf('approved')) {
-      lines.push(t('release:train.approved', { version: v, platforms }));
+      lines.push(t('release:train.approved', { version: v, platform }));
       button = {
         label: t('release:lead.approvedAction'),
         appId: (train.items.filter((i) => i.state === 'approved')[0] as TrainInput).appId,
         step: 'confirm',
       };
     } else if (stateOf('in_review')) {
-      lines.push(t('release:train.inReview', { version: v, platforms }));
+      lines.push(t('release:train.inReview', { version: v, platform }));
       button = {
         label: t('release:train.followReview'),
         appId: (train.items.filter((i) => i.state === 'in_review')[0] as TrainInput).appId,
         step: 'confirm',
         // Nothing is left to do in Prepare release: the release page shows where the review stands.
         page: 'release',
+        review: true,
       };
     } else if (own.length > 0) {
       const mine = own[0] as TrainInput;
-      lines.push(t('release:train.preparing', { version: v, platforms }));
+      lines.push(t('release:train.preparing', { version: v, platform }));
       button = { label: t('release:lead.preparingAction'), appId: mine.appId, step: 'confirm' };
     } else {
       lines.push(
-        t('release:train.onItsWay', { version: v, platforms, state: state.replace(/_/g, ' ') }),
+        t('release:train.onItsWay', { version: v, platform, state: state.replace(/_/g, ' ') }),
       );
-      button = { label: t('release:lead.openSteps'), appId: first.appId, step: stepForState(state) };
+      button = {
+        label: t('release:lead.openSteps'),
+        appId: first.appId,
+        step: stepForState(state),
+      };
     }
     if (unattached.length > 0) {
       const b = (unattached[0] as TrainInput).build as NonNullable<TrainInput['build']>;
@@ -291,7 +302,7 @@ function describe(train: {
     appIds: members.map((m) => m.appId),
     title:
       train.version !== null
-        ? t('release:train.title.version', { version: train.version })
+        ? t('release:train.title.versionOn', { version: train.version, platform: names(train.items) })
         : first.build
           ? t('release:train.title.build', { number: first.build.number })
           : t('release:train.title.release'),

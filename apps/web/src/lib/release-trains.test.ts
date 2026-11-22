@@ -34,7 +34,7 @@ test('a version being prepared and a build nobody has are one train, with the bu
   const trains = releaseTrains([draftIos, buildMac]);
   assert.equal(trains.length, 1);
   const t = trains[0]!;
-  assert.equal(t.title, 'Version 3.1.1');
+  assert.equal(t.title, 'Version 3.1.1 on iOS');
   assert.deepEqual(t.lines.length, 2);
   assert.match(t.lines[1]!, /Build 169 is ready: attach it to 3.1.1/);
   assert.equal(t.button.label, 'Attach build 169');

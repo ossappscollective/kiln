@@ -2,12 +2,17 @@ import type { Platform } from '@kiln/core';
 import type { AttentionItem } from './app-attention.ts';
 import { appAddress, type PlatformScope } from './app-scope.ts';
 import { t } from './i18n/t.ts';
+import type { AppPipeline } from './release-pipeline.ts';
 import { releaseStepHref } from './release-stepper.ts';
-import type { Train } from './release-trains.ts';
+import { releaseTrainsByPlatform, type Train, trainInputOf } from './release-trains.ts';
 
 /**
  * "Next step": the one card at the top of the Overview and of Releases. From the releases on their way (the release trains) and the
  * attention items it picks ONE thing to do and one primary button for it. Pure; nothing is fetched here.
+ *
+ * The card is about the WHOLE app, never about the platform the page is scoped to: `nextStepTrains` takes the pipelines of every record
+ * of the app, so a release that waits for the person on iOS is not hidden because the page shows Android (the pending link and the
+ * release page already look at every record; a card that did not said "Nothing is waiting for you" beside them).
  *
  * Order: a train whose step failed (a rejection, a failed CI run), then a train that waits for the person, then the one that waits
  * for the store, then one that waits for CI; with no release on its way, the most serious attention item that has a link and is a
@@ -15,7 +20,7 @@ import type { Train } from './release-trains.ts';
  */
 
 export type NextAction =
-  | { label: string; href: string }
+  | { label: string; href: string; /** The store's own page: opens in a new tab. */ external?: true }
   | { label: string; action: 'start-release' | 'prepare-release' };
 
 /** One release with a next step of its own: a row of the card when several platforms have one. */
@@ -28,6 +33,8 @@ export type NextRow = {
   text: string;
   waiting: { who: 'you' | 'store' | 'ci'; text: string } | null;
   href: string;
+  /** `href` is the store's own page (opens in a new tab). */
+  external: boolean;
   label: string;
   /** Waits for the person (or failed): its button is the primary one; the rest are quiet. */
   urgent: boolean;
@@ -52,11 +59,9 @@ export type NextStep = {
    */
   rows: NextRow[];
   /** Other releases on their way: one quiet line each. */
-  otherTrains: { title: string; text: string; href: string; label: string }[];
+  otherTrains: { title: string; text: string; href: string; external: boolean; label: string }[];
   /** The rest of "Needs attention": what the card does not already say. */
   items: AttentionItem[];
-  /** A quiet "Start release" is offered beside the step (nothing waits for the person). */
-  offerStart: boolean;
 };
 
 export type NextStepInput = {
@@ -67,7 +72,14 @@ export type NextStepInput = {
   canStart: boolean;
   /** The role may open the release steps. */
   canPrepare: boolean;
+  /** The store's page for the review of the release of this record (App Store Connect, Play Console), or null when none can be built. */
+  reviewUrlOf?: ((appId: string) => string | null) | undefined;
 };
+
+/** The release trains of the card: one per platform, from the pipelines of every record of the app (never only the scope's). */
+export function nextStepTrains(pipelines: readonly Pick<AppPipeline, 'app' | 'pipeline'>[]): Train[] {
+  return releaseTrainsByPlatform(pipelines.map(trainInputOf));
+}
 
 const isUnfinished = (item: AttentionItem): boolean => item.id.endsWith(':unfinished');
 
@@ -87,12 +99,24 @@ export function orderTrains(trains: readonly Train[]): Train[] {
     .map((x) => x.t);
 }
 
-const trainHref = (t: Train, scope: PlatformScope | null): string =>
-  t.button.page === 'release' && t.version !== null
-    ? appAddress(t.button.appId, 'releases', scope, t.version)
-    : releaseStepHref(t.button.appId, scope, t.button.step, t.version);
+type Dest = { href: string; external: boolean };
 
-function rowOf(t: Train, scope: PlatformScope | null): NextRow {
+/** Where a train's button goes: the store's page for "Follow the review" when there is one, else the release page or a step. */
+function trainDest(t: Train, input: Pick<NextStepInput, 'scope' | 'reviewUrlOf'>): Dest {
+  const store = t.button.review ? (input.reviewUrlOf?.(t.button.appId) ?? null) : null;
+  if (store !== null) return { href: store, external: true };
+  const scope = input.scope;
+  return {
+    external: false,
+    href:
+      t.button.page === 'release' && t.version !== null
+        ? appAddress(t.button.appId, 'releases', scope, t.version)
+        : releaseStepHref(t.button.appId, scope, t.button.step, t.version),
+  };
+}
+
+function rowOf(t: Train, input: NextStepInput): NextRow {
+  const dest = trainDest(t, input);
   const r = rank(t);
   return {
     key: t.key,
@@ -101,10 +125,18 @@ function rowOf(t: Train, scope: PlatformScope | null): NextRow {
     title: t.title,
     text: t.lines.join(' '),
     waiting: t.waiting ? { who: t.waiting.who, text: t.waiting.text } : null,
-    href: trainHref(t, scope),
+    href: dest.href,
+    external: dest.external,
     label: t.button.label,
     urgent: r <= 1,
   };
+}
+
+function primaryOf(t: Train, input: NextStepInput): NextAction {
+  const dest = trainDest(t, input);
+  return dest.external
+    ? { label: t.button.label, href: dest.href, external: true }
+    : { label: t.button.label, href: dest.href };
 }
 
 export function chooseNextStep(input: NextStepInput): NextStep {
@@ -138,21 +170,23 @@ export function chooseNextStep(input: NextStepInput): NextStep {
           : lead.waiting
             ? { who: lead.waiting.who, text: lead.waiting.text }
             : null,
-      primary:
-        trains.length > 1 ? null : { label: lead.button.label, href: trainHref(lead, input.scope) },
+      primary: trains.length > 1 ? null : primaryOf(lead, input),
       train: trains.length > 1 ? null : lead,
-      rows: trains.length > 1 ? trains.map((t) => rowOf(t, input.scope)) : [],
+      rows: trains.length > 1 ? trains.map((t) => rowOf(t, input)) : [],
       otherTrains:
         trains.length > 1
           ? []
-          : trains.slice(1).map((t) => ({
-              title: t.title,
-              text: t.lines[0] ?? '',
-              href: trainHref(t, input.scope),
-              label: t.button.label,
-            })),
+          : trains.slice(1).map((t) => {
+              const dest = trainDest(t, input);
+              return {
+                title: t.title,
+                text: t.lines[0] ?? '',
+                href: dest.href,
+                external: dest.external,
+                label: t.button.label,
+              };
+            }),
       items,
-      offerStart: input.canStart && r >= 2,
     };
   }
 
@@ -170,11 +204,10 @@ export function chooseNextStep(input: NextStepInput): NextStep {
       waiting: null,
       primary: { label: lone.action, href: lone.href },
       items: items.filter((i) => i !== lone),
-      offerStart: input.canStart,
     };
   }
 
-  const nothing = { ...base, tone: 'neutral' as const, waiting: null, items, offerStart: false };
+  const nothing = { ...base, tone: 'neutral' as const, waiting: null, items };
   if (input.canStart) {
     return {
       ...nothing,

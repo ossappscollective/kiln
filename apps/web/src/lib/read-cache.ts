@@ -53,16 +53,20 @@ export function createReadCache(now: () => number = Date.now): ReadCache {
       const id = cacheKey(workspaceId, key);
       const hit = kept.get(id);
       if (!force && hit && now() - hit.at < ttlMs) return hit.value as never;
+      // A "read again" never joins a request that started before it: that one may have been sent before the change it is asked for.
       const running = inflight.get(id);
-      if (running) return running as never;
-      const promise = load().then(
+      if (running && !force) return running as never;
+      const promise: Promise<never> = load().then(
         (value) => {
-          kept.set(id, { at: now(), value });
-          inflight.delete(id);
-          return value;
+          // A request that was overtaken by a forced one must not replace its newer answer.
+          if (inflight.get(id) === promise) {
+            kept.set(id, { at: now(), value });
+            inflight.delete(id);
+          }
+          return value as never;
         },
         (error: unknown) => {
-          inflight.delete(id);
+          if (inflight.get(id) === promise) inflight.delete(id);
           if (error instanceof ApiError && error.status === 429)
             pausedUntil.set(
               pauseKey(workspaceId, group),
