@@ -20,7 +20,8 @@
     "format": "biome format --write .",
     "i18n:check": "node scripts/i18n.mjs check",
     "i18n:fix": "node scripts/i18n.mjs fix",
-    "i18n:scan": "node scripts/i18n.mjs scan"
+    "i18n:scan": "node scripts/i18n.mjs scan",
+    "email:preview": "node --disable-warning=ExperimentalWarning scripts/email-preview.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",

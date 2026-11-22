@@ -306,6 +306,12 @@ releases) starts on the first screen. Everything else is quiet by default: expla
 one slim line. A block with nothing to show is not drawn. Safety UI for store writes (previews,
 confirmations, typed phrases) is never shortened; only its idle state is.
 
+## Emails
+
+Emails have their own small token object (`emailTokens` in `apps/server/src/mail/layout.ts`) that mirrors the names and values
+of `theme.css` (light and dark, the brand gradient, Space Grotesk / Inter as first font names). Change both when you retheme.
+Layout, preview script and client caveats: [emails](emails.md).
+
 ## Do
 
 - Use one primary button per view or dialog. Put it last in a row of actions.

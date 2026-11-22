@@ -114,6 +114,8 @@ a template passes `redactAlertData`, which drops everything not on an allow-list
 
 ## Email and the delivery log
 
+The look of every email (layout, colours, button) is one module, see [emails](emails.md).
+
 Email goes through `sendMail` (`services/mailer.ts`, which reads the workspace's SMTP settings) from a background job, so a failure is retried with backoff. Only a connection
 failure and a timeout are retried (up to the job queue's attempt limit); a refused login, a refused message or a missing mail setup are
 final and say so. Every delivery is a row in the **delivery log** with a status (queued, retrying, sent, failed, skipped, deferred) and an
