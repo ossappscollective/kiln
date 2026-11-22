@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
@@ -14,18 +15,17 @@
 </script>
 
 <div class="card box" role="region" aria-labelledby="invite-link-title">
-  <h3 id="invite-link-title">Invitation link for {email}</h3>
-  <Alert tone="warn" title="Copy this link now. It is shown only once.">
-    Anyone with the link can join the workspace as this person, so send it privately. It works once
-    and expires in 7 days. Lost it? Revoke the invitation and make a new one.
+  <h3 id="invite-link-title">{t('workspace:members.link.title', { email })}</h3>
+  <Alert tone="warn" title={t('workspace:members.link.warnTitle')}>
+    {t('workspace:members.link.warnBody')}
   </Alert>
   <div class="row">
-    <label class="visually-hidden" for="invite-link">One-time invitation link</label>
+    <label class="visually-hidden" for="invite-link">{t('workspace:members.link.label')}</label>
     <input id="invite-link" value={link} readonly onfocus={(e) => e.currentTarget.select()} />
-    <CopyButton value={link} label="Copy link" variant="secondary" size="md" />
+    <CopyButton value={link} label={t('workspace:members.link.copy')} variant="secondary" size="md" />
   </div>
   <div class="row">
-    <Button onclick={ondismiss}>I have copied it</Button>
+    <Button onclick={ondismiss}>{t('workspace:secret.copied')}</Button>
   </div>
 </div>
 

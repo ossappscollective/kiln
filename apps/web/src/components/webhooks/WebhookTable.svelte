@@ -1,11 +1,13 @@
 <script lang="ts">
   import { fullTime } from '../../lib/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import type { WebhookEndpoint } from '../../lib/types.ts';
   import { eventsSummary, hostOf, lastDeliveryLabel } from '../../lib/webhooks.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
+  import T from '../ui/T.svelte';
 
   type Ask = { kind: 'delete' | 'rotate'; endpoint: WebhookEndpoint };
 
@@ -49,14 +51,14 @@
 
 <div class="table-wrap">
   <table>
-    <caption class="visually-hidden">Webhooks of this workspace</caption>
+    <caption class="visually-hidden">{t('workspace:webhooks.table.caption')}</caption>
     <thead>
       <tr>
-        <th scope="col">Address</th>
-        <th scope="col">Events</th>
-        <th scope="col">Status</th>
-        <th scope="col">Last delivery</th>
-        <th scope="col"><span class="visually-hidden">Actions</span></th>
+        <th scope="col">{t('workspace:webhooks.table.address')}</th>
+        <th scope="col">{t('workspace:webhooks.table.events')}</th>
+        <th scope="col">{t('workspace:webhooks.table.status')}</th>
+        <th scope="col">{t('workspace:webhooks.table.lastDelivery')}</th>
+        <th scope="col"><span class="visually-hidden">{t('workspace:webhooks.table.actions')}</span></th>
       </tr>
     </thead>
     <tbody>
@@ -68,17 +70,17 @@
             <div class="muted text-xs truncate" title={endpoint.url}>{endpoint.url}</div>
           </td>
           <td class="muted" title={endpoint.eventTypes.join(', ')}>{eventsSummary(endpoint)}</td>
-          <td><Badge tone={endpoint.enabled ? 'ok' : 'neutral'} icon={toneIcon(endpoint.enabled ? 'ok' : 'neutral')}>{endpoint.enabled ? 'Enabled' : 'Disabled'}</Badge></td>
+          <td><Badge tone={endpoint.enabled ? 'ok' : 'neutral'} icon={toneIcon(endpoint.enabled ? 'ok' : 'neutral')}>{endpoint.enabled ? t('workspace:webhooks.table.enabled') : t('workspace:webhooks.table.disabled')}</Badge></td>
           <td class="muted" title={endpoint.lastDelivery ? fullTime(endpoint.lastDelivery.at) : ''}>
             {lastDeliveryLabel(endpoint, now)}
           </td>
           <td class="actions">
-            <Button size="sm" disabled={busyId === endpoint.id} label="Deliveries of {hostOf(endpoint.url)}" onclick={() => onopen(endpoint)}>Deliveries</Button>
+            <Button size="sm" disabled={busyId === endpoint.id} label={t('workspace:webhooks.table.deliveriesLabel', { host: hostOf(endpoint.url) })} onclick={() => onopen(endpoint)}>{t('workspace:webhooks.table.deliveries')}</Button>
             {#if canManage}
-              <Button size="sm" disabled={busyId === endpoint.id} label="Send a test event to {hostOf(endpoint.url)}" onclick={() => ontest(endpoint)}>Send test</Button>
-              <Button size="sm" disabled={busyId === endpoint.id} label="Edit {hostOf(endpoint.url)}" onclick={() => onedit(endpoint)}>Edit</Button>
-              <Button size="sm" disabled={busyId === endpoint.id} label="New secret for {hostOf(endpoint.url)}" onclick={() => ask('rotate', endpoint)}>New secret</Button>
-              <Button size="sm" variant="danger" disabled={busyId === endpoint.id} label="Delete {hostOf(endpoint.url)}" onclick={() => ask('delete', endpoint)}>Delete</Button>
+              <Button size="sm" disabled={busyId === endpoint.id} label={t('workspace:webhooks.table.testLabel', { host: hostOf(endpoint.url) })} onclick={() => ontest(endpoint)}>{t('workspace:webhooks.table.test')}</Button>
+              <Button size="sm" disabled={busyId === endpoint.id} label={t('workspace:webhooks.table.editLabel', { host: hostOf(endpoint.url) })} onclick={() => onedit(endpoint)}>{t('workspace:webhooks.table.edit')}</Button>
+              <Button size="sm" disabled={busyId === endpoint.id} label={t('workspace:webhooks.table.secretLabel', { host: hostOf(endpoint.url) })} onclick={() => ask('rotate', endpoint)}>{t('workspace:webhooks.table.secret')}</Button>
+              <Button size="sm" variant="danger" disabled={busyId === endpoint.id} label={t('workspace:webhooks.table.deleteLabel', { host: hostOf(endpoint.url) })} onclick={() => ask('delete', endpoint)}>{t('workspace:webhooks.table.delete')}</Button>
             {/if}
           </td>
         </tr>
@@ -90,22 +92,17 @@
 <Modal
   bind:open
   size="sm"
-  title={asking?.kind === 'delete' ? 'Delete this webhook?' : 'Make a new signing secret?'}
+  title={asking?.kind === 'delete' ? t('workspace:webhooks.table.deleteTitle') : t('workspace:webhooks.table.rotateTitle')}
   onclose={() => (asking = null)}
 >
   {#if asking?.kind === 'delete'}
-    <p>
-      <strong>{hostOf(asking.endpoint.url)}</strong> stops receiving events, and its delivery log is deleted.
-    </p>
+    <p><T key="workspace:webhooks.table.deleteBody" params={{ host: hostOf(asking.endpoint.url) }} /></p>
   {:else if asking}
-    <p>
-      The current secret of <strong>{hostOf(asking.endpoint.url)}</strong> stops working at once, so deliveries
-      fail verification until the receiver has the new one. You see the new secret once.
-    </p>
+    <p><T key="workspace:webhooks.table.rotateBody" params={{ host: hostOf(asking.endpoint.url) }} /></p>
   {/if}
   {#snippet footer()}
-    <Button onclick={() => (open = false)}>Cancel</Button>
-    <Button variant="danger-solid" onclick={confirm}>{asking?.kind === 'delete' ? 'Delete' : 'Make new secret'}</Button>
+    <Button onclick={() => (open = false)}>{t('common:action.cancel')}</Button>
+    <Button variant="danger-solid" onclick={confirm}>{asking?.kind === 'delete' ? t('workspace:webhooks.table.delete') : t('workspace:webhooks.table.makeSecret')}</Button>
   {/snippet}
 </Modal>
 

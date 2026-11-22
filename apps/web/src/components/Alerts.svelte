@@ -14,6 +14,7 @@
   import PageHeader from './ui/PageHeader.svelte';
   import Tabs from './ui/Tabs.svelte';
   import { alertStore } from '../lib/alerts/store.svelte.ts';
+  import { t } from '../lib/i18n/t.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -27,10 +28,10 @@
   let tab = $state('inbox');
 
   const tabs = $derived(
-    ([{ id: 'inbox', label: 'Inbox', ...(alertStore.unread > 0 ? { count: alertStore.unread } : {}) }] as { id: string; label: string; count?: number }[])
-      .concat(canWrite ? [{ id: 'mine', label: 'My alerts' }] : [])
-      .concat(isAdmin ? [{ id: 'rules', label: 'Workspace rules' }] : [])
-      .concat([{ id: 'log', label: 'Delivery log' }]),
+    ([{ id: 'inbox', label: t('workspace:alerts.page.tabInbox'), ...(alertStore.unread > 0 ? { count: alertStore.unread } : {}) }] as { id: string; label: string; count?: number }[])
+      .concat(canWrite ? [{ id: 'mine', label: t('workspace:alerts.page.tabMine') }] : [])
+      .concat(isAdmin ? [{ id: 'rules', label: t('workspace:alerts.page.tabRules') }] : [])
+      .concat([{ id: 'log', label: t('workspace:alerts.page.tabLog') }]),
   );
 
   async function load() {
@@ -42,7 +43,7 @@
     } catch (e) {
       catalog = null;
       page = null;
-      error = e instanceof ApiError ? e.message : 'Could not load the alert settings.';
+      error = e instanceof ApiError ? e.message : t('workspace:alerts.page.loadFailed');
     }
   }
 
@@ -50,7 +51,7 @@
     try {
       page = await api.alertSettings(workspaceId);
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not reload the alert settings.';
+      error = e instanceof ApiError ? e.message : t('workspace:alerts.page.reloadFailed');
     }
   }
 
@@ -70,9 +71,9 @@
 </script>
 
 <section>
-  <PageHeader title="Alerts" description="What needs you first, then how you hear about it: email, desktop notifications and webhooks." />
+  <PageHeader title={t('workspace:alerts.page.title')} description={t('workspace:alerts.page.description')} />
   {#if error}<Alert tone="error">{error}</Alert>{/if}
-  <Tabs {tabs} bind:value={tab} label="Alerts">
+  <Tabs {tabs} bind:value={tab} label={t('workspace:alerts.page.tabsLabel')}>
     {#snippet panel(id)}
       {#if id === 'inbox'}
         <AlertInbox {api} {workspaceId} {apps} onchange={loadSettings} />
@@ -80,13 +81,13 @@
         {#if catalog && page}
           <AlertSettings {api} {workspaceId} {catalog} {page} {apps} onreload={loadSettings} />
         {:else if !error}
-          <p class="muted" role="status">Loading your alert settings.</p>
+          <p class="muted" role="status">{t('workspace:alerts.page.loadingMine')}</p>
         {/if}
       {:else if id === 'rules'}
         {#if catalog}
           <AlertRules {api} {workspaceId} {catalog} onsaved={load} />
         {:else if !error}
-          <p class="muted" role="status">Loading the workspace rules.</p>
+          <p class="muted" role="status">{t('workspace:alerts.page.loadingRules')}</p>
         {/if}
       {:else}
         <AlertLog {api} {workspaceId} {isAdmin} />

@@ -7,7 +7,7 @@
   import InviteForm from './members/InviteForm.svelte';
   import InviteLink from './members/InviteLink.svelte';
   import MemberTable from './members/MemberTable.svelte';
-  import { roleLabel } from './members/roles.ts';
+  import { k, t } from '../lib/i18n/t.ts';
   import Alert from './ui/Alert.svelte';
   import Button from './ui/Button.svelte';
   import PageHeader from './ui/PageHeader.svelte';
@@ -35,7 +35,7 @@
       invitations = (await api.invitations(workspaceId)).invitations;
     } catch (e) {
       if (e instanceof ApiError && e.code === 'disabled_in_single_user_mode') invitesOff = true;
-      else error = e instanceof ApiError ? e.message : 'Could not load invitations.';
+      else error = e instanceof ApiError ? e.message : t('workspace:members.error.loadInvitations');
     }
   }
 
@@ -47,7 +47,7 @@
       myId = me.user.id;
     } catch (e) {
       members = null;
-      error = e instanceof ApiError ? e.message : 'Could not load members.';
+      error = e instanceof ApiError ? e.message : t('workspace:members.error.load');
       return;
     }
     await loadInvitations();
@@ -78,6 +78,14 @@
   // Your own role or membership just changed, so what you may see changed too. Start over.
   const restart = () => location.reload();
 
+  /** The role as a word in the middle of a sentence (lower case in the languages that write it so). */
+  const roleWordKeys: Record<Role, string> = {
+    owner: k('workspace:audit.role.owner'),
+    admin: k('workspace:audit.role.admin'),
+    member: k('workspace:audit.role.member'),
+    viewer: k('workspace:audit.role.viewer'),
+  };
+
   async function changeRole(member: Member, next: Role) {
     busyId = member.userId;
     error = '';
@@ -85,9 +93,9 @@
       await api.changeRole(workspaceId, member.userId, next);
       if (member.userId === myId) return restart();
       await load();
-      await announce(`${member.displayName} is now ${roleLabel[next].toLowerCase()}.`);
+      await announce(t('workspace:members.notice.roleChanged', { name: member.displayName, role: t(roleWordKeys[next]) }));
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not change the role.';
+      error = e instanceof ApiError ? e.message : t('workspace:members.error.changeRole');
     } finally {
       busyId = '';
     }
@@ -100,9 +108,9 @@
       await api.removeMember(workspaceId, member.userId);
       if (member.userId === myId) return restart();
       await load();
-      await announce(`Removed ${member.displayName}.`);
+      await announce(t('workspace:members.notice.removed', { name: member.displayName }));
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not remove that person.';
+      error = e instanceof ApiError ? e.message : t('workspace:members.error.remove');
     } finally {
       busyId = '';
     }
@@ -114,9 +122,9 @@
     try {
       await api.revokeInvitation(workspaceId, invitation.id);
       await loadInvitations();
-      await announce(`Revoked the invitation for ${invitation.email}.`);
+      await announce(t('workspace:members.notice.revoked', { email: invitation.email }));
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not revoke the invitation.';
+      error = e instanceof ApiError ? e.message : t('workspace:members.error.revoke');
       await loadInvitations();
     } finally {
       busyId = '';
@@ -126,24 +134,24 @@
 
 <section>
   <PageHeader
-    title="Members"
-    description="Who can use this workspace. People join by invitation link; there is no open sign-up."
+    title={t('workspace:members.page.title')}
+    description={t('workspace:members.page.description')}
   >
     {#snippet actions()}
       {#if canManage && !invitesOff}
-        <Button variant="primary" icon="plus" onclick={() => document.getElementById('invite-email')?.focus()}>Invite someone</Button>
+        <Button variant="primary" icon="plus" onclick={() => document.getElementById('invite-email')?.focus()}>{t('workspace:members.page.invite')}</Button>
       {/if}
     {/snippet}
   </PageHeader>
 
   {#if !canRead}
-    <Alert tone="info">Your role does not include the member list.</Alert>
+    <Alert tone="info">{t('workspace:members.page.noRead')}</Alert>
   {:else}
     <p class="notice" class:shown={notice} bind:this={noticeEl} role="status" tabindex="-1">{notice}</p>
     {#if error}<div class="problem"><Alert tone="error">{error}</Alert></div>{/if}
 
     {#if members === null && !error}
-      <p class="muted">Loading…</p>
+      <p class="muted">{t('workspace:members.page.loading')}</p>
     {:else if members}
       <MemberTable
         {members}
@@ -159,7 +167,7 @@
       <div class="stack section">
         {#if invitesOff}
           <Alert tone="info">
-            Invitations are not available in single-user mode, where one person uses this server.
+            {t('workspace:members.page.singleUser')}
           </Alert>
         {:else}
           {#if created}
@@ -168,11 +176,11 @@
           <InviteForm {api} {workspaceId} {role} {oncreated} />
 
           <div>
-            <h3>Pending invitations</h3>
+            <h3>{t('workspace:members.page.pending')}</h3>
             {#if invitations === null}
-              <p class="muted">Loading…</p>
+              <p class="muted">{t('workspace:members.page.loading')}</p>
             {:else if invitations.length === 0}
-              <p class="muted">No pending invitations.</p>
+              <p class="muted">{t('workspace:members.page.noPending')}</p>
             {:else}
               <div class="table">
                 <InvitationTable {invitations} {busyId} onrevoke={revoke} />

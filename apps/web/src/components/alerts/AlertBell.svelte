@@ -6,9 +6,10 @@
 <script lang="ts">
   import { ApiError, type Api } from '../../lib/api.ts';
   import { alertStore } from '../../lib/alerts/store.svelte.ts';
-  import { badgeCount, severityLabels } from '../../lib/alerts/alerts.ts';
+  import { badgeCount, severityLabel } from '../../lib/alerts/alerts.ts';
   import { floating } from '../../lib/floating.ts';
   import { timeAgo } from '../../lib/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Icon from '../ui/Icon.svelte';
 
   let { api, workspaceId }: { api: Api; workspaceId: string } = $props();
@@ -18,7 +19,7 @@
   let button = $state<HTMLButtonElement>();
   let error = $state('');
 
-  const label = $derived(alertStore.unread > 0 ? `Alerts, ${alertStore.unread} unread` : 'Alerts');
+  const label = $derived(alertStore.unread > 0 ? t('workspace:alerts.bell.labelUnread', { count: alertStore.unread }) : t('workspace:alerts.bell.title'));
 
   function close(refocus: boolean) {
     open = false;
@@ -54,7 +55,7 @@
       alertStore.setUnread(result.unreadCount);
       await alertStore.refresh(api, workspaceId);
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not mark the alerts as read.';
+      error = e instanceof ApiError ? e.message : t('workspace:alerts.error.markRead');
     }
   }
 </script>
@@ -75,28 +76,28 @@
   </button>
 
   {#if open}
-    <div id="alert-menu" class="panel" role="group" aria-label="Newest alerts" use:floating={{ anchor: button ?? null, align: 'end', gap: 8 }}>
+    <div id="alert-menu" class="panel" role="group" aria-label={t('workspace:alerts.bell.newest')} use:floating={{ anchor: button ?? null, align: 'end', gap: 8 }}>
       <div class="head">
-        <strong>Alerts</strong>
-        <button type="button" class="link" disabled={alertStore.unread === 0} onclick={markAll}>Mark all read</button>
+        <strong>{t('workspace:alerts.bell.title')}</strong>
+        <button type="button" class="link" disabled={alertStore.unread === 0} onclick={markAll}>{t('workspace:alerts.bell.markAll')}</button>
       </div>
       {#if error}<p class="problem" role="alert">{error}</p>{/if}
       {#if alertStore.items.length === 0}
-        <p class="empty muted">{alertStore.loaded ? 'No alerts yet.' : 'Loading alerts.'}</p>
+        <p class="empty muted">{alertStore.loaded ? t('workspace:alerts.bell.none') : t('workspace:alerts.bell.loading')}</p>
       {:else}
         <ul>
           {#each alertStore.items as a (a.id)}
             <li class:unread={!a.read}>
               <p class="title">
-                {#if !a.read}<span class="visually-hidden">Unread. </span>{/if}{a.title}
-                {#if a.count > 1}<span class="muted"> ({a.count} times)</span>{/if}
+                {#if !a.read}<span class="visually-hidden">{t('workspace:alerts.unreadHidden')} </span>{/if}{a.title}
+                {#if a.count > 1}<span class="muted"> {t('workspace:alerts.timesParen', { count: a.count })}</span>{/if}
               </p>
-              <p class="meta muted">{severityLabels[a.severity]} · {timeAgo(a.lastAt)}{a.resolvedAt !== null ? ' · resolved' : ''}</p>
+              <p class="meta muted">{a.resolvedAt !== null ? t('workspace:alerts.bell.metaResolved', { severity: severityLabel(a.severity), when: timeAgo(a.lastAt) }) : t('workspace:alerts.bell.meta', { severity: severityLabel(a.severity), when: timeAgo(a.lastAt) })}</p>
             </li>
           {/each}
         </ul>
       {/if}
-      <a class="all" href="#/alerts" onclick={() => close(false)}>Open the alert inbox</a>
+      <a class="all" href="#/alerts" onclick={() => close(false)}>{t('workspace:alerts.bell.open')}</a>
     </div>
   {/if}
 </div>

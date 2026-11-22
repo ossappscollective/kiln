@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { t } from '../../lib/i18n/t.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
@@ -30,15 +31,15 @@
 
 <div class="card box" role="region" aria-labelledby="{uid}-title">
   <h3 id="{uid}-title" tabindex="-1" bind:this={heading}>{title}</h3>
-  <Alert tone="warn" title="Copy it now. It is shown only once.">{warning}</Alert>
+  <Alert tone="warn" title={t('workspace:secret.copyNow')}>{warning}</Alert>
   <div class="row">
     <label class="visually-hidden" for="{uid}-value">{label}</label>
     <input id="{uid}-value" value={value} readonly autocomplete="off" spellcheck="false" onfocus={(e) => e.currentTarget.select()} />
-    <CopyButton {value} label="Copy" variant="secondary" size="md" />
+    <CopyButton {value} label={t('workspace:secret.copy')} variant="secondary" size="md" />
   </div>
   {#if children}{@render children()}{/if}
   <div class="row">
-    <Button onclick={ondismiss}>I have copied it</Button>
+    <Button onclick={ondismiss}>{t('workspace:secret.copied')}</Button>
   </div>
 </div>
 

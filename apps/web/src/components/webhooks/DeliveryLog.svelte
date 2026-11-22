@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime } from '../../lib/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import type { WebhookDelivery, WebhookEndpoint } from '../../lib/types.ts';
   import { canRedeliver, deliveryDetail, deliveryView } from '../../lib/webhooks.ts';
@@ -38,7 +39,7 @@
       deliveries = (await api.webhookDeliveries(workspaceId, endpoint.id)).deliveries;
       error = '';
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not load the deliveries.';
+      error = e instanceof ApiError ? e.message : t('workspace:webhooks.log.loadFailed');
     }
   }
 
@@ -60,43 +61,43 @@
     notice = '';
     try {
       await api.redeliverWebhook(workspaceId, endpoint.id, delivery.id);
-      notice = 'Queued to send again.';
+      notice = t('workspace:webhooks.log.queued');
       await load();
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not send it again.';
+      error = e instanceof ApiError ? e.message : t('workspace:webhooks.log.resendFailed');
     } finally {
       busyId = '';
     }
   }
 </script>
 
-<div class="card log" role="region" aria-label="Deliveries to {endpoint.url}">
+<div class="card log" role="region" aria-label={t('workspace:webhooks.log.region', { url: endpoint.url })}>
   <div class="head row">
-    <h3>Deliveries</h3>
+    <h3>{t('workspace:webhooks.log.title')}</h3>
     <span class="muted mono text-sm truncate">{endpoint.url}</span>
     <span class="spacer"></span>
-    <Button size="sm" icon="refresh" onclick={() => void load()}>Refresh</Button>
-    <Button size="sm" onclick={onclose}>Close</Button>
+    <Button size="sm" icon="refresh" onclick={() => void load()}>{t('workspace:webhooks.log.refresh')}</Button>
+    <Button size="sm" onclick={onclose}>{t('workspace:webhooks.log.close')}</Button>
   </div>
   <p class="visually-hidden" role="status">{notice}</p>
   {#if notice}<Alert tone="ok">{notice}</Alert>{/if}
   {#if error}<Alert tone="error">{error}</Alert>{/if}
 
   {#if deliveries === null && !error}
-    <p class="muted">Loading…</p>
+    <p class="muted">{t('workspace:webhooks.log.loading')}</p>
   {:else if deliveries && deliveries.length === 0}
-    <p class="muted">Nothing was sent yet. Send a test event, or wait for the next real one.</p>
+    <p class="muted">{t('workspace:webhooks.log.empty')}</p>
   {:else if deliveries}
     <div class="table-wrap">
       <table>
-        <caption class="visually-hidden">Recent deliveries, newest first</caption>
+        <caption class="visually-hidden">{t('workspace:webhooks.log.caption')}</caption>
         <thead>
           <tr>
-            <th scope="col">Event</th>
-            <th scope="col">Status</th>
-            <th scope="col">Result</th>
-            <th scope="col">Sent</th>
-            {#if canManage}<th scope="col"><span class="visually-hidden">Actions</span></th>{/if}
+            <th scope="col">{t('workspace:webhooks.log.colEvent')}</th>
+            <th scope="col">{t('workspace:webhooks.log.colStatus')}</th>
+            <th scope="col">{t('workspace:webhooks.log.colResult')}</th>
+            <th scope="col">{t('workspace:webhooks.log.colSent')}</th>
+            {#if canManage}<th scope="col"><span class="visually-hidden">{t('workspace:webhooks.log.colActions')}</span></th>{/if}
           </tr>
         </thead>
         <tbody>
@@ -105,14 +106,14 @@
             <tr>
               <td>
                 <span class="mono text-sm">{delivery.eventType}</span>
-                {#if delivery.redeliveryOf}<div class="muted text-xs">Sent again</div>{/if}
+                {#if delivery.redeliveryOf}<div class="muted text-xs">{t('workspace:webhooks.log.sentAgain')}</div>{/if}
               </td>
               <td><Badge tone={view.tone} icon={toneIcon(view.tone)}>{view.label}</Badge></td>
               <td class="muted">
                 {deliveryDetail(delivery) || '—'}
                 {#if delivery.responseBody}
                   <details class="more">
-                    <summary>What the receiver said</summary>
+                    <summary>{t('workspace:webhooks.log.receiverSaid')}</summary>
                     <pre class="mono text-xs">{delivery.responseBody}</pre>
                   </details>
                 {/if}
@@ -124,8 +125,8 @@
                     <Button
                       size="sm"
                       disabled={busyId === delivery.id}
-                      label="Send {delivery.eventType} again"
-                      onclick={() => again(delivery)}>Send again</Button
+                      label={t('workspace:webhooks.log.sendAgainLabel', { event: delivery.eventType })}
+                      onclick={() => again(delivery)}>{t('workspace:webhooks.log.sendAgain')}</Button
                     >
                   {/if}
                 </td>

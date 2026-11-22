@@ -13,6 +13,7 @@
     tokenRoleLabel,
     validateTokenForm,
   } from '../../lib/api-tokens.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { AppSummary, CreatedApiToken } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import AppIcon from '../ui/AppIcon.svelte';
@@ -80,7 +81,7 @@
     try {
       oncreated(await api.createApiToken(workspaceId, createInput(form)));
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Something went wrong. Try again.';
+      error = e instanceof ApiError ? e.message : t('common:error.genericRetry');
     } finally {
       busy = false;
     }
@@ -90,57 +91,54 @@
 <form class="card" onsubmit={submit} novalidate>
   <div class="card-header">
     <div>
-      <h3>New API token</h3>
-      <p>
-        For a script or CI job. It acts for you with the limits you set here, and you can revoke it at
-        any time. It can never manage tokens, people, webhooks or secrets.
-      </p>
+      <h3>{t('workspace:tokens.form.title')}</h3>
+      <p>{t('workspace:tokens.form.description')}</p>
     </div>
   </div>
 
   <div class="stack">
     <TextField
-      label="Name"
+      label={t('workspace:tokens.form.name')}
       id="{uid}-name"
       bind:value={name}
       maxlength={100}
       autocomplete="off"
-      placeholder="Release CI"
-      hint="Something that tells you what uses it."
+      placeholder={t('workspace:tokens.form.namePlaceholder')}
+      hint={t('workspace:tokens.form.nameHint')}
       error={showProblems ? problems.name : undefined}
     />
 
     <div class="grid">
       <div class="field">
-        <label for="{uid}-role">Role ceiling</label>
+        <label for="{uid}-role">{t('workspace:tokens.form.ceiling')}</label>
         <select id="{uid}-role" value={ceiling} onchange={(e) => (chosenRole = e.currentTarget.value as TokenRole)}>
-          {#each ceilings as r (r)}<option value={r}>{tokenRoleLabel[r]}</option>{/each}
+          {#each ceilings as r (r)}<option value={r}>{t(tokenRoleLabel[r])}</option>{/each}
         </select>
-        <p class="hint">{tokenRoleHelp[ceiling]}</p>
+        <p class="hint">{t(tokenRoleHelp[ceiling])}</p>
       </div>
       <div class="field">
-        <label for="{uid}-expiry">Expires</label>
+        <label for="{uid}-expiry">{t('workspace:tokens.form.expires')}</label>
         <select id="{uid}-expiry" value={expiry} onchange={(e) => (expiry = e.currentTarget.value as ExpiryChoice)}>
-          {#each expiryChoices as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
+          {#each expiryChoices as c (c.id)}<option value={c.id}>{t(c.labelKey)}</option>{/each}
         </select>
-        <p class="hint">A token that expires is safer if it leaks.</p>
+        <p class="hint">{t('workspace:tokens.form.expiresHint')}</p>
       </div>
     </div>
 
     <fieldset class="limit">
-      <legend>Apps</legend>
+      <legend>{t('workspace:tokens.form.appsLegend')}</legend>
       <label class="check">
         <input type="checkbox" bind:checked={limitApps} disabled={apps === null || apps.length === 0} />
-        <span>Only some apps</span>
+        <span>{t('workspace:tokens.form.onlySomeApps')}</span>
       </label>
       {#if apps === null}
-        <p class="hint">Apps could not be loaded, so the token will work for all of them.</p>
+        <p class="hint">{t('workspace:tokens.form.appsNotLoaded')}</p>
       {:else if apps.length === 0}
-        <p class="hint">There are no apps yet. The token works for every app, including later ones.</p>
+        <p class="hint">{t('workspace:tokens.form.noApps')}</p>
       {:else if !limitApps}
-        <p class="hint">The token works for every app, including ones added later.</p>
+        <p class="hint">{t('workspace:tokens.form.allApps')}</p>
       {:else}
-        <div class="choices" role="group" aria-label="Apps the token may use">
+        <div class="choices" role="group" aria-label={t('workspace:tokens.form.appsGroup')}>
           {#each apps as app (app.id)}
             <label class="check">
               <input
@@ -153,21 +151,21 @@
             </label>
           {/each}
         </div>
-        {#if showProblems && needsApps}<p class="field-error" role="alert">Choose at least one app, or untick “Only some apps”.</p>{/if}
-        <p class="hint">An app-limited token cannot use endpoints that are not about one app, such as the repository list.</p>
+        {#if showProblems && needsApps}<p class="field-error" role="alert">{t('workspace:tokens.form.needsApps')}</p>{/if}
+        <p class="hint">{t('workspace:tokens.form.appLimitedHint')}</p>
       {/if}
     </fieldset>
 
     <fieldset class="limit">
-      <legend>Actions</legend>
+      <legend>{t('workspace:tokens.form.actionsLegend')}</legend>
       <label class="check">
         <input type="checkbox" bind:checked={limitActions} />
-        <span>Only some actions</span>
+        <span>{t('workspace:tokens.form.onlySomeActions')}</span>
       </label>
       {#if !limitActions}
-        <p class="hint">The token can do everything the role ceiling allows.</p>
+        <p class="hint">{t('workspace:tokens.form.allActions')}</p>
       {:else}
-        <div class="choices" role="group" aria-label="Actions the token may do">
+        <div class="choices" role="group" aria-label={t('workspace:tokens.form.actionsGroup')}>
           {#each available as action (action)}
             <label class="check">
               <input
@@ -180,7 +178,7 @@
           {/each}
         </div>
         {#if showProblems && (needsActions || problems.actions)}
-          <p class="field-error" role="alert">{problems.actions ?? 'Choose at least one action, or untick “Only some actions”.'}</p>
+          <p class="field-error" role="alert">{problems.actions ?? t('workspace:tokens.form.needsActions')}</p>
         {/if}
       {/if}
     </fieldset>
@@ -188,8 +186,8 @@
     {#if error}<Alert tone="error">{error}</Alert>{/if}
 
     <div class="row actions">
-      <Button type="submit" variant="primary" loading={busy}>{busy ? 'Creating…' : 'Create token'}</Button>
-      <Button onclick={oncancel} disabled={busy}>Cancel</Button>
+      <Button type="submit" variant="primary" loading={busy}>{busy ? t('workspace:tokens.form.creating') : t('workspace:tokens.form.create')}</Button>
+      <Button onclick={oncancel} disabled={busy}>{t('common:action.cancel')}</Button>
     </div>
   </div>
 </form>

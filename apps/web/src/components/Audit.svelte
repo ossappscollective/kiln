@@ -2,6 +2,7 @@
   import { can, type Role } from '@kiln/core';
   import { ApiError, type Api } from '../lib/api.ts';
   import {
+    actorFallback,
     categoryLabel,
     clockTime,
     describeEventParts,
@@ -10,6 +11,7 @@
     fullTime,
     groupByDay,
   } from '../lib/format.ts';
+  import { t } from '../lib/i18n/t.ts';
   import type { AuditEvent } from '../lib/types.ts';
   import Alert from './ui/Alert.svelte';
   import Button from './ui/Button.svelte';
@@ -19,6 +21,7 @@
   import Section from './ui/Section.svelte';
   import SectionsToggle from './ui/SectionsToggle.svelte';
   import Skeleton from './ui/Skeleton.svelte';
+  import T from './ui/T.svelte';
   import { type IconName, isIconName } from './ui/icons.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
@@ -37,7 +40,7 @@
       events = (await api.audit(workspaceId)).events;
     } catch (e) {
       events = null;
-      error = e instanceof ApiError ? e.message : 'Could not load the audit log.';
+      error = e instanceof ApiError ? e.message : t('workspace:audit.page.loadFailed');
     } finally {
       refreshing = false;
     }
@@ -53,7 +56,7 @@
 
   const actorKey = (e: AuditEvent) => `${e.actorType}:${e.actorId}`;
   const actorName = (e: AuditEvent) =>
-    e.actorName ?? (e.actorType === 'user' ? 'Someone' : e.actorType.charAt(0).toUpperCase() + e.actorType.slice(1));
+    e.actorName ?? actorFallback(e.actorType);
 
   const categories = $derived.by(() => {
     const counts = new Map<string, number>();
@@ -86,23 +89,23 @@
   };
 </script>
 
-<PageHeader title="Audit log" description="Every change to credentials and workspace settings, newest first.">
+<PageHeader title={t('workspace:audit.page.title')} description={t('workspace:audit.page.description')}>
   {#snippet actions()}
     {#if allowed}
-      <Button icon="refresh" loading={refreshing && events !== null} onclick={load}>Refresh</Button>
+      <Button icon="refresh" loading={refreshing && events !== null} onclick={load}>{t('workspace:audit.page.refresh')}</Button>
     {/if}
   {/snippet}
 </PageHeader>
 
 {#if !allowed}
-  <Alert tone="info">Your role does not include the audit log.</Alert>
+  <Alert tone="info">{t('workspace:audit.page.noRole')}</Alert>
 {:else if error}
   <div class="stack">
     <Alert tone="error">{error}</Alert>
-    <Button icon="refresh" onclick={load}>Try again</Button>
+    <Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button>
   </div>
 {:else if events === null}
-  <div class="card" role="status" aria-label="Loading the audit log">
+  <div class="card" role="status" aria-label={t('workspace:audit.page.loading')}>
     {#each [0, 1, 2, 3, 4] as i (i)}
       <div class="skeleton-row">
         <Skeleton width="28px" height="28px" circle />
@@ -117,15 +120,15 @@
   <div class="card">
     <EmptyState
       icon="history"
-      title="No activity yet"
-      description="Changes to credentials and workspace settings will show up here."
+      title={t('workspace:audit.page.emptyTitle')}
+      description={t('workspace:audit.page.emptyText')}
     />
   </div>
 {:else}
   <div class="toolbar">
-    <div class="chips" role="group" aria-label="Filter by type">
+    <div class="chips" role="group" aria-label={t('workspace:audit.page.filterType')}>
       <button type="button" class="bare chip" aria-pressed={category === 'all'} onclick={() => (category = 'all')}>
-        All <span class="count">{events.length}</span>
+        {t('workspace:audit.page.all')} <span class="count">{events.length}</span>
       </button>
       {#each categories as c (c.id)}
         <button type="button" class="bare chip" aria-pressed={category === c.id} onclick={() => (category = c.id)}>
@@ -136,9 +139,9 @@
     <SectionsToggle />
     {#if actors.length > 1}
       <div class="actor">
-        <label class="visually-hidden" for="audit-actor">Filter by person</label>
+        <label class="visually-hidden" for="audit-actor">{t('workspace:audit.page.filterPerson')}</label>
         <select id="audit-actor" bind:value={actor}>
-          <option value="all">Everyone</option>
+          <option value="all">{t('workspace:audit.page.everyone')}</option>
           {#each actors as a (a.id)}<option value={a.id}>{a.label}</option>{/each}
         </select>
       </div>
@@ -147,8 +150,8 @@
 
   {#if groups.length === 0}
     <div class="card">
-      <EmptyState icon="search" title="No events match" description="Try a different type or person.">
-        {#snippet actions()}<Button onclick={clearFilters}>Clear filters</Button>{/snippet}
+      <EmptyState icon="search" title={t('workspace:audit.page.noMatchTitle')} description={t('workspace:audit.page.noMatchText')}>
+        {#snippet actions()}<Button onclick={clearFilters}>{t('workspace:audit.page.clearFilters')}</Button>{/snippet}
       </EmptyState>
     </div>
   {:else}
@@ -173,11 +176,13 @@
     </div>
     {#if filtering}
       <p class="muted summary">
-        Showing {filtered.length} of {events.length} events. <button type="button" class="link" onclick={clearFilters}>Clear filters</button>
+        <T key="workspace:audit.page.showing" params={{ shown: filtered.length, count: events.length }} tags={{ link: clearLink }} />
       </p>
     {/if}
   {/if}
 {/if}
+
+{#snippet clearLink(text: string)}<button type="button" class="link" onclick={clearFilters}>{text}</button>{/snippet}
 
 <style>
   .toolbar {

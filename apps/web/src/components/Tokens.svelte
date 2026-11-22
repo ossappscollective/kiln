@@ -3,6 +3,7 @@
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../lib/api.ts';
   import { curlExample } from '../lib/api-tokens.ts';
+  import { t } from '../lib/i18n/t.ts';
   import type { ApiToken, AppSummary, CreatedApiToken } from '../lib/types.ts';
   import OneTimeSecret from './automation/OneTimeSecret.svelte';
   import TokenForm from './tokens/TokenForm.svelte';
@@ -33,7 +34,7 @@
       tokens = (await api.apiTokens(workspaceId)).tokens;
     } catch (e) {
       tokens = null;
-      error = e instanceof ApiError ? e.message : 'Could not load API tokens.';
+      error = e instanceof ApiError ? e.message : t('workspace:tokens.page.loadFailed');
     }
   }
 
@@ -83,9 +84,9 @@
     try {
       await api.revokeApiToken(workspaceId, token.id);
       await load();
-      await announce(`Revoked “${token.name}”. It no longer works.`);
+      await announce(t('workspace:tokens.page.revoked', { name: token.name }));
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not revoke the token.';
+      error = e instanceof ApiError ? e.message : t('workspace:tokens.page.revokeFailed');
       await load();
     } finally {
       busyId = '';
@@ -95,8 +96,8 @@
 
 <section>
   <PageHeader
-    title="API tokens"
-    description="Let scripts, CI jobs and assistants use this workspace. A token acts for you, with the limits you give it."
+    title={t('workspace:tokens.page.title')}
+    description={t('workspace:tokens.page.description')}
   >
     {#snippet actions()}
       {#if canManage && !adding}
@@ -108,14 +109,14 @@
             adding = true;
             created = null;
             notice = '';
-          }}>New token</Button
+          }}>{t('workspace:tokens.page.new')}</Button
         >
       {/if}
     {/snippet}
   </PageHeader>
 
   {#if !canRead}
-    <Alert tone="info">Your role does not include API tokens. Owners and admins manage them.</Alert>
+    <Alert tone="info">{t('workspace:tokens.page.noRead')}</Alert>
   {:else}
     <p class="notice" class:shown={notice} bind:this={noticeEl} role="status" tabindex="-1">{notice}</p>
     {#if error}<div class="problem"><Alert tone="error">{error}</Alert></div>{/if}
@@ -123,14 +124,14 @@
     {#if created}
       <div class="block">
         <OneTimeSecret
-          title="Your new token “{created.summary.name}”"
-          label="API token"
+          title={t('workspace:tokens.page.createdTitle', { name: created.summary.name })}
+          label={t('workspace:tokens.page.createdLabel')}
           value={created.token}
-          warning="Anyone with this token can act as you within its limits. Store it in your secret manager, not in code. If it leaks, revoke it here."
+          warning={t('workspace:tokens.page.createdWarning')}
           ondismiss={() => (created = null)}
         >
           <details>
-            <summary>Try it</summary>
+            <summary>{t('workspace:tokens.page.tryIt')}</summary>
             <pre class="mono text-sm">{curlExample(location.origin, workspaceId, created.token)}</pre>
           </details>
         </OneTimeSecret>
@@ -144,18 +145,18 @@
     {/if}
 
     {#if tokens === null && !error}
-      <p class="muted">Loading…</p>
+      <p class="muted">{t('workspace:tokens.page.loading')}</p>
     {:else if tokens && tokens.length === 0 && !adding && !created}
       <EmptyState
         icon="shield"
-        title="No API tokens yet"
-        description="Make one for a script or CI job. You see the token once, so keep it somewhere safe."
+        title={t('workspace:tokens.page.emptyTitle')}
+        description={t('workspace:tokens.page.emptyText')}
       />
     {:else if tokens && tokens.length > 0}
       <TokenTable {tokens} {canManage} {busyId} onrevoke={revoke} />
     {/if}
 
-    <p class="hint footer">Tokens cannot manage people, webhooks, credentials or other tokens. Every call is in the audit log under the token's name.</p>
+    <p class="hint footer">{t('workspace:tokens.page.footer')}</p>
   {/if}
 </section>
 

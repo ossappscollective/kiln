@@ -1,11 +1,13 @@
 <script lang="ts">
   import { fullTime } from '../../lib/format.ts';
   import { expiryLabel, lastUsed, orderTokens, scopeSummary, tokenRoleLabel, tokenStatus } from '../../lib/api-tokens.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { roleIcons, toneIcon } from '../../lib/status-icons.ts';
   import type { ApiToken } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
+  import T from '../ui/T.svelte';
 
   let {
     tokens,
@@ -39,16 +41,16 @@
 
 <div class="table-wrap">
   <table>
-    <caption class="visually-hidden">API tokens of this workspace</caption>
+    <caption class="visually-hidden">{t('workspace:tokens.table.caption')}</caption>
     <thead>
       <tr>
-        <th scope="col">Name</th>
-        <th scope="col">Role</th>
-        <th scope="col">Limits</th>
-        <th scope="col">Status</th>
-        <th scope="col">Last used</th>
-        <th scope="col">Expires</th>
-        {#if canManage}<th scope="col"><span class="visually-hidden">Actions</span></th>{/if}
+        <th scope="col">{t('workspace:tokens.table.name')}</th>
+        <th scope="col">{t('workspace:tokens.table.role')}</th>
+        <th scope="col">{t('workspace:tokens.table.limits')}</th>
+        <th scope="col">{t('workspace:tokens.table.status')}</th>
+        <th scope="col">{t('workspace:tokens.table.lastUsed')}</th>
+        <th scope="col">{t('workspace:tokens.table.expires')}</th>
+        {#if canManage}<th scope="col"><span class="visually-hidden">{t('workspace:tokens.table.actions')}</span></th>{/if}
       </tr>
     </thead>
     <tbody>
@@ -58,9 +60,9 @@
           <td>
             <strong>{token.name}</strong>
             <div class="muted mono text-xs">{token.prefix}…</div>
-            <div class="muted text-xs" title={fullTime(token.createdAt)}>by {token.createdBy.name ?? 'a former member'}</div>
+            <div class="muted text-xs" title={fullTime(token.createdAt)}>{t('workspace:tokens.table.by', { name: token.createdBy.name ?? t('workspace:tokens.table.formerMember') })}</div>
           </td>
-          <td><Badge icon={roleIcons[token.role]}>{tokenRoleLabel[token.role]}</Badge></td>
+          <td><Badge icon={roleIcons[token.role]}>{t(tokenRoleLabel[token.role])}</Badge></td>
           <td class="muted">{scopeSummary(token)}</td>
           <td><Badge tone={status.tone} icon={toneIcon(status.tone)}><span title={status.title}>{status.label}</span></Badge></td>
           <td class="muted" title={token.lastUsedAt ? fullTime(token.lastUsedAt) : ''}>{lastUsed(token, now)}</td>
@@ -72,8 +74,8 @@
                   variant="danger"
                   size="sm"
                   disabled={busyId === token.id}
-                  label="Revoke token {token.name}"
-                  onclick={() => ask(token)}>Revoke</Button
+                  label={t('workspace:tokens.table.revokeLabel', { name: token.name })}
+                  onclick={() => ask(token)}>{t('workspace:tokens.table.revoke')}</Button
                 >
               {/if}
             </td>
@@ -84,16 +86,13 @@
   </table>
 </div>
 
-<Modal bind:open size="sm" title="Revoke this token?" onclose={() => (confirming = null)}>
+<Modal bind:open size="sm" title={t('workspace:tokens.table.revokeTitle')} onclose={() => (confirming = null)}>
   {#if confirming}
-    <p>
-      Anything that uses <strong>{confirming.name}</strong> (<span class="mono">{confirming.prefix}…</span>) stops
-      working at once. This cannot be undone; make a new token if you need one again.
-    </p>
+    <p><T key="workspace:tokens.table.revokeBody" params={{ name: confirming.name, prefix: confirming.prefix }} /></p>
   {/if}
   {#snippet footer()}
-    <Button onclick={() => (open = false)}>Keep it</Button>
-    <Button variant="danger-solid" onclick={confirm}>Revoke</Button>
+    <Button onclick={() => (open = false)}>{t('workspace:tokens.table.keep')}</Button>
+    <Button variant="danger-solid" onclick={confirm}>{t('workspace:tokens.table.revoke')}</Button>
   {/snippet}
 </Modal>
 

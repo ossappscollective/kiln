@@ -6,8 +6,9 @@
 <script lang="ts">
   import { ApiError, type Api } from '../../lib/api.ts';
   import { alertStore } from '../../lib/alerts/store.svelte.ts';
-  import { type InboxAlert, groupInbox, inboxHeadline, severityLabels, severityTone, snoozeChoices } from '../../lib/alerts/alerts.ts';
+  import { type InboxAlert, groupInbox, inboxHeadline, lowerFirst, severityLabel, severityTone, snoozeChoices } from '../../lib/alerts/alerts.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -33,7 +34,7 @@
   const unread = $derived((alerts ?? []).filter((a) => !a.read).length);
   const headline = $derived(inboxHeadline(groups, alertStore.unread));
   const hasAttention = $derived(groups.some((g) => g.id === 'attention'));
-  const appName = (id: string | null) => (id === null ? '' : (apps.find((a) => a.id === id)?.name ?? 'An app'));
+  const appName = (id: string | null) => (id === null ? '' : (apps.find((a) => a.id === id)?.name ?? t('workspace:alerts.inbox.appFallback')));
 
   async function load(more: boolean) {
     error = '';
@@ -49,7 +50,7 @@
       alertStore.setUnread(page.unreadCount);
     } catch (e) {
       if (!more) alerts = null;
-      error = e instanceof ApiError ? e.message : 'Could not load your alerts.';
+      error = e instanceof ApiError ? e.message : t('workspace:alerts.inbox.loadFailed');
     }
   }
 
@@ -73,7 +74,7 @@
       }
       if (unreadOnly) await load(false);
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not mark the alerts as read.';
+      error = e instanceof ApiError ? e.message : t('workspace:alerts.error.markRead');
     } finally {
       busy = '';
     }
@@ -91,10 +92,13 @@
         alertType: a.type,
         ...(choice.hours === null ? {} : { hours: choice.hours }),
       });
-      notice = `Snoozed this kind of alert${a.appId ? ` for ${appName(a.appId)}` : ''}: ${choice.label.toLowerCase()}.`;
+      const until = lowerFirst(t(choice.labelKey));
+      notice = a.appId
+        ? t('workspace:alerts.inbox.snoozedApp', { app: appName(a.appId), until })
+        : t('workspace:alerts.inbox.snoozed', { until });
       onchange?.();
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not snooze the alert.';
+      error = e instanceof ApiError ? e.message : t('workspace:alerts.inbox.snoozeFailed');
     } finally {
       busy = '';
     }
@@ -103,14 +107,14 @@
 
 <div class="stack">
   <div class="row between wrap bar">
-    <p class="headline" role="status" data-testid="inbox-headline">{alerts === null ? 'Loading alerts' : headline}</p>
+    <p class="headline" role="status" data-testid="inbox-headline">{alerts === null ? t('workspace:alerts.inbox.loadingHeadline') : headline}</p>
     <div class="row wrap">
       <label class="check">
         <input type="checkbox" bind:checked={unreadOnly} />
-        Unread only
+        {t('workspace:alerts.inbox.unreadOnly')}
       </label>
       {#if unread > 0 || alertStore.unread > 0}
-        <Button icon="check" loading={busy === 'all'} onclick={() => markRead('all')}>Mark all read</Button>
+        <Button icon="check" loading={busy === 'all'} onclick={() => markRead('all')}>{t('workspace:alerts.inbox.markAll')}</Button>
       {/if}
     </div>
   </div>
@@ -119,12 +123,12 @@
   {#if notice}<Alert tone="ok">{notice}</Alert>{/if}
 
   {#if alerts === null && !error}
-    <p class="muted" role="status">Loading alerts.</p>
+    <p class="muted" role="status">{t('workspace:alerts.inbox.loading')}</p>
   {:else if alerts !== null && groups.length === 0}
     <EmptyState
       icon="bell"
-      title={unreadOnly ? 'Nothing unread' : 'No alerts yet'}
-      description={unreadOnly ? 'Every alert has been read.' : 'Alerts that need you appear here.'}
+      title={unreadOnly ? t('workspace:alerts.inbox.emptyUnread') : t('workspace:alerts.inbox.emptyNone')}
+      description={unreadOnly ? t('workspace:alerts.inbox.emptyUnreadText') : t('workspace:alerts.inbox.emptyNoneText')}
     />
   {:else}
     {#each groups as group (group.id)}
@@ -134,24 +138,24 @@
             <li class:unread={!a.read}>
               <div class="main">
                 <p class="title">
-                  <Badge tone={severityTone[a.severity]}>{severityLabels[a.severity]}</Badge>
-                  {#if !a.read}<span class="visually-hidden">Unread. </span>{/if}<span class="name">{a.title}</span>
-                  {#if a.count > 1}<Badge tone="neutral">{a.count} times</Badge>{/if}
+                  <Badge tone={severityTone[a.severity]}>{severityLabel(a.severity)}</Badge>
+                  {#if !a.read}<span class="visually-hidden">{t('workspace:alerts.unreadHidden')} </span>{/if}<span class="name">{a.title}</span>
+                  {#if a.count > 1}<Badge tone="neutral">{t('workspace:alerts.times', { count: a.count })}</Badge>{/if}
                 </p>
                 {#if a.body}<p class="body">{a.body}</p>{/if}
                 <p class="meta muted">
                   {#if a.appId}{appName(a.appId)} · {/if}
                   <time datetime={new Date(a.lastAt).toISOString()} title={fullTime(a.lastAt)}>{timeAgo(a.lastAt)}</time>
-                  {#if a.count > 1} · first {timeAgo(a.firstAt)}{/if}
-                  {#if a.resolvedAt !== null} · resolved {timeAgo(a.resolvedAt)}{/if}
+                  {#if a.count > 1} · {t('workspace:alerts.inbox.firstSeen', { when: timeAgo(a.firstAt) })}{/if}
+                  {#if a.resolvedAt !== null} · {t('workspace:alerts.inbox.resolvedAt', { when: timeAgo(a.resolvedAt) })}{/if}
                 </p>
               </div>
               <div class="side">
                 {#if !a.read}
-                  <Button size="sm" variant="ghost" loading={busy === a.id} onclick={() => markRead([a.id])}>Mark read</Button>
+                  <Button size="sm" variant="ghost" loading={busy === a.id} onclick={() => markRead([a.id])}>{t('workspace:alerts.inbox.markRead')}</Button>
                 {/if}
                 <select
-                  aria-label="Snooze this kind of alert: {a.title}"
+                  aria-label={t('workspace:alerts.inbox.snoozeLabel', { title: a.title })}
                   disabled={busy === a.id}
                   value=""
                   onchange={(e) => {
@@ -159,8 +163,8 @@
                     e.currentTarget.value = '';
                   }}
                 >
-                  <option value="">Snooze…</option>
-                  {#each snoozeChoices as c, i (c.label)}<option value={String(i)}>{c.label}</option>{/each}
+                  <option value="">{t('workspace:alerts.inbox.snoozeOption')}</option>
+                  {#each snoozeChoices as c, i (c.labelKey)}<option value={String(i)}>{t(c.labelKey)}</option>{/each}
                 </select>
               </div>
             </li>
@@ -169,7 +173,7 @@
       </Section>
     {/each}
     {#if hasMore}
-      <div><Button onclick={() => load(true)}>Show older alerts</Button></div>
+      <div><Button onclick={() => load(true)}>{t('workspace:alerts.inbox.older')}</Button></div>
     {/if}
   {/if}
 </div>

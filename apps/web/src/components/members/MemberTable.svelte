@@ -1,10 +1,12 @@
 <script lang="ts">
   import { type Role, assignableBy, decideRemoval, decideRoleChange } from '@kiln/core';
+  import { t } from '../../lib/i18n/t.ts';
   import { roleIcons } from '../../lib/status-icons.ts';
   import type { Member } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
+  import T from '../ui/T.svelte';
   import { roleLabel } from './roles.ts';
 
   let {
@@ -53,13 +55,13 @@
 
 <div class="table-wrap">
   <table>
-    <caption class="visually-hidden">Members of this workspace</caption>
+    <caption class="visually-hidden">{t('workspace:members.table.caption')}</caption>
     <thead>
       <tr>
-        <th scope="col">Name</th>
-        <th scope="col">Email</th>
-        <th scope="col">Role</th>
-        <th scope="col"><span class="visually-hidden">Actions</span></th>
+        <th scope="col">{t('workspace:members.table.name')}</th>
+        <th scope="col">{t('workspace:members.table.email')}</th>
+        <th scope="col">{t('workspace:members.table.role')}</th>
+        <th scope="col"><span class="visually-hidden">{t('workspace:members.table.actions')}</span></th>
       </tr>
     </thead>
     <tbody>
@@ -69,12 +71,12 @@
         <tr>
           <td>
             {member.displayName}
-            {#if self}<Badge>You</Badge>{/if}
+            {#if self}<Badge>{t('workspace:members.table.you')}</Badge>{/if}
           </td>
           <td class="muted">{member.email}</td>
           <td>
             {#if options.length > 0}
-              <label class="visually-hidden" for="role-{member.userId}">Role of {member.displayName}</label>
+              <label class="visually-hidden" for="role-{member.userId}">{t('workspace:members.table.roleOf', { name: member.displayName })}</label>
               <select
                 id="role-{member.userId}"
                 class="role"
@@ -91,7 +93,7 @@
               </select>
             {:else}
               <Badge tone={member.role === 'owner' ? 'accent' : 'neutral'} icon={roleIcons[member.role]}>{roleLabel[member.role]}</Badge>
-              {#if lastOwner(member)}<span class="hint inline">Last owner</span>{/if}
+              {#if lastOwner(member)}<span class="hint inline">{t('workspace:members.table.lastOwner')}</span>{/if}
             {/if}
           </td>
           <td class="actions">
@@ -100,8 +102,8 @@
                 variant="danger"
                 size="sm"
                 disabled={busyId === member.userId}
-                label={self ? 'Leave this workspace' : `Remove ${member.displayName}`}
-                onclick={() => ask(member)}>{self ? 'Leave' : 'Remove'}</Button
+                label={self ? t('workspace:members.table.leaveLabel') : t('workspace:members.table.removeLabel', { name: member.displayName })}
+                onclick={() => ask(member)}>{self ? t('workspace:members.table.leave') : t('workspace:members.table.remove')}</Button
               >
             {/if}
           </td>
@@ -114,23 +116,20 @@
 <Modal
   bind:open
   size="sm"
-  title={confirming && confirming.userId === myId ? 'Leave this workspace?' : 'Remove this person?'}
+  title={confirming && confirming.userId === myId ? t('workspace:members.table.leaveTitle') : t('workspace:members.table.removeTitle')}
   onclose={() => (confirming = null)}
 >
   {#if confirming}
     {#if confirming.userId === myId}
-      <p>You will lose access to this workspace until someone invites you again.</p>
+      <p>{t('workspace:members.table.leaveBody')}</p>
     {:else}
-      <p>
-        <strong>{confirming.displayName}</strong> ({confirming.email}) will lose access to this
-        workspace. They can be invited again later.
-      </p>
+      <p><T key="workspace:members.table.removeBody" params={{ name: confirming.displayName, email: confirming.email }} /></p>
     {/if}
   {/if}
   {#snippet footer()}
-    <Button onclick={() => (open = false)}>Cancel</Button>
+    <Button onclick={() => (open = false)}>{t('common:action.cancel')}</Button>
     <Button variant="danger-solid" onclick={confirm}>
-      {confirming && confirming.userId === myId ? 'Leave' : 'Remove'}
+      {confirming && confirming.userId === myId ? t('workspace:members.table.leave') : t('workspace:members.table.remove')}
     </Button>
   {/snippet}
 </Modal>

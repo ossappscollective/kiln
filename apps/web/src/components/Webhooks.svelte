@@ -2,6 +2,7 @@
   import { type Role, can } from '@kiln/core';
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../lib/api.ts';
+  import { t } from '../lib/i18n/t.ts';
   import type { WebhookEndpoint } from '../lib/types.ts';
   import { hostOf, verifySnippet } from '../lib/webhooks.ts';
   import OneTimeSecret from './automation/OneTimeSecret.svelte';
@@ -9,6 +10,7 @@
   import Button from './ui/Button.svelte';
   import EmptyState from './ui/EmptyState.svelte';
   import PageHeader from './ui/PageHeader.svelte';
+  import T from './ui/T.svelte';
   import DeliveryLog from './webhooks/DeliveryLog.svelte';
   import WebhookForm from './webhooks/WebhookForm.svelte';
   import WebhookTable from './webhooks/WebhookTable.svelte';
@@ -37,7 +39,7 @@
       if (viewing) viewing = webhooks.find((w) => w.id === viewing?.id) ?? null;
     } catch (e) {
       webhooks = null;
-      error = e instanceof ApiError ? e.message : 'Could not load webhooks.';
+      error = e instanceof ApiError ? e.message : t('workspace:webhooks.page.loadFailed');
     }
   }
 
@@ -68,49 +70,49 @@
   async function onsaved(endpoint: WebhookEndpoint) {
     editing = null;
     await load();
-    await announce(`Saved changes to ${hostOf(endpoint.url)}.`);
+    await announce(t('workspace:webhooks.page.saved', { host: hostOf(endpoint.url) }));
   }
 
-  async function run(endpoint: WebhookEndpoint, fallback: string, work: () => Promise<void>) {
+  async function run(endpoint: WebhookEndpoint, fallback: () => string, work: () => Promise<void>) {
     busyId = endpoint.id;
     error = '';
     try {
       await work();
     } catch (e) {
-      error = e instanceof ApiError ? e.message : fallback;
+      error = e instanceof ApiError ? e.message : fallback();
     } finally {
       busyId = '';
     }
   }
 
   const test = (endpoint: WebhookEndpoint) =>
-    run(endpoint, 'Could not send the test event.', async () => {
+    run(endpoint, () => t('workspace:webhooks.page.testFailed'), async () => {
       await api.testWebhook(workspaceId, endpoint.id);
       viewing = endpoint;
-      await announce(`Sent a test event to ${hostOf(endpoint.url)}. The result appears in the deliveries.`);
+      await announce(t('workspace:webhooks.page.testSent', { host: hostOf(endpoint.url) }));
     });
 
   const rotate = (endpoint: WebhookEndpoint) =>
-    run(endpoint, 'Could not make a new secret.', async () => {
+    run(endpoint, () => t('workspace:webhooks.page.rotateFailed'), async () => {
       const result = await api.rotateWebhookSecret(workspaceId, endpoint.id);
       secret = { value: result.secret, address: hostOf(endpoint.url) };
       notice = '';
     });
 
   const remove = (endpoint: WebhookEndpoint) =>
-    run(endpoint, 'Could not delete the webhook.', async () => {
+    run(endpoint, () => t('workspace:webhooks.page.deleteFailed'), async () => {
       await api.deleteWebhook(workspaceId, endpoint.id);
       if (viewing?.id === endpoint.id) viewing = null;
       if (editing?.id === endpoint.id) editing = null;
       await load();
-      await announce(`Deleted the webhook for ${hostOf(endpoint.url)}.`);
+      await announce(t('workspace:webhooks.page.deleted', { host: hostOf(endpoint.url) }));
     });
 </script>
 
 <section>
   <PageHeader
-    title="Webhooks"
-    description="Send a signed message to your own server when something happens here, such as a release changing status."
+    title={t('workspace:webhooks.page.title')}
+    description={t('workspace:webhooks.page.description')}
   >
     {#snippet actions()}
       {#if canManage && !adding && !editing}
@@ -122,14 +124,14 @@
             adding = true;
             secret = null;
             notice = '';
-          }}>New webhook</Button
+          }}>{t('workspace:webhooks.page.new')}</Button
         >
       {/if}
     {/snippet}
   </PageHeader>
 
   {#if !canRead}
-    <Alert tone="info">Your role does not include webhooks. Owners and admins manage them.</Alert>
+    <Alert tone="info">{t('workspace:webhooks.page.noRead')}</Alert>
   {:else}
     <p class="notice" class:shown={notice} bind:this={noticeEl} role="status" tabindex="-1">{notice}</p>
     {#if error}<div class="block"><Alert tone="error">{error}</Alert></div>{/if}
@@ -137,19 +139,15 @@
     {#if secret}
       <div class="block">
         <OneTimeSecret
-          title="Signing secret for {secret.address}"
-          label="Webhook signing secret"
+          title={t('workspace:webhooks.secret.title', { host: secret.address })}
+          label={t('workspace:webhooks.secret.label')}
           value={secret.value}
-          warning="Your receiver uses this secret to check that a message really came from this server. Store it in your secret manager. If it leaks, make a new one."
+          warning={t('workspace:webhooks.secret.warning')}
           ondismiss={() => (secret = null)}
         >
           <details>
-            <summary>How to verify a delivery</summary>
-            <p class="hint">
-              Each request has <span class="mono">X-Kiln-Timestamp</span> and <span class="mono">X-Kiln-Signature</span>
-              headers. The signature is <span class="mono">v1=</span> and the hex HMAC-SHA256 of the timestamp, a dot and
-              the raw body, keyed with the secret.
-            </p>
+            <summary>{t('workspace:webhooks.secret.verifySummary')}</summary>
+            <p class="hint"><T key="workspace:webhooks.secret.verifyText" /></p>
             <pre class="mono text-xs">{verifySnippet}</pre>
           </details>
         </OneTimeSecret>
@@ -178,12 +176,12 @@
     {/if}
 
     {#if webhooks === null && !error}
-      <p class="muted">Loading…</p>
+      <p class="muted">{t('workspace:webhooks.page.loading')}</p>
     {:else if webhooks && webhooks.length === 0 && !adding && !secret}
       <EmptyState
         icon="globe"
-        title="No webhooks yet"
-        description="Add one to hear about releases, change sets and failed credential tests as they happen."
+        title={t('workspace:webhooks.page.emptyTitle')}
+        description={t('workspace:webhooks.page.emptyText')}
       />
     {:else if webhooks && webhooks.length > 0}
       <WebhookTable
@@ -207,9 +205,7 @@
       </div>
     {/if}
 
-    <p class="hint footer">
-      https addresses on the public internet only. A failed message is retried a few times, then marked failed; send it again from its deliveries.
-    </p>
+    <p class="hint footer">{t('workspace:webhooks.page.footer')}</p>
   {/if}
 </section>
 

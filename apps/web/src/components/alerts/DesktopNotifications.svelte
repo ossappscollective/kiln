@@ -13,8 +13,9 @@
     readDeviceChoice,
     writeDeviceChoice,
   } from '../../lib/alerts/desktop.ts';
-  import { type NotifyState, inDesktopShell, notifyStateText, requestNotificationPermission } from '../../lib/alerts/notify.ts';
+  import { type NotifyState, inDesktopShell, notifyStateKeys, requestNotificationPermission } from '../../lib/alerts/notify.ts';
   import { type CatalogEntry, type Preference, effectiveChannels, toggleChannel } from '../../lib/alerts/alerts.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Alert from '../ui/Alert.svelte';
   import Section from '../ui/Section.svelte';
 
@@ -50,7 +51,7 @@
       writeDeviceChoice(storage, true);
       choice = true;
     } else {
-      error = notifyStateText[notify];
+      error = t(notifyStateKeys[notify]);
     }
   }
 
@@ -63,14 +64,14 @@
       const rest = prefs.filter((p) => !(p.alertType === e.id && p.appId === null));
       prefs = result.preference ? rest.concat([result.preference]) : rest;
     } catch (err) {
-      error = err instanceof ApiError ? err.message : 'Could not save that choice.';
+      error = err instanceof ApiError ? err.message : t('workspace:alerts.settings.choiceFailed');
     } finally {
       busy = '';
     }
   }
 </script>
 
-<Section title="Desktop notifications" key="alerts-desktop" summary={on ? `On for this device, ${chosen} kind${chosen === 1 ? '' : 's'}` : 'Off for this device'}>
+<Section title={t('workspace:alerts.desktop.title')} key="alerts-desktop" summary={on ? t('workspace:alerts.desktop.summaryOn', { count: chosen }) : t('workspace:alerts.desktop.summaryOff')}>
   <div class="stack">
     <div class="field">
       <label class="check" for="{uid}-device">
@@ -82,16 +83,16 @@
           aria-describedby="{uid}-device-hint"
           onchange={(ev) => toggleDevice(ev.currentTarget.checked)}
         />
-        Show desktop notifications on this device ({shell ? 'desktop app' : 'this browser'})
+        {shell ? t('workspace:alerts.desktop.deviceApp') : t('workspace:alerts.desktop.deviceBrowser')}
       </label>
       <p class="hint" id="{uid}-device-hint" role="status">
-        {notifyStateText[notify]} Shows the alert's title only, while this app is open, and follows your quiet hours.
+        {t('workspace:alerts.desktop.hint', { state: t(notifyStateKeys[notify]) })}
       </p>
     </div>
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     {#if kinds.length > 0}
       <fieldset class="field">
-        <legend>Notify me when</legend>
+        <legend>{t('workspace:alerts.desktop.notifyWhen')}</legend>
         {#each kinds as e (e.id)}
           <label class="check" for="{uid}-{e.id}">
             <input
@@ -104,9 +105,7 @@
             {e.label}
           </label>
         {/each}
-        <p class="hint">
-          For all apps. “What I receive” below has every kind and a choice per app.
-        </p>
+        <p class="hint">{t('workspace:alerts.desktop.allApps')}</p>
       </fieldset>
     {/if}
   </div>

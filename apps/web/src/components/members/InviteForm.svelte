@@ -1,6 +1,7 @@
 <script lang="ts">
   import { type Role, invitableBy } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { CreatedInvitation } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
@@ -34,7 +35,7 @@
       email = '';
       oncreated(created);
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Something went wrong. Try again.';
+      error = e instanceof ApiError ? e.message : t('common:error.genericRetry');
     } finally {
       busy = false;
     }
@@ -44,17 +45,17 @@
 <form class="card" onsubmit={submit}>
   <div class="card-header">
     <div>
-      <h3>Invite someone</h3>
-      <p>You get a link to send them; this server sends no email. It works only for the address you enter.</p>
+      <h3>{t('workspace:members.form.title')}</h3>
+      <p>{t('workspace:members.form.description')}</p>
     </div>
   </div>
   <div class="grid">
     <div class="field">
-      <label for="invite-email">Email</label>
+      <label for="invite-email">{t('workspace:members.form.email')}</label>
       <input id="invite-email" type="email" bind:value={email} autocomplete="off" required />
     </div>
     <div class="field">
-      <label for="invite-role">Role</label>
+      <label for="invite-role">{t('workspace:members.form.role')}</label>
       <select id="invite-role" value={selected} onchange={(e) => (chosen = e.currentTarget.value)}>
         {#each options as r (r)}<option value={r}>{roleLabel[r]}</option>{/each}
       </select>
@@ -63,7 +64,7 @@
   <p class="hint">{roleHelp[selected as Role]}</p>
   {#if error}<div class="problem"><Alert tone="error">{error}</Alert></div>{/if}
   <div class="row actions">
-    <Button type="submit" variant="primary" loading={busy}>{busy ? 'Creating…' : 'Create invitation link'}</Button>
+    <Button type="submit" variant="primary" loading={busy}>{busy ? t('workspace:members.form.creating') : t('workspace:members.form.create')}</Button>
   </div>
 </form>
 

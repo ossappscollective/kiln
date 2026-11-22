@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { CreatedWebhook, WebhookEndpoint } from '../../lib/types.ts';
   import {
     createWebhookInput,
@@ -66,7 +67,7 @@
         oncreated?.(await api.createWebhook(workspaceId, createWebhookInput(form)));
       }
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Something went wrong. Try again.';
+      error = e instanceof ApiError ? e.message : t('common:error.genericRetry');
     } finally {
       busy = false;
     }
@@ -76,17 +77,14 @@
 <form class="card" onsubmit={submit} novalidate>
   <div class="card-header">
     <div>
-      <h3>{endpoint ? 'Edit webhook' : 'New webhook'}</h3>
-      <p>
-        Kiln sends a signed POST with a JSON body to this address when something
-        happens. Use an https address on the public internet.
-      </p>
+      <h3>{endpoint ? t('workspace:webhooks.form.titleEdit') : t('workspace:webhooks.form.titleNew')}</h3>
+      <p>{t('workspace:webhooks.form.description')}</p>
     </div>
   </div>
 
   <div class="stack">
     <TextField
-      label="Address"
+      label={t('workspace:webhooks.form.address')}
       id="{uid}-url"
       type="url"
       bind:value={url}
@@ -94,16 +92,16 @@
       autocomplete="off"
       error={showProblems ? problems.url : undefined}
     />
-    <TextField label="Description (optional)" bind:value={description} maxlength={200} autocomplete="off" hint="What receives these, for example “Slack bridge”." />
+    <TextField label={t('workspace:webhooks.form.descriptionLabel')} bind:value={description} maxlength={200} autocomplete="off" hint={t('workspace:webhooks.form.descriptionHint')} />
 
     <fieldset class="events">
-      <legend>Events</legend>
+      <legend>{t('workspace:webhooks.form.eventsLegend')}</legend>
       <label class="check">
         <input type="checkbox" bind:checked={all} />
-        <span>Send every event, including ones added later</span>
+        <span>{t('workspace:webhooks.form.allEvents')}</span>
       </label>
       {#if !all}
-        <div class="choices" role="group" aria-label="Events to send">
+        <div class="choices" role="group" aria-label={t('workspace:webhooks.form.eventsGroup')}>
           {#each webhookEventChoices as choice (choice.type)}
             <label class="check">
               <input
@@ -111,7 +109,7 @@
                 checked={types.includes(choice.type)}
                 onchange={(e) => (types = toggle(types, choice.type, e.currentTarget.checked))}
               />
-              <span>{choice.label} <span class="muted mono text-xs">{choice.type}</span></span>
+              <span>{t(choice.labelKey)} <span class="muted mono text-xs">{choice.type}</span></span>
             </label>
           {/each}
         </div>
@@ -121,16 +119,16 @@
 
     <label class="check">
       <input type="checkbox" bind:checked={enabled} />
-      <span>Enabled</span>
+      <span>{t('workspace:webhooks.form.enabled')}</span>
     </label>
 
     {#if error}<Alert tone="error">{error}</Alert>{/if}
 
     <div class="row actions">
       <Button type="submit" variant="primary" loading={busy}>
-        {#if endpoint}{busy ? 'Saving…' : 'Save changes'}{:else}{busy ? 'Creating…' : 'Create webhook'}{/if}
+        {#if endpoint}{busy ? t('workspace:webhooks.form.saving') : t('workspace:webhooks.form.save')}{:else}{busy ? t('workspace:webhooks.form.creating') : t('workspace:webhooks.form.create')}{/if}
       </Button>
-      <Button onclick={oncancel} disabled={busy}>Cancel</Button>
+      <Button onclick={oncancel} disabled={busy}>{t('common:action.cancel')}</Button>
     </div>
   </div>
 </form>

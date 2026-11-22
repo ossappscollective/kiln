@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
   import { type CatalogEntry, matrixGroups } from '../../lib/alerts/alerts.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Section from '../ui/Section.svelte';
   import AlertRuleRow from './AlertRuleRow.svelte';
 
@@ -16,10 +17,7 @@
 </script>
 
 <div class="stack">
-  <p class="muted">
-    These rules are the defaults for everyone in the workspace. A type that is turned off raises no alerts at all. Each person can
-    still pick their own channels for a type, within the channels it allows.
-  </p>
+  <p class="muted">{t('workspace:alerts.rules.intro')}</p>
   {#each groups as g (g.id)}
     <Section title={g.label} key={`alerts-rules-${g.id}`} count={g.entries.length} defaultOpen={false}>
       {#each g.entries as e (e.id)}

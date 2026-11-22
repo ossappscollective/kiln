@@ -9,11 +9,12 @@
     type AlertChannel,
     type CatalogEntry,
     allChannels,
-    channelLabels,
+    channelLabel,
     ruleBody,
-    severityLabels,
+    severityLabel,
     severityTone,
   } from '../../lib/alerts/alerts.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -50,7 +51,7 @@
       saved = true;
       onsaved();
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not save the rule.';
+      error = e instanceof ApiError ? e.message : t('workspace:alerts.rule.saveFailed');
     } finally {
       busy = '';
     }
@@ -64,35 +65,35 @@
       await api.resetAlertRule(workspaceId, entry.id);
       onsaved();
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Could not go back to the built-in rule.';
+      error = e instanceof ApiError ? e.message : t('workspace:alerts.rule.resetFailed');
     } finally {
       busy = '';
     }
   }
 </script>
 
-<form class="rule stack tight" onsubmit={save} aria-label="Rule for {entry.label}">
+<form class="rule stack tight" onsubmit={save} aria-label={t('workspace:alerts.rule.formLabel', { label: entry.label })}>
   <div class="head">
     <strong>{entry.label}</strong>
-    <Badge tone={severityTone[entry.severity]}>{severityLabels[entry.severity]}</Badge>
-    <Badge tone="neutral">{entry.scope === 'app' ? 'Per app' : 'Workspace'}</Badge>
-    {#if entry.rule.custom}<Badge tone="accent">Changed</Badge>{/if}
+    <Badge tone={severityTone[entry.severity]}>{severityLabel(entry.severity)}</Badge>
+    <Badge tone="neutral">{entry.scope === 'app' ? t('workspace:alerts.rule.perApp') : t('workspace:alerts.rule.workspace')}</Badge>
+    {#if entry.rule.custom}<Badge tone="accent">{t('workspace:alerts.rule.changed')}</Badge>{/if}
   </div>
-  <p class="hint">{entry.description} Goes to: {entry.audience}. Repeats within {entry.dedupeWindowHours} hours are collapsed into one alert.</p>
+  <p class="hint">{t('workspace:alerts.rule.hint', { description: entry.description, audience: entry.audience, count: entry.dedupeWindowHours })}</p>
 
   <label class="check">
     <input type="checkbox" bind:checked={enabled} />
-    Raise this alert
+    {t('workspace:alerts.rule.raise')}
   </label>
 
   <fieldset disabled={!enabled}>
-    <legend>Default channels</legend>
+    <legend>{t('workspace:alerts.rule.defaultChannels')}</legend>
     <div class="row wrap">
       {#each allChannels as c (c)}
         {#if entry.allowedChannels.indexOf(c) >= 0}
           <label class="check">
             <input type="checkbox" checked={channels.indexOf(c) >= 0} onchange={(e) => toggle(c, e.currentTarget.checked)} />
-            {channelLabels[c]}
+            {channelLabel(c)}
           </label>
         {/if}
       {/each}
@@ -102,23 +103,23 @@
   <div class="row wrap">
     {#each entry.params as p (p.key)}
       <div>
-        <label for="p-{entry.id}-{p.key}">{p.label}{p.unit ? ` (${p.unit})` : ''}</label>
+        <label for="p-{entry.id}-{p.key}">{p.unit ? t('workspace:alerts.rule.paramWithUnit', { label: p.label, unit: p.unit }) : p.label}</label>
         <input id="p-{entry.id}-{p.key}" type="number" min={p.min} max={p.max} step="1" bind:value={params[p.key]} disabled={!enabled} />
       </div>
     {/each}
     <div>
-      <label for="m-{entry.id}">Most per hour</label>
+      <label for="m-{entry.id}">{t('workspace:alerts.rule.mostPerHour')}</label>
       <input id="m-{entry.id}" type="number" min="1" max="1000" step="1" bind:value={maxPerHour} disabled={!enabled} />
     </div>
   </div>
 
   {#if error}<Alert tone="error">{error}</Alert>{/if}
   <div class="row">
-    <Button type="submit" size="sm" variant="primary" loading={busy === 'save'}>Save rule</Button>
+    <Button type="submit" size="sm" variant="primary" loading={busy === 'save'}>{t('workspace:alerts.rule.save')}</Button>
     {#if entry.rule.custom}
-      <Button size="sm" variant="ghost" loading={busy === 'reset'} onclick={reset}>Back to the built-in rule</Button>
+      <Button size="sm" variant="ghost" loading={busy === 'reset'} onclick={reset}>{t('workspace:alerts.rule.reset')}</Button>
     {/if}
-    {#if saved}<span class="muted" role="status">Saved.</span>{/if}
+    {#if saved}<span class="muted" role="status">{t('workspace:alerts.rule.saved')}</span>{/if}
   </div>
 </form>
 
