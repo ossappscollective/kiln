@@ -2778,3 +2778,31 @@ export const testflightSync = pgTable(
   },
   (t) => [index('testflight_sync_workspace_idx').on(t.workspaceId)],
 );
+
+/** Kiln's own daily record of an app's rating per store and country (migration 56): what a read saw that day. Averages are thousandths. */
+export const appRatingDays = pgTable(
+  'app_rating_days',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    store: text('store').notNull(),
+    territory: text('territory').notNull(),
+    /** YYYY-MM-DD, UTC. */
+    day: text('day').notNull(),
+    averageMilli: integer('average_milli').notNull(),
+    ratingCount: epochMs('rating_count'),
+    star1: epochMs('star1'),
+    star2: epochMs('star2'),
+    star3: epochMs('star3'),
+    star4: epochMs('star4'),
+    star5: epochMs('star5'),
+    version: text('version'),
+    observedAt: epochMs('observed_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.store, t.territory, t.day] }),
+    index('app_rating_days_workspace_idx').on(t.workspaceId, t.appId, t.day),
+  ],
+);

@@ -46,6 +46,11 @@ export const analyticsMetrics = [
   // Google, Play Developer Reporting API
   'crash_rate',
   'anr_rate',
+  // The same query's user-perceived rates (Google's bad behavior thresholds apply to these) and the users each rate divides by (rounded by Google).
+  'crash_rate_perceived',
+  'anr_rate_perceived',
+  'crash_users',
+  'anr_users',
   // Google, Cloud Storage reports
   'installs_user',
   'installs_device',
@@ -169,6 +174,34 @@ export const metricInfo: Record<AnalyticsMetric, MetricInfo> = {
     aggregation: 'mean',
     delayDays: 2,
     label: 'ANR rate',
+  },
+  crash_rate_perceived: {
+    source: 'play_vitals',
+    unit: 'ratio',
+    aggregation: 'mean',
+    delayDays: 2,
+    label: 'User-perceived crash rate',
+  },
+  anr_rate_perceived: {
+    source: 'play_vitals',
+    unit: 'ratio',
+    aggregation: 'mean',
+    delayDays: 2,
+    label: 'User-perceived ANR rate',
+  },
+  crash_users: {
+    source: 'play_vitals',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 2,
+    label: 'Users behind the crash rate',
+  },
+  anr_users: {
+    source: 'play_vitals',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 2,
+    label: 'Users behind the ANR rate',
   },
   installs_user: {
     source: 'play_reports',

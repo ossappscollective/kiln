@@ -154,7 +154,7 @@ test('vitals: crash and ANR rate, total and by version, with the playdeveloperre
   });
   assert.equal(body.timelineSpec.endTime.day, 12, 'the end is exclusive');
   assert.deepEqual(body.dimensions, ['versionCode']);
-  assert.deepEqual(body.metrics, ['crashRate']);
+  assert.deepEqual(body.metrics, ['crashRate', 'userPerceivedCrashRate', 'distinctUsers']);
   assert.equal(query?.url.host, 'playdeveloperreporting.googleapis.com');
   assert.equal(fake.unexpected.length, 0);
 });
@@ -286,4 +286,21 @@ test('vitals: rate limit, server failure and an unreadable answer are not mistak
     });
     check(await captured(() => connector.rates({ from: '2026-11-01', to: '2026-11-02' })));
   }
+});
+
+test('parseVitalsRows: user-perceived rates and the users of each metric set; unknown metrics are skipped', () => {
+  const row = (metric: string, value: string) => ax.vitalsRow('2026-11-10', metric, value, '242');
+  const crash = parseVitalsRows(
+    { rows: [row('crashRate', '0.02'), row('userPerceivedCrashRate', '0.012'), row('distinctUsers', '3400'), row('somethingNew', '1')] },
+    'crashRate',
+  );
+  assert.deepEqual(
+    crash.points.map((p) => [p.metric, p.value]),
+    [['crash_rate', 0.02], ['crash_rate_perceived', 0.012], ['crash_users', 3400]],
+  );
+  assert.equal(crash.skipped, 1);
+  const anr = parseVitalsRows({ rows: [row('userPerceivedAnrRate', '0.001'), row('distinctUsers', '3300')] }, 'anrRate');
+  assert.deepEqual(anr.points.map((p) => p.metric), ['anr_rate_perceived', 'anr_users']);
+  // Without a set the users cannot be told apart, so they are skipped rather than guessed.
+  assert.deepEqual(parseVitalsRows({ rows: [row('distinctUsers', '10')] }).points, []);
 });

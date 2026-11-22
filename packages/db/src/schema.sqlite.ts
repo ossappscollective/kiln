@@ -2766,3 +2766,31 @@ export const testflightSync = sqliteTable(
   },
   (t) => [index('testflight_sync_workspace_idx').on(t.workspaceId)],
 );
+
+/** Kiln's own daily record of an app's rating per store and country (migration 56): what a read saw that day. Averages are thousandths. */
+export const appRatingDays = sqliteTable(
+  'app_rating_days',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    store: text('store').notNull(),
+    territory: text('territory').notNull(),
+    /** YYYY-MM-DD, UTC. */
+    day: text('day').notNull(),
+    averageMilli: integer('average_milli').notNull(),
+    ratingCount: integer('rating_count'),
+    star1: integer('star1'),
+    star2: integer('star2'),
+    star3: integer('star3'),
+    star4: integer('star4'),
+    star5: integer('star5'),
+    version: text('version'),
+    observedAt: integer('observed_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.store, t.territory, t.day] }),
+    index('app_rating_days_workspace_idx').on(t.workspaceId, t.appId, t.day),
+  ],
+);

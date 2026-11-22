@@ -95,7 +95,19 @@ const REPORTING_BASE = 'https://playdeveloperreporting.googleapis.com';
 const STORAGE_BASE = 'https://storage.googleapis.com';
 const MAX_VITALS_PAGES = 20;
 
-const metricOf: Record<string, AnalyticsMetric> = { crashRate: 'crash_rate', anrRate: 'anr_rate' };
+const metricOf: Record<string, AnalyticsMetric> = {
+  crashRate: 'crash_rate',
+  anrRate: 'anr_rate',
+  userPerceivedCrashRate: 'crash_rate_perceived',
+  userPerceivedAnrRate: 'anr_rate_perceived',
+};
+/** `distinctUsers` is the normalization count of the metric set it was asked with (docs/api/health.md): one metric per set. */
+const usersOf: Record<string, AnalyticsMetric> = { crashRate: 'crash_users', anrRate: 'anr_users' };
+/** The metrics each set is asked for: the rate, the user-perceived rate (Google's bad behavior thresholds apply to it), and the users they divide by. */
+const metricsAsked: Record<string, string[]> = {
+  crashRate: ['crashRate', 'userPerceivedCrashRate', 'distinctUsers'],
+  anrRate: ['anrRate', 'userPerceivedAnrRate', 'distinctUsers'],
+};
 
 /** The date of a `{ year, month, day }` object, as YYYY-MM-DD. */
 function dateOf(value: unknown): string | undefined {
@@ -112,7 +124,7 @@ function dateOf(value: unknown): string | undefined {
  * Rows of a `...MetricSet:query` answer as points. Field names are UNVERIFIED (see above). A row without a date, a metric this
  * server maps or a number is skipped. The `versionCode` dimension becomes the `app_version` dimension.
  */
-export function parseVitalsRows(json: unknown): {
+export function parseVitalsRows(json: unknown, set?: 'crashRate' | 'anrRate'): {
   points: AnalyticsPoint[];
   rows: number;
   skipped: number;
@@ -138,7 +150,8 @@ export function parseVitalsRows(json: unknown): {
       }
     }
     for (const m of records(row.metrics)) {
-      const metric = metricOf[text(m.metric) ?? ''];
+      const named = text(m.metric) ?? '';
+      const metric = named === 'distinctUsers' && set ? usersOf[set] : metricOf[named];
       const decimal = isRecord(m.decimalValue) ? m.decimalValue.value : m.decimalValue;
       const value =
         typeof decimal === 'number'
@@ -263,13 +276,13 @@ export class PlayVitalsConnector implements PlayVitalsPort {
             startTime: day(range.from),
             endTime: day(range.endExclusive),
           },
-          metrics: [set],
+          metrics: metricsAsked[set] ?? [set],
           dimensions,
           pageSize: 1000,
           ...(pageToken ? { pageToken } : {}),
         },
       );
-      const parsed = parseVitalsRows(json);
+      const parsed = parseVitalsRows(json, set as 'crashRate' | 'anrRate');
       points.push(...parsed.points);
       rows += parsed.rows;
       pageToken = text(json.nextPageToken) || undefined;
