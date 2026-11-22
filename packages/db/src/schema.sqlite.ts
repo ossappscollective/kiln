@@ -204,6 +204,9 @@ export const apps = sqliteTable(
     lastSyncedAt: integer('last_synced_at'),
     lastSyncAttemptAt: integer('last_sync_attempt_at'),
     lastSyncError: text('last_sync_error'),
+    /** The stable code of the note and its parameters as JSON, for translation (migration 50). Null for notes written before it. */
+    lastSyncErrorCode: text('last_sync_error_code'),
+    lastSyncErrorParams: text('last_sync_error_params'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => [uniqueIndex('apps_workspace_identifier_idx').on(t.workspaceId, t.platform, t.identifier)],

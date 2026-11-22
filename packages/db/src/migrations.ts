@@ -9,6 +9,7 @@ import { easStatusMigrations } from './migrations-eas-status.ts';
 import { monetizationMigrations } from './migrations-monetization.ts';
 import { revenueCatMigrations } from './migrations-revenuecat.ts';
 import { revenueCatMetricsMigrations } from './migrations-revenuecat-metrics.ts';
+import { syncErrorCodeMigrations } from './migrations-sync-error-code.ts';
 
 /**
  * Forward-only SQL migrations, applied in order at boot (see migrate() in index.ts).
@@ -1830,4 +1831,5 @@ export const migrations: Migration[] = [
   ...easStatusMigrations,
   ...revenueCatMigrations,
   ...revenueCatMetricsMigrations,
+  ...syncErrorCodeMigrations,
 ];

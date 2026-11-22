@@ -55,6 +55,9 @@ export function loadGoogleSigningKey(pem: string): KeyObject {
       'googleplay',
       'invalid_input',
       'The private_key in the service account JSON could not be read. Download a new JSON key from the Google Cloud console and paste the whole file.',
+      undefined,
+      undefined,
+      { code: 'store.google.keyUnreadable' },
     );
   }
   if (key.asymmetricKeyType !== 'rsa') {
@@ -62,6 +65,9 @@ export function loadGoogleSigningKey(pem: string): KeyObject {
       'googleplay',
       'invalid_input',
       'The private_key in the service account JSON is not an RSA key, which Google service accounts use.',
+      undefined,
+      undefined,
+      { code: 'store.google.keyNotRsa' },
     );
   }
   return key;
@@ -119,6 +125,13 @@ export function googleTokenError(
         'clock_skew',
         `Google rejected the sign-in because of the time (invalid_grant).${by} Check that the server clock is correct and synchronized (NTP).`,
         status,
+        undefined,
+        by === ''
+          ? { code: 'store.google.clockSkew' }
+          : {
+              code: skewSeconds !== undefined && skewSeconds > 0 ? 'store.google.clockSkewAhead' : 'store.google.clockSkewBehind',
+              params: { count: Math.abs(skewSeconds as number) },
+            },
       );
     }
     if (/signature/i.test(description)) {
@@ -127,6 +140,8 @@ export function googleTokenError(
         'auth',
         'Google rejected the key signature (invalid_grant: Invalid JWT Signature). The key was probably deleted or disabled in the Google Cloud console. Create a new JSON key for the service account.',
         status,
+        undefined,
+        { code: 'store.google.invalidSignature' },
       );
     }
     if (/account not found|not a valid email|invalid email/i.test(description)) {
@@ -135,6 +150,8 @@ export function googleTokenError(
         'auth',
         'Google does not know this service account (invalid_grant). It may have been deleted, or client_email is wrong. Download a fresh JSON key.',
         status,
+        undefined,
+        { code: 'store.google.accountUnknown' },
       );
     }
     return new StoreError(
@@ -142,6 +159,8 @@ export function googleTokenError(
       'auth',
       'Google refused the sign-in (invalid_grant). The service account key may be disabled or deleted, or the server clock may be wrong.',
       status,
+      undefined,
+      { code: 'store.google.signInRefused' },
     );
   }
   if (code === 'invalid_scope' || code === 'unauthorized_client') {
@@ -150,6 +169,8 @@ export function googleTokenError(
       'auth',
       `Google refused the ${scope.slice(scope.lastIndexOf('/') + 1)} scope for this service account (${code}).`,
       status,
+      undefined,
+      { code: 'store.google.scopeRefused', params: { scope: scope.slice(scope.lastIndexOf('/') + 1), reason: code } },
     );
   }
   if (code === 'invalid_client') {
@@ -158,6 +179,8 @@ export function googleTokenError(
       'auth',
       'Google does not recognise this service account (invalid_client). Download a fresh JSON key.',
       status,
+      undefined,
+      { code: 'store.google.clientUnknown' },
     );
   }
   return new StoreError(
@@ -167,6 +190,12 @@ export function googleTokenError(
       ? `Google's sign-in service failed (HTTP ${status}). Try again in a few minutes.`
       : `Google's sign-in service refused the request (HTTP ${status}${code ? `, ${code}` : ''}).`,
     status,
+    undefined,
+    status >= 500
+      ? { code: 'store.google.signInServiceFailed', params: { status } }
+      : code
+        ? { code: 'store.google.signInServiceRefusedReason', params: { status, reason: code } }
+        : { code: 'store.google.signInServiceRefused', params: { status } },
   );
 }
 

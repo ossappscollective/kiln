@@ -384,6 +384,10 @@ export function appleError(reply: StoreReply, nowMs: number, what: string): Stor
         )} seconds (${skew > 0 ? 'ahead' : 'behind'}). Apple refuses tokens issued in the future or already expired. Synchronize the server clock (NTP) and try again.`,
         status,
         details,
+        {
+          code: skew > 0 ? 'store.apple.clockSkewAhead' : 'store.apple.clockSkewBehind',
+          params: { count: Math.abs(skew) },
+        },
       );
     }
     return new StoreError(

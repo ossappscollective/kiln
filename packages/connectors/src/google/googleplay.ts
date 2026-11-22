@@ -146,6 +146,8 @@ export function googleError(
       'auth',
       'Google rejected the access token (401). The service account key may have been disabled or deleted. Download a new JSON key and try again.',
       status,
+      undefined,
+      { code: 'store.google.tokenRejected' },
     );
   }
   if (status === 403 || status === 429) {
@@ -157,6 +159,10 @@ export function googleError(
         'api_disabled',
         `The Google Play Android Developer API is not enabled in the Google Cloud project of this service account${project}. Open the API in the Google Cloud console, click Enable, wait a few minutes and try again.`,
         status,
+        undefined,
+        context.projectId
+          ? { code: 'store.google.apiDisabledProject', params: { project: context.projectId } }
+          : { code: 'store.google.apiDisabled' },
       );
     }
     if (/projectNotLinked/i.test(reasons)) {
@@ -165,6 +171,8 @@ export function googleError(
         'forbidden',
         'Google says the Cloud project of this service account is not linked in Play Console (projectNotLinked). Link it under Setup, API access in Play Console, then try again.',
         status,
+        undefined,
+        { code: 'store.google.projectNotLinked' },
       );
     }
     return new StoreError(
@@ -172,6 +180,10 @@ export function googleError(
       'forbidden',
       `The service account has no access to${app} (403). In Play Console, open Users and permissions, invite the service account's email address and grant it access to the app. If that was just done, wait and try again.`,
       status,
+      undefined,
+      context.packageName
+        ? { code: 'store.google.noAccessPackage', params: { package: context.packageName } }
+        : { code: 'store.google.noAccess' },
     );
   }
   if (status === 404) {
@@ -183,6 +195,8 @@ export function googleError(
         'edit_invalid',
         'The edit was invalidated while it was being read (another edit or a Play Console change).',
         status,
+        undefined,
+        { code: 'store.google.editInvalid' },
       );
     }
     return new StoreError(
@@ -190,6 +204,10 @@ export function googleError(
       'not_found',
       `Google Play has no app${context.packageName ? ` ${context.packageName}` : ''} that this service account can see (404). Check the package name. An app needs at least one uploaded build before the API can reach it.`,
       status,
+      undefined,
+      context.packageName
+        ? { code: 'store.google.appNotFoundPackage', params: { package: context.packageName } }
+        : { code: 'store.google.appNotFound' },
     );
   }
   if (status >= 500) {
@@ -227,6 +245,9 @@ export class GooglePlayConnector implements StoreConnector {
           'googleplay',
           'invalid_input',
           `Not a valid Android package name: ${JSON.stringify(name.slice(0, 80))}.`,
+          undefined,
+          undefined,
+          { code: 'store.google.packageInvalid', params: { name: JSON.stringify(name.slice(0, 80)) } },
         );
       }
     }
@@ -514,6 +535,12 @@ export class GooglePlayConnector implements StoreConnector {
         'googleplay',
         'invalid_input',
         `Not a valid Android package name: ${JSON.stringify(packageName.slice(0, 80))}.`,
+        undefined,
+        undefined,
+        {
+          code: 'store.google.packageInvalid',
+          params: { name: JSON.stringify(packageName.slice(0, 80)) },
+        },
       );
     }
     return serialized(this.#account.clientEmail, async () => {
@@ -598,6 +625,8 @@ export class GooglePlayConnector implements StoreConnector {
         'unexpected',
         'Google Play opened an edit but sent no edit id.',
         reply.status,
+        undefined,
+        { code: 'store.google.noEditId' },
       );
     }
     return id;

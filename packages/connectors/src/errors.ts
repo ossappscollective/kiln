@@ -26,15 +26,29 @@ export type GithubErrorKind =
   | 'branch_moved'
   | 'branch_missing';
 
+/**
+ * A stable machine code for the sentence of an error, plus what the sentence needs (docs/i18n-server.md). `code` is dot.case
+ * (`store.rateLimited`); `params` are plain scalars and never hold a secret. The English `message` stays: a client that does not know
+ * the code shows it. Only errors whose whole sentence is fixed text plus those params carry one; the others have none.
+ */
+export type ErrorCoding = { code: string; params?: Record<string, string | number | boolean | null> };
+
 export class GithubError extends Error {
   readonly kind: GithubErrorKind;
   /** The HTTP status, when the error came from a response. */
   readonly status?: number;
-  constructor(kind: GithubErrorKind, message: string, status?: number) {
+  /** The stable code of the message and its parameters, when it has one (see `ErrorCoding`). */
+  readonly code?: string;
+  readonly params?: Record<string, string | number | boolean | null>;
+  constructor(kind: GithubErrorKind, message: string, status?: number, coding?: ErrorCoding) {
     super(message);
     this.name = 'GithubError';
     this.kind = kind;
     if (status !== undefined) this.status = status;
+    if (coding) {
+      this.code = coding.code;
+      if (coding.params) this.params = coding.params;
+    }
   }
 }
 
@@ -58,6 +72,10 @@ export class GithubRateLimitError extends GithubError {
       'rate_limited',
       `GitHub ${limit} rate limit reached. Retry in ${retryAfterSeconds} seconds.`,
       status,
+      {
+        code: limit === 'primary' ? 'github.rateLimitPrimary' : 'github.rateLimitSecondary',
+        params: { count: retryAfterSeconds },
+      },
     );
     this.name = 'GithubRateLimitError';
     this.limit = limit;
@@ -70,7 +88,10 @@ export class GithubRateLimitError extends GithubError {
 export class BranchExistsError extends GithubError {
   readonly branch: string;
   constructor(branch: string) {
-    super('branch_exists', `The branch ${branch} already exists.`, 422);
+    super('branch_exists', `The branch ${branch} already exists.`, 422, {
+      code: 'github.branchExists',
+      params: { branch },
+    });
     this.name = 'BranchExistsError';
     this.branch = branch;
   }
@@ -83,6 +104,8 @@ export class DefaultBranchError extends GithubError {
     super(
       'default_branch',
       `Refusing to write to the default branch (${branch}). Use a new branch.`,
+      undefined,
+      { code: 'github.defaultBranch', params: { branch } },
     );
     this.name = 'DefaultBranchError';
     this.branch = branch;
@@ -101,6 +124,7 @@ export class BranchMovedError extends GithubError {
       'branch_moved',
       `The branch ${branch} has moved since it was read, so nothing was added to it.`,
       422,
+      { code: 'github.branchMoved', params: { branch } },
     );
     this.name = 'BranchMovedError';
     this.branch = branch;
@@ -111,7 +135,10 @@ export class BranchMovedError extends GithubError {
 export class BranchMissingError extends GithubError {
   readonly branch: string;
   constructor(branch: string) {
-    super('branch_missing', `The branch ${branch} does not exist on GitHub.`, 404);
+    super('branch_missing', `The branch ${branch} does not exist on GitHub.`, 404, {
+      code: 'github.branchMissing',
+      params: { branch },
+    });
     this.name = 'BranchMissingError';
     this.branch = branch;
   }
@@ -126,6 +153,13 @@ export class ChangeConflictError extends GithubError {
       `The repository changed since this change set was made: ${paths.slice(0, 10).join(', ')}${
         paths.length > 10 ? `, and ${paths.length - 10} more` : ''
       }.`,
+      undefined,
+      paths.length > 10
+        ? {
+            code: 'github.changeConflictMore',
+            params: { paths: paths.slice(0, 10).join(', '), count: paths.length - 10 },
+          }
+        : { code: 'github.changeConflict', params: { paths: paths.slice(0, 10).join(', ') } },
     );
     this.name = 'ChangeConflictError';
     this.paths = paths;
@@ -141,6 +175,7 @@ export class PullRequestFailedError extends GithubError {
       'pull_request_failed',
       `The branch ${branch} was created, but opening the pull request failed: ${cause.message}`,
       cause.status,
+      { code: 'github.pullRequestFailed', params: { branch, reason: cause.message } },
     );
     this.name = 'PullRequestFailedError';
     this.branch = branch;
@@ -208,12 +243,16 @@ export class StoreError extends Error {
   readonly status?: number;
   /** What the store said was wrong (at most a few entries), when its error body was readable. */
   readonly details?: StoreErrorDetail[];
+  /** The stable code of the message and its parameters, when it has one (see `ErrorCoding`). */
+  readonly code?: string;
+  readonly params?: Record<string, string | number | boolean | null>;
   constructor(
     store: StoreName,
     kind: StoreErrorKind,
     message: string,
     status?: number,
     details?: StoreErrorDetail[],
+    coding?: ErrorCoding,
   ) {
     super(message);
     this.name = 'StoreError';
@@ -221,6 +260,10 @@ export class StoreError extends Error {
     this.kind = kind;
     if (status !== undefined) this.status = status;
     if (details !== undefined && details.length > 0) this.details = details;
+    if (coding) {
+      this.code = coding.code;
+      if (coding.params) this.params = coding.params;
+    }
   }
 }
 
@@ -232,11 +275,14 @@ export class StoreError extends Error {
 export class StoreRateLimitError extends StoreError {
   readonly retryAfterSeconds: number;
   constructor(store: StoreName, retryAfterSeconds: number, status = 429) {
+    const name = store === 'appstoreconnect' ? 'App Store Connect' : 'Google Play';
     super(
       store,
       'rate_limited',
-      `${store === 'appstoreconnect' ? 'App Store Connect' : 'Google Play'} rate limit reached. Retry in ${retryAfterSeconds} seconds.`,
+      `${name} rate limit reached. Retry in ${retryAfterSeconds} seconds.`,
       status,
+      undefined,
+      { code: 'store.rateLimited', params: { store: name, count: retryAfterSeconds } },
     );
     this.name = 'StoreRateLimitError';
     this.retryAfterSeconds = retryAfterSeconds;

@@ -184,6 +184,8 @@ export class StoreHttp {
         'too_large',
         `The file from ${hostOf(url)} is larger than the limit of ${cap} bytes.`,
         response.status,
+        undefined,
+        { code: 'store.fileTooLarge', params: { host: hostOf(url), count: cap } },
       );
     }
     const chunks: Uint8Array[] = [];
@@ -203,6 +205,8 @@ export class StoreHttp {
                 'too_large',
                 `The file from ${hostOf(url)} is larger than the limit of ${cap} bytes.`,
                 response.status,
+                undefined,
+                { code: 'store.fileTooLarge', params: { host: hostOf(url), count: cap } },
               );
             }
             // An error document longer than the cap: keep what fits.
@@ -219,6 +223,8 @@ export class StoreHttp {
         'network',
         `The connection to ${hostOf(url)} was cut off while reading the response.`,
         response.status,
+        undefined,
+        { code: 'store.connectionCutOff', params: { host: hostOf(url) } },
       );
     }
     const bytes = new Uint8Array(Math.min(total, cap));
@@ -251,6 +257,14 @@ export class StoreHttp {
         timedOut
           ? `The request to ${hostOf(url)} timed out after ${Math.round(this.#timeoutMs / 1000)} seconds.`
           : `Could not reach ${hostOf(url)}. Check the network connection of the server.`,
+        undefined,
+        undefined,
+        timedOut
+          ? {
+              code: 'store.requestTimedOut',
+              params: { host: hostOf(url), count: Math.round(this.#timeoutMs / 1000) },
+            }
+          : { code: 'store.unreachable', params: { host: hostOf(url) } },
       );
     }
   }
@@ -293,6 +307,14 @@ export class StoreHttp {
         timedOut
           ? `The request to ${hostOf(url)} timed out after ${Math.round(this.#timeoutMs / 1000)} seconds.`
           : `Could not reach ${hostOf(url)}. Check the network connection of the server.`,
+        undefined,
+        undefined,
+        timedOut
+          ? {
+              code: 'store.requestTimedOut',
+              params: { host: hostOf(url), count: Math.round(this.#timeoutMs / 1000) },
+            }
+          : { code: 'store.unreachable', params: { host: hostOf(url) } },
       );
     }
     let raw = '';
@@ -304,6 +326,8 @@ export class StoreHttp {
         'network',
         `The connection to ${hostOf(url)} was cut off while reading the response.`,
         response.status,
+        undefined,
+        { code: 'store.connectionCutOff', params: { host: hostOf(url) } },
       );
     }
     let json: unknown;
