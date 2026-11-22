@@ -143,9 +143,12 @@ export function cleanTexts(input: {
       coded('monetization.nameOneLine'),
     );
   if (name.length > MAX_NAME)
-    return failure(422, 'invalid_text', `The display name is at most ${MAX_NAME} characters.`, coded('monetization.nameTooLong', {
-      max: MAX_NAME,
-    }));
+    return failure(
+      422,
+      'invalid_text',
+      `The display name is at most ${MAX_NAME} characters.`,
+      coded('monetization.nameTooLong', { max: MAX_NAME }),
+    );
   if (description.length > MAX_DESCRIPTION)
     return failure(
       422,
