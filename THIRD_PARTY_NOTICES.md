@@ -61,3 +61,38 @@ If real brand marks are added later, each one must be recorded here with: the so
 the commit hash and date it was read at, its licence, and a statement that it was copied byte for
 byte; it must pass `pnpm --filter @kiln/web icons:check`; and the trademark note above applies to it.
 See "Adding an icon safely" in `docs/design-system.md`.
+
+## Open Screenshot Generator (logic adapted from its Growth tools)
+
+Some pure logic in Kiln is adapted from the "Growth" tools of Open Screenshot Generator
+(https://github.com/dotnetdreamer/open-screenshot-generator, commit dcca453, read 2026-11-22), which is
+released under the MIT licence. Kiln is Apache-2.0; the MIT licence allows this when its copyright
+notice and permission notice travel with the adapted code, which is why they are repeated here. A file
+that is substantially adapted says so in its header comment ("Adapted from Open Screenshot Generator,
+MIT"). The code was rewritten for Kiln's own stack (TypeScript on the server and in `packages/core`,
+Svelte 5 in `apps/web`) and its data model; the user interface, the wording and every message string
+are Kiln's own. No images, icons, fonts, screenshots or templates from that project were copied.
+
+```
+MIT License
+
+Copyright (c) 2026 Idrees Khan
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
