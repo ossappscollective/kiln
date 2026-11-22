@@ -196,30 +196,29 @@ export function recoveryFailureMessage(error: unknown): string | undefined {
   if (!e || typeof e !== 'object' || e.code !== 'step_up_failed') return undefined;
   const body = (e.body && typeof e.body === 'object' ? e.body : {}) as Record<string, unknown>;
   return body.reason === 'invalid_recovery_code'
-    ? 'That recovery code did not work. Check it and try again. A code that was used before no longer works.'
+    ? t('auth:recovery.invalid')
     : undefined;
 }
 
 /** The Security card's line about the codes that are left. */
 export function recoverySummary(recovery: RecoveryStatus | undefined): string {
   if (!recovery || recovery.total === 0)
-    return 'No recovery codes yet. Make a set and keep it offline, so a lost passkey or password does not lock you out.';
-  if (recovery.remaining === 0) return 'Every recovery code has been used. Make a new set.';
-  if (recovery.remaining <= 3)
-    return `${recovery.remaining} of ${recovery.total} recovery codes left. Make a new set soon.`;
-  return `${recovery.remaining} of ${recovery.total} recovery codes left.`;
+    return t('auth:recovery.none');
+  if (recovery.remaining === 0) return t('auth:recovery.allUsed');
+  const params = { remaining: recovery.remaining, total: recovery.total };
+  return recovery.remaining <= 3 ? t('auth:recovery.low', params) : t('auth:recovery.left', params);
 }
 
 /** The text file the person can save: the codes, a heading, the date. Never includes anything but the codes. */
 export function recoveryCodesText(codes: readonly string[], generatedAt: number): string {
   const day = new Date(generatedAt).toISOString().slice(0, 10);
   return [
-    'Kiln recovery codes',
-    `Made ${day}`,
+    t('auth:recovery.fileTitle'),
+    t('auth:recovery.fileMade', { date: day }),
     '',
     ...codes,
     '',
-    'Each code works once. Keep this file offline. Making a new set stops these from working.',
+    t('auth:recovery.fileNote'),
     '',
   ].join('\n');
 }
@@ -230,11 +229,11 @@ export const RECOVERY_FILE_NAME = 'kiln-recovery-codes.txt';
 export function webauthnFailureMessage(error: unknown): string {
   const name = error && typeof error === 'object' ? String((error as { name?: unknown }).name) : '';
   if (name === 'NotAllowedError' || name === 'AbortError')
-    return 'The confirmation was cancelled or timed out. Try again.';
-  if (name === 'InvalidStateError') return 'This device already has a passkey for this app.';
+    return t('auth:webauthn.cancelled');
+  if (name === 'InvalidStateError') return t('auth:webauthn.alreadyRegistered');
   if (name === 'NotSupportedError' || name === 'SecurityError')
-    return 'This window cannot use passkeys. Use your password instead.';
-  return 'Your device could not confirm. Try again, or use your password.';
+    return t('auth:webauthn.unsupported');
+  return t('auth:webauthn.failed');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -384,8 +383,8 @@ export function toggleAction(
 /** A sentence for the Security card about the state of the policy and the person's ways to confirm. */
 export function securitySummary(status: Pick<StepUpStatus, 'policy' | 'enrolled'>): string {
   if (status.policy.mode === 'off')
-    return 'Confirmation is off. Anyone who can use this app can publish, release and delete without being asked again.';
+    return t('auth:policy.off');
   if (!status.enrolled)
-    return 'Confirmation is on, but you have no way to confirm yet, so hard actions are refused for you. Add a passkey or a confirmation password.';
-  return 'Confirmation is on: hard actions ask you to confirm with a passkey or a password first.';
+    return t('auth:policy.notEnrolled');
+  return t('auth:policy.on');
 }

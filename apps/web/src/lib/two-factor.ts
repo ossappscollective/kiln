@@ -2,6 +2,8 @@
 // Pure functions and types: the screens (Login, the Security card, the mail card, StepUpDialog) hold no rules of their own.
 // Every sentence for a failure comes from a fixed code the server sends, never from a mail server or a browser.
 // The web target is ES2017: no flatMap, fromEntries or newer calls here.
+import { formatList } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 
 export type TotpState = 'none' | 'pending' | 'active';
 export type TotpStatus = { state: TotpState; confirmedAt: number | null };
@@ -70,26 +72,43 @@ export const isLoginChallenge = (r: unknown): r is LoginChallenge =>
   (r as { twoFactorRequired?: unknown }).twoFactorRequired === true &&
   typeof (r as { challenge?: unknown }).challenge === 'string';
 
-export const LOGIN_MODES: { value: LoginMode; label: string; hint: string }[] = [
+/** The choices for the sign-in policy. `label` and `hint` are read when drawn (getters), so they follow the language. */
+export const LOGIN_MODES: { value: LoginMode; readonly label: string; readonly hint: string }[] = [
   {
     value: 'off',
-    label: 'Off',
-    hint: 'Signing in needs the password only. An authenticator app or email can still confirm hard actions.',
+    get label() {
+      return t('auth:loginMode.off.label');
+    },
+    get hint() {
+      return t('auth:loginMode.off.hint');
+    },
   },
   {
     value: 'optional',
-    label: 'Optional',
-    hint: 'People who set up an authenticator app or email must use it after their password.',
+    get label() {
+      return t('auth:loginMode.optional.label');
+    },
+    get hint() {
+      return t('auth:loginMode.optional.hint');
+    },
   },
   {
     value: 'admins',
-    label: 'Required for owners and admins',
-    hint: 'Owners and admins must have a second factor. If they have none, they set one up at their next sign-in.',
+    get label() {
+      return t('auth:loginMode.admins.label');
+    },
+    get hint() {
+      return t('auth:loginMode.admins.hint');
+    },
   },
   {
     value: 'all',
-    label: 'Required for everyone',
-    hint: 'Every member must have a second factor. Anyone without one sets it up at their next sign-in.',
+    get label() {
+      return t('auth:loginMode.all.label');
+    },
+    get hint() {
+      return t('auth:loginMode.all.hint');
+    },
   },
 ];
 
@@ -100,10 +119,17 @@ export const codeComplete = (text: string): boolean => /^\d{6}$/.test(text.repla
 /** The secret in groups of four, to be typed into an app by hand. */
 export const groupSecret = (secret: string): string => (secret.match(/.{1,4}/g) ?? []).join(' ');
 
+/** The name of each second step, read when drawn (getters), so it follows the language. */
 export const METHOD_LABELS: Record<LoginMethod, string> = {
-  totp: 'Authenticator app',
-  email: 'Email me a code',
-  recovery: 'Recovery code',
+  get totp() {
+    return t('settings:twoFactor.appTitle');
+  },
+  get email() {
+    return t('settings:twoFactor.emailMe');
+  },
+  get recovery() {
+    return t('auth:secondFactor.recoveryCode');
+  },
 };
 
 /** Which of `methods` to show first: the app, then email, then a recovery code. */
@@ -115,13 +141,15 @@ export function firstMethod(methods: readonly LoginMethod[]): LoginMethod | unde
 
 export function twoFactorSummary(status: Pick<TwoFactorStatus, 'totp' | 'email'>): string {
   const parts: string[] = [];
-  if (status.totp.state === 'active') parts.push('authenticator app');
-  if (status.email?.verified) parts.push('email');
-  return parts.length === 0 ? 'Not set up' : `On: ${parts.join(' and ')}`;
+  if (status.totp.state === 'active') parts.push(t('auth:twoFactor.wayTotp'));
+  if (status.email?.verified) parts.push(t('auth:twoFactor.wayEmail'));
+  return parts.length === 0
+    ? t('auth:twoFactor.summaryNone')
+    : t('auth:twoFactor.summaryOn', { ways: formatList(parts) });
 }
 
 export const loginModeSummary = (mode: LoginMode): string =>
-  LOGIN_MODES.filter((m) => m.value === mode)[0]?.label ?? 'Off';
+  LOGIN_MODES.filter((m) => m.value === mode)[0]?.label ?? t('auth:loginMode.off.label');
 
 /** Seconds left until a resend is allowed, counted from when the code was sent. */
 export const resendIn = (sentAt: number, resendAfterSeconds: number, now: number): number =>
@@ -238,23 +266,41 @@ export function twoFactorProblem(error: unknown): string {
 }
 
 export function mailTestSummary(result: MailTestResult): string {
-  if (result.ok) return `A test message was sent to ${result.to}. Check that inbox.`;
+  if (result.ok) return t('auth:mail.testSent', { to: result.to });
   const hint = mailHintMessage(result.hint);
   return hint ? `${mailFailureMessage(result.code)} ${hint}` : mailFailureMessage(result.code);
 }
 
 export function smtpSourceLabel(source: SmtpSource): string {
   return source === 'env'
-    ? 'Set by the server environment (read only)'
+    ? t('auth:mail.sourceEnv')
     : source === 'settings'
-      ? 'Saved here'
-      : 'Not set up';
+      ? t('auth:mail.sourceSettings')
+      : t('auth:mail.sourceNone');
 }
 
-export const SMTP_SECURE_OPTIONS: { value: SmtpSecure; label: string; port: number }[] = [
-  { value: 'starttls', label: 'STARTTLS (usually port 587)', port: 587 },
-  { value: 'tls', label: 'TLS from the start (usually port 465)', port: 465 },
-  { value: 'none', label: 'None (usually port 25; only for a server on this machine)', port: 25 },
+export const SMTP_SECURE_OPTIONS: { value: SmtpSecure; readonly label: string; port: number }[] = [
+  {
+    value: 'starttls',
+    get label() {
+      return t('auth:mail.secureStarttls');
+    },
+    port: 587,
+  },
+  {
+    value: 'tls',
+    get label() {
+      return t('auth:mail.secureTls');
+    },
+    port: 465,
+  },
+  {
+    value: 'none',
+    get label() {
+      return t('auth:mail.secureNone');
+    },
+    port: 25,
+  },
 ];
 export const defaultSmtpPort = (secure: SmtpSecure): number =>
   SMTP_SECURE_OPTIONS.filter((o) => o.value === secure)[0]?.port ?? 587;
@@ -262,13 +308,13 @@ export const defaultSmtpPort = (secure: SmtpSecure): number =>
 /** A first look at a form before it is sent (the server decides for real). A sentence, or '' when it looks fine. */
 export function smtpProblem(input: { host: string; port: string; from: string }): string {
   const host = input.host.trim();
-  if (!host) return 'Enter the mail server host name.';
+  if (!host) return t('auth:mail.hostRequired');
   if (/[\s/@:]/.test(host) && !/^[0-9a-fA-F:.]+$/.test(host))
-    return 'The host is a name such as smtp.example.com, without smtp:// or a port.';
+    return t('auth:mail.hostShape');
   const port = input.port.trim();
   if (port !== '' && !(/^\d{1,5}$/.test(port) && Number(port) >= 1 && Number(port) <= 65535))
-    return 'The port is a number from 1 to 65535.';
+    return t('auth:mail.portShape');
   if (!/^[^\s@<>]+@[^\s@<>]+$|<[^\s@<>]+@[^\s@<>]+>\s*$/.test(input.from.trim()))
-    return 'Enter the sender address, such as kiln@example.com.';
+    return t('auth:mail.fromShape');
   return '';
 }
