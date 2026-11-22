@@ -14,6 +14,7 @@ import {
   translateReviews,
 } from '../../services/translation.ts';
 
+import { coded } from '../../i18n/problem.ts';
 export type ReviewTranslationRoutesContext = TranslationContext & {
   /** Requests per workspace per minute (default built in createApp: 20). */
   limiter: TestLimiter;
@@ -60,6 +61,7 @@ export function reviewTranslationRoutes(ctx: ReviewTranslationRoutesContext) {
       {
         error: 'rate_limited',
         message: `Too many translation requests. Try again in ${wait} seconds.`,
+        ...coded('rate.translation', { count: wait }),
         retryAfterSeconds: wait,
       },
       429,

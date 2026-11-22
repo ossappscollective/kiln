@@ -59,6 +59,7 @@ import {
   syncReviews,
 } from './sync.ts';
 
+import { coded } from '../../i18n/problem.ts';
 export type ReviewRoutesContext = ReviewsContext & {
   /** Reads per workspace per minute: the budget the app sync routes use (built in createApp). */
   limiter: TestLimiter;
@@ -406,6 +407,7 @@ export function reviewRoutes(ctx: ReviewRoutesContext) {
         {
           error: 'rate_limited',
           message: `Too many syncs. Try again in ${wait} seconds.`,
+          ...coded('sync.tooManySyncs', { count: wait }),
           retryAfterSeconds: wait,
         },
         429,
@@ -650,6 +652,7 @@ export function reviewRoutes(ctx: ReviewRoutesContext) {
             {
               error: 'assignee_not_member',
               message: 'The assignee is not a member of this workspace.',
+              ...coded('reviews.assigneeNotMember'),
             },
             422,
           );

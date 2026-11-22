@@ -12,6 +12,7 @@ import { readRevenueCatSyncStatus } from './snapshot.ts';
 import { notLinkedFailure, syncRevenueCat } from './sync.ts';
 import { getRevenueCatProductsView } from './view.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /** The body of `PUT .../apps/{appId}/revenuecat`: the RevenueCat credential, the project and the RevenueCat app. */
 export const setLinkBody = z.strictObject({
   credentialId: z.string().min(1).max(100),
@@ -36,7 +37,12 @@ const respond = (c: Context<AppEnv>, f: Failure) => {
 const tooMany = (wait: number, what: string): Failure => ({
   ok: false,
   status: 429,
-  body: { error: 'rate_limited', message: `Too many ${what}. Try again in ${wait} seconds.`, retryAfterSeconds: wait },
+  body: {
+    error: 'rate_limited',
+    message: `Too many ${what}. Try again in ${wait} seconds.`,
+    ...coded('rate.requests', { count: wait }),
+    retryAfterSeconds: wait,
+  },
   headers: { 'Retry-After': String(wait) },
 });
 

@@ -421,7 +421,12 @@ export async function syncReviews(
   const app: RunApp = { ...found, workspaceId: input.workspaceId };
   if (running.has(app.id)) {
     return {
-      ...failure(409, 'sync_in_progress', 'The reviews of this app are already being read.'),
+      ...failure(
+        409,
+        'sync_in_progress',
+        'The reviews of this app are already being read.',
+        coded('reviews.alreadyReading'),
+      ),
       transient: false,
     };
   }
@@ -473,6 +478,7 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
         409,
         'reviews_shared',
         'The customer reviews of an App Store Connect app are shared by its iOS and macOS entries. They are read once, for the iOS entry.',
+        coded('reviews.sharedIosMacos'),
       ),
       transient: false,
     } as ReviewSyncFailure;

@@ -19,6 +19,7 @@ import {
 import type { RevenueCatDeps } from './index.ts';
 import { clearRevenueCatCache } from './snapshot.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * The link between an app record and a RevenueCat project and app (docs/adr/0039-revenuecat.md, docs/api/revenuecat.md): which RevenueCat
  * credential to use, which project, which RevenueCat app. Saving it asks RevenueCat, with that credential, whether the project and app
@@ -105,7 +106,12 @@ export type LinkContext = {
 };
 
 export const notSupportedFailure = (): Failure =>
-  failure(422, 'revenuecat_not_supported', 'RevenueCat is not available for the store of this app.');
+  failure(
+    422,
+    'revenuecat_not_supported',
+    'RevenueCat is not available for the store of this app.',
+    coded('revenuecat.unavailable'),
+  );
 
 // ---------------------------------------------------------------------------------------------
 // What a person can pick from
@@ -231,14 +237,24 @@ export async function setRevenueCatLink(
   try {
     project = (await listRevenueCatProjects(opened.client)).projects.find((p) => p.id === input.projectId);
     if (!project) {
-      return failure(422, 'revenuecat_not_found', 'RevenueCat has no such project, or the key cannot see it.');
+      return failure(
+        422,
+        'revenuecat_not_found',
+        'RevenueCat has no such project, or the key cannot see it.',
+        coded('revenuecat.noProject'),
+      );
     }
     found = await getRevenueCatApp(opened.client, project.id, input.revenueCatAppId);
   } catch (error) {
     return revenueCatFailure(error, opened.secret);
   }
   if (!found) {
-    return failure(422, 'revenuecat_not_found', 'RevenueCat has no such app in that project, or the key cannot see it.');
+    return failure(
+      422,
+      'revenuecat_not_found',
+      'RevenueCat has no such app in that project, or the key cannot see it.',
+      coded('revenuecat.noApp'),
+    );
   }
   if (found.store === null) return failure(422, 'revenuecat_app_not_mapped', NOT_MAPPED);
   if (!revenueCatAppTypes(app.platform).includes(found.store)) {
@@ -246,6 +262,7 @@ export async function setRevenueCatLink(
       422,
       'revenuecat_app_not_mapped',
       `A RevenueCat app of the type ${found.type} does not fit the store of this app. Choose one of the same store.`,
+      coded('revenuecat.typeMismatch', { type: found.type }),
     );
   }
   const at = ctx.now();

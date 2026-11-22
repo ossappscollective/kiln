@@ -30,6 +30,7 @@ import {
 } from './shared.ts';
 import { readStoredProductRef, storeLocalizationText } from './snapshot.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Changing the localized display name and description of ONE in-app purchase or subscription in ONE locale: the only store write of this feature,
  * written down in docs/adr/0034-in-app-products.md and docs/api/products.md. The design copies the store writes before it (ADR 0007, 0008, 0009):
@@ -128,23 +129,37 @@ export function cleanTexts(input: {
 }): { ok: true; texts: LocalizationTexts } | Failure {
   const name = input.name.replace(/\r\n?/g, '\n').trim();
   const description = input.description.replace(/\r\n?/g, '\n').trim();
-  if (name === '') return failure(422, 'invalid_text', 'The display name cannot be empty.');
+  if (name === '') return failure(
+    422,
+    'invalid_text',
+    'The display name cannot be empty.',
+    coded('monetization.nameEmpty'),
+  );
   if (name.includes('\n'))
     return failure(
       422,
       'invalid_text',
       'The display name is one line: it cannot hold a line break.',
+      coded('monetization.nameOneLine'),
     );
   if (name.length > MAX_NAME)
-    return failure(422, 'invalid_text', `The display name is at most ${MAX_NAME} characters.`);
+    return failure(422, 'invalid_text', `The display name is at most ${MAX_NAME} characters.`, coded('monetization.nameTooLong', {
+      max: MAX_NAME,
+    }));
   if (description.length > MAX_DESCRIPTION)
     return failure(
       422,
       'invalid_text',
       `The description is at most ${MAX_DESCRIPTION} characters.`,
+      coded('monetization.descriptionTooLong', { max: MAX_DESCRIPTION }),
     );
   if (CONTROL.test(name) || CONTROL.test(description))
-    return failure(422, 'invalid_text', 'The texts cannot hold control characters.');
+    return failure(
+      422,
+      'invalid_text',
+      'The texts cannot hold control characters.',
+      coded('monetization.controlChars'),
+    );
   return { ok: true, texts: { name, description } };
 }
 
@@ -165,6 +180,7 @@ async function takeClaim(
       409,
       'write_in_progress',
       'A product text change for this app is in progress. Wait for it to finish.',
+      coded('monetization.busy'),
     );
   const insert = () =>
     db.execute(
@@ -183,6 +199,7 @@ async function takeClaim(
       409,
       'outcome_unknown',
       'It is not known whether the last text change of this app reached the store. Preview the change again: that reads the store and shows where it stands. Nothing is changed until you confirm a new preview.',
+      coded('monetization.unknownState'),
     );
   }
   const startedAt = Number(existing.claim_at);
@@ -244,9 +261,19 @@ async function resolve(
   if (!locale)
     return failure(422, 'invalid_locale', 'Not a locale: use a tag such as en-US or de-DE.');
   if (!isStoreProductId(input.productId))
-    return failure(404, 'product_not_found', 'No such product. Sync the app first.');
+    return failure(
+      404,
+      'product_not_found',
+      'No such product. Sync the app first.',
+      coded('notFound.product'),
+    );
   const stored = await readStoredProductRef(ctx.db, input.workspaceId, app.id, input.productId);
-  if (!stored) return failure(404, 'product_not_found', 'No such product. Sync the app first.');
+  if (!stored) return failure(
+    404,
+    'product_not_found',
+    'No such product. Sync the app first.',
+    coded('notFound.product'),
+  );
   const texts = cleanTexts(input);
   if (!('texts' in texts)) return texts;
   return {
@@ -277,7 +304,7 @@ const localeMissing = (locale: string, locales: readonly string[]): Failure =>
     422,
     'locale_not_found',
     `The product has no localization for ${locale} in the store. Adding a locale is not built: add it in the store's console, then sync the app.`,
-    { locales: [...locales] },
+    { locales: [...locales], ...coded('monetization.noLocalization', { locale }) },
   );
 
 /** Reads the localization from the store. A failure is the answer to give. Changes nothing. */
@@ -296,7 +323,12 @@ async function readLive(
     return { ok: true, current };
   } catch (error) {
     if (error instanceof StoreTimeout)
-      return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
+      return failure(
+        504,
+        'timeout',
+        'The store did not answer in time. Nothing was changed.',
+        coded('store.noAnswerNothingChanged'),
+      );
     return mapStoreError(error, connection.secret).failure;
   }
 }
@@ -484,7 +516,7 @@ export async function applyLocalization(
         422,
         'no_change',
         'The store already shows these texts. There is nothing to change.',
-        { current: textsOf(error.current) },
+        { current: textsOf(error.current), ...coded('monetization.nothingChanged') },
       );
     }
     if (error instanceof ProductLocalizationDriftError) {
@@ -509,6 +541,7 @@ export async function applyLocalization(
           changes,
           unchanged: !changes.name && !changes.description,
           previewHash: hashFor(error.current),
+          ...coded('monetization.storeChanged'),
         },
       );
     }
@@ -605,6 +638,7 @@ export async function applyLocalization(
       409,
       'outcome_unknown',
       'It is not known whether the change reached the store: the store did not answer and its texts could not be read back. Preview the change again to see where it stands; nothing is changed until you confirm a new preview.',
+      coded('monetization.unknownNoReadBack'),
     );
   }
   const now = textsOf(readBack.current);
@@ -624,7 +658,7 @@ export async function applyLocalization(
       409,
       'outcome_unknown',
       'The store did not answer, and it still shows the old texts. A change can take a moment to show: check the store, then preview the change again. Nothing is changed until you confirm a new preview.',
-      { current: now },
+      { current: now, ...coded('monetization.oldTexts') },
     );
   }
   // Neither the old texts nor the asked ones: somebody else changed them too. Nothing more is done.
@@ -641,6 +675,6 @@ export async function applyLocalization(
     409,
     'state_changed',
     'The store shows texts that are neither the old ones nor the requested ones. Nothing more was done. Review them and preview again.',
-    { current: now },
+    { current: now, ...coded('monetization.otherTexts') },
   );
 }

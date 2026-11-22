@@ -14,7 +14,7 @@ import {
 } from '@kiln/connectors';
 import { type ActorType, needsStoreAppId } from '@kiln/core';
 import type { Database } from '@kiln/db';
-import { messageCoding } from '../../i18n/problem.ts';
+import { coded, messageCoding } from '../../i18n/problem.ts';
 import { credentialKindFor, type ManagedApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
@@ -108,6 +108,7 @@ export const notSupportedFailure = (): Failure =>
     422,
     'products_not_supported',
     'In-app purchases and subscriptions are not available for the store of this app.',
+    coded('monetization.unavailable'),
   );
 
 const clean = (text: string, secret: string) =>
@@ -221,12 +222,18 @@ export async function connect(
     [app.credentialId, workspaceId],
   );
   if (!credential)
-    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+    return failure(
+      422,
+      'credential_not_found',
+      'The credential of this app no longer exists.',
+      coded('credential.gone'),
+    );
   if (String(credential.kind) !== credentialKindFor[app.platform]) {
     return failure(
       422,
       'credential_kind',
       "This app's credential is not the kind its platform needs.",
+      coded('credential.wrongKind'),
     );
   }
   if (needsStoreAppId(app.platform) && !app.storeAppId) {
@@ -234,6 +241,7 @@ export async function connect(
       422,
       'app_not_synced',
       'The App Store id of this app is not known yet. Sync the app first.',
+      coded('app.storeIdUnknown'),
     );
   }
   let secret: string | undefined;
@@ -250,10 +258,16 @@ export async function connect(
       422,
       'credential_unreadable',
       'The credential could not be decrypted. Enter its secret again.',
+      coded('credential.undecryptable'),
     );
   }
   if (secret === undefined)
-    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+    return failure(
+      422,
+      'credential_not_found',
+      'The credential of this app no longer exists.',
+      coded('credential.gone'),
+    );
   return {
     ok: true,
     connection: {
@@ -270,4 +284,4 @@ export async function connect(
 }
 
 export const timeoutFailure = (): Failure =>
-  failure(504, 'timeout', 'The store did not answer in time.');
+  failure(504, 'timeout', 'The store did not answer in time.', coded('store.noAnswer'));

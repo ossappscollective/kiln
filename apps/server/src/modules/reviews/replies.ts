@@ -24,7 +24,7 @@ import {
   type Row,
   type Sql,
 } from '@kiln/db';
-import { messageCoding } from '../../i18n/problem.ts';
+import { coded, messageCoding } from '../../i18n/problem.ts';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
@@ -485,6 +485,7 @@ export async function createTemplate(
       422,
       'too_many_templates',
       `A workspace can have at most ${MAX_REPLY_TEMPLATES} reply templates.`,
+      coded('reviews.tooManyTemplates', { max: MAX_REPLY_TEMPLATES }),
     );
   const [row] = await ctx.db.query(
     'SELECT id, name, body, created_by, created_at, updated_at FROM review_reply_templates WHERE id = ?',
@@ -566,7 +567,12 @@ export async function saveReplyDraft(
       'SELECT body FROM review_reply_templates WHERE id = ? AND workspace_id = ?',
       [input.templateId, input.workspaceId],
     );
-    if (!row) return failure(404, 'template_not_found', 'There is no such reply template.');
+    if (!row) return failure(
+      404,
+      'template_not_found',
+      'There is no such reply template.',
+      coded('notFound.replyTemplate'),
+    );
     source = renderTemplate(String(row.body), { author: review.authorName, app: app.name });
   }
   const text = normalizeReplyText(source);
@@ -590,7 +596,7 @@ export async function saveReplyDraft(
         409,
         'send_in_progress',
         'A send of this reply is in progress. Wait for it to finish.',
-        { reply: existing },
+        { reply: existing, ...coded('reviews.sendInProgress') },
       );
     }
     if (existing && (existing.status === 'unknown' || existing.status === 'sending')) {
@@ -598,7 +604,7 @@ export async function saveReplyDraft(
         409,
         'outcome_unknown',
         'It is not known whether the last send of this reply was published. Check the outcome first (send it again to check), then edit.',
-        { reply: existing },
+        { reply: existing, ...coded('reviews.sendUnknown') },
       );
     }
     if (existing && existing.textHash === hash && existing.status !== 'sent') {
@@ -664,7 +670,12 @@ export async function deleteReplyDraft(
   const ttl = ctx.claimTtlMs ?? DEFAULT_REPLY_CLAIM_TTL_MS;
   return ctx.db.transaction(async (tx) => {
     const existing = await loadDraft(tx, input.workspaceId, review.id);
-    if (!existing) return failure(404, 'no_draft', 'There is no draft reply for this review.');
+    if (!existing) return failure(
+      404,
+      'no_draft',
+      'There is no draft reply for this review.',
+      coded('notFound.replyDraft'),
+    );
     if (
       existing.status === 'unknown' ||
       (existing.status === 'sending' && !isStale(existing, at, ttl))
@@ -675,6 +686,7 @@ export async function deleteReplyDraft(
         'The draft cannot be deleted while a send is in progress or its outcome is unknown.',
         {
           reply: existing,
+          ...coded('reviews.draftLocked'),
         },
       );
     }
@@ -702,7 +714,12 @@ export async function translateReplyDraft(
 ): Promise<{ ok: true; text: string } | Failure> {
   if (!ctx.replyEnabled) return disabled();
   if (!ctx.translateDraft) {
-    return failure(409, 'translation_unavailable', 'Translation is not set up on this server.');
+    return failure(
+      409,
+      'translation_unavailable',
+      'Translation is not set up on this server.',
+      coded('reviews.translationOff'),
+    );
   }
   const done = await ctx.translateDraft({
     workspaceId: input.workspaceId,
@@ -781,7 +798,12 @@ export async function sendReviewReply(
   const review = await getReview(db, workspaceId, app.id, input.reviewId);
   if (!review) return failure(404, 'not_found');
   const found = await loadDraft(db, workspaceId, review.id);
-  if (!found) return failure(404, 'no_draft', 'There is no draft reply for this review.');
+  if (!found) return failure(
+    404,
+    'no_draft',
+    'There is no draft reply for this review.',
+    coded('notFound.replyDraft'),
+  );
   const view = (draft: ReplyDraft) => ({ reply: draft });
 
   if (input.confirmHash !== found.textHash) {
@@ -792,11 +814,17 @@ export async function sendReviewReply(
       {
         ...view(found),
         currentHash: found.textHash,
+        ...coded('reviews.draftChangedShown'),
       },
     );
   }
   if (found.status === 'sent') {
-    return failure(409, 'already_sent', 'This exact reply has already been sent.', view(found));
+    return failure(
+      409,
+      'already_sent',
+      'This exact reply has already been sent.',
+      { ...view(found), ...coded('reviews.alreadySent') },
+    );
   }
   const ttl = ctx.claimTtlMs ?? DEFAULT_REPLY_CLAIM_TTL_MS;
   let now = ctx.now();
@@ -807,7 +835,7 @@ export async function sendReviewReply(
         409,
         'send_in_progress',
         'A send of this reply is already in progress.',
-        view(found),
+        { ...view(found), ...coded('reviews.sendRunning') },
       );
     }
     // The process that was sending is gone or stuck: it may or may not have reached the store.
@@ -827,19 +855,30 @@ export async function sendReviewReply(
   );
   if (claimed === 0) {
     const current = await loadDraft(db, workspaceId, review.id);
-    if (!current) return failure(404, 'no_draft', 'There is no draft reply for this review.');
+    if (!current) return failure(
+      404,
+      'no_draft',
+      'There is no draft reply for this review.',
+      coded('notFound.replyDraft'),
+    );
     if (current.textHash !== input.confirmHash)
       return failure(409, 'stale_draft', 'The draft has changed since it was shown.', {
         ...view(current),
         currentHash: current.textHash,
+        ...coded('reviews.draftChanged'),
       });
     if (current.status === 'sent')
-      return failure(409, 'already_sent', 'This exact reply has already been sent.', view(current));
+      return failure(
+        409,
+        'already_sent',
+        'This exact reply has already been sent.',
+        { ...view(current), ...coded('reviews.alreadySent') },
+      );
     return failure(
       409,
       'send_in_progress',
       'A send of this reply is already in progress.',
-      view(current),
+      { ...view(current), ...coded('reviews.sendRunning') },
     );
   }
   previous = previous === 'sending' ? 'unknown' : previous;
@@ -865,11 +904,21 @@ export async function sendReviewReply(
   );
   if (!credential)
     return refusal(
-      failure(422, 'credential_not_found', 'The credential of this app no longer exists.'),
+      failure(
+        422,
+        'credential_not_found',
+        'The credential of this app no longer exists.',
+        coded('credential.gone'),
+      ),
     );
   if (String(credential.kind) !== credentialKindFor[app.platform]) {
     return refusal(
-      failure(422, 'credential_kind', "This app's credential is not the kind its platform needs."),
+      failure(
+        422,
+        'credential_kind',
+        "This app's credential is not the kind its platform needs.",
+        coded('credential.wrongKind'),
+      ),
     );
   }
   if (needsStoreAppId(app.platform) && !app.storeAppId) {
@@ -878,6 +927,7 @@ export async function sendReviewReply(
         422,
         'app_not_synced',
         'The App Store id of this app is not known yet. Sync the app first.',
+        coded('app.storeIdUnknown'),
       ),
     );
   }
@@ -896,12 +946,18 @@ export async function sendReviewReply(
         422,
         'credential_unreadable',
         'The credential could not be decrypted. Enter its secret again.',
+        coded('credential.undecryptable'),
       ),
     );
   }
   if (secret === undefined)
     return refusal(
-      failure(422, 'credential_not_found', 'The credential of this app no longer exists.'),
+      failure(
+        422,
+        'credential_not_found',
+        'The credential of this app no longer exists.',
+        coded('credential.gone'),
+      ),
     );
   const connection: Omit<ReviewConnectorInput, 'fetch'> = {
     kind: credentialKindFor[app.platform],
@@ -955,6 +1011,7 @@ export async function sendReviewReply(
       `Too many replies were sent from this workspace in the last hour (the limit is ${budget}). Try again in ${Math.ceil(wait / 60)} minutes.`,
       {
         retryAfterSeconds: wait,
+        ...coded('reviews.hourlyLimit', { budget, count: Math.ceil(wait / 60) }),
       },
     );
     return refusal({ ...f, headers: { 'Retry-After': String(wait) } });
@@ -1069,7 +1126,7 @@ async function settle(ctx: ReviewReplyContext, s: Settle): Promise<SendResult> {
       502,
       'send_failed',
       'The store did not answer, and reading the review back shows a different reply, so the reply was not published. The draft is kept. The store can be slow to show a new reply: check the review before sending again (sending the same text again replaces, it does not duplicate).',
-      { outcome: 'not_applied' },
+      { outcome: 'not_applied', ...coded('reviews.replyDifferent') },
     );
     return fail(ctx, {
       app: s.app,
@@ -1100,7 +1157,7 @@ async function settle(ctx: ReviewReplyContext, s: Settle): Promise<SendResult> {
     409,
     'outcome_unknown',
     'It is not known whether the reply was published: the store did not answer and the review could not be read back. Check the review in the store, then send again to check the outcome here.',
-    { reply: draft },
+    { reply: draft, ...coded('reviews.replyUnknown') },
   );
 }
 

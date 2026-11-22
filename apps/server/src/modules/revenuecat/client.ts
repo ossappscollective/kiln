@@ -12,6 +12,7 @@ import { useCredentialSecret } from '../../services/credentials.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import type { RevenueCatDeps } from './index.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * The one way the RevenueCat features get a client (docs/adr/0039-revenuecat.md), the model of `expoClientFor`: it checks that the
  * credential is a RevenueCat credential of this workspace, decrypts the key for this one client (audited as `credential.use` with the
@@ -58,10 +59,16 @@ export async function revenueCatClientFor(
       422,
       'credential_not_found',
       'That credential does not exist in this workspace (it may have been deleted).',
+      coded('credential.notInWorkspace'),
     );
   }
   if (String(row.kind) !== 'revenuecat') {
-    return failure(422, 'credential_kind', 'RevenueCat needs a credential of the RevenueCat secret API key kind.');
+    return failure(
+      422,
+      'credential_kind',
+      'RevenueCat needs a credential of the RevenueCat secret API key kind.',
+      coded('credential.notRevenueCatKind'),
+    );
   }
   let secret: string | undefined;
   try {
@@ -73,10 +80,20 @@ export async function revenueCatClientFor(
       use.now,
     );
   } catch {
-    return failure(422, 'credential_unreadable', 'The credential could not be decrypted. Enter its secret again.');
+    return failure(
+      422,
+      'credential_unreadable',
+      'The credential could not be decrypted. Enter its secret again.',
+      coded('credential.undecryptable'),
+    );
   }
   if (secret === undefined) {
-    return failure(422, 'credential_not_found', 'That credential does not exist.');
+    return failure(
+      422,
+      'credential_not_found',
+      'That credential does not exist.',
+      coded('credential.notFound'),
+    );
   }
   return revenueCatClientFromSecret(secret, deps, use.signal);
 }
@@ -116,7 +133,12 @@ export function revenueCatClientFromSecret(
 /** A response for whatever a call to RevenueCat threw. Messages are fixed sentences, redacted once more against the key in use. */
 export function revenueCatFailure(error: unknown, secret = ''): Failure {
   if (!(error instanceof RevenueCatError)) {
-    return failure(502, 'revenuecat_unavailable', 'The RevenueCat request could not be completed. Try again in a moment.');
+    return failure(
+      502,
+      'revenuecat_unavailable',
+      'The RevenueCat request could not be completed. Try again in a moment.',
+      coded('revenuecat.requestFailed'),
+    );
   }
   const message = redactSecrets(error.message, secret ? secretStrings(secret) : []);
   switch (error.kind) {

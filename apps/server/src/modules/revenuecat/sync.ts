@@ -10,6 +10,7 @@ import { getRevenueCatLink, notSupportedFailure } from './link.ts';
 import { type RevenueCatMetricsStep, syncRevenueCatMetrics } from './metrics.ts';
 import { recordRevenueCatFailure, replaceRevenueCatSnapshot } from './snapshot.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Reading the RevenueCat configuration of a linked app and keeping a copy (docs/adr/0039-revenuecat.md). READ ONLY: a sync asks
  * RevenueCat for lists and changes nothing there. It is the second step of "Sync products" (modules/monetization), after the store, and
@@ -51,7 +52,12 @@ export type RevenueCatStep =
   | { ok: false; code: string; message: string; retryAfterSeconds?: number };
 
 export const notLinkedFailure = (): Failure =>
-  failure(422, 'revenuecat_not_linked', 'This app is not linked to a RevenueCat project. Link it in the app settings first.');
+  failure(
+    422,
+    'revenuecat_not_linked',
+    'This app is not linked to a RevenueCat project. Link it in the app settings first.',
+    coded('revenuecat.notLinked'),
+  );
 
 export async function syncRevenueCat(
   ctx: RevenueCatSyncContext,
@@ -94,12 +100,22 @@ export async function syncRevenueCat(
       // The linked app may have been deleted at RevenueCat: say so instead of showing an empty list.
       if (!(await getRevenueCatApp(opened.client, link.projectId, link.revenueCatAppId))) {
         return failed(
-          failure(422, 'revenuecat_app_missing', 'RevenueCat no longer has the linked app. Link the app again in the app settings.'),
+          failure(
+            422,
+            'revenuecat_app_missing',
+            'RevenueCat no longer has the linked app. Link the app again in the app settings.',
+            coded('revenuecat.appGone'),
+          ),
         );
       }
       config = await readRevenueCatConfiguration(opened.client, { projectId: link.projectId, appId: link.revenueCatAppId });
     } catch (error) {
-      if (timedOut) return failed(failure(504, 'timeout', 'RevenueCat did not answer in time. Try again in a minute.'));
+      if (timedOut) return failed(failure(
+        504,
+        'timeout',
+        'RevenueCat did not answer in time. Try again in a minute.',
+        coded('revenuecat.timeout'),
+      ));
       return failed(revenueCatFailure(error, opened.secret));
     }
     await ctx.db.transaction(async (tx) => {

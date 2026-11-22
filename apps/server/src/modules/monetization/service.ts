@@ -27,6 +27,7 @@ import {
   replaceSnapshot,
 } from './snapshot.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Reading the in-app purchases and subscriptions of an app from its store, keeping a copy, and showing it (docs/api/products.md,
  * docs/adr/0034-in-app-products.md). READ ONLY: a sync asks the store for lists and details and changes nothing there. A sync is a
@@ -80,7 +81,12 @@ export async function getProduct(
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   const product = await getStoredProduct(ctx.db, input.workspaceId, app.id, input.productId);
-  if (!product) return failure(404, 'product_not_found', 'No such product. Sync the app first.');
+  if (!product) return failure(
+    404,
+    'product_not_found',
+    'No such product. Sync the app first.',
+    coded('notFound.product'),
+  );
   return {
     ok: true,
     app: appView(app),
