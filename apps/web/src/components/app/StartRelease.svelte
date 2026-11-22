@@ -18,6 +18,7 @@
   Exports: observe(data) takes a RunningNow answer, so a screen with its own feed does not read twice.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { type Platform, type Role, can } from '@kiln/core';
   import { onDestroy } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
@@ -151,10 +152,10 @@
         note = prefillNote(chosen, { platforms: own.map((m) => m.platform) });
         return;
       }
-      problem = 'No release workflow was found for this app. Set one in its build conventions, or start a workflow from the Workflows page.';
+      problem = t('app:startRelease.noWorkflow');
     } catch (e) {
       if (mine !== generation) return;
-      problem = e instanceof ApiError ? e.message : 'Could not read the workflows of the repository.';
+      problem = e instanceof ApiError ? e.message : t('app:startRelease.readFailed');
     } finally {
       if (mine === generation || generation > mine) preparing = false;
     }
@@ -225,17 +226,17 @@
           icon="rocket"
           loading={preparing}
           disabled={linked.length === 0}
-          title={linked.length === 0 ? 'Link a repository to this app in its settings to start its release workflow.' : 'Open the release workflow with the values it needs. Nothing starts until you confirm.'}
+          title={linked.length === 0 ? t('app:startRelease.linkFirst') : t('app:startRelease.openHint')}
           onclick={begin}
-        >Start release</Button>
+        >{t('app:nextStep.startAction')}</Button>
       {/if}
       {#if build && showPrepare}
-        <Button variant="primary" size="lg" icon="arrow-right" href={prepareReleaseHref(build.appId, build.build, scopeIsBoth)}>Prepare release</Button>
+        <Button variant="primary" size="lg" icon="arrow-right" href={prepareReleaseHref(build.appId, build.build, scopeIsBoth)}>{t('app:nextStep.prepareAction')}</Button>
       {/if}
       {#if line}<p class="line" role="status">{line}</p>{/if}
     </div>
     {#if problem}
-      <p class="problem muted" role="status">{problem} <a href={appAddress(members[0]?.id ?? '', 'workflows', scopeIsBoth ? 'both' : (members[0]?.platform ?? null))}>Open the workflows</a></p>
+      <p class="problem muted" role="status">{problem} <a href={appAddress(members[0]?.id ?? '', 'workflows', scopeIsBoth ? 'both' : (members[0]?.platform ?? null))}>{t('app:startRelease.openWorkflows')}</a></p>
     {/if}
   {/if}
 
@@ -245,7 +246,7 @@
       {workspaceId}
       repositoryIds={[started.repositoryId]}
       apps={members}
-      heading="Release run"
+      heading={t('app:startRelease.releaseRun')}
       stateKey="ci.running.recent.start"
       scope={(runs) => ({ runs: runs.filter((r) => started !== null && isStartedRun(r, started)), linked: true })}
       ondata={observe}

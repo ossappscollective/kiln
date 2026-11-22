@@ -9,6 +9,8 @@
   Props: api, workspaceId, role, members (the records in scope), all? (every record of the app).
 -->
 <script lang="ts">
+  import T from '../ui/T.svelte';
+  import { t } from '../../lib/i18n/t.ts';
   import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
@@ -50,7 +52,7 @@
         if (current) repositories = read.repositories.filter((r) => ids.indexOf(r.id) >= 0);
       })
       .catch((e) => {
-        if (current) problem = e instanceof ApiError ? e.message : 'Could not load the repository.';
+        if (current) problem = e instanceof ApiError ? e.message : t('app:workflows.loadFailed');
       });
     for (const app of members) {
       if (app.repositoryId === null) continue;
@@ -71,7 +73,8 @@
   const localOnly = $derived((repositories ?? []).filter((r) => r.localOnly || r.owner === null));
   const appPlatforms = $derived([...new Set(records.map((m) => m.platform))]);
   const platforms = $derived([...new Set(members.map((m) => m.platform))]);
-  const scopeLabel = $derived(platforms.length === 1 ? platformLabel(platforms[0] as (typeof platforms)[number]) : 'these platforms');
+  const scopeLabel = $derived(platforms.length === 1 ? platformLabel(platforms[0] as (typeof platforms)[number]) : t('app:workflows.thesePlatforms'));
+  const singlePlatform = $derived(platforms.length === 1 ? platformLabel(platforms[0] as (typeof platforms)[number]) : null);
   const configuredFor = (repositoryId: string): string[] =>
     members
       .filter((m) => m.repositoryId === repositoryId)
@@ -80,18 +83,16 @@
 </script>
 
 {#if !canRead}
-  <p class="muted">Your role cannot read repositories, so the workflows of this app are not shown.</p>
+  <p class="muted">{t('app:workflows.noAccess')}</p>
 {:else if repositoryIds.length === 0}
   <p class="muted">
-    {platforms.length === 1 && appPlatforms.length > 1 ? `The ${scopeLabel} record of this app` : 'This app'} is not linked to a repository, so there are no
-    workflows to run.
-    <a href={appAddress(openId, 'settings')}>Attach a repository in the app settings</a>, or connect one under
-    <a href="#/repositories">Repositories</a>.
+    {#if singlePlatform !== null && appPlatforms.length > 1}{t('app:workflows.notLinkedPlatform', { platform: singlePlatform })}{:else}{t('app:workflows.notLinked')}{/if}
+    <T key="app:workflows.attach" tags={{ link, link2 }} />
   </p>
 {:else if problem}
-  <StatusPill tone="warn" label="The repository could not be read">{problem}</StatusPill>
+  <StatusPill tone="warn" label={t('app:workflows.readFailed')}>{problem}</StatusPill>
 {:else if repositories === null}
-  <div class="stack" role="status" aria-label="Loading the workflows">
+  <div class="stack" role="status" aria-label={t('app:workflows.loading')}>
     <Skeleton width="60%" height="16px" />
     <Skeleton width="45%" height="16px" />
   </div>
@@ -130,10 +131,15 @@
       />
     {/each}
     {#each localOnly as repository (repository.id)}
-      <p class="muted">{repository.name} is a local folder without GitHub, so it has no workflows to run.</p>
+      <p class="muted">{t('app:workflows.localOnly', { name: repository.name })}</p>
     {/each}
     {#if github.length === 0 && localOnly.length === 0}
-      <p class="muted">The linked repository is no longer connected. <a href="#/repositories">Connect it again under Repositories</a>.</p>
+      <p class="muted"><T key="app:workflows.disconnected" tags={{ link: repositoriesLink }} /></p>
     {/if}
   </div>
 {/if}
+
+{#snippet link(text: string)}<a href={appAddress(openId, 'settings')}>{text}</a>{/snippet}
+{#snippet link2(text: string)}<a href="#/repositories">{text}</a>{/snippet}
+{#snippet repositoriesLink(text: string)}<a href="#/repositories">{text}</a>{/snippet}
+

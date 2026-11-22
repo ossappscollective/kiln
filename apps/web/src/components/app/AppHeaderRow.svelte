@@ -8,6 +8,7 @@
   none it is one disabled "All locales" control.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import type { PlatformScope, ScopeOption } from '../../lib/app-scope.ts';
   import type { VersionOption } from '../../lib/app-header.ts';
   import ScopeControl from './ScopeControl.svelte';
@@ -45,14 +46,14 @@
   const uid = $props.id();
 </script>
 
-<div class="row picks" role="group" aria-label="What you are looking at">
+<div class="row picks" role="group" aria-label={t('app:header.group')}>
   {#if showScope}<ScopeControl options={scopeOptions} {scope} onchange={onscope} />{/if}
   {#if showVersion}<VersionPicker options={versions} value={version} onchange={onversion} />{/if}
   {#if showLocale}
     <label class="pick" for="{uid}-locale">
-      <span class="lbl">Locale</span>
+      <span class="lbl">{t('app:header.locale')}</span>
       <select id="{uid}-locale" disabled={locales.length === 0} value={locale ?? ''} onchange={(e) => onlocale(e.currentTarget.value === '' ? null : e.currentTarget.value)}>
-        <option value="">All locales</option>
+        <option value="">{t('app:header.allLocales')}</option>
         {#each locales as l (l)}<option value={l}>{l}</option>{/each}
       </select>
     </label>

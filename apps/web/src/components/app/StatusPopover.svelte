@@ -7,8 +7,10 @@
   onsync (sync every record in scope), settingsHref (the app settings page).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { OPEN_STATUS_EVENT, statusDot } from '../../lib/app-page.ts';
   import type { DataChip } from '../../lib/app-chips.ts';
+  import { copyIdentifierLabel } from '../../lib/portfolio.ts';
   import { storeForPlatform } from '../../lib/stores.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import SyncStatus from '../portfolio/SyncStatus.svelte';
@@ -17,7 +19,6 @@
   import InfoTip from '../ui/InfoTip.svelte';
   import StoreBadge from '../ui/StoreBadge.svelte';
   import DataChips from './DataChips.svelte';
-import { platformMeta } from '@kiln/core';
 
   let {
     members,
@@ -51,7 +52,7 @@ import { platformMeta } from '@kiln/core';
   });
 </script>
 
-<InfoTip label="Status: stores, bundle ids and sync" buttonText="Status" icon={dot === 'warn' ? 'alert-triangle' : 'activity'} align="end" width="26rem" bind:open>
+<InfoTip label={t('app:statusPopover.label')} buttonText={t('app:statusPopover.button')} icon={dot === 'warn' ? 'alert-triangle' : 'activity'} align="end" width="26rem" bind:open>
   <div class="status">
     <DataChips {chips} />
     <ul class="records">
@@ -60,7 +61,7 @@ import { platformMeta } from '@kiln/core';
           <div class="head">
             <StoreBadge store={storeForPlatform(m.platform).store} size="sm" />
             <code>{m.identifier}</code>
-            <CopyButton value={m.identifier} iconOnly label="Copy the {platformMeta(m.platform).identifierNoun}" />
+            <CopyButton value={m.identifier} iconOnly label={copyIdentifierLabel(m.platform)} />
           </div>
           <SyncStatus app={m} {now} />
         </li>
@@ -68,9 +69,9 @@ import { platformMeta } from '@kiln/core';
     </ul>
     <div class="foot">
       {#if canSync}
-        <Button variant="primary" size="sm" icon="refresh" loading={syncing} onclick={onsync}>{syncing ? 'Syncing…' : 'Sync now'}</Button>
+        <Button variant="primary" size="sm" icon="refresh" loading={syncing} onclick={onsync}>{syncing ? t('app:statusPopover.syncing') : t('app:statusPopover.syncNow')}</Button>
       {/if}
-      <a href={settingsHref}>Store and credential details</a>
+      <a href={settingsHref}>{t('app:statusPopover.details')}</a>
     </div>
   </div>
 </InfoTip>

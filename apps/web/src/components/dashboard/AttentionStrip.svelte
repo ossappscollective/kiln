@@ -7,6 +7,7 @@
   reasons, no link back to it).
 -->
 <script lang="ts">
+  import { k, t } from '../../lib/i18n/t.ts';
   import { type Attention, type AttentionKind, attentionSummary } from '../../lib/dashboard.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import PlatformBadge from '../portfolio/PlatformBadge.svelte';
@@ -16,16 +17,16 @@
 
   const uid = $props.id();
   const KIND: Record<AttentionKind, { label: string; tone: 'bad' | 'warn' }> = {
-    overdue: { label: 'Overdue', tone: 'bad' },
-    rollout_due: { label: 'Rollout step due', tone: 'warn' },
-    due_soon: { label: 'Due soon', tone: 'warn' },
+    overdue: { label: k('app:strip.overdue'), tone: 'bad' },
+    rollout_due: { label: k('app:strip.rolloutDue'), tone: 'warn' },
+    due_soon: { label: k('app:strip.dueSoon'), tone: 'warn' },
   };
 </script>
 
 {#if items.length > 0}
   <section class="strip" class:compact aria-labelledby="{uid}-title">
     <div class="head">
-      <h2 id="{uid}-title">{compact ? 'Needs attention' : 'Due soon and overdue'}</h2>
+      <h2 id="{uid}-title">{compact ? t('app:attentionList.title') : t('app:strip.title')}</h2>
       {#if !compact}<p class="muted small">{attentionSummary(items)}</p>{/if}
     </div>
     <ul class="list">
@@ -36,7 +37,7 @@
               <a href={item.href}>{item.appName} {item.version}</a>
               <PlatformBadge platform={item.platform} />
             {/if}
-            <Badge tone={KIND[item.kind].tone} icon={toneIcon(KIND[item.kind].tone)}>{KIND[item.kind].label}</Badge>
+            <Badge tone={KIND[item.kind].tone} icon={toneIcon(KIND[item.kind].tone)}>{t(KIND[item.kind].label)}</Badge>
           </span>
           <span class="why">{item.reasons.join(' ')}</span>
         </li>

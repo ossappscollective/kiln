@@ -10,6 +10,8 @@ import {
 } from '@kiln/core';
 import { type Api, ApiError } from './api.ts';
 import { timeAgo } from './format.ts';
+import { formatList, formatPercent } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import type {
   AppSummary,
   DiscoverCandidate,
@@ -65,55 +67,74 @@ export const appLabel = (app: { name: string; platform: Platform }): string =>
   `${app.name} (${platformLabel(app.platform)})`;
 
 const TRACKS: Record<string, string> = {
-  production: 'Production',
-  beta: 'Open testing (beta)',
-  alpha: 'Closed testing (alpha)',
-  internal: 'Internal testing',
+  production: k('portfolio:track.production'),
+  beta: k('portfolio:track.beta'),
+  alpha: k('portfolio:track.alpha'),
+  internal: k('portfolio:track.internal'),
 };
 
 /** The Play track as a person reads it. `null` (iOS) is the App Store. */
 export function trackLabel(track: string | null): string {
   if (track === null) return 'App Store';
-  return TRACKS[track] ?? track;
+  const key = TRACKS[track];
+  return key === undefined ? track : t(key);
 }
 
 export type StatusInfo = { label: string; tone: BadgeTone; description: string };
 
-const STATUS: Record<ReleaseState, StatusInfo> = {
+type StatusKeys = { label: string; tone: BadgeTone; description: string };
+
+const STATUS: Record<ReleaseState, StatusKeys> = {
   draft: {
-    label: 'Draft',
+    label: k('portfolio:status.draft.label'),
     tone: 'neutral',
-    description: 'Being prepared. No build is chosen yet.',
+    description: k('portfolio:status.draft.description'),
   },
   build_chosen: {
-    label: 'Build chosen',
+    label: k('portfolio:status.buildChosen.label'),
     tone: 'neutral',
-    description: 'A build is attached. It is not ready to submit yet.',
+    description: k('portfolio:status.buildChosen.description'),
   },
-  ready: { label: 'Ready', tone: 'info', description: 'Ready to submit for review.' },
-  in_review: {
-    label: 'In review',
+  ready: {
+    label: k('portfolio:status.ready.label'),
     tone: 'info',
-    description: 'Waiting for the store to review it.',
+    description: k('portfolio:status.ready.description'),
+  },
+  in_review: {
+    label: k('portfolio:status.inReview.label'),
+    tone: 'info',
+    description: k('portfolio:status.inReview.description'),
   },
   rejected: {
-    label: 'Rejected',
+    label: k('portfolio:status.rejected.label'),
     tone: 'bad',
-    description: 'The store rejected it. A fix is needed before it can go out.',
+    description: k('portfolio:status.rejected.description'),
   },
   approved: {
-    label: 'Approved',
+    label: k('portfolio:status.approved.label'),
     tone: 'accent',
-    description: 'Approved and waiting to be released.',
+    description: k('portfolio:status.approved.description'),
   },
   propagating: {
-    label: 'Propagating',
+    label: k('portfolio:status.propagating.label'),
     tone: 'info',
-    description: 'Released, but not yet visible in the store.',
+    description: k('portfolio:status.propagating.description'),
   },
-  rolling_out: { label: 'Rolling out', tone: 'info', description: 'Going out to users in stages.' },
-  live: { label: 'Live', tone: 'ok', description: 'Available to users.' },
-  halted: { label: 'Halted', tone: 'warn', description: 'The rollout was stopped.' },
+  rolling_out: {
+    label: k('portfolio:status.rollingOut.label'),
+    tone: 'info',
+    description: k('portfolio:status.rollingOut.description'),
+  },
+  live: {
+    label: k('portfolio:status.live.label'),
+    tone: 'ok',
+    description: k('portfolio:status.live.description'),
+  },
+  halted: {
+    label: k('portfolio:status.halted.label'),
+    tone: 'warn',
+    description: k('portfolio:status.halted.description'),
+  },
 };
 
 /** The label, tone and a sentence for a normalized status. `null` means the store state has no mapping. */
@@ -121,13 +142,16 @@ export function statusInfo(
   status: ReleaseState | null | undefined,
   rawState?: string | null,
 ): StatusInfo {
-  if (status) return STATUS[status];
+  if (status) {
+    const keys = STATUS[status];
+    return { label: t(keys.label), tone: keys.tone, description: t(keys.description) };
+  }
   return {
-    label: 'Unmapped',
+    label: t('portfolio:status.unmapped.label'),
     tone: 'neutral',
     description: rawState
-      ? `The store reports “${rawState}”, which has no normalized status.`
-      : 'The store state has no normalized status.',
+      ? t('portfolio:status.unmapped.descriptionRaw', { state: rawState })
+      : t('portfolio:status.unmapped.description'),
   };
 }
 
@@ -135,7 +159,7 @@ export function statusInfo(
 export function formatRollout(fraction: number | null | undefined): string | null {
   if (fraction === null || fraction === undefined || !Number.isFinite(fraction)) return null;
   const percent = Math.round(Math.min(1, Math.max(0, fraction)) * 1000) / 10;
-  return Number.isInteger(percent) ? `${percent}%` : `${percent.toFixed(1)}%`;
+  return formatPercent(percent / 100, { minimumFractionDigits: Number.isInteger(percent) ? 0 : 1, maximumFractionDigits: 1 });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -359,16 +383,17 @@ export type SyncInfo = {
 export function syncInfo(
   app: Pick<AppSummary, 'lastSyncedAt' | 'lastSyncAttemptAt' | 'lastSyncError'>,
   now: number = Date.now(),
-  locale?: string,
 ): SyncInfo {
   const label =
-    app.lastSyncedAt === null ? 'Never synced' : `Synced ${timeAgo(app.lastSyncedAt, now, locale)}`;
+    app.lastSyncedAt === null
+      ? t('portfolio:sync.never')
+      : t('portfolio:sync.synced', { when: timeAgo(app.lastSyncedAt, now) });
   const error = app.lastSyncError?.trim() ? app.lastSyncError.trim() : null;
   if (error) {
     const attempt =
       app.lastSyncAttemptAt === null
         ? null
-        : `Last attempt ${timeAgo(app.lastSyncAttemptAt, now, locale)}`;
+        : t('portfolio:sync.lastAttempt', { when: timeAgo(app.lastSyncAttemptAt, now) });
     return { kind: 'failed', label, error, attempt };
   }
   return { kind: app.lastSyncedAt === null ? 'never' : 'ok', label, error: null, attempt: null };
@@ -376,23 +401,23 @@ export function syncInfo(
 
 /** What a successful sync found: "3 releases, 1 added, 1 updated." */
 export function syncDetail(sync: SyncSummary): string {
-  if (sync.found === 0) return 'The store reported no releases.';
+  if (sync.found === 0) return t('portfolio:sync.noReleases');
   const parts = [
-    sync.added > 0 ? `${sync.added} added` : '',
-    sync.updated > 0 ? `${sync.updated} updated` : '',
-    sync.removed > 0 ? `${sync.removed} removed` : '',
+    sync.added > 0 ? t('portfolio:sync.added', { count: sync.added }) : '',
+    sync.updated > 0 ? t('portfolio:sync.updated', { count: sync.updated }) : '',
+    sync.removed > 0 ? t('portfolio:sync.removed', { count: sync.removed }) : '',
   ].filter(Boolean);
-  const changes = parts.length > 0 ? parts.join(', ') : 'no changes';
-  const unmapped =
-    sync.unmapped > 0 ? ` ${sync.unmapped} with a state that has no normalized status.` : '';
-  return `${sync.found} release${sync.found === 1 ? '' : 's'}, ${changes}.${unmapped}`;
+  const changes = parts.length > 0 ? formatList(parts, { type: 'unit' }) : t('portfolio:sync.noChanges');
+  return sync.unmapped > 0
+    ? t('portfolio:sync.detailUnmapped', { count: sync.found, changes, unmapped: sync.unmapped })
+    : t('portfolio:sync.detail', { count: sync.found, changes });
 }
 
 /** A sentence for a screen reader and a toast: what a successful sync found. */
 export function syncSummaryText(name: string, sync: SyncSummary): string {
   return sync.found === 0
-    ? `Synced ${name}. ${syncDetail(sync)}`
-    : `Synced ${name}: ${syncDetail(sync)}`;
+    ? t('portfolio:sync.summaryEmpty', { name, detail: syncDetail(sync) })
+    : t('portfolio:sync.summary', { name, detail: syncDetail(sync) });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -400,12 +425,8 @@ export function syncSummaryText(name: string, sync: SyncSummary): string {
 
 /** "30 seconds", "1 minute", "10 minutes", rounded up. */
 function waitPhrase(seconds: number): string {
-  if (seconds < 60) {
-    const n = Math.max(1, Math.ceil(seconds));
-    return `${n} second${n === 1 ? '' : 's'}`;
-  }
-  const minutes = Math.ceil(seconds / 60);
-  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  if (seconds < 60) return t('portfolio:wait.seconds', { count: Math.max(1, Math.ceil(seconds)) });
+  return t('portfolio:wait.minutes', { count: Math.ceil(seconds / 60) });
 }
 
 export type AppErrorContext = 'load' | 'add' | 'sync' | 'delete' | 'discover' | 'import';
@@ -442,54 +463,51 @@ export function appErrorMessage(error: ErrorLike, context: AppErrorContext = 'lo
   const wait = retrySeconds(error);
   switch (error.code) {
     case 'not_found':
-      return 'That app is not in this workspace any more. It may have been removed.';
+      return t('portfolio:error.notFound');
     case 'already_exists':
-      return 'This workspace already has an app with that identifier on this platform.';
+      return t('portfolio:error.alreadyExists');
     case 'credential_not_found':
       return context === 'add' || context === 'discover' || context === 'import'
-        ? 'That credential no longer exists. Pick another one.'
-        : 'The credential this app uses was deleted. Add a new credential, then add the app again.';
+        ? t('portfolio:error.credentialGonePick')
+        : t('portfolio:error.credentialGone');
     case 'credential_kind':
-      return (
-        asText(error.body?.message) ||
-        'iOS and macOS need an App Store Connect credential and Android a Google Play one.'
-      );
+      return asText(error.body?.message) || t('portfolio:error.credentialKind');
     case 'repository_not_found':
-      return 'That repository is not connected to this workspace. Pick another one or leave it empty.';
+      return t('portfolio:error.repositoryNotFound');
     case 'sync_in_progress':
-      return 'A sync of this app is already running. Wait for it to finish, then refresh.';
+      return t('portfolio:error.syncInProgress');
     case 'credential_unreadable':
-      return 'The stored secret cannot be read. Replace the secret of its credential on the Credentials screen.';
+      return t('portfolio:error.credentialUnreadable');
     case 'store_auth':
-      return 'The store rejected the key. Check the key and the issuer, and that this server’s clock is right, or replace the secret on the Credentials screen.';
+      return t('portfolio:error.storeAuth');
     case 'store_forbidden':
-      return 'The key is valid but has no access. Check its role, that the app is shared with it, and that the store API is enabled.';
+      return t('portfolio:error.storeForbidden');
     case 'store_not_found':
-      return 'The store has no app with this identifier for this key. Check the identifier and the credential.';
+      return t('portfolio:error.storeNotFound');
     case 'rate_limited': {
-      const when = wait === null ? 'a minute' : waitPhrase(wait);
+      const when = wait === null ? t('portfolio:wait.aMinute') : waitPhrase(wait);
       if (context === 'discover' && !error.body?.app) {
-        return `This workspace has read the stores too often (finding apps and syncs share a limit of 10 a minute). Try again in ${when}.`;
+        return t('portfolio:error.rateLimitedDiscover', { when });
       }
       // The workspace limit answers without an app; the store's own limit comes with one.
       return error.body?.app
-        ? `The store asked us to slow down. Try again in ${when}.`
-        : `This workspace has run too many syncs (the limit is 10 a minute). Try again in ${when}.`;
+        ? t('portfolio:error.rateLimitedStore', { when })
+        : t('portfolio:error.rateLimitedWorkspace', { when });
     }
     case 'store_unavailable':
-      return 'The store failed to answer properly. Try again in a moment.';
+      return t('portfolio:error.storeUnavailable');
     case 'timeout':
-      return 'The store did not answer in time. Try again.';
+      return t('portfolio:error.timeout');
     case 'packages_required':
-      return 'Google Play cannot list the apps of an account. Enter the package names to check, one per line.';
+      return t('portfolio:error.packagesRequired');
     case 'discover_failed':
-      return 'The apps could not be read and the server has no more detail. Try again; if it keeps failing, check the server log.';
+      return t('portfolio:error.discoverFailed');
     case 'sync_failed':
-      return 'The sync failed and the server has no more detail. Try again; if it keeps failing, check the server log.';
+      return t('portfolio:error.syncFailed');
     default:
       return (
         error.message ||
-        (context === 'sync' ? 'Could not sync the app.' : 'Something went wrong. Try again.')
+        (context === 'sync' ? t('portfolio:error.syncDefault') : t('common:error.genericRetry'))
       );
   }
 }
@@ -516,7 +534,7 @@ export function classifySyncError(error: unknown): SyncFailure {
     return {
       kind: 'failed',
       code: 'error',
-      message: 'Something went wrong. Try again.',
+      message: t('common:error.genericRetry'),
       retryAfterSeconds: null,
     };
   }
@@ -568,17 +586,30 @@ export function credentialsFor<T extends { kind: string }>(
   return credentials.filter((c) => c.kind === kind);
 }
 
-export const identifierLabel = (platform: Platform) =>
-  byFamily(platform, { apple: 'Bundle ID', google: 'Package name' });
+export const identifierLabel = (platform: Platform): string =>
+  t(
+    byFamily(platform, {
+      apple: k('portfolio:identifier.bundleId'),
+      google: k('portfolio:identifier.packageName'),
+    }),
+  );
+
+/** "Copy the bundle ID" / "Copy the package name": the label of the copy button beside an identifier. */
+export const copyIdentifierLabel = (platform: Platform): string =>
+  t(
+    byFamily(platform, {
+      apple: k('portfolio:identifier.copyBundleId'),
+      google: k('portfolio:identifier.copyPackageName'),
+    }),
+  );
 
 const IDENTIFIER_HINTS: Readonly<Record<Platform, string>> = {
-  ios: 'The bundle ID from App Store Connect, such as com.acme.app.',
-  macos:
-    'The bundle ID of the Mac app in App Store Connect, such as com.acme.app. It can be the iOS bundle ID.',
-  android: 'The package name from the Play Console, such as com.acme.app.',
+  ios: k('portfolio:identifier.hint.ios'),
+  macos: k('portfolio:identifier.hint.macos'),
+  android: k('portfolio:identifier.hint.android'),
 };
 
-export const identifierHint = (platform: Platform): string => IDENTIFIER_HINTS[platform];
+export const identifierHint = (platform: Platform): string => t(IDENTIFIER_HINTS[platform]);
 
 const BUNDLE_ID = /^[A-Za-z0-9.-]+$/;
 const PACKAGE_NAME = /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/;
@@ -605,20 +636,22 @@ export function validateDraft(
   const name = draft.name.trim();
 
   if (identifier === '') {
-    problems.identifier = `Enter the ${identifierLabel(draft.platform).toLowerCase()}.`;
+    problems.identifier = t(
+      byFamily(draft.platform, {
+        apple: k('portfolio:draft.identifierRequiredBundle'),
+        google: k('portfolio:draft.identifierRequiredPackage'),
+      }),
+    );
   } else if (identifier.length > MAX_IDENTIFIER) {
-    problems.identifier = `Use at most ${MAX_IDENTIFIER} characters.`;
+    problems.identifier = t('portfolio:draft.tooLong', { count: MAX_IDENTIFIER });
   } else if (supports(draft.platform, 'bundleIdentifier') && !BUNDLE_ID.test(identifier)) {
-    problems.identifier =
-      'A bundle ID has only letters, digits, dots and hyphens, such as com.acme.app.';
+    problems.identifier = t('portfolio:draft.bundleInvalid');
   } else if (supports(draft.platform, 'releaseTracks') && !PACKAGE_NAME.test(identifier)) {
-    problems.identifier =
-      'A package name has at least two parts separated by dots, such as com.acme.app. Each part starts with a letter.';
+    problems.identifier = t('portfolio:draft.packageInvalid');
   }
-  if (!draft.credentialId)
-    problems.credentialId = 'Choose the credential that can read this app in the store.';
-  if (name.length > MAX_NAME) problems.name = `Use at most ${MAX_NAME} characters.`;
-  else if (/[\r\n]/.test(name)) problems.name = 'The name must be on one line.';
+  if (!draft.credentialId) problems.credentialId = t('portfolio:draft.credentialRequired');
+  if (name.length > MAX_NAME) problems.name = t('portfolio:draft.tooLong', { count: MAX_NAME });
+  else if (/[\r\n]/.test(name)) problems.name = t('portfolio:draft.nameOneLine');
 
   if (Object.keys(problems).length > 0) return { ok: false, problems };
   const input: NewApp = { platform: draft.platform, identifier, credentialId: draft.credentialId };
@@ -665,7 +698,7 @@ export function addProblem(error: ErrorLike): { field: DraftField | 'form'; mess
 export function describeError(error: unknown, context: AppErrorContext = 'load'): string {
   return error instanceof ApiError
     ? appErrorMessage(error, context)
-    : 'Something went wrong. Try again.';
+    : t('common:error.genericRetry');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -704,16 +737,20 @@ export function batchSummary(results: readonly BatchResult[]): string {
   const count = (status: BatchStatus) => results.filter((r) => r.status === status).length;
   const total = results.length;
   const parts = [
-    count('failed') > 0 ? `${count('failed')} failed` : '',
-    count('busy') > 0 ? `${count('busy')} already syncing` : '',
-    count('skipped') > 0 ? `${count('skipped')} not run` : '',
+    count('failed') > 0 ? t('portfolio:batch.failed', { count: count('failed') }) : '',
+    count('busy') > 0 ? t('portfolio:batch.busy', { count: count('busy') }) : '',
+    count('skipped') > 0 ? t('portfolio:batch.skipped', { count: count('skipped') }) : '',
   ].filter(Boolean);
-  return `Synced ${count('ok')} of ${total} app${total === 1 ? '' : 's'}.${parts.length > 0 ? ` ${parts.join(', ')}.` : ''}`;
+  return parts.length > 0
+    ? t('portfolio:batch.summaryIssues', { ok: count('ok'), count: total, issues: formatList(parts, { type: 'unit' }) })
+    : t('portfolio:batch.summary', { ok: count('ok'), count: total });
 }
 
 /** What to say for the apps a stopped run never reached. */
 export function notRunMessage(failure: SyncFailure | null): string {
-  return failure ? `Not run: ${failure.message}` : 'Not run: you stopped the sync.';
+  return failure
+    ? t('portfolio:batch.notRunFailure', { reason: failure.message })
+    : t('portfolio:batch.notRunStopped');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -770,12 +807,13 @@ export function packageListProblem(list: PackageList): string {
   const first = list.invalid[0];
   if (first) {
     const shown = first.value.length > 40 ? `${first.value.slice(0, 40)}…` : first.value;
-    const more = list.invalid.length > 1 ? ` (and ${list.invalid.length - 1} more)` : '';
-    return `Line ${first.line} is not a package name: “${shown}”${more}. A package name has at least two parts separated by dots, such as com.acme.app.`;
+    return list.invalid.length > 1
+      ? t('portfolio:packages.invalidMore', { line: first.line, value: shown, count: list.invalid.length - 1 })
+      : t('portfolio:packages.invalid', { line: first.line, value: shown });
   }
-  if (list.packages.length === 0) return 'Enter at least one package name, one per line.';
+  if (list.packages.length === 0) return t('portfolio:packages.none');
   if (list.packages.length > MAX_PACKAGES)
-    return `Check at most ${MAX_PACKAGES} packages at a time. You entered ${list.packages.length}.`;
+    return t('portfolio:packages.tooMany', { max: MAX_PACKAGES, count: list.packages.length });
   return '';
 }
 
@@ -789,14 +827,14 @@ export const candidateKey = (c: Pick<DiscoverCandidate, 'platform' | 'identifier
 
 /** "1 iOS app", "2 Android apps". */
 export const platformCount = (platform: Platform, count: number): string =>
-  `${count} ${platformLabel(platform)} app${count === 1 ? '' : 's'}`;
+  t('portfolio:platform.count', { count, platform: platformLabel(platform) });
 
 /** What a credential adds: one platform. Shown before importing, so nobody expects both. */
 export function importScopeNote(platform: Platform): string {
   if (supports(platform, 'bundleIdentifier')) {
-    return 'This credential adds iOS and macOS apps only. An Android app with the same identifier is a separate app: import it with a Google Play credential.';
+    return t('portfolio:import.scopeApple');
   }
-  return `This credential adds ${platformLabel(platform)} apps only. An iOS or macOS app with the same identifier is a separate app: import it with an App Store Connect credential.`;
+  return t('portfolio:import.scopeOther', { platform: platformLabel(platform) });
 }
 
 /** The candidates that can still be added. */
@@ -820,18 +858,20 @@ export function withSelection(
 export function discoverSummaryText(
   result: Pick<DiscoverResult, 'kind' | 'candidates' | 'failures'>,
 ): string {
-  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const added = result.candidates.filter((c) => c.alreadyAdded).length;
+  const withAdded = (summary: string) =>
+    added > 0 ? t('portfolio:discover.withAdded', { summary, added }) : summary;
   if (result.kind === 'google_play') {
     const total = result.candidates.length + result.failures.length;
-    const found = `${result.candidates.length} verified`;
-    const failed =
-      result.failures.length > 0 ? `, ${result.failures.length} could not be verified` : '';
-    const existing = added > 0 ? ` ${added} already added.` : '';
-    return `Checked ${plural(total, 'package')}: ${found}${failed}.${existing}`;
+    const verified = result.candidates.length;
+    return withAdded(
+      result.failures.length > 0
+        ? t('portfolio:discover.playCheckedFailed', { count: total, verified, failed: result.failures.length })
+        : t('portfolio:discover.playChecked', { count: total, verified }),
+    );
   }
-  if (result.candidates.length === 0) return 'This key can see no apps.';
-  return `Found ${plural(result.candidates.length, 'app')}.${added > 0 ? ` ${added} already added.` : ''}`;
+  if (result.candidates.length === 0) return t('portfolio:discover.noApps');
+  return withAdded(t('portfolio:discover.found', { count: result.candidates.length }));
 }
 
 /** Why one Google Play package could not be verified, as a sentence a person can act on. */
@@ -840,21 +880,21 @@ export function discoverFailureMessage(
 ): string {
   switch (failure.error) {
     case 'store_not_found':
-      return 'Google Play has no app with this package name that this service account can see. Check the spelling, and that the service account is invited to the app in the Play Console.';
+      return t('portfolio:discoverFailure.storeNotFound');
     case 'store_forbidden':
-      return 'The service account has no access to this app. Invite it in the Play Console (Users and permissions), and check that the Google Play Android Developer API is enabled.';
+      return t('portfolio:discoverFailure.storeForbidden');
     case 'store_auth':
-      return 'Google rejected the service account key. Replace the secret of this credential on the Credentials screen.';
+      return t('portfolio:discoverFailure.storeAuth');
     case 'rate_limited':
-      return 'Google asked us to slow down, so this package was not checked. Check it again in a minute.';
+      return t('portfolio:discoverFailure.rateLimited');
     case 'timeout':
-      return 'Not checked: the time ran out. Check this package again.';
+      return t('portfolio:discoverFailure.timeout');
     case 'store_unavailable':
-      return 'Google Play failed to answer properly. Check this package again in a moment.';
+      return t('portfolio:discoverFailure.storeUnavailable');
     case 'discover_failed':
-      return 'This package could not be read and the server has no more detail. Try again.';
+      return t('portfolio:discoverFailure.discoverFailed');
     default:
-      return failure.message.trim() || 'This package could not be verified.';
+      return failure.message.trim() || t('portfolio:discoverFailure.default');
   }
 }
 
@@ -909,28 +949,32 @@ export function importSummaryText(
   results?: readonly Pick<ImportItemResult, 'platform' | 'status'>[],
 ): string {
   const rest = [
-    summary.skipped > 0
-      ? `${summary.skipped} ${summary.skipped === 1 ? 'was' : 'were'} already added`
-      : '',
-    summary.failed > 0 ? `${summary.failed} could not be added` : '',
+    summary.skipped > 0 ? t('portfolio:import.skipped', { count: summary.skipped }) : '',
+    summary.failed > 0 ? t('portfolio:import.failed', { count: summary.failed }) : '',
   ].filter(Boolean);
   const created = (results ?? []).filter((r) => r.status === 'created');
   const platforms = [...new Set(created.map((r) => r.platform))].sort();
-  let what = `${summary.created} app${summary.created === 1 ? '' : 's'}`;
+  let what = t('portfolio:import.appCount', { count: summary.created });
   if (created.length === summary.created && platforms.length > 0) {
-    what = platforms
-      .map((p) => platformCount(p, created.filter((r) => r.platform === p).length))
-      .join(' and ');
+    what = formatList(
+      platforms.map((p) => platformCount(p, created.filter((r) => r.platform === p).length)),
+      { style: 'long', type: 'conjunction' },
+    );
   }
-  const head = summary.created > 0 ? `Added ${what}.` : 'No app was added.';
-  return rest.length > 0 ? `${head} ${rest.join(', ')}.` : head;
+  const joined = formatList(rest, { type: 'unit' });
+  if (summary.created > 0) {
+    return rest.length > 0
+      ? t('portfolio:import.addedWithRest', { what, rest: joined })
+      : t('portfolio:import.added', { what });
+  }
+  return rest.length > 0 ? t('portfolio:import.noneWithRest', { rest: joined }) : t('portfolio:import.none');
 }
 
 /** What to say about one item of an import that did not create an app. */
 export function importItemMessage(
   result: Pick<ImportItemResult, 'status' | 'error' | 'message'>,
 ): string {
-  if (result.status === 'skipped') return 'Already in this workspace.';
+  if (result.status === 'skipped') return t('portfolio:import.alreadyInWorkspace');
   if (result.status === 'failed') {
     return appErrorMessage(
       {

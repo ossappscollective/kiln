@@ -8,6 +8,8 @@
   Props: api, workspaceId, role, members (the records in scope), all? (every record of the app), now.
 -->
 <script lang="ts">
+  import T from '../ui/T.svelte';
+  import { t } from '../../lib/i18n/t.ts';
   import { can, type Role, supports } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { appSettingsPartIds as ids, appSettingsSections, deleteLine } from '../../lib/app-settings.ts';
@@ -63,7 +65,7 @@
     try {
       await api.deleteApp(workspaceId, app.id);
       open = false;
-      toast.success(`Deleted ${appLabel(app)}. Nothing in the store was changed.`);
+      toast.success(t('app:settings.deleted', { name: appLabel(app) }));
       location.hash = portfolioHref;
     } catch (e) {
       problem = e instanceof ApiError ? appErrorMessage(e, 'delete') : describeError(e, 'delete');
@@ -77,7 +79,7 @@
   <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="settings-lead">
     {#snippet actions()}<SectionsToggle />{/snippet}
   </PageLead>
-  <JumpTo {sections} label="Parts of the settings of this app" />
+  <JumpTo {sections} label={t('app:settings.parts')} />
   <div id={ids.stores} class="part" tabindex="-1"><StoresSection {api} {workspaceId} {role} {members} {all} {now} /></div>
   <div id={ids.repository} class="part" tabindex="-1"><RepositorySection {api} {workspaceId} {role} {members} /></div>
   <div id={ids.defaults} class="part" tabindex="-1"><DefaultsSection {api} {workspaceId} {role} {members} /></div>
@@ -91,8 +93,8 @@
   <div id={ids.ai} class="part" tabindex="-1"><AiContextSection {api} {workspaceId} {role} {members} /></div>
 
   <section id={ids.danger} class="part danger" tabindex="-1" aria-labelledby="app-settings-danger-title">
-    <h3 id="app-settings-danger-title">Danger zone</h3>
-    <p class="intro">Removing an app cannot be undone here. It never changes anything in a store.</p>
+    <h3 id="app-settings-danger-title">{t('app:settings.dangerZone')}</h3>
+    <p class="intro">{t('app:settings.dangerIntro')}</p>
     {#if canWrite}
       <ul class="plain">
         {#each members as app (app.id)}
@@ -100,7 +102,8 @@
             <div class="who">
               <span class="row">
                 <PlatformBadge platform={app.platform} tinted />
-                <span class="muted">Added <time datetime={new Date(app.createdAt).toISOString()} title={fullTime(app.createdAt)}>{timeAgo(app.createdAt, now)}</time></span>
+                <span class="muted"><T key="app:settings.added" params={{ when: timeAgo(app.createdAt, now) }} tags={{ link: addedTime }} /></span>
+                {#snippet addedTime(text: string)}<time datetime={new Date(app.createdAt).toISOString()} title={fullTime(app.createdAt)}>{text}</time>{/snippet}
               </span>
               <p class="warning">{deleteLine(storeName(app.platform))}</p>
             </div>
@@ -111,31 +114,31 @@
                 target = app;
                 problem = '';
                 open = true;
-              }}>Delete {platformLabel(app.platform)} app</Button
+              }}>{t('app:settings.deletePlatformApp', { platform: platformLabel(app.platform) })}</Button
             >
           </li>
         {/each}
       </ul>
     {:else}
-      <p class="warning">Only an admin can remove an app.</p>
+      <p class="warning">{t('app:settings.adminOnly')}</p>
     {/if}
   </section>
 </div>
 
 {#if canWrite}
-  <Modal bind:open size="sm" title="Delete this app?" dismissible={!deleting}>
+  <Modal bind:open size="sm" title={t('app:settings.deleteTitle')} dismissible={!deleting}>
     {#if target}
       <div class="stack">
         <p>
-          <strong>{target.name}</strong> ({platformLabel(target.platform)}, {target.identifier}) and its stored releases will be removed from this workspace.
+          <T key="app:settings.deleteBody" params={{ name: target.name, platform: platformLabel(target.platform), identifier: target.identifier }} />
         </p>
-        <p class="muted">Nothing in {storeName(target.platform)} is changed. You can add the app again later.</p>
+        <p class="muted">{t('app:settings.deleteNote', { store: storeName(target.platform) })}</p>
         {#if problem}<Alert tone="error">{problem}</Alert>{/if}
       </div>
     {/if}
     {#snippet footer()}
-      <Button disabled={deleting} onclick={() => (open = false)}>Cancel</Button>
-      <Button variant="danger-solid" loading={deleting} onclick={remove}>Delete app</Button>
+      <Button disabled={deleting} onclick={() => (open = false)}>{t('common:action.cancel')}</Button>
+      <Button variant="danger-solid" loading={deleting} onclick={remove}>{t('app:settings.deleteApp')}</Button>
     {/snippet}
   </Modal>
 {/if}

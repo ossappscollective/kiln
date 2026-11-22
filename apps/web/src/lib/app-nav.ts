@@ -1,6 +1,7 @@
 import type { Action } from '@kiln/core';
 import { type AppSection, appAddress, parseAppAddress, parseViewPath } from './app-scope.ts';
 import { isAsoView } from './aso/aso.ts';
+import { k, t } from './i18n/t.ts';
 import type { IconName } from './icons.ts';
 
 /**
@@ -18,16 +19,17 @@ import type { IconName } from './icons.ts';
 // ---------------------------------------------------------------------------------------------
 // The left panel
 
-export type NavEntry = { id: AppSection; label: string; icon: IconName; requires: Action };
+/** `labelKey` is a message key: draw it with `t(entry.labelKey)`. */
+export type NavEntry = { id: AppSection; labelKey: string; icon: IconName; requires: Action };
 
 export const primaryNav: readonly NavEntry[] = [
-  { id: 'dashboard', label: 'Overview', icon: 'grid', requires: 'apps.read' },
-  { id: 'releases', label: 'Releases', icon: 'rocket', requires: 'apps.read' },
-  { id: 'listing', label: 'Store listing', icon: 'file-text', requires: 'listing.read' },
-  { id: 'products', label: 'Products', icon: 'tag', requires: 'apps.read' },
-  { id: 'reviews', label: 'Reviews', icon: 'message', requires: 'reviews.read' },
-  { id: 'insights', label: 'Insights', icon: 'trending-up', requires: 'analytics.read' },
-  { id: 'builds', label: 'Builds', icon: 'pipeline', requires: 'apps.read' },
+  { id: 'dashboard', labelKey: k('app:nav.overview'), icon: 'grid', requires: 'apps.read' },
+  { id: 'releases', labelKey: k('app:nav.releases'), icon: 'rocket', requires: 'apps.read' },
+  { id: 'listing', labelKey: k('app:nav.storeListing'), icon: 'file-text', requires: 'listing.read' },
+  { id: 'products', labelKey: k('app:nav.products'), icon: 'tag', requires: 'apps.read' },
+  { id: 'reviews', labelKey: k('app:nav.reviews'), icon: 'message', requires: 'reviews.read' },
+  { id: 'insights', labelKey: k('app:nav.insights'), icon: 'trending-up', requires: 'analytics.read' },
+  { id: 'builds', labelKey: k('app:nav.builds'), icon: 'pipeline', requires: 'apps.read' },
 ];
 
 /** The entries a person may open, in order. */
@@ -57,10 +59,10 @@ export type RailItem = { id: string; label: string; icon?: string };
 export type WorkspaceRail = { main: RailItem[]; more: RailItem[] };
 
 /** The workspace views the rail shows at the bottom (with their rail names); the rest go in the collapsed group. */
-const RAIL_MAIN: readonly { id: string; label: string }[] = [
-  { id: 'portfolio', label: 'All apps' },
-  { id: 'reviews', label: 'Inbox' },
-  { id: 'settings', label: 'Settings' },
+const RAIL_MAIN: readonly { id: string; labelKey: string }[] = [
+  { id: 'portfolio', labelKey: k('app:rail.allApps') },
+  { id: 'reviews', labelKey: k('app:rail.inbox') },
+  { id: 'settings', labelKey: k('app:rail.settings') },
 ];
 
 /**
@@ -71,7 +73,7 @@ export function workspaceRail(views: readonly RailItem[]): WorkspaceRail {
   const main: RailItem[] = [];
   for (const m of RAIL_MAIN) {
     const found = views.find((v) => v.id === m.id);
-    if (found) main.push({ ...found, label: m.label });
+    if (found) main.push({ ...found, label: t(m.labelKey) });
   }
   const more = views.filter((v) => !RAIL_MAIN.some((m) => m.id === v.id));
   return { main, more };
@@ -80,6 +82,7 @@ export function workspaceRail(views: readonly RailItem[]): WorkspaceRail {
 // ---------------------------------------------------------------------------------------------
 // Views inside a page
 
+/** A view as the segmented control draws it: `label` is already in the person's language. */
 export type SectionView = {
   id: string;
   label: string;
@@ -87,21 +90,24 @@ export type SectionView = {
   androidOnly?: boolean;
 };
 
+/** A view as the table below holds it: `labelKey` is a message key (translated when the views are listed). */
+export type SectionViewDef = Omit<SectionView, 'label'> & { labelKey: string };
+
 /** The pages that hold several old pages as views; a page opens on its first view. */
-export const sectionViews: Readonly<Partial<Record<AppSection, readonly SectionView[]>>> = {
+export const sectionViews: Readonly<Partial<Record<AppSection, readonly SectionViewDef[]>>> = {
   listing: [
-    { id: 'text', label: 'Text' },
-    { id: 'graphics', label: 'Graphics' },
+    { id: 'text', labelKey: k('app:view.text') },
+    { id: 'graphics', labelKey: k('app:view.graphics') },
   ],
   insights: [
-    { id: 'overview', label: 'Overview' },
-    { id: 'keywords', label: 'Keywords', requires: 'aso.read' },
-    { id: 'terms', label: 'Search terms', requires: 'aso.read', androidOnly: true },
+    { id: 'overview', labelKey: k('app:view.overview') },
+    { id: 'keywords', labelKey: k('app:view.keywords'), requires: 'aso.read' },
+    { id: 'terms', labelKey: k('app:view.searchTerms'), requires: 'aso.read', androidOnly: true },
   ],
   builds: [
-    { id: 'builds', label: 'Builds' },
-    { id: 'workflows', label: 'Workflows' },
-    { id: 'tests', label: 'Test builds', requires: 'builds.read' },
+    { id: 'builds', labelKey: k('app:view.builds') },
+    { id: 'workflows', labelKey: k('app:view.workflows') },
+    { id: 'tests', labelKey: k('app:view.testBuilds'), requires: 'builds.read' },
   ],
 };
 
@@ -113,10 +119,13 @@ const openViews = (
   allowed: (action: Action) => boolean,
   context: ViewContext,
 ): SectionView[] =>
-  (sectionViews[section] ?? []).filter(
-    (v) =>
-      (!v.requires || allowed(v.requires)) && (!v.androidOnly || context.androidInScope !== false),
-  );
+  (sectionViews[section] ?? [])
+    .filter(
+      (v) =>
+        (!v.requires || allowed(v.requires)) &&
+        (!v.androidOnly || context.androidInScope !== false),
+    )
+    .map(({ labelKey, ...rest }) => ({ ...rest, label: t(labelKey) }));
 
 /** The views of a page a person may open; empty for a page with no views, or with only one (nothing to switch). */
 export function viewsFor(
@@ -156,7 +165,7 @@ export function viewOf(section: AppSection, hash: string): string {
   if (!list || list.length === 0) return '';
   const asked = parseViewPath(hash).query.get('view');
   if (section === 'insights') return insightsViewOf(asked);
-  return list.find((v) => v.id === asked)?.id ?? (list[0] as SectionView).id;
+  return list.find((v) => v.id === asked)?.id ?? (list[0] as SectionViewDef).id;
 }
 
 /**
@@ -192,7 +201,7 @@ const setQuery = (hash: string, change: (params: URLSearchParams) => void): stri
 export function withView(hash: string, section: AppSection, view: string): string {
   const list = sectionViews[section];
   if (!list?.some((v) => v.id === view)) return hash;
-  const first = (list[0] as SectionView).id;
+  const first = (list[0] as SectionViewDef).id;
   return setQuery(hash, (params) => {
     if (view === first) params.delete('view');
     else params.set('view', view);
@@ -258,24 +267,24 @@ export const canonicalSection = (section: AppSection): AppSection =>
 // The slim page header
 
 const TITLES: Readonly<Record<AppSection, string>> = {
-  dashboard: 'Overview',
-  releases: 'Releases',
-  listing: 'Store listing',
-  products: 'Products',
-  reviews: 'Reviews',
-  insights: 'Insights',
-  builds: 'Builds',
-  pending: 'Pending changes',
-  settings: 'App settings',
-  workflows: 'Builds',
-  assets: 'Store listing',
-  aso: 'Insights',
-  analytics: 'Insights',
-  'test-builds': 'Builds',
+  dashboard: k('app:nav.overview'),
+  releases: k('app:nav.releases'),
+  listing: k('app:nav.storeListing'),
+  products: k('app:nav.products'),
+  reviews: k('app:nav.reviews'),
+  insights: k('app:nav.insights'),
+  builds: k('app:nav.builds'),
+  pending: k('app:title.pending'),
+  settings: k('app:title.settings'),
+  workflows: k('app:nav.builds'),
+  assets: k('app:nav.storeListing'),
+  aso: k('app:nav.insights'),
+  analytics: k('app:nav.insights'),
+  'test-builds': k('app:nav.builds'),
 };
 
-/** The name of the page in the header. */
-export const pageTitle = (section: AppSection): string => TITLES[section];
+/** The name of the page in the header, in the person's language. */
+export const pageTitle = (section: AppSection): string => t(TITLES[section]);
 
 /** Whether the platform control is drawn: not for an app with one platform (nothing to choose) and not on the settings page (they are about the whole app). */
 export const showsScope = (section: AppSection, platformCount: number): boolean =>

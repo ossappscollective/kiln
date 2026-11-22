@@ -13,6 +13,7 @@
   edits) a slim banner says so and the listing and graphics are read-only (lockedPlatforms).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { type Action, can, type Role, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
@@ -235,23 +236,23 @@
 
 <section aria-busy={loading}>
   {#if loading && !group}
-    <div role="status" aria-label="Loading the app">
+    <div role="status" aria-label={t('app:shell.loading')}>
       <div class="skeleton-head"><Skeleton width="240px" height="28px" /><Skeleton width="160px" height="16px" /></div>
       <div class="card"><div class="stack"><Skeleton width="60%" height="16px" /><Skeleton width="40%" height="16px" /></div></div>
     </div>
   {:else if loadError}
     {#if loadError.notFound}
       <div class="card">
-        <EmptyState icon="box" title="App not found" description="This app is not in this workspace. It may have been deleted.">
-          {#snippet actions()}<Button href={portfolioHref} variant="primary">Back to all apps</Button>{/snippet}
+        <EmptyState icon="box" title={t('app:shell.notFound')} description={t('app:shell.notFoundHelp')}>
+          {#snippet actions()}<Button href={portfolioHref} variant="primary">{t('app:shell.backToApps')}</Button>{/snippet}
         </EmptyState>
       </div>
     {:else}
       <div class="stack">
-        <Alert tone="error" title="Could not load the app">{loadError.message}</Alert>
+        <Alert tone="error" title={t('app:shell.loadFailed')}>{loadError.message}</Alert>
         <div class="row">
-          <Button icon="refresh" onclick={load}>Try again</Button>
-          <Button href={portfolioHref} variant="ghost">Back to all apps</Button>
+          <Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button>
+          <Button href={portfolioHref} variant="ghost">{t('app:shell.backToApps')}</Button>
         </div>
       </div>
     {/if}
@@ -293,11 +294,11 @@
           <ScopeControl options={resolved.options} scope={resolved.scope} onchange={setPlatformScope} />
         {/if}
         {#if canSync}
-          <Button size="sm" icon="refresh" loading={anySyncing} disabled={anySyncing} onclick={syncScoped}>{anySyncing ? 'Syncing…' : 'Sync'}</Button>
+          <Button size="sm" icon="refresh" loading={anySyncing} disabled={anySyncing} onclick={syncScoped}>{anySyncing ? t('app:statusPopover.syncing') : t('app:shell.sync')}</Button>
         {/if}
         <StatusPopover {members} {chips} {now} {canSync} syncing={anySyncing} onsync={syncScoped} settingsHref={appAddress(id, 'settings', address.platform)} />
         {#if section !== 'settings'}
-          <Button href={appAddress(id, 'settings', address.platform)} variant="ghost" icon="settings" iconOnly label="App settings" />
+          <Button href={appAddress(id, 'settings', address.platform)} variant="ghost" icon="settings" iconOnly label={t('app:title.settings')} />
         {/if}
       </div>
     </header>

@@ -4,6 +4,7 @@
   Props: api, workspaceId, role, members (the records in scope).
 -->
 <script lang="ts">
+  import { t } from '../../../lib/i18n/t.ts';
   import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../../lib/api.ts';
@@ -12,8 +13,7 @@
   import type { AppSummary, RepositorySummary, SavedListingTarget } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';
   import Badge from '../../ui/Badge.svelte';
-  import { countOf } from '../../../lib/section-state.ts';
-  import Button from '../../ui/Button.svelte';
+    import Button from '../../ui/Button.svelte';
   import PlatformBadge from '../../ui/PlatformBadge.svelte';
   import SettingsCard from './SettingsCard.svelte';
 
@@ -44,7 +44,7 @@
         if (current) repositories = r.repositories;
       })
       .catch(() => {
-        if (current) problem = 'Could not read the repositories. Reload the page to try again.';
+        if (current) problem = t('app:repository.loadFailed');
       });
     for (const repoId of repoIds.filter((r, i) => repoIds.indexOf(r) === i)) {
       api
@@ -64,11 +64,12 @@
 </script>
 
 <SettingsCard
-  title="Repository"
+  title={t('app:settings.part.repository')}
+  key="Repository"
   icon="git-branch"
-  description="Where the files of this app live: the store listing, the screenshots and the build tags are read from here."
+  description={t('app:repository.description')}
   unavailable={notAvailable.changeRepository}
-  summary={countOf(repositories.length, 'repository', 'repositories')}
+  summary={t('app:repository.count', { count: repositories.length })}
 >
   {#if problem}<Alert tone="warn">{problem}</Alert>{/if}
   <div class="stack">
@@ -77,52 +78,52 @@
       <div class="record">
         <div class="row between">
           <PlatformBadge platform={app.platform} tinted />
-          {#if app.repositoryId === null}<Badge tone="neutral">Not linked</Badge>{:else}<Badge tone="ok">Linked</Badge>{/if}
+          {#if app.repositoryId === null}<Badge tone="neutral">{t('app:chips.notLinked')}</Badge>{:else}<Badge tone="ok">{t('app:chips.linked')}</Badge>{/if}
         </div>
         {#if app.repositoryId === null}
-          <p class="muted note">This {platformLabel(app.platform)} record has no repository. Without one, the listing cannot be compared with files.</p>
+          <p class="muted note">{t('app:repository.noRepository', { platform: platformLabel(app.platform) })}</p>
         {:else if !canRead}
-          <p class="muted note">Seeing the repository needs a role that can read repositories.</p>
+          <p class="muted note">{t('app:repository.needRepos')}</p>
         {:else if repo}
           <dl class="facts">
             <div>
-              <dt>Repository</dt>
+              <dt>{t('app:chips.repository')}</dt>
               <dd>{repo.name}</dd>
             </div>
             <div>
-              <dt>Default branch</dt>
+              <dt>{t('app:repository.defaultBranch')}</dt>
               <dd><code>{repo.defaultBranch}</code></dd>
             </div>
             <div>
-              <dt>Project type</dt>
-              <dd>{repo.projectKind ?? 'Not scanned yet'}</dd>
+              <dt>{t('app:repository.projectType')}</dt>
+              <dd>{repo.projectKind ?? t('app:repository.notScanned')}</dd>
             </div>
             <div>
-              <dt>Connection</dt>
-              <dd>{repo.localOnly ? 'Local folder only' : repo.local ? 'GitHub with a local clone' : 'GitHub'}</dd>
+              <dt>{t('app:repository.connection')}</dt>
+              <dd>{repo.localOnly ? t('app:repository.localOnly') : repo.local ? t('app:repository.githubLocal') : t('app:repository.github')}</dd>
             </div>
           </dl>
           <div>
-            <p class="label">Listing targets</p>
+            <p class="label">{t('app:repository.targets')}</p>
             {#if targets[app.repositoryId ?? ''] === undefined}
-              <p class="muted note">Reading…</p>
+              <p class="muted note">{t('app:defaults.reading')}</p>
             {:else if targetsOf(app).length === 0}
-              <p class="muted note">None saved. The folders are detected from the repository.</p>
+              <p class="muted note">{t('app:repository.noTargets')}</p>
             {:else}
               <ul class="plain">
-                {#each targetsOf(app) as t (t.id)}
-                  <li>{t.name}{t.appStoreRoot ? ` · App Store: ${t.appStoreRoot}` : ''}{t.googlePlayRoot ? ` · Google Play: ${t.googlePlayRoot}` : ''}</li>
+                {#each targetsOf(app) as target (target.id)}
+                  <li>{target.name}{target.appStoreRoot ? t('app:repository.appStoreRoot', { root: target.appStoreRoot }) : ''}{target.googlePlayRoot ? t('app:repository.googlePlayRoot', { root: target.googlePlayRoot }) : ''}</li>
                 {/each}
               </ul>
             {/if}
           </div>
         {:else if !problem}
-          <p class="muted note">Reading the repository…</p>
+          <p class="muted note">{t('app:repository.reading')}</p>
         {/if}
       </div>
     {/each}
   </div>
-  {#if canRead}<div><Button size="sm" variant="ghost" href={links.repositories}>Manage repositories</Button></div>{/if}
+  {#if canRead}<div><Button size="sm" variant="ghost" href={links.repositories}>{t('app:repository.manage')}</Button></div>{/if}
 </SettingsCard>
 
 <style>

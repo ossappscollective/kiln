@@ -5,6 +5,7 @@
   Props: options (from resolveScope), scope (the active one), onchange.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import type { PlatformScope, ScopeOption } from '../../lib/app-scope.ts';
   import Icon from '../ui/Icon.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
@@ -13,7 +14,7 @@
 
 </script>
 
-<div class="scope" role="group" aria-label="Platform">
+<div class="scope" role="group" aria-label={t('app:scope.label')}>
   {#each options as o (o.id)}
     <button
       type="button"

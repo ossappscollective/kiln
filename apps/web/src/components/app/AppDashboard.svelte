@@ -14,7 +14,8 @@
   components/ci/RunningNow.svelte. The run "Start release" starts shows in that same list.
 -->
 <script lang="ts">
-  import { can, platformLabel, platformMeta, type Role } from '@kiln/core';
+  import { t } from '../../lib/i18n/t.ts';
+  import { can, platformLabel, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { address } from '../../lib/address.svelte.ts';
@@ -25,7 +26,7 @@
   import { scopeRunsToApps } from '../../lib/running.ts';
   import { type StartedRun, isStartedRun } from '../../lib/start-release.ts';
   import { buildMatrix, modeCounts } from '../../lib/listing/matrix.ts';
-  import { latestRelease, liveRelease, trackLabel } from '../../lib/portfolio.ts';
+  import { copyIdentifierLabel, identifierLabel, latestRelease, liveRelease, trackLabel } from '../../lib/portfolio.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
   import { submitStore } from '../../lib/store-submit-store.svelte.ts';
@@ -258,28 +259,28 @@
       {@const latest = latestRelease(list, app.platform)}
       {@const live = liveRelease(list, app.platform)}
       {@const inFlight = latest && (!live || latest.version !== live.version || latest.status !== 'live') ? latest : null}
-      <section class="card tile {app.platform}" aria-label="{platformLabel(app.platform)} summary">
+      <section class="card tile {app.platform}" aria-label={t('app:dash.tileLabel', { platform: platformLabel(app.platform) })}>
         <div class="tile-head">
           <PlatformBadge platform={app.platform} tinted />
           <span class="spacer"></span>
-          <a href={appAddress(app.id, 'releases', null, inFlight?.version ?? null)}>Open releases<span class="visually-hidden"> for {platformLabel(app.platform)}</span></a>
+          <a href={appAddress(app.id, 'releases', null, inFlight?.version ?? null)} aria-label={t('app:dash.openReleasesFor', { platform: platformLabel(app.platform) })}>{t('app:dash.openReleases')}</a>
         </div>
         <dl class="facts">
           <div>
-            <dt>On the store</dt>
-            <dd class="big">{#if live}{live.version}{:else}<span class="muted">{app.lastSyncedAt === null ? 'Not synced yet' : 'None reported'}</span>{/if}</dd>
+            <dt>{t('app:dash.onStore')}</dt>
+            <dd class="big">{#if live}{live.version}{:else}<span class="muted">{app.lastSyncedAt === null ? t('app:status.notSynced') : t('app:dash.noneReported')}</span>{/if}</dd>
           </div>
           <div>
             {#if inFlight}
-              <dt>Version {inFlight.version}</dt>
+              <dt>{t('app:dash.version', { version: inFlight.version })}</dt>
               <dd><ReleaseStatus status={inFlight.status} rawState={inFlight.rawState} rolloutFraction={inFlight.rolloutFraction} sentForReviewAt={inFlight.sentForReviewAt} /></dd>
             {:else}
-              <dt>In flight</dt>
-              <dd class="muted">Nothing</dd>
+              <dt>{t('app:dash.inFlight')}</dt>
+              <dd class="muted">{t('app:dash.nothing')}</dd>
             {/if}
           </div>
           <div>
-            <dt>Last synced</dt>
+            <dt>{t('app:dash.lastSynced')}</dt>
             <dd><SyncStatus {app} {now} /></dd>
           </div>
         </dl>
@@ -290,33 +291,33 @@
   <AnalyticsStrip {api} {workspaceId} {members} {now} refreshKey={syncRuns} />
 
   {#if rest.length > 0}
-    <AttentionList title="Also worth a look" items={rest} {api} {workspaceId} {role} {members} />
+    <AttentionList title={t('app:dash.alsoWorth')} items={rest} {api} {workspaceId} {role} {members} />
   {/if}
 
-  <Section title="Details" key="details" defaultOpen={false} summary={members.map((m) => m.identifier).join(' · ')}>
+  <Section title={t('app:dash.details')} key="details" defaultOpen={false} summary={members.map((m) => m.identifier).join(' · ')}>
     <div class="stack">
       {#each members as app (app.id)}
         {@const latest = latestRelease(releases[app.id] ?? [], app.platform)}
-        <section class="group" aria-label="{platformLabel(app.platform)} details">
+        <section class="group" aria-label={t('app:dash.detailsLabel', { platform: platformLabel(app.platform) })}>
         <h3 class="group-head"><PlatformBadge platform={app.platform} tinted /></h3>
         <dl class="detail">
           <div>
-            <dt>{platformMeta(app.platform).identifierLabel}</dt>
+            <dt>{identifierLabel(app.platform)}</dt>
             <dd class="ident">
               <code>{app.identifier}</code>
-              <CopyButton value={app.identifier} iconOnly label="Copy the {platformMeta(app.platform).identifierNoun}" />
+              <CopyButton value={app.identifier} iconOnly label={copyIdentifierLabel(app.platform)} />
             </dd>
           </div>
           <div>
-            <dt>Latest release</dt>
+            <dt>{t('app:dash.latestRelease')}</dt>
             <dd>
               {#if latest}
                 <strong>{latest.version}</strong>
                 {#if latest.track && latest.track !== 'production'}<span class="muted">{trackLabel(latest.track)}</span>{/if}
                 <ReleaseStatus status={latest.status} rawState={latest.rawState} rolloutFraction={latest.rolloutFraction} sentForReviewAt={latest.sentForReviewAt} />
-                <a href={appAddress(app.id, 'releases', null, latest.version)}>Plan and details<span class="visually-hidden"> for version {latest.version}</span></a>
+                <a href={appAddress(app.id, 'releases', null, latest.version)} aria-label={t('app:dash.planAndDetailsFor', { version: latest.version })}>{t('app:dash.planAndDetails')}</a>
               {:else}
-                <span class="muted">{app.lastSyncedAt === null ? 'Not synced yet' : 'No releases reported'}</span>
+                <span class="muted">{app.lastSyncedAt === null ? t('app:status.notSynced') : t('app:dash.noReleasesReported')}</span>
               {/if}
             </dd>
           </div>

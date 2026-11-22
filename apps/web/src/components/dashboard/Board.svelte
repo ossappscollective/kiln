@@ -7,6 +7,7 @@
   Props: api, workspaceId, role, apps (sorted), releases (loaded releases by app id), now (epoch ms).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { type Role, can } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { attentionItems, blockedCount, buildBoard } from '../../lib/dashboard.ts';
@@ -70,16 +71,16 @@
   const waiting = $derived(board.unplaced.filter((u) => u.reason === 'loading').length);
 
   const reasonText = (reason: string, raw: string | null) => {
-    if (reason === 'error') return 'Its releases could not be loaded. Open the app and sync to try again.';
-    if (reason === 'no_releases') return 'No releases yet. Sync the app to read them from the store.';
-    if (reason === 'unmapped') return `The store reports “${raw ?? ''}”, which has no stage here.`;
-    return 'Loading its releases.';
+    if (reason === 'error') return t('app:board.reasonError');
+    if (reason === 'no_releases') return t('app:board.reasonNone');
+    if (reason === 'unmapped') return t('app:board.reasonUnmapped', { raw: raw ?? '' });
+    return t('app:board.reasonLoading');
   };
 </script>
 
 <div class="board-wrap">
   {#if everyoneLoading}
-    <div class="board" role="status" aria-label="Loading the board">
+    <div class="board" role="status" aria-label={t('app:board.loading')}>
       {#each [0, 1, 2, 3] as i (i)}
         <div class="column">
           <Skeleton width="50%" height="18px" />
@@ -90,23 +91,23 @@
     </div>
   {:else}
     <p class="summary muted">
-      {placed} {placed === 1 ? 'release' : 'releases'} by stage{blocked > 0 ? `, ${blocked} blocked` : ''}.
-      {#if canReadPlans && plans === null && !plansFailed}Loading plans.{/if}
-      {#if plansFailed}Plans could not be loaded, so blocked flags and deadlines from plans are missing.{/if}
+      {blocked > 0 ? t('app:board.byStageBlocked', { count: placed, blocked }) : t('app:board.byStage', { count: placed })}
+      {#if canReadPlans && plans === null && !plansFailed}{t('app:board.loadingPlans')}{/if}
+      {#if plansFailed}{t('app:board.plansFailed')}{/if}
     </p>
 
     <AttentionStrip items={attention} />
 
-    <div class="board" role="group" aria-label="Releases by stage">
+    <div class="board" role="group" aria-label={t('app:board.label')}>
       {#each board.columns as column (column.bucket)}
         <section class="column" aria-labelledby="{uid}-{column.bucket}">
           <header class="column-head">
             <h2 id="{uid}-{column.bucket}">{column.label}</h2>
-            <span class="count" aria-label="{column.cards.length} {column.cards.length === 1 ? 'release' : 'releases'}">{column.cards.length}</span>
+            <span class="count" aria-label={t('app:board.releaseCount', { count: column.cards.length })}>{column.cards.length}</span>
           </header>
           <p class="description muted">{column.description}</p>
           {#if column.cards.length === 0}
-            <p class="empty muted">Nothing here.</p>
+            <p class="empty muted">{t('app:board.empty')}</p>
           {:else}
             <ul class="cards">
               {#each column.cards as card (card.key)}
@@ -120,20 +121,20 @@
 
     {#if board.unplaced.length > 0}
       <section class="unplaced" aria-labelledby="{uid}-unplaced">
-        <h2 id="{uid}-unplaced">No stage yet</h2>
+        <h2 id="{uid}-unplaced">{t('app:board.noStage')}</h2>
         <ul class="plain">
           {#each board.unplaced as item (item.app.id)}
             <li class="unplaced-row">
               <a href={item.href}>{appLabel(item.app)}</a>
               {#if item.reason === 'loading'}
-                <span class="muted" role="status"><Skeleton width="160px" height="14px" /><span class="visually-hidden">Loading releases of {appLabel(item.app)}</span></span>
+                <span class="muted" role="status"><Skeleton width="160px" height="14px" /><span class="visually-hidden">{t('app:board.loadingReleasesOf', { name: appLabel(item.app) })}</span></span>
               {:else}
                 <span class="muted">{reasonText(item.reason, item.rawState)}</span>
               {/if}
             </li>
           {/each}
         </ul>
-        {#if waiting > 0}<p class="muted small">Waiting for {waiting} {waiting === 1 ? 'app' : 'apps'}.</p>{/if}
+        {#if waiting > 0}<p class="muted small">{t('app:board.waiting', { count: waiting })}</p>{/if}
       </section>
     {/if}
   {/if}

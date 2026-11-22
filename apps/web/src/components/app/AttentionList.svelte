@@ -10,6 +10,7 @@
   "Also needs attention" heading).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import type { Role } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import type { AttentionItem } from '../../lib/app-attention.ts';
@@ -42,7 +43,7 @@
 
 <section class="attention" class:card={!bare} class:bare aria-labelledby="attention-title">
   <div class="head">
-    <h2 id="attention-title">{title ?? (bare ? 'Also needs attention' : 'Needs attention')}</h2>
+    <h2 id="attention-title">{title ?? (bare ? t('app:attentionList.also') : t('app:attentionList.title'))}</h2>
     <Badge tone={items.some((i) => i.tone === 'bad') ? 'bad' : 'warn'}>{items.length}</Badge>
   </div>
   <ul>
@@ -66,7 +67,7 @@
   </ul>
   {#if capped.hidden.length > 0}
     <button type="button" class="more-toggle" aria-expanded={all} onclick={() => (all = !all)}>
-      {all ? 'Show fewer' : `Show ${capped.hidden.length} more`}
+      {all ? t('app:attentionList.fewer') : t('app:attentionList.more', { count: capped.hidden.length })}
     </button>
   {/if}
 </section>

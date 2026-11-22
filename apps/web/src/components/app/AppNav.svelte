@@ -17,12 +17,13 @@
   Groups are labelled ("This app", "Workspace"); a count says what needs the person, and the current page is marked by colour, weight and a bar.
 -->
 <script lang="ts">
+  import { k, t } from '../../lib/i18n/t.ts';
   import { type Action, platformLabel } from '@kiln/core';
   import { address as pageAddress, appContext } from '../../lib/address.svelte.ts';
   import { carryHeaderParams } from '../../lib/app-header.ts';
   import { type RailItem, navEntryOf, visibleNav, workspaceRail } from '../../lib/app-nav.ts';
   import { type AppAddress, appAddress } from '../../lib/app-scope.ts';
-  import { badgeLabel, badgeText } from '../../lib/nav-badges.ts';
+  import { badgeText } from '../../lib/nav-badges.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { chordHint } from '../../lib/shortcuts.ts';
   import type { SwitcherItem } from '../../lib/app-switcher.ts';
@@ -60,13 +61,13 @@
     status?: PlatformStatusLine[] | undefined;
   } = $props();
 
-  const badgeFor = (id: string): { count: number | null; one: string; many: string; tone: 'warn' | 'accent' } | null =>
+  const badgeFor = (id: string): { count: number | null; labelKey: string; tone: 'warn' | 'accent' } | null =>
     id === 'reviews'
-      ? { count: counts.reviews, one: 'unanswered review', many: 'unanswered reviews', tone: 'warn' }
+      ? { count: counts.reviews, labelKey: k('shell:badge.unanswered'), tone: 'warn' }
       : id === 'releases'
-        ? { count: counts.releases, one: 'release left unfinished', many: 'releases left unfinished', tone: 'warn' }
+        ? { count: counts.releases, labelKey: k('app:nav.badgeUnfinished'), tone: 'warn' }
         : id === 'listing'
-          ? { count: counts.pending ?? null, one: 'change waiting to publish', many: 'changes waiting to publish', tone: counts.pendingBlocking ? 'warn' : 'accent' }
+          ? { count: counts.pending ?? null, labelKey: k('app:nav.badgePending'), tone: counts.pendingBlocking ? 'warn' : 'accent' }
           : null;
 
   const entries = $derived(visibleNav(allowed));
@@ -81,7 +82,7 @@
       <AppSwitcherField items={switcher} appId={address.id} fallbackName={appContext.name} {mod} onopen={onopenswitcher} onpick={onpickapp} />
     {:else if appContext.name}<p class="name" title={appContext.name}>{appContext.name}</p>{/if}
     {#if status.length > 0}
-      <ul class="status" aria-label="Status per platform" data-testid="app-status">
+      <ul class="status" aria-label={t('app:nav.statusLabel')} data-testid="app-status">
         {#each status as line (line.platform)}
           <li class="tone-{line.tone}" data-platform={line.platform}>
             <PlatformBadge platform={line.platform} showLabel={false} />
@@ -94,8 +95,8 @@
       </ul>
     {/if}
   </div>
-  <nav aria-label="This app">
-    <p class="group-label" aria-hidden="true">This app</p>
+  <nav aria-label={t('app:nav.thisApp')}>
+    <p class="group-label" aria-hidden="true">{t('app:nav.thisApp')}</p>
     <ul>
       {#each entries as s (s.id)}
         {@const hint = chordHint('app', s.id)}
@@ -103,10 +104,10 @@
         <li>
           <a href={carryHeaderParams(appAddress(address.id, s.id, address.platform), pageAddress.hash)} aria-current={here === s.id ? 'page' : undefined}>
             <Icon name={s.icon} size={18} />
-            <span>{s.label}</span>
+            <span>{t(s.labelKey)}</span>
             {#if hint}<kbd class="nav-hint" aria-hidden="true">{hint}</kbd>{/if}
             {#if badge && badgeText(badge.count)}
-              <span class="badge {badge.tone} nav-count">{badgeText(badge.count)}<span class="visually-hidden"> {badgeLabel(badge.count, badge.one, badge.many)}</span></span>
+              <span class="badge {badge.tone} nav-count">{badgeText(badge.count)}<span class="visually-hidden"> {t(badge.labelKey, { count: badge.count ?? 0 })}</span></span>
             {/if}
           </a>
         </li>
@@ -115,8 +116,8 @@
   </nav>
 
   {#if rail.main.length > 0 || rail.more.length > 0}
-    <nav class="workspace" aria-label="Workspace">
-      <p class="group-label" aria-hidden="true">Workspace</p>
+    <nav class="workspace" aria-label={t('app:nav.workspace')}>
+      <p class="group-label" aria-hidden="true">{t('app:nav.workspace')}</p>
       {#if rail.main.length > 0}
         <ul>
           {#each rail.main as v (v.id)}
@@ -128,7 +129,7 @@
                 <span>{v.label}</span>
                 {#if hint}<kbd class="nav-hint" aria-hidden="true">{hint}</kbd>{/if}
                 {#if badgeText(count)}
-                  <span class="badge nav-count {v.id === 'portfolio' ? 'warn' : 'accent'}">{badgeText(count)}<span class="visually-hidden"> {v.id === 'portfolio' ? badgeLabel(count, 'app needs attention', 'apps need attention') : badgeLabel(count, 'unanswered review', 'unanswered reviews')}</span></span>
+                  <span class="badge nav-count {v.id === 'portfolio' ? 'warn' : 'accent'}">{badgeText(count)}<span class="visually-hidden"> {v.id === 'portfolio' ? t('shell:badge.attention', { count: count ?? 0 }) : t('shell:badge.unanswered', { count: count ?? 0 })}</span></span>
                 {/if}
               </a>
             </li>
@@ -137,7 +138,7 @@
       {/if}
       {#if rail.more.length > 0}
         <details class="more">
-          <summary>More</summary>
+          <summary>{t('app:nav.more')}</summary>
           <ul>
             {#each rail.more as v (v.id)}
               <li>

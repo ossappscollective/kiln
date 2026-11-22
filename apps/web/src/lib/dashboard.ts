@@ -4,7 +4,6 @@ import {
   type DashboardBucket,
   type DueFlags,
   dashboardBucket,
-  formatPercent,
   type Platform,
   platformMeta,
   type Readiness,
@@ -13,6 +12,8 @@ import {
   type RolloutSummary,
   supports,
 } from '@kiln/core';
+import { formatList, formatPercent } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import {
   appHref,
   compareVersions,
@@ -55,20 +56,24 @@ export function saveViewMode(mode: ViewMode, storage?: WritableStorage): void {
 // ---------------------------------------------------------------------------------------------
 // Columns
 
+/** A column's name and description, read in the active language each time they are used. */
+const bucketInfo = (label: string, description: string): { label: string; description: string } => ({
+  get label(): string {
+    return t(label);
+  },
+  get description(): string {
+    return t(description);
+  },
+});
+
 export const BUCKET_INFO: Record<DashboardBucket, { label: string; description: string }> = {
-  preparing: {
-    label: 'Preparing',
-    description: 'Being prepared: no build chosen yet, or ready to submit.',
-  },
-  in_review: {
-    label: 'In review',
-    description: 'Submitted and waiting, or rejected and waiting for a fix.',
-  },
-  ready_to_release: {
-    label: 'Ready to release',
-    description: 'Approved and waiting to be released.',
-  },
-  live: { label: 'Live', description: 'Rolling out, live or halted.' },
+  preparing: bucketInfo(k('app:board.bucket.preparing'), k('app:board.bucket.preparingHint')),
+  in_review: bucketInfo(k('app:board.bucket.inReview'), k('app:board.bucket.inReviewHint')),
+  ready_to_release: bucketInfo(
+    k('app:board.bucket.readyToRelease'),
+    k('app:board.bucket.readyToReleaseHint'),
+  ),
+  live: bucketInfo(k('app:board.bucket.live'), k('app:board.bucket.liveHint')),
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -84,11 +89,12 @@ type Step = {
   /** The lifecycle event this action leads to; null at the end of the road. */
   event: ReleaseEvent | null;
   kind: 'act' | 'wait' | 'done';
+  /** Message keys: the sentence for Apple's stores and for Google Play. */
   ios: string;
   android: string;
 };
 
-const both = (text: string) => ({ ios: text, android: text });
+const both = (key: string) => ({ ios: key, android: key });
 
 /**
  * What to do next for each state. Every `event` is one the state machine in @kiln/core allows from
@@ -96,51 +102,51 @@ const both = (text: string) => ({ ios: text, android: text });
  * are where these actions happen: this product writes nothing to a store.
  */
 export const STEPS: Record<ReleaseState, Step> = {
-  draft: { event: 'choose_build', kind: 'act', ...both('Choose the build to submit') },
+  draft: { event: 'choose_build', kind: 'act', ...both(k('app:board.step.draft')) },
   build_chosen: {
     event: 'mark_ready',
     kind: 'act',
-    ...both('Finish the checklist, then mark it ready'),
+    ...both(k('app:board.step.buildChosen')),
   },
   ready: {
     event: 'submit',
     kind: 'act',
-    ios: 'Submit it for review in App Store Connect',
-    android: 'Send it for review in Google Play Console',
+    ios: k('app:board.step.ready.ios'),
+    android: k('app:board.step.ready.android'),
   },
   in_review: {
     event: 'approve',
     kind: 'wait',
-    ios: 'Wait for App Review',
-    android: 'Wait for the Google Play review',
+    ios: k('app:board.step.inReview.ios'),
+    android: k('app:board.step.inReview.android'),
   },
   rejected: {
     event: 'fix',
     kind: 'act',
-    ...both('Read the rejection, fix the problem and submit again'),
+    ...both(k('app:board.step.rejected')),
   },
   approved: {
     event: 'release',
     kind: 'act',
-    ios: 'Release it in App Store Connect',
-    android: 'Start the rollout in Google Play Console',
+    ios: k('app:board.step.approved.ios'),
+    android: k('app:board.step.approved.android'),
   },
   propagating: {
     event: 'propagated',
     kind: 'wait',
-    ...both('Wait for Google Play to show the release'),
+    ...both(k('app:board.step.propagating')),
   },
   rolling_out: {
     event: 'complete',
     kind: 'wait',
-    ios: 'Watch the phased release until it reaches everyone',
-    android: 'Watch the staged rollout and raise it to everyone when it looks healthy',
+    ios: k('app:board.step.rollingOut.ios'),
+    android: k('app:board.step.rollingOut.android'),
   },
-  live: { event: null, kind: 'done', ...both('Nothing to do. Plan the next version.') },
+  live: { event: null, kind: 'done', ...both(k('app:board.step.live')) },
   halted: {
     event: 'resume',
     kind: 'act',
-    ...both('Decide whether to resume the rollout or ship a fix'),
+    ...both(k('app:board.step.halted')),
   },
 };
 
@@ -166,20 +172,18 @@ export function nextAction(input: NextActionInput): NextAction {
   const { blocked, readiness } = input;
   // A rejection is the lifecycle's own "rejected" step, which already says what to do.
   if (blocked && blocked.kind !== 'rejection') {
-    return { kind: 'blocked', text: `Resolve the block: ${blocked.reason}` };
+    return { kind: 'blocked', text: t('app:board.next.block', { reason: blocked.reason }) };
   }
   if (input.planned) {
     const where = platformMeta(input.platform).consoleName;
     const prepare = prepareText(readiness);
-    return prepare ?? { kind: 'act', text: `Add the version in ${where} and choose a build` };
+    return prepare ?? { kind: 'act', text: t('app:board.next.addVersion', { where }) };
   }
   if (input.status === null) {
     const raw = input.rawState?.trim();
     return {
       kind: 'act',
-      text: raw
-        ? `Check the store: it reports “${raw}”, which has no status here`
-        : 'Sync the app to read its state from the store',
+      text: raw ? t('app:board.next.unmapped', { raw }) : t('app:board.next.sync'),
     };
   }
   if (PREPARING.includes(input.status)) {
@@ -190,7 +194,7 @@ export function nextAction(input: NextActionInput): NextAction {
   // macOS is Apple's: the App Store Connect steps apply to it as they do to iOS.
   return {
     kind: step.kind,
-    text: step[supports(input.platform, 'releaseTracks') ? 'android' : 'ios'],
+    text: t(step[supports(input.platform, 'releaseTracks') ? 'android' : 'ios']),
   };
 }
 
@@ -200,15 +204,21 @@ function prepareText(readiness: NextActionInput['readiness']): NextAction | null
   if (open > 0) {
     return {
       kind: 'act',
-      text: `Finish the checklist: ${open} required ${open === 1 ? 'item' : 'items'} left`,
+      text: t('app:board.next.checklist', { count: open }),
     };
   }
   const { notes } = readiness;
-  if (notes.locales === 0) return { kind: 'act', text: 'Write the release notes' };
+  if (notes.locales === 0) return { kind: 'act', text: t('app:board.next.writeNotes') };
   if (notes.missing.length > 0)
-    return { kind: 'act', text: `Write the release notes for ${notes.missing.join(', ')}` };
+    return {
+      kind: 'act',
+      text: t('app:board.next.writeNotesFor', { locales: notes.missing.join(', ') }),
+    };
   if (notes.tooLong.length > 0)
-    return { kind: 'act', text: `Shorten the release notes for ${notes.tooLong.join(', ')}` };
+    return {
+      kind: 'act',
+      text: t('app:board.next.shortenNotesFor', { locales: notes.tooLong.join(', ') }),
+    };
   return null;
 }
 
@@ -264,12 +274,13 @@ export type Unplaced = {
 
 export type Board = { columns: BoardColumn[]; unplaced: Unplaced[] };
 
-const REJECTED_BLOCK: Blocked = { kind: 'rejection', reason: 'The store rejected this version.' };
 
 function blockOf(plan: PlanSummary | undefined, status: ReleaseState | null): Blocked | null {
   if (plan?.blocked)
-    return { kind: 'other', reason: plan.blockedReason?.trim() || 'No reason was given.' };
-  return status === 'rejected' ? REJECTED_BLOCK : null;
+    return { kind: 'other', reason: plan.blockedReason?.trim() || t('app:board.noReason') };
+  return status === 'rejected'
+    ? { kind: 'rejection', reason: t('app:board.rejectedReason') }
+    : null;
 }
 
 /** Blocked first, then overdue, then due soon, then by name (iOS, macOS, Android), then id. */
@@ -465,10 +476,14 @@ export function attentionOf(plan: AttentionPlan): Attention | null {
   if (plan.due.overdue && due) reasons.push({ kind: 'overdue', text: due.text });
   const rollout = plan.rollout;
   if (rollout && rollout.kind === 'steps' && rollout.dueSteps > 0) {
-    const next = rollout.next ? ` Next: ${formatPercent(rollout.next.percent)}.` : '';
     reasons.push({
       kind: 'rollout_due',
-      text: `${rollout.dueSteps} rollout ${rollout.dueSteps === 1 ? 'step is' : 'steps are'} past the planned time.${next}`,
+      text: rollout.next
+        ? t('app:board.rolloutDueNext', {
+            count: rollout.dueSteps,
+            next: formatPercent(rollout.next.percent / 100, { maximumFractionDigits: 1 }),
+          })
+        : t('app:board.rolloutDue', { count: rollout.dueSteps }),
     });
   }
   if (plan.due.dueSoon && !plan.due.overdue && due)
@@ -508,10 +523,12 @@ export function attentionItems(plans: readonly AttentionPlan[]): Attention[] {
 export function attentionSummary(items: readonly Attention[]): string {
   const count = (kind: AttentionKind) => items.filter((i) => i.kind === kind).length;
   const counts: [number, string][] = [
-    [count('overdue'), 'overdue'],
-    [count('rollout_due'), 'with a rollout step due'],
-    [count('due_soon'), 'due soon'],
+    [count('overdue'), k('app:board.summary.overdue')],
+    [count('rollout_due'), k('app:board.summary.rolloutDue')],
+    [count('due_soon'), k('app:board.summary.dueSoon')],
   ];
-  const parts = counts.filter(([n]) => n > 0).map(([n, label]) => `${n} ${label}`);
-  return parts.length === 0 ? '' : `${parts.join(', ')}.`;
+  const parts = counts.filter(([n]) => n > 0).map(([n, key]) => t(key, { count: n }));
+  return parts.length === 0
+    ? ''
+    : t('app:board.summary.sentence', { parts: formatList(parts, { type: 'unit' }) });
 }

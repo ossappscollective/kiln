@@ -5,6 +5,7 @@
   Props: api, workspaceId, role, members (the records in scope).
 -->
 <script lang="ts">
+  import { t } from '../../../lib/i18n/t.ts';
   import type { Role } from '@kiln/core';
   import type { Api } from '../../../lib/api.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
@@ -21,12 +22,13 @@ import { supports } from '@kiln/core';
 
 {#if android.length > 0}
   <SettingsCard
-    title="Play reports bucket"
+    title={t('app:analytics.title')}
+    key="Play reports bucket"
     icon="trending-up"
-    description="Where installs and ratings are read from on Google Play; this app uses the workspace default until you set its own."
+    description={t('app:analytics.description')}
   >
     {#each android as app (app.id)}
-      <section class="stack tight" aria-label="{platformLabel(app.platform)} reports bucket">
+      <section class="stack tight" aria-label={t('app:analytics.bucketLabel', { platform: platformLabel(app.platform) })}>
         {#if members.length > 1}<PlatformBadge platform={app.platform} />{/if}
         <PlayBucketField {api} {workspaceId} {role} {app} heading={false} />
       </section>

@@ -5,6 +5,7 @@
   Props: api, workspaceId, role, members (the records in scope).
 -->
 <script lang="ts">
+  import { t } from '../../../lib/i18n/t.ts';
   import { can, type Role, STAGED_ROLLOUT_MODES, type StagedRolloutMode, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import { type Api, ApiError } from '../../../lib/api.ts';
@@ -73,7 +74,7 @@
     if (!android || !view || saving) return;
     const parsed = parseDefaultShare(share);
     if (!parsed.ok) {
-      shareError = 'Type a whole percent from 1 to 100, or leave it empty to be asked every time.';
+      shareError = t('app:releaseSettings.shareInvalid');
       return;
     }
     shareError = '';
@@ -82,53 +83,54 @@
     try {
       await api.updateAppReleaseSettings(workspaceId, android.id, { defaultSharePercent: parsed.value, stagedRollout: mode });
       await releaseSettingsStore.load(api, workspaceId, android.id);
-      toast.success('Saved. Nothing in Google Play was changed.');
+      toast.success(t('app:releaseSettings.saved'));
     } catch (e) {
       problem =
         e instanceof ApiError && e.status === 403
-          ? 'Your role does not allow changing the settings of this app.'
-          : 'Could not save the release settings. Nothing was changed.';
+          ? t('app:releaseSettings.forbidden')
+          : t('app:releaseSettings.saveFailed');
     } finally {
       saving = false;
     }
   }
 </script>
 
-{#snippet readOnlyNote()}Changing this needs a role that can edit apps.{/snippet}
+{#snippet readOnlyNote()}{t('app:releaseSettings.readOnly')}{/snippet}
 
 {#if android}
   <SettingsCard
-    title="Google Play releases"
+    title={t('app:settings.part.playReleases')}
+    key="Google Play releases"
     icon="rocket"
-    description="What a release to Google Play starts from; you still type and confirm the share of every release."
+    description={t('app:releaseSettings.description')}
   >
     {#if view === null}
-      <p class="muted note">Reading…</p>
+      <p class="muted note">{t('app:defaults.reading')}</p>
     {:else}
       <div class="stack">
         <div class="field">
-          <label for="{uid}-share">Default share for Google Play releases (%)</label>
+          <label for="{uid}-share">{t('app:releaseSettings.shareLabel')}</label>
           <input
             id="{uid}-share"
             type="text"
             inputmode="numeric"
             autocomplete="off"
-            placeholder="Empty: ask every time"
+            placeholder={t('app:releaseSettings.sharePlaceholder')}
             bind:value={share}
             disabled={!mayEdit || saving}
             aria-invalid={shareError !== '' ? 'true' : undefined}
           />
-          <p class="hint">1 to 100, put in each release as a start. A share you staged wins, and you still confirm it.</p>
+          <p class="hint">{t('app:releaseSettings.shareHint')}</p>
           {#if shareError}<p class="hint bad">{shareError}</p>{/if}
         </div>
         <div class="field">
-          <label for="{uid}-mode">Staged rollout on Google Play</label>
+          <label for="{uid}-mode">{t('app:releaseSettings.modeLabel')}</label>
           <select id="{uid}-mode" bind:value={mode} disabled={!mayEdit || saving}>
             {#each STAGED_ROLLOUT_MODES as m (m)}<option value={m}>{STAGED_ROLLOUT_LABEL[m]}</option>{/each}
           </select>
           <p class="hint">{stagedRolloutHint(view.earlierProductionRelease)}</p>
         </div>
-        {#if problem}<Alert tone="error" title="Not saved">{problem}</Alert>{/if}
+        {#if problem}<Alert tone="error" title={t('app:releaseSettings.notSaved')}>{problem}</Alert>{/if}
         <SaveBar {dirty} {saving} disabled={!mayEdit} onsave={save} ondiscard={discard} note={mayEdit ? undefined : readOnlyNote} />
       </div>
     {/if}

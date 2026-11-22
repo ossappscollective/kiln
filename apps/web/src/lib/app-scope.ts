@@ -7,6 +7,7 @@ import {
   platformLabel,
   sortPlatforms,
 } from '@kiln/core';
+import { k, t } from './i18n/t.ts';
 import type { IconName } from './icons.ts';
 
 /**
@@ -78,7 +79,8 @@ export const appSections: readonly AppSection[] = [
   'settings',
 ];
 
-export type SectionDef = { id: AppSection; label: string; icon: IconName; requires: Action };
+/** `labelKey` is a message key: draw it with `t(def.labelKey)`. */
+export type SectionDef = { id: AppSection; labelKey: string; icon: IconName; requires: Action };
 
 /**
  * Every page an app address can name, in order: the six of the left panel (lib/app-nav.ts), the ones reached from elsewhere
@@ -86,20 +88,20 @@ export type SectionDef = { id: AppSection; label: string; icon: IconName; requir
  * Listing and assets have their own right; the rest need the app.
  */
 export const appSectionDefs: readonly SectionDef[] = [
-  { id: 'dashboard', label: 'Overview', icon: 'grid', requires: 'apps.read' },
-  { id: 'pending', label: 'Pending changes', icon: 'upload', requires: 'listing.read' },
-  { id: 'listing', label: 'Store listing', icon: 'file-text', requires: 'listing.read' },
-  { id: 'releases', label: 'Releases', icon: 'rocket', requires: 'apps.read' },
-  { id: 'workflows', label: 'Workflows', icon: 'play', requires: 'apps.read' },
-  { id: 'assets', label: 'Assets', icon: 'images', requires: 'listing.read' },
-  { id: 'products', label: 'Products', icon: 'tag', requires: 'apps.read' },
-  { id: 'reviews', label: 'Reviews', icon: 'message', requires: 'reviews.read' },
-  { id: 'insights', label: 'Insights', icon: 'trending-up', requires: 'analytics.read' },
-  { id: 'aso', label: 'ASO', icon: 'trending-up', requires: 'aso.read' },
-  { id: 'analytics', label: 'Analytics', icon: 'activity', requires: 'analytics.read' },
-  { id: 'builds', label: 'Builds and CI', icon: 'pipeline', requires: 'apps.read' },
-  { id: 'test-builds', label: 'Test builds', icon: 'smartphone', requires: 'builds.read' },
-  { id: 'settings', label: 'Settings', icon: 'settings', requires: 'apps.read' },
+  { id: 'dashboard', labelKey: k('app:nav.overview'), icon: 'grid', requires: 'apps.read' },
+  { id: 'pending', labelKey: k('app:title.pending'), icon: 'upload', requires: 'listing.read' },
+  { id: 'listing', labelKey: k('app:nav.storeListing'), icon: 'file-text', requires: 'listing.read' },
+  { id: 'releases', labelKey: k('app:nav.releases'), icon: 'rocket', requires: 'apps.read' },
+  { id: 'workflows', labelKey: k('app:view.workflows'), icon: 'play', requires: 'apps.read' },
+  { id: 'assets', labelKey: k('app:section.assets'), icon: 'images', requires: 'listing.read' },
+  { id: 'products', labelKey: k('app:nav.products'), icon: 'tag', requires: 'apps.read' },
+  { id: 'reviews', labelKey: k('app:nav.reviews'), icon: 'message', requires: 'reviews.read' },
+  { id: 'insights', labelKey: k('app:nav.insights'), icon: 'trending-up', requires: 'analytics.read' },
+  { id: 'aso', labelKey: k('app:section.aso'), icon: 'trending-up', requires: 'aso.read' },
+  { id: 'analytics', labelKey: k('app:section.analytics'), icon: 'activity', requires: 'analytics.read' },
+  { id: 'builds', labelKey: k('app:section.buildsAndCi'), icon: 'pipeline', requires: 'apps.read' },
+  { id: 'test-builds', labelKey: k('app:view.testBuilds'), icon: 'smartphone', requires: 'builds.read' },
+  { id: 'settings', labelKey: k('app:rail.settings'), icon: 'settings', requires: 'apps.read' },
 ];
 
 /** The pages a person may open (the left panel shows six of them: `visibleNav` in lib/app-nav.ts). */
@@ -194,7 +196,8 @@ export type ResolvedScope = {
 };
 
 /** The label of the all-platforms choice: "Both" for two platforms, "All" for more. */
-export const allScopeLabel = (count: number): string => (count > 2 ? 'All' : 'Both');
+export const allScopeLabel = (count: number): string =>
+  count > 2 ? t('app:scope.all') : t('app:scope.both');
 
 /**
  * The scope to use: what the address asked for when the app can show it, else the all-platforms
@@ -221,8 +224,8 @@ export function resolveScope(
     reason: allowed(id)
       ? ''
       : id === 'both'
-        ? 'This app is on one store only'
-        : 'This app is not on that store',
+        ? t('app:scope.oneStoreOnly')
+        : t('app:scope.notOnStore'),
   });
   const hasMac = have.some(isDesktop);
   const shown: Platform[] = hasMac ? have : PLATFORMS.filter((p) => !isDesktop(p));

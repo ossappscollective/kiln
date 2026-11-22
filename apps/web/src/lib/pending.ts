@@ -8,6 +8,8 @@ import {
 } from '@kiln/core';
 import { ApiError } from './api.ts';
 import { type AppSection, appAddress, type PlatformScope } from './app-scope.ts';
+import { formatList, formatPercent } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import { releaseStepHref } from './release-stepper.ts';
 import type { DraftPreview } from './staged.ts';
 import type { ReleasePreview } from './store-release.ts';
@@ -228,58 +230,73 @@ export const KIND_ORDER: readonly PendingKind[] = [
   'in_review',
 ];
 
-export const KIND_LABEL: Readonly<Record<PendingKind, string>> = {
-  listing_text: 'Listing text',
-  asset_set: 'Screenshots and graphics',
-  release_field: 'Release (build, notes, release type)',
-  pushed_draft: 'Drafts pushed, not yet submitted',
-  draft_release: 'Draft releases, not released yet',
-  approved: 'Approved, waiting for release',
-  rollout_step: 'Rollout',
-  in_review: 'In review',
-};
+/**
+ * A table of message keys as an object whose values are read in the active language each time (the exported label tables below are
+ * used as `KIND_LABEL[kind]` by screens, so they must follow the language, not freeze it when the module loads).
+ */
+function translated<K extends string>(keys: Readonly<Record<K, string>>): Readonly<Record<K, string>> {
+  const out = {} as Record<K, string>;
+  for (const key of Object.keys(keys) as K[]) {
+    Object.defineProperty(out, key, { enumerable: true, get: () => t(keys[key]) });
+  }
+  return out;
+}
 
-export const STEP_NAME: Readonly<Record<PublishStepType, string>> = {
-  push_draft: 'Push the draft',
-  submit: 'Submit for review',
-  release: 'Release',
-  rollout: 'Change the rollout',
-};
+/** Whole sentences, one after the other (empty ones dropped). */
+const sentences = (...parts: readonly string[]): string => parts.filter((p) => p !== '').join(' ');
+
+export const KIND_LABEL: Readonly<Record<PendingKind, string>> = translated({
+  listing_text: k('app:pending.kind.listingText'),
+  asset_set: k('app:pending.kind.assetSet'),
+  release_field: k('app:pending.kind.releaseField'),
+  pushed_draft: k('app:pending.kind.pushedDraft'),
+  draft_release: k('app:pending.kind.draftRelease'),
+  approved: k('app:pending.kind.approved'),
+  rollout_step: k('app:pending.kind.rolloutStep'),
+  in_review: k('app:pending.kind.inReview'),
+});
+
+export const STEP_NAME: Readonly<Record<PublishStepType, string>> = translated({
+  push_draft: k('app:pending.step.pushDraft'),
+  submit: k('app:pending.step.submit'),
+  release: k('app:pending.step.release'),
+  rollout: k('app:pending.step.rollout'),
+});
 
 export type Tone = 'neutral' | 'ok' | 'warn' | 'bad' | 'info';
 
 export function stateBadge(state: PendingState): { label: string; tone: Tone } {
   switch (state) {
     case 'staged':
-      return { label: 'Staged', tone: 'info' };
+      return { label: t('app:pending.state.staged'), tone: 'info' };
     case 'invalid':
-      return { label: 'Has an error', tone: 'bad' };
+      return { label: t('app:pending.state.invalid'), tone: 'bad' };
     case 'pushed':
-      return { label: 'Pushed as a draft', tone: 'info' };
+      return { label: t('app:pending.state.pushed'), tone: 'info' };
     case 'in_review':
-      return { label: 'In review', tone: 'neutral' };
+      return { label: t('portfolio:status.inReview.label'), tone: 'neutral' };
     case 'approved':
-      return { label: 'Approved', tone: 'ok' };
+      return { label: t('portfolio:status.approved.label'), tone: 'ok' };
     default:
-      return { label: 'Due', tone: 'warn' };
+      return { label: t('app:pending.state.due'), tone: 'warn' };
   }
 }
 
 /** What happens to an item next, in a sentence. Nothing here says it happens by itself: every step is confirmed. */
 export function nextStepText(item: Pick<PendingItem, 'kind' | 'nextStep' | 'state'>): string {
-  if (item.nextStep === null) return 'Nothing to do here. The store is reviewing it.';
-  if (item.state === 'invalid') return 'Cannot be pushed until the error is fixed.';
+  if (item.nextStep === null) return t('app:pending.next.none');
+  if (item.state === 'invalid') return t('app:pending.next.invalid');
   switch (item.nextStep) {
     case 'push_draft':
-      return 'Next: push it to the store as a draft. A push does not submit anything.';
+      return t('app:pending.next.push');
     case 'submit':
-      return 'Next: submit the draft for the store review.';
+      return t('app:pending.next.submit');
     case 'release':
       return item.kind === 'draft_release'
-        ? 'Next: release the draft to users. You name the share of users and confirm it first.'
-        : 'Next: release the approved version to users.';
+        ? t('app:pending.next.releaseDraft')
+        : t('app:pending.next.releaseApproved');
     default:
-      return 'Next: make the rollout change that is due.';
+      return t('app:pending.next.rollout');
   }
 }
 
@@ -318,13 +335,13 @@ export function editHref(
   const at = (section: AppSection) => appAddress(appId, section, platform);
   switch (item.kind) {
     case 'listing_text':
-      return { href: at('listing'), label: 'Edit in the listing' };
+      return { href: at('listing'), label: t('app:pending.edit.listing') };
     case 'asset_set':
-      return { href: at('assets'), label: 'Edit the graphics' };
+      return { href: at('assets'), label: t('app:pending.edit.graphics') };
     case 'release_field':
-      return { href: releaseStepHref(appId, platform, 'build'), label: 'Edit the release' };
+      return { href: releaseStepHref(appId, platform, 'build'), label: t('app:pending.edit.release') };
     default:
-      return { href: at('releases'), label: 'Open the releases' };
+      return { href: at('releases'), label: t('app:pending.edit.releases') };
   }
 }
 
@@ -338,14 +355,14 @@ export function platformTotals(p: Pick<PendingPlatform, 'items'>): PendingTotals
 }
 
 /** The one line at the top of the view: what waits, what is blocked, what only waits for the store. */
-export function totalsLine(t: PendingTotals): string {
-  if (t.items === 0) return 'Nothing pending';
-  const waiting = t.items - t.actionable;
+export function totalsLine(totals: PendingTotals): string {
+  if (totals.items === 0) return t('app:pending.totals.nothing');
+  const waiting = totals.items - totals.actionable;
   const parts: string[] = [];
-  if (t.actionable > 0) parts.push(`${t.actionable} waiting for you`);
-  if (t.blocking > 0) parts.push(`${t.blocking} with ${t.blocking === 1 ? 'an error' : 'errors'}`);
-  if (waiting > 0) parts.push(`${waiting} waiting for the store`);
-  return parts.join(', ');
+  if (totals.actionable > 0) parts.push(t('app:pending.totals.forYou', { count: totals.actionable }));
+  if (totals.blocking > 0) parts.push(t('app:pending.totals.errors', { count: totals.blocking }));
+  if (waiting > 0) parts.push(t('app:pending.totals.forStore', { count: waiting }));
+  return formatList(parts, { type: 'unit' });
 }
 
 /** A platform of an app record that has something pending, with the id of the record (discard and edit act on that record). */
@@ -501,12 +518,12 @@ export type Chip = { text: string; tone: 'warn' | 'accent'; label: string };
 export function chipFor(line: PendingLine | null | undefined): Chip | null {
   if (!line || (line.count <= 0 && line.blocking <= 0)) return null;
   const n = line.count > 0 ? line.count : line.blocking;
-  const text = n > 99 ? '99+ pending' : `${n} pending`;
+  const text = t('app:pending.chip.text', { shown: n > 99 ? '99+' : String(n) });
   if (line.blocking > 0)
     return {
       text,
       tone: 'warn',
-      label: `${text}, ${line.blocking} with ${line.blocking === 1 ? 'an error' : 'errors'}`,
+      label: t('app:pending.chip.label', { text, count: line.blocking }),
     };
   return { text, tone: 'accent', label: text };
 }
@@ -524,8 +541,8 @@ export type PublishAvailability =
   | { state: 'nothing'; message: string }
   | { state: 'blocked'; message: string };
 
-export const PUBLISH_ROLE_REASON =
-  'Publishing everything at once needs the admin or owner role. You can still look at what is pending.';
+/** Why the role cannot publish everything at once, in the active language. */
+export const publishRoleReason = (): string => t('app:pending.avail.role');
 
 export const canPublishBatch = (role: Role): boolean => can(role, 'store.publish');
 
@@ -541,37 +558,36 @@ export function publishAvailability(input: {
   totals: PendingTotals | null;
   nextSteps: readonly PublishStepType[];
 }): PublishAvailability {
-  if (!canPublishBatch(input.role)) return { state: 'role', message: PUBLISH_ROLE_REASON };
+  if (!canPublishBatch(input.role)) return { state: 'role', message: publishRoleReason() };
   if (input.configFailed)
     return {
       state: 'unknown',
-      message:
-        'Could not find out whether publishing in one go is switched on. Reload the page to try again.',
+      message: t('app:pending.avail.unknown'),
     };
   const config = input.config;
   if (!config)
-    return { state: 'loading', message: 'Checking whether publishing in one go is switched on.' };
+    return { state: 'loading', message: t('app:pending.avail.loadingConfig') };
   if (!config.enabled) {
     return {
       state: 'off',
-      message: `Publishing several steps at once is switched off on this server. Someone who runs it sets ${config.envName || PUBLISH_ENV}=true and restarts it (see docs/api/pending.md). The single steps keep their own switches and still work meanwhile.`,
+      message: t('app:pending.avail.off', { env: config.envName || PUBLISH_ENV }),
     };
   }
-  if (input.totals === null) return { state: 'loading', message: 'Reading what is pending.' };
+  if (input.totals === null) return { state: 'loading', message: t('app:pending.avail.loadingTotals') };
   if (input.totals.actionable === 0)
-    return { state: 'nothing', message: 'Nothing is waiting to be published.' };
+    return { state: 'nothing', message: t('app:pending.avail.nothing') };
   const off = input.nextSteps.filter((s) => config.steps?.[s] && config.steps[s].enabled === false);
   if (input.nextSteps.length > 0 && off.length === input.nextSteps.length) {
     return {
       state: 'steps_off',
-      message: `The steps that what is pending waits for are switched off on this server (${off.map((s) => config.steps[s].envName).join(', ')}). Each step needs its own switch, even in a batch.`,
+      message: t('app:pending.avail.stepsOff', { names: off.map((s) => config.steps[s].envName).join(', ') }),
     };
   }
   if (input.totals.blocking > 0) {
     const n = input.totals.blocking;
     return {
       state: 'blocked',
-      message: `${n} ${n === 1 ? 'item has an error' : 'items have errors'}. Fix or remove ${n === 1 ? 'it' : 'them'} first.`,
+      message: t('app:pending.avail.blocked', { count: n }),
     };
   }
   return { state: 'ready' };
@@ -580,15 +596,15 @@ export function publishAvailability(input: {
 // ---------------------------------------------------------------------------------------------
 // The plan as the dialog shows it
 
-export const AVAILABILITY_WORD: Readonly<Record<Availability, string>> = {
-  available: 'Ready',
-  feature_disabled: 'Switched off',
-  forbidden: 'Not allowed',
-  nothing_to_do: 'Nothing to do',
-  blocked: 'Blocked',
-  needs_input: 'Needs details',
-  not_requested: 'Not included',
-};
+export const AVAILABILITY_WORD: Readonly<Record<Availability, string>> = translated({
+  available: k('app:pending.word.available'),
+  feature_disabled: k('app:pending.word.featureDisabled'),
+  forbidden: k('app:pending.word.forbidden'),
+  nothing_to_do: k('app:pending.word.nothingToDo'),
+  blocked: k('app:pending.word.blocked'),
+  needs_input: k('app:pending.word.needsInput'),
+  not_requested: k('app:pending.word.notRequested'),
+});
 
 export function availabilityTone(a: Availability): Tone {
   switch (a) {
@@ -624,8 +640,6 @@ export type StepRow = {
   idle: boolean;
 };
 
-export const SINGLE_STEP_HINT = 'Use the single step under "Do just one step (advanced)".';
-
 /** The row of one step of the plan, from the plan alone. The rollout always names a change, so it stays a single step. */
 export function stepRow(step: PlanStep, platform: Platform): StepRow {
   const needsInput =
@@ -637,19 +651,19 @@ export function stepRow(step: PlanStep, platform: Platform): StepRow {
   if (step.type === 'rollout') {
     toggleable = false;
     if (step.availability !== 'nothing_to_do')
-      reason = `A rollout change names the release and the share. ${SINGLE_STEP_HINT}`;
+      reason = t('app:pending.row.rolloutSingle');
   } else if (step.availability === 'needs_input') {
     // A Google Play release is ticked after the dialog asked for the track and the share; any other step that needs details stays single.
     toggleable = needsInput;
-    if (!needsInput) reason = `This step needs details. ${SINGLE_STEP_HINT}`;
+    if (!needsInput) reason = t('app:pending.row.needsDetails');
   } else if (step.availability === 'feature_disabled') {
-    reason = `Switched off on this server (${step.requires.envName}). Each step needs its own switch, even in a batch.`;
+    reason = t('app:pending.row.switchedOff', { env: step.requires.envName });
   } else if (step.availability === 'forbidden') {
-    reason = `Your role, or this token, does not allow ${step.requires.action}.`;
+    reason = t('app:pending.row.forbidden', { action: step.requires.action });
   } else if (step.availability === 'available') {
     reason = null;
   } else if (step.availability === 'not_requested') {
-    reason = 'Not part of this publish. Tick it to include it.';
+    reason = t('app:pending.row.notRequested');
   }
   return {
     type: step.type,
@@ -847,6 +861,8 @@ export const asRolloutPreview = (v: unknown): RolloutPreview | null =>
 
 /** What a step is about to do, in numbers and names only ("3 text changes, 1 graphics set"); empty when the plan carries none. */
 export function summaryParts(step: Pick<PlanStep, 'type' | 'summary'>): string[] {
+  // `t` is the name of a count below; the message function is `translate` here.
+  const translate = t;
   const s = step.summary ?? {};
   const num = (key: string): number | null =>
     typeof s[key] === 'number' ? (s[key] as number) : null;
@@ -857,31 +873,37 @@ export function summaryParts(step: Pick<PlanStep, 'type' | 'summary'>): string[]
     const t = num('textChanged');
     const a = num('assetSetsChanged');
     const f = num('fieldsChanged');
-    if (t !== null) parts.push(`${t} text ${t === 1 ? 'change' : 'changes'}`);
-    if (a !== null) parts.push(`${a} graphics ${a === 1 ? 'set' : 'sets'}`);
-    if (f !== null && f > 0) parts.push(`${f} release ${f === 1 ? 'field' : 'fields'}`);
+    if (t !== null) parts.push(translate('app:pending.summary.textChanges', { count: t }));
+    if (a !== null) parts.push(translate('app:pending.summary.graphicsSets', { count: a }));
+    if (f !== null && f > 0)
+      parts.push(translate('app:pending.summary.releaseFields', { count: f }));
   } else if (step.type === 'submit') {
     const v = str('versionString');
     const t = num('texts');
     const a = num('assetSets');
-    if (v) parts.push(`version ${v}`);
-    if (t !== null) parts.push(`${t} ${t === 1 ? 'text' : 'texts'}`);
-    if (a !== null) parts.push(`${a} graphics ${a === 1 ? 'set' : 'sets'}`);
+    if (v) parts.push(translate('app:pending.summary.version', { version: v }));
+    if (t !== null) parts.push(translate('app:pending.summary.texts', { count: t }));
+    if (a !== null) parts.push(translate('app:pending.summary.graphicsSets', { count: a }));
   } else if (step.type === 'release') {
     const v = str('version');
     const track = str('track');
     const share = num('userFraction');
     const audience = str('audience');
-    if (v) parts.push(`version ${v}`);
-    if (track) parts.push(`track ${track}`);
-    if (share !== null) parts.push(`${Math.round(share * 10000) / 100}% of users`);
+    if (v) parts.push(translate('app:pending.summary.version', { version: v }));
+    if (track) parts.push(translate('app:pending.summary.track', { track }));
+    if (share !== null)
+      parts.push(
+        translate('app:pending.summary.share', {
+          share: formatPercent(share, { maximumFractionDigits: 2 }),
+        }),
+      );
     if (audience)
       parts.push(
         audience === 'all'
-          ? 'all users'
+          ? translate('app:pending.summary.allUsers')
           : audience === 'phased'
-            ? 'a phased release'
-            : 'a share of users',
+            ? translate('app:pending.summary.phased')
+            : translate('app:pending.summary.someUsers'),
       );
   }
   return parts;
@@ -891,60 +913,63 @@ export function summaryParts(step: Pick<PlanStep, 'type' | 'summary'>): string[]
 export function promiseText(step: Pick<PlanStep, 'type' | 'summary'>): string {
   const parts = summaryParts(step);
   return parts.length === 0
-    ? 'The details are checked again when this step runs.'
-    : `Promised: ${parts.join(', ')}.`;
+    ? t('app:pending.promise.none')
+    : t('app:pending.promise.parts', { parts: formatList(parts, { type: 'unit' }) });
 }
 
 // ---------------------------------------------------------------------------------------------
 // The result of a publish, in fixed words
 
+/** The note under a stopped publish, in the active language. */
+export const stopNote = (): string => t('app:pending.stopNote');
+
+/** @deprecated English only, read once. Use `stopNote()`, which follows the language. */
 export const STOP_NOTE =
   'The steps run in order and stop at the first one that is not done. The steps after it were not run, and nothing is retried automatically.';
 
 const FAILED_TEXT: Readonly<Record<string, string>> = {
-  state_changed:
-    'Nothing was written: the store or the staged changes changed after the preview. Review again.',
-  blocked: 'Nothing was written: a check blocks this step now. Review again.',
-  outcome_unknown:
-    'It is not known whether this reached the store. Look at the app in the store console, then review again.',
-  write_in_progress:
-    'Another write for this app was running, so nothing was written. Wait for it, then review again.',
-  draft_partial:
-    'Only part of it reached the draft. What was written stays there. Review again to finish: items that already match are skipped.',
-  changes_in_review: 'The store refuses this while changes are in review. Nothing was sent.',
-  confirmation_mismatch: 'The confirmation did not match. Nothing was written.',
-  rate_limited:
-    'The store asked for a pause. Nothing was retried. Wait a moment, then review again.',
-  store_unavailable: 'The store could not be reached. Review again to check where things stand.',
-  timeout: 'The store did not answer in time. Review again to check where things stand.',
-  write_failed: 'The store did not accept the write.',
-  store_auth: 'The store did not accept the credential. Check it in Credentials.',
-  store_forbidden: 'The store credential is not allowed to do this. Check its role in the store.',
-  store_not_found:
-    'The store could not find what this step acts on. Sync the app and review again.',
-  store_rejected: 'The store rejected this step.',
-  step_error: 'The step stopped unexpectedly. Look at the app in the store, then review again.',
-  asset_changed: 'A staged file changed. Stage it again, then review.',
-  asset_unreadable: 'A staged file cannot be read. Stage it again, then review.',
-  staged_invalid: 'A staged item has an error. Fix it, then review.',
-  nothing_staged: 'Nothing is staged any more.',
-  nothing_pushed: 'No pushed draft is waiting to be submitted.',
-  no_editable_version:
-    'The store has no version that can be edited. Create one in the store console.',
+  state_changed: k('app:pending.failed.stateChanged'),
+  blocked: k('app:pending.failed.blocked'),
+  outcome_unknown: k('app:pending.failed.outcomeUnknown'),
+  write_in_progress: k('app:pending.failed.writeInProgress'),
+  draft_partial: k('app:pending.failed.draftPartial'),
+  changes_in_review: k('app:pending.failed.changesInReview'),
+  confirmation_mismatch: k('app:pending.failed.confirmationMismatch'),
+  rate_limited: k('app:pending.failed.rateLimited'),
+  store_unavailable: k('app:pending.failed.storeUnavailable'),
+  timeout: k('app:pending.failed.timeout'),
+  write_failed: k('app:pending.failed.writeFailed'),
+  store_auth: k('app:pending.failed.storeAuth'),
+  store_forbidden: k('app:pending.failed.storeForbidden'),
+  store_not_found: k('app:pending.failed.storeNotFound'),
+  store_rejected: k('app:pending.failed.storeRejected'),
+  step_error: k('app:pending.failed.stepError'),
+  asset_changed: k('app:pending.failed.assetChanged'),
+  asset_unreadable: k('app:pending.failed.assetUnreadable'),
+  staged_invalid: k('app:pending.failed.stagedInvalid'),
+  nothing_staged: k('app:pending.failed.nothingStaged'),
+  nothing_pushed: k('app:pending.failed.nothingPushed'),
+  no_editable_version: k('app:pending.failed.noEditableVersion'),
 };
 
 const OUTCOME_TEXT: Readonly<Record<string, string>> = {
-  refused: 'Nothing was changed.',
-  not_applied: 'Nothing was changed (read back from the store).',
-  unknown: 'The outcome is not known.',
-  partial: 'Part of it was applied.',
+  refused: k('app:pending.outcome.refused'),
+  not_applied: k('app:pending.outcome.notApplied'),
+  unknown: k('app:pending.outcome.unknown'),
+  partial: k('app:pending.outcome.partial'),
 };
 
 const SKIPPED_TEXT: Readonly<Record<string, string>> = {
-  previous_step_not_applied: 'Not run, because an earlier step did not finish.',
-  plan_drifted: 'Not run: it no longer matched what you reviewed. Review again.',
-  blocked: 'Not run: something now stands in the way of this step. Review again.',
-  preview_failed: 'Not run: the store could not be read for this step. Review again.',
+  previous_step_not_applied: k('app:pending.skipped.previousStepNotApplied'),
+  plan_drifted: k('app:pending.skipped.planDrifted'),
+  blocked: k('app:pending.skipped.blocked'),
+  preview_failed: k('app:pending.skipped.previewFailed'),
+};
+
+/** The text of a code in one of the tables above, or the fallback; '' when there is no code. */
+const said = (table: Readonly<Record<string, string>>, code: string | undefined, fallback = ''): string => {
+  const key = code === undefined ? undefined : table[code];
+  return key === undefined ? fallback : t(key);
 };
 
 export type ResultRow = {
@@ -976,7 +1001,7 @@ export function storeSaid(step: { error: string; message?: string | undefined })
     .trim();
   if (raw === '' || raw === step.error) return '';
   const cut = raw.length > 1200 ? `${raw.slice(0, 1197)}...` : raw;
-  return `The store said: ${cut}`;
+  return t('app:pending.result.storeSaid', { said: cut });
 }
 
 /** The share (a fraction) the plan's release step asks for, or null when there is no release step or it has none. */
@@ -992,9 +1017,9 @@ export function resultRow(step: StepResult, askedFraction: number | null = null)
       type: step.type,
       label,
       status: 'applied',
-      word: 'Done',
+      word: t('app:pending.result.done'),
       tone: 'ok',
-      text: step.confirmedByReread ? 'Done, confirmed by reading the store back.' : 'Done.',
+      text: step.confirmedByReread ? t('app:pending.result.doneConfirmed') : t('app:pending.result.doneText'),
       review: false,
     };
   }
@@ -1003,9 +1028,9 @@ export function resultRow(step: StepResult, askedFraction: number | null = null)
       type: step.type,
       label,
       status: 'skipped',
-      word: 'Not run',
+      word: t('app:pending.result.notRun'),
       tone: 'neutral',
-      text: SKIPPED_TEXT[step.reason] ?? 'Not run.',
+      text: said(SKIPPED_TEXT, step.reason, t('app:pending.skipped.default')),
       review: step.reason !== 'previous_step_not_applied',
     };
   }
@@ -1017,21 +1042,22 @@ export function resultRow(step: StepResult, askedFraction: number | null = null)
         type: step.type,
         label,
         status: 'failed',
-        word: 'Failed',
+        word: t('app:pending.result.failed'),
         tone: 'bad',
-        text: `${notice} ${OUTCOME_TEXT[step.outcome] ?? ''}`.trim(),
+        text: sentences(notice, said(OUTCOME_TEXT, step.outcome)),
         review: true,
       };
   }
-  const known = FAILED_TEXT[step.error];
-  const said = storeSaid(step);
-  const text =
-    `${known ?? `The step did not finish (${safeCode(step.error)}).`}${said === '' ? '' : ` ${said}`} ${OUTCOME_TEXT[step.outcome] ?? ''}`.trim();
+  const text = sentences(
+    said(FAILED_TEXT, step.error, t('app:pending.failed.unknownCode', { code: safeCode(step.error) })),
+    storeSaid(step),
+    said(OUTCOME_TEXT, step.outcome),
+  );
   return {
     type: step.type,
     label,
     status: 'failed',
-    word: 'Failed',
+    word: t('app:pending.result.failed'),
     tone: 'bad',
     text,
     review: true,
@@ -1057,8 +1083,8 @@ export function resultSummary(
   if (result.completed) {
     return {
       tone: 'ok',
-      title: 'Everything in the plan was done',
-      text: `${result.applied} ${result.applied === 1 ? 'step' : 'steps'} done.`,
+      title: t('app:pending.result.allDone'),
+      text: t('app:pending.result.stepsDone', { count: result.applied }),
       rows,
       review: false,
       stoppedAt: null,
@@ -1066,8 +1092,14 @@ export function resultSummary(
   }
   return {
     tone: result.failed > 0 ? 'error' : 'warn',
-    title: stoppedAt ? `Stopped at: ${stoppedAt}` : 'Not everything was done',
-    text: `${result.applied} done, ${result.failed} failed, ${result.skipped} not run.`,
+    title: stoppedAt
+      ? t('app:pending.result.stoppedAt', { step: stoppedAt })
+      : t('app:pending.result.notAll'),
+    text: t('app:pending.result.counts', {
+      applied: result.applied,
+      failed: result.failed,
+      skipped: result.skipped,
+    }),
     rows,
     review: rows.some((r) => r.review),
     stoppedAt,
@@ -1097,58 +1129,54 @@ export function classifyPublishFailure(
   if (!(error instanceof ApiError))
     return {
       kind: 'other',
-      message: 'The request failed. Check your connection, then review again.',
+      message: t('app:pending.fail.network'),
     };
   switch (error.code) {
     case 'publish_batch_disabled':
       return {
         kind: 'disabled',
-        message: `Publishing several steps at once is switched off on this server. Someone who runs it sets ${config?.envName || PUBLISH_ENV}=true and restarts it. Nothing was done.`,
+        message: t('app:pending.fail.disabled', { env: config?.envName || PUBLISH_ENV }),
       };
     case 'step_disabled':
       return {
         kind: 'step_disabled',
-        message:
-          'A step in this plan is switched off on this server. Each step needs its own switch. Nothing was done. Review again.',
+        message: t('app:pending.fail.stepDisabled'),
       };
     case 'forbidden':
       return {
         kind: 'forbidden',
-        message:
-          'Your role, or this token, does not allow every step in this plan. Nothing was done.',
+        message: t('app:pending.fail.forbidden'),
       };
     case 'confirmation_mismatch':
       return {
         kind: 'mismatch',
-        message: 'The text you typed does not match. Nothing was published.',
+        message: t('app:pending.fail.mismatch'),
       };
     case 'publish_in_progress':
       return {
         kind: 'in_progress',
-        message:
-          'Another publish for this app is running. Nothing was started. Wait for it to finish, then review again.',
+        message: t('app:pending.fail.inProgress'),
       };
     case 'plan_changed':
     case 'plan_blocked':
       return {
         kind: 'plan_changed',
-        message:
-          'The staged changes or the store changed since you reviewed the plan, so nothing was published. Review the new plan.',
+        message: t('app:pending.fail.planChanged'),
       };
     case 'invalid_steps':
     case 'invalid_request':
-      return { kind: 'invalid', message: 'Those steps cannot be combined. Nothing was done.' };
+      return { kind: 'invalid', message: t('app:pending.fail.invalid') };
     case 'not_found':
-      return { kind: 'not_found', message: 'That app is not here any more. Reload the page.' };
+      return { kind: 'not_found', message: t('app:pending.fail.notFound') };
     default:
       return {
         kind: 'other',
         message:
           error.status === 429
-            ? 'Too many requests. Wait a moment, then review again.'
+            ? t('app:pending.fail.tooMany')
             : error.status >= 500 || error.status === 0
-              ? 'The server had a problem. Nothing was retried. Review again to see where things stand.'
-              : `The request was refused (${error.status}). Nothing was done.`,
+              ? t('app:pending.fail.server')
+              : t('app:pending.fail.refused', { status: error.status }),
       };
   }
 }

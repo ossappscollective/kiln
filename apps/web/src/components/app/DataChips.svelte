@@ -5,6 +5,7 @@
   Props: chips (from dataChips).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import type { DataChip } from '../../lib/app-chips.ts';
   import Badge from '../ui/Badge.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
@@ -15,7 +16,7 @@
   const stand = $derived(chips.filter((c) => c.placeholder));
 </script>
 
-<ul class="chips" aria-label="Where the data lives">
+<ul class="chips" aria-label={t('app:chips.where')}>
   {#each shown as c (c.id)}
     <li title={c.title}>
       <span class="label">{c.label}</span>
@@ -24,7 +25,7 @@
   {/each}
   {#if stand.length > 0}
     <li>
-      <InfoTip label="More about where the data lives" align="start" width="18rem">
+      <InfoTip label={t('app:chips.whereMore')} align="start" width="18rem">
         {#each stand as c (c.id)}
           <p><strong>{c.label}:</strong> {c.value}. {c.title}</p>
         {/each}

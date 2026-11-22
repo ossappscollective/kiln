@@ -1,9 +1,15 @@
 import { platformLabel, type ReleaseState } from '@kiln/core';
 import type { AppGroup } from './app-groups.ts';
+import { t } from './i18n/t.ts';
 import { appAddress } from './app-scope.ts';
 import { chipFor, lineFor, type PendingLine, type PendingSummary } from './pending.ts';
 import { latestRelease, type ReleaseLoad } from './portfolio.ts';
-import { type PipelineSummaryApp, unfinishedHeading, unfinishedItem } from './release-pipeline.ts';
+import {
+  type PipelineSummaryApp,
+  type SummaryStall,
+  unfinishedHeading,
+  unfinishedItem,
+} from './release-pipeline.ts';
 import type { SummaryApp } from './reviews/reviews.ts';
 import type { AppSummary, ReleaseSummary } from './types.ts';
 
@@ -213,6 +219,10 @@ export type RowStatus = {
  * so it is the pill only when there is no release status to show.
  */
 export function rowStatus(row: OverviewRow, loading: boolean): RowStatus {
+  const headingOne = (stalled: SummaryStall | null, platform: string | null): string => {
+    const heading = stalled ? unfinishedHeading(stalled.step) : unfinishedHeading('draft');
+    return platform === null ? heading : t('app:overview.unfinishedOnPlatform', { heading, platform });
+  };
   let primary: RowStatus['primary'];
   if (row.attention) primary = { kind: 'release', release: row.attention };
   else if (row.syncFailed) primary = { kind: 'sync-failed' };
@@ -221,8 +231,8 @@ export function rowStatus(row: OverviewRow, loading: boolean): RowStatus {
     primary = {
       kind: 'none',
       text: row.group.members.every((m) => m.lastSyncedAt === null)
-        ? 'Not synced yet'
-        : 'No releases',
+        ? t('app:overview.notSynced')
+        : t('app:overview.noReleases'),
     };
 
   const several = row.group.members.length > 1;
@@ -240,10 +250,10 @@ export function rowStatus(row: OverviewRow, loading: boolean): RowStatus {
     .filter((x) => x.item !== null);
   let unfinished: RowStatus['unfinished'] = null;
   const first = items[0];
+  // A stall of a release (not of a build or a CI run) reads with the default heading, whatever the language.
+  const releaseHeading = unfinishedHeading('draft');
   const allReleases = items.every(
-    (x) =>
-      x.left.stalled === null ||
-      unfinishedHeading(x.left.stalled.step) === 'Release left unfinished',
+    (x) => x.left.stalled === null || unfinishedHeading(x.left.stalled.step) === releaseHeading,
   );
   if (first) {
     const who = (platform: Parameters<typeof platformLabel>[0]) => platformLabel(platform);
@@ -251,19 +261,24 @@ export function rowStatus(row: OverviewRow, loading: boolean): RowStatus {
       items.length === 1
         ? {
             count: 1,
-            text: `${first.left.stalled ? unfinishedHeading(first.left.stalled.step) : 'Release left unfinished'}${several ? `: ${who(first.left.app.platform)}` : ''}`,
-            action: first.item?.action ?? 'Finish the release',
+            text: headingOne(first.left.stalled, several ? who(first.left.app.platform) : null),
+            action: first.item?.action ?? t('app:overview.finishRelease'),
             title: first.item?.detail ?? '',
             href: first.item?.href ?? null,
           }
         : {
             count: items.length,
             text: allReleases
-              ? `${items.length} releases left unfinished`
-              : `${items.length} things left unfinished`,
-            action: allReleases ? 'Finish the releases' : 'See what is left',
+              ? t('app:overview.releasesLeft', { count: items.length })
+              : t('app:overview.thingsLeft', { count: items.length }),
+            action: allReleases ? t('app:overview.finishReleases') : t('app:overview.seeWhatIsLeft'),
             title: items
-              .map((x) => `${who(x.left.app.platform)}: ${x.item?.detail ?? ''}`)
+              .map((x) =>
+                t('app:overview.platformDetail', {
+                  platform: who(x.left.app.platform),
+                  detail: x.item?.detail ?? '',
+                }),
+              )
               .join('\n'),
             href: first.item?.href ?? null,
           };
@@ -294,18 +309,18 @@ export function rowNextAction(row: OverviewRow, status: RowStatus): RowNextActio
   const release = status.primary.kind === 'release' ? status.primary.release : null;
   if (release?.status === 'rejected')
     return {
-      label: 'Fix the rejection',
+      label: t('app:overview.fixRejection'),
       href: appAddress(key, 'releases', release.platform, release.version),
       tone: 'bad',
     };
   if (release?.status === 'halted')
     return {
-      label: 'Review the halted rollout',
+      label: t('app:overview.reviewHalted'),
       href: appAddress(key, 'releases', release.platform, release.version),
       tone: 'bad',
     };
   if (status.primary.kind === 'sync-failed')
-    return { label: 'Check the sync error', href: appAddress(key), tone: 'bad' };
+    return { label: t('app:overview.checkSyncError'), href: appAddress(key), tone: 'bad' };
   if (status.unfinished)
     return {
       label: status.unfinished.action,
@@ -315,20 +330,20 @@ export function rowNextAction(row: OverviewRow, status: RowStatus): RowNextActio
     };
   if (release?.status === 'approved')
     return {
-      label: 'Release it',
+      label: t('app:overview.releaseIt'),
       href: appAddress(key, 'releases', release.platform, release.version),
       tone: 'accent',
     };
   const chip = chipFor(status.pending);
   if (chip)
     return {
-      label: `Review ${chip.text}`,
+      label: t('app:overview.reviewPending', { pending: chip.text }),
       href: appAddress(key, 'pending'),
       tone: chip.tone === 'warn' ? 'warn' : 'accent',
     };
   if (row.newReviews !== null && row.newReviews > 0)
     return {
-      label: `Read ${row.newReviews} new ${row.newReviews === 1 ? 'review' : 'reviews'}`,
+      label: t('app:overview.readNew', { count: row.newReviews }),
       href: appAddress(key, 'reviews'),
       tone: 'accent',
     };

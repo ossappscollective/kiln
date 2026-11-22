@@ -7,6 +7,8 @@ import {
   supports,
 } from '@kiln/core';
 import { parseViewPath } from './app-scope.ts';
+import { formatList } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import { compareReleases, compareVersions } from './portfolio.ts';
 import type { ReleaseSummary } from './types.ts';
 
@@ -72,27 +74,32 @@ export function versionState(status: ReleaseState | null, platform: Platform): V
     case 'draft':
     case 'build_chosen':
       return {
-        label: byFamily(platform, { apple: 'Prepare for submission', google: 'Draft' }),
+        label: t(
+          byFamily(platform, {
+            apple: k('app:version.prepare'),
+            google: k('portfolio:status.draft.label'),
+          }),
+        ),
         tone: 'neutral',
       };
     case 'ready':
-      return { label: 'Ready to submit', tone: 'info' };
+      return { label: t('app:version.readyToSubmit'), tone: 'info' };
     case 'in_review':
-      return { label: 'In review', tone: 'info' };
+      return { label: t('portfolio:status.inReview.label'), tone: 'info' };
     case 'rejected':
-      return { label: 'Rejected', tone: 'bad' };
+      return { label: t('portfolio:status.rejected.label'), tone: 'bad' };
     case 'approved':
-      return { label: 'Approved', tone: 'accent' };
+      return { label: t('portfolio:status.approved.label'), tone: 'accent' };
     case 'propagating':
-      return { label: 'Propagating', tone: 'info' };
+      return { label: t('portfolio:status.propagating.label'), tone: 'info' };
     case 'rolling_out':
-      return { label: 'Rolling out', tone: 'info' };
+      return { label: t('portfolio:status.rollingOut.label'), tone: 'info' };
     case 'live':
-      return { label: 'Live', tone: 'ok' };
+      return { label: t('portfolio:status.live.label'), tone: 'ok' };
     case 'halted':
-      return { label: 'Halted', tone: 'warn' };
+      return { label: t('portfolio:status.halted.label'), tone: 'warn' };
     default:
-      return { label: 'Unknown state', tone: 'neutral' };
+      return { label: t('app:version.unknown'), tone: 'neutral' };
   }
 }
 
@@ -170,7 +177,12 @@ export function buildVersionOptions(
       state: versionState(lead.status, lead.platform),
       detail: differ
         ? chosen
-            .map((r, i) => `${platformLabel(r.platform)} ${(states[i] as VersionState).label}`)
+            .map((r, i) =>
+              t('app:version.onPlatform', {
+                platform: platformLabel(r.platform),
+                state: (states[i] as VersionState).label,
+              }),
+            )
             .join(' · ')
         : '',
       platforms: mine,
@@ -205,16 +217,33 @@ export const isLockedState = (status: ReleaseState | null, platform: Platform): 
   !supports(platform, 'transactionalEdits') &&
   (RELEASED.includes(status) || APPLE_FROZEN.includes(status));
 
-const lockWord = (status: ReleaseState): string =>
+type LockWords = { is: string; version: string };
+const LOCK_LIVE: LockWords = { is: k('app:lock.is.live'), version: k('app:lock.version.live') };
+const LOCK_IN_REVIEW: LockWords = {
+  is: k('app:lock.is.inReview'),
+  version: k('app:lock.version.inReview'),
+};
+const LOCK_APPROVED: LockWords = {
+  is: k('app:lock.is.approved'),
+  version: k('app:lock.version.approved'),
+};
+const LOCK_HALTED: LockWords = { is: k('app:lock.is.halted'), version: k('app:lock.version.halted') };
+const LOCK_ROLLING_OUT: LockWords = {
+  is: k('app:lock.is.rollingOut'),
+  version: k('app:lock.version.rollingOut'),
+};
+
+/** The messages that say a locked state ("is live", "This version is live"): one object per state, so equal states compare equal. */
+const lockWord = (status: ReleaseState): LockWords =>
   status === 'live'
-    ? 'live'
+    ? LOCK_LIVE
     : status === 'in_review'
-      ? 'in review'
+      ? LOCK_IN_REVIEW
       : status === 'approved'
-        ? 'approved'
+        ? LOCK_APPROVED
         : status === 'halted'
-          ? 'halted'
-          : 'rolling out';
+          ? LOCK_HALTED
+          : LOCK_ROLLING_OUT;
 
 export type LockInfo = {
   /** Platforms whose release of the version is locked. */
@@ -256,23 +285,24 @@ export function lockInfo(
   const editable = rows.filter((r) => !r.locked).map((r) => r.platform);
   if (locked.length === 0) return { locked: [], editable, all: false, text: '' };
   const words = [...new Set(locked.map((r) => lockWord(r.status as ReleaseState)))];
-  const names = (list: readonly Platform[]) => list.map(platformLabel).join(' and ');
+  const names = (list: readonly Platform[]) => formatList(list.map(platformLabel));
   // "iOS and macOS are live, Android is rolling out": platforms in the same state are named together.
-  const said = words
-    .map((word) => {
+  const said = formatList(
+    words.map((word) => {
       const group = locked
         .filter((r) => lockWord(r.status as ReleaseState) === word)
         .map((r) => r.platform);
-      return `${names(group)} ${group.length > 1 ? 'are' : 'is'} ${word}`;
-    })
-    .join(', ');
+      return t(word.is, { count: group.length, names: names(group) });
+    }),
+    { type: 'unit' },
+  );
   let text: string;
   if (editable.length === 0 && words.length === 1) {
-    text = `This version is ${words[0]} — metadata is locked`;
+    text = t((words[0] as LockWords).version);
   } else if (editable.length === 0) {
-    text = `Metadata is locked — ${said}`;
+    text = t('app:lock.allLocked', { said });
   } else {
-    text = `${said} — ${names(locked.map((r) => r.platform))} metadata is locked`;
+    text = t('app:lock.someLocked', { said, names: names(locked.map((r) => r.platform)) });
   }
   return { locked: locked.map((r) => r.platform), editable, all: editable.length === 0, text };
 }

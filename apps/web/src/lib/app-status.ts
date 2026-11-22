@@ -1,4 +1,5 @@
 import type { Platform } from '@kiln/core';
+import { t } from './i18n/t.ts';
 import { type BadgeTone, latestRelease, platformRank, statusInfo } from './portfolio.ts';
 import type { ReleaseSummary } from './types.ts';
 
@@ -33,15 +34,16 @@ export function platformStatusLines(
       if (list === undefined) {
         return {
           platform: m.platform,
-          label: 'Reading',
+          label: t('app:status.reading'),
           version: null,
           tone: 'neutral',
-          text: 'Reading the releases',
+          text: t('app:status.readingText'),
         };
       }
       const latest = latestRelease(list, m.platform);
       if (latest === null) {
-        const label = m.lastSyncedAt === null ? 'Not synced yet' : 'No release yet';
+        const label =
+          m.lastSyncedAt === null ? t('app:status.notSynced') : t('app:status.noRelease');
         return { platform: m.platform, label, version: null, tone: 'neutral', text: label };
       }
       const info = statusInfo(latest.status, latest.rawState);
@@ -50,7 +52,7 @@ export function platformStatusLines(
         label: info.label,
         version: latest.version,
         tone: info.tone,
-        text: `${info.label}, version ${latest.version}`,
+        text: t('app:status.line', { label: info.label, version: latest.version }),
       };
     });
 }

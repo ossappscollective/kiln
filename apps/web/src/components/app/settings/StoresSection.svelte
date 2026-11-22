@@ -8,15 +8,15 @@
   when not given), now.
 -->
 <script lang="ts">
-  import { can, platformMeta, type Role } from '@kiln/core';
+  import { t } from '../../../lib/i18n/t.ts';
+  import { can, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../../lib/api.ts';
   import { credentialFacts, links, notAvailable } from '../../../lib/app-settings.ts';
   import { appAddress } from '../../../lib/app-scope.ts';
   import { testErrorMessage } from '../../../lib/credentials.ts';
   import { fullTime, timeAgo } from '../../../lib/format.ts';
-  import { countOf } from '../../../lib/section-state.ts';
-  import { platformLabel, storeName, syncInfo } from '../../../lib/portfolio.ts';
+    import { identifierLabel, platformLabel, storeName, syncInfo } from '../../../lib/portfolio.ts';
   import type { AppSummary, CredentialSummary } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';
   import Badge from '../../ui/Badge.svelte';
@@ -58,7 +58,7 @@
         if (current) list = r.credentials;
       })
       .catch(() => {
-        if (current) loadProblem = 'Could not read the credentials. Reload the page to try again.';
+        if (current) loadProblem = t('app:stores.loadFailed');
       });
     return () => {
       current = false;
@@ -82,11 +82,12 @@
 </script>
 
 <SettingsCard
-  title="Stores and credentials"
+  title={t('app:settings.part.stores')}
+  key="Stores and credentials"
   icon="key"
-  description="Which store each record of this app is in and the credential it reads it with. Secrets are never shown."
+  description={t('app:stores.description')}
   unavailable={notAvailable.changeCredential}
-  summary={countOf(records.length, 'store record')}
+  summary={t('app:stores.count', { count: records.length })}
 >
   {#if loadProblem}<Alert tone="warn">{loadProblem}</Alert>{/if}
   <div class="stack">
@@ -100,17 +101,17 @@
         </div>
         <dl class="facts">
           <div>
-            <dt>{platformMeta(app.platform).identifierLabel}</dt>
-            <dd class="row"><code>{app.identifier}</code><CopyButton value={app.identifier} iconOnly label="Copy the identifier" /></dd>
+            <dt>{identifierLabel(app.platform)}</dt>
+            <dd class="row"><code>{app.identifier}</code><CopyButton value={app.identifier} iconOnly label={t('app:stores.copyIdentifier')} /></dd>
           </div>
           {#if app.storeAppId}
             <div>
-              <dt>Store id</dt>
+              <dt>{t('app:stores.storeId')}</dt>
               <dd><code>{app.storeAppId}</code></dd>
             </div>
           {/if}
           <div>
-            <dt>Credential</dt>
+            <dt>{t('app:stores.credential')}</dt>
             <dd class="row wrap">
               <span>{cred.label}</span>
               {#if cred.kind}<span class="muted">({cred.kind})</span>{/if}
@@ -118,24 +119,24 @@
             </dd>
           </div>
           <div>
-            <dt>Last sync</dt>
+            <dt>{t('app:stores.lastSync')}</dt>
             <dd>
               {#if app.lastSyncedAt !== null}
                 <time datetime={new Date(app.lastSyncedAt).toISOString()} title={fullTime(app.lastSyncedAt)}>{timeAgo(app.lastSyncedAt, now)}</time>
               {:else}
-                Never
+                {t('app:stores.never')}
               {/if}
               {#if sync.attempt}<span class="muted"> · {sync.attempt}</span>{/if}
             </dd>
           </div>
         </dl>
-        {#if app.lastSyncError}<Alert tone="warn" title="The last sync failed">{app.lastSyncError}</Alert>{/if}
+        {#if app.lastSyncError}<Alert tone="warn" title={t('app:attention.syncFailed')}>{app.lastSyncError}</Alert>{/if}
         {#if canRead && !cred.found && list !== null}<Alert tone="error">{cred.detail}</Alert>{/if}
         <div class="row wrap">
           {#if canTest && cred.found}
-            <Button size="sm" loading={testing === app.id} disabled={testing !== ''} onclick={() => test(app)}>Test the {platformLabel(app.platform)} credential</Button>
+            <Button size="sm" loading={testing === app.id} disabled={testing !== ''} onclick={() => test(app)}>{t('app:stores.test', { platform: platformLabel(app.platform) })}</Button>
           {/if}
-          {#if canRead}<Button size="sm" variant="ghost" href={links.credentials}>Manage credentials</Button>{/if}
+          {#if canRead}<Button size="sm" variant="ghost" href={links.credentials}>{t('app:stores.manage')}</Button>{/if}
         </div>
         {#if results[app.id]}
           {@const r = results[app.id]}
@@ -147,8 +148,8 @@
   </div>
   {#if offerMac && iosRecord}
     <div class="row wrap">
-      <Button size="sm" icon="platform-macos" onclick={() => (adding = true)}>Add the macOS version</Button>
-      <span class="muted note">The same app entry, with a Mac App Store record. The reviews stay under iOS.</span>
+      <Button size="sm" icon="platform-macos" onclick={() => (adding = true)}>{t('app:stores.addMac')}</Button>
+      <span class="muted note">{t('app:stores.addMacHint')}</span>
     </div>
   {/if}
 </SettingsCard>

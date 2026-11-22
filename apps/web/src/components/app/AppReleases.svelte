@@ -17,6 +17,8 @@
   The platform scope for links comes from the address.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
   import { can, type Role, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
@@ -154,6 +156,15 @@
   const openStepper = () => replaceHash(withStep(withoutPromote(location.hash), 'build'));
   const closeStepper = () => replaceHash(withStep(withoutPromote(location.hash), null));
   const moveStep = (next: StepId) => replaceHash(withStep(location.hash, next));
+
+  const emptyTitle = (app: (typeof members)[number]): string =>
+    app.lastSyncedAt === null
+      ? members.length > 1
+        ? t('app:releases.notSyncedOn', { platform: platformLabel(app.platform) })
+        : t('app:status.notSynced')
+      : members.length > 1
+        ? t('app:releases.noneOn', { platform: platformLabel(app.platform) })
+        : t('app:dash.noReleasesReported');
 </script>
 
 <div class="stack loose">
@@ -165,7 +176,7 @@
     <div class="stack">
       {#if members.length > 1}
         <div class="row">
-          <SegmentTabs tabs={members.map((m) => ({ id: m.platform, label: platformLabel(m.platform) }))} bind:value={stepperPlatform} label="Platform" idPrefix="{uid}-prepare" />
+          <SegmentTabs tabs={members.map((m) => ({ id: m.platform, label: platformLabel(m.platform) }))} bind:value={stepperPlatform} label={t('app:scope.label')} idPrefix="{uid}-prepare" />
         </div>
       {/if}
       {#each members as app (app.id)}
@@ -198,47 +209,39 @@
         <div class="card">
           <EmptyState
             icon="box"
-            title={app.lastSyncedAt === null ? `Not synced yet${members.length > 1 ? `: ${platformLabel(app.platform)}` : ''}` : `No releases reported${members.length > 1 ? `: ${platformLabel(app.platform)}` : ''}`}
-            description={app.lastSyncedAt === null
-              ? 'Adding an app does not contact the store. Open Status in the header and choose Sync now to read its versions and tracks.'
-              : 'The last sync found no versions or tracks for this app.'}
+            title={emptyTitle(app)}
+            description={app.lastSyncedAt === null ? t('app:releases.notSyncedHelp') : t('app:releases.syncedEmptyHelp')}
           >
           </EmptyState>
         </div>
       {/each}
     </div>
   {:else}
-    <Section title="Current and in progress" key="current" variant="plain" count={split.currentCount}>
+    <Section title={t('app:releases.current')} key="current" variant="plain" count={split.currentCount}>
       {#snippet actions()}
         <div class="filters">
           <label class="check">
             <input type="checkbox" bind:checked={filter.inProgressOnly} />
-            <span>Not live yet</span>
+            <span>{t('app:releases.notLiveYet')}</span>
           </label>
-          <InfoTip label="About this list" align="end">
-            <p>
-              Shown here: the newest release of each platform, what is live now, what is not live yet{PLANS_ENABLED ? ', and what has a plan' : ''}.
-              Everything else is under Older releases.
-            </p>
-            <p>
-              This is a snapshot of the store, not a history. Each sync replaces it, and a version the store no longer reports
-              disappears.
-            </p>
+          <InfoTip label={t('app:releases.aboutList')} align="end">
+            <p>{PLANS_ENABLED ? t('app:releases.aboutShownPlans') : t('app:releases.aboutShown')}</p>
+            <p>{t('app:releases.aboutSnapshot')}</p>
           </InfoTip>
         </div>
       {/snippet}
       <div class="stack">
       {#if empty.length > 0}
         <p class="muted note">
-          {empty.map((m) => platformLabel(m.platform)).join(' and ')}: no releases reported by the last sync.
+          {t('app:releases.emptyPlatforms', { platforms: formatList(empty.map((m) => platformLabel(m.platform))) })}
         </p>
       {/if}
 
       {#if visible.length === 0}
         <div class="card">
-          <EmptyState icon="check-circle" title="Nothing in progress" description="No release matches the filter. The older releases are below.">
+          <EmptyState icon="check-circle" title={t('app:releases.nothingInProgress')} description={t('app:releases.noMatchFilter')}>
             {#snippet actions()}
-              {#if filter.inProgressOnly}<Button onclick={() => (filter = defaultReleaseFilter())}>Clear the filter</Button>{/if}
+              {#if filter.inProgressOnly}<Button onclick={() => (filter = defaultReleaseFilter())}>{t('app:releases.clearFilter')}</Button>{/if}
             {/snippet}
           </EmptyState>
         </div>
@@ -249,15 +252,15 @@
     </Section>
 
     {#if split.olderCount > 0}
-      <Section title="Older releases" key="older" count={split.olderCount} defaultOpen={false} summary={searching ? `${olderShownCount} match${olderShownCount === 1 ? '' : 'es'}` : 'newest first'}>
+      <Section title={t('app:releases.older')} key="older" count={split.olderCount} defaultOpen={false} summary={searching ? t('app:releases.matches', { count: olderShownCount }) : t('app:releases.newestFirst')}>
         <div class="stack">
           <div class="older-tools">
-            <label class="visually-hidden" for="releases-query">Search older releases</label>
-            <input id="releases-query" type="search" placeholder="Search version, build or state" bind:value={filter.query} />
-            {#if searching}<Button size="sm" variant="ghost" onclick={() => (filter = { ...filter, query: '' })}>Clear the search</Button>{/if}
+            <label class="visually-hidden" for="releases-query">{t('app:releases.searchOlder')}</label>
+            <input id="releases-query" type="search" placeholder={t('app:releases.searchPlaceholder')} bind:value={filter.query} />
+            {#if searching}<Button size="sm" variant="ghost" onclick={() => (filter = { ...filter, query: '' })}>{t('app:releases.clearSearch')}</Button>{/if}
           </div>
           {#if olderShown.length === 0}
-            <p class="muted note">No older release matches the search.</p>
+            <p class="muted note">{t('app:releases.noOlderMatch')}</p>
           {:else}
             <ReleaseTable {api} {workspaceId} {role} groups={olderShown} {apps} {builds} {now} {scope} showPlatform={members.length > 1} />
           {/if}

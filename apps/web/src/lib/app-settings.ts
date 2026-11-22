@@ -1,6 +1,7 @@
 import { type CredentialKind, credentialKindInfo, isCredentialKind } from '@kiln/core';
 import { appAddress } from './app-scope.ts';
 import { testStatus } from './credentials.ts';
+import { t } from './i18n/t.ts';
 import type { SettingsSection } from './settings-views.ts';
 import type {
   BuildConventionsView,
@@ -28,14 +29,18 @@ export const links = {
 
 /** What has no API today, said in one place so the sections agree. */
 export const notAvailable = {
-  changeCredential:
-    'Changing the credential of an app is not available yet. Delete the record below and add the app again with another credential.',
-  changeRepository:
-    'Linking or unlinking a repository for an existing app is not available yet. The link is set when the app is added.',
-  releaseDefaults:
-    'Default track, default checklist template and default release notes per app are not available yet.',
-  appNotifications:
-    'Choosing which notifications an app sends is not available yet: webhooks and thresholds are set for the whole workspace.',
+  get changeCredential(): string {
+    return t('app:settings.na.changeCredential');
+  },
+  get changeRepository(): string {
+    return t('app:settings.na.changeRepository');
+  },
+  get releaseDefaults(): string {
+    return t('app:settings.na.releaseDefaults');
+  },
+  get appNotifications(): string {
+    return t('app:settings.na.appNotifications');
+  },
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -59,24 +64,23 @@ export function credentialFacts(
 ): CredentialFacts {
   if (list === null) {
     return {
-      label: 'Not shown',
+      label: t('app:settings.cred.notShown'),
       kind: '',
       found: false,
       tone: 'none',
-      status: 'Not shown',
-      detail: 'Reading credentials needs a member role or higher.',
+      status: t('app:settings.cred.notShown'),
+      detail: t('app:settings.cred.needsMember'),
     };
   }
   const cred = list.filter((c) => c.id === credentialId)[0];
   if (!cred) {
     return {
-      label: 'Credential not found',
+      label: t('app:settings.cred.notFound'),
       kind: '',
       found: false,
       tone: 'bad',
-      status: 'Missing',
-      detail:
-        'The credential of this app no longer exists. Syncing will fail until the app is added again.',
+      status: t('app:settings.cred.missing'),
+      detail: t('app:settings.cred.gone'),
     };
   }
   const status = testStatus(cred.lastTest, now);
@@ -101,17 +105,26 @@ export function conventionLines(view: BuildConventionsView): string[] {
   const e = view.effective;
   const source =
     e.source === 'app'
-      ? 'Set for this app'
+      ? t('app:settings.conv.app')
       : e.source === 'repository'
-        ? 'Set for the repository'
-        : 'Defaults of the tool';
+        ? t('app:settings.conv.repository')
+        : t('app:settings.conv.defaults');
   const lines = [source];
-  lines.push(`Tag patterns: ${e.tagPatterns.length > 0 ? e.tagPatterns.join(', ') : 'none'}`);
+  const none = t('app:settings.conv.none');
   lines.push(
-    `Release patterns: ${e.releasePatterns.length > 0 ? e.releasePatterns.join(', ') : 'none'}`,
+    t('app:settings.conv.tagPatterns', {
+      list: e.tagPatterns.length > 0 ? e.tagPatterns.join(', ') : none,
+    }),
   );
-  if (e.prefix !== '') lines.push(`Tag prefix: ${e.prefix}`);
-  lines.push(`Workflow: ${e.workflow ?? 'not chosen'}`);
+  lines.push(
+    t('app:settings.conv.releasePatterns', {
+      list: e.releasePatterns.length > 0 ? e.releasePatterns.join(', ') : none,
+    }),
+  );
+  if (e.prefix !== '') lines.push(t('app:settings.conv.prefix', { prefix: e.prefix }));
+  lines.push(
+    t('app:settings.conv.workflow', { workflow: e.workflow ?? t('app:settings.conv.notChosen') }),
+  );
   return lines;
 }
 
@@ -119,8 +132,8 @@ export function conventionLines(view: BuildConventionsView): string[] {
 export function templatesSummary(list: readonly ChecklistTemplate[]): string {
   const builtin = list.filter((t) => t.builtin).length;
   const custom = list.length - builtin;
-  if (list.length === 0) return 'No checklist templates yet';
-  return `${list.length} ${list.length === 1 ? 'template' : 'templates'} (${builtin} built in, ${custom} yours)`;
+  if (list.length === 0) return t('app:settings.templates.none');
+  return t('app:settings.templates.summary', { count: list.length, builtin, custom });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -166,15 +179,17 @@ export function webhookSummary(list: readonly WebhookEndpoint[]): WebhookSummary
   ).length;
   const text =
     list.length === 0
-      ? 'No webhooks are set up in this workspace.'
-      : `${active.length} of ${list.length} ${list.length === 1 ? 'webhook hears' : 'webhooks hear'} about events of this app${failing > 0 ? `; ${failing} had a failed last delivery` : ''}.`;
+      ? t('app:settings.webhooks.none')
+      : failing > 0
+        ? t('app:settings.webhooks.hearingFailing', { active: active.length, count: list.length, failing })
+        : t('app:settings.webhooks.hearing', { active: active.length, count: list.length });
   return { total: list.length, hearing: active.length, failing, text };
 }
 
 /** "2 stars or less" for the low-rating alert threshold, or an explanation when it is 0. */
 export function lowRatingText(threshold: number): string {
-  if (threshold <= 0) return 'Low-rating alerts are off.';
-  return `A review of ${threshold} ${threshold === 1 ? 'star' : 'stars'} or less counts as low and raises an alert.`;
+  if (threshold <= 0) return t('app:settings.lowRating.off');
+  return t('app:settings.lowRating.on', { count: threshold });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -203,34 +218,34 @@ export function appSettingsSections(input: {
 }): SettingsSection[] {
   const ids = appSettingsPartIds;
   return [
-    { id: ids.stores, label: 'Stores' },
-    { id: ids.repository, label: 'Repository' },
-    { id: ids.defaults, label: 'Release defaults' },
+    { id: ids.stores, label: t('app:settings.part.stores') },
+    { id: ids.repository, label: t('app:settings.part.repository') },
+    { id: ids.defaults, label: t('app:settings.part.defaults') },
     ...(input.android
       ? [
-          { id: ids.playReleases, label: 'Google Play releases' },
-          { id: ids.playBucket, label: 'Reports bucket' },
+          { id: ids.playReleases, label: t('app:settings.part.playReleases') },
+          { id: ids.playBucket, label: t('app:settings.part.playBucket') },
         ]
       : []),
-    { id: ids.notifications, label: 'Notifications' },
-    ...(input.ai ? [{ id: ids.ai, label: 'AI assistant' }] : []),
-    ...(input.canDelete ? [{ id: ids.danger, label: 'Danger zone' }] : []),
+    { id: ids.notifications, label: t('app:settings.part.notifications') },
+    ...(input.ai ? [{ id: ids.ai, label: t('app:settings.part.ai') }] : []),
+    ...(input.canDelete ? [{ id: ids.danger, label: t('app:settings.part.danger') }] : []),
   ];
 }
 
 /** What the save bar of a form says. `saving` reads as a pending save, so the words do not flip while the request runs. */
 export function saveBarText(dirty: boolean, saving: boolean): string {
-  return dirty || saving ? 'You have unsaved changes.' : 'All changes are saved.';
+  return dirty || saving ? t('app:settings.saveBar.dirty') : t('app:settings.saveBar.saved');
 }
 
 /** The hint under the Google Play staged rollout choice: one sentence, with what is known about earlier releases. */
 export function stagedRolloutHint(earlierProductionRelease: boolean): string {
   return earlierProductionRelease
-    ? 'Google Play offers it for updates only, and this app has an earlier production release.'
-    : 'Google Play offers it for updates only, and this app has no earlier production release stored yet.';
+    ? t('app:settings.stagedRollout.withEarlier')
+    : t('app:settings.stagedRollout.withoutEarlier');
 }
 
 /** The one visible line of the Danger zone for a record: what deleting does and what it does not touch. */
 export function deleteLine(store: string): string {
-  return `Removes its stored releases, reviews and plans from this workspace. Nothing in ${store} is changed, and you can add it again.`;
+  return t('app:settings.deleteLine', { store });
 }

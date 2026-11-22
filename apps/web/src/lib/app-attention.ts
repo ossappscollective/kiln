@@ -1,6 +1,7 @@
 import type { Platform, StagedChangesView } from '@kiln/core';
 import { appAddress, type PlatformScope } from './app-scope.ts';
 import { type AsoMover, type AsoSummary, asoViewHref, isBigDrop, moverText } from './aso/aso.ts';
+import { t } from './i18n/t.ts';
 import type { IconName } from './icons.ts';
 import { platformLabel } from './portfolio.ts';
 import { type SummaryStall, unfinishedItem } from './release-pipeline.ts';
@@ -54,8 +55,6 @@ export type AttentionInput = {
 
 const FAILED = new Set(['failure', 'timed_out', 'startup_failure']);
 
-const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
-
 /** The newest build, by upload time and then by when it was synced. */
 export function newestBuild(builds: readonly AppBuild[]): AppBuild | null {
   let best: AppBuild | null = null;
@@ -100,7 +99,8 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
   const several = input.apps.length > 1;
 
   for (const app of input.apps) {
-    const who = several ? `${platformLabel(app.platform)}: ` : '';
+    const say = (text: string): string =>
+      several ? t('app:attention.withPlatform', { platform: platformLabel(app.platform), text }) : text;
     const link = (section: Parameters<typeof appAddress>[1]) =>
       appAddress(app.id, section, input.scope);
 
@@ -109,10 +109,10 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
         id: `${app.id}:sync`,
         tone: 'bad',
         icon: 'alert-triangle',
-        text: `${who}The last sync failed`,
+        text: say(t('app:attention.syncFailed')),
         detail: (app.lastSyncError ?? '').trim(),
         href: null,
-        action: 'Sync',
+        action: t('app:attention.syncAction'),
       });
     }
 
@@ -131,10 +131,10 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
         id: `${app.id}:ci`,
         tone: 'bad',
         icon: 'x-circle',
-        text: `${who}CI failed for build ${newest.buildNumber}`,
-        detail: `Version ${newest.version}, the newest build.`,
+        text: say(t('app:attention.ciFailed', { build: newest.buildNumber })),
+        detail: t('app:attention.ciDetail', { version: newest.version }),
         href: link('builds'),
-        action: 'Open builds and CI',
+        action: t('app:attention.ciAction'),
       });
     }
 
@@ -147,30 +147,30 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
           id: `${app.id}:plan:${plan.id}:blocked`,
           tone: 'bad',
           icon: 'lock',
-          text: `${who}Version ${plan.version} is blocked`,
+          text: say(t('app:attention.blocked', { version: plan.version })),
           detail: plan.blockedReason,
           href,
-          action: 'Open the plan',
+          action: t('app:attention.planAction'),
         });
       } else if (plan.due.overdue) {
         out.push({
           id: `${app.id}:plan:${plan.id}:overdue`,
           tone: 'bad',
           icon: 'clock',
-          text: `${who}Version ${plan.version} is overdue`,
-          detail: plan.targetDate ? `The target date ${plan.targetDate} has passed.` : null,
+          text: say(t('app:attention.overdue', { version: plan.version })),
+          detail: plan.targetDate ? t('app:attention.overdueDetail', { date: plan.targetDate }) : null,
           href,
-          action: 'Open the plan',
+          action: t('app:attention.planAction'),
         });
       } else if (plan.due.dueSoon) {
         out.push({
           id: `${app.id}:plan:${plan.id}:soon`,
           tone: 'warn',
           icon: 'clock',
-          text: `${who}Version ${plan.version} is due soon`,
-          detail: plan.targetDate ? `Target date ${plan.targetDate}.` : null,
+          text: say(t('app:attention.dueSoon', { version: plan.version })),
+          detail: plan.targetDate ? t('app:attention.dueSoonDetail', { date: plan.targetDate }) : null,
           href,
-          action: 'Open the plan',
+          action: t('app:attention.planAction'),
         });
       }
     }
@@ -181,10 +181,10 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
         id: `${app.id}:drift`,
         tone: 'warn',
         icon: 'file-text',
-        text: `${who}${plural(drift, 'locale differs', 'locales differ')} from the store or the repository`,
+        text: say(t('app:attention.drift', { count: drift })),
         detail: null,
         href: link('listing'),
-        action: 'Open the listing',
+        action: t('app:attention.listingAction'),
       });
     }
 
@@ -194,10 +194,10 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
         id: `${app.id}:staged`,
         tone: 'warn',
         icon: 'layers',
-        text: `${who}${plural(staged, 'staged change is', 'staged changes are')} not pushed to the store draft`,
+        text: say(t('app:attention.staged', { count: staged })),
         detail: null,
         href: link('listing'),
-        action: 'Open the staged changes',
+        action: t('app:attention.stagedAction'),
       });
     }
 
@@ -206,10 +206,10 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
         id: `${app.id}:submit`,
         tone: 'info',
         icon: 'upload',
-        text: `${who}Draft pushed — ready to submit?`,
+        text: say(t('app:attention.submitReady')),
         detail: null,
         href: null,
-        action: 'Submit for review…',
+        action: t('app:attention.submitAction'),
         submitAppId: app.id,
       });
     }
@@ -223,10 +223,13 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
           id: `${app.id}:aso-drops`,
           tone: 'warn',
           icon: 'arrow-down',
-          text: `${who}${plural(drops.length, 'keyword dropped', 'keywords dropped')} in the store search`,
-          detail: `“${first.term}” ${moverText(first)}${drops.length > 1 ? ` and ${drops.length - 1} more` : ''}`,
+          text: say(t('app:attention.asoDrops', { count: drops.length })),
+          detail:
+            drops.length > 1
+              ? t('app:attention.asoDropMore', { term: first.term, move: moverText(first), count: drops.length - 1 })
+              : t('app:attention.asoDropDetail', { term: first.term, move: moverText(first) }),
           href: asoViewHref(app.id, 'keywords', input.scope),
-          action: 'Open ASO',
+          action: t('app:attention.asoAction'),
         });
       }
       if (aso.competitors.changedRecently > 0) {
@@ -234,10 +237,10 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
           id: `${app.id}:aso-competitors`,
           tone: 'info',
           icon: 'activity',
-          text: `${who}${plural(aso.competitors.changedRecently, 'competitor changed', 'competitors changed')} recently`,
+          text: say(t('app:attention.competitors', { count: aso.competitors.changedRecently })),
           detail: null,
           href: asoViewHref(app.id, 'competitors', input.scope),
-          action: 'Open the competitors',
+          action: t('app:attention.competitorsAction'),
         });
       }
     }
@@ -248,10 +251,10 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
         id: `${app.id}:reviews`,
         tone: 'info',
         icon: 'message',
-        text: `${who}${plural(fresh, 'new review', 'new reviews')} to triage`,
+        text: say(t('app:attention.newReviews', { count: fresh })),
         detail: null,
         href: link('reviews'),
-        action: 'Open the reviews',
+        action: t('app:attention.reviewsAction'),
       });
     }
   }

@@ -8,6 +8,7 @@
   No versions (the app was not synced yet) is one disabled button that says so.
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { floating } from '../../lib/floating.ts';
   import { tick } from 'svelte';
   import { type VersionOption, type VersionTone } from '../../lib/app-header.ts';
@@ -88,17 +89,17 @@
     aria-haspopup="listbox"
     aria-expanded={open}
     aria-controls="{uid}-list"
-    aria-label="Version: {current ? `${current.version}, ${word(current)}` : 'none'}"
+    aria-label={current ? t('app:versionPicker.current', { version: current.version, state: word(current) }) : t('app:versionPicker.none')}
     disabled={options.length === 0}
     onclick={() => (open ? close(false) : show())}
     onkeydown={onTriggerKey}
   >
-    <span class="lbl">Version</span>
+    <span class="lbl">{t('app:versionPicker.label')}</span>
     {#if current}
       <strong class="num">{current.version}</strong>
       <span class="state"><span class="dot" data-tone={toneOf(current.state.tone)} aria-hidden="true"></span>{word(current)}</span>
     {:else}
-      <span class="muted">No versions yet</span>
+      <span class="muted">{t('app:versionPicker.noVersions')}</span>
     {/if}
     <Icon name="chevron-down" size={14} />
   </button>
@@ -111,7 +112,7 @@
       use:floating={{ anchor: trigger ?? null, align: 'start', matchAnchorWidth: true }}
       role="listbox"
       tabindex="-1"
-      aria-label="Version"
+      aria-label={t('app:versionPicker.label')}
       aria-activedescendant="{uid}-o{active}"
       onkeydown={onListKey}
     >

@@ -19,13 +19,14 @@ import {
   withView,
   workspaceRail,
 } from './app-nav.ts';
+import { t } from './i18n/t.ts';
 import { appSectionDefs, parseAppAddress } from './app-scope.ts';
 
 const all = () => true;
 
 test('the left panel has exactly seven entries, in order, and no pending changes', () => {
   assert.deepEqual(
-    primaryNav.map((e) => e.label),
+    primaryNav.map((e) => t(e.labelKey)),
     ['Overview', 'Releases', 'Store listing', 'Products', 'Reviews', 'Insights', 'Builds'],
   );
   assert.deepEqual(

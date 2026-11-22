@@ -5,6 +5,7 @@
   Props: api, workspaceId, role, members (the records in scope).
 -->
 <script lang="ts">
+  import { t } from '../../../lib/i18n/t.ts';
   import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../../lib/api.ts';
@@ -59,9 +60,10 @@
 </script>
 
 <SettingsCard
-  title="Release defaults"
+  title={t('app:settings.part.defaults')}
+  key="Release defaults"
   icon="rocket"
-  description="How builds are matched to tags and CI runs, and the checklists a release plan starts from."
+  description={t('app:defaults.description')}
   unavailable={notAvailable.releaseDefaults}
 >
   <div class="stack">
@@ -69,31 +71,31 @@
       <div class="record">
         <PlatformBadge platform={app.platform} tinted />
         {#if app.repositoryId === null}
-          <p class="muted note">No repository is linked to the {platformLabel(app.platform)} record, so there is no build matching to show.</p>
+          <p class="muted note">{t('app:defaults.noRepository', { platform: platformLabel(app.platform) })}</p>
         {:else if !canRepos}
-          <p class="muted note">Seeing the build matching needs a role that can read repositories.</p>
+          <p class="muted note">{t('app:defaults.needRepos')}</p>
         {:else if conventions[app.id]}
           <ul class="plain">
             {#each conventionLines(conventions[app.id] as BuildConventionsView) as line (line)}<li>{line}</li>{/each}
           </ul>
         {:else}
-          <p class="muted note">Reading…</p>
+          <p class="muted note">{t('app:defaults.reading')}</p>
         {/if}
       </div>
     {/each}
   </div>
   <div class="stack tight">
-    <p class="label">Checklist templates</p>
+    <p class="label">{t('app:defaults.templates')}</p>
     {#if !canPlans}
-      <p class="muted note">Seeing templates needs a role that can read release plans.</p>
+      <p class="muted note">{t('app:defaults.needPlans')}</p>
     {:else if templates === null}
-      <p class="muted note">Reading…</p>
+      <p class="muted note">{t('app:defaults.reading')}</p>
     {:else}
-      <p class="note">{templatesSummary(templates)}. Pick one when you add checklist items to a plan.</p>
+      <p class="note">{t('app:defaults.templatesPick', { summary: templatesSummary(templates) })}</p>
     {/if}
   </div>
   <div class="row wrap">
-    {#if members.length > 0}<Button size="sm" variant="ghost" href={links.builds(members[0]?.id ?? '')}>Edit build matching on the Builds tab</Button>{/if}
+    {#if members.length > 0}<Button size="sm" variant="ghost" href={links.builds(members[0]?.id ?? '')}>{t('app:defaults.editMatching')}</Button>{/if}
   </div>
 </SettingsCard>
 

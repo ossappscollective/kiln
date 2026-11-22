@@ -16,6 +16,9 @@
   Exports: observe(data) takes a RunningNow answer, so the screen's own feed is read once.
 -->
 <script lang="ts">
+  import T from '../ui/T.svelte';
+  import { t } from '../../lib/i18n/t.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
   import { can, type Role, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
@@ -121,7 +124,7 @@
 </script>
 
 <section class="card next" data-tone={step.tone} data-testid="next-step" aria-labelledby="{uid}-title">
-  <p class="eyebrow">Your next step</p>
+  <p class="eyebrow">{t('app:nextStep.eyebrow')}</p>
   <div class="main">
     <div class="text">
       <h2 id="{uid}-title">
@@ -129,7 +132,7 @@
         {#if step.waiting}<Badge tone={step.waiting.who === 'you' ? 'warn' : 'neutral'}>{step.waiting.text}</Badge>{/if}
       </h2>
       {#if step.text !== ''}<p class="muted">{step.text}</p>{/if}
-      {#if step.rows.length > 0}<p class="muted">Each store has its own release, so each has its own button.</p>{/if}
+      {#if step.rows.length > 0}<p class="muted">{t('app:nextStep.eachStore')}</p>{/if}
     </div>
     <div class="actions">
       {#if step.primary && 'href' in step.primary}
@@ -155,7 +158,7 @@
         {onstarted}
       />
       {#if onprepare && step.kind === 'start'}
-        <Button variant="ghost" onclick={onprepare} title="Choose a build the store already has, write the notes and send it, without running CI.">Prepare without CI</Button>
+        <Button variant="ghost" onclick={onprepare} title={t('app:nextStep.withoutCiHint')}>{t('app:nextStep.withoutCi')}</Button>
       {/if}
       {#if pending}
         <a class="pending-link" href={pending.href} data-testid="next-step-pending">{pending.text}</a>
@@ -164,7 +167,7 @@
   </div>
 
   {#if step.rows.length > 0}
-    <ul class="rows" aria-label="Releases on their way" data-testid="next-step-rows">
+    <ul class="rows" aria-label={t('app:nextStep.onTheirWay')} data-testid="next-step-rows">
       {#each step.rows as r (r.key)}
         <li class="row" data-tone={r.tone} data-testid="next-step-row">
           <span class="who">{#each r.platforms as p (p)}<PlatformBadge platform={p} />{/each}</span>
@@ -184,13 +187,13 @@
 
   {#if promotion}
     <p class="promote" data-testid="next-step-promote">
-      <span><strong>{promotion.version}</strong> is in {promotion.fromLabel} (version code{promotion.codes.length === 1 ? '' : 's'} {promotion.codes.join(', ')}).</span>
+      <span><T key="app:nextStep.promotion" params={{ count: promotion.codes.length, version: promotion.version, track: promotion.fromLabel, codes: formatList(promotion.codes) }} /></span>
       <Button size="sm" icon="arrow-right" href={promoteHref(promotion)}>{promotion.label}</Button>
     </p>
   {/if}
 
   {#if step.otherTrains.length > 0}
-    <ul class="others" aria-label="Other releases on their way">
+    <ul class="others" aria-label={t('app:nextStep.otherOnTheirWay')}>
       {#each step.otherTrains as o (o.title)}
         <li><strong>{o.title}</strong> <span class="muted">{o.text}</span> <a href={o.href}>{o.label}</a></li>
       {/each}

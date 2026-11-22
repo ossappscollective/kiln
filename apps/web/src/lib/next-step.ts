@@ -1,6 +1,7 @@
 import type { Platform } from '@kiln/core';
 import type { AttentionItem } from './app-attention.ts';
 import { appAddress, type PlatformScope } from './app-scope.ts';
+import { t } from './i18n/t.ts';
 import { releaseStepHref } from './release-stepper.ts';
 import type { Train } from './release-trains.ts';
 
@@ -129,7 +130,7 @@ export function chooseNextStep(input: NextStepInput): NextStep {
       ...base,
       kind: 'train',
       tone: r === 0 ? 'bad' : r === 1 ? 'warn' : 'info',
-      title: trains.length > 1 ? 'Your next steps' : lead.title,
+      title: trains.length > 1 ? t('app:nextStep.yourNext') : lead.title,
       text: trains.length > 1 ? '' : lead.lines.join(' '),
       waiting:
         trains.length > 1
@@ -178,25 +179,25 @@ export function chooseNextStep(input: NextStepInput): NextStep {
     return {
       ...nothing,
       kind: 'start',
-      title: 'Nothing is waiting for you',
-      text: 'Start the next release when you are ready. Nothing goes to the store until you confirm.',
-      primary: { label: 'Start release', action: 'start-release' },
+      title: t('app:nextStep.nothing'),
+      text: t('app:nextStep.startText'),
+      primary: { label: t('app:nextStep.startAction'), action: 'start-release' },
     };
   }
   if (input.canPrepare) {
     return {
       ...nothing,
       kind: 'prepare',
-      title: 'Nothing is waiting for you',
-      text: 'Choose a build, write the notes, check it and send it to the store, one step at a time.',
-      primary: { label: 'Prepare release', action: 'prepare-release' },
+      title: t('app:nextStep.nothing'),
+      text: t('app:nextStep.prepareText'),
+      primary: { label: t('app:nextStep.prepareAction'), action: 'prepare-release' },
     };
   }
   return {
     ...nothing,
     kind: 'idle',
-    title: 'Nothing is waiting for you',
-    text: 'A release you start will show here.',
+    title: t('app:nextStep.nothing'),
+    text: t('app:nextStep.idleText'),
     primary: null,
   };
 }

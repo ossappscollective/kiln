@@ -6,6 +6,7 @@
   saveLabel? = 'Save', discardLabel? = 'Discard changes', note? (a short snippet at the end, for example why Save is off).
 -->
 <script lang="ts">
+  import { t } from '../../../lib/i18n/t.ts';
   import type { Snippet } from 'svelte';
   import { saveBarText } from '../../../lib/app-settings.ts';
   import Button from '../../ui/Button.svelte';
@@ -15,8 +16,8 @@
     saving = false,
     disabled = false,
     type = 'button',
-    saveLabel = 'Save',
-    discardLabel = 'Discard changes',
+    saveLabel = undefined,
+    discardLabel = undefined,
     onsave,
     ondiscard,
     note,
@@ -37,8 +38,8 @@
   <p class="state" role="status">{saveBarText(dirty, saving)}</p>
   {#if note}<span class="note">{@render note()}</span>{/if}
   <div class="row">
-    <Button disabled={disabled || !dirty || saving} onclick={ondiscard}>{discardLabel}</Button>
-    <Button {type} variant="primary" loading={saving} disabled={disabled || !dirty || saving} onclick={type === 'button' ? onsave : undefined}>{saveLabel}</Button>
+    <Button disabled={disabled || !dirty || saving} onclick={ondiscard}>{discardLabel ?? t('app:saveBar.discard')}</Button>
+    <Button {type} variant="primary" loading={saving} disabled={disabled || !dirty || saving} onclick={type === 'button' ? onsave : undefined}>{saveLabel ?? t('common:action.save')}</Button>
   </div>
 </div>
 

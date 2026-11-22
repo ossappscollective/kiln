@@ -7,6 +7,7 @@
   to the title), defaultOpen? = true, children.
 -->
 <script lang="ts">
+  import { t } from '../../../lib/i18n/t.ts';
   import type { Snippet } from 'svelte';
   import type { IconName } from '../../../lib/icons.ts';
   import Disclosure from '../../ui/Disclosure.svelte';
@@ -39,7 +40,7 @@
     <p class="muted desc"><Icon name={icon} size={14} /> {description}</p>
     {@render children()}
     {#if unavailable}
-      <Disclosure summary="Not available yet">
+      <Disclosure summary={t('app:settings.notAvailable')}>
         <p class="muted na">{unavailable}</p>
       </Disclosure>
     {/if}

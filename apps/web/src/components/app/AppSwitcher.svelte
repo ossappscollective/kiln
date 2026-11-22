@@ -8,6 +8,7 @@
   Props: open (bindable), items (from switcherItems; null while the apps are being read), onpick (an item).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { type SwitcherItem, filterSwitcher, jumpTarget, moveActive } from '../../lib/app-switcher.ts';
   import Icon from '../ui/Icon.svelte';
   import Modal from '../ui/Modal.svelte';
@@ -66,11 +67,11 @@
   }
 </script>
 
-<Modal bind:open title="Go to an app" size="sm">
+<Modal bind:open title={t('app:switcher.title')} size="sm">
   <div class="switch">
     <label class="search">
       <Icon name="search" size={16} />
-      <span class="visually-hidden">Search apps by name or bundle id</span>
+      <span class="visually-hidden">{t('app:switcher.searchLabel')}</span>
       <!-- svelte-ignore a11y_autofocus -->
       <input
         type="search"
@@ -78,7 +79,7 @@
         aria-expanded="true"
         aria-controls="{uid}-list"
         aria-activedescendant={shown.length > 0 ? `${uid}-o${current}` : undefined}
-        placeholder="Search apps by name or bundle id"
+        placeholder={t('app:switcher.searchLabel')}
         autocomplete="off"
         spellcheck="false"
         bind:value={query}
@@ -88,16 +89,16 @@
     </label>
 
     {#if items === null}
-      <div class="stack" role="status" aria-label="Loading the apps">
+      <div class="stack" role="status" aria-label={t('app:switcher.loading')}>
         <Skeleton width="70%" height="16px" />
         <Skeleton width="50%" height="16px" />
       </div>
     {:else if shown.length === 0}
-      <p class="muted none" role="status">{items.length === 0 ? 'This workspace has no apps yet.' : 'No app matches.'}</p>
+      <p class="muted none" role="status">{items.length === 0 ? t('app:switcher.none') : t('app:switcher.noMatch')}</p>
     {:else}
       <AppSwitcherList id="{uid}-list" items={shown} {current} {mod} onhover={(i) => (active = i)} onpick={choose} />
     {/if}
-    <p class="foot muted">Enter opens the app. {mod} + 1 to 9 opens one of the first nine from anywhere.</p>
+    <p class="foot muted">{t('app:switcher.hint', { mod })}</p>
   </div>
 </Modal>
 

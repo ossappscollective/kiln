@@ -12,6 +12,8 @@
   and assets are read-only for them), locale? (the locale of the page header).
 -->
 <script lang="ts">
+  import T from '../ui/T.svelte';
+  import { t } from '../../lib/i18n/t.ts';
   import type { Platform, Role } from '@kiln/core';
   import type { Snippet } from 'svelte';
   import type { Api } from '../../lib/api.ts';
@@ -98,9 +100,8 @@
 {#snippet reviews(app: AppSummary)}
   {@const owner = reviewsOwner(app, all ?? members)}
   {#if owner}
-    <Alert tone="info" title="These reviews are read once, for iOS">
-      The customer reviews of an App Store Connect app are shared by its iOS and macOS entries, so they are kept and triaged under iOS.
-      <a href={appAddress(openId, 'reviews', 'ios')}>Open the iOS reviews</a>.
+    <Alert tone="info" title={t('app:section.reviewsOnceTitle')}>
+      <T key="app:section.reviewsOnce" tags={{ link: iosReviews }} />
     </Alert>
   {:else}
     <ReviewsTab {api} {workspaceId} {role} {app} {now} refreshKey={syncRuns} />
@@ -110,9 +111,8 @@
   <!-- The in-app purchases of an App Store Connect app are one list for the app, whatever platforms it has: read for the iOS record, like the reviews. -->
   {@const owner = reviewsOwner(app, all ?? members)}
   {#if owner}
-    <Alert tone="info" title="These products are read once, for iOS">
-      The in-app purchases and subscriptions of an App Store Connect app are shared by its iOS and macOS entries, so they are read and edited under iOS.
-      <a href={appAddress(openId, 'products', 'ios')}>Open the iOS products</a>.
+    <Alert tone="info" title={t('app:section.productsOnceTitle')}>
+      <T key="app:section.productsOnce" tags={{ link: iosProducts }} />
     </Alert>
   {:else}
     <ProductsTab {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
@@ -137,7 +137,7 @@
         <SegmentTabs
           tabs={members.map((m) => ({ id: m.platform, label: platformLabel(m.platform) }))}
           bind:value={platformTab}
-          label="Platform"
+          label={t('app:scope.label')}
           idPrefix="{uid}-{section}-{view}"
         />
       </div>
@@ -158,7 +158,7 @@
 {/snippet}
 
 {#snippet switcher(current: AppSection)}
-  <div class="switch"><ViewSwitch {views} value={view} hrefFor={(id) => withView(address.hash, current, id)} label="Views of this page" /></div>
+  <div class="switch"><ViewSwitch {views} value={view} hrefFor={(id) => withView(address.hash, current, id)} label={t('app:section.views')} /></div>
 {/snippet}
 
 {#if section === 'releases' && version !== null}
@@ -226,3 +226,6 @@
     margin: 0 0 var(--space-4);
   }
 </style>
+
+{#snippet iosReviews(text: string)}<a href={appAddress(openId, 'reviews', 'ios')}>{text}</a>{/snippet}
+{#snippet iosProducts(text: string)}<a href={appAddress(openId, 'products', 'ios')}>{text}</a>{/snippet}

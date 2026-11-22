@@ -6,6 +6,7 @@
   id; the rows are `<id>-o<index>`), mod (Cmd or Ctrl, for the number hint), onhover (index), onpick (item).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import type { SwitcherItem } from '../../lib/app-switcher.ts';
   import AppIcon from '../ui/AppIcon.svelte';
   import PendingChip from '../publish/PendingChip.svelte';
@@ -30,7 +31,7 @@
   } = $props();
 </script>
 
-<ul {id} class="list" role="listbox" aria-label="Apps">
+<ul {id} class="list" role="listbox" aria-label={t('app:switcher.apps')}>
   {#each items as item, i (item.key)}
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <li

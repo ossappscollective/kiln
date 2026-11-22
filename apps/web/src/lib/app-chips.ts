@@ -1,4 +1,5 @@
 import { timeAgo } from './format.ts';
+import { t } from './i18n/t.ts';
 import type { AppSummary } from './types.ts';
 
 /**
@@ -22,42 +23,42 @@ export function dataChips(apps: readonly AppSummary[], now: number): DataChip[] 
   const linked = apps.filter((a) => a.repositoryId !== null).length;
   const repo =
     apps.length === 0 || linked === 0
-      ? { value: 'Not linked', tone: 'neutral' as ChipTone }
+      ? { value: t('app:chips.notLinked'), tone: 'neutral' as ChipTone }
       : linked === apps.length
-        ? { value: 'Linked', tone: 'ok' as ChipTone }
-        : { value: `Linked on ${linked} of ${apps.length}`, tone: 'info' as ChipTone };
+        ? { value: t('app:chips.linked'), tone: 'ok' as ChipTone }
+        : { value: t('app:chips.linkedOn', { linked, total: apps.length }), tone: 'info' as ChipTone };
 
   const synced = apps.map((a) => a.lastSyncedAt);
   const failed = apps.some((a) => (a.lastSyncError ?? '').trim() !== '');
   const never = apps.length === 0 || synced.some((s) => s === null);
   const oldest = never ? 0 : Math.min(...(synced as number[]));
   const live = failed
-    ? { value: 'Last sync failed', tone: 'warn' as ChipTone }
+    ? { value: t('app:chips.lastSyncFailed'), tone: 'warn' as ChipTone }
     : never
-      ? { value: 'Not synced yet', tone: 'neutral' as ChipTone }
-      : { value: `Synced ${timeAgo(oldest, now)}`, tone: 'ok' as ChipTone };
+      ? { value: t('app:chips.notSynced'), tone: 'neutral' as ChipTone }
+      : { value: t('app:chips.synced', { when: timeAgo(oldest, now) }), tone: 'ok' as ChipTone };
 
   return [
     {
       id: 'repository',
-      label: 'Repository',
+      label: t('app:chips.repository'),
       ...repo,
-      title: 'Files in the linked repository (fastlane metadata, images). The source for edits.',
+      title: t('app:chips.repositoryTitle'),
       placeholder: false,
     },
     {
       id: 'store_live',
-      label: 'Store live',
+      label: t('app:chips.storeLive'),
       ...live,
-      title: 'What the store serves or reports now, as of the last sync.',
+      title: t('app:chips.storeLiveTitle'),
       placeholder: false,
     },
     {
       id: 'store_draft',
-      label: 'Store draft',
-      value: 'Not read yet',
+      label: t('app:chips.storeDraft'),
+      value: t('app:chips.notRead'),
       tone: 'neutral',
-      title: 'The editable, unpublished version in the store. Not read by this tool yet.',
+      title: t('app:chips.storeDraftTitle'),
       placeholder: true,
     },
   ];

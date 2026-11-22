@@ -6,6 +6,7 @@
   fallbackName (shown until the list is known), mod, onopen? (called when the list opens, to read the apps), onpick (an item).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import { floating } from '../../lib/floating.ts';
   import { filterSwitcher, itemOfId, moveActive, type SwitcherItem } from '../../lib/app-switcher.ts';
   import AppIcon from '../ui/AppIcon.svelte';
@@ -83,7 +84,7 @@
 <div class="field">
   <label class="box" class:open bind:this={box}>
     <AppIcon {name} url={item?.iconUrl ?? null} seed={item?.key ?? appId} size="sm" labelled />
-    <span class="visually-hidden">Switch app</span>
+    <span class="visually-hidden">{t('app:switcher.switch')}</span>
     <input
       bind:this={input}
       type="text"
@@ -95,7 +96,7 @@
       autocomplete="off"
       spellcheck="false"
       title={name}
-      placeholder={name || 'Search apps'}
+      placeholder={name || t('app:switcher.search')}
       value={open ? query : name}
       oninput={(e) => {
         query = e.currentTarget.value;
@@ -111,9 +112,9 @@
   {#if open}
     <div class="pop" use:floating={{ anchor: box, align: 'start', matchAnchorWidth: true }}>
       {#if items === null}
-        <p class="muted none" role="status">Loading the apps…</p>
+        <p class="muted none" role="status">{t('app:switcher.loadingText')}</p>
       {:else if shown.length === 0}
-        <p class="muted none" role="status">{items.length === 0 ? 'This workspace has no apps yet.' : 'No app matches.'}</p>
+        <p class="muted none" role="status">{items.length === 0 ? t('app:switcher.none') : t('app:switcher.noMatch')}</p>
       {:else}
         <AppSwitcherList id="{uid}-list" items={shown} {current} selectedKey={item?.key ?? null} {mod} onhover={(i) => (active = i)} onpick={choose} />
       {/if}

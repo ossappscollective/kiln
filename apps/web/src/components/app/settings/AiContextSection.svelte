@@ -8,6 +8,7 @@
   Props: api, workspaceId, role, members (the records in scope).
 -->
 <script lang="ts">
+  import { t } from '../../../lib/i18n/t.ts';
   import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { aiErrorMessage } from '../../../lib/ai/ai.ts';
@@ -84,9 +85,9 @@
       const view = await api.updateAppAiContext(workspaceId, app.id, checked.value);
       saved[app.id] = view;
       forms[app.id] = contextToForm(view.context);
-      toast.success('Saved what the assistant should know about this app.');
+      toast.success(t('app:ai.saved'));
     } catch (e) {
-      problems[app.id] = aiErrorMessage(e, 'Could not save. Try again.');
+      problems[app.id] = aiErrorMessage(e, t('app:ai.saveFailed'));
     } finally {
       saving[app.id] = false;
     }
@@ -104,14 +105,14 @@
 
 {#if on}
   <SettingsCard
-    title="AI assistant"
+    title={t('app:settings.part.ai')}
     icon="sparkles"
     key="ai-context"
     defaultOpen={false}
-    description="What the assistant should know about this app; it guides the model, and you still read and accept every suggestion."
+    description={t('app:ai.description')}
   >
     {#if loadFailed && members.every((m) => saved[m.id] === undefined)}
-      <Alert tone="error">Could not read this. Try again later.</Alert>
+      <Alert tone="error">{t('app:ai.loadFailed')}</Alert>
     {/if}
     {#each members as app (app.id)}
       {@const view = saved[app.id]}
@@ -123,72 +124,72 @@
       {:else}
         {@const editable = view.canEdit}
         <form class="stack loose" onsubmit={(e) => void save(app, e)} novalidate>
-          {#if !editable}<p class="hint">Only an admin can change this. What is saved is used for every suggestion.</p>{/if}
+          {#if !editable}<p class="hint">{t('app:ai.adminOnly')}</p>{/if}
 
           <fieldset class="group">
-            <legend>About the app</legend>
-            <p class="sub">What the assistant needs to know before it writes anything.</p>
+            <legend>{t('app:ai.aboutLegend')}</legend>
+            <p class="sub">{t('app:ai.aboutSub')}</p>
             <div class="field">
-              <label for={field('about', app.id)}>What the app is</label>
+              <label for={field('about', app.id)}>{t('app:ai.whatItIs')}</label>
               <textarea id={field('about', app.id)} rows="3" bind:value={form.about} readonly={!editable} maxlength={contextLimits.aboutChars + 200} aria-invalid={err.about ? 'true' : undefined}></textarea>
-              <p class="hint">A few sentences, up to {contextLimits.aboutChars} characters ({form.about.length} now).</p>
+              <p class="hint">{t('app:ai.aboutHint', { max: contextLimits.aboutChars, now: form.about.length })}</p>
               {#if err.about}<p class="field-error" role="alert">{err.about}</p>{/if}
             </div>
             <div class="field">
-              <label for={field('audience', app.id)}>Who it is for</label>
+              <label for={field('audience', app.id)}>{t('app:ai.audience')}</label>
               <input id={field('audience', app.id)} bind:value={form.audience} readonly={!editable} autocomplete="off" aria-invalid={err.audience ? 'true' : undefined} />
               {#if err.audience}<p class="field-error" role="alert">{err.audience}</p>{/if}
             </div>
           </fieldset>
 
           <fieldset class="group">
-            <legend>How it sounds</legend>
-            <p class="sub">Replies and rewritten texts follow this.</p>
+            <legend>{t('app:ai.soundLegend')}</legend>
+            <p class="sub">{t('app:ai.soundSub')}</p>
             <div class="field">
-              <label for={field('tone', app.id)}>Tone, in a few words</label>
-              <input id={field('tone', app.id)} bind:value={form.tone} readonly={!editable} placeholder="warm, plain, no exclamation marks" autocomplete="off" aria-invalid={err.tone ? 'true' : undefined} />
+              <label for={field('tone', app.id)}>{t('app:ai.tone')}</label>
+              <input id={field('tone', app.id)} bind:value={form.tone} readonly={!editable} placeholder={t('app:ai.tonePlaceholder')} autocomplete="off" aria-invalid={err.tone ? 'true' : undefined} />
               {#if err.tone}<p class="field-error" role="alert">{err.tone}</p>{/if}
             </div>
             <div class="field">
-              <label for={field('voice', app.id)}>How you sound</label>
+              <label for={field('voice', app.id)}>{t('app:ai.voice')}</label>
               <textarea id={field('voice', app.id)} rows="3" bind:value={form.brandVoice} readonly={!editable} maxlength={contextLimits.brandVoiceChars + 200} aria-invalid={err.brandVoice ? 'true' : undefined}></textarea>
-              <p class="hint">Up to {contextLimits.brandVoiceChars} characters ({form.brandVoice.length} now).</p>
+              <p class="hint">{t('app:ai.voiceHint', { max: contextLimits.brandVoiceChars, now: form.brandVoice.length })}</p>
               {#if err.brandVoice}<p class="field-error" role="alert">{err.brandVoice}</p>{/if}
             </div>
           </fieldset>
 
           <fieldset class="group">
-            <legend>Words and rules</legend>
-            <p class="sub">What must never appear, and what must stay as written.</p>
+            <legend>{t('app:ai.rulesLegend')}</legend>
+            <p class="sub">{t('app:ai.rulesSub')}</p>
             <div class="grid">
               <div class="field">
-                <label for={field('banned', app.id)}>Words never to use</label>
+                <label for={field('banned', app.id)}>{t('app:ai.banned')}</label>
                 <textarea id={field('banned', app.id)} rows="3" bind:value={form.bannedWords} readonly={!editable} aria-invalid={err.bannedWords ? 'true' : undefined}></textarea>
-                <p class="hint">One per line. A suggestion that uses one cannot be accepted.</p>
+                <p class="hint">{t('app:ai.bannedHint')}</p>
                 {#if err.bannedWords}<p class="field-error" role="alert">{err.bannedWords}</p>{/if}
               </div>
               <div class="field">
-                <label for={field('brand', app.id)}>Names to keep exactly as written</label>
+                <label for={field('brand', app.id)}>{t('app:ai.brand')}</label>
                 <textarea id={field('brand', app.id)} rows="3" bind:value={form.brandTerms} readonly={!editable} aria-invalid={err.brandTerms ? 'true' : undefined}></textarea>
-                <p class="hint">The product name and feature names, one per line.</p>
+                <p class="hint">{t('app:ai.brandHint')}</p>
                 {#if err.brandTerms}<p class="field-error" role="alert">{err.brandTerms}</p>{/if}
               </div>
               <div class="field">
-                <label for={field('do', app.id)}>Always</label>
+                <label for={field('do', app.id)}>{t('app:ai.always')}</label>
                 <textarea id={field('do', app.id)} rows="3" bind:value={form.doList} readonly={!editable} aria-invalid={err.doList ? 'true' : undefined}></textarea>
-                <p class="hint">Rules, one per line, up to {contextLimits.ruleItems}.</p>
+                <p class="hint">{t('app:ai.rulesHint', { max: contextLimits.ruleItems })}</p>
                 {#if err.doList}<p class="field-error" role="alert">{err.doList}</p>{/if}
               </div>
               <div class="field">
-                <label for={field('dont', app.id)}>Never</label>
+                <label for={field('dont', app.id)}>{t('app:ai.never')}</label>
                 <textarea id={field('dont', app.id)} rows="3" bind:value={form.dontList} readonly={!editable} aria-invalid={err.dontList ? 'true' : undefined}></textarea>
-                <p class="hint">Rules, one per line, up to {contextLimits.ruleItems}.</p>
+                <p class="hint">{t('app:ai.rulesHint', { max: contextLimits.ruleItems })}</p>
                 {#if err.dontList}<p class="field-error" role="alert">{err.dontList}</p>{/if}
               </div>
             </div>
           </fieldset>
 
-          <p class="hint warning">Do not put secrets or customer data here: this text is sent to your AI provider with every suggestion for this app.</p>
+          <p class="hint warning">{t('app:ai.warning')}</p>
           {#if problems[app.id]}<Alert tone="error">{problems[app.id]}</Alert>{/if}
           {#if editable}
             <SaveBar type="submit" dirty={isContextDirty(view.context, form)} saving={saving[app.id] === true} ondiscard={() => revert(app)} />

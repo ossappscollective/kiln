@@ -7,6 +7,8 @@
   Props: card (from buildBoard), now (epoch ms, so relative times update), pending? (the app's pending line, from lineFor).
 -->
 <script lang="ts">
+  import T from '../ui/T.svelte';
+  import { t } from '../../lib/i18n/t.ts';
   import type { BoardCard } from '../../lib/dashboard.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import type { PendingLine } from '../../lib/pending.ts';
@@ -40,10 +42,10 @@
 
   <div class="version">
     <strong>{card.version}</strong>
-    {#if card.build}<span class="muted small">build {card.build}</span>{/if}
+    {#if card.build}<span class="muted small">{t('app:board.build', { build: card.build })}</span>{/if}
     {#if showTrack}<span class="muted small">{trackLabel(card.track)}</span>{/if}
     {#if card.planned}
-      <Badge icon={toneIcon('neutral')}>Planned</Badge>
+      <Badge icon={toneIcon('neutral')}>{t('app:board.planned')}</Badge>
     {:else}
       <ReleaseStatus status={card.status} rawState={card.rawState ?? undefined} rolloutFraction={card.rolloutFraction} />
     {/if}
@@ -53,7 +55,7 @@
   {#if card.blocked}
     <p class="flag">
       <Icon name="alert-triangle" size={16} />
-      <span><strong>Blocked.</strong> {card.blocked.reason}</span>
+      <span><T key="app:board.blocked" params={{ reason: card.blocked.reason }} /></span>
     </p>
   {/if}
 
@@ -77,21 +79,21 @@
   {/if}
 
   <p class="next">
-    <span class="eyebrow">Next</span>
+    <span class="eyebrow">{t('app:board.next')}</span>
     <span>{card.next.text}</span>
   </p>
 
   <p class="meta muted small">
     {#if card.syncError}
-      <span class="sync-error"><Icon name="alert" size={14} /> Last sync failed.</span>
+      <span class="sync-error"><Icon name="alert" size={14} /> {t('app:board.syncFailed')}</span>
     {/if}
     {#if card.lastSyncedAt !== null}
-      <time datetime={new Date(card.lastSyncedAt).toISOString()} title={fullTime(card.lastSyncedAt)}>Synced {timeAgo(card.lastSyncedAt, now)}</time>
+      <time datetime={new Date(card.lastSyncedAt).toISOString()} title={fullTime(card.lastSyncedAt)}>{t('portfolio:sync.synced', { when: timeAgo(card.lastSyncedAt, now) })}</time>
     {:else}
-      Never synced
+      {t('portfolio:sync.never')}
     {/if}
     <span aria-hidden="true">·</span>
-    <a href={appHref(card.appId)}>App details<span class="visually-hidden"> for {card.appName}</span></a>
+    <a href={appHref(card.appId)} aria-label={t('app:board.detailsFor', { name: card.appName })}>{t('app:board.details')}</a>
   </p>
 </article>
 

@@ -1,4 +1,5 @@
 import type { AppSection } from './app-scope.ts';
+import { t } from './i18n/t.ts';
 import { chipFor, type PendingLine } from './pending.ts';
 
 /**
@@ -30,11 +31,14 @@ export function pendingBar(
   const chip = chipFor(line);
   if (!chip || !line) return null;
   const n = line.count > 0 ? line.count : line.blocking;
-  const waiting = `${n > 99 ? '99+' : n} ${n === 1 ? 'change' : 'changes'} waiting${on ? ` on ${on}` : ''}`;
+  const shown = n > 99 ? '99+' : String(n);
+  const waiting = on
+    ? t('app:pending.waitingOn', { count: n, shown, on })
+    : t('app:pending.waiting', { count: n, shown });
   return {
-    text: `${waiting}. Nothing is published until you review them.`,
-    action: 'Review and publish',
-    link: `${waiting}. Review and publish`,
+    text: t('app:pending.barText', { waiting }),
+    action: t('app:pending.barAction'),
+    link: t('app:pending.barLink', { waiting }),
     blocking: line.blocking > 0,
   };
 }

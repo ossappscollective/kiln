@@ -6,6 +6,7 @@
   Props: text (the sentence, from lockInfo), href (the Releases tab of the app).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import Icon from '../ui/Icon.svelte';
 
   let { text, href }: { text: string; href: string } = $props();
@@ -14,7 +15,7 @@
 <p class="lock" role="status">
   <Icon name="lock" size={14} />
   <span>{text}.</span>
-  <a href={href}>Prepare a new version</a>
+  <a href={href}>{t('app:lock.prepare')}</a>
 </p>
 
 <style>
