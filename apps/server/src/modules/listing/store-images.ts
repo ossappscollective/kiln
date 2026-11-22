@@ -23,6 +23,7 @@ import {
   type StoreImageNet,
 } from './store-image-net.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * The images a store holds for an app, as this server shows them (docs/adr/0012-assets-two-way-sync.md): read through the
  * connector (never a write), kept for `storeCacheSeconds`, and served as thumbnails by a proxy that only fetches from the
@@ -242,7 +243,12 @@ export async function getStoreImages(
   const wait = ctx.limiter.take(input.workspaceId);
   if (wait > 0)
     return {
-      ...failure(429, 'rate_limited', `Too many store reads. Try again in ${wait} seconds.`),
+      ...failure(
+        429,
+        'rate_limited',
+        `Too many store reads. Try again in ${wait} seconds.`,
+        coded('rate.storeReads', { count: wait }),
+      ),
       headers: { 'Retry-After': String(wait) },
     };
   const done = await readStoreImagesOf(ctx.draft, {
@@ -298,9 +304,15 @@ export async function storeThumbnail(
       404,
       'ref_expired',
       'This image reference is not known any more. Read the comparison again.',
+      coded('listing.imageRefUnknown'),
     );
   if (entry.src === null)
-    return failure(404, 'no_image', 'The store gave no image address for this file.');
+    return failure(
+      404,
+      'no_image',
+      'The store gave no image address for this file.',
+      coded('listing.noImageAddress'),
+    );
   const cacheKey = `${input.ref}|${input.size}`;
   const hit = thumbs.get(cacheKey);
   if (hit) {
@@ -314,11 +326,17 @@ export async function storeThumbnail(
       422,
       'image_blocked',
       'The store gave an image address this server does not download from. Nothing was fetched.',
+      coded('listing.imageAddressRefused'),
     );
   const wait = ctx.fetchLimiter.take(input.workspaceId);
   if (wait > 0)
     return {
-      ...failure(429, 'rate_limited', `Too many image requests. Try again in ${wait} seconds.`),
+      ...failure(
+        429,
+        'rate_limited',
+        `Too many image requests. Try again in ${wait} seconds.`,
+        coded('rate.images', { count: wait }),
+      ),
       headers: { 'Retry-After': String(wait) },
     };
   const got = await downloadStoreImage(ctx.net, url);
@@ -345,20 +363,32 @@ export async function storeImageBytes(
       404,
       'ref_expired',
       'This image reference is not known any more. Read the comparison again.',
+      coded('listing.imageRefUnknown'),
     );
   if (entry.src === null)
-    return failure(404, 'no_image', 'The store gave no image address for this file.');
+    return failure(
+      404,
+      'no_image',
+      'The store gave no image address for this file.',
+      coded('listing.noImageAddress'),
+    );
   const url = imageUrlOf(entry.src, { format: 'png' });
   if (url === null)
     return failure(
       422,
       'image_blocked',
       'The store gave an image address this server does not download from. Nothing was fetched.',
+      coded('listing.imageAddressRefused'),
     );
   const wait = ctx.fetchLimiter.take(input.workspaceId);
   if (wait > 0)
     return {
-      ...failure(429, 'rate_limited', `Too many image requests. Try again in ${wait} seconds.`),
+      ...failure(
+        429,
+        'rate_limited',
+        `Too many image requests. Try again in ${wait} seconds.`,
+        coded('rate.images', { count: wait }),
+      ),
       headers: { 'Retry-After': String(wait) },
     };
   const got = await downloadStoreImage(ctx.net, url, { maxBytes: input.maxBytes });

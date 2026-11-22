@@ -21,6 +21,7 @@ import {
 import { pullStoreListing } from './pull.ts';
 import { recordAppliedChangeSets, refreshRepoListing } from './repo.ts';
 
+import { coded } from '../../i18n/problem.ts';
 export type ListingRoutesContext = {
   db: Database;
   now: () => number;
@@ -157,6 +158,7 @@ export function listingRoutes(ctx: ListingRoutesContext) {
           {
             error: 'no_repository',
             message: 'This app is not linked to a repository. Link one to compare it.',
+            ...coded('listing.notLinkedCompare'),
           },
           422,
         );
@@ -168,6 +170,7 @@ export function listingRoutes(ctx: ListingRoutesContext) {
           {
             error: 'rate_limited',
             message: `Too many repository reads. Try again in ${wait} seconds.`,
+            ...coded('rate.repositoryReads', { count: wait }),
             retryAfterSeconds: wait,
           },
           429,
@@ -202,6 +205,7 @@ export function listingRoutes(ctx: ListingRoutesContext) {
           {
             error: 'no_repository',
             message: 'This app is not linked to a repository. Link one to pull into it.',
+            ...coded('listing.notLinkedPull'),
           },
           422,
         );
@@ -211,7 +215,11 @@ export function listingRoutes(ctx: ListingRoutesContext) {
       if (refresh && !can(c.get('role'), 'apps.sync')) return c.json({ error: 'forbidden' }, 403);
       if (refresh && !ctx.sync) {
         return c.json(
-          { error: 'refresh_unavailable', message: 'This server cannot read the store.' },
+          {
+            error: 'refresh_unavailable',
+            message: 'This server cannot read the store.',
+            ...coded('listing.cannotReadStore'),
+          },
           422,
         );
       }
@@ -225,6 +233,7 @@ export function listingRoutes(ctx: ListingRoutesContext) {
           body: {
             error: 'rate_limited',
             message: `Too many ${what}. Try again in ${wait} seconds.`,
+            ...coded('rate.requests', { count: wait }),
             retryAfterSeconds: wait,
           },
         } satisfies Failure;

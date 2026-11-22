@@ -31,6 +31,7 @@ import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
 import type { PlansContext } from './plans.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Staged rollout steps of a release plan. PLANNING DATA ONLY: nothing here reads a store with a
  * credential or writes to one. A step marked done changes no rollout; the store's own share (what
@@ -327,6 +328,7 @@ export async function setRollout(
           422,
           'template_not_found',
           'That rollout template does not exist or does not fit this app.',
+          coded('plan.templateNotFound'),
         );
       }
     }
@@ -340,6 +342,7 @@ export async function setRollout(
           422,
           'rollout_platform_mismatch',
           "Apple's phased release is for an iOS or macOS app.",
+          coded('plan.phasedPlatform'),
         );
       }
       if (existing.some((s) => s.status === 'done')) {
@@ -347,6 +350,7 @@ export async function setRollout(
           409,
           'rollout_has_done_steps',
           'This plan has steps that are done. Reopen them before switching to the phased release.',
+          coded('plan.stepsDone'),
         );
       }
       const startsAt = body.startsAt ?? null;
@@ -386,6 +390,7 @@ export async function setRollout(
           422,
           'rollout_platform_mismatch',
           "Apple's phased release has a fixed schedule. Use it, or plan a single step at 100%.",
+          coded('plan.phasedFixed'),
         );
       }
       const checked = validateRolloutSteps(body.steps, { planCreatedAt: plan.createdAt, existing });
@@ -541,7 +546,12 @@ export async function rolloutStepAction(
     const plan = await planFacts(tx, input);
     if (!plan) return notFound();
     if (plan.kind !== 'steps') {
-      return failure(409, 'no_rollout_steps', 'This plan has no rollout steps to change.');
+      return failure(
+        409,
+        'no_rollout_steps',
+        'This plan has no rollout steps to change.',
+        coded('plan.noRolloutSteps'),
+      );
     }
     const at = ctx.now();
     const steps = await loadRolloutSteps(tx, input.workspaceId, plan.id, at);
@@ -562,6 +572,7 @@ export async function rolloutStepAction(
               409,
               'store_share_unknown',
               'The store has not reported a rollout share for this version, so there is nothing to confirm against.',
+              coded('plan.noStoreShare'),
             );
           }
           if (store.percent < step.percent) {
@@ -572,6 +583,10 @@ export async function rolloutStepAction(
               {
                 storePercent: store.percent,
                 stepPercent: step.percent,
+                ...coded('plan.storeBelowStep', {
+                  storePercent: store.percent,
+                  stepPercent: step.percent,
+                }),
               },
             );
           }
@@ -598,6 +613,7 @@ export async function rolloutStepAction(
           409,
           'step_changed',
           'Someone else changed this step. Reload and try again.',
+          coded('plan.stepChanged'),
         );
       }
       await touch(tx, input.workspaceId, plan.id, at);

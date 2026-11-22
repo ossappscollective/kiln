@@ -26,6 +26,7 @@ import {
 } from './sources.ts';
 import { listListingTargets } from './targets.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * The adapter between an app and the repository side of its listing. It only calls the exported
  * functions of the repository services (`readRepositoryListing`, `readListings`, `mergedListing`,
@@ -76,11 +77,17 @@ export async function refreshRepoListing(
       422,
       'no_repository',
       'This app is not linked to a repository. Link one to compare it.',
+      coded('listing.notLinkedCompare'),
     );
   }
   const repository = await getRepository(ctx.db, workspaceId, app.repositoryId);
   if (!repository) {
-    return failure(422, 'no_repository', 'The repository of this app is not connected any more.');
+    return failure(
+      422,
+      'no_repository',
+      'The repository of this app is not connected any more.',
+      coded('listing.repositoryDisconnected'),
+    );
   }
   const opened = await openConnectorForRepository(
     ctx,

@@ -52,6 +52,7 @@ import { canonicalLocale, matchRepoLocale, newRepoLocale } from './locales.ts';
 import { type ListingSourceKind, listingSources, mergedListing } from './sources.ts';
 import { type ListingSelection, type ListingTarget, listListingTargets } from './targets.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Pull the live store listing into the repository, as a draft change set.
  *
@@ -500,7 +501,7 @@ const targetRequired = (candidates: readonly ListingTargetView[]) =>
     422,
     'target_required',
     'This repository has more than one place the listing of this app could be. Choose the listing target (or the folders) to pull into.',
-    { candidates },
+    { candidates, ...coded('listing.multipleTargets') },
   );
 
 export const DEFAULT_PULL_SUMMARY = (app: ManagedApp): string =>
@@ -564,11 +565,17 @@ async function preparePull(
       422,
       'no_repository',
       'This app is not linked to a repository. Link one to pull into it.',
+      coded('listing.notLinkedPull'),
     );
   }
   const repository = await getRepository(db, workspaceId, app.repositoryId);
   if (!repository) {
-    return failure(422, 'no_repository', 'The repository of this app is not connected any more.');
+    return failure(
+      422,
+      'no_repository',
+      'The repository of this app is not connected any more.',
+      coded('listing.repositoryDisconnected'),
+    );
   }
   const wanted = input.fields ?? [];
   for (const field of [...wanted, ...(input.items ?? []).map((i) => i.field)]) {
@@ -577,6 +584,7 @@ async function preparePull(
         422,
         'invalid_field',
         `${field} is not a listing field of an ${app.platform} app.`,
+        coded('listing.notAField', { field, platform: app.platform }),
       );
     }
   }
@@ -657,6 +665,7 @@ function pullBuilder(prepared: Prepared, input: PullInput, state: PullState): Li
         422,
         'no_target_folder',
         `The selected listing target has no ${storeName(app.platform)} folder to pull into.`,
+        coded('listing.noFolder', { store: storeName(app.platform) }),
       );
     }
     state.plan = planPull({
@@ -813,7 +822,12 @@ export async function pullStoreListing(
     };
   }
   const base = common();
-  if (!base || !plan) return failure(422, 'no_changes', 'Nothing to pull.');
+  if (!base || !plan) return failure(
+    422,
+    'no_changes',
+    'Nothing to pull.',
+    coded('listing.nothingToPull'),
+  );
   return {
     ok: true,
     result: {
@@ -922,6 +936,7 @@ export async function planRecompute(
       409,
       'not_recomputable',
       'This change set was not made from a store pull (or was made before pulls could be recomputed), so it cannot be recomputed. Pull again from the Listing tab.',
+      coded('listing.notFromPull'),
     );
   }
   const app = await getApp(ctx.repo.db, workspaceId, origin.appId);
@@ -930,12 +945,14 @@ export async function planRecompute(
       409,
       'app_gone',
       'The app this change set was pulled for is not there any more.',
+      coded('listing.appGone'),
     );
   if (app.repositoryId !== String(row.repository_id)) {
     return failure(
       409,
       'app_relinked',
       'The app is linked to another repository now, so this change set cannot be recomputed.',
+      coded('listing.appRelinked'),
     );
   }
   const request = origin.request;
@@ -967,7 +984,12 @@ export async function planRecompute(
   );
   if (!computed.ok) return computed;
   const { plan, target } = state;
-  if (!plan || !target) return failure(422, 'no_changes', 'Nothing to pull.');
+  if (!plan || !target) return failure(
+    422,
+    'no_changes',
+    'Nothing to pull.',
+    coded('listing.nothingToPull'),
+  );
   const { live, channel, refreshed } = prepared.prepared;
   const warnings: string[] = [...computed.warnings];
   if (live.error) {
@@ -1034,6 +1056,7 @@ export async function recomputeStorePull(
       409,
       'has_branch',
       'A branch was created for this change set, so it cannot be replaced. Fix it up (it adds one commit to the branch) with the recomputed content, or discard it and pull again.',
+      coded('listing.branchCreated'),
     );
   }
   const origin = parseOrigin(row);
@@ -1042,6 +1065,7 @@ export async function recomputeStorePull(
       409,
       'not_recomputable',
       'This change set was not made from a store pull (or was made before pulls could be recomputed), so it cannot be recomputed. Pull again from the Listing tab.',
+      coded('listing.notFromPull'),
     );
   }
   const planned = await planRecompute(ctx, { ...input, row }, actor);
@@ -1080,6 +1104,7 @@ export async function recomputeStorePull(
         409,
         'changed_meanwhile',
         'This change set was changed while it was being recomputed (approved, applied, refreshed or recomputed by someone else). Look again and retry.',
+        coded('listing.recomputeChanged'),
       );
     }
     await recordAudit(tx, {

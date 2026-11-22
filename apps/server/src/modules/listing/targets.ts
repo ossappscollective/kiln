@@ -4,6 +4,7 @@ import type { ActorType } from '@kiln/core';
 import type { Database, Row, Sql } from '@kiln/db';
 import { recordAudit } from '../../services/audit.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Listing targets: the places a repository's store listing lives, named. A repository with several
  * apps has one per app (the scan finds them, `auto:` targets), and the person can add their own
@@ -166,6 +167,7 @@ const duplicateName = (name: string): TargetResult => ({
   status: 409,
   error: 'duplicate_name',
   message: `This repository already has a listing target named "${name}".`,
+  ...coded('listing.targetNameTaken', { name }),
 });
 
 export async function createListingTarget(
@@ -192,7 +194,13 @@ export async function createListingTarget(
         [input.repositoryId, input.workspaceId],
       );
       if (!repo)
-        return { ok: false, status: 404, error: 'not_found', message: 'No such repository.' };
+        return {
+          ok: false,
+          status: 404,
+          error: 'not_found',
+          message: 'No such repository.',
+          ...coded('notFound.repository'),
+        };
       const [count] = await tx.query(
         'SELECT COUNT(*) AS n FROM repository_listing_targets WHERE repository_id = ?',
         [input.repositoryId],
@@ -203,6 +211,7 @@ export async function createListingTarget(
           status: 422,
           error: 'too_many_targets',
           message: `A repository can have at most ${MAX_TARGETS_PER_REPOSITORY} listing targets.`,
+          ...coded('listing.tooManyTargets', { max: MAX_TARGETS_PER_REPOSITORY }),
         };
       }
       const [same] = await tx.query(
@@ -270,7 +279,13 @@ export async function updateListingTarget(
 ): Promise<TargetResult> {
   const current = await getListingTarget(sql, input.workspaceId, input.repositoryId, input.id);
   if (!current)
-    return { ok: false, status: 404, error: 'not_found', message: 'No such listing target.' };
+    return {
+      ok: false,
+      status: 404,
+      error: 'not_found',
+      message: 'No such listing target.',
+      ...coded('notFound.listingTarget'),
+    };
   const merged: TargetInput = {
     name: input.changes.name ?? current.name,
     appId: 'appId' in input.changes ? input.changes.appId : current.appId,
@@ -346,6 +361,7 @@ export async function deleteListingTarget(
         status: 404,
         error: 'not_found',
         message: 'No such listing target.',
+        ...coded('notFound.listingTarget'),
       } as const;
     await tx.execute('DELETE FROM repository_listing_targets WHERE id = ? AND workspace_id = ?', [
       input.id,
@@ -406,6 +422,7 @@ export async function resolveSelection(
           status: 404,
           error: 'target_not_found',
           message: 'That listing target does not exist (it may have been deleted).',
+          ...coded('listing.targetGone'),
         };
       }
       roots.appStore = custom.appStoreRoot ?? '';

@@ -11,6 +11,7 @@ import { type Failure, failure, type RepoContext } from '../../services/reposito
 import { isCommitSha, openAssets } from './asset-repo.ts';
 import { peekStoreImages, storeSideOf } from './store-images.ts';
 
+import { coded } from '../../i18n/problem.ts';
 export type AssetRoutesContext = {
   db: Database;
   now: () => number;
@@ -106,7 +107,12 @@ export function assetRoutes(ctx: AssetRoutesContext) {
     const wait = ctx.limiter.take(ws(c));
     if (wait <= 0) return undefined;
     return {
-      ...failure(429, 'rate_limited', `Too many repository reads. Try again in ${wait} seconds.`),
+      ...failure(
+        429,
+        'rate_limited',
+        `Too many repository reads. Try again in ${wait} seconds.`,
+        coded('rate.repositoryReads', { count: wait }),
+      ),
       headers: { 'Retry-After': String(wait) },
     };
   };

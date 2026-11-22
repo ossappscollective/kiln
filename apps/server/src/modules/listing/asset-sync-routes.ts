@@ -38,6 +38,7 @@ import { IMAGE_TYPES, matchesEtag, safeImageHeaders } from './asset-routes.ts';
 import type { StoreImageNet } from './store-image-net.ts';
 import { getStoreImages, storeThumbnail, thumbSizeOf } from './store-images.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Two way sync of the app's graphics (docs/api/assets.md, docs/api/staged-changes.md, docs/adr/0012-assets-two-way-sync.md):
  * the store's images, their comparison with the repository, pulling them into a change set, uploading, replacing, removing
@@ -173,7 +174,12 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
     const wait = ctx.limiter.take(ws(c));
     if (wait <= 0) return undefined;
     return {
-      ...failure(429, 'rate_limited', `Too many repository reads. Try again in ${wait} seconds.`),
+      ...failure(
+        429,
+        'rate_limited',
+        `Too many repository reads. Try again in ${wait} seconds.`,
+        coded('rate.repositoryReads', { count: wait }),
+      ),
       headers: { 'Retry-After': String(wait) },
     };
   };
@@ -182,7 +188,12 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
     return wait <= 0
       ? undefined
       : {
-          ...failure(429, 'rate_limited', `Too many uploads. Try again in ${wait} seconds.`),
+          ...failure(
+            429,
+            'rate_limited',
+            `Too many uploads. Try again in ${wait} seconds.`,
+            coded('rate.uploads', { count: wait }),
+          ),
           headers: { 'Retry-After': String(wait) },
         };
   };

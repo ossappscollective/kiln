@@ -20,6 +20,7 @@ import { layoutFor, planSet, type Wanted } from './asset-repo-plan.ts';
 import { stepsToChanges } from './asset-repo-write.ts';
 import { getStoreImages, storeImageBytes } from './store-images.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Pull from the store (docs/adr/0012-assets-two-way-sync.md): the store's current images become a change set for the app's
  * repository, through the usual review, approval and apply flow. Never a write to the repository's default branch, never a
@@ -103,6 +104,7 @@ export async function pullStoreImages(
       422,
       'no_repository',
       'This app has no linked repository to pull the images into.',
+      coded('listing.noRepositoryPull'),
     );
   const platform: AssetPlatform = app.platform;
   const store = await getStoreImages(ctx.store, {
@@ -125,6 +127,7 @@ export async function pullStoreImages(
       422,
       'no_repository',
       'This app has no linked repository to pull the images into.',
+      coded('listing.noRepositoryPull'),
     );
 
   // Selection.
@@ -154,7 +157,7 @@ export async function pullStoreImages(
         422,
         'unknown_selection',
         'A set is not one the store holds. Read the comparison again.',
-        { set: k },
+        { set: k, ...coded('listing.setNotInStore') },
       );
   for (const k of wantFiles)
     if (!imageKeys.has(k))
@@ -162,7 +165,7 @@ export async function pullStoreImages(
         422,
         'unknown_selection',
         'An image is not one the store holds. Read the comparison again.',
-        { file: k },
+        { file: k, ...coded('listing.imageNotInStore') },
       );
   const everything = wantSets.size === 0 && wantFiles.size === 0;
 

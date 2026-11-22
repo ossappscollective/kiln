@@ -33,6 +33,7 @@ import {
   rolloutSummaryOf,
 } from './plan-rollout.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Release planning: checklists, release notes per locale, a target date and a blocked flag for
  * one version of one app. This is our own data in our own database. Nothing here reads a store
@@ -353,13 +354,23 @@ export async function createTemplate(
       [input.workspaceId],
     );
     if (Number(count?.n) >= MAX_TEMPLATES) {
-      return failure(422, 'too_many_templates', `A workspace can have ${MAX_TEMPLATES} templates.`);
+      return failure(
+        422,
+        'too_many_templates',
+        `A workspace can have ${MAX_TEMPLATES} templates.`,
+        coded('plan.tooManyTemplates', { max: MAX_TEMPLATES }),
+      );
     }
     const [same] = await tx.query(
       'SELECT id FROM checklist_templates WHERE workspace_id = ? AND name = ?',
       [input.workspaceId, input.name],
     );
-    if (same) return failure(409, 'already_exists', 'A template with that name already exists.');
+    if (same) return failure(
+      409,
+      'already_exists',
+      'A template with that name already exists.',
+      coded('plan.templateNameTaken'),
+    );
     const id = randomUUID();
     const at = ctx.now();
     await tx.execute(
@@ -403,6 +414,7 @@ export async function updateTemplate(
       409,
       'builtin_template',
       'This template ships with the product. Save a copy with your own wording instead.',
+      coded('plan.templateBuiltin'),
     );
   }
   return ctx.db.transaction(async (tx) => {
@@ -418,7 +430,12 @@ export async function updateTemplate(
         'SELECT id FROM checklist_templates WHERE workspace_id = ? AND name = ?',
         [input.workspaceId, name],
       );
-      if (same) return failure(409, 'already_exists', 'A template with that name already exists.');
+      if (same) return failure(
+        409,
+        'already_exists',
+        'A template with that name already exists.',
+        coded('plan.templateNameTaken'),
+      );
     }
     const items = input.items ?? current.items;
     const at = ctx.now();
@@ -448,6 +465,7 @@ export async function deleteTemplate(
       409,
       'builtin_template',
       'This template ships with the product and cannot be deleted.',
+      coded('plan.templateBuiltinDelete'),
     );
   }
   return ctx.db.transaction(async (tx) => {
@@ -500,6 +518,7 @@ export async function createPlan(
         422,
         'platform_mismatch',
         `This app is on ${app.platform}. A plan for it covers ${app.platform} or both platforms.`,
+        coded('plan.platformMismatch', { platform: app.platform }),
       );
     }
     const [same] = await tx.query(
@@ -509,12 +528,18 @@ export async function createPlan(
     if (same)
       return failure(409, 'already_exists', 'This app already has a plan for that version.', {
         planId: String(same.id),
+        ...coded('plan.alreadyExists'),
       });
     let template: { name: string; items: ChecklistTemplateItem[] } | undefined;
     if (input.templateId !== undefined) {
       template = await findTemplate(tx, input.workspaceId, input.templateId);
       if (!template)
-        return failure(404, 'template_not_found', 'That checklist template does not exist.');
+        return failure(
+          404,
+          'template_not_found',
+          'That checklist template does not exist.',
+          coded('notFound.checklistTemplate'),
+        );
     }
     const id = randomUUID();
     const at = ctx.now();
@@ -582,7 +607,12 @@ export async function updatePlan(
     let blockedReason =
       patch.blockedReason === undefined ? current.blockedReason : patch.blockedReason;
     if (blocked && (blockedReason ?? '').trim() === '') {
-      return failure(422, 'reason_required', 'Say why the release is blocked.');
+      return failure(
+        422,
+        'reason_required',
+        'Say why the release is blocked.',
+        coded('plan.blockReason'),
+      );
     }
     if (!blocked) blockedReason = null;
     const notes = patch.notes ?? current.notes;
@@ -723,7 +753,12 @@ export async function addItem(
       [input.planId, input.workspaceId],
     );
     if (Number(stats?.n) >= MAX_CHECKLIST_ITEMS) {
-      return failure(422, 'too_many_items', `A checklist can have ${MAX_CHECKLIST_ITEMS} items.`);
+      return failure(
+        422,
+        'too_many_items',
+        `A checklist can have ${MAX_CHECKLIST_ITEMS} items.`,
+        coded('plan.checklistFull', { max: MAX_CHECKLIST_ITEMS }),
+      );
     }
     const itemId = await insertItem(
       tx,
@@ -855,6 +890,7 @@ export async function reorderItems(
         422,
         'order_mismatch',
         'The order must list every item of the checklist exactly once. Reload and try again.',
+        coded('plan.checklistOrder'),
       );
     }
     for (const [position, id] of input.order.entries()) {
@@ -888,7 +924,12 @@ export async function applyTemplate(
     if (!plan) return notFound();
     const template = await findTemplate(tx, input.workspaceId, input.templateId);
     if (!template)
-      return failure(404, 'template_not_found', 'That checklist template does not exist.');
+      return failure(
+        404,
+        'template_not_found',
+        'That checklist template does not exist.',
+        coded('notFound.checklistTemplate'),
+      );
     const existing = await tx.query(
       'SELECT text, position FROM checklist_items WHERE plan_id = ? AND workspace_id = ?',
       [input.planId, input.workspaceId],
@@ -896,7 +937,12 @@ export async function applyTemplate(
     const have = new Set(existing.map((r) => String(r.text)));
     const fresh = template.items.filter((i) => !have.has(i.text));
     if (existing.length + fresh.length > MAX_CHECKLIST_ITEMS) {
-      return failure(422, 'too_many_items', `A checklist can have ${MAX_CHECKLIST_ITEMS} items.`);
+      return failure(
+        422,
+        'too_many_items',
+        `A checklist can have ${MAX_CHECKLIST_ITEMS} items.`,
+        coded('plan.checklistFull', { max: MAX_CHECKLIST_ITEMS }),
+      );
     }
     let position = existing.reduce((max, r) => Math.max(max, Number(r.position)), -1) + 1;
     for (const item of fresh)
@@ -954,6 +1000,7 @@ export async function setReleaseNotes(
           locale: input.locale,
           limit,
           actual: length,
+          ...coded('plan.notesTooLong', { locale: input.locale, length, store, limit }),
         },
       );
     }
@@ -977,6 +1024,7 @@ export async function setReleaseNotes(
           422,
           'too_many_locales',
           `A plan can have release notes for ${MAX_NOTE_LOCALES} locales.`,
+          coded('plan.tooManyNoteLocales', { max: MAX_NOTE_LOCALES }),
         );
       }
       await tx.execute(
