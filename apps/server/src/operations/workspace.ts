@@ -70,7 +70,17 @@ export const deliverySchema = z.object({
   deliveredAt: timestamp.nullable(),
 });
 
-const userSchema = z.object({ id: z.string(), email: z.string(), displayName: z.string() });
+export const userSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  displayName: z.string(),
+  locale: z
+    .enum(['en', 'fr', 'es', 'de'])
+    .nullable()
+    .describe(
+      'The language of emails sent without a request (alerts, the digest), or null for none (English). Set with `PATCH /api/me`.',
+    ),
+});
 
 const credentialSchema = z.object({
   id: z.string(),

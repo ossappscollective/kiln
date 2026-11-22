@@ -29,6 +29,7 @@ import { buildOpenApiDocument } from './operations/openapi.ts';
 import { operations } from './operations/registry.ts';
 import { appRoutes } from './routes/apps.ts';
 import { authRoutes, meRoute, requireUser } from './routes/auth.ts';
+import { meLocaleRoute } from './routes/me-locale.ts';
 import { changeSetFixupRoutes } from './routes/change-set-fixup.ts';
 import { type CredentialTestDeps, credentialTestRoutes } from './routes/credential-tests.ts';
 import { createEventStreamHub, type EventStreamHub, eventRoutes } from './routes/events.ts';
@@ -335,6 +336,7 @@ export function createApp(deps: AppDeps) {
   if (!deps.singleUser) app.route('/api/auth', loginSecondFactorRoutes(mail, services));
   app.use('/api/me', requireUser(services));
   app.route('/api/me', meRoute(services));
+  app.route('/api/me', meLocaleRoute(services));
   // The session cookie, or an API token (bearer.ts). Cookie requests are handled exactly as before.
   const auth = requireAuth(services, deps.tokens);
   app.use('/api/workspaces/*', auth);

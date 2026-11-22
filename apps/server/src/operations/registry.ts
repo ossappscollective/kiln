@@ -13,6 +13,7 @@ import { planningOperations } from '../modules/planning/operations.ts';
 import { publishOperations } from '../modules/publish/operations.ts';
 import { reviewsOperations } from '../modules/reviews/operations.ts';
 import { mcpOperations } from './mcp.ts';
+import { meOperations } from './me.ts';
 import type { Operation } from './openapi.ts';
 import { releasesOperations } from './releases.ts';
 import { repositoriesOperations } from './repositories.ts';
@@ -54,6 +55,7 @@ const drafts: Draft[] = [
   ...stepUpOperations,
   ...twoFactorOperations,
   ...mcpOperations,
+  ...meOperations,
 ];
 
 export const operations: readonly Operation[] = drafts.map((d) => ({ ...d, tags: d.tags ?? [] }));

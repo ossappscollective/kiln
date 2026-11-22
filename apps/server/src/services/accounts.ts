@@ -2,11 +2,13 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { isRole, type Role } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
 import { hashPassword, type ScryptCost, verifyPassword } from '../passwords.ts';
+import { storedLocale } from '../i18n/user-locale.ts';
 import { recordAudit } from './audit.ts';
 
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-export type User = { id: string; email: string; displayName: string };
+/** `locale` is the person's language (en, fr, es, de) or null for none; see i18n/user-locale.ts. */
+export type User = { id: string; email: string; displayName: string; locale?: string | null };
 export type WorkspaceSummary = { id: string; name: string; role: Role };
 
 export const normalizeEmail = (email: string) => email.trim().toLowerCase();
@@ -38,6 +40,7 @@ export async function registerFirstUser(
     id: randomUUID(),
     email: normalizeEmail(input.email),
     displayName: input.displayName.trim(),
+    locale: null,
   };
   const workspaceId = randomUUID();
 
@@ -83,14 +86,16 @@ export async function ensureLocalUser(
 ): Promise<{ user: User; workspaceId: string; created: boolean } | 'not_a_single_user_database'> {
   return db.transaction(async (tx) => {
     if (tx.dialect === 'postgres') await tx.query('SELECT pg_advisory_xact_lock(727275)');
-    const [row] = await tx.query('SELECT id, email, display_name FROM users WHERE email = ?', [
-      options.email,
-    ]);
+    const [row] = await tx.query(
+      'SELECT id, email, display_name, locale FROM users WHERE email = ?',
+      [options.email],
+    );
     if (row) {
       const user: User = {
         id: String(row.id),
         email: String(row.email),
         displayName: String(row.display_name),
+        locale: storedLocale(row.locale),
       };
       const [member] = await tx.query(
         'SELECT workspace_id FROM workspace_members WHERE user_id = ? ORDER BY workspace_id',
@@ -100,7 +105,12 @@ export async function ensureLocalUser(
     }
     if ((await countUsers(tx)) > 0) return 'not_a_single_user_database' as const;
 
-    const user: User = { id: randomUUID(), email: options.email, displayName: 'Local user' };
+    const user: User = {
+      id: randomUUID(),
+      email: options.email,
+      displayName: 'Local user',
+      locale: null,
+    };
     const workspaceId = randomUUID();
     await tx.execute(
       'INSERT INTO users (id, email, display_name, created_at, password_hash) VALUES (?, ?, ?, ?, NULL)',
@@ -133,7 +143,7 @@ export async function verifyLogin(
   password: string,
 ): Promise<User | undefined> {
   const [row] = await sql.query(
-    'SELECT id, email, display_name, password_hash FROM users WHERE email = ?',
+    'SELECT id, email, display_name, locale, password_hash FROM users WHERE email = ?',
     [normalizeEmail(email)],
   );
   const stored = row?.password_hash ? String(row.password_hash) : undefined;
@@ -143,7 +153,12 @@ export async function verifyLogin(
     return undefined;
   }
   if (!(await verifyPassword(password, stored))) return undefined;
-  return { id: String(row?.id), email: String(row?.email), displayName: String(row?.display_name) };
+  return {
+    id: String(row?.id),
+    email: String(row?.email),
+    displayName: String(row?.display_name),
+    locale: storedLocale(row?.locale),
+  };
 }
 
 /** Returns the raw token for the cookie. Only its SHA-256 is stored. */
@@ -167,13 +182,18 @@ export async function resolveSession(
   now: number,
 ): Promise<User | undefined> {
   const [row] = await sql.query(
-    `SELECT u.id, u.email, u.display_name FROM sessions s
+    `SELECT u.id, u.email, u.display_name, u.locale FROM sessions s
        JOIN users u ON u.id = s.user_id
       WHERE s.id = ? AND s.expires_at > ?`,
     [tokenHash(token), now],
   );
   return row
-    ? { id: String(row.id), email: String(row.email), displayName: String(row.display_name) }
+    ? {
+        id: String(row.id),
+        email: String(row.email),
+        displayName: String(row.display_name),
+        locale: storedLocale(row.locale),
+      }
     : undefined;
 }
 
