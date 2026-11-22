@@ -12,6 +12,7 @@ import { type Failure, failure } from '../../services/repositories.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import type { EasDeps } from './index.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * The one way every EAS feature gets a client for Expo (docs/adr/0033-eas-integration.md). It reads the Expo credential, decrypts the
  * token for this one client (audited as `credential.use` with the purpose the caller names), and hands back a client whose closure is
@@ -51,10 +52,16 @@ export async function expoClientFor(
       422,
       'credential_not_found',
       'That credential does not exist in this workspace (it may have been deleted).',
+      coded('credential.notInWorkspace'),
     );
   }
   if (String(row.kind) !== 'expo') {
-    return failure(422, 'credential_kind', 'Expo needs a credential of the Expo access token kind.');
+    return failure(
+      422,
+      'credential_kind',
+      'Expo needs a credential of the Expo access token kind.',
+      coded('credential.notExpoKind'),
+    );
   }
   let secret: string | undefined;
   try {
@@ -70,10 +77,16 @@ export async function expoClientFor(
       422,
       'credential_unreadable',
       'The credential could not be decrypted. Enter its secret again.',
+      coded('credential.undecryptable'),
     );
   }
   if (secret === undefined) {
-    return failure(422, 'credential_not_found', 'That credential does not exist.');
+    return failure(
+      422,
+      'credential_not_found',
+      'That credential does not exist.',
+      coded('credential.notFound'),
+    );
   }
   try {
     return {
@@ -92,7 +105,12 @@ export async function expoClientFor(
 /** A response for whatever a call to Expo threw. Messages are fixed sentences, redacted once more against the secret in use. */
 export function expoFailure(error: unknown, secret = ''): Failure {
   if (!(error instanceof ExpoError)) {
-    return failure(502, 'expo_unavailable', 'The Expo request could not be completed. Try again in a moment.');
+    return failure(
+      502,
+      'expo_unavailable',
+      'The Expo request could not be completed. Try again in a moment.',
+      coded('eas.requestFailed'),
+    );
   }
   const message = redactSecrets(error.message, secret ? secretStrings(secret) : []);
   switch (error.kind) {

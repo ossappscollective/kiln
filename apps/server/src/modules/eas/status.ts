@@ -14,6 +14,7 @@ import { expoClientFor, expoFailure } from './client.ts';
 import type { EasDeps } from './index.ts';
 import { getExpoLink, type ExpoLinkView } from './link.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * EAS Build and Submit status (docs/adr/0036-eas-build-submit-status.md, docs/api/eas-builds.md): the builds and the submissions of the Expo
  * project an app record is linked to, kept as a snapshot in `eas_builds`, `eas_submissions` and `eas_status_sync`. READ ONLY toward
@@ -409,17 +410,28 @@ export async function refreshEasStatus(
   if (!app) return failure(404, 'not_found');
   const link = await getExpoLink(ctx.db, input.workspaceId, app.id);
   if (!link) {
-    return failure(409, 'not_linked', 'This app is not linked to an Expo project. Link it in the app settings.');
+    return failure(
+      409,
+      'not_linked',
+      'This app is not linked to an Expo project. Link it in the app settings.',
+      coded('eas.notLinked'),
+    );
   }
   const platform = easPlatformOf(app.platform);
   if (platform === null) {
-    return failure(422, 'platform_unsupported', 'EAS builds and submits iOS and Android apps only.');
+    return failure(
+      422,
+      'platform_unsupported',
+      'EAS builds and submits iOS and Android apps only.',
+      coded('eas.platformsOnly'),
+    );
   }
   if (!link.credentialAvailable) {
     return failure(
       422,
       'credential_not_found',
       'The Expo credential of this link was deleted. Choose another in the app settings.',
+      coded('eas.credentialDeleted'),
     );
   }
   const opened = await expoClientFor(ctx.db, ctx.masterKey, input.workspaceId, link.credentialId, ctx.deps, {

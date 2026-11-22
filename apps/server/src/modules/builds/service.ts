@@ -24,6 +24,7 @@ import { listConventions } from '../ci/conventions.ts';
 import { listRuns, runCountsForApp, type WorkflowRunView } from '../ci/runs.ts';
 import { type CiContext, guarded, openCi } from '../ci/service.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * Builds you can test before publishing (docs/api/builds.md, docs/research/test-builds.md): the zips that CI runs
  * uploaded as workflow artifacts, and the builds the last store sync saw. Listing asks GitHub for artifact names and
@@ -367,6 +368,7 @@ async function readRepoArtifacts(
         body: {
           error: 'ci_unsupported',
           message: 'This repository connection cannot list artifacts.',
+          ...coded('ci.cannotListArtifacts'),
         },
       } as Failure;
     const before = stale.get(key);
@@ -918,6 +920,7 @@ export async function findArtifact(
       410,
       'artifact_expired',
       'GitHub no longer keeps this artifact. Run the workflow again to make a new one.',
+      coded('builds.artifactGone'),
     );
   }
   if (artifact.sizeInBytes > ctx.builds.maxDownloadBytes) {
@@ -925,7 +928,13 @@ export async function findArtifact(
       413,
       'artifact_too_large',
       `This artifact is larger than the download limit (${Math.floor(ctx.builds.maxDownloadBytes / 1024 / 1024)} MB).`,
-      { sizeBytes: artifact.sizeInBytes, maxBytes: ctx.builds.maxDownloadBytes },
+      {
+        sizeBytes: artifact.sizeInBytes,
+        maxBytes: ctx.builds.maxDownloadBytes,
+        ...coded('builds.artifactTooLargeMb', {
+          mb: Math.floor(ctx.builds.maxDownloadBytes / 1024 / 1024),
+        }),
+      },
     );
   }
   return { ok: true, app, repository, artifact, run };
@@ -956,6 +965,7 @@ export async function openArtifactDownload(
     return {
       ...fail(429, 'rate_limited', `Too many downloads. Try again in ${wait} seconds.`, {
         retryAfterSeconds: wait,
+        ...coded('rate.downloads', { count: wait }),
       }),
       headers: { 'Retry-After': String(wait) },
     };
@@ -968,6 +978,7 @@ export async function openArtifactDownload(
     return {
       ...fail(429, 'rate_limited', 'Other downloads are still running. Try again in a moment.', {
         retryAfterSeconds: 10,
+        ...coded('builds.downloadsBusy'),
       }),
       headers: { 'Retry-After': '10' },
     };
@@ -977,7 +988,12 @@ export async function openArtifactDownload(
   if (!opened.ok) return opened;
   const { client } = opened;
   if (!client.openArtifactDownload)
-    return fail(422, 'ci_unsupported', 'This repository connection cannot download artifacts.');
+    return fail(
+      422,
+      'ci_unsupported',
+      'This repository connection cannot download artifacts.',
+      coded('ci.cannotDownloadArtifacts'),
+    );
   const abort = new AbortController();
   ctx.downloading.set(input.workspaceId, busy + 1);
   const release = () => {
@@ -1002,6 +1018,7 @@ export async function openArtifactDownload(
         410,
         'artifact_expired',
         'GitHub no longer keeps this artifact. Run the workflow again to make a new one.',
+        coded('builds.artifactGone'),
       );
     if (got.value.status === 'missing') return fail(404, 'not_found');
     const { body, contentLength } = got.value;
@@ -1010,6 +1027,7 @@ export async function openArtifactDownload(
       return fail(413, 'artifact_too_large', 'This artifact is larger than the download limit.', {
         sizeBytes: contentLength,
         maxBytes: ctx.builds.maxDownloadBytes,
+        ...coded('builds.artifactTooLarge'),
       });
     }
     // Ids and a size only: no name, no address.
@@ -1149,6 +1167,7 @@ export async function createDownloadLink(
     return {
       ...fail(429, 'rate_limited', `Too many downloads. Try again in ${wait} seconds.`, {
         retryAfterSeconds: wait,
+        ...coded('rate.downloads', { count: wait }),
       }),
       headers: { 'Retry-After': String(wait) },
     };

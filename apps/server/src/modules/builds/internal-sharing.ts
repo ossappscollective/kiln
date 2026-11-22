@@ -13,7 +13,7 @@ import type { Platform } from '@kiln/core';
 import { supports } from '@kiln/core';
 import type { Sql } from '@kiln/db';
 import { decryptSecret, encryptSecret } from '@kiln/vault';
-import { codingOf } from '../../i18n/problem.ts';
+import { coded, codingOf } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
@@ -91,6 +91,7 @@ async function takeClaim(
       409,
       'write_in_progress',
       'A build of this app is being uploaded to Google Play. Wait for it to finish.',
+      coded('builds.uploading'),
     );
   const insert = () =>
     db.execute(
@@ -108,6 +109,7 @@ async function takeClaim(
       409,
       'outcome_unknown',
       'It is not known whether the last upload of this app reached Google Play (Google has no call to read it back). Preview the share again: that clears this. An extra upload only makes a second link.',
+      coded('builds.uploadUnknown'),
     );
   }
   const startedAt = Number(existing.claim_at);
@@ -310,7 +312,12 @@ async function look(
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return fail(404, 'not_found');
   if (!supports(app.platform, 'internalAppSharing'))
-    return fail(422, 'not_android', 'Google Play internal app sharing is for Android apps.');
+    return fail(
+      422,
+      'not_android',
+      'Google Play internal app sharing is for Android apps.',
+      coded('builds.androidOnly'),
+    );
   const asked = entryOf(input.entry);
   if (!asked.ok) return asked;
   if (!/^[0-9]{1,20}$/.test(input.artifactId))
@@ -547,6 +554,7 @@ export function mapShareError(error: unknown, secret: string): BuildsFailure {
     502,
     'upload_failed',
     'The upload to Google Play failed. Nothing was stored that this server knows of.',
+    coded('builds.uploadFailed'),
   );
 }
 
@@ -590,21 +598,36 @@ async function fileOf(
       if (!names.includes(wanted))
         return fail(422, 'entry_not_found', 'That file is not in the artifact.', {
           entries: names.slice(0, MAX_ENTRIES_LISTED),
+          ...coded('builds.entryMissing'),
         });
     } else if (names.length === 0) {
-      return fail(422, 'no_android_build', 'There is no .aab or .apk file in this artifact.');
+      return fail(
+        422,
+        'no_android_build',
+        'There is no .aab or .apk file in this artifact.',
+        coded('builds.noBuildFile'),
+      );
     } else if (names.length > 1) {
       return fail(
         422,
         'entry_required',
         'This artifact holds more than one build file. Name the one to share (preview again with `entry`).',
-        { entries: names.slice(0, MAX_ENTRIES_LISTED), entryCount: names.length },
+        {
+          entries: names.slice(0, MAX_ENTRIES_LISTED),
+          entryCount: names.length,
+          ...coded('builds.manyBuildFiles'),
+        },
       );
     }
     const chosen = wanted ?? (names[0] as string);
     const [entry] = await readZipEntries(zip, (name) => name === chosen, limits);
     if (!entry)
-      return fail(422, 'no_android_build', 'There is no .aab or .apk file in this artifact.');
+      return fail(
+        422,
+        'no_android_build',
+        'There is no .aab or .apk file in this artifact.',
+        coded('builds.noBuildFile'),
+      );
     return { ok: true, name: chosen, bytes: entry.bytes };
   } catch (error) {
     if (error instanceof AnalyticsError && error.code === 'file_too_large')
@@ -612,9 +635,14 @@ async function fileOf(
         413,
         'artifact_too_large',
         'The file inside the artifact is larger than the limit.',
-        { maxBytes: max },
+        { maxBytes: max, ...coded('builds.fileTooLarge') },
       );
-    return fail(422, 'bad_zip', 'The artifact could not be read as a zip file.');
+    return fail(
+      422,
+      'bad_zip',
+      'The artifact could not be read as a zip file.',
+      coded('builds.notZip'),
+    );
   }
 }
 
@@ -631,7 +659,12 @@ export async function applyShare(
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return fail(404, 'not_found');
   if (!supports(app.platform, 'internalAppSharing'))
-    return fail(422, 'not_android', 'Google Play internal app sharing is for Android apps.');
+    return fail(
+      422,
+      'not_android',
+      'Google Play internal app sharing is for Android apps.',
+      coded('builds.androidOnly'),
+    );
   const phrase = confirmationPhraseOf(app);
   if (input.confirmation.trim() !== phrase) {
     await auditFailed(ctx, input, app, input.artifactId, {
@@ -642,7 +675,7 @@ export async function applyShare(
       422,
       'confirmation_mismatch',
       `The confirmation does not match. Type "${phrase}" exactly. Nothing was uploaded.`,
-      { phrase },
+      { phrase, ...coded('confirm.mismatchUploaded', { phrase }) },
     );
   }
   const seen = await look(ctx, input);
@@ -663,7 +696,7 @@ export async function applyShare(
       409,
       'blocked',
       'Something stands in the way of sharing, so nothing was uploaded. See `checks`.',
-      { checks },
+      { checks, ...coded('publish.blocked.share') },
     );
   }
   if (
@@ -683,6 +716,7 @@ export async function applyShare(
           entry: seen.entry,
           flight,
         }),
+        ...coded('publish.changedSinceShare'),
       },
     );
   }
@@ -698,12 +732,18 @@ export async function applyShare(
       [app.credentialId, input.workspaceId],
     );
     if (!credential)
-      return fail(422, 'credential_not_found', 'The credential of this app no longer exists.');
+      return fail(
+        422,
+        'credential_not_found',
+        'The credential of this app no longer exists.',
+        coded('credential.gone'),
+      );
     if (String(credential.kind) !== 'google_play')
       return fail(
         422,
         'credential_kind',
         "This app's credential is not a Google Play service account.",
+        coded('credential.notServiceAccount'),
       );
     let secret: string | undefined;
     try {
@@ -719,10 +759,16 @@ export async function applyShare(
         422,
         'credential_unreadable',
         'The credential could not be decrypted. Enter its secret again.',
+        coded('credential.undecryptable'),
       );
     }
     if (secret === undefined)
-      return fail(422, 'credential_not_found', 'The credential of this app no longer exists.');
+      return fail(
+        422,
+        'credential_not_found',
+        'The credential of this app no longer exists.',
+        coded('credential.gone'),
+      );
 
     // ----- the zip, through the same guards as a download (size cap, time cap, rate limit, audited as a download)
     const opened = await openArtifactDownload(
@@ -752,11 +798,13 @@ export async function applyShare(
       return tooLarge
         ? fail(413, 'artifact_too_large', 'This artifact is larger than the download limit.', {
             maxBytes: ctx.builds.maxDownloadBytes,
+            ...coded('builds.artifactTooLarge'),
           })
         : fail(
             502,
             'download_failed',
             'The artifact could not be downloaded from GitHub. Nothing was uploaded.',
+            coded('builds.githubDownloadFailed'),
           );
     }
     const file = await fileOf(zip, seen.entry, ctx.builds.maxDownloadBytes);
@@ -792,6 +840,7 @@ export async function applyShare(
           409,
           'outcome_unknown',
           'It is not known whether Google Play stored the build: it did not answer, and Google has no call to read an uploaded build back. Nothing was retried. Preview the share again to clear this; sharing again only makes another link.',
+          coded('builds.storeUnknown'),
         );
       }
       const mapped = mapShareError(error, secret);
@@ -945,6 +994,7 @@ export async function readShareLink(
       410,
       'link_expired',
       `This server keeps a link for ${LINK_RETENTION_MS / 3_600_000} hours. Share the build again to get a new one.`,
+      coded('builds.linkExpired', { hours: LINK_RETENTION_MS / 3_600_000 }),
     );
   let downloadUrl: string;
   try {
@@ -958,6 +1008,7 @@ export async function readShareLink(
       410,
       'link_unreadable',
       'The stored link could not be read. Share the build again.',
+      coded('builds.linkUnreadable'),
     );
   }
   await recordAudit(ctx.db, {

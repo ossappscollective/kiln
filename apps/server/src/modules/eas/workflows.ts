@@ -28,6 +28,7 @@ import { expoClientFor, expoFailure } from './client.ts';
 import type { EasDeps } from './index.ts';
 import { getExpoLink } from './link.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * EAS Workflows as a CI provider (docs/adr/0035-eas-workflows.md, docs/api/eas.md). A run started here through Expo's REST API is
  * stored in `workflow_runs` with `provider = 'eas-workflows'`, in the words of the other providers (`queued`, `in_progress`,
@@ -86,6 +87,7 @@ async function target(ctx: EasRunContext, workspaceId: string, appId: string) {
       422,
       'expo_not_linked',
       'This app is not linked to an Expo project. Link it in the app settings first.',
+      coded('eas.notLinked'),
     );
   }
   const repository = app.repositoryId ? await getRepository(ctx.db, workspaceId, app.repositoryId) : undefined;
@@ -94,6 +96,7 @@ async function target(ctx: EasRunContext, workspaceId: string, appId: string) {
       422,
       'repository_required',
       'Connect this app to its repository first: EAS workflow runs are listed with the runs of the repository.',
+      coded('eas.connectRepoFirst'),
     );
   }
   return { ok: true as const, app, link, repository };
@@ -127,6 +130,7 @@ export async function dispatchEasWorkflow(
     return {
       ...failure(429, 'rate_limited', `Too many CI requests. Try again in ${wait} seconds.`, {
         retryAfterSeconds: wait,
+        ...coded('rate.ci', { count: wait }),
       }),
       headers: { 'Retry-After': String(wait) },
     };
@@ -175,6 +179,7 @@ export async function dispatchEasWorkflow(
         504,
         'timeout',
         'Expo did not answer in time. The workflow may still have started: look at the runs in Expo before trying again.',
+        coded('eas.workflowTimeout'),
       );
     }
     await recordAudit(ctx.db, audit({ ok: false, code: failed.body.error }));
@@ -322,7 +327,12 @@ export async function refreshEasRun(
   if (!stored) return failure(404, 'not_found');
   const link = await getExpoLink(ctx.db, workspaceId, input.appId);
   if (!link) {
-    return failure(422, 'expo_not_linked', 'This app is not linked to an Expo project. Link it in the app settings first.');
+    return failure(
+      422,
+      'expo_not_linked',
+      'This app is not linked to an Expo project. Link it in the app settings first.',
+      coded('eas.notLinked'),
+    );
   }
   const opened = await expoClientFor(ctx.db, ctx.masterKey, workspaceId, link.credentialId, ctx.deps, {
     actor,

@@ -28,6 +28,7 @@ import {
   unlinkBuild,
 } from './service.ts';
 
+import { coded } from '../../i18n/problem.ts';
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
 const ws = (c: Context<AppEnv>) => param(c, 'workspaceId');
 const actor = (c: Context<AppEnv>) => ({ type: 'user' as const, id: c.get('user').id });
@@ -140,6 +141,7 @@ export function ciRoutes(ctx: CiContext) {
         body: {
           error: 'rate_limited',
           message: `Too many requests. Try again in ${wait} seconds.`,
+          ...coded('rate.requests', { count: wait }),
           retryAfterSeconds: wait,
         },
         headers: { 'Retry-After': String(wait) },
@@ -388,6 +390,7 @@ export function ciRoutes(ctx: CiContext) {
         body: {
           error: 'rate_limited',
           message: `Too many requests. Try again in ${wait} seconds.`,
+          ...coded('rate.requests', { count: wait }),
           retryAfterSeconds: wait,
         },
         headers: { 'Retry-After': String(wait) },

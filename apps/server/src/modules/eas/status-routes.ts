@@ -10,6 +10,7 @@ import type { ModuleShared } from '../module.ts';
 import type { EasDeps } from './index.ts';
 import { getEasStatus, refreshEasStatus } from './status.ts';
 
+import { coded } from '../../i18n/problem.ts';
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
 const ws = (c: Context<AppEnv>) => param(c, 'workspaceId');
 const actor = (c: Context<AppEnv>) => ({ type: 'user' as const, id: c.get('user').id });
@@ -49,6 +50,7 @@ export function easStatusRoutes(services: Services, deps: EasDeps | undefined, s
         body: {
           error: 'rate_limited',
           message: `Too many reads. Try again in ${wait} seconds.`,
+          ...coded('rate.reads', { count: wait }),
           retryAfterSeconds: wait,
         },
         headers: { 'Retry-After': String(wait) },

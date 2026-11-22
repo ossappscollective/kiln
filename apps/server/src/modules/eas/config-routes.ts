@@ -10,6 +10,7 @@ import type { Failure, RepoContext } from '../../services/repositories.ts';
 import { readAppEasConfig } from './config.ts';
 import type { EasPart } from './parts.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /** Reads of an app's `eas.json` per workspace per minute. Their own budget; most repeats hit the cached snapshot of the commit. */
 export const EAS_CONFIG_READS_PER_MINUTE = 30;
 
@@ -55,6 +56,7 @@ export function easConfigRoutes(ctx: EasConfigRoutesContext) {
         body: {
           error: 'rate_limited',
           message: `Too many repository reads. Try again in ${wait} seconds.`,
+          ...coded('rate.repositoryReads', { count: wait }),
           retryAfterSeconds: wait,
         },
         headers: { 'Retry-After': String(wait) },

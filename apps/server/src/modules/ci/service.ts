@@ -82,6 +82,7 @@ import {
   type TagClient,
 } from './scan.ts';
 
+import { coded } from '../../i18n/problem.ts';
 type Actor = { type: ActorType; id: string };
 
 export const CI_POLL_QUEUE = 'ci.poll';
@@ -206,7 +207,12 @@ export async function openCi(
   );
   if (!opened.ok) return opened;
   if (!isCiClient(opened.connector)) {
-    return failure(422, 'ci_unsupported', 'This repository connection cannot read CI runs.');
+    return failure(
+      422,
+      'ci_unsupported',
+      'This repository connection cannot read CI runs.',
+      coded('ci.cannotReadRuns'),
+    );
   }
   return { ok: true, client: opened.connector, secret: opened.secret };
 }
@@ -231,6 +237,7 @@ export async function guarded<T>(
 const rateLimited = (wait: number): Failure => ({
   ...failure(429, 'rate_limited', `Too many CI requests. Try again in ${wait} seconds.`, {
     retryAfterSeconds: wait,
+    ...coded('rate.ci', { count: wait }),
   }),
   headers: { 'Retry-After': String(wait) },
 });
@@ -353,6 +360,11 @@ export async function getWorkflowInputs(
       404,
       'workflow_not_found',
       `${repository.owner}/${repository.repo} has no workflow ${input.workflow}.`,
+      coded('ci.noWorkflow', {
+        owner: repository.owner,
+        repo: repository.repo,
+        workflow: input.workflow,
+      }),
     );
   }
   const opened: Outcome<Opened> = listed.opened
@@ -412,9 +424,19 @@ export async function dispatchRun(
   appIds.sort();
   for (const id of appIds) {
     const app = await getApp(ctx.db, workspaceId, id);
-    if (!app) return failure(422, 'app_not_found', 'That app is not in this workspace.');
+    if (!app) return failure(
+      422,
+      'app_not_found',
+      'That app is not in this workspace.',
+      coded('app.notInWorkspace'),
+    );
     if (app.repositoryId !== repository.id) {
-      return failure(422, 'app_repository_mismatch', 'That app is not linked to this repository.');
+      return failure(
+        422,
+        'app_repository_mismatch',
+        'That app is not linked to this repository.',
+        coded('app.notLinkedToRepository'),
+      );
     }
   }
   const wait = ctx.limiter.take(workspaceId);
@@ -452,6 +474,7 @@ export async function dispatchRun(
           504,
           'timeout',
           'GitHub did not answer in time. The workflow may still have started: look at the runs before trying again.',
+          coded('ci.dispatchTimeout'),
         )
       : githubFailure(error, opened.secret);
     await recordAudit(ctx.db, audit({ ok: false, code: failed.body.error }));
@@ -697,7 +720,12 @@ export async function readRunJobs(
     if (!opened.ok) return opened;
     const { client } = opened;
     if (!client.listRunJobs)
-      return failure(422, 'ci_unsupported', 'This repository connection cannot read CI jobs.');
+      return failure(
+        422,
+        'ci_unsupported',
+        'This repository connection cannot read CI jobs.',
+        coded('ci.cannotReadJobs'),
+      );
     const read = await guarded(ctx, opened.secret, (signal) =>
       (client.listRunJobs as NonNullable<CiClient['listRunJobs']>)(input.runId, {
         signal,
@@ -987,6 +1015,7 @@ export async function linkBuildToRun(
       422,
       'no_repository',
       'Link a repository to this app before linking its builds to CI runs.',
+      coded('ci.linkRepoBeforeLinking'),
     );
   }
   const current = await viewsFor(ctx, workspaceId, app);
@@ -998,6 +1027,7 @@ export async function linkBuildToRun(
       422,
       'build_not_found',
       `This app has no ${input.platform} build ${input.buildNumber}. Sync the app first.`,
+      coded('ci.noBuild', { platform: input.platform, buildNumber: input.buildNumber }),
     );
   }
   if (input.platform !== app.platform) {
@@ -1005,6 +1035,7 @@ export async function linkBuildToRun(
       422,
       'build_not_found',
       `This app is an ${app.platform} app, so it has no ${input.platform} builds.`,
+      coded('ci.platformMismatch', { appPlatform: app.platform, platform: input.platform }),
     );
   }
 
@@ -1017,6 +1048,11 @@ export async function linkBuildToRun(
             422,
             'run_not_found',
             `${repository.owner}/${repository.repo} has no workflow run ${input.runId}.`,
+            coded('ci.noRun', {
+              owner: repository.owner,
+              repo: repository.repo,
+              runId: input.runId,
+            }),
           )
         : fetched;
     }
@@ -1027,6 +1063,7 @@ export async function linkBuildToRun(
       422,
       'run_without_commit',
       'That run has no commit, so it cannot explain a build.',
+      coded('ci.runNoCommit'),
     );
   }
   const linkedRun = run;
@@ -1148,7 +1185,12 @@ export async function buildChanges(
     ? await getRepository(ctx.db, workspaceId, app.repositoryId)
     : undefined;
   if (!repository) {
-    return failure(422, 'no_repository', 'Link a repository to this app to see what changed.');
+    return failure(
+      422,
+      'no_repository',
+      'Link a repository to this app to see what changed.',
+      coded('ci.linkRepoToSeeChanges'),
+    );
   }
   const { builds } = await viewsFor(ctx, workspaceId, app);
   const same = (b: BuildView, number: string) =>
@@ -1159,12 +1201,14 @@ export async function buildChanges(
       404,
       'build_not_found',
       `This app has no ${input.platform} build ${input.buildNumber}.`,
+      coded('ci.noBuildShort', { platform: input.platform, buildNumber: input.buildNumber }),
     );
   if (!head.link?.commit) {
     return failure(
       422,
       'build_not_linked',
       `Build ${head.buildNumber} is not linked to a CI run, so its commit is not known.`,
+      coded('ci.buildNotLinked', { buildNumber: head.buildNumber }),
     );
   }
   let base: BuildView | undefined;
@@ -1175,18 +1219,25 @@ export async function buildChanges(
         404,
         'build_not_found',
         `This app has no ${input.platform} build ${input.base}.`,
+        coded('ci.noBuildShort', { platform: input.platform, buildNumber: input.base }),
       );
     if (!base.link?.commit) {
       return failure(
         422,
         'build_not_linked',
         `Build ${base.buildNumber} is not linked to a CI run, so its commit is not known.`,
+        coded('ci.buildNotLinked', { buildNumber: base.buildNumber }),
       );
     }
   } else {
     base = previousLinkedBuild(builds, head);
     if (!base) {
-      return failure(422, 'no_base_build', 'There is no earlier linked build to compare with.');
+      return failure(
+        422,
+        'no_base_build',
+        'There is no earlier linked build to compare with.',
+        coded('ci.noEarlierBuild'),
+      );
     }
   }
   const baseCommit = (base.link as NonNullable<BuildView['link']>).commit as {
@@ -1289,9 +1340,19 @@ async function scopeApp(
 ): Promise<{ ok: true; app: ManagedApp | undefined } | Failure> {
   if (appId === undefined) return { ok: true, app: undefined };
   const app = await getApp(ctx.db, workspaceId, appId);
-  if (!app) return failure(422, 'app_not_found', 'That app is not in this workspace.');
+  if (!app) return failure(
+    422,
+    'app_not_found',
+    'That app is not in this workspace.',
+    coded('app.notInWorkspace'),
+  );
   if (app.repositoryId !== repository.id) {
-    return failure(422, 'app_repository_mismatch', 'That app is not linked to this repository.');
+    return failure(
+      422,
+      'app_repository_mismatch',
+      'That app is not linked to this repository.',
+      coded('app.notLinkedToRepository'),
+    );
   }
   return { ok: true, app };
 }
@@ -1382,7 +1443,12 @@ export async function listRepositoryTags(
   const opened = await openCi(ctx, input.workspaceId, repository, actor, 'ci.tags');
   if (!opened.ok) return opened;
   if (!isTagClient(opened.client)) {
-    return failure(422, 'ci_unsupported', 'This repository connection cannot read tags.');
+    return failure(
+      422,
+      'ci_unsupported',
+      'This repository connection cannot read tags.',
+      coded('ci.cannotReadTags'),
+    );
   }
   const client = opened.client;
   const read = await guarded(ctx, opened.secret, (signal) =>
@@ -1440,6 +1506,7 @@ export async function rematchBuilds(
       422,
       'no_repository',
       'Link a repository to this app before matching its builds to CI runs.',
+      coded('ci.linkRepoBeforeMatching'),
     );
   }
   const refreshed = await refreshRuns(

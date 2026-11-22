@@ -21,6 +21,7 @@ import { type Failure, failure, type Outcome } from '../../services/repositories
 import { expoClientFor, expoFailure } from './client.ts';
 import { type ExpoLinkView, getExpoLink, type LinkContext } from './link.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * EAS Update of the Expo project an app is linked to (docs/adr/0037-eas-update.md, docs/api/eas-update.md): channels, the branch each
  * channel points to, the newest updates of every branch, per-update rollouts, insights of an update group, and a check that the newest
@@ -202,18 +203,29 @@ async function open(
 ): Promise<Opened | Failure> {
   const link = await getExpoLink(ctx.db, input.workspaceId, input.app.id);
   if (!link) {
-    return failure(409, 'expo_not_linked', 'This app is not linked to an Expo project. Link it in the app Settings first.');
+    return failure(
+      409,
+      'expo_not_linked',
+      'This app is not linked to an Expo project. Link it in the app Settings first.',
+      coded('eas.notLinked'),
+    );
   }
   if (!link.credentialAvailable) {
     return failure(
       422,
       'credential_not_found',
       'The Expo credential of this link was deleted. Choose another in the app Settings.',
+      coded('eas.credentialDeleted'),
     );
   }
   const platform = EXPO_PLATFORM[input.app.platform];
   if (platform === null) {
-    return failure(422, 'platform_unsupported', 'EAS Update has no updates for this platform.');
+    return failure(
+      422,
+      'platform_unsupported',
+      'EAS Update has no updates for this platform.',
+      coded('eas.noUpdates'),
+    );
   }
   const opened = await expoClientFor(ctx.db, ctx.masterKey, input.workspaceId, link.credentialId, ctx.deps, {
     actor,
@@ -305,7 +317,12 @@ export async function readUpdateInsights(
   try {
     const all = await expoUpdateGroupInsights(opened.client, input.group, { start, end });
     const mine = all.find((i) => i.platform === opened.platform);
-    if (!mine) return failure(422, 'expo_not_found', 'That update group has no update for this platform.');
+    if (!mine) return failure(
+      422,
+      'expo_not_found',
+      'That update group has no update for this platform.',
+      coded('eas.groupNoUpdate'),
+    );
     return {
       ok: true,
       insights: { group: input.group.toLowerCase(), platform: opened.platform, days: input.days, start, end, insights: mine },
@@ -425,6 +442,7 @@ async function locate(
       409,
       'rollout_not_found',
       'No update of this platform in that group is mid-rollout (it may have finished, been replaced, or be older than the updates read).',
+      coded('eas.notMidRollout'),
     );
   }
   const from = found.update.rolloutPercentage as number;
@@ -433,7 +451,7 @@ async function locate(
       422,
       'rollout_not_raised',
       `The rollout is at ${from}%. It can only be raised here; lowering or reverting it needs the Expo CLI.`,
-      { current: from },
+      { current: from, ...coded('eas.rolloutOnlyRaise', { from }) },
     );
   }
   const hash = rolloutConfirmHash({
@@ -509,12 +527,21 @@ export async function applyUpdateRollout(
       409,
       'state_changed',
       `Expo shows this rollout at ${from}%, which is not what was previewed. Nothing was changed. Preview again.`,
-      { current: { from, to: input.request.percentage }, confirmHash: hash },
+      {
+        current: { from, to: input.request.percentage },
+        confirmHash: hash,
+        ...coded('eas.rolloutChanged', { from }),
+      },
     );
   }
   const key = `${input.app.id}:${found.update.id}`;
   if (writing.has(key)) {
-    return failure(409, 'write_in_progress', 'A change of this rollout is already in progress. Wait for it to finish.');
+    return failure(
+      409,
+      'write_in_progress',
+      'A change of this rollout is already in progress. Wait for it to finish.',
+      coded('eas.rolloutBusy'),
+    );
   }
   writing.add(key);
   try {
@@ -571,6 +598,7 @@ export async function applyUpdateRollout(
           409,
           'outcome_unknown',
           'Expo did not answer and the state could not be read back. Check the rollout in Expo, then preview again.',
+          coded('eas.rolloutUnknown'),
         );
       }
       const now = findRollout(after.channels, checkRuntimeVersions({ channels: after.channels, builds: after.builds }), found.update.group);
@@ -583,6 +611,7 @@ export async function applyUpdateRollout(
       await record('eas.update_rollout_failed', { outcome: 'not_applied' });
       return failure(502, 'write_failed', 'Expo did not apply the change. The rollout is as before. Nothing was changed.', {
         outcome: 'not_applied',
+        ...coded('eas.rolloutNotApplied'),
       });
     }
   } finally {

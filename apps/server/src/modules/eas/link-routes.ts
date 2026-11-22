@@ -11,6 +11,7 @@ import type { ModuleShared } from '../module.ts';
 import type { EasDeps } from './index.ts';
 import { detectExpoProject, getExpoLink, removeExpoLink, setExpoLink } from './link.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /** The body of `PUT .../apps/{appId}/expo`: the Expo credential and the project (a UUID or `@account/slug`). */
 export const setLinkBody = z.strictObject({
   credentialId: z.string().min(1).max(100),
@@ -68,6 +69,7 @@ export function easLinkRoutes(
         body: {
           error: 'rate_limited',
           message: `Too many Expo checks. Try again in ${wait} seconds.`,
+          ...coded('rate.expo', { count: wait }),
           retryAfterSeconds: wait,
         },
         headers: { 'Retry-After': String(wait) },

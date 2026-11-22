@@ -21,6 +21,7 @@ import {
   type UpdateContext,
 } from './update.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /** Reads of EAS Update per workspace per minute (a state read is two requests to Expo). */
 export const EAS_UPDATE_READS_PER_MINUTE = 30;
 /** Previews and applies of a rollout change per workspace per minute. */
@@ -77,6 +78,7 @@ export function easUpdateRoutes(ctx: EasUpdateRoutesContext) {
       body: {
         error: 'rate_limited',
         message: `Too many Expo requests. Try again in ${wait} seconds.`,
+        ...coded('rate.expo', { count: wait }),
         retryAfterSeconds: wait,
       },
       headers: { 'Retry-After': String(wait) },

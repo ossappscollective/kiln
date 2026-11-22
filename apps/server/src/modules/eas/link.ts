@@ -26,6 +26,7 @@ import {
 import { expoClientFor, expoFailure } from './client.ts';
 import type { EasDeps } from './index.ts';
 
+import { coded } from '../../i18n/problem.ts';
 /**
  * The link between an app record and its EAS project (docs/adr/0033-eas-integration.md, docs/api/eas.md): which Expo credential to use
  * and which project. Saving it asks Expo, with that credential, whether the project exists and is visible, and stores what Expo
@@ -142,6 +143,7 @@ export async function resolveProject(
         422,
         'invalid_project',
         'Enter the project id (a UUID, as in app.json under extra.eas.projectId) or its name as @account/slug.',
+        coded('eas.projectIdRequired'),
       );
     }
     return { ok: true, project: await expoProjectByFullName(client, text) };
