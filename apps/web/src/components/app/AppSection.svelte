@@ -39,6 +39,7 @@
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
   import AiSuggestions from '../ai/AiSuggestions.svelte';
   import AsoSection from '../aso/AsoSection.svelte';
+  import ExperimentsTab from '../experiments/ExperimentsTab.svelte';
   import AnalyticsSection from '../analytics/AnalyticsSection.svelte';
   import AppDashboard from './AppDashboard.svelte';
   import AppReleases from './AppReleases.svelte';
@@ -117,6 +118,9 @@
   {:else}
     <ProductsTab {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
   {/if}
+{/snippet}
+{#snippet experiments(app: AppSummary)}
+  <ExperimentsTab {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
 {/snippet}
 {#snippet builds(app: AppSummary)}
   <div class="stack loose">
@@ -208,6 +212,8 @@
   {@render switcher('insights')}
   {#if view === 'keywords' || view === 'terms'}
     <AsoSection {api} {workspaceId} {role} {members} {releases} {now} />
+  {:else if view === 'experiments'}
+    {@render perPlatform(experiments)}
   {:else}
     <AnalyticsSection {api} {workspaceId} {role} {members} {now} />
   {/if}

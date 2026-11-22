@@ -171,6 +171,12 @@ import type {
   SubmitResult,
   SubmitState,
 } from './store-submit.ts';
+import type {
+  ExperimentNote,
+  ExperimentsSyncResult,
+  ExperimentsView,
+  NoteInput,
+} from './experiments.ts';
 import type { VersionPreview, VersionResult } from './store-version.ts';
 import {
   type CodeSent,
@@ -2489,6 +2495,39 @@ export function createApi(options: ApiOptions = {}) {
       request<ProductSyncResult>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products/sync`,
+      ),
+    // Store experiments and custom product pages (docs/api/experiments.md). Reads and the sync never change a store; notes are the manual tracker.
+    appExperiments: (workspaceId: string, appId: string) =>
+      request<ExperimentsView>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/experiments`,
+      ),
+    syncAppExperiments: (workspaceId: string, appId: string) =>
+      request<ExperimentsSyncResult>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/experiments/sync`,
+      ),
+    createExperimentNote: (workspaceId: string, appId: string, input: NoteInput) =>
+      request<{ note: ExperimentNote }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/experiments/notes`,
+        input,
+      ),
+    updateExperimentNote: (
+      workspaceId: string,
+      appId: string,
+      noteId: string,
+      input: Partial<Omit<NoteInput, 'kind'>>,
+    ) =>
+      request<{ note: ExperimentNote }>(
+        'PATCH',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/experiments/notes/${encodeURIComponent(noteId)}`,
+        input,
+      ),
+    deleteExperimentNote: (workspaceId: string, appId: string, noteId: string) =>
+      request<{ ok: true }>(
+        'DELETE',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/experiments/notes/${encodeURIComponent(noteId)}`,
       ),
     // RevenueCat of an app (docs/api/revenuecat.md): configuration facts only, nothing in RevenueCat is changed. Reading needs `apps.read`;
     // linking, unlinking and detecting need `apps.write`. The read itself is the second step of `syncAppProducts`.
