@@ -28,7 +28,7 @@ text). Old rows have no code and keep working.
 
 ## Emails
 
-Catalogs (`apps/server/locales/<namespace>/{en,fr,es,de}.json`): `email` (codes, the SMTP test; 42 keys), `alerts` (every alert type, the
+Catalogs (`apps/server/locales/<namespace>/{en,fr,es,de}.json`): `email` (codes, the SMTP test; 30 keys), `alerts` (every alert type, the
 guide of each alert email, the frame; 207 keys) and `digest` (the digest; 10 keys). Code: `apps/server/src/i18n/` (`translator(locale)`,
 `negotiateLocale`, `recipientLocale`). No sentence of an email is built in code: subject, plain text and HTML part all read the catalog, plurals
 use `count` (`_one`/`_other`), numbers, dates and durations go through `Intl` in the recipient's language, names, ids, codes and URLs pass
