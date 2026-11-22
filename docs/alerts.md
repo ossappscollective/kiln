@@ -32,7 +32,7 @@ store: conditions that need a look at the store are read from what the app alrea
      message. Critical alerts are still sent at once.
    - **Email limit:** at most 20 alert emails per person per hour; the rest are only logged (`user_rate_limited`).
 
-An alert email has an HTML part and a plain text twin. It says what happened, gives one sentence on how to fix it ("Test the credential.
+An alert email has an HTML part and a plain text twin, in the language the recipient chose (`PATCH /api/me`, [profile](api/profile.md); English when none; [i18n-server.md](i18n-server.md)). It says what happened, gives one sentence on how to fix it ("Test the credential.
 If the test fails, add a new one") and a button that opens the screen that does it: the app, its releases, reviews or listing, the
 Credentials screen, the repositories, the security settings. The digest links each alert the same way. The table of where each type
 leads is `guides` in `apps/server/src/modules/alerts/email.ts`; the frame is shared with the sign-in code and test emails (`services/mail-template.ts`). The links are built on `KILN_PUBLIC_ORIGIN` (for example

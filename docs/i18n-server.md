@@ -28,14 +28,44 @@ text). Old rows have no code and keep working.
 
 ## Emails
 
-Catalogs: `apps/server/locales/email/{en,fr,es,de}.json`. Code: `apps/server/src/i18n/` (`translator(locale)`, `negotiateLocale`). Language: the
-requester's `Accept-Language` for interactive emails (sign-in code, step-up code, address verification, SMTP test), English for background ones.
+Catalogs (`apps/server/locales/<namespace>/{en,fr,es,de}.json`): `email` (codes, the SMTP test; 42 keys), `alerts` (every alert type, the
+guide of each alert email, the frame; 207 keys) and `digest` (the digest; 10 keys). Code: `apps/server/src/i18n/` (`translator(locale)`,
+`negotiateLocale`, `recipientLocale`). No sentence of an email is built in code: subject, plain text and HTML part all read the catalog, plurals
+use `count` (`_one`/`_other`), numbers, dates and durations go through `Intl` in the recipient's language, names, ids, codes and URLs pass
+through untouched.
 
-| Email | Where | Language |
-| --- | --- | --- |
-| Code for sign-in, step-up and address verification | `services/two-factor.ts` `codeMessage` | requester |
-| SMTP test message | `routes/mail.ts` | requester |
-| Alert emails and the digest | `modules/alerts/email.ts` | English, not converted |
+### Which language
+
+- **Interactive** emails answer a request, so they use the requester's `Accept-Language` (`negotiateLocale`): sign-in code, step-up code,
+  address verification, SMTP test.
+- **Background** emails (alerts, the digest) have no request. They use the **recipient's** `users.locale`, set by the person
+  (`PATCH /api/me`, see [api/profile.md](api/profile.md)); with no choice, English. There is no workspace default (the order is user, then
+  workspace default if one ever exists, then English; `i18n/user-locale.ts` `recipientLocale`).
+- The web app saves the choice when a signed-in person picks a language (language settings and the account menu) and, at sign-in, adopts the
+  account language when the browser has no choice of its own (`apps/web/src/lib/i18n/account-locale.ts`).
+
+| Email                                              | Where                                                      | Language   |
+| -------------------------------------------------- | ---------------------------------------------------------- | ---------- |
+| Code for sign-in, step-up and address verification | `services/two-factor.ts` `codeMessage`                     | requester  |
+| SMTP test message                                  | `routes/mail.ts`                                           | requester  |
+| One alert (subject, text, HTML)                    | `modules/alerts/email.ts` `renderAlertEmail`, queued by `service.ts` | recipient  |
+| The alert digest                                   | `modules/alerts/email.ts` `renderDigestEmail`, built by `digest.ts`  | recipient  |
+
+### Alert sentences
+
+`modules/alerts/text.ts` maps an alert type and its data to catalog keys (`alerts:<type>.title`, `.body`, plus a variant suffix such as
+`.noStore` and `_one`/`_other`); key segments are camelCase (`release.inReview.title`). English is the source: `AlertDef.title` and `.body`
+read the English catalog, so the stored alert, the inbox and the English email are one text. For another language the email rebuilds title
+and body from the type and the data stored with the alert, so a French reader gets French from an alert raised once for everyone. A type with
+no entry keeps its stored English text. The guide of each email (the "what to do" sentence, the button labels, the screen names) is in the
+same namespace (`hint.*`, `action.*`, `where.*`), the frame in `mail.*`.
+
+The inbox (bell and desktop notification, which show the alert title) follows the signed-in person's `locale` the same way: `GET
+/alerts/inbox` rebuilds `title` and `body` in it, and leaves the stored English when the person has no choice. API clients without a saved
+language keep getting English.
+
+To add an alert type: write its `def()` in the catalog, add its entry in `text.ts` `specs`, its keys in `alerts/en.json` (then fr, es, de
+following the glossary; `text.test.ts` fails on a missing entry, key or placeholder) and its guide in `email.ts`.
 
 ## Codes (about 460 sent by the server and connectors, 36 implicit `api.*`)
 

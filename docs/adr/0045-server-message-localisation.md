@@ -1,7 +1,7 @@
 # ADR 0045: Localising the sentences the server produces
 
 Status: built for API errors (including the one-off sentences a person reads from the UI), persisted failure notes and the two interactive
-emails. Alert emails, the digest, validation field hints and operator hints are still English (see the inventory in [docs/i18n-server.md](../i18n-server.md)). Builds on [ADR 0044](0044-localisation.md).
+emails, and, since the amendment of 2026-11-22, a per-user language with the alert and digest emails. Validation field hints and operator hints are still English (see the inventory in [docs/i18n-server.md](../i18n-server.md)). Builds on [ADR 0044](0044-localisation.md).
 
 ## Context
 
@@ -31,8 +31,7 @@ rows written before this change.
    desktop build stages `apps/server` and `packages/*` but not `apps/web/src`. `scripts/i18n.mjs` checks these catalogs like the web's.
 6. **Recipient language.** An interactive email (a sign-in code, a step-up code, an address verification, the SMTP test) uses the requester's
    `Accept-Language` (`negotiateLocale`, q-values, regions, English when nothing matches). A background email (alerts, the digest) uses English.
-7. **No user locale field.** It would need a migration, a picker and a rule for team members who differ. Until it exists a background email
-   cannot know the reader's language, so it stays English. Follow-up, not built.
+7. **No user locale field.** Superseded by the amendment below.
 8. **MCP output stays English.** It is read by a model that handles English best, and tool results are data, not UI.
 9. **Everything is checked by tests, not by convention**: `errors-catalog.test.ts` fails when a code written in the server or the connectors has
    no English message in `errors/en.json`, when a code is malformed or when the email catalogs differ in keys or placeholders between languages;
@@ -43,5 +42,22 @@ rows written before this change.
 - A new sentence the person reads gets a code and an English entry in `apps/web/locales/errors/en.json`; translators do the rest in Weblate.
 - A code is part of the API: renaming one changes what people see (old clients fall back to English). Change the key when the meaning changes.
 - The OpenAPI error schema documents `code` and `params`; the app schema documents `lastSyncErrorCode` and `lastSyncErrorParams`.
-- Alert text is still built in code with English fragments; making it translatable means keys per alert kind and a recipient language, which
-  needs decision 7 first.
+- Alert text used to be built in code with English fragments; see the amendment.
+
+## Amendment 2026-11-22: a user language preference
+
+Decision 7 is replaced, and decision 6 extended to background emails.
+
+1. **`users.locale`**, nullable text (migration 51, both schema files and a migration test): one of the languages the server has catalogs
+   for (`en`, `fr`, `es`, `de`). NULL means no choice. Nothing is backfilled. A stored value the server does not know reads as English.
+2. **The person sets it** with `PATCH /api/me` `{ "locale": "fr" | null }` (session only, documented in the registry and in
+   [docs/api/profile.md](../api/profile.md)); a region is accepted and dropped (`fr-CA` is `fr`), anything else is `400 invalid_request`.
+   `GET /api/me` and the sign-in answer carry `user.locale`. No MCP tool.
+3. **Order for an email with no request**: the recipient's `locale`, then the workspace default (none exists, none is added), then English.
+   Emails that answer a request still use `Accept-Language`.
+4. **Alert and digest emails are translated** from catalogs (`alerts`, `digest`); the alert row keeps its English `title`/`body` (stored, shown
+   by API clients and in the English email). For another language the email rebuilds the sentences from the alert type and its data. The
+   inbox does the same for a person who has a language. Webhook payloads, audit action names and MCP output stay as they were.
+5. **The web app** saves the choice after a signed-in person picks a language and adopts the account language at sign-in when the browser has
+   no choice. The browser's own choice (`kiln.locale`) still decides what the screen shows; the account value only serves the server.
+6. **Different people, different languages**: each recipient gets their own rendering, so a team can mix languages; the alert is raised once.
