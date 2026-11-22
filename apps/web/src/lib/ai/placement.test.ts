@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { t } from '../i18n/t.ts';
 import {
   canStagePlacement,
   PLACEMENT_NOT_APPLIED,
@@ -25,11 +26,11 @@ test('a placement is a plain line, not "for the full description"', () => {
 
 test('the sentence says it is a suggestion and that nothing changes until staged; accepting only tracks', () => {
   assert.equal(
-    PLACEMENT_NOT_APPLIED,
+    t(PLACEMENT_NOT_APPLIED),
     'This is a suggestion for what to put there. Nothing changes until you stage it.',
   );
-  assert.match(TRACKING_ONLY_NOTE, /only tracks the keyword/);
-  assert.match(TRACKING_ONLY_NOTE, /does not change your listing/);
+  assert.match(t(TRACKING_ONLY_NOTE), /only tracks the keyword/);
+  assert.match(t(TRACKING_ONLY_NOTE), /does not change your listing/);
 });
 
 test('the buttons name the field they stage into', () => {

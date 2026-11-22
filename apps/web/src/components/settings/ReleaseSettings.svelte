@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import { KEYS, type FormErrors, type SettingsForm, canEdit } from '../../lib/settings.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Card from '../ui/Card.svelte';
 
   let { form = $bindable(), editable, errors, writable }: { form: SettingsForm; editable: boolean; errors: FormErrors; writable: readonly string[] } = $props();
@@ -14,9 +15,9 @@
   const can = (key: string): boolean => editable && canEdit(writable, key);
 </script>
 
-<Card title="Releases" collapseKey="releases" description="When a release counts as left unfinished.">
+<Card title={t('settings:releases.title')} collapseKey="releases" description={t('settings:releases.description')}>
   <div class="field">
-    <label for="{uid}-after">Remind me when a release stands still for (hours)</label>
+    <label for="{uid}-after">{t('settings:releases.afterLabel')}</label>
     <input
       id="{uid}-after"
       type="text"
@@ -28,12 +29,12 @@
       aria-invalid={errors.stalledAfterHours ? 'true' : undefined}
     />
     <p class="hint" id="{uid}-after-hint">
-      A started release with no progress, such as an unchosen build or an approved version nobody released, is shown as “Release left unfinished”. 0 turns the reminder off.
+      {t('settings:releases.afterHint')}
     </p>
     {#if errors.stalledAfterHours}<p class="field-error" role="alert">{errors.stalledAfterHours}</p>{/if}
   </div>
   <div class="field">
-    <label for="{uid}-repeat">Remind again after (hours)</label>
+    <label for="{uid}-repeat">{t('settings:releases.repeatLabel')}</label>
     <input
       id="{uid}-repeat"
       type="text"
@@ -44,7 +45,7 @@
       aria-describedby="{uid}-repeat-hint"
       aria-invalid={errors.stalledRepeatHours ? 'true' : undefined}
     />
-    <p class="hint" id="{uid}-repeat-hint">0 reminds once and never again.</p>
+    <p class="hint" id="{uid}-repeat-hint">{t('settings:releases.repeatHint')}</p>
     {#if errors.stalledRepeatHours}<p class="field-error" role="alert">{errors.stalledRepeatHours}</p>{/if}
   </div>
 </Card>

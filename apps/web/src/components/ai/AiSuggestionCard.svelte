@@ -26,6 +26,7 @@
     initialSelection,
     needsReplace,
     proposalRows,
+    replaceButtonLabel,
     suggestionTitle,
     toggleSelection,
   } from '../../lib/ai/ai.ts';
@@ -34,6 +35,7 @@
   import { ApiError, type Api } from '../../lib/api.ts';
   import type { PlatformScope } from '../../lib/app-scope.ts';
   import { timeAgo } from '../../lib/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
@@ -42,6 +44,7 @@
   import Badge from '../ui/Badge.svelte';
   import AiInsightView from './AiInsightView.svelte';
   import Button from '../ui/Button.svelte';
+  import T from '../ui/T.svelte';
   import BudgetMeter from '../aso/BudgetMeter.svelte';
   import DiffText from '../listing/DiffText.svelte';
   import StageKeywordButton from './StageKeywordButton.svelte';
@@ -124,7 +127,7 @@
     } catch (e) {
       problem = aiErrorMessage(e);
       clash = needsReplace(e);
-      if (clash) problem = `${problem} Replace it with this suggestion?`;
+      if (clash) problem = t('ai:card.replaceQuestion', { problem });
       // Someone else decided it, or it is gone: read the list again so the card does not stay open on a closed suggestion.
       if (e instanceof ApiError && e.code === 'suggestion_not_proposed') {
         void aiStore.loadSuggestions(api, workspaceId, suggestion.appId, true);
@@ -142,7 +145,7 @@
     try {
       for (const id of done.keywordIds) await api.deleteAsoKeyword(workspaceId, suggestion.appId, id);
       aiStore.closeNote(suggestion.id);
-      toast.info(`Removed ${done.keywordIds.length === 1 ? '1 keyword' : `${done.keywordIds.length} keywords`} again.`);
+      toast.info(t('ai:card.removedKeywords', { count: done.keywordIds.length }));
       await onaccepted?.(done);
     } catch (e) {
       problem = aiErrorMessage(e);
@@ -169,13 +172,16 @@
 <article class="card-ai" class:compact aria-label={suggestionTitle(proposal)}>
   {#if note}
     <Alert tone="ok">
-      {note.text}
-      {#if note.href && note.linkLabel}<a href={note.href}>{note.linkLabel}</a>.{/if}
+      {#if note.href && note.linkLabel}
+        <T key="ai:card.noteWithLink" params={{ text: note.text, label: note.linkLabel }} tags={{ link: noteLink }} />
+      {:else}
+        {note.text}
+      {/if}
     </Alert>
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
     <div class="row end">
-      {#if undoable}<Button size="sm" variant="ghost" loading={busy === 'undo'} disabled={busy !== ''} onclick={() => void undo()}>Undo</Button>{/if}
-      <Button size="sm" variant="ghost" onclick={() => aiStore.closeNote(suggestion.id)}>Done</Button>
+      {#if undoable}<Button size="sm" variant="ghost" loading={busy === 'undo'} disabled={busy !== ''} onclick={() => void undo()}>{t('ai:card.undo')}</Button>{/if}
+      <Button size="sm" variant="ghost" onclick={() => aiStore.closeNote(suggestion.id)}>{t('ai:card.done')}</Button>
     </div>
   {/if}
   {#if !note || keepOpen}
@@ -185,11 +191,11 @@
         <span class="muted">{timeAgo(suggestion.createdAt, Date.now())}</span>
       </header>
     {/if}
-    <p class="muted small">Written by an AI model. Read it before you accept it.</p>
+    <p class="muted small">{t('ai:card.writtenByAi')}</p>
     {#if proposal.kind === 'keywords'}
-      <p class="muted small">{TRACKING_ONLY_NOTE}</p>
+      <p class="muted small">{t(TRACKING_ONLY_NOTE)}</p>
     {:else if proposal.kind === 'listing_text' || proposal.kind === 'listing_variants'}
-      <p class="muted small">{PLACEMENT_NOT_APPLIED}</p>
+      <p class="muted small">{t(PLACEMENT_NOT_APPLIED)}</p>
     {/if}
 
     {#if proposal.kind === 'insight'}
@@ -217,7 +223,7 @@
               {/each}
             </p>
             {#if row.placement !== null && proposal.kind === 'keywords'}
-              <p class="why muted">{PLACEMENT_NOT_APPLIED}</p>
+              <p class="why muted">{t(PLACEMENT_NOT_APPLIED)}</p>
               {#if row.acceptable}
                 <StageKeywordButton
                   {api}
@@ -235,10 +241,10 @@
             {#if row.text !== null}
               {@const before = nowOf(row)}
               {#if before !== null}
-                <p class="cmp muted small">Now</p>
-                <p class="text">{#if before === ''}<span class="muted">(empty)</span>{:else}{before}{/if}</p>
-                <p class="cmp muted small">Suggested, changes underlined</p>
-                <p class="text"><DiffText from={before} to={row.text} side="to" fromName="the text now" toName="the suggestion" /></p>
+                <p class="cmp muted small">{t('ai:card.now')}</p>
+                <p class="text">{#if before === ''}<span class="muted">{t('ai:card.empty')}</span>{:else}{before}{/if}</p>
+                <p class="cmp muted small">{t('ai:card.suggestedUnderlined')}</p>
+                <p class="text"><DiffText from={before} to={row.text} side="to" fromName={t('ai:card.textNow')} toName={t('ai:card.theSuggestion')} /></p>
               {:else}
                 <p class="text">{row.text}</p>
               {/if}
@@ -246,7 +252,7 @@
             {#if row.meter}
               <BudgetMeter
                 id="{uid}-m{row.index}"
-                label={row.key === 'reply' ? 'Length' : row.title}
+                label={row.key === 'reply' ? t('ai:card.length') : row.title}
                 used={row.meter.used}
                 limit={row.meter.limit}
                 unit={row.meter.unit}
@@ -268,13 +274,13 @@
 
     <div class="row foot">
       {#if rows.length > 2 && !nothingToTake && proposal.kind !== 'listing_variants'}
-        <button type="button" class="link sm" onclick={() => (selected = initialSelection(rows))}>Select all</button>
-        <button type="button" class="link sm" onclick={() => (selected = [])}>Select none</button>
+        <button type="button" class="link sm" onclick={() => (selected = initialSelection(rows))}>{t('ai:card.selectAll')}</button>
+        <button type="button" class="link sm" onclick={() => (selected = [])}>{t('ai:card.selectNone')}</button>
       {/if}
       <span class="spacer"></span>
-      <Button size="sm" variant="ghost" loading={busy === 'dismiss'} disabled={busy !== ''} onclick={() => void dismiss()}>Dismiss</Button>
+      <Button size="sm" variant="ghost" loading={busy === 'dismiss'} disabled={busy !== ''} onclick={() => void dismiss()}>{t('ai:card.dismiss')}</Button>
       {#if clash}
-        <Button size="sm" variant="primary" loading={busy === 'accept'} disabled={busy !== '' || (!isReport && selected.length === 0)} onclick={() => void accept(true)}>Replace and {acceptButtonLabel(proposal, rows, selected).toLowerCase()}</Button>
+        <Button size="sm" variant="primary" loading={busy === 'accept'} disabled={busy !== '' || (!isReport && selected.length === 0)} onclick={() => void accept(true)}>{replaceButtonLabel(proposal, rows, selected)}</Button>
       {:else}
         <Button
           size="sm"
@@ -288,10 +294,12 @@
         </Button>
       {/if}
     </div>
-    {#if !mayAccept}<p class="muted small">Your role cannot accept this kind of suggestion.</p>{/if}
-    {#if isReport}<p class="muted small">A report changes nothing. "Mark as reviewed" only closes it.</p>{/if}
+    {#if !mayAccept}<p class="muted small">{t('ai:card.roleCannot')}</p>{/if}
+    {#if isReport}<p class="muted small">{t('ai:card.reportNote')}</p>{/if}
   {/if}
 </article>
+
+{#snippet noteLink(text: string)}{#if note?.href}<a href={note.href}>{text}</a>{:else}{text}{/if}{/snippet}
 
 <style>
   .card-ai {

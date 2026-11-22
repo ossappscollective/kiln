@@ -15,8 +15,10 @@
   import { onMount } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { MCP_WARNING, type McpStatus, groupTools, mcpErrorMessage, presetTokenInput, snippets, stateView, toolNeeds } from '../../lib/mcp.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { CreatedApiToken } from '../../lib/types.ts';
   import OneTimeSecret from '../automation/OneTimeSecret.svelte';
+  import T from '../ui/T.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -56,7 +58,7 @@
     try {
       created = await api.createApiToken(workspaceId, presetTokenInput(status));
     } catch (e) {
-      createError = e instanceof ApiError ? e.message : 'Could not create the token.';
+      createError = e instanceof ApiError ? e.message : t('settings:mcp.createFailed');
     } finally {
       creating = false;
     }
@@ -69,10 +71,10 @@
 
 {#if allowed}
   <Card
-    title="Connect an AI assistant"
+    title={t('settings:mcp.title')}
     collapseKey="mcp"
     defaultOpen={false}
-    description="Let an MCP assistant such as Claude or Cursor read this workspace. It can preview store actions, never apply them."
+    description={t('settings:mcp.description')}
   >
     {#if loadError}
       <Alert tone="error">{loadError}</Alert>
@@ -85,33 +87,33 @@
           <span class="muted">{view.detail}</span>
         </p>
 
-        <Alert tone="warn" title="Before you connect one">{MCP_WARNING}</Alert>
+        <Alert tone="warn" title={t('settings:mcp.beforeTitle')}>{t(MCP_WARNING)}</Alert>
 
         {#if status.enabled}
           {#if created}
             <OneTimeSecret
-              title="Your token “{created.summary.name}”"
-              label="API token"
+              title={t('settings:mcp.tokenTitle', { name: created.summary.name })}
+              label={t('settings:mcp.tokenLabel')}
               value={created.token}
-              warning="Shown once. Put it in the assistant's configuration below, not in code. Revoke it under API tokens if it leaks; it expires on its own after {status.preset.expiresInDays} days."
+              warning={t('settings:mcp.tokenWarning', { count: status.preset.expiresInDays })}
               ondismiss={() => (created = null)}
             />
           {:else}
             <div class="row">
-              <Button variant="primary" loading={creating} onclick={createToken}>Create an “{status.preset.name}” token</Button>
-              <span class="muted">A viewer token for the read tools; a wider one is made under API tokens.</span>
+              <Button variant="primary" loading={creating} onclick={createToken}>{t('settings:mcp.createToken', { name: status.preset.name })}</Button>
+              <span class="muted">{t('settings:mcp.createNote')}</span>
             </div>
             {#if createError}<Alert tone="error">{createError}</Alert>{/if}
           {/if}
 
-          <h3 class="h">Configuration</h3>
+          <h3 class="h">{t('settings:mcp.configTitle')}</h3>
           <p class="muted">
-            Paste one into your assistant. The HTTP address is {location.origin}{status.endpoint}.
-            {#if !created}The token is a placeholder until you create one.{/if}
+            {t('settings:mcp.configHelp', { url: `${location.origin}${status.endpoint}` })}
+            {#if !created}{t('settings:mcp.configPlaceholder')}{/if}
           </p>
-          <Disclosure summary="About the stdio form">
+          <Disclosure summary={t('settings:mcp.stdioSummary')}>
             <p class="muted">
-              It starts a small local command (<code>apps/server/src/mcp/stdio.ts</code>, Node 22.18 or newer): replace the path with where this repository is on your computer.
+              <T key="settings:mcp.stdioText" />
             </p>
           </Disclosure>
           {#each configs as config (config.title)}
@@ -119,12 +121,12 @@
               <summary>{config.title}</summary>
               <p class="muted">{config.where}</p>
               <pre class="mono">{config.text}</pre>
-              <CopyButton value={config.text} label="Copy" />
+              <CopyButton value={config.text} label={t('settings:mcp.copy')} />
             </details>
           {/each}
         {/if}
 
-        <h3 class="h">Tools ({status.tools.length})</h3>
+        <h3 class="h">{t('settings:mcp.toolsTitle', { count: status.tools.length })}</h3>
         {#each groups as group (group.kind)}
           <details class="snippet">
             <summary>{group.label} ({group.tools.length})</summary>
@@ -133,7 +135,7 @@
               {#each group.tools as tool (tool.name)}
                 <li>
                   <code>{tool.name}</code>
-                  <span class="muted">{tool.title}{toolNeeds(tool) ? `, ${toolNeeds(tool)}` : ''}</span>
+                  <span class="muted">{toolNeeds(tool) ? t('settings:mcp.toolWithNeeds', { title: tool.title, needs: toolNeeds(tool) }) : tool.title}</span>
                 </li>
               {/each}
             </ul>

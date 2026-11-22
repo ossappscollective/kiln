@@ -11,6 +11,7 @@
   import { type Role, can } from '@kiln/core';
   import { type Api } from '../../lib/api.ts';
   import { fullTime } from '../../lib/format.ts';
+  import { currentLocale, t } from '../../lib/i18n/t.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import {
@@ -31,6 +32,7 @@
   import Skeleton from '../ui/Skeleton.svelte';
   import TextField from '../ui/TextField.svelte';
   import TotpSetup from '../TotpSetup.svelte';
+  import T from '../ui/T.svelte';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -106,7 +108,7 @@
     try {
       await api.twoFactorTotpConfirm(workspaceId, code);
       begin = null;
-      toast.success('Authenticator app turned on.');
+      toast.success(t('settings:twoFactor.totpOn'));
       await load();
     } catch (e) {
       totpProblem = twoFactorProblem(e);
@@ -118,7 +120,7 @@
   const removeTotp = () =>
     run(async () => {
       await confirmed((grant) => api.twoFactorTotpRemove(workspaceId, grant));
-      toast.success('Authenticator app removed.');
+      toast.success(t('settings:twoFactor.totpRemoved'));
       await load();
     });
 
@@ -141,7 +143,7 @@
       await api.twoFactorEmailConfirm(workspaceId, emailCode.replace(/\D+/g, ''));
       sent = null;
       emailCode = '';
-      toast.success('Email address verified.');
+      toast.success(t('settings:twoFactor.emailVerified'));
       await load();
     } catch (e) {
       emailProblem = twoFactorProblem(e);
@@ -153,29 +155,32 @@
   const removeEmail = () =>
     run(async () => {
       await confirmed((grant) => api.twoFactorEmailRemove(workspaceId, grant));
-      toast.success('Email address removed.');
+      toast.success(t('settings:twoFactor.emailRemoved'));
       await load();
     });
 
   const saveMode = () =>
     run(async () => {
       const done = await confirmed((grant) => api.twoFactorSetPolicy(workspaceId, mode, grant));
-      toast.success('Sign-in settings saved.');
+      toast.success(t('settings:twoFactor.loginSaved'));
       await load();
       if (done.membersWithoutSecondFactor > 0 && (mode === 'admins' || mode === 'all')) {
-        toast.info(`${done.membersWithoutSecondFactor} member${done.membersWithoutSecondFactor === 1 ? ' has' : 's have'} no second factor yet and will set one up at their next sign-in.`);
+        toast.info(t('settings:twoFactor.membersToast', { count: done.membersWithoutSecondFactor }));
       }
     });
+
+  /** The summary of the sign-in mode in the middle of a sentence: its first letter in lower case (not in German, where nouns keep their capital). */
+  const lowerFirst = (text: string): string => (currentLocale() === 'de' ? text : text.charAt(0).toLowerCase() + text.slice(1));
 
   const wait = $derived(sent ? resendIn(sent.at, sent.info.resendAfterSeconds, now) : 0);
   const emailBlocked = $derived(!!status && !status.mailConfigured);
 </script>
 
 <Card
-  title="Authenticator app and email"
+  title={t('settings:twoFactor.title')}
   collapseKey="two-factor"
   summary={status ? twoFactorSummary(status) : undefined}
-  description="Two more ways to confirm a hard action: the six digits of an authenticator app, or a code sent to your email."
+  description={t('settings:twoFactor.description')}
 >
   {#if loadError}
     <Alert tone="error">{loadError}</Alert>
@@ -184,70 +189,70 @@
   {:else}
     <div class="stack">
       <section class="stack" aria-labelledby="tf-app">
-        <h4 id="tf-app">Authenticator app</h4>
+        <h4 id="tf-app">{t('settings:twoFactor.appTitle')}</h4>
         {#if begin}
           <TotpSetup {begin} {busy} problem={totpProblem} onconfirm={confirmTotp} oncancel={() => (begin = null)} />
         {:else if status.totp.state === 'active'}
           <div class="row">
-            <span>On{status.totp.confirmedAt ? ` since ${fullTime(status.totp.confirmedAt)}` : ''}. Codes change every 30 seconds and work once.</span>
-            <Button size="sm" variant="danger" icon="trash" disabled={busy} onclick={removeTotp}>Remove</Button>
+            <span>{status.totp.confirmedAt ? t('settings:twoFactor.totpActiveSince', { date: fullTime(status.totp.confirmedAt) }) : t('settings:twoFactor.totpActive')}</span>
+            <Button size="sm" variant="danger" icon="trash" disabled={busy} onclick={removeTotp}>{t('settings:twoFactor.remove')}</Button>
           </div>
         {:else}
-          <p class="muted">Not set up. Works with 1Password, Authy, Google Authenticator, Microsoft Authenticator, Apple Passwords and any app that follows the TOTP standard.</p>
-          <div class="row"><Button variant="primary" loading={busy} disabled={busy} onclick={startTotp}>Set up an authenticator app</Button></div>
+          <p class="muted">{t('settings:twoFactor.totpNotSetUp')}</p>
+          <div class="row"><Button variant="primary" loading={busy} disabled={busy} onclick={startTotp}>{t('settings:twoFactor.totpSetUp')}</Button></div>
         {/if}
       </section>
 
       <section class="stack" aria-labelledby="tf-email">
-        <h4 id="tf-email">Email</h4>
+        <h4 id="tf-email">{t('settings:twoFactor.emailTitle')}</h4>
         {#if emailBlocked}
-          <Alert tone="info" title="No mail server is set up">
-            Codes cannot be emailed until a mail server is added{isAdmin ? ' (the Mail card below)' : ' by an owner or admin'}.
+          <Alert tone="info" title={t('settings:twoFactor.noMailTitle')}>
+            {isAdmin ? t('settings:twoFactor.noMailAdmin') : t('settings:twoFactor.noMailMember')}
           </Alert>
         {/if}
         {#if status.email?.verified && !sent}
           <div class="row">
-            <span>Codes go to <strong>{status.email.address}</strong>, verified {status.email.verifiedAt ? fullTime(status.email.verifiedAt) : ''}.</span>
-            <Button size="sm" variant="danger" icon="trash" disabled={busy} onclick={removeEmail}>Remove</Button>
+            <span>{#if status.email.verifiedAt}<T key="settings:twoFactor.codesGoTo" params={{ address: status.email.address, date: fullTime(status.email.verifiedAt) }} />{:else}<T key="settings:twoFactor.codesGoToNoDate" params={{ address: status.email.address }} />{/if}</span>
+            <Button size="sm" variant="danger" icon="trash" disabled={busy} onclick={removeEmail}>{t('settings:twoFactor.remove')}</Button>
           </div>
           {#if !status.email.usable}
-            <Alert tone="warn">This address no longer matches your account email, so it is not used. Remove it and verify again.</Alert>
+            <Alert tone="warn">{t('settings:twoFactor.emailUnusable')}</Alert>
           {/if}
         {:else if sent}
           <form class="stack" onsubmit={confirmEmail}>
-            <p class="muted">A code was sent to <strong>{sent.info.to}</strong>. It works once and lasts 10 minutes.</p>
-            <TextField label="Code from the email" bind:value={emailCode} inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength={7} required disabled={busy} />
+            <p class="muted"><T key="settings:twoFactor.codeSent" params={{ to: sent.info.to }} /></p>
+            <TextField label={t('settings:twoFactor.codeLabel')} bind:value={emailCode} inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength={7} required disabled={busy} />
             {#if emailProblem}<Alert tone="error">{emailProblem}</Alert>{/if}
             <div class="row">
-              <Button type="submit" variant="primary" loading={busy} disabled={busy || !codeComplete(emailCode)}>Verify</Button>
-              <Button disabled={busy || wait > 0} onclick={sendEmail}>{wait > 0 ? `Send again in ${wait}s` : 'Send again'}</Button>
-              <Button disabled={busy} onclick={() => (sent = null)}>Cancel</Button>
+              <Button type="submit" variant="primary" loading={busy} disabled={busy || !codeComplete(emailCode)}>{t('settings:twoFactor.verify')}</Button>
+              <Button disabled={busy || wait > 0} onclick={sendEmail}>{wait > 0 ? t('settings:twoFactor.sendAgainIn', { seconds: wait }) : t('settings:twoFactor.sendAgain')}</Button>
+              <Button disabled={busy} onclick={() => (sent = null)}>{t('settings:twoFactor.cancel')}</Button>
             </div>
           </form>
         {:else}
           <p class="muted">
             {#if status.emailAddressEditable}
-              Enter the address to send codes to; a code is sent there to prove it is yours.
+              {t('settings:twoFactor.emailEnter')}
             {:else}
-              A code is sent to the email address you sign in with, to prove it is yours.
+              {t('settings:twoFactor.emailSignInAddress')}
             {/if}
           </p>
           {#if status.emailAddressEditable}
-            <TextField label="Email address" type="email" bind:value={address} autocomplete="email" disabled={busy || emailBlocked} />
+            <TextField label={t('settings:twoFactor.emailLabel')} type="email" bind:value={address} autocomplete="email" disabled={busy || emailBlocked} />
           {/if}
           {#if emailProblem}<Alert tone="error">{emailProblem}</Alert>{/if}
           <div class="row">
-            <Button variant="primary" loading={busy} disabled={busy || emailBlocked || (status.emailAddressEditable && address.trim() === '')} onclick={sendEmail}>Email me a code</Button>
+            <Button variant="primary" loading={busy} disabled={busy || emailBlocked || (status.emailAddressEditable && address.trim() === '')} onclick={sendEmail}>{t('settings:twoFactor.emailMe')}</Button>
           </div>
         {/if}
       </section>
 
       {#if status.login.supported}
         <section class="stack" aria-labelledby="tf-login">
-          <h4 id="tf-login">Signing in</h4>
+          <h4 id="tf-login">{t('settings:twoFactor.loginTitle')}</h4>
           {#if isAdmin}
             <fieldset class="stack" disabled={busy}>
-              <legend class="muted small">After the password, ask for a second factor:</legend>
+              <legend class="muted small">{t('settings:twoFactor.loginLegend')}</legend>
               {#each LOGIN_MODES as option (option.value)}
                 <label class="check">
                   <input type="radio" name="tf-mode" value={option.value} bind:group={mode} />
@@ -257,12 +262,12 @@
             </fieldset>
             {#if (mode === 'admins' || mode === 'all') && typeof status.login.membersWithoutSecondFactor === 'number' && status.login.membersWithoutSecondFactor > 0}
               <p class="muted small">
-                {status.login.membersWithoutSecondFactor} member{status.login.membersWithoutSecondFactor === 1 ? ' has' : 's have'} no second factor yet. Anyone it applies to sets one up at their next sign-in; until they do, only the password protects that account.
+                {t('settings:twoFactor.membersNote', { count: status.login.membersWithoutSecondFactor })}
               </p>
             {/if}
-            <div class="row"><Button variant="primary" loading={busy} disabled={busy || mode === status.login.mode} onclick={saveMode}>Save</Button></div>
+            <div class="row"><Button variant="primary" loading={busy} disabled={busy || mode === status.login.mode} onclick={saveMode}>{t('settings:twoFactor.save')}</Button></div>
           {:else}
-            <p class="muted">Signing in asks for: {loginModeSummary(status.login.mode).toLowerCase()}.</p>
+            <p class="muted">{t('settings:twoFactor.loginAsks', { mode: lowerFirst(loginModeSummary(status.login.mode)) })}</p>
           {/if}
         </section>
       {/if}

@@ -55,6 +55,7 @@
   import { centsText, costLine } from '../../lib/ai/insights.ts';
   import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -100,7 +101,7 @@
   });
   const saved = $derived(data ? (data.providers.find((p) => p.id === data?.settings.provider) ?? null) : null);
   const fraction = $derived(data ? usageFraction(data.usage) : null);
-  const readyTasks = $derived((tasks?.tasks ?? []).filter((t) => t.status === 'ready'));
+  const readyTasks = $derived((tasks?.tasks ?? []).filter((task) => task.status === 'ready'));
   /** The models the provider listed, and for which provider and address (a list of another one is not shown). */
   let models = $state<AiModelsResponse | null>(null);
   let modelsFor = $state('');
@@ -116,7 +117,7 @@
   const advice = $derived(data && form && choice?.needsUrl ? addressAdvice(form.baseUrl, data.server.allowPrivateUrls) : null);
   const result = $derived(testProblem !== '' ? { ok: false, text: testProblem } : outcome === null ? null : aiTestText(outcome, data?.providers ?? []));
   const keyWord = $derived(
-    credentialWord({ configured: choice?.credentialPresent ?? false, required: choice?.credentialRequired ?? false, optionalLabel: 'Not needed' }),
+    credentialWord({ configured: choice?.credentialPresent ?? false, required: choice?.credentialRequired ?? false, optionalLabel: t('settings:ai.keyNotNeeded') }),
   );
   const testState = $derived(testWord({ testing, ok: result === null ? null : result.ok }));
   const sample = $derived(testProblem === '' && outcome !== null ? aiTestSample(outcome) : '');
@@ -131,7 +132,7 @@
     } catch (e) {
       data = null;
       form = null;
-      loadError = aiErrorMessage(e, 'Could not load the AI settings.');
+      loadError = aiErrorMessage(e, t('settings:ai.loadFailed'));
     }
     tasks = await aiStore.loadTasks(api, workspaceId, true);
   }
@@ -156,7 +157,7 @@
   async function loadModels(manual: boolean) {
     if (!data || !form || !editable || loadingModels) return;
     if (choice?.needsUrl && form.baseUrl.trim() === '') {
-      if (manual) modelsProblem = 'Enter the server address first.';
+      if (manual) modelsProblem = t('settings:ai.addressFirst');
       return;
     }
     const asked = modelsSignature(form);
@@ -170,7 +171,7 @@
       modelsFor = askedScope;
     } catch (e) {
       models = null;
-      modelsProblem = aiErrorMessage(e, 'Could not load the list of models. You can still type the name.');
+      modelsProblem = aiErrorMessage(e, t('settings:ai.modelsLoadFailed'));
     } finally {
       loadingModels = false;
     }
@@ -219,7 +220,7 @@
       outcome = null;
       testProblem = '';
       showErrors = false;
-      toast.success('AI settings saved.');
+      toast.success(t('settings:ai.saved'));
       tasks = await aiStore.loadTasks(api, workspaceId, true);
     } catch (e) {
       saveError = aiSaveMessage(e);
@@ -243,7 +244,7 @@
     try {
       outcome = await api.testAi(workspaceId);
     } catch (e) {
-      testProblem = aiErrorMessage(e, 'The test did not work. Try again.');
+      testProblem = aiErrorMessage(e, t('settings:ai.testFailed'));
     } finally {
       testing = false;
       void aiStore.loadConfig(api, workspaceId, true);
@@ -251,10 +252,10 @@
   }
 </script>
 
-<Card title="AI assistant" collapseKey="ai" description="Suggestions for keywords, listing text and review replies. You accept each one yourself; nothing goes to a store.">
+<Card title={t('settings:ai.title')} collapseKey="ai" description={t('settings:ai.description')}>
   {#if loadError}
     <Alert tone="error">{loadError}</Alert>
-    <p><Button onclick={() => void load()}>Try again</Button></p>
+    <p><Button onclick={() => void load()}>{t('common:action.tryAgain')}</Button></p>
   {:else if !data || !form || !info}
     <Skeleton />
   {:else}
@@ -264,27 +265,27 @@
           <Badge tone={info.tone === 'ok' ? 'ok' : info.tone === 'warn' ? 'warn' : 'info'} icon={info.tone === 'ok' ? 'check' : info.tone === 'warn' ? 'alert-triangle' : 'info'}>{info.label}</Badge>
           <span>{info.message}</span>
         </p>
-        <Disclosure summary="What AI needs to run">
-          <p class="hint">Off by default. It needs the server switch (KILN_AI_ENABLED) and the setting below, a provider, a model and, for most providers, a key.</p>
+        <Disclosure summary={t('settings:ai.needsSummary')}>
+          <p class="hint">{t('settings:ai.needsText')}</p>
         </Disclosure>
       </div>
 
       {#if !editable}
         <div class="field">
           <p class="who">{providerSentence(saved)}</p>
-          <p class="hint">Only owners and admins can change these settings.</p>
+          <p class="hint">{t('settings:ai.adminsOnly')}</p>
         </div>
       {:else}
         <div class="field">
           <label class="check">
             <input type="checkbox" bind:checked={form.enabled} />
-            Turn on AI assistance for this workspace
+            {t('settings:ai.enableLabel')}
           </label>
-          <p class="hint">While this is off, nothing leaves this server for an AI provider.</p>
+          <p class="hint">{t('settings:ai.enableHint')}</p>
         </div>
 
         <fieldset class="field">
-          <legend>Provider</legend>
+          <legend>{t('settings:ai.providerLegend')}</legend>
           {#each data.providers as p (p.id)}
             <label class="option">
               <input type="radio" name="{uid}-provider" value={p.id} bind:group={form.provider} />
@@ -297,14 +298,14 @@
         </fieldset>
 
         <div class="field">
-          <label for="{uid}-model">Model</label>
+          <label for="{uid}-model">{t('settings:ai.modelLabel')}</label>
           <div class="row wrap">
             <input
               id="{uid}-model"
               class="grow"
               list="{uid}-models"
               bind:value={form.model}
-              placeholder="pick one or type the name"
+              placeholder={t('settings:ai.modelPlaceholder')}
               autocomplete="off"
               spellcheck="false"
               aria-invalid={errors.model ? 'true' : undefined}
@@ -313,107 +314,107 @@
             <datalist id="{uid}-models">
               {#each options as m (m.id)}<option value={m.id}>{m.label ?? ''}</option>{/each}
             </datalist>
-            <Button icon="refresh" loading={loadingModels} disabled={loadingModels} onclick={() => void loadModels(true)}>Load models</Button>
+            <Button icon="refresh" loading={loadingModels} disabled={loadingModels} onclick={() => void loadModels(true)}>{t('settings:ai.loadModels')}</Button>
           </div>
           <p class="hint" id="{uid}-model-hint">
-            Pick from the list or type the name as your provider gives it; the model must return structured answers.
+            {t('settings:ai.modelHint')}
           </p>
           {#if errors.model}<p class="field-error" role="alert">{errors.model}</p>{/if}
           {#if modelsProblem}
             <p class="hint" role="status">{modelsProblem}</p>
           {:else if loadingModels}
-            <p class="hint" role="status">Loading the list of models...</p>
+            <p class="hint" role="status">{t('settings:ai.modelsLoading')}</p>
           {:else if modelNote}
             <p class="hint" role="status">{modelNote}</p>
           {:else if shownModels && shownModels.models.length > 0}
-            <p class="hint" role="status">{modelsCountText(shownModels.models.length)}{notListed ? ' The name you typed is not in the list; it is kept as typed.' : ''}</p>
+            <p class="hint" role="status">{notListed ? t('settings:ai.modelsCountNotListed', { count: shownModels.models.length }) : modelsCountText(shownModels.models.length)}</p>
           {/if}
         </div>
 
         {#if choice?.needsUrl}
           <TextField
-            label="Server address"
+            label={t('settings:ai.addressLabel')}
             bind:value={form.baseUrl}
             placeholder="https://models.example.com/v1"
-            hint="An OpenAI compatible server, usually ending in /v1, with no name, password or key in the address."
+            hint={t('settings:ai.addressHint')}
             error={errors.baseUrl}
             autocomplete="off"
             spellcheck="false"
           />
-          <Disclosure summary="About the address">
-            <p class="hint">The address is https, or http://localhost when the person who runs this server allows it. It is used exactly as typed.</p>
+          <Disclosure summary={t('settings:ai.addressAboutSummary')}>
+            <p class="hint">{t('settings:ai.addressAboutText')}</p>
           </Disclosure>
           {#if advice}
             <Alert tone={advice.tone}>{advice.text}</Alert>
           {:else if needsV1Hint(form.baseUrl)}
-            <p class="hint">Most servers expect the address to end in /v1, for example http://localhost:1234/v1.</p>
+            <p class="hint">{t('settings:ai.addressV1')}</p>
           {/if}
         {/if}
 
         <div class="field">
           <TextField
-            label="API key"
+            label={t('settings:ai.keyLabel')}
             type="password"
             bind:value={form.apiKey}
-            placeholder={choice?.credentialPresent ? 'A key is saved. Type a new one to replace it.' : choice && !choice.credentialRequired ? 'Optional' : ''}
-            hint="Kept in the credential vault and never shown again; leave it empty to keep what is saved."
+            placeholder={choice?.credentialPresent ? t('settings:ai.keySaved') : choice && !choice.credentialRequired ? t('settings:ai.keyOptional') : ''}
+            hint={t('settings:ai.keyHint')}
             error={errors.apiKey}
             autocomplete="new-password"
             spellcheck="false"
           />
           <p class="connection">
             <Badge tone={keyWord.tone} icon={keyWord.tone === 'ok' ? 'check' : undefined}>{keyWord.label}</Badge>
-            <a class="link sm" href="#/credentials">Manage credentials</a>
+            <a class="link sm" href="#/credentials">{t('settings:ai.manageCredentials')}</a>
           </p>
         </div>
 
         {#if localModel}
           <p class="hint">
-            This model runs on your own machine or network, so nothing is billed and no limit or price is needed.
+            {t('settings:ai.localModel')}
           </p>
         {:else}
         <div class="field">
-          <label for="{uid}-budget">Monthly usage limit</label>
+          <label for="{uid}-budget">{t('settings:ai.budgetLabel')}</label>
           <input id="{uid}-budget" inputmode="numeric" bind:value={form.budget} autocomplete="off" aria-invalid={errors.budget ? 'true' : undefined} aria-describedby="{uid}-budget-hint" />
           <p class="hint" id="{uid}-budget-hint">
-            What this workspace may use per month (UTC), counted in tokens. 0 means no limit here.
+            {t('settings:ai.budgetHint')}
           </p>
-          <p class="warn-line">This is an estimate: set a spending limit with your provider too.</p>
+          <p class="warn-line">{t('settings:ai.budgetWarn')}</p>
           {#if errors.budget}<p class="field-error" role="alert">{errors.budget}</p>{/if}
         </div>
 
         <div class="field">
-          <label for="{uid}-soft">Warn me at (percent of a limit)</label>
+          <label for="{uid}-soft">{t('settings:ai.softLabel')}</label>
           <input id="{uid}-soft" inputmode="numeric" bind:value={form.softWarn} autocomplete="off" aria-invalid={errors.softWarn ? 'true' : undefined} aria-describedby="{uid}-soft-hint" />
           <p class="hint" id="{uid}-soft-hint">
-            From this share of the limit on, a run says how much is used; runs keep working until 100%. 0 is off.
+            {t('settings:ai.softHint')}
           </p>
           {#if errors.softWarn}<p class="field-error" role="alert">{errors.softWarn}</p>{/if}
         </div>
 
         <fieldset class="field">
-          <legend>Cost estimate and cap (optional)</legend>
-          <p class="hint">Add both prices per million tokens for an estimate, and a monthly cap in dollars that stops runs before it passes.</p>
-          <p class="warn-line">The estimate is not your bill: check it with your provider.</p>
+          <legend>{t('settings:ai.costLegend')}</legend>
+          <p class="hint">{t('settings:ai.costHint')}</p>
+          <p class="warn-line">{t('settings:ai.costWarn')}</p>
           <div class="row wrap">
             <div class="field">
-              <label for="{uid}-price-in">Input price ($ per million)</label>
+              <label for="{uid}-price-in">{t('settings:ai.priceInLabel')}</label>
               <input id="{uid}-price-in" inputmode="decimal" bind:value={form.priceIn} autocomplete="off" aria-invalid={errors.priceIn ? 'true' : undefined} />
               {#if errors.priceIn}<p class="field-error" role="alert">{errors.priceIn}</p>{/if}
             </div>
             <div class="field">
-              <label for="{uid}-price-out">Output price ($ per million)</label>
+              <label for="{uid}-price-out">{t('settings:ai.priceOutLabel')}</label>
               <input id="{uid}-price-out" inputmode="decimal" bind:value={form.priceOut} autocomplete="off" aria-invalid={errors.priceOut ? 'true' : undefined} />
               {#if errors.priceOut}<p class="field-error" role="alert">{errors.priceOut}</p>{/if}
             </div>
             <div class="field">
-              <label for="{uid}-cap">Monthly cost cap ($)</label>
+              <label for="{uid}-cap">{t('settings:ai.capLabel')}</label>
               <input id="{uid}-cap" inputmode="decimal" bind:value={form.costCap} autocomplete="off" aria-invalid={errors.costCap ? 'true' : undefined} />
               {#if errors.costCap}<p class="field-error" role="alert">{errors.costCap}</p>{/if}
             </div>
           </div>
-          <Disclosure summary="About prices and the cap">
-            <p class="hint">Take the prices from your provider's price list. 0 or empty means not set. The cap needs both prices. A model on your own machine costs nothing here: leave them empty.</p>
+          <Disclosure summary={t('settings:ai.pricesAboutSummary')}>
+            <p class="hint">{t('settings:ai.pricesAboutText')}</p>
           </Disclosure>
         </fieldset>
         {/if}
@@ -421,7 +422,7 @@
 
       <div class="field">
         <p class="usage">
-          {#if fraction !== null}<progress value={fraction} max="1" aria-label="Share of the monthly limit used"></progress>{/if}
+          {#if fraction !== null}<progress value={fraction} max="1" aria-label={t('settings:ai.usageMeter')}></progress>{/if}
           <span class="hint">{usageText(data.usage)}</span>
         </p>
         {#if costLine(data.usage)}<p class="hint">{costLine(data.usage)}</p>{/if}
@@ -430,11 +431,15 @@
         {/if}
         {#if (data.usage.byTask ?? []).length > 0}
           <details class="bytask">
-            <summary class="hint">This month by task</summary>
+            <summary class="hint">{t('settings:ai.byTaskSummary')}</summary>
             <ul class="plain">
               {#each data.usage.byTask ?? [] as u (u.task)}
                 <li>
-                  {tasks?.tasks.find((t) => t.id === u.task)?.label ?? u.task}: {u.runs} {u.runs === 1 ? 'run' : 'runs'}, {countText(u.inputTokens + u.outputTokens)} tokens{data.usage.pricesSet ? `, about ${centsText(u.costCents)}` : ''}
+                  {#if data.usage.pricesSet}
+                    {t('settings:ai.byTaskCost', { task: tasks?.tasks.find((task) => task.id === u.task)?.label ?? u.task, count: u.runs, tokens: countText(u.inputTokens + u.outputTokens), cost: centsText(u.costCents) })}
+                  {:else}
+                    {t('settings:ai.byTask', { task: tasks?.tasks.find((task) => task.id === u.task)?.label ?? u.task, count: u.runs, tokens: countText(u.inputTokens + u.outputTokens) })}
+                  {/if}
                 </li>
               {/each}
             </ul>
@@ -445,20 +450,20 @@
       <div class="field">
         <p class="who">{providerSentence(saved)}</p>
         {#if saved || readyTasks.length > 0}
-          <Disclosure summary="What is sent, task by task">
+          <Disclosure summary={t('settings:ai.sentSummary')}>
             {#if saved}<p class="hint">{saved.privacy}</p>{/if}
           {#if readyTasks.length > 0}
           <ul class="tasks">
-            {#each readyTasks as t (t.id)}
+            {#each readyTasks as task (task.id)}
               <li>
-                <span>{t.label}</span>
-                <InfoTip label="What {t.label} sends" buttonText="What is sent" width="30rem" align="start">
+                <span>{task.label}</span>
+                <InfoTip label={t('settings:ai.taskSends', { task: task.label })} buttonText={t('settings:ai.whatIsSent')} width="30rem" align="start">
                   <div class="tip stack tight">
-                    <p>{t.description}</p>
-                    <h4>Sent</h4>
-                    <ul class="plain">{#each t.disclosure.sends as line (line)}<li>{line}</li>{/each}</ul>
-                    <h4>Never sent</h4>
-                    <ul class="plain">{#each t.disclosure.neverSends as line (line)}<li>{line}</li>{/each}</ul>
+                    <p>{task.description}</p>
+                    <h4>{t('settings:ai.sent')}</h4>
+                    <ul class="plain">{#each task.disclosure.sends as line (line)}<li>{line}</li>{/each}</ul>
+                    <h4>{t('settings:ai.neverSent')}</h4>
+                    <ul class="plain">{#each task.disclosure.neverSends as line (line)}<li>{line}</li>{/each}</ul>
                   </div>
                 </InfoTip>
               </li>
@@ -475,22 +480,22 @@
         <div class="field">
           <p class="connection">
             <Badge tone={testState.tone}>{testState.label}</Badge>
-            <Button size="sm" variant="ghost" icon="refresh" loading={testing} disabled={dirty || testing || data.state !== 'ready'} onclick={() => void test()}>Test connection</Button>
+            <Button size="sm" variant="ghost" icon="refresh" loading={testing} disabled={dirty || testing || data.state !== 'ready'} onclick={() => void test()}>{t('settings:ai.testButton')}</Button>
           </p>
           <p class="hint">
-            {#if dirty}Save first: the test uses the saved settings.{:else if data.state !== 'ready'}The test needs AI to be on and set up (see the status above).{:else}The test sends one fixed small request with no data of yours.{/if}
+            {#if dirty}{t('settings:ai.testSaveFirst')}{:else if data.state !== 'ready'}{t('settings:ai.testNeedsReady')}{:else}{t('settings:ai.testNote')}{/if}
           </p>
           {#if result}
             <Alert tone={result.ok ? 'ok' : 'error'}>{result.text}</Alert>
           {/if}
           {#if sample}
             <div class="sample">
-              <p class="hint">What the model answered (first 300 characters)</p>
+              <p class="hint">{t('settings:ai.sample')}</p>
               <pre>{sample}</pre>
             </div>
           {/if}
         </div>
-        <SaveBar type="submit" {dirty} {saving} saveLabel="Save AI settings" ondiscard={revert} />
+        <SaveBar type="submit" {dirty} {saving} saveLabel={t('settings:ai.saveLabel')} ondiscard={revert} />
       {/if}
     </form>
   {/if}

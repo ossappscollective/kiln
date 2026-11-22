@@ -1,6 +1,7 @@
 import type { Action } from '@kiln/core';
 import type { SectionView } from './app-nav.ts';
 import { parseViewPath } from './app-scope.ts';
+import { k, t } from './i18n/t.ts';
 
 /**
  * The views of the workspace Settings page (`#/settings?view=security`), as pure functions like lib/app-nav.ts. The page was one long
@@ -16,15 +17,18 @@ export type SettingsView = 'general' | 'analytics' | 'security' | 'ai';
 
 export type SettingsViewDef = SectionView & { id: SettingsView };
 
+/** A view as the table below holds it: `labelKey` is a message key (translated when the views are listed). */
+type SettingsViewKeyDef = Omit<SettingsViewDef, 'label'> & { labelKey: string };
+
 /**
  * `requires` is the right to read the workspace settings. The AI view has none: "Connect an AI assistant" is open to every role
  * (the cards inside gate themselves).
  */
-export const settingsViews: readonly SettingsViewDef[] = [
-  { id: 'general', label: 'General', requires: 'settings.read' },
-  { id: 'analytics', label: 'Analytics', requires: 'settings.read' },
-  { id: 'security', label: 'Security', requires: 'settings.read' },
-  { id: 'ai', label: 'AI' },
+export const settingsViews: readonly SettingsViewKeyDef[] = [
+  { id: 'general', labelKey: k('settings:views.general'), requires: 'settings.read' },
+  { id: 'analytics', labelKey: k('settings:views.analytics'), requires: 'settings.read' },
+  { id: 'security', labelKey: k('settings:views.security'), requires: 'settings.read' },
+  { id: 'ai', labelKey: k('settings:views.ai') },
 ];
 
 /** The views of the form that share one state and one "Save settings" bar. */
@@ -40,7 +44,9 @@ export function settingsViewOf(hash: string): SettingsView {
 }
 
 const openViews = (allowed: (action: Action) => boolean): SettingsViewDef[] =>
-  settingsViews.filter((v) => !v.requires || allowed(v.requires));
+  settingsViews
+    .filter((v) => !v.requires || allowed(v.requires))
+    .map(({ labelKey, ...rest }) => ({ ...rest, label: t(labelKey) }));
 
 /** The views a role may open, in order; empty when there is nothing to switch between (fewer than two). */
 export function settingsViewsFor(allowed: (action: Action) => boolean): SettingsViewDef[] {
@@ -75,9 +81,7 @@ export const isFormView = (view: SettingsView): boolean => settingsFormViews.inc
 
 /** The views of the form with their label, for the note on another view that unsaved changes wait on. */
 export const unsavedViewsNote = (view: SettingsView): string =>
-  isFormView(view)
-    ? ''
-    : 'You have unsaved changes in General or Analytics. They stay until you save or discard them there.';
+  isFormView(view) ? '' : t('settings:views.unsavedNote');
 
 /** One part of a Settings view the person can jump to: `id` is the element id of its wrapper on the page. */
 export type SettingsSection = { id: string; label: string };
@@ -92,16 +96,16 @@ export function settingsSectionsFor(view: SettingsView, isAdmin = false): Settin
   const list: SettingsSection[] =
     view === 'general'
       ? [
-          { id: 'settings-store-refresh', label: 'Store refresh' },
-          { id: 'settings-reviews', label: 'Reviews' },
-          { id: 'settings-releases', label: 'Releases' },
-          { id: 'settings-translation', label: 'Translation' },
+          { id: 'settings-store-refresh', label: t('settings:section.storeRefresh') },
+          { id: 'settings-reviews', label: t('settings:section.reviews') },
+          { id: 'settings-releases', label: t('settings:section.releases') },
+          { id: 'settings-translation', label: t('settings:section.translation') },
         ]
       : view === 'security'
         ? [
-            { id: 'settings-confirm', label: 'Confirm hard actions' },
-            { id: 'settings-second-factor', label: 'Authenticator and email' },
-            ...(isAdmin ? [{ id: 'settings-mail', label: 'Mail server' }] : []),
+            { id: 'settings-confirm', label: t('settings:section.confirm') },
+            { id: 'settings-second-factor', label: t('settings:section.secondFactor') },
+            ...(isAdmin ? [{ id: 'settings-mail', label: t('settings:section.mail') }] : []),
           ]
         : [];
   return list.length >= 3 ? list : [];

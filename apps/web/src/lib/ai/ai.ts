@@ -19,6 +19,8 @@ import {
 import { ApiError } from '../api.ts';
 import { appAddress, appReviewsHref, type PlatformScope } from '../app-scope.ts';
 import { asoViewHref } from '../aso/aso.ts';
+import { formatDate, formatList, formatNumber } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 import { platformLabel } from '../portfolio.ts';
 import { centsFromText, centsInput, insightTitle } from './insights.ts';
 import { placementLine, stageInLabel } from './placement.ts';
@@ -248,17 +250,16 @@ export type AiTestOutcome =
 
 export const AI_ENV = 'KILN_AI_ENABLED';
 
-const OFF_SERVER_TEXT = `AI assistance is switched off on this server. Whoever runs the server turns it on with ${AI_ENV}=true and restarts it.`;
+const offServerText = (): string => t('ai:state.offServer', { env: AI_ENV });
 
 export type StateInfo = { tone: 'ok' | 'info' | 'warn'; label: string; message: string };
 
 const NOT_CONFIGURED_ADMIN: Record<AiReason, string> = {
-  no_model:
-    'Choose a model to finish the set-up. The model name comes from your provider; there is no default.',
-  no_credential: 'Add the API key of the provider to finish the set-up.',
-  no_url: 'Enter the address of the model server to finish the set-up.',
-  credential_unreadable: 'The saved key could not be read. Enter it again.',
-  bad_url: 'This server does not allow that address. Change it, or ask whoever runs this server.',
+  no_model: k('ai:setup.noModel'),
+  no_credential: k('ai:setup.noCredential'),
+  no_url: k('ai:setup.noUrl'),
+  credential_unreadable: k('ai:setup.credentialUnreadable'),
+  bad_url: k('ai:setup.badUrl'),
 };
 
 /** The one sentence that says where AI assistance stands. `canManage` decides whether it says what to do or who can. */
@@ -271,62 +272,50 @@ export function aiStateInfo(
     case 'off_server':
       return {
         tone: 'info',
-        label: 'Off on this server',
-        message: OFF_SERVER_TEXT,
+        label: t('ai:state.offServerLabel'),
+        message: offServerText(),
       };
     case 'off_workspace':
       return {
         tone: 'info',
-        label: 'Off',
-        message: config.canManage
-          ? 'AI assistance is off for this workspace. Turn it on below.'
-          : 'AI assistance is off for this workspace. An admin can turn it on in Settings.',
+        label: t('ai:state.offLabel'),
+        message: config.canManage ? t('ai:state.offWorkspaceAdmin') : t('ai:state.offWorkspace'),
       };
     case 'not_configured': {
       const reason = config.reason ?? 'no_model';
       return {
         tone: 'warn',
-        label: 'Not set up',
-        message: config.canManage
-          ? NOT_CONFIGURED_ADMIN[reason]
-          : 'AI assistance is not set up yet. An admin can finish it in Settings.',
+        label: t('ai:state.notSetUpLabel'),
+        message: config.canManage ? t(NOT_CONFIGURED_ADMIN[reason]) : t('ai:state.notSetUpMember'),
       };
     }
     default: {
       const label = config.providers?.find((p) => p.id === config.settings.provider)?.label;
-      return { tone: 'ok', label: 'Ready', message: label ? `Ready. Using ${label}.` : 'Ready.' };
+      return {
+        tone: 'ok',
+        label: t('ai:state.readyLabel'),
+        message: label ? t('ai:state.readyUsing', { provider: label }) : t('ai:state.ready'),
+      };
     }
   }
 }
 
-const MONTHS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
-/** "1 December": the day the monthly limit starts again (UTC). */
+/** "December 1" / "1 décembre": the day the monthly limit starts again (UTC), in the language of the app. */
 export function resetText(resetsAt: number): string {
-  const d = new Date(resetsAt);
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()] as string}`;
+  return formatDate(resetsAt, { day: 'numeric', month: 'long', timeZone: 'UTC' });
 }
 
-export const countText = (n: number): string => n.toLocaleString('en');
+export const countText = (n: number): string => formatNumber(n);
 
 /** "120,000 of 500,000 used this month. Starts again on 1 December." */
 export function usageText(usage: Pick<AiUsage, 'used' | 'budget' | 'resetsAt'>): string {
   if (usage.budget <= 0)
-    return `${countText(usage.used)} used this month. No limit is set here; your provider may still have one.`;
-  return `${countText(usage.used)} of ${countText(usage.budget)} used this month. Starts again on ${resetText(usage.resetsAt)}.`;
+    return t('ai:usage.usedNoLimit', { used: countText(usage.used) });
+  return t('ai:usage.usedOf', {
+    used: countText(usage.used),
+    budget: countText(usage.budget),
+    date: resetText(usage.resetsAt),
+  });
 }
 
 /** 0 to 1, or null when there is no limit. */
@@ -341,10 +330,9 @@ export const budgetUsedUp = (usage: Pick<AiUsage, 'budget' | 'remaining'>): bool
 
 /** "Text you choose is sent to Anthropic (Claude)." Says who receives the data, before anything is sent. */
 export function providerSentence(provider: Pick<AiProviderView, 'id' | 'label'> | null): string {
-  if (provider === null) return 'Text you choose is sent to the AI provider you set up.';
-  if (provider.id === 'openai_compatible')
-    return 'Text you choose is sent to the model server whose address you enter.';
-  return `Text you choose is sent to ${provider.label}.`;
+  if (provider === null) return t('ai:provider.sentToChosen');
+  if (provider.id === 'openai_compatible') return t('ai:provider.sentToServer');
+  return t('ai:provider.sentTo', { provider: provider.label });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -380,7 +368,7 @@ export function suggestAvailability(input: {
     return {
       visible: true,
       enabled: false,
-      reason: `The monthly limit is used up. It starts again on ${resetText(config.usage.resetsAt)}.`,
+      reason: t('ai:availability.limitUsedUp', { date: resetText(config.usage.resetsAt) }),
     };
   }
   return { visible: true, enabled: true, reason: null };
@@ -469,53 +457,42 @@ export const disclosureGate: DisclosureGate = createDisclosureGate(browserStorag
 export type FlagTone = 'info' | 'warn' | 'bad';
 export type FlagInfo = { flag: AiFlag; text: string; tone: FlagTone };
 
+/** Keys of the texts, not the texts: `flagInfos` and `blockedReason` translate where the flag is drawn. */
 export const flagTexts: Record<AiFlag, { text: string; tone: FlagTone; blocks: string | null }> = {
-  already_tracked: { text: 'Already tracked', tone: 'info', blocks: 'It is already tracked.' },
-  duplicate: { text: 'Repeated', tone: 'info', blocks: 'It repeats another idea.' },
-  invalid_term: {
-    text: 'Not a usable keyword',
-    tone: 'bad',
-    blocks: 'It is not a usable keyword.',
+  already_tracked: {
+    text: k('ai:flag.alreadyTracked'),
+    tone: 'info',
+    blocks: k('ai:blocked.alreadyTracked'),
   },
-  field_not_for_store: { text: 'Field not in this store', tone: 'info', blocks: null },
-  over_limit: {
-    text: 'Over the limit',
-    tone: 'bad',
-    blocks: 'It is longer than the store allows. Shorten it by hand.',
-  },
-  trimmed: { text: 'Trimmed to fit', tone: 'warn', blocks: null },
-  unchanged: { text: 'Same as now', tone: 'info', blocks: 'It is the same as the current text.' },
+  duplicate: { text: k('ai:flag.duplicate'), tone: 'info', blocks: k('ai:blocked.duplicate') },
+  invalid_term: { text: k('ai:flag.invalidTerm'), tone: 'bad', blocks: k('ai:blocked.invalidTerm') },
+  field_not_for_store: { text: k('ai:flag.fieldNotForStore'), tone: 'info', blocks: null },
+  over_limit: { text: k('ai:flag.overLimit'), tone: 'bad', blocks: k('ai:blocked.overLimit') },
+  trimmed: { text: k('ai:flag.trimmed'), tone: 'warn', blocks: null },
+  unchanged: { text: k('ai:flag.unchanged'), tone: 'info', blocks: k('ai:blocked.unchanged') },
   not_stageable: {
-    text: 'Cannot be staged',
+    text: k('ai:flag.notStageable'),
     tone: 'bad',
-    blocks: 'A draft push cannot write this field.',
+    blocks: k('ai:blocked.notStageable'),
   },
-  empty: { text: 'Empty', tone: 'bad', blocks: 'It is empty.' },
-  cleaned: { text: 'Odd characters removed', tone: 'warn', blocks: null },
-  markup: {
-    text: 'Looks like HTML',
-    tone: 'bad',
-    blocks: 'Replies are plain text, and this looks like HTML.',
-  },
-  banned_term: {
-    text: 'Uses a word you ruled out',
-    tone: 'bad',
-    blocks: 'It uses a word the AI context of this app rules out. Edit it by hand.',
-  },
+  empty: { text: k('ai:flag.empty'), tone: 'bad', blocks: k('ai:blocked.empty') },
+  cleaned: { text: k('ai:flag.cleaned'), tone: 'warn', blocks: null },
+  markup: { text: k('ai:flag.markup'), tone: 'bad', blocks: k('ai:blocked.markup') },
+  banned_term: { text: k('ai:flag.bannedTerm'), tone: 'bad', blocks: k('ai:blocked.bannedTerm') },
   personal_data: {
-    text: 'May hold personal data',
+    text: k('ai:flag.personalData'),
     tone: 'bad',
-    blocks: 'It seems to hold an email address, a link or a number. Write it by hand.',
+    blocks: k('ai:blocked.personalData'),
   },
-  risky_promise: { text: 'Makes a promise', tone: 'warn', blocks: null },
-  unverified_number: { text: 'Number not in the data', tone: 'warn', blocks: null },
-  brand_term_missing: { text: 'A brand name is missing', tone: 'warn', blocks: null },
+  risky_promise: { text: k('ai:flag.riskyPromise'), tone: 'warn', blocks: null },
+  unverified_number: { text: k('ai:flag.unverifiedNumber'), tone: 'warn', blocks: null },
+  brand_term_missing: { text: k('ai:flag.brandTermMissing'), tone: 'warn', blocks: null },
 };
 
 export const flagInfos = (flags: readonly AiFlag[]): FlagInfo[] =>
   flags.map((flag) => ({
     flag,
-    text: flagTexts[flag]?.text ?? flag,
+    text: flagTexts[flag] ? t(flagTexts[flag].text) : flag,
     tone: flagTexts[flag]?.tone ?? 'info',
   }));
 
@@ -523,22 +500,25 @@ export const flagInfos = (flags: readonly AiFlag[]): FlagInfo[] =>
 export function blockedReason(flags: readonly AiFlag[]): string {
   for (const flag of flags) {
     const blocks = flagTexts[flag]?.blocks;
-    if (blocks) return `Cannot be accepted. ${blocks}`;
+    if (blocks) return t('ai:blocked.prefix', { reason: t(blocks) });
   }
-  return 'Cannot be accepted.';
+  return t('ai:blocked.plain');
 }
 
 const LISTING_LABELS: Record<string, string> = {
-  name: 'Title (App Store name)',
-  subtitle: 'Subtitle',
-  description: 'Description',
-  keywords: 'Keyword field',
-  promotional_text: 'Promotional text',
-  title: 'Title',
-  short_description: 'Short description',
-  full_description: 'Full description',
+  name: k('ai:field.name'),
+  subtitle: k('ai:field.subtitle'),
+  description: k('ai:field.description'),
+  keywords: k('ai:field.keywords'),
+  promotional_text: k('ai:field.promotionalText'),
+  title: k('ai:field.title'),
+  short_description: k('ai:field.shortDescription'),
+  full_description: k('ai:field.fullDescription'),
 };
-export const listingFieldLabel = (field: string): string => LISTING_LABELS[field] ?? field;
+export const listingFieldLabel = (field: string): string => {
+  const key = LISTING_LABELS[field];
+  return key ? t(key) : field;
+};
 
 /** The fields the "listing_improve" task offers (the ones a draft push can write), per platform. */
 const IMPROVABLE: Record<StoreFamily, readonly string[]> = {
@@ -637,7 +617,7 @@ export function proposalRows(proposal: AiProposal): ProposalRow[] {
           out.push({
             index: out.length,
             key: `${f.field}#${n}`,
-            title: `${listingFieldLabel(f.field)} · option ${n + 1}`,
+            title: t('ai:row.variantTitle', { field: listingFieldLabel(f.field), n: n + 1 }),
             text: v.text,
             reason: v.reason,
             note: null,
@@ -661,7 +641,7 @@ export function proposalRows(proposal: AiProposal): ProposalRow[] {
         {
           index: 0,
           key: 'reply',
-          title: 'Reply',
+          title: t('ai:row.reply'),
           text: proposal.text,
           reason: '',
           note: null,
@@ -742,15 +722,15 @@ export function acceptBody(
 export function acceptLabel(kind: AiProposalKind, chosen: number): string {
   switch (kind) {
     case 'keywords':
-      return `Track ${plural(chosen, 'keyword', 'keywords')}`;
+      return t('ai:accept.trackKeywords', { count: chosen });
     case 'listing_text':
-      return `Stage ${plural(chosen, 'text', 'texts')}`;
+      return t('ai:accept.stageTexts', { count: chosen });
     case 'reply_draft':
-      return 'Save as reply draft';
+      return t('ai:accept.saveReply');
     case 'listing_variants':
-      return `Stage ${plural(chosen, 'text', 'texts')}`;
+      return t('ai:accept.stageTexts', { count: chosen });
     case 'insight':
-      return 'Mark as reviewed';
+      return t('ai:accept.markReviewed');
   }
 }
 
@@ -774,11 +754,19 @@ export function acceptButtonLabel(
 // ---------------------------------------------------------------------------------------------
 // What accepting did, and where to look
 
+/** The label of the replace button after a refused accept ("Replace and stage in title"): the action in lower case at its start. */
+export function replaceButtonLabel(
+  proposal: AiProposal,
+  rows: readonly ProposalRow[],
+  selected: readonly number[],
+): string {
+  const action = acceptButtonLabel(proposal, rows, selected);
+  return t('ai:accept.replaceAnd', { action: action.charAt(0).toLowerCase() + action.slice(1) });
+}
+
 export type AcceptedNote = { text: string; href: string | null; linkLabel: string | null };
 
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
+const unitList = (items: readonly string[]): string => formatList(items, { type: 'unit' });
 
 /**
  * The sentence after an accept and the link to where the result lives (ids only came back, never text). `appPlatform` is the platform
@@ -798,36 +786,48 @@ export function acceptedNote(
         .join(' · ');
       const parts = [
         result.created > 0
-          ? `Added ${plural(result.created, 'keyword', 'keywords')}${where ? ` to ${where}` : ''}`
-          : `Nothing new${where ? ` for ${where}` : ''}`,
+          ? where
+            ? t('ai:accepted.keywordsAddedTo', { count: result.created, where })
+            : t('ai:accepted.keywordsAdded', { count: result.created })
+          : where
+            ? t('ai:accepted.nothingNewFor', { where })
+            : t('ai:accepted.nothingNew'),
       ];
-      if (result.existing > 0) parts.push(`${result.existing} already tracked`);
-      if (result.rejected > 0) parts.push(`${result.rejected} could not be tracked`);
-      let text = `${parts.join(', ')}.`;
-      if (result.remaining !== undefined && result.remaining > 0)
-        text += ` ${plural(result.remaining, 'idea is', 'ideas are')} still proposed.`;
+      if (result.existing > 0) parts.push(t('ai:accepted.alreadyTracked', { count: result.existing }));
+      if (result.rejected > 0) parts.push(t('ai:accepted.couldNotTrack', { count: result.rejected }));
+      const sentence = t('ai:accepted.sentence', { parts: unitList(parts) });
+      const text =
+        result.remaining !== undefined && result.remaining > 0
+          ? t('ai:accepted.sentenceWithRemaining', {
+              sentence,
+              remaining: t('ai:accepted.stillProposed', { count: result.remaining }),
+            })
+          : sentence;
       return {
         text,
         href: asoViewHref(appId, 'keywords', appPlatform ?? platform),
-        linkLabel: 'Show them',
+        linkLabel: t('ai:accepted.showThem'),
       };
     }
     case 'listing_text': {
-      const names = result.stagedFields.map(listingFieldLabel).join(', ');
+      const names = unitList(result.stagedFields.map(listingFieldLabel));
+      const count = result.stagedFields.length;
       return {
-        text: `Staged ${plural(result.stagedFields.length, 'text', 'texts')} for ${result.locale}${names ? ` (${names})` : ''}. Nothing is sent to a store until you push it from Pending changes.`,
+        text: names
+          ? t('ai:accepted.stagedNamed', { count, locale: result.locale, names })
+          : t('ai:accepted.staged', { count, locale: result.locale }),
         href: appAddress(appId, 'pending', platform),
-        linkLabel: 'Open Pending changes',
+        linkLabel: t('ai:accepted.openPending'),
       };
     }
     case 'reply_draft':
       return {
-        text: 'Saved as a reply draft. Nothing is sent.',
+        text: t('ai:accepted.replySaved'),
         href: appReviewsHref(appId, platform),
-        linkLabel: 'Open the reviews',
+        linkLabel: t('ai:accepted.openReviews'),
       };
     case 'insight':
-      return { text: 'Marked as reviewed. Nothing was changed.', href: null, linkLabel: null };
+      return { text: t('ai:accepted.reviewed'), href: null, linkLabel: null };
   }
 }
 
@@ -839,19 +839,22 @@ export function openSuggestions(list: readonly AiSuggestionView[]): AiSuggestion
 }
 
 /** "3 suggestions" for the line of the tray. */
-export const openLine = (n: number): string => `AI suggestions (${n})`;
+export const openLine = (n: number, platform?: string): string =>
+  platform ? t('ai:tray.lineWithPlatform', { count: n, platform }) : t('ai:tray.line', { count: n });
 
 /** The heading of one suggestion: what it is, for which language. */
 export function suggestionTitle(proposal: AiProposal): string {
   switch (proposal.kind) {
     case 'keywords':
-      return `Keyword ideas · ${proposal.locale}${proposal.country ? ` · ${proposal.country.toUpperCase()}` : ''}`;
+      return proposal.country
+        ? t('ai:title.keywordsCountry', { locale: proposal.locale, country: proposal.country.toUpperCase() })
+        : t('ai:title.keywords', { locale: proposal.locale });
     case 'listing_text':
-      return `Listing text · ${proposal.locale}`;
+      return t('ai:title.listingText', { locale: proposal.locale });
     case 'reply_draft':
-      return 'Reply draft';
+      return t('ai:title.replyDraft');
     case 'listing_variants':
-      return `Text variants · ${proposal.locale}`;
+      return t('ai:title.variants', { locale: proposal.locale });
     case 'insight':
       return insightTitle(proposal);
   }
@@ -862,9 +865,8 @@ export function suggestionTitle(proposal: AiProposal): string {
 
 const wait = (seconds: number | undefined): string => {
   const s = seconds !== undefined && seconds > 0 ? seconds : 60;
-  if (s < 60) return `${Math.ceil(s)} seconds`;
-  const m = Math.ceil(s / 60);
-  return `${m} ${m === 1 ? 'minute' : 'minutes'}`;
+  if (s < 60) return t('ai:wait.seconds', { count: Math.ceil(s) });
+  return t('ai:wait.minutes', { count: Math.ceil(s / 60) });
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -874,13 +876,14 @@ const wait = (seconds: number | undefined): string => {
 export type AddressHintCode = 'private_address_blocked' | 'plain_http_not_allowed';
 export const ADDRESS_ENV = 'KILN_AI_ALLOW_PRIVATE_URLS';
 
+/** Keys of the sentences (`addressText` translates them). */
 export const ADDRESS_TEXTS: Record<AddressHintCode, string> = {
-  private_address_blocked: `This server only talks to public addresses. To use a model on your own machine or network, the person who runs this server sets ${ADDRESS_ENV}=true and restarts it. In Docker, localhost is the container itself, and plain http is accepted only for localhost, so a model on the host machine needs an https address this server can reach (or the server run outside Docker).`,
-  plain_http_not_allowed: `Plain http is accepted only for localhost, and only when the person who runs this server has set ${ADDRESS_ENV}=true. For any other address use https.`,
+  private_address_blocked: k('ai:address.privateBlocked'),
+  plain_http_not_allowed: k('ai:address.plainHttp'),
 };
+export const addressText = (code: AddressHintCode): string => t(ADDRESS_TEXTS[code], { env: ADDRESS_ENV });
 
-const NOT_FOUND_TEXT =
-  'The provider answered "not found". Check the model name and, for your own server, the address (it usually ends in /v1).';
+const notFoundText = (): string => t('ai:address.notFound');
 
 export const isAddressHint = (value: unknown): value is AddressHintCode =>
   value === 'private_address_blocked' || value === 'plain_http_not_allowed';
@@ -938,9 +941,9 @@ export function addressAdvice(
   if (!/^https?:\/\//i.test(text)) return null;
   const http = /^http:\/\//i.test(text);
   if (!allowPrivateUrls && looksPrivateAddress(text))
-    return { tone: 'warn', text: ADDRESS_TEXTS.private_address_blocked };
+    return { tone: 'warn', text: addressText('private_address_blocked') };
   if (http && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(text))
-    return { tone: 'warn', text: ADDRESS_TEXTS.plain_http_not_allowed };
+    return { tone: 'warn', text: addressText('plain_http_not_allowed') };
   return null;
 }
 
@@ -951,88 +954,87 @@ export const needsV1Hint = (url: string): boolean => /^https?:\/\/[^/\s]+\/?$/i.
  * One sentence for a failed AI call. The sentence is chosen here from the error code (and the status for `ai_unavailable`):
  * the message of the server and the words of a provider are never shown.
  */
-export function aiErrorMessage(error: unknown, fallback = 'That did not work. Try again.'): string {
+export function aiErrorMessage(error: unknown, fallbackText?: string): string {
+  const fallback = fallbackText ?? t('ai:error.generic');
   if (!(error instanceof ApiError)) return fallback;
   const body = error.body as { reason?: unknown; resetsAt?: unknown };
   switch (error.code) {
     case 'network':
       return error.message;
     case 'ai_not_enabled':
-      return body.reason === 'server'
-        ? OFF_SERVER_TEXT
-        : 'AI assistance is off for this workspace. An admin can turn it on in Settings.';
+      return body.reason === 'server' ? offServerText() : t('ai:state.offWorkspace');
     case 'ai_not_configured': {
       const hint = addressHintOf(error);
-      if (hint) return ADDRESS_TEXTS[hint];
-      return 'AI assistance is not set up yet. An admin can finish it in Settings.';
+      if (hint) return addressText(hint);
+      return t('ai:state.notSetUpMember');
     }
     case 'task_not_available':
-      return 'This is not available yet.';
+      return t('ai:error.taskNotAvailable');
     case 'no_listing_text':
-      return 'No listing text is stored for this language yet. Sync the app or read the repository first.';
+      return t('ai:error.noListingText');
     case 'ai_input_too_large':
-      return 'There is too much text to send in one go. Nothing was sent.';
+      return t('ai:error.inputTooLarge');
     case 'ai_auth':
-      return 'The AI provider did not accept the key. An admin can check it in Settings.';
+      return t('ai:error.auth');
     case 'ai_too_large':
-      return 'The AI provider says the request is too large. Nothing was saved.';
+      return t('ai:error.tooLarge');
     case 'ai_budget_exhausted':
       return typeof body.resetsAt === 'number'
-        ? `The monthly limit is used up. It starts again on ${resetText(body.resetsAt)}. Nothing was sent.`
-        : 'The monthly limit is used up. Nothing was sent.';
+        ? t('ai:error.budgetExhaustedUntil', { date: resetText(body.resetsAt) })
+        : t('ai:error.budgetExhausted');
     case 'ai_busy':
     case 'rate_limited':
     case 'ai_rate_limited':
-      return `Too many requests at the moment. Try again in ${wait(error.retryAfter)}.`;
+      return t('ai:error.tooManyRequests', { wait: wait(error.retryAfter) });
     case 'ai_invalid_output': {
       const hint = invalidOutputHint(body.reason);
-      return `The answer could not be used, so nothing was saved. ${hint || 'Try again.'}`;
+      return hint ? t('ai:error.invalidOutput', { hint }) : t('ai:error.invalidOutputRetry');
     }
     case 'ai_unavailable': {
       const hint = addressHintOf(error);
-      if (hint) return ADDRESS_TEXTS[hint];
-      if (body.reason === 'http_404') return NOT_FOUND_TEXT;
+      if (hint) return addressText(hint);
+      if (body.reason === 'http_404') return notFoundText();
       return error.status === 504 || body.reason === 'timeout'
-        ? 'The AI provider did not answer in time. Try again.'
-        : 'The AI provider could not be reached. Try again later.';
+        ? t('ai:error.timeout')
+        : t('ai:error.unreachable');
     }
     case 'forbidden':
-      return 'Your role does not allow that.';
+      return t('ai:error.forbidden');
     case 'not_found':
-      return 'That no longer exists.';
+      return t('ai:error.notFound');
     case 'suggestion_not_proposed':
-      return 'This suggestion was already accepted or dismissed.';
+      return t('ai:error.suggestionNotProposed');
     case 'nothing_acceptable':
-      return 'Nothing you chose can be accepted.';
+      return t('ai:error.nothingAcceptable');
     case 'staged_exists':
-      return 'A different text is already staged for this field.';
+      return t('ai:error.stagedExists');
     case 'draft_exists':
-      return 'A different reply draft already exists.';
+      return t('ai:error.draftExists');
     case 'reply_not_editable':
-      return 'That reply was sent or is being sent, so it cannot be changed.';
+      return t('ai:error.replyNotEditable');
     case 'reply_disabled':
-      return 'Replying is switched off on this server.';
+      return t('ai:error.replyDisabled');
     case 'field_not_pushable':
-      return 'That field cannot be written by a draft push.';
+      return t('ai:error.fieldNotPushable');
     case 'too_many_items':
     case 'keyword_limit':
-      return 'The app already tracks the most keywords it may.';
+      return t('ai:error.keywordLimit');
     case 'invalid_request':
-      return 'Those options cannot be used. Check them and try again.';
+      return t('ai:error.invalidRequest');
     case 'no_reviews':
-      return 'There are no reviews to look at in that period. Sync the reviews, or choose more days.';
+      return t('ai:error.noReviews');
     case 'nothing_to_do':
-      return 'Every review in reach already has tags. Nothing was sent.';
+      return t('ai:error.nothingToDo');
     case 'no_data':
-      return 'There is not enough stored data for this yet. Track keywords or sync the app first.';
+      return t('ai:error.noData');
     case 'goal_needed':
-      return 'Say what the new text should achieve, then try again.';
+      return t('ai:error.goalNeeded');
     case 'ai_cost_cap_reached':
       return typeof body.resetsAt === 'number'
-        ? `The monthly cost cap is reached. It starts again on ${resetText(body.resetsAt)}. Nothing was sent.`
-        : 'The monthly cost cap is reached. Nothing was sent.';
+        ? t('ai:error.costCapUntil', { date: resetText(body.resetsAt) })
+        : t('ai:error.costCap');
     default:
-      return error.status >= 500 ? 'The server had a problem. Try again.' : fallback;
+      return error.status >= 500 ? t('ai:error.server') : fallback;
   }
 }
 
@@ -1046,7 +1048,7 @@ export function aiSaveMessage(error: unknown): string {
             if (!i || typeof i !== 'object') return '';
             // A refused address has a fixed code: the sentence is chosen here, with what to do about it.
             if (isAddressHint((i as { code?: unknown }).code))
-              return ADDRESS_TEXTS[(i as { code: AddressHintCode }).code];
+              return addressText((i as { code: AddressHintCode }).code);
             return typeof (i as { message?: unknown }).message === 'string'
               ? (i as { message: string }).message
               : '';
@@ -1056,11 +1058,10 @@ export function aiSaveMessage(error: unknown): string {
       : [];
     return lines.length > 0
       ? lines.join(' ')
-      : 'A setting is not valid. Check the form and try again.';
+      : t('ai:save.invalidSetting');
   }
-  if (error instanceof ApiError && error.code === 'invalid_secret')
-    return 'That key cannot be used. Check it and try again.';
-  return aiErrorMessage(error, 'The settings could not be saved. Try again.');
+  if (error instanceof ApiError && error.code === 'invalid_secret') return t('ai:save.invalidSecret');
+  return aiErrorMessage(error, t('ai:save.failed'));
 }
 
 /** The accept was refused because something different is there already; saying yes sends it again with `replace`. */
@@ -1076,15 +1077,15 @@ export const needsReplace = (error: unknown): boolean =>
 export function invalidOutputHint(reason: unknown): string {
   switch (reason) {
     case 'not_json':
-      return 'The model did not answer with JSON. Models that think first, or small models, often do not: try a model made for structured answers, or turn thinking off.';
+      return t('ai:hint.notJson');
     case 'truncated':
-      return 'The answer was cut off before it ended. A very small model can ramble past the limit, and one that thinks first can use it up: try a larger instruct model.';
+      return t('ai:hint.truncated');
     case 'schema':
-      return 'The answer did not have the shape the task needs. A larger or instruction-tuned model usually fixes that.';
+      return t('ai:hint.schema');
     case 'no_text':
-      return 'The model sent no text. Some servers put the answer elsewhere when a model thinks first.';
+      return t('ai:hint.noText');
     case 'refusal':
-      return 'The model refused to answer.';
+      return t('ai:hint.refusal');
     default:
       return '';
   }
@@ -1109,12 +1110,11 @@ export function aiTestSample(outcome: AiTestOutcome): string {
 }
 
 const TEST_FAILURES: Record<string, string> = {
-  not_configured: 'Not set up yet. Check the model and the key.',
-  auth: 'The provider did not accept the key.',
-  rate_limited: 'The provider is limiting requests. Try again in a moment.',
-  too_large: 'The provider refused the small test request as too large.',
-  invalid_output:
-    'The provider answered, but not in the form this tool needs. Check that the model can return structured answers.',
+  not_configured: k('ai:test.notConfigured'),
+  auth: k('ai:test.auth'),
+  rate_limited: k('ai:test.rateLimited'),
+  too_large: k('ai:test.tooLarge'),
+  invalid_output: k('ai:test.invalidOutputPlain'),
 };
 
 /** The sentence for a finished test, chosen from fixed codes (never the provider's own text). */
@@ -1123,32 +1123,28 @@ export function aiTestText(
   providers: readonly Pick<AiProviderView, 'id' | 'label'>[] = [],
 ): { ok: boolean; text: string } {
   if (outcome.ok) {
-    const label = providers.find((p) => p.id === outcome.provider)?.label ?? 'the provider';
-    return { ok: true, text: `Connected to ${label}. The model ${outcome.model} answered.` };
+    const label = providers.find((p) => p.id === outcome.provider)?.label;
+    return {
+      ok: true,
+      text: label
+        ? t('ai:test.connected', { provider: label, model: outcome.model })
+        : t('ai:test.connectedGeneric', { model: outcome.model }),
+    };
   }
   if (outcome.kind === 'unavailable') {
-    if (outcome.reason === 'timeout')
-      return { ok: false, text: 'The provider did not answer in time.' };
-    if (isAddressHint(outcome.reason)) return { ok: false, text: ADDRESS_TEXTS[outcome.reason] };
+    if (outcome.reason === 'timeout') return { ok: false, text: t('ai:test.timeout') };
+    if (isAddressHint(outcome.reason)) return { ok: false, text: addressText(outcome.reason) };
     if (outcome.reason === 'address_not_allowed')
-      return { ok: false, text: 'This server does not allow that address.' };
-    if (outcome.reason === 'http_404') return { ok: false, text: NOT_FOUND_TEXT };
-    return { ok: false, text: 'The provider could not be reached.' };
+      return { ok: false, text: t('ai:test.addressNotAllowed') };
+    if (outcome.reason === 'http_404') return { ok: false, text: notFoundText() };
+    return { ok: false, text: t('ai:test.unreachable') };
   }
   if (outcome.kind === 'invalid_output') {
     const hint = invalidOutputHint(outcome.reason);
-    if (hint)
-      return {
-        ok: false,
-        text: `The provider answered, but not in the form this tool needs. ${hint}`,
-      };
+    if (hint) return { ok: false, text: t('ai:test.invalidOutput', { hint }) };
   }
-  return {
-    ok: false,
-    text:
-      TEST_FAILURES[outcome.kind ?? ''] ??
-      'The test did not work. Check the settings and try again.',
-  };
+  const failure = TEST_FAILURES[outcome.kind ?? ''];
+  return { ok: false, text: failure ? t(failure) : t('ai:test.generic') };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1207,28 +1203,27 @@ export function validateAiForm(
   const errors: AiFormErrors = {};
   const model = form.model.trim();
   if (model !== '' && (model.length > 100 || !MODEL.test(model)))
-    errors.model = 'Use the model name exactly as your provider gives it, with no spaces.';
+    errors.model = t('ai:form.model');
   const url = form.baseUrl.trim();
   if (url !== '' && !/^https?:\/\/[^\s/@]+(\/[^\s]*)?$/i.test(url))
-    errors.baseUrl =
-      'Start with https:// (or http:// for a model on this machine). No name, password or key in the address.';
+    errors.baseUrl = t('ai:form.baseUrl');
   const budget = form.budget.trim();
   const max = config.limits.maxMonthlyTokenBudget ?? 1_000_000_000;
   if (!/^\d{1,12}$/.test(budget) || Number(budget) > max)
-    errors.budget = `Use a whole number from 0 to ${countText(max)}. 0 means no limit here.`;
+    errors.budget = t('ai:form.budget', { max: countText(max) });
   const soft = form.softWarn.trim();
   if (!/^\d{1,3}$/.test(soft) || Number(soft) > 100)
-    errors.softWarn = 'Use a whole number from 0 to 100. 0 means no warning.';
+    errors.softWarn = t('ai:form.softWarn');
   const money = (text: string): number | null => centsFromText(text);
   const priceIn = money(form.priceIn);
   if (priceIn === null || priceIn > 1_000_000)
-    errors.priceIn = 'Use an amount in dollars, such as 3 or 0.25.';
+    errors.priceIn = t('ai:form.priceIn');
   const priceOut = money(form.priceOut);
   if (priceOut === null || priceOut > 1_000_000)
-    errors.priceOut = 'Use an amount in dollars, such as 15 or 0.6.';
+    errors.priceOut = t('ai:form.priceOut');
   const cap = money(form.costCap);
   if (cap === null || cap > 100_000_000)
-    errors.costCap = 'Use an amount in dollars, such as 25. 0 means no cap.';
+    errors.costCap = t('ai:form.costCap');
   if (form.apiKey.trim() !== '') {
     const provider = config.providers.find((p) => p.id === form.provider);
     if (provider) {
@@ -1332,7 +1327,7 @@ export const modelsSignature = (form: Pick<AiForm, 'provider' | 'baseUrl' | 'api
 export function modelOptions(models: readonly AiModel[], chosen: string): AiModel[] {
   const current = chosen.trim();
   if (current === '' || models.some((m) => m.id === current)) return models.slice();
-  return [{ id: current, label: 'current' }, ...models];
+  return [{ id: current, label: t('ai:models.current') }, ...models];
 }
 
 /** The quiet line under the field about where the list came from, or null when it came from the provider (or nothing was loaded). */
@@ -1342,14 +1337,15 @@ export function modelsNote(
 ): string | null {
   if (!result) return null;
   if (result.source === 'provider')
-    return result.models.length === 0
-      ? 'The server answered, but lists no models. Type the model name.'
-      : null;
-  if (result.reason === 'no_credential')
-    return 'Add a key to read the list from the provider. These are well known names; you can type any other.';
+    return result.models.length === 0 ? t('ai:models.noneListed') : null;
+  if (result.reason === 'no_credential') return t('ai:models.noKey');
   if (result.models.length === 0)
-    return `Could not read the list of models${provider ? ` from ${provider.label}` : ''}. Type the model name.`;
-  return `Could not read the list from ${provider ? provider.label : 'the provider'}, so these are well known names. You can type any other.`;
+    return provider
+      ? t('ai:models.readFailedFrom', { provider: provider.label })
+      : t('ai:models.readFailed');
+  return provider
+    ? t('ai:models.fallbackFrom', { provider: provider.label })
+    : t('ai:models.fallback');
 }
 
 /** The model is typed, a list was read from the provider, and the name is not in it: said quietly, the name is kept. */
@@ -1368,8 +1364,7 @@ export const modelNotListed = (
 };
 
 /** The count line after a successful read from the provider. */
-export const modelsCountText = (n: number): string =>
-  n === 1 ? '1 model available.' : `${n} models available.`;
+export const modelsCountText = (n: number): string => t('ai:models.count', { count: n });
 
 /** Whether an address of an OpenAI compatible server is on this machine or a private network (nothing is billed there). */
 export function isLocalAddress(address: string): boolean {

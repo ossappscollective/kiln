@@ -14,6 +14,7 @@
   import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import type { PlatformScope } from '../../lib/app-scope.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Disclosure from '../ui/Disclosure.svelte';
@@ -79,11 +80,11 @@
 </script>
 
 {#if canUse && on && list.length > 0}
-  <section class="tray" aria-label="AI suggestions{showPlatform ? `, ${platformLabel(app.platform)}` : ''}">
-    <Disclosure bind:open stateKey="ai.tray.{app.id}" summary="{openLine(count > 0 ? count : list.length)}{showPlatform ? ` · ${platformLabel(app.platform)}` : ''}">
+  <section class="tray" aria-label={showPlatform ? t('ai:tray.labelPlatform', { platform: platformLabel(app.platform) }) : t('ai:tray.label')}>
+    <Disclosure bind:open stateKey="ai.tray.{app.id}" summary={openLine(count > 0 ? count : list.length, showPlatform ? platformLabel(app.platform) : undefined)}>
       <div class="stack">
         <p class="muted small">
-          Proposals only. Nothing changes until you accept one, and nothing is sent to a store: staged texts still go through Pending changes.
+          {t('ai:tray.note')}
         </p>
         {#each list as s (s.id)}
           <AiSuggestionCard {api} {workspaceId} {role} suggestion={s} {platform} appPlatform={app.platform} {onaccepted} />

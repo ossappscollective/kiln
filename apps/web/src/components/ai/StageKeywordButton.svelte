@@ -9,9 +9,10 @@
 -->
 <script lang="ts">
   import type { Platform, Role } from '@kiln/core';
-  import { canStagePlacement, placementWord, stageInLabel } from '../../lib/ai/placement.ts';
+  import { canStagePlacement, draftCannotText, draftInLabel, stageInLabel } from '../../lib/ai/placement.ts';
   import type { Api } from '../../lib/api.ts';
   import { storeTextOf } from '../../lib/aso/keyword-use.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { addTermToText } from '../../lib/listing/edit.ts';
   import { fieldInfo } from '../../lib/listing/edit.ts';
   import Button from '../ui/Button.svelte';
@@ -61,7 +62,7 @@
       seed = { text: added.text, note: added.note };
       open = true;
     } catch {
-      problem = 'Could not read the stored listing text. Read the listing from the store first.';
+      problem = t('ai:stage.readFailed');
     } finally {
       busy = false;
     }
@@ -71,10 +72,10 @@
 {#if info !== null}
   <div class="stage">
     <Button size="sm" icon="layers" loading={busy} onclick={() => void start()}>
-      {stageable ? stageInLabel(field) : `Draft in ${placementWord(field)}`}
+      {stageable ? stageInLabel(field) : draftInLabel(field)}
     </Button>
     {#if !stageable}
-      <span class="muted small">A draft push cannot write the {placementWord(field)} on this store, so this stays a draft you copy.</span>
+      <span class="muted small">{draftCannotText(field)}</span>
     {/if}
     {#if problem}<span class="small bad">{problem}</span>{/if}
   </div>

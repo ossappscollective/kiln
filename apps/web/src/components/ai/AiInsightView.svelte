@@ -14,7 +14,9 @@
     basedOnText,
     healthAreaLabel,
     healthBasis,
+    impactLabel,
     impactTone,
+    levelLabel,
     periodText,
     rankText,
     reportNotes,
@@ -26,6 +28,8 @@
     themeKindTone,
     topicLabel,
   } from '../../lib/ai/insights.ts';
+  import { formatList, formatNumber, formatPercent } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { appReviewHref } from '../../lib/reviews/split.ts';
   import Badge from '../ui/Badge.svelte';
 
@@ -34,6 +38,16 @@
   const notes = $derived(reportNotes(proposal));
   const shares = $derived(proposal.insight === 'review_summary' ? sentimentShares(proposal.sentiment) : null);
   const evidence = (ids: readonly string[]): string[] => ids.slice(0, 5);
+  const pct = (n: number): string => formatPercent(n / 100, { maximumFractionDigits: 0 });
+  const stars = (n: number): string => formatNumber(n, { maximumFractionDigits: 1 });
+  /** The line above a tag report: what was tagged, what was cached, what is left (a whole sentence per case). */
+  function classifyLine(p: { classified: number; cached: number; remaining: number }): string {
+    const values = { classified: p.classified, cached: p.cached, remaining: p.remaining };
+    if (p.cached > 0 && p.remaining > 0) return t('ai:insight.classify.moreCached', values);
+    if (p.cached > 0) return t('ai:insight.classify.doneCached', values);
+    if (p.remaining > 0) return t('ai:insight.classify.more', values);
+    return t('ai:insight.classify.done', values);
+  }
 </script>
 
 {#snippet flagBadges(flags: readonly AiFlag[])}
@@ -43,79 +57,77 @@
 {#snippet evidenceLinks(ids: readonly string[])}
   {#if ids.length > 0}
     <p class="evidence muted">
-      Evidence:
+      {t('ai:insight.evidence')}
       {#each evidence(ids) as id, n (id)}
-        <a href={appReviewHref(appId, id, platform)}>review {n + 1}</a>{n < evidence(ids).length - 1 ? ', ' : ''}
+        <a href={appReviewHref(appId, id, platform)}>{t('ai:insight.evidenceReview', { n: n + 1 })}</a>{n < evidence(ids).length - 1 ? ', ' : ''}
       {/each}
-      {#if ids.length > 5}<span>and {ids.length - 5} more</span>{/if}
+      {#if ids.length > 5}<span>{t('ai:insight.evidenceMore', { count: ids.length - 5 })}</span>{/if}
     </p>
   {/if}
 {/snippet}
 
 <div class="insight">
   {#if proposal.insight === 'review_summary'}
-    <p class="basis muted">{basedOnText(proposal.analysed, proposal.reviewCount)} {periodText(proposal.period)}. The shares come from the star ratings.</p>
+    <p class="basis muted">{t('ai:insight.summaryBasis', { basedOn: basedOnText(proposal.analysed, proposal.reviewCount), period: periodText(proposal.period) })}</p>
     {#if proposal.overview}<p class="overview">{proposal.overview}</p>{/if}
     {#if shares}
       <p class="shares">
-        <Badge tone="ok">{shares.positive}% 4 to 5 stars</Badge>
-        <Badge>{shares.neutral}% 3 stars</Badge>
-        <Badge tone="bad">{shares.negative}% 1 to 2 stars</Badge>
+        <Badge tone="ok">{t('ai:insight.shares.high', { percent: pct(shares.positive) })}</Badge>
+        <Badge>{t('ai:insight.shares.mid', { percent: pct(shares.neutral) })}</Badge>
+        <Badge tone="bad">{t('ai:insight.shares.low', { percent: pct(shares.negative) })}</Badge>
       </p>
     {/if}
     {#if proposal.themes.length === 0}
-      <p class="muted">No theme came out of these reviews.</p>
+      <p class="muted">{t('ai:insight.noThemes')}</p>
     {:else}
       <ul class="list">
-        {#each proposal.themes as t, n (n)}
+        {#each proposal.themes as theme, n (n)}
           <li class="entry">
             <p class="line">
-              <strong>{t.label}</strong>
-              <Badge tone={themeKindTone(t.kind)}>{themeKindLabel(t.kind)}</Badge>
-              <span class="muted">{reviewsText(t.count)}{t.averageRating !== null ? ` · ${t.averageRating} stars on average` : ''}</span>
+              <strong>{theme.label}</strong>
+              <Badge tone={themeKindTone(theme.kind)}>{themeKindLabel(theme.kind)}</Badge>
+              <span class="muted">{theme.averageRating !== null ? t('ai:insight.themeWithRating', { reviews: reviewsText(theme.count), rating: stars(theme.averageRating) }) : reviewsText(theme.count)}</span>
             </p>
-            {#if t.summary}<p class="text">{t.summary}</p>{/if}
-            {@render evidenceLinks(t.reviewIds)}
+            {#if theme.summary}<p class="text">{theme.summary}</p>{/if}
+            {@render evidenceLinks(theme.reviewIds)}
           </li>
         {/each}
       </ul>
     {/if}
   {:else if proposal.insight === 'review_classify'}
     <p class="basis muted">
-      {proposal.classified} tagged now{proposal.cached > 0 ? `, ${proposal.cached} already had tags (nothing was sent for those)` : ''}{proposal.remaining > 0
-        ? `, ${proposal.remaining} still to tag. Run it again to continue.`
-        : '.'}
-      The tags are advisory: they change nothing about the reviews.
+      {classifyLine(proposal)}
+      {t('ai:insight.classify.advisory')}
     </p>
     {#if proposal.items.length > 0}
       <ul class="list">
-        {#each proposal.items.slice(0, 12) as t (t.reviewId)}
+        {#each proposal.items.slice(0, 12) as tagged (tagged.reviewId)}
           <li class="entry compactline">
-            <a href={appReviewHref(appId, t.reviewId, platform)}>Open review</a>
-            <span>{tagLine(t)}</span>
-            {#if t.needsReply}<Badge tone="warn">Needs a reply</Badge>{/if}
+            <a href={appReviewHref(appId, tagged.reviewId, platform)}>{t('ai:insight.openReview')}</a>
+            <span>{tagLine(tagged)}</span>
+            {#if tagged.needsReply}<Badge tone="warn">{t('ai:insight.needsReply')}</Badge>{/if}
           </li>
         {/each}
       </ul>
-      {#if proposal.items.length > 12}<p class="muted">The tags of all {proposal.items.length} reviews show in the list.</p>{/if}
+      {#if proposal.items.length > 12}<p class="muted">{t('ai:insight.allTagsInList', { count: proposal.items.length })}</p>{/if}
     {/if}
   {:else if proposal.insight === 'fix_next'}
-    <p class="basis muted">{basedOnText(proposal.analysed, proposal.reviewCount)} Only reviews of 3 stars or fewer are looked at. {periodText(proposal.period)}.</p>
+    <p class="basis muted">{t('ai:insight.fixNextBasis', { basedOn: basedOnText(proposal.analysed, proposal.reviewCount), period: periodText(proposal.period) })}</p>
     {#if proposal.items.length === 0}
-      <p class="muted">Nothing stood out.</p>
+      <p class="muted">{t('ai:insight.nothingStoodOut')}</p>
     {:else}
       <ol class="list">
         {#each proposal.items as item, n (n)}
           <li class="entry">
             <p class="line">
               <strong>{item.title}</strong>
-              {#if item.severity !== 'none'}<Badge tone={severityTone(item.severity)}>{item.severity}</Badge>{/if}
+              {#if item.severity !== 'none'}<Badge tone={severityTone(item.severity)}>{levelLabel(item.severity)}</Badge>{/if}
               {#if item.area}<Badge>{topicLabel(item.area)}</Badge>{/if}
               <span class="muted">{reviewsText(item.count)}</span>
             </p>
             {#if item.why}<p class="text">{item.why}</p>{/if}
             {#if item.versions.length > 0}
-              <p class="muted small">Written for version {item.versions.map((v) => `${v.version} (${v.count})`).join(', ')}.</p>
+              <p class="muted small">{t('ai:insight.writtenFor', { versions: formatList(item.versions.map((v) => `${v.version} (${v.count})`), { type: 'unit' }) })}</p>
             {/if}
             {@render evidenceLinks(item.reviewIds)}
           </li>
@@ -124,10 +136,10 @@
     {/if}
     {#if proposal.versionStats.length > 0}
       <details class="more">
-        <summary>Complaints by version</summary>
+        <summary>{t('ai:insight.complaintsByVersion')}</summary>
         <ul class="plain">
           {#each proposal.versionStats as v (v.version)}
-            <li>{v.version}: {reviewsText(v.complaints)} of {reviewsText(v.reviews)}, {v.averageRating} stars on average</li>
+            <li>{t('ai:insight.versionStat', { version: v.version, complaints: reviewsText(v.complaints), reviews: reviewsText(v.reviews), rating: stars(v.averageRating) })}</li>
           {/each}
         </ul>
       </details>
@@ -135,44 +147,44 @@
     {#if proposal.releaseNotes}
       <div class="notes">
         <p class="line">
-          <strong>Draft for "What is new"</strong>
-          <span class="muted small">{proposal.releaseNotesLength} of {proposal.releaseNotesLimit} characters</span>
+          <strong>{t('ai:insight.releaseNotesTitle')}</strong>
+          <span class="muted small">{t('ai:insight.releaseNotesLength', { length: formatNumber(proposal.releaseNotesLength), count: proposal.releaseNotesLimit })}</span>
           {@render flagBadges(proposal.releaseNotesFlags)}
         </p>
         <p class="text">{proposal.releaseNotes}</p>
-        <p class="muted small">A draft to copy and edit. It is not staged and nothing is sent to a store.</p>
+        <p class="muted small">{t('ai:insight.releaseNotesNote')}</p>
       </div>
     {/if}
   {:else if proposal.insight === 'listing_audit'}
-    <p class="basis muted">{proposal.locale} · {proposal.store === 'app_store' ? 'App Store' : 'Google Play'}. Lengths and ranks are counted here; the findings are the assistant's opinion.</p>
+    <p class="basis muted">{t('ai:insight.auditBasis', { locale: proposal.locale, store: proposal.store === 'app_store' ? 'App Store' : 'Google Play' })}</p>
     <ul class="plain facts">
       {#each proposal.fields as f (f.field)}<li><strong>{f.label}</strong>: {auditFieldText(f)}</li>{/each}
     </ul>
     {#if proposal.coverage.length > 0}
       <details class="more">
-        <summary>Where your tracked keywords appear</summary>
+        <summary>{t('ai:insight.coverageTitle')}</summary>
         <ul class="plain">
           {#each proposal.coverage as c, n (n)}
-            <li>{c.term}: {rankText(c.rank)}{c.inFields.length > 0 ? `, in ${c.inFields.join(', ')}` : ', not in any field'}</li>
+            <li>{c.inFields.length > 0 ? t('ai:insight.coverageIn', { term: c.term, rank: rankText(c.rank), fields: formatList(c.inFields, { type: 'unit' }) }) : t('ai:insight.coverageNone', { term: c.term, rank: rankText(c.rank) })}</li>
           {/each}
         </ul>
       </details>
     {/if}
     {#if proposal.findings.length === 0}
-      <p class="muted">No finding.</p>
+      <p class="muted">{t('ai:insight.noFinding')}</p>
     {:else}
       <ol class="list">
         {#each proposal.findings as f, n (n)}
           <li class="entry">
             <p class="line">
               <strong>{f.problem}</strong>
-              <Badge tone={impactTone(f.impact)}>{f.impact} impact</Badge>
+              <Badge tone={impactTone(f.impact)}>{impactLabel(f.impact)}</Badge>
               {#if f.field}<Badge>{f.field}</Badge>{/if}
               {@render flagBadges(f.flags)}
             </p>
             <p class="text">{f.recommendation}</p>
             {#if f.reasoning}<p class="muted small">{f.reasoning}</p>{/if}
-            {#if f.keywords.length > 0}<p class="muted small">Keywords: {f.keywords.join(', ')}</p>{/if}
+            {#if f.keywords.length > 0}<p class="muted small">{t('ai:insight.findingKeywords', { keywords: formatList(f.keywords, { type: 'unit' }) })}</p>{/if}
           </li>
         {/each}
       </ol>
@@ -181,7 +193,7 @@
     <p class="basis muted">{healthBasis(proposal.basedOn)}</p>
     {#if proposal.summary}<p class="overview">{proposal.summary}</p>{/if}
     {#if proposal.actions.length === 0}
-      <p class="muted">No action to suggest.</p>
+      <p class="muted">{t('ai:insight.noAction')}</p>
     {:else}
       <ol class="list">
         {#each proposal.actions as a (a.position)}

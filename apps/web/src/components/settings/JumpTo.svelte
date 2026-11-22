@@ -5,9 +5,10 @@
   accessible name of the group).
 -->
 <script lang="ts">
+  import { t } from '../../lib/i18n/t.ts';
   import type { SettingsSection } from '../../lib/settings-views.ts';
 
-  let { sections, label = 'Jump to a section' }: { sections: readonly SettingsSection[]; label?: string | undefined } = $props();
+  let { sections, label }: { sections: readonly SettingsSection[]; label?: string | undefined } = $props();
 
   function go(id: string) {
     const target = document.getElementById(id);
@@ -19,8 +20,8 @@
 </script>
 
 {#if sections.length > 1}
-  <nav class="jump" aria-label={label}>
-    <span class="lead">Jump to</span>
+  <nav class="jump" aria-label={label ?? t('settings:jump.label')}>
+    <span class="lead">{t('settings:jump.lead')}</span>
     {#each sections as s (s.id)}
       <button type="button" class="bare chip" onclick={() => go(s.id)}>{s.label}</button>
     {/each}

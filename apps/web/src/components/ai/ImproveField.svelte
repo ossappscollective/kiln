@@ -14,6 +14,7 @@
   import { canImproveField } from '../../lib/ai/ai.ts';
   import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import type { AppSummary, DriftField } from '../../lib/types.ts';
   import type { AiAcceptedRef } from '@kiln/core';
   import AiSuggestionCard from './AiSuggestionCard.svelte';
@@ -26,7 +27,7 @@
     app,
     field,
     current,
-    buttonLabel = 'Improve',
+    buttonLabel,
     onaccepted,
   }: {
     api: Api;
@@ -62,7 +63,7 @@
 
 {#if eligible}
   <div class="improve">
-    <SuggestButton {api} {workspaceId} {role} kind="listing_text" taskId="listing_improve" label={buttonLabel} hiddenLabel="{field.label} ({field.locale}) with AI" onrun={run} />
+    <SuggestButton {api} {workspaceId} {role} kind="listing_text" taskId="listing_improve" label={buttonLabel ?? t('ai:improve.label')} hiddenLabel={t('ai:improve.hidden', { field: field.label, locale: field.locale })} onrun={run} />
     {#if shown}
       <AiSuggestionCard
         {api}

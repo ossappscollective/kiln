@@ -9,6 +9,7 @@
   import { type Role, can } from '@kiln/core';
   import { type Api } from '../../lib/api.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import {
     SMTP_SECURE_OPTIONS,
@@ -74,7 +75,7 @@
 
   const locked = $derived(!!settings?.locked);
   const canEdit = $derived(isAdmin && !locked);
-  const summary = $derived(settings ? (settings.configured ? `${settings.host}:${settings.port}` : 'Not set up') : undefined);
+  const summary = $derived(settings ? (settings.configured ? `${settings.host}:${settings.port}` : t('settings:mail.notSetUp')) : undefined);
 
   function pickSecure(next: SmtpSecure) {
     // Move the port along with the setting, unless the person typed a port of their own.
@@ -105,7 +106,7 @@
         from: from.trim(),
       };
       fill(await confirmed((grant) => api.mailSaveSettings(workspaceId, body, grant)));
-      toast.success('Mail server saved.');
+      toast.success(t('settings:mail.saved'));
     } catch (e) {
       problem = twoFactorProblem(e);
     } finally {
@@ -120,7 +121,7 @@
     testResult = null;
     try {
       fill(await confirmed((grant) => api.mailClearSettings(workspaceId, grant)));
-      toast.success('Mail server removed.');
+      toast.success(t('settings:mail.removed'));
     } catch (e) {
       problem = twoFactorProblem(e);
     } finally {
@@ -148,10 +149,10 @@
 
 {#if isAdmin}
   <Card
-    title="Mail"
+    title={t('settings:mail.title')}
     collapseKey="mail-settings"
     {summary}
-    description="The mail server that sends confirmation codes and alert emails. Its password is kept encrypted and never shown again."
+    description={t('settings:mail.description')}
   >
     {#if loadError}
       <Alert tone="error">{loadError}</Alert>
@@ -161,48 +162,48 @@
       <form class="stack readable-card" onsubmit={save} novalidate>
         <p class="muted">{smtpSourceLabel(settings.source)}.</p>
         {#if locked}
-          <Alert tone="info">This server's mail settings come from its environment (KILN_SMTP_*). Change them there and restart the server.</Alert>
+          <Alert tone="info">{t('settings:mail.locked')}</Alert>
         {/if}
-        <TextField label="Host" bind:value={host} placeholder="smtp.example.com" autocomplete="off" disabled={!canEdit || busy} required />
+        <TextField label={t('settings:mail.hostLabel')} bind:value={host} placeholder="smtp.example.com" autocomplete="off" disabled={!canEdit || busy} required />
         <div class="field">
-          <label for="{uid}-secure">Connection security</label>
+          <label for="{uid}-secure">{t('settings:mail.secureLabel')}</label>
           <select id="{uid}-secure" value={secure} disabled={!canEdit || busy} onchange={(e) => pickSecure((e.currentTarget as HTMLSelectElement).value as SmtpSecure)}>
             {#each SMTP_SECURE_OPTIONS as option (option.value)}
               <option value={option.value}>{option.label}</option>
             {/each}
           </select>
         </div>
-        <TextField label="Port" bind:value={port} inputmode="numeric" disabled={!canEdit || busy} />
-        <TextField label="User name (optional)" bind:value={user} autocomplete="off" disabled={!canEdit || busy} />
+        <TextField label={t('settings:mail.portLabel')} bind:value={port} inputmode="numeric" disabled={!canEdit || busy} />
+        <TextField label={t('settings:mail.userLabel')} bind:value={user} autocomplete="off" disabled={!canEdit || busy} />
         <TextField
-          label="Password (optional)"
+          label={t('settings:mail.passwordLabel')}
           type="password"
           reveal
           bind:value={password}
           autocomplete="new-password"
-          placeholder={settings.passwordSet ? 'Saved. Leave empty to keep it.' : ''}
+          placeholder={settings.passwordSet ? t('settings:mail.passwordSaved') : ''}
           disabled={!canEdit || busy}
         />
-        <TextField label="Send from" bind:value={from} type="text" placeholder="Kiln <kiln@example.com>" autocomplete="off" disabled={!canEdit || busy} required />
+        <TextField label={t('settings:mail.fromLabel')} bind:value={from} type="text" placeholder="Kiln <kiln@example.com>" autocomplete="off" disabled={!canEdit || busy} required />
         {#if secure === 'none'}
-          <Alert tone="warn">Without TLS, messages cross the network as plain text. Use this only for a mail server on this machine.</Alert>
+          <Alert tone="warn">{t('settings:mail.noTls')}</Alert>
         {/if}
         {#if problem}<Alert tone="error">{problem}</Alert>{/if}
         {#if testResult}<Alert tone={testResult.ok ? 'ok' : 'error'}>{mailTestSummary(testResult)}</Alert>{/if}
         {#if askTestAddress}
-          <TextField label="Send the test to" type="email" bind:value={testTo} autocomplete="email" />
+          <TextField label={t('settings:mail.testToLabel')} type="email" bind:value={testTo} autocomplete="email" />
         {/if}
         <div class="row">
           {#if canEdit}
-            <Button type="submit" variant="primary" loading={busy} disabled={busy}>Save</Button>
+            <Button type="submit" variant="primary" loading={busy} disabled={busy}>{t('settings:mail.save')}</Button>
           {/if}
-          <Button icon="send" loading={testing} disabled={testing || busy || !settings.configured} onclick={sendTest}>Send test email</Button>
+          <Button icon="send" loading={testing} disabled={testing || busy || !settings.configured} onclick={sendTest}>{t('settings:mail.sendTest')}</Button>
           {#if canEdit && settings.source === 'settings'}
-            <Button variant="danger" icon="trash" disabled={busy} onclick={clear}>Remove</Button>
+            <Button variant="danger" icon="trash" disabled={busy} onclick={clear}>{t('settings:mail.remove')}</Button>
           {/if}
         </div>
         {#if !settings.configured}
-          <p class="muted">Save the mail server first; the test message goes to your own address.</p>
+          <p class="muted">{t('settings:mail.saveFirst')}</p>
         {/if}
       </form>
     {/if}

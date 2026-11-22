@@ -13,6 +13,7 @@
   import type { Api } from '../../lib/api.ts';
   import { type AsoKeyword, countryForLocale } from '../../lib/aso/aso.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import SuggestButton from './SuggestButton.svelte';
@@ -35,7 +36,7 @@
 
   const multi = $derived(members.length > 1);
   const targets = $derived(members.filter((m) => localeFor(m) !== null));
-  const reason = $derived(targets.length === 0 ? 'The language is not known yet. Track a keyword, or sync the app so its listing is read.' : null);
+  const reason = $derived(targets.length === 0 ? t('ai:suggestKeywords.noLanguage') : null);
   /** The options of the first app: the data a run would send is shown for it (every app is built the same way). */
   const first = $derived(targets[0] ?? null);
   const preview = $derived.by(() => {
@@ -57,12 +58,13 @@
         await aiStore.run(api, workspaceId, 'keyword_ideas_reviews', { appId: app.id, locale, days: 90, ...(country ? { country } : {}) });
         made += 1;
       } catch (e) {
-        problems.push(`${multi ? `${platformLabel(app.platform)}: ` : ''}${aiErrorMessage(e)}`);
+        const message = aiErrorMessage(e);
+        problems.push(multi ? t('ai:suggestKeywords.problemFor', { platform: platformLabel(app.platform), message }) : message);
       }
     }
     if (problems.length > 0) toast.error(problems.join(' '));
-    else if (made > 0) toast.info('Ideas from reviews are ready just above this list. Nothing is tracked until you accept them.');
+    else if (made > 0) toast.info(t('ai:suggestKeywords.readyFromReviews'));
   }
 </script>
 
-<SuggestButton {api} {workspaceId} {role} kind="keywords" taskId="keyword_ideas_reviews" label="Ideas from reviews" onrun={run} disabledReason={reason} align="end" {preview} />
+<SuggestButton {api} {workspaceId} {role} kind="keywords" taskId="keyword_ideas_reviews" label={t('ai:suggestKeywords.labelFromReviews')} onrun={run} disabledReason={reason} align="end" {preview} />

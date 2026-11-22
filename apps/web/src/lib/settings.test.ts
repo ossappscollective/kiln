@@ -181,7 +181,7 @@ test('providers: Google is the default and every choice states who receives the 
 
 test('languageName knows common codes and falls back to the code', () => {
   assert.equal(languageName('de'), 'German');
-  assert.equal(languageName('pt_BR'), 'Portuguese (Brazil)');
+  assert.equal(languageName('pt_BR'), 'Brazilian Portuguese');
   assert.equal(languageName('de-AT'), 'German');
   assert.equal(languageName('xx'), 'xx');
   assert.equal(languageName(null), 'another language');

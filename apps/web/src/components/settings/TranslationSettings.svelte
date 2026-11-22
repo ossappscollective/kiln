@@ -18,10 +18,13 @@
     languageChoices,
     modeLabels,
     providerChoices,
+    providerPrivacy,
     testOutcomeText,
     usageFraction,
     usageText,
   } from '../../lib/settings.ts';
+  import { formatDisplayName } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -67,111 +70,111 @@
       configured: data.translation.credentialConfigured,
       required: data.translation.credentialRequired,
       changed: providerChanged,
-      optionalLabel: 'Optional',
+      optionalLabel: t('settings:translation.credentialOptional'),
     }),
   );
   const testState = $derived(testWord({ testing, ok: outcome === null ? null : outcome.ok }));
 </script>
 
-<Card title="Translation" collapseKey="translation" description="Translate customer reviews with a service you choose.">
+<Card title={t('settings:translation.title')} collapseKey="translation" description={t('settings:translation.description')}>
   {#if !editable}
-    <Alert tone="info">Only owners and admins can change these settings. You can see what is set.</Alert>
+    <Alert tone="info">{t('settings:translation.readOnly')}</Alert>
   {/if}
 
   <div class="stack readable-card">
     <div class="field">
       <label class="check">
         <input type="checkbox" bind:checked={form.enabled} disabled={!editable} />
-        Turn on review translation
+        {t('settings:translation.enableLabel')}
       </label>
-      <p class="hint">While this is off, no review text leaves this server.</p>
+      <p class="hint">{t('settings:translation.enableHint')}</p>
     </div>
 
     <fieldset class="field" disabled={!editable}>
-      <legend>Provider</legend>
+      <legend>{t('settings:translation.providerLegend')}</legend>
       {#each providerChoices as p (p.id)}
         <label class="option">
           <input type="radio" name="{uid}-provider" value={p.id} bind:group={form.provider} />
           <span>
             <strong>{p.label}</strong>
-            {#if p.isDefault}<Badge tone="accent">Default</Badge>{/if}
-            <span class="hint block">{p.privacy}</span>
+            {#if p.isDefault}<Badge tone="accent">{t('settings:translation.default')}</Badge>{/if}
+            <span class="hint block">{providerPrivacy(p.id)}</span>
           </span>
         </label>
       {/each}
     </fieldset>
 
     <div class="field">
-      <p class="label-like">Credential</p>
+      <p class="label-like">{t('settings:translation.credentialLabel')}</p>
       <p class="connection">
         <Badge tone={credWord.tone} icon={credWord.tone === 'ok' ? 'check' : undefined}>{credWord.label}</Badge>
         {#if providerChanged}
-          <span>Save to see the credential of {choice?.label}.</span>
+          <span>{t('settings:translation.saveToSee', { provider: choice?.label ?? '' })}</span>
         {:else if data.translation.credentialConfigured}
-          <span>{#if data.translation.credential}{data.translation.credential.label}{:else}A credential of this kind is in use.{/if}</span>
+          <span>{#if data.translation.credential}{data.translation.credential.label}{:else}{t('settings:translation.credentialInUse')}{/if}</span>
         {:else if data.translation.credentialRequired}
-          <span>{choice?.label} needs an API key.</span>
+          <span>{t('settings:translation.needsKey', { provider: choice?.label ?? '' })}</span>
         {:else}
-          <span>Add a key only if your LibreTranslate server asks for one.</span>
+          <span>{t('settings:translation.libreKeyOptional')}</span>
         {/if}
         {#if canManageCredentials}
-          <Button size="sm" variant="ghost" icon="plus" onclick={onaddcredential}>Add a credential</Button>
-          <a class="link sm" href="#/credentials">Manage credentials</a>
+          <Button size="sm" variant="ghost" icon="plus" onclick={onaddcredential}>{t('settings:translation.addCredential')}</Button>
+          <a class="link sm" href="#/credentials">{t('settings:translation.manageCredentials')}</a>
         {/if}
       </p>
       {#if data.translation.credentialConfigured && !providerChanged}
-        <p class="hint">Keys are kept in the vault and are never shown here.</p>
+        <p class="hint">{t('settings:translation.keysInVault')}</p>
       {:else if !canManageCredentials && !data.translation.credentialConfigured && data.translation.credentialRequired}
-        <p class="hint">An admin can add it under Credentials.</p>
+        <p class="hint">{t('settings:translation.adminCanAdd')}</p>
       {/if}
     </div>
 
     {#if choice?.needsUrl}
       <TextField
-        label="LibreTranslate address"
+        label={t('settings:translation.libreAddress')}
         bind:value={form.libreUrl}
         placeholder="https://translate.example.com"
-        hint="Starts with https://, with no user name, password or key in it."
+        hint={t('settings:translation.libreHint')}
         error={errors.libreUrl}
         disabled={!editable}
         autocomplete="off"
         spellcheck="false"
       />
-      <Disclosure summary="About a server on a private network">
-        <p class="hint">A server on a private network needs KILN_TRANSLATE_ALLOW_PRIVATE_URLS=true on this server.</p>
+      <Disclosure summary={t('settings:translation.privateSummary')}>
+        <p class="hint">{t('settings:translation.privateText')}</p>
       </Disclosure>
     {/if}
 
     <div class="field">
-      <label for="{uid}-target">Translate into</label>
+      <label for="{uid}-target">{t('settings:translation.targetLabel')}</label>
       <input id="{uid}-target" list="{uid}-languages" bind:value={form.targetLanguage} disabled={!editable} autocomplete="off" spellcheck="false" aria-invalid={errors.targetLanguage ? 'true' : undefined} aria-describedby="{uid}-target-hint" />
       <datalist id="{uid}-languages">
-        {#each languageChoices as l (l.tag)}<option value={l.tag}>{l.label}</option>{/each}
+        {#each languageChoices as l (l.tag)}<option value={l.tag}>{formatDisplayName(l.tag, 'language')}</option>{/each}
       </datalist>
-      <p class="hint" id="{uid}-target-hint">A language code such as en, de or pt-BR. Reviews already in it are not sent.</p>
+      <p class="hint" id="{uid}-target-hint">{t('settings:translation.targetHint')}</p>
       {#if errors.targetLanguage}<p class="field-error" role="alert">{errors.targetLanguage}</p>{/if}
     </div>
 
     <fieldset class="field" disabled={!editable}>
-      <legend>When to translate</legend>
+      <legend>{t('settings:translation.whenLegend')}</legend>
       {#each modes as m (m)}
         <label class="option">
           <input type="radio" name="{uid}-mode" value={m} bind:group={form.mode} />
           <span>
-            <strong>{modeLabels[m].label}</strong>
-            <span class="hint block">{modeLabels[m].help}</span>
+            <strong>{t(modeLabels[m].label)}</strong>
+            <span class="hint block">{t(modeLabels[m].help)}</span>
           </span>
         </label>
       {/each}
     </fieldset>
 
     <div class="field">
-      <label for="{uid}-budget">Daily limit (characters)</label>
+      <label for="{uid}-budget">{t('settings:translation.budgetLabel')}</label>
       <input id="{uid}-budget" inputmode="numeric" bind:value={form.dailyCharBudget} disabled={!editable} autocomplete="off" aria-invalid={errors.dailyCharBudget ? 'true' : undefined} aria-describedby="{uid}-budget-hint" />
-      <p class="hint" id="{uid}-budget-hint">The most this workspace sends per day (UTC). 0 means no limit here.</p>
+      <p class="hint" id="{uid}-budget-hint">{t('settings:translation.budgetHint')}</p>
       {#if errors.dailyCharBudget}<p class="field-error" role="alert">{errors.dailyCharBudget}</p>{/if}
       <p class="usage">
-        {#if fraction !== null}<progress value={fraction} max="1" aria-label="Translation budget used today"></progress>{/if}
+        {#if fraction !== null}<progress value={fraction} max="1" aria-label={t('settings:translation.budgetMeter')}></progress>{/if}
         <span class="hint">{usageText(data.translation.usage)}</span>
       </p>
     </div>
@@ -180,9 +183,9 @@
       <div class="field">
         <p class="connection">
           <Badge tone={testState.tone}>{testState.label}</Badge>
-          <Button size="sm" variant="ghost" icon="refresh" loading={testing} disabled={dirty || testing} onclick={ontest}>Test the provider</Button>
+          <Button size="sm" variant="ghost" icon="refresh" loading={testing} disabled={dirty || testing} onclick={ontest}>{t('settings:translation.testButton')}</Button>
         </p>
-        <p class="hint">{dirty ? 'Save first: the test uses the saved settings.' : 'Translates one fixed word, not review text, and uses no budget.'}</p>
+        <p class="hint">{dirty ? t('settings:translation.testSaveFirst') : t('settings:translation.testNote')}</p>
         {#if outcome}
           <Alert tone={outcome.ok ? 'ok' : 'error'}>{testOutcomeText(outcome)}</Alert>
         {/if}

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import type { AiProposal } from '@kiln/core';
 import { ApiError } from '../api.ts';
 import {
-  ADDRESS_TEXTS,
+  addressText,
   type AiConfig,
   acceptableIndexes,
   acceptBody,
@@ -158,13 +158,13 @@ test('the provider sentence says who receives the text', () => {
 test('usage reads as words and a fraction, with and without a limit', () => {
   assert.equal(
     usageText({ used: 1200, budget: 500000, resetsAt: Date.UTC(2026, 11, 1) }),
-    '1,200 of 500,000 used this month. Starts again on 1 December.',
+    '1,200 of 500,000 used this month. Starts again on December 1.',
   );
   assert.match(usageText({ used: 5, budget: 0, resetsAt: 0 }), /No limit is set here/);
   assert.equal(usageFraction({ used: 250, budget: 1000 }), 0.25);
   assert.equal(usageFraction({ used: 2000, budget: 1000 }), 1);
   assert.equal(usageFraction({ used: 10, budget: 0 }), null);
-  assert.equal(resetText(Date.UTC(2027, 0, 1)), '1 January');
+  assert.equal(resetText(Date.UTC(2027, 0, 1)), 'January 1');
   assert.equal(budgetUsedUp({ budget: 100, remaining: 0 }), true);
   assert.equal(budgetUsedUp({ budget: 100, remaining: 5 }), false);
   assert.equal(budgetUsedUp({ budget: 0, remaining: null }), false);
@@ -573,7 +573,7 @@ test('errors are fixed sentences chosen from the code, never the server or provi
   );
   assert.match(
     aiErrorMessage(apiError(429, 'ai_budget_exhausted', { resetsAt: Date.UTC(2026, 11, 1) })),
-    /1 December/,
+    /December 1/,
   );
   assert.match(aiErrorMessage(apiError(429, 'ai_busy', {}, 30)), /30 seconds/);
   assert.match(aiErrorMessage(apiError(429, 'rate_limited', {}, 90)), /2 minutes/);
@@ -831,7 +831,7 @@ test('a local address is explained BEFORE it fails when this server only talks t
     'http://ollama:11434/v1',
   ]) {
     assert.equal(looksPrivateAddress(url), true, url);
-    assert.equal(addressAdvice(url, false)?.text, ADDRESS_TEXTS.private_address_blocked, url);
+    assert.equal(addressAdvice(url, false)?.text, addressText('private_address_blocked'), url);
   }
   for (const url of [
     'https://models.example.com/v1',
@@ -848,26 +848,26 @@ test('a local address is explained BEFORE it fails when this server only talks t
   );
   assert.equal(
     addressAdvice('http://192.168.1.20:11434/v1', true)?.text,
-    ADDRESS_TEXTS.plain_http_not_allowed,
+    addressText('plain_http_not_allowed'),
     'plain http is for localhost only, switch or not',
   );
   assert.equal(
     addressAdvice('http://example.com/v1', true)?.text,
-    ADDRESS_TEXTS.plain_http_not_allowed,
+    addressText('plain_http_not_allowed'),
   );
-  assert.match(ADDRESS_TEXTS.private_address_blocked, /only talks to public addresses/);
+  assert.match(addressText('private_address_blocked'), /only talks to public addresses/);
   assert.match(
-    ADDRESS_TEXTS.private_address_blocked,
+    addressText('private_address_blocked'),
     /KILN_AI_ALLOW_PRIVATE_URLS=true and restarts it/,
   );
-  assert.match(ADDRESS_TEXTS.private_address_blocked, /Docker, localhost is the container/);
+  assert.match(addressText('private_address_blocked'), /Docker, localhost is the container/);
   assert.equal(needsV1Hint('http://localhost:11234'), true);
   assert.equal(needsV1Hint('http://localhost:11234/'), true);
   assert.equal(needsV1Hint('http://localhost:11234/v1'), false);
 });
 
 test('the fixed codes of a refused address turn into the same sentence on save, on test, on models and on a run', () => {
-  const text = ADDRESS_TEXTS.private_address_blocked;
+  const text = addressText('private_address_blocked');
   assert.equal(
     aiSaveMessage(
       apiError(400, 'invalid_setting', {
@@ -896,7 +896,7 @@ test('the fixed codes of a refused address turn into the same sentence on save, 
     aiErrorMessage(
       apiError(422, 'ai_not_configured', { reason: 'bad_url', hint: 'plain_http_not_allowed' }),
     ),
-    ADDRESS_TEXTS.plain_http_not_allowed,
+    addressText('plain_http_not_allowed'),
   );
   assert.match(
     aiTestText({ ok: false, kind: 'unavailable', reason: 'http_404' }).text,

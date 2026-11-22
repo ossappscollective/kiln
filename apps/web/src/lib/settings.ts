@@ -10,6 +10,8 @@ import {
 } from '@kiln/core';
 import { ApiError } from './api.ts';
 import { timeAgo } from './format.ts';
+import { formatDisplayName, formatNumber, formatPercent } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 
 /** Workspace settings (docs/api/settings.md): the shapes of the API and the logic of the Settings screen. */
 
@@ -114,11 +116,18 @@ export const MAX_SYNC_MINUTES = 10_080;
 
 /** "15 minutes", "1 hour", "6 hours", "Daily"; any other number is said in the largest whole unit. */
 export function syncIntervalLabel(minutes: number): string {
-  if (minutes === 1440) return 'Daily';
-  if (minutes % 1440 === 0) return `${minutes / 1440} days`;
-  if (minutes === 60) return '1 hour';
-  if (minutes % 60 === 0) return `${minutes / 60} hours`;
-  return `${minutes} minutes`;
+  if (minutes === 1440) return t('settings:interval.daily');
+  if (minutes % 1440 === 0) return t('settings:interval.days', { count: minutes / 1440 });
+  if (minutes % 60 === 0) return t('settings:interval.hours', { count: minutes / 60 });
+  return t('settings:interval.minutes', { count: minutes });
+}
+
+/** "Every 15 minutes", "Every day", "Every 6 hours": the option of the picker, written as one message per unit. */
+export function syncIntervalEveryLabel(minutes: number): string {
+  if (minutes === 1440) return t('settings:interval.everyDay');
+  if (minutes % 1440 === 0) return t('settings:interval.everyDays', { count: minutes / 1440 });
+  if (minutes % 60 === 0) return t('settings:interval.everyHours', { count: minutes / 60 });
+  return t('settings:interval.everyMinutes', { count: minutes });
 }
 
 /** The choices for the picker: the standard ones, plus the current value when it is none of them (a server interval of 45 minutes). */
@@ -139,16 +148,15 @@ export function syncIntervalOptions(current: number): { value: number; label: st
 /** What the card says about the last scheduled refresh: when it ran, or that none ran yet. */
 export function lastRefreshText(sync: SyncStatus | undefined, now: number = Date.now()): string {
   if (!sync) return '';
-  if (sync.lastScheduledAt === null) return 'No scheduled refresh has run yet.';
-  return `The last scheduled refresh ran ${timeAgo(sync.lastScheduledAt, now)}.`;
+  if (sync.lastScheduledAt === null) return t('settings:lastRefresh.never');
+  return t('settings:lastRefresh.ran', { when: timeAgo(sync.lastScheduledAt, now) });
 }
 
 /** Why no refresh runs, or '' when one does. */
 export function syncOffText(sync: SyncStatus | undefined): string {
   if (!sync || sync.running) return '';
-  if (sync.off === 'server_off')
-    return 'Scheduled refresh is turned off for the whole server (KILN_SYNC_INTERVAL_MINUTES is 0), so the settings below have no effect until the person who runs the server changes it.';
-  return 'Scheduled refresh is off for this workspace. Alerts only change when someone syncs an app by hand.';
+  if (sync.off === 'server_off') return t('settings:syncOff.server');
+  return t('settings:syncOff.workspace');
 }
 
 /** The most hours a release or reminder setting takes (docs/api/settings.md). */
@@ -195,16 +203,16 @@ export function checkLibreUrl(raw: string): string | undefined {
   try {
     url = new URL(value);
   } catch {
-    return 'Enter the full address, for example https://translate.example.com.';
+    return t('settings:libreUrl.fullAddress');
   }
   if (url.username || url.password)
-    return 'Leave the user name and password out of the address. Put the API key under Credentials.';
-  if (url.search || url.hash) return 'The address must not have a query string or a fragment.';
+    return t('settings:libreUrl.noCredentials');
+  if (url.search || url.hash) return t('settings:libreUrl.noQuery');
   const loopback =
     url.hostname === 'localhost' || url.hostname === '[::1]' || /^127\./.test(url.hostname);
   if (url.protocol === 'http:' && !loopback)
-    return 'Use https. Plain http is only accepted for a server on the same machine.';
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return 'Use an https address.';
+    return t('settings:libreUrl.useHttps');
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return t('settings:libreUrl.useHttpsAddress');
   return undefined;
 }
 
@@ -212,43 +220,45 @@ export function validateForm(form: SettingsForm): FormErrors {
   const errors: FormErrors = {};
   const threshold = form.lowRatingThreshold.trim();
   if (!WHOLE.test(threshold) || Number(threshold) < 1 || Number(threshold) > 4) {
-    errors.lowRatingThreshold = 'A whole number from 1 to 4.';
+    errors.lowRatingThreshold = t('settings:form.lowRating');
   }
   if (!normalizeLanguageTag(form.targetLanguage)) {
-    errors.targetLanguage = 'A language code such as en, de or pt-BR.';
+    errors.targetLanguage = t('settings:form.targetLanguage');
   }
   const budget = form.dailyCharBudget.trim();
   if (!WHOLE.test(budget) || Number(budget) > MAX_DAILY_CHAR_BUDGET) {
-    errors.dailyCharBudget = `A whole number from 0 to ${MAX_DAILY_CHAR_BUDGET.toLocaleString('en-US')} (0 means no limit here).`;
+    errors.dailyCharBudget = t('settings:form.dailyCharBudget', { max: formatNumber(MAX_DAILY_CHAR_BUDGET) });
   }
   const hours = (text: string): boolean =>
     WHOLE.test(text.trim()) && Number(text.trim()) <= MAX_HOURS;
   if (!hours(form.stalledAfterHours))
-    errors.stalledAfterHours = `A whole number of hours from 0 to ${MAX_HOURS} (0 turns the signal off).`;
+    errors.stalledAfterHours = t('settings:form.stalledAfterHours', { max: formatNumber(MAX_HOURS) });
   if (!hours(form.stalledRepeatHours))
-    errors.stalledRepeatHours = `A whole number of hours from 0 to ${MAX_HOURS} (0 reminds once).`;
+    errors.stalledRepeatHours = t('settings:form.stalledRepeatHours', { max: formatNumber(MAX_HOURS) });
   if (!hours(form.unansweredReminderHours))
-    errors.unansweredReminderHours = `A whole number of hours from 0 to ${MAX_HOURS} (0 is off).`;
+    errors.unansweredReminderHours = t('settings:form.unansweredReminderHours', { max: formatNumber(MAX_HOURS) });
   const top = form.unansweredMaxRating.trim();
   if (!WHOLE.test(top) || Number(top) < 1 || Number(top) > 5)
-    errors.unansweredMaxRating = 'A whole number from 1 to 5.';
+    errors.unansweredMaxRating = t('settings:form.unansweredMaxRating');
   if (
     form.analyticsVendorNumber.trim() !== '' &&
     !normalizeVendorNumber(form.analyticsVendorNumber)
   ) {
-    errors.analyticsVendorNumber = 'A vendor number is 5 to 12 digits.';
+    errors.analyticsVendorNumber = t('settings:form.vendorNumber');
   }
   if (form.analyticsBucketId.trim() !== '' && !normalizeBucketId(form.analyticsBucketId)) {
-    errors.analyticsBucketId =
-      'Use a bucket id such as pubsite_prod_rev_01234567890123456789 (or the gs:// address).';
+    errors.analyticsBucketId = t('settings:form.bucketId');
   }
   const every = form.syncIntervalMinutes.trim();
   if (!WHOLE.test(every) || Number(every) < MIN_SYNC_MINUTES || Number(every) > MAX_SYNC_MINUTES)
-    errors.syncIntervalMinutes = `A whole number of minutes from ${MIN_SYNC_MINUTES} to ${MAX_SYNC_MINUTES}.`;
+    errors.syncIntervalMinutes = t('settings:form.syncInterval', {
+      min: formatNumber(MIN_SYNC_MINUTES),
+      max: formatNumber(MAX_SYNC_MINUTES),
+    });
   const url = checkLibreUrl(form.libreUrl);
   if (url) errors.libreUrl = url;
   if (form.provider === 'libretranslate' && form.enabled && form.libreUrl.trim() === '') {
-    errors.libreUrl = 'LibreTranslate needs the address of a server.';
+    errors.libreUrl = t('settings:form.libreNeedsUrl');
   }
   return errors;
 }
@@ -304,9 +314,24 @@ export type ProviderChoice = {
   isDefault: boolean;
 };
 
+/** The privacy sentence of each provider as a message key (the English text is the one of `translationProviderInfo`). */
+const PRIVACY_KEYS: Record<TranslationProvider, string> = {
+  google: k('settings:provider.privacy.google'),
+  deepl: k('settings:provider.privacy.deepl'),
+  azure: k('settings:provider.privacy.azure'),
+  libretranslate: k('settings:provider.privacy.libretranslate'),
+};
+
+/** The privacy sentence of a provider, in the language of the app. */
+export const providerPrivacy = (id: TranslationProvider): string => {
+  const key = PRIVACY_KEYS[id];
+  return key ? t(key) : translationProviderInfo[id].privacy;
+};
+
 export const providerChoices: ProviderChoice[] = translationProviders.map((id) => ({
   id,
   label: translationProviderInfo[id].label,
+  /** The English text from the core package: the screen shows `providerPrivacy(id)`. */
   privacy: translationProviderInfo[id].privacy,
   credentialKind: translationProviderInfo[id].credentialKind,
   credentialRequired: translationProviderInfo[id].credentialRequired,
@@ -314,62 +339,35 @@ export const providerChoices: ProviderChoice[] = translationProviders.map((id) =
   isDefault: id === 'google',
 }));
 
+/** Message keys of the label and the help of each mode: the screen translates them where it draws them. */
 export const modeLabels: Record<TranslationMode, { label: string; help: string }> = {
-  off: { label: 'Off', help: 'Nothing is translated, even if translation is enabled.' },
-  on_demand: {
-    label: 'On demand',
-    help: 'Someone clicks Translate on a review. Only that review is sent.',
-  },
-  auto: {
-    label: 'Automatic',
-    help: 'New reviews in another language are translated after each sync (at most 20 per sync, within the daily budget). Failures never fail the sync.',
-  },
+  off: { label: k('settings:mode.off.label'), help: k('settings:mode.off.help') },
+  on_demand: { label: k('settings:mode.onDemand.label'), help: k('settings:mode.onDemand.help') },
+  auto: { label: k('settings:mode.auto.label'), help: k('settings:mode.auto.help') },
 };
 
-/** Common targets for the picker; any other valid code can be typed. */
-export const languageChoices: { tag: string; label: string }[] = [
-  { tag: 'en', label: 'English' },
-  { tag: 'de', label: 'German' },
-  { tag: 'fr', label: 'French' },
-  { tag: 'es', label: 'Spanish' },
-  { tag: 'it', label: 'Italian' },
-  { tag: 'pt', label: 'Portuguese' },
-  { tag: 'pt-BR', label: 'Portuguese (Brazil)' },
-  { tag: 'nl', label: 'Dutch' },
-  { tag: 'sv', label: 'Swedish' },
-  { tag: 'da', label: 'Danish' },
-  { tag: 'nb', label: 'Norwegian' },
-  { tag: 'fi', label: 'Finnish' },
-  { tag: 'pl', label: 'Polish' },
-  { tag: 'cs', label: 'Czech' },
-  { tag: 'tr', label: 'Turkish' },
-  { tag: 'ru', label: 'Russian' },
-  { tag: 'uk', label: 'Ukrainian' },
-  { tag: 'ar', label: 'Arabic' },
-  { tag: 'hi', label: 'Hindi' },
-  { tag: 'ja', label: 'Japanese' },
-  { tag: 'ko', label: 'Korean' },
-  { tag: 'zh-Hans', label: 'Chinese (Simplified)' },
-  { tag: 'zh-Hant', label: 'Chinese (Traditional)' },
-];
+/** Common targets for the picker (language codes); any other valid code can be typed. The name is written in the language of the app. */
+export const languageChoices: { tag: string }[] = [
+  'en', 'de', 'fr', 'es', 'it', 'pt', 'pt-BR', 'nl', 'sv', 'da', 'nb', 'fi', 'pl', 'cs', 'tr', 'ru', 'uk', 'ar', 'hi', 'ja', 'ko', 'zh-Hans', 'zh-Hant',
+].map((tag) => ({ tag }));
 
-/** "German", or the code itself when it is not in the list. */
+/** "German" ("allemand" in French), or the code itself when it is not in the list. */
 export function languageName(tag: string | null | undefined): string {
-  if (!tag) return 'another language';
+  if (!tag) return t('settings:language.another');
   const normalized = normalizeLanguageTag(tag) ?? tag;
-  for (const choice of languageChoices) if (choice.tag === normalized) return choice.label;
+  for (const choice of languageChoices) if (choice.tag === normalized) return formatDisplayName(choice.tag, 'language');
   const base = normalized.split('-')[0] ?? normalized;
-  for (const choice of languageChoices) if (choice.tag === base) return choice.label;
+  for (const choice of languageChoices) if (choice.tag === base) return formatDisplayName(choice.tag, 'language');
   return normalized;
 }
 
 /** "12,300 of 50,000 characters used today (UTC)", or the unlimited form. */
 export function usageText(usage: SettingsUsage): string {
-  const used = usage.used.toLocaleString('en-US');
-  if (usage.budget === 0)
-    return `${used} characters used today (UTC). There is no daily limit here.`;
+  const used = formatNumber(usage.used);
+  if (usage.budget === 0) return t('settings:usage.unlimited', { count: usage.used });
   const percent = Math.min(100, Math.round((usage.used / usage.budget) * 100));
-  return `${used} of ${usage.budget.toLocaleString('en-US')} characters used today (UTC), ${percent}%.`;
+  // `count` is the budget: the noun "characters" follows the second number of the sentence.
+  return t('settings:usage.of', { used, count: usage.budget, percent: formatPercent(percent / 100, { maximumFractionDigits: 0 }) });
 }
 
 /** 0 to 1 for a meter, or null when there is no limit. */
@@ -386,36 +384,38 @@ export function settingsErrorMessage(
   error: unknown,
   action: 'load' | 'save' | 'test' = 'load',
 ): string {
-  if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
+  if (!(error instanceof ApiError)) return t('common:error.genericRetry');
   const issues = Array.isArray(error.body.issues)
     ? (error.body.issues as { path?: string; message?: string }[])
     : [];
   switch (error.code) {
     case 'forbidden':
       return action === 'load'
-        ? 'Your role does not include workspace settings.'
-        : 'Only an owner or an admin can change settings.';
+        ? t('settings:error.noRole')
+        : t('settings:error.ownerOrAdmin');
     case 'not_found':
-      return 'This workspace no longer exists.';
+      return t('settings:error.workspaceGone');
     case 'invalid_setting':
     case 'unknown_setting': {
       const first = issues[0];
       return first?.message
-        ? `${first.path ? `${first.path}: ` : ''}${first.message}`
+        ? first.path
+          ? t('settings:error.issuePath', { path: first.path, message: first.message })
+          : first.message
         : error.message;
     }
     case 'rate_limited':
       return error.message;
     default:
       return action === 'save'
-        ? 'The settings could not be saved. Try again.'
-        : error.message || 'Something went wrong. Try again.';
+        ? t('settings:error.saveFailed')
+        : error.message || t('common:error.genericRetry');
   }
 }
 
 /** The outcome of "Test", as a sentence for a person. Messages from the server are fixed sentences. */
 export function testOutcomeText(outcome: TranslationTestOutcome): string {
-  if (outcome.ok) return 'The provider translated a test word. Saved settings and key work.';
+  if (outcome.ok) return t('settings:test.ok');
   return outcome.message;
 }
 

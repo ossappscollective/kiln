@@ -1,5 +1,6 @@
 import type { AiAcceptedRef, AiSuggestionView } from '@kiln/core';
 import type { Api } from '../api.ts';
+import { t } from '../i18n/t.ts';
 import type {
   AiAcceptBody,
   AiConfig,
@@ -150,7 +151,7 @@ export const aiStore = {
         ].sort((a, b) => b.createdAt - a.createdAt);
         return '';
       })
-      .catch(() => 'Could not read the AI suggestions.')
+      .catch(() => t('ai:store.loadFailed'))
       .then((message) => {
         suggestionLoading[appId] = undefined;
         return message;

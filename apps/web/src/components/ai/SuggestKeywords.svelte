@@ -13,6 +13,7 @@
   import type { Api } from '../../lib/api.ts';
   import { type AsoKeyword, countryForLocale } from '../../lib/aso/aso.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import SuggestButton from './SuggestButton.svelte';
@@ -35,7 +36,7 @@
 
   const multi = $derived(members.length > 1);
   const targets = $derived(members.filter((m) => localeFor(m) !== null));
-  const reason = $derived(targets.length === 0 ? 'The language is not known yet. Track a keyword, or sync the app so its listing is read.' : null);
+  const reason = $derived(targets.length === 0 ? t('ai:suggestKeywords.noLanguage') : null);
 
   async function run() {
     const problems: string[] = [];
@@ -43,17 +44,18 @@
     for (const app of targets) {
       const locale = localeFor(app);
       if (locale === null) continue;
-      const country = countryForLocale(locale, keywords.filter((k) => k.appId === app.id));
+      const country = countryForLocale(locale, keywords.filter((kw) => kw.appId === app.id));
       try {
         await aiStore.run(api, workspaceId, 'keyword_ideas', { appId: app.id, locale, ...(country ? { country } : {}) });
         made += 1;
       } catch (e) {
-        problems.push(`${multi ? `${platformLabel(app.platform)}: ` : ''}${aiErrorMessage(e)}`);
+        const message = aiErrorMessage(e);
+        problems.push(multi ? t('ai:suggestKeywords.problemFor', { platform: platformLabel(app.platform), message }) : message);
       }
     }
     if (problems.length > 0) toast.error(problems.join(' '));
-    else if (made > 0) toast.info('Keyword ideas are ready just above this list. Nothing is tracked until you accept them.');
+    else if (made > 0) toast.info(t('ai:suggestKeywords.ready'));
   }
 </script>
 
-<SuggestButton {api} {workspaceId} {role} kind="keywords" taskId="keyword_ideas" label="Suggest keywords" onrun={run} disabledReason={reason} align="end" />
+<SuggestButton {api} {workspaceId} {role} kind="keywords" taskId="keyword_ideas" label={t('ai:suggestKeywords.label')} onrun={run} disabledReason={reason} align="end" />

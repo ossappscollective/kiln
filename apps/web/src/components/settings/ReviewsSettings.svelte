@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import { KEYS, type FormErrors, type SettingsForm, canEdit } from '../../lib/settings.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import Card from '../ui/Card.svelte';
 
   let {
@@ -21,22 +22,22 @@
   const canRemind = (key: string): boolean => canEdit(writable, key);
 </script>
 
-<Card title="Reviews" collapseKey="reviews" description="Which reviews count as low.">
+<Card title={t('settings:reviews.title')} collapseKey="reviews" description={t('settings:reviews.description')}>
   <div class="field">
-    <label for="{uid}-threshold">Low rating threshold</label>
+    <label for="{uid}-threshold">{t('settings:reviews.thresholdLabel')}</label>
     <select id="{uid}-threshold" bind:value={form.lowRatingThreshold} disabled={!editable} aria-describedby="{uid}-threshold-hint" aria-invalid={error ? 'true' : undefined}>
-      <option value="1">1 star</option>
-      <option value="2">2 stars or fewer (default)</option>
-      <option value="3">3 stars or fewer</option>
-      <option value="4">4 stars or fewer</option>
+      <option value="1">{t('settings:reviews.star1')}</option>
+      <option value="2">{t('settings:reviews.star2Default')}</option>
+      <option value="3">{t('settings:reviews.star3')}</option>
+      <option value="4">{t('settings:reviews.star4')}</option>
     </select>
     <p class="hint" id="{uid}-threshold-hint">
-      Reviews at or below this are marked Low rating and raise an alert. A change applies from the next sync, and not to reviews already read.
+      {t('settings:reviews.thresholdHint')}
     </p>
     {#if error}<p class="field-error" role="alert">{error}</p>{/if}
   </div>
   <div class="field">
-    <label for="{uid}-reminder">Remind me about unanswered reviews after (hours)</label>
+    <label for="{uid}-reminder">{t('settings:reviews.reminderLabel')}</label>
     <input
       id="{uid}-reminder"
       type="text"
@@ -48,12 +49,12 @@
       aria-invalid={errors.unansweredReminderHours ? 'true' : undefined}
     />
     <p class="hint" id="{uid}-reminder-hint">
-      One reminder at most this often. 0 is off (the default).
+      {t('settings:reviews.reminderHint')}
     </p>
     {#if errors.unansweredReminderHours}<p class="field-error" role="alert">{errors.unansweredReminderHours}</p>{/if}
   </div>
   <div class="field">
-    <label for="{uid}-maxrating">Count unanswered reviews rated at or below</label>
+    <label for="{uid}-maxrating">{t('settings:reviews.maxRatingLabel')}</label>
     <select
       id="{uid}-maxrating"
       bind:value={form.unansweredMaxRating}
@@ -61,13 +62,13 @@
       aria-describedby="{uid}-maxrating-hint"
       aria-invalid={errors.unansweredMaxRating ? 'true' : undefined}
     >
-      <option value="1">1 star</option>
-      <option value="2">2 stars or fewer</option>
-      <option value="3">3 stars or fewer</option>
-      <option value="4">4 stars or fewer</option>
-      <option value="5">5 stars (every review, the default)</option>
+      <option value="1">{t('settings:reviews.star1')}</option>
+      <option value="2">{t('settings:reviews.star2')}</option>
+      <option value="3">{t('settings:reviews.star3')}</option>
+      <option value="4">{t('settings:reviews.star4')}</option>
+      <option value="5">{t('settings:reviews.star5Default')}</option>
     </select>
-    <p class="hint" id="{uid}-maxrating-hint">Used by the reminder, the unanswered badge and the “Show unanswered” list.</p>
+    <p class="hint" id="{uid}-maxrating-hint">{t('settings:reviews.maxRatingHint')}</p>
     {#if errors.unansweredMaxRating}<p class="field-error" role="alert">{errors.unansweredMaxRating}</p>{/if}
   </div>
 </Card>

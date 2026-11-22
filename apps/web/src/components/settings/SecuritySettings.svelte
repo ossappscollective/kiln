@@ -10,6 +10,8 @@
   import { type Role, can } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime } from '../../lib/format.ts';
+  import { formatList } from '../../lib/i18n/format.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import {
     type StepUpAction,
     type StepUpStatus,
@@ -103,7 +105,7 @@
   const savePolicy = () =>
     run(async () => {
       await confirmed((grant) => api.stepUpSetPolicy(workspaceId, { mode: on ? 'hard_actions' : 'off', actions: covered, unattended }, grant));
-      toast.success('Confirmation settings saved.');
+      toast.success(t('settings:security.policySaved'));
       await load();
     });
 
@@ -111,7 +113,7 @@
     run(async () => {
       const name = passkeyName.trim();
       if (!name) {
-        problem = 'Give the passkey a name, such as “MacBook Touch ID”.';
+        problem = t('settings:security.passkeyNameNeeded');
         return;
       }
       const options = await api.stepUpRegisterOptions(workspaceId);
@@ -129,14 +131,14 @@
       const sent = attestationToServer(credential as unknown as Parameters<typeof attestationToServer>[0]);
       await confirmed((grant) => api.stepUpRegisterVerify(workspaceId, { challengeId: options.challengeId, name, credential: sent }, grant));
       passkeyName = '';
-      toast.success(`Added “${name}”.`);
+      toast.success(t('settings:security.passkeyAdded', { name }));
       await load();
     });
 
   const removePasskey = (id: string, name: string) =>
     run(async () => {
       await confirmed((grant) => api.stepUpDeletePasskey(workspaceId, id, grant));
-      toast.success(`Removed “${name}”.`);
+      toast.success(t('settings:security.passkeyRemoved', { name }));
       await load();
     });
 
@@ -171,21 +173,21 @@
   const savePassword = () =>
     run(async () => {
       if (newPassword.length < 12) {
-        problem = 'Use at least 12 characters.';
+        problem = t('settings:security.passwordMin', { count: 12 });
         return;
       }
       const password = newPassword;
       await confirmed((grant) => api.stepUpSetPassword(workspaceId, password, grant));
       newPassword = '';
-      toast.success('Confirmation password saved.');
+      toast.success(t('settings:security.passwordSaved'));
       await load();
     });
 </script>
 
-<Card title="Security: confirm hard actions" collapseKey="security" description="Ask for a passkey or password again before anything that cannot be undone: publishing, releasing, changing a rollout, deleting a credential.">
+<Card title={t('settings:security.title')} collapseKey="security" description={t('settings:security.description')}>
   {#if loadError}
     <Alert tone="error">{loadError}</Alert>
-    <p><Button onclick={load}>Try again</Button></p>
+    <p><Button onclick={load}>{t('common:action.tryAgain')}</Button></p>
   {:else if !status}
     <Skeleton />
   {:else}
@@ -193,57 +195,56 @@
       <Alert tone={status.policy.mode === 'off' ? 'warn' : status.enrolled ? 'ok' : 'warn'}>{securitySummary(status)}</Alert>
 
       <section class="stack" aria-labelledby="su-ways">
-        <h4 id="su-ways">How you confirm</h4>
+        <h4 id="su-ways">{t('settings:security.waysTitle')}</h4>
         {#if status.factors.passkeys.length > 0}
           <ul class="plain">
             {#each status.factors.passkeys as passkey (passkey.id)}
               <li class="row">
-                <span><strong>{passkey.name}</strong> <span class="muted">added {fullTime(passkey.createdAt)}{passkey.lastUsedAt ? `, last used ${fullTime(passkey.lastUsedAt)}` : ', not used yet'}</span></span>
-                <Button size="sm" variant="danger" icon="trash" disabled={busy} onclick={() => removePasskey(passkey.id, passkey.name)}>Remove</Button>
+                <span><strong>{passkey.name}</strong> <span class="muted">{passkey.lastUsedAt ? t('settings:security.passkeyMeta', { added: fullTime(passkey.createdAt), used: fullTime(passkey.lastUsedAt) }) : t('settings:security.passkeyMetaUnused', { added: fullTime(passkey.createdAt) })}</span></span>
+                <Button size="sm" variant="danger" icon="trash" disabled={busy} onclick={() => removePasskey(passkey.id, passkey.name)}>{t('settings:security.remove')}</Button>
               </li>
             {/each}
           </ul>
         {:else}
-          <p class="muted">No passkey yet.</p>
+          <p class="muted">{t('settings:security.noPasskey')}</p>
         {/if}
 
         {#if browserPasskeys && status.supported.webauthn}
           <div class="row">
-            <TextField label="Name for a new passkey" bind:value={passkeyName} placeholder="MacBook Touch ID" maxlength={60} disabled={busy} />
-            <Button icon="key" loading={busy} disabled={busy || status.factors.passkeys.length >= status.supported.maxPasskeys} onclick={addPasskey}>Add a passkey</Button>
+            <TextField label={t('settings:security.passkeyNameLabel')} bind:value={passkeyName} placeholder="MacBook Touch ID" maxlength={60} disabled={busy} />
+            <Button icon="key" loading={busy} disabled={busy || status.factors.passkeys.length >= status.supported.maxPasskeys} onclick={addPasskey}>{t('settings:security.addPasskey')}</Button>
           </div>
-          <p class="muted small">Your device asks for Touch ID, Face ID, Windows Hello or your PIN. Only a public key is stored here.</p>
+          <p class="muted small">{t('settings:security.passkeyNote')}</p>
         {:else}
-          <Alert tone="info" title="Passkeys are not available in this window">
-            Passkeys need a browser that offers them and an address that is https or http://localhost. The desktop app's window may not offer
-            them. Use a password instead{status.factors.confirmationPasswordSettable ? ' (below)' : ''}, or open this server in a browser.
+          <Alert tone="info" title={t('settings:security.noPasskeysTitle')}>
+            {status.factors.confirmationPasswordSettable ? t('settings:security.noPasskeysBodyBelow') : t('settings:security.noPasskeysBody')}
           </Alert>
         {/if}
 
         {#if status.factors.confirmationPasswordSettable}
           <div class="stack">
-            <h5>Confirmation password</h5>
+            <h5>{t('settings:security.passwordTitle')}</h5>
             <p class="muted small">
-              {status.factors.password ? 'A confirmation password is set.' : 'This app has no sign-in password, so set one here to confirm with.'}
-              At least 12 characters. It is stored hashed, wrong guesses lock confirmation for a while, and it only confirms actions; it does not sign anyone in.
+              {status.factors.password ? t('settings:security.passwordIsSet') : t('settings:security.passwordNone')}
+              {t('settings:security.passwordRules')}
             </p>
             <div class="row">
-              <TextField label={status.factors.password ? 'New confirmation password' : 'Confirmation password'} type="password" reveal bind:value={newPassword} autocomplete="new-password" disabled={busy} />
-              <Button loading={busy} disabled={busy || newPassword === ''} onclick={savePassword}>{status.factors.password ? 'Change password' : 'Set password'}</Button>
+              <TextField label={status.factors.password ? t('settings:security.passwordNewLabel') : t('settings:security.passwordLabel')} type="password" reveal bind:value={newPassword} autocomplete="new-password" disabled={busy} />
+              <Button loading={busy} disabled={busy || newPassword === ''} onclick={savePassword}>{status.factors.password ? t('settings:security.passwordChange') : t('settings:security.passwordSet')}</Button>
             </div>
           </div>
         {:else if status.factors.password}
-          <p class="muted small">Your account password confirms. Change it with your account.</p>
+          <p class="muted small">{t('settings:security.accountPasswordConfirms')}</p>
         {/if}
       </section>
 
       <section class="stack" aria-labelledby="su-policy">
-        <h4 id="su-policy">When to ask</h4>
+        <h4 id="su-policy">{t('settings:security.policyTitle')}</h4>
         {#if isAdmin}
-          <label class="check"><input type="checkbox" bind:checked={on} disabled={busy} /> Ask for a confirmation before hard actions (recommended)</label>
+          <label class="check"><input type="checkbox" bind:checked={on} disabled={busy} /> {t('settings:security.policyToggle')}</label>
           {#if on}
             <fieldset class="stack">
-              <legend>Actions that ask</legend>
+              <legend>{t('settings:security.actionsLegend')}</legend>
               {#each STEP_UP_ACTIONS as action (action)}
                 <label class="check">
                   <input type="checkbox" checked={covered.indexOf(action) >= 0} disabled={busy} onchange={(e) => (covered = toggleAction(covered, action, e.currentTarget.checked))} />
@@ -252,10 +253,9 @@
               {/each}
             </fieldset>
             <details>
-              <summary>Allow API tokens without a person (CI and automation)</summary>
+              <summary>{t('settings:security.unattendedSummary')}</summary>
               <p class="muted small">
-                A token cannot confirm anything, so by default a token that does a covered action is refused. Tick an action to let tokens do it with
-                no confirmation at all. That is the trade-off for automation: anyone who holds such a token can do it.
+                {t('settings:security.unattendedText')}
               </p>
               {#each covered as action (action)}
                 <label class="check">
@@ -266,13 +266,12 @@
             </details>
           {/if}
           {#if on && !status.enrolled}
-            <Alert tone="warn">You have no way to confirm yet. Add a passkey or set a confirmation password first, or hard actions will be refused for you.</Alert>
+            <Alert tone="warn">{t('settings:security.noWayToConfirm')}</Alert>
           {/if}
-          <div class="row"><Button variant="primary" loading={busy} disabled={busy || !policyChanged} onclick={savePolicy}>Save</Button></div>
+          <div class="row"><Button variant="primary" loading={busy} disabled={busy || !policyChanged} onclick={savePolicy}>{t('settings:security.save')}</Button></div>
         {:else}
           <p>
-            {#if status.policy.mode === 'off'}Not switched on. An owner or admin can switch it on.{:else}Switched on by an owner or admin for:
-              {#each status.policy.actions as action, i (action)}{i > 0 ? ', ' : ' '}{stepUpActionLabel(action)}{/each}.{/if}
+            {#if status.policy.mode === 'off'}{t('settings:security.policyOff')}{:else}{t('settings:security.policyOn', { actions: formatList(status.policy.actions.map((action) => stepUpActionLabel(action)), { type: 'unit' }) })}{/if}
           </p>
         {/if}
       </section>
@@ -283,31 +282,31 @@
 </Card>
 
 {#if isAdmin && status}
-  <Card title="Recovery codes" collapseKey="recovery-codes" description="Ten one-time codes to confirm with when your passkey or password is lost. Keep them offline.">
+  <Card title={t('settings:security.recoveryTitle')} collapseKey="recovery-codes" description={t('settings:security.recoveryDescription')}>
     <div class="stack">
       {#if shown}
-        <Alert tone="warn" title="Save these codes now">
-          They are shown only this once and cannot be looked up again. Keep them in a password manager or print them. Each works once.
+        <Alert tone="warn" title={t('settings:security.saveCodesTitle')}>
+          {t('settings:security.saveCodesBody')}
         </Alert>
-        <ul class="plain codes" aria-label="Your new recovery codes">
+        <ul class="plain codes" aria-label={t('settings:security.codesLabel')}>
           {#each shown.codes as code (code)}<li><code>{code}</code></li>{/each}
         </ul>
         <div class="row">
-          <CopyButton value={shown.codes.join('\n')} label="Copy codes" size="sm" variant="secondary" />
-          <Button size="sm" icon="download" onclick={downloadCodes}>Download as text</Button>
+          <CopyButton value={shown.codes.join('\n')} label={t('settings:security.copyCodes')} size="sm" variant="secondary" />
+          <Button size="sm" icon="download" onclick={downloadCodes}>{t('settings:security.downloadCodes')}</Button>
         </div>
-        <div class="row"><Button variant="primary" onclick={() => (shown = null)}>I have saved them</Button></div>
+        <div class="row"><Button variant="primary" onclick={() => (shown = null)}>{t('settings:security.savedThem')}</Button></div>
       {:else}
         <p class="muted small">{recoverySummary(status.recovery)}</p>
         {#if !status.enrolled}
-          <p class="muted small">Add a passkey or a confirmation password first. Recovery codes stand in for them.</p>
+          <p class="muted small">{t('settings:security.codesNeedFactor')}</p>
         {:else if replacing}
           <Alert tone="warn">
-            Making new codes stops every old one from working, including the {status.recovery?.remaining ?? 0} you have left. You will be asked to confirm.
+            {t('settings:security.replaceWarn', { count: status.recovery?.remaining ?? 0 })}
           </Alert>
           <div class="row">
-            <Button variant="danger" loading={busy} disabled={busy} onclick={makeCodes}>Replace my codes</Button>
-            <Button disabled={busy} onclick={() => (replacing = false)}>Cancel</Button>
+            <Button variant="danger" loading={busy} disabled={busy} onclick={makeCodes}>{t('settings:security.replaceCodes')}</Button>
+            <Button disabled={busy} onclick={() => (replacing = false)}>{t('settings:security.cancel')}</Button>
           </div>
         {:else}
           <div class="row">
@@ -315,12 +314,11 @@
               loading={busy}
               disabled={busy}
               onclick={() => ((status?.recovery?.total ?? 0) > 0 ? (replacing = true) : makeCodes())}
-            >{(status.recovery?.total ?? 0) > 0 ? 'Make new codes' : 'Make recovery codes'}</Button>
+            >{(status.recovery?.total ?? 0) > 0 ? t('settings:security.makeNewCodes') : t('settings:security.makeCodes')}</Button>
           </div>
         {/if}
         <p class="muted small">
-          Lost your passkey or password? Remove the lost passkey or set a new confirmation password in the card above. When you are asked to confirm,
-          choose "Use a recovery code". Using a code is recorded in the audit log.
+          {t('settings:security.lostHelp')}
         </p>
       {/if}
       {#if codeProblem}<Alert tone="error">{codeProblem}</Alert>{/if}

@@ -218,7 +218,7 @@ test('the new refusals are fixed sentences', () => {
   const dated = aiErrorMessage(
     err('ai_cost_cap_reached', { resetsAt: Date.UTC(2026, 11, 1) }, 429),
   );
-  assert.match(dated, /1 December/);
+  assert.match(dated, /December 1/);
   // The server's own words are never shown.
   assert.doesNotMatch(
     aiErrorMessage(new ApiError(422, 'goal_needed', 'SECRET SERVER WORDS')),

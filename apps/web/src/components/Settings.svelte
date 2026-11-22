@@ -25,9 +25,11 @@
     settingsErrorMessage,
     validateForm,
   } from '../lib/settings.ts';
-  import { isFormView, resolveSettingsView, settingsSectionsFor, settingsViewsFor, unsavedViewsNote, withSettingsView } from '../lib/settings-views.ts';
+  import { isFormView, resolveSettingsView, settingsSectionsFor, settingsViewsFor, withSettingsView } from '../lib/settings-views.ts';
   import { confirmed } from '../lib/step-up-prompt.svelte.ts';
+  import { t } from '../lib/i18n/t.ts';
   import { toast } from '../lib/toast.svelte.ts';
+  import T from './ui/T.svelte';
   import CredentialForm from './credentials/CredentialForm.svelte';
   import LanguageSettings from './settings/LanguageSettings.svelte';
   import AnalyticsSettings from './settings/AnalyticsSettings.svelte';
@@ -61,6 +63,15 @@
   const view = $derived(resolveSettingsView(address.hash, allowed));
   /** Mail is the server's: owners and admins see it, so only they have it in the jump row. */
   const sections = $derived(settingsSectionsFor(view, editable));
+  const jumpLabel = $derived(
+    view === 'general'
+      ? t('settings:page.jumpGeneral')
+      : view === 'analytics'
+        ? t('settings:page.jumpAnalytics')
+        : view === 'security'
+          ? t('settings:page.jumpSecurity')
+          : t('settings:page.jumpAi'),
+  );
 
   let data = $state<SettingsResponse | null>(null);
   let form = $state<SettingsForm | null>(null);
@@ -109,7 +120,7 @@
       // A value on the other view of the form may be the one that is wrong: say so, as it is not on screen.
       const onAnalytics = problems.every((k) => k === 'analyticsVendorNumber' || k === 'analyticsBucketId');
       const here = view === 'analytics' ? onAnalytics : problems.some((k) => k !== 'analyticsVendorNumber' && k !== 'analyticsBucketId');
-      saveError = here ? '' : `A value on the ${view === 'analytics' ? 'General' : 'Analytics'} view is not valid. Fix it there, then save.`;
+      saveError = here ? '' : view === 'analytics' ? t('settings:page.otherViewGeneral') : t('settings:page.otherViewAnalytics');
       return;
     }
     const changes = settingsChanges(data.values, form, data.writable);
@@ -122,7 +133,7 @@
       outcome = null;
       showErrors = false;
       await load();
-      toast.success('Settings saved.');
+      toast.success(t('settings:page.saved'));
     } catch (e) {
       saveError = settingsErrorMessage(e, 'save');
     } finally {
@@ -152,26 +163,26 @@
 
   async function credentialSaved(label: string) {
     addingCredential = false;
-    toast.success(`Added “${label}”.`);
+    toast.success(t('settings:page.credentialAdded', { label }));
     await load();
   }
 </script>
 
 <section>
-  <PageHeader title="Settings" description="Choices for the whole workspace: store refresh, reminders, translation, security and AI." />
+  <PageHeader title={t('settings:page.title')} description={t('settings:page.description')} />
 
   <div class="row bar">
-    <ViewSwitch {views} value={view} hrefFor={(id) => withSettingsView(address.hash, id)} label="Settings views" />
+    <ViewSwitch {views} value={view} hrefFor={(id) => withSettingsView(address.hash, id)} label={t('settings:page.viewsLabel')} />
     <SectionsToggle />
   </div>
-  <JumpTo {sections} label="Parts of {view} settings" />
+  <JumpTo {sections} label={jumpLabel} />
 
   {#if !canRead}
-    <Alert tone="info">Your role does not include workspace settings. Members, admins and owners can see them.</Alert>
+    <Alert tone="info">{t('settings:page.noRole')}</Alert>
   {:else if isFormView(view)}
     {#if loadError}
       <Alert tone="error">{loadError}</Alert>
-      <p><Button onclick={load}>Try again</Button></p>
+      <p><Button onclick={load}>{t('common:action.tryAgain')}</Button></p>
     {:else if !data || !form}
       <Skeleton />
     {:else if addingCredential}
@@ -220,10 +231,10 @@
       {#if saveError}<Alert tone="error">{saveError}</Alert>{/if}
       {#if editable}
         <div class="savebar" class:pending={dirty}>
-          <p class="state" role="status">{dirty ? 'You have unsaved changes.' : 'All changes are saved.'}</p>
+          <p class="state" role="status">{dirty ? t('settings:page.unsaved') : t('settings:page.allSaved')}</p>
           <div class="row">
-            <Button disabled={!dirty || saving} onclick={revert}>Discard</Button>
-            <Button type="submit" variant="primary" loading={saving} disabled={!dirty}>Save settings</Button>
+            <Button disabled={!dirty || saving} onclick={revert}>{t('settings:page.discard')}</Button>
+            <Button type="submit" variant="primary" loading={saving} disabled={!dirty}>{t('settings:page.save')}</Button>
           </div>
         </div>
       {/if}
@@ -236,8 +247,8 @@
   {/if}
 
   {#if !isFormView(view)}
-    {#if dirty && unsavedViewsNote(view)}
-      <div class="ai"><Alert tone="info">{unsavedViewsNote(view)} <a href={withSettingsView(address.hash, 'general')}>Go to General</a>.</Alert></div>
+    {#if dirty}
+      <div class="ai"><Alert tone="info"><T key="settings:views.unsavedWithLink" tags={{ link: generalLink }} /></Alert></div>
     {/if}
     {#if view === 'security' && canRead}
       <div class="ai stack loose">
@@ -257,6 +268,8 @@
     {/if}
   {/if}
 </section>
+
+{#snippet generalLink(text: string)}<a href={withSettingsView(address.hash, 'general')}>{text}</a>{/snippet}
 
 <style>
   .bar {

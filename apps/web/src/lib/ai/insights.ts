@@ -11,6 +11,8 @@ import {
   emptyAiAppContext,
   normalizeAiAppContext,
 } from '@kiln/core';
+import { formatList, formatMinorUnits, formatNumber, formatPercent } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 
 /**
  * The pure logic of the AI reports (summary, tags, what to fix next, listing audit, ASO health) and of the AI context form of an app
@@ -21,44 +23,91 @@ import {
 export const insightTitle = (proposal: AiInsightProposal): string => {
   switch (proposal.insight) {
     case 'review_summary':
-      return `Review summary · ${periodText(proposal.period)}`;
+      return t('ai:insight.title.reviewSummary', { period: periodText(proposal.period) });
     case 'review_classify':
-      return 'Review tags';
+      return t('ai:insight.title.reviewTags');
     case 'fix_next':
-      return `What to fix next · ${periodText(proposal.period)}`;
+      return t('ai:insight.title.fixNext', { period: periodText(proposal.period) });
     case 'listing_audit':
-      return `Listing audit · ${proposal.locale}`;
+      return t('ai:insight.title.listingAudit', { locale: proposal.locale });
     case 'aso_health':
-      return 'ASO health report';
+      return t('ai:insight.title.asoHealth');
   }
 };
 
 export const periodText = (period: Pick<AiPeriod, 'days'>): string =>
-  period.days === 1 ? 'last day' : `last ${period.days} days`;
+  t('ai:insight.period.last', { count: period.days });
 
 // ---------------------------------------------------------------------------------------------
 // Words for the fixed vocabularies
 
 const TOPIC_LABELS: Record<string, string> = {
-  crash: 'Crash',
-  bug: 'Bug',
-  performance: 'Performance',
-  login: 'Login',
-  sync: 'Sync',
-  billing: 'Billing',
-  price: 'Price',
-  ads: 'Ads',
-  ui: 'Design',
-  feature_request: 'Feature request',
-  privacy: 'Privacy',
-  notifications: 'Notifications',
-  support: 'Support',
-  onboarding: 'Onboarding',
-  content: 'Content',
-  praise: 'Praise',
-  other: 'Other',
+  crash: k('ai:insight.topic.crash'),
+  bug: k('ai:insight.topic.bug'),
+  performance: k('ai:insight.topic.performance'),
+  login: k('ai:insight.topic.login'),
+  sync: k('ai:insight.topic.sync'),
+  billing: k('ai:insight.topic.billing'),
+  price: k('ai:insight.topic.price'),
+  ads: k('ai:insight.topic.ads'),
+  ui: k('ai:insight.topic.ui'),
+  feature_request: k('ai:insight.topic.featureRequest'),
+  privacy: k('ai:insight.topic.privacy'),
+  notifications: k('ai:insight.topic.notifications'),
+  support: k('ai:insight.topic.support'),
+  onboarding: k('ai:insight.topic.onboarding'),
+  content: k('ai:insight.topic.content'),
+  praise: k('ai:insight.topic.praise'),
+  other: k('ai:insight.topic.other'),
 };
-export const topicLabel = (topic: string): string => TOPIC_LABELS[topic] ?? topic;
+export const topicLabel = (topic: string): string => {
+  const key = TOPIC_LABELS[topic];
+  return key ? t(key) : topic;
+};
+
+const SENTIMENT_LABELS: Record<string, string> = {
+  positive: k('ai:insight.sentiment.positive'),
+  neutral: k('ai:insight.sentiment.neutral'),
+  negative: k('ai:insight.sentiment.negative'),
+  mixed: k('ai:insight.sentiment.mixed'),
+};
+/** The sentiment the model chose, in words ("negative"); a value this app does not know is shown as it came. */
+export const sentimentLabel = (sentiment: string): string => {
+  const key = SENTIMENT_LABELS[sentiment];
+  return key ? t(key) : sentiment;
+};
+
+const SEVERITY_LABELS: Record<string, string> = {
+  low: k('ai:insight.severity.low'),
+  medium: k('ai:insight.severity.medium'),
+  high: k('ai:insight.severity.high'),
+};
+/** "high severity" (a whole phrase per level: the adjective agrees with the noun in some languages). */
+export const severityLabel = (severity: string): string => {
+  const key = SEVERITY_LABELS[severity];
+  return key ? t(key) : t('ai:insight.severity.other', { level: severity });
+};
+/** Just the level, for a badge ("high"). */
+const LEVELS: Record<string, string> = {
+  low: k('ai:insight.level.low'),
+  medium: k('ai:insight.level.medium'),
+  high: k('ai:insight.level.high'),
+};
+export const levelLabel = (level: string): string => {
+  const key = LEVELS[level];
+  return key ? t(key) : level;
+};
+
+const IMPACT_LABELS: Record<string, string> = {
+  low: k('ai:insight.impact.low'),
+  medium: k('ai:insight.impact.medium'),
+  high: k('ai:insight.impact.high'),
+};
+/** "high impact". */
+export const impactLabel = (impact: string): string => {
+  const key = IMPACT_LABELS[impact];
+  return key ? t(key) : t('ai:insight.impact.other', { level: impact });
+};
 
 export type Tone = 'ok' | 'warn' | 'bad' | 'info';
 
@@ -76,27 +125,33 @@ export const impactTone = (impact: string): Tone =>
   impact === 'high' ? 'bad' : impact === 'medium' ? 'warn' : 'info';
 
 const AREA_LABELS: Record<AiHealthArea, string> = {
-  keywords: 'Keywords',
-  listing: 'Store listing',
-  reviews: 'Reviews',
-  competitors: 'Competitors',
-  analytics: 'Analytics',
-  other: 'Other',
+  keywords: k('ai:insight.area.keywords'),
+  listing: k('ai:insight.area.listing'),
+  reviews: k('ai:insight.area.reviews'),
+  competitors: k('ai:insight.area.competitors'),
+  analytics: k('ai:insight.area.analytics'),
+  other: k('ai:insight.area.other'),
 };
-export const healthAreaLabel = (area: string): string => AREA_LABELS[area as AiHealthArea] ?? area;
+export const healthAreaLabel = (area: string): string => {
+  const key = AREA_LABELS[area as AiHealthArea];
+  return key ? t(key) : area;
+};
 
 const THEME_LABELS: Record<string, string> = {
-  issue: 'Problem',
-  praise: 'Praise',
-  request: 'Request',
-  other: 'Other',
+  issue: k('ai:insight.theme.issue'),
+  praise: k('ai:insight.theme.praise'),
+  request: k('ai:insight.theme.request'),
+  other: k('ai:insight.theme.other'),
 };
-export const themeKindLabel = (kind: string): string => THEME_LABELS[kind] ?? kind;
+export const themeKindLabel = (kind: string): string => {
+  const key = THEME_LABELS[kind];
+  return key ? t(key) : kind;
+};
 export const themeKindTone = (kind: string): Tone =>
   kind === 'issue' ? 'bad' : kind === 'praise' ? 'ok' : 'info';
 
 /** "3 reviews" with the right number word. */
-export const reviewsText = (n: number): string => `${n} ${n === 1 ? 'review' : 'reviews'}`;
+export const reviewsText = (n: number): string => t('ai:insight.reviews', { count: n });
 
 /** Shares of the three star groups as whole percents of the analysed reviews (they can add to 99 or 101: they are rounded). */
 export function sentimentShares(sentiment: {
@@ -117,8 +172,8 @@ export function sentimentShares(sentiment: {
 /** "Based on 38 of 112 reviews" or "Based on 112 reviews". */
 export const basedOnText = (analysed: number, reviewCount: number): string =>
   analysed < reviewCount
-    ? `Based on the newest ${analysed} of ${reviewsText(reviewCount)}.`
-    : `Based on ${reviewsText(reviewCount)}.`;
+    ? t('ai:insight.basedOnNewest', { analysed: formatNumber(analysed), reviews: reviewsText(reviewCount) })
+    : t('ai:insight.basedOn', { reviews: reviewsText(reviewCount) });
 
 /** The one line of a tag set under a review: "Crash, Login · negative · high severity". */
 export function tagLine(
@@ -127,21 +182,30 @@ export function tagLine(
     | { topics: string[]; sentiment: string; severity: string },
 ): string {
   const topics = tags.topics.map(topicLabel).join(', ');
-  const parts = [topics, tags.sentiment];
-  if (tags.severity !== 'none') parts.push(`${tags.severity} severity`);
+  const parts = [topics, sentimentLabel(tags.sentiment)];
+  if (tags.severity !== 'none') parts.push(severityLabel(tags.severity));
   return parts.filter((p) => p !== '').join(' · ');
 }
 
 /** "Subtitle: 16 of 30 characters (53%)" for the numbers the server counted in an audit. */
 export function auditFieldText(f: AiAuditField): string {
-  const unit = f.unit === 'bytes' ? 'bytes' : 'characters';
-  if (f.empty) return f.limit === null ? 'Empty' : `Empty (0 of ${f.limit} ${unit})`;
-  if (f.limit === null) return `${f.length} ${unit}`;
-  return `${f.length} of ${f.limit} ${unit}${f.percent === null ? '' : ` (${Math.round(f.percent)}%)`}`;
+  // The unit noun follows the last number the sentence says (the limit, or the length when there is no limit).
+  const unitKey = f.unit === 'bytes' ? k('ai:insight.unit.bytes') : k('ai:insight.unit.characters');
+  if (f.empty) {
+    return f.limit === null
+      ? t('ai:insight.audit.empty')
+      : t('ai:insight.audit.emptyOf', { limit: formatNumber(f.limit), unit: t(unitKey, { count: f.limit }) });
+  }
+  if (f.limit === null)
+    return t('ai:insight.audit.length', { length: formatNumber(f.length), unit: t(unitKey, { count: f.length }) });
+  const values = { length: formatNumber(f.length), limit: formatNumber(f.limit), unit: t(unitKey, { count: f.limit }) };
+  return f.percent === null
+    ? t('ai:insight.audit.lengthOf', values)
+    : t('ai:insight.audit.lengthOfPercent', { ...values, percent: formatPercent(Math.round(f.percent) / 100) });
 }
 
 export const rankText = (rank: number | null): string =>
-  rank === null ? 'Not ranked' : `Rank ${rank}`;
+  rank === null ? t('ai:insight.rank.none') : t('ai:insight.rank.value', { rank: formatNumber(rank) });
 
 /** The notes of a report: sentences the server wrote (a sample, a dropped reference). Plain text. */
 export const reportNotes = (proposal: AiInsightProposal): string[] =>
@@ -156,12 +220,11 @@ export function healthBasis(b: {
   analyticsSeries: number;
 }): string {
   const bits: string[] = [];
-  bits.push(`${b.keywords} ${b.keywords === 1 ? 'keyword' : 'keywords'} (${b.ranked} with a rank)`);
-  if (b.coachSteps > 0) bits.push(`${b.coachSteps} coach ${b.coachSteps === 1 ? 'step' : 'steps'}`);
-  if (b.competitors > 0)
-    bits.push(`${b.competitors} ${b.competitors === 1 ? 'competitor' : 'competitors'}`);
-  if (b.analyticsSeries > 0) bits.push('store analytics');
-  return `Based on ${bits.join(', ')}.`;
+  bits.push(t('ai:insight.health.keywords', { count: b.keywords, ranked: b.ranked }));
+  if (b.coachSteps > 0) bits.push(t('ai:insight.health.coachSteps', { count: b.coachSteps }));
+  if (b.competitors > 0) bits.push(t('ai:insight.health.competitors', { count: b.competitors }));
+  if (b.analyticsSeries > 0) bits.push(t('ai:insight.health.analytics'));
+  return t('ai:insight.health.basedOn', { parts: formatList(bits, { type: 'unit' }) });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -169,9 +232,7 @@ export function healthBasis(b: {
 
 /** Whole cents as a currency amount: "$12.34". Cents are exact integers; the sign and symbol are a display choice. */
 export function centsText(cents: number): string {
-  const whole = Math.floor(Math.abs(cents) / 100);
-  const rest = String(Math.abs(cents) % 100);
-  return `${cents < 0 ? '-' : ''}$${whole.toLocaleString('en')}.${rest.length === 1 ? `0${rest}` : rest}`;
+  return formatMinorUnits(String(Math.trunc(cents)), 'USD');
 }
 
 /** Dollars typed by a person ("12.5", "$3") to whole cents, or null when it is not an amount. "" is 0. */
@@ -202,8 +263,8 @@ export function costLine(usage: {
   const cost = usage.estimatedCostCents ?? 0;
   const cap = usage.costCapCents ?? 0;
   return cap > 0
-    ? `About ${centsText(cost)} of ${centsText(cap)} this month (an estimate from the prices you entered).`
-    : `About ${centsText(cost)} this month (an estimate from the prices you entered).`;
+    ? t('ai:insight.cost.ofCap', { cost: centsText(cost), cap: centsText(cap) })
+    : t('ai:insight.cost.thisMonth', { cost: centsText(cost) });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -316,7 +377,12 @@ export function previewFacts(p: {
   includesAppContext: boolean;
   model: string;
 }): string {
-  const tokens = p.estimatedInputTokens.toLocaleString('en');
-  const back = p.maxOutputTokens.toLocaleString('en');
-  return `About ${tokens} tokens go out and at most ${back} come back (model ${p.model}). ${p.includesAppContext ? 'What you wrote about this app is included.' : 'What you wrote about this app is not included.'}`;
+  const values = {
+    tokens: formatNumber(p.estimatedInputTokens),
+    back: formatNumber(p.maxOutputTokens),
+    model: p.model,
+  };
+  return p.includesAppContext
+    ? t('ai:insight.preview.withContext', values)
+    : t('ai:insight.preview.withoutContext', values);
 }
