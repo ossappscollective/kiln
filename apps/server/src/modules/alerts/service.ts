@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { can, isRole, type Role } from '@kiln/core';
 import type { Row, Sql } from '@kiln/db';
+import { recipientLocale } from '../../i18n/user-locale.ts';
 import { enqueue } from '../../jobs.ts';
 import { type EventRecord, emitEvent } from '../../services/events.ts';
 import {
@@ -511,6 +512,7 @@ async function deliverToPerson(
       severity: c.severity,
       data: c.data,
     });
+      locale: await recipientLocale(sql, r.userId),
     const mail = { subject: rendered.subject, body: rendered.text, html: rendered.html };
     if (!c.test && r.settings.digest !== 'off' && c.severity !== 'critical') {
       await log('email', 'deferred', 'in_digest', mail);

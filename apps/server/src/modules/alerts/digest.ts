@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@kiln/db';
+import { recipientLocale } from '../../i18n/user-locale.ts';
 import { isSeverity } from './catalog-core.ts';
-import { alertGuide, renderDigestEmail } from './email.ts';
+import { alertGuide, alertTitleIn, renderDigestEmail } from './email.ts';
 import { toUserSettings } from './prefs.ts';
 import { queueEmailJob } from './service.ts';
 import { digestDue } from './time.ts';
@@ -41,6 +42,7 @@ export async function sendDueDigests(db: Database, at: number): Promise<DigestSu
         [workspaceId, userId, MAX_ITEMS],
       );
       if (pending.length > 0) {
+        const locale = await recipientLocale(tx, userId);
         const mail = renderDigestEmail(
           pending.map((p) => {
             let data: Record<string, string | number | boolean | null> = {};
@@ -51,12 +53,13 @@ export async function sendDueDigests(db: Database, at: number): Promise<DigestSu
             }
             const severity = String(p.severity);
             return {
-              title: String(p.title),
+              title: alertTitleIn(String(p.type), data, String(p.title), locale),
               severity: isSeverity(severity) ? severity : 'info',
               count: Number(p.count),
-              action: alertGuide(String(p.type), data).primary,
+              action: alertGuide(String(p.type), data, locale).primary,
             };
           }),
+          locale,
         );
         const id = randomUUID();
         await tx.execute(

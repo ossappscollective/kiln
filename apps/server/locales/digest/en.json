@@ -1,0 +1,12 @@
+{
+  "footer": "You get this digest because of your alert settings in Kiln. Change them in Alerts.",
+  "heading_one": "{{count}} alert since your last digest",
+  "heading_other": "{{count}} alerts since your last digest",
+  "intro_one": "{{count}} alert since your last digest:",
+  "intro_other": "{{count}} alerts since your last digest:",
+  "item": "- [{{severity}}] {{title}}",
+  "item.repeated_one": "- [{{severity}}] {{title}} ({{count}} time)",
+  "item.repeated_other": "- [{{severity}}] {{title}} ({{count}} times)",
+  "subject_one": "Alert digest: {{count}} alert",
+  "subject_other": "Alert digest: {{count}} alerts"
+}

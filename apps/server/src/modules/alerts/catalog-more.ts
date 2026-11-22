@@ -1,4 +1,4 @@
-import { app, DAY, def, everyone, HOUR, isoDay, noEmail, num, str } from './catalog-core.ts';
+import { DAY, def, everyone, HOUR, isoDay, noEmail, num, str } from './catalog-core.ts';
 
 /** The alert catalog, part 2: reviews, store, builds, analytics, ASO, AI, security and system (see alert-catalog.ts). */
 export const moreDefs = [
@@ -20,9 +20,6 @@ export const moreDefs = [
     dedupeWindowMs: 30 * DAY,
     maxPerHour: 30,
     params: {},
-    title: (d) => `New ${d.rating ?? '?'}-star review for ${app(d)}`,
-    body: (d) =>
-      `A ${d.rating ?? '?'}-star review arrived for ${app(d)} on ${String(d.store ?? 'the store')}. Open the reviews inbox to read it; the text is not sent here.`,
     fromEvent: (e) => ({
       appId: e.subject.appId ?? null,
       reviewId: str(e.payload.reviewId),
@@ -47,14 +44,6 @@ export const moreDefs = [
     dedupeWindowMs: 30 * DAY,
     maxPerHour: 30,
     params: {},
-    title: (d) =>
-      d.grouped === true
-        ? `${d.count ?? 'Several'} new reviews for ${app(d)}`
-        : `New ${d.rating ?? '?'}-star review for ${app(d)}`,
-    body: (d) =>
-      d.grouped === true
-        ? `${d.count ?? 'Several'} customer reviews of ${app(d)} on ${String(d.store ?? 'the store')} were read${d.baseline === true ? ' (the first read of this app)' : ''}. Open the reviews inbox to read them; the texts are not sent here.`
-        : `A ${d.rating ?? '?'}-star review arrived for ${app(d)} on ${String(d.store ?? 'the store')}. Open the reviews inbox to read it; the text is not sent here.`,
     fromEvent: (e) => {
       const grouped = e.payload.grouped === true;
       return {
@@ -85,9 +74,6 @@ export const moreDefs = [
     dedupeWindowMs: DAY,
     maxPerHour: 10,
     params: {},
-    title: (d) => `Reading reviews failed for ${app(d)}`,
-    body: (d) =>
-      `The review read for ${app(d)} failed (${String(d.code ?? 'unknown')}${d.failures ? `, ${d.failures} in a row` : ''}). Check the app's store credential.`,
     fromEvent: (e) => ({
       appId: e.subject.appId ?? null,
       code: str(e.payload.code),
@@ -112,9 +98,6 @@ export const moreDefs = [
     dedupeWindowMs: DAY,
     maxPerHour: 10,
     params: {},
-    title: (d) => `${d.count ?? 'Some'} review(s) are waiting for an answer`,
-    body: (d) =>
-      `${d.count ?? 'Some'} review(s) across ${d.appsTotal ?? 'your'} app(s) have waited more than ${d.waitingHours ?? '?'} hours. Open the reviews inbox.`,
     fromEvent: (e) => ({
       count: num(e.payload.count),
       appsTotal: num(e.payload.appsTotal),
@@ -148,9 +131,6 @@ export const moreDefs = [
       },
       windowDays: { default: 7, min: 1, max: 60, unit: 'days', label: 'Compared with' },
     },
-    title: (d) => `Rating of ${app(d)} dropped to ${d.to ?? '?'}`,
-    body: (d) =>
-      `The average rating of ${app(d)} (${String(d.store ?? '')}, ${String(d.territory ?? '')}) went from ${d.from ?? '?'} to ${d.to ?? '?'} in ${d.windowDays ?? '?'} day(s).`,
   }),
 
   // ----- store connection and listing -------------------------------------------------------------
@@ -170,9 +150,6 @@ export const moreDefs = [
     dedupeWindowMs: DAY,
     maxPerHour: 10,
     params: {},
-    title: (d) => `Syncing ${app(d)} with the store is failing`,
-    body: (d) =>
-      `The last sync of ${app(d)} did not work. Open the app to see the reason, or test its credential.`,
   }),
   def({
     id: 'credential.invalid',
@@ -190,9 +167,6 @@ export const moreDefs = [
     dedupeWindowMs: DAY,
     maxPerHour: 10,
     params: {},
-    title: (d) => `A ${String(d.kind ?? 'store')} credential does not work`,
-    body: (d) =>
-      `The test of ${d.label ? `"${String(d.label)}"` : 'a credential'} (${String(d.credentialId ?? 'not saved')}) failed. Apps that use it cannot sync until it is replaced or fixed.`,
     fromEvent: (e) => {
       // A test of a form that was never saved has no id; it is the person's own typing, not an alert.
       if (e.payload.saved !== true) return null;
@@ -216,9 +190,6 @@ export const moreDefs = [
     dedupeWindowMs: 7 * DAY,
     maxPerHour: 10,
     params: {},
-    title: (d) => `The store listing of ${app(d)} changed`,
-    body: (d) =>
-      `${d.fields ?? 'Some'} listing field(s) of ${app(d)} changed in the store without a push or release from this tool. Open the app's listing to compare.`,
   }),
   def({
     id: 'listing.read_failing',
@@ -238,8 +209,6 @@ export const moreDefs = [
     params: {
       failures: { default: 3, min: 1, max: 50, unit: 'reads in a row', label: 'Failed reads' },
     },
-    title: (d) => `Reading the listing of ${app(d)} keeps failing`,
-    body: (d) => `${d.failures ?? 'Several'} listing reads of ${app(d)} failed in a row.`,
   }),
 
   // ----- builds and changes ----------------------------------------------------------------------
@@ -259,9 +228,6 @@ export const moreDefs = [
     dedupeWindowMs: 30 * DAY,
     maxPerHour: 30,
     params: {},
-    title: (d) => `A build run failed${d.appId ? ` for ${app(d)}` : ''}`,
-    body: (d) =>
-      `Run ${String(d.runId ?? '')} finished with "${String(d.conclusion ?? 'failure')}". Open Workflows to see its steps.`,
     fromEvent: (e) => {
       const c = str(e.payload.conclusion);
       if (c !== 'failure' && c !== 'timed_out') return null;
@@ -289,9 +255,6 @@ export const moreDefs = [
     dedupeWindowMs: 7 * DAY,
     maxPerHour: 20,
     params: {},
-    title: () => 'A change set could not be applied',
-    body: (d) =>
-      `Change set ${String(d.changeSetId ?? '')} failed (${String(d.reason ?? 'unknown')}). Nothing was changed in the store.`,
     fromEvent: (e) => ({
       changeSetId: str(e.payload.changeSetId),
       reason: str(e.payload.reason),
@@ -314,9 +277,6 @@ export const moreDefs = [
     dedupeWindowMs: 7 * DAY,
     maxPerHour: 10,
     params: { days: { default: 7, min: 1, max: 90, unit: 'days', label: 'Older than' } },
-    title: (d) => `${app(d)} has pending changes older than ${d.days ?? '?'} days`,
-    body: (d) =>
-      `${d.count ?? 'Some'} staged change(s) for ${app(d)} have waited since ${String(d.oldest ?? 'a while ago')}. Publish or discard them in Pending.`,
   }),
 
   // ----- analytics and ASO -----------------------------------------------------------------------
@@ -338,9 +298,6 @@ export const moreDefs = [
     params: {
       failures: { default: 3, min: 2, max: 50, unit: 'syncs in a row', label: 'Failed syncs' },
     },
-    title: (d) => `Analytics sync for ${app(d)} keeps failing`,
-    body: (d) =>
-      `The last ${d.failures ?? 'several'} analytics syncs of ${app(d)} failed (${String(d.code ?? 'unknown')}).`,
   }),
   def({
     id: 'aso.rank_dropped',
@@ -358,9 +315,6 @@ export const moreDefs = [
     dedupeWindowMs: DAY,
     maxPerHour: 20,
     params: { minDrop: { default: 10, min: 1, max: 200, unit: 'places', label: 'Places lost' } },
-    title: (d) => `A keyword of ${app(d)} dropped in the ranking`,
-    body: (d) =>
-      `Keyword ${String(d.keywordId ?? '')} (${String(d.country ?? '')}) went from ${d.from ?? 'unranked'} to ${d.to ?? 'unranked'}.`,
     fromEvent: (e, params) => {
       const kind = str(e.payload.change);
       const delta = num(e.payload.delta);
@@ -394,8 +348,6 @@ export const moreDefs = [
     dedupeWindowMs: DAY,
     maxPerHour: 20,
     params: {},
-    title: (d) => `A competitor of ${app(d)} changed its listing`,
-    body: (d) => `Competitor ${String(d.competitorId ?? '')} changed its public listing.`,
     fromEvent: (e) => ({
       appId: e.subject.appId ?? null,
       competitorId: str(e.payload.competitorId),
@@ -421,9 +373,6 @@ export const moreDefs = [
     dedupeWindowMs: 30 * DAY,
     maxPerHour: 30,
     params: {},
-    title: (d) => `An AI suggestion for ${app(d)} is ready`,
-    body: (d) =>
-      `Suggestion ${String(d.suggestionId ?? '')} (${String(d.task ?? 'task')}) waits for review. Nothing is applied until a person accepts it.`,
     fromEvent: (e) => ({
       appId: e.subject.appId ?? null,
       suggestionId: str(e.payload.suggestionId),
@@ -450,9 +399,6 @@ export const moreDefs = [
     params: {
       failures: { default: 3, min: 1, max: 20, unit: 'failures', label: 'Failures in a row' },
     },
-    title: () => 'Repeated failed confirmations',
-    body: (d) =>
-      `Person ${String(d.userId ?? '')} failed to confirm "${String(d.action ?? 'an action')}" ${d.failedCount ?? 'several'} time(s) in a row (${String(d.reason ?? 'unknown')}); they may be locked out for a while.`,
     fromEvent: (e, params) => {
       const failed = num(e.payload.failedCount);
       if (failed === null || failed < (params.failures ?? 3)) return null;
@@ -480,9 +426,6 @@ export const moreDefs = [
     dedupeWindowMs: HOUR,
     maxPerHour: 10,
     params: {},
-    title: () => 'A recovery code was used',
-    body: (d) =>
-      `Person ${String(d.userId ?? '')} used a recovery code${d.remaining !== null && d.remaining !== undefined ? ` (${d.remaining} left)` : ''}.`,
     fromEvent: (e) => ({
       userId: str(e.payload.userId),
       remaining: num(e.payload.remaining),
@@ -505,9 +448,6 @@ export const moreDefs = [
     dedupeWindowMs: 30 * DAY,
     maxPerHour: 20,
     params: {},
-    title: (d) => `API token "${String(d.name ?? '')}" was created`,
-    body: (d) =>
-      `Token ${String(d.tokenId ?? '')} (${String(d.role ?? '')}) was created by person ${String(d.createdBy ?? '')}. The token itself is never shown here.`,
     fromEvent: (e) => ({
       tokenId: str(e.payload.tokenId),
       name: str(e.payload.name),
@@ -531,8 +471,6 @@ export const moreDefs = [
     dedupeWindowMs: 30 * DAY,
     maxPerHour: 20,
     params: {},
-    title: (d) => `A new ${String(d.role ?? 'member')} joined`,
-    body: (d) => `Person ${String(d.userId ?? '')} joined as ${String(d.role ?? 'member')}.`,
     fromEvent: (e) => ({ userId: str(e.payload.userId), role: str(e.payload.role) }),
   }),
 
@@ -556,9 +494,6 @@ export const moreDefs = [
     params: {
       failures: { default: 3, min: 2, max: 50, unit: 'emails in a row', label: 'Failed emails' },
     },
-    title: () => 'Alert email is not getting out',
-    body: (d) =>
-      `The last ${d.failures ?? 'several'} alert emails could not be sent (${String(d.code ?? 'unknown')}). Check the mail settings.`,
   }),
   // The test alert is not in the matrix: it is what "Send a test" raises.
   def({
@@ -577,8 +512,5 @@ export const moreDefs = [
     dedupeWindowMs: 0,
     maxPerHour: 1000,
     params: {},
-    title: () => 'Test alert',
-    body: (d) =>
-      `This is a test alert for the ${String(d.channel ?? 'selected')} channel. Nothing is wrong.`,
   }),
 ] as const;

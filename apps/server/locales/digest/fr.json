@@ -1,0 +1,12 @@
+{
+  "footer": "Vous recevez ce résumé en raison de vos réglages d’alertes dans Kiln. Modifiez-les dans Alertes.",
+  "heading_one": "{{count}} alerte depuis votre dernier résumé",
+  "heading_other": "{{count}} alertes depuis votre dernier résumé",
+  "intro_one": "{{count}} alerte depuis votre dernier résumé :",
+  "intro_other": "{{count}} alertes depuis votre dernier résumé :",
+  "item": "- [{{severity}}] {{title}}",
+  "item.repeated_one": "- [{{severity}}] {{title}} ({{count}} fois)",
+  "item.repeated_other": "- [{{severity}}] {{title}} ({{count}} fois)",
+  "subject_one": "Résumé des alertes : {{count}} alerte",
+  "subject_other": "Résumé des alertes : {{count}} alertes"
+}

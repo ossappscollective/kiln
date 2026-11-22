@@ -1,5 +1,6 @@
 import type { Action } from '@kiln/core';
 import type { EventType } from '../../services/event-types.ts';
+import { alertText } from './text.ts';
 
 /**
  * The alert catalog, part 1: the types, the helpers and the release definitions (docs/alerts.md, docs/adr/0022-alerts.md): every condition somebody can be told about, as data. Pure: no
@@ -107,8 +108,6 @@ export type AlertDef<Id extends string = string> = {
 export const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
 export const num = (v: unknown): number | null =>
   typeof v === 'number' && Number.isFinite(v) ? v : null;
-export const app = (d: AlertData) => String(d.appName ?? d.appId ?? 'An app');
-export const ver = (d: AlertData) => (d.version ? ` ${String(d.version)}` : '');
 export const everyone = [
   'in_app',
   'email',
@@ -130,8 +129,14 @@ const statusData = (e: EventLike): AlertData => {
   };
 };
 
-export function def<Id extends string>(d: AlertDef<Id>): AlertDef<Id> {
-  return d;
+/**
+ * Builds a definition. The title and the body are not written here: they are the English sentences of the `alerts` catalog
+ * (`alerts/text.ts`), so the stored alert, the inbox and the email in any language come from one place.
+ */
+export function def<Id extends string>(d: Omit<AlertDef<Id>, 'title' | 'body'>): AlertDef<Id> {
+  const read = (data: AlertData, which: 'title' | 'body'): string =>
+    alertText(d.id, data)?.[which] ?? d.label;
+  return { ...d, title: (data) => read(data, 'title'), body: (data) => read(data, 'body') };
 }
 
 const isStatus = (e: EventLike, ...to: string[]) =>
@@ -154,9 +159,6 @@ export const releaseDefs = [
     dedupeWindowMs: 7 * DAY,
     maxPerHour: 20,
     params: {},
-    title: (d) => `${app(d)}${ver(d)} was rejected in store review`,
-    body: (d) =>
-      `The store moved${ver(d)} of ${app(d)} from ${String(d.from ?? 'unknown')} to rejected. Read the reviewer's message in the store console, fix it, and submit again.`,
     fromEvent: (e) => (isStatus(e, 'rejected') ? statusData(e) : null),
   }),
   def({
@@ -175,8 +177,6 @@ export const releaseDefs = [
     dedupeWindowMs: 7 * DAY,
     maxPerHour: 20,
     params: {},
-    title: (d) => `${app(d)}${ver(d)} was approved`,
-    body: (d) => `The store approved${ver(d)} of ${app(d)}. It can be released.`,
     fromEvent: (e) => (isStatus(e, 'approved') ? statusData(e) : null),
   }),
   def({
@@ -195,9 +195,6 @@ export const releaseDefs = [
     dedupeWindowMs: 7 * DAY,
     maxPerHour: 20,
     params: {},
-    title: (d) => `${app(d)}${ver(d)} is ${d.to === 'rolling_out' ? 'rolling out' : 'live'}`,
-    body: (d) =>
-      `The store reports${ver(d)} of ${app(d)} as ${d.to === 'rolling_out' ? 'rolling out' : 'live'}.`,
     fromEvent: (e) => (isStatus(e, 'live', 'rolling_out') ? statusData(e) : null),
   }),
   def({
@@ -216,8 +213,6 @@ export const releaseDefs = [
     dedupeWindowMs: 7 * DAY,
     maxPerHour: 20,
     params: {},
-    title: (d) => `${app(d)}${ver(d)} is in store review`,
-    body: (d) => `${app(d)}${ver(d)} moved from ${String(d.from ?? 'unknown')} to in review.`,
     fromEvent: (e) => (isStatus(e, 'in_review') ? statusData(e) : null),
   }),
   def({
@@ -236,9 +231,6 @@ export const releaseDefs = [
     dedupeWindowMs: 3 * DAY,
     maxPerHour: 20,
     params: {},
-    title: (d) => `Rollout of ${app(d)}${ver(d)} was halted`,
-    body: (d) =>
-      `The rollout of ${app(d)}${ver(d)}${d.track ? ` on track ${String(d.track)}` : ''} is halted. Users get no further expansion until it is resumed.`,
     fromEvent: (e) => {
       if (e.type === 'release.rollout_changed' && e.payload.action === 'halt') {
         return {
@@ -266,9 +258,6 @@ export const releaseDefs = [
     dedupeWindowMs: 3 * DAY,
     maxPerHour: 20,
     params: {},
-    title: (d) => `${app(d)}${ver(d)} has stalled${d.step ? ` at ${String(d.step)}` : ''}`,
-    body: (d) =>
-      `${app(d)}${ver(d)} has not moved on from ${String(d.step ?? 'its current step')} for a while. Open the release to see what it is waiting for.`,
     fromEvent: (e) => ({
       appId: e.subject.appId ?? null,
       appName: str(e.payload.appName),
@@ -293,9 +282,6 @@ export const releaseDefs = [
     dedupeWindowMs: 3 * DAY,
     maxPerHour: 20,
     params: {},
-    title: (d) => `${app(d)}${ver(d)} is ${d.daysOverdue ?? 'some'} day(s) past its target date`,
-    body: (d) =>
-      `The release plan for ${app(d)}${ver(d)} had a target date of ${String(d.targetDate ?? 'unknown')}. ${d.openRequiredItems ?? 0} required checklist item(s) are still open.`,
     fromEvent: (e) => ({
       appId: e.subject.appId ?? null,
       appName: str(e.payload.appName),
@@ -322,9 +308,6 @@ export const releaseDefs = [
     dedupeWindowMs: 3 * DAY,
     maxPerHour: 20,
     params: {},
-    title: (d) => `${app(d)}${ver(d)} is due soon`,
-    body: (d) =>
-      `The release plan for ${app(d)}${ver(d)} has a target date of ${String(d.targetDate ?? 'unknown')}${d.blocked ? ' and is blocked' : ''}.`,
     fromEvent: (e) => ({
       appId: e.subject.appId ?? null,
       appName: str(e.payload.appName),
@@ -350,9 +333,6 @@ export const releaseDefs = [
     dedupeWindowMs: 3 * DAY,
     maxPerHour: 20,
     params: {},
-    title: (d) => `Rollout step ${d.index ?? ''} of ${d.total ?? ''} for ${app(d)}${ver(d)} is due`,
-    body: (d) =>
-      `The planned step to ${d.percent ?? '?'}% for ${app(d)}${ver(d)} is ${d.minutesLate ?? 0} minute(s) late. This tool never changes a rollout by itself; do it from the app.`,
     fromEvent: (e) => ({
       appId: e.subject.appId ?? null,
       appName: str(e.payload.appName),

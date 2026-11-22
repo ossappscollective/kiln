@@ -5,6 +5,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { type AppEnv, parseBody, queryInt } from '../../http.ts';
+import { storedLocale } from '../../i18n/user-locale.ts';
 import { memberRole } from '../../services/accounts.ts';
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import { alertChannels, alertSeverities, alertTypeIds } from './catalog.ts';
@@ -185,6 +186,8 @@ export function alertRoutes(ctx: AlertRoutesContext) {
   // Reading is a state of the person's own inbox, so it needs only the right to read alerts.
   app.post('/:workspaceId/alerts/inbox/read', needs('alerts.read'), small, async (c) => {
     const body = await parseBody(c, markReadBody);
+      // The person's own choice (PATCH /api/me); without one the stored English text.
+      locale: storedLocale(c.get('user')?.locale) ?? undefined,
     if (!body.ok) return body.response;
     const marked = await markRead(db, {
       workspaceId: ws(c),

@@ -1,0 +1,12 @@
+{
+  "footer": "Sie erhalten diese Zusammenfassung aufgrund Ihrer Warnungseinstellungen in Kiln. Ändern Sie sie unter „Warnungen“.",
+  "heading_one": "{{count}} Warnung seit Ihrer letzten Zusammenfassung",
+  "heading_other": "{{count}} Warnungen seit Ihrer letzten Zusammenfassung",
+  "intro_one": "{{count}} Warnung seit Ihrer letzten Zusammenfassung:",
+  "intro_other": "{{count}} Warnungen seit Ihrer letzten Zusammenfassung:",
+  "item": "- [{{severity}}] {{title}}",
+  "item.repeated_one": "- [{{severity}}] {{title}} ({{count}} Mal)",
+  "item.repeated_other": "- [{{severity}}] {{title}} ({{count}} Mal)",
+  "subject_one": "Warnungs-Zusammenfassung: {{count}} Warnung",
+  "subject_other": "Warnungs-Zusammenfassung: {{count}} Warnungen"
+}

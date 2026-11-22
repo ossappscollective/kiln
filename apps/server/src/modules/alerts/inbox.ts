@@ -4,6 +4,7 @@ import type { Database, Row, Sql } from '@kiln/db';
 import { recordAudit } from '../../services/audit.ts';
 import {
   type AlertChannel,
+  type AlertData,
   type AlertSeverity,
   type AlertTypeId,
   alertDef,
@@ -11,7 +12,10 @@ import {
   configurableAlertTypes,
 } from './catalog.ts';
 import { raiseAlert } from './service.ts';
+import { alertText } from './text.ts';
 
+import { coded, type ErrorParams } from '../../i18n/problem.ts';
+import { SOURCE_LOCALE } from '../../i18n/runtime.ts';
 /** Reading side of alerts (docs/api/alerts.md): the inbox of a person, the delivery log, "send a test", and the catalog as the API shows it. */
 
 export type InboxAlert = {
@@ -35,12 +39,23 @@ export type InboxAlert = {
 export const MAX_INBOX_LIMIT = 100;
 export const DEFAULT_INBOX_LIMIT = 30;
 
-const toInbox = (r: Row): InboxAlert => ({
+/** The stored title and body (English), or, for a person who chose another language, the sentences rebuilt from the type and its data. */
+function inboxText(r: Row, locale: string | undefined): { title: string; body: string } {
+  const stored = { title: String(r.title), body: String(r.body) };
+  if (!locale || locale === SOURCE_LOCALE) return stored;
+  try {
+    const data = JSON.parse(String(r.data ?? '{}')) as AlertData;
+    return alertText(String(r.type), data, locale) ?? stored;
+  } catch {
+    return stored;
+  }
+}
+
+const toInbox = (r: Row, locale?: string): InboxAlert => ({
   id: String(r.id),
   type: String(r.type) as AlertTypeId,
   severity: String(r.severity) as AlertSeverity,
-  title: String(r.title),
-  body: String(r.body),
+  ...inboxText(r, locale),
   appId: r.app_id === null || r.app_id === undefined ? null : String(r.app_id),
   count: Number(r.count),
   firstAt: Number(r.first_at),
@@ -66,6 +81,8 @@ export async function listInbox(
     unreadOnly?: boolean;
     limit?: number;
     before?: number;
+    /** The person's language (`users.locale`): title and body come in it. Absent or `en`: the stored English text. */
+    locale?: string | undefined;
   },
 ): Promise<{ alerts: InboxAlert[]; unreadCount: number; hasMore: boolean }> {
   const limit = Math.trunc(
@@ -79,13 +96,13 @@ export async function listInbox(
     params.push(input.before);
   }
   const rows = await sql.query(
-    `SELECT a.id, a.type, a.severity, a.app_id, a.title, a.body, a.count, a.first_at, a.last_at, a.resolved_at, i.read_at, i.desktop
+    `SELECT a.id, a.type, a.severity, a.app_id, a.title, a.body, a.data, a.count, a.first_at, a.last_at, a.resolved_at, i.read_at, i.desktop
        FROM alert_inbox i JOIN alerts a ON a.id = i.alert_id
       WHERE ${where.join(' AND ')} ORDER BY a.last_at DESC, a.id LIMIT ?`,
     [...params, limit + 1],
   );
   return {
-    alerts: rows.slice(0, limit).map(toInbox),
+    alerts: rows.slice(0, limit).map((r) => toInbox(r, input.locale)),
     unreadCount: await unreadCount(sql, input.workspaceId, input.userId),
     hasMore: rows.length > limit,
   };

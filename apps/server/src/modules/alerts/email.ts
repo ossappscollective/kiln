@@ -7,7 +7,10 @@ import {
   mailShell,
   setMailLinkOrigin,
 } from '../../services/mail-template.ts';
+import { translator } from '../../i18n/catalogs.ts';
+import { isServerLocale, SOURCE_LOCALE } from '../../i18n/runtime.ts';
 import type { AlertData, AlertDef, AlertSeverity } from './catalog-core.ts';
+import { alertText } from './text.ts';
 
 /**
  * The look of an alert email (docs/alerts.md): what happened, what to do about it and a button that opens the right screen of the
@@ -15,6 +18,11 @@ import type { AlertData, AlertDef, AlertSeverity } from './catalog-core.ts';
  * address people open the app at). Without it the email still says where to go ("Credentials"), it just has no link: the server
  * cannot know the address it is reached at from a background job. Everything that reaches the HTML is escaped; the data is ids,
  * names and numbers only (see `redactAlertData`).
+ *
+ * Language (docs/i18n-server.md): every sentence of the email is in the `alerts` and `digest` catalogs
+ * (`apps/server/locales/<namespace>/<language>.json`); the language is the recipient's (`i18n/user-locale.ts`), English when unknown.
+ * In English the title and body are the ones stored with the alert (the same English text); in another language they are
+ * rebuilt from the alert type and its data (`text.ts`), and a type with no entry keeps the stored text.
  */
 
 /** Installs the origin links are built on (the one of every email, see services/mail-template.ts). */
@@ -27,162 +35,189 @@ export type AlertAction = { label: string; path: string; where: string };
 export type AlertGuide = { hint?: string; primary?: AlertAction; secondary?: AlertAction[] };
 
 const enc = encodeURIComponent;
-const appName = (d: AlertData) => String(d.appName ?? 'the app');
+const localeOf = (locale: string | undefined): string =>
+  locale && isServerLocale(locale) ? locale : SOURCE_LOCALE;
+
+type Where = readonly [key: string, params?: Record<string, string>];
+/** An action before it is put into words: catalog keys (`alerts:action.<label>`, `alerts:where.<where>`) and the address. */
+type ActionSpec = { label: string; path: string; where: Where };
+type GuideSpec = { hint?: string; primary?: ActionSpec; secondary?: ActionSpec[] };
+
 const appAt = (d: AlertData, section?: string): string =>
   typeof d.appId === 'string' && d.appId !== ''
     ? `#/portfolio/${enc(d.appId)}${section ? `/${section}` : ''}`
     : '#/portfolio';
 
-const openApp = (d: AlertData, section?: string, label?: string): AlertAction => ({
-  label: label ?? `Open ${appName(d)}`,
+const openApp = (d: AlertData, section: string | undefined, label: string): ActionSpec => ({
+  label,
   path: appAt(d, section),
-  where: `${appName(d)}${section ? `, ${section}` : ''}`,
+  where: [
+    section ? `where.appSection.${section}` : 'where.app',
+    { app: String(d.appName ?? d.appId ?? '') },
+  ],
 });
-const credentials: AlertAction = {
-  label: 'Check the credentials',
+const credentials: ActionSpec = {
+  label: 'checkCredentials',
   path: '#/credentials',
-  where: 'Credentials',
+  where: ['where.credentials'],
 };
-const syncHint =
-  'Open the app to see the reason. The usual cause is a credential that expired or lost access: test it on the Credentials screen and replace the key if the test fails.';
+const settingsSecurity = (label: string, where = 'where.settingsSecurity'): ActionSpec => ({
+  label,
+  path: '#/settings?view=security',
+  where: [where],
+});
 
 /** Where each alert type sends the reader, and the one sentence that says how to fix it. Types missing here only get the footer links. */
-const guides: Record<string, (d: AlertData) => AlertGuide> = {
+const guides: Record<string, (d: AlertData) => GuideSpec> = {
   'release.rejected': (d) => ({
-    hint: 'Read the reason the store gave, fix it and send a new build for review.',
-    primary: openApp(d, 'releases', 'See the rejection'),
+    hint: 'rejected',
+    primary: openApp(d, 'releases', 'seeRejection'),
   }),
   'release.approved': (d) => ({
-    hint: 'It is approved. Release it when you are ready.',
-    primary: openApp(d, 'releases', 'Open the release'),
+    hint: 'approved',
+    primary: openApp(d, 'releases', 'openRelease'),
   }),
-  'release.live': (d) => ({ primary: openApp(d, 'releases', 'Open the release') }),
-  'release.in_review': (d) => ({ primary: openApp(d, 'releases', 'Open the release') }),
+  'release.live': (d) => ({ primary: openApp(d, 'releases', 'openRelease') }),
+  'release.in_review': (d) => ({ primary: openApp(d, 'releases', 'openRelease') }),
   'release.halted': (d) => ({
-    hint: 'Decide whether to resume the rollout or to fix the problem and release again.',
-    primary: openApp(d, 'releases', 'Open the release'),
+    hint: 'halted',
+    primary: openApp(d, 'releases', 'openRelease'),
   }),
   'release.stalled': (d) => ({
-    hint: 'Look at what the release is waiting for: a build, a review or a person.',
-    primary: openApp(d, 'releases', 'See what it waits for'),
+    hint: 'stalled',
+    primary: openApp(d, 'releases', 'seeWhatItWaitsFor'),
   }),
-  'plan.deadline_overdue': (d) => ({ primary: openApp(d, 'releases', 'Open the plan') }),
-  'plan.deadline_due_soon': (d) => ({ primary: openApp(d, 'releases', 'Open the plan') }),
-  'plan.rollout_step_due': (d) => ({ primary: openApp(d, 'releases', 'Open the plan') }),
-  'review.low_rating': (d) => ({ primary: openApp(d, 'reviews', 'Read the reviews') }),
-  'review.new': (d) => ({ primary: openApp(d, 'reviews', 'Read the reviews') }),
+  'plan.deadline_overdue': (d) => ({ primary: openApp(d, 'releases', 'openPlan') }),
+  'plan.deadline_due_soon': (d) => ({ primary: openApp(d, 'releases', 'openPlan') }),
+  'plan.rollout_step_due': (d) => ({ primary: openApp(d, 'releases', 'openPlan') }),
+  'review.low_rating': (d) => ({ primary: openApp(d, 'reviews', 'readReviews') }),
+  'review.new': (d) => ({ primary: openApp(d, 'reviews', 'readReviews') }),
   'review.unanswered': (d) => ({
-    hint: 'Answering reviews is quick here: write a reply or let the assistant suggest one.',
-    primary: openApp(d, 'reviews', 'Answer the reviews'),
+    hint: 'unanswered',
+    primary: openApp(d, 'reviews', 'answerReviews'),
   }),
-  'rating.dropped': (d) => ({ primary: openApp(d, 'reviews', 'Read the reviews') }),
+  'rating.dropped': (d) => ({ primary: openApp(d, 'reviews', 'readReviews') }),
   'review.sync_failed': (d) => ({
-    hint: syncHint,
-    primary: openApp(d, 'reviews', 'See why'),
+    hint: 'sync',
+    primary: openApp(d, 'reviews', 'seeWhy'),
     secondary: [credentials],
   }),
   'store.sync_failed': (d) => ({
-    hint: syncHint,
-    primary: openApp(d, undefined, 'See why the sync fails'),
+    hint: 'sync',
+    primary: openApp(d, undefined, 'seeWhySyncFails'),
     secondary: [credentials],
   }),
   'listing.read_failing': (d) => ({
-    hint: syncHint,
-    primary: openApp(d, 'listing', 'See why'),
+    hint: 'sync',
+    primary: openApp(d, 'listing', 'seeWhy'),
     secondary: [credentials],
   }),
   'credential.invalid': () => ({
-    hint: 'Test the credential. If the test fails, the key was revoked or expired: add a new one and replace it.',
-    primary: { ...credentials, label: 'Fix the credential' },
+    hint: 'credentialInvalid',
+    primary: { ...credentials, label: 'fixCredential' },
   }),
   'listing.drift': (d) => ({
-    hint: 'The store text no longer matches what you staged. Review the differences and pull or push.',
-    primary: openApp(d, 'listing', 'Review the differences'),
+    hint: 'drift',
+    primary: openApp(d, 'listing', 'reviewDifferences'),
   }),
-  'ci.run_failed': (d) => ({
-    hint: 'Open the run in your CI to read the log, fix it and run it again.',
-    primary: openApp(d, 'builds', 'See the builds'),
-  }),
+  'ci.run_failed': (d) => ({ hint: 'ciFailed', primary: openApp(d, 'builds', 'seeBuilds') }),
   'changeset.failed': () => ({
-    hint: 'The change could not be applied to the repository. Open it to see why and try again.',
-    primary: { label: 'Open the repositories', path: '#/repositories', where: 'Repositories' },
+    hint: 'changesetFailed',
+    primary: { label: 'openRepositories', path: '#/repositories', where: ['where.repositories'] },
   }),
   'pending.stale': (d) => ({
-    hint: 'Changes have been waiting for a while. Review them and publish, or discard them.',
-    primary: openApp(d, 'pending', 'Review the changes'),
+    hint: 'pendingStale',
+    primary: openApp(d, 'pending', 'reviewChanges'),
   }),
   'analytics.sync_failing': (d) => ({
-    hint: 'Open the analytics setup of the app: the report access or the credential usually needs attention.',
-    primary: openApp(d, 'analytics', 'See why'),
+    hint: 'analytics',
+    primary: openApp(d, 'analytics', 'seeWhy'),
     secondary: [credentials],
   }),
-  'aso.rank_dropped': (d) => ({ primary: openApp(d, 'aso', 'See the keywords') }),
-  'aso.competitor_changed': (d) => ({ primary: openApp(d, 'aso', 'See the competitors') }),
-  'ai.suggestion_ready': (d) => ({ primary: openApp(d, undefined, 'See the suggestion') }),
+  'aso.rank_dropped': (d) => ({ primary: openApp(d, 'aso', 'seeKeywords') }),
+  'aso.competitor_changed': (d) => ({ primary: openApp(d, 'aso', 'seeCompetitors') }),
+  'ai.suggestion_ready': (d) => ({ primary: openApp(d, undefined, 'seeSuggestion') }),
   'security.stepup_failed': () => ({
-    hint: 'If this was not you, change your password and review the sign-in methods.',
-    primary: {
-      label: 'Open the settings',
-      path: '#/settings?view=security',
-      where: 'Settings, Security',
-    },
+    hint: 'stepupFailed',
+    primary: settingsSecurity('openSettings'),
   }),
   'security.recovery_used': () => ({
-    hint: 'A recovery code was used. If this was not you, change your password and make new codes.',
-    primary: {
-      label: 'Open the settings',
-      path: '#/settings?view=security',
-      where: 'Settings, Security',
-    },
+    hint: 'recoveryUsed',
+    primary: settingsSecurity('openSettings'),
   }),
   'security.token_created': () => ({
-    hint: 'If you do not know this token, revoke it.',
-    primary: { label: 'See the API tokens', path: '#/tokens', where: 'API tokens' },
+    hint: 'tokenCreated',
+    primary: { label: 'seeApiTokens', path: '#/tokens', where: ['where.apiTokens'] },
   }),
   'security.member_added': () => ({
-    primary: { label: 'See the members', path: '#/members', where: 'Members' },
+    primary: { label: 'seeMembers', path: '#/members', where: ['where.members'] },
   }),
   'system.smtp_failing': () => ({
-    hint: 'Alert emails are not getting out. Check the mail server settings and send a test.',
-    primary: {
-      label: 'Fix the mail server',
-      path: '#/settings?view=security',
-      where: 'Settings, Security, Mail server',
-    },
+    hint: 'smtp',
+    primary: settingsSecurity('fixMailServer', 'where.mailServer'),
   }),
 };
 
-export const alertGuide = (typeId: string, data: AlertData): AlertGuide =>
-  guides[typeId]?.(data) ?? {};
+/** The guide of an alert type in `locale` (English by default): its hint and its screens, in words. */
+export const alertGuide = (typeId: string, data: AlertData, locale?: string): AlertGuide => {
+  const spec = guides[typeId]?.(data);
+  if (!spec) return {};
+  const t = translator(localeOf(locale));
+  const say = (a: ActionSpec): AlertAction => ({
+    label: t(`alerts:action.${a.label}`),
+    path: a.path,
+    where: t(`alerts:${a.where[0]}`, a.where[1]),
+  });
+  return {
+    ...(spec.hint ? { hint: t(`alerts:hint.${spec.hint}`) } : {}),
+    ...(spec.primary ? { primary: say(spec.primary) } : {}),
+    ...(spec.secondary ? { secondary: spec.secondary.map(say) } : {}),
+  };
+};
 
-const alertsSettings: AlertAction = {
-  label: 'Change which alerts you get',
-  path: '#/alerts',
-  where: 'Alerts',
+/** The title to show in `locale`: rebuilt from the type and its data, or the stored one (English, or a type with no catalog entry). */
+export const alertTitleIn = (
+  typeId: string,
+  data: AlertData,
+  stored: string,
+  locale?: string,
+): string => {
+  const language = localeOf(locale);
+  return language === SOURCE_LOCALE ? stored : (alertText(typeId, data, language)?.title ?? stored);
 };
 
 const linkTo = (a: AlertAction): string | undefined => mailLink(a.path);
 
-const toneOf: Record<AlertSeverity, { bar: string; chip: string; label: string }> = {
-  critical: { bar: '#c0392b', chip: '#fdecea', label: 'Critical' },
-  warning: { bar: '#d68910', chip: '#fef5e7', label: 'Needs attention' },
-  info: { bar: '#2e6bd3', chip: '#eaf1fc', label: 'For your information' },
+const toneOf: Record<AlertSeverity, { bar: string; chip: string }> = {
+  critical: { bar: '#c0392b', chip: '#fdecea' },
+  warning: { bar: '#d68910', chip: '#fef5e7' },
+  info: { bar: '#2e6bd3', chip: '#eaf1fc' },
 };
 
 export type RenderedEmail = { subject: string; text: string; html: string };
 
-const button = (a: AlertAction, bar: string): string =>
-  mailButton({ label: a.label, href: linkTo(a), where: a.where }, bar);
+const alertsPath = '#/alerts';
 
-const footerLinks = (): string => {
-  const href = linkTo(alertsSettings);
-  const settings = href
-    ? `<a href="${escapeHtml(href)}" style="color:#52606d;">${escapeHtml(alertsSettings.label)}</a>`
-    : 'Change your choices in Alerts.';
-  return mailFooter(`You get this email because of your alert settings. ${settings}`);
+/** The quiet last row: why the person gets this email, with a link to the alert settings when the origin is known. */
+const footerRow = (t: ReturnType<typeof translator>): string => {
+  const href = mailLink(alertsPath);
+  return mailFooter(
+    href
+      ? t.html('alerts:mail.footer.link', undefined, {
+          link: (inner) => `<a href="${escapeHtml(href)}" style="color:#52606d;">${inner}</a>`,
+        })
+      : t.html('alerts:mail.footer.noLink'),
+  );
 };
 
-/** One alert as an email. `count` is how many times it happened when it is shown again. */
+const footerText = (t: ReturnType<typeof translator>): string => {
+  const href = mailLink(alertsPath);
+  return href
+    ? t('alerts:mail.footerText.link', { href })
+    : t('alerts:mail.footerText.noLink');
+};
+
+/** One alert as an email in `locale` (the recipient's language; English when absent). `count` is how many times it happened when it is shown again. */
 export function renderAlertEmail(
   def: AlertDef,
   input: {
@@ -191,17 +226,26 @@ export function renderAlertEmail(
     severity: AlertSeverity;
     data: AlertData;
     count?: number;
+    locale?: string;
   },
 ): RenderedEmail {
-  const { title, body, severity, data } = input;
+  const { severity, data } = input;
+  const locale = localeOf(input.locale);
+  const t = translator(locale);
+  const translated = locale === SOURCE_LOCALE ? undefined : alertText(def.id, data, locale);
+  const title = translated?.title ?? input.title;
+  const body = translated?.body ?? input.body;
   const count = input.count ?? 1;
-  const guide = alertGuide(def.id, data);
+  const guide = alertGuide(def.id, data, locale);
   const tone = toneOf[severity];
-  const subject = `[${severity}] ${title}`.slice(0, 200);
+  const subject = t('alerts:mail.subject', {
+    severity: t(`alerts:mail.severityTag.${severity}`),
+    title,
+  }).slice(0, 200);
 
   const textLines = [title, '', body];
-  if (count > 1) textLines.push('', `This happened ${count} times.`);
-  if (guide.hint) textLines.push('', `What to do: ${guide.hint}`);
+  if (count > 1) textLines.push('', t('alerts:mail.repeated.text', { count }));
+  if (guide.hint) textLines.push('', t('alerts:mail.whatToDo.text', { hint: guide.hint }));
   const actions = [guide.primary, ...(guide.secondary ?? [])].filter(
     (a): a is AlertAction => a !== undefined,
   );
@@ -209,17 +253,16 @@ export function renderAlertEmail(
     const href = linkTo(a);
     textLines.push(
       '',
-      href ? `${a.label}: ${href}` : `${a.label}: open Kiln, ${a.where}.`,
+      href
+        ? t('alerts:mail.actionLink', { label: a.label, href })
+        : t('alerts:mail.actionNoLink', { label: a.label, where: a.where }),
     );
   }
-  const settingsHref = linkTo(alertsSettings);
   textLines.push(
     '',
     '--',
-    `Alert type: ${def.id}. Severity: ${severity}.`,
-    settingsHref
-      ? `You get this email because of your alert settings. ${alertsSettings.label}: ${settingsHref}`
-      : 'You get this email because of your alert settings in Kiln. Change them in Alerts.',
+    t('alerts:mail.meta', { type: def.id, severity: t(`alerts:mail.severityTag.${severity}`) }),
+    footerText(t),
   );
 
   const secondary = (guide.secondary ?? [])
@@ -230,26 +273,33 @@ export function renderAlertEmail(
         : '';
     })
     .filter((s) => s !== '');
+  const primary = guide.primary
+    ? mailButton(
+        { label: guide.primary.label, href: linkTo(guide.primary), where: guide.primary.where },
+        tone.bar,
+        t,
+      )
+    : '';
   const inner = `${mailBar(tone.bar)}
 <tr><td style="padding:24px 28px 4px;">
-<span style="display:inline-block;background:${tone.chip};color:${tone.bar};font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:999px;">${tone.label}</span>
+<span style="display:inline-block;background:${tone.chip};color:${tone.bar};font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:999px;">${escapeHtml(t(`alerts:mail.severity.${severity}`))}</span>
 <h1 style="margin:12px 0 8px;font-size:20px;line-height:1.3;">${escapeHtml(title)}</h1>
-<p style="margin:0;font-size:15px;line-height:1.55;color:#323f4b;">${escapeHtml(body)}${count > 1 ? ` <span style="color:#7b8794;">(${count} times)</span>` : ''}</p>
+<p style="margin:0;font-size:15px;line-height:1.55;color:#323f4b;">${escapeHtml(body)}${count > 1 ? ` <span style="color:#7b8794;">${escapeHtml(t('alerts:mail.repeated.inline', { count }))}</span>` : ''}</p>
 </td></tr>
 ${
   guide.hint
-    ? `<tr><td style="padding:16px 28px 0;"><div style="background:#f5f7fa;border-radius:8px;padding:12px 14px;font-size:14px;line-height:1.55;color:#323f4b;"><strong>What to do.</strong> ${escapeHtml(guide.hint)}</div></td></tr>`
+    ? `<tr><td style="padding:16px 28px 0;"><div style="background:#f5f7fa;border-radius:8px;padding:12px 14px;font-size:14px;line-height:1.55;color:#323f4b;">${t.html('alerts:mail.whatToDo.html', { hint: guide.hint })}</div></td></tr>`
     : ''
 }
-${guide.primary ? `<tr><td style="padding:20px 28px 0;">${button(guide.primary, tone.bar)}</td></tr>` : ''}
-${secondary.length > 0 ? `<tr><td style="padding:14px 28px 0;font-size:14px;">Also: ${secondary.join(' &nbsp;·&nbsp; ')}</td></tr>` : ''}
+${primary ? `<tr><td style="padding:20px 28px 0;">${primary}</td></tr>` : ''}
+${secondary.length > 0 ? `<tr><td style="padding:14px 28px 0;font-size:14px;">${escapeHtml(t('alerts:mail.also'))} ${secondary.join(' &nbsp;·&nbsp; ')}</td></tr>` : ''}
 <tr><td style="height:24px;font-size:0;line-height:0;">&nbsp;</td></tr>
-${footerLinks()}`;
+${footerRow(t)}`;
 
-  return { subject, text: textLines.join('\n'), html: mailShell(inner, title) };
+  return { subject, text: textLines.join('\n'), html: mailShell(inner, title, locale) };
 }
 
-/** The digest: one line per alert, each with where to go, in the same frame. */
+/** The digest in `locale`: one line per alert, each with where to go, in the same frame. A `title` is shown as given (see `alertTitleIn`). */
 export function renderDigestEmail(
   items: readonly {
     title: string;
@@ -257,31 +307,39 @@ export function renderDigestEmail(
     count: number;
     action: AlertAction | undefined;
   }[],
+  locale?: string,
 ): RenderedEmail {
+  const language = localeOf(locale);
+  const t = translator(language);
   const n = items.length;
-  const subject = `Alert digest: ${n} alert${n === 1 ? '' : 's'}`;
+  const subject = t('digest:subject', { count: n });
+  const tag = (s: AlertSeverity) => t(`alerts:mail.severityTag.${s}`);
   const text = [
-    `${n} alert${n === 1 ? '' : 's'} since your last digest:`,
+    t('digest:intro', { count: n }),
     '',
     ...items.map((i) => {
       const href = i.action ? linkTo(i.action) : undefined;
-      return `- [${i.severity}] ${i.title}${i.count > 1 ? ` (${i.count} times)` : ''}${href ? `\n  ${i.action?.label}: ${href}` : ''}`;
+      const line =
+        i.count > 1
+          ? t('digest:item.repeated', { severity: tag(i.severity), title: i.title, count: i.count })
+          : t('digest:item', { severity: tag(i.severity), title: i.title });
+      return `${line}${href && i.action ? `\n  ${t('alerts:mail.actionLink', { label: i.action.label, href })}` : ''}`;
     }),
     '',
-    'You get this digest because of your alert settings in Kiln. Change them in Alerts.',
+    t('digest:footer'),
   ].join('\n');
   const rows = items
     .map((i) => {
       const tone = toneOf[i.severity];
       const href = i.action ? linkTo(i.action) : undefined;
       return `<tr><td style="padding:12px 28px;border-top:1px solid #e4e7eb;font-size:14px;line-height:1.5;">
-<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tone.bar};margin-right:8px;"></span>${escapeHtml(i.title)}${i.count > 1 ? ` <span style="color:#7b8794;">(${i.count} times)</span>` : ''}
+<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tone.bar};margin-right:8px;"></span>${escapeHtml(i.title)}${i.count > 1 ? ` <span style="color:#7b8794;">${escapeHtml(t('alerts:mail.repeated.inline', { count: i.count }))}</span>` : ''}
 ${href && i.action ? `<br><a href="${escapeHtml(href)}" style="color:${tone.bar};font-weight:600;font-size:13px;">${escapeHtml(i.action.label)}</a>` : ''}</td></tr>`;
     })
     .join('\n');
   const inner = `${mailBar('#2e6bd3')}
-<tr><td style="padding:24px 28px 16px;"><h1 style="margin:0;font-size:20px;line-height:1.3;">${n} alert${n === 1 ? '' : 's'} since your last digest</h1></td></tr>
+<tr><td style="padding:24px 28px 16px;"><h1 style="margin:0;font-size:20px;line-height:1.3;">${escapeHtml(t('digest:heading', { count: n }))}</h1></td></tr>
 ${rows}
-${footerLinks()}`;
-  return { subject, text, html: mailShell(inner, subject) };
+${footerRow(t)}`;
+  return { subject, text, html: mailShell(inner, subject, language) };
 }
