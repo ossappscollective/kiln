@@ -44,6 +44,11 @@ const schema = z.object({
   KILN_WEB_DIST: z.string().min(1).default('apps/web/dist'),
   // 'inline' runs the job worker inside the server. 'off' leaves it to a separate process.
   KILN_WORKER: z.enum(['inline', 'off']).default('inline'),
+  // Jobs the worker runs at once (store reads of different apps and feeds overlap), and the requests in flight per store host.
+  // 1 restores the old one-at-a-time worker. See docs/adr/0050-sync-pipeline.md.
+  KILN_JOB_CONCURRENCY: blankIsUnset(z.coerce.number().int().min(1).max(16).default(4)),
+  KILN_SYNC_APPLE_CONCURRENCY: blankIsUnset(z.coerce.number().int().min(1).max(8).default(4)),
+  KILN_SYNC_GOOGLE_CONCURRENCY: blankIsUnset(z.coerce.number().int().min(1).max(8).default(4)),
   // Comma-separated origins allowed to send state-changing requests besides the server itself.
   KILN_TRUSTED_ORIGINS: z.string().default(''),
   // The origin passkeys (step-up confirmation, docs/adr/0019-step-up-confirmation.md) are bound to, for example
@@ -632,6 +637,11 @@ export type Config = {
   gitPath: string;
   /** Minutes between scheduled syncs of every app; 30 by default, 0 is off (KILN_SYNC_INTERVAL_MINUTES). */
   syncIntervalMinutes: number;
+  /** Jobs the worker runs at once (KILN_JOB_CONCURRENCY, default 4). */
+  jobConcurrency: number;
+  /** Requests in flight to App Store Connect / to Google (KILN_SYNC_APPLE_CONCURRENCY, KILN_SYNC_GOOGLE_CONCURRENCY; default 4 each). */
+  syncAppleConcurrency: number;
+  syncGoogleConcurrency: number;
   /** Minutes between scheduled review reads of every app; 0 is off (KILN_REVIEW_SYNC_INTERVAL_MINUTES). */
   reviewSyncIntervalMinutes: number;
   /** Days a stored review is kept; 0 keeps them (KILN_REVIEW_RETENTION_DAYS). */
@@ -744,6 +754,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     cloneSweepIntervalMinutes: data.KILN_CLONE_SWEEP_INTERVAL_MINUTES,
     gitPath: data.KILN_GIT_PATH,
     syncIntervalMinutes: data.KILN_SYNC_INTERVAL_MINUTES,
+    jobConcurrency: data.KILN_JOB_CONCURRENCY,
+    syncAppleConcurrency: data.KILN_SYNC_APPLE_CONCURRENCY,
+    syncGoogleConcurrency: data.KILN_SYNC_GOOGLE_CONCURRENCY,
     reviewSyncIntervalMinutes: data.KILN_REVIEW_SYNC_INTERVAL_MINUTES,
     reviewRetentionDays: data.KILN_REVIEW_RETENTION_DAYS,
     analyticsIntervalMinutes: data.KILN_ANALYTICS_INTERVAL_MINUTES,

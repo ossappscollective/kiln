@@ -2806,3 +2806,47 @@ export const appRatingDays = pgTable(
     index('app_rating_days_workspace_idx').on(t.workspaceId, t.appId, t.day),
   ],
 );
+
+/**
+ * The events a person adds to the timeline of an app (migration 57, docs/adr/0053-timeline-and-reports.md). `title` and `note` are free
+ * text: never logged or audited. Events Kiln derives itself are not stored here.
+ */
+export const timelineEvents = pgTable(
+  'timeline_events',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    /** ad_campaign, price_change, press or other. */
+    kind: text('kind').notNull(),
+    /** YYYY-MM-DD (UTC). */
+    day: text('day').notNull(),
+    title: text('title').notNull(),
+    note: text('note').notNull().default(''),
+    createdBy: text('created_by').notNull(),
+    createdAt: epochMs('created_at').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [
+    index('timeline_events_app_idx').on(t.appId, t.day),
+    index('timeline_events_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** Insights cards a person dismissed for an app (migration 55, docs/adr/0051-insights.md): the card stays hidden while its fingerprint is the dismissed one. */
+export const insightDismissals = pgTable(
+  'insight_dismissals',
+  {
+    appId: text('app_id').notNull(),
+    cardId: text('card_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    fingerprint: text('fingerprint').notNull(),
+    dismissedAt: epochMs('dismissed_at').notNull(),
+    dismissedBy: text('dismissed_by'),
+  },
+  (t) => [primaryKey({ columns: [t.appId, t.cardId] }), index('insight_dismissals_workspace_idx').on(t.workspaceId)],
+);

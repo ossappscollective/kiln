@@ -20,7 +20,10 @@ import { type CiContext, createCiContext } from './modules/ci/service.ts';
 import { type EasDeps, easModule } from './modules/eas/index.ts';
 import { type ListingDeps, listingModule } from './modules/listing/index.ts';
 import { type ExperimentsDeps, experimentsModule } from './modules/experiments/index.ts';
+import { timelineModule } from './modules/timeline/index.ts';
+import { ratingsModule } from './modules/ratings/index.ts';
 import { type TestflightDeps, testflightModule } from './modules/testflight/index.ts';
+import { insightsModule } from './modules/insights/index.ts';
 import { type MonetizationDeps, monetizationModule } from './modules/monetization/index.ts';
 import { type RevenueCatDeps, revenuecatModule } from './modules/revenuecat/index.ts';
 import type { ModuleShared } from './modules/module.ts';
@@ -498,7 +501,10 @@ export function createApp(deps: AppDeps) {
     shared,
   );
   experimentsModule.mount(app, services, deps.experiments, shared);
+  timelineModule.mount(app, services, undefined, shared);
   testflightModule.mount(app, services, deps.testflight, shared);
+  insightsModule.mount(app, services, undefined, shared);
+  ratingsModule.mount(app, services, undefined, shared);
   revenuecatModule.mount(app, services, deps.revenuecat, shared);
   publishModule.mount(
     app,

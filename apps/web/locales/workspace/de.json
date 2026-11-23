@@ -571,6 +571,7 @@
   "webhook.event.ciRunFinished": "Ein GitHub-Actions-Workflow-Lauf wurde beendet (nur IDs und das Ergebnis)",
   "webhook.event.ciRunStarted": "Ein GitHub-Actions-Workflow-Lauf wurde gestartet (nur IDs)",
   "webhook.event.credentialTestFailed": "Der Test von Zugangsdaten ist fehlgeschlagen",
+  "webhook.event.healthCrashRegression": "Eine Version stürzt deutlich häufiger ab als die vorherige (nur IDs, Versionsnamen und zwei Raten)",
   "webhook.event.listingDraftPushed": "Ausstehende Änderungen am Store-Eintrag wurden als Entwurf in den Store geschrieben (nur IDs und Anzahlen; nie eingereicht)",
   "webhook.event.listingSubmitted": "Eine Version des Store-Eintrags wurde im Store zur Prüfung eingereicht (nur IDs; nie veröffentlicht)",
   "webhook.event.memberAdded": "Jemand ist dem Arbeitsbereich durch Annahme einer Einladung beigetreten (IDs und Rolle)",

@@ -933,6 +933,12 @@ export function createApi(options: ApiOptions = {}) {
       request<{ app: AppSummary }>('POST', `${workspace(workspaceId)}/apps`, input),
     deleteApp: (workspaceId: string, id: string) =>
       request<void>('DELETE', `${workspace(workspaceId)}/apps/${encodeURIComponent(id)}`),
+    /** The feeds being read from the stores right now (this server process), and how many store jobs wait. */
+    syncActivity: (workspaceId: string) =>
+      request<{ apps: { id: string; feeds: { feed: string; since: number }[] }[]; queued: number }>(
+        'GET',
+        `${workspace(workspaceId)}/sync/activity`,
+      ),
     /** Reads the store with the app's credential and replaces the stored snapshot. Can take seconds. */
     syncApp: (workspaceId: string, id: string) =>
       request<SyncResult>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(id)}/sync`),

@@ -36,12 +36,30 @@ export async function enqueue(
   return id;
 }
 
-export async function claimNext(sql: Sql, now: number): Promise<Job | undefined> {
+/**
+ * What `claimNext` may be told: `priority` ranks queues (a lower number goes first among the jobs that are due; a queue not
+ * listed is 0, so interactive work such as webhooks is never behind a store read) and `exclude` leaves queues out (used to
+ * keep one worker slot free of heavy jobs).
+ */
+export type ClaimOptions = { priority?: Record<string, number>; exclude?: readonly string[] };
+
+export async function claimNext(
+  sql: Sql,
+  now: number,
+  options: ClaimOptions = {},
+): Promise<Job | undefined> {
+  const ranked = Object.entries(options.priority ?? {}).filter(([, rank]) => rank !== 0);
+  const rank = ranked.length
+    ? `CASE queue ${ranked.map(() => 'WHEN ? THEN ?').join(' ')} ELSE 0 END, `
+    : '';
+  const rankParams = ranked.flatMap(([queue, value]) => [queue, value]);
+  const excluded = options.exclude ?? [];
+  const skip = excluded.length ? ` AND queue NOT IN (${excluded.map(() => '?').join(', ')})` : '';
   for (let tries = 0; tries < 5; tries++) {
     const [candidate] = await sql.query(
-      `SELECT id FROM jobs WHERE status = 'queued' AND run_at <= ?
-        ORDER BY run_at, created_at, id LIMIT 1`,
-      [now],
+      `SELECT id FROM jobs WHERE status = 'queued' AND run_at <= ?${skip}
+        ORDER BY ${rank}run_at, created_at, id LIMIT 1`,
+      [now, ...excluded, ...rankParams],
     );
     if (!candidate) return undefined;
     const claimed = await sql.execute(
@@ -148,6 +166,16 @@ export function createWorker(options: {
   staleAfterMs?: number;
   now?: () => number;
   onError?: (message: string, error: unknown) => void;
+  /**
+   * Jobs run at once (default 1: the old behaviour). Delivery stays at least once and each job is claimed by exactly one
+   * slot, so this only changes how many store reads overlap; the per-host limits (services/sync-pipeline.ts) bound the
+   * requests they make.
+   */
+  concurrency?: number;
+  /** Queue ranks for `claimNext`: lower first among due jobs (see ClaimOptions). */
+  priority?: Record<string, number>;
+  /** Queues that may fill at most `concurrency - 1` slots, so a long analytics read never blocks every quick one. */
+  heavy?: readonly string[];
 }): Worker {
   const { sql, handlers } = options;
   const now = options.now ?? Date.now;
@@ -156,8 +184,12 @@ export function createWorker(options: {
   const staleAfterMs = options.staleAfterMs ?? 10 * 60_000;
   const report = options.onError ?? ((message, error) => console.error(message, error));
 
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let running: Promise<unknown> = Promise.resolve();
+  const concurrency = Math.max(1, Math.trunc(options.concurrency ?? 1) || 1);
+  const heavy = new Set(options.heavy ?? []);
+  const heavyCap = Math.max(1, concurrency - 1);
+  let heavyRunning = 0;
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+  const loops = new Set<Promise<unknown>>();
   let stopped = true;
   let lastRecovery = 0;
 
@@ -166,8 +198,32 @@ export function createWorker(options: {
       lastRecovery = now();
       await recoverStale(sql, now(), staleAfterMs, maxAttempts);
     }
-    const job = await claimNext(sql, now());
+    const job = await claim();
     if (!job) return false;
+    const isHeavy = heavy.has(job.queue);
+    try {
+      return await runJob(job);
+    } finally {
+      if (isHeavy) heavyRunning--;
+    }
+  }
+
+  /** One claim at a time, so the heavy count is seen by the next slot and the cap holds. */
+  let claimChain: Promise<unknown> = Promise.resolve();
+  function claim(): Promise<Job | undefined> {
+    const next = claimChain.then(async () => {
+      const job = await claimNext(sql, now(), {
+        ...(options.priority ? { priority: options.priority } : {}),
+        ...(heavy.size > 0 && heavyRunning >= heavyCap ? { exclude: [...heavy] } : {}),
+      });
+      if (job && heavy.has(job.queue)) heavyRunning++;
+      return job;
+    });
+    claimChain = next.catch(() => undefined);
+    return next;
+  }
+
+  async function runJob(job: Job): Promise<boolean> {
     const handler = handlers[job.queue];
     if (!handler) {
       await failJob(sql, job, new Error(`No handler for queue "${job.queue}"`), {
@@ -188,11 +244,17 @@ export function createWorker(options: {
 
   function schedule(delay: number) {
     if (stopped) return;
-    timer = setTimeout(() => {
-      running = tick()
+    const timer: ReturnType<typeof setTimeout> = setTimeout(() => {
+      timers.delete(timer);
+      const loop = tick()
         .catch((error) => report('job worker tick failed', error))
-        .then((didWork) => schedule(didWork === true ? 0 : pollMs));
+        .then((didWork) => {
+          loops.delete(loop);
+          schedule(didWork === true ? 0 : pollMs);
+        });
+      loops.add(loop);
     }, delay);
+    timers.add(timer);
   }
 
   return {
@@ -200,12 +262,13 @@ export function createWorker(options: {
     start() {
       if (!stopped) return;
       stopped = false;
-      schedule(0);
+      for (let slot = 0; slot < concurrency; slot++) schedule(0);
     },
     async stop() {
       stopped = true;
-      if (timer) clearTimeout(timer);
-      await running;
+      for (const timer of timers) clearTimeout(timer);
+      timers.clear();
+      while (loops.size > 0) await Promise.all([...loops]);
     },
   };
 }

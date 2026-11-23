@@ -299,6 +299,20 @@ const specs: Record<string, (f: Fmt) => Spec> = {
           : ['review.unanswered.body', { count, hours }],
     };
   },
+  'health.crash_regression': (f) => {
+    // Rates are fractions: Google Play's are a share of users (shown as a percentage), the App Store's are crashes per session (shown per 1,000).
+    const play = f.d.platform === 'android';
+    const scale = play ? 100 : 1000;
+    const shown = (v: unknown) => f.n(typeof v === 'number' ? v * scale : undefined);
+    const version = text(f.d.versionName) ?? text(f.d.version) ?? '?';
+    return {
+      title: ['health.crash_regression.title', { app: f.app, version }],
+      body: [
+        play ? 'health.crash_regression.body.share' : 'health.crash_regression.body.perSessions',
+        { app: f.app, version, previous: text(f.d.previous) ?? '?', before: shown(f.d.before), after: shown(f.d.after) },
+      ],
+    };
+  },
   'rating.dropped': (f) => {
     const where = [text(f.d.store), text(f.d.territory)].filter((x) => x !== undefined).join(', ');
     return {

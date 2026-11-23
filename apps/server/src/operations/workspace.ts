@@ -681,6 +681,32 @@ export const workspaceOperations: Draft[] = [
     responses: { '200': { description: 'Apps.', schema: z.object({ apps: z.array(appSchema) }) } },
   },
   {
+    id: 'getSyncActivity',
+    method: 'get',
+    path: `${W}/sync/activity`,
+    tags: ['apps'],
+    summary: 'What is being read from the stores right now',
+    description:
+      'The feeds (`releases`, `reviews`, `analytics`) being read at this moment, per app, and how many store jobs wait. Memory of this process only: it says nothing about earlier runs. A token restricted to some apps sees only those.',
+    risk: 'read',
+    access: { action: 'apps.read' },
+    appScope: { kind: 'list' },
+    responses: {
+      '200': {
+        description: 'The apps with a feed being read, and the number of waiting jobs.',
+        schema: z.object({
+          apps: z.array(
+            z.object({
+              id: z.string(),
+              feeds: z.array(z.object({ feed: z.string(), since: timestamp })),
+            }),
+          ),
+          queued: z.number().int(),
+        }),
+      },
+    },
+  },
+  {
     id: 'createApp',
     method: 'post',
     path: `${W}/apps`,

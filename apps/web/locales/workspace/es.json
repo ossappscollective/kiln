@@ -571,6 +571,7 @@
   "webhook.event.ciRunFinished": "Terminó una ejecución de un flujo de trabajo de GitHub Actions (solo ID y la conclusión)",
   "webhook.event.ciRunStarted": "Se inició una ejecución de un flujo de trabajo de GitHub Actions (solo ID)",
   "webhook.event.credentialTestFailed": "Falló la prueba de una credencial",
+  "webhook.event.healthCrashRegression": "Una versión falla claramente más que la anterior (solo identificadores, nombres de versión y dos tasas)",
   "webhook.event.listingDraftPushed": "Los cambios pendientes de la ficha se escribieron en la tienda como borrador (solo ID y cantidades; nunca se envían)",
   "webhook.event.listingSubmitted": "Una versión de la ficha se envió a revisión en la tienda (solo ID; nunca se lanza)",
   "webhook.event.memberAdded": "Alguien se unió al espacio de trabajo al aceptar una invitación (ID y rol)",

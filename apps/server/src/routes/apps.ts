@@ -23,6 +23,7 @@ import {
 } from '../services/apps.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
 import type { Failure } from '../services/repositories.ts';
+import { syncActivity } from '../services/sync-pipeline.ts';
 
 export type AppRoutesContext = AppsContext & {
   /** Syncs per workspace per minute (default 10, built in createApp). */
@@ -119,6 +120,22 @@ export function appRoutes(ctx: AppRoutesContext) {
     return next();
   };
   const notFound = (c: Context<AppEnv>) => c.json({ error: 'not_found' }, 404);
+
+  app.get('/:workspaceId/sync/activity', needs('apps.read'), async (c) => {
+    const byApp = new Map<string, { feed: string; since: number }[]>();
+    for (const entry of syncActivity.list(ws(c))) {
+      byApp.set(entry.appId, [...(byApp.get(entry.appId) ?? []), { feed: entry.feed, since: entry.since }]);
+    }
+    const [waiting] = await db.query(
+      `SELECT COUNT(*) AS n FROM jobs WHERE status = 'queued' AND run_at <= ? AND payload LIKE ?
+        AND queue IN ('app.sync', 'review.sync', 'listing.read', 'analytics.sync')`,
+      [ctx.now(), `%"workspaceId":"${ws(c).replace(/[%_"\\]/g, '')}"%`],
+    );
+    return c.json({
+      apps: [...byApp].map(([id, feeds]) => ({ id, feeds })),
+      queued: Number(waiting?.n ?? 0),
+    });
+  });
 
   app.get('/:workspaceId/apps', needs('apps.read'), async (c) =>
     c.json({ apps: await listApps(db, ws(c)) }),

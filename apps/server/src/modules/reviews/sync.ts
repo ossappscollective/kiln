@@ -24,6 +24,7 @@ import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
+import { evaluateHealth, recordAppleRatings } from '../ratings/service.ts';
 import {
   type AutoTranslateSummary,
   autoTranslateNewReviews,
@@ -31,6 +32,7 @@ import {
 } from '../../services/translation.ts';
 import { lowRatingThresholdFor } from '../../services/workspace-settings.ts';
 import { parseResponse, type StoreKey } from './service.ts';
+import { credentialLane, syncActivity } from '../../services/sync-pipeline.ts';
 
 /**
  * Reads the customer reviews of an app from its store (read only) into `app_reviews`.
@@ -390,18 +392,8 @@ export type ReviewSyncFailure = Failure & { transient: boolean };
 /** Apps being read right now, in this process. A second read of the same app is refused. */
 const running = new Set<string>();
 
-/** One read at a time per credential in this process (Apple's limit is per key, Play's quota per app). */
-const credentialQueues = new Map<string, Promise<unknown>>();
-
 function serialized<T>(key: string, job: () => Promise<T>): Promise<T> {
-  const previous = credentialQueues.get(key) ?? Promise.resolve();
-  const run = previous.then(job, job);
-  const tail = run.catch(() => undefined);
-  credentialQueues.set(key, tail);
-  tail.finally(() => {
-    if (credentialQueues.get(key) === tail) credentialQueues.delete(key);
-  });
-  return run;
+  return credentialLane(key, job);
 }
 
 const same = (a: unknown, b: unknown) => (a ?? null) === (b ?? null);
@@ -431,6 +423,7 @@ export async function syncReviews(
     };
   }
   running.add(app.id);
+  const endActivity = syncActivity.begin(input.workspaceId, app.id, 'reviews', ctx.now());
   try {
     return await run(ctx, app, actor, trigger);
   } catch (error) {
@@ -440,6 +433,7 @@ export async function syncReviews(
     return { ...c.failure, transient: c.transient };
   } finally {
     running.delete(app.id);
+    endActivity();
   }
 }
 
@@ -873,7 +867,11 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
     const fetcher = ctx.ratingFetcher ?? defaultRatingFetcher;
     outcome.ratingSummary = await recordRatingSummary(ctx, app, app.storeAppId, fetcher);
     changed = true;
+    // The daily record per country (docs/adr/0052-ratings-and-health.md): best effort, never fails the sync.
+    await recordAppleRatings({ db: ctx.db, now: ctx.now }, app, fetcher).catch(() => 0);
   }
+  // A version that crashes clearly more than the one before it raises `health.crash_regression`, from the numbers stored so far.
+  await evaluateHealth({ db: ctx.db, now: ctx.now }, app).catch(() => false);
   // Best effort too: translate the new reviews when the workspace set translation to `auto`. It never
   // throws, never fails the sync, and records its own failure in the summary and the audit log.
   const translation = await autoTranslateNewReviews(

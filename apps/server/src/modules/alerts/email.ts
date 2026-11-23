@@ -69,6 +69,12 @@ const openTestflight = (d: AlertData): ActionSpec => ({
   path: `${appAt(d, 'reviews')}?view=testflight`,
   where: ['where.appSection.reviews', { app: String(d.appName ?? d.appId ?? '') }],
 });
+/** The Ratings view of an app (Reviews page), where app health sits under the ratings. */
+const openHealth = (d: AlertData): ActionSpec => ({
+  label: 'openHealth',
+  path: `${appAt(d, 'reviews')}?view=ratings`,
+  where: ['where.appSection.reviews', { app: String(d.appName ?? d.appId ?? '') }],
+});
 const credentials: ActionSpec = {
   label: 'checkCredentials',
   path: '#/credentials',
@@ -112,6 +118,7 @@ const guides: Record<string, (d: AlertData) => GuideSpec> = {
     primary: openApp(d, 'reviews', 'answerReviews'),
   }),
   'rating.dropped': (d) => ({ primary: openApp(d, 'reviews', 'readReviews') }),
+  'health.crash_regression': (d) => ({ primary: openHealth(d) }),
   'review.sync_failed': (d) => ({
     hint: 'sync',
     primary: openApp(d, 'reviews', 'seeWhy'),

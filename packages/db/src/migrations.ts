@@ -11,9 +11,11 @@ import { monetizationMigrations } from './migrations-monetization.ts';
 import { revenueCatMigrations } from './migrations-revenuecat.ts';
 import { revenueCatMetricsMigrations } from './migrations-revenuecat-metrics.ts';
 import { storeExperimentsMigrations } from './migrations-store-experiments.ts';
+import { insightsMigrations } from './migrations-insights.ts';
 import { testflightFeedbackMigrations } from './migrations-testflight-feedback.ts';
 import { ratingsMigrations } from './migrations-ratings.ts';
 import { syncErrorCodeMigrations } from './migrations-sync-error-code.ts';
+import { timelineMigrations } from './migrations-timeline.ts';
 import { userLocaleMigrations } from './migrations-user-locale.ts';
 
 /**
@@ -1841,5 +1843,7 @@ export const migrations: Migration[] = [
   ...chatMigrations,
   ...storeExperimentsMigrations,
   ...testflightFeedbackMigrations,
+  ...insightsMigrations,
   ...ratingsMigrations,
+  ...timelineMigrations,
 ];

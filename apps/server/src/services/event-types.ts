@@ -23,6 +23,8 @@ export const eventTypes = [
   // TestFlight (docs/adr/0049-testflight-feedback.md): a new beta feedback or crash was stored (ids, build and platform only).
   'testflight.feedback',
   'testflight.crash',
+  // App health (docs/adr/0052-ratings-and-health.md): a version crashes clearly more than the one before it (ids, version names and two rates only).
+  'health.crash_regression',
   'release.rollout_changed',
   'listing.draft_pushed',
   'listing.submitted',
@@ -74,6 +76,7 @@ export const eventReadAction: Record<EventType, Action> = {
   // Ids, build and platform only (or a count for a grouped event); never a comment, a tester or a crash log.
   'testflight.feedback': 'reviews.read',
   'testflight.crash': 'reviews.read',
+  'health.crash_regression': 'reviews.read',
   'release.rollout_changed': 'apps.read',
   'listing.draft_pushed': 'listing.read',
   'listing.submitted': 'listing.read',

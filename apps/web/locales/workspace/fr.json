@@ -571,6 +571,7 @@
   "webhook.event.ciRunFinished": "Une exécution de workflow GitHub Actions s’est terminée (identifiants et conclusion uniquement)",
   "webhook.event.ciRunStarted": "Une exécution de workflow GitHub Actions a démarré (identifiants uniquement)",
   "webhook.event.credentialTestFailed": "Le test d’un identifiant d’accès a échoué",
+  "webhook.event.healthCrashRegression": "Une version plante nettement plus que la précédente (identifiants, noms de version et deux taux seulement)",
   "webhook.event.listingDraftPushed": "Des modifications de fiche en attente ont été écrites dans le store en tant que brouillon (identifiants et nombres uniquement ; jamais soumises)",
   "webhook.event.listingSubmitted": "Une version de fiche a été soumise à l’examen dans le store (identifiants uniquement ; jamais publiée)",
   "webhook.event.memberAdded": "Quelqu’un a rejoint l’espace de travail en acceptant une invitation (identifiants et rôle)",

@@ -1,4 +1,12 @@
 {
+  "activity.feed.analytics": "analíticas",
+  "activity.feed.other": "otros datos",
+  "activity.feed.releases": "estado de las versiones",
+  "activity.feed.reviews": "reseñas",
+  "activity.queued_one": "{{count}} más en espera",
+  "activity.queued_other": "{{count}} más en espera",
+  "activity.title": "Sincronizando ahora",
+  "activity.unknownApp": "Otra app",
   "add.adding": "Añadiendo…",
   "add.chooseCredential": "Elige una credencial",
   "add.description": "Una app es una ficha de tienda. Se lee desde la tienda con una credencial guardada; nunca se escribe nada en la tienda.",

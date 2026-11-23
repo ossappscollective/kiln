@@ -63,6 +63,7 @@ import {
 } from './store.ts';
 
 import { coded } from '../../i18n/problem.ts';
+import { credentialLane, syncActivity, mapPool, pipelineSettings } from '../../services/sync-pipeline.ts';
 /**
  * Reads the analytics of an app from its stores into `analytics_daily` (docs/adr/0017-analytics-foundation.md). Read only toward the
  * stores: the one store write of analytics (creating an Apple report request) is a separate, explicit action (analytics-enable.ts).
@@ -897,17 +898,8 @@ const isMoneyMetric = (metric: string) =>
 
 /** Apps being read right now, in this process. */
 const running = new Set<string>();
-const credentialQueues = new Map<string, Promise<unknown>>();
-
 function serialized<T>(key: string, job: () => Promise<T>): Promise<T> {
-  const previous = credentialQueues.get(key) ?? Promise.resolve();
-  const run = previous.then(job, job);
-  const tail = run.catch(() => undefined);
-  credentialQueues.set(key, tail);
-  tail.finally(() => {
-    if (credentialQueues.get(key) === tail) credentialQueues.delete(key);
-  });
-  return run;
+  return credentialLane(key, job);
 }
 
 export type AnalyticsSyncOptions = {
@@ -956,6 +948,7 @@ export async function syncAnalytics(
     };
   }
   running.add(app.id);
+  const endActivity = syncActivity.begin(input.workspaceId, app.id, 'analytics', ctx.now());
   try {
     return await run(ctx, app, input.workspaceId, actor, options, settings);
   } catch {
@@ -963,6 +956,7 @@ export async function syncAnalytics(
     return { ...failure(502, 'sync_failed', analyticsErrorMessages.sync_failed), transient: false };
   } finally {
     running.delete(app.id);
+    endActivity();
   }
 }
 
@@ -1027,7 +1021,7 @@ async function run(
   );
   const stateOf = (source: AnalyticsSource) => states.find((r) => String(r.source) === source);
 
-  for (const source of wanted) {
+  const readSource = async (source: AnalyticsSource): Promise<void> => {
     const startedAt = ctx.now();
     const base = {
       workspaceId,
@@ -1101,7 +1095,7 @@ async function run(
           attempted: false,
         });
         results.push({ source, status: 'skipped', setup: outcome.setup });
-        continue;
+        return;
       }
       await recordRun(ctx.db, {
         ...base,
@@ -1156,7 +1150,10 @@ async function run(
     } finally {
       clearTimeout(timer);
     }
-  }
+  };
+  // The sources are independent feeds: each keeps its own run record and state, and one failing never stops another.
+  await mapPool(wanted, pipelineSettings().analyticsSources, readSource);
+  results.sort((a, b) => wanted.indexOf(a.source) - wanted.indexOf(b.source));
   return finalize(ctx, app, workspaceId, actor, options.trigger, results);
 }
 

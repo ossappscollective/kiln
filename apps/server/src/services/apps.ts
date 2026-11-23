@@ -42,6 +42,7 @@ import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { recordSyncEvents, releaseStatusChanges } from './events.ts';
 import { type Failure, failure, type Outcome } from './repositories.ts';
+import { syncActivity } from './sync-pipeline.ts';
 
 type Actor = { type: ActorType; id: string };
 
@@ -554,6 +555,16 @@ export async function deleteApp(
         input.workspaceId,
       ]);
     }
+    // Events a person added to the timeline (modules/timeline).
+    await tx.execute('DELETE FROM timeline_events WHERE app_id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
+    // Insights cards the app's people dismissed (modules/insights).
+    await tx.execute('DELETE FROM insight_dismissals WHERE app_id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
     // TestFlight feedback and crashes read from Apple, with their triage, and the sync state (modules/testflight).
     for (const table of ['testflight_feedback', 'testflight_sync']) {
       await tx.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
@@ -778,7 +789,14 @@ async function readStore(connector: StoreConnector, app: ManagedApp): Promise<Re
       }
       appStoreId = hit.storeId;
     }
-    const versions = await connector.listVersions(appStoreId);
+    // The versions, the builds and the version-to-build links are three independent reads: side by side (the host gate bounds them).
+    const [versions, builds, linked] = await Promise.all([
+      connector.listVersions(appStoreId),
+      connector.listBuilds(appStoreId),
+      connector.listVersionBuilds
+        ? connector.listVersionBuilds(appStoreId).catch(() => new Map<string, string>())
+        : Promise.resolve(new Map<string, string>()),
+    ]);
     if (app.platform === 'macos' && versions.length === 0) {
       throw new StoreError(
         'appstoreconnect',
@@ -786,11 +804,7 @@ async function readStore(connector: StoreConnector, app: ManagedApp): Promise<Re
         `App Store Connect has no macOS version for app ${appStoreId}. Add the macOS platform to the app in App Store Connect first (a macOS app that is its own app record is added with its own bundle id).`,
       );
     }
-    const builds = await connector.listBuilds(appStoreId);
-    // The build Apple says each version uses; a version created under another name than its build's still gets the right one.
-    const linked = connector.listVersionBuilds
-      ? await connector.listVersionBuilds(appStoreId).catch(() => new Map<string, string>())
-      : new Map<string, string>();
+    // `linked`: the build Apple says each version uses; a version created under another name than its build's still gets the right one.
     return {
       appStoreId,
       builds: seenFromAppleBuilds(builds),
@@ -963,10 +977,12 @@ export async function syncApp(
     };
   }
   running.add(app.id);
+  const endActivity = syncActivity.begin(workspaceId, app.id, 'releases', ctx.now());
   try {
     return await runSync(ctx, app, workspaceId, actor, trigger);
   } finally {
     running.delete(app.id);
+    endActivity();
   }
 }
 

@@ -1,4 +1,12 @@
 {
+  "activity.feed.analytics": "Analysen",
+  "activity.feed.other": "weitere Daten",
+  "activity.feed.releases": "Release-Status",
+  "activity.feed.reviews": "Rezensionen",
+  "activity.queued_one": "{{count}} weitere wartet",
+  "activity.queued_other": "{{count}} weitere warten",
+  "activity.title": "Synchronisierung läuft",
+  "activity.unknownApp": "Andere App",
   "add.adding": "Wird hinzugefügt …",
   "add.chooseCredential": "Zugangsdaten auswählen",
   "add.description": "Eine App ist ein Store-Eintrag. Sie wird mit gespeicherten Zugangsdaten aus dem Store gelesen; in den Store wird nie etwas geschrieben.",

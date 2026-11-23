@@ -1,3 +1,4 @@
+import { CRASH_PHRASES } from '../ratings/crash-words.ts';
 import { PLATFORMS, type Platform, type StoreId } from '@kiln/core';
 import { nullableNumber, nullableString, oneOf, type Param, type Row, type Sql } from '@kiln/db';
 
@@ -113,6 +114,8 @@ export type ReviewFilter = {
   hasResponse?: boolean | undefined;
   /** Text search in the title and the body. */
   q?: string | undefined;
+  /** `crash`: reviews whose text mentions crashes or freezes (the phrase list of modules/ratings/crash-words.ts). */
+  mentions?: 'crash' | undefined;
   /** Epoch milliseconds; reviews created at or after it. */
   since?: number | undefined;
   /** Epoch milliseconds; reviews created before it. */
@@ -174,6 +177,11 @@ function conditions(
       `(LOWER(COALESCE(${c('title')}, '')) LIKE ? ESCAPE '!' OR LOWER(${c('body')}) LIKE ? ESCAPE '!')`,
     );
     params.push(like, like);
+  }
+  if (filter.mentions === 'crash') {
+    const text = `LOWER(COALESCE(${c('title')}, '') || ' ' || ${c('body')})`;
+    parts.push(`(${CRASH_PHRASES.map(() => `${text} LIKE ? ESCAPE '!'`).join(' OR ')})`);
+    params.push(...CRASH_PHRASES.map((p) => `%${escapeLike(p)}%`));
   }
   if (filter.since !== undefined) {
     parts.push(`${c('created_at')} >= ?`);

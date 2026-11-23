@@ -34,6 +34,7 @@
   import AddAppModal from './portfolio/AddAppModal.svelte';
   import AppsOverview from './portfolio/AppsOverview.svelte';
   import OverviewStats from './portfolio/OverviewStats.svelte';
+  import SyncActivity from './portfolio/SyncActivity.svelte';
   import SyncAllPanel from './portfolio/SyncAllPanel.svelte';
   import Alert from './ui/Alert.svelte';
   import Button from './ui/Button.svelte';
@@ -51,6 +52,8 @@
 
   /** How many apps load their releases at once for the list. */
   const LOAD_PARALLEL = 4;
+  /** Apps synced at once by Sync all. */
+  const SYNC_PARALLEL = 3;
 
   // `#/portfolio` is the overview of all apps, `#/portfolio/<id>/...` one app (components/app/). The
   // shell keeps this screen mounted for both; the address says which.
@@ -247,47 +250,58 @@
     const state = batch as Batch;
     const workspace = workspaceId;
 
-    /** Marks every result from `from` on as not run, with the reason. */
-    const skipRest = (from: number, message: string) => {
-      for (let j = from; j < state.results.length; j++) {
-        const result = state.results[j] as BatchResult;
-        result.status = 'skipped';
-        result.message = message;
+    // A few apps at once (the server holds the store requests to its per-host limits and the workspace budget still
+    // counts every sync), so a long list is not a queue of one. A refused budget or a lost connection ends the run.
+    const running = new Set<string>();
+    let stopAll = false;
+    let next = 0;
+    const worker = async () => {
+      while (next < targets.length) {
+        const i = next++;
+        const app = targets[i] as AppSummary;
+        const result = state.results[i] as BatchResult;
+        if (state.stopRequested || stopAll) {
+          result.status = 'skipped';
+          result.message = notRunMessage(null);
+          state.done += 1;
+          continue;
+        }
+        running.add(app.name);
+        state.current = [...running].join(', ');
+        result.status = 'running';
+        const outcome = await syncApp(api, workspace, app.id);
+        running.delete(app.name);
+        state.current = [...running].join(', ');
+        // The workspace changed or the screen was reset meanwhile: this run is over.
+        if (batch !== state) return;
+        if (outcome.ok) {
+          patch(outcome.app);
+          releases[app.id] = { state: 'ready', releases: outcome.releases };
+          result.status = 'ok';
+          result.message = syncDetail(outcome.sync);
+          state.done += 1;
+          continue;
+        }
+        if (outcome.app) patch(outcome.app);
+        const { failure } = outcome;
+        result.status = failure.kind === 'busy' ? 'busy' : 'failed';
+        result.message = failure.message;
+        state.done += 1;
+        // Every further request would be refused for the same reason, so the rest is not run.
+        if (failure.kind === 'limited' || failure.kind === 'abort') {
+          stopAll = true;
+          for (let j = next; j < targets.length; j++) {
+            const rest = state.results[j] as BatchResult;
+            rest.status = 'skipped';
+            rest.message = notRunMessage(failure);
+          }
+          state.done += targets.length - next;
+          next = targets.length;
+        }
       }
-      state.done = state.total;
     };
-
-    for (let i = 0; i < targets.length; i++) {
-      const app = targets[i] as AppSummary;
-      const result = state.results[i] as BatchResult;
-      if (state.stopRequested) {
-        skipRest(i, notRunMessage(null));
-        break;
-      }
-      state.current = app.name;
-      result.status = 'running';
-      const outcome = await syncApp(api, workspace, app.id);
-      // The workspace changed or the screen was reset meanwhile: this run is over.
-      if (batch !== state) return;
-      if (outcome.ok) {
-        patch(outcome.app);
-        releases[app.id] = { state: 'ready', releases: outcome.releases };
-        result.status = 'ok';
-        result.message = syncDetail(outcome.sync);
-        state.done = i + 1;
-        continue;
-      }
-      if (outcome.app) patch(outcome.app);
-      const { failure } = outcome;
-      result.status = failure.kind === 'busy' ? 'busy' : 'failed';
-      result.message = failure.message;
-      state.done = i + 1;
-      // Every further request would be refused for the same reason, so stop here.
-      if (failure.kind === 'limited' || failure.kind === 'abort') {
-        skipRest(i + 1, notRunMessage(failure));
-        break;
-      }
-    }
+    await Promise.all(Array.from({ length: Math.min(SYNC_PARALLEL, targets.length) }, worker));
+    if (batch !== state) return;
     state.running = false;
     state.current = '';
     now = Date.now();
@@ -354,6 +368,8 @@
         </div>
       </div>
     {:else}
+      <SyncActivity {api} {workspaceId} names={Object.fromEntries(apps.map((a) => [a.id, appLabel(a)]))} hint={busy} />
+
       {#if batch}
         <SyncAllPanel
           running={batch.running}

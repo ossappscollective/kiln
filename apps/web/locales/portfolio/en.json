@@ -1,4 +1,12 @@
 {
+  "activity.feed.analytics": "analytics",
+  "activity.feed.other": "other data",
+  "activity.feed.releases": "release state",
+  "activity.feed.reviews": "reviews",
+  "activity.queued_one": "{{count}} more waiting",
+  "activity.queued_other": "{{count}} more waiting",
+  "activity.title": "Syncing now",
+  "activity.unknownApp": "Another app",
   "add.adding": "Adding…",
   "add.chooseCredential": "Choose a credential",
   "add.description": "An app is one store listing. It is read from the store with a stored credential; nothing is ever written to the store.",

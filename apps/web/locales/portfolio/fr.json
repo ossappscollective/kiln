@@ -1,4 +1,12 @@
 {
+  "activity.feed.analytics": "statistiques",
+  "activity.feed.other": "autres données",
+  "activity.feed.releases": "état des versions",
+  "activity.feed.reviews": "avis",
+  "activity.queued_one": "{{count}} autre en attente",
+  "activity.queued_other": "{{count}} autres en attente",
+  "activity.title": "Synchronisation en cours",
+  "activity.unknownApp": "Autre app",
   "add.adding": "Ajout…",
   "add.chooseCredential": "Choisir un identifiant d’accès",
   "add.description": "Une application correspond à une fiche de store. Elle est lue depuis le store avec un identifiant d’accès enregistré ; rien n’est jamais écrit dans le store.",

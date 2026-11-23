@@ -186,6 +186,11 @@ function parseQuery(
       filter.hasResponse = hasResponse === 'true';
     else issues.push({ path: 'hasResponse', message: 'Use true or false.' });
   }
+  const mentions = c.req.query('mentions');
+  if (mentions !== undefined && mentions !== '') {
+    if (mentions === 'crash') filter.mentions = 'crash';
+    else issues.push({ path: 'mentions', message: 'Use crash.' });
+  }
   const q = c.req.query('q')?.trim();
   if (q) {
     if (q.length <= MAX_SEARCH_LENGTH) filter.q = q;

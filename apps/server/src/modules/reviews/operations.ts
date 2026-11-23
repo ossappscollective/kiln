@@ -141,6 +141,10 @@ const reviewListQuery = z.object({
     .describe(
       'Text search in the title and body. Sent in the query string: review text itself never is.',
     ),
+  mentions: z
+    .enum(['crash'])
+    .optional()
+    .describe('`crash`: reviews that mention crashes or freezes (the documented phrase list, docs/api/health.md).'),
   since: z
     .number()
     .int()

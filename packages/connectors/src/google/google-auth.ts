@@ -1,4 +1,4 @@
-import { createPrivateKey, type KeyObject, sign } from 'node:crypto';
+import { createHash, createPrivateKey, type KeyObject, sign } from 'node:crypto';
 import { checkSecret } from '@kiln/core';
 import { StoreError } from '../errors.ts';
 import { isRecord, type StoreHttp, serverTime, text } from '../store-http.ts';
@@ -206,6 +206,30 @@ export function googleTokenError(
 }
 
 /**
+ * Access tokens shared by every provider of this process, so the several connectors one sync run builds (releases, listing,
+ * reviews, analytics) for one service account and scope exchange the assertion once, not once each (one HTTPS round trip
+ * saved per connector). Off until `enableSharedGoogleTokens()` (the server turns it on at start; tests keep a token per
+ * provider). The key is a hash of account and scope, so a rotated key never meets an old token; nothing here is logged.
+ * A token served from the cache is added to the asking provider's redaction set like a minted one.
+ */
+const sharedTokens = new Map<string, { token: string; expiresAt: number }>();
+const sharedPending = new Map<string, Promise<string>>();
+let sharedTokensOn = false;
+
+export function enableSharedGoogleTokens(on = true): void {
+  sharedTokensOn = on;
+  if (!on) {
+    sharedTokens.clear();
+    sharedPending.clear();
+  }
+}
+
+const sharedKey = (account: ServiceAccount, scope: string) =>
+  createHash('sha256')
+    .update(`${account.clientEmail}\0${account.privateKeyId ?? ''}\0${account.privateKey}\0${scope}`)
+    .digest('hex');
+
+/**
  * Mints and caches access tokens for one service account and ONE scope, renewed a minute before expiry. The scope defaults to
  * `androidpublisher`, so every existing caller is unchanged; analytics builds one provider per scope from the same key
  * (`PLAY_DEVELOPER_REPORTING_SCOPE`, `DEVSTORAGE_READ_ONLY_SCOPE`), so a token for one API is never sent to another.
@@ -235,6 +259,30 @@ export class GoogleTokenProvider {
     if (cached && cached.expiresAt - this.#http.now() > REFRESH_MARGIN_MS) {
       return Promise.resolve(cached.token);
     }
+    if (sharedTokensOn) {
+      const key = sharedKey(this.account, this.scope);
+      const shared = sharedTokens.get(key);
+      if (shared && shared.expiresAt - this.#http.now() > REFRESH_MARGIN_MS) {
+        this.#cached = shared;
+        this.#http.known.add(shared.token);
+        return Promise.resolve(shared.token);
+      }
+      // Providers asking at the same moment share one exchange.
+      let pending = sharedPending.get(key);
+      if (!pending) {
+        pending = this.#mint()
+          .then((token) => {
+            if (this.#cached) sharedTokens.set(key, this.#cached);
+            return token;
+          })
+          .finally(() => sharedPending.delete(key));
+        sharedPending.set(key, pending);
+      }
+      return pending.then((token) => {
+        this.#http.known.add(token);
+        return token;
+      });
+    }
     this.#pending ??= this.#mint().finally(() => {
       this.#pending = undefined;
     });
@@ -243,6 +291,7 @@ export class GoogleTokenProvider {
 
   invalidate(): void {
     this.#cached = undefined;
+    if (sharedTokensOn) sharedTokens.delete(sharedKey(this.account, this.scope));
   }
 
   async #mint(): Promise<string> {

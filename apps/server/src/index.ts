@@ -5,7 +5,9 @@ import { createDatabase, migrate } from '@kiln/db';
 import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { demoRequested } from './demo/config.ts';
+import { enableSharedGoogleTokens } from '@kiln/connectors';
 import { createWorker } from './jobs.ts';
+import { installSyncPipeline } from './services/sync-pipeline.ts';
 import { createAlertDeliveryHandler } from './modules/alerts/delivery.ts';
 import { ALERT_PASS_INTERVAL_MS, createAlertRunner } from './modules/alerts/runner.ts';
 import { ALERT_QUEUE } from './modules/alerts/service.ts';
@@ -88,6 +90,12 @@ const config = loadConfig();
 
 await mkdir(config.dataDir, { recursive: true });
 const database = await createDatabase(config.databaseUrl);
+// Store reads: bounded requests per host with a shared 429 pause, and one Google token per account and scope (docs/adr/0050).
+installSyncPipeline({
+  appleConcurrency: config.syncAppleConcurrency,
+  googleConcurrency: config.syncGoogleConcurrency,
+});
+enableSharedGoogleTokens();
 let applied: number[];
 try {
   applied = await migrate(database);
@@ -328,6 +336,10 @@ const worker = createWorker({
       }),
     ),
   },
+  // Several jobs at once, quick and useful ones first (release state, listing, reviews), heavy feeds after and never in every slot.
+  concurrency: config.jobConcurrency,
+  priority: { [APP_SYNC_QUEUE]: 0, [LISTING_READ_QUEUE]: 0, [REVIEW_SYNC_QUEUE]: 1, [EAS_STATUS_QUEUE]: 2, [ANALYTICS_SYNC_QUEUE]: 3, [ASO_REFRESH_QUEUE]: 3 },
+  heavy: [ANALYTICS_SYNC_QUEUE, ASO_REFRESH_QUEUE],
 });
 if (config.worker === 'inline') worker.start();
 
