@@ -43,7 +43,7 @@
   let announcement = $state('');
 
   const kindLabel = (k: string) => (isCredentialKind(k) ? credentialKindInfo[k].label : k);
-  const columns = $derived(canWrite ? 6 : 5);
+  const columns = $derived(canWrite ? 5 : 4);
 
   async function testRow(item: CredentialSummary) {
     if (rowTests[item.id]?.busy) return;
@@ -98,6 +98,13 @@
 <div class="card table">
   <p class="visually-hidden" role="status" aria-live="polite">{announcement}</p>
   <table>
+    <colgroup>
+      <col class="c-name" />
+      <col class="c-type" />
+      <col class="c-status" />
+      <col class="c-added" />
+      {#if canWrite}<col class="c-actions" />{/if}
+    </colgroup>
     <thead>
       <tr>
         <th>{t('credentials:table.name')}</th>
@@ -112,14 +119,14 @@
         {@const status = testStatus(item.lastTest)}
         {@const run = rowTests[item.id]}
         <tr>
-          <td>
+          <td class="name">
             <strong>{item.label}</strong>
             {#if item.lastTest && !item.lastTest.ok && item.lastTest.message}
               <p class="failure">{item.lastTest.message}</p>
             {/if}
           </td>
-          <td class="kind"><Icon name={storeForCredentialKind(item.kind).icon} /> {kindLabel(item.kind)}</td>
-          <td class="status">
+          <td class="kind" data-label={t('credentials:table.type')}><Icon name={storeForCredentialKind(item.kind).icon} /> {kindLabel(item.kind)}</td>
+          <td class="status" data-label={t('credentials:table.status')}>
             {#if run?.busy}
               <span class="muted"><Spinner /> {t('credentials:test.testing')}</span>
             {:else}
@@ -141,7 +148,7 @@
               {#if run?.error}<p class="failure">{run.error}</p>{/if}
             {/if}
           </td>
-          <td title={formatDateTime(item.createdAt)}>
+          <td class="added" data-label={t('credentials:table.added')} title={formatDateTime(item.createdAt)}>
             {formatRelativeTime(item.createdAt)}
             {#if item.rotatedAt}
               <span class="when muted block" title={formatDateTime(item.rotatedAt)}>{t('credentials:table.rotatedAgo', { when: formatRelativeTime(item.rotatedAt) })}</span>
@@ -149,6 +156,7 @@
           </td>
           {#if canWrite}
             <td class="actions">
+              <div class="group">
               {#if confirmingDelete === item.id}
                 <span>{t('credentials:table.confirmDelete', { label: item.label })}</span>
                 <button class="danger" disabled={deleting} onclick={() => remove(item)}>{t('credentials:table.delete')}</button>
@@ -173,6 +181,7 @@
                 >
                 <button id="delete-btn-{item.id}" class="link danger" onclick={() => askDelete(item.id)}>{t('credentials:table.delete')}</button>
               {/if}
+              </div>
             </td>
           {/if}
         </tr>
@@ -200,18 +209,47 @@
 </div>
 
 <style>
+  /* Fixed layout: every column keeps its share, long text wraps inside its cell, so nothing ever pushes past the card. */
   .table {
     padding: 0;
-    overflow-x: auto;
+    overflow: hidden;
+  }
+
+  table {
+    width: 100%;
+    table-layout: fixed;
+  }
+
+  .c-name {
+    width: 22%;
+  }
+
+  .c-type {
+    width: 15%;
+  }
+
+  .c-status {
+    width: 27%;
+  }
+
+  .c-added {
+    width: 13%;
+  }
+
+  .c-actions {
+    width: 23%;
+  }
+
+  td,
+  th {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    vertical-align: top;
   }
 
   td,
   th {
     font-size: 0.9375rem;
-  }
-
-  .status {
-    min-width: 150px;
   }
 
   .badge.none {
@@ -230,8 +268,16 @@
     margin-left: 0;
   }
 
-  .table td.actions {
-    white-space: normal;
+  .group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    justify-content: flex-end;
+    align-items: baseline;
+  }
+
+  .group button {
+    white-space: nowrap;
   }
 
   .status .badge,
@@ -266,28 +312,61 @@
     padding-left: 18px;
   }
 
-  /* One line per cell, so the table scrolls sideways before it wraps a type, a date or an action; notes below still wrap. */
-  .table td:not(:first-child) {
-    white-space: nowrap;
-  }
-
   .table td p.failure,
   .table td p.note,
   .table td .more {
-    max-width: 28rem;
-    white-space: normal;
+    max-width: 100%;
   }
 
   .actions :global(.link) {
     vertical-align: baseline;
   }
 
-  button.test {
-    min-width: 5.5em;
-    text-align: right;
-  }
 
   button.test[aria-disabled='true'] {
     cursor: progress;
+  }
+
+  /* Below 640px each row is a small stack: the cells one under the other, each with its column name. */
+  @media (max-width: 639px) {
+    table,
+    tbody,
+    tr,
+    td {
+      display: block;
+    }
+
+    thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    colgroup {
+      display: none;
+    }
+
+    tr {
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    td {
+      border: 0;
+      padding-block: var(--space-1);
+    }
+
+    td[data-label]::before {
+      display: block;
+      font-size: 0.8125rem;
+      color: var(--muted);
+      content: attr(data-label);
+    }
+
+    .group {
+      justify-content: flex-start;
+    }
   }
 </style>
