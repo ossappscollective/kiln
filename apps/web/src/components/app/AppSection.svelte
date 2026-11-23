@@ -43,6 +43,9 @@
   import ExperimentsTab from '../experiments/ExperimentsTab.svelte';
   import TestflightTab from '../testflight/TestflightTab.svelte';
   import AnalyticsSection from '../analytics/AnalyticsSection.svelte';
+  import CountriesView from '../insights/CountriesView.svelte';
+  import InsightsCards from '../insights/InsightsCards.svelte';
+  import ListingChecks from '../insights/ListingChecks.svelte';
   import AppDashboard from './AppDashboard.svelte';
   import AppReleases from './AppReleases.svelte';
   import AppWorkflows from './AppWorkflows.svelte';
@@ -127,6 +130,15 @@
 {#snippet experiments(app: AppSummary)}
   <ExperimentsTab {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
 {/snippet}
+{#snippet highlights(app: AppSummary)}
+  <InsightsCards {api} {workspaceId} {role} {app} refreshKey={syncRuns} openId={openId} platform={address.platform} />
+{/snippet}
+{#snippet countries(app: AppSummary)}
+  <CountriesView {api} {workspaceId} {role} {app} refreshKey={syncRuns} openId={openId} platform={address.platform} />
+{/snippet}
+{#snippet listingChecks(app: AppSummary)}
+  <ListingChecks {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
+{/snippet}
 {#snippet builds(app: AppSummary)}
   <div class="stack loose">
     <BuildsPanel {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
@@ -187,18 +199,21 @@
   {#if view === 'graphics'}
     {@render perPlatform(assets)}
   {:else}
-    <ListingMatrix
-      {api}
-      {workspaceId}
-      {role}
-      {members}
-      {now}
-      {syncing}
-      refreshKey={syncRuns}
-      {lockedPlatforms}
-      {locale}
-      onlocale={(next) => replaceHash(withHeaderParams(location.hash, { locale: next }))}
-    />
+    <div class="stack loose">
+      <ListingMatrix
+        {api}
+        {workspaceId}
+        {role}
+        {members}
+        {now}
+        {syncing}
+        refreshKey={syncRuns}
+        {lockedPlatforms}
+        {locale}
+        onlocale={(next) => replaceHash(withHeaderParams(location.hash, { locale: next }))}
+      />
+      {@render perPlatform(listingChecks)}
+    </div>
   {/if}
 {:else if section === 'products'}
   {@render perPlatform(products)}
@@ -224,6 +239,10 @@
     <AsoSection {api} {workspaceId} {role} {members} {releases} {now} />
   {:else if view === 'experiments'}
     {@render perPlatform(experiments)}
+  {:else if view === 'highlights'}
+    {@render perPlatform(highlights)}
+  {:else if view === 'countries'}
+    {@render perPlatform(countries)}
   {:else}
     <AnalyticsSection {api} {workspaceId} {role} {members} {now} />
   {/if}

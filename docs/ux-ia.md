@@ -21,7 +21,7 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   All apps (apps that need attention), Inbox (unanswered, workspace). The current page has a bar, a tint and a heavier label. Text is 15px.
   The header of an app page is the page name (24px) over the app name and bundle id.
 - **Views inside a page** (`ViewSwitch`, `?view=` in the address, platform, version and locale stay): Store listing = Text, Graphics;
-  Insights = Overview, Keywords, Search terms (phase 2, see 0a), Experiments (`?view=experiments`, every platform: Apple tests and custom product pages, Google link-out and the manual tracker); Builds = Builds,
+  Insights = Overview, Highlights (the Insights cards, with the count badge on the Insights entry), Countries (downloads by main language against the languages of the store page), Keywords, Search terms (phase 2, see 0a), Experiments (`?view=experiments`, every platform: Apple tests and custom product pages, Google link-out and the manual tracker); Builds = Builds,
   Workflows, Test builds; Reviews = Reviews, TestFlight (`?view=testflight`, `reviews.read`, only when an Apple app is in scope: beta feedback and crashes).
 - **Old addresses redirect** (`canonicalAppHash`, replaces the history entry): `/workflows` to `/builds?view=workflows`,
   `/test-builds` to `/builds?view=tests`, `/assets` to `/listing?view=graphics`, `/analytics` to `/insights`, `/aso[?view=x]` to
@@ -294,3 +294,10 @@ This list was written before sections 0 to 0c and describes the app as it was th
 
 Open: merge apps in the data model or only in the web layer (pair records on bundle id); names of the
 new flags; whether Google Play "changes not sent for review" works for the connected apps (verify).
+
+- **Insights cards, store page checks and country coverage** (`components/insights/`, `lib/insights/insights.ts`; strings in `locales/insights`).
+  Highlights: filter chips with counts, one card per finding (severity icon and word, headline, why, evidence, one or two buttons that open Kiln pages,
+  Dismiss with an Undo toast), and a note for each rule that could not run and why. The badge on the Insights entry is one `.../insights/count` read per record
+  when an app is opened (again only after five minutes; Highlights keeps it exact); no timer. With a badge the entry opens on Highlights. The store page
+  checks sit under the locale grid of Store listing, Text (score, findings per language, a suggested keyword field with a copy button; nothing is staged
+  or sent). Countries: bars by main language ("On your store page" or a link to the listing) and a table with the main language of each country.

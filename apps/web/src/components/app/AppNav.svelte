@@ -21,8 +21,8 @@
   import { type Action, platformLabel } from '@kiln/core';
   import { address as pageAddress, appContext } from '../../lib/address.svelte.ts';
   import { carryHeaderParams } from '../../lib/app-header.ts';
-  import { type RailItem, navEntryOf, visibleNav, workspaceRail } from '../../lib/app-nav.ts';
-  import { type AppAddress, appAddress } from '../../lib/app-scope.ts';
+  import { type RailItem, navEntryOf, visibleNav, withView, workspaceRail } from '../../lib/app-nav.ts';
+  import { type AppAddress, type AppSection, appAddress } from '../../lib/app-scope.ts';
   import { badgeText } from '../../lib/nav-badges.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { chordHint } from '../../lib/shortcuts.ts';
@@ -56,7 +56,7 @@
     mod?: string | undefined;
     onopenswitcher?: (() => void) | undefined;
     onpickapp?: ((item: SwitcherItem) => void) | undefined;
-    counts?: { reviews: number | null; releases: number | null; pending?: number | null; pendingBlocking?: boolean } | undefined;
+    counts?: { reviews: number | null; releases: number | null; pending?: number | null; pendingBlocking?: boolean; insights?: number | null } | undefined;
     /** One line per platform of the app (lib/app-status.ts); empty draws no summary. */
     status?: PlatformStatusLine[] | undefined;
   } = $props();
@@ -66,10 +66,17 @@
       ? { count: counts.reviews, labelKey: k('shell:badge.unanswered'), tone: 'warn' }
       : id === 'releases'
         ? { count: counts.releases, labelKey: k('app:nav.badgeUnfinished'), tone: 'warn' }
+        : id === 'insights'
+          ? { count: counts.insights ?? null, labelKey: k('app:nav.badgeInsights'), tone: 'accent' }
         : id === 'listing'
           ? { count: counts.pending ?? null, labelKey: k('app:nav.badgePending'), tone: counts.pendingBlocking ? 'warn' : 'accent' }
           : null;
 
+  /** The link of an entry; with open Insights cards the entry opens on them (the badge counts them), not on the overview. */
+  const entryHref = (id: AppSection, badge: { count: number | null } | null): string => {
+    const href = carryHeaderParams(appAddress(address.id, id, address.platform), pageAddress.hash);
+    return id === 'insights' && badgeText(badge?.count) ? withView(href, 'insights', 'highlights') : href;
+  };
   const entries = $derived(visibleNav(allowed));
   const here = $derived(navEntryOf(address.section));
   const rail = $derived(workspaceRail(workspaceItems));
@@ -102,7 +109,7 @@
         {@const hint = chordHint('app', s.id)}
         {@const badge = badgeFor(s.id)}
         <li>
-          <a href={carryHeaderParams(appAddress(address.id, s.id, address.platform), pageAddress.hash)} aria-current={here === s.id ? 'page' : undefined}>
+          <a href={entryHref(s.id, badge)} aria-current={here === s.id ? 'page' : undefined}>
             <Icon name={s.icon} size={18} />
             <span>{t(s.labelKey)}</span>
             {#if hint}<kbd class="nav-hint" aria-hidden="true">{hint}</kbd>{/if}

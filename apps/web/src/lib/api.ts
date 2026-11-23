@@ -47,6 +47,7 @@ import type {
   PlayBucketView,
 } from './analytics/analytics.ts';
 import type { ProductSalesView } from './analytics/product-sales.ts';
+import type { CountriesView as InsightsCountriesView, InsightsView, ListingChecksView } from './insights/insights.ts';
 import type {
   AsoAddResult,
   AsoCoachResponse,
@@ -634,6 +635,8 @@ export function createApi(options: ApiOptions = {}) {
   const workspace = (id: string) => `/api/workspaces/${encodeURIComponent(id)}`;
   const asoPath = (workspaceId: string, appId: string) =>
     `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/aso`;
+  const insightsPath = (workspaceId: string, appId: string) =>
+    `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/insights`;
   const analyticsPath = (workspaceId: string, appId: string) =>
     `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/analytics`;
   const planPath = (workspaceId: string, appId: string, planId: string) =>
@@ -2572,6 +2575,20 @@ export function createApi(options: ApiOptions = {}) {
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/testflight/${encodeURIComponent(id)}`,
         input,
       ),
+    // Insights of an app (docs/api/insights.md): computed on read from stored data, no store is asked. Reads need `analytics.read` (the store page
+    // checks `listing.read`); dismissing and restoring a card are Kiln's own record and need `aso.write`.
+    appInsights: (workspaceId: string, appId: string, includeHidden = false) =>
+      request<InsightsView>('GET', `${insightsPath(workspaceId, appId)}${includeHidden ? '?includeHidden=1' : ''}`),
+    appInsightsCount: (workspaceId: string, appId: string) =>
+      request<{ count: number }>('GET', `${insightsPath(workspaceId, appId)}/count`),
+    appInsightsCountries: (workspaceId: string, appId: string) =>
+      request<InsightsCountriesView>('GET', `${insightsPath(workspaceId, appId)}/countries`),
+    appListingChecks: (workspaceId: string, appId: string) =>
+      request<ListingChecksView>('GET', `${insightsPath(workspaceId, appId)}/listing-checks`),
+    dismissInsight: (workspaceId: string, appId: string, cardId: string) =>
+      request<{ ok: true }>('POST', `${insightsPath(workspaceId, appId)}/cards/${encodeURIComponent(cardId)}/dismiss`),
+    restoreInsights: (workspaceId: string, appId: string, cardId?: string) =>
+      request<{ restored: number }>('POST', `${insightsPath(workspaceId, appId)}/restore`, cardId ? { cardId } : {}),
     // Store experiments and custom product pages (docs/api/experiments.md). Reads and the sync never change a store; notes are the manual tracker.
     appExperiments: (workspaceId: string, appId: string) =>
       request<ExperimentsView>(

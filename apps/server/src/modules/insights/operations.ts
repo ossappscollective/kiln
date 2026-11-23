@@ -99,6 +99,46 @@ export const insightsOperations: Draft[] = [
     },
   },
   {
+    id: 'getAppListingChecks',
+    method: 'get',
+    path: `${W}/apps/{appId}/insights/listing-checks`,
+    tags: ['insights'],
+    summary: 'Checks of the live store page of an app, per locale: a score, the findings and a rewritten text where one is safe',
+    description:
+      'Computed on read from the stored copy of the live store page (field lengths against the store limits, wasted keyword space, a subtitle that repeats the name, untranslated text, missing screenshots). `unavailable` is `no_listing` when the live page was never read. A finding has `code` and `params` for the sentence, a `severity` (`problem`, `warning`, `tip`) and, only for some, `fix` (the field and the rewritten text). Nothing is sent to a store.',
+    risk: 'read',
+    access: { action: 'listing.read' },
+    appScope: { kind: 'param', name: 'appId' },
+    responses: {
+      '200': {
+        description: 'The score and the findings per locale.',
+        schema: z.object({
+          appId,
+          store: z.enum(['app_store', 'google_play']),
+          unavailable: z.enum(['no_listing']).nullable(),
+          score: z.number().nullable(),
+          issueCount: z.number().int(),
+          locales: z.array(
+            z.object({
+              locale: z.string(),
+              score: z.number(),
+              issues: z.array(
+                z.object({
+                  id: z.string(),
+                  code: z.string(),
+                  field: z.string().nullable(),
+                  severity: z.enum(['problem', 'warning', 'tip']),
+                  params: z.record(z.string(), z.union([z.string(), z.number()])),
+                  fix: z.object({ field: z.string(), value: z.string() }).nullable(),
+                }),
+              ),
+            }),
+          ),
+        }),
+      },
+    },
+  },
+  {
     id: 'dismissAppInsight',
     method: 'post',
     path: `${W}/apps/{appId}/insights/cards/{cardId}/dismiss`,

@@ -321,17 +321,20 @@ test('a page offers a switch only for the views the role may open, and only when
   );
   assert.deepEqual(
     viewsFor('insights', all).map((v) => v.id),
-    ['overview', 'keywords', 'terms', 'experiments'],
+    ['overview', 'highlights', 'countries', 'keywords', 'terms', 'experiments'],
   );
   assert.deepEqual(
     viewsFor('insights', all, { androidInScope: false }).map((v) => v.id),
-    ['overview', 'keywords', 'experiments'],
+    ['overview', 'highlights', 'countries', 'keywords', 'experiments'],
   );
-  // Experiments need the ASO right, like Keywords: a role with analytics only sees no switch.
+  // Experiments need the ASO right, like Keywords: a role with analytics only sees Overview, Highlights and Countries.
   assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=experiments'), 'experiments');
+  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=highlights'), 'highlights');
+  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=countries'), 'countries');
+  assert.equal(withView('#/portfolio/a1/insights?platform=ios', 'insights', 'highlights'), '#/portfolio/a1/insights?platform=ios&view=highlights');
   assert.deepEqual(
-    viewsFor('insights', (a) => a === 'analytics.read'),
-    [],
+    viewsFor('insights', (a) => a === 'analytics.read').map((v) => v.id),
+    ['overview', 'highlights', 'countries'],
   );
   assert.deepEqual(
     viewsFor('listing', all).map((v) => v.id),

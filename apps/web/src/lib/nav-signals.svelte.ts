@@ -19,6 +19,9 @@ let list = $state<AppSummary[] | null>(null);
 let attention = $state<number | null>(null);
 let unanswered = $state<number | null>(null);
 let unansweredByApp = $state<Record<string, number | undefined>>({});
+let insightsByApp = $state<Record<string, number | undefined>>({});
+const insightsReadAt = new Map<string, number>();
+const insightsInflight = new Set<string>();
 let localesByApp = $state<Record<string, string[]>>({});
 let releasesByApp = $state<Record<string, ReleaseSummary[] | undefined>>({});
 let chordPending = $state(false);
@@ -32,6 +35,9 @@ function scope(workspaceId: string): void {
   attention = null;
   unanswered = null;
   unansweredByApp = {};
+  insightsByApp = {};
+  insightsReadAt.clear();
+  insightsInflight.clear();
   localesByApp = {};
   releasesByApp = {};
   loadedAt = 0;
@@ -96,6 +102,43 @@ export const navSignals = {
     const before = untrack(() => unansweredByApp);
     if (Object.keys(counts).every((id) => before[id] === counts[id])) return;
     unansweredByApp = { ...before, ...counts };
+  },
+
+  /** The Insights cards of each app record that are not dismissed (the badge of the Insights entry). */
+  insightsByAppOf(workspaceId: string): Record<string, number | undefined> {
+    return workspaceId === workspace ? insightsByApp : {};
+  },
+  /** The Insights page knows the number (after a read, a dismissal or an undo): it replaces what the badge had. */
+  setInsightsCount(workspaceId: string, appId: string, count: number, now = Date.now()): void {
+    scope(workspaceId);
+    const before = untrack(() => insightsByApp);
+    insightsReadAt.set(appId, now);
+    if (before[appId] !== count) insightsByApp = { ...before, [appId]: count };
+  },
+  /**
+   * Reads the number for each record that has none or an old one (older than `maxAgeMs`), one request per record at a time. There is no timer:
+   * this runs when an app is opened, so the cost is one cheap request per record per few minutes. A failed read leaves what there was.
+   */
+  async ensureInsightsCounts(api: Api, workspaceId: string, appIds: readonly string[], maxAgeMs = 5 * 60_000): Promise<void> {
+    scope(workspaceId);
+    const now = Date.now();
+    const due = appIds.filter((id) => {
+      const at = insightsReadAt.get(id);
+      return !insightsInflight.has(id) && (at === undefined || now - at >= maxAgeMs || now < at);
+    });
+    for (const id of due) insightsInflight.add(id);
+    await Promise.all(
+      due.map(async (id) => {
+        try {
+          const read = await api.appInsightsCount(workspaceId, id);
+          if (workspace === workspaceId) navSignals.setInsightsCount(workspaceId, id, read.count);
+        } catch {
+          // No badge is better than a wrong one: a failed read changes nothing.
+        } finally {
+          insightsInflight.delete(id);
+        }
+      }),
+    );
   },
 
   /** A page that has read the locales of an app records them, so the header picker can offer them. */

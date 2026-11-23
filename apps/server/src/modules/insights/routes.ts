@@ -6,7 +6,7 @@ import { type AppEnv, parseBody } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
-import { countriesFor, dismissCard, insightsFor, restoreCards, visibleCount } from './service.ts';
+import { countriesFor, dismissCard, insightsFor, listingChecksFor, restoreCards, visibleCount } from './service.ts';
 
 /**
  * Insights of an app (docs/api/insights.md, docs/adr/0051-insights.md). Reads compute the cards from stored data and ask no store; the only
@@ -52,6 +52,12 @@ export function insightsRoutes(ctx: InsightsRoutesContext) {
     const o = await open(c);
     if (!o) return c.json({ error: 'not_found' }, 404);
     return c.json(await countriesFor(db, o));
+  });
+
+  routes.get(`${base}/listing-checks`, needs('listing.read'), async (c) => {
+    const o = await open(c);
+    if (!o) return c.json({ error: 'not_found' }, 404);
+    return c.json(await listingChecksFor(db, o));
   });
 
   routes.post(`${base}/cards/:cardId/dismiss`, needs('aso.write'), async (c) => {

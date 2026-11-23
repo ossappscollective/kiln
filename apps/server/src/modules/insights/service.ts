@@ -265,5 +265,27 @@ export async function countriesFor(
   };
 }
 
+export type ListingChecksView = {
+  appId: string;
+  store: ListingStore;
+  /** Why there are no checks, or null: `no_listing` (the live page was never read). */
+  unavailable: 'no_listing' | null;
+  score: number | null;
+  issueCount: number;
+  locales: ReturnType<typeof checkListing>['locales'];
+};
+
+/** The checks of the live store page of the app, per locale (the same ones the `listing` card counts). Needs `listing.read`: the route checks. */
+export async function listingChecksFor(
+  sql: Sql,
+  ctx: { workspaceId: string; app: ManagedApp; role: Role; now: number },
+): Promise<ListingChecksView> {
+  const { input } = await collectInputs(sql, ctx);
+  const store = input.store;
+  if (!input.listing) return { appId: ctx.app.id, store, unavailable: 'no_listing', score: null, issueCount: 0, locales: [] };
+  const res = checkListing({ store, locales: input.listing.locales, baseLocale: input.listing.baseLocale });
+  return { appId: ctx.app.id, store, unavailable: null, score: res.score, issueCount: res.issueCount, locales: res.locales };
+}
+
 export type { CoverageLanguage };
 export { checkListing };

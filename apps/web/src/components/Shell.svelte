@@ -15,6 +15,7 @@
   import { platformStatusLines } from '../lib/app-status.ts';
   import { t } from '../lib/i18n/t.ts';
   import { appNavCounts, badgeText } from '../lib/nav-badges.ts';
+  import { navBadgeCount } from '../lib/insights/insights.ts';
   import { lineFor } from '../lib/pending.ts';
   import { pendingStore } from '../lib/pending-store.svelte.ts';
   import { roleLabel } from '../lib/role-label.ts';
@@ -90,12 +91,13 @@
   const unanswered = $derived(workspace && can(workspace.role, 'reviews.read') ? navSignals.unansweredOf(workspaceId) : null);
   /** The badges of the open app's sidebar: unanswered reviews, and a release left unfinished. Nothing is read for this. */
   const appCounts = $derived.by(() => {
-    if (!appAddr || !canApps) return { reviews: null, releases: null, pending: null, pendingBlocking: false };
+    if (!appAddr || !canApps) return { reviews: null, releases: null, pending: null, pendingBlocking: false, insights: null };
     const apps = navSignals.appsOf(workspaceId);
     const group = apps ? groupApps(apps).filter((g) => g.members.some((m) => m.id === appAddr.id))[0] : undefined;
     const ids = group ? group.members.map((m) => m.id) : [appAddr.id];
     const line = lineFor(pendingStore.summary(workspaceId), ids, pendingStore.viewsOf(ids));
     return {
+      insights: can(workspace?.role ?? 'viewer', 'analytics.read') ? navBadgeCount(ids, navSignals.insightsByAppOf(workspaceId)) : null,
       ...appNavCounts({
         memberIds: ids,
         unanswered: can(workspace?.role ?? 'viewer', 'reviews.read') ? navSignals.unansweredByAppOf(workspaceId) : {},
@@ -126,6 +128,17 @@
     const space = workspaceId;
     void appAddr?.id;
     if (space !== '' && workspace && can(workspace.role, 'listing.read')) untrack(() => void pendingStore.loadSummary(api, space));
+  });
+  // The badge of the Insights entry: one cheap read per record of the open app, when it is opened (and again only when the number is older than
+  // five minutes); the Insights page keeps it exact after a dismissal. No timer.
+  $effect(() => {
+    const space = workspaceId;
+    const id = appAddr?.id;
+    if (space === '' || !id || !workspace || !can(workspace.role, 'analytics.read')) return;
+    const apps = navSignals.appsOf(space);
+    const group = apps ? groupApps(apps).filter((g) => g.members.some((m) => m.id === id))[0] : undefined;
+    const ids = group ? group.members.map((m) => m.id) : [id];
+    untrack(() => void navSignals.ensureInsightsCounts(api, space, ids));
   });
   // The alert bell's count and newest alerts, read while a workspace is open (lib/alert-store.svelte.ts).
   $effect(() => {
