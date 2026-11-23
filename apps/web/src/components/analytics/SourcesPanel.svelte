@@ -25,6 +25,7 @@
   import Disclosure from '../ui/Disclosure.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import EnableAppleDialog from './EnableAppleDialog.svelte';
+  import SourceGuide from './SourceGuide.svelte';
   import ImportReportDialog from './ImportReportDialog.svelte';
   import TurnOnAnalytics from './TurnOnAnalytics.svelte';
 
@@ -135,6 +136,9 @@
             </div>
             <p class="message">{row.message}</p>
             {#if row.error}<p class="error-line"><strong>{t('analytics:sources.lastReadFailed')}</strong> {row.error}</p>{/if}
+            {#if row.guide !== null || (row.testable && canManage && (row.state === 'error' || row.state === 'needs_setup'))}
+              <SourceGuide {api} {workspaceId} app={g.app} {role} source={row.source} kind={row.guide} status={g.status} {onchanged} />
+            {/if}
             {#if row.action || row.alternatives.length > 0}
               <div class="actions">
                 {#each row.action ? [row.action, ...row.alternatives] : row.alternatives as action, i (action.label)}

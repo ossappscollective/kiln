@@ -3,6 +3,7 @@ import { platformSupports, supports } from '@kiln/core';
 import { formatList } from '../i18n/format.ts';
 import { k, t } from '../i18n/t.ts';
 import { timeAgo } from '../format.ts';
+import { type GuideKind, guideKindOf, isTestable } from './guide.ts';
 import {
   type AnalyticsOverview,
   type AnalyticsSeries,
@@ -828,6 +829,12 @@ export type SourceRow = {
   alternatives: StepAction[];
   range: string | null;
   lastRead: string;
+  /** The setup code, else the code of the last failed read: what the guide below the row switches on. */
+  code: string | null;
+  /** The setup guide that explains the cause with real links, or null. It replaces a next step that has no button. */
+  guide: GuideKind | null;
+  /** "Test access" can check this source with one call. */
+  testable: boolean;
 };
 
 const usable = (a: StepAction | null): a is StepAction =>
@@ -852,7 +859,10 @@ export function sourceRows(status: AnalyticsStatus, now: number): SourceRow[] {
     else message = t('analytics:sourceRow.noData');
     const stepFor = (step: string | undefined): StepAction | null =>
       step ? stepAction(step) : null;
-    let action = stepFor(setup?.nextStep);
+    const code = setup?.code ?? s.lastError?.code ?? null;
+    const guide = guideKindOf(code);
+    // A guide with real links replaces a next step that is only words ("Grant the Play permission").
+    let action = guide !== null && guide !== 'play_bucket_id' ? null : stepFor(setup?.nextStep);
     if (!action && state === 'error') action = stepAction('sync_now');
     const alternatives = (setup?.alternatives ?? [])
       .map((a) => stepAction(a))
@@ -876,6 +886,9 @@ export function sourceRows(status: AnalyticsStatus, now: number): SourceRow[] {
               to: formatDay(s.lastDay, true),
             })
           : null,
+      code,
+      guide,
+      testable: isTestable(s.source) && state !== 'ready' && state !== 'off',
       lastRead:
         s.lastOkAt === null
           ? s.lastAttemptAt === null

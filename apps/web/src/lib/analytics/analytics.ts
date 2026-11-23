@@ -125,8 +125,20 @@ export type AnalyticsStatus = {
       lastCheckedAt: number | null;
     }[];
     vendorNumberSet: boolean;
+    /** Whose number is used: this app's Apple credential (one Apple team) or the workspace default. */
+    vendorNumberSource?: 'credential' | 'workspace' | null;
+    vendorNumber?: string | null;
   } | null;
-  google: { bucketIdSet: boolean; bucketSource?: 'app' | 'account' | 'workspace' | null } | null;
+  google: {
+    bucketIdSet: boolean;
+    bucketSource?: 'app' | 'account' | 'workspace' | null;
+    /** `pubsite_prod_rev_<number>` the app reads. */
+    bucketId?: string | null;
+    /** The workspace holds several Play credentials. */
+    severalPlayAccounts?: boolean;
+    /** The address to invite in Play Console (the service account's client_email; not a secret). */
+    serviceAccountEmail?: string | null;
+  } | null;
   sources: SourceStatus[];
   runs: AnalyticsRun[];
 };
@@ -715,6 +727,7 @@ const errorKeys: Record<AnalyticsErrorCode, string> = {
   store_not_found: k('analytics:error.storeNotFound'),
   rate_limited: k('analytics:error.rateLimited'),
   store_unavailable: k('analytics:error.storeUnavailable'),
+  store_rejected: k('analytics:error.storeRejected'),
   timeout: k('analytics:error.timeout'),
   credential_unreadable: k('analytics:error.credentialUnreadable'),
   credential_not_found: k('analytics:error.credentialNotFound'),
@@ -794,6 +807,9 @@ const setupKeys: Record<AnalyticsSetupCode, string> = {
   request_stopped: k('analytics:setup.requestStopped'),
   vendor_number_missing: k('analytics:setup.vendorNumberMissing'),
   sales_forbidden: k('analytics:setup.salesForbidden'),
+  vendor_number_invalid: k('analytics:setup.vendorNumberInvalid'),
+  bucket_not_found: k('analytics:setup.bucketNotFound'),
+  package_not_in_bucket: k('analytics:setup.packageNotInBucket'),
   play_sales_forbidden: k('analytics:setup.playSalesForbidden'),
   bucket_id_missing: k('analytics:setup.bucketIdMissing'),
   bucket_forbidden: k('analytics:setup.bucketForbidden'),

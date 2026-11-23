@@ -2397,6 +2397,20 @@ export function createApi(options: ApiOptions = {}) {
         `${analyticsPath(workspaceId, appId)}/play-bucket/test`,
         bucket !== undefined ? { bucket } : undefined,
       ),
+    // The Apple vendor number of the app's App Store Connect credential (one Apple team). `null` clears it. Needs `analytics.manage`.
+    setAppleVendorNumber: (workspaceId: string, appId: string, vendorNumber: string | null) =>
+      request<{ vendorNumber: string | null }>(
+        'PUT',
+        `${analyticsPath(workspaceId, appId)}/apple-vendor`,
+        { vendorNumber },
+      ),
+    // "Test access": ONE cheap call for one source, answered with a classified code (never the store's text). Needs `analytics.manage`.
+    testAnalyticsAccess: (workspaceId: string, appId: string, source: string) =>
+      request<{ result: { source: string; ok: boolean; code: string; message: string; serviceAccountEmail?: string } }>(
+        'POST',
+        `${analyticsPath(workspaceId, appId)}/access-test`,
+        { source },
+      ),
     previewAppleEnable: (workspaceId: string, appId: string, backfill = false) =>
       request<EnablePreview>(
         'GET',
