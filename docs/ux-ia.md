@@ -25,6 +25,12 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   and the entries as icons with their count as a small badge. Every entry keeps its label for assistive technology (visually hidden) and a `title`
   tooltip; `aria-current` styling is untouched. The choice is stored per person in `localStorage` (`kiln.sidebar.collapsed.<userId>`, in try/catch;
   `lib/sidebar-state.ts`); the width animates unless `prefers-reduced-motion`. Under 900px the panel stays the drawer and is always whole.
+- **Section rail (2026-11-23)**: `components/ui/SectionRail.svelte` (+ `lib/section-rail.ts`) is the Settings pattern as a reusable part: grouped entries
+  on the left (each a real link, optional count), one section at a time on the right, kept in the address as `?section=` (an old `?view=` still resolves:
+  `resolveRailSection` takes aliases). Arrow keys, Home and End move focus along the rail; under 48rem it is a strip of tabs that scrolls sideways. The
+  app **Builds** page uses it (`lib/builds-sections.ts`): Builds, Test builds | EAS submissions (count), EAS configuration, EAS updates (only for an app
+  linked to Expo / with a repository) | Workflows. `?view=builds|tests|workflows` open the same sections. EAS submissions is its own section
+  (`EasSubmissionsPanel`), no longer under Test builds.
 - **Views inside a page** (`ViewSwitch`, `?view=` in the address, platform, version and locale stay): Store listing = Text, Graphics;
   Insights = Overview, Highlights (the Insights cards, with the count badge on the Insights entry), Countries (downloads by main language against the languages of the store page), Keywords, Search terms (phase 2, see 0a), Experiments (`?view=experiments`, every platform: Apple tests and custom product pages, Google link-out and the manual tracker); Builds = Builds,
   Workflows, Test builds; Reviews = Reviews, TestFlight (`?view=testflight`, `reviews.read`, only when an Apple app is in scope: beta feedback and crashes).
