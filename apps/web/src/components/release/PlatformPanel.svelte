@@ -17,6 +17,7 @@
   import Timeline from '../portfolio/Timeline.svelte';
   import AppIcon from '../ui/AppIcon.svelte';
   import Icon from '../ui/Icon.svelte';
+  import type { Snippet } from 'svelte';
   import T from '../ui/T.svelte';
   import RolloutObserved from './RolloutObserved.svelte';
 import { platformMeta, supports } from '@kiln/core';
@@ -28,6 +29,7 @@ import { platformMeta, supports } from '@kiln/core';
     now,
     plan = null,
     primary = false,
+    extra,
   }: {
     app: AppSummary;
     releases: ReleaseSummary[];
@@ -36,6 +38,8 @@ import { platformMeta, supports } from '@kiln/core';
     plan?: PlanSummary | null | undefined;
     /** The app the page was opened for; the other platform is marked as a neighbour. */
     primary?: boolean | undefined;
+    /** Drawn under the store state of each release (the EAS build and submission steps of an Expo-linked app). */
+    extra?: Snippet<[ReleaseSummary]> | undefined;
   } = $props();
 
   const uid = $props.id();
@@ -107,6 +111,7 @@ import { platformMeta, supports } from '@kiln/core';
           </div>
         </dl>
         <RolloutObserved {release} />
+        {@render extra?.(release)}
         <p class="next"><span class="eyebrow">{t('release:panel.next')}</span> <span class="next-text">{next.text}</span></p>
       </div>
     {/each}

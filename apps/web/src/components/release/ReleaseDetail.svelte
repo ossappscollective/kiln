@@ -34,6 +34,7 @@
   import NewPlan from './NewPlan.svelte';
   import PlanOverview from './PlanOverview.svelte';
   import PlatformPanel from './PlatformPanel.svelte';
+  import ReleaseEasSteps from './ReleaseEasSteps.svelte';
   import ReleaseNotes from './ReleaseNotes.svelte';
   import Rollout from './Rollout.svelte';
 
@@ -265,7 +266,9 @@
 
       <div class="columns">
         {#each ordered as a (a.id)}
-          <PlatformPanel app={a} version={version} releases={releasesFor(a)} {now} plan={planFor(a)} primary={a.id === appId} />
+          <PlatformPanel app={a} version={version} releases={releasesFor(a)} {now} plan={planFor(a)} primary={a.id === appId}>
+            {#snippet extra(release)}<ReleaseEasSteps {api} {workspaceId} {role} app={a} {release} />{/snippet}
+          </PlatformPanel>
         {/each}
       </div>
       {#if siblings.length === 0}
