@@ -321,12 +321,18 @@ test('a page offers a switch only for the views the role may open, and only when
   );
   assert.deepEqual(
     viewsFor('insights', all).map((v) => v.id),
-    ['overview', 'highlights', 'countries', 'ratings', 'timeline', 'keywords', 'terms', 'experiments'],
+    ['overview', 'highlights', 'countries', 'ratings', 'timeline', 'keywords', 'terms', 'ads', 'experiments'],
   );
   assert.deepEqual(
     viewsFor('insights', all, { androidInScope: false }).map((v) => v.id),
-    ['overview', 'highlights', 'countries', 'ratings', 'timeline', 'keywords', 'experiments'],
+    ['overview', 'highlights', 'countries', 'ratings', 'timeline', 'keywords', 'ads', 'experiments'],
   );
+  // Apple Ads exists for App Store records only.
+  assert.deepEqual(
+    viewsFor('insights', all, { appleInScope: false }).map((v) => v.id),
+    ['overview', 'highlights', 'countries', 'ratings', 'timeline', 'keywords', 'terms', 'experiments'],
+  );
+  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=ads'), 'ads');
   // Experiments need the ASO right, like Keywords: a role with analytics only sees Overview, Highlights and Countries.
   assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=experiments'), 'experiments');
   assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=highlights'), 'highlights');

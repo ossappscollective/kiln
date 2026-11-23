@@ -88,6 +88,15 @@ import type {
   ToRepoResult,
   UploadQuery,
 } from './assets/sync.ts';
+import type {
+  AdsAccount,
+  AdsCampaignsResponse,
+  AdsOverviewResponse,
+  AdsState,
+  AdsTermsResponse,
+  AdsLinkView,
+  SetAdsLinkBody,
+} from './ads/ads.ts';
 import type { ExpoDetection, ExpoLinkView, SetExpoLinkBody } from './eas/eas.ts';
 import type { IntegrationLinks, RevenueCatPlan } from './connect/connect.ts';
 import type { EasStatusView } from './eas/eas-status.ts';
@@ -669,6 +678,8 @@ export function createApi(options: ApiOptions = {}) {
   const workspace = (id: string) => `/api/workspaces/${encodeURIComponent(id)}`;
   const asoPath = (workspaceId: string, appId: string) =>
     `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/aso`;
+  const adsPath = (workspaceId: string, appId: string) =>
+    `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ads`;
   const insightsPath = (workspaceId: string, appId: string) =>
     `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/insights`;
   const analyticsPath = (workspaceId: string, appId: string) =>
@@ -2607,6 +2618,20 @@ export function createApi(options: ApiOptions = {}) {
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo/detect`,
       ),
+    // Apple Ads, read only (docs/api/apple-ads.md). The state, the views and the sync need `apps.read`, `aso.read` and `apps.sync`; linking needs `apps.write`.
+    adsState: (workspaceId: string, appId: string) => request<AdsState>('GET', `${adsPath(workspaceId, appId)}`),
+    adsAccounts: (workspaceId: string, appId: string, credentialId: string) =>
+      request<{ accounts: AdsAccount[] }>('GET', `${adsPath(workspaceId, appId)}/accounts?credentialId=${encodeURIComponent(credentialId)}`),
+    setAdsLink: (workspaceId: string, appId: string, body: SetAdsLinkBody) => request<{ link: AdsLinkView }>('PUT', adsPath(workspaceId, appId), body),
+    removeAdsLink: (workspaceId: string, appId: string) => request<void>('DELETE', adsPath(workspaceId, appId)),
+    syncAds: (workspaceId: string, appId: string) =>
+      request<{ queued: boolean; jobId?: string; reason?: string }>('POST', `${adsPath(workspaceId, appId)}/sync`, {}),
+    adsOverview: (workspaceId: string, appId: string, query = '') =>
+      request<AdsOverviewResponse>('GET', `${adsPath(workspaceId, appId)}/overview${query === '' ? '' : `?${query}`}`),
+    adsCampaigns: (workspaceId: string, appId: string, query = '') =>
+      request<AdsCampaignsResponse>('GET', `${adsPath(workspaceId, appId)}/campaigns${query === '' ? '' : `?${query}`}`),
+    adsTerms: (workspaceId: string, appId: string, query = '') =>
+      request<AdsTermsResponse>('GET', `${adsPath(workspaceId, appId)}/terms${query === '' ? '' : `?${query}`}`),
     // EAS Workflows as a CI provider (docs/api/eas-workflows.md). Starting needs `ci.dispatch`; the runs are read with `apps.read`;
     // `refresh` asks Expo and needs `apps.sync`.
     easWorkflowRuns: (workspaceId: string, appId: string) =>

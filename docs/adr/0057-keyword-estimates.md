@@ -53,7 +53,7 @@ your listing. Difficulty ignores paid ads, relevance of your app and the languag
 
 ## Next
 
-- Import the Apple Ads popularity score (0 to 100) where the team has an Apple Ads account (the separate "Apple Ads" backlog item): it would be an `own_data`-style input labelled as Apple's, beside the estimate and never merged into it.
+- Done in [ADR 0058](0058-apple-ads.md): search term impressions from the team's own Apple Ads campaigns are an `ads_data` input, and Apple's own 0 to 100 popularity (the Platform API exposes it) is shown beside the estimate in the keyword detail, never merged into it.
 - Google Play: nothing public exists; the Play Console search terms file stays the only input. App Store Connect search term data, if the analytics reports expose it, would be the Apple counterpart of the own signal.
 - Hints of prefixes of the term (a second request per term) to separate "popular" from "long tail".
 

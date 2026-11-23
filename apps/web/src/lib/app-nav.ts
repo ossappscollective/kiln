@@ -123,6 +123,7 @@ export const sectionViews: Readonly<Partial<Record<AppSection, readonly SectionV
     { id: 'timeline', labelKey: k('app:view.timeline'), requires: 'analytics.read' },
     { id: 'keywords', labelKey: k('app:view.keywords'), requires: 'aso.read' },
     { id: 'terms', labelKey: k('app:view.searchTerms'), requires: 'aso.read', androidOnly: true },
+    { id: 'ads', labelKey: k('app:view.ads'), requires: 'aso.read', appleOnly: true },
     { id: 'experiments', labelKey: k('app:view.experiments'), requires: 'aso.read' },
   ],
   builds: [
@@ -166,12 +167,13 @@ export function viewsFor(
  */
 export function insightsViewOf(
   asked: string | null | undefined,
-): 'overview' | 'highlights' | 'countries' | 'ratings' | 'timeline' | 'keywords' | 'terms' | 'experiments' {
+): 'overview' | 'highlights' | 'countries' | 'ratings' | 'timeline' | 'keywords' | 'terms' | 'ads' | 'experiments' {
   if (asked === 'highlights') return 'highlights';
   if (asked === 'ratings') return 'ratings';
   if (asked === 'timeline') return 'timeline';
   if (asked === 'countries') return 'countries';
   if (asked === 'terms') return 'terms';
+  if (asked === 'ads') return 'ads';
   if (asked === 'experiments') return 'experiments';
   return asked === 'aso' || isAsoView(asked) ? 'keywords' : 'overview';
 }

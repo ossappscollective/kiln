@@ -1,4 +1,4 @@
-import { type Platform, type Role, can } from '@kiln/core';
+import { type Platform, type Role, can, listingStoreOf } from '@kiln/core';
 import type { Api } from './api.ts';
 import { lastReadAt } from './analytics/view.ts';
 import { stateOf } from './analytics/analytics.ts';
@@ -10,7 +10,7 @@ import type { Reading, SourceInput, SyncKind } from './sync-sources.ts';
  * status (our database): nothing here reaches a store. A source the role may not read, that does not apply to the record, or whose read failed
  * (the request, not the source) simply has no row. Pure of the DOM; the api is injected.
  */
-type ReadApi = Pick<Api, 'appReviewsSummary' | 'easStatus' | 'analyticsStatus' | 'appProducts' | 'appTestflight'>;
+type ReadApi = Pick<Api, 'appReviewsSummary' | 'easStatus' | 'analyticsStatus' | 'appProducts' | 'appTestflight' | 'adsState'>;
 type AppLike = { id: string; platform: Platform; lastSyncedAt: number | null; lastSyncAttemptAt: number | null; lastSyncError: string | null };
 
 const attempt = (lastReadAt: number | null, lastAttemptAt: number | null, error: string | null | undefined): Reading => ({
@@ -52,6 +52,10 @@ export async function loadReadings(
         const s = (await api.appProducts(workspaceId, app.id)).sync;
         // No stored status yet is a source never read (the first Sync of the page reads it), not a source that is absent.
         add(s ? attempt(s.lastSyncedAt, s.lastAttemptAt, s.lastError) : { lastReadAt: null, lastAttemptAt: null, failed: false });
+      } else if (kind === 'ads' && listingStoreOf(app.platform) === 'app_store' && can(role, 'apps.read')) {
+        // Only a linked app has a reading: an unlinked one has nothing to sync, so it has no row.
+        const s = await api.adsState(workspaceId, app.id);
+        if (s.link) add(attempt(s.sync?.lastSuccessAt ?? null, s.sync?.lastAttemptAt ?? null, s.sync?.lastError));
       } else if (kind === 'testflight' && app.platform === 'ios' && can(role, 'reviews.read')) {
         const s = (await api.appTestflight(workspaceId, app.id, 'limit=1')).sync;
         add(s ? attempt(s.lastSyncedAt, s.lastAttemptAt, s.lastError) : { lastReadAt: null, lastAttemptAt: null, failed: false });

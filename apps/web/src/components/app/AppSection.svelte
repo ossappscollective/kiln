@@ -46,6 +46,7 @@
   import ReviewsTab from '../reviews/ReviewsTab.svelte';
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
   import AiSuggestions from '../ai/AiSuggestions.svelte';
+  import AdsTab from '../ads/AdsTab.svelte';
   import AsoSection from '../aso/AsoSection.svelte';
   import ExperimentsTab from '../experiments/ExperimentsTab.svelte';
   import TestflightTab from '../testflight/TestflightTab.svelte';
@@ -293,6 +294,8 @@
   {@render switcher('insights')}
   {#if view === 'keywords' || view === 'terms'}
     <AsoSection {api} {workspaceId} {role} {members} {releases} {now} />
+  {:else if view === 'ads'}
+    <AdsTab {api} {workspaceId} {role} {members} {now} refreshKey={syncRuns} />
   {:else if view === 'experiments'}
     {@render perPlatform(experiments)}
   {:else if view === 'highlights'}

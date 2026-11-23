@@ -11,7 +11,7 @@ import { type RunState, type SourceInput, type SyncKind, SYNC_KINDS, sourceState
  */
 
 /** What a page syncs. `listing` is the fallback for the overview, the listing, releases and every page that has no source of its own. */
-export type SyncPage = 'listing' | 'reviews' | 'analytics' | 'health' | 'timeline' | 'products' | 'builds';
+export type SyncPage = 'listing' | 'reviews' | 'analytics' | 'health' | 'timeline' | 'products' | 'builds' | 'ads';
 
 export const PAGE_KINDS: Readonly<Record<SyncPage, readonly SyncKind[]>> = {
   listing: ['app'],
@@ -23,11 +23,14 @@ export const PAGE_KINDS: Readonly<Record<SyncPage, readonly SyncKind[]>> = {
   timeline: ['app', 'reviews', 'analytics'],
   products: ['products'],
   builds: ['eas', 'testflight'],
+  /** Insights, Ads: the Apple Ads reports of the linked ad account (docs/adr/0058-apple-ads.md). */
+  ads: ['ads'],
 };
 
 export function syncPageFor(section: AppSection, view = ''): SyncPage {
   if (section === 'insights' && view === 'ratings') return 'health';
   if (section === 'insights' && view === 'timeline') return 'timeline';
+  if (section === 'insights' && view === 'ads') return 'ads';
   switch (section) {
     case 'reviews':
       return 'reviews';
@@ -52,6 +55,7 @@ export const FRESH_MS: Readonly<Record<SyncKind, number>> = {
   analytics: 6 * 3_600_000,
   products: 30 * 60_000,
   testflight: 30 * 60_000,
+  ads: 60 * 60_000,
 };
 
 /** The right a role needs to run each kind (the server checks the same per kind: docs/api/apps.md). */
@@ -62,6 +66,7 @@ export const KIND_ACTION: Readonly<Record<SyncKind, Action>> = {
   analytics: 'analytics.manage',
   products: 'apps.sync',
   testflight: 'apps.sync',
+  ads: 'apps.sync',
 };
 export const kindAllowed = (role: Role, kind: SyncKind): boolean => can(role, KIND_ACTION[kind]);
 
@@ -202,6 +207,7 @@ const LABELS: Record<SyncPage, string> = {
   timeline: k('app:syncButton.label.timeline'),
   products: k('app:syncButton.label.products'),
   builds: k('app:syncButton.label.builds'),
+  ads: k('app:syncButton.label.ads'),
 };
 export const RETRY_KEY = k('app:syncButton.retry');
 export function mainLabelKey(plan: SyncPlan): { key: string; failed: number | null } {

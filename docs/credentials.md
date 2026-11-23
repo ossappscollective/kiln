@@ -184,6 +184,10 @@ permissions is **unverified** (see the ADR); if it offers only a whole domain, c
 with it, but a leaked secret key is high value, so keep it private and revoke it when someone who knew it leaves. Docs:
 https://www.revenuecat.com/docs/projects/authentication
 
+## Apple Ads API user key
+
+Apple Ads ([api/apple-ads](api/apple-ads.md), [ADR 0058](adr/0058-apple-ads.md)) needs a credential of the kind **Apple Ads API user key** (`apple_ads`): the **client ID**, **team ID** and **key ID** Apple Ads shows after you save a public key, and the **private key** (a P-256 PEM file you make yourself with OpenSSL, for example `openssl ecparam -genkey -name prime256v1 -noout -out private-key.pem`). In Apple Ads an account administrator invites an **API user** with the role **API Account Read Only** (Account Settings, User Management); signed in as that user, paste the public key under Account Settings, API. Kiln signs a short-lived ES256 client secret with the private key, exchanges it for a token and reads reports; it never changes a campaign, a budget or a bid, and the read-only role means a leaked key cannot either. The private key is stored encrypted and never returned, logged or shown (the list shows only the three ids). **Test connection** lists the ad accounts the key can read. Then, in the app Settings (Integrations) or the Insights Ads tab, choose the credential, the ad account and the Apple id of the app. Apple's pages: https://developer.apple.com/documentation/apple-ads-platform-api/implementing-oauth-for-the-apple-ads-platform-api. Troubleshooting: [troubleshooting-apple-ads](troubleshooting-apple-ads.md). Which role names the console shows is **unverified**.
+
 ## Analytics (what the same credentials need)
 
 Analytics ([api/analytics](api/analytics.md)) reads numbers only. **None of this was tried against a real store; check each item with your account** ([research](research/analytics-apis.md)).

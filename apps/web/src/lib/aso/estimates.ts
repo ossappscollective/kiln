@@ -11,7 +11,7 @@ export type EstimateReason = { code: string; params: Record<string, string | num
 export type EstimateMeasure = {
   score: number | null;
   confidence: Confidence | null;
-  origin: 'own_data' | 'public_signals' | null;
+  origin: 'own_data' | 'ads_data' | 'public_signals' | null;
   reasons: EstimateReason[];
 };
 export type EstimateView = {
@@ -45,6 +45,13 @@ export type EstimateDetail = {
   estimate: EstimateView;
   trend: Array<{ day: string; popularity: number | null; difficulty: number | null }>;
   retentionDays: number;
+  /** Apple's own numbers, beside the estimate and never merged into it (docs/adr/0058-apple-ads.md); null for a Google Play keyword. */
+  appleAds?: AppleAdsDetail | null | undefined;
+};
+export type AppleAdsPopularity = { genre: string; period: string | null; popularity100: number | null; popularity5: number | null; rankInGenre: number | null; fetchedAt: number };
+export type AppleAdsDetail = {
+  campaigns: { impressions: number; taps: number; installs: number; days: number } | null;
+  popularity: AppleAdsPopularity[];
 };
 export type KeywordSuggestion = { term: string; country: string; locale: string; from: string[] };
 export type SuggestionsResponse = { appId: string; store: 'app_store' | 'google_play'; suggestions: KeywordSuggestion[] };
@@ -73,7 +80,7 @@ export function filterEstimates(rows: readonly EstimateRow[], query: string, fil
     if (q !== '' && r.term.toLowerCase().indexOf(q) === -1) return false;
     if (filter === 'estimated') return hasEstimate(r);
     if (filter === 'none') return !hasEstimate(r);
-    if (filter === 'own') return r.estimate.popularity.origin === 'own_data';
+    if (filter === 'own') return r.estimate.popularity.origin === 'own_data' || r.estimate.popularity.origin === 'ads_data';
     return true;
   });
 }
@@ -97,6 +104,13 @@ export function sortEstimates<T extends EstimateRow>(rows: readonly T[], sort: E
 /** How many of three dots are filled: the confidence without colour. 0 when there is no estimate. */
 export const confidenceDots = (c: Confidence | null): number => (c === 'high' ? 3 : c === 'medium' ? 2 : c === 'low' ? 1 : 0);
 
+/** The label of where a measure came from. */
+export const originKeys: Record<'own_data' | 'ads_data' | 'public_signals', string> = {
+  own_data: k('aso:est.origin.ownData'),
+  ads_data: k('aso:est.origin.adsData'),
+  public_signals: k('aso:est.origin.publicSignals'),
+};
+
 export const confidenceKeys: Record<Confidence, string> = {
   low: k('aso:est.confidence.low'),
   medium: k('aso:est.confidence.medium'),
@@ -110,6 +124,7 @@ export const reasonKeys: Record<string, string> = {
   hints_empty: k('aso:est.reason.hintsEmpty'),
   results_demand: k('aso:est.reason.resultsDemand'),
   own_visitors: k('aso:est.reason.ownVisitors'),
+  ads_impressions: k('aso:est.reason.adsImpressions'),
   results_strength: k('aso:est.reason.resultsStrength'),
   results_title_match: k('aso:est.reason.resultsTitleMatch'),
   results_crowding: k('aso:est.reason.resultsCrowding'),

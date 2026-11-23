@@ -17,6 +17,7 @@
   import {
     confidenceDots,
     confidenceKeys,
+    originKeys,
     type EstimateDetail,
     type EstimateFilter,
     type EstimateMeasure,
@@ -192,7 +193,7 @@
         {#each [1, 2, 3] as n (n)}<span class="dot" class:on={n <= confidenceDots(m.confidence)}></span>{/each}
       </span>
     </span>
-    {#if m.origin}<span class="origin muted">{t(m.origin === 'own_data' ? k('aso:est.origin.ownData') : k('aso:est.origin.publicSignals'))}</span>{/if}
+    {#if m.origin}<span class="origin muted">{t(originKeys[m.origin])}</span>{/if}
   {/if}
 {/snippet}
 
@@ -311,6 +312,22 @@
               {@render reasonList(selectedRow.estimate.difficulty)}
             </div>
           </div>
+          {#if detail?.appleAds && (detail.appleAds.campaigns || detail.appleAds.popularity.length > 0)}
+            <div data-testid="apple-ads-detail">
+              <h5>{t('aso:est.detail.appleAds')}</h5>
+              <p class="muted">{t('aso:est.detail.appleAdsIntro')}</p>
+              {#if detail.appleAds.campaigns}
+                <p>{t('aso:est.detail.appleAdsCampaigns', { impressions: formatNumber(detail.appleAds.campaigns.impressions), taps: formatNumber(detail.appleAds.campaigns.taps), installs: formatNumber(detail.appleAds.campaigns.installs), days: detail.appleAds.campaigns.days })}</p>
+              {/if}
+              {#if detail.appleAds.popularity.length > 0}
+                <ul class="hints">
+                  {#each detail.appleAds.popularity as p (p.genre + (p.period ?? ''))}
+                    <li>{p.popularity100 === null ? t('aso:est.detail.appleAdsNoScore', { genre: p.genre }) : t('aso:est.detail.appleAdsScore', { genre: p.genre, score: p.popularity100 })}{#if p.rankInGenre !== null} · {t('aso:est.detail.appleAdsRank', { rank: p.rankInGenre })}{/if}</li>
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+          {/if}
           {#if selectedRow.estimate.opportunity.roomFactor !== null}
             <p class="muted">{t('aso:est.detail.opportunity', { percent: Math.round(selectedRow.estimate.opportunity.roomFactor * 100) })}</p>
           {/if}

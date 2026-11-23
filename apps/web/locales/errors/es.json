@@ -371,6 +371,7 @@
   "publish.unknown.submitReached": "No se sabe si la versión se envió a revisión: la tienda no respondió y no se pudo volver a leer. Mira la app en App Store Connect y vuelve a previsualizar. No se envía nada hasta que confirmes una nueva vista previa.",
   "publish.unknown.version": "No se sabe si la versión se creó: App Store Connect no respondió de una forma que lo aclare. Mira la app en App Store Connect y vuelve a previsualizar. No se crea nada hasta que confirmes una nueva vista previa.",
   "publish.versionsChanged": "Las versiones de App Store Connect cambiaron desde la vista previa, así que no se creó nada. Revisa la nueva vista previa y confírmala.",
+  "rate.ads_many": "Demasiadas comprobaciones de Apple Ads. Inténtalo de nuevo en {{count}} de segundos.",
   "rate.ads_one": "Demasiadas comprobaciones de Apple Ads. Inténtalo de nuevo en {{count}} segundo.",
   "rate.ads_other": "Demasiadas comprobaciones de Apple Ads. Inténtalo de nuevo en {{count}} segundos.",
   "rate.ai_one": "Demasiadas solicitudes de IA. Inténtalo de nuevo en {{count}} segundo.",

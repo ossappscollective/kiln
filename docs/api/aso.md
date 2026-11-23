@@ -269,7 +269,7 @@ Nothing is stored but the signals (`aso_keyword_signals`): the estimate is recom
 | Route                                                  | Does                                                                                                                                                  |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /apps/{id}/aso/keyword-estimates`                 | `{ appId, model, store, estimates: [{ keywordId, term, country, locale, platform, estimate }] }`, one per tracked keyword.                            |
-| `GET /apps/{id}/aso/keywords/{keywordId}/estimate`     | `{ model, keyword, estimate, trend: [{ day, popularity, difficulty }], retentionDays }`; the trend uses the public signals read up to each stored day. |
+| `GET /apps/{id}/aso/keywords/{keywordId}/estimate`     | `{ model, keyword, estimate, trend: [{ day, popularity, difficulty }], retentionDays, appleAds }` (`appleAds` is `null` for Google Play; see [apple-ads](apple-ads.md)); the trend uses the public signals read up to each stored day. |
 | `GET /apps/{id}/aso/keyword-suggestions?country=&limit=` | `{ appId, store, suggestions: [{ term, country, locale, from }] }`: the stored hints minus the terms already tracked; empty for Google Play. To track one, `POST /apps/{id}/aso/keywords` (`aso.write`). |
 
 ```json
@@ -300,7 +300,8 @@ Nothing is stored but the signals (`aso_keyword_signals`): the estimate is recom
 - **Confidence**: popularity is `high` only with your own data (at least 20 visitors) plus a public signal, `medium` with two inputs, `low` with one; public signals alone are never `high`; difficulty is `medium` with ten rated results, else `low`, never `high`.
 - **Opportunity** = popularity x (100 - difficulty) / 100 x the room your rank leaves (not ranked or below 30: 1; 11 to 30: 0.8; 4 to 10: 0.4; top 3: 0.1); `null` when either estimate is missing. A place to look, not a promise.
 - **Google Play**: no public signal exists and Kiln does not read Play for this, so popularity comes only from your own search terms file (`origin: "own_data"`) and difficulty is always "no estimate".
-- `origin` is `own_data` when your own numbers took part, else `public_signals`. `signalsAt` is when the newest public signal was read.
+- **Apple Ads** ([ADR 0058](../adr/0058-apple-ads.md)): when the app is linked to an Apple Ads account, the impressions of the term in your own campaigns' search term reports are a popularity input (weight 3, `ads_impressions`, `log10(impressions + 1)/5`, params `impressions`, `taps`, `installs`, `days`), strong evidence from 100 impressions; a term absent from the reports adds nothing (never 0). App Store keywords only. Apple's own 0 to 100 popularity is **not** blended in: the detail route has it in `appleAds` ([apple-ads](apple-ads.md)).
+- `origin` is `own_data` when your own search terms file took part, else `ads_data` when Apple Ads impressions did, else `public_signals`. `signalsAt` is when the newest public signal was read.
 
 The signals are the App Store **search hints** (`search.itunes.apple.com`, one request per term and storefront and day, the storefront in the `X-Apple-Store-Front` header; a storefront Kiln has no id for is not asked) and the first search results of the rank check (public data
 already read, no extra request). Only terms the team tracks are asked; nothing is sent to an AI. **UNVERIFIED**: the hints endpoint is undocumented; its answer format, the storefront header and that its order reflects popularity are assumptions (hand-written fixtures, no real call).

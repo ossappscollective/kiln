@@ -65,6 +65,8 @@ production.
 - RevenueCat: link an app to its RevenueCat project to compare the store's products with RevenueCat's configuration, and see RevenueCat's own
   active subscriptions, active trials, MRR and 28-day revenue (all stores of the project, visible to every member) on the Products page
   ([docs/api/revenuecat.md](docs/api/revenuecat.md)).
+- Apple Ads (read only): link an App Store app to its Apple Ads account to see spend, campaigns and the search terms that led to taps and installs in Insights, Ads, and to sharpen
+  the keyword popularity estimate with your own impressions. Kiln only reads reports, with a read-only API user ([docs/api/apple-ads.md](docs/api/apple-ads.md)).
 - Test builds: find the builds a CI run produced, share a TestFlight link or a Google Play internal sharing link, and download an artifact
   ([docs/api/builds.md](docs/api/builds.md)).
 - Demo mode: `pnpm demo` seeds "Demo Studio" on simulated stores, with alerts in the inbox, so the whole app can be tried without any

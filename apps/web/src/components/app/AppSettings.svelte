@@ -22,6 +22,7 @@
   import AiContextSection from './settings/AiContextSection.svelte';
   import AnalyticsSection from './settings/AnalyticsSection.svelte';
   import DefaultsSection from './settings/DefaultsSection.svelte';
+  import AdsSettingsSection from '../ads/AdsSettingsSection.svelte';
   import ExpoProjectSection from '../eas/ExpoProjectSection.svelte';
   import RevenueCatSection from '../revenuecat/RevenueCatSection.svelte';
   import ListingSettingsSection from './settings/ListingSettingsSection.svelte';
@@ -89,7 +90,7 @@
     {:else if current === ids.listing}
       <ListingSettingsSection {api} {workspaceId} {role} {members} />
     {:else if current === ids.integrations}
-      <div class="part"><ExpoProjectSection {api} {workspaceId} {role} {members} {now} /></div><div class="part"><RevenueCatSection {api} {workspaceId} {role} {members} {now} /></div>
+      <div class="part"><ExpoProjectSection {api} {workspaceId} {role} {members} {now} /></div><div class="part"><AdsSettingsSection {api} {workspaceId} {role} {members} {now} /></div><div class="part"><RevenueCatSection {api} {workspaceId} {role} {members} {now} /></div>
       <p class="none muted">{t('app:settings.integrationsNone')}</p>
     {:else if current === ids.defaults}
       <DefaultsSection {api} {workspaceId} {role} {members} />

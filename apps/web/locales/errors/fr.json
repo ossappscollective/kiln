@@ -371,6 +371,7 @@
   "publish.unknown.submitReached": "On ne sait pas si la version a été soumise : le store n’a pas répondu et n’a pas pu être relu. Regardez l’application dans App Store Connect, puis prévisualisez à nouveau. Rien n’est soumis tant que vous ne confirmez pas un nouvel aperçu.",
   "publish.unknown.version": "On ne sait pas si la version a été créée : App Store Connect n’a pas répondu de façon exploitable. Regardez l’application dans App Store Connect, puis prévisualisez à nouveau. Rien n’est créé tant que vous ne confirmez pas un nouvel aperçu.",
   "publish.versionsChanged": "Les versions dans App Store Connect ont changé depuis l’aperçu, donc rien n’a été créé. Vérifiez le nouvel aperçu et confirmez-le.",
+  "rate.ads_many": "Trop de vérifications Apple Ads. Réessayez dans {{count}} de secondes.",
   "rate.ads_one": "Trop de vérifications Apple Ads. Réessayez dans {{count}} seconde.",
   "rate.ads_other": "Trop de vérifications Apple Ads. Réessayez dans {{count}} secondes.",
   "rate.ai_one": "Trop de requêtes d’IA. Réessayez dans {{count}} seconde.",

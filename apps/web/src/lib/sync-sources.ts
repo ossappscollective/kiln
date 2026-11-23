@@ -7,15 +7,15 @@ import { k, t } from './i18n/t.ts';
  *   app         store listing and release state         reviews    customer reviews       analytics   the analytics sources
  *   eas         EAS builds and submissions              products   in-app products and RevenueCat figures      testflight  beta feedback and crashes
  */
-export type SyncKind = 'app' | 'reviews' | 'eas' | 'analytics' | 'products' | 'testflight';
+export type SyncKind = 'app' | 'reviews' | 'eas' | 'analytics' | 'products' | 'testflight' | 'ads';
 
 /** Critical first, the order the server queues them in (docs/adr/0050-sync-pipeline.md); products and TestFlight have no queue and follow. */
-export const SYNC_KINDS: readonly SyncKind[] = ['app', 'reviews', 'eas', 'analytics', 'products', 'testflight'];
+export const SYNC_KINDS: readonly SyncKind[] = ['app', 'reviews', 'eas', 'analytics', 'products', 'testflight', 'ads'];
 
 /** What the server's `POST /apps/:id/sync-all` answers for one queued kind (docs/api/apps.md). */
 export type SyncPlanEntry =
-  | { kind: 'app' | 'reviews' | 'eas' | 'analytics'; state: 'queued'; jobId: string }
-  | { kind: 'app' | 'reviews' | 'eas' | 'analytics'; state: 'skipped'; reason: 'forbidden' | 'not_linked' | 'off' | 'not_ready' | 'already_queued' };
+  | { kind: 'app' | 'reviews' | 'eas' | 'analytics' | 'ads'; state: 'queued'; jobId: string }
+  | { kind: 'app' | 'reviews' | 'eas' | 'analytics' | 'ads'; state: 'skipped'; reason: 'forbidden' | 'not_linked' | 'off' | 'not_ready' | 'already_queued' };
 
 /** What one source reports about itself; the screens fill it from the source's own stored status (never from a store). */
 export type Reading = {
@@ -44,6 +44,7 @@ const LABELS: Record<SyncKind, string> = {
   analytics: k('app:sync.kind.analytics'),
   products: k('app:sync.kind.products'),
   testflight: k('app:sync.kind.testflight'),
+  ads: k('app:sync.kind.ads'),
 };
 const HINTS: Record<SyncKind, string> = {
   app: k('app:sync.hint.app'),
@@ -52,6 +53,7 @@ const HINTS: Record<SyncKind, string> = {
   analytics: k('app:sync.hint.analytics'),
   products: k('app:sync.hint.products'),
   testflight: k('app:sync.hint.testflight'),
+  ads: k('app:sync.hint.ads'),
 };
 export const kindLabel = (kind: SyncKind): string => t(LABELS[kind]);
 
