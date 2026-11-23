@@ -26,6 +26,7 @@ import {
   type ActorType,
   type AnalyticsErrorCode,
   type AnalyticsSource,
+  isAnalyticsSource,
   addDays,
   analyticsErrorMessages,
   analyticsLimits,
@@ -1254,7 +1255,13 @@ async function finalize(
 // ---------------------------------------------------------------------------------------------
 // As a job
 
-export type AnalyticsSyncPayload = { workspaceId: string; appId: string; requestedBy: string };
+export type AnalyticsSyncPayload = {
+  workspaceId: string;
+  appId: string;
+  requestedBy: string;
+  /** Only these sources (a retry of the failed ones); absent: every source of the platform. */
+  sources?: AnalyticsSource[];
+};
 
 export function enqueueAnalyticsSync(
   ctx: Pick<AnalyticsContext, 'db' | 'now'>,
@@ -1282,7 +1289,12 @@ export function createAnalyticsSyncHandler(ctx: AnalyticsContext): JobHandler {
       ctx,
       { workspaceId: payload.workspaceId, appId: payload.appId },
       { type: 'system', id: ANALYTICS_SYNC_QUEUE },
-      { trigger: 'schedule' },
+      {
+        trigger: 'schedule',
+        ...(Array.isArray(payload.sources) && payload.sources.length > 0
+          ? { sources: payload.sources.filter((s): s is AnalyticsSource => isAnalyticsSource(s)) }
+          : {}),
+      },
     ).catch(() => undefined);
   };
 }

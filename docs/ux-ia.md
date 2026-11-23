@@ -38,14 +38,22 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   could not be read. Every chart card is in exactly one section (`lib/analytics/sections.ts`, tested). **Data sources is ONE panel for the scope**
   (`SourcesPanel` with `items`): one summary (worst state, last read), a heading per platform only when there are several, one import button per platform.
   What is read per platform lives in `PlatformData` (one read, shared by the figures and the sections).
-- **One Sync (2026-11-23)**: the header **Sync** is the only sync button. For every record in scope it runs, in order: the store listing and release state
+- **Sync is per page (2026-11-23)**: the header has ONE split button, `SyncButton` (`lib/sync-plan.ts`, pure and tested). The main action reads only what the
+  page needs and what is not fresh: Insights its analytics sources (failed first; a source read within 6 hours is left alone), Reviews the reviews, Products the
+  products with RevenueCat, Builds EAS and TestFlight, every other page the store listing. Its label says what it does ("Sync analytics"); when something the page
+  reads failed it becomes "Retry failed (2)" and reads only those; with nothing due it still works and reads the page again. The chevron opens the menu:
+  "Sync everything", "Only failed (n)" when any failed, and one row per kind with its last read and its own Sync (the other kinds are read from their stored
+  status only once the menu is opened). While it runs the button says "Syncing 3 of 5"; progress and failures stay in the Status popover. Insights, Data sources gives
+  a failed source its own small **Retry** (`POST /analytics/sync` with `sources`). The server takes the same granularity: `POST /apps/:id/sync-all?kinds=reviews,analytics&sources=...`.
+  Everything below about the queue order still applies to "Sync everything".
+- **One Sync (2026-11-23)**: "Sync everything" (the menu of the header Sync; it was the only button before the split). For every record in scope it runs, in order: the store listing and release state
   (directly, so the releases are on screen when it ends), then the rest through the server queue in one request (`POST /apps/:id/sync-all?without=app`: reviews,
   EAS, analytics, critical first, [ADR 0050](adr/0050-sync-pipeline.md)), then products with the RevenueCat figures and TestFlight feedback (no queue yet;
   `lib/sync-all.ts`). Each kind the role may not run, or that does not apply, is left out and said. The **Status** popover is the single place for details:
   `SyncSources` lists every source (name, state in words, last read, what to try, per platform when several) and shows each kind's progress while a run goes
   (`lib/sync-run.svelte.ts`). Pages no longer carry sync buttons (Insights "Sync analytics now", reviews, products, TestFlight, test builds "Read again" are gone):
   a quiet `UpdatedLine` says "Updated 5 minutes ago" for the sources the page shows, or "Could not read: reviews" with a "See Status" button. What stays: first-time setup
-  (connect, enable, Apple analytics) and file imports (a Play Console CSV or Apple report, in Insights, Data sources). `apps.sync` still gates the header Sync;
+  (connect, enable, Apple analytics) and file imports (a Play Console CSV or Apple report, in Insights, Data sources). `apps.sync` still gates the header Sync (and each kind its own right, so a role sees only what it may run);
   each kind also needs its own right (`reviews.sync`, `analytics.manage`). Pure logic: `lib/sync-sources.ts`, `lib/sync-all.ts` (tested).
 - **Views inside a page** (`ViewSwitch`, `?view=` in the address, platform, version and locale stay): Store listing = Text, Graphics;
   Insights = Overview, Highlights (the Insights cards, with the count badge on the Insights entry), Countries (downloads by main language against the languages of the store page), Keywords, Search terms (phase 2, see 0a), Experiments (`?view=experiments`, every platform: Apple tests and custom product pages, Google link-out and the manual tracker); Builds = Builds,

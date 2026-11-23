@@ -17,8 +17,9 @@
   import { lastReadAt, overallState, scheduleText, sourceRows } from '../../lib/analytics/view.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { appAddress } from '../../lib/app-scope.ts';
-  import { platformLabel } from '../../lib/portfolio.ts';
+  import { describeError, platformLabel } from '../../lib/portfolio.ts';
   import { openStatusPopover } from '../../lib/app-page.ts';
+  import { toast } from '../../lib/toast.svelte.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
@@ -74,6 +75,22 @@
   let enableFor = $state<string | null>(null);
   let importFor = $state<string | null>(null);
   const importItem = $derived(groups.find((g) => g.app.id === importFor));
+
+  /** One failed source read again on its own (`POST /analytics/sync` with `sources`): the others are left alone. */
+  let retrying = $state<string | null>(null);
+  async function retry(appId: string, source: string, label: string) {
+    if (retrying !== null) return;
+    retrying = `${appId}:${source}`;
+    try {
+      const done = await api.syncAnalytics(workspaceId, appId, [source]);
+      if (done.sync.sources.some((s) => s.source === source && s.status === 'failed')) toast.error(t('analytics:sources.retryStillFailed', { source: label }));
+    } catch (e) {
+      toast.error(describeError(e));
+    } finally {
+      retrying = null;
+      onchanged();
+    }
+  }
 
   function run(action: StepAction, appId: string) {
     if (action.kind === 'enable_apple') enableFor = appId;
@@ -134,6 +151,9 @@
                   {:else if action.kind === 'text'}
                     <span class="muted text">{t('analytics:sources.nextStep', { label: action.label })}</span>
                   {:else if action.kind === 'sync'}
+                    {#if canManage && row.state === 'error'}
+                      <Button size="sm" icon="refresh" loading={retrying === `${g.app.id}:${row.source}`} disabled={retrying !== null} onclick={() => retry(g.app.id, row.source, row.label)}>{t('app:syncButton.retrySource')}<span class="visually-hidden"> ({row.label})</span></Button>
+                    {/if}
                     <Button variant="link" onclick={() => openStatusPopover()}>{t('app:sync.seeStatus')}</Button>
                   {:else if stepAvailable(action, canManage)}
                     <Button variant={i === 0 ? 'primary' : 'secondary'} icon={action.kind === 'import' ? 'upload' : undefined} onclick={() => run(action, g.app.id)}>{action.label}</Button>

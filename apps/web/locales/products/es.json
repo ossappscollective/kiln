@@ -259,8 +259,6 @@
   "tab.rcUnreadSync": "Esta app está vinculada a RevenueCat, pero aún no se ha leído RevenueCat. Usa «Sincronizar productos» para leerlo.",
   "tab.reading": "Leyendo los productos",
   "tab.revenueInInsights": "Suscripciones, MRR e ingresos están en Análisis.",
-  "tab.syncDone_one": "Se leyó {{count}} producto de {{store}}.",
-  "tab.syncDone_other": "Se leyeron {{count}} productos de {{store}}.",
   "tab.syncFailedTitle": "La sincronización no terminó",
   "tab.unsupportedDescription": "La tienda de esta app no tiene compras integradas ni suscripciones que esta herramienta lea.",
   "tab.unsupportedTitle": "Sin compras integradas en esta tienda",

@@ -23,6 +23,8 @@ export type Reading = {
   lastAttemptAt: number | null;
   /** The last attempt failed. */
   failed: boolean;
+  /** Analytics only: each source on its own, so a retry can name the failed ones and a fresh one is left alone. */
+  parts?: { id: string; lastReadAt: number | null; failed: boolean }[];
 };
 
 export type RunState = 'queued' | 'running' | 'done' | 'failed' | 'skipped';

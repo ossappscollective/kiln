@@ -1,4 +1,4 @@
-import { type Role, can, needsStoreAppId, parsePlatform, supports } from '@kiln/core';
+import { type AnalyticsSource, type Role, analyticsSources, can, isAnalyticsSource, needsStoreAppId, parsePlatform, supports } from '@kiln/core';
 import type { Database } from '@kiln/db';
 import { enqueue } from '../jobs.ts';
 import { ANALYTICS_SYNC_QUEUE } from '../modules/analytics/sync.ts';
@@ -20,6 +20,25 @@ import { APP_SYNC_QUEUE } from './apps.ts';
 export type SyncKind = 'app' | 'reviews' | 'eas' | 'analytics';
 
 export const SYNC_KIND_ORDER: readonly SyncKind[] = ['app', 'reviews', 'eas', 'analytics'];
+
+export type SyncAllQuery = { without: SyncKind[]; kinds: SyncKind[] | undefined; sources: AnalyticsSource[] | undefined };
+
+/**
+ * The query of `POST /apps/:id/sync-all`: `without=app`, `kinds=reviews,analytics` (only these; default all) and `sources=play_vitals,...`
+ * (only these analytics sources; needs the analytics kind). A page-scoped Sync asks for the kinds it needs. Pure; a bad value says which.
+ */
+export function parseSyncAllQuery(raw: { without?: string | undefined; kinds?: string | undefined; sources?: string | undefined }): { ok: true; query: SyncAllQuery } | { ok: false; message: string } {
+  const list = (v: string | undefined): string[] | undefined => (v === undefined || v === '' ? undefined : [...new Set(v.split(',').map((s) => s.trim()).filter((s) => s !== ''))]);
+  if (raw.without !== undefined && raw.without !== 'app') return { ok: false, message: '`without` can only be `app`.' };
+  const kinds = list(raw.kinds);
+  const bad = kinds?.find((k) => !(SYNC_KIND_ORDER as readonly string[]).includes(k));
+  if (bad !== undefined) return { ok: false, message: `Unknown kind \`${bad}\`. Use ${SYNC_KIND_ORDER.join(', ')}.` };
+  const sources = list(raw.sources);
+  const badSource = sources?.find((s) => !isAnalyticsSource(s));
+  if (badSource !== undefined) return { ok: false, message: `Unknown analytics source \`${badSource}\`. Use ${analyticsSources.join(', ')}.` };
+  if (sources !== undefined && kinds !== undefined && !kinds.includes('analytics')) return { ok: false, message: '`sources` needs the `analytics` kind.' };
+  return { ok: true, query: { without: raw.without === 'app' ? ['app'] : [], kinds: kinds as SyncKind[] | undefined, sources: sources as AnalyticsSource[] | undefined } };
+}
 
 export type SyncSkipReason = 'forbidden' | 'not_linked' | 'off' | 'not_ready' | 'already_queued';
 
@@ -119,14 +138,25 @@ async function readFacts(db: Database, workspaceId: string, appId: string): Prom
 /** Queues the jobs of one app (critical first) and says what happened to each kind; null for an unknown app. */
 export async function enqueueAppSyncAll(
   ctx: { db: Database; now: () => number },
-  input: { workspaceId: string; appId: string; role: Role; requestedBy: string; /** Kinds the caller has just run itself (the web client runs `app` directly to show the result at once). */ without?: readonly SyncKind[] },
+  input: {
+    workspaceId: string;
+    appId: string;
+    role: Role;
+    requestedBy: string;
+    /** Kinds the caller has just run itself (the web client runs `app` directly to show the result at once). */
+    without?: readonly SyncKind[];
+    /** Only these kinds (a page-scoped Sync); the others are not in the plan at all. Default: every kind. */
+    kinds?: readonly SyncKind[] | undefined;
+    /** Only these analytics sources (a retry of the failed ones); the analytics kind reads all sources when absent. */
+    sources?: readonly AnalyticsSource[] | undefined;
+  },
 ): Promise<SyncPlanEntry[] | null> {
   const facts = await readFacts(ctx.db, input.workspaceId, input.appId);
   if (!facts) return null;
   const out: SyncPlanEntry[] = [];
   const now = ctx.now();
   for (const d of planKinds(input.role, facts)) {
-    if (input.without?.includes(d.kind)) continue;
+    if (input.without?.includes(d.kind) || (input.kinds && !input.kinds.includes(d.kind))) continue;
     if (!d.run) {
       out.push({ kind: d.kind, state: 'skipped', reason: d.reason });
       continue;
@@ -134,7 +164,12 @@ export async function enqueueAppSyncAll(
     const jobId = await enqueue(
       ctx.db,
       QUEUES[d.kind],
-      { workspaceId: input.workspaceId, appId: input.appId, requestedBy: input.requestedBy },
+      {
+        workspaceId: input.workspaceId,
+        appId: input.appId,
+        requestedBy: input.requestedBy,
+        ...(d.kind === 'analytics' && input.sources && input.sources.length > 0 ? { sources: [...input.sources] } : {}),
+      },
       { now },
     );
     out.push({ kind: d.kind, state: 'queued', jobId });

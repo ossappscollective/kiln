@@ -258,8 +258,6 @@
   "tab.rcUnreadSync": "Diese App ist mit RevenueCat verknüpft, aber RevenueCat wurde noch nicht gelesen. Verwenden Sie „Produkte synchronisieren“, um es zu lesen.",
   "tab.reading": "Produkte werden gelesen",
   "tab.revenueInInsights": "Abos, MRR und Umsatz finden Sie unter Auswertungen.",
-  "tab.syncDone_one": "{{count}} Produkt aus {{store}} gelesen.",
-  "tab.syncDone_other": "{{count}} Produkte aus {{store}} gelesen.",
   "tab.syncFailedTitle": "Die Synchronisierung wurde nicht abgeschlossen",
   "tab.unsupportedDescription": "Der Store dieser App hat keine In-App-Käufe oder Abonnements, die dieses Tool liest.",
   "tab.unsupportedTitle": "Keine In-App-Käufe für diesen Store",

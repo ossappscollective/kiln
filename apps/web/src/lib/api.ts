@@ -944,12 +944,15 @@ export function createApi(options: ApiOptions = {}) {
         'GET',
         `${workspace(workspaceId)}/sync/activity`,
       ),
-    /** The one "Sync" of an app: queues its jobs (critical first) and answers at once with the plan (docs/api/apps.md). `without: 'app'` when the caller ran the app sync itself. */
-    syncAppAll: (workspaceId: string, id: string, without?: 'app') =>
-      request<{ plan: SyncPlanEntry[] }>(
-        'POST',
-        `${workspace(workspaceId)}/apps/${encodeURIComponent(id)}/sync-all${without ? `?without=${without}` : ''}`,
-      ),
+    /** The one "Sync" of an app: queues its jobs (critical first) and answers at once with the plan (docs/api/apps.md). `without: 'app'` when the caller ran the app sync itself; `kinds` (and, for analytics, `sources`) when only those are wanted (the page-scoped Sync). */
+    syncAppAll: (workspaceId: string, id: string, opts: { without?: 'app'; kinds?: readonly string[]; sources?: readonly string[] } = {}) => {
+      const query = new URLSearchParams();
+      if (opts.without) query.set('without', opts.without);
+      if (opts.kinds && opts.kinds.length > 0) query.set('kinds', opts.kinds.join(','));
+      if (opts.sources && opts.sources.length > 0) query.set('sources', opts.sources.join(','));
+      const qs = query.toString();
+      return request<{ plan: SyncPlanEntry[] }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(id)}/sync-all${qs ? `?${qs}` : ''}`);
+    },
     /** Reads the store with the app's credential and replaces the stored snapshot. Can take seconds. */
     syncApp: (workspaceId: string, id: string) =>
       request<SyncResult>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(id)}/sync`),

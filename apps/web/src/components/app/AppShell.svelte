@@ -2,8 +2,8 @@
   AppShell: an open app. Everything below the workspace is scoped to it: one slim header, then the page the address names (the
   left panel is AppNav, drawn by the shell). The header is the name of the page and the app, the platform control (only for an app
   on several platforms, and not on the settings page), the version and locale pickers on the pages they apply to (Releases and Store
-  listing, AppHeaderRow) and a small Status button (StatusPopover) that holds the store chips, the bundle ids, the last sync and the
-  one Sync now action. Under it, while the app has changes waiting, one quiet strip with "Review and publish" (PendingBar).
+  listing, AppHeaderRow) and a small Status button (StatusPopover) that holds the store chips, the bundle ids, the last sync and
+  what each source last read. The page's Sync (SyncButton, split: this page's sources, or more from its menu) sits beside it. Under it, while the app has changes waiting, one quiet strip with "Review and publish" (PendingBar).
   The records of the two stores that are one product are shown as one app (lib/app-groups.ts).
   Props: api, workspaceId, role, id (an id of one of its platform records, from the address).
   The page, its view (`?view=`: Store listing text or graphics, Insights analytics or ASO, Builds builds, workflows or test builds),
@@ -40,6 +40,7 @@
   import { type AppSection, appAddress, resolveScope, visibleSections } from '../../lib/app-scope.ts';
   import { appLabel, describeError, portfolioHref, syncApp, syncSummaryText } from '../../lib/portfolio.ts';
   import { syncRest } from '../../lib/sync-all.ts';
+  import type { SyncTarget } from '../../lib/sync-plan.ts';
   import { syncRun } from '../../lib/sync-run.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
@@ -53,6 +54,7 @@
   import AppSectionView from './AppSection.svelte';
   import PendingBar from './PendingBar.svelte';
   import StatusPopover from './StatusPopover.svelte';
+  import SyncButton from './SyncButton.svelte';
   import LockedBanner from './LockedBanner.svelte';
   import ScopeControl from './ScopeControl.svelte';
 
@@ -218,29 +220,37 @@
   }
 
   /**
-   * The one Sync of the app (docs/ux-ia.md "One Sync"): for every record in scope the store listing and releases first (directly, so they are on
-   * screen when it ends), then everything else the app has through the server's queue (critical first) and the two kinds without a queue
-   * (lib/sync-all.ts). Progress per source is in the Status popover (SyncSources); pages say "Updated X ago".
+   * The page's Sync (docs/ux-ia.md "Sync is per page"): `targets` is what the SyncButton planned (the page's failed or not fresh sources, one kind
+   * from its menu, or only the failed ones); `everything` reads every source of every record in scope. The store listing runs directly, so the
+   * releases are on screen when it ends; the rest goes through the server's queue (critical first, only the kinds asked for) and the two kinds
+   * without a queue (lib/sync-all.ts). Progress per source is in the Status popover (SyncSources); pages say "Updated X ago".
    */
-  async function syncScoped() {
+  async function syncTargets(targets: SyncTarget[], everything: boolean) {
     if (anySyncing) return;
     const mine = generation;
-    const list = [...scoped];
+    const list = scoped.filter((m) => everything || targets.some((x) => x.appId === m.id));
+    const kindsOf = (app: AppSummary) => targets.filter((x) => x.appId === app.id);
     for (const app of list) {
+      if (!everything && !kindsOf(app).some((x) => x.kind === 'app')) continue;
       syncRun.set(app.id, 'app', 'running');
       await sync(app);
       syncRun.set(app.id, 'app', records[app.id]?.lastSyncError ? 'failed' : 'done');
     }
     let problem: string | null = null;
+    let queued = false;
     for (const app of list) {
-      const rest = await syncRest(api, workspaceId, app, role, (kind, state) => syncRun.set(app.id, kind, state));
+      const mineTargets = kindsOf(app).filter((x) => x.kind !== 'app');
+      if (!everything && mineTargets.length === 0) continue;
+      const sources = mineTargets.find((x) => x.kind === 'analytics')?.sources;
+      const rest = await syncRest(api, workspaceId, app, role, (kind, state) => syncRun.set(app.id, kind, state), everything ? undefined : { kinds: mineTargets.map((x) => x.kind), sources });
       syncRun.plan(app.id, rest.plan, rest.extra);
+      queued = queued || rest.plan.some((p) => p.state === 'queued');
       problem = problem ?? rest.problem;
     }
     if (mine !== generation) return;
     if (problem) toast.error(t('app:sync.problem', { message: problem }));
     // The queue works in the background: wait (at most a minute and a half) until this app has no feed being read and no job waiting.
-    for (let i = 0; i < 36 && mine === generation; i++) {
+    for (let i = 0; queued && i < 36 && mine === generation; i++) {
       await new Promise((r) => setTimeout(r, 2500));
       const activity = await api.syncActivity(workspaceId).catch(() => null);
       if (activity === null || (activity.queued === 0 && !activity.apps.some((a) => list.some((m) => m.id === a.id)))) break;
@@ -327,7 +337,7 @@
           <ScopeControl options={resolved.options} scope={resolved.scope} onchange={setPlatformScope} />
         {/if}
         {#if canSync}
-          <Button size="sm" icon="refresh" loading={anySyncing} disabled={anySyncing} onclick={syncScoped}>{anySyncing ? t('app:statusPopover.syncing') : t('app:shell.sync')}</Button>
+          <SyncButton {api} {workspaceId} {role} members={scoped} {section} {now} busy={anySyncing} refreshKey={syncRuns} onrun={syncTargets} />
         {/if}
         <StatusPopover {api} {workspaceId} {role} {members} {chips} {now} syncing={anySyncing} {syncRuns} settingsHref={appAddress(id, 'settings', address.platform)} />
         {#if section !== 'settings'}

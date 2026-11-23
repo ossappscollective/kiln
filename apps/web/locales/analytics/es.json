@@ -496,6 +496,7 @@
   "sources.nextStep": "Siguiente paso: {{label}}.",
   "sources.notReadYet": "Aún sin leer.",
   "sources.optionalSetup": "Configuración opcional",
+  "sources.retryStillFailed": "{{source}} no se pudo volver a leer. El motivo está en la lista.",
   "sources.setBucket": "Indicar el bucket de esta app",
   "sources.whereFrom": "De dónde vienen los informes",
   "stat.compared_one": "Comparado con el día anterior.",

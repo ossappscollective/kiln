@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { type SyncFacts, planKinds } from './sync-all.ts';
+import { type SyncFacts, parseSyncAllQuery, planKinds } from './sync-all.ts';
 
 const facts = (over: Partial<SyncFacts> = {}): SyncFacts => ({
   platform: 'ios',
@@ -33,4 +33,16 @@ test('rights: a viewer runs nothing, a member cannot manage analytics, queued ki
   assert.ok(summary(planKinds('viewer', facts({ easLinked: true }))).every((s) => s.endsWith('forbidden')));
   assert.equal(summary(planKinds('member', facts({ analyticsEnabled: true, analyticsAppleReady: true })))[3], 'analytics:forbidden');
   assert.equal(summary(planKinds('owner', facts({ queued: new Set(['app']) })))[0], 'app:already_queued');
+});
+
+test('the query: kinds and analytics sources are checked, repeated values count once', () => {
+  assert.deepEqual(parseSyncAllQuery({}), { ok: true, query: { without: [], kinds: undefined, sources: undefined } });
+  assert.deepEqual(parseSyncAllQuery({ without: 'app', kinds: 'reviews, analytics,reviews', sources: 'play_vitals' }), {
+    ok: true,
+    query: { without: ['app'], kinds: ['reviews', 'analytics'], sources: ['play_vitals'] },
+  });
+  assert.equal(parseSyncAllQuery({ kinds: 'products' }).ok, false);
+  assert.equal(parseSyncAllQuery({ sources: 'nope' }).ok, false);
+  assert.equal(parseSyncAllQuery({ without: 'eas' }).ok, false);
+  assert.equal(parseSyncAllQuery({ kinds: 'reviews', sources: 'play_vitals' }).ok, false, 'sources need the analytics kind');
 });

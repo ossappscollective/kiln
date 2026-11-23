@@ -1,6 +1,7 @@
 import { type Platform, type Role, can } from '@kiln/core';
 import type { Api } from './api.ts';
 import { lastReadAt } from './analytics/view.ts';
+import { stateOf } from './analytics/analytics.ts';
 import { overallState } from './analytics/view.ts';
 import type { Reading, SourceInput, SyncKind } from './sync-sources.ts';
 
@@ -39,13 +40,21 @@ export async function loadReadings(
         if (s.project) add(attempt(s.sync.readAt, s.sync.lastAttemptAt, s.sync.lastError));
       } else if (kind === 'analytics' && can(role, 'analytics.read')) {
         const s = await api.analyticsStatus(workspaceId, app.id);
-        if (s.enabled) add({ lastReadAt: lastReadAt(s), lastAttemptAt: null, failed: overallState(s) === 'error' });
+        if (s.enabled) {
+          // Only the sources that can be read now (a source that needs setup or is off has nothing to retry).
+          const parts = s.sources
+            .map((x) => ({ id: x.source, state: stateOf(x.state), lastReadAt: x.lastOkAt }))
+            .filter((x) => x.state === 'ready' || x.state === 'waiting' || x.state === 'error')
+            .map((x) => ({ id: x.id, lastReadAt: x.lastReadAt, failed: x.state === 'error' }));
+          add({ lastReadAt: lastReadAt(s), lastAttemptAt: null, failed: overallState(s) === 'error', parts });
+        }
       } else if (kind === 'products' && can(role, 'apps.read')) {
         const s = (await api.appProducts(workspaceId, app.id)).sync;
-        if (s) add(attempt(s.lastSyncedAt, s.lastAttemptAt, s.lastError));
+        // No stored status yet is a source never read (the first Sync of the page reads it), not a source that is absent.
+        add(s ? attempt(s.lastSyncedAt, s.lastAttemptAt, s.lastError) : { lastReadAt: null, lastAttemptAt: null, failed: false });
       } else if (kind === 'testflight' && app.platform === 'ios' && can(role, 'reviews.read')) {
         const s = (await api.appTestflight(workspaceId, app.id, 'limit=1')).sync;
-        if (s) add(attempt(s.lastSyncedAt, s.lastAttemptAt, s.lastError));
+        add(s ? attempt(s.lastSyncedAt, s.lastAttemptAt, s.lastError) : { lastReadAt: null, lastAttemptAt: null, failed: false });
       }
     } catch {
       // The request failed (not applicable, not allowed, offline): the source has no row rather than a wrong one.

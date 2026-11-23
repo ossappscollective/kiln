@@ -496,6 +496,7 @@
   "sources.nextStep": "Étape suivante : {{label}}.",
   "sources.notReadYet": "Pas encore lu.",
   "sources.optionalSetup": "Configuration facultative",
+  "sources.retryStillFailed": "{{source}} n'a pas pu être relu. La raison figure dans la liste.",
   "sources.setBucket": "Définir le bucket de cette application",
   "sources.whereFrom": "Origine des rapports",
   "stat.compared_one": "Comparé au jour précédent.",

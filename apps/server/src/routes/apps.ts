@@ -23,7 +23,7 @@ import {
 } from '../services/apps.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
 import type { Failure } from '../services/repositories.ts';
-import { enqueueAppSyncAll } from '../services/sync-all.ts';
+import { enqueueAppSyncAll, parseSyncAllQuery } from '../services/sync-all.ts';
 import { syncActivity } from '../services/sync-pipeline.ts';
 
 export type AppRoutesContext = AppsContext & {
@@ -225,6 +225,8 @@ export function appRoutes(ctx: AppRoutesContext) {
   app.post('/:workspaceId/apps/:id/sync-all', needs('apps.sync'), async (c) => {
     const id = param(c, 'id');
     if (!(await getApp(db, ws(c), id))) return notFound(c);
+    const parsed = parseSyncAllQuery({ without: c.req.query('without'), kinds: c.req.query('kinds'), sources: c.req.query('sources') });
+    if (!parsed.ok) return c.json({ error: 'invalid_request', message: parsed.message }, 400);
     const wait = ctx.limiter.take(ws(c));
     if (wait > 0) {
       c.header('Retry-After', String(wait));
@@ -243,7 +245,9 @@ export function appRoutes(ctx: AppRoutesContext) {
       appId: id,
       role: c.get('role'),
       requestedBy: c.get('user').id,
-      ...(c.req.query('without') === 'app' ? { without: ['app' as const] } : {}),
+      without: parsed.query.without,
+      kinds: parsed.query.kinds,
+      sources: parsed.query.sources,
     });
     return plan ? c.json({ plan }, 202) : notFound(c);
   });

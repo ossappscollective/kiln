@@ -344,7 +344,7 @@ records `trigger: "job"` and the user who queued it in `requestedBy`.
 
 ### `POST /apps/:id/sync-all`
 
-The one **Sync** of the app in the web app (header button). Needs `apps.sync`; no body; `?without=app` leaves the `app` kind out (the web app runs that one itself to show the releases at once); counts as one sync of the workspace budget (429 as above).
+The one **Sync** of the app in the web app (header button). Needs `apps.sync`; no body; `?without=app` leaves the `app` kind out (the web app runs that one itself to show the releases at once); `?kinds=reviews,analytics` queues only those kinds and the rest are not in the plan (the page-scoped Sync of the header asks for what the page needs); `?sources=play_vitals,play_reports` limits the `analytics` kind to those analytics sources (retry of the failed ones; `kinds` must then include `analytics`). A value that is not a kind or an analytics source is `400 invalid_request` and costs no sync. Counts as one sync of the workspace budget (429 as above).
 It reads no store itself: it queues one job per kind the app has, in the order the worker ranks them (critical first), and answers `202` at once:
 
 ```json

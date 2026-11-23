@@ -43,6 +43,8 @@ scheduled listing job (a recent read from any path is not started again), 429 wi
   counts as one sync of the workspace budget. It reads no store. The web header Sync uses it (with `?without=app`, having run the app sync directly) so the
   per-page sync buttons are gone; the Status popover lists each source and its progress from the sources' stored status. Products and TestFlight feedback
   still have no queue; the browser runs their own routes after the plan. Moving them to jobs is a follow-up.
+  The header Sync is page-scoped (`lib/sync-plan.ts`): the web app asks for `?kinds=` (and `?sources=` for a retry of failed analytics sources, carried in the
+  job payload) so one press reads only what the page needs; "Sync everything" in its menu is the old whole run.
 
 ## Measured (fake store, not real timings)
 

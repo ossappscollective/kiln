@@ -30,14 +30,21 @@ export async function syncRest(
   app: { id: string; platform: Platform },
   role: Role,
   onextra?: (kind: ClientKind, state: RunState) => void,
+  /** Only these kinds (a page's Sync, a retry); `sources` narrows analytics. Absent: everything but the app listing (the header menu's "Sync everything"). */
+  only?: { kinds: readonly SyncKind[]; sources?: readonly string[] | undefined },
 ): Promise<EverythingResult> {
   const result: EverythingResult = { plan: [], extra: {}, problem: null };
-  try {
-    result.plan = (await api.syncAppAll(workspaceId, app.id, 'app')).plan;
-  } catch (e) {
-    result.problem = e instanceof ApiError ? e.message : String(e);
+  const queueKinds = only ? only.kinds.filter((kind) => kind !== 'app' && kind !== 'products' && kind !== 'testflight') : [];
+  if (!only || queueKinds.length > 0) {
+    try {
+      const opts = only ? { kinds: queueKinds, ...(only.sources ? { sources: only.sources } : {}) } : { without: 'app' as const };
+      result.plan = (await api.syncAppAll(workspaceId, app.id, opts)).plan;
+    } catch (e) {
+      result.problem = e instanceof ApiError ? e.message : String(e);
+    }
   }
   for (const kind of clientKinds(app.platform, (a) => can(role, a))) {
+    if (only && !only.kinds.includes(kind)) continue;
     onextra?.(kind, 'running');
     let state: RunState = 'done';
     try {

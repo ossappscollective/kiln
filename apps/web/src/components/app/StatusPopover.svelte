@@ -2,7 +2,7 @@
   StatusPopover: the small "Status" button of the app header. It holds what used to crowd the header: where the data lives (the
   Repository and Store live chips), each store record with its full bundle id or package name (it wraps, never cut off) and when it
   was last synced, and THE place for sync details: every source the app is synced from (SyncSources: state, last read, what to try, and the progress
-  of a run). There is no Sync button here: the one Sync is in the header and runs all of it. A failed sync turns the button's icon into a warning.
+  of a run). There is no Sync button here: the header's SyncButton syncs what the page needs, and its menu the rest. A failed sync turns the button's icon into a warning.
   The full store and credential details stay in the app settings (the link at the bottom).
   Props: api, workspaceId, role, members (the records in scope), chips (lib/app-chips.ts), now (epoch ms), syncing (a run is going), syncRuns
   (changes when a run ended, so the sources are read again), settingsHref (the app settings page).

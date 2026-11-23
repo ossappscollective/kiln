@@ -1957,4 +1957,15 @@ dbTest('sync-all queues the app jobs critical first, reads no store, and says wh
   // A member may sync but not manage analytics; a role's missing right is named, not hidden.
   const asMember = (await t.call(member, 'POST', path)).body.plan as { kind: string; reason?: string }[];
   assert.equal(asMember.find((p) => p.kind === 'analytics')?.reason, 'forbidden');
+
+  // A page-scoped Sync names its kinds: only those are in the plan; a bad value is a 400 that costs nothing.
+  const only = await t.call(t.owner, 'POST', `${path}?kinds=reviews,eas`);
+  assert.equal(only.status, 202);
+  assert.deepEqual(
+    (only.body.plan as { kind: string }[]).map((p) => p.kind),
+    ['reviews', 'eas'],
+  );
+  assert.equal((await t.call(t.owner, 'POST', `${path}?kinds=products`)).status, 400);
+  assert.equal((await t.call(t.owner, 'POST', `${path}?sources=play_vitals`)).status, 202);
+  assert.equal((await t.call(t.owner, 'POST', `${path}?kinds=reviews&sources=play_vitals`)).status, 400);
 });
