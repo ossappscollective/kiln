@@ -38,7 +38,7 @@ import { storeSeed } from './staged-store-seed.ts';
 import { pullStoreImages } from './asset-pull.ts';
 import { IMAGE_TYPES, matchesEtag, safeImageHeaders } from './asset-routes.ts';
 import type { StoreImageNet } from './store-image-net.ts';
-import { getStoreImages, storeThumbnail, thumbSizeOf } from './store-images.ts';
+import { getStoreImages, storeImageBytes, storeThumbnail, thumbSizeOf } from './store-images.ts';
 
 /** A thumbnail's ref names the image and its checksum, so the same ref is the same picture: private, an hour, then revalidated by ETag. */
 export const THUMB_CACHE_CONTROL = 'private, max-age=3600, stale-while-revalidate=86400';
@@ -303,6 +303,37 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
     return new Response(asBody(done.bytes), {
       status: 200,
       headers: safeImageHeaders(IMAGE_TYPES[done.format], etag, done.bytes.length, cache),
+    });
+  });
+
+  // The ORIGINAL file of one store image, for the viewer's Save and Copy (never a rendition): a download the person asked for.
+  routes.get('/:workspaceId/apps/:id/assets/store/file', needs('listing.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    const ref = c.req.query('ref') ?? '';
+    if (!REF.test(ref))
+      return c.json(
+        { error: 'invalid_request', issues: [{ path: 'ref', message: 'The ref of an image of the store view.' }] },
+        400,
+      );
+    const etag = `"f-${ref}"`;
+    const cache = 'private, max-age=600';
+    if (matchesEtag(c.req.header('If-None-Match'), etag)) {
+      return new Response(null, {
+        status: 304,
+        headers: { ETag: etag, 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' },
+      });
+    }
+    const done = await storeImageBytes(store, {
+      workspaceId: ws(c),
+      appId: app.id,
+      ref,
+      maxBytes: ASSET_SYNC_LIMITS.maxUploadBytes,
+    });
+    if (!done.ok) return respond(c, done);
+    return new Response(asBody(done.image.bytes), {
+      status: 200,
+      headers: safeImageHeaders(IMAGE_TYPES[done.image.format], etag, done.image.bytes.length, cache),
     });
   });
 

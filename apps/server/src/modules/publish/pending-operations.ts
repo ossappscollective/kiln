@@ -79,7 +79,7 @@ const cartItemSchema = z.object({
   counts: z
     .record(z.number())
     .describe('Graphics: `files` (after), `uploads`, and `before` (images the last store read held for the set, when there was one).'),
-  thumbs: z.array(z.string()).describe('Graphics: blob ids of up to four uploaded files of the set (`GET .../staged/assets/blob?oid=`). Empty otherwise.'),
+  thumbs: z.array(z.string()).describe('Graphics: addresses (`GET .../staged/assets/blob?oid=`, relative to the server) of up to four uploaded files of the set. Empty otherwise.'),
   problems: z.array(z.object({ code: z.string(), severity: z.enum(['error', 'warning']), message: z.string() })),
   ref: z.object({
     locale: z.string().optional(),

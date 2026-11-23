@@ -260,6 +260,24 @@ export const listingOperations: Draft[] = [
     },
   },
   {
+    id: 'getStoreImageFile',
+    method: 'get',
+    path: `${W}/apps/{id}/assets/store/file`,
+    tags: ['assets'],
+    summary: 'The original file of a store image (for saving or copying it)',
+    description:
+      'The same proxy rules as the thumbnail (store hosts only, checked on every redirect, a size cap of 8 MiB), but the ORIGINAL size: a Google Play address is asked for `=s0`, an App Store template is filled with the asset\u2019s own size. Never a rendition. `ETag` is derived from the ref (`304` for `If-None-Match`); `404 ref_expired` when the ref is not known any more.',
+    risk: 'read',
+    access: { action: 'listing.read' },
+    appScope: { kind: 'param', name: 'id' },
+    rateLimited: true,
+    query: z.object({ ref: z.string().describe('The `ref` of an image from the store view.') }),
+    responses: {
+      '200': { description: 'The image.', contentType: 'image/png' },
+      '304': { description: 'Not modified.' },
+    },
+  },
+  {
     id: 'pullStoreImages',
     method: 'post',
     path: `${W}/apps/{id}/assets/pull`,

@@ -67,7 +67,7 @@ export type CartItem = {
   version: string;
   /** Graphics: `files` (after), `before` (the images the last store read held for the set, when there was one), `uploads`. */
   counts: Record<string, number>;
-  /** Graphics: blob ids of up to four uploaded files of the set (shown from `GET .../staged/assets/blob`). Empty otherwise. */
+  /** Graphics: addresses (`GET .../staged/assets/blob?oid=`, same origin) of up to four uploaded files of the set. Empty otherwise. */
   thumbs: string[];
   problems: { code: string; severity: 'error' | 'warning'; message: string }[];
   /** Where it was made (the web turns it into a link). */
@@ -198,7 +198,7 @@ export async function loadCart(
         thumbs: a.files
           .filter((f) => f.upload)
           .slice(0, 4)
-          .map((f) => f.oid),
+          .map((f) => `/api/workspaces/${encodeURIComponent(workspaceId)}/apps/${encodeURIComponent(app.id)}/staged/assets/blob?oid=${f.oid}`),
         problems: a.problems.filter((p) => p.severity !== 'info').map((p) => ({ code: p.code, severity: p.severity as 'error' | 'warning', message: p.message })),
         ref: { locale: a.locale, slot: a.slotKey },
       });
