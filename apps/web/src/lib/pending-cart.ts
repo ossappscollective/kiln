@@ -203,6 +203,20 @@ export function announceCartAdded(target: EventTarget | undefined = typeof windo
   target?.dispatchEvent(new CustomEvent(CART_ADDED_EVENT));
 }
 
+export const CART_OPEN_EVENT = 'kiln:cart-open';
+
+/** Opens the cart drawer, scrolled to the items of one locale (the "2 staged" chip of a locale row). `locale: null` just opens it. */
+export function announceCartOpen(
+  locale: string | null,
+  target: Pick<EventTarget, 'dispatchEvent'> | undefined = typeof window === 'undefined' ? undefined : window,
+): void {
+  target?.dispatchEvent(new CustomEvent(CART_OPEN_EVENT, { detail: { locale } }));
+}
+
+/** The cart rows made for one locale (listing texts and graphics), in list order. */
+export const rowsForLocale = (rows: readonly CartRow[], locale: string): CartRow[] =>
+  rows.filter((r) => (r.kind === 'listing' || r.kind === 'graphics') && r.locale === locale);
+
 /** The messages for a reason code of a row (why it cannot be sent) or of a result; an unknown code reads as the generic one. */
 const REASON_KEYS = {
   no_right: k('app:cart.reason.noRight'),

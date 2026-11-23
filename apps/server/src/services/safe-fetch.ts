@@ -34,6 +34,8 @@ export type ExchangeRequest = {
   servername?: string;
   headers: Record<string, string>;
   maxBytes: number;
+  /** Keep the first `maxBytes` of a longer body as a success (a header probe), never an overflow. */
+  truncate?: boolean;
   signal: AbortSignal;
 };
 
@@ -52,6 +54,11 @@ export type SafeGetOptions = {
   /** Called with the lower-case host name of every URL, the first and each redirect target. */
   allowHost: (host: string) => boolean;
   maxBytes: number;
+  /**
+   * Read only the first `maxBytes` of the body (a header probe): asks for that range, accepts 200 or 206 and keeps the prefix
+   * of a longer answer instead of failing with `too_large`.
+   */
+  head?: boolean | undefined;
   timeoutMs?: number | undefined;
   maxRedirects?: number | undefined;
   accept?: string | undefined;
@@ -65,7 +72,15 @@ export type SafeGetOptions = {
 };
 
 export type SafeGetResult =
-  | { ok: true; status: number; body: Uint8Array; contentType: string | null; finalUrl: string }
+  | {
+      ok: true;
+      status: number;
+      body: Uint8Array;
+      /** Only for a `head` read: the response headers (lower case), for the full length. */
+      headers?: Record<string, string | undefined>;
+      contentType: string | null;
+      finalUrl: string;
+    }
   | {
       ok: false;
       kind: 'blocked' | 'dns' | 'timeout' | 'network' | 'status' | 'too_large' | 'redirect';
@@ -118,7 +133,7 @@ export const realExchange: Exchange = (request) =>
     });
     req.on('response', (res) => {
       const declared = Number(res.headers['content-length']);
-      if (Number.isFinite(declared) && declared > request.maxBytes) {
+      if (!request.truncate && Number.isFinite(declared) && declared > request.maxBytes) {
         res.destroy();
         req.destroy();
         return done(() =>
@@ -147,6 +162,12 @@ export const realExchange: Exchange = (request) =>
         );
       res.on('data', (chunk: Buffer) => {
         size += chunk.length;
+        if (request.truncate && size >= request.maxBytes) {
+          chunks.push(chunk.subarray(0, chunk.length - (size - request.maxBytes)));
+          res.destroy();
+          req.destroy();
+          return finish(false);
+        }
         if (size > request.maxBytes) {
           // Nothing more is read, and what came is dropped.
           res.destroy();
@@ -217,8 +238,10 @@ export async function safeGet(rawUrl: string, options: SafeGetOptions): Promise<
             accept: options.accept ?? '*/*',
             'accept-encoding': 'identity',
             'user-agent': options.userAgent ?? 'kiln',
+            ...(options.head ? { range: `bytes=0-${options.maxBytes - 1}` } : {}),
           },
           maxBytes: options.maxBytes,
+          ...(options.head ? { truncate: true } : {}),
           signal: controller.signal,
         });
       } catch {
@@ -273,7 +296,7 @@ export async function safeGet(rawUrl: string, options: SafeGetOptions): Promise<
           message: `The answer is larger than ${options.maxBytes} bytes.`,
           transient: false,
         };
-      if (res.status !== 200) {
+      if (res.status !== 200 && !(options.head && res.status === 206)) {
         return {
           ok: false,
           kind: 'status',
@@ -287,8 +310,9 @@ export async function safeGet(rawUrl: string, options: SafeGetOptions): Promise<
       }
       return {
         ok: true,
-        status: 200,
+        status: res.status,
         body: res.body,
+        ...(options.head ? { headers: res.headers } : {}),
         contentType: res.headers['content-type'] ?? null,
         finalUrl: check.url.toString(),
       };

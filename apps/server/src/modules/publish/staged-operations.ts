@@ -457,6 +457,12 @@ export const stagedChangesOperations: Draft[] = [
           '`remove_alpha`, `rename_extension` or `resize`: correct the file before it is checked and staged (send a refused file again with the fix the `spec_errors` answer offered).',
         ),
       background: z.string().optional().describe('`#rrggbb` for `remove_alpha`, default white.'),
+      base: z
+        .string()
+        .optional()
+        .describe(
+          '`store`: a set that is not staged yet starts from the images the store holds (each is downloaded once and kept as a staged upload), not from the repository.',
+        ),
     }),
     responses: {
       '200': {
@@ -485,6 +491,34 @@ export const stagedChangesOperations: Draft[] = [
         .optional()
         .describe('Required for screenshot: a display id (iphone_6_9) or a Play device (phone).'),
       position: z.string().describe('1-based.'),
+      base: z.string().optional().describe('`store`: start an unstaged set from the images the store holds.'),
+    }),
+    responses: {
+      '200': {
+        description: 'The staged changes after the change.',
+        schema: z.object({ staged: stagedChangesSchema }),
+      },
+    },
+  },
+  {
+    id: 'moveStagedAssetFile',
+    method: 'post',
+    path: `${W}/apps/{id}/staged/assets/move`,
+    tags: ['staged-changes'],
+    summary: 'Move one file of a staged set to another place (reorder)',
+    description:
+      'The set is composed as for an upload (`base: "store"` starts an unstaged set from the images the store holds) and the whole set is staged in the new order. `422 invalid_position` for a place outside the set or the same place. Nothing is written to a store: a push applies the order (App Store Connect: the set\u2019s order; Google Play: the order of the upload).',
+    risk: 'write',
+    access: { action: 'changesets.write' },
+    appScope: { kind: 'param', name: 'id' },
+    rateLimited: true,
+    body: z.object({
+      locale: z.string().min(2).max(35),
+      kind: z.string(),
+      device: z.string().max(60).nullable().optional(),
+      from: z.number().int().min(1),
+      to: z.number().int().min(1),
+      base: z.literal('store').optional(),
     }),
     responses: {
       '200': {

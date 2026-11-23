@@ -256,8 +256,16 @@ export type EffectiveSet = {
   entries: SetEntry[];
   /** The set is not staged: its files are those of the repository. */
   fromRepo: boolean;
+  /** The set is not staged: its files are those the store holds (seeded through `seed`). */
+  fromStore?: boolean;
   handle?: AssetHandle;
 };
+
+/**
+ * Where an unstaged set starts when it is edited from the store's side (the Graphics tab shows the store's images): the files the
+ * store holds, taken as staged uploads, so that a push which replaces the store's set keeps the images that were not touched.
+ */
+export type SetSeed = () => Promise<SetEntry[] | Failure>;
 
 /** The files of a set as a push would now write them: the staged rows, else the repository's files for the slot. */
 export async function loadEffectiveSet(
@@ -270,6 +278,7 @@ export async function loadEffectiveSet(
     actor: Actor;
     commit?: string | undefined;
     gate?: (() => Failure | undefined) | undefined;
+    seed?: SetSeed | undefined;
   },
 ): Promise<EffectiveSet | Failure> {
   const key = slotKey(input.slot);
@@ -282,6 +291,11 @@ export async function loadEffectiveSet(
       entries: rows.sort((a, b) => a.ordinal - b.ordinal).map(entryOfRow),
       fromRepo: false,
     };
+  if (input.seed) {
+    const seeded = await input.seed();
+    if (!Array.isArray(seeded)) return seeded;
+    return { ok: true, entries: seeded, fromRepo: false, fromStore: true };
+  }
   if (input.commit !== undefined && !isCommitSha(input.commit))
     return invalid('invalid_staged', 'commit must be a full commit hash.', { field: 'commit' });
   const opened = await openAssets(

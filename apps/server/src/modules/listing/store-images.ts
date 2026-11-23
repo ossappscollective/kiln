@@ -13,13 +13,15 @@ import {
 import type { ManagedApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
-import { type DraftContext, readStoreImagesOf } from '../publish/store-draft.ts';
+import { type DraftContext, onDraftPushed, readStoreImagesOf } from '../publish/store-draft.ts';
 import {
   type Downloaded,
   type DownloadFailure,
   downloadStoreImage,
   type ImageSource,
   imageUrlOf,
+  type ImageProbe,
+  probeStoreImage,
   type StoreImageNet,
 } from './store-image-net.ts';
 
@@ -66,15 +68,90 @@ let thumbBytes = 0;
 const THUMB_MAX_BYTES = 24 * 1024 * 1024;
 const THUMB_MAX_ENTRIES = 400;
 
+/** The seconds a store read is reused (`ASSET_SYNC_LIMITS.storeCacheSeconds`); a staged change, a publish or a fresh read drops it. */
+export const STORE_VIEW_TTL_SECONDS = ASSET_SYNC_LIMITS.storeCacheSeconds;
+
+/** Header probes (pixel size and length of images whose store gives neither): at most this many per read, this many at once. */
+export const PROBE_MAX_PER_READ = 80;
+const PROBE_CONCURRENCY = 4;
+const PROBE_CACHE_MAX = 4000;
+const probes = new Map<string, ImageProbe>();
+
 /** For tests. */
 export function clearStoreImageCaches(): void {
   refs.clear();
   views.clear();
+  probes.clear();
   thumbs.clear();
   thumbBytes = 0;
 }
 
 const viewKey = (workspaceId: string, appId: string) => `${workspaceId}|${appId}`;
+
+/** Drops the cached store read of an app (a staged change, a publish or a refresh makes it stale). */
+export function invalidateStoreImages(workspaceId: string, appId: string): void {
+  views.delete(viewKey(workspaceId, appId));
+}
+
+onDraftPushed(invalidateStoreImages);
+
+/**
+ * Fills in the pixel size and length of images the store does not state (Google Play gives only an address) by reading the first
+ * bytes of each, so that the store side checks can run. A probe that fails leaves the image unchecked. Bounded by
+ * `PROBE_MAX_PER_READ`, `PROBE_CONCURRENCY` and a per-workspace cache that is keyed by the image id and its checksum.
+ */
+export async function probeMissingSizes(
+  ctx: StoreImagesContext,
+  workspaceId: string,
+  appId: string,
+  images: StoreImageRecord[],
+): Promise<{ probed: number; failed: number }> {
+  const todo = images.filter(
+    (i) => i.width === null && i.height === null && i.url !== null && i.urlKind === 'play_url',
+  );
+  let probed = 0;
+  let failed = 0;
+  const apply = (image: StoreImageRecord, hit: ImageProbe) => {
+    image.width = hit.width;
+    image.height = hit.height;
+    image.sizeFrom = 'header';
+    if (image.bytes === null) image.bytes = hit.bytes;
+  };
+  const queue: StoreImageRecord[] = [];
+  for (const image of todo) {
+    const key = `${workspaceId}|${appId}|${image.id}|${image.checksum ?? ''}`;
+    const hit = probes.get(key);
+    if (hit) apply(image, hit);
+    else if (queue.length < PROBE_MAX_PER_READ) queue.push(image);
+    else failed += 1;
+  }
+  const worker = async () => {
+    for (let image = queue.shift(); image; image = queue.shift()) {
+      // The ORIGINAL size (`=s0`): a default Google rendition is downscaled and its size must never be checked.
+      const address =
+        image.url === null
+          ? null
+          : imageUrlOf({ url: image.url, urlKind: 'play_url', width: null, height: null }, { original: true });
+      const got = address === null ? null : await probeStoreImage(ctx.net, address);
+      if (!got) {
+        failed += 1;
+        continue;
+      }
+      probed += 1;
+      apply(image, got);
+      const key = `${workspaceId}|${appId}|${image.id}|${image.checksum ?? ''}`;
+      probes.delete(key);
+      probes.set(key, got);
+      while (probes.size > PROBE_CACHE_MAX) {
+        const oldest = probes.keys().next().value;
+        if (oldest === undefined) break;
+        probes.delete(oldest);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: PROBE_CONCURRENCY }, worker));
+  return { probed, failed };
+}
 
 const rememberRef = (ref: string, entry: RefEntry) => {
   refs.delete(ref);
@@ -180,6 +257,8 @@ function build(
       width: image.width,
       height: image.height,
       bytes: image.bytes,
+      sizeFrom:
+        image.width === null || image.height === null ? null : (image.sizeFrom ?? 'store'),
       checksum: image.checksum,
       checksumKind: image.checksumKind,
       state: image.state,
@@ -211,7 +290,12 @@ export function peekStoreImages(
   now: number,
 ): StoreImagesView | undefined {
   const hit = views.get(viewKey(workspaceId, appId));
-  return hit && now - hit.at < ASSET_SYNC_LIMITS.storeCacheSeconds * 1000 ? hit.view : undefined;
+  return hit && now - hit.at < STORE_VIEW_TTL_SECONDS * 1000 ? hit.view : undefined;
+}
+
+/** The last store read of an app whatever its age (the cart's "before" count; never reads a store). */
+export function lastStoreImages(workspaceId: string, appId: string): StoreImagesView | undefined {
+  return views.get(viewKey(workspaceId, appId))?.view;
 }
 
 export type StoreSide = {
@@ -257,6 +341,7 @@ export async function getStoreImages(
     actor: input.actor,
   });
   if (!done.ok) return done;
+  await probeMissingSizes(ctx, input.workspaceId, input.app.id, done.read.images);
   const view = build(ctx, input.workspaceId, input.app, done.read, now);
   views.set(viewKey(input.workspaceId, input.app.id), { at: now, view });
   while (views.size > 64) {
@@ -372,7 +457,7 @@ export async function storeImageBytes(
       'The store gave no image address for this file.',
       coded('listing.noImageAddress'),
     );
-  const url = imageUrlOf(entry.src, { format: 'png' });
+  const url = imageUrlOf(entry.src, { format: 'png', original: true });
   if (url === null)
     return failure(
       422,

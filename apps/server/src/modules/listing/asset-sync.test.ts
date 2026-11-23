@@ -28,7 +28,8 @@ export function cdn(bodies: Record<string, Uint8Array> = {}) {
   const seen: ExchangeRequest[] = [];
   const exchange: Exchange = async (request) => {
     seen.push(request);
-    const body = bodies[request.url.pathname] ?? bodies['*'];
+    // A Google address carries a size option (`=s0`, `=s160`); the fake answers the same file for any of them.
+    const body = bodies[request.url.pathname.replace(/=s\d+$/, '')] ?? bodies['*'];
     if (!body) return { status: 404, headers: {}, body: new Uint8Array(0), overflow: false };
     return { status: 200, headers: { 'content-type': 'text/html' }, body, overflow: false };
   };
@@ -874,5 +875,38 @@ dbTest(
     const jpegLike = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(200)]);
     const refused = await up('fix=remove_alpha', jpegLike);
     assert.equal(refused.status, 422);
+  },
+);
+
+// ----- editing from the store's side (base=store) and reordering ----------------------------------------
+
+dbTest(
+  'base=store: an unstaged set starts from the images the store holds; add, move and remove stage the whole set',
+  async (db) => {
+    const one = rgbPng(1242, 2688, () => [1, 1, 1]);
+    const two = rgbPng(1242, 2688, () => [2, 2, 2]);
+    const net = cdn({ '/image/thumb/Pic1/1242x2688bb.png': one, '/image/thumb/Pic2/1242x2688bb.png': two });
+    const t = await boot(db, net);
+    const app = await t.addApp('ios');
+    t.stores.ios.imageRecords = [apple(1), apple(2)];
+    const added = await raw(t, 'PUT', `/apps/${app}/staged/assets/upload?${slot}&base=store`, SHOT);
+    assert.equal(added.status, 200, added.text);
+    const set = added.body.staged.assets[0];
+    assert.equal(set.files.length, 3, 'the store images were kept, the new one added');
+    assert.ok(set.files.every((f: { upload?: boolean }) => f.upload === true));
+    assert.equal(added.body.position, 3);
+    const moved = await t.call(t.owner, 'POST', `/apps/${app}/staged/assets/move`, {
+      locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5', from: 3, to: 1,
+    });
+    assert.equal(moved.status, 200, moved.text);
+    assert.equal(moved.body.staged.assets[0].files[0].oid, set.files[2].oid);
+    const bad = await t.call(t.owner, 'POST', `/apps/${app}/staged/assets/move`, {
+      locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5', from: 1, to: 9,
+    });
+    assert.equal(bad.status, 422);
+    const removed = await raw(t, 'DELETE', `/apps/${app}/staged/assets/file?${slot}&position=1`);
+    assert.equal(removed.status, 200, removed.text);
+    assert.equal(removed.body.staged.assets[0].files.length, 2);
+    assert.equal((await t.audit('staged.asset_moved')).length, 1);
   },
 );

@@ -341,6 +341,8 @@ export type StoreImageRecord = {
   width: number | null;
   height: number | null;
   bytes: number | null;
+  /** Where `width` and `height` come from when known: the store's own fields, or the header of the original file (this server's probe). */
+  sizeFrom?: 'store' | 'header';
   /** Lower case hex of the whole file, or of its first characters (`kiln:sha256:` of this server's own uploads), or null. */
   checksum: string | null;
   checksumKind: 'sha256' | 'md5' | null;

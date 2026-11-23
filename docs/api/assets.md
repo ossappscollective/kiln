@@ -57,7 +57,16 @@ the checks; the type comes from the bytes, never from the file name.
 ## What is read, and how much
 
 Only the first bytes of an image are read (64 KB; 1 MiB for a JPEG whose size marker is further in)
-to learn its size, format and whether it has an alpha channel. The index is limited by the source:
+to learn its size, format and whether it has an alpha channel.
+
+**Store images.** A store image is checked with the size and length the store's own answer gives (App Store Connect: the asset's
+`imageAsset.width` and `height`). Google Play gives none, so a read of the store fetches the first 192 KiB of each such image (a
+ranged GET, at most 80 per read, four at a time, kept per image id and checksum) and reads the size from the header. A Google
+address serves a **downscaled rendition** unless it has a size option, so the probe, the pull and the staging of a store set
+always ask for the original (`=s0`), and a thumbnail for `=s<size>`; a size that comes from the header (`sizeFrom: "header"`) is
+only ever a note, never an error or a warning, and an image that cannot be probed is one grouped note ("could not be checked").
+UNVERIFIED: that `=s0` returns the original for a Play `url` (Google documents it for its image hosts in general).
+`GET /assets/store` is reused for `STORE_VIEW_TTL_SECONDS` (60) and dropped by a successful draft push or `fresh=1`. The index is limited by the source:
 
 | Source                            | Images opened | Bytes pulled |
 | --------------------------------- | ------------- | ------------ |
@@ -103,6 +112,7 @@ All routes are under `/api/workspaces/{workspaceId}/apps/{id}`. Nothing here wri
 | `DELETE /staged/assets/file?locale=&kind=&device=&position=` | `changesets.write` | Removes a file from the staged set.                                                                                                                                                                                                                                                                                    |
 | `POST /staged/assets/fix`                                    | `changesets.write` | Makes a corrected file of a staged file (`remove_alpha`, `resize`, `rename_extension`) and stages it.                                                                                                                                                                                                                  |
 | `GET /staged/assets/blob?oid=`                               | `listing.read`     | The bytes of an uploaded or fixed staged file (same safe headers as `/assets/file`).                                                                                                                                                                                                                                   |
+| `POST /staged/assets/move`                                   | `changesets.write` | Moves one file of a staged set to another place (reorder). `base: "store"` starts an unstaged set from the images the store holds. |
 | `POST /staged/assets/to-repo`                                | `changesets.write` | Makes a draft change set that writes the staged sets into the repository.                                                                                                                                                                                                                                              |
 
 **Keys.** A set is `platform/locale/slotKey` (`ios/en-US/screenshot:iphone_6_9`), an image is the set plus

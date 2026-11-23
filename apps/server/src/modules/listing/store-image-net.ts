@@ -47,10 +47,15 @@ export type ImageSource = {
  * The address of an image. Apple's template has `{w}`, `{h}` and `{f}` ("substitute width, height, and format into
  * `templateUrl`", VERIFIED); `maxSide` makes a thumbnail of that long side. A Google Play url is used as it is.
  * Null when the URL is not an https URL of an allowed host or an Apple template cannot be filled.
+ *
+ * A Google image address serves a DOWNSCALED rendition unless it carries a size option, so a Play address is always given one:
+ * `=s0` (the original size) for `original`, `=s<maxSide>` for a thumbnail. The pixel size of a file fetched without it must
+ * never be used for a check (UNVERIFIED: Google documents the option only for its image hosts in general, not for Play's `url`).
+ * Apple: the template is filled with the asset's own width and height, so the original is what is asked for.
  */
 export function imageUrlOf(
   src: ImageSource,
-  opts: { maxSide?: number; format?: 'png' | 'jpg' } = {},
+  opts: { maxSide?: number; format?: 'png' | 'jpg'; original?: boolean } = {},
 ): string | null {
   let raw = src.url;
   if (src.urlKind === 'apple_template') {
@@ -82,6 +87,10 @@ export function imageUrlOf(
     !isStoreImageHost(url.hostname)
   )
     return null;
+  if (src.urlKind === 'play_url') {
+    const option = opts.original ? 's0' : opts.maxSide !== undefined ? `s${opts.maxSide}` : 's0';
+    url.pathname = `${url.pathname.replace(/=[A-Za-z0-9_-]+$/, '')}=${option}`;
+  }
   return url.toString();
 }
 
@@ -179,5 +188,63 @@ export async function downloadStoreImage(
     height: header.height,
     hasAlpha: header.hasAlpha,
     sha256: createHash('sha256').update(got.body).digest('hex'),
+  };
+}
+
+/** What a header probe learns of one store image. `bytes` is the full length when the host states it. */
+export type ImageProbe = {
+  width: number;
+  height: number;
+  format: 'png' | 'jpeg' | 'webp' | 'gif';
+  bytes: number | null;
+};
+
+/** The first bytes a probe asks for: enough for a PNG, a WebP, a GIF and a JPEG with a normal EXIF block. */
+export const PROBE_BYTES = 192 * 1024;
+
+/**
+ * Reads only the first bytes of a store image (a ranged GET; a host that ignores the range is cut after `PROBE_BYTES`) to
+ * learn its pixel size, format and length, under the same host and address rules as a download. Null on any failure:
+ * the caller then leaves the image unchecked, it never guesses.
+ */
+export async function probeStoreImage(
+  net: StoreImageNet | undefined,
+  address: string,
+): Promise<ImageProbe | null> {
+  let host = '';
+  try {
+    host = new URL(address).hostname;
+  } catch {
+    return null;
+  }
+  if (!address.startsWith('https://') || !isStoreImageHost(host)) return null;
+  const got = await safeGet(address, {
+    allowHost: isStoreImageHost,
+    maxBytes: PROBE_BYTES,
+    head: true,
+    maxRedirects: 3,
+    accept: 'image/png,image/jpeg,image/webp,image/*;q=0.8',
+    timeoutMs: net?.timeoutMs ?? 8_000,
+    ...(net?.allowPrivate ? { allowPrivate: true } : {}),
+    ...(net?.resolve ? { resolve: net.resolve } : {}),
+    ...(net?.exchange ? { exchange: net.exchange } : {}),
+  });
+  if (!got.ok) return null;
+  const header = readImageHeader(got.body);
+  if (!header.ok) return null;
+  const range = /\/(\d+)\s*$/.exec(got.headers?.['content-range'] ?? '');
+  const declared = Number(got.headers?.['content-length']);
+  const total = range
+    ? Number(range[1])
+    : got.status === 200 && Number.isFinite(declared) && declared > 0
+      ? declared
+      : got.body.length < PROBE_BYTES
+        ? got.body.length
+        : null;
+  return {
+    width: header.width,
+    height: header.height,
+    format: header.format,
+    bytes: total !== null && Number.isFinite(total) ? total : null,
   };
 }

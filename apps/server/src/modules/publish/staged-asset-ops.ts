@@ -25,6 +25,7 @@ import {
   inspectImage,
   loadEffectiveSet,
   replaceAssetSet,
+  type SetSeed,
   slotOf,
 } from './staged-sets.ts';
 
@@ -46,6 +47,8 @@ export type SlotRequest = {
   device: string | null;
   actor: Actor;
   gate?: Gate;
+  /** Edit from the store's side: an unstaged set starts from the images the store holds (see `SetSeed`). */
+  seed?: SetSeed | undefined;
 };
 
 /** A file the stores would refuse, with what to do about it. The set is not changed. */
@@ -107,6 +110,7 @@ export async function stageUpload(
     slot: slot.slot,
     actor: input.actor,
     gate: input.gate,
+    seed: input.seed,
   });
   if (!base.ok) return base;
   const entries = base.entries.slice();
@@ -165,6 +169,7 @@ export async function stageUpload(
       position,
       via: 'upload',
       fromRepo: base.fromRepo,
+      ...(base.fromStore ? { fromStore: true } : {}),
       ...(input.fix ? { fix: input.fix } : {}),
     },
   });
@@ -186,6 +191,7 @@ export async function removeFromSet(
     slot: slot.slot,
     actor: input.actor,
     gate: input.gate,
+    seed: input.seed,
   });
   if (!base.ok) return base;
   if (
@@ -211,6 +217,53 @@ export async function removeFromSet(
       position: input.position,
       removedOid: gone?.valueHash ?? null,
       fromRepo: base.fromRepo,
+      ...(base.fromStore ? { fromStore: true } : {}),
+    },
+  });
+}
+
+/** Moves one file of a set to another place in it (the store shows the images in this order). Stages the whole set. */
+export async function moveInSet(
+  ctx: StagedContext,
+  input: SlotRequest & { from: number; to: number },
+): Promise<{ ok: true; staged: StagedChangesView } | Failure> {
+  const app = await getApp(ctx.db, input.workspaceId, input.appId);
+  if (!app) return failure(404, 'not_found');
+  const slot = slotOf(app, input.locale, input.kind, input.device);
+  if (!slot.ok) return slot;
+  const base = await loadEffectiveSet(ctx, {
+    workspaceId: input.workspaceId,
+    app,
+    locale: input.locale,
+    slot: slot.slot,
+    actor: input.actor,
+    gate: input.gate,
+    seed: input.seed,
+  });
+  if (!base.ok) return base;
+  const n = base.entries.length;
+  const valid = (v: number) => Number.isInteger(v) && v >= 1 && v <= n;
+  if (!valid(input.from) || !valid(input.to) || input.from === input.to)
+    return failure(422, 'invalid_position', 'There is no such file or place in this set.', {
+      field: 'position',
+      ...coded('staged.noSuchFile'),
+    });
+  const entries = base.entries.slice();
+  const [moved] = entries.splice(input.from - 1, 1);
+  if (moved) entries.splice(input.to - 1, 0, moved);
+  return replaceAssetSet(ctx, {
+    workspaceId: input.workspaceId,
+    app,
+    locale: input.locale,
+    slot: slot.slot,
+    entries,
+    actor: input.actor,
+    action: 'staged.asset_moved',
+    detail: {
+      from: input.from,
+      to: input.to,
+      fromRepo: base.fromRepo,
+      ...(base.fromStore ? { fromStore: true } : {}),
     },
   });
 }

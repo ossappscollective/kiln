@@ -145,6 +145,12 @@ export const defaultDraftConnectorFactory: DraftConnectorFactory =
       }),
   });
 
+/** Called with (workspaceId, appId) when a draft push succeeded, so caches of what the store holds can be dropped. */
+const draftPushListeners = new Set<(workspaceId: string, appId: string) => void>();
+export const onDraftPushed = (fn: (workspaceId: string, appId: string) => void): void => {
+  draftPushListeners.add(fn);
+};
+
 export type DraftContext = {
   db: Database;
   masterKey: Buffer;
@@ -1370,6 +1376,8 @@ async function succeed(
 ): Promise<{ ok: true; result: DraftPushResult }> {
   const at = ctx.now();
   const counts = countsOf(s.steps);
+  // The store changed: whoever caches a read of it (the store graphics) drops it.
+  for (const listener of draftPushListeners) listener(input.workspaceId, s.app.id);
   await ctx.db.transaction(async (tx) => {
     await markPushed(tx, input.workspaceId, s.app.id, s.prepared, s.steps, at);
     // The record the submit step checks the store against (hashes and ids only).

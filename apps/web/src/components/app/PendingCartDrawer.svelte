@@ -26,6 +26,7 @@
     outcomeRows,
     placeOf,
     prune,
+    rowsForLocale,
     reasonText,
     resultText,
     RISK_KEYS,
@@ -52,6 +53,7 @@
     busy,
     running,
     report,
+    focusLocale = null,
     onpublish,
     ondiscard,
     onrefresh,
@@ -67,6 +69,8 @@
     busy: boolean;
     running: ReadonlySet<string>;
     report: { rows: CartRow[]; outcomes: Outcomes; kind: 'publish' | 'discard' } | null;
+    /** Open scrolled to the items of this locale (from the "2 staged" chip of the listing grid), which are marked. */
+    focusLocale?: string | null | undefined;
     onpublish: (selection: Selection) => void;
     ondiscard: (selection: Selection) => void;
     onrefresh: () => void;
@@ -83,6 +87,7 @@
   let reportBox = $state<HTMLElement>();
 
   const groups = $derived(groupRows(rows));
+  const focused = $derived(focusLocale === null ? new Set<string>() : new Set(rowsForLocale(rows, focusLocale).map((r) => r.key)));
   const counts = $derived<CartCounts>(countsOf(rows, selection));
   const all = $derived(allState(rows, selection));
   const canDiscardSome = $derived(rows.some((r) => selection.has(r.key) && r.canDiscard));
@@ -105,6 +110,16 @@
     } else if (!open && dialog.open) {
       dialog.close();
     }
+  });
+
+  // Opened from a locale's "N staged" chip: bring the first of its items into view.
+  $effect(() => {
+    const key = open ? [...focused][0] : undefined;
+    if (key === undefined) return;
+    void tick().then(() => {
+      const el = [...(dialog?.querySelectorAll<HTMLElement>('[data-row-key]') ?? [])].find((e) => e.dataset.rowKey === key);
+      el?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    });
   });
 
   // After a run the result is announced and read first: focus goes to it.
@@ -219,7 +234,7 @@
               <ul class="rows">
                 {#each group.rows as row (row.key)}
                   {@const state = running.has(row.key) ? 'running' : null}
-                  <li class="cart-row" class:blocked={!row.publishable}>
+                  <li class="cart-row" class:blocked={!row.publishable} class:focused={focused.has(row.key)} data-row-key={row.key}>
                     <label class="pick">
                       <input
                         type="checkbox"
@@ -429,6 +444,14 @@
     gap: var(--space-3);
     padding: var(--space-3) 0;
     border-top: 1px solid var(--line);
+  }
+
+  /* The items of the locale the drawer was opened for: a tint and a stripe (never colour alone). */
+  .cart-row.focused {
+    padding-inline: var(--space-3);
+    background: var(--accent-bg);
+    border-radius: var(--radius-md);
+    box-shadow: inset 3px 0 0 var(--accent);
   }
 
   .cart-row.blocked .title {

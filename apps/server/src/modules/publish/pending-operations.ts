@@ -76,7 +76,10 @@ const cartItemSchema = z.object({
   canDiscard: z.boolean(),
   bundle: z.string().nullable().describe('Items with the same bundle are written by one push: all or none.'),
   version: z.string().describe('Send it back with the id: a changed item is skipped (`changed_since_review`).'),
-  counts: z.record(z.number()),
+  counts: z
+    .record(z.number())
+    .describe('Graphics: `files` (after), `uploads`, and `before` (images the last store read held for the set, when there was one).'),
+  thumbs: z.array(z.string()).describe('Graphics: blob ids of up to four uploaded files of the set (`GET .../staged/assets/blob?oid=`). Empty otherwise.'),
   problems: z.array(z.object({ code: z.string(), severity: z.enum(['error', 'warning']), message: z.string() })),
   ref: z.object({
     locale: z.string().optional(),

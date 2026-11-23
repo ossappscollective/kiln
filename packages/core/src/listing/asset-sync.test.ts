@@ -185,3 +185,18 @@ test('store images are checked on their own: a wrong pixel size and too many in 
   assert.ok(problems.some((p) => /count|max/i.test(p.rule)));
   assert.deepEqual(checkStoreImages({ platform: 'ios', sets: [] }), []);
 });
+
+test('checkStoreImages: a size read from the header never makes an error (a downscaled rendition must not frighten anyone)', () => {
+  const file = (sizeFrom: 'store' | 'header'): StoreImageFile => ({
+    ref: 'r1', position: 1, name: 'feature.png', width: 512, height: 250, bytes: 1000, sizeFrom, checksum: null, checksumKind: null, state: null, downloadable: true,
+  });
+  const check = (sizeFrom: 'store' | 'header') =>
+    checkStoreImages({
+      platform: 'android',
+      sets: [{ platform: 'android', locale: 'en-US', kind: 'feature_graphic', device: null, deviceLabel: 'Feature graphic', target: 'featureGraphic', files: [file(sizeFrom)] }],
+    });
+  assert.ok(check('store').some((p) => p.severity === 'error'), 'the store stated 512x250: a real error');
+  const measured = check('header');
+  assert.ok(measured.length > 0);
+  assert.ok(measured.every((p) => p.severity === 'info'), 'measured by us: only notes');
+});

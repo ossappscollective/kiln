@@ -60,7 +60,9 @@
   import { warningCountOf, warningGroups } from '../../lib/listing/warnings.ts';
   import { describeError, platformLabel, storeName } from '../../lib/portfolio.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
-  import { cellStagedText, stagingError as stagingMessage } from '../../lib/staged.ts';
+  import { announceCartOpen } from '../../lib/pending-cart.ts';
+  import { stagedCellMark, stagedCountForLocale } from '../../lib/staged-marks.ts';
+  import { stagingError as stagingMessage } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { platformById } from '../../lib/stores.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -454,27 +456,33 @@
     }
   }
 
+  /** Discards the staged text of one field through the cart's discard (one path, one audit entry); every screen follows the announcement. */
   async function unstageField(app: AppSummary, id: string, field: DriftField) {
     if (stagingKey !== '') return;
     stagingKey = fieldKey(app, field);
     try {
-      const done = await api.unstageItem(workspaceId, app.id, id);
-      stagedStore.set(done.staged);
+      const done = await api.discardPendingCart(workspaceId, app.id, [`listing:${id}`]);
+      const first = done.result.results[0];
+      if (first && first.status !== 'ok' && first.reason !== 'not_pending') throw new Error(first.reason ?? 'failed');
+      await stagedStore.load(api, workspaceId, app.id);
       announcement = t('listing:matrixView.unstagedAnnounce', { label: field.label, locale: field.locale });
     } catch (e) {
-      toast.error(stagingMessage(e));
+      toast.error(e instanceof ApiError ? stagingMessage(e) : t('listing:matrixView.discardFailed'));
     } finally {
       stagingKey = '';
     }
   }
 
-  /** The cells of a grid cell whose field has a staged text, for the mark. */
-  const stagedCells = (cells: MatrixCell[]): MatrixCell[] =>
-    cells.filter((c) => {
-      const app = members.find((m) => m.platform === c.platform);
-      return app !== undefined && cellStagedText(stagedStore.view(app.id), c.field) !== null;
-    });
-
+  /** The staged text behind a grid cell (before and after in words), read from the shared staged store. */
+  const markOf = (cells: MatrixCell[], locale: string) =>
+    stagedCellMark(
+      cells.flatMap((c) => {
+        const app = members.find((m) => m.platform === c.platform);
+        return c.field === null ? [] : [{ platform: c.platform, platformName: platformLabel(c.platform), view: app ? stagedStore.view(app.id) : null, locale: c.field.locale, field: c.field.field }];
+      }),
+    );
+  /** How many staged items a locale row holds, for its count chip. */
+  const stagedInLocale = (locale: string) => stagedCountForLocale(members.filter((m) => lockedPlatforms.indexOf(m.platform) < 0).map((m) => stagedStore.view(m.id)), locale);
 
   function setMode(mode: MatrixFilter['mode']) {
     filter = { ...filter, mode };
@@ -551,7 +559,7 @@
                 <li><StatusDot {status} /> <span>{cellInfo(status).short}</span></li>
               {/each}
               {#if both}<li><StatusDot status="na" /> <span>{t('listing:matrixView.notOnStore')}</span></li>{/if}
-              <li><span class="staged-mark"><Icon name="layers" size={14} /></span> <span>{t('listing:matrixView.stagedMark')}</span></li>
+              <li><span class="edited"><span class="edited-dot" aria-hidden="true"></span>{t('listing:matrixView.stagedEdited')}</span> <span>{t('listing:matrixView.stagedMark')}</span></li>
             </ul>
             <p class="muted">{t('listing:matrixView.legendNote')}</p>
           {/if}
@@ -729,6 +737,10 @@
                       <span class="code">{row.locale}</span>
                       {#if row.name !== row.locale}<span class="name muted">{row.name}</span>{/if}
                     </button>
+                    {#if stagedInLocale(row.locale) > 0}
+                      {@const n = stagedInLocale(row.locale)}
+                      <button type="button" class="bare staged-chip" aria-label={t('listing:matrixView.localeStagedAria', { count: n, locale: row.locale })} onclick={() => announceCartOpen(row.locale)}>{t('listing:matrixView.localeStaged', { count: n })}</button>
+                    {/if}
                   </th>
                   {#if both}
                     <td class="stores">
@@ -737,23 +749,21 @@
                   {/if}
                   {#each matrix.columns as column (column.key)}
                     {@const cells = row.cells[column.key] ?? []}
-                    {@const staged = stagedCells(cells)}
+                    {@const mark = markOf(cells, row.locale)}
                     <td class="cell">
                       <button
                         type="button"
                         class="bare dots"
                         class:dim={cells.every((c) => dimmed(c.status))}
-                        aria-label={staged.length === 0
+                        aria-label={mark.count === 0
                           ? t('listing:matrixView.cellAria', { column: column.label, locale: row.locale, summary: cellsSummary(cells, both) })
-                          : both
-                            ? t('listing:matrixView.cellAriaStagedOn', { column: column.label, locale: row.locale, summary: cellsSummary(cells, both), platforms: platformNames(staged.map((c) => c.platform)) })
-                            : t('listing:matrixView.cellAriaStaged', { column: column.label, locale: row.locale, summary: cellsSummary(cells, both) })}
+                          : t('listing:matrixView.cellAriaStaged', { column: column.label, locale: row.locale, summary: cellsSummary(cells, both), staged: mark.text })}
                         onclick={() => openLocale(row.locale)}
                       >
                         {#each cells as cell (cell.platform)}
                           <StatusDot status={cell.status} label={cellText(column, cell, both)} />
                         {/each}
-                        {#if staged.length > 0}<span class="staged-mark" aria-hidden="true" title={t('listing:matrixView.stagedMark')}><Icon name="layers" size={14} /></span>{/if}
+                        {#if mark.count > 0}<span class="edited" title={mark.text}><span class="edited-dot" aria-hidden="true"></span>{t('listing:matrixView.stagedEdited')}</span>{/if}
                       </button>
                       {#each cells as cell (cell.platform)}
                         {@const editable = editableField(cell)}
@@ -1102,9 +1112,50 @@
     outline-offset: 1px;
   }
 
-  .staged-mark {
+  /* The "Edited" marker of a cell with a staged value: a filled dot and the word (never colour alone), in the accent chip tokens. */
+  .edited {
     display: inline-flex;
-    color: var(--accent);
+    gap: var(--space-1);
+    align-items: center;
+    padding: 0 var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    line-height: 1.5;
+    color: var(--chip-ink);
+    white-space: nowrap;
+    background: var(--chip-bg);
+    border-radius: var(--radius-full);
+  }
+
+  .edited-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--accent);
+    border-radius: var(--radius-full);
+  }
+
+  /* "2 staged": opens the cart drawer on those items. Written as button.bare.staged-chip so the global button rules cannot repaint it. */
+  button.bare.staged-chip {
+    margin-top: var(--space-1);
+    padding: 0 var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    color: var(--chip-ink);
+    cursor: pointer;
+    background: var(--chip-bg);
+    border-radius: var(--radius-full);
+  }
+
+  button.bare.staged-chip:hover:not(:disabled),
+  button.bare.staged-chip:active:not(:disabled) {
+    color: var(--chip-ink);
+    background: var(--accent-bg);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+
+  button.bare.staged-chip:focus-visible {
+    outline: var(--ring);
+    outline-offset: 2px;
   }
 
   .dots.dim {

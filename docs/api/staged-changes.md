@@ -170,6 +170,12 @@ own database, no store is called):
   `422 spec_errors` (`problems[]`, `fix`) and is not staged.
 - `DELETE /apps/{id}/staged/assets/file?locale=&kind=&device=&position=`: removing the last file is refused
   (`empty_set`). The store keeps the image until the set is pushed, and a push replaces the store's whole set.
+- `base=store` (query of the upload and the remove, `base` in the body of the move): a set that is not staged yet starts from the
+  images the store holds, not from the repository: each is downloaded once from the store's CDN (the original size, checked
+  against Google's SHA-256 where there is one) and kept as a staged upload, so the push, which replaces the store's set, keeps the
+  images that were not touched. The Graphics tab edits the store's side this way.
+- `POST /apps/{id}/staged/assets/move` `{ locale, kind, device?, from, to, base? }`: moves one file of the set (reorder; audit
+  `staged.asset_moved`). A push writes the order (App Store Connect: an ordering request; Google Play: the upload order, UNVERIFIED).
 - `POST /apps/{id}/staged/assets/fix` `{ locale, kind, device, position, fix, background? }`: stages a corrected copy.
 - `POST /apps/{id}/staged/assets/to-repo` `{ sets? }`: a draft change set that makes the repository's sets exactly the
   staged ones (files the staged set no longer holds are deleted; files that are already right are not touched).

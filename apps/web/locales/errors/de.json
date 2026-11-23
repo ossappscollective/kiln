@@ -441,6 +441,8 @@
   "staged.setEmpty": "Ein Satz kann hier nicht geleert werden: Ein Upload ersetzt einen Store-Satz durch die enthaltenen Dateien und kann ihn nicht leeren. Merken Sie mindestens eine Datei vor oder entfernen Sie die Bilder in der Store-Konsole.",
   "staged.setNoName": "Ein vorgemerkter Satz hat keinen Store-Namen.",
   "staged.specs": "Diese Datei erfüllt die Store-Vorgaben nicht und wurde daher nicht vorgemerkt. Korrigieren Sie sie zuerst (siehe die Optionen) oder exportieren Sie eine korrekte Datei.",
+  "staged.storeImageFormat": "Bild {{position}} dieses Satzes liegt in einem Format vor, das nicht gesendet werden kann (nur PNG und JPEG), daher lässt sich der Satz hier nicht bearbeiten.",
+  "staged.storeImageMismatch": "Bild {{position}} dieses Satzes passt nicht zur Prüfsumme des Stores und wurde nicht übernommen. Lesen Sie den Store erneut.",
   "staged.textTooLong": "Ein vorgemerkter Text hat höchstens {{max}} Zeichen.",
   "staged.tooManyBytes": "Ein Upload umfasst höchstens {{mb}} MB; hier würden {{staged}} MB vorgemerkt.",
   "staged.tooManyFiles": "Ein Upload umfasst höchstens {{max}} Dateien; hier würden {{files}} vorgemerkt.",

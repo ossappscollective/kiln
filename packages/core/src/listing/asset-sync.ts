@@ -74,6 +74,11 @@ export type StoreImageFile = {
   width: number | null;
   height: number | null;
   bytes: number | null;
+  /**
+   * Where the pixel size comes from: the store's own answer, or the header of the ORIGINAL file that this server read because the
+   * store gave none (Google Play). Null: unknown. A size from the header is never the cause of an error (see `checkStoreImages`).
+   */
+  sizeFrom?: 'store' | 'header' | null;
   /** Lower case hex of the file, when the store (or this server's own mark) supplies it. */
   checksum: string | null;
   checksumKind: 'sha256' | 'md5' | null;
@@ -114,11 +119,14 @@ export type StoreImagesView = {
 export function checkStoreImages(view: Pick<StoreImagesView, 'platform' | 'sets'>): AssetProblem[] {
   const store = assetStoreOf(view.platform);
   const facts = [];
+  const measured = new Set<string>();
   for (const set of view.sets) {
     for (const f of set.files) {
       const ext = (f.name ?? '').split('.').pop()?.toLowerCase() ?? '';
+      const path = `${set.locale}/${set.kind}/${set.device ?? 'all'}#${f.position}`;
+      if (f.sizeFrom === 'header') measured.add(path);
       facts.push({
-        path: `${set.locale}/${set.kind}/${set.device ?? 'all'}#${f.position}`,
+        path,
         store,
         locale: set.locale,
         kind: set.kind,
@@ -134,7 +142,22 @@ export function checkStoreImages(view: Pick<StoreImagesView, 'platform' | 'sets'
       });
     }
   }
-  return validateAssets(store, facts);
+  const found = validateAssets(store, facts);
+  if (measured.size === 0) return found;
+  // A size this server measured itself (the store gave none) is a reading, not a fact of the store: whatever it finds is a note,
+  // never an error or a warning, so a wrong reading cannot block anything or frighten anyone.
+  const rank = { error: 0, warning: 1, info: 2 } as const;
+  return found
+    .map((p) =>
+      p.path !== undefined && measured.has(p.path) && p.severity !== 'info'
+        ? {
+            ...p,
+            severity: 'info' as const,
+            message: `${p.message} (The size was read from the file header, as the store gives none, so this is a note.)`,
+          }
+        : p,
+    )
+    .sort((a, b) => rank[a.severity] - rank[b.severity]);
 }
 
 // ---------------------------------------------------------------------------------------------

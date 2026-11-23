@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  announceCartOpen,
+  CART_OPEN_EVENT,
+  rowsForLocale,
   allState,
   announceCartAdded,
   CART_ADDED_EVENT,
@@ -161,4 +164,16 @@ test('the cart button keeps its gradient and label colour in every state', async
   }
   for (const state of [':hover', ':focus-visible', ':active', "[aria-expanded='true']", ':disabled'])
     assert.ok(rules.some((m) => (m[1] as string).includes(state)), state);
+});
+
+test('the locale chip opens the cart on that locale: the event carries it and the rows are picked by locale', () => {
+  const bus = new EventTarget();
+  const seen: unknown[] = [];
+  bus.addEventListener(CART_OPEN_EVENT, (e) => seen.push((e as CustomEvent).detail));
+  announceCartOpen('de-DE', bus);
+  announceCartOpen(null, bus);
+  announceCartOpen('fr-FR', undefined);
+  assert.deepEqual(seen, [{ locale: 'de-DE' }, { locale: null }]);
+  const mixed = toRows('a', [item('listing:1', { locale: 'de-DE' }), item('graphics:1', { kind: 'graphics', locale: 'de-DE' }), item('listing:2', { locale: 'fr-FR' }), reply('review_reply:1', { locale: 'de-DE' })]);
+  assert.deepEqual(rowsForLocale(mixed, 'de-DE').map((r) => r.id), ['listing:1', 'graphics:1']);
 });

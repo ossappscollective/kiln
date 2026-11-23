@@ -13,6 +13,7 @@
   import { t } from '../../lib/i18n/t.ts';
   import {
     CART_ADDED_EVENT,
+    CART_OPEN_EVENT,
     type CartRow,
     discardRequests,
     failAll,
@@ -52,6 +53,7 @@
   let error = $state('');
   let open = $state(false);
   let pulse = $state(false);
+  let focusLocale = $state<string | null>(null);
   let busy = $state(false);
   let running = $state<ReadonlySet<string>>(new Set());
   let report = $state<{ rows: CartRow[]; outcomes: Outcomes; kind: 'publish' | 'discard' } | null>(null);
@@ -126,11 +128,19 @@
     const offStaged = onStagedChanged((d) => {
       if (d.reason !== 'stage' && ids.includes(d.appId)) void refresh();
     });
+    // "2 staged" on a locale row: open the drawer on that locale's items.
+    const onOpen = (e: Event) => {
+      focusLocale = (e as CustomEvent<{ locale?: string | null }>).detail?.locale ?? null;
+      open = true;
+      void refresh();
+    };
+    window.addEventListener(CART_OPEN_EVENT, onOpen);
     window.addEventListener(CART_ADDED_EVENT, onAdded);
     window.addEventListener(PUBLISHED_EVENT, onPublished);
     document.addEventListener('visibilitychange', onFocus);
     return () => {
       offStaged();
+      window.removeEventListener(CART_OPEN_EVENT, onOpen);
       window.removeEventListener(CART_ADDED_EVENT, onAdded);
       window.removeEventListener(PUBLISHED_EVENT, onPublished);
       document.removeEventListener('visibilitychange', onFocus);
@@ -192,7 +202,10 @@
     aria-expanded={open}
     aria-label={t('app:cart.openAria', { count })}
     data-testid="pending-cart-button"
-    onclick={() => (open = true)}
+    onclick={() => {
+      focusLocale = null;
+      open = true;
+    }}
   >
     <Icon name="upload" size={18} />
     <span class="label">{t('app:cart.fabLabel')}</span>
@@ -210,6 +223,7 @@
   {busy}
   {running}
   {report}
+  {focusLocale}
   {now}
   onpublish={publish}
   ondiscard={discard}

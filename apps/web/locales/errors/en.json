@@ -441,6 +441,8 @@
   "staged.setEmpty": "A set cannot be emptied here: a push replaces a store set with the files it holds and cannot clear it. Stage at least one file, or remove the images in the store console.",
   "staged.setNoName": "A staged set has no store name.",
   "staged.specs": "This file does not meet the store specs, so it was not staged. Fix it first (see the options) or export a correct file.",
+  "staged.storeImageFormat": "Image {{position}} of this set is stored as a format that cannot be pushed (only PNG and JPEG can), so the set cannot be edited here.",
+  "staged.storeImageMismatch": "Image {{position}} of this set does not match the checksum the store gave, so it was not taken. Read the store again.",
   "staged.textTooLong": "A staged text is at most {{max}} characters.",
   "staged.tooManyBytes": "A push uploads at most {{mb}} MB; this would stage {{staged}} MB.",
   "staged.tooManyFiles": "A push uploads at most {{max}} files; this would stage {{files}}.",

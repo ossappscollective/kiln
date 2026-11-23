@@ -124,7 +124,7 @@ the action in its list (explicit-only actions stay explicit). A non-member gets 
 for graphics), `before`, `platform`, `store`, `locale`, `createdAt`, `author { id, name }`, `risk` (`store_draft`: written as a draft,
 nothing is submitted; `public_reply`: public at once), `needsApproval` (the step-up policy covers `store.push_draft`), `publishable`,
 `reason { code, action?, envName? }` (`no_right`, `switch_off`, `invalid`, `bundle_blocked`, `in_progress`, `outcome_unknown`),
-`canDiscard`, `bundle`, `version`, `counts`, `problems`, `ref` (where it was made) and, for replies, `review { rating, excerpt, language,
+`canDiscard`, `bundle`, `version`, `counts` (graphics: `files` after, `uploads`, `before` when a store read of the set is remembered), `thumbs` (graphics: blob ids of up to four uploaded files, shown from `GET /staged/assets/blob?oid=`), `problems`, `ref` (where it was made) and, for replies, `review { rating, excerpt, language,
 territory, status }`. Ordered by kind (listing, graphics, release, review_reply), then age. Stored state only; `Cache-Control: no-store`.
 Texts and excerpts are shown to people who can already read them in the staged view and the review inbox; they are never audited or put in events.
 Not in the cart: pushed drafts waiting for submit, versions in review, approved versions, rollout steps (see [Pending view](#pending-view-read-only)).

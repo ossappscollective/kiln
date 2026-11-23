@@ -22,6 +22,7 @@ import { getBlob } from '../publish/staged-asset-blobs.ts';
 import {
   fixFile,
   inspectForSlot,
+  moveInSet,
   removeFromSet,
   stagedSetsToRepo,
   stageUpload,
@@ -33,10 +34,14 @@ import {
   defaultDraftConnectorFactory,
 } from '../publish/store-draft.ts';
 import { buildAssetDiff } from './asset-diff.ts';
+import { storeSeed } from './staged-store-seed.ts';
 import { pullStoreImages } from './asset-pull.ts';
 import { IMAGE_TYPES, matchesEtag, safeImageHeaders } from './asset-routes.ts';
 import type { StoreImageNet } from './store-image-net.ts';
 import { getStoreImages, storeThumbnail, thumbSizeOf } from './store-images.ts';
+
+/** A thumbnail's ref names the image and its checksum, so the same ref is the same picture: private, an hour, then revalidated by ETag. */
+export const THUMB_CACHE_CONTROL = 'private, max-age=3600, stale-while-revalidate=86400';
 
 import { coded } from '../../i18n/problem.ts';
 /**
@@ -136,6 +141,16 @@ const fixBody = z
     background: z.string().max(9).optional(),
   })
   .strict();
+const moveBody = z
+  .object({
+    locale: z.string().min(2).max(35),
+    kind: kinds,
+    device: z.string().min(1).max(60).nullable().optional(),
+    from: z.number().int().min(1).max(200),
+    to: z.number().int().min(1).max(200),
+    base: z.enum(['store']).optional(),
+  })
+  .strict();
 const toRepoBody = z
   .object({ sets: z.array(z.string().min(3).max(200)).max(200).optional() })
   .strict();
@@ -198,6 +213,23 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
         };
   };
   const notFound = (c: Context<AppEnv>) => c.json({ error: 'not_found' }, 404);
+  /** `base=store`: an unstaged set starts from the images the store holds (the Graphics tab edits the store's side). */
+  const seedOf = async (
+    c: Context<AppEnv>,
+    slot: { locale: string; kind: string; device: string | null },
+    base: string | undefined,
+  ) => {
+    if (base !== 'store') return undefined;
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return undefined;
+    return storeSeed(store, {
+      workspaceId: ws(c),
+      app,
+      locale: slot.locale,
+      slot: { kind: slot.kind as AssetKind, device: slot.device },
+      actor: actor(c),
+    });
+  };
   const slotQuery = (c: Context<AppEnv>) => {
     const kind = kinds.safeParse(c.req.query('kind'));
     const locale = c.req.query('locale') ?? '';
@@ -259,7 +291,7 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
     const size = thumbSizeOf(c.req.query('size'));
     // The ref names the image and its checksum, so the same ref is the same picture: a cheap 304.
     const etag = `"t-${ref}-${size}"`;
-    const cache = 'private, max-age=3600';
+    const cache = THUMB_CACHE_CONTROL;
     if (matchesEtag(c.req.header('If-None-Match'), etag)) {
       return new Response(null, {
         status: 304,
@@ -368,6 +400,7 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
         ...q.slot,
         actor: actor(c),
         gate: gate(c),
+        seed: await seedOf(c, q.slot, c.req.query('base')),
         mode,
         position,
         name: c.req.query('name'),
@@ -400,11 +433,31 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
         ...q.slot,
         actor: actor(c),
         gate: gate(c),
+        seed: await seedOf(c, q.slot, c.req.query('base')),
         position,
       });
       return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
     },
   );
+
+  routes.post('/:workspaceId/apps/:id/staged/assets/move', needs('changesets.write'), async (c) => {
+    const body = await parseBody(c, moveBody);
+    if (!body.ok) return body.response;
+    const limited = uploadGate(c);
+    if (limited) return respond(c, limited);
+    const { base, device, ...rest } = body.data;
+    const slot = { locale: rest.locale, kind: rest.kind as string, device: device ?? null };
+    const done = await moveInSet(staged, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      ...rest,
+      device: slot.device,
+      actor: actor(c),
+      gate: gate(c),
+      seed: await seedOf(c, slot, base),
+    });
+    return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
+  });
 
   routes.post('/:workspaceId/apps/:id/staged/assets/fix', needs('changesets.write'), async (c) => {
     const body = await parseBody(c, fixBody);

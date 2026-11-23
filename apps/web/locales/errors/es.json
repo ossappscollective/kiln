@@ -444,6 +444,8 @@
   "staged.setEmpty": "Un conjunto no se puede vaciar aquí: una subida reemplaza un conjunto de la tienda por los archivos que contiene y no puede vaciarlo. Prepara al menos un archivo o quita las imágenes en la consola de la tienda.",
   "staged.setNoName": "Un conjunto preparado no tiene nombre de tienda.",
   "staged.specs": "Este archivo no cumple las especificaciones de la tienda, así que no se preparó. Corrígelo primero (consulta las opciones) o exporta un archivo correcto.",
+  "staged.storeImageFormat": "La imagen {{position}} de este conjunto está en un formato que no se puede enviar (solo PNG y JPEG), así que el conjunto no se puede editar aquí.",
+  "staged.storeImageMismatch": "La imagen {{position}} de este conjunto no coincide con la suma de comprobación que dio la tienda, así que no se tomó. Vuelva a leer la tienda.",
   "staged.textTooLong": "Un texto preparado tiene como máximo {{max}} caracteres.",
   "staged.tooManyBytes": "Una subida incluye como máximo {{mb}} MB; esta prepararía {{staged}} MB.",
   "staged.tooManyFiles": "Una subida incluye como máximo {{max}} archivos; esta prepararía {{files}}.",

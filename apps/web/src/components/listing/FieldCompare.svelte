@@ -68,6 +68,8 @@
   // With the repository comparison off the field is judged on the store's value alone: no repository column, no "stage from repo".
   const repoOn = $derived(compare().repo);
   const stage = $derived(repoOn ? stageProp : undefined);
+  // A staged text is shown (badge, Discard) whatever the comparison switch says: it exists in the pending changes either way.
+  const stagedNow = $derived(stageProp?.staged ?? null);
   let showCompare = $state(false);
   const diff = $derived(comparison(field));
   const status = $derived(cellStatus(field));
@@ -104,7 +106,7 @@
     {#if lines.length > 0 && status !== 'over'}
       <Badge tone="warn">{t('listing:compare.limitProblem')}</Badge>
     {/if}
-    {#if stage?.staged}
+    {#if stagedNow}
       <Badge tone="accent" icon="layers">{t('listing:compare.staged')}</Badge>
     {/if}
     {#if note}<span class="count" class:over={note.over}>{note.text}</span>{/if}
@@ -150,8 +152,8 @@
       {:else if stage && stage.state === 'not_pushable'}
         <span class="muted small" title={stage.reason ?? undefined}>{t('listing:compare.notPartOfPush')}</span>
       {/if}
-      {#if stage && stage.staged}
-        <Button size="sm" variant="ghost" icon="x" disabled={stageBusy} aria-label={t('listing:compare.unstageFor', who)} onclick={() => stage.staged && onunstage?.(stage.staged.id, field)}>{t('listing:compare.unstage')}</Button>
+      {#if stagedNow}
+        <Button size="sm" variant="ghost" icon="x" disabled={stageBusy} aria-label={t('listing:compare.discardFor', who)} onclick={() => onunstage?.(stagedNow.id, field)}>{t('listing:compare.discard')}</Button>
       {/if}
     </div>
     {#if extra}{@render extra()}{/if}

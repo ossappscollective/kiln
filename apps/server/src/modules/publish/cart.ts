@@ -7,6 +7,7 @@ import { type Failure, failure } from '../../services/repositories.ts';
 import { getPolicy } from '../../services/step-up.ts';
 import { deleteReplyDraft, REPLY_ENV, type ReviewReplyContext, sendReviewReply } from '../reviews/replies.ts';
 import { storeFor } from '../reviews/sync.ts';
+import { lastStoreImages } from '../listing/store-images.ts';
 import { loadPendingFacts } from './pending.ts';
 import { buildStagedView, type StagedContext, unstage } from './staged-changes.ts';
 import { applyDraftPush, DRAFT_ENV, type DraftContext, previewDraftPush } from './store-draft.ts';
@@ -64,7 +65,10 @@ export type CartItem = {
   bundle: string | null;
   /** Changes when the content does. A publish names it, so a stale list cannot send newer content. */
   version: string;
+  /** Graphics: `files` (after), `before` (the images the last store read held for the set, when there was one), `uploads`. */
   counts: Record<string, number>;
+  /** Graphics: blob ids of up to four uploaded files of the set (shown from `GET .../staged/assets/blob`). Empty otherwise. */
+  thumbs: string[];
   problems: { code: string; severity: 'error' | 'warning'; message: string }[];
   /** Where it was made (the web turns it into a link). */
   ref: { locale?: string; field?: string; slot?: string; reviewId?: string };
@@ -162,11 +166,18 @@ export async function loadCart(
         reason: null,
         version: sha(['listing', t.id, t.valueHash]),
         counts: { length: t.value.length },
+        thumbs: [],
         problems: t.problems.filter((p) => p.severity !== 'info').map((p) => ({ code: p.code, severity: p.severity as 'error' | 'warning', message: p.message })),
         ref: { locale: t.locale, field: t.field },
       });
     }
+    const lastStore = lastStoreImages(workspaceId, app.id);
     for (const a of view.assets.filter((x) => !x.pushed)) {
+      const before = lastStore
+        ? lastStore.sets
+            .filter((s) => s.locale === a.locale && s.kind === a.slot.kind && s.device === a.slot.device)
+            .reduce((n, s) => n + s.files.length, 0)
+        : null;
       raw.set(`graphics:${a.id}`, { kind: 'graphics', rawId: a.id });
       staged.push({
         ...base('graphics', a.id),
@@ -179,7 +190,15 @@ export async function loadCart(
         publishable: true,
         reason: null,
         version: sha(['graphics', a.id, ...a.files.map((f) => f.oid)]),
-        counts: { files: a.files.length },
+        counts: {
+          files: a.files.length,
+          uploads: a.files.filter((f) => f.upload).length,
+          ...(before === null ? {} : { before }),
+        },
+        thumbs: a.files
+          .filter((f) => f.upload)
+          .slice(0, 4)
+          .map((f) => f.oid),
         problems: a.problems.filter((p) => p.severity !== 'info').map((p) => ({ code: p.code, severity: p.severity as 'error' | 'warning', message: p.message })),
         ref: { locale: a.locale, slot: a.slotKey },
       });
@@ -199,6 +218,7 @@ export async function loadCart(
         reason: null,
         version: sha(['release', r.id, r.valueHash]),
         counts: {},
+        thumbs: [],
         problems: r.problems.filter((p) => p.severity !== 'info').map((p) => ({ code: p.code, severity: p.severity as 'error' | 'warning', message: p.message })),
         ref: { field: r.field, ...(r.locale ? { locale: r.locale } : {}) },
       });
@@ -264,6 +284,7 @@ export async function loadCart(
       bundle: null,
       version: String(d.text_hash),
       counts: { length: String(d.text).length },
+      thumbs: [],
       problems: [],
       ref: { reviewId },
       review: {

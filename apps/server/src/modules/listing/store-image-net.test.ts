@@ -32,7 +32,7 @@ test('hosts: Apple and Google image hosts only, subdomains included, nothing tha
     assert.equal(isStoreImageHost(h), false, h);
 });
 
-test('imageUrlOf fills Apple’s template, keeps Google’s url, and refuses anything else', () => {
+test('imageUrlOf fills Apple’s template, gives Google’s url its size option (the original by default), and refuses anything else', () => {
   const apple = {
     url: 'https://is1.mzstatic.com/image/thumb/AbC/{w}x{h}bb.{f}',
     urlKind: 'apple_template' as const,
@@ -72,7 +72,7 @@ test('imageUrlOf fills Apple’s template, keeps Google’s url, and refuses any
       width: null,
       height: null,
     }),
-    'https://play-lh.googleusercontent.com/abc',
+    'https://play-lh.googleusercontent.com/abc=s0',
   );
   assert.equal(
     imageUrlOf({ url: 'file:///etc/passwd', urlKind: 'play_url', width: null, height: null }),
