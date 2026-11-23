@@ -9,6 +9,7 @@
   import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { asoErrorMessage } from '../../lib/aso/aso.ts';
+  import { competitorSync } from '../../lib/aso/competitor-sync.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { formatNumber } from '../../lib/i18n/format.ts';
@@ -46,6 +47,8 @@
 
   $effect(() => {
     void days;
+    // A competitor was followed or removed in Insights: read the list again.
+    void competitorSync.version;
     untrack(() => void load());
   });
 

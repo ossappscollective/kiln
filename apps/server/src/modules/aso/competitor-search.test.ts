@@ -9,7 +9,7 @@ import { bootAso, OWN_IOS_ID, publicApp, slowDown } from './test-helpers.ts';
 test('mapSearchResults: capped plain text, https icons, own and followed marked, duplicates and bad ids dropped', () => {
   const rows = mapSearchResults(
     [
-      publicApp('111', { name: '  Rival <b>One</b>\n', developer: 'Acme Ltd', category: 'Health & Fitness', ratingMilli: 4567, ratingCount: 12 }),
+      publicApp('111', { iconUrl: 'https://is1-ssl.mzstatic.com/image/thumb/x/512x512bb.jpg', name: '  Rival <b>One</b>\n', developer: 'Acme Ltd', category: 'Health & Fitness', ratingMilli: 4567, ratingCount: 12 }),
       publicApp('111'),
       publicApp('222', { iconUrl: 'http://example.invalid/a.png', price: '$4.99' }),
       publicApp('333', { name: '' }),
@@ -25,6 +25,9 @@ test('mapSearchResults: capped plain text, https icons, own and followed marked,
   );
   assert.equal(rows[0]?.name, 'Rival b One /b');
   assert.equal(rows[0]?.ratingAverage, 4.57);
+  assert.equal(rows[0]?.iconUrl, 'https://is1-ssl.mzstatic.com/image/thumb/x/512x512bb.jpg');
+  assert.equal(rows[2]?.iconUrl, null);
+  assert.equal(safeIconUrl('https://example.invalid/a.png'), null);
   assert.equal(rows[1]?.iconUrl, null);
   assert.equal(rows[1]?.price, '$4.99');
   assert.equal(rows[3]?.name.length, 120);

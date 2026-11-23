@@ -57,6 +57,7 @@ import type {
   AsoAddResult,
   AsoCoachResponse,
   AsoCompetitor,
+  AsoCompetitorSearch,
   AsoCompetitorHistory,
   AsoConfig,
   AsoFitResponse,
@@ -612,6 +613,7 @@ export function createApi(options: ApiOptions = {}) {
     body?: unknown,
     raw?: Blob,
     extraHeaders?: Record<string, string>,
+    signal?: AbortSignal,
   ): Promise<T> {
     let response: Response;
     try {
@@ -620,6 +622,7 @@ export function createApi(options: ApiOptions = {}) {
         method,
         ...(headers ? { headers } : {}),
         ...(raw !== undefined || body !== undefined ? { body: raw ?? JSON.stringify(body) } : {}),
+        ...(signal ? { signal } : {}),
       });
     } catch {
       throw new ApiError(
@@ -2316,6 +2319,22 @@ export function createApi(options: ApiOptions = {}) {
       request<{ competitors: AsoCompetitor[]; limits: { maxCompetitorsPerApp: number } }>(
         'GET',
         `${asoPath(workspaceId, appId)}/competitors`,
+      ),
+    /** Search the App Store by name for an app to follow (reads Apple's public search through the server's cache and limits). Stale calls can be aborted. */
+    searchAsoCompetitors: (
+      workspaceId: string,
+      appId: string,
+      q: string,
+      country: string,
+      signal?: AbortSignal,
+    ) =>
+      request<AsoCompetitorSearch>(
+        'GET',
+        `${asoPath(workspaceId, appId)}/competitors/search?q=${encodeURIComponent(q)}&country=${encodeURIComponent(country)}`,
+        undefined,
+        undefined,
+        undefined,
+        signal,
       ),
     /** Reads the public store once, so the name is real. Rate limited per workspace. */
     addAsoCompetitor: (

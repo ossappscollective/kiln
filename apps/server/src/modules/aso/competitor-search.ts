@@ -33,12 +33,16 @@ const clip = (value: string | undefined, max: number): string | null => {
   return text === '' ? null : text.slice(0, max);
 };
 
-/** An https address of at most 500 characters, or null. */
+/** An https address of at most 500 characters on Apple's image CDN (`mzstatic.com`), or null. */
 export function safeIconUrl(value: string | undefined): string | null {
   if (!value || value.length > 500) return null;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && url.username === '' && url.password === '' ? url.toString() : null;
+    const host = url.hostname.toLowerCase();
+    const cdn = host === 'mzstatic.com' || host.endsWith('.mzstatic.com');
+    return url.protocol === 'https:' && cdn && url.username === '' && url.password === ''
+      ? url.toString()
+      : null;
   } catch {
     return null;
   }

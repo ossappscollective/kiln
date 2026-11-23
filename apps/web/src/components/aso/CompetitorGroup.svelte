@@ -8,6 +8,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { bumpCompetitors } from '../../lib/aso/competitor-sync.svelte.ts';
   import {
     type AsoCompetitor,
     type AsoCompetitorHistory,
@@ -114,6 +115,7 @@
     try {
       await api.deleteAsoCompetitor(workspaceId, app.id, c.id);
       toast.success(t('aso:group.stopped', { name: c.name }));
+      bumpCompetitors();
       onchanged();
     } catch (e) {
       toast.error(asoErrorMessage(e, t('aso:group.removeFailed')));
@@ -128,6 +130,7 @@
       const out = await api.addAsoCompetitor(workspaceId, app.id, { externalId: s.externalId, country: s.country });
       toast.success(t('aso:group.following', { name: out.competitor.name }));
       confirming = null;
+      bumpCompetitors();
       onchanged();
     } catch (e) {
       toast.error(asoErrorMessage(e, t('aso:group.followFailed')));

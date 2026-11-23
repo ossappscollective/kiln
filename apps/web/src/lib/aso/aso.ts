@@ -137,6 +137,20 @@ export type AsoSnapshot = {
   screenshotCount: number | null;
   changes: AsoChange[] | null;
 };
+/** One row of the competitor search by name (App Store): plain, capped text; `state` says own app / already followed. */
+export type AsoCompetitorSearchResult = {
+  externalId: string;
+  name: string;
+  developer: string | null;
+  category: string | null;
+  iconUrl: string | null;
+  ratingAverage: number | null;
+  ratingCount: number | null;
+  price: string | null;
+  state: 'available' | 'followed' | 'own';
+};
+export type AsoCompetitorSearch = { country: string; cached: boolean; results: AsoCompetitorSearchResult[] };
+
 export type AsoCompetitor = {
   id: string;
   appId: string;
