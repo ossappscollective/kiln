@@ -126,6 +126,7 @@ test('the rail lists only the sections that exist, in groups with no empty group
   assert.deepEqual(labels({ android: false, ai: false, canDelete: false }), [
     'Stores',
     'Repository',
+    'Store listing',
     'Expo and RevenueCat',
     'Release defaults',
     'Notifications',
@@ -133,6 +134,7 @@ test('the rail lists only the sections that exist, in groups with no empty group
   assert.deepEqual(labels({ android: true, ai: true, canDelete: true }), [
     'Stores',
     'Repository',
+    'Store listing',
     'Expo and RevenueCat',
     'Release defaults',
     'Google Play releases',

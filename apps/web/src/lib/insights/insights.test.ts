@@ -96,7 +96,7 @@ test('a count is read again only when it is older than five minutes (no polling)
 test('actions open Kiln pages only: the target is data, never an address', () => {
   assert.equal(actionHref('a1', { code: 'openOverview', target: { section: 'insights', view: 'overview' } }), '#/portfolio/a1/insights');
   assert.equal(actionHref('a1', { code: 'openCountries', target: { section: 'insights', view: 'countries' } }, 'ios'), '#/portfolio/a1/insights?platform=ios&view=countries');
-  assert.equal(actionHref('a1', { code: 'openChecks', target: { section: 'listing', view: 'text', locale: 'de-DE' } }), '#/portfolio/a1/listing?view=text&locale=de-DE');
+  assert.equal(actionHref('a1', { code: 'openChecks', target: { section: 'listing', view: 'text', locale: 'de-DE' } }), '#/portfolio/a1/listing?view=text&locale=de-DE&panel=de-DE');
   assert.equal(actionHref('a1', { code: 'addLocale', target: { section: 'listing', view: 'text', locale: 'de' } }), '#/portfolio/a1/listing?view=text', 'a language the page lacks is no locale to open');
   assert.equal(actionHref('a1', { code: 'openRank', target: { section: 'insights', view: 'keywords', term: 'timer' } }), '#/portfolio/a1/insights?view=rank');
   assert.equal(actionHref('a1', { code: 'openReviews', target: { section: 'reviews', view: 'reviews' } }), '#/portfolio/a1/reviews?view=reviews');
