@@ -30,6 +30,11 @@
   import AssetsTab from '../assets/AssetsTab.svelte';
   import EasConfigCard from '../eas/EasConfigCard.svelte';
   import EasUpdateCard from '../eas/EasUpdateCard.svelte';
+  import EasSubmissionsPanel from '../eas/EasSubmissionsPanel.svelte';
+  import SectionRail from '../ui/SectionRail.svelte';
+  import { buildsGroups } from '../../lib/builds-sections.ts';
+  import { type RailGroup, railEntries, resolveRailSection, withRailSection } from '../../lib/section-rail.ts';
+  import { can } from '@kiln/core';
   import ListingMatrix from '../listing/ListingMatrix.svelte';
   import BuildsPanel from '../portfolio/BuildsPanel.svelte';
   import TestBuilds from '../builds/TestBuilds.svelte';
@@ -97,6 +102,32 @@
   const uid = $props.id();
 
   // The platform shown when both are in scope. Kept while the person moves between tabs of the app.
+  // The Builds page: a rail of sections (lib/builds-sections.ts). The EAS entries exist only for an app linked to Expo; the stored EAS status
+  // (no call to Expo) says that and counts the submissions.
+  let easInfo = $state<{ linked: boolean; submissions: number | null }>({ linked: false, submissions: null });
+  $effect(() => {
+    if (section !== 'builds') return;
+    const ids = members.map((m) => m.id);
+    let current = true;
+    void Promise.all(ids.map((id) => api.easStatus(workspaceId, id).then((r) => r.status, () => null))).then((list) => {
+      if (!current) return;
+      const linked = list.filter((s) => s?.project != null);
+      easInfo = { linked: linked.length > 0, submissions: linked.length > 0 ? linked.reduce((n, s) => n + (s?.submissions.length ?? 0), 0) : null };
+    });
+    return () => {
+      current = false;
+    };
+  });
+  const buildsRail: RailGroup[] = $derived(
+    buildsGroups({
+      expoLinked: easInfo.linked,
+      configReadable: can(role, 'repositories.scan') && members.some((m) => m.repositoryId !== null),
+      testsReadable: can(role, 'builds.read'),
+      submissions: easInfo.submissions,
+    }),
+  );
+  const buildsSection = $derived(resolveRailSection(address.hash, railEntries(buildsRail).map((e) => e.id)));
+
   let platformTab = $state('');
   const activeTab = $derived(members.find((m) => m.platform === platformTab)?.platform ?? members[0]?.platform ?? '');
 </script>
@@ -144,9 +175,16 @@
   <div class="stack loose">
     <ConnectCallout {api} {workspaceId} {role} {app} kind="expo" />
     <BuildsPanel {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
-    <EasConfigCard {api} {workspaceId} {role} {app} />
-    <EasUpdateCard {api} {workspaceId} {role} {app} />
   </div>
+{/snippet}
+{#snippet easSubmissions(app: AppSummary)}
+  <EasSubmissionsPanel {api} {workspaceId} {app} />
+{/snippet}
+{#snippet easConfig(app: AppSummary)}
+  <EasConfigCard {api} {workspaceId} {role} {app} defaultOpen />
+{/snippet}
+{#snippet easUpdates(app: AppSummary)}
+  <EasUpdateCard {api} {workspaceId} {role} {app} defaultOpen />
 {/snippet}
 {#snippet testBuilds(app: AppSummary)}
   <ConnectCallout {api} {workspaceId} {role} {app} kind="expo" />
@@ -228,14 +266,21 @@
     {@render perPlatform(reviews)}
   {/if}
 {:else if section === 'builds'}
-  {@render switcher('builds')}
-  {#if view === 'workflows'}
-    <AppWorkflows {api} {workspaceId} {role} {members} {all} />
-  {:else if view === 'tests'}
-    {@render perPlatform(testBuilds)}
-  {:else}
-    {@render perPlatform(builds)}
-  {/if}
+  <SectionRail groups={buildsRail} value={buildsSection} hrefFor={(id) => withRailSection(address.hash, id)} label={t('app:builds.navLabel')}>
+    {#if buildsSection === 'workflows'}
+      <AppWorkflows {api} {workspaceId} {role} {members} {all} />
+    {:else if buildsSection === 'tests'}
+      {@render perPlatform(testBuilds)}
+    {:else if buildsSection === 'submissions'}
+      {@render perPlatform(easSubmissions)}
+    {:else if buildsSection === 'eas-config'}
+      {@render perPlatform(easConfig)}
+    {:else if buildsSection === 'eas-updates'}
+      {@render perPlatform(easUpdates)}
+    {:else}
+      {@render perPlatform(builds)}
+    {/if}
+  </SectionRail>
 {:else if section === 'insights'}
   {@render switcher('insights')}
   {#if view === 'keywords' || view === 'terms'}

@@ -4,7 +4,7 @@
   repository only then (one read of GitHub or of the local folder, no call to Expo, no Expo credential), and again with "Read again".
   Read-only: nothing here changes the repository or Expo. Drawn only for an app with a repository and for a role that may read it
   (the right of a scan, as the other reads of the repository).
-  Props: api, workspaceId, role, app (the record whose repository is read).
+  Props: api, workspaceId, role, app (the record whose repository is read), defaultOpen? (open on first draw: the section rail opens it).
 -->
 <script lang="ts">
   import { type Role, can } from '@kiln/core';
@@ -15,7 +15,7 @@
   import Section from '../ui/Section.svelte';
   import EasConfigBody from './EasConfigBody.svelte';
 
-  let { api, workspaceId, role, app }: { api: Api; workspaceId: string; role: Role; app: AppSummary } = $props();
+  let { api, workspaceId, role, app, defaultOpen = false }: { api: Api; workspaceId: string; role: Role; app: AppSummary; defaultOpen?: boolean | undefined } = $props();
 
   const show = $derived(app.repositoryId !== null && can(role, 'repositories.scan'));
 
@@ -25,7 +25,7 @@
 </script>
 
 {#if show}
-  <Section title={t('eas:config.card.title')} key="eas-config-{app.id}" defaultOpen={false} {summary}>
+  <Section title={t('eas:config.card.title')} key="eas-config-{app.id}" {defaultOpen} {summary}>
     <EasConfigBody {api} {workspaceId} {app} onread={(view, state) => (read = { appId: app.id, view, state })} />
   </Section>
 {/if}

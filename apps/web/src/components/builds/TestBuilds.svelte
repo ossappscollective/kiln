@@ -38,7 +38,6 @@
   import type { AppSummary } from '../../lib/types.ts';
   import EasBuildExtras from '../eas/EasBuildExtras.svelte';
   import EasStatusNote from '../eas/EasStatusNote.svelte';
-  import EasSubmissions from '../eas/EasSubmissions.svelte';
   import PlatformBadge from '../portfolio/PlatformBadge.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -332,9 +331,6 @@
       </Section>
       {#if data.truncated}<p class="muted text-sm">{t('builds:tests.truncated')}</p>{/if}
       {#if data.hiddenArtifacts > 0}<p class="muted text-sm">{t('builds:tests.otherArtifacts', { count: data.hiddenArtifacts })}</p>{/if}
-    {/if}
-    {#if eas}
-      <EasSubmissions status={eas} {now} />
     {/if}
   {/if}
 </div>
