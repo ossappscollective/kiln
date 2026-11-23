@@ -31,12 +31,19 @@ import {
   suggestionsFor,
   summaryFor,
 } from './insights.ts';
+import {
+  COMPETITOR_REVIEW_RETENTION_DAYS,
+  competitorReviewStats,
+  ownReviewStats,
+  refreshCompetitorReviews,
+} from './competitor-reviews.ts';
 import { checkRankDownloadsQuery, rankVsDownloadsFor } from './rank-downloads.ts';
 import { queueAsoRefreshAll } from './schedule.ts';
 import {
   type AsoContext,
   addCompetitor,
   addKeywords,
+  asoFailure,
   competitorHistory,
   deleteKeyword,
   enqueueAsoRefresh,
@@ -412,6 +419,58 @@ export function asoRoutes(ctx: AsoRoutesContext) {
         limit,
       });
       return c.json({ competitor, ...history });
+    },
+  );
+
+  // ----- reviews of the followed competitors: Apple's public feed only ----------------------------------
+  routes.get('/:workspaceId/apps/:id/aso/competitor-reviews', needs('aso.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    const days = queryInt(c.req.query('days'), { fallback: 28, max: 90 });
+    if (days === undefined) return bad(c, [{ path: 'days', message: 'A whole number from 1 to 90.' }]);
+    const at = ctx.now();
+    const stats = await competitorReviewStats(db, { workspaceId: ws(c), appId: app.id, days, now: at });
+    // Our own side needs the right to read reviews; without it the comparison is left out, not guessed.
+    const own = can(c.get('role'), 'reviews.read')
+      ? await ownReviewStats(db, { workspaceId: ws(c), appId: app.id, days, now: at })
+      : null;
+    c.header('Cache-Control', 'no-store');
+    return c.json({
+      ...stats,
+      own,
+      retentionDays: COMPETITOR_REVIEW_RETENTION_DAYS,
+      source: 'App Store customer reviews feed (public)',
+      notice: 'Google Play has no official way to read the reviews of an app you do not own, and Kiln does not scrape it: Play competitors have no reviews here.',
+    });
+  });
+
+  routes.post(
+    '/:workspaceId/apps/:id/aso/competitors/:competitorId/reviews/refresh',
+    needs('aso.write'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
+      if (!competitor) return notFound(c);
+      if (competitor.store !== 'app_store')
+        return c.json(
+          { error: 'play_reviews_not_available', message: 'Google Play has no official way to read the reviews of another app, and Kiln does not scrape it.' },
+          409,
+        );
+      const read = ctx.sources.appleReviews?.bind(ctx.sources);
+      if (!read) return respond(c, asoFailure(undefined));
+      const stop = limited(c);
+      if (stop) return stop;
+      try {
+        const done = await refreshCompetitorReviews(
+          { db, now: ctx.now, read },
+          { workspaceId: ws(c), competitor, actorId: c.get('user').id },
+        );
+        if (!done.ok) return notFound(c);
+        return c.json({ competitorId: competitor.id, state: done.state, fetched: done.fetched, stored: done.stored, checkedAt: done.checkedAt });
+      } catch (error) {
+        return respond(c, asoFailure(error));
+      }
     },
   );
 

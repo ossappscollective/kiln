@@ -239,6 +239,7 @@ export async function asoUpkeep(
   }
   let orphans = 0;
   for (const table of [
+    'aso_competitor_reviews',
     'aso_competitor_snapshots',
     'aso_rank_checks',
     'aso_competitors',

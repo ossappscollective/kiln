@@ -80,6 +80,7 @@
   import StatusPill from '../ui/StatusPill.svelte';
   import RatingOverview from './RatingOverview.svelte';
   import ReviewCard from './ReviewCard.svelte';
+  import CompetitorReviews from './CompetitorReviews.svelte';
   import ReviewsAi from './ReviewsAi.svelte';
   import ReviewSplit from './ReviewSplit.svelte';
   import { isReviewsAddress, reviewFromHash, withReview } from '../../lib/reviews/split.ts';
@@ -393,6 +394,12 @@
       </Section>
 
       <ReviewsAi {api} {workspaceId} {role} {app} language={filters.language} reviewIds={reviews.map((r) => r.id)} />
+
+      {#if can(role, 'aso.read')}
+        <Section title={t('reviews:competitors.title')} key="competitors" variant="plain" level={2} defaultOpen={false}>
+          <CompetitorReviews {api} {workspaceId} {role} {app} />
+        </Section>
+      {/if}
 
       <form class="toolbar" onsubmit={search} role="search" aria-label={t('reviews:inbox.filter')}>
         <label class="searchbox">

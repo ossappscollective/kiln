@@ -277,6 +277,8 @@ import type {
   WorkflowInputs,
   WorkflowRun,
   WorkflowRuns,
+  CompetitorReviewsRefresh,
+  CompetitorReviewsView,
 } from './types.ts';
 
 type Issue = { path: string; message: string };
@@ -2300,6 +2302,15 @@ export function createApi(options: ApiOptions = {}) {
       request<AsoKeywordHistory>(
         'GET',
         `${asoPath(workspaceId, appId)}/keywords/${encodeURIComponent(keywordId)}/history?limit=${limit}`,
+      ),
+    /** Reviews of the followed App Store competitors, from what is stored (no store is called). */
+    asoCompetitorReviews: (workspaceId: string, appId: string, days = 28) =>
+      request<CompetitorReviewsView>('GET', `${asoPath(workspaceId, appId)}/competitor-reviews?days=${days}`),
+    /** Reads Apple's public reviews feed once for a competitor (at most once per 15 minutes). */
+    refreshAsoCompetitorReviews: (workspaceId: string, appId: string, competitorId: string) =>
+      request<CompetitorReviewsRefresh>(
+        'POST',
+        `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}/reviews/refresh`,
       ),
     asoCompetitors: (workspaceId: string, appId: string) =>
       request<{ competitors: AsoCompetitor[]; limits: { maxCompetitorsPerApp: number } }>(

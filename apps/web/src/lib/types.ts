@@ -1576,3 +1576,30 @@ export type ProductLocalizationResult = {
   appliedAt: number;
   note: string;
 };
+
+/** Reviews of followed App Store competitors (docs/api/competitor-reviews.md). Apple only; no author is kept. */
+export type CompetitorReviewStats = {
+  competitorId: string;
+  name: string;
+  store: 'app_store' | 'google_play';
+  country: string;
+  state: 'ok' | 'unavailable';
+  reason?: 'play_has_no_review_api';
+  checkedAt: number | null;
+  count: number;
+  average: number | null;
+  trend: { earlier: number | null; recent: number | null };
+  stars: number[];
+  latest: { id: string; rating: number; title: string; text: string; version: string | null; at: number }[];
+};
+
+export type CompetitorReviewsView = {
+  days: number;
+  competitors: CompetitorReviewStats[];
+  own: { count: number; average: number | null; trend: { earlier: number | null; recent: number | null } } | null;
+  retentionDays: number;
+  source: string;
+  notice: string;
+};
+
+export type CompetitorReviewsRefresh = { competitorId: string; state: 'read' | 'recent'; fetched: number; stored: number; checkedAt: number };

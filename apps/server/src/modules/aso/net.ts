@@ -2,6 +2,7 @@ import {
   APPLE_SEARCH_MAX_LIMIT,
   type AppleApp,
   AsoError,
+  ASO_USER_AGENT,
   lookupApple,
   PLAY_MAX_SEARCH_LIMIT,
   type PlayApp,
@@ -10,6 +11,7 @@ import {
 } from '@kiln/connectors';
 import { type AsoPlatform, byFamily, isDesktop, listingStoreOf } from '@kiln/core';
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
+import { parseAppleReviewFeed, type FeedReview } from './competitor-reviews.ts';
 import { type Exchange, safeGet } from '../../services/safe-fetch.ts';
 import { timedCache } from '../../services/timed-cache.ts';
 import type { Resolver } from '../../services/webhook-transport.ts';
@@ -120,6 +122,11 @@ export type AsoSources = {
   playEnabled: boolean;
   search(input: SearchInput): Promise<SearchOutcome>;
   lookup(input: LookupInput): Promise<PublicApp | undefined>;
+  /**
+   * The newest reviews of an App Store app from Apple's public customer-reviews feed (one page, at most 50 reviews). Apple only: Google
+   * Play has no official reviews API for apps you do not own and Kiln does not scrape it. Optional so a test fake need not have it.
+   */
+  appleReviews?(input: { id: string; country: string }): Promise<FeedReview[]>;
 };
 
 export type AsoSourceOptions = {
@@ -269,6 +276,35 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
         return { hits: r.ids.map((id) => ({ id })), total: r.total, cached: false };
       });
       return { ...value, cached };
+    },
+    async appleReviews(input) {
+      if (!/^\d{1,15}$/.test(input.id) || !/^[a-z]{2}$/.test(input.country))
+        throw new AsoError('apple_search', 'invalid_input', 'Not an App Store id or a storefront.');
+      const url = `https://itunes.apple.com/${input.country}/rss/customerreviews/id=${input.id}/sortby=mostrecent/json`;
+      const response = await outbound('apple', async () => {
+        try {
+          return await doFetch(url, { headers: { accept: 'application/json', 'user-agent': ASO_USER_AGENT } });
+        } catch (error) {
+          const name = (error as { name?: string }).name;
+          throw new AsoError('apple_search', name === 'TimeoutError' ? 'timeout' : name === 'TooLargeError' ? 'too_large' : 'network', 'The App Store could not be read.');
+        }
+      });
+      if (response.status === 404) return [];
+      if (response.status === 429 || response.status === 403) {
+        const wait = Number(response.headers.get('retry-after'));
+        throw new AsoError('apple_search', 'rate_limited', 'The App Store asked to slow down.', {
+          status: response.status,
+          retryAfterSeconds: Number.isFinite(wait) && wait > 0 ? wait : 60,
+        });
+      }
+      if (!response.ok) throw new AsoError('apple_search', 'server', 'The App Store answered with an error.', { status: response.status });
+      let json: unknown;
+      try {
+        json = await response.json();
+      } catch {
+        throw new AsoError('apple_search', 'unexpected', 'The App Store feed was not readable.');
+      }
+      return parseAppleReviewFeed(json);
     },
     async lookup(input) {
       const key = `l|${input.platform}|${input.country}|${byFamily(input.platform, { apple: '', google: input.locale })}|${input.id}`;

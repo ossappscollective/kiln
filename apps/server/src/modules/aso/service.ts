@@ -907,6 +907,10 @@ export async function removeCompetitor(
       'DELETE FROM aso_competitor_snapshots WHERE competitor_id = ? AND workspace_id = ?',
       [input.id, input.workspaceId],
     );
+    await tx.execute(
+      'DELETE FROM aso_competitor_reviews WHERE competitor_id = ? AND workspace_id = ?',
+      [input.id, input.workspaceId],
+    );
     await tx.execute('DELETE FROM aso_competitors WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,

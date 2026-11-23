@@ -4,6 +4,7 @@ import type { Database } from '@kiln/db';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import { ASC_SECRET, PLAY_SECRET } from '../reviews/test-helpers.ts';
+import type { FeedReview } from './competitor-reviews.ts';
 import type { AsoSources, LookupInput, PublicApp, SearchInput, SearchOutcome } from './net.ts';
 import { type AsoContext, type AsoLimits, DEFAULT_ASO_LIMITS } from './service.ts';
 
@@ -54,6 +55,17 @@ export class FakeAsoSources implements AsoSources {
       total: ids.length,
       cached: false,
     };
+  }
+
+  /** `country|id` -> the feed. */
+  feeds = new Map<string, FeedReview[]>();
+  reviewReads: { id: string; country: string }[] = [];
+  reviewsError: unknown;
+
+  async appleReviews(input: { id: string; country: string }): Promise<FeedReview[]> {
+    this.reviewReads.push(input);
+    if (this.reviewsError) throw this.reviewsError;
+    return this.feeds.get(`${input.country}|${input.id}`) ?? [];
   }
 
   async lookup(input: LookupInput): Promise<PublicApp | undefined> {

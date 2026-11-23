@@ -370,3 +370,5 @@ Not on a page that was checked, or not run against the real service (no network 
 - Rank versus downloads: the time zone of the stores' days, and how long Play CSV files really take to arrive.
 - Text handling: English plural folding only; stop words for en, de, fr, es, it, pt, nl.
 - Postgres: written for it, tested on SQLite only.
+
+Reviews of followed App Store competitors (Apple only, on demand): see [competitor-reviews.md](competitor-reviews.md).

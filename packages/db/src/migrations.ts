@@ -4,6 +4,7 @@ import { alertEmailMigrations } from './migrations-alert-email.ts';
 import { alertMigrations } from './migrations-alerts.ts';
 import { analyticsBucketMigrations } from './migrations-analytics-bucket.ts';
 import { analyticsVendorMigrations } from './migrations-analytics-vendor.ts';
+import { competitorReviewsMigrations } from './migrations-competitor-reviews.ts';
 import { chatMigrations } from './migrations-chat.ts';
 import { ciProviderMigrations } from './migrations-ci-provider.ts';
 import { easMigrations } from './migrations-eas.ts';
@@ -1848,4 +1849,5 @@ export const migrations: Migration[] = [
   ...ratingsMigrations,
   ...timelineMigrations,
   ...analyticsVendorMigrations,
+  ...competitorReviewsMigrations,
 ];

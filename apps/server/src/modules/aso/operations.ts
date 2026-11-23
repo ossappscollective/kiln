@@ -399,6 +399,86 @@ export const asoOperations: Draft[] = [
     },
   },
   {
+    id: 'listAsoCompetitorReviews',
+    method: 'get',
+    path: `${W}/apps/{id}/aso/competitor-reviews`,
+    tags: ['aso'],
+    summary: 'Reviews of the followed App Store competitors: average, trend, latest, and our own app beside them',
+    description:
+      'Reads what Kiln stored from Apple\'s public customer-reviews feed (no store is called). `days` 1 to 90, default 28. A Google Play competitor is listed with `state: unavailable`: Google Play has no official way to read the reviews of an app you do not own, and Kiln does not scrape it. `own` (the same figures for this app, from its stored reviews) is null without `reviews.read`. Docs: docs/api/competitor-reviews.md.',
+    risk: 'read',
+    access: { action: 'aso.read' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: {
+      '200': {
+        description: 'Per competitor figures, our own figures, the retention and the source.',
+        schema: z.object({
+          days: z.number().int(),
+          competitors: z.array(
+            z.object({
+              competitorId: z.string(),
+              name: z.string(),
+              store: asoStore,
+              country: z.string(),
+              state: z.enum(['ok', 'unavailable']),
+              reason: z.enum(['play_has_no_review_api']).optional(),
+              checkedAt: timestamp.nullable(),
+              count: z.number().int(),
+              average: z.number().nullable(),
+              trend: z.object({ earlier: z.number().nullable(), recent: z.number().nullable() }),
+              stars: z.array(z.number().int()).describe('Reviews with 1, 2, 3, 4 and 5 stars.'),
+              latest: z.array(
+                z.object({
+                  id: z.string(),
+                  rating: z.number().int(),
+                  title: z.string(),
+                  text: z.string().describe('Cut to 300 characters. The author is not kept.'),
+                  version: z.string().nullable(),
+                  at: timestamp,
+                }),
+              ),
+            }),
+          ),
+          own: z
+            .object({
+              count: z.number().int(),
+              average: z.number().nullable(),
+              trend: z.object({ earlier: z.number().nullable(), recent: z.number().nullable() }),
+            })
+            .nullable(),
+          retentionDays: z.number().int(),
+          source: z.string(),
+          notice: z.string(),
+        }),
+      },
+    },
+  },
+  {
+    id: 'refreshAsoCompetitorReviews',
+    method: 'post',
+    path: `${W}/apps/{id}/aso/competitors/{competitorId}/reviews/refresh`,
+    tags: ['aso'],
+    summary: 'Read the newest public reviews of an App Store competitor',
+    description:
+      'READS APPLE\'S PUBLIC CUSTOMER-REVIEWS FEED once for the competitor and its storefront (SSRF-safe, rate limited, at most once per 15 minutes per competitor: a read inside that window returns `state: recent` and calls nothing). Stores what the feed gives (id, stars, title, text, version, day; never the author), keeps 90 days and 200 reviews per competitor. `409 play_reviews_not_available` for a Google Play competitor. Audited with counts, never text.',
+    risk: 'write',
+    access: { action: 'aso.write' },
+    appScope: { kind: 'param', name: 'id' },
+    rateLimited: true,
+    responses: {
+      '200': {
+        description: 'What was read.',
+        schema: z.object({
+          competitorId: z.string(),
+          state: z.enum(['read', 'recent']),
+          fetched: z.number().int(),
+          stored: z.number().int(),
+          checkedAt: timestamp,
+        }),
+      },
+    },
+  },
+  {
     id: 'addAsoCompetitor',
     method: 'post',
     path: `${W}/apps/{id}/aso/competitors`,

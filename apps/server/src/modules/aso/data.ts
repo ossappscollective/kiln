@@ -6,6 +6,7 @@ import type { Sql } from '@kiln/db';
  */
 export async function deleteAsoData(sql: Sql, workspaceId: string, appId: string): Promise<void> {
   for (const table of [
+    'aso_competitor_reviews',
     'aso_competitor_snapshots',
     'aso_rank_checks',
     'aso_competitors',

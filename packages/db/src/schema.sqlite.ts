@@ -1212,6 +1212,8 @@ export const asoCompetitors = sqliteTable(
     /** ok, not_found or unavailable. */
     lastState: text('last_state'),
     lastError: text('last_error'),
+    /** When the reviews of this competitor were last read (migration 59); null: never. */
+    reviewsCheckedAt: integer('reviews_checked_at'),
   },
   (t) => [
     uniqueIndex('aso_competitors_unique_idx').on(t.appId, t.store, t.externalId, t.country),
@@ -1251,6 +1253,34 @@ export const asoCompetitorSnapshots = sqliteTable(
   (t) => [
     index('aso_competitor_snapshots_competitor_idx').on(t.competitorId, t.checkedAt),
     index('aso_competitor_snapshots_workspace_idx').on(t.workspaceId, t.checkedAt),
+  ],
+);
+
+/** Reviews of followed Apple competitors, from the public customer-reviews feed (migration 59, docs/adr/0055-review-summary-and-competitor-reviews.md). No author is kept. */
+export const asoCompetitorReviews = sqliteTable(
+  'aso_competitor_reviews',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    competitorId: text('competitor_id')
+      .notNull()
+      .references(() => asoCompetitors.id, { onDelete: 'cascade' }),
+    appId: text('app_id').notNull(),
+    country: text('country').notNull(),
+    /** The id the feed gives the review. */
+    storeReviewId: text('store_review_id').notNull(),
+    rating: integer('rating').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    appVersion: text('app_version'),
+    reviewedAt: integer('reviewed_at').notNull(),
+    fetchedAt: integer('fetched_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('aso_competitor_reviews_unique_idx').on(t.competitorId, t.storeReviewId),
+    index('aso_competitor_reviews_competitor_idx').on(t.competitorId, t.reviewedAt),
   ],
 );
 
