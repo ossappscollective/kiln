@@ -84,6 +84,7 @@
   import StagedTray from './StagedTray.svelte';
   import StatusDot from './StatusDot.svelte';
   import { summaryLine } from '../../lib/section-state.ts';
+  import FilterChip from '../ui/FilterChip.svelte';
 
   let {
     api,
@@ -471,9 +472,7 @@
       {#if hasRows}
         <div class="chips" role="group" aria-label={t('listing:matrixView.filterAria')}>
           {#each MODE_ORDER as mode (mode)}
-            <button type="button" class="bare chip" aria-pressed={filter.mode === mode} onclick={() => setMode(mode)}>
-              {t(MODE_LABELS[mode])} <span class="count tabular">{counts[mode]}</span>
-            </button>
+            <FilterChip label={t(MODE_LABELS[mode])} count={counts[mode]} pressed={filter.mode === mode} onclick={() => setMode(mode)} />
           {/each}
         </div>
         <label class="visually-hidden" for="listing-locale-query">{t('listing:matrixView.searchLabel')}</label>
@@ -902,40 +901,10 @@
     gap: var(--space-1);
   }
 
-  .chip {
-    display: inline-flex;
-    gap: var(--space-2);
-    align-items: center;
-    min-height: var(--control-md);
-    padding: 0 var(--space-4);
-    font-size: 0.9375rem;
-    font-weight: var(--weight-medium);
-    color: var(--muted);
-    cursor: pointer;
-    background: var(--surface);
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius-full);
-  }
 
-  .chip:hover {
-    color: var(--ink);
-    background: var(--surface-hover);
-  }
 
-  .chip[aria-pressed='true'] {
-    color: var(--accent);
-    background: var(--accent-bg);
-    border-color: var(--accent);
-  }
 
-  .chip:focus-visible {
-    outline: var(--ring);
-    outline-offset: 1px;
-  }
 
-  .count {
-    font-weight: var(--weight-semibold);
-  }
 
   .legend {
     display: grid;

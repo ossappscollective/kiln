@@ -22,6 +22,7 @@
   import SectionsToggle from './ui/SectionsToggle.svelte';
   import Skeleton from './ui/Skeleton.svelte';
   import T from './ui/T.svelte';
+  import FilterChip from './ui/FilterChip.svelte';
   import { type IconName, isIconName } from './ui/icons.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
@@ -127,13 +128,9 @@
 {:else}
   <div class="toolbar">
     <div class="chips" role="group" aria-label={t('workspace:audit.page.filterType')}>
-      <button type="button" class="bare chip" aria-pressed={category === 'all'} onclick={() => (category = 'all')}>
-        {t('workspace:audit.page.all')} <span class="count">{events.length}</span>
-      </button>
+      <FilterChip label={t('workspace:audit.page.all')} count={events.length} pressed={category === 'all'} onclick={() => (category = 'all')} />
       {#each categories as c (c.id)}
-        <button type="button" class="bare chip" aria-pressed={category === c.id} onclick={() => (category = c.id)}>
-          {c.label} <span class="count">{c.count}</span>
-        </button>
+        <FilterChip label={c.label} count={c.count} pressed={category === c.id} onclick={() => (category = c.id)} />
       {/each}
     </div>
     <SectionsToggle />
@@ -200,39 +197,9 @@
     gap: var(--space-2);
   }
 
-  .chip {
-    gap: var(--space-2);
-    align-items: center;
-    min-height: var(--control-sm);
-    padding: 0 var(--space-3);
-    font-size: var(--text-sm);
-    font-weight: var(--weight-medium);
-    color: var(--muted);
-    cursor: pointer;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-full);
-    transition:
-      background-color var(--duration-fast) var(--ease),
-      border-color var(--duration-fast) var(--ease),
-      color var(--duration-fast) var(--ease);
-  }
 
-  .chip:hover {
-    color: var(--ink);
-    border-color: var(--line-hover);
-  }
 
-  .chip[aria-pressed='true'] {
-    color: var(--accent);
-    background: var(--accent-bg);
-    border-color: transparent;
-  }
 
-  .count {
-    font-variant-numeric: tabular-nums;
-    opacity: 0.8;
-  }
 
   .actor select {
     width: auto;

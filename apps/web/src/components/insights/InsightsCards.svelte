@@ -41,6 +41,7 @@
   import Icon from '../ui/Icon.svelte';
   import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import FilterChip from '../ui/FilterChip.svelte';
 
   let {
     api,
@@ -162,10 +163,7 @@
     {#if chips.length > 1}
       <div class="chips" role="group" aria-label={t('insights:filter.label')}>
         {#each chips as chip (chip.id)}
-          <button type="button" class="chip" aria-pressed={category === chip.id} onclick={() => (selected = chip.id)}>
-            <span>{chipLabel(chip.id)}</span>
-            <span class="n num">{chip.count}</span>
-          </button>
+          <FilterChip label={chipLabel(chip.id)} count={chip.count} pressed={category === chip.id} onclick={() => (selected = chip.id)} />
         {/each}
       </div>
     {/if}
@@ -239,34 +237,9 @@
     gap: var(--space-2);
   }
 
-  .chip {
-    display: inline-flex;
-    gap: var(--space-2);
-    align-items: center;
-    min-height: var(--control-sm, 2rem);
-    padding: 0 var(--space-3);
-    font-size: var(--text-sm);
-    color: var(--muted);
-    cursor: pointer;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-full);
-  }
 
-  .chip:hover {
-    color: var(--ink);
-    border-color: var(--line-hover);
-  }
 
-  .chip[aria-pressed='true'] {
-    color: var(--accent-ink);
-    background: var(--accent-bg);
-    border-color: var(--accent);
-  }
 
-  .n {
-    font-weight: var(--weight-semibold);
-  }
 
   .cards {
     display: flex;

@@ -130,3 +130,18 @@ test('components and app.css hard-code no colors', () => {
   }
   assert.deepEqual(offenders, []);
 });
+
+// `--accent-ink` is the text ON a solid accent (white in light); on the pale `--accent-bg` it vanishes. A selected chip uses
+// `--chip-ink` on `--chip-bg` (a tested pair): see components/ui/FilterChip.svelte.
+test('no rule pairs --accent-ink text with a pale --accent-bg / --chip-bg background', () => {
+  const offenders: string[] = [];
+  for (const file of sourceFiles(here)) {
+    const text = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const m of text.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const body = m[2] as string;
+      if (/(^|[\s;])color:\s*var\(--accent-ink\)/.test(body) && /background(-color)?:\s*var\(--(accent-bg|chip-bg|accent-soft)\)/.test(body))
+        offenders.push(`${relative(here, file)}: ${(m[1] as string).trim()}`);
+    }
+  }
+  assert.deepEqual(offenders, []);
+});
