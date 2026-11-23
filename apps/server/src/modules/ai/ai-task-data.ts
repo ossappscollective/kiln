@@ -54,6 +54,8 @@ export type LoadedReviews = {
   /** Reviews in the period, whatever was sent. */
   inPeriod: number;
   reviews: AiReview[];
+  /** With a `lowest` quota: how many reviews are the newest and how many were added as low-rated. */
+  sampled?: { newest: number; lowest: number };
 };
 
 export const periodDays = (scope: unknown): number => {
@@ -95,6 +97,10 @@ export async function loadReviewsForAi(
     textChars: number;
     ratings?: number[];
     skipIds?: Set<string>;
+    /** Only reviews written in this language (the stored language code, such as `fr`). */
+    language?: string;
+    /** How many of `limit` are the most recent LOW-rated reviews (1 and 2 stars) instead of the newest of all: a sample that shows the complaints too. */
+    lowest?: number;
   },
 ): Promise<LoadedReviews> {
   const to = input.now;
@@ -102,31 +108,84 @@ export async function loadReviewsForAi(
   const filter: ReviewFilter = {
     since: from,
     ...(input.ratings ? { ratings: input.ratings } : {}),
+    ...(input.language ? { language: input.language } : {}),
   };
   const [count] = await sql.query(
-    `SELECT COUNT(*) AS n FROM app_reviews WHERE workspace_id = ? AND app_id = ? AND created_at >= ?${input.ratings ? ` AND rating IN (${input.ratings.map(() => '?').join(', ')})` : ''}`,
-    [input.workspaceId, input.appId, from, ...(input.ratings ?? [])],
+    `SELECT COUNT(*) AS n FROM app_reviews WHERE workspace_id = ? AND app_id = ? AND created_at >= ?${input.ratings ? ` AND rating IN (${input.ratings.map(() => '?').join(', ')})` : ''}${input.language ? ' AND language = ?' : ''}`,
+    [input.workspaceId, input.appId, from, ...(input.ratings ?? []), ...(input.language ? [input.language] : [])],
   );
   const reviews: AiReview[] = [];
-  let cursor: string | undefined;
+  const taken = new Set<string>();
   // Newest first; read pages until enough reviews with text were found (bounded: at most 5 pages of 100).
-  for (let page = 0; page < 5 && reviews.length < input.limit; page += 1) {
-    const out = await listReviews(sql, input.workspaceId, input.appId, filter, {
-      sort: 'newest',
-      limit: 100,
-      ...(cursor ? { cursor } : {}),
-    });
-    if ('error' in out) break;
-    for (const r of out.reviews) {
-      if (reviews.length >= input.limit) break;
-      if (input.skipIds?.has(r.id)) continue;
-      if ((r.title ?? '').trim() === '' && r.body.trim() === '') continue;
-      reviews.push(toAiReview(r, `r${reviews.length + 1}`, input.titleChars, input.textChars));
+  const fill = async (f: ReviewFilter, target: number): Promise<number> => {
+    let cursor: string | undefined;
+    let added = 0;
+    for (let page = 0; page < 5 && reviews.length < target; page += 1) {
+      const out = await listReviews(sql, input.workspaceId, input.appId, f, {
+        sort: 'newest',
+        limit: 100,
+        ...(cursor ? { cursor } : {}),
+      });
+      if ('error' in out) break;
+      for (const r of out.reviews) {
+        if (reviews.length >= target) break;
+        if (input.skipIds?.has(r.id) || taken.has(r.id)) continue;
+        if ((r.title ?? '').trim() === '' && r.body.trim() === '') continue;
+        taken.add(r.id);
+        reviews.push(toAiReview(r, `r${reviews.length + 1}`, input.titleChars, input.textChars));
+        added += 1;
+      }
+      if (out.nextCursor === null) break;
+      cursor = out.nextCursor;
     }
-    if (out.nextCursor === null) break;
-    cursor = out.nextCursor;
+    return added;
+  };
+  const lowest = input.ratings ? 0 : Math.max(0, Math.min(input.lowest ?? 0, input.limit - 1));
+  const newest = await fill(filter, input.limit - lowest);
+  let low = 0;
+  if (lowest > 0) low = await fill({ ...filter, ratings: [1, 2] }, input.limit);
+  return {
+    window: { days: input.days, from, to },
+    inPeriod: Number(count?.n ?? 0),
+    reviews,
+    sampled: { newest, lowest: low },
+  };
+}
+
+/**
+ * Counted by the server over ALL reviews of the period (with or without text), not over the sample: the stars (1 to 5), and the mean
+ * rating of the first and of the second half of the period.
+ */
+export async function periodRatingStats(
+  sql: Sql,
+  input: { workspaceId: string; appId: string; from: number; to: number; language?: string },
+): Promise<{
+  stars: [number, number, number, number, number];
+  earlier: { count: number; average: number | null };
+  recent: { count: number; average: number | null };
+}> {
+  const lang = input.language ? ' AND language = ?' : '';
+  const base = [input.workspaceId, input.appId];
+  const extra = input.language ? [input.language] : [];
+  const rows = await sql.query(
+    `SELECT rating, COUNT(*) AS n FROM app_reviews WHERE workspace_id = ? AND app_id = ? AND created_at >= ? AND created_at <= ?${lang} GROUP BY rating`,
+    [...base, input.from, input.to, ...extra],
+  );
+  const stars: [number, number, number, number, number] = [0, 0, 0, 0, 0];
+  for (const r of rows) {
+    const star = Number(r.rating);
+    if (star >= 1 && star <= 5) stars[star - 1] = Number(r.n);
   }
-  return { window: { days: input.days, from, to }, inPeriod: Number(count?.n ?? 0), reviews };
+  const mid = Math.floor((input.from + input.to) / 2);
+  const half = async (a: number, b: number) => {
+    const [row] = await sql.query(
+      `SELECT COUNT(*) AS n, AVG(rating) AS avg FROM app_reviews WHERE workspace_id = ? AND app_id = ? AND created_at >= ? AND created_at < ?${lang}`,
+      [...base, a, b, ...extra],
+    );
+    const n = Number(row?.n ?? 0);
+    return { count: n, average: n > 0 && row?.avg !== null ? Math.round(Number(row?.avg) * 100) / 100 : null };
+  };
+  return { stars, earlier: await half(input.from, mid), recent: await half(mid, input.to + 1) };
 }
 
 /** The share of ids a model cited that were really in the data: returns the valid ones (distinct, in order) and how many were not. */

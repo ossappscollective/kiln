@@ -443,8 +443,11 @@ export async function previewAiTask(
 export async function runAiTask(
   ctx: AiServices,
   input: RunInput,
-): Promise<AiOutcome<{ suggestion: AiSuggestionView; warning: UsageWarning | null }>> {
-  const plan = await buildRun(ctx, input);
+): Promise<
+  AiOutcome<{ suggestion: AiSuggestionView; warning: UsageWarning | null; cached: boolean }>
+> {
+  const { refresh, ...runScope } = input.scope;
+  const plan = await buildRun(ctx, { ...input, scope: runScope });
   if ('ok' in plan) return plan;
   const {
     task,
@@ -463,6 +466,17 @@ export async function runAiTask(
     inputCentsPerMTok: values.priceInputCentsPerMTok,
     outputCentsPerMTok: values.priceOutputCentsPerMTok,
   };
+
+  // The same data as a stored run of this task (the `key` of the scope): that result is returned, nothing is sent or spent.
+  const key = prepared.scope.key;
+  if (task.cacheDays !== undefined && typeof key === 'string' && refresh !== true) {
+    const since = ctx.now() - task.cacheDays * 86_400_000;
+    const stored = await listSuggestions(ctx.db, input.workspaceId, app.id, { task: task.id, limit: 20 });
+    const hit = stored.find(
+      (s) => s.taskVersion === task.version && s.createdAt >= since && s.scope.key === key && s.status !== 'dismissed',
+    );
+    if (hit) return { ok: true, suggestion: hit, warning: null, cached: true };
+  }
 
   const release = ctx.gate.acquire(input.workspaceId);
   if (!release) {
@@ -675,7 +689,7 @@ export async function runAiTask(
       softPercent: values.softWarnPercent,
       resetsAt: month.resetsAt,
     });
-    return { ok: true, suggestion, warning };
+    return { ok: true, suggestion, warning, cached: false };
   } finally {
     release();
   }

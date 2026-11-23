@@ -35,6 +35,7 @@
   import { ApiError, type Api } from '../../lib/api.ts';
   import type { PlatformScope } from '../../lib/app-scope.ts';
   import { timeAgo } from '../../lib/format.ts';
+  import { formatNumber } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
@@ -190,6 +191,12 @@
         <strong>{suggestionTitle(proposal)}</strong>
         <span class="muted">{timeAgo(suggestion.createdAt, Date.now())}</span>
       </header>
+      {#if proposal.kind === 'insight' && proposal.insight === 'review_summary'}
+        <p class="muted small" data-testid="summary-meta">
+          {t('ai:insight.generatedFrom', { time: timeAgo(suggestion.createdAt, Date.now()), count: proposal.analysed })}
+          · {t('ai:insight.madeWith', { provider: suggestion.provider, model: suggestion.model, tokens: formatNumber(suggestion.usage.inputTokens + suggestion.usage.outputTokens) })}
+        </p>
+      {/if}
     {/if}
     <p class="muted small">{t('ai:card.writtenByAi')}</p>
     {#if proposal.kind === 'keywords'}

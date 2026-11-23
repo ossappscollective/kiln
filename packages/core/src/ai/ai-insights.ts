@@ -257,6 +257,8 @@ export type AiReviewTheme = {
   reviewIds: string[];
   /** Mean star rating of the cited reviews, one decimal, or null. */
   averageRating: number | null;
+  /** Share (0 to 1) of the reviews read that the theme cites. Counted by the server; approximate, since the sample is not the whole period. Absent in summaries of version 1. */
+  share?: number;
 };
 
 export type AiReviewSummaryInsight = {
@@ -272,6 +274,19 @@ export type AiReviewSummaryInsight = {
   /** Largest first. `kind` tells issues, praise and requests apart. */
   themes: AiReviewTheme[];
   notes: string[];
+  /** Version 2 (all optional: a summary of version 1 has none). The review language the summary was limited to, and the language it is written in. */
+  locale?: string | null;
+  outputLanguage?: string | null;
+  /** Counted by the server over ALL reviews of the period (not the sample): the mean rating of the first and of the second half, and how many reviews each half has. */
+  trend?: { earlier: number | null; recent: number | null; earlierCount: number; recentCount: number } | null;
+  /** How many of the reviews read are the newest, and how many were added because they are low-rated. */
+  sampled?: { newest: number; lowest: number };
+  /** One sentence from the model on what is new or gone since the last summary; empty when there was none. */
+  changes?: string;
+  previousAt?: number | null;
+  /** The newest review read (epoch ms), and the ids of every review read (what each theme cites is among them). */
+  latestReviewAt?: number | null;
+  reviewIdsUsed?: string[];
 };
 
 export type AiReviewClassifyInsight = {

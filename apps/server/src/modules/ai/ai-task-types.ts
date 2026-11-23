@@ -84,6 +84,11 @@ export type ReadyTask = TaskBase & {
    */
   useContext?: boolean;
   /**
+   * Days a stored result of this task is reused when the data of a run is the same (`scope.key` of the run equals the one stored).
+   * A run with `refresh: true` ignores it. Nothing is sent and nothing is spent on a reuse.
+   */
+  cacheDays?: number;
+  /**
    * Runs in the same transaction that stores the suggestion, for a task whose result is also kept somewhere other than the
    * suggestion (the review tags cache). It writes the task's OWN tables only.
    */

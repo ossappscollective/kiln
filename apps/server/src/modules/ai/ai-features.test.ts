@@ -222,6 +222,7 @@ dbTest(
     t.answer({
       output: {
         overview: 'Mostly happy. Crashes are the main problem.',
+        changes: '',
         themes: [
           {
             label: 'Crashes on launch',
@@ -1156,7 +1157,7 @@ dbTest(
     assert.equal(t.fake.calls.length, 0, 'no provider was called');
     assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM ai_usage'))[0]?.n), 0);
 
-    t.answer({ output: { overview: 'ok', themes: [] }, usage });
+    t.answer({ output: { overview: 'ok', changes: '', themes: [] }, usage });
     await t.call(t.owner, 'POST', '/ai/tasks/review_summary/run', body);
     assert.deepEqual(
       t.fake.calls[0]?.input,
@@ -1188,7 +1189,7 @@ dbTest(
     const appId = await ios(t);
     await review(t, appId, 'Crashes', { rating: 1 });
     t.answer({
-      output: { overview: 'ok', themes: [] },
+      output: { overview: 'ok', changes: '', themes: [] },
       usage: { inputTokens: 1500, outputTokens: 500 },
     });
     const first = await t.run('review_summary', { appId });
@@ -1216,7 +1217,7 @@ dbTest(
     );
 
     const calls = t.fake.calls.length;
-    const refused = await t.run('review_summary', { appId });
+    const refused = await t.run('review_summary', { appId, refresh: true });
     assert.equal(refused.status, 429);
     assert.equal(refused.body.error, 'ai_cost_cap_reached');
     assert.equal(t.fake.calls.length, calls, 'refused before the provider is called');

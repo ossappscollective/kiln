@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { JsonSchema } from '@kiln/connectors';
 import {
   type AiFixItem,
@@ -27,11 +28,13 @@ import {
   type LoadedReviews,
   loadReviewsForAi,
   periodDays,
+  periodRatingStats,
   refMap,
   round1,
   toAiReview,
 } from './ai-task-data.ts';
 import { bool, int, line, oneOf, paragraphOf, str, strings } from './ai-task-lenient.ts';
+import { listSuggestions } from './ai-suggestions.ts';
 import { checkScope, clip, type PreparedRun, type ReadyTask } from './ai-task-types.ts';
 
 import { coded } from '../../i18n/problem.ts';
@@ -59,7 +62,9 @@ const sentimentFromRating = (rating: number): AiSentiment =>
 // ---------------------------------------------------------------------------------------------
 // review_summary
 
-export const REVIEW_SUMMARY_VERSION = 1;
+export const REVIEW_SUMMARY_VERSION = 2;
+const SUMMARY_CACHE_DAYS = 7;
+const OUTPUT_LANGUAGES: Record<string, string> = { en: 'English', fr: 'French', es: 'Spanish', de: 'German' };
 const THEMES_MAX = 10;
 
 const SUMMARY_SYSTEM = `You summarise app store reviews for the developer of the app.
@@ -67,16 +72,20 @@ const SUMMARY_SYSTEM = `You summarise app store reviews for the developer of the
 The data has "reviews", each with a ref such as r1, the stars, and the text.
 ${DATA_RULE}
 
+The reviews are in many languages and stay in their own language. Write label, summary, overview and changes in the language named in "writeIn".
+
 Do this:
 1. Group the reviews into at most 8 themes.
 2. For each theme give: label (2 to 5 words), kind (issue, praise, request or other), summary (one sentence), refs (the ref of EVERY review in the theme, only refs from the data).
 3. Give overview: two sentences about the overall mood and the biggest problem.
+4. Give changes: when the data has "previous" (the themes of the last summary), one sentence on what is new, gone or bigger now; otherwise an empty string.
 Do not invent facts, reviews or numbers. Answer only with the JSON object.`;
 
 const SUMMARY_SCHEMA: JsonSchema = {
   type: 'object',
   properties: {
     overview: { type: 'string', maxLength: 1200, description: 'Two sentences.' },
+    changes: { type: 'string', maxLength: 600, description: 'One sentence, or empty.' },
     themes: {
       type: 'array',
       maxItems: 12,
@@ -98,11 +107,17 @@ const SUMMARY_SCHEMA: JsonSchema = {
       },
     },
   },
-  required: ['overview', 'themes'],
+  required: ['overview', 'changes', 'themes'],
   additionalProperties: false,
 };
 
-type SummaryFacts = { loaded: LoadedReviews };
+type SummaryFacts = {
+  loaded: LoadedReviews;
+  locale: string | null;
+  outputLanguage: string | null;
+  stats: Awaited<ReturnType<typeof periodRatingStats>>;
+  previousAt: number | null;
+};
 
 const KIND_ALIASES: Record<string, AiThemeKind> = {
   problem: 'issue',
@@ -124,12 +139,14 @@ export const reviewSummaryTask: ReadyTask = {
   version: REVIEW_SUMMARY_VERSION,
   label: 'Summarise reviews',
   description:
-    'Groups the newest reviews of a period into themes (issues, praise, feature requests) with counts, the overall mood and the reviews that show each theme. A report to read: nothing is changed.',
+    'Groups the newest and the lowest-rated reviews of a period (optionally of one language) into themes (issues, praise, feature requests) with counts and shares, the overall mood and trend, what changed since the last summary, and the reviews that show each theme. A report to read: nothing is changed. A run with the same reviews reuses the stored summary.',
   proposalKind: 'insight',
+  cacheDays: SUMMARY_CACHE_DAYS,
   disclosure: {
     sends: [
       'The name of your app and the store it is in.',
-      'The star rating, title and text of up to 40 of the newest reviews of the period you choose (title cut to 80 characters, text to 280), their language and the day.',
+      'The star rating, title and text of up to 40 reviews of the period you choose (title cut to 80 characters, text to 280): the newest, and some of the lowest-rated, with their language, app version and the day.',
+      'The labels and shares of the themes of your last summary, when there is one (to say what changed).',
       'Email addresses, links, phone-like numbers and the reviewer’s own name are replaced by markers before sending.',
       'The AI context you wrote for this app, if any.',
     ],
@@ -147,6 +164,14 @@ export const reviewSummaryTask: ReadyTask = {
       description:
         'How many reviews to send, 5 to 80. Default 40. More reviews need a larger input limit in the AI settings.',
     },
+    { name: 'locale', required: false, description: 'Only reviews written in this language, such as fr. Default: all.' },
+    {
+      name: 'outputLanguage',
+      required: false,
+      description: 'The language the summary is written in: en, fr, es or de. Default en.',
+      values: Object.keys(OUTPUT_LANGUAGES),
+    },
+    { name: 'refresh', required: false, description: 'true: make a new summary even when the same reviews were summarised before.' },
   ],
   system: SUMMARY_SYSTEM,
   schema: SUMMARY_SCHEMA,
@@ -158,6 +183,10 @@ export const reviewSummaryTask: ReadyTask = {
     if (bad) return bad;
     const days = periodDays(scope.days);
     const limit = clamp(scope.limit, 5, 80, 40);
+    const rawLocale = typeof scope.locale === 'string' ? scope.locale.trim() : '';
+    // The route checks the shape of the code; anything else here is ignored (all languages).
+    const locale = /^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})?$/.test(rawLocale) ? rawLocale : null;
+    const outputLanguage = typeof scope.outputLanguage === 'string' && scope.outputLanguage in OUTPUT_LANGUAGES ? scope.outputLanguage : 'en';
     const loaded = await loadReviewsForAi(ctx.db, {
       workspaceId: ctx.workspaceId,
       appId: ctx.app.id,
@@ -166,6 +195,8 @@ export const reviewSummaryTask: ReadyTask = {
       limit,
       titleChars: 80,
       textChars: 280,
+      lowest: limit >= 8 ? Math.floor(limit / 4) : 0,
+      ...(locale ? { language: locale } : {}),
     });
     if (loaded.reviews.length === 0) {
       return aiFail(
@@ -175,12 +206,40 @@ export const reviewSummaryTask: ReadyTask = {
         { field: 'days', ...coded('ai.noReviewsInPeriod') },
       );
     }
+    const stats = await periodRatingStats(ctx.db, {
+      workspaceId: ctx.workspaceId,
+      appId: ctx.app.id,
+      from: loaded.window.from,
+      to: loaded.window.to,
+      ...(locale ? { language: locale } : {}),
+    });
+    // The themes (labels and shares only, no review text) of the last summary of the same period and language.
+    let previous: { day: string; themes: { label: string; kind: string; sharePercent: number }[] } | undefined;
+    let previousAt: number | null = null;
+    const earlier = await listSuggestions(ctx.db, ctx.workspaceId, ctx.app.id, { task: 'review_summary', limit: 10 });
+    for (const old of earlier) {
+      const p = old.proposal;
+      if (p.kind !== 'insight' || p.insight !== 'review_summary') continue;
+      if (old.scope.days !== days || (old.scope.locale ?? null) !== locale) continue;
+      previousAt = old.createdAt;
+      previous = {
+        day: new Date(old.createdAt).toISOString().slice(0, 10),
+        themes: p.themes.slice(0, 8).map((t) => ({
+          label: clip(t.label, 60),
+          kind: t.kind,
+          sharePercent: Math.round((t.share ?? 0) * 100),
+        })),
+      };
+      break;
+    }
     const input = {
       task: 'review_summary',
       app: clip(ctx.app.name, 100),
       store: storeOf(ctx.app.platform),
+      writeIn: OUTPUT_LANGUAGES[outputLanguage],
       periodDays: days,
       reviewsInPeriod: loaded.inPeriod,
+      ...(previous ? { previous } : {}),
       reviews: loaded.reviews.map((r) => ({
         ref: r.ref,
         stars: r.rating,
@@ -189,13 +248,17 @@ export const reviewSummaryTask: ReadyTask = {
         ...(r.language ? { lang: r.language } : {}),
       })),
     };
-    const facts: SummaryFacts = { loaded };
-    return { input, scope: { days, limit }, facts };
+    const facts: SummaryFacts = { loaded, locale, outputLanguage, stats, previousAt };
+    // `key` is what makes two runs "the same data": the options and the reviews sent (not the last summary), hashed. Never text.
+    const key = createHash('sha256')
+      .update(JSON.stringify([days, limit, locale, outputLanguage, loaded.reviews.map((r) => [r.id, r.rating, r.title, r.text])]), 'utf8')
+      .digest('hex');
+    return { input, scope: { days, limit, locale, outputLanguage, key }, facts };
   },
 
   propose(output, run): AiReviewSummaryInsight {
-    const { loaded } = run.facts as SummaryFacts;
-    const answer = output as { overview?: unknown; themes?: unknown };
+    const { loaded, locale, outputLanguage, stats, previousAt } = run.facts as SummaryFacts;
+    const answer = output as { overview?: unknown; themes?: unknown; changes?: unknown };
     const byRef = refMap(loaded.reviews);
     const notes: string[] = [];
     const themes: AiReviewTheme[] = [];
@@ -220,6 +283,7 @@ export const reviewSummaryTask: ReadyTask = {
         count: checked.valid.length,
         reviewIds: checked.valid.map((r) => r.id),
         averageRating: round1(sum / checked.valid.length),
+        share: Math.round((checked.valid.length / loaded.reviews.length) * 100) / 100,
       });
     }
     themes.sort((a, b) => b.count - a.count);
@@ -235,11 +299,16 @@ export const reviewSummaryTask: ReadyTask = {
       notes.push(
         `Analysed ${loaded.reviews.length} of the ${loaded.inPeriod} reviews of the period (the newest ones with text).`,
       );
-    const sentiment = { positive: 0, neutral: 0, negative: 0 };
-    for (const r of loaded.reviews) {
-      const s = sentimentFromRating(r.rating);
-      if (s === 'positive' || s === 'neutral' || s === 'negative') sentiment[s] += 1;
-    }
+    // The mood is counted over every review of the period, not the sample (which holds extra low-rated reviews on purpose).
+    const sentiment = {
+      positive: stats.stars[3] + stats.stars[4],
+      neutral: stats.stars[2],
+      negative: stats.stars[0] + stats.stars[1],
+    };
+    if (loaded.sampled && loaded.sampled.lowest > 0)
+      notes.push(
+        `${loaded.sampled.lowest} of the ${loaded.reviews.length} reviews read were added because they are low-rated, so the shares of the themes lean towards problems.`,
+      );
     return {
       kind: 'insight',
       insight: 'review_summary',
@@ -250,6 +319,19 @@ export const reviewSummaryTask: ReadyTask = {
       overview: paragraphOf(answer.overview, 600),
       themes: themes.slice(0, THEMES_MAX),
       notes,
+      locale,
+      outputLanguage,
+      trend: {
+        earlier: stats.earlier.average,
+        recent: stats.recent.average,
+        earlierCount: stats.earlier.count,
+        recentCount: stats.recent.count,
+      },
+      sampled: loaded.sampled ?? { newest: loaded.reviews.length, lowest: 0 },
+      changes: previousAt === null ? '' : paragraphOf(answer.changes, 300),
+      previousAt,
+      latestReviewAt: loaded.reviews.reduce<number | null>((m, r) => (m === null || r.createdAt > m ? r.createdAt : m), null),
+      reviewIdsUsed: loaded.reviews.map((r) => r.id),
     };
   },
 };

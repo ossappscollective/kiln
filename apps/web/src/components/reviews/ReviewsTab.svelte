@@ -392,7 +392,7 @@
       </div>
       </Section>
 
-      <ReviewsAi {api} {workspaceId} {role} {app} reviewIds={reviews.map((r) => r.id)} />
+      <ReviewsAi {api} {workspaceId} {role} {app} language={filters.language} reviewIds={reviews.map((r) => r.id)} />
 
       <form class="toolbar" onsubmit={search} role="search" aria-label={t('reviews:inbox.filter')}>
         <label class="searchbox">

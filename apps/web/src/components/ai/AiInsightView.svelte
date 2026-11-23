@@ -40,6 +40,7 @@
   const evidence = (ids: readonly string[]): string[] => ids.slice(0, 5);
   const pct = (n: number): string => formatPercent(n / 100, { maximumFractionDigits: 0 });
   const stars = (n: number): string => formatNumber(n, { maximumFractionDigits: 1 });
+  const trendWord = (diff: number): string => (diff >= 0.1 ? t('ai:insight.trendUp') : diff <= -0.1 ? t('ai:insight.trendDown') : t('ai:insight.trendFlat'));
   /** The line above a tag report: what was tagged, what was cached, what is left (a whole sentence per case). */
   function classifyLine(p: { classified: number; cached: number; remaining: number }): string {
     const values = { classified: p.classified, cached: p.cached, remaining: p.remaining };
@@ -70,6 +71,10 @@
   {#if proposal.insight === 'review_summary'}
     <p class="basis muted">{t('ai:insight.summaryBasis', { basedOn: basedOnText(proposal.analysed, proposal.reviewCount), period: periodText(proposal.period) })}</p>
     {#if proposal.overview}<p class="overview">{proposal.overview}</p>{/if}
+    {#if proposal.changes}<p class="changes"><strong>{t('ai:insight.changesSince')}</strong> {proposal.changes}</p>{/if}
+    {#if proposal.trend && proposal.trend.earlier !== null && proposal.trend.recent !== null}
+      <p class="muted trend" data-testid="trend">{t('ai:insight.trend', { earlier: stars(proposal.trend.earlier), recent: stars(proposal.trend.recent), direction: trendWord(proposal.trend.recent - proposal.trend.earlier) })}</p>
+    {/if}
     {#if shares}
       <p class="shares">
         <Badge tone="ok">{t('ai:insight.shares.high', { percent: pct(shares.positive) })}</Badge>
@@ -86,6 +91,7 @@
             <p class="line">
               <strong>{theme.label}</strong>
               <Badge tone={themeKindTone(theme.kind)}>{themeKindLabel(theme.kind)}</Badge>
+              {#if theme.share !== undefined}<span class="muted" title={t('ai:insight.shareTitle')}>{t('ai:insight.themeShare', { percent: pct(theme.share * 100) })}</span>{/if}
               <span class="muted">{theme.averageRating !== null ? t('ai:insight.themeWithRating', { reviews: reviewsText(theme.count), rating: stars(theme.averageRating) }) : reviewsText(theme.count)}</span>
             </p>
             {#if theme.summary}<p class="text">{theme.summary}</p>{/if}

@@ -57,11 +57,17 @@ const respond = (c: Context<AppEnv>, f: AiFailure) => {
 
 const goal = z.string().max(aiLimits.maxGoalChars, `At most ${aiLimits.maxGoalChars} characters.`);
 
+/** Tasks that send review text to the provider. */
+const REVIEW_TASKS = new Set(['review_summary', 'fix_next', 'review_classify']);
+
 /** The union of the options of every task; each task refuses the ones it does not have. */
 export const runTaskBody = z
   .object({
     appId: z.string().min(1).max(100),
-    locale: z.string().max(20).optional(),
+    locale: z.string().max(20).regex(/^[A-Za-z0-9_-]+$/).optional(),
+    /** Review summary: the language the summary is written in, and a new summary even when the stored one has the same reviews. */
+    outputLanguage: z.enum(['en', 'fr', 'es', 'de']).optional(),
+    refresh: z.boolean().optional(),
     country: z.string().max(10).optional(),
     fields: z.array(z.string().min(1).max(40)).min(1).max(10).optional(),
     goal: goal.optional(),
@@ -255,6 +261,9 @@ export function aiRoutes(ctx: AiRoutesContext) {
   routes.post('/:workspaceId/ai/tasks/:taskId/run', needs('ai.use'), small, async (c) => {
     const body = await parseBody(c, runTaskBody);
     if (!body.ok) return body.response;
+    // The review tasks send review text to the provider: reading the reviews is a right of its own, on top of using AI.
+    if (REVIEW_TASKS.has(param(c, 'taskId')) && !allowedFor(c)('reviews.read'))
+      return c.json({ error: 'forbidden' }, 403);
     const wait = limited(c);
     if (wait) return wait;
     const { appId, ...scope } = body.data;
@@ -267,13 +276,15 @@ export function aiRoutes(ctx: AiRoutesContext) {
     });
     if (!done.ok) return respond(c, done);
     c.header('Cache-Control', 'no-store');
-    return c.json({ suggestion: done.suggestion, warning: done.warning }, 201);
+    return c.json({ suggestion: done.suggestion, warning: done.warning, cached: done.cached }, 201);
   });
 
   /** "What will be sent": the exact input a run with the same body would send. Calls no provider, reserves nothing, stores nothing. */
   routes.post('/:workspaceId/ai/tasks/:taskId/preview', needs('ai.use'), small, async (c) => {
     const body = await parseBody(c, runTaskBody);
     if (!body.ok) return body.response;
+    if (REVIEW_TASKS.has(param(c, 'taskId')) && !allowedFor(c)('reviews.read'))
+      return c.json({ error: 'forbidden' }, 403);
     const wait = limited(c);
     if (wait) return wait;
     const { appId, ...scope } = body.data;

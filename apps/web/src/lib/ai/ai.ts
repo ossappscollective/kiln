@@ -156,6 +156,9 @@ export type AiRunBody = {
   reviewId?: string;
   tone?: 'friendly' | 'neutral' | 'apologetic';
   replyLanguage?: string;
+  /** Review summary: the language it is written in, and a new one even when the stored summary has the same reviews. */
+  outputLanguage?: 'en' | 'fr' | 'es' | 'de';
+  refresh?: boolean;
   /** Reviews of the last `days` days (summary, what to fix next). */
   days?: number;
   /** How many reviews to tag in one run (classify). */
@@ -175,7 +178,7 @@ export type AiAcceptBody = {
 };
 
 /** A run answers with the suggestion and, near a monthly limit, a warning. */
-export type AiRunResult = { suggestion: AiSuggestionView; warning?: AiUsageWarning | null };
+export type AiRunResult = { suggestion: AiSuggestionView; warning?: AiUsageWarning | null; cached?: boolean };
 
 /** POST /ai/tasks/:id/preview: exactly what a run would send, built from stored data. Nothing is sent to a provider. */
 export type AiPreview = {

@@ -338,9 +338,11 @@ export const aiOperations: Operation[] = [
     responses: {
       '201': {
         description:
-          'The suggestion, and `warning` (the soft usage warning of the month, or null).',
+          'The suggestion, `warning` (the soft usage warning of the month, or null) and `cached` (true when a stored result of the same data was reused: nothing was sent).',
         schema: z.object({
           suggestion: aiSuggestionSchema,
+          /** true: the stored summary of the same reviews was returned; nothing was sent and no tokens were spent. */
+          cached: z.boolean().optional(),
           warning: z
             .object({
               kind: z.enum(['tokens', 'cost']),

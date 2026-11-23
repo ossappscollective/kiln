@@ -5,10 +5,13 @@
   Drawn only when AI is on and the role may use it. The reports show right below, in the tray of this app; the tags show on the reviews.
   A run sends review text with names, emails, links and numbers taken out, and never the author, the device or the country (the
   "Show exactly what will be sent" in each popover lists it).
-  Props: api, workspaceId, role, app (the app record), reviewIds (the reviews on screen, to read their tags), onclassified? (after tagging).
+  The summary follows the page: the app (so the store), the language filter and the period. A summary of the same reviews is reused (nothing is
+  sent); a line says how old it is and how many reviews came after it, and Regenerate makes a new one. It is written in the language of the screen.
+  Props: api, workspaceId, role, app (the app record), language (the language filter of the page, '' for all), reviewIds (the reviews on screen, to read their tags), onclassified? (after tagging).
 -->
 <script lang="ts">
-  import { t } from '../../lib/i18n/t.ts';
+  import { currentLocale, t } from '../../lib/i18n/t.ts';
+  import { timeAgo } from '../../lib/format.ts';
   import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { suggestAvailability } from '../../lib/ai/ai.ts';
@@ -19,12 +22,15 @@
   import AiSuggestions from '../ai/AiSuggestions.svelte';
   import SuggestButton from '../ai/SuggestButton.svelte';
 
-  let { api, workspaceId, role, app, reviewIds }: { api: Api; workspaceId: string; role: Role; app: AppSummary; reviewIds: string[] } = $props();
+  let { api, workspaceId, role, app, reviewIds, language = '' }: { api: Api; workspaceId: string; role: Role; app: AppSummary; reviewIds: string[]; language?: string } = $props();
 
   const uid = $props.id();
   const REPORTS = ['review_summary', 'fix_next', 'review_classify'];
 
-  let days = $state(30);
+  /** What a summary reads at most (the server's limits: docs/api/review-summary.md). */
+  const SUMMARY_LIMIT = 40;
+  const SUMMARY_CHARS = 280;
+  let days = $state(28);
   const config = $derived(aiStore.config(workspaceId));
   const visible = $derived(suggestAvailability({ role, config, kind: 'insight' }).visible);
   const on = $derived(config !== null && config.state !== 'off_server' && config.state !== 'off_workspace');
@@ -41,9 +47,52 @@
     untrack(() => void aiStore.loadTags(api, workspaceId, appId, ids));
   });
 
-  async function summarise() {
-    await aiStore.run(api, workspaceId, 'review_summary', { appId: app.id, days });
+  const uiLanguage = (): 'en' | 'fr' | 'es' | 'de' => {
+    const base = currentLocale().slice(0, 2);
+    return base === 'fr' || base === 'es' || base === 'de' ? base : 'en';
+  };
+
+  async function summarise(refresh = false) {
+    await aiStore.run(api, workspaceId, 'review_summary', {
+      appId: app.id,
+      days,
+      limit: SUMMARY_LIMIT,
+      outputLanguage: uiLanguage(),
+      ...(language ? { locale: language } : {}),
+      ...(refresh ? { refresh: true } : {}),
+    });
   }
+
+  // The latest summary for this period and language, and how many reviews came after the newest one it read (a read of our own database).
+  const latest = $derived(
+    (aiStore.all(app.id) ?? []).find(
+      (s) =>
+        s.task === 'review_summary' &&
+        s.status !== 'dismissed' &&
+        s.scope.days === days &&
+        (s.scope.locale ?? '') === language,
+    ) ?? null,
+  );
+  let newer = $state<{ count: number; more: boolean } | null>(null);
+  $effect(() => {
+    const found = latest;
+    newer = null;
+    if (!found || found.proposal.kind !== 'insight' || found.proposal.insight !== 'review_summary') return;
+    const after = found.proposal.latestReviewAt;
+    if (after === null || after === undefined) return;
+    const appId = app.id;
+    untrack(() => {
+      void api
+        .appReviews(workspaceId, appId, `since=${after + 1}&limit=50${language ? `&language=${encodeURIComponent(language)}` : ''}`)
+        .then((page) => {
+          if (latest === found) newer = { count: page.reviews.length, more: page.nextCursor !== null };
+        })
+        .catch(() => undefined);
+    });
+  });
+  $effect(() => {
+    if (on) untrack(() => void aiStore.loadSuggestions(api, workspaceId, app.id));
+  });
 
   async function fixNext() {
     await aiStore.run(api, workspaceId, 'fix_next', { appId: app.id, days });
@@ -64,18 +113,22 @@
   <section class="ai" aria-label={t('reviews:ai.region')}>
     <div class="row wrap bar">
       <span class="muted small">{t('reviews:ai.badge')}</span>
-      <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="review_summary" label={t('reviews:ai.summarise')} hiddenLabel={t('reviews:ai.summariseHidden', { n: days })} onrun={summarise} preview={{ appId: app.id, days }} />
+      <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="review_summary" label={latest ? t('reviews:ai.regenerate') : t('reviews:ai.summarise')} hiddenLabel={t('reviews:ai.summariseHidden', { n: days })} onrun={() => summarise(latest !== null)} preview={{ appId: app.id, days, limit: SUMMARY_LIMIT, outputLanguage: uiLanguage(), ...(language ? { locale: language } : {}) }} />
       <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="fix_next" label={t('reviews:ai.fixNext')} onrun={fixNext} preview={{ appId: app.id, days }} />
       <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="review_classify" label={t('reviews:ai.tag')} onrun={tag} preview={{ appId: app.id, days }} />
       <label class="period">
         <span class="visually-hidden">{t('reviews:ai.periodLabel')}</span>
         <select id="{uid}-days" bind:value={days} aria-label={t('reviews:ai.period')}>
           <option value={7}>{t('reviews:ai.lastDays', { n: 7 })}</option>
-          <option value={30}>{t('reviews:ai.lastDays', { n: 30 })}</option>
+          <option value={28}>{t('reviews:ai.lastDays', { n: 28 })}</option>
           <option value={90}>{t('reviews:ai.lastDays', { n: 90 })}</option>
         </select>
       </label>
     </div>
+    <p class="muted small" data-testid="summary-notice">{t('reviews:ai.summaryNotice', { reviews: SUMMARY_LIMIT, chars: SUMMARY_CHARS })}</p>
+    {#if latest && newer && newer.count > 0}
+      <p class="muted small stale" data-testid="summary-stale">{newer.more ? t('reviews:ai.staleMany', { count: newer.count }) : t('reviews:ai.stale', { count: newer.count })}</p>
+    {/if}
     <AiSuggestions {api} {workspaceId} {role} {app} platform={app.platform} tasks={REPORTS} />
   </section>
 {/if}
