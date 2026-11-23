@@ -12,6 +12,7 @@
   import { needsStoreAppId, supports } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { ApiError } from '../../lib/api.ts';
+  import { searchImageUrl } from '../../lib/aso/competitor-changes.ts';
   import { type AsoConfig, type AsoCompetitorSearchResult, asoErrorMessage, commonCountries } from '../../lib/aso/aso.ts';
   import { moveActive, primaryCountry, readField, SEARCH_DEBOUNCE_MS } from '../../lib/aso/competitor-search.ts';
   import { bumpCompetitors } from '../../lib/aso/competitor-sync.svelte.ts';
@@ -277,8 +278,8 @@
           onmousemove={() => (active = i)}
           onclick={() => addResult(r)}
         >
-          {#if r.iconUrl && !brokenIcons[r.externalId]}
-            <img class="icon" src={r.iconUrl} alt="" width="40" height="40" referrerpolicy="no-referrer" loading="lazy" onerror={() => (brokenIcons[r.externalId] = true)} />
+          {#if r.iconRef && target && !brokenIcons[r.externalId]}
+            <img class="icon" src={searchImageUrl(workspaceId, target.id, r.iconRef, 96)} alt="" width="40" height="40" loading="lazy" onerror={() => (brokenIcons[r.externalId] = true)} />
           {:else}
             <AppIcon name={r.name} size={40} labelled={false} />
           {/if}
