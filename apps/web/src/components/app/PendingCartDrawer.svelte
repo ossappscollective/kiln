@@ -37,6 +37,7 @@
     tally,
     toggle,
   } from '../../lib/pending-cart.ts';
+  import CartGraphicsDetail from './CartGraphicsDetail.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -258,7 +259,7 @@
                           <p class="quote muted">{t('app:cart.reviewLine', { stars: stars(row.review.rating), excerpt: row.review.excerpt })}</p>
                         {/if}
                         {#if row.kind === 'graphics'}
-                          <p>{t('app:cart.files', { count: row.counts.files ?? 0 })}</p>
+                          <CartGraphicsDetail files={row.counts.files ?? 0} before={row.counts.before ?? null} thumbs={row.thumbs ?? []} />
                         {:else if row.summary !== null}
                           <p class="diff">
                             {#if row.before !== null}
