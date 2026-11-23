@@ -6,7 +6,9 @@
   Money carries RevenueCat's currency and is never converted; a figure RevenueCat did not report is not drawn (never a zero). A failed read says
   why beside the older figures (for a key without the Charts & Metrics permission the sentence names the permission and says to sync again),
   with a link to Products where "Sync products" reads them. Every member who can read the app sees it, revenue included.
-  Props: api, workspaceId, appId, now (epoch ms, for "As of").
+  ONE block for the whole scope: the figures are all-stores figures, so with iOS and Android in scope they are read from the first record that is
+  linked and drawn once (never once per platform).
+  Props: api, workspaceId, appIds (the app records in scope), now (epoch ms, for "As of").
 -->
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
@@ -23,22 +25,21 @@
   } from '../../lib/revenuecat/metrics.ts';
   import InfoTip from '../ui/InfoTip.svelte';
 
-  let { api, workspaceId, appId, now }: { api: Api; workspaceId: string; appId: string; now: number } = $props();
+  let { api, workspaceId, appIds, now }: { api: Api; workspaceId: string; appIds: string[]; now: number } = $props();
 
   let read = $state<RevenueCatMetricsRead | null>(null);
+  let appId = $state('');
   let generation = 0;
 
   $effect(() => {
     const mine = ++generation;
-    const id = appId;
-    api
-      .revenueCatMetrics(workspaceId, id)
-      .then((r) => {
-        if (mine === generation) read = r;
-      })
-      .catch(() => {
-        if (mine === generation) read = null;
-      });
+    const ids = [...appIds];
+    void Promise.all(ids.map((id) => api.revenueCatMetrics(workspaceId, id).catch(() => null))).then((reads) => {
+      if (mine !== generation) return;
+      const at = Math.max(0, reads.findIndex((r) => revenueState(r) !== 'hidden'));
+      read = reads[at] ?? null;
+      appId = ids[at] ?? '';
+    });
   });
 
   const block = $derived(revenueState(read));

@@ -31,6 +31,13 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   app **Builds** page uses it (`lib/builds-sections.ts`): Builds, Test builds | EAS submissions (count), EAS configuration, EAS updates (only for an app
   linked to Expo / with a repository) | Workflows. `?view=builds|tests|workflows` open the same sections. EAS submissions is its own section
   (`EasSubmissionsPanel`), no longer under Test builds.
+- **Insights overview, redesigned (2026-11-23)**: no longer one long column. From the top: the range and table switch; the **headline** (the RevenueCat figures
+  ONCE for the whole scope, `RevenueBlock` with `appIds`, read from the first linked record; then each platform's row of store figures, side by side from
+  72rem when iOS and Android are both in scope); then a **section rail** (`?section=`): Overview (the headline chart), Acquisition, Quality, Revenue (Apple
+  Proceeds or Google sales, Subscriptions, monthly Earnings), Next steps (ASO, AI) and Data sources. Counts show the cards of a section and the sources that
+  could not be read. Every chart card is in exactly one section (`lib/analytics/sections.ts`, tested). **Data sources is ONE panel for the scope**
+  (`SourcesPanel` with `items`): one summary (worst state, last read), a heading per platform only when there are several, one import button per platform.
+  What is read per platform lives in `PlatformData` (one read, shared by the figures and the sections).
 - **Views inside a page** (`ViewSwitch`, `?view=` in the address, platform, version and locale stay): Store listing = Text, Graphics;
   Insights = Overview, Highlights (the Insights cards, with the count badge on the Insights entry), Countries (downloads by main language against the languages of the store page), Keywords, Search terms (phase 2, see 0a), Experiments (`?view=experiments`, every platform: Apple tests and custom product pages, Google link-out and the manual tracker); Builds = Builds,
   Workflows, Test builds; Reviews = Reviews, TestFlight (`?view=testflight`, `reviews.read`, only when an Apple app is in scope: beta feedback and crashes).
