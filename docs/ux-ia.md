@@ -402,6 +402,6 @@ new flags; whether Google Play "changes not sent for review" works for the conne
 - **Insights cards, store page checks and country coverage** (`components/insights/`, `lib/insights/insights.ts`; strings in `locales/insights`).
   Highlights: filter chips with counts, one card per finding (severity icon and word, headline, why, evidence, one or two buttons that open Kiln pages,
   Dismiss with an Undo toast), and a note for each rule that could not run and why. The badge on the Insights entry is one `.../insights/count` read per record
-  when an app is opened (again only after five minutes; Highlights keeps it exact); no timer. With a badge the entry opens on Highlights. The store page
+  when an app is opened (again only after five minutes; Highlights keeps it exact); no timer. The entry always opens on Overview; the badge counts the open cards, which are on the Highlights tab. The store page
   checks sit under the locale grid of Store listing, Text (score, findings per language, a suggested keyword field with a copy button; nothing is staged
   or sent). Countries: bars by main language ("On your store page" or a link to the listing) and a table with the main language of each country.

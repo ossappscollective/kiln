@@ -22,7 +22,7 @@
   import { type Action, platformLabel } from '@kiln/core';
   import { address as pageAddress, appContext } from '../../lib/address.svelte.ts';
   import { carryHeaderParams } from '../../lib/app-header.ts';
-  import { type RailItem, navEntryOf, visibleNav, withView, workspaceRail } from '../../lib/app-nav.ts';
+  import { type RailItem, navEntryOf, visibleNav, workspaceRail } from '../../lib/app-nav.ts';
   import { type AppAddress, type AppSection, appAddress } from '../../lib/app-scope.ts';
   import { badgeText } from '../../lib/nav-badges.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
@@ -78,11 +78,9 @@
           ? { count: counts.pending ?? null, labelKey: k('app:nav.badgePending'), tone: counts.pendingBlocking ? 'warn' : 'accent' }
           : null;
 
-  /** The link of an entry; with open Insights cards the entry opens on them (the badge counts them), not on the overview. */
-  const entryHref = (id: AppSection, badge: { count: number | null } | null): string => {
-    const href = carryHeaderParams(appAddress(address.id, id, address.platform), pageAddress.hash);
-    return id === 'insights' && badgeText(badge?.count) ? withView(href, 'insights', 'highlights') : href;
-  };
+  /** The link of an entry. Insights always opens on Overview; the badge counts the open cards, which are one tab away (Highlights). */
+  const entryHref = (id: AppSection, _badge: { count: number | null } | null): string =>
+    carryHeaderParams(appAddress(address.id, id, address.platform), pageAddress.hash);
   const entries = $derived(visibleNav(allowed));
   const here = $derived(navEntryOf(address.section));
   const rail = $derived(workspaceRail(workspaceItems));
