@@ -36,6 +36,11 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   and on the pending page. Pending changes is not a navigation entry any more. The bar is no longer yellow (a blocking error keeps the
   warning colour). **On the Overview it is not a bar:** the changes are one link under the primary button of the Next step card
   ("2 changes waiting. Review and publish", `pendingPlacement` in `lib/app-page.ts`); a blocking error stays a bar there too.
+- **Revenue, Expo card and EAS steps (2026-11-23)**: the RevenueCat figures (active subscriptions, trials, MRR, 28-day revenue, "As of", the
+  "key may not read metrics" sentence) are the Revenue block of the Insights overview (`RevenueBlock`, only for a RevenueCat-linked app); Products keeps
+  configuration and one small link to Insights. The app Overview has an Expo (EAS) card per platform (latest build and submission, stored data only,
+  empty states for "not linked" and "no builds yet"); the release detail shows the matching EAS build and submission as steps under each store
+  release. Failed EAS builds and submissions raise alerts ([alerts](alerts.md)).
 - **Next step card** (`NextStep`, Overview and Releases): one primary button chosen by state, in this order: a release whose step
   failed (rejected), a release that waits for you (finish, attach a build, release it), a release in store review (quiet "Start release"
   beside it), then with nothing on its way "Start release" (or "Prepare release" without a linked repository). The five release steps,

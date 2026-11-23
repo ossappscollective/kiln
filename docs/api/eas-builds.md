@@ -49,12 +49,29 @@ Refresh errors: `409 not_linked`; `422` `platform_unsupported`, `credential_not_
 `expo_auth`, `expo_forbidden`, `expo_not_found`; `429 rate_limited` (our budget, or Expo's, with `Retry-After`); `502 expo_unavailable`;
 `504 timeout`. Messages are fixed sentences.
 
+## Failures raise alerts
+
+A read that stores a build or a submission as `errored` which the snapshot before did not hold as `errored` emits the event `eas.build_failed` or
+`eas.submission_failed` (ids, platform, version, build number and a short code; right `builds.read`; [events](events.md)), which the alert types of
+the same names turn into inbox, email, Slack or Teams alerts ([alerts](../alerts.md)). None on the first read of a project; none for a failure
+older than a week. Nothing here calls Expo beyond the read that was due anyway.
+
 ## Audit
 
 Every read of Expo is a `credential.use` with purpose `eas.status` (scheduled reads as the system). A manual refresh is also audited as
 `eas.status_refresh` (target: the app; detail: `appId`, `projectId`, counts). Neither holds the token or a build file address.
 
 ## In the app
+
+Besides "Builds to test": the app **Overview** has an Expo card (`ExpoOverviewCard`): per iOS or Android record, the latest build and the latest
+submission with state, version, build number and time, linking to Builds, from `GET /status` only (no call to Expo); a record that is not linked says
+so and links to Builds, a linked one without builds says none is stored yet, a macOS record has no row. A current OTA update is not shown there
+(it is only read live). The **release detail** (`ReleaseEasSteps`, one per store release) shows the matching build and its submission as steps:
+build finished, submitted, in store review. The build is matched by platform and version and then build number (App Store: the release's build;
+Google Play: one of its version codes; without a number only when the version has exactly one build number among finished or running builds);
+internal and simulator builds never match; the submission is the one of that build id; nothing is shown when no single build matches
+(`lib/eas/eas-release.ts`).
+
 
 "Builds to test" lists EAS builds next to CI artifacts and store builds (source filter "EAS builds"), with profile, channel, runtime,
 distribution and commit; a failed build shows Expo's reason. A section "EAS submissions" lists submissions with their store, state and
