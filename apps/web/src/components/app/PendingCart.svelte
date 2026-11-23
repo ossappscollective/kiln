@@ -183,6 +183,7 @@
     class="cart-fab"
     class:pulse
     aria-haspopup="dialog"
+    aria-expanded={open}
     aria-label={t('app:cart.openAria', { count })}
     data-testid="pending-cart-button"
     onclick={() => (open = true)}
@@ -211,7 +212,13 @@
 />
 
 <style>
-  .cart-fab {
+  /*
+    Every rule is written as `button.cart-fab...`: the global `button:hover:not(:disabled)` (app.css) has the specificity of
+    (0,2,1) and a plain scoped `.cart-fab` rule loses to it, which painted the hovered button with --surface-hover (white) under
+    the white label: only the count chip stayed visible. Same trap as FilterChip. Colours of the label and the icon are
+    --accent-ink on the gradient in EVERY state (a tested pair), and no state may use a surface background.
+  */
+  button.cart-fab {
     position: fixed;
     right: var(--space-4);
     bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
@@ -229,20 +236,48 @@
     border: 0;
     border-radius: var(--radius-full);
     box-shadow: var(--shadow-lg);
+    transition:
+      transform var(--duration-fast) var(--ease),
+      filter var(--duration-fast) var(--ease),
+      box-shadow var(--duration-fast) var(--ease);
   }
 
   /* A sticky save bar sits at the bottom of the page: stay above it instead of covering its buttons. */
-  :global(body:has(.savebar)) .cart-fab {
+  :global(body:has(.savebar)) button.cart-fab {
     bottom: calc(var(--space-4) + 4.5rem + env(safe-area-inset-bottom, 0px));
   }
 
-  .cart-fab:hover {
-    filter: brightness(1.06);
+  /* Hover: the same gradient a little brighter and lifted; colour, icon and label do not change. */
+  button.cart-fab:hover:not(:disabled) {
+    color: var(--accent-ink);
+    background: linear-gradient(135deg, var(--primary-from), var(--primary-to));
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lg);
   }
 
-  .cart-fab:focus-visible {
-    outline: 2px solid var(--focus);
+  button.cart-fab:focus-visible {
+    outline: var(--ring);
     outline-offset: 3px;
+    box-shadow: var(--shadow-lg), var(--halo);
+  }
+
+  /* Pressed (and open: the drawer it controls is showing): pushed back down, a touch darker. */
+  button.cart-fab:active:not(:disabled),
+  button.cart-fab[aria-expanded='true'] {
+    color: var(--accent-ink);
+    background: linear-gradient(135deg, var(--primary-from), var(--primary-to));
+    filter: brightness(0.94);
+    transform: translateY(0);
+    box-shadow: var(--shadow-md);
+  }
+
+  button.cart-fab:disabled {
+    color: var(--accent-ink);
+    cursor: not-allowed;
+    filter: saturate(0.5);
+    opacity: 0.6;
+    box-shadow: var(--shadow-sm);
   }
 
   .count {
@@ -258,7 +293,7 @@
     border-radius: var(--radius-full);
   }
 
-  .cart-fab.pulse {
+  button.cart-fab.pulse {
     animation: cart-pulse 700ms var(--ease);
   }
 
@@ -269,7 +304,15 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .cart-fab.pulse {
+    button.cart-fab {
+      transition: none;
+    }
+
+    button.cart-fab:hover:not(:disabled) {
+      transform: none;
+    }
+
+    button.cart-fab.pulse {
       animation: none;
     }
   }

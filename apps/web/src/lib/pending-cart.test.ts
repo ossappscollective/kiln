@@ -140,3 +140,25 @@ test('announcing dispatches one event and never throws without a window', () => 
   assert.equal(n, 1);
   assert.doesNotThrow(() => announceCartAdded(undefined));
 });
+
+// The floating button once turned white on hover (the global `button:hover:not(:disabled)` out-ranked its scoped rule) and the
+// label and icon vanished. Guard: every state rule of the button is `button.cart-fab...` and none paints a surface behind the label.
+test('the cart button keeps its gradient and label colour in every state', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../components/app/PendingCart.svelte', import.meta.url), 'utf8');
+  const css = src.slice(src.indexOf('<style>') + 7).replace(/\/\*[\s\S]*?\*\//g, '');
+  const rules = [...css.matchAll(/([^{}@]+)\{([^{}]*)\}/g)].filter((m) => /cart-fab/.test(m[1] as string) && !/\.count/.test(m[1] as string));
+  assert.ok(rules.length >= 6);
+  for (const m of rules) {
+    const sel = (m[1] as string).trim();
+    for (const part of sel.split(',').map((x) => x.trim())) {
+      assert.match(part, /^(:global\(body:has\(\.savebar\)\) )?button\.cart-fab/, `selector needs the element for specificity: ${part}`);
+    }
+    const body = m[2] as string;
+    assert.doesNotMatch(body, /background(-color)?:\s*var\(--(surface|raised|chip|field|ground)/, sel);
+    const color = /(^|[\s;])color:\s*([^;]+)/.exec(body);
+    if (color) assert.equal((color[2] as string).trim(), 'var(--accent-ink)', sel);
+  }
+  for (const state of [':hover', ':focus-visible', ':active', "[aria-expanded='true']", ':disabled'])
+    assert.ok(rules.some((m) => (m[1] as string).includes(state)), state);
+});
