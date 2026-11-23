@@ -23,6 +23,7 @@ import {
 } from '../services/apps.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
 import type { Failure } from '../services/repositories.ts';
+import { enqueueAppSyncAll } from '../services/sync-all.ts';
 import { syncActivity } from '../services/sync-pipeline.ts';
 
 export type AppRoutesContext = AppsContext & {
@@ -218,6 +219,32 @@ export function appRoutes(ctx: AppRoutesContext) {
     const done = await syncApp(ctx, { workspaceId: ws(c), id }, actor(c));
     if (!done.ok) return respond(c, done);
     return c.json({ app: done.app, releases: done.releases, sync: done.sync });
+  });
+
+  // One "Sync" for everything the app has (listing and releases, reviews, EAS, analytics): the jobs, critical first. Reads no store itself.
+  app.post('/:workspaceId/apps/:id/sync-all', needs('apps.sync'), async (c) => {
+    const id = param(c, 'id');
+    if (!(await getApp(db, ws(c), id))) return notFound(c);
+    const wait = ctx.limiter.take(ws(c));
+    if (wait > 0) {
+      c.header('Retry-After', String(wait));
+      return c.json(
+        {
+          error: 'rate_limited',
+          message: `Too many syncs. Try again in ${wait} seconds.`,
+          retryAfterSeconds: wait,
+          ...coded('sync.tooManySyncs', { count: wait }),
+        },
+        429,
+      );
+    }
+    const plan = await enqueueAppSyncAll(ctx, {
+      workspaceId: ws(c),
+      appId: id,
+      role: c.get('role'),
+      requestedBy: c.get('user').id,
+    });
+    return plan ? c.json({ plan }, 202) : notFound(c);
   });
 
   return app;

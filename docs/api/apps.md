@@ -342,6 +342,27 @@ down, rate limit, timeout) and not for permanent ones (bad key, no access); eith
 `lastSyncError` says what happened. The job's own audit actor is `system`, and `app.sync`
 records `trigger: "job"` and the user who queued it in `requestedBy`.
 
+### `POST /apps/:id/sync-all`
+
+The one **Sync** of the app in the web app (header button). Needs `apps.sync`; no body; counts as one sync of the workspace budget (429 as above).
+It reads no store itself: it queues one job per kind the app has, in the order the worker ranks them (critical first), and answers `202` at once:
+
+```json
+{ "plan": [
+  { "kind": "app", "state": "queued", "jobId": "…" },
+  { "kind": "reviews", "state": "queued", "jobId": "…" },
+  { "kind": "eas", "state": "skipped", "reason": "not_linked" },
+  { "kind": "analytics", "state": "skipped", "reason": "forbidden" }
+] }
+```
+
+Kinds: `app` (store listing and release state, queue `app.sync`), `reviews` (`review.sync`, needs `reviews.sync`), `eas` (`eas.status`, only for an app
+linked to Expo), `analytics` (`analytics.sync`, needs `analytics.manage`, only with analytics on and, for Apple, a report request or vendor number). A kind
+is `skipped` with `reason` `forbidden`, `not_linked`, `off`, `not_ready` or `already_queued` (a job of that kind for the app is waiting or running, so
+pressing it twice queues nothing twice). Products, RevenueCat and TestFlight feedback have no queue yet: the web app runs their own routes after the plan.
+Progress and the last read of each source are read from the sources' own status routes (shown in the Status popover); see
+[ADR 0050](../adr/0050-sync-pipeline.md).
+
 Errors (a failed sync is recorded in `lastSyncError` and audited as `app.sync` with `ok: false`;
 the response carries the updated `app` so the screen can show it):
 
