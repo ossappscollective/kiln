@@ -165,6 +165,7 @@
   "cart.files_one": "{{count}} file",
   "cart.files_other": "{{count}} files",
   "cart.fixFirst": "Fix this first: {{message}}",
+  "cart.graphicsDiff": "{{before}} → {{after}} images",
   "cart.group.graphics": "Graphics",
   "cart.group.listing": "Store listing",
   "cart.group.release": "Release details",

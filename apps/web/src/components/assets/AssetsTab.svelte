@@ -55,6 +55,8 @@
   } from '../../lib/assets/groups.ts';
   import { SYNC_ROLE_REASON, type EditorSet, canChangeAssets, setIdOf, storeKeyOf } from '../../lib/assets/sync.ts';
   import { assetsLead, otherCountsText, splitProblems } from '../../lib/assets/lead.ts';
+  import { planFor, storeCacheKey, storeMediaCache } from '../../lib/assets/store-cache.ts';
+  import { onStagedChanged } from '../../lib/staged-sync.ts';
   import { formatList } from '../../lib/i18n/format.ts';
   import { k, t } from '../../lib/i18n/t.ts';
   import { describeError } from '../../lib/portfolio.ts';
@@ -125,21 +127,31 @@
   let compareMedia = $state(false);
   let storeGeneration = 0;
 
+  // Stale while revalidate: the last read of this app and platform is kept for the session (lib/assets/store-cache.ts), so coming back
+  // shows it at once and asks again in the background; a failed read keeps what is shown. A publish drops it.
   async function loadStore(fresh: boolean) {
     if (!allowed) return;
     const mine = ++storeGeneration;
-    storeReloading = true;
+    const key = storeCacheKey(workspaceId, app.id, app.platform);
+    const hit = storeMediaCache.get(key);
+    if (hit && storeView !== hit.view) storeView = hit.view;
+    const recent = !fresh && planFor(hit, Date.now()) === 'show';
+    storeReloading = !recent;
     storeProblem = '';
     try {
       const [done, settings] = await Promise.all([
-        api.appStoreImages(workspaceId, app.id, fresh),
+        recent ? Promise.resolve(null) : api.appStoreImages(workspaceId, app.id, fresh),
         api.appListingSettings(workspaceId, app.id).catch(() => null),
       ]);
       if (mine !== storeGeneration) return;
-      storeView = done.store;
+      if (done) {
+        storeView = done.store;
+        storeMediaCache.set(key, done.store);
+      }
       if (settings) compareMedia = settings.settings.compareMedia;
     } catch (e) {
       if (mine !== storeGeneration) return;
+      // What was shown stays shown (the page says that the read failed); only a first read has nothing to fall back on.
       storeProblem = describeStoreRead(e);
       const settings = await api.appListingSettings(workspaceId, app.id).catch(() => null);
       if (mine === storeGeneration && settings) compareMedia = settings.settings.compareMedia;
@@ -201,6 +213,7 @@
     const key = `${workspaceId}/${app.id}`;
     if (key !== shownFor) {
       shownFor = key;
+      storeView = storeMediaCache.get(storeCacheKey(workspaceId, app.id, app.platform))?.view ?? null;
       index = null;
       filter = { ...NO_FILTER };
       autoGroup = null;
@@ -209,6 +222,17 @@
     untrack(() => {
       void load();
       void loadStore(false);
+    });
+  });
+
+  // A publish changed what the store holds: drop what was kept and read it again.
+  $effect(() => {
+    const appId = app.id;
+    const ws = workspaceId;
+    return onStagedChanged((detail) => {
+      if (detail.reason !== 'publish' || detail.appId !== appId) return;
+      storeMediaCache.forgetApp(ws, appId);
+      void loadStore(true);
     });
   });
 
@@ -440,7 +464,7 @@
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#if allowed}
-    <StoreGraphics {workspaceId} {app} {now} view={storeView} problem={storeProblem} reloading={storeReloading} onreload={() => loadStore(true)} />
+    <StoreGraphics {api} {workspaceId} {role} {app} {now} {locked} view={storeView} problem={storeProblem} reloading={storeReloading} onreload={() => loadStore(true)} />
   {/if}
 
   {#if !allowed}

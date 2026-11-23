@@ -553,6 +553,7 @@ function uploadQueryText(q: UploadQuery): string {
   if (q.name !== undefined) out.set('name', q.name);
   if (q.fix !== undefined) out.set('fix', q.fix);
   if (q.background !== undefined) out.set('background', q.background);
+  if (q.base !== undefined) out.set('base', q.base);
   return out.toString();
 }
 
@@ -1594,7 +1595,7 @@ export function createApi(options: ApiOptions = {}) {
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/upload?${uploadQueryText(query)}`,
         undefined,
         file,
-      ),
+      ).then(addedToCart(appId)),
     removeStagedAssetFile: (
       workspaceId: string,
       appId: string,
@@ -1603,7 +1604,17 @@ export function createApi(options: ApiOptions = {}) {
       request<{ staged: StagedChangesView }>(
         'DELETE',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/file?${uploadQueryText(query)}`,
-      ),
+      ).then(addedToCart(appId)),
+    moveStagedAssetFile: (
+      workspaceId: string,
+      appId: string,
+      body: { locale: string; kind: string; device: string | null; from: number; to: number; base?: 'store' },
+    ) =>
+      request<{ staged: StagedChangesView }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/move`,
+        body,
+      ).then(addedToCart(appId)),
     fixStagedAssetFile: (
       workspaceId: string,
       appId: string,

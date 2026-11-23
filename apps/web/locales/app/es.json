@@ -165,6 +165,7 @@
   "cart.files_one": "{{count}} archivo",
   "cart.files_other": "{{count}} archivos",
   "cart.fixFirst": "Corrígelo primero: {{message}}",
+  "cart.graphicsDiff": "{{before}} → {{after}} imágenes",
   "cart.group.graphics": "Gráficos",
   "cart.group.listing": "Ficha de la tienda",
   "cart.group.release": "Detalles de la versión",

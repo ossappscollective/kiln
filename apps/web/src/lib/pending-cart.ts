@@ -32,6 +32,8 @@ export type CartItem = {
   bundle: string | null;
   version: string;
   counts: Record<string, number>;
+  /** Graphics: addresses of up to four uploaded files of the set, for thumbnails (CartGraphicsDetail). */
+  thumbs?: string[];
   problems: { code: string; severity: 'error' | 'warning'; message: string }[];
   ref: { locale?: string; field?: string; slot?: string; reviewId?: string };
   review?: { rating: number; excerpt: string; language: string | null; territory: string | null; status: string };

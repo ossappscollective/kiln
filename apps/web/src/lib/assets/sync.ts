@@ -98,6 +98,8 @@ export type UploadQuery = {
   fix?: FixKind;
   /** A colour such as `#ffffff`. */
   background?: string;
+  /** `store`: a set that is not staged yet starts from the images the store holds (the Graphics tab edits the store's side). */
+  base?: 'store';
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -116,6 +118,10 @@ export const storeThumbUrl = (
   size: ThumbSize = 320,
 ): string =>
   `${appBase(workspaceId, appId)}/assets/store/thumb?ref=${encodeURIComponent(ref)}&size=${size}`;
+
+/** The ORIGINAL file of a store image (for Save and Copy; a thumbnail is never a copy of the file). */
+export const storeFileUrl = (workspaceId: string, appId: string, ref: string): string =>
+  `${appBase(workspaceId, appId)}/assets/store/file?ref=${encodeURIComponent(ref)}`;
 
 /** The bytes of an uploaded or fixed file of a staged set. */
 export const stagedBlobUrl = (workspaceId: string, appId: string, oid: string): string =>

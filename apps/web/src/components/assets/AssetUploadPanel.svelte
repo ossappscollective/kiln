@@ -7,7 +7,8 @@
   extension), and what has to be done by hand. A fix makes a new file; the original is never changed.
   Props: api, workspaceId, appId, slot (locale, kind, device), mode ('add' | 'replace'), position (the file to
   replace, 1-based), disabledReason ('' when allowed), onstaged (called with the staged view after each file),
-  ondone? (called when the file is staged, for a dialog that closes).
+  ondone? (called when the file is staged, for a dialog that closes), base? ('store': a set that is not staged yet starts from the
+  images the store holds, not from the repository: the Graphics tab edits the store's side).
 -->
 <script lang="ts">
   import type { FixAdvice, FixKind, StagedChangesView } from '@kiln/core';
@@ -42,6 +43,7 @@
     disabledReason = '',
     onstaged,
     ondone,
+    base = undefined,
   }: {
     api: Api;
     workspaceId: string;
@@ -52,6 +54,7 @@
     disabledReason?: string | undefined;
     onstaged: (view: StagedChangesView) => void;
     ondone?: (() => void) | undefined;
+    base?: 'store' | undefined;
   } = $props();
 
   const uid = $props.id();
@@ -70,6 +73,7 @@
     mode,
     ...(mode === 'replace' && position !== undefined ? { position } : {}),
     name: file.name,
+    ...(base !== undefined ? { base } : {}),
     ...(fix !== undefined ? { fix } : {}),
     ...(background !== undefined ? { background } : {}),
   });
