@@ -219,7 +219,7 @@ and one section at a time on the right, kept in the address as `?section=`. Pure
 Every app page reads top to bottom in the same order, so two pages never seem stacked:
 
 1. **Header**: the app, the platform **scope** (iOS | Android | All) and the page's **Sync** (0, "Sync is per page"). Scope and sync live only here.
-2. **Tabs** (`SegmentTabs`, `?view=`): the **pages** of a section (Insights: Overview, Highlights, Countries, Ratings and health, Keywords, Search terms, Experiments). Ratings and health (`?view=ratings`, needs `reviews.read`) keeps the rule: its rail (`?section=ratings|reviews|stability|releases|countries`) lists sections, its page Sync reads reviews and analytics (docs/adr/0052-ratings-health.md).
+2. **Tabs** (`SegmentTabs`, `?view=`): the **pages** of a section (Insights: Overview, Highlights, Countries, Ratings and health, Timeline, Keywords, Search terms, Experiments). Timeline (`?view=timeline`, every role) has a rail with Timeline and Reports (`?section=reports`) and syncs the app, reviews and analytics (docs/adr/0053-timeline-and-reports.md); Ratings and health (`?view=ratings`, needs `reviews.read`) keeps the rule: its rail (`?section=ratings|reviews|stability|releases|countries`) lists sections, its page Sync reads reviews and analytics (docs/adr/0052-ratings-health.md).
 3. **Range bar** (and table switch): one bar under the tabs, for the pages that have a date range. Nothing above it repeats scope or sync.
 4. **Rail | content** (`ui/SectionRail`, `?section=`): the **sections inside one page** (Insights Overview, Builds, app Settings, workspace Settings). The rail is
    sticky, drawn only with two or more sections, and the content scrolls beside it; a section that would be empty for the data at hand is not listed.
