@@ -126,10 +126,56 @@
 </div>
 
 <style>
+  /* One joined control: label | divider | chevron share the border, the radius and the surface. The inner buttons drop their own
+     border, radius and shadow (the selectors are as specific as the global button states and InfoTip's own trigger rules, so they win);
+     the focus ring is drawn inside each part so the wrapper never has to clip it. */
   .split {
     display: inline-flex;
-    gap: var(--space-1);
-    align-items: center;
+    align-items: stretch;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-xs);
+  }
+
+  .split :global(button),
+  .split :global(button.trigger) {
+    color: var(--ink);
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .split > :global(button) {
+    border-radius: calc(var(--radius-md) - 1px) 0 0 calc(var(--radius-md) - 1px);
+  }
+
+  .split :global(.infotip) {
+    border-left: 1px solid var(--line-strong);
+  }
+
+  .split :global(button.trigger) {
+    min-height: var(--control-sm);
+    border-radius: 0 calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0;
+  }
+
+  .split :global(button:hover:not(:disabled)),
+  .split :global(button.trigger:hover),
+  .split :global(button.trigger[aria-expanded='true']) {
+    color: var(--ink);
+    background: var(--surface-hover);
+    border: 0;
+  }
+
+  .split :global(button:active:not(:disabled)) {
+    background: var(--surface-active);
+  }
+
+  .split :global(button:focus-visible) {
+    outline: var(--ring);
+    outline-offset: -2px;
+    box-shadow: none;
   }
 
   .menu {
