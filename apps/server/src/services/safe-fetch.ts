@@ -64,6 +64,8 @@ export type SafeGetOptions = {
   accept?: string | undefined;
   /** The User-Agent to send. Default `kiln`. */
   userAgent?: string | undefined;
+  /** Extra request headers (lower case names). They cannot replace accept, accept-encoding, user-agent, host or range. */
+  headers?: Record<string, string> | undefined;
   /** Development only (KILN_WEBHOOKS_ALLOW_PRIVATE): accept loopback and private addresses. */
   allowPrivate?: boolean | undefined;
   resolve?: Resolver | undefined;
@@ -235,6 +237,7 @@ export async function safeGet(rawUrl: string, options: SafeGetOptions): Promise<
           secure: check.url.protocol === 'https:',
           ...(check.literal ? {} : { servername: check.hostname }),
           headers: {
+            ...options.headers,
             accept: options.accept ?? '*/*',
             'accept-encoding': 'identity',
             'user-agent': options.userAgent ?? 'kiln',

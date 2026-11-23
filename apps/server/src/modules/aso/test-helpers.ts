@@ -30,6 +30,18 @@ export class FakeAsoSources implements AsoSources {
   gate: Promise<void> | undefined;
   /** Names shown in the results (id -> name), as Apple gives them. */
   names = new Map<string, string>();
+  /** Rating counts shown in the results (id -> count). */
+  ratingCounts = new Map<string, number>();
+  /** `country|term` (lower case) -> the search hints. */
+  hintLists = new Map<string, string[]>();
+  hintCalls: { term: string; country: string }[] = [];
+  hintsError: unknown;
+
+  async hints(input: { term: string; country: string }): Promise<{ hints: string[]; cached: boolean }> {
+    this.hintCalls.push(input);
+    if (this.hintsError) throw this.hintsError;
+    return { hints: this.hintLists.get(`${input.country}|${input.term.toLowerCase()}`) ?? [], cached: false };
+  }
 
   constructor(playEnabled = false) {
     this.playEnabled = playEnabled;
@@ -51,7 +63,13 @@ export class FakeAsoSources implements AsoSources {
     ).slice(0, input.limit);
     return {
       hits: ids.map((id) =>
-        input.platform === 'ios' ? { id, name: this.names.get(id) ?? `App ${id}` } : { id },
+        input.platform === 'ios'
+          ? {
+              id,
+              name: this.names.get(id) ?? `App ${id}`,
+              ...(this.ratingCounts.has(id) ? { ratingCount: this.ratingCounts.get(id) as number } : {}),
+            }
+          : { id },
       ),
       total: ids.length,
       cached: false,

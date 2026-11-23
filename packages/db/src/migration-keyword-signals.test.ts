@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import { type Database, migrate, migrations } from './index.ts';
+import { dbTest, tableColumns } from './testing.ts';
+
+const ID = 61;
+
+async function upTo60(db: Database) {
+  const t = db.dialect === 'postgres' ? 'BIGINT' : 'INTEGER';
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS schema_migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at ${t} NOT NULL)`,
+  );
+  for (const migration of migrations.filter((m) => m.id < ID)) {
+    await db.transaction(async (tx) => {
+      for (const statement of migration.statements(tx.dialect)) await tx.execute(statement);
+      await tx.execute('INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)', [migration.id, migration.name, 1]);
+    });
+  }
+}
+
+dbTest('migration 61 adds the keyword signals table; it keeps one row per workspace, store, storefront, term and day', async (db) => {
+  assert.equal(migrations.at(-1)?.id, migrations.length, 'ids run 1..n without a gap');
+  await upTo60(db);
+  await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('w1', 'W', 1)");
+  assert.deepEqual((await migrate(db)).filter((id) => id === ID), [ID]);
+  assert.deepEqual((await tableColumns(db, 'aso_keyword_signals')).map((c) => c.name).sort(), ['country', 'day', 'fetched_at', 'model', 'signals', 'store', 'term', 'term_key', 'workspace_id']);
+  const insert = "INSERT INTO aso_keyword_signals (workspace_id, store, country, term_key, day, term, signals, model, fetched_at) VALUES ('w1', 'app_store', 'us', 'water', '2026-11-23', 'Water', '{}', 'v1', 5)";
+  await db.execute(insert);
+  await assert.rejects(db.execute(insert), 'the same day is one row');
+  assert.deepEqual(await migrate(db), []);
+});

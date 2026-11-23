@@ -79,6 +79,8 @@ export async function getCapped(options: {
   accept: string;
   maxBytes: number;
   timeoutMs?: number;
+  /** Extra request headers (the App Store search hints take the storefront in one). */
+  headers?: Record<string, string>;
 }): Promise<CappedGet> {
   const { source } = options;
   const doFetch = options.fetch ?? globalThis.fetch;
@@ -86,7 +88,7 @@ export async function getCapped(options: {
   try {
     response = await doFetch(options.url, {
       method: 'GET',
-      headers: { accept: options.accept, 'user-agent': ASO_USER_AGENT },
+      headers: { ...options.headers, accept: options.accept, 'user-agent': ASO_USER_AGENT },
       redirect: 'manual',
       signal: AbortSignal.timeout(options.timeoutMs ?? ASO_DEFAULT_TIMEOUT_MS),
     });

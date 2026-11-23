@@ -42,6 +42,7 @@ import { COMPETITOR_SEARCH_LIMIT, type CompetitorSearchResult, mapSearchResults 
 import { registerSearchImage } from './competitor-images.ts';
 import { recordListingChanges, storeInitialListingState, type WatchOutcome } from './competitor-watch.ts';
 import type { AsoSources, PublicApp } from './net.ts';
+import { DEFAULT_SIGNAL_TERMS_PER_RUN, dayOf, hintsPosition, pruneSignals, resultsSignal, saveSignals, termsNeedingHints } from './signals.ts';
 
 import { coded } from '../../i18n/problem.ts';
 /**
@@ -90,6 +91,8 @@ export type AsoLimits = {
   retentionDays: number;
   /** KILN_ASO_INTERVAL_MINUTES in milliseconds; 0: scheduled refreshes are off. */
   intervalMs: number;
+  /** Most terms whose App Store search hints one refresh asks for (keyword estimates); default 10. */
+  maxSignalTerms?: number;
 };
 
 export const DEFAULT_ASO_LIMITS: AsoLimits = {
@@ -1019,6 +1022,8 @@ export type AsoRefreshResult = {
     moved: number;
   };
   competitors: { due: number; checked: number; changed: number; notFound: number; failed: number };
+  /** The App Store search hints read for the keyword estimates (docs/adr/0057). */
+  signals: { due: number; checked: number; failed: number };
   /** Work is left for a later refresh. */
   deferred: boolean;
   retryAfterSeconds?: number;
@@ -1179,6 +1184,7 @@ async function run(
     at: startedAt,
     keywords: { due: 0, checked: 0, ranked: 0, notRanked: 0, failed: 0, cached: 0, moved: 0 },
     competitors: { due: 0, checked: 0, changed: 0, notFound: 0, failed: 0 },
+    signals: { due: 0, checked: 0, failed: 0 },
     deferred: false,
     errors: [],
     warnings: [],
@@ -1243,6 +1249,14 @@ async function run(
         if (rank === null) result.keywords.notRanked += 1;
         else result.keywords.ranked += 1;
         if (moved) result.keywords.moved += 1;
+        if (listingStoreOf(app.platform) === 'app_store') {
+          // The results are public data already in hand: kept as a signal of the estimates, at no extra request.
+          await saveSignals(
+            ctx.db,
+            { workspaceId, store: 'app_store', country: keyword.country, termKey: keyword.key, term: keyword.term, now: ctx.now() },
+            { results: resultsSignal(outcome.hits, outcome.total, ctx.limits.rankDepth, ctx.now()) },
+          ).catch(() => undefined);
+        }
         succeeded += 1;
         transientRun = 0;
       } catch (error) {
@@ -1333,6 +1347,51 @@ async function run(
         }
       }
     }
+  }
+
+  // ---- search hints for the keyword estimates: last, so they never use up what the checks above needed.
+  if (
+    scope !== 'competitors' &&
+    (stop === undefined || stop === 'cap') &&
+    listingStoreOf(app.platform) === 'app_store' &&
+    ctx.sources.hints
+  ) {
+    const today = dayOf(ctx.now());
+    const targets = await termsNeedingHints(
+      ctx.db,
+      workspaceId,
+      app.id,
+      today,
+      ctx.limits.maxSignalTerms ?? DEFAULT_SIGNAL_TERMS_PER_RUN,
+    ).catch(() => []);
+    result.signals.due = targets.length;
+    for (const target of targets) {
+      if (timeUp()) {
+        stop = 'time';
+        result.deferred = true;
+        break;
+      }
+      try {
+        const got = await ctx.sources.hints({ term: target.term, country: target.country });
+        await saveSignals(
+          ctx.db,
+          { workspaceId, store: 'app_store', country: target.country, termKey: target.termKey, term: target.term, now: ctx.now() },
+          { hints: { position: hintsPosition(target.term, got.hints), list: got.hints, at: ctx.now() } },
+        );
+        result.signals.checked += 1;
+      } catch (error) {
+        if (error instanceof AsoError && error.kind === 'rate_limited') {
+          // Later: a limit stops the hints and is never a failure of the refresh.
+          result.deferred = true;
+          stop = 'rate_limit';
+          retryAfter = error.retryAfterSeconds ?? 60;
+          break;
+        }
+        result.signals.failed += 1;
+        if (result.signals.failed >= TRANSIENT_STOP) break;
+      }
+    }
+    await pruneSignals(ctx.db, workspaceId, ctx.now()).catch(() => undefined);
   }
 
   if (stop) result.stoppedBecause = stop;

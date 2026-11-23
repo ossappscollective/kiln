@@ -52,6 +52,7 @@ import { CHANGES_PAGE_MAX, listCompetitorChanges } from './competitor-watch.ts';
 import { IMAGE_TYPES, matchesEtag, safeImageHeaders } from '../listing/asset-routes.ts';
 import { THUMB_CACHE_CONTROL } from '../listing/asset-sync-routes.ts';
 import type { StoreImageNet } from '../listing/store-image-net.ts';
+import { estimateDetail, estimatesForApp, suggestionsForApp } from './estimates.ts';
 import { checkRankDownloadsQuery, rankVsDownloadsFor } from './rank-downloads.ts';
 import { queueAsoRefreshAll } from './schedule.ts';
 import {
@@ -378,6 +379,34 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       return c.json({ keyword, ...history });
     },
   );
+
+  // ----- keyword estimates (database only; docs/api/aso.md#estimates). Estimates, never Apple's or Google's popularity. ------
+  routes.get('/:workspaceId/apps/:id/aso/keyword-estimates', needs('aso.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    return c.json(await estimatesForApp(db, ws(c), app));
+  });
+
+  routes.get('/:workspaceId/apps/:id/aso/keywords/:keywordId/estimate', needs('aso.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    const keyword = await getKeyword(db, ws(c), app.id, param(c, 'keywordId'));
+    if (!keyword) return notFound(c);
+    return c.json(await estimateDetail(db, ws(c), app, keyword));
+  });
+
+  routes.get('/:workspaceId/apps/:id/aso/keyword-suggestions', needs('aso.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    const limit = queryInt(c.req.query('limit'), { fallback: 30, max: 100 });
+    const country = c.req.query('country');
+    const issues: Issue[] = [];
+    if (limit === undefined) issues.push({ path: 'limit', message: 'A whole number from 1 to 100.' });
+    if (country !== undefined && country !== '' && !/^[a-z]{2}$/.test(country))
+      issues.push({ path: 'country', message: 'Two lower case letters.' });
+    if (issues.length > 0 || limit === undefined) return bad(c, issues);
+    return c.json(await suggestionsForApp(db, ws(c), app, { limit, ...(country ? { country } : {}) }));
+  });
 
   // ----- competitors ----------------------------------------------------------------------------------
   routes.get('/:workspaceId/apps/:id/aso/competitors', needs('aso.read'), async (c) => {

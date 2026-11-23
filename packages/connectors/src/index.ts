@@ -4,6 +4,7 @@ export * from './apple/apple-analytics.ts';
 export * from './apple/apple-analytics-parse.ts';
 export * from './apple/apple-subscriptions.ts';
 export * from './apple/apple-auth.ts';
+export * from './apple/apple-hints.ts';
 export * from './apple/apple-search.ts';
 export * from './apple/appstore-draft.ts';
 export * from './apple/appstore-product-write.ts';

@@ -1,7 +1,9 @@
 import {
+  APPLE_HINTS_HOST,
   APPLE_SEARCH_MAX_LIMIT,
   type AppleApp,
   AsoError,
+  fetchAppleHints,
   ASO_USER_AGENT,
   lookupApple,
   PLAY_MAX_SEARCH_LIMIT,
@@ -34,7 +36,7 @@ import type { Resolver } from '../../services/webhook-transport.ts';
  * Nothing here logs. Search terms live only in the cache keys, in memory.
  */
 
-export const ASO_HOSTS: ReadonlySet<string> = new Set(['itunes.apple.com', 'play.google.com']);
+export const ASO_HOSTS: ReadonlySet<string> = new Set(['itunes.apple.com', APPLE_HINTS_HOST, 'play.google.com']);
 /** The largest body the fetch accepts (the connectors cap at 4 MiB and 3 MiB). */
 export const ASO_FETCH_MAX_BYTES = 4 * 1024 * 1024;
 
@@ -55,6 +57,9 @@ export function createAsoFetch(net: AsoNet = {}): typeof fetch {
       allowHost: (host) => ASO_HOSTS.has(host),
       maxBytes: ASO_FETCH_MAX_BYTES,
       accept: headers.get('accept') ?? '*/*',
+      ...(headers.get('x-apple-store-front')
+        ? { headers: { 'x-apple-store-front': headers.get('x-apple-store-front') as string } }
+        : {}),
       ...(userAgent ? { userAgent } : {}),
       ...(net.allowPrivate ? { allowPrivate: true } : {}),
       ...(net.resolve ? { resolve: net.resolve } : {}),
@@ -112,7 +117,8 @@ export type PublicApp = {
   releaseNotes?: string;
 };
 
-export type SearchHit = { id: string; name?: string };
+/** `ratingCount` is the store's public count of ratings (App Store only), a signal of the estimates (docs/adr/0057). */
+export type SearchHit = { id: string; name?: string; ratingCount?: number };
 export type SearchOutcome = { hits: SearchHit[]; total: number; cached: boolean };
 
 export type SearchInput = {
@@ -140,6 +146,11 @@ export type AsoSources = {
    * Play has no official reviews API for apps you do not own and Kiln does not scrape it. Optional so a test fake need not have it.
    */
   appleReviews?(input: { id: string; country: string }): Promise<FeedReview[]>;
+  /**
+   * App Store only: the search hints (suggestions) of a term in a storefront, in the store's order. Same cache, rate limit and
+   * cool-down as `search`; a storefront Kiln has no id for throws `invalid_input`. Optional so a test fake need not have it.
+   */
+  hints?(input: { term: string; country: string }): Promise<{ hints: string[]; cached: boolean }>;
 };
 
 export type AsoSourceOptions = {
@@ -198,6 +209,7 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
   const searches = timedCache<SearchOutcome>(options.cacheMs, 500);
   const lookups = timedCache<PublicApp | null>(options.cacheMs, 500);
   const appSearches = timedCache<PublicApp[]>(options.cacheMs, 200);
+  const hintLists = timedCache<string[]>(options.cacheMs, 500);
   const inflight = new Map<string, Promise<unknown>>();
 
   /** One outbound call: the cool-down and the local limit first, the cool-down set when the store itself says to slow down. */
@@ -276,7 +288,11 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
             }),
           );
           return {
-            hits: r.apps.map((a) => ({ id: a.trackId, name: a.name })),
+            hits: r.apps.map((a) => ({
+              id: a.trackId,
+              name: a.name,
+              ...(a.ratingCount !== undefined ? { ratingCount: a.ratingCount } : {}),
+            })),
             total: r.total,
             cached: false,
           };
@@ -314,6 +330,13 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
         return r.apps.map(fromApple);
       });
       return { apps: value, cached };
+    },
+    async hints(input) {
+      const key = `h|${input.country}|${input.term.toLowerCase()}`;
+      const { value, cached } = await shared(key, hintLists, () =>
+        outbound('apple', () => fetchAppleHints({ term: input.term, country: input.country, fetch: doFetch })),
+      );
+      return { hints: value, cached };
     },
     async appleReviews(input) {
       if (!/^\d{1,15}$/.test(input.id) || !/^[a-z]{2}$/.test(input.country))

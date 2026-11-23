@@ -1310,6 +1310,32 @@ export const asoCompetitorChanges = sqliteTable(
   ],
 );
 
+/** The public signals read per term, storefront and day for the keyword estimates (migration 61, docs/adr/0057-keyword-estimates.md). */
+export const asoKeywordSignals = sqliteTable(
+  'aso_keyword_signals',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** app_store or google_play. */
+    store: text('store').notNull(),
+    country: text('country').notNull(),
+    termKey: text('term_key').notNull(),
+    /** UTC day, YYYY-MM-DD. */
+    day: text('day').notNull(),
+    term: text('term').notNull(),
+    /** JSON: `{ hints?, results? }` (`KeywordSignals` of @kiln/core, without the own data). */
+    signals: text('signals').notNull(),
+    /** The estimate model version current when the row was written (informational: estimates are recomputed on read). */
+    model: text('model').notNull(),
+    fetchedAt: integer('fetched_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspaceId, t.store, t.country, t.termKey, t.day] }),
+    index('aso_keyword_signals_fetched_idx').on(t.workspaceId, t.fetchedAt),
+  ],
+);
+
 /** The run state of the ASO refresh per app: last run, failure streak, backoff and the claim. */
 export const asoAppState = sqliteTable(
   'aso_app_state',

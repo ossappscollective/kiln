@@ -2,6 +2,7 @@ import { aiOperations } from '../modules/ai/operations.ts';
 import { alertOperations } from '../modules/alerts/operations.ts';
 import { analyticsOperations } from '../modules/analytics/operations.ts';
 import { asoOperations } from '../modules/aso/operations.ts';
+import { estimateOperations } from '../modules/aso/estimates-operations.ts';
 import { searchTermsOperations } from '../modules/aso/search-terms-operations.ts';
 import { buildsOperations } from '../modules/builds/operations.ts';
 import { chatOperations } from '../modules/chat/operations.ts';
@@ -48,6 +49,7 @@ const drafts: Draft[] = [
   ...reviewsOperations,
   ...asoOperations,
   ...searchTermsOperations,
+  ...estimateOperations,
   ...listingOperations,
   ...easOperations,
   ...monetizationOperations,
