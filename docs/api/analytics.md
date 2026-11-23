@@ -113,7 +113,9 @@ Coverage note codes (`coverageNoteCodes`, with the sentence in `message`): `appl
     "requests": [
       { "accessType": "ONGOING", "status": "active", "createdAt": 0, "lastCheckedAt": 0 }
     ],
-    "vendorNumberSet": true
+    "vendorNumberSet": true,
+    "vendorNumberSource": "credential",
+    "vendorNumber": "85123456"
   },
   "google": null,
   "sources": [
@@ -144,16 +146,60 @@ Coverage note codes (`coverageNoteCodes`, with the sentence in `message`): `appl
 }
 ```
 
-Times are epoch milliseconds. `apple` is null for Android, `google` null for iOS and macOS. `apple.mode`: `off`, `ongoing`, `import`.
+Times are epoch milliseconds. `apple` is null for Android, `google` null for iOS and macOS. For Android `google` is
+`{ bucketIdSet, bucketSource, bucketId, severalPlayAccounts, serviceAccountEmail }`: the bucket the app reads (a name, not a secret) and where it
+came from (`app`, `account`, `workspace`), whether the workspace holds more than one Play credential (a workspace-wide bucket cannot fit them all), and the
+`client_email` of the app's service account, the address to invite in Play Console (not a secret; read from the credential without logging a use of
+the key). `apple.vendorNumberSource` is `credential` (the number of the app's App Store Connect credential, one Apple team), `workspace` (the
+workspace setting `analytics.appleVendorNumber`, the default) or null. `apple.mode`: `off`, `ongoing`, `import`.
 Source `state`: `off` (workspace setting off), `needs_setup`, `waiting` (set up; Apple has made no report yet, which takes a day or two),
 `error`, `ready`. `setup` when not ready: `{ code, nextStep, alternatives[], optional, message }`. Run `trigger`: `schedule`, `manual`,
 `enable`, `import`.
 
 Setup codes (`analyticsSetupCodes`): `turn_on_analytics`, `create_report_request`, `role_required`, `waiting_first_data`,
-`request_stopped`, `vendor_number_missing`, `sales_forbidden`, `play_sales_forbidden`, `bucket_id_missing`, `bucket_forbidden`, `reporting_api_not_enabled`,
+`request_stopped`, `vendor_number_missing`, `sales_forbidden`, `vendor_number_invalid`, `bucket_not_found`, `package_not_in_bucket`,
+`play_sales_forbidden`, `bucket_id_missing`, `bucket_forbidden`, `reporting_api_not_enabled`,
 `play_permission_missing`, `credential_problem`, `first_sync_pending`. Next steps (`analyticsNextSteps`): `turn_on_analytics`,
 `enable_apple_analytics`, `import_apple_report`, `ask_apple_admin`, `set_vendor_number`, `set_bucket_id`, `grant_play_permission`,
 `grant_play_financial_permission`, `enable_reporting_api`, `fix_credential`, `sync_now`, `wait`.
+
+### Why a source fails: error classes
+
+The stored error of a source (`lastError.code`) is one code of a fixed vocabulary; the server never keeps the store's text. The classes that matter
+for Sales and Play reports (see also [Troubleshooting analytics sources](../troubleshooting-analytics.md)):
+
+| Code | Cause | Fix |
+| --- | --- | --- |
+| `vendor_number_missing` | No vendor number for the Apple team of the app (optional source). | Enter it: `PUT apple-vendor`. |
+| `vendor_number_invalid` | Apple answered HTTP 400 about the vendor number (another team's, or mistyped). | Check it in Payments and Financial Reports. |
+| `sales_forbidden` | Apple answered 403 on Sales and Trends: the key's role (needs Sales, Finance, Admin or Account Holder) or a vendor number of another team. | Fix the role or the number. |
+| `bucket_missing` / `bucket_id_missing` | No Cloud Storage bucket id for the app. | Set it (`PUT play-bucket`). |
+| `bucket_forbidden` | Google answered 403 on the whole reports bucket: another Play account's bucket, or the service account was not invited in Play Console (View app information and download bulk reports). | Check the bucket id, then the invitation. |
+| `play_sales_forbidden` | The statistics folder can be read but a financial folder (`sales/`, `earnings/`, `financial-stats/`) cannot: Play Console permission View financial data, orders and cancellation survey responses, set to Global. | Grant it; up to 24 to 48 hours. |
+| `bucket_not_found` / `bucket_invalid` | The bucket id does not exist or is not `pubsite_prod_rev_<number>`. | Copy it again from Play Console. |
+| `package_not_in_bucket` | The bucket is readable but holds nothing of this package: another account's bucket. | Set the bucket of the owning account. |
+| `store_rejected` | The store answered an HTTP 4xx that has no meaning of its own (not an outage). | Check credential, vendor number, bucket id; test access. |
+| `store_unavailable` | Network failure, timeout or HTTP 5xx. | The next sync tries again. |
+
+Not failures (the read succeeds, nothing is stored): Apple 404, or 400 about the report date (no report for that day); a month with no Play file yet
+(`sales/salesreport_YYYYMM.zip` appears during the month, `earnings/earnings_YYYYMM.zip` about the 5th of the next month); a readable bucket with no
+file of the app yet. Apple sales days run on Pacific Time: the newest day asked for is yesterday in Pacific Time.
+
+### `PUT apple-vendor`
+
+Body `{ "vendorNumber": "85123456" | null }` (digits, 5 to 12; `422 vendor_number_invalid` otherwise; `null` clears). Stored per App Store Connect
+credential (`analytics_credential_config.apple_vendor_number`, migration 58), so apps of two Apple teams do not share one number; without one the
+workspace setting `analytics.appleVendorNumber` applies. Needs `analytics.manage`. Contacts no store. Audited as `analytics.vendor_number_set`
+(ids only).
+
+### `POST access-test`
+
+Body `{ "source": "apple_sales" | "apple_subscriptions" | "play_reports" | "play_sales" | "play_earnings" | "play_subscriptions" }`. One cheap call, nothing
+stored: Apple asks for one daily report of two days ago (Pacific Time); Google lists one object of the folder of the bucket (`stats/installs/`,
+`sales/`, `earnings/`, `financial-stats/subscriptions/`). Answer `200`:
+`{ "result": { "source", "ok", "code", "message", "serviceAccountEmail"? } }` with `code` `ok`, `no_report_yet` (works, no file yet) or an error
+code above (`vendor_number_missing`, `bucket_missing`, ... included). A refused financial folder is told from a refused bucket by listing the
+statistics folder too. Needs `analytics.manage`; rate limited per workspace.
 
 ### `POST sync`
 
@@ -417,3 +463,12 @@ the **sign** of a refund amount (the absolute value is used); whether a refund r
 or the older `Product ID` (both are read); what Cloud Storage answers when View financial data is missing (assumed 403, reported as `play_sales_forbidden`); whether the
 10 MiB file cap fits a large account's month; for Apple, that the SKU of an in-app row is the store product id, and that a row's `Parent Identifier` is the app's SKU
 for every in-app type (Apple documents it as "SKU of the app associated with the In-App Purchase").
+
+**Failure classes (UNVERIFIED, no real call was made).** The classification follows the vendors' documentation, not recorded answers: that Apple
+answers a wrong or foreign vendor number with HTTP 400 naming `vendorNumber` (read as `vendor_number_invalid`) rather than 403 (read as
+`sales_forbidden`, which names both the role and the number); that a report date Apple has no report for is a 404 or a 400 naming `reportDate`
+(both read as "no report"); that Cloud Storage answers 403 for the whole reports bucket when the service account has no access, and that a refused
+financial folder is told from it by the statistics folder still being listable (told apart by `PlayFinancialStorage`); that the Play Console
+invitation alone gives access to the bucket (Google manages it for most accounts) and that Storage Object Viewer on it is only sometimes needed;
+that `pubsite_prod_rev_<number>` carries the same number as the developer account in Play Console's address (used for the Users and permissions link).
+Test fixtures for these classes are hand-written, not recordings.

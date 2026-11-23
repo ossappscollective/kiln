@@ -560,7 +560,7 @@ export const analyticsErrorMessages: Record<AnalyticsErrorCode, string> = {
   vendor_number_invalid:
     'The vendor number is not valid. It is a number from App Store Connect, Payments and Financial Reports.',
   sales_forbidden:
-    'Apple refused the API key the Sales and Trends reports (HTTP 403). The key needs the role Sales, Finance, Admin or Account Holder (App Manager and Developer are not enough), and the vendor number must belong to the same team as the key. Check both in App Store Connect, then test access again.',
+    'Apple refused the API key the Sales and Trends reports (HTTP 403). The key needs the role Sales, Finance, Admin or Account Holder (roles without access to sales, such as Developer or Marketing, are refused), and the vendor number must belong to the same team as the key. Check both in App Store Connect, then test access again.',
   play_reporting_not_enabled:
     'The Google Play Developer Reporting API is not enabled in the Google Cloud project of the service account. In Google Cloud console, open that project, find Google Play Developer Reporting API and click Enable. Wait a few minutes, then sync again.',
   play_permission_missing:

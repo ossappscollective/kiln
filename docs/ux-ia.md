@@ -48,7 +48,10 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   reads failed it becomes "Retry failed (2)" and reads only those; with nothing due it still works and reads the page again. The chevron opens the menu:
   "Sync everything", "Only failed (n)" when any failed, and one row per kind with its last read and its own Sync (the other kinds are read from their stored
   status only once the menu is opened). While it runs the button says "Syncing 3 of 5"; progress and failures stay in the Status popover. Insights, Data sources gives
-  a failed source its own small **Retry** (`POST /analytics/sync` with `sources`). The server takes the same granularity: `POST /apps/:id/sync-all?kinds=reviews,analytics&sources=...`.
+  a failed source its own small **Retry** (`POST /analytics/sync` with `sources`). A source that needs a permission shows its real cause and ONE guide with real
+  links instead of "sync again": the Play service account address with a copy button, Play Console Users and permissions and the exact bucket's
+  permissions page, the App Store Connect vendor number page and Users and Access, plus the vendor number field (kept per Apple credential) and
+  **Test access** (one call, a classified answer). A refused source is a fault to fix, not "Optional setup". See [Troubleshooting analytics sources](troubleshooting-analytics.md). The server takes the same granularity: `POST /apps/:id/sync-all?kinds=reviews,analytics&sources=...`.
   Everything below about the queue order still applies to "Sync everything".
 - **One Sync (2026-11-23)**: "Sync everything" (the menu of the header Sync; it was the only button before the split). For every record in scope it runs, in order: the store listing and release state
   (directly, so the releases are on screen when it ends), then the rest through the server queue in one request (`POST /apps/:id/sync-all?without=app`: reviews,
