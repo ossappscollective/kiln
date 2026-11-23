@@ -192,7 +192,7 @@ sync.
 ## Metrics overview
 
 `GET .../revenuecat/metrics` (right `apps.read`; operation `getAppRevenueCatMetrics`; MCP read tool `get_revenuecat_metrics`) answers the stored copy of
-`GET /v2/projects/{id}/metrics/overview`, written by the sync above. It never calls RevenueCat.
+`GET /v2/projects/{id}/metrics/overview`, written by the sync above. It never calls RevenueCat. The web app draws it as the Revenue block of the Insights overview (not on Products).
 
 ```json
 {

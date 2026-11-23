@@ -259,6 +259,7 @@
   "tab.rcUnreadAsk": "Esta app está vinculada a RevenueCat, pero aún no se ha leído RevenueCat. Pide a un miembro que sincronice los productos de esta app.",
   "tab.rcUnreadSync": "Esta app está vinculada a RevenueCat, pero aún no se ha leído RevenueCat. Usa «Sincronizar productos» para leerlo.",
   "tab.reading": "Leyendo los productos",
+  "tab.revenueInInsights": "Suscripciones, MRR e ingresos están en Análisis.",
   "tab.sync": "Sincronizar productos",
   "tab.syncDone_one": "Se leyó {{count}} producto de {{store}}.",
   "tab.syncDone_other": "Se leyeron {{count}} productos de {{store}}.",

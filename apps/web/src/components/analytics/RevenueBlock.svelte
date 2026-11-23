@@ -1,33 +1,54 @@
 <!--
-  RevenueCatMetricsStrip: the compact row at the top of the Products page with RevenueCat's own overview figures of the linked project:
-  active subscriptions, active trials, MRR and revenue (28 days), the time they were read ("As of ...") and, always, whose numbers they
+  RevenueBlock: the "Revenue" block of the Insights overview (docs/adr/0043-revenuecat-metrics.md, docs/ux-ia.md): RevenueCat's own overview figures of the
+  linked project (active subscriptions, active trials, MRR, revenue over 28 days), the time they were read ("As of ...") and, always, whose numbers they
   are ("RevenueCat figures, all stores": every app and store of the RevenueCat project, not this app alone, not the store consoles).
-  From the STORED copy only (`GET .../revenuecat/metrics`, docs/adr/0043-revenuecat-metrics.md). Money carries RevenueCat's currency and is
-  never converted; a figure RevenueCat did not report is not drawn (never a zero). A failed read is said beside the older figures.
-  Drawn for a linked app that has figures or a reason; hidden otherwise. Every member who can read the app sees it, revenue included.
-  Props: read (RevenueCatMetricsRead | null), now (epoch ms, for "As of").
+  Drawn only for an app linked to RevenueCat. From the STORED copy (`GET .../revenuecat/metrics`); it loads it itself and never calls RevenueCat.
+  Money carries RevenueCat's currency and is never converted; a figure RevenueCat did not report is not drawn (never a zero). A failed read says
+  why beside the older figures (for a key without the Charts & Metrics permission the sentence names the permission and says to sync again),
+  with a link to Products where "Sync products" reads them. Every member who can read the app sees it, revenue included.
+  Props: api, workspaceId, appId, now (epoch ms, for "As of").
 -->
 <script lang="ts">
+  import type { Api } from '../../lib/api.ts';
+  import { t } from '../../lib/i18n/t.ts';
   import {
     asOf,
+    productsHref,
+    revenueState,
     type RevenueCatMetricsRead,
     STRIP_SCOPE,
     STRIP_SCOPE_DETAIL,
     stripProblem,
     stripTiles,
-    stripVisible,
   } from '../../lib/revenuecat/metrics.ts';
-  import { t } from '../../lib/i18n/t.ts';
   import InfoTip from '../ui/InfoTip.svelte';
 
-  let { read, now }: { read: RevenueCatMetricsRead | null; now: number } = $props();
+  let { api, workspaceId, appId, now }: { api: Api; workspaceId: string; appId: string; now: number } = $props();
 
+  let read = $state<RevenueCatMetricsRead | null>(null);
+  let generation = 0;
+
+  $effect(() => {
+    const mine = ++generation;
+    const id = appId;
+    api
+      .revenueCatMetrics(workspaceId, id)
+      .then((r) => {
+        if (mine === generation) read = r;
+      })
+      .catch(() => {
+        if (mine === generation) read = null;
+      });
+  });
+
+  const block = $derived(revenueState(read));
   const tiles = $derived(stripTiles(read));
   const problem = $derived(stripProblem(read));
 </script>
 
-{#if stripVisible(read)}
-  <section class="strip" aria-label={t('products:metrics.aria')} data-testid="revenuecat-metrics">
+{#if block !== 'hidden'}
+  <section class="strip" aria-label={t('products:metrics.aria')} data-testid="revenue-block">
+    <h3 class="title">{t('analytics:revenue.title')}</h3>
     {#if tiles.length > 0}
       <ul class="tiles">
         {#each tiles as tile (tile.id)}
@@ -37,11 +58,15 @@
           </li>
         {/each}
       </ul>
+    {:else if block === 'waiting'}
+      <p class="text-sm muted" data-testid="revenue-waiting">{t('analytics:revenue.waiting')}</p>
     {/if}
     <p class="scope text-sm muted">
       <span>{t(STRIP_SCOPE)}</span>
       {#if tiles.length > 0}<span aria-hidden="true">·</span> <span data-testid="revenuecat-metrics-asof">{asOf(read, now)}</span>{/if}
       <InfoTip label={t('products:metrics.about')} text={t(STRIP_SCOPE_DETAIL)} align="end" width="24rem" />
+      <span aria-hidden="true">·</span>
+      <a href={productsHref(appId)} data-testid="revenue-products-link">{t('analytics:revenue.openProducts')}</a>
     </p>
     {#if problem !== ''}<p class="problem text-sm" role="status" data-testid="revenuecat-metrics-problem">{problem}</p>{/if}
   </section>
@@ -59,6 +84,13 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-card);
+  }
+
+  .title {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
   }
 
   .tiles {

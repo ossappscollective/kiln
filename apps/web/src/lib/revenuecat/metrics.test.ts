@@ -127,3 +127,15 @@ test('as of', () => {
   assert.match(asOf(read(), 1_000_000 + 3 * 60_000), /^As of 3 minutes ago$/);
   assert.equal(asOf(null, 0), '');
 });
+
+test('Revenue block state: hidden unless linked; figures, a failed read, or waiting for the first sync', async () => {
+  const { revenueState, productsHref, insightsHref } = await import('./metrics.ts');
+  assert.equal(revenueState(null), 'hidden');
+  assert.equal(revenueState(read({ linked: false, metrics: null, status: null })), 'hidden');
+  assert.equal(revenueState(read({ supported: false })), 'hidden');
+  assert.equal(revenueState(read()), 'figures');
+  assert.equal(revenueState(read({ metrics: null, status: { lastAttemptAt: 1, lastError: 'The RevenueCat key may not read metrics.', failures: 1 } })), 'problem');
+  assert.equal(revenueState(read({ metrics: null, status: null })), 'waiting');
+  assert.equal(productsHref('a/b'), '#/portfolio/a%2Fb/products');
+  assert.equal(insightsHref('x'), '#/portfolio/x/insights');
+});

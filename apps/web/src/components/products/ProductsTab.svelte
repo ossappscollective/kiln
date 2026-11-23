@@ -7,8 +7,7 @@
   Sales (28 days): a column from STORED analytics only (`GET .../analytics/product-sales`, no store call), shown to roles that may read analytics and
   only once the app has a stored sales day. Units and one amount line per currency (never summed); the header's tooltip says what the number is
   (Apple proceeds, or a Google buyer-paid estimate that is not proceeds). Without sales data the column is hidden and one line says how to turn it on.
-  RevenueCat figures: a compact strip above the table (RevenueCatMetricsStrip, docs/adr/0043-revenuecat-metrics.md) with RevenueCat's own overview of the
-  linked project (active subscriptions, trials, MRR, 28-day revenue; all stores, as of the last sync). Money here is visible to every role that reads the app.
+  RevenueCat figures (subscriptions, trials, MRR, revenue) are not here: they are the Revenue block of Insights (RevenueBlock.svelte), reached by one link.
   RevenueCat: when the app is linked to a RevenueCat project (docs/adr/0039-revenuecat.md), a RevenueCat column says where each product stands
   there (and names its first entitlements), the detail has a RevenueCat section, and a collapsed list gives the things to check. All of it comes
   from the STORED copy (`GET .../revenuecat/products`, no RevenueCat call) and is configuration only: no money, no customers. "Sync products" reads
@@ -50,7 +49,7 @@
     stepResult,
     syncLine as revenueCatSyncLine,
   } from '../../lib/revenuecat/revenuecat.ts';
-  import type { RevenueCatMetricsRead } from '../../lib/revenuecat/metrics.ts';
+  import { insightsHref } from '../../lib/revenuecat/metrics.ts';
   import { storeForPlatform } from '../../lib/stores.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ProductsView } from '../../lib/types.ts';
@@ -63,7 +62,6 @@
   import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import RevenueCatCell from '../revenuecat/RevenueCatCell.svelte';
-  import RevenueCatMetricsStrip from '../revenuecat/RevenueCatMetricsStrip.svelte';
   import RevenueCatWarnings from '../revenuecat/RevenueCatWarnings.svelte';
   import ProductDetail from './ProductDetail.svelte';
 
@@ -86,8 +84,6 @@
   let revenueCat = $state<RevenueCatProductsView | null>(null);
   let revenueCatGeneration = 0;
   let revenueCatStep = $state<RevenueCatStep | null>(null);
-  let metrics = $state<RevenueCatMetricsRead | null>(null);
-  let metricsGeneration = 0;
 
   const mayReadSales = $derived(can(role, 'analytics.read'));
   const apple = $derived(platformSupports(app.platform, 'appleAnalyticsReports'));
@@ -122,17 +118,6 @@
     }
   }
 
-  /** RevenueCat's own figures of the project, the stored copy: an extra like the two above, and never in the way of the list. */
-  async function loadMetrics() {
-    const mine = ++metricsGeneration;
-    try {
-      const read = await api.revenueCatMetrics(workspaceId, app.id);
-      if (mine === metricsGeneration) metrics = read;
-    } catch {
-      if (mine === metricsGeneration) metrics = null;
-    }
-  }
-
   async function load() {
     const mine = ++generation;
     loading = true;
@@ -160,7 +145,6 @@
       void load();
       void loadSales();
       void loadRevenueCat();
-      void loadMetrics();
     });
   });
 
@@ -177,7 +161,6 @@
       detailKey += 1;
       await load();
       void loadRevenueCat();
-      void loadMetrics();
     } catch (e) {
       syncProblem = classifyProductFailure(e, 'read').message;
       // The RevenueCat step runs even when the store step failed: its result is shown beside the store failure.
@@ -185,7 +168,6 @@
       // The failure is also kept on the server, so the list says it.
       await load();
       void loadRevenueCat();
-      void loadMetrics();
     } finally {
       syncing = false;
     }
@@ -217,7 +199,9 @@
     {/snippet}
   </PageLead>
 
-  <RevenueCatMetricsStrip read={metrics} {now} />
+  {#if showRevenueCat}
+    <p class="muted text-sm" data-testid="products-revenue-link"><a href={insightsHref(app.id)}>{t('products:tab.revenueInInsights')}</a></p>
+  {/if}
 
   <!-- Not linked to RevenueCat: say which key was found and what is missing, with one button to link (Connect your apps). -->
   {#if !showRevenueCat && connectHint(revenueCat, can(role, 'apps.write')) !== ''}

@@ -30,6 +30,7 @@ MRR and the revenue of the last 28 days. RevenueCat's API offers them in one rea
 7. **API, registry, MCP.** `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat/metrics` is the operation `getAppRevenueCatMetrics` (so it is in OpenAPI), and the read tool
    `get_revenuecat_metrics` is a view of it.
 8. **Web.** A compact strip above the Products table: active subscriptions, active trials, MRR, revenue (28d), "As of ...", "RevenueCat figures, all stores", with an info tip.
+   **Moved (2026-11-23):** the figures are no longer on Products (configuration only). They are the "Revenue" block of the Insights overview (`components/analytics/RevenueBlock.svelte`), drawn only for a RevenueCat-linked app, with the "key may not read metrics" sentence and a link to Products where "Sync products" reads them. Products keeps one small link to Insights. The API is unchanged.
    It is drawn only for a linked app that has figures or a reason they are missing; a failed read is said beside the older figures. A failed metrics step of "Sync products" is
    said in the RevenueCat result line and is never shown as a failed sync.
 

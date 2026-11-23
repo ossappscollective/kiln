@@ -33,6 +33,7 @@
   import AnalyticsOff from './AnalyticsOff.svelte';
   import ChartCard from './ChartCard.svelte';
   import EarningsCard from './EarningsCard.svelte';
+  import RevenueBlock from './RevenueBlock.svelte';
   import PlayReportsSetup from './PlayReportsSetup.svelte';
   import SourcesPanel from './SourcesPanel.svelte';
   import StatRow from './StatRow.svelte';
@@ -153,6 +154,9 @@
   {#if heading}
     <h2 class="plat"><PlatformBadge platform={app.platform} tinted /></h2>
   {/if}
+
+  <!-- Revenue (RevenueCat figures): only for an app linked to RevenueCat; reads the stored copy itself. -->
+  <RevenueBlock {api} {workspaceId} appId={app.id} {now} />
 
   {#if loading && !status}
     <div role="status" aria-label={t('analytics:platform.loading')} class="stack">

@@ -3,7 +3,7 @@ import { timeAgo } from '../format.ts';
 import { k, t } from '../i18n/t.ts';
 
 /**
- * The RevenueCat figures strip at the top of the Products page (docs/adr/0043-revenuecat-metrics.md): RevenueCat's own overview of the
+ * The RevenueCat figures of the Revenue block in Insights (moved from the top of Products) (docs/adr/0043-revenuecat-metrics.md): RevenueCat's own overview of the
  * linked project, from the STORED copy (`GET .../revenuecat/metrics`, no RevenueCat call). The figures cover every app and store of the
  * RevenueCat project, not this app alone, and they are RevenueCat's numbers, not the store consoles'. Money carries the currency RevenueCat
  * reported and is never converted; a figure RevenueCat did not report is not drawn (never a zero).
@@ -107,3 +107,19 @@ export function stripProblem(read: RevenueCatMetricsRead | null): string {
   if (error === null) return '';
   return read?.metrics ? t('products:metrics.staleProblem', { error }) : error;
 }
+
+/**
+ * The Revenue block of the Insights overview: hidden unless the app is linked to RevenueCat; `figures` when there is something to show,
+ * `problem` when only a failed read can be said, `waiting` for a linked app whose figures are not read yet ("Sync products" reads them).
+ */
+export function revenueState(read: RevenueCatMetricsRead | null): 'hidden' | 'figures' | 'problem' | 'waiting' {
+  if (!read || !read.supported || !read.linked) return 'hidden';
+  if (stripTiles(read).length > 0) return 'figures';
+  return (read.status?.lastError ?? null) !== null ? 'problem' : 'waiting';
+}
+
+/** Where the configuration of the app's RevenueCat link and the sync live. */
+export const productsHref = (appId: string): string => `#/portfolio/${encodeURIComponent(appId)}/products`;
+
+/** Where the figures are drawn: the Insights overview of the app. */
+export const insightsHref = (appId: string): string => `#/portfolio/${encodeURIComponent(appId)}/insights`;

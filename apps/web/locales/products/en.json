@@ -258,6 +258,7 @@
   "tab.rcUnreadAsk": "This app is linked to RevenueCat, but RevenueCat has not been read yet. Ask a member to sync this app's products.",
   "tab.rcUnreadSync": "This app is linked to RevenueCat, but RevenueCat has not been read yet. Use \"Sync products\" to read it.",
   "tab.reading": "Reading the products",
+  "tab.revenueInInsights": "Subscriptions, MRR and revenue are in Insights.",
   "tab.sync": "Sync products",
   "tab.syncDone_one": "Read {{count}} product from {{store}}.",
   "tab.syncDone_other": "Read {{count}} products from {{store}}.",
