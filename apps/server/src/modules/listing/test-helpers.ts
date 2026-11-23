@@ -130,8 +130,12 @@ export async function bootListing(db: Parameters<typeof bootRepoApp>[0]) {
     });
   const sync = (id: string, cookie = t.owner) => t.call(cookie, 'POST', `/apps/${id}/sync`);
   const live = (id: string, cookie = t.owner) => t.call(cookie, 'GET', `/apps/${id}/listing/live`);
-  const drift = (id: string, cookie = t.owner) =>
-    t.call(cookie, 'GET', `/apps/${id}/listing/drift`);
+  // The repository comparison is opt in per app (listing settings, default off): `drift` switches it on first, `plainDrift` does not.
+  const plainDrift = (id: string, cookie = t.owner) => t.call(cookie, 'GET', `/apps/${id}/listing/drift`);
+  const drift = async (id: string, cookie = t.owner) => {
+    await t.call(t.owner, 'PUT', `/apps/${id}/listing-settings`, { compareRepo: true, compareMedia: true });
+    return plainDrift(id, cookie);
+  };
   const history = (id: string, query = '', cookie = t.owner) =>
     t.call(cookie, 'GET', `/apps/${id}/listing/history${query}`);
   const refresh = (id: string, cookie = t.owner) =>
@@ -158,6 +162,7 @@ export async function bootListing(db: Parameters<typeof bootRepoApp>[0]) {
     sync,
     live,
     drift,
+    plainDrift,
     history,
     refresh,
     noLeaks,
