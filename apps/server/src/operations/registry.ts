@@ -16,6 +16,7 @@ import { insightsOperations } from '../modules/insights/operations.ts';
 import { listingOperations } from '../modules/listing/operations.ts';
 import { monetizationOperations } from '../modules/monetization/operations.ts';
 import { revenueCatOperations } from '../modules/revenuecat/operations.ts';
+import { adsOperations } from '../modules/ads/operations.ts';
 import { planningOperations } from '../modules/planning/operations.ts';
 import { publishOperations } from '../modules/publish/operations.ts';
 import { reviewsOperations } from '../modules/reviews/operations.ts';
@@ -59,6 +60,7 @@ const drafts: Draft[] = [
   ...insightsOperations,
   ...ratingsOperations,
   ...revenueCatOperations,
+  ...adsOperations,
   ...publishOperations,
   ...releasesOperations,
   ...buildsOperations,

@@ -2922,3 +2922,137 @@ export const insightDismissals = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.appId, t.cardId] }), index('insight_dismissals_workspace_idx').on(t.workspaceId)],
 );
+
+/**
+ * Apple Ads, read only (migrations 62 and 63, docs/adr/0058-apple-ads.md): the link of an app record to an ad account and the app it
+ * promotes. Not a secret: the key stays in `credentials`. No foreign keys to apps or credentials: deleteApp removes the rows.
+ */
+export const appAdsLinks = sqliteTable(
+  'app_ads_links',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    credentialId: text('credential_id').notNull(),
+    adAccountId: text('ad_account_id').notNull(),
+    adAccountName: text('ad_account_name').notNull(),
+    orgId: text('org_id'),
+    currency: text('currency'),
+    timezone: text('timezone'),
+    /** The Apple id of the promoted app (`promotedObjectId` of its campaigns). */
+    adamId: text('adam_id').notNull(),
+    verifiedAt: integer('verified_at').notNull(),
+    linkedBy: text('linked_by').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    index('app_ads_links_workspace_idx').on(t.workspaceId),
+    index('app_ads_links_credential_idx').on(t.credentialId),
+  ],
+);
+
+/** The state of the last Apple Ads read of an app record (migration 62). */
+export const adsSync = sqliteTable('ads_sync', {
+  appId: text('app_id').primaryKey(),
+  workspaceId: text('workspace_id')
+    .notNull()
+    .references(() => workspaces.id),
+  lastAttemptAt: integer('last_attempt_at'),
+  lastSuccessAt: integer('last_success_at'),
+  lastError: text('last_error'),
+  lastErrorCode: text('last_error_code'),
+  lastErrorParams: text('last_error_params'),
+  failureStreak: integer('failure_streak').notNull().default(0),
+  rangeStart: text('range_start'),
+  rangeEnd: text('range_end'),
+  campaigns: integer('campaigns').notNull().default(0),
+  complete: integer('complete').notNull().default(1),
+  skipped: integer('skipped').notNull().default(0),
+  warnings: text('warnings'),
+});
+
+/** Campaign metrics per app, campaign and day (migration 63). */
+export const adsCampaignDaily = sqliteTable(
+  'ads_campaign_daily',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    campaignId: text('campaign_id').notNull(),
+    /** YYYY-MM-DD in the ad account's reporting time zone. */
+    day: text('day').notNull(),
+    name: text('name').notNull(),
+    status: text('status'),
+    impressions: integer('impressions').notNull().default(0),
+    taps: integer('taps').notNull().default(0),
+    installs: integer('installs').notNull().default(0),
+    tapInstalls: integer('tap_installs').notNull().default(0),
+    /** Millionths of the currency. */
+    spendMicros: integer('spend_micros').notNull().default(0),
+    currency: text('currency'),
+    fetchedAt: integer('fetched_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.campaignId, t.day] }),
+    index('ads_campaign_daily_day_idx').on(t.appId, t.day),
+  ],
+);
+
+/** Search term (`term`) and bid keyword (`keyword`) metrics per app, campaign, storefront and day (migration 63). */
+export const adsTermDaily = sqliteTable(
+  'ads_term_daily',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    campaignId: text('campaign_id').notNull(),
+    kind: text('kind').notNull(),
+    /** The normalised text of a search term, or Apple's keyword id. */
+    termKey: text('term_key').notNull(),
+    /** Lower-case storefront code, or empty when Apple did not say. */
+    country: text('country').notNull(),
+    day: text('day').notNull(),
+    term: text('term').notNull(),
+    matchType: text('match_type'),
+    source: text('source'),
+    keywordText: text('keyword_text'),
+    impressions: integer('impressions').notNull().default(0),
+    taps: integer('taps').notNull().default(0),
+    installs: integer('installs').notNull().default(0),
+    tapInstalls: integer('tap_installs').notNull().default(0),
+    /** Millionths of the currency. */
+    spendMicros: integer('spend_micros').notNull().default(0),
+    currency: text('currency'),
+    fetchedAt: integer('fetched_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.campaignId, t.kind, t.termKey, t.country, t.day] }),
+    index('ads_term_daily_day_idx').on(t.appId, t.kind, t.day),
+    index('ads_term_daily_term_idx').on(t.workspaceId, t.kind, t.country, t.termKey),
+  ],
+);
+
+/** Apple's own popularity of a tracked term, per storefront and genre, as last read (migration 63). Never merged into an estimate. */
+export const adsTermPopularity = sqliteTable(
+  'ads_term_popularity',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    country: text('country').notNull(),
+    termKey: text('term_key').notNull(),
+    /** Apple's genre name, or empty. */
+    genre: text('genre').notNull(),
+    term: text('term').notNull(),
+    period: text('period'),
+    popularity100: integer('popularity_100'),
+    popularity5: integer('popularity_5'),
+    rankInGenre: integer('rank_in_genre'),
+    fetchedAt: integer('fetched_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.country, t.termKey, t.genre] })],
+);

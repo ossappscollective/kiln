@@ -1,6 +1,7 @@
 import { KEYWORD_ESTIMATE_MODEL, listingStoreOf, type EstimateStore, type OwnSignal } from '@kiln/core';
 import type { Sql } from '@kiln/db';
 import type { ManagedApp } from '../../services/apps.ts';
+import { adsPopularityFor, adsSignalFor } from '../ads/view.ts';
 import { type AsoKeyword, listKeywords } from './service.ts';
 import {
   estimateTrend,
@@ -62,9 +63,11 @@ async function estimateOf(db: Sql, workspaceId: string, app: ManagedApp, k: AsoK
   const store = storeOf(app);
   const days = await readSignalDays(db, workspaceId, store, k.country, k.key);
   const own = store === 'google_play' ? await ownSignal(db, workspaceId, app.id, k) : null;
+  // The team's own Apple Ads campaigns (modules/ads): a lower bound, and null (not 0) when the term never appeared in a report.
+  const ads = store === 'app_store' ? await adsSignalFor(db, workspaceId, app.id, k.key, k.country) : null;
   const currentRank = k.state === null ? undefined : k.state === 'ranked' ? k.rank : null;
-  const estimate = estimateView(store, k.term, latestSignals(days), { own, ranks: await ranksOf(db, k.id), currentRank });
-  return { estimate, days, store };
+  const estimate = estimateView(store, k.term, latestSignals(days), { own, ads, ranks: await ranksOf(db, k.id), currentRank });
+  return { estimate, days, store, ads };
 }
 
 export async function estimatesForApp(db: Sql, workspaceId: string, app: ManagedApp) {
@@ -78,13 +81,15 @@ export async function estimatesForApp(db: Sql, workspaceId: string, app: Managed
 }
 
 export async function estimateDetail(db: Sql, workspaceId: string, app: ManagedApp, k: AsoKeyword) {
-  const { estimate, days, store } = await estimateOf(db, workspaceId, app, k);
+  const { estimate, days, store, ads } = await estimateOf(db, workspaceId, app, k);
   return {
     model: KEYWORD_ESTIMATE_MODEL,
     keyword: { id: k.id, term: k.term, country: k.country, locale: k.locale, platform: k.platform },
     estimate,
     trend: estimateTrend(store, k.term, days),
     retentionDays: SIGNAL_RETENTION_DAYS,
+    // Apple's own numbers, shown beside the estimate and never merged into it (docs/adr/0058-apple-ads.md).
+    appleAds: store === 'app_store' ? { campaigns: ads, popularity: await adsPopularityFor(db, workspaceId, k.key, k.country) } : null,
   };
 }
 

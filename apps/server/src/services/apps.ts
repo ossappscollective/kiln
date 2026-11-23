@@ -588,6 +588,13 @@ export async function deleteApp(
         input.workspaceId,
       ]);
     }
+    // The link to the app's Apple Ads account and the campaign, search term and keyword rows read through it (modules/ads).
+    for (const table of ['app_ads_links', 'ads_sync', 'ads_campaign_daily', 'ads_term_daily']) {
+      await tx.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
+        input.id,
+        input.workspaceId,
+      ]);
+    }
     await tx.execute('DELETE FROM apps WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,

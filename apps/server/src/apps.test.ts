@@ -1936,12 +1936,13 @@ dbTest('sync-all queues the app jobs critical first, reads no store, and says wh
   const plan = done.body.plan as { kind: string; state: string; jobId?: string; reason?: string }[];
   assert.deepEqual(
     plan.map((p) => p.kind),
-    ['app', 'reviews', 'eas', 'analytics'],
+    ['app', 'reviews', 'eas', 'analytics', 'ads'],
   );
   assert.equal(plan[0]?.state, 'queued');
   assert.equal(plan[1]?.state, 'queued');
   assert.equal(plan[2]?.reason, 'not_linked');
   assert.equal(plan[3]?.reason, 'off');
+  assert.equal(plan[4]?.reason, 'not_linked');
   assert.equal(t.stores.android.calls.length, 0, 'nothing is read in the request');
   const jobs = await db.query("SELECT queue FROM jobs WHERE status = 'queued' ORDER BY created_at");
   assert.deepEqual(

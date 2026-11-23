@@ -1,6 +1,7 @@
 import { type AnalyticsSource, type Role, analyticsSources, can, isAnalyticsSource, needsStoreAppId, parsePlatform, supports } from '@kiln/core';
 import type { Database } from '@kiln/db';
 import { enqueue } from '../jobs.ts';
+import { ADS_SYNC_QUEUE } from '../modules/ads/sync.ts';
 import { ANALYTICS_SYNC_QUEUE } from '../modules/analytics/sync.ts';
 import { EAS_STATUS_QUEUE } from '../modules/eas/status-sync.ts';
 import { REVIEW_SYNC_QUEUE } from '../modules/reviews/sync.ts';
@@ -15,11 +16,12 @@ import { APP_SYNC_QUEUE } from './apps.ts';
  *   reviews    customer reviews                                                          (review.sync, needs reviews.sync)
  *   eas        EAS builds and submissions of the linked Expo project                     (eas.status, needs apps.sync)
  *   analytics  the analytics sources (Apple reports or Google Play bucket)               (analytics.sync, needs analytics.manage)
+ *   ads        the Apple Ads reports of the linked ad account (read only, last, non critical)  (ads.sync, needs apps.sync)
  * Products, RevenueCat and TestFlight feedback have no queue yet; the web client runs their own routes after this plan.
  */
-export type SyncKind = 'app' | 'reviews' | 'eas' | 'analytics';
+export type SyncKind = 'app' | 'reviews' | 'eas' | 'analytics' | 'ads';
 
-export const SYNC_KIND_ORDER: readonly SyncKind[] = ['app', 'reviews', 'eas', 'analytics'];
+export const SYNC_KIND_ORDER: readonly SyncKind[] = ['app', 'reviews', 'eas', 'analytics', 'ads'];
 
 export type SyncAllQuery = { without: SyncKind[]; kinds: SyncKind[] | undefined; sources: AnalyticsSource[] | undefined };
 
@@ -55,6 +57,8 @@ export type SyncFacts = {
   easLinked: boolean;
   analyticsEnabled: boolean;
   analyticsAppleReady: boolean;
+  /** The app has an Apple Ads link whose credential is still an Apple Ads credential. */
+  adsLinked: boolean;
   queued: ReadonlySet<SyncKind>;
 };
 
@@ -86,6 +90,9 @@ export function planKinds(role: Role, facts: SyncFacts): SyncDecision[] {
         if (platform === undefined) return skip(kind, 'not_ready');
         return supports(platform, 'appleAnalyticsReports') && !facts.analyticsAppleReady ? skip(kind, 'not_ready') : run(kind);
       }
+      case 'ads':
+        if (!can(role, 'apps.sync')) return skip(kind, 'forbidden');
+        return facts.adsLinked ? run(kind) : skip(kind, 'not_linked');
     }
   };
   return SYNC_KIND_ORDER.map(decide);
@@ -96,6 +103,7 @@ const QUEUES: Record<SyncKind, string> = {
   reviews: REVIEW_SYNC_QUEUE,
   eas: EAS_STATUS_QUEUE,
   analytics: ANALYTICS_SYNC_QUEUE,
+  ads: ADS_SYNC_QUEUE,
 };
 
 const needle = (appId: string): string => `%"appId":"${appId.replace(/[%_"\\]/g, '')}"%`;
@@ -110,6 +118,10 @@ async function readFacts(db: Database, workspaceId: string, appId: string): Prom
       : [];
   const [eas] = await db.query(
     "SELECT 1 AS ok FROM app_expo_links l JOIN credentials c ON c.id = l.credential_id AND c.workspace_id = l.workspace_id AND c.kind = 'expo' WHERE l.app_id = ? AND l.workspace_id = ?",
+    [appId, workspaceId],
+  );
+  const [ads] = await db.query(
+    "SELECT 1 AS ok FROM app_ads_links l JOIN credentials c ON c.id = l.credential_id AND c.workspace_id = l.workspace_id AND c.kind = 'apple_ads' WHERE l.app_id = ? AND l.workspace_id = ?",
     [appId, workspaceId],
   );
   const settings = await db.query(
@@ -131,6 +143,7 @@ async function readFacts(db: Database, workspaceId: string, appId: string): Prom
     easLinked: eas !== undefined,
     analyticsEnabled: String(setting('analytics.enabled')?.value_json ?? '') === 'true',
     analyticsAppleReady: request !== undefined || vendor,
+    adsLinked: ads !== undefined,
     queued,
   };
 }

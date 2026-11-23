@@ -9,20 +9,22 @@ const facts = (over: Partial<SyncFacts> = {}): SyncFacts => ({
   easLinked: false,
   analyticsEnabled: false,
   analyticsAppleReady: false,
+  adsLinked: false,
   queued: new Set(),
   ...over,
 });
 const summary = (d: ReturnType<typeof planKinds>) => d.map((x) => `${x.kind}:${x.run ? 'run' : x.reason}`);
 
-test('the order is critical first: app, reviews, eas, analytics', () => {
+test('the order is critical first: app, reviews, eas, analytics, then Apple Ads', () => {
   assert.deepEqual(
     planKinds('owner', facts({ easLinked: true, analyticsEnabled: true, analyticsAppleReady: true })).map((d) => d.kind),
-    ['app', 'reviews', 'eas', 'analytics'],
+    ['app', 'reviews', 'eas', 'analytics', 'ads'],
   );
 });
 
 test('what does not apply says why', () => {
-  assert.deepEqual(summary(planKinds('owner', facts())), ['app:run', 'reviews:run', 'eas:not_linked', 'analytics:off']);
+  assert.deepEqual(summary(planKinds('owner', facts())), ['app:run', 'reviews:run', 'eas:not_linked', 'analytics:off', 'ads:not_linked']);
+  assert.equal(summary(planKinds('owner', facts({ adsLinked: true })))[4], 'ads:run');
   assert.equal(summary(planKinds('owner', facts({ analyticsEnabled: true })))[3], 'analytics:not_ready');
   assert.equal(summary(planKinds('owner', facts({ analyticsEnabled: true, platform: 'android' })))[3], 'analytics:run');
   assert.equal(summary(planKinds('owner', facts({ hasStoreAppId: false })))[1], 'reviews:not_ready');

@@ -26,6 +26,7 @@ import { type TestflightDeps, testflightModule } from './modules/testflight/inde
 import { insightsModule } from './modules/insights/index.ts';
 import { type MonetizationDeps, monetizationModule } from './modules/monetization/index.ts';
 import { type RevenueCatDeps, revenuecatModule } from './modules/revenuecat/index.ts';
+import { type AdsDeps, adsModule } from './modules/ads/index.ts';
 import type { ModuleShared } from './modules/module.ts';
 import { planningModule } from './modules/planning/index.ts';
 import { type PublishDeps, publishModule } from './modules/publish/index.ts';
@@ -231,6 +232,8 @@ export type AppDeps = {
   testflight?: TestflightDeps | undefined;
   /** RevenueCat next to the store products (docs/adr/0039-revenuecat.md): see `RevenueCatDeps` in modules/revenuecat. */
   revenuecat?: RevenueCatDeps | undefined;
+  /** Apple Ads, read only (docs/adr/0058-apple-ads.md): see `AdsDeps` in modules/ads. */
+  ads?: AdsDeps | undefined;
   /**
    * Changing a live rollout in a store (docs/api/rollout.md), a store write that is OFF unless `enabled`
    * (KILN_STORE_ROLLOUT_ENABLED). `connectorFactory` builds the connector that can read and change a
@@ -506,6 +509,7 @@ export function createApp(deps: AppDeps) {
   insightsModule.mount(app, services, undefined, shared);
   ratingsModule.mount(app, services, undefined, shared);
   revenuecatModule.mount(app, services, deps.revenuecat, shared);
+  adsModule.mount(app, services, deps.ads, shared);
   publishModule.mount(
     app,
     services,

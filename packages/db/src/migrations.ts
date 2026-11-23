@@ -6,6 +6,7 @@ import { analyticsBucketMigrations } from './migrations-analytics-bucket.ts';
 import { analyticsVendorMigrations } from './migrations-analytics-vendor.ts';
 import { competitorChangesMigrations } from './migrations-competitor-changes.ts';
 import { keywordSignalsMigrations } from './migrations-keyword-signals.ts';
+import { appleAdsMigrations } from './migrations-apple-ads.ts';
 import { competitorReviewsMigrations } from './migrations-competitor-reviews.ts';
 import { chatMigrations } from './migrations-chat.ts';
 import { ciProviderMigrations } from './migrations-ci-provider.ts';
@@ -1854,4 +1855,5 @@ export const migrations: Migration[] = [
   ...competitorReviewsMigrations,
   ...competitorChangesMigrations,
   ...keywordSignalsMigrations,
+  ...appleAdsMigrations,
 ];

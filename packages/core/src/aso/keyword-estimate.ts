@@ -19,7 +19,7 @@ export const KEYWORD_ESTIMATE_MODEL = 'v1';
 export type EstimateStore = 'app_store' | 'google_play';
 export type EstimateConfidence = 'low' | 'medium' | 'high';
 /** `own_data`: the team's own numbers took part. `public_signals`: only what the store shows anyone. */
-export type EstimateOrigin = 'own_data' | 'public_signals';
+export type EstimateOrigin = 'own_data' | 'ads_data' | 'public_signals';
 
 /** What the App Store search hints (the suggestions under the search box) said for the term. */
 export type HintsSignal = {
@@ -40,11 +40,20 @@ export type ResultsSignal = {
 /** The team's own numbers for the term (Google Play search terms file). A lower bound: only people who reached the listing. */
 export type OwnSignal = { visitors: number | null; installs: number | null; days: number };
 
+/**
+ * What the team's own Apple Ads campaigns showed for the term (docs/adr/0058-apple-ads.md): impressions, taps and installs of the search
+ * term over `days` days of data. A lower bound: only searches where an ad ran and won an impression are counted, and Apple may hide
+ * low-volume terms. `null` (not 0) when the term never appeared in a report.
+ */
+export type AdsSignal = { impressions: number; taps: number; installs: number; days: number };
+
 export type KeywordSignals = {
   term: string;
   hints?: HintsSignal | null | undefined;
   results?: ResultsSignal | null | undefined;
   own?: OwnSignal | null | undefined;
+  /** Apple Ads campaigns of the team (App Store only). */
+  ads?: AdsSignal | null | undefined;
   /** Positions of the own app in checks, oldest first; null: not in the results. */
   ranks?: Array<number | null> | undefined;
   /** The current rank of the own app: a number, null for "not ranked", undefined when never checked. */
@@ -80,9 +89,11 @@ export type KeywordEstimate = {
 const clamp = (n: number, lo = 0, hi = 100): number => Math.min(hi, Math.max(lo, n));
 const round = (n: number): number => Math.round(n);
 const log10 = (n: number): number => Math.log(n) / Math.LN10;
-const WEIGHTS = { own: 3, hints: 2, demand: 1, strength: 5, titleMatch: 3, crowding: 1, volatility: 1 } as const;
+const WEIGHTS = { own: 3, ads: 3, hints: 2, demand: 1, strength: 5, titleMatch: 3, crowding: 1, volatility: 1 } as const;
 /** An own sample below this many visitors is too small to count as strong evidence. */
 export const OWN_MIN_VISITORS = 20;
+/** An Apple Ads sample below this many impressions is too small to count as strong evidence. */
+export const ADS_MIN_IMPRESSIONS = 100;
 export const VOLATILITY_MIN_CHECKS = 5;
 export const DIFFICULTY_MIN_APPS = 3;
 export const DIFFICULTY_FULL_APPS = 10;
@@ -133,6 +144,17 @@ export function estimatePopularity(store: EstimateStore, s: KeywordSignals): Est
     const score = blend(reasons);
     return { score, confidence: evidence >= 2 ? 'medium' : 'low', origin: 'own_data', reasons };
   }
+  const ads = s.ads;
+  const hasAds = !!ads;
+  if (ads) {
+    reasons.push({
+      code: 'ads_impressions',
+      params: { impressions: ads.impressions, taps: ads.taps, installs: ads.installs, days: ads.days },
+      points: round(clamp((log10(ads.impressions + 1) / 5) * 100)),
+      weight: WEIGHTS.ads,
+    });
+    evidence += ads.impressions >= ADS_MIN_IMPRESSIONS ? 2 : 1;
+  }
   const hints = s.hints;
   if (hints) {
     const size = hints.list.length;
@@ -167,7 +189,7 @@ export function estimatePopularity(store: EstimateStore, s: KeywordSignals): Est
   return {
     score,
     confidence: evidence >= 3 ? 'high' : evidence === 2 ? 'medium' : 'low',
-    origin: hasOwn ? 'own_data' : 'public_signals',
+    origin: hasOwn ? 'own_data' : hasAds ? 'ads_data' : 'public_signals',
     reasons,
   };
 }

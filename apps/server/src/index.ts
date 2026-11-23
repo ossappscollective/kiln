@@ -27,6 +27,7 @@ import {
   type AsoLimits,
   createAsoRefreshHandler,
 } from './modules/aso/service.ts';
+import { ADS_SYNC_QUEUE, createAdsSyncHandler } from './modules/ads/sync.ts';
 import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from './modules/ci/service.ts';
 import {
   createEasStatusHandler,
@@ -289,6 +290,8 @@ const worker = createWorker({
       masterKey: config.masterKey,
       now: Date.now,
     }),
+    // Apple Ads reports of linked apps (read only toward Apple; docs/api/apple-ads.md). Queued by the sync plan and by hand, never by a timer.
+    [ADS_SYNC_QUEUE]: createAdsSyncHandler({ db: database, masterKey: config.masterKey, now: Date.now, deps: undefined }),
     // Scheduled and background ASO refreshes (public store data only; docs/api/aso.md).
     [ASO_REFRESH_QUEUE]: createAsoRefreshHandler({
       db: database,
@@ -338,8 +341,8 @@ const worker = createWorker({
   },
   // Several jobs at once, quick and useful ones first (release state, listing, reviews), heavy feeds after and never in every slot.
   concurrency: config.jobConcurrency,
-  priority: { [APP_SYNC_QUEUE]: 0, [LISTING_READ_QUEUE]: 0, [REVIEW_SYNC_QUEUE]: 1, [EAS_STATUS_QUEUE]: 2, [ANALYTICS_SYNC_QUEUE]: 3, [ASO_REFRESH_QUEUE]: 3 },
-  heavy: [ANALYTICS_SYNC_QUEUE, ASO_REFRESH_QUEUE],
+  priority: { [APP_SYNC_QUEUE]: 0, [LISTING_READ_QUEUE]: 0, [REVIEW_SYNC_QUEUE]: 1, [EAS_STATUS_QUEUE]: 2, [ANALYTICS_SYNC_QUEUE]: 3, [ASO_REFRESH_QUEUE]: 3, [ADS_SYNC_QUEUE]: 4 },
+  heavy: [ANALYTICS_SYNC_QUEUE, ASO_REFRESH_QUEUE, ADS_SYNC_QUEUE],
 });
 if (config.worker === 'inline') worker.start();
 

@@ -1,5 +1,6 @@
 import { appleStorefrontId } from '@kiln/connectors';
 import {
+  type AdsSignal,
   estimateKeyword,
   type EstimateStore,
   type HintsSignal,
@@ -184,13 +185,14 @@ export type EstimateView = KeywordEstimate & {
 export function buildSignals(
   term: string,
   stored: StoredSignals,
-  extra: { own?: OwnSignal | null; ranks?: Array<number | null>; currentRank?: number | null | undefined },
+  extra: { own?: OwnSignal | null; ads?: AdsSignal | null; ranks?: Array<number | null>; currentRank?: number | null | undefined },
 ): KeywordSignals {
   return {
     term,
     hints: stored.hints ? { position: stored.hints.position, list: stored.hints.list } : null,
     results: stored.results ?? null,
     own: extra.own ?? null,
+    ads: extra.ads ?? null,
     ranks: extra.ranks ?? [],
     currentRank: extra.currentRank,
   };

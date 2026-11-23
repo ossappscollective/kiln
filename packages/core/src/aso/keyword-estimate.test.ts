@@ -118,3 +118,24 @@ test('opportunity: popular, easy and poorly ranked wins; a top-3 rank leaves lit
 test('termWords splits on spaces and punctuation', () => {
   assert.deepEqual(termWords('Water-Reminder, app'), ['water', 'reminder', 'app']);
 });
+
+test('Apple Ads impressions are an own-data input of the App Store popularity, labelled as such, and absence is not zero', () => {
+  const p = estimatePopularity('app_store', {
+    term: 'water',
+    ads: { impressions: 1000, taps: 40, installs: 6, days: 30 },
+    hints: { position: 2, list: ['a', 'water'] },
+  });
+  assert.equal(p.origin, 'ads_data');
+  assert.equal(p.reasons[0]?.code, 'ads_impressions');
+  assert.equal(p.reasons[0]?.points, 60);
+  assert.deepEqual(p.reasons[0]?.params, { impressions: 1000, taps: 40, installs: 6, days: 30 });
+  assert.equal(p.confidence, 'high');
+  const small = estimatePopularity('app_store', { term: 'w', ads: { impressions: 5, taps: 0, installs: 0, days: 7 } });
+  assert.equal(small.confidence, 'low');
+  const absent = estimatePopularity('app_store', { term: 'w', ads: null, hints: { position: 1, list: ['w'] } });
+  assert.equal(absent.origin, 'public_signals');
+  assert.ok(!absent.reasons.some((r) => r.code === 'ads_impressions'));
+  // Google Play never reads Apple Ads.
+  const play = estimatePopularity('google_play', { term: 'w', ads: { impressions: 9999, taps: 1, installs: 1, days: 7 } });
+  assert.equal(play.score, null);
+});
