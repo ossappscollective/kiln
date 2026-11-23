@@ -311,3 +311,27 @@ test('the staged-changes calls use the documented routes, and the push sends onl
   ]);
   assert.deepEqual(JSON.parse(String(calls[7]?.init?.body)), { confirmHash: 'f'.repeat(64) });
 });
+
+test('cart discard, cart publish, unstage and stage each announce the app once (the one staged-state invalidation)', async () => {
+  const bus = new EventTarget();
+  const g = globalThis as unknown as { window?: EventTarget };
+  const before = g.window;
+  g.window = bus;
+  const seen: string[] = [];
+  bus.addEventListener('kiln:staged-changed', (e) => {
+    const d = (e as CustomEvent<{ appId: string; reason: string }>).detail;
+    seen.push(`${d.appId}:${d.reason}`);
+  });
+  try {
+    const { fetchImpl } = fake(() => jsonResponse({ result: { results: [], remaining: 0 }, staged: {} }));
+    const api = createApi({ fetch: fetchImpl });
+    await api.discardPendingCart('w', 'a1', ['listing:x']);
+    await api.publishPendingCart('w', 'a2', [{ id: 'listing:x', version: 'v' }]);
+    await api.unstageItem('w', 'a3', 'x');
+    await api.stageText('w', 'a4', { locale: 'en-US', field: 'name', from: 'local', value: 'n' });
+    assert.deepEqual(seen, ['a1:discard', 'a2:publish', 'a3:unstage', 'a4:stage']);
+  } finally {
+    if (before === undefined) delete g.window;
+    else g.window = before;
+  }
+});

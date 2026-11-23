@@ -191,6 +191,7 @@ import type {
 } from './testflight.ts';
 import type { VersionPreview, VersionResult } from './store-version.ts';
 import { announceCartAdded, type CartResponse, type CartResultResponse } from './pending-cart.ts';
+import { announceStagedChanged, type StagedChangeReason } from './staged-sync.ts';
 import {
   type CodeSent,
   type LoginMethod,
@@ -556,10 +557,21 @@ function uploadQueryText(q: UploadQuery): string {
 }
 
 /** Something was staged or a reply draft saved: the cart button says so. Returns the answer unchanged. */
-const addedToCart = <T>(answer: T): T => {
-  announceCartAdded();
-  return answer;
-};
+const addedToCart =
+  (appId: string) =>
+  <T>(answer: T): T => {
+    announceCartAdded();
+    announceStagedChanged(appId, 'stage');
+    return answer;
+  };
+
+/** A staged change was removed, discarded or published: every screen that shows staged state reads it again (lib/staged-sync.ts). */
+const stagedChanged =
+  (appId: string, reason: StagedChangeReason) =>
+  <T>(answer: T): T => {
+    announceStagedChanged(appId, reason);
+    return answer;
+  };
 
 export function createApi(options: ApiOptions = {}) {
   const send =
@@ -1532,7 +1544,7 @@ export function createApi(options: ApiOptions = {}) {
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/text`,
         body,
-      ).then(addedToCart),
+      ).then(addedToCart(appId)),
     stageAssets: (
       workspaceId: string,
       appId: string,
@@ -1549,7 +1561,7 @@ export function createApi(options: ApiOptions = {}) {
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets`,
         body,
-      ).then(addedToCart),
+      ).then(addedToCart(appId)),
     // Two way sync of the graphics (docs/api/assets.md, docs/api/staged-changes.md). Reading a store and the comparison
     // change nothing in it. A pull and "to repository" make a DRAFT change set; uploads, removals and fixes change only
     // the staged set in our own database. Nothing here writes to a store: that is `pushStagedDraft`.
@@ -1619,12 +1631,12 @@ export function createApi(options: ApiOptions = {}) {
       request<{ staged: StagedChangesView }>(
         'DELETE',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/items?id=${encodeURIComponent(id)}`,
-      ),
+      ).then(stagedChanged(appId, 'unstage')),
     clearStaged: (workspaceId: string, appId: string) =>
       request<{ staged: StagedChangesView }>(
         'DELETE',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged`,
-      ),
+      ).then(stagedChanged(appId, 'discard')),
     previewStagedPush: (workspaceId: string, appId: string) =>
       request<{ preview: DraftPreview }>(
         'POST',
@@ -1638,7 +1650,7 @@ export function createApi(options: ApiOptions = {}) {
         { confirmHash },
         undefined,
         grantHeader(grant),
-      ),
+      ).then(stagedChanged(appId, 'publish')),
     // Submitting the pushed draft for store review (docs/api/submit.md): a SEPARATE, IRREVERSIBLE store write,
     // off by default. `config` and `appStoreSubmit` read our own database; `previewStoreSubmit` reads the store.
     // `storeSubmit` is the only call that writes: sent once with the preview's hash and the typed phrase, and
@@ -1737,7 +1749,7 @@ export function createApi(options: ApiOptions = {}) {
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/release-fields`,
         body,
-      ).then(addedToCart),
+      ).then(addedToCart(appId)),
     // The release pipeline (docs/api/release-pipeline.md): reads of our own database.
     releasePipeline: (workspaceId: string, appId: string) =>
       request<AppPipeline>(
@@ -1817,13 +1829,13 @@ export function createApi(options: ApiOptions = {}) {
         { items },
         undefined,
         grantHeader(grant),
-      ),
+      ).then(stagedChanged(appId, 'publish')),
     discardPendingCart: (workspaceId: string, appId: string, ids: string[]) =>
       request<CartResultResponse>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/pending/discard`,
         { ids },
-      ),
+      ).then(stagedChanged(appId, 'discard')),
     appPending: (workspaceId: string, appId: string) =>
       request<{ pending: PendingView }>(
         'GET',
@@ -2106,12 +2118,12 @@ export function createApi(options: ApiOptions = {}) {
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/${encodeURIComponent(reviewId)}/reply-draft`,
         body,
-      ).then(addedToCart),
+      ).then(addedToCart(appId)),
     deleteReplyDraft: (workspaceId: string, appId: string, reviewId: string) =>
       request<void>(
         'DELETE',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/${encodeURIComponent(reviewId)}/reply-draft`,
-      ),
+      ).then(stagedChanged(appId, 'discard')),
     translateReplyDraft: (
       workspaceId: string,
       appId: string,

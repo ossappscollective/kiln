@@ -24,6 +24,7 @@
     toRows,
   } from '../../lib/pending-cart.ts';
   import { PUBLISHED_EVENT } from '../../lib/app-page.ts';
+  import { onStagedChanged } from '../../lib/staged-sync.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -121,10 +122,15 @@
     const onFocus = () => {
       if (document.visibilityState === 'visible') void refresh();
     };
+    // A discard, an unstage or a publish anywhere (not only in this cart) reads the cart again.
+    const offStaged = onStagedChanged((d) => {
+      if (d.reason !== 'stage' && ids.includes(d.appId)) void refresh();
+    });
     window.addEventListener(CART_ADDED_EVENT, onAdded);
     window.addEventListener(PUBLISHED_EVENT, onPublished);
     document.addEventListener('visibilitychange', onFocus);
     return () => {
+      offStaged();
       window.removeEventListener(CART_ADDED_EVENT, onAdded);
       window.removeEventListener(PUBLISHED_EVENT, onPublished);
       document.removeEventListener('visibilitychange', onFocus);

@@ -210,6 +210,10 @@ dbTest('discard removes Kiln’s draft only; a subset; rights per kind; the stor
   assert.deepEqual((await read(t, app)).items.map((i) => i.kind), ['listing', 'graphics']);
   const rest = await t.call(t.owner, 'POST', `/apps/${app}/pending/discard`, { ids: c.items.filter((i) => i.bundle).map((i) => i.id) });
   assert.equal(rest.body.result.remaining, 0);
+  // Discard then read: the staged view (what the listing, the locale panel and the graphics tab draw) and the pending view hold nothing.
+  const staged = (await t.call(t.owner, 'GET', `/apps/${app}/staged`)).body.staged;
+  assert.deepEqual([staged.text.length, staged.assets.length, staged.totals.text, staged.totals.assetSets], [0, 0, 0, 0]);
+  assert.equal((await t.rows(app)).length, 0);
   assert.equal(t.stores.ios.applyCalls, 0);
   assert.equal(t.replyStores.ios.replies.length, 0);
   assert.equal((await t.audit('pending.cart_discarded')).length, 3, 'also the refused attempt');
