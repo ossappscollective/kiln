@@ -21,7 +21,7 @@
   were searched), partial (a limit was reached: it says what was left out), ready.
 -->
 <script lang="ts">
-  import { type AssetDiffView, type AssetKind, type Role, can } from '@kiln/core';
+  import { type AssetDiffView, type AssetKind, type Role, type StoreImagesView, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { replaceHash } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
@@ -75,6 +75,7 @@
   import Tabs from '../ui/Tabs.svelte';
   import AssetCompareDialog from './AssetCompareDialog.svelte';
   import AssetGallery from './AssetGallery.svelte';
+  import StoreGraphics from './StoreGraphics.svelte';
   import AssetLightbox from './AssetLightbox.svelte';
   import AssetProblemLines from './AssetProblemLines.svelte';
   import AssetProblems from './AssetProblems.svelte';
@@ -115,6 +116,38 @@
     play_graphics: k('assets:tab.noneFound.playGraphics'),
     screenshots: k('assets:tab.noneFound.screenshots'),
   };
+
+  // What the store holds (read only, the cached read of the last minute) and whether the app compares the repository's graphics with it
+  // (app listing settings, default off). Off: the store's graphics are the page; the repository's are not shown next to them.
+  let storeView = $state<StoreImagesView | null>(null);
+  let storeProblem = $state('');
+  let storeReloading = $state(false);
+  let compareMedia = $state(false);
+  let storeGeneration = 0;
+
+  async function loadStore(fresh: boolean) {
+    if (!allowed) return;
+    const mine = ++storeGeneration;
+    storeReloading = true;
+    storeProblem = '';
+    try {
+      const [done, settings] = await Promise.all([
+        api.appStoreImages(workspaceId, app.id, fresh),
+        api.appListingSettings(workspaceId, app.id).catch(() => null),
+      ]);
+      if (mine !== storeGeneration) return;
+      storeView = done.store;
+      if (settings) compareMedia = settings.settings.compareMedia;
+    } catch (e) {
+      if (mine !== storeGeneration) return;
+      storeProblem = describeStoreRead(e);
+      const settings = await api.appListingSettings(workspaceId, app.id).catch(() => null);
+      if (mine === storeGeneration && settings) compareMedia = settings.settings.compareMedia;
+    } finally {
+      if (mine === storeGeneration) storeReloading = false;
+    }
+  }
+  const describeStoreRead = (e: unknown): string => (e instanceof Error && e.message ? e.message : t('assets:store.readFailedText'));
 
   let index = $state<AssetIndex | null>(null);
   let loading = $state(true);
@@ -173,7 +206,10 @@
       autoGroup = null;
       lightboxOpen = false;
     }
-    untrack(() => void load());
+    untrack(() => {
+      void load();
+      void loadStore(false);
+    });
   });
 
   // The locales found are what the header picker offers; the header's locale narrows the sets (and back).
@@ -403,10 +439,19 @@
 <div class="stack assets" aria-busy={loading}>
   <p class="visually-hidden" role="status">{announcement}</p>
 
+  {#if allowed}
+    <StoreGraphics {workspaceId} {app} {now} view={storeView} problem={storeProblem} reloading={storeReloading} onreload={() => loadStore(true)} />
+  {/if}
+
   {#if !allowed}
     <div class="card">
       <EmptyState icon="lock" title={t('assets:tab.noAccess')} description={t('assets:tab.noAccessText')} />
     </div>
+  {:else if !compareMedia}
+    {#if !locked}<StagedTray {api} {workspaceId} {role} members={[app]} />{/if}
+    {#if index && index.status !== 'no_repository' && index.assets.length > 0}
+      <p class="muted">{t('assets:store.repoHidden', { count: index.assets.length })}</p>
+    {/if}
   {:else if loading && !index}
     <div role="status" aria-label={t('assets:tab.reading')}>
       <Skeleton width="50%" height="16px" />

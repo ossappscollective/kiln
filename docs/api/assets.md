@@ -179,6 +179,13 @@ limited look changes nothing. The first icon request waits at most 8 seconds whi
 continues in the background. The icons are stored in the table `app_icons` (migration 18) as base64
 text, because the database layer has no binary parameter; deleting an app deletes its icon.
 
+## Store side checks and the app setting
+
+The tab lists what the store holds first (`GET /assets/store`) and judges it on its own with `checkStoreImages(view)` in `@kiln/core` (the same
+rules as `validateAssets`: pixel size, file size, count per set; a size the store did not give is never an error). The repository's graphics and
+their comparison with the store show only when the app's listing setting `compareMedia` is on (`PUT /apps/{id}/listing-settings`, default
+off, see [listing.md](listing.md)).
+
 ## Specs and what is not verified
 
 The rules come from these pages, read for this feature (see the comments of

@@ -6,6 +6,8 @@ import {
   type AssetStore,
   deviceLabel,
   PLAY_DEVICES,
+  type AssetProblem,
+  validateAssets,
 } from './store-asset-specs.ts';
 
 /**
@@ -103,6 +105,37 @@ export type StoreImagesView = {
   unplaced: number;
   notes: string[];
 };
+
+/**
+ * The store's own images judged against the documented specs, with no repository involved (the store-side checks of the graphics: pixel
+ * size, byte size, count per set, wrong format). A fact the store did not give (`null` size) is never an error. Pure; the answer is
+ * the same list `validateAssets` gives for repository files, with `path` = `locale/kind/device#position` so a message can name its image.
+ */
+export function checkStoreImages(view: Pick<StoreImagesView, 'platform' | 'sets'>): AssetProblem[] {
+  const store = assetStoreOf(view.platform);
+  const facts = [];
+  for (const set of view.sets) {
+    for (const f of set.files) {
+      const ext = (f.name ?? '').split('.').pop()?.toLowerCase() ?? '';
+      facts.push({
+        path: `${set.locale}/${set.kind}/${set.device ?? 'all'}#${f.position}`,
+        store,
+        locale: set.locale,
+        kind: set.kind,
+        device: set.device,
+        order: f.position,
+        bytes: f.bytes,
+        width: f.width,
+        height: f.height,
+        format: null,
+        extension: ext === 'jpg' ? 'jpeg' : ext,
+        hasAlpha: null,
+        read: f.width !== null && f.height !== null ? ('read' as const) : ('not_read' as const),
+      });
+    }
+  }
+  return validateAssets(store, facts);
+}
 
 // ---------------------------------------------------------------------------------------------
 // The comparison

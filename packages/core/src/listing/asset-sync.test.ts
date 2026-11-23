@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   ASSET_SYNC_LIMITS,
+  checkStoreImages,
   compareFile,
   compareSet,
   compareText,
@@ -169,4 +170,18 @@ test('fixAdvice: a wrong extension is renamed, a wrong size is resized for png a
   assert.match(jpeg.manual[0] as string, /Required: /);
   const webp = fixAdvice('ios', { ...base, format: 'webp', extension: 'webp' }, []);
   assert.match(webp.manual[0] as string, /not accepted/);
+});
+
+test('store images are checked on their own: a wrong pixel size and too many in a set', () => {
+  const file = (position: number, width: number, height: number) => ({
+    ref: `r${position}`, position, name: `${position}.png`, width, height, bytes: 1000, checksum: null, checksumKind: null, state: null, downloadable: true,
+  });
+  const files = [file(1, 100, 100), ...Array.from({ length: 10 }, (_, i) => file(i + 2, 1290, 2796))];
+  const problems = checkStoreImages({
+    platform: 'ios',
+    sets: [{ platform: 'ios', locale: 'en-US', kind: 'screenshot', device: 'iphone_6_9', deviceLabel: 'iPhone 6.9"', target: 'APP_IPHONE_67', files }],
+  });
+  assert.ok(problems.some((p) => p.rule === 'apple.screenshot.size' && p.severity === 'error'));
+  assert.ok(problems.some((p) => /count|max/i.test(p.rule)));
+  assert.deepEqual(checkStoreImages({ platform: 'ios', sets: [] }), []);
 });

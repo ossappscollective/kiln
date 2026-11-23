@@ -239,6 +239,13 @@ The settings of an app (`#/apps/:id/settings`) used to be one long column of col
 - Expo and RevenueCat draw nothing when they do not apply; if both are empty one line says so.
 - The "Jump to" row and the expand/collapse-all toggle are gone from this page (nothing to jump to or fold).
 
+### Next: Graphics and the store listing
+
+- The Graphics tab shows the store's own images first (`GET /assets/store`, read only, the cached read of the last minute; `checkStoreImages` in
+  `@kiln/core` holds them against the documented specs). The repository's graphics appear only with the per-app setting "Compare repository and store graphics" (default off).
+- Not built: "Replace image" on a store screenshot. A staged set is the whole set and starts from repository files; replacing one store image needs a pull of the set into a staged set first. Do it as a staged action, never a direct upload.
+- Custom product pages are shown read only on the Store listing page (the stored copy of Insights > Experiments). Google Play has no API for custom store listings; the data is Apple only.
+
 ## 1. IA tree (original proposal; the built navigation is in section 0)
 
 ```

@@ -35,6 +35,7 @@
   import { buildsGroups } from '../../lib/builds-sections.ts';
   import { type RailGroup, railEntries, resolveRailSection, withRailSection } from '../../lib/section-rail.ts';
   import { can } from '@kiln/core';
+  import CustomPagesSection from '../listing/CustomPagesSection.svelte';
   import ListingMatrix from '../listing/ListingMatrix.svelte';
   import BuildsPanel from '../portfolio/BuildsPanel.svelte';
   import TestBuilds from '../builds/TestBuilds.svelte';
@@ -256,6 +257,9 @@
         onpanel={(next) => replaceHash(withPanel(location.hash, next))}
       />
       {@render perPlatform(listingChecks)}
+      {#each members.filter((m) => m.platform === 'ios') as m (m.id)}
+        <CustomPagesSection {api} {workspaceId} app={m} refreshKey={syncRuns} />
+      {/each}
     </div>
   {/if}
 {:else if section === 'products'}
