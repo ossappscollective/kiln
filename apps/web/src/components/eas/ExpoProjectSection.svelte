@@ -86,7 +86,6 @@
     title={t('eas:project.card.title')}
     icon="code"
     description={t('eas:project.card.description')}
-    summary={expoSummary(allLinks)}
   >
     {#each members as app (app.id)}
       <section class="stack tight" aria-label={t('eas:project.platformLabel', { platform: app.platform })}>

@@ -83,11 +83,9 @@
 
 <SettingsCard
   title={t('app:settings.part.stores')}
-  key="Stores and credentials"
   icon="key"
   description={t('app:stores.description')}
   unavailable={notAvailable.changeCredential}
-  summary={t('app:stores.count', { count: records.length })}
 >
   {#if loadProblem}<Alert tone="warn">{loadProblem}</Alert>{/if}
   <div class="stack">

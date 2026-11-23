@@ -154,7 +154,7 @@ Same principles as phase 1: quiet by default, the important thing first, one pri
 Pure logic: `section-state.ts`, `scroll-keep.ts`, `app-switcher.ts` (`appSwitchHash`), `review-split.ts` (`splitLayout`),
 `virtual-anchor.ts`; the host is `section-host.svelte.ts`.
 
-- **Collapsible sections** (`ui/Section.svelte`, one primitive; `Card` and `SettingsCard` take it with `collapseKey`): the head is a button
+- **Collapsible sections** (`ui/Section.svelte`, one primitive; `Card` takes it with `collapseKey`; `SettingsCard` is always open (0d)): the head is a button
   inside the heading (`aria-expanded`, Enter and Space), with a count chip and, while collapsed, a one-line summary ("12 locales · 3 need
   attention"). The state is remembered per workspace, person, page and section key in `localStorage` (`kiln.sections.v1:...`, in a
   try/catch; storage that refuses means the default). A page is `listing.text`, `insights.keywords`, `reviews`... not the app, so a choice
@@ -200,6 +200,26 @@ and one section at a time on the right, kept in the address as `?section=`. Pure
   `ai.use`); Mail needs `settings.write`; Slack and Teams needs `chat.read`. The nav item and `#/chat` stay (same screen; `Chat` takes `embedded` inside Settings).
 - The workspace form keeps one state held by the page and one save bar under the open section, so a change of section keeps what was
   typed. On the other sections a note says changes are waiting, with a link. A save blocked by a value in another section says which.
+
+## 0d. App settings: a rail and one section at a time (built)
+
+The settings of an app (`#/apps/:id/settings`) used to be one long column of collapsible cards under a "Jump to" row. They now follow the workspace Settings
+(0c): `ui/SectionRail` on the left, one section on the right, kept in the address as `?section=`. Pure logic in `lib/app-settings.ts`
+(`appSettingsGroups`, `appSettingsSections`, `resolveAppSettingsSection`).
+
+| Group       | Sections                                                                  |
+| ----------- | ------------------------------------------------------------------------- |
+| Connections | Stores (credentials), Repository, Expo and RevenueCat                     |
+| Releases    | Release defaults, Google Play releases (Android records only)             |
+| Data        | Reports bucket (Android only), Notifications, AI assistant (when it is on) |
+| Removal     | Danger zone (roles that may delete)                                       |
+
+- The address opens the first section (Stores); an old element id (`?section=app-settings-repository`, also in `?view=`) opens the same section; a section the
+  app does not have opens the first one. A group with no entry is not drawn.
+- Every card is open: `SettingsCard` has no toggle and no remembered state, and its "not available yet" reason is a plain muted line. Disclosure remains only for
+  genuinely secondary technical detail. Each form keeps its own sticky save bar (`SaveBar`) inside its section.
+- Expo and RevenueCat draw nothing when they do not apply; if both are empty one line says so.
+- The "Jump to" row and the expand/collapse-all toggle are gone from this page (nothing to jump to or fold).
 
 ## 1. IA tree (original proposal; the built navigation is in section 0)
 

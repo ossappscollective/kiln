@@ -1,51 +1,40 @@
 <!--
-  SettingsCard: one section of the app Settings tab: a heading with an icon, one sentence on what the
-  section is (15px, one sentence), the content, and (when there is no API for something) one "Not available yet" line that opens to the
-  reason.
-  Collapsible (ui/Section.svelte): the title is the toggle, remembered per page; `summary` says what is set while it is collapsed.
-  Props: title, icon, description, unavailable? (a sentence, shown muted at the end), summary? (one line while collapsed), key? (defaults
-  to the title), defaultOpen? = true, children.
+  SettingsCard: one section of the app Settings: a card with a title, one sentence on what the section is, the content and (when there is
+  no API for something) one muted "not available yet" line with the reason. Always open: the Settings page shows one section at a time in a
+  rail (SectionRail), so there is nothing to collapse into and no setting hides behind a toggle.
+  Props: title, icon, description, unavailable? (a sentence, shown muted at the end), children.
 -->
 <script lang="ts">
-  import { t } from '../../../lib/i18n/t.ts';
   import type { Snippet } from 'svelte';
   import type { IconName } from '../../../lib/icons.ts';
-  import Disclosure from '../../ui/Disclosure.svelte';
+  import { t } from '../../../lib/i18n/t.ts';
+  import Card from '../../ui/Card.svelte';
   import Icon from '../../ui/Icon.svelte';
-  import Section from '../../ui/Section.svelte';
 
   let {
     title,
     icon,
     description,
     unavailable = undefined,
-    summary,
-    key,
-    defaultOpen = true,
     children,
   }: {
     title: string;
     icon: IconName;
     description: string;
     unavailable?: string | undefined;
-    summary?: string | undefined;
-    key?: string | undefined;
-    defaultOpen?: boolean | undefined;
     children: Snippet;
   } = $props();
 </script>
 
-<Section {title} key={key ?? title.toLowerCase().replace(/[^a-z0-9]+/g, '-')} {summary} {defaultOpen}>
+<Card {title}>
   <div class="stack">
     <p class="muted desc"><Icon name={icon} size={14} /> {description}</p>
     {@render children()}
     {#if unavailable}
-      <Disclosure summary={t('app:settings.notAvailable')}>
-        <p class="muted na">{unavailable}</p>
-      </Disclosure>
+      <p class="muted na"><strong>{t('app:settings.notAvailable')}</strong> {unavailable}</p>
     {/if}
   </div>
-</Section>
+</Card>
 
 <style>
   .desc,

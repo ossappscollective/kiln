@@ -65,11 +65,9 @@
 
 <SettingsCard
   title={t('app:settings.part.repository')}
-  key="Repository"
   icon="git-branch"
   description={t('app:repository.description')}
   unavailable={notAvailable.changeRepository}
-  summary={t('app:repository.count', { count: repositories.length })}
 >
   {#if problem}<Alert tone="warn">{problem}</Alert>{/if}
   <div class="stack">

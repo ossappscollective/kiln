@@ -70,7 +70,6 @@
     title={t('products:rc.section.title')}
     icon="tag"
     description={t('products:rc.section.description')}
-    summary={revenueCatSummary(allLinks)}
   >
     {#each served as app (app.id)}
       <section class="stack tight" aria-label={t('products:rc.section.aria', { platform: app.platform })}>

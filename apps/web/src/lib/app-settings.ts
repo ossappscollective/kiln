@@ -1,7 +1,8 @@
 import { type CredentialKind, credentialKindInfo, isCredentialKind } from '@kiln/core';
-import { appAddress } from './app-scope.ts';
+import { appAddress, parseViewPath } from './app-scope.ts';
 import { testStatus } from './credentials.ts';
-import { t } from './i18n/t.ts';
+import { k, t } from './i18n/t.ts';
+import { type RailGroup, nonEmptyGroups, railEntries } from './section-rail.ts';
 import type { SettingsSection } from './settings-views.ts';
 import type {
   BuildConventionsView,
@@ -203,42 +204,85 @@ export function lowRatingText(threshold: number): string {
 // ---------------------------------------------------------------------------------------------
 // The page as a whole: the "Jump to" row, the save bar, the one-line hints, the Danger zone
 
-/** The element ids of the parts of App settings (the wrappers in AppSettings.svelte), in the order they are drawn. */
+/**
+ * The sections of App settings, in the rail (`?section=`, components/ui/SectionRail.svelte): one at a time, every card open. The ids are
+ * the addresses: the old element ids (`app-settings-stores`, ...) still resolve through `resolveAppSettingsSection`.
+ */
 export const appSettingsPartIds = {
-  stores: 'app-settings-stores',
-  repository: 'app-settings-repository',
-  defaults: 'app-settings-defaults',
-  playReleases: 'app-settings-play-releases',
-  playBucket: 'app-settings-play-bucket',
-  notifications: 'app-settings-notifications',
-  ai: 'app-settings-ai',
-  danger: 'app-settings-danger',
+  stores: 'stores',
+  repository: 'repository',
+  integrations: 'integrations',
+  defaults: 'defaults',
+  playReleases: 'play-releases',
+  playBucket: 'play-bucket',
+  notifications: 'notifications',
+  ai: 'ai',
+  danger: 'danger',
 } as const;
 
-/**
- * The parts of App settings the person can jump to. The Google Play parts exist only for an Android record, the AI part only when
- * the assistant is on for this workspace (`ai`), and the Danger zone only for a role that can delete (`canDelete`).
- */
-export function appSettingsSections(input: {
+export type AppSettingsInput = {
+  /** Some record in scope is an Android app (Google Play releases and reports exist only there). */
   android: boolean;
+  /** The AI assistant is on for this workspace and the role may use it. */
   ai: boolean;
+  /** The role may delete an app. */
   canDelete: boolean;
-}): SettingsSection[] {
+};
+
+/** The rail of App settings: groups of the sections that exist for this app and role. */
+export function appSettingsGroups(input: AppSettingsInput): RailGroup[] {
   const ids = appSettingsPartIds;
-  return [
-    { id: ids.stores, label: t('app:settings.part.stores') },
-    { id: ids.repository, label: t('app:settings.part.repository') },
-    { id: ids.defaults, label: t('app:settings.part.defaults') },
-    ...(input.android
-      ? [
-          { id: ids.playReleases, label: t('app:settings.part.playReleases') },
-          { id: ids.playBucket, label: t('app:settings.part.playBucket') },
-        ]
-      : []),
-    { id: ids.notifications, label: t('app:settings.part.notifications') },
-    ...(input.ai ? [{ id: ids.ai, label: t('app:settings.part.ai') }] : []),
-    ...(input.canDelete ? [{ id: ids.danger, label: t('app:settings.part.danger') }] : []),
-  ];
+  const entry = (id: string, label: string) => ({ id, label });
+  return nonEmptyGroups([
+    {
+      id: 'connections',
+      label: t(k('app:settings.group.connections')),
+      entries: [
+        entry(ids.stores, t(k('app:settings.part.stores'))),
+        entry(ids.repository, t(k('app:settings.part.repository'))),
+        entry(ids.integrations, t(k('app:settings.part.integrations'))),
+      ],
+    },
+    {
+      id: 'releases',
+      label: t(k('app:settings.group.releases')),
+      entries: [
+        entry(ids.defaults, t(k('app:settings.part.defaults'))),
+        ...(input.android ? [entry(ids.playReleases, t(k('app:settings.part.playReleases')))] : []),
+      ],
+    },
+    {
+      id: 'data',
+      label: t(k('app:settings.group.data')),
+      entries: [
+        ...(input.android ? [entry(ids.playBucket, t(k('app:settings.part.playBucket')))] : []),
+        entry(ids.notifications, t(k('app:settings.part.notifications'))),
+        ...(input.ai ? [entry(ids.ai, t(k('app:settings.part.ai')))] : []),
+      ],
+    },
+    {
+      id: 'danger',
+      label: t(k('app:settings.group.danger')),
+      entries: input.canDelete ? [entry(ids.danger, t(k('app:settings.part.danger')))] : [],
+    },
+  ]);
+}
+
+/** The flat list of the sections (the rail without its groups). */
+export const appSettingsSections = (input: AppSettingsInput): SettingsSection[] =>
+  railEntries(appSettingsGroups(input)).map((e) => ({ id: e.id, label: e.label }));
+
+/**
+ * The section the address opens: `?section=`, or the old element id of a part (`app-settings-stores`, also in `?view=`); an unknown one or
+ * one this app does not have opens the first section.
+ */
+export function resolveAppSettingsSection(hash: string, ids: readonly string[]): string {
+  const query = parseViewPath(hash).query;
+  for (const asked of [query.get('section'), query.get('view')]) {
+    const id = asked?.replace(/^app-settings-/, '');
+    if (id && ids.includes(id)) return id;
+  }
+  return ids[0] ?? '';
 }
 
 /** What the save bar of a form says. `saving` reads as a pending save, so the words do not flip while the request runs. */

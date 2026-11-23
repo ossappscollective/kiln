@@ -12,7 +12,7 @@
   import { t } from '../../lib/i18n/t.ts';
   import { can, type Role, supports } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { appSettingsPartIds as ids, appSettingsSections, deleteLine } from '../../lib/app-settings.ts';
+  import { appSettingsGroups, appSettingsPartIds as ids, deleteLine, resolveAppSettingsSection } from '../../lib/app-settings.ts';
   import { aiStore } from '../../lib/ai/store.svelte.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { appErrorMessage, appLabel, describeError, platformLabel, portfolioHref, storeName } from '../../lib/portfolio.ts';
@@ -32,9 +32,10 @@
   import Modal from '../ui/Modal.svelte';
   import PageLead from '../ui/PageLead.svelte';
   import { settingsLead } from '../../lib/page-lead.ts';
-  import SectionsToggle from '../ui/SectionsToggle.svelte';
+  import SectionRail from '../ui/SectionRail.svelte';
+  import { address } from '../../lib/address.svelte.ts';
+  import { railEntries, withRailSection } from '../../lib/section-rail.ts';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
-  import JumpTo from '../settings/JumpTo.svelte';
 
   let {
     api,
@@ -50,7 +51,9 @@
   const aiConfig = $derived(aiStore.config(workspaceId));
   /** The AI part is drawn only when the assistant is on for this workspace (the same test as AiContextSection). */
   const aiOn = $derived(can(role, 'ai.use') && aiConfig !== null && aiConfig.state !== 'off_server' && aiConfig.state !== 'off_workspace');
-  const sections = $derived(appSettingsSections({ android: members.some((m) => supports(m.platform, 'releaseTracks')), ai: aiOn, canDelete: canWrite }));
+  const groups = $derived(appSettingsGroups({ android: members.some((m) => supports(m.platform, 'releaseTracks')), ai: aiOn, canDelete: canWrite }));
+  /** The open section: `?section=`, an old part id, or the first one the app has. */
+  const current = $derived(resolveAppSettingsSection(address.hash, railEntries(groups).map((e) => e.id)));
 
   let target = $state<AppSummary | null>(null);
   let open = $state(false);
@@ -76,53 +79,59 @@
 </script>
 
 <div class="stack loose">
-  <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="settings-lead">
-    {#snippet actions()}<SectionsToggle />{/snippet}
-  </PageLead>
-  <JumpTo {sections} label={t('app:settings.parts')} />
-  <div id={ids.stores} class="part" tabindex="-1"><StoresSection {api} {workspaceId} {role} {members} {all} {now} /></div>
-  <div id={ids.repository} class="part" tabindex="-1"><RepositorySection {api} {workspaceId} {role} {members} /></div>
-  <div id={ids.defaults} class="part" tabindex="-1"><DefaultsSection {api} {workspaceId} {role} {members} /></div>
-  <div id="app-settings-expo" class="part" tabindex="-1"><ExpoProjectSection {api} {workspaceId} {role} {members} {now} /></div>
-  <div id="app-settings-revenuecat" class="part" tabindex="-1"><RevenueCatSection {api} {workspaceId} {role} {members} {now} /></div>
-  {#if members.some((m) => supports(m.platform, 'releaseTracks'))}
-    <div id={ids.playReleases} class="part" tabindex="-1"><ReleaseSettingsSection {api} {workspaceId} {role} {members} /></div>
-    <div id={ids.playBucket} class="part" tabindex="-1"><AnalyticsSection {api} {workspaceId} {role} {members} /></div>
-  {/if}
-  <div id={ids.notifications} class="part" tabindex="-1"><NotificationsSection {api} {workspaceId} {role} /></div>
-  <div id={ids.ai} class="part" tabindex="-1"><AiContextSection {api} {workspaceId} {role} {members} /></div>
-
-  <section id={ids.danger} class="part danger" tabindex="-1" aria-labelledby="app-settings-danger-title">
-    <h3 id="app-settings-danger-title">{t('app:settings.dangerZone')}</h3>
-    <p class="intro">{t('app:settings.dangerIntro')}</p>
-    {#if canWrite}
-      <ul class="plain">
-        {#each members as app (app.id)}
-          <li class="drow">
-            <div class="who">
-              <span class="row">
-                <PlatformBadge platform={app.platform} tinted />
-                <span class="muted"><T key="app:settings.added" params={{ when: timeAgo(app.createdAt, now) }} tags={{ link: addedTime }} /></span>
-                {#snippet addedTime(text: string)}<time datetime={new Date(app.createdAt).toISOString()} title={fullTime(app.createdAt)}>{text}</time>{/snippet}
-              </span>
-              <p class="warning">{deleteLine(storeName(app.platform))}</p>
-            </div>
-            <Button
-              variant="danger"
-              icon="trash"
-              onclick={() => {
-                target = app;
-                problem = '';
-                open = true;
-              }}>{t('app:settings.deletePlatformApp', { platform: platformLabel(app.platform) })}</Button
-            >
-          </li>
-        {/each}
-      </ul>
+  <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="settings-lead" />
+  <SectionRail {groups} value={current} hrefFor={(id) => withRailSection(address.hash, id)} label={t('app:settings.navLabel')}>
+    {#if current === ids.stores}
+      <StoresSection {api} {workspaceId} {role} {members} {all} {now} />
+    {:else if current === ids.repository}
+      <RepositorySection {api} {workspaceId} {role} {members} />
+    {:else if current === ids.integrations}
+      <div class="part"><ExpoProjectSection {api} {workspaceId} {role} {members} {now} /></div><div class="part"><RevenueCatSection {api} {workspaceId} {role} {members} {now} /></div>
+      <p class="none muted">{t('app:settings.integrationsNone')}</p>
+    {:else if current === ids.defaults}
+      <DefaultsSection {api} {workspaceId} {role} {members} />
+    {:else if current === ids.playReleases}
+      <ReleaseSettingsSection {api} {workspaceId} {role} {members} />
+    {:else if current === ids.playBucket}
+      <AnalyticsSection {api} {workspaceId} {role} {members} />
+    {:else if current === ids.notifications}
+      <NotificationsSection {api} {workspaceId} {role} />
+    {:else if current === ids.ai}
+      <AiContextSection {api} {workspaceId} {role} {members} />
     {:else}
-      <p class="warning">{t('app:settings.adminOnly')}</p>
+    <section class="danger" aria-labelledby="app-settings-danger-title">
+      <h3 id="app-settings-danger-title">{t('app:settings.dangerZone')}</h3>
+      <p class="intro">{t('app:settings.dangerIntro')}</p>
+      {#if canWrite}
+        <ul class="plain">
+          {#each members as app (app.id)}
+            <li class="drow">
+              <div class="who">
+                <span class="row">
+                  <PlatformBadge platform={app.platform} tinted />
+                  <span class="muted"><T key="app:settings.added" params={{ when: timeAgo(app.createdAt, now) }} tags={{ link: addedTime }} /></span>
+                  {#snippet addedTime(text: string)}<time datetime={new Date(app.createdAt).toISOString()} title={fullTime(app.createdAt)}>{text}</time>{/snippet}
+                </span>
+                <p class="warning">{deleteLine(storeName(app.platform))}</p>
+              </div>
+              <Button
+                variant="danger"
+                icon="trash"
+                onclick={() => {
+                  target = app;
+                  problem = '';
+                  open = true;
+                }}>{t('app:settings.deletePlatformApp', { platform: platformLabel(app.platform) })}</Button
+              >
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <p class="warning">{t('app:settings.adminOnly')}</p>
+      {/if}
+    </section>
     {/if}
-  </section>
+  </SectionRail>
 </div>
 
 {#if canWrite}
@@ -144,16 +153,18 @@
 {/if}
 
 <style>
-  .part {
-    scroll-margin-top: var(--space-4);
-  }
-
-  .part:focus {
-    outline: none;
-  }
-
+  /* Expo and RevenueCat draw nothing when they do not apply; the note shows when both are empty. */
   .part:empty {
     display: none;
+  }
+
+  .none {
+    display: none;
+    margin: 0;
+  }
+
+  .part:empty + .part:empty + .none {
+    display: block;
   }
 
   /* Set apart at the bottom: a red edge, the warning always on screen, nothing folded. */

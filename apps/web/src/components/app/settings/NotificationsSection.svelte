@@ -56,7 +56,6 @@
 
 <SettingsCard
   title={t('app:settings.part.notifications')}
-  key="Notifications"
   icon="bell"
   description={t('app:notifications.description')}
   unavailable={notAvailable.appNotifications}

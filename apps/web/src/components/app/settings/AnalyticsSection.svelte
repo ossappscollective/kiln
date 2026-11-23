@@ -23,7 +23,6 @@ import { supports } from '@kiln/core';
 {#if android.length > 0}
   <SettingsCard
     title={t('app:analytics.title')}
-    key="Play reports bucket"
     icon="trending-up"
     description={t('app:analytics.description')}
   >

@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   appEventTypes,
+  appSettingsGroups,
   appSettingsSections,
+  resolveAppSettingsSection,
   conventionLines,
   credentialFacts,
   deleteLine,
@@ -118,18 +120,20 @@ test('low rating text', () => {
   assert.equal(lowRatingText(0), 'Low-rating alerts are off.');
 });
 
-test('the Jump to row lists only the parts that are drawn', () => {
+test('the rail lists only the sections that exist, in groups with no empty group', () => {
   const labels = (input: Parameters<typeof appSettingsSections>[0]) =>
     appSettingsSections(input).map((s) => s.label);
   assert.deepEqual(labels({ android: false, ai: false, canDelete: false }), [
     'Stores',
     'Repository',
+    'Expo and RevenueCat',
     'Release defaults',
     'Notifications',
   ]);
   assert.deepEqual(labels({ android: true, ai: true, canDelete: true }), [
     'Stores',
     'Repository',
+    'Expo and RevenueCat',
     'Release defaults',
     'Google Play releases',
     'Reports bucket',
@@ -151,4 +155,14 @@ test('one-line hints and the Danger zone line', () => {
   assert.match(stagedRolloutHint(true), /has an earlier production release\.$/);
   assert.match(stagedRolloutHint(false), /no earlier production release/);
   assert.match(deleteLine('the App Store'), /Nothing in the App Store is changed/);
+});
+
+test('the address opens a section: ?section=, an old part id, else the first; a section the app lacks falls back', () => {
+  const ids = appSettingsSections({ android: false, ai: false, canDelete: false }).map((s) => s.id);
+  assert.equal(resolveAppSettingsSection('#/apps/a/settings', ids), 'stores');
+  assert.equal(resolveAppSettingsSection('#/apps/a/settings?section=notifications', ids), 'notifications');
+  assert.equal(resolveAppSettingsSection('#/apps/a/settings?section=app-settings-repository', ids), 'repository');
+  assert.equal(resolveAppSettingsSection('#/apps/a/settings?view=app-settings-defaults', ids), 'defaults');
+  assert.equal(resolveAppSettingsSection('#/apps/a/settings?section=play-bucket', ids), 'stores');
+  assert.deepEqual(appSettingsGroups({ android: false, ai: false, canDelete: false }).map((g) => g.id), ['connections', 'releases', 'data']);
 });

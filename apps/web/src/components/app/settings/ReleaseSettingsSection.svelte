@@ -100,7 +100,6 @@
 {#if android}
   <SettingsCard
     title={t('app:settings.part.playReleases')}
-    key="Google Play releases"
     icon="rocket"
     description={t('app:releaseSettings.description')}
   >

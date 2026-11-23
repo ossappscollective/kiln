@@ -107,8 +107,6 @@
   <SettingsCard
     title={t('app:settings.part.ai')}
     icon="sparkles"
-    key="ai-context"
-    defaultOpen={false}
     description={t('app:ai.description')}
   >
     {#if loadFailed && members.every((m) => saved[m.id] === undefined)}

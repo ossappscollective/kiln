@@ -61,7 +61,6 @@
 
 <SettingsCard
   title={t('app:settings.part.defaults')}
-  key="Release defaults"
   icon="rocket"
   description={t('app:defaults.description')}
   unavailable={notAvailable.releaseDefaults}
