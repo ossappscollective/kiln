@@ -300,6 +300,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+    align-items: stretch; /* the global .row centres: in a column that centred the content */
     padding: var(--space-3) var(--space-4);
     border-top: 1px solid var(--line);
   }
