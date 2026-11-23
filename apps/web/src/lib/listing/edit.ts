@@ -344,3 +344,26 @@ export function stageBlockedReason(input: {
   if (input.unchanged) return t('listing:edit.blocked.unchanged');
   return null;
 }
+
+/**
+ * The state machine of "Stage" in an editor that is a modal: the stage call succeeded (the text is in Kiln's database, the cart button
+ * pulses and says so) -> close; it failed -> stay open with the sentence. What runs after a success (re-reading the screens behind) can
+ * never turn a staged text into an error: a failure there is dropped, the next read of the shared state fixes the view.
+ */
+export async function stageThenClose(
+  stage: () => Promise<void>,
+  afterStaged: (() => void | Promise<void>) | undefined,
+  describe: (error: unknown) => string,
+): Promise<{ close: boolean; problem: string }> {
+  try {
+    await stage();
+  } catch (e) {
+    return { close: false, problem: describe(e) };
+  }
+  try {
+    await afterStaged?.();
+  } catch {
+    // staged all the same
+  }
+  return { close: true, problem: '' };
+}

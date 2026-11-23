@@ -6,7 +6,7 @@
   field says now and staged only when the person says so.
   Reading order (docs/design/readability.md, "Second pass: forms and dialogs"): the label, the box, the counter and ONE line of hint (why Stage
   is off, in red when the text is over the limit); then the quiet helpers (the AI suggestion); the comparison with the store sits behind
-  "Show the changes against the store" and only exists once the text differs. The primary is "Stage in <field>" in the footer.
+  "Show the changes against the store" and only exists once the text differs. The primary is "Stage in <field>" in the footer: once staged the editor closes (focus returns to what opened it); if staging fails it stays open with the reason.
   Everything here is saved in OUR OWN database as a staged change. Nothing reaches a store: the staged text goes to the store's draft
   only through the previewed, confirmed push of the staged changes, which this never starts. The App Store name and subtitle cannot be
   written by a draft push, so for them the editor is a place to work the text out and copy it, and says so.
@@ -27,6 +27,7 @@
     notStageableReason,
     sameText,
     stageBlockedReason,
+    stageThenClose,
   } from '../../lib/listing/edit.ts';
   import { canStage, findStagedText, normalizeText, stagingError } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
@@ -151,16 +152,20 @@
     if (busy !== '' || blocked !== null || info === null) return;
     busy = 'stage';
     problem = '';
-    try {
-      const done = await api.stageText(workspaceId, appId, { locale, field, from: 'local', value: draft });
-      stagedStore.set(done.staged);
-      toast.success(t('listing:editor.stagedToast', { field: info.lower, locale }));
-      await onstaged?.();
-    } catch (e) {
-      problem = stagingError(e);
-    } finally {
-      busy = '';
-    }
+    const lower = info.lower;
+    // Staged: the editor closes and the focus goes back to what opened it (Modal). Failed: it stays open with the sentence.
+    const outcome = await stageThenClose(
+      async () => {
+        const done = await api.stageText(workspaceId, appId, { locale, field, from: 'local', value: draft });
+        stagedStore.set(done.staged);
+        toast.success(t('listing:editor.stagedToast', { field: lower, locale }));
+      },
+      onstaged,
+      stagingError,
+    );
+    busy = '';
+    problem = outcome.problem;
+    if (outcome.close) open = false;
   }
 
   async function unstage() {
