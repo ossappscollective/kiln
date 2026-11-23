@@ -186,6 +186,9 @@
             ontoggle={() => toggle(c.id)}
             onremove={() => remove(c)}
             busy={busyId === c.id}
+            {api}
+            {workspaceId}
+            onchecked={() => void load()}
           />
         {/each}
       </div>

@@ -5,6 +5,7 @@
   Props: competitor, history (or null while it loads), now, canWrite, comparing, ontoggle, onremove, showStore.
 -->
 <script lang="ts">
+  import type { Api } from '../../lib/api.ts';
   import { type AsoCompetitor, type AsoCompetitorHistory, changeText, countText, lastChangeText, ratingText } from '../../lib/aso/aso.ts';
   import { agoText } from '../../lib/aso/ago.ts';
   import { formatDate } from '../../lib/i18n/format.ts';
@@ -13,6 +14,7 @@
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
+  import CompetitorChanges from './CompetitorChanges.svelte';
 
   let {
     competitor,
@@ -23,6 +25,9 @@
     ontoggle,
     onremove,
     busy = false,
+    api,
+    workspaceId,
+    onchecked,
   }: {
     competitor: AsoCompetitor;
     history: AsoCompetitorHistory | null;
@@ -32,6 +37,9 @@
     ontoggle: () => void;
     onremove: () => void;
     busy?: boolean | undefined;
+    api: Api;
+    workspaceId: string;
+    onchecked?: (() => void) | undefined;
   } = $props();
 
   const uid = $props.id();
@@ -96,6 +104,7 @@
       </ul>
     </Disclosure>
   {/if}
+  <CompetitorChanges {api} {workspaceId} appId={competitor.appId} {competitor} {canWrite} {now} {onchecked} />
 </article>
 
 <style>

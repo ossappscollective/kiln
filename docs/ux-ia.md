@@ -224,6 +224,10 @@ Every app page reads top to bottom in the same order, so two pages never seem st
 4. **Rail | content** (`ui/SectionRail`, `?section=`): the **sections inside one page** (Insights Overview, Builds, app Settings, workspace Settings). The rail is
    sticky, drawn only with two or more sections, and the content scrolls beside it; a section that would be empty for the data at hand is not listed.
 
+Competitor listing changes ([ADR 0056](adr/0056-competitor-listing-watch.md)) follow the same hierarchy and add no tab: they are a collapsed "Listing changes" part of each competitor card in Insights, Keywords, Competitors
+(before and after strips, collapsed word diffs, "Check now", left aligned rows that wrap instead of scrolling sideways), a `competitor_change` event on the Timeline tab (its filter chip is the kind label) and an optional alert.
+Google Play competitors show "not watched" with the reason: Kiln does not read Google Play pages.
+
 Rules: tabs are pages and the rail is sections, never both for the same level; a block with no data is one compact line saying why and how to fix it, not an
 empty column; with several platforms prefer one comparison (a row per measure) to repeating long runs, and draw side by side only what both have; tiles sit in a
 uniform grid. Pages with tabs and sections follow the Insights Overview; Builds, app Settings and workspace Settings already use the rail without tabs.

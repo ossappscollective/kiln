@@ -6,6 +6,7 @@
 import { type Platform, type TimelineEvent, type TimelineEventKind, addDays, daysBetween, timelineEventKinds } from '@kiln/core';
 import { type PlatformScope, appAddress } from '../app-scope.ts';
 import { formatDay } from '../analytics/analytics.ts';
+import { asoViewHref } from '../aso/aso.ts';
 import { k, t } from '../i18n/t.ts';
 import type { IconName } from '../icons.ts';
 
@@ -28,6 +29,7 @@ export const kindLabelKeys: Record<TimelineEventKind, string> = {
   graphics: k('timeline:kind.graphics'),
   experiment_started: k('timeline:kind.experimentStarted'),
   experiment_ended: k('timeline:kind.experimentEnded'),
+  competitor_change: k('timeline:kind.competitorChange'),
   ad_campaign: k('timeline:kind.adCampaign'),
   price_change: k('timeline:kind.priceChange'),
   press: k('timeline:kind.press'),
@@ -43,6 +45,7 @@ export const kindIcons: Record<TimelineEventKind, IconName> = {
   graphics: 'image',
   experiment_started: 'play',
   experiment_ended: 'stop',
+  competitor_change: 'eye',
   ad_campaign: 'trending-up',
   price_change: 'tag',
   press: 'message',
@@ -59,6 +62,19 @@ const labelKeys = {
   listingDrift: k('timeline:event.listingDrift'),
   experimentStarted: k('timeline:event.experimentStarted'),
   experimentEnded: k('timeline:event.experimentEnded'),
+  competitorChange: k('timeline:event.competitorChange'),
+};
+
+/** The words for the kinds of change of a competitor listing (the codes the server sends in `kinds`, separated by commas). */
+const competitorKindKeys: Record<string, string> = {
+  screenshots: k('timeline:event.competitorKind.screenshots'),
+  icon: k('timeline:event.competitorKind.icon'),
+  name: k('timeline:event.competitorKind.name'),
+  description: k('timeline:event.competitorKind.description'),
+  releaseNotes: k('timeline:event.competitorKind.releaseNotes'),
+  category: k('timeline:event.competitorKind.category'),
+  price: k('timeline:event.competitorKind.price'),
+  version: k('timeline:event.competitorKind.version'),
 };
 
 /** The sentence of an event: a person's title as written, a Kiln event from its code (an unknown code reads as its kind). */
@@ -84,6 +100,15 @@ export function eventText(e: Pick<TimelineEvent, 'kind' | 'origin' | 'title' | '
       return t(labelKeys.experimentStarted, { name: String(p.name ?? '') });
     case 'experimentEnded':
       return t(labelKeys.experimentEnded, { name: String(p.name ?? '') });
+    case 'competitorChange': {
+      const what = String(p.kinds ?? '')
+        .split(',')
+        .map((kind) => competitorKindKeys[kind])
+        .filter((key): key is string => key !== undefined)
+        .map((key) => t(key))
+        .join(', ');
+      return t(labelKeys.competitorChange, { name: String(p.name ?? ''), what });
+    }
     default:
       return t(kindLabelKeys[e.kind]);
   }
@@ -111,6 +136,8 @@ export function eventHref(e: Pick<TimelineEntry, 'kind' | 'origin' | 'version' |
     case 'experiment_started':
     case 'experiment_ended':
       return withParam(appAddress(e.appId, 'insights', scope), 'view', 'experiments');
+    case 'competitor_change':
+      return asoViewHref(e.appId, 'competitors', scope);
     default:
       return null;
   }

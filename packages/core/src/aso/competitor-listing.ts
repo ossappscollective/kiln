@@ -1,6 +1,5 @@
 // The competitor listing watch: what changed between two reads of an App Store competitor's public page
-// (docs/adr/0056-competitor-listing-watch.md). Pure; ES2017 (the web imports it). Adapted in approach from Open Screenshot
-// Generator (MIT), see THIRD_PARTY_NOTICES.md: compare by a stable image identity, ignore whitespace, treat noise as no change.
+// (docs/adr/0056-competitor-listing-watch.md). Pure; ES2017 (the web imports it). Written for Kiln; no code from another project.
 
 /** Everything of the listing the watch compares, as Apple's lookup gives it. The addresses are kept as read so the proxy can show them. */
 export type ListingState = {

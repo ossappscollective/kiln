@@ -72,6 +72,7 @@ import type {
   AsoSuggestionsResponse,
   AsoSummary,
 } from './aso/aso.ts';
+import type { CompetitorChangesPage, CompetitorCheckResult } from './aso/competitor-changes.ts';
 import type { RankVsDownloadsResponse } from './aso/rank-downloads.ts';
 import type {
   SearchTermsImportResult,
@@ -2356,6 +2357,18 @@ export function createApi(options: ApiOptions = {}) {
       request<AsoCompetitorHistory>(
         'GET',
         `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}/history?limit=${limit}`,
+      ),
+    /** The listing changes Kiln found on an App Store competitor, newest first (reads what is stored). `before` is the `detectedAt` of the last one you have. */
+    asoCompetitorChanges: (workspaceId: string, appId: string, competitorId: string, limit = 10, before?: number) =>
+      request<CompetitorChangesPage>(
+        'GET',
+        `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}/changes?limit=${limit}${before === undefined ? '' : `&before=${before}`}`,
+      ),
+    /** "Check now": one read of the public store for one competitor (shared cache and limits; not within 5 minutes of the last read). */
+    checkAsoCompetitor: (workspaceId: string, appId: string, competitorId: string) =>
+      request<CompetitorCheckResult>(
+        'POST',
+        `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}/check`,
       ),
     /** Ranked next steps, worked out from stored data (no store is read). */
     asoCoach: (workspaceId: string, appId: string) =>

@@ -10,8 +10,8 @@ downloads), `days` 7, 14 (default) or 28 (the window before and after an event u
 Answer: `app`, `metrics` (only those with data), `metric`, `from`, `to`, `days`, `latest`, `points` (a day each, `value: null` is no number), `events`.
 
 An event: `id` (`m:<id>` a person's, `k:<source>:<ref>` Kiln's), `day`, `kind` (`release`, `rollout`, `listing_text`, `listing_drift`, `graphics`, `experiment_started`,
-`experiment_ended`, `ad_campaign`, `price_change`, `press`, `other`), `origin` (`kiln` | `manual`), `label` (`{ code, params }` for Kiln events: `release`, `releaseRollingOut`,
-`rolloutStep`, `graphics`, `listingText`, `listingDrift`, `experimentStarted`, `experimentEnded`; the screens translate it), `title` and `note` (a person's), `version`, `liveDay`,
+`experiment_ended`, `competitor_change`, `ad_campaign`, `price_change`, `press`, `other`), `origin` (`kiln` | `manual`), `label` (`{ code, params }` for Kiln events: `release`, `releaseRollingOut`,
+`rolloutStep`, `graphics`, `listingText`, `listingDrift`, `experimentStarted`, `experimentEnded`, `competitorChange` (params `name`, `kinds`: a followed App Store competitor changed its listing, one event per competitor and day; [ADR 0056](../adr/0056-competitor-listing-watch.md)); the screens translate it), `title` and `note` (a person's), `version`, `liveDay`,
 `waitsForRelease`, `impact` (before and after for the chosen metric, or null). There is no author or time of creation in the answer.
 
 ## POST .../timeline/events, PATCH and DELETE .../timeline/events/{eventId}

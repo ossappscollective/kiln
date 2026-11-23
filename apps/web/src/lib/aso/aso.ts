@@ -144,6 +144,8 @@ export type AsoCompetitorSearchResult = {
   developer: string | null;
   category: string | null;
   iconUrl: string | null;
+  /** An opaque ref for the icon proxy (`searchImageUrl`); the browser cannot load the store's CDN itself. */
+  iconRef: string | null;
   ratingAverage: number | null;
   ratingCount: number | null;
   price: string | null;
