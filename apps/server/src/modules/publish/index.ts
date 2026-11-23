@@ -1,4 +1,5 @@
 import type { ServerModule } from '../module.ts';
+import { type CartRoutesContext, cartRoutes } from './cart-routes.ts';
 import { type PendingRoutesContext, pendingRoutes } from './pending-routes.ts';
 import { type ReleaseRoutesContext, storeReleaseRoutes } from './release-routes.ts';
 import { type RolloutRoutesContext, rolloutRoutes } from './rollout-routes.ts';
@@ -13,6 +14,8 @@ import { storeVersionRoutes, type VersionRoutesContext } from './version-routes.
  * its own switch, right, seams and gates. The seams below are what tests replace; production sets only the switches.
  */
 export type PublishDeps = {
+  /** The reply seams of the reviews (the pending cart sends reply drafts through them): `ReviewsDeps['reply']`. */
+  reply?: CartRoutesContext['reply'] | undefined;
   /**
    * Changing a live rollout (KILN_STORE_ROLLOUT_ENABLED). `connectorFactory` builds the connector that can read and change a
    * rollout (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
@@ -50,7 +53,7 @@ export const publishModule: ServerModule<PublishDeps> = {
   id: 'publish',
   mount(app, services, deps, shared) {
     const { db, masterKey, now } = services;
-    const { rollout, draft, submit, release, version, publish } = deps ?? {};
+    const { rollout, draft, submit, release, version, publish, reply } = deps ?? {};
     app.route(
       '/api/workspaces',
       rolloutRoutes({ db, masterKey, now, ...(rollout ? { rollout } : {}) }),
@@ -114,6 +117,17 @@ export const publishModule: ServerModule<PublishDeps> = {
         ...(submit ? { submit } : {}),
         ...(release ? { release } : {}),
         ...(rollout ? { rollout } : {}),
+      }),
+    );
+    app.route(
+      '/api/workspaces',
+      cartRoutes({
+        db,
+        masterKey,
+        now,
+        repo: shared.repo,
+        ...(draft ? { draft } : {}),
+        ...(reply ? { reply } : {}),
       }),
     );
   },

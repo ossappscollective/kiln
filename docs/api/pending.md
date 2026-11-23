@@ -9,6 +9,7 @@ Not run against a real store: see [not verified](../adr/0015-pending-and-batch-p
 | `GET /apps/{id}/pending`          | `listing.read`                      | The pending items of the app. Stored state only.                        |
 | `GET /pending/summary`            | `listing.read`                      | Which apps have something pending. Stored state only.                   |
 | `GET /store-publish/config`       | `apps.read`                         | The switch, the action, the phrase and each step's switch.              |
+| `GET /apps/{id}/pending/cart`, `POST …/pending/publish`, `POST …/pending/discard` | see [the pending cart](#the-pending-cart) | The cart: unsent items, publish and discard a subset. |
 | `POST /apps/{id}/publish/preview` | `store.publish`                     | The plan. Reads the stores through the steps' previews. Writes nothing. |
 | `POST /apps/{id}/publish`         | `store.publish` + each step's right | Runs the plan's steps in order.                                         |
 
@@ -100,6 +101,57 @@ there is no ETag (no summary in this API has one).
 Only apps with something pending or in review are listed (an app that is not listed has nothing); sorted with blocking first, then
 by count and name. `count` is the items that wait for a step, `waiting` the informational ones. A token limited to some apps sees
 only those apps.
+
+## The pending cart
+
+What was prepared here and not sent yet, as one typed list, and a subset publish or discard. Design: [ADR 0054](../adr/0054-pending-cart.md).
+It adds no state and no store write of its own: items are adapters over `staged_changes` and `review_reply_drafts`, publishing calls
+the push of staged changes and the reply send, and each keeps its switch, right, step-up, claim, re-read and audit.
+
+| Route                                | Needs                                            | Does                                                          |
+| ------------------------------------ | ------------------------------------------------ | ------------------------------------------------------------- |
+| `GET /apps/{id}/pending/cart`        | `listing.read`                                   | The items, with `publishable` and a `reason` per item.        |
+| `POST /apps/{id}/pending/publish`    | per item: `store.push_draft` or `reviews.reply`  | Sends the named items. `200` with a result per item.          |
+| `POST /apps/{id}/pending/discard`    | per item: `changesets.write` or `reviews.triage` | Removes Kiln's draft of the named items. No store is called.  |
+
+An item without the caller's right is listed (`publishable: false`, `reason.code: no_right`) and skipped by publish. A token also needs
+the action in its list (explicit-only actions stay explicit). A non-member gets 404.
+
+### `GET /apps/{id}/pending/cart`
+
+`{ cart: { items, can, generatedAt } }`. `can` is `{ push, reply, discardStaged, discardReply }` for the caller. An item:
+`id` (`<kind>:<id>`), `kind` (`listing`, `graphics`, `release`, `review_reply`), `title`, `summary` (short excerpt of the new text; null
+for graphics), `before`, `platform`, `store`, `locale`, `createdAt`, `author { id, name }`, `risk` (`store_draft`: written as a draft,
+nothing is submitted; `public_reply`: public at once), `needsApproval` (the step-up policy covers `store.push_draft`), `publishable`,
+`reason { code, action?, envName? }` (`no_right`, `switch_off`, `invalid`, `bundle_blocked`, `in_progress`, `outcome_unknown`),
+`canDiscard`, `bundle`, `version`, `counts`, `problems`, `ref` (where it was made) and, for replies, `review { rating, excerpt, language,
+territory, status }`. Ordered by kind (listing, graphics, release, review_reply), then age. Stored state only; `Cache-Control: no-store`.
+Texts and excerpts are shown to people who can already read them in the staged view and the review inbox; they are never audited or put in events.
+Not in the cart: pushed drafts waiting for submit, versions in review, approved versions, rollout steps (see [Pending view](#pending-view-read-only)).
+
+### `POST /apps/{id}/pending/publish`
+
+Body `{ "items": [ { "id": "listing:…", "version": "…" } ] }` (1 to 200; id and version as listed). Staged items (`listing`, `graphics`,
+`release`) are written by ONE push of the app as a store **draft** (`KILN_STORE_DRAFT_WRITE_ENABLED`, `store.push_draft`, step-up policy:
+`403 step_up_required` before anything is read; nothing is submitted). They form a bundle (`bundle`): all items of the bundle must be named
+at their listed `version`, or all are skipped. Replies are sent one by one through the reply send (`KILN_REVIEW_REPLY_ENABLED`,
+`reviews.reply`, rate limit, claim, read-back).
+
+```json
+{ "result": { "results": [
+  { "id": "listing:…", "status": "ok", "reason": null },
+  { "id": "review_reply:…", "status": "failed", "reason": "store_forbidden", "httpStatus": 422 },
+  { "id": "release:…", "status": "skipped", "reason": "not_pending" } ], "remaining": 1 } }
+```
+
+`status`: `ok`, `failed` (`reason` is the code the underlying step answered), `skipped` (`not_pending`, `changed_since_review`,
+`bundle_incomplete`, or the item's reason code). One failure never blocks the others; repeating a request is safe. Audit `pending.cart_published`
+(ids and outcome codes). The underlying steps write their own audit entries and events.
+
+### `POST /apps/{id}/pending/discard`
+
+Body `{ "ids": ["listing:…", "review_reply:…"] }`. Same result shape (`remaining` counts what is still in the cart). Discarding removes the
+staged change or the reply draft; a reply in flight or with an unknown outcome is kept. Audit `pending.cart_discarded`.
 
 ## Publishing
 

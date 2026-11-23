@@ -1,0 +1,176 @@
+import { type Action, can, canToken } from '@kiln/core';
+import type { Database } from '@kiln/db';
+import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
+import { z } from 'zod';
+import { type AppEnv, parseBody } from '../../http.ts';
+import { memberRole } from '../../services/accounts.ts';
+import type { Failure } from '../../services/repositories.ts';
+import { requireStepUp } from '../../services/step-up.ts';
+import type { AssetsContext } from '../listing/asset-repo.ts';
+import {
+  defaultReplyConnectorFactory,
+  type ReviewReplyConnectorFactory,
+  type ReviewReplyContext,
+} from '../reviews/replies.ts';
+import { type CartContext, type CartRights, discardCart, getCart, publishCart } from './cart.ts';
+import {
+  type DraftConnectorFactory,
+  type DraftContext,
+  defaultDraftConnectorFactory,
+} from './store-draft.ts';
+
+/**
+ * The pending cart (docs/api/pending.md, docs/adr/0054-pending-cart.md). Reads stored state; publishing delegates to the push of the
+ * staged changes and to the reply send, with their switches and rights; nothing is sent that the request did not name.
+ * Mounted under /api/workspaces.
+ */
+export type CartRoutesContext = {
+  db: Database;
+  masterKey: Buffer;
+  now: () => number;
+  repo: AssetsContext['repo'];
+  /** The same seams as the push of staged changes. */
+  draft?: {
+    enabled?: boolean;
+    connectorFactory?: DraftConnectorFactory;
+    timeoutMs?: number;
+    claimTtlMs?: number;
+  };
+  /** The same seams as the reply send of the reviews. */
+  reply?: {
+    enabled?: boolean;
+    connectorFactory?: ReviewReplyConnectorFactory;
+    timeoutMs?: number;
+    claimTtlMs?: number;
+    sendsPerHour?: number;
+  };
+};
+
+const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
+const ws = (c: Context<AppEnv>) => param(c, 'workspaceId');
+const actor = (c: Context<AppEnv>) => ({ type: 'user' as const, id: c.get('user').id });
+const respond = (c: Context<AppEnv>, f: Failure) => {
+  for (const [name, value] of Object.entries(f.headers ?? {})) c.header(name, value);
+  return c.json(f.body, f.status);
+};
+
+const itemId = z.string().min(3).max(220);
+export const cartPublishBody = z
+  .object({
+    items: z
+      .array(z.object({ id: itemId, version: z.string().min(1).max(64) }).strict())
+      .min(1)
+      .max(200),
+  })
+  .strict();
+export const cartDiscardBody = z
+  .object({ ids: z.array(itemId).min(1).max(200) })
+  .strict();
+
+const STAGED_PREFIXES = ['listing:', 'graphics:', 'release:'];
+
+export function cartRoutes(ctx: CartRoutesContext) {
+  const { db } = ctx;
+  const routes = new Hono<AppEnv>();
+  const draft: DraftContext = {
+    db,
+    masterKey: ctx.masterKey,
+    now: ctx.now,
+    draftEnabled: ctx.draft?.enabled ?? false,
+    draftConnectorFactory: ctx.draft?.connectorFactory ?? defaultDraftConnectorFactory,
+    assets: { repo: ctx.repo },
+    ...(ctx.draft?.timeoutMs !== undefined ? { draftTimeoutMs: ctx.draft.timeoutMs } : {}),
+    ...(ctx.draft?.claimTtlMs !== undefined ? { claimTtlMs: ctx.draft.claimTtlMs } : {}),
+  };
+  const reply: ReviewReplyContext = {
+    db,
+    masterKey: ctx.masterKey,
+    now: ctx.now,
+    replyEnabled: ctx.reply?.enabled ?? false,
+    replyConnectorFactory: ctx.reply?.connectorFactory ?? defaultReplyConnectorFactory,
+    ...(ctx.reply?.timeoutMs !== undefined ? { replyTimeoutMs: ctx.reply.timeoutMs } : {}),
+    ...(ctx.reply?.claimTtlMs !== undefined ? { claimTtlMs: ctx.reply.claimTtlMs } : {}),
+    ...(ctx.reply?.sendsPerHour !== undefined ? { sendsPerHour: ctx.reply.sendsPerHour } : {}),
+  };
+  const cart: CartContext = {
+    db,
+    now: ctx.now,
+    draft,
+    reply,
+    staged: { db, now: ctx.now, assets: { repo: ctx.repo } },
+  };
+
+  const needs = (action: Action) => async (c: Context<AppEnv>, next: Next) => {
+    const role = await memberRole(db, ws(c), c.get('user').id);
+    if (!role) return c.json({ error: 'not_found' }, 404);
+    if (!can(role, action)) return c.json({ error: 'forbidden' }, 403);
+    c.set('role', role);
+    return next();
+  };
+
+  /** What the caller may do per kind: the member's role (already lowered to the token's ceiling) AND, for a token, its own list. */
+  const rightsOf = (c: Context<AppEnv>): CartRights => {
+    const role = c.get('role');
+    const token = c.get('token');
+    const allowed = (action: Action) =>
+      can(role, action) &&
+      (token === undefined || canToken(token.ceiling, token.actions as Action[] | null, action));
+    return {
+      push: allowed('store.push_draft'),
+      reply: allowed('reviews.reply'),
+      discardStaged: allowed('changesets.write'),
+      discardReply: allowed('reviews.triage'),
+    };
+  };
+
+  routes.get('/:workspaceId/apps/:id/pending/cart', needs('listing.read'), async (c) => {
+    const rights = rightsOf(c);
+    const done = await getCart(cart, { workspaceId: ws(c), appId: param(c, 'id'), rights });
+    c.header('Cache-Control', 'no-store');
+    return done.ok
+      ? c.json({ cart: { items: done.items, can: rights, generatedAt: done.generatedAt } })
+      : respond(c, done);
+  });
+
+  routes.post('/:workspaceId/apps/:id/pending/publish', needs('listing.read'), async (c) => {
+    const body = await parseBody(c, cartPublishBody);
+    if (!body.ok) return body.response;
+    // Writing a store draft is a step-up action: ask before anything is read, only when the request names a staged change.
+    if (body.data.items.some((i) => STAGED_PREFIXES.some((p) => i.id.startsWith(p)))) {
+      const refusal = await requireStepUp({ db, now: ctx.now }, c, 'store.push_draft', {
+        id: param(c, 'id'),
+      });
+      if (refusal) return refusal;
+    }
+    const done = await publishCart(cart, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      items: body.data.items,
+      rights: rightsOf(c),
+      actor: actor(c),
+    });
+    c.header('Cache-Control', 'no-store');
+    return done.ok
+      ? c.json({ result: { results: done.results, remaining: done.remaining } })
+      : respond(c, done);
+  });
+
+  routes.post('/:workspaceId/apps/:id/pending/discard', needs('listing.read'), async (c) => {
+    const body = await parseBody(c, cartDiscardBody);
+    if (!body.ok) return body.response;
+    const done = await discardCart(cart, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      ids: body.data.ids,
+      rights: rightsOf(c),
+      actor: actor(c),
+    });
+    c.header('Cache-Control', 'no-store');
+    return done.ok
+      ? c.json({ result: { results: done.results, remaining: done.remaining } })
+      : respond(c, done);
+  });
+
+  return routes;
+}

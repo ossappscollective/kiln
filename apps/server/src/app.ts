@@ -516,6 +516,7 @@ export function createApp(deps: AppDeps) {
       release: deps.storeRelease,
       version: deps.storeVersion,
       publish: deps.storePublish,
+      reply: deps.reviews?.reply,
     },
     shared,
   );

@@ -7,6 +7,7 @@ import {
   timestamp,
   W,
 } from '../../operations/shared.ts';
+import { cartDiscardBody, cartPublishBody } from './cart-routes.ts';
 import { publishApplyBody, publishPreviewBody } from './pending-routes.ts';
 
 const publishStepEnum = z.enum(['push_draft', 'submit', 'release', 'rollout']);
@@ -47,6 +48,64 @@ const pendingItemSchema = z.object({
     .describe('Ids only, at most 200.'),
   truncated: z.boolean(),
   since: timestamp.nullable(),
+});
+
+
+const cartItemSchema = z.object({
+  id: z.string().describe('`<kind>:<id>`; the id to send back to publish or discard.'),
+  kind: z.enum(['listing', 'graphics', 'release', 'review_reply']),
+  title: z.string(),
+  summary: z.string().nullable().describe('Short excerpt of the new text (a listing text or a reply). Null for graphics.'),
+  before: z.string().nullable().describe('Short excerpt of what the store has now, when known.'),
+  platform: platform,
+  store: z.enum(['appstoreconnect', 'googleplay']),
+  locale: z.string().nullable(),
+  createdAt: timestamp,
+  author: z.object({ id: z.string(), name: z.string().nullable() }).nullable(),
+  risk: z.enum(['store_draft', 'public_reply']),
+  needsApproval: z.boolean().describe('The workspace step-up policy asks the person to confirm the send again.'),
+  publishable: z.boolean(),
+  reason: z
+    .object({
+      code: z.enum(['no_right', 'switch_off', 'invalid', 'bundle_blocked', 'in_progress', 'outcome_unknown']),
+      action: z.string().optional(),
+      envName: z.string().optional(),
+    })
+    .nullable()
+    .describe('Why it cannot be published now. The item is still listed.'),
+  canDiscard: z.boolean(),
+  bundle: z.string().nullable().describe('Items with the same bundle are written by one push: all or none.'),
+  version: z.string().describe('Send it back with the id: a changed item is skipped (`changed_since_review`).'),
+  counts: z.record(z.number()),
+  problems: z.array(z.object({ code: z.string(), severity: z.enum(['error', 'warning']), message: z.string() })),
+  ref: z.object({
+    locale: z.string().optional(),
+    field: z.string().optional(),
+    slot: z.string().optional(),
+    reviewId: z.string().optional(),
+  }),
+  review: z
+    .object({
+      rating: z.number().int(),
+      excerpt: z.string(),
+      language: z.string().nullable(),
+      territory: z.string().nullable(),
+      status: z.string(),
+    })
+    .optional()
+    .describe('Reply items: the review it answers.'),
+});
+
+const cartResultSchema = z.object({
+  results: z.array(
+    z.object({
+      id: z.string(),
+      status: z.enum(['ok', 'failed', 'skipped']),
+      reason: z.string().nullable(),
+      httpStatus: z.number().int().optional(),
+    }),
+  ),
+  remaining: z.number().int().describe('Items still in the cart after this call.'),
 });
 
 const pendingTotalsSchema = z.object({
@@ -273,6 +332,63 @@ export const pendingOperations: Draft[] = [
         schema: z.object({ pending: pendingViewSchema }),
       },
     },
+  },
+  {
+    id: 'getAppPendingCart',
+    method: 'get',
+    path: `${W}/apps/{id}/pending/cart`,
+    tags: ['pending'],
+    summary: 'The pending cart: what was prepared here and not sent yet, one typed list',
+    description:
+      'Read-only, stored state only (no store or repository is read). Items: staged listing texts (`listing`), staged graphics sets (`graphics`), staged release fields (`release`) and reply drafts (`review_reply`). An item the caller cannot publish is listed with its `reason` (`no_right`, `switch_off`, `invalid`, ...) and `publishable: false`. `can` says what the caller may do per kind. Submitting, releasing and rollout steps are not here (see `getAppPending`).',
+    risk: 'read',
+    access: { action: 'listing.read' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: {
+      '200': {
+        description: 'The items, ordered by kind then age.',
+        schema: z.object({
+          cart: z.object({
+            items: z.array(cartItemSchema),
+            can: z.object({
+              push: z.boolean(),
+              reply: z.boolean(),
+              discardStaged: z.boolean(),
+              discardReply: z.boolean(),
+            }),
+            generatedAt: timestamp,
+          }),
+        }),
+      },
+    },
+  },
+  {
+    id: 'publishAppPendingCart',
+    method: 'post',
+    path: `${W}/apps/{id}/pending/publish`,
+    tags: ['pending'],
+    summary: 'PUBLISH the chosen items of the pending cart (staged changes as a store draft, replies publicly)',
+    description:
+      'A STORE WRITE. Takes an explicit list of `{ id, version }` from `getAppPendingCart` and sends only those. Delegates to the push of the staged changes (`KILN_STORE_DRAFT_WRITE_ENABLED`, `store.push_draft`, step-up; a store DRAFT, nothing is submitted) and to the reply send (`KILN_REVIEW_REPLY_ENABLED`, `reviews.reply`; public at once), with their own gates, claims, re-reads and audit. Staged changes are written by one push, so they form a bundle: a request that names only part of it is skipped (`bundle_incomplete`). An item that changed since it was listed is skipped (`changed_since_review`); one that is gone is skipped (`not_pending`), so repeating a request is safe. One failure never stops the others: the answer is `200` with a result per item (`ok`, `failed`, `skipped` and a reason code). Audited as `pending.cart_published` (ids and outcome codes, never a text).',
+    risk: 'destructive',
+    access: { action: 'listing.read' },
+    appScope: { kind: 'param', name: 'id' },
+    body: cartPublishBody,
+    responses: { '200': { description: 'A result per item.', schema: z.object({ result: cartResultSchema }) } },
+  },
+  {
+    id: 'discardAppPendingCart',
+    method: 'post',
+    path: `${W}/apps/{id}/pending/discard`,
+    tags: ['pending'],
+    summary: 'Discard the chosen items of the pending cart (Kiln’s draft only; the store is not touched)',
+    description:
+      'Removes the staged change or the reply draft here and nothing else: no store is contacted. Needs `changesets.write` for staged changes and `reviews.triage` for reply drafts (an item without the right is skipped as `no_right`). A reply draft in flight or with an unknown outcome is kept. Audited as `pending.cart_discarded`.',
+    risk: 'write',
+    access: { action: 'listing.read' },
+    appScope: { kind: 'param', name: 'id' },
+    body: cartDiscardBody,
+    responses: { '200': { description: 'A result per item.', schema: z.object({ result: cartResultSchema }) } },
   },
   {
     id: 'getPendingSummary',
