@@ -199,6 +199,7 @@
   "nav.badgeUnfinished_one": "{{count}} publication laissée inachevée",
   "nav.badgeUnfinished_other": "{{count}} publications laissées inachevées",
   "nav.builds": "Builds",
+  "nav.expandToSwitch": "{{name}} : déplier la navigation pour changer d’app",
   "nav.insights": "Analyses",
   "nav.more": "Plus",
   "nav.overview": "Vue d’ensemble",

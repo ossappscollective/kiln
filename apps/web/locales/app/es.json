@@ -199,6 +199,7 @@
   "nav.badgeUnfinished_one": "{{count}} lanzamiento sin terminar",
   "nav.badgeUnfinished_other": "{{count}} lanzamientos sin terminar",
   "nav.builds": "Compilaciones",
+  "nav.expandToSwitch": "{{name}}: expandir la navegación para cambiar de app",
   "nav.insights": "Análisis",
   "nav.more": "Más",
   "nav.overview": "Resumen",

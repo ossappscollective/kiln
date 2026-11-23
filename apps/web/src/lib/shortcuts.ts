@@ -95,6 +95,7 @@ export const shortcutGroupLabel = (group: ShortcutGroup): string => t(GROUP_LABE
 export function shortcutRegistry(context: ShortcutContext, mod = 'Ctrl'): ShortcutDef[] {
   return [
     { keys: `${mod} K`, label: t('shell:shortcut.any.search'), group: 'Anywhere' },
+    { keys: `${mod} B`, label: t('shell:shortcut.any.sidebar'), group: 'Anywhere' },
     { keys: `${mod} 1 to 9`, label: t('shell:shortcut.any.openNine'), group: 'Anywhere' },
     ...chordsFor(context).map(
       (c): ShortcutDef => ({
@@ -128,6 +129,7 @@ export const idleChord: ChordState = { pendingAt: null };
 
 export type ShortcutAction =
   | { type: 'open-switcher' }
+  | { type: 'toggle-sidebar' }
   | { type: 'jump-app'; index: number }
   | { type: 'go'; target: string }
   | { type: 'pending' }
@@ -175,6 +177,9 @@ export function stepShortcut(
     if (input.altKey || input.shiftKey || input.dialogOpen) return none();
     if (key === 'k' || key === 'K')
       return { action: { type: 'open-switcher' }, state: idleChord, consume: true };
+    // Cmd or Ctrl + B folds the left panel to icons and back; not while typing (bold in a text field).
+    if (key === 'b' || key === 'B')
+      return input.typing ? none() : { action: { type: 'toggle-sidebar' }, state: idleChord, consume: true };
     if (/^[1-9]$/.test(key))
       return {
         action: { type: 'jump-app', index: Number(key) - 1 },

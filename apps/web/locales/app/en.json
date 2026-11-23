@@ -198,6 +198,7 @@
   "nav.badgeUnfinished_one": "{{count}} release left unfinished",
   "nav.badgeUnfinished_other": "{{count}} releases left unfinished",
   "nav.builds": "Builds",
+  "nav.expandToSwitch": "{{name}}: expand the navigation to switch apps",
   "nav.insights": "Insights",
   "nav.more": "More",
   "nav.overview": "Overview",

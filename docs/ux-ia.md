@@ -20,6 +20,11 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   "Workspace". Counts say what needs you: Releases (left unfinished), Store listing (changes waiting to publish), Reviews (unanswered),
   All apps (apps that need attention), Inbox (unanswered, workspace). The current page has a bar, a tint and a heavier label. Text is 15px.
   The header of an app page is the page name (24px) over the app name and bundle id.
+- **Collapsible left panel (2026-11-23)**: on wide screens (900px and up) a chevron in the panel head, or Cmd or Ctrl + B, folds the panel to a
+  64px rail (`--sidebar-rail-width`): logo mark, workspace initials, the app icon (opens the panel to switch app), one tinted mark per platform,
+  and the entries as icons with their count as a small badge. Every entry keeps its label for assistive technology (visually hidden) and a `title`
+  tooltip; `aria-current` styling is untouched. The choice is stored per person in `localStorage` (`kiln.sidebar.collapsed.<userId>`, in try/catch;
+  `lib/sidebar-state.ts`); the width animates unless `prefers-reduced-motion`. Under 900px the panel stays the drawer and is always whole.
 - **Views inside a page** (`ViewSwitch`, `?view=` in the address, platform, version and locale stay): Store listing = Text, Graphics;
   Insights = Overview, Highlights (the Insights cards, with the count badge on the Insights entry), Countries (downloads by main language against the languages of the store page), Keywords, Search terms (phase 2, see 0a), Experiments (`?view=experiments`, every platform: Apple tests and custom product pages, Google link-out and the manual tracker); Builds = Builds,
   Workflows, Test builds; Reviews = Reviews, TestFlight (`?view=testflight`, `reviews.read`, only when an Apple app is in scope: beta feedback and crashes).

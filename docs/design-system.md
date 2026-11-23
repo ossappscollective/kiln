@@ -133,7 +133,7 @@ and borders only, never for body text. Every text pair is at least 4.5:1 (ink on
   `prefers-reduced-motion` all animation and transition is cut to nothing.
 - Layers: `--z-sticky` 10, `-sidebar` 20, `-dropdown` 30, `-overlay` 40, `-modal` 50, `-toast` 60,
   `-tooltip` 70.
-- Layout: `--sidebar-width` 248px, `--topbar-height` 56px, `--content-width` 1120px.
+- Layout: `--sidebar-width` 248px, `--sidebar-rail-width` 64px (the folded left panel), `--topbar-height` 56px, `--content-width` 1120px.
 
 ## Global classes (plain markup)
 

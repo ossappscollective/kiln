@@ -21,6 +21,7 @@
   import { roleLabel } from '../lib/role-label.ts';
   import { pipelineStore } from '../lib/pipeline-store.svelte.ts';
   import { navSignals } from '../lib/nav-signals.svelte.ts';
+  import { loadCollapsed, railApplies, saveCollapsed } from '../lib/sidebar-state.ts';
   import { CHORD_TIMEOUT_MS, type ChordState, chordHint, idleChord, isTypingTarget, stepShortcut } from '../lib/shortcuts.ts';
   import { initials } from '../lib/format.ts';
   import { heightToHold, shouldResetScroll } from '../lib/scroll-keep.ts';
@@ -204,6 +205,8 @@
     }
     if (action.type === 'open-switcher') {
       openSwitcher();
+    } else if (action.type === 'toggle-sidebar') {
+      toggleRail();
     } else if (action.type === 'jump-app') {
       if (!canApps) return;
       const index = action.index;
@@ -222,6 +225,15 @@
   }
 
   let drawerOpen = $state(false);
+  // The left panel folds to a rail of icons on a wide screen (remembered per person in this browser). On a narrow screen it is the drawer.
+  let wide = $state(true);
+  let collapsed = $state(untrack(() => loadCollapsed(me.user.id)));
+  const rail = $derived(railApplies(collapsed, wide));
+  function toggleRail() {
+    if (!wide) return;
+    collapsed = !collapsed;
+    saveCollapsed(me.user.id, collapsed);
+  }
   let menuOpen = $state(false);
   let navEl = $state<HTMLElement>();
   let mainEl = $state<HTMLElement>();
@@ -270,8 +282,10 @@
   $effect(() => {
     const query = window.matchMedia('(min-width: 900px)');
     const onchange = () => {
+      wide = query.matches;
       if (query.matches) drawerOpen = false;
     };
+    onchange();
     query.addEventListener('change', onchange);
     return () => query.removeEventListener('change', onchange);
   });
@@ -366,7 +380,7 @@
   {@const hint = chordHint('workspace', v.id)}
   {@const count = v.id === 'portfolio' ? attention : v.id === 'reviews' ? unanswered : null}
   <li>
-    <a href="#/{v.id}" aria-current={current?.id === v.id ? 'page' : undefined}>
+    <a href="#/{v.id}" aria-current={current?.id === v.id ? 'page' : undefined} title={rail ? t(v.labelKey) : undefined}>
       <Icon name={isIconName(v.icon) ? v.icon : 'box'} size={18} />
       <span>{t(v.labelKey)}</span>
       {#if badgeText(count)}
@@ -379,10 +393,21 @@
 
 <a class="skip-link" href="#main" onclick={skipToContent}>{t('shell:skipToContent')}</a>
 
-<div class="shell">
-  <aside id="sidebar" class="sidebar no-print" data-open={drawerOpen}>
+<div class="shell" data-rail={rail}>
+  <aside id="sidebar" class="sidebar no-print" data-open={drawerOpen} data-collapsed={rail}>
     <div class="side-head">
-      <Logo size={28} wordmark />
+      <Logo size={28} wordmark={!rail} />
+      <button
+        type="button"
+        class="ghost icon sm rail-toggle"
+        aria-label={rail ? t('shell:nav.expand') : t('shell:nav.collapse')}
+        aria-expanded={!rail}
+        aria-controls="sidebar-nav"
+        title={`${rail ? t('shell:nav.expand') : t('shell:nav.collapse')} (${modKey} B)`}
+        onclick={toggleRail}
+      >
+        <Icon name={rail ? 'chevron-right' : 'chevron-left'} />
+      </button>
       <button type="button" class="ghost icon sm close" aria-label={t('shell:nav.close')} onclick={() => closeDrawer()}>
         <Icon name="x" />
       </button>
@@ -391,7 +416,7 @@
     {#if workspace}
       <div class="ws" class:single={me.workspaces.length < 2}>
         <span class="ws-mark" aria-hidden="true">{initials(workspace.name)}</span>
-        <span class="ws-text">
+        <span class="ws-text" title={rail ? workspace.name : undefined}>
           <span class="ws-name">{workspace.name}</span>
           <span class="ws-role">{roleName}</span>
         </span>
@@ -405,9 +430,9 @@
       </div>
     {/if}
 
-    <div bind:this={navEl} class="nav-wrap" class:chord={navSignals.chordPending}>
+    <div bind:this={navEl} id="sidebar-nav" class="nav-wrap" class:chord={navSignals.chordPending}>
       {#if appAddr && workspace}
-        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} {unanswered} workspaceItems={railItems} counts={appCounts} status={appStatus} switcher={switcherList} mod={modKey} onopenswitcher={() => void navSignals.ensureApps(api, workspaceId)} onpickapp={pickApp} />
+        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} {unanswered} workspaceItems={railItems} counts={appCounts} status={appStatus} switcher={switcherList} mod={modKey} collapsed={rail} onexpand={toggleRail} onopenswitcher={() => void navSignals.ensureApps(api, workspaceId)} onpickapp={pickApp} />
       {:else}
         <nav aria-label={t('shell:nav.sections')}>
           <ul>
@@ -624,8 +649,82 @@
     padding: 0 var(--space-2);
   }
 
-  .close {
+  .close,
+  .rail-toggle {
     display: none;
+  }
+
+  /* ---- Rail: the panel folded to icons (wide screens only; the drawer below is always whole) ---- */
+  @media (min-width: 900px) {
+    .shell {
+      transition: grid-template-columns var(--duration-base) var(--ease);
+    }
+
+    .shell[data-rail='true'] {
+      grid-template-columns: var(--sidebar-rail-width) minmax(0, 1fr);
+    }
+
+    .rail-toggle {
+      display: inline-flex;
+    }
+
+    .sidebar[data-collapsed='true'] {
+      padding-inline: var(--space-2);
+      overflow-x: hidden;
+    }
+
+    .sidebar[data-collapsed='true'] .side-head {
+      flex-direction: column;
+      gap: var(--space-2);
+      padding: 0;
+    }
+
+    .sidebar[data-collapsed='true'] .ws {
+      justify-content: center;
+      padding: var(--space-1);
+    }
+
+    .sidebar[data-collapsed='true'] .ws :global(svg),
+    .sidebar[data-collapsed='true'] .ws-text {
+      display: none;
+    }
+
+    /* Labels stay in the page for assistive technology (visually hidden, not removed); the link also carries a title. */
+    .sidebar[data-collapsed='true'] :global(nav a > span:not(.nav-count)),
+    .sidebar[data-collapsed='true'] :global(.group-label),
+    .sidebar[data-collapsed='true'] :global(.nav-hint) {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      white-space: nowrap;
+      clip-path: inset(50%);
+    }
+
+    .sidebar[data-collapsed='true'] :global(nav a) {
+      position: relative;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .sidebar[data-collapsed='true'] :global(.nav-count) {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      min-width: 0;
+      padding: 0 var(--space-1);
+      margin: 0;
+      font-size: var(--text-xs);
+      line-height: 1.2;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shell {
+      transition: none;
+    }
   }
 
   /* The demo bar: slim and permanent (it cannot be dismissed), above the top bar. */

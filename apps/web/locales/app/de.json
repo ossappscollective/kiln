@@ -198,6 +198,7 @@
   "nav.badgeUnfinished_one": "{{count}} Release nicht abgeschlossen",
   "nav.badgeUnfinished_other": "{{count}} Releases nicht abgeschlossen",
   "nav.builds": "Builds",
+  "nav.expandToSwitch": "{{name}}: Navigation aufklappen, um die App zu wechseln",
   "nav.insights": "Auswertungen",
   "nav.more": "Mehr",
   "nav.overview": "Übersicht",

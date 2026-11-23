@@ -13,7 +13,8 @@
   need attention, on All apps), unanswered? (the unanswered reviews of the workspace, on Inbox), workspaceItems (the workspace views
   the role may open: id, label, icon), counts? (the badges of this app: `reviews` the unanswered reviews, `releases` the releases left
   unfinished, `pending` the changes waiting to publish (on Store listing, with `pendingBlocking` for an error that stops one); null
-  draws nothing), status? (the platform lines), switcher?, mod, onopenswitcher, onpickapp.
+  draws nothing), status? (the platform lines), switcher?, mod, onopenswitcher, onpickapp, collapsed? (the icon rail: the app card is the app icon
+  and one tinted mark per platform, labels stay for assistive technology and as titles; `onexpand` unfolds the panel, which the app icon does).
   Groups are labelled ("This app", "Workspace"); a count says what needs the person, and the current page is marked by colour, weight and a bar.
 -->
 <script lang="ts">
@@ -26,11 +27,12 @@
   import { badgeText } from '../../lib/nav-badges.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { chordHint } from '../../lib/shortcuts.ts';
-  import type { SwitcherItem } from '../../lib/app-switcher.ts';
+  import { itemOfId, type SwitcherItem } from '../../lib/app-switcher.ts';
   import type { PlatformStatusLine } from '../../lib/app-status.ts';
   import Icon from '../ui/Icon.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import { isIconName } from '../ui/icons.ts';
+  import AppIcon from '../ui/AppIcon.svelte';
   import AppSwitcherField from './AppSwitcherField.svelte';
 
   let {
@@ -45,6 +47,8 @@
     mod = 'Ctrl',
     onopenswitcher,
     onpickapp,
+    collapsed = false,
+    onexpand,
   }: {
     address: AppAddress;
     allowed: (action: Action) => boolean;
@@ -54,6 +58,8 @@
     /** The apps for the switcher field (null while being read); with `onpickapp` the app name is a switcher. */
     switcher?: SwitcherItem[] | null | undefined;
     mod?: string | undefined;
+    collapsed?: boolean | undefined;
+    onexpand?: (() => void) | undefined;
     onopenswitcher?: (() => void) | undefined;
     onpickapp?: ((item: SwitcherItem) => void) | undefined;
     counts?: { reviews: number | null; releases: number | null; pending?: number | null; pendingBlocking?: boolean; insights?: number | null } | undefined;
@@ -80,12 +86,27 @@
   const entries = $derived(visibleNav(allowed));
   const here = $derived(navEntryOf(address.section));
   const rail = $derived(workspaceRail(workspaceItems));
+  const railItem = $derived(itemOfId(switcher ?? null, address.id));
   const iconOf = (v: RailItem) => (isIconName(v.icon) ? v.icon : 'box');
 </script>
 
 <div class="app-nav" class:chord={navSignals.chordPending}>
-  <div class="app-card">
-    {#if onpickapp}
+  <div class="app-card" class:rail={collapsed}>
+    {#if collapsed}
+      <button type="button" class="bare rail-app" title={appContext.name} aria-label={t('app:nav.expandToSwitch', { name: appContext.name })} onclick={() => onexpand?.()}>
+        <AppIcon name={appContext.name} url={railItem?.iconUrl ?? null} seed={railItem?.key ?? address.id} size="sm" />
+      </button>
+      {#if status.length > 0}
+        <ul class="status rail-status" aria-label={t('app:nav.statusLabel')}>
+          {#each status as line (line.platform)}
+            <li class="tone-{line.tone}" title="{platformLabel(line.platform)} {line.label}{line.version ? ` ${line.version}` : ''}">
+              <PlatformBadge platform={line.platform} showLabel={false} />
+              <span class="visually-hidden">{platformLabel(line.platform)} {line.label}{#if line.version} {line.version}{/if}</span>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    {:else if onpickapp}
       <AppSwitcherField items={switcher} appId={address.id} fallbackName={appContext.name} {mod} onopen={onopenswitcher} onpick={onpickapp} />
     {:else if appContext.name}<p class="name" title={appContext.name}>{appContext.name}</p>{/if}
     {#if status.length > 0}
@@ -109,7 +130,7 @@
         {@const hint = chordHint('app', s.id)}
         {@const badge = badgeFor(s.id)}
         <li>
-          <a href={entryHref(s.id, badge)} aria-current={here === s.id ? 'page' : undefined}>
+          <a href={entryHref(s.id, badge)} aria-current={here === s.id ? 'page' : undefined} title={collapsed ? t(s.labelKey) : undefined}>
             <Icon name={s.icon} size={18} />
             <span>{t(s.labelKey)}</span>
             {#if hint}<kbd class="nav-hint" aria-hidden="true">{hint}</kbd>{/if}
@@ -131,7 +152,7 @@
             {@const count = v.id === 'portfolio' ? attention : v.id === 'reviews' ? unanswered : null}
             {@const hint = chordHint('workspace', v.id)}
             <li>
-              <a href="#/{v.id}">
+              <a href="#/{v.id}" title={collapsed ? v.label : undefined}>
                 <Icon name={iconOf(v)} size={18} />
                 <span>{v.label}</span>
                 {#if hint}<kbd class="nav-hint" aria-hidden="true">{hint}</kbd>{/if}
@@ -145,11 +166,11 @@
       {/if}
       {#if rail.more.length > 0}
         <details class="more">
-          <summary>{t('app:nav.more')}</summary>
+          <summary title={collapsed ? t('app:nav.more') : undefined}>{#if collapsed}<Icon name="more" size={18} /><span class="visually-hidden">{t('app:nav.more')}</span>{:else}{t('app:nav.more')}{/if}</summary>
           <ul>
             {#each rail.more as v (v.id)}
               <li>
-                <a href="#/{v.id}">
+                <a href="#/{v.id}" title={collapsed ? v.label : undefined}>
                   <Icon name={iconOf(v)} size={18} />
                   <span>{v.label}</span>
                 </a>
@@ -178,6 +199,30 @@
     background: var(--surface-sunken);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
+  }
+
+  /* The rail: the card is the app icon over one mark per platform, no frame. */
+  .app-card.rail {
+    align-items: center;
+    padding: var(--space-2) 0;
+    background: none;
+    border-color: transparent;
+  }
+
+  .rail-app {
+    display: grid;
+    padding: 0;
+    cursor: pointer;
+    place-items: center;
+  }
+
+  .rail-status {
+    align-items: center;
+    padding: 0;
+  }
+
+  .rail-status li {
+    display: block;
   }
 
   .name {
