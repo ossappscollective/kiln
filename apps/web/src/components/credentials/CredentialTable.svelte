@@ -104,7 +104,6 @@
         <th>{t('credentials:table.type')}</th>
         <th>{t('credentials:table.status')}</th>
         <th>{t('credentials:table.added')}</th>
-        <th>{t('credentials:table.rotated')}</th>
         {#if canWrite}<th><span class="visually-hidden">{t('credentials:table.actions')}</span></th>{/if}
       </tr>
     </thead>
@@ -142,9 +141,11 @@
               {#if run?.error}<p class="failure">{run.error}</p>{/if}
             {/if}
           </td>
-          <td title={formatDateTime(item.createdAt)}>{formatRelativeTime(item.createdAt)}</td>
-          <td title={item.rotatedAt ? formatDateTime(item.rotatedAt) : ''}>
-            {item.rotatedAt ? formatRelativeTime(item.rotatedAt) : t('credentials:table.never')}
+          <td title={formatDateTime(item.createdAt)}>
+            {formatRelativeTime(item.createdAt)}
+            {#if item.rotatedAt}
+              <span class="when muted block" title={formatDateTime(item.rotatedAt)}>{t('credentials:table.rotatedAgo', { when: formatRelativeTime(item.rotatedAt) })}</span>
+            {/if}
           </td>
           {#if canWrite}
             <td class="actions">
@@ -222,6 +223,15 @@
   .when {
     margin-left: 6px;
     font-size: 0.8125rem;
+  }
+
+  .when.block {
+    display: block;
+    margin-left: 0;
+  }
+
+  .table td.actions {
+    white-space: normal;
   }
 
   .status .badge,
