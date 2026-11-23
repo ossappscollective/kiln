@@ -40,6 +40,7 @@
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import RunningNow from '../ci/RunningNow.svelte';
   import AnalyticsStrip from '../analytics/AnalyticsStrip.svelte';
+  import ExpoOverviewCard from '../eas/ExpoOverviewCard.svelte';
   import { PLANS_ENABLED } from '../../lib/features.ts';
   import AttentionList from './AttentionList.svelte';
   import NextStep from './NextStep.svelte';
@@ -288,6 +289,8 @@
       </section>
     {/each}
   </div>
+
+  <ExpoOverviewCard {api} {workspaceId} {role} {members} {now} refreshKey={syncRuns} />
 
   <AnalyticsStrip {api} {workspaceId} {members} {now} refreshKey={syncRuns} />
 
