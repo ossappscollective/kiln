@@ -1,4 +1,5 @@
 import type { SyncPlanEntry } from './sync-sources.ts';
+import type { EstimateDetail, EstimatesResponse, SuggestionsResponse } from './aso/estimates.ts';
 import type {
   AiSuggestionStatus,
   AiSuggestionView,
@@ -2307,6 +2308,13 @@ export function createApi(options: ApiOptions = {}) {
         'GET',
         `${asoPath(workspaceId, appId)}/keywords/${encodeURIComponent(keywordId)}/history?limit=${limit}`,
       ),
+    /** Keyword popularity and difficulty ESTIMATES (never Apple's or Google's score), from stored signals: our own database (docs/api/aso.md#estimates). */
+    asoKeywordEstimates: (workspaceId: string, appId: string) =>
+      request<EstimatesResponse>('GET', `${asoPath(workspaceId, appId)}/keyword-estimates`),
+    asoKeywordEstimate: (workspaceId: string, appId: string, keywordId: string) =>
+      request<EstimateDetail>('GET', `${asoPath(workspaceId, appId)}/keywords/${encodeURIComponent(keywordId)}/estimate`),
+    asoKeywordSuggestions: (workspaceId: string, appId: string, limit = 30) =>
+      request<SuggestionsResponse>('GET', `${asoPath(workspaceId, appId)}/keyword-suggestions?limit=${limit}`),
     /** Reviews of the followed App Store competitors, from what is stored (no store is called). */
     asoCompetitorReviews: (workspaceId: string, appId: string, days = 28) =>
       request<CompetitorReviewsView>('GET', `${asoPath(workspaceId, appId)}/competitor-reviews?days=${days}`),

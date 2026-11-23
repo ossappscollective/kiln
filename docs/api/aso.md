@@ -189,6 +189,7 @@ Errors: `422 invalid_external_id`, `invalid_country`, `own_app`, `not_found` (th
 
 - checks up to `KILN_ASO_MAX_CHECKS_PER_RUN` keywords (the oldest first) and every followed competitor; **a person asking checks everything up to the cap**, the scheduler only what is due;
 - shares one search per term and storefront and reuses cached answers;
+- for App Store apps, after the checks and the competitors, reads the **search hints** of up to 10 terms (`limits.maxSignalTerms`, one request each, a term and storefront once a day) for the [estimates](#estimates); `signals` counts them. A limit on the hints is `deferred`, never a failed refresh;
 - stops early when a store says to slow down, is unavailable, fails three times in a row, or the time (4 minutes) is up. What is left stays due.
 
 Answer (`200`; `202 { "jobId" }` with `?background=true`):
@@ -207,6 +208,7 @@ Answer (`200`; `202 { "jobId" }` with `?background=true`):
       "moved": 2
     },
     "competitors": { "due": 3, "checked": 3, "changed": 1, "notFound": 0, "failed": 0 },
+    "signals": { "due": 4, "checked": 4, "failed": 0 },
     "deferred": true,
     "stoppedBecause": "cap",
     "errors": [],
@@ -257,6 +259,51 @@ in the description, which the store may not search; UNVERIFIED), `missing`. `fit
 Each locale also carries `fields`, the stored listing text the fit was worked out from (`title`, `subtitle`, `keywords`, `shortDescription`, `description`; `null` when none is stored), and the response has `listingLocales`, every locale the stored listing has text for. The web uses them for the keyword budget meters.
 
 **Budgets and the coach (core `listingBudget`, `buildCoach`).** Per locale: used and limit of each field (App Store name and subtitle 30 characters, keyword field 100 bytes; Google Play title 30, short 80, full description 4000 characters), which tracked keywords sit in which field, waste in the keyword field (spaces around commas, empty, repeated and plural entries, entries whose words the name or subtitle already hold), words found in several fields, words no tracked keyword uses, tracked keywords in none of the searched fields, and untapped locales (a tracked locale with no listing text, a locale with an empty keyword field). **UNVERIFIED**: that the App Store ignores a word repeated across name, subtitle and keyword field; that singular and plural are one word (English plurals are folded here); whether commas count toward the 100 bytes (the whole field is measured); and which other locales a storefront reads. The storefront list in `REPORTED_EXTRA_LOCALES` is what ASO tools report (aso.dev, 2026-11-19), not Apple, and is only ever shown as a hint marked UNVERIFIED.
+
+## Estimates
+
+**Popularity and difficulty of a keyword are ESTIMATES. They are not Apple's popularity score (that 0 to 100 number exists only inside Apple Ads) and not a Google Play number.** Neither store publishes how often a term is searched. Kiln works the
+numbers out from public signals and, where it has them, the team's own data; every result carries the inputs it came from. Model `v1` (core `estimateKeyword`, pure; the formula and its limits are in [ADR 0057](../adr/0057-keyword-estimates.md)).
+Nothing is stored but the signals (`aso_keyword_signals`): the estimate is recomputed on every read, so a new model needs no migration. All three routes read the database only (`aso.read`).
+
+| Route                                                  | Does                                                                                                                                                  |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /apps/{id}/aso/keyword-estimates`                 | `{ appId, model, store, estimates: [{ keywordId, term, country, locale, platform, estimate }] }`, one per tracked keyword.                            |
+| `GET /apps/{id}/aso/keywords/{keywordId}/estimate`     | `{ model, keyword, estimate, trend: [{ day, popularity, difficulty }], retentionDays }`; the trend uses the public signals read up to each stored day. |
+| `GET /apps/{id}/aso/keyword-suggestions?country=&limit=` | `{ appId, store, suggestions: [{ term, country, locale, from }] }`: the stored hints minus the terms already tracked; empty for Google Play. To track one, `POST /apps/{id}/aso/keywords` (`aso.write`). |
+
+```json
+{
+  "model": "v1",
+  "popularity": {
+    "score": 62,
+    "confidence": "medium",
+    "origin": "public_signals",
+    "reasons": [
+      { "code": "hints_position", "params": { "position": 2, "size": 10 }, "points": 93, "weight": 2 },
+      { "code": "results_demand", "params": { "apps": 10, "ratings": 120000 }, "points": 72, "weight": 1 }
+    ]
+  },
+  "difficulty": { "score": 48, "confidence": "medium", "origin": "public_signals", "reasons": [] },
+  "opportunity": { "score": 31, "confidence": "medium", "roomFactor": 0.8 },
+  "signalsAt": 1760003600000,
+  "hints": ["water reminder", "water reminder app"],
+  "top": [{ "id": "123", "name": "Water Pro", "ratingCount": 5400 }]
+}
+```
+
+- **No signal is "no estimate"**: `score: null`, `confidence: null`, and `reasons[0].code` says why (`no_signal`, `play_needs_own_data`, `play_no_competition_data`, `results_empty`, `too_few_results`). It is never 0.
+- **Popularity** blends (weights in brackets) your own visitors for the term (3, `own_visitors`, from the Play search terms file, a lower bound: only people who reached your listing), the position of the term in the App Store search hints (2: place 1 is 100, place 10 is 40, in
+  the list but not this term 20, no hints 5) and the rating counts of the first results (1, a weak sign of the niche's size, `log10(sum)/7`).
+- **Difficulty** (App Store only) blends the median rating count of the first 10 results (5, `log10(median)/6`), how many of them have every word of the term in their name (3), how many results the search returned out of the depth asked (1) and, with at least five checks, how far your rank moves between checks (1).
+  It needs at least three results with a rating count.
+- **Confidence**: popularity is `high` only with your own data (at least 20 visitors) plus a public signal, `medium` with two inputs, `low` with one; public signals alone are never `high`; difficulty is `medium` with ten rated results, else `low`, never `high`.
+- **Opportunity** = popularity x (100 - difficulty) / 100 x the room your rank leaves (not ranked or below 30: 1; 11 to 30: 0.8; 4 to 10: 0.4; top 3: 0.1); `null` when either estimate is missing. A place to look, not a promise.
+- **Google Play**: no public signal exists and Kiln does not read Play for this, so popularity comes only from your own search terms file (`origin: "own_data"`) and difficulty is always "no estimate".
+- `origin` is `own_data` when your own numbers took part, else `public_signals`. `signalsAt` is when the newest public signal was read.
+
+The signals are the App Store **search hints** (`search.itunes.apple.com`, one request per term and storefront and day, the storefront in the `X-Apple-Store-Front` header; a storefront Kiln has no id for is not asked) and the first search results of the rank check (public data
+already read, no extra request). Only terms the team tracks are asked; nothing is sent to an AI. **UNVERIFIED**: the hints endpoint is undocumented; its answer format, the storefront header and that its order reflects popularity are assumptions (hand-written fixtures, no real call).
 
 ## Search terms (Google Play, from a file)
 
@@ -362,15 +409,15 @@ Error messages never contain a search term or a store address.
 
 ## Data and retention
 
-Competitor listing changes are in `aso_competitor_changes` and `aso_competitors.listing_state` (migration 60), kept 180 days and 200 per competitor. Five tables (migration 25): `aso_keywords`, `aso_rank_checks`, `aso_competitors`, `aso_competitor_snapshots`, `aso_app_state`. Rank checks and snapshots older than `KILN_ASO_RETENTION_DAYS` (365; `0` keeps them) are deleted by the
+Keyword estimate signals are in `aso_keyword_signals` (migration 61): per workspace, store, storefront, term and day, a compact JSON of the hints and the first ten results (id, name, rating count), kept 90 days and removed with the keyword by the next refresh. Competitor listing changes are in `aso_competitor_changes` and `aso_competitors.listing_state` (migration 60), kept 180 days and 200 per competitor. Five tables (migration 25): `aso_keywords`, `aso_rank_checks`, `aso_competitors`, `aso_competitor_snapshots`, `aso_app_state`. Rank checks and snapshots older than `KILN_ASO_RETENTION_DAYS` (365; `0` keeps them) are deleted by the
 scheduler, bounded per run and once an hour; the newest snapshot of each competitor is kept. Search terms imported from a Play Console file live in `play_search_terms` and `play_search_term_imports` (migration 32); they are not kept by the retention job and go with the app. Deleting an app deletes its ASO data. Stored: terms and notes the team typed, ranks, and public data of other apps; no customer data.
-Network: outbound https to `itunes.apple.com` and, only when switched on, `play.google.com`.
+Network: outbound https to `itunes.apple.com`, `search.itunes.apple.com` (search hints) and, only when switched on, `play.google.com`.
 
 ## UNVERIFIED
 
 Not on a page that was checked, or not run against the real service (no network was available):
 
-- Apple: that the Search API's order equals the App Store's (a "rank" is a proxy); the field names of a software result; `country` on a lookup; no subtitle in a reply; that "approximately 20 calls per minute" still holds. **The undocumented search hints endpoint is not used.**
+- Apple: that the Search API's order equals the App Store's (a "rank" is a proxy); the field names of a software result; `country` on a lookup; no subtitle in a reply; that "approximately 20 calls per minute" still holds. The search hints endpoint (`search.itunes.apple.com`) is undocumented: format, storefront header and ordering are assumptions ([estimates](#estimates)).
 - Google Play: all markup assumptions (result links, JSON-LD, `og:` tags, description, screenshots, rating label); that a search page shows `rankDepth` results; the terms of service. Fixtures are synthetic.
 - Which fields each store searches (`indexedFields`, `assumptions`), and the 100 byte iOS keyword budget.
 - Search terms: the shape of the Play Console export, the column names outside English, whether visitors and acquisitions per term survive Google's 2026 change to click metrics, and the time zone of the dates ([research](../research/play-search-terms.md)).

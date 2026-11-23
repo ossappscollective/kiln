@@ -228,6 +228,8 @@ Competitor listing changes ([ADR 0056](adr/0056-competitor-listing-watch.md)) fo
 (before and after strips, collapsed word diffs, "Check now", left aligned rows that wrap instead of scrolling sideways), a `competitor_change` event on the Timeline tab (its filter chip is the kind label) and an optional alert.
 Google Play competitors show "not watched" with the reason: Kiln does not read Google Play pages.
 
+Keyword estimates ([ADR 0057](adr/0057-keyword-estimates.md)) follow the same hierarchy and add no tab: an "Estimates" section and a "Related terms" section under the tracked keywords of Insights, Keywords (a `table.fit`, a detail panel instead of a new page); every figure is labelled an estimate and links to its "How this is estimated" popover.
+
 Rules: tabs are pages and the rail is sections, never both for the same level; a block with no data is one compact line saying why and how to fix it, not an
 empty column; with several platforms prefer one comparison (a row per measure) to repeating long runs, and draw side by side only what both have; tiles sit in a
 uniform grid. Pages with tabs and sections follow the Insights Overview; Builds, app Settings and workspace Settings already use the rail without tabs.

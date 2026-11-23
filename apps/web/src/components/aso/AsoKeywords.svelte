@@ -50,6 +50,7 @@
   import Section from '../ui/Section.svelte';
   import AddKeywords from './AddKeywords.svelte';
   import AsoBar from './AsoBar.svelte';
+  import AsoKeywordEstimates from './AsoKeywordEstimates.svelte';
   import Sparkline from './Sparkline.svelte';
   import SuggestKeywords from '../ai/SuggestKeywords.svelte';
 import { supports } from '@kiln/core';
@@ -361,6 +362,7 @@ import { supports } from '@kiln/core';
         </table>
       </div>
     </Section>
+    <AsoKeywordEstimates {api} {workspaceId} {members} {keywords} {canWrite} {onchanged} {now} />
   {/if}
 </div>
 
