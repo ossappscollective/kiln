@@ -125,7 +125,6 @@
   "tab.openConsole": "Open in App Store Connect",
   "tab.partsTitle": "Some of it could not be read",
   "tab.reading": "Reading the feedback",
-  "tab.sync": "Sync",
   "tab.syncDone": "Synced: {{feedback}} new feedback and {{crashes}} new crashes.",
   "tab.syncFailedNetwork": "The sync failed. Check your connection and try again.",
   "tab.syncFailedTitle": "The sync failed",

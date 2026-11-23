@@ -243,6 +243,7 @@ export function appRoutes(ctx: AppRoutesContext) {
       appId: id,
       role: c.get('role'),
       requestedBy: c.get('user').id,
+      ...(c.req.query('without') === 'app' ? { without: ['app' as const] } : {}),
     });
     return plan ? c.json({ plan }, 202) : notFound(c);
   });

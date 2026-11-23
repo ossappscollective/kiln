@@ -12,14 +12,13 @@
   import { can, platformSupports, type Platform, type Role } from '@kiln/core';
   import { t } from '../../lib/i18n/t.ts';
   import type { Api } from '../../lib/api.ts';
-  import { type AnalyticsStatus, type StepAction, analyticsErrorText, stateInfo, stateLabel, stepAvailable } from '../../lib/analytics/analytics.ts';
+  import { type AnalyticsStatus, type StepAction, stateInfo, stateLabel, stepAvailable } from '../../lib/analytics/analytics.ts';
   import { latestRead, worstState } from '../../lib/analytics/sections.ts';
-  import { type SyncLine, lastReadAt, overallState, scheduleText, sourceRows, syncLines } from '../../lib/analytics/view.ts';
+  import { lastReadAt, overallState, scheduleText, sourceRows } from '../../lib/analytics/view.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
-  import { toast } from '../../lib/toast.svelte.ts';
-  import Alert from '../ui/Alert.svelte';
+  import { openStatusPopover } from '../../lib/app-page.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
@@ -72,38 +71,13 @@
         : '';
   }
 
-  let syncing = $state(false);
-  let syncError = $state('');
-  let lines = $state<{ platform: Platform; line: SyncLine }[]>([]);
   let enableFor = $state<string | null>(null);
   let importFor = $state<string | null>(null);
   const importItem = $derived(groups.find((g) => g.app.id === importFor));
 
-  async function sync() {
-    if (syncing) return;
-    syncing = true;
-    syncError = '';
-    lines = [];
-    try {
-      let points = 0;
-      for (const it of items) {
-        if (!it.status.enabled) continue;
-        const result = await api.syncAnalytics(workspaceId, it.app.id);
-        points += result.sync.pointsWritten;
-        lines = [...lines, ...syncLines(result.sync).map((line) => ({ platform: it.app.platform, line }))];
-      }
-      toast.success(points > 0 ? t('analytics:sources.synced', { count: points }) : t('analytics:sources.syncedNothing'));
-      onchanged();
-    } catch (e) {
-      syncError = analyticsErrorText(e);
-    } finally {
-      syncing = false;
-    }
-  }
   function run(action: StepAction, appId: string) {
     if (action.kind === 'enable_apple') enableFor = appId;
     else if (action.kind === 'import') importFor = appId;
-    else if (action.kind === 'sync') void sync();
   }
 </script>
 
@@ -115,8 +89,8 @@
       {schedule}
     </span>
     <span class="spacer"></span>
-    {#if canManage && anyEnabled}
-      <Button size="sm" icon="refresh" loading={syncing} onclick={sync}>{syncing ? t('analytics:sources.syncing') : t('analytics:step.syncNow')}</Button>
+    {#if anyEnabled}
+      <Button size="sm" variant="link" onclick={() => openStatusPopover()}>{t('app:sync.seeStatus')}</Button>
     {/if}
     {#if canManage}
       {#each groups as g (g.app.id)}
@@ -126,14 +100,6 @@
       {/each}
     {/if}
   </div>
-  {#if syncError}<Alert tone="error">{syncError}</Alert>{/if}
-  {#if lines.length > 0}
-    <ul class="sync" aria-label={t('analytics:sources.syncAria')}>
-      {#each lines as l (`${l.platform}:${l.line.source}`)}
-        <li><strong>{several ? `${platformLabel(l.platform)}: ` : ''}{t('analytics:sources.syncLabel', { label: l.line.label })}</strong> {l.line.text}</li>
-      {/each}
-    </ul>
-  {/if}
   {#each groups as g, gi (g.app.id)}
     <div class="group">
       {#if several}<h3 class="plat"><PlatformBadge platform={g.app.platform} tinted /></h3>{/if}
@@ -167,8 +133,10 @@
                     {/if}
                   {:else if action.kind === 'text'}
                     <span class="muted text">{t('analytics:sources.nextStep', { label: action.label })}</span>
+                  {:else if action.kind === 'sync'}
+                    <Button variant="link" onclick={() => openStatusPopover()}>{t('app:sync.seeStatus')}</Button>
                   {:else if stepAvailable(action, canManage)}
-                    <Button variant={i === 0 ? 'primary' : 'secondary'} icon={action.kind === 'import' ? 'upload' : action.kind === 'sync' ? 'refresh' : undefined} onclick={() => run(action, g.app.id)}>{action.label}</Button>
+                    <Button variant={i === 0 ? 'primary' : 'secondary'} icon={action.kind === 'import' ? 'upload' : undefined} onclick={() => run(action, g.app.id)}>{action.label}</Button>
                   {:else}
                     <span class="muted text">{t('analytics:sources.needsAdminAction', { action: action.label })}</span>
                   {/if}
@@ -212,11 +180,6 @@
     font-size: 0.9375rem;
   }
 
-  .sync {
-    padding-left: var(--space-5);
-    margin: 0;
-    font-size: 0.9375rem;
-  }
 
   .sources {
     display: flex;

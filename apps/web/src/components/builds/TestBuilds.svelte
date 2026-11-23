@@ -33,9 +33,10 @@
     testflightNote,
     testflightView,
   } from '../../lib/builds.ts';
-  import { type EasStatusView, easStatusErrorText } from '../../lib/eas/eas-status.ts';
+  import { type EasStatusView } from '../../lib/eas/eas-status.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import type { AppSummary } from '../../lib/types.ts';
+  import UpdatedLine from '../app/UpdatedLine.svelte';
   import EasBuildExtras from '../eas/EasBuildExtras.svelte';
   import EasStatusNote from '../eas/EasStatusNote.svelte';
   import PlatformBadge from '../portfolio/PlatformBadge.svelte';
@@ -72,9 +73,6 @@
   // EAS builds and submissions of the Expo project this app is linked to (docs/adr/0036-eas-build-submit-status.md): the stored status loads
   // with the list (the server does not call Expo for it); "Read again" asks Expo again for people who may sync. Null when the app has no link.
   let eas = $state<EasStatusView | null>(null);
-  let easProblem = $state('');
-  let easReading = $state(false);
-  const mayRefreshEas = $derived(can(role, 'apps.sync') && eas?.project != null && eas.supported);
 
   const focus = $derived(parseViewPath(address.hash).query.get('build'));
   let generation = 0;
@@ -91,25 +89,7 @@
     }
   }
 
-  async function refreshEas() {
-    if (!mayRefreshEas) return;
-    const mine = ++easGeneration;
-    easReading = true;
-    easProblem = '';
-    try {
-      const read = await api.refreshEasStatus(workspaceId, app.id);
-      if (mine === easGeneration) eas = read.status;
-    } catch (e) {
-      if (mine === easGeneration) easProblem = easStatusErrorText(e);
-    } finally {
-      if (mine === easGeneration) easReading = false;
-    }
-  }
 
-  function readAgain() {
-    void load();
-    void refreshEas();
-  }
 
   async function load() {
     const mine = ++generation;
@@ -192,7 +172,7 @@
       </InfoTip>
     {/snippet}
     {#snippet actions()}
-      <Button icon="refresh" loading={loading || easReading} onclick={readAgain}>{t('builds:tests.readAgain')}</Button>
+      <UpdatedLine {api} {workspaceId} {role} apps={[app]} kinds={['eas']} {refreshKey} />
     {/snippet}
   </PageLead>
 
@@ -227,7 +207,7 @@
       </div>
     {/if}
 
-    {#if eas}<EasStatusNote status={eas} problem={easProblem} {now} />{/if}
+    {#if eas}<EasStatusNote status={eas} problem="" {now} />{/if}
 
     {#if rows.length > 0}
       <div class="filters" role="group" aria-label={t('builds:tests.filters')}>

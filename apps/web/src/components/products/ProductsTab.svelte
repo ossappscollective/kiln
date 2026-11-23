@@ -56,6 +56,7 @@
   import ConnectCallout from '../connect/ConnectCallout.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
+  import UpdatedLine from '../app/UpdatedLine.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
@@ -73,7 +74,6 @@
   let view = $state<ProductsView | null>(null);
   let loading = $state(true);
   let problem = $state('');
-  let syncing = $state(false);
   let syncProblem = $state('');
   let openId = $state<string | null>(null);
   let detailKey = $state(0);
@@ -148,30 +148,6 @@
     });
   });
 
-  async function sync() {
-    if (syncing) return;
-    syncing = true;
-    syncProblem = '';
-    revenueCatStep = null;
-    try {
-      const done = await api.syncAppProducts(workspaceId, app.id);
-      const n = done.sync.products;
-      toast.success(t('products:tab.syncDone', { count: n, store: storeName }));
-      revenueCatStep = done.revenuecat ?? null;
-      detailKey += 1;
-      await load();
-      void loadRevenueCat();
-    } catch (e) {
-      syncProblem = classifyProductFailure(e, 'read').message;
-      // The RevenueCat step runs even when the store step failed: its result is shown beside the store failure.
-      revenueCatStep = e instanceof ApiError ? stepFromBody(e.body) : null;
-      // The failure is also kept on the server, so the list says it.
-      await load();
-      void loadRevenueCat();
-    } finally {
-      syncing = false;
-    }
-  }
 
   const products = $derived(view?.products ?? []);
   const line = $derived(view ? syncLine(view.sync, now) : null);
@@ -193,8 +169,8 @@
       </InfoTip>
     {/snippet}
     {#snippet actions()}
-      {#if maySync && view?.supported !== false}
-        <Button variant={products.length === 0 ? 'primary' : 'secondary'} icon="refresh" loading={syncing} onclick={() => void sync()}>{t('products:tab.sync')}</Button>
+      {#if view?.supported !== false}
+        <UpdatedLine {api} {workspaceId} {role} apps={[app]} kinds={['products']} {refreshKey} />
       {/if}
     {/snippet}
   </PageLead>
@@ -255,11 +231,7 @@
           : t('products:tab.emptyDescription', { store: storeName })}
       >
         {#snippet actions()}
-          {#if maySync}
-            <Button variant="primary" icon="refresh" loading={syncing} onclick={() => void sync()}>{t('products:tab.sync')}</Button>
-          {:else}
-            <span class="muted text-sm">{t('products:tab.askMemberSync')}</span>
-          {/if}
+          <UpdatedLine {api} {workspaceId} {role} apps={[app]} kinds={['products']} {refreshKey} />
         {/snippet}
       </EmptyState>
     {:else}

@@ -70,6 +70,7 @@
   import { reviewsLead } from '../../lib/page-lead.ts';
   import Alert from '../ui/Alert.svelte';
   import PageLead from '../ui/PageLead.svelte';
+  import UpdatedLine from '../app/UpdatedLine.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Icon from '../ui/Icon.svelte';
@@ -95,7 +96,6 @@
   const PAGE = 25;
   const uid = $props.id();
 
-  const canSync = $derived(can(role, 'reviews.sync'));
   const canTriage = $derived(can(role, 'reviews.triage'));
 
   let summary = $state<ReviewsSummary | null>(null);
@@ -115,7 +115,6 @@
   let moreLoading = $state(false);
   let loadProblem = $state('');
   let listProblem = $state('');
-  let syncing = $state(false);
   let syncProblem = $state('');
   let announcement = $state('');
 
@@ -262,27 +261,6 @@
     void loadList(true);
   }
 
-  async function readNow() {
-    if (syncing) return;
-    const owner = generation;
-    syncing = true;
-    syncProblem = '';
-    try {
-      const done = await api.syncAppReviews(workspaceId, app.id);
-      if (owner !== generation) return;
-      const text = syncSummaryText(done.sync);
-      toast.success(text);
-      announcement = text;
-      await loadAll(true);
-    } catch (e) {
-      if (owner !== generation) return;
-      syncProblem = reviewErrorMessage(e, 'sync');
-      // A failed read is stored on the sync state, so show it.
-      await loadSummary();
-    } finally {
-      if (owner === generation) syncing = false;
-    }
-  }
 
   const translationOn = $derived(
     canTranslate(role) && translationConfig !== null && translationConfig.enabled && translationConfig.mode !== 'off',
@@ -341,9 +319,7 @@
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#snippet readButton(primary: boolean)}
-    {#if canSync}
-      <Button variant={primary ? 'primary' : 'secondary'} icon="refresh" loading={syncing} disabled={needsAppSync} onclick={readNow}>{t('reviews:tabui.readNow')}</Button>
-    {/if}
+    <UpdatedLine {api} {workspaceId} {role} apps={[app]} kinds={['reviews']} {refreshKey} />
   {/snippet}
 
   <PageLead
@@ -405,11 +381,7 @@
               : t('reviews:tabui.emptyAppleLater')}
         >
           {#snippet actions()}
-            {#if canSync && !needsAppSync}
-              <Button variant="primary" icon="refresh" loading={syncing} onclick={readNow}>{t('reviews:tabui.readNow')}</Button>
-            {:else if !canSync}
-              <span class="muted">{t('reviews:tabui.memberCanRead')}</span>
-            {/if}
+            <UpdatedLine {api} {workspaceId} {role} apps={[app]} kinds={['reviews']} {refreshKey} />
           {/snippet}
         </EmptyState>
       </div>

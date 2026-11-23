@@ -501,7 +501,6 @@
   "tests.otherArtifacts_other": "{{count}} other artifacts of this repository belong to other runs or platforms and are not shown.",
   "tests.phone": "Phone",
   "tests.platform": "Platform",
-  "tests.readAgain": "Read again",
   "tests.reading": "Reading the builds",
   "tests.sectionTitle": "Test builds",
   "tests.source": "Source",

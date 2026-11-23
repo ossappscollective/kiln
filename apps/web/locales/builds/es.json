@@ -501,7 +501,6 @@
   "tests.otherArtifacts_other": "{{count}} otros artefactos de este repositorio pertenecen a otras ejecuciones o plataformas y no se muestran.",
   "tests.phone": "Teléfono",
   "tests.platform": "Plataforma",
-  "tests.readAgain": "Volver a leer",
   "tests.reading": "Leyendo las compilaciones",
   "tests.sectionTitle": "Compilaciones de prueba",
   "tests.source": "Origen",

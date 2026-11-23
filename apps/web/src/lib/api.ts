@@ -1,3 +1,4 @@
+import type { SyncPlanEntry } from './sync-sources.ts';
 import type {
   AiSuggestionStatus,
   AiSuggestionView,
@@ -942,6 +943,12 @@ export function createApi(options: ApiOptions = {}) {
       request<{ apps: { id: string; feeds: { feed: string; since: number }[] }[]; queued: number }>(
         'GET',
         `${workspace(workspaceId)}/sync/activity`,
+      ),
+    /** The one "Sync" of an app: queues its jobs (critical first) and answers at once with the plan (docs/api/apps.md). `without: 'app'` when the caller ran the app sync itself. */
+    syncAppAll: (workspaceId: string, id: string, without?: 'app') =>
+      request<{ plan: SyncPlanEntry[] }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(id)}/sync-all${without ? `?without=${without}` : ''}`,
       ),
     /** Reads the store with the app's credential and replaces the stored snapshot. Can take seconds. */
     syncApp: (workspaceId: string, id: string) =>

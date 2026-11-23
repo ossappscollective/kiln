@@ -1,12 +1,15 @@
 <!--
   StatusPopover: the small "Status" button of the app header. It holds what used to crowd the header: where the data lives (the
   Repository and Store live chips), each store record with its full bundle id or package name (it wraps, never cut off) and when it
-  was last synced, and the ONE "Sync now" action of the app. A failed sync turns the button's icon into a warning. The full store and
-  credential details stay in the app settings (the link at the bottom).
-  Props: members (the records in scope), chips (lib/app-chips.ts), now (epoch ms), canSync, syncing (any record is syncing),
-  onsync (sync every record in scope), settingsHref (the app settings page).
+  was last synced, and THE place for sync details: every source the app is synced from (SyncSources: state, last read, what to try, and the progress
+  of a run). There is no Sync button here: the one Sync is in the header and runs all of it. A failed sync turns the button's icon into a warning.
+  The full store and credential details stay in the app settings (the link at the bottom).
+  Props: api, workspaceId, role, members (the records in scope), chips (lib/app-chips.ts), now (epoch ms), syncing (a run is going), syncRuns
+  (changes when a run ended, so the sources are read again), settingsHref (the app settings page).
 -->
 <script lang="ts">
+  import type { Role } from '@kiln/core';
+  import type { Api } from '../../lib/api.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { OPEN_STATUS_EVENT, statusDot } from '../../lib/app-page.ts';
   import type { DataChip } from '../../lib/app-chips.ts';
@@ -14,27 +17,31 @@
   import { storeForPlatform } from '../../lib/stores.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import SyncStatus from '../portfolio/SyncStatus.svelte';
-  import Button from '../ui/Button.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import StoreBadge from '../ui/StoreBadge.svelte';
   import DataChips from './DataChips.svelte';
+  import SyncSources from './SyncSources.svelte';
 
   let {
+    api,
+    workspaceId,
+    role,
     members,
     chips,
     now,
-    canSync,
     syncing,
-    onsync,
+    syncRuns = 0,
     settingsHref,
   }: {
+    api: Api;
+    workspaceId: string;
+    role: Role;
     members: AppSummary[];
     chips: DataChip[];
     now: number;
-    canSync: boolean;
     syncing: boolean;
-    onsync: () => void;
+    syncRuns?: number | undefined;
     settingsHref: string;
   } = $props();
 
@@ -67,10 +74,9 @@
         </li>
       {/each}
     </ul>
+    {#if open}<SyncSources {api} {workspaceId} {role} {members} {now} refreshKey={syncRuns} />{/if}
     <div class="foot">
-      {#if canSync}
-        <Button variant="primary" size="sm" icon="refresh" loading={syncing} onclick={onsync}>{syncing ? t('app:statusPopover.syncing') : t('app:statusPopover.syncNow')}</Button>
-      {/if}
+      {#if syncing}<span class="muted" role="status">{t('app:statusPopover.syncing')}</span>{/if}
       <a href={settingsHref}>{t('app:statusPopover.details')}</a>
     </div>
   </div>

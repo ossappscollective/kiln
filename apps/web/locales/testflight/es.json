@@ -125,7 +125,6 @@
   "tab.openConsole": "Abrir en App Store Connect",
   "tab.partsTitle": "No se pudo leer una parte",
   "tab.reading": "Leyendo los comentarios",
-  "tab.sync": "Sincronizar",
   "tab.syncDone": "Sincronizado: {{feedback}} comentarios nuevos y {{crashes}} cierres inesperados nuevos.",
   "tab.syncFailedNetwork": "La sincronización falló. Comprueba tu conexión e inténtalo de nuevo.",
   "tab.syncFailedTitle": "La sincronización falló",

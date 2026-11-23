@@ -38,6 +38,15 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   could not be read. Every chart card is in exactly one section (`lib/analytics/sections.ts`, tested). **Data sources is ONE panel for the scope**
   (`SourcesPanel` with `items`): one summary (worst state, last read), a heading per platform only when there are several, one import button per platform.
   What is read per platform lives in `PlatformData` (one read, shared by the figures and the sections).
+- **One Sync (2026-11-23)**: the header **Sync** is the only sync button. For every record in scope it runs, in order: the store listing and release state
+  (directly, so the releases are on screen when it ends), then the rest through the server queue in one request (`POST /apps/:id/sync-all?without=app`: reviews,
+  EAS, analytics, critical first, [ADR 0050](adr/0050-sync-pipeline.md)), then products with the RevenueCat figures and TestFlight feedback (no queue yet;
+  `lib/sync-all.ts`). Each kind the role may not run, or that does not apply, is left out and said. The **Status** popover is the single place for details:
+  `SyncSources` lists every source (name, state in words, last read, what to try, per platform when several) and shows each kind's progress while a run goes
+  (`lib/sync-run.svelte.ts`). Pages no longer carry sync buttons (Insights "Sync analytics now", reviews, products, TestFlight, test builds "Read again" are gone):
+  a quiet `UpdatedLine` says "Updated 5 minutes ago" for the sources the page shows, or "Could not read: reviews" with a "See Status" button. What stays: first-time setup
+  (connect, enable, Apple analytics) and file imports (a Play Console CSV or Apple report, in Insights, Data sources). `apps.sync` still gates the header Sync;
+  each kind also needs its own right (`reviews.sync`, `analytics.manage`). Pure logic: `lib/sync-sources.ts`, `lib/sync-all.ts` (tested).
 - **Views inside a page** (`ViewSwitch`, `?view=` in the address, platform, version and locale stay): Store listing = Text, Graphics;
   Insights = Overview, Highlights (the Insights cards, with the count badge on the Insights entry), Countries (downloads by main language against the languages of the store page), Keywords, Search terms (phase 2, see 0a), Experiments (`?view=experiments`, every platform: Apple tests and custom product pages, Google link-out and the manual tracker); Builds = Builds,
   Workflows, Test builds; Reviews = Reviews, TestFlight (`?view=testflight`, `reviews.read`, only when an Apple app is in scope: beta feedback and crashes).
@@ -48,7 +57,7 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
 - **One slim header per page** (`AppShell`): page name and app name, the platform control (only for an app on several platforms, not
   on app settings), the version and locale pickers only on Releases and Store listing, and a **Status** button (`StatusPopover`) that
   holds the Repository and Store live chips, each store record with its full bundle id (wraps, never truncated), the last sync and the
-  one **Sync now** action.
+  one **Sync now** action (since 2026-11-23 the Status popover has no button: see "One Sync" below).
 - **Pending bar** (`PendingBar`): while an app has changes waiting, one quiet strip under the header on every app page, "N changes
   waiting. Nothing is published until you review them." and one "Review and publish" button to `/pending`. Hidden with nothing pending
   and on the pending page. Pending changes is not a navigation entry any more. The bar is no longer yellow (a blocking error keeps the

@@ -826,11 +826,12 @@ export const workspaceOperations: Draft[] = [
     tags: ['apps'],
     summary: 'Queue everything an app syncs, critical first',
     description:
-      'The one "Sync" of the app: queues one job per kind the app has (`app` = store listing and release state, `reviews`, `eas`, `analytics`), in the order the worker ranks them, and answers `202` at once with what happened to each kind. A kind the caller may not run, that does not apply (`not_linked`, `off`, `not_ready`) or that is already queued or running (`already_queued`) is `skipped` with its reason. Nothing is read from a store here: the existing jobs read it. Counts as one sync of the per workspace budget. See docs/adr/0050-sync-pipeline.md.',
+      'The one "Sync" of the app: queues one job per kind the app has (`app` = store listing and release state, `reviews`, `eas`, `analytics`), in the order the worker ranks them, and answers `202` at once with what happened to each kind. A kind the caller may not run, that does not apply (`not_linked`, `off`, `not_ready`) or that is already queued or running (`already_queued`) is `skipped` with its reason. Nothing is read from a store here: the existing jobs read it. `?without=app` leaves the `app` kind out (the caller ran it itself). Counts as one sync of the per workspace budget. See docs/adr/0050-sync-pipeline.md.',
     risk: 'write',
     access: { action: 'apps.sync' },
     appScope: { kind: 'param', name: 'id' },
     rateLimited: true,
+    query: z.object({ without: z.enum(['app']).optional() }),
     responses: {
       '202': {
         description: 'The plan, in queue order.',

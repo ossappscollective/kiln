@@ -38,6 +38,12 @@ scheduled listing job (a recent read from any path is not started again), 429 wi
 - **Visible progress**: `GET /workspaces/{id}/sync/activity` (feeds being read, jobs waiting) and a small "Syncing now" line on the apps overview. "Sync all"
   syncs three apps at once; the workspace budget of 10 syncs a minute still counts each.
 
+- **One Sync per app (2026-11-23)**: `POST /apps/:id/sync-all` queues one job per kind the app has (`app.sync`, `review.sync`, `eas.status`, `analytics.sync`),
+  in the order the worker ranks them, answers `202` with a plan (a skipped kind says why: `forbidden`, `not_linked`, `off`, `not_ready`, `already_queued`) and
+  counts as one sync of the workspace budget. It reads no store. The web header Sync uses it (with `?without=app`, having run the app sync directly) so the
+  per-page sync buttons are gone; the Status popover lists each source and its progress from the sources' stored status. Products and TestFlight feedback
+  still have no queue; the browser runs their own routes after the plan. Moving them to jobs is a follow-up.
+
 ## Measured (fake store, not real timings)
 
 `sync-pipeline-bench.test.ts` runs the real worker, host gate and pool against a fake store answering after 8 ms: 6 apps, each with an app sync (3 reads),

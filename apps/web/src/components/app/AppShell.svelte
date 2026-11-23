@@ -39,6 +39,8 @@
   import { type AppGroup, groupApps, groupOf } from '../../lib/app-groups.ts';
   import { type AppSection, appAddress, resolveScope, visibleSections } from '../../lib/app-scope.ts';
   import { appLabel, describeError, portfolioHref, syncApp, syncSummaryText } from '../../lib/portfolio.ts';
+  import { syncRest } from '../../lib/sync-all.ts';
+  import { syncRun } from '../../lib/sync-run.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
@@ -90,7 +92,7 @@
   const appleInScope = $derived(scoped.some((m) => supports(m.platform, 'testflightFeedbackApi')));
   const views = $derived(viewsFor(section, allowed, { androidInScope, appleInScope }));
   const view = $derived(resolveView(section, hash, allowed, { androidInScope, appleInScope }));
-  const anySyncing = $derived(scoped.some((m) => syncing[m.id] === true));
+  const anySyncing = $derived(scoped.some((m) => syncing[m.id] === true) || syncRun.active);
   /** What is pending for the app, from the workspace summary (all its records, not only those in scope); null draws no chip. */
   const lineOf = (list: readonly AppSummary[]) => lineFor(pendingStore.summary(workspaceId), list.map((m) => m.id), pendingStore.viewsOf(list.map((m) => m.id)));
   /** What is pending on the records of the page (the platform in scope). */
@@ -215,8 +217,38 @@
     }
   }
 
+  /**
+   * The one Sync of the app (docs/ux-ia.md "One Sync"): for every record in scope the store listing and releases first (directly, so they are on
+   * screen when it ends), then everything else the app has through the server's queue (critical first) and the two kinds without a queue
+   * (lib/sync-all.ts). Progress per source is in the Status popover (SyncSources); pages say "Updated X ago".
+   */
   async function syncScoped() {
-    for (const app of scoped) await sync(app);
+    if (anySyncing) return;
+    const mine = generation;
+    const list = [...scoped];
+    for (const app of list) {
+      syncRun.set(app.id, 'app', 'running');
+      await sync(app);
+      syncRun.set(app.id, 'app', records[app.id]?.lastSyncError ? 'failed' : 'done');
+    }
+    let problem: string | null = null;
+    for (const app of list) {
+      const rest = await syncRest(api, workspaceId, app, role, (kind, state) => syncRun.set(app.id, kind, state));
+      syncRun.plan(app.id, rest.plan, rest.extra);
+      problem = problem ?? rest.problem;
+    }
+    if (mine !== generation) return;
+    if (problem) toast.error(t('app:sync.problem', { message: problem }));
+    // The queue works in the background: wait (at most a minute and a half) until this app has no feed being read and no job waiting.
+    for (let i = 0; i < 36 && mine === generation; i++) {
+      await new Promise((r) => setTimeout(r, 2500));
+      const activity = await api.syncActivity(workspaceId).catch(() => null);
+      if (activity === null || (activity.queued === 0 && !activity.apps.some((a) => list.some((m) => m.id === a.id)))) break;
+    }
+    if (mine !== generation) return;
+    syncRun.settle();
+    now = Date.now();
+    syncRuns += 1;
   }
 
   // Something was published from this app's "Review and publish all": read the store again and show the releases (where the new state is).
@@ -297,7 +329,7 @@
         {#if canSync}
           <Button size="sm" icon="refresh" loading={anySyncing} disabled={anySyncing} onclick={syncScoped}>{anySyncing ? t('app:statusPopover.syncing') : t('app:shell.sync')}</Button>
         {/if}
-        <StatusPopover {members} {chips} {now} {canSync} syncing={anySyncing} onsync={syncScoped} settingsHref={appAddress(id, 'settings', address.platform)} />
+        <StatusPopover {api} {workspaceId} {role} {members} {chips} {now} syncing={anySyncing} {syncRuns} settingsHref={appAddress(id, 'settings', address.platform)} />
         {#if section !== 'settings'}
           <Button href={appAddress(id, 'settings', address.platform)} variant="ghost" icon="settings" iconOnly label={t('app:title.settings')} />
         {/if}

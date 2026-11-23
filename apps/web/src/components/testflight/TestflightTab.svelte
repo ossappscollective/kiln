@@ -36,6 +36,7 @@
   import type { AppSummary, Member } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
+  import UpdatedLine from '../app/UpdatedLine.svelte';
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
@@ -48,7 +49,6 @@
   let { api, workspaceId, role, app, refreshKey }: { api: Api; workspaceId: string; role: Role; app: AppSummary; refreshKey: number } = $props();
 
   const uid = $props.id();
-  const maySync = $derived(can(role, 'reviews.sync'));
   const apple = $derived(platformSupports(app.platform, 'testflightFeedbackApi'));
   const consoleUrl = $derived(apple ? testflightConsoleUrl(app.storeAppId) : null);
 
@@ -60,7 +60,6 @@
   let loading = $state(true);
   let loadingMore = $state(false);
   let problem = $state('');
-  let syncing = $state(false);
   let syncProblem = $state('');
   let now = $state(Date.now());
   let selectedId = $state('');
@@ -157,21 +156,6 @@
     changed();
   }
 
-  async function sync() {
-    if (syncing) return;
-    syncing = true;
-    syncProblem = '';
-    try {
-      const done = await api.syncAppTestflight(workspaceId, app.id);
-      toast.success(t('testflight:tab.syncDone', { feedback: done.sync.added.feedback, crashes: done.sync.added.crashes }));
-    } catch (e) {
-      syncProblem = e instanceof ApiError ? e.message : t('testflight:tab.syncFailedNetwork');
-    } finally {
-      syncing = false;
-      // The failure is also kept on the server, so the line says it.
-      await load();
-    }
-  }
 
   /** A triage change in the detail: the row follows, and the counts are read again (a page of one row). */
   function onTriaged(item: TestflightItem) {
@@ -225,8 +209,8 @@
       {#if consoleUrl}
         <Button icon="external-link" href={consoleUrl} target="_blank">{t('testflight:tab.openConsole')}</Button>
       {/if}
-      {#if apple && maySync}
-        <Button variant={total === 0 ? 'primary' : 'secondary'} icon="refresh" loading={syncing} onclick={() => void sync()}>{t('testflight:tab.sync')}</Button>
+      {#if apple}
+        <UpdatedLine {api} {workspaceId} {role} apps={[app]} kinds={['testflight']} {refreshKey} />
       {/if}
     {/snippet}
   </PageLead>
@@ -337,9 +321,7 @@
           description={!synced && !hasFilter ? t('testflight:empty.neverDescription') : kind === 'crash' ? t('testflight:empty.crashDescription') : t('testflight:empty.feedbackDescription')}
         >
           {#snippet actions()}
-            {#if maySync && !synced}
-              <Button variant="primary" icon="refresh" loading={syncing} onclick={() => void sync()}>{t('testflight:tab.sync')}</Button>
-            {/if}
+            <UpdatedLine {api} {workspaceId} {role} apps={[app]} kinds={['testflight']} {refreshKey} />
           {/snippet}
         </EmptyState>
       {:else}

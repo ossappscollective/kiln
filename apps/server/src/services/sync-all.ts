@@ -119,13 +119,14 @@ async function readFacts(db: Database, workspaceId: string, appId: string): Prom
 /** Queues the jobs of one app (critical first) and says what happened to each kind; null for an unknown app. */
 export async function enqueueAppSyncAll(
   ctx: { db: Database; now: () => number },
-  input: { workspaceId: string; appId: string; role: Role; requestedBy: string },
+  input: { workspaceId: string; appId: string; role: Role; requestedBy: string; /** Kinds the caller has just run itself (the web client runs `app` directly to show the result at once). */ without?: readonly SyncKind[] },
 ): Promise<SyncPlanEntry[] | null> {
   const facts = await readFacts(ctx.db, input.workspaceId, input.appId);
   if (!facts) return null;
   const out: SyncPlanEntry[] = [];
   const now = ctx.now();
   for (const d of planKinds(input.role, facts)) {
+    if (input.without?.includes(d.kind)) continue;
     if (!d.run) {
       out.push({ kind: d.kind, state: 'skipped', reason: d.reason });
       continue;
