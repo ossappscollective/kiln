@@ -73,11 +73,17 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   on app settings), the version and locale pickers only on Releases and Store listing, and a **Status** button (`StatusPopover`) that
   holds the Repository and Store live chips, each store record with its full bundle id (wraps, never truncated), the last sync and the
   one **Sync now** action (since 2026-11-23 the Status popover has no button: see "One Sync" below).
-- **Pending bar** (`PendingBar`): while an app has changes waiting, one quiet strip under the header on every app page, "N changes
-  waiting. Nothing is published until you review them." and one "Review and publish" button to `/pending`. Hidden with nothing pending
-  and on the pending page. Pending changes is not a navigation entry any more. The bar is no longer yellow (a blocking error keeps the
-  warning colour). **On the Overview it is not a bar:** the changes are one link under the primary button of the Next step card
-  ("2 changes waiting. Review and publish", `pendingPlacement` in `lib/app-page.ts`); a blocking error stays a bar there too.
+- **Pending cart** (`PendingCart`, `PendingCartDrawer`; replaces the pending bar, ADR 0054): a floating button at the bottom right of every app page
+  showing how many changes wait ("Pending" and the count; hidden with none and on the pending page; above the mobile safe area and above a sticky
+  save bar; toasts stand above it). Opening it shows the right drawer (header and footer fixed, the body scrolls): items grouped by kind (Store listing,
+  Graphics, Release details, Review replies), a checkbox per row, platform and language chips, the new text with what the store has now ("before → after"),
+  who and when, and **Open** to the page where it was made. Select all; **Publish N selected** and **Discard selected** each ask first and say how many
+  and to which stores. After a run every item shows Done, Failed or Skipped with a reason; partial success is normal and what failed stays in the cart.
+  When a page stages something the button pulses once (not with reduced motion), a toast says "Added to pending changes" and the count is announced
+  politely. What publish does: staged changes are written to the store as a **draft** (nothing is submitted; they are sent together, so they are
+  selected together), a reply is public at once. Rights: a row the person cannot send (no right, switch off, an error) is listed with its reason and
+  cannot be selected. Submit, release and rollout stay on the publish page (linked from the drawer). Replies come from the existing reply drafts.
+  On the Overview the changes are also one link under the primary button of the Next step card (`pendingPlacement` in `lib/app-page.ts`).
 - **Revenue, Expo card and EAS steps (2026-11-23)**: the RevenueCat figures (active subscriptions, trials, MRR, 28-day revenue, "As of", the
   "key may not read metrics" sentence) are the Revenue block of the Insights overview (`RevenueBlock`, only for a RevenueCat-linked app); Products keeps
   configuration and one small link to Insights. The app Overview has an Expo (EAS) card per platform (latest build and submission, stored data only,
