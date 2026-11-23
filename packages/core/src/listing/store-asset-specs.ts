@@ -221,15 +221,37 @@ export function deviceFitsPlatform(platform: Platform, device: string | null): b
   return isDesktop(platform) ? base.family === 'mac' && !imessage : base.family !== 'mac';
 }
 
-/** The label of a device class id of either store, or the id itself when it is not known. */
+/**
+ * Whether a kind of asset is a set per device class. Screenshots and previews are (Apple: display type;
+ * Google Play: phone, tablet, TV, Wear); icons, the feature graphic, the promo graphic and the TV banner are
+ * one per locale and have no device dimension on either store.
+ */
+export function kindHasDevice(kind: AssetKind): boolean {
+  return kind === 'screenshot' || kind === 'preview';
+}
+
+/**
+ * The label of a device class id of either store, or the id itself when it is not known. `null` (no device
+ * class) gives an empty string: the caller decides whether that means "this kind has no device"
+ * (`kindHasDevice`) or "the device is not recognised", and translates the second one.
+ */
 export function deviceLabel(store: AssetStore, id: string | null): string {
-  if (id === null) return 'Unclassified';
+  if (id === null) return '';
   if (store === 'app_store') {
     const imessage = id.startsWith(IMESSAGE_PREFIX);
     const base = DISPLAY_BY_ID.get(imessage ? id.slice(IMESSAGE_PREFIX.length) : id);
     return base ? (imessage ? `iMessage, ${base.label}` : base.label) : id;
   }
   return PLAY_DEVICES.find((d) => d.id === id)?.label ?? id;
+}
+
+/**
+ * The device part of a set, for an English message of this package: '' for a kind without a device
+ * dimension, 'device not recognised' for a device-specific kind without a class, else the label.
+ */
+export function describeDevice(store: AssetStore, kind: AssetKind, id: string | null): string {
+  if (!kindHasDevice(kind)) return '';
+  return id === null ? 'device not recognised' : deviceLabel(store, id);
 }
 
 /**
@@ -819,7 +841,7 @@ function checkSets(store: AssetStore, assets: readonly AssetFacts[], out: AssetP
   for (const set of summarizeAssets(store, assets)) {
     if (set.max !== null && set.rule !== null && set.count > set.max) {
       out.push(
-        problem(set.rule, 'error', `${set.locale} ${set.deviceLabel}: ${set.count} found.`, {
+        problem(set.rule, 'error', `${[set.locale, describeDevice(store, set.kind, set.device)].filter(Boolean).join(' ')}: ${set.count} found.`, {
           locale: set.locale,
           kind: set.kind,
           device: set.device,
@@ -872,7 +894,7 @@ function checkSets(store: AssetStore, assets: readonly AssetFacts[], out: AssetP
           problem(
             'play.screenshot.large_screen',
             'info',
-            `${locale} ${deviceLabel(store, device)}: ${tablet.length} found${off ? ', some outside the sizes' : ''}.`,
+            `${locale} ${describeDevice(store, 'screenshot', device)}: ${tablet.length} found${off ? ', some outside the sizes' : ''}.`,
             { locale, kind: 'screenshot', device },
           ),
         );

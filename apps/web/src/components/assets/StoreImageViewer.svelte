@@ -42,7 +42,7 @@
 
   const at = $derived(stepIndex(index, 0, rows.length));
   const row = $derived<GraphicRow | null>(rows[at] ?? null);
-  const setName = $derived(set ? `${set.kindLabel} · ${set.deviceLabel}` : '');
+  const setName = $derived(set ? (set.deviceLabel ? `${set.kindLabel} · ${set.deviceLabel}` : set.kindLabel) : '');
   let failed = $state('');
   let working = $state('');
   const src = $derived(row ? (row.full ?? row.thumb) : null);
@@ -165,7 +165,7 @@
       </div>
       <dl class="facts">
         <div><dt>{t('assets:viewer.locale')}</dt><dd>{set.locale}</dd></div>
-        <div><dt>{t('assets:viewer.device')}</dt><dd>{set.deviceLabel}</dd></div>
+        {#if set.deviceLabel}<div><dt>{t('assets:viewer.device')}</dt><dd>{set.deviceLabel}</dd></div>{/if}
         <div><dt>{t('assets:viewer.index')}</dt><dd>{t('assets:viewer.indexValue', { position: row.position, total: rows.length })}{#if row.staged} <Badge tone="accent" icon="layers">{t('assets:viewer.staged')}</Badge>{/if}</dd></div>
         <div><dt>{t('assets:viewer.pixels')}</dt><dd>{pixelText(row.width, row.height) || t('assets:viewer.unknown')}</dd></div>
         <div><dt>{t('assets:viewer.bytes')}</dt><dd>{row.bytes !== null ? formatBytes(row.bytes) : t('assets:viewer.unknown')}</dd></div>

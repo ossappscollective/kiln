@@ -71,7 +71,7 @@ const assets: AssetItem[] = [
     path: 'm/en-US/p.mov',
     kind: 'preview',
     device: null,
-    deviceLabel: 'Unclassified',
+    deviceLabel: '',
     format: 'video',
     width: null,
     height: null,
@@ -82,7 +82,7 @@ const assets: AssetItem[] = [
     locale: '',
     kind: 'app_icon',
     device: null,
-    deviceLabel: 'Unclassified',
+    deviceLabel: '',
     origin: 'project',
   }),
 ];
@@ -205,7 +205,7 @@ test('filter options list only what the index holds', () => {
     options.kinds.map((o) => o.value),
     ['screenshot', 'preview', 'app_icon'],
   );
-  assert.ok(options.devices.some((o) => o.value === '' && o.label === 'Unclassified'));
+  assert.ok(options.devices.some((o) => o.value === '' && o.label === 'Device not recognised'));
   assert.ok(options.devices.some((o) => o.value === 'ipad_13'));
 });
 

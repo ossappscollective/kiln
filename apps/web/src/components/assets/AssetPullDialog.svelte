@@ -14,6 +14,7 @@
   import type { Api } from '../../lib/api.ts';
   import { type PullReport, canChangeAssets, skipText, storeKeyOf, summarizePull, SYNC_ROLE_REASON } from '../../lib/assets/sync.ts';
   import { formatBytes, localeLabel } from '../../lib/assets/assets.ts';
+  import { deviceText } from '../../lib/assets/device-text.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { stagingError } from '../../lib/staged.ts';
@@ -153,7 +154,7 @@
               <li>
                 <label class="check">
                   <input type="checkbox" checked={picked.indexOf(keyOf(s)) !== -1} onchange={() => toggle(keyOf(s))} disabled={phase === 'pulling'} />
-                  <span><T key="assets:pull.setItem" params={{ title: t('assets:compare.setTitle', { locale: localeLabel(s.locale), device: s.deviceLabel || s.kind }), count: s.files.length }} tags={{ link: muted }} /></span>
+                  <span><T key="assets:pull.setItem" params={{ title: t('assets:compare.setTitle', { locale: localeLabel(s.locale), device: deviceText(s.kind, s.device, s.deviceLabel) || s.kind }), count: s.files.length }} tags={{ link: muted }} /></span>
                 </label>
               </li>
             {/each}

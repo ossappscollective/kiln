@@ -8,6 +8,8 @@ import {
   classifyApplePreviewName,
   classifyAppleScreenshot,
   deviceLabel,
+  describeDevice,
+  kindHasDevice,
   PLAY_DEVICES,
   summarizeAssets,
   validateAssets,
@@ -422,7 +424,26 @@ test('summaries count per locale, kind and device with the limit of the set', ()
   );
   assert.equal(deviceLabel('google_play', 'tablet_7'), '7-inch tablet');
   assert.equal(deviceLabel('app_store', 'imessage:ipad_13'), 'iMessage, iPad 13" / 12.9"');
-  assert.equal(deviceLabel('app_store', null), 'Unclassified');
+  assert.equal(deviceLabel('app_store', null), '');
+  assert.equal(deviceLabel('google_play', null), '');
+});
+
+test('kindHasDevice and describeDevice: icons and graphics have no device, screenshots and previews do', () => {
+  for (const kind of ['icon', 'app_icon', 'feature_graphic', 'promo_graphic', 'tv_banner'] as const) {
+    assert.equal(kindHasDevice(kind), false);
+    assert.equal(describeDevice('google_play', kind, null), '');
+    assert.equal(describeDevice('app_store', kind, null), '');
+  }
+  for (const kind of ['screenshot', 'preview'] as const) assert.equal(kindHasDevice(kind), true);
+  assert.equal(describeDevice('app_store', 'screenshot', 'iphone_6_9'), deviceLabel('app_store', 'iphone_6_9'));
+  assert.equal(describeDevice('google_play', 'screenshot', 'wear'), 'Wear OS');
+  assert.equal(describeDevice('google_play', 'screenshot', null), 'device not recognised');
+  // Play: the feature graphic and the icon give a set with no device and no suffix.
+  const sets = summarizeAssets('google_play', [
+    facts('google_play', { kind: 'feature_graphic', device: null, path: 'f' }),
+    facts('google_play', { kind: 'icon', device: null, path: 'i' }),
+  ]);
+  assert.deepEqual(sets.map((x) => x.deviceLabel), ['', '']);
   assert.equal(PLAY_DEVICES.length, 5);
 });
 

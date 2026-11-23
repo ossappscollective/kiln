@@ -7,6 +7,7 @@ import {
   type StoreImagesView,
   slotMaxFiles,
 } from '@kiln/core';
+import { deviceText } from './device-text.ts';
 import { stagedFileRows, stagedSetOf } from './sync.ts';
 
 /**
@@ -91,7 +92,7 @@ export function buildGraphicSets(args: {
         locale: s.locale,
         kind: s.kind,
         device: s.device,
-        deviceLabel: s.deviceLabel,
+        deviceLabel: deviceText(s.kind, s.device, s.deviceLabel),
         staged: false,
         storeCount: rows.length,
         rows,
@@ -111,7 +112,7 @@ export function buildGraphicSets(args: {
       locale: a.locale,
       kind: a.slot.kind,
       device: a.slot.device,
-      deviceLabel: found?.deviceLabel ?? deviceLabel(store, a.slot.device),
+      deviceLabel: found?.deviceLabel ?? deviceText(a.slot.kind, a.slot.device, deviceLabel(store, a.slot.device)),
       staged: true,
       storeCount: found?.storeCount ?? 0,
       rows,

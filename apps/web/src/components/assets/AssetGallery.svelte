@@ -71,7 +71,8 @@
     oncompare?: ((locale: string, set: DeviceGroup) => void) | undefined;
   } = $props();
 
-  const setName = (locale: LocaleGroup, group: DeviceGroup) => t('assets:gallery.setName', { kind: group.kindLabel, device: group.deviceLabel, locale: locale.label });
+  const setName = (locale: LocaleGroup, group: DeviceGroup) =>
+    group.deviceLabel ? t('assets:gallery.setName', { kind: group.kindLabel, device: group.deviceLabel, locale: locale.label }) : t('assets:gallery.setNameNoDevice', { kind: group.kindLabel, locale: locale.label });
 </script>
 
 <div class="gallery">
@@ -85,7 +86,7 @@
         {@const storeOnly = storeOnlyCount(compare, group.count)}
         <div class="set">
           <div class="set-head">
-            <h4>{group.deviceLabel && group.device !== null ? t('assets:gallery.setTitle', { kind: group.kindLabel, device: group.deviceLabel }) : group.kindLabel}</h4>
+            <h4>{group.deviceLabel ? t('assets:gallery.setTitle', { kind: group.kindLabel, device: group.deviceLabel }) : group.kindLabel}</h4>
             <span class="count-text">
               <Badge tone={over ? 'bad' : 'neutral'} icon={over ? toneIcon('bad') : undefined}>{countText(group)}</Badge>
             </span>

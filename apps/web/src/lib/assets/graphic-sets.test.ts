@@ -48,3 +48,18 @@ test('moves stay inside the set, and the limit of the set stops adding', () => {
   assert.equal(canAddMore({ rows: new Array(8).fill(0), max: 8 }), false);
   assert.equal(canAddMore({ rows: [], max: 0 }), true);
 });
+
+test('Play kinds without a device dimension have no device suffix; an unrecognised screenshot device says so', () => {
+  const v = view([file(1)]);
+  v.sets.push(
+    { platform: 'android', locale: 'en-US', kind: 'feature_graphic', device: null, deviceLabel: '', target: 'featureGraphic', files: [file(1)] },
+    { platform: 'android', locale: 'en-US', kind: 'icon', device: null, deviceLabel: '', target: 'icon', files: [file(1)] },
+    { platform: 'android', locale: 'en-US', kind: 'screenshot', device: null, deviceLabel: '', target: 'x', files: [file(1)] },
+  );
+  const sets = buildGraphicSets({ platform: 'android', view: v, staged: null, urls })[0]?.sets ?? [];
+  const label = (kind: string, device: string | null) => sets.find((x) => x.kind === kind && x.device === device)?.deviceLabel;
+  assert.equal(label('feature_graphic', null), '');
+  assert.equal(label('icon', null), '');
+  assert.equal(label('screenshot', 'phone'), 'Phone');
+  assert.equal(label('screenshot', null), 'Device not recognised');
+});

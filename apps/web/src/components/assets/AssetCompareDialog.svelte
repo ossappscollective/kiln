@@ -27,6 +27,7 @@
     summarizePull,
   } from '../../lib/assets/sync.ts';
   import { assetFileUrl, fileName, localeLabel } from '../../lib/assets/assets.ts';
+  import { deviceText } from '../../lib/assets/device-text.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { stagingError } from '../../lib/staged.ts';
@@ -100,7 +101,7 @@
   }
 
   const idOf = (s: AssetDiffSet) => `${s.locale}/${s.kind}/${s.device ?? ''}`;
-  const titleOf = (s: AssetDiffSet) => t('assets:compare.setTitle', { locale: localeLabel(s.locale), device: s.deviceLabel || s.kind });
+  const titleOf = (s: AssetDiffSet) => t('assets:compare.setTitle', { locale: localeLabel(s.locale), device: deviceText(s.kind, s.device, s.deviceLabel) || s.kind });
   const repoUrl = (row: AssetCompareRow) => (row.repo && diff ? assetFileUrl(workspaceId, app.id, row.repo.path, diff.commit) : null);
   const storeUrl = (row: AssetCompareRow) => (row.store && row.store.downloadable ? storeThumbUrl(workspaceId, app.id, row.store.ref, 320) : null);
 

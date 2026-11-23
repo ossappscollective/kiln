@@ -74,7 +74,7 @@
     }),
   );
   const imageCount = (sets: GraphicSet[]) => sets.reduce((n, s) => n + s.rows.length, 0);
-  const setName = (set: GraphicSet) => `${ASSET_KIND_LABELS[set.kind]} · ${set.deviceLabel}`;
+  const setName = (set: GraphicSet) => (set.deviceLabel ? `${ASSET_KIND_LABELS[set.kind]} · ${set.deviceLabel}` : ASSET_KIND_LABELS[set.kind]);
 
   const may = $derived(canChangeAssets(role));
   const editReason = $derived(!may ? t(SYNC_ROLE_REASON) : locked ? t('assets:store.lockedReason') : '');

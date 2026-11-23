@@ -2,6 +2,7 @@ import type { AssetKind, AssetProblem, AssetSet } from '@kiln/core';
 import { formatBytes as formatBytesIntl, formatList, formatNumber } from '../i18n/format.ts';
 import { k, t } from '../i18n/t.ts';
 import type { AssetIndex, AssetItem } from '../types.ts';
+import { deviceText } from './device-text.ts';
 
 /**
  * Pure helpers of the Assets tab (docs/api/assets.md): grouping the index by locale and device,
@@ -235,7 +236,7 @@ export function groupAssets(
         kind: asset.kind,
         kindLabel: kindLabel(asset.kind),
         device: asset.device,
-        deviceLabel: asset.deviceLabel,
+        deviceLabel: deviceText(asset.kind, asset.device, asset.deviceLabel),
         assets: [],
         count: 0,
         max: set ? set.max : null,
@@ -311,7 +312,7 @@ export function filterOptions(index: Pick<AssetIndex, 'assets'>): FilterOptions 
     if (!locales.includes(asset.locale)) locales.push(asset.locale);
     const id = asset.device ?? '';
     if (devices[id] === undefined) {
-      devices[id] = asset.deviceLabel;
+      devices[id] = deviceText(asset.kind, asset.device, asset.deviceLabel) || t('assets:filter.noDevice');
       deviceIds.push(id);
     }
     if (!kinds.includes(asset.kind)) kinds.push(asset.kind);

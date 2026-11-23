@@ -19,6 +19,7 @@
     localeLabel,
     shortCommit,
   } from '../../lib/assets/assets.ts';
+  import { deviceText } from '../../lib/assets/device-text.ts';
   import { t } from '../../lib/i18n/t.ts';
   import type { AssetItem } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
@@ -52,7 +53,8 @@
   let failedSrc = $state<string | null>(null);
   const canShow = $derived(shown === 'image' && src !== null && failedSrc !== src);
 
-  const kindText = $derived(asset ? t('assets:lightbox.kindLine', { kind: kindLabel(asset.kind), device: asset.deviceLabel, locale: localeLabel(asset.locale) }) : '');
+  const deviceName = $derived(asset ? deviceText(asset.kind, asset.device, asset.deviceLabel) : '');
+  const kindText = $derived(asset ? (deviceName ? t('assets:lightbox.kindLine', { kind: kindLabel(asset.kind), device: deviceName, locale: localeLabel(asset.locale) }) : t('assets:lightbox.kindLineNoDevice', { kind: kindLabel(asset.kind), locale: localeLabel(asset.locale) })) : '');
   const formatText = $derived(
     asset ? (asset.hasAlpha === true ? t('assets:lightbox.formatAlpha', { format: asset.format ?? t('assets:lightbox.notRead') }) : asset.hasAlpha === false ? t('assets:lightbox.formatNoAlpha', { format: asset.format ?? t('assets:lightbox.notRead') }) : (asset.format ?? t('assets:lightbox.notRead'))) : '',
   );
@@ -88,7 +90,7 @@
           {#key src}
             <img
               {src}
-              alt={t('assets:lightbox.alt', { kind: kindLabel(asset.kind), order: asset.order, device: asset.deviceLabel, locale: localeLabel(asset.locale), name: fileName(asset.path) })}
+              alt={deviceName ? t('assets:lightbox.alt', { kind: kindLabel(asset.kind), order: asset.order, device: deviceName, locale: localeLabel(asset.locale), name: fileName(asset.path) }) : t('assets:lightbox.altNoDevice', { kind: kindLabel(asset.kind), order: asset.order, locale: localeLabel(asset.locale), name: fileName(asset.path) })}
               decoding="async"
               referrerpolicy="no-referrer"
               onerror={() => {
