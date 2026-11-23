@@ -9,6 +9,7 @@ import { type ActorType, type Platform, platformMeta, type StoreId } from '@kiln
 import { type Database, nullableNumber, nullableString, type Sql } from '@kiln/db';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
+import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
 import { expoClientFor, expoFailure } from './client.ts';
 import type { EasDeps } from './index.ts';
@@ -327,6 +328,68 @@ export type EasStatusContext = {
 
 export type EasRefreshTrigger = 'manual' | 'job';
 
+/** A failure older than this when first stored is history, not news (the scheduler may have been off). */
+const FAILURE_NEWS_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Expo's short error code when it looks like a code; never Expo's message. */
+const shortCode = (code: string | null | undefined): string | null =>
+  code && /^[A-Za-z0-9_.:-]{1,80}$/.test(code) ? code : null;
+
+/**
+ * `eas.build_failed` and `eas.submission_failed` (docs/alerts.md): one event per build or submission id that this read stores as `errored` and
+ * the snapshot before did not (new, or it was still running). The payload holds ids, platform, version, build number and a short code,
+ * never Expo's message. Not raised on the first read of a project (every old failure is new to Kiln), nor for failures older than a week.
+ */
+async function raiseFailures(
+  tx: Sql,
+  workspaceId: string,
+  appId: string,
+  builds: readonly (ExpoBuildSummary & { platform: ExpoPlatformKey | null })[],
+  submissions: readonly (ExpoSubmissionSummary & { platform: ExpoPlatformKey | null })[],
+  knownFailed: ReadonlySet<string>,
+  at: number,
+): Promise<void> {
+  const fresh = (when: number | null) => (when ?? at) >= at - FAILURE_NEWS_MS;
+  for (const b of builds) {
+    if (b.platform === null || b.status !== 'errored' || knownFailed.has(b.id)) continue;
+    if (!fresh(b.completedAt ?? b.createdAt)) continue;
+    await emitEvent(tx, {
+      workspaceId,
+      type: 'eas.build_failed',
+      subject: { appId },
+      payload: {
+        appId,
+        buildId: b.id,
+        platform: platformOfExpo[b.platform],
+        version: b.appVersion,
+        buildNumber: b.appBuildVersion,
+        code: shortCode(b.error?.code),
+      },
+      at,
+    });
+  }
+  for (const s of submissions) {
+    if (s.platform === null || s.status !== 'errored' || knownFailed.has(s.id)) continue;
+    if (!fresh(s.completedAt ?? s.createdAt)) continue;
+    const build = s.buildId ? builds.find((b) => b.id === s.buildId) : undefined;
+    await emitEvent(tx, {
+      workspaceId,
+      type: 'eas.submission_failed',
+      subject: { appId },
+      payload: {
+        appId,
+        submissionId: s.id,
+        buildId: s.buildId,
+        platform: platformOfExpo[s.platform],
+        version: build?.appVersion ?? null,
+        buildNumber: build?.appBuildVersion ?? null,
+        code: shortCode(s.error?.code),
+      },
+      at,
+    });
+  }
+}
+
 const insertBuild = (
   tx: Sql,
   workspaceId: string,
@@ -489,6 +552,20 @@ export async function refreshEasStatus(
     return failed;
   }
   const at = ctx.now();
+  // What was already stored as failed, and whether this is the first read of this project: the failure alerts are for NEWS, once per id.
+  const [synced] = await ctx.db.query(
+    'SELECT project_id, last_success_at FROM eas_status_sync WHERE app_id = ? AND workspace_id = ?',
+    [app.id, input.workspaceId],
+  );
+  const baseline = !synced || synced.last_success_at === null || synced.project_id !== link.projectId;
+  const knownFailed = new Set<string>();
+  for (const r of await ctx.db.query(
+    `SELECT build_id AS id FROM eas_builds WHERE app_id = ? AND workspace_id = ? AND status = 'errored'
+     UNION SELECT submission_id AS id FROM eas_submissions WHERE app_id = ? AND workspace_id = ? AND status = 'errored'`,
+    [app.id, input.workspaceId, app.id, input.workspaceId],
+  )) {
+    knownFailed.add(String(r.id));
+  }
   await ctx.db.transaction(async (tx) => {
     await tx.execute('DELETE FROM eas_builds WHERE app_id = ? AND workspace_id = ?', [
       app.id,
@@ -506,6 +583,9 @@ export async function refreshEasStatus(
       if (s.platform !== null) {
         await insertSubmission(tx, input.workspaceId, app.id, { ...s, platform: s.platform }, at);
       }
+    }
+    if (!baseline) {
+      await raiseFailures(tx, input.workspaceId, app.id, builds.items, submissions.items, knownFailed, at);
     }
     await tx.execute(
       `INSERT INTO eas_status_sync

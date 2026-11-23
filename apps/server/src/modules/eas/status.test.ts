@@ -747,3 +747,63 @@ dbTest(
     );
   },
 );
+
+const eventsOf = async (db: Parameters<typeof bootEas>[0], type: string) =>
+  (await db.query('SELECT payload FROM events WHERE type = ? ORDER BY id', [type])).map(
+    (r) => JSON.parse(String(r.payload)) as Record<string, unknown>,
+  );
+const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+
+dbTest(
+  'failed builds and submissions raise one event per id: none on the first read, none again, none for old history',
+  async (db) => {
+    const { t, fake, appId, link } = await boot(db);
+    await link();
+    const refresh = async () =>
+      assert.equal((await t.call(t.owner, 'POST', `/apps/${appId}/eas/status/refresh`)).status, 200);
+    const failedOld = easBuild({ id: 'b-old', status: 'ERRORED', completedAt: hoursAgo(24 * 30), createdAt: hoursAgo(24 * 30) });
+
+    // First read: every failure already there is new to Kiln, so none is raised.
+    fake.state.builds = [easBuild({ id: 'b-first', status: 'ERRORED', completedAt: hoursAgo(2), createdAt: hoursAgo(3) }), failedOld];
+    fake.state.submissions = [easSubmission({ id: 's-first', status: 'ERRORED', createdAt: hoursAgo(1), completedAt: hoursAgo(1) })];
+    await refresh();
+    assert.deepEqual(await eventsOf(db, 'eas.build_failed'), []);
+    assert.deepEqual(await eventsOf(db, 'eas.submission_failed'), []);
+
+    // A running build and a new submission fail: one event each, with ids, platform, version and a short code, never Expo's message.
+    fake.state.builds = [
+      easBuild({ id: 'b-run', status: 'IN_PROGRESS', completedAt: null, createdAt: hoursAgo(1) }),
+      easBuild({ id: 'b-first', status: 'ERRORED', completedAt: hoursAgo(2), createdAt: hoursAgo(3) }),
+    ];
+    fake.state.submissions = [easSubmission({ id: 's-first', status: 'ERRORED', createdAt: hoursAgo(1), completedAt: hoursAgo(1) })];
+    await refresh();
+    assert.deepEqual(await eventsOf(db, 'eas.build_failed'), [], 'a running build is not a failure');
+
+    fake.state.builds = [
+      easBuild({ id: 'b-run', status: 'ERRORED', completedAt: hoursAgo(0), createdAt: hoursAgo(1), error: { errorCode: 'EAS_BUILD_UNKNOWN_GRADLE_ERROR', message: 'SECRET-LOG-TEXT' } }),
+      easBuild({ id: 'b-first', status: 'ERRORED', completedAt: hoursAgo(2), createdAt: hoursAgo(3) }),
+      failedOld,
+    ];
+    fake.state.submissions = [
+      easSubmission({ id: 's-new', status: 'ERRORED', submittedBuild: { id: 'b-run' }, createdAt: hoursAgo(0), completedAt: hoursAgo(0) }),
+      easSubmission({ id: 's-first', status: 'ERRORED', createdAt: hoursAgo(1), completedAt: hoursAgo(1) }),
+    ];
+    await refresh();
+    const builds = await eventsOf(db, 'eas.build_failed');
+    assert.deepEqual(builds.map((e) => e.buildId), ['b-run'], 'the build that was running; not the one already stored as failed, nor the month-old one');
+    assert.equal(builds[0]?.platform, 'ios');
+    assert.equal(builds[0]?.version, '1.4.0');
+    assert.equal(builds[0]?.buildNumber, '57');
+    const subs = await eventsOf(db, 'eas.submission_failed');
+    assert.deepEqual(subs.map((e) => e.submissionId), ['s-new']);
+    assert.equal(subs[0]?.buildId, 'b-run');
+    assert.equal(subs[0]?.version, '1.4.0');
+    assert.ok(!JSON.stringify([...builds, ...subs]).includes('SECRET-LOG-TEXT'), "Expo's message is never in an event");
+
+    // The same snapshot again: nothing new.
+    await refresh();
+    assert.equal((await eventsOf(db, 'eas.build_failed')).length, 1);
+    assert.equal((await eventsOf(db, 'eas.submission_failed')).length, 1);
+    await noSecrets(t);
+  },
+);

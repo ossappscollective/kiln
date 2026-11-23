@@ -25,6 +25,9 @@ export const eventTypes = [
   'testflight.crash',
   // App health (docs/adr/0052-ratings-and-health.md): a version crashes clearly more than the one before it (ids, version names and two rates only).
   'health.crash_regression',
+  // EAS (docs/api/eas-builds.md): a build or a submission was stored as failed by the status read (ids, platform, version and a short code only).
+  'eas.build_failed',
+  'eas.submission_failed',
   'release.rollout_changed',
   'listing.draft_pushed',
   'listing.submitted',
@@ -77,6 +80,9 @@ export const eventReadAction: Record<EventType, Action> = {
   'testflight.feedback': 'reviews.read',
   'testflight.crash': 'reviews.read',
   'health.crash_regression': 'reviews.read',
+  // Ids, platform, version and Expo's short error code only; never Expo's message, a log or a file address.
+  'eas.build_failed': 'builds.read',
+  'eas.submission_failed': 'builds.read',
   'release.rollout_changed': 'apps.read',
   'listing.draft_pushed': 'listing.read',
   'listing.submitted': 'listing.read',

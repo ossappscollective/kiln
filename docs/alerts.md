@@ -66,6 +66,8 @@ thresholds. Channels are the workspace defaults. The webhook is only on where li
 | `review.unanswered`      | Reviews are waiting for an answer           | info     | workspace | `review.unanswered`                                     | inbox                          | 24h           |                                                                                      |
 | `testflight.crash`| A beta tester sent a TestFlight crash| warning| app       | `testflight.crash`| inbox                          | 30d           |                                                                                      |
 | `testflight.feedback`| A beta tester sent TestFlight feedback| info| app       | `testflight.feedback`| inbox                          | 30d           |                                                                                      |
+| `eas.build_failed`   | An EAS (Expo) build was stored as failed | warning  | app       | `eas.build_failed`     | inbox, desktop                 | 90d           | once per build id; none on the first read of a project |
+| `eas.submission_failed` | An EAS store submission was stored as failed | warning | app   | `eas.submission_failed`| inbox, desktop                 | 90d           | once per submission id; none on the first read of a project |
 | `rating.dropped`         | The average rating dropped                  | warning  | app       | state, every 5 minutes                                  | inbox, email                   | 7d            | Drop that counts: 20 hundredths of a star (5 to 200); compared with 7 days (1 to 60) |
 | `store.sync_failed`      | A store sync failed                         | warning  | app       | state, every 5 minutes                                  | inbox, email                   | 24h           |                                                                                      |
 | `credential.invalid`     | A credential does not work                  | critical | workspace | `credential.test_failed`, and state                     | inbox, email, desktop, webhook | 24h           |                                                                                      |
@@ -99,6 +101,15 @@ review read sends **one grouped event** (`grouped: true`, `count`) instead of on
 or **more than 10 reviews** are new in one read; the alert then says "12 new reviews for App". Up to 10 new reviews are one alert each
 ("New 4-star review for App"), once per store review. The alert and its event carry ids, the store, the platform, the rating and
 counts only: not the review text, not the title, not the name ([ADR 0027](adr/0027-review-feed-and-new-review-alert.md)).
+
+### EAS build and submission failures
+
+`eas.build_failed` and `eas.submission_failed` (warning, group Builds, inbox and desktop by default, then email, Slack or Teams like the others)
+are raised by the stored status read of an Expo-linked app ([eas-builds](api/eas-builds.md)), once per build or submission id: when a read stores
+an `errored` status that the snapshot before did not hold (new, or it was still running). The first read of a project (or after a change of
+project) raises none, and a failure older than a week when first stored is history. The data is ids, platform, version, build number and Expo's
+short error code; never Expo's message. The alert opens the Builds page. A manual or scheduled read raising the same failure twice is not possible:
+the event is raised once and the alert key (`eas.build_failed:{buildId}`) holds 90 days. The OTA stuck-rollout alert is not built.
 
 ### TestFlight feedback and crashes
 

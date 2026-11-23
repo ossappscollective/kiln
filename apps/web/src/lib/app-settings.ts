@@ -149,6 +149,8 @@ export const appEventTypes: readonly string[] = [
   'review.reply_sent',
   'testflight.feedback',
   'testflight.crash',
+  'eas.build_failed',
+  'eas.submission_failed',
   'release.rollout_changed',
   'listing.draft_pushed',
   'listing.submitted',

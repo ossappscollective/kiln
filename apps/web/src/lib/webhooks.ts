@@ -35,6 +35,8 @@ export const webhookEventChoices: { type: string; labelKey: string }[] = [
   { type: 'review.reply_sent', labelKey: k('workspace:webhook.event.reviewReplySent') },
   { type: 'testflight.feedback', labelKey: k('workspace:webhook.event.testflightFeedback') },
   { type: 'testflight.crash', labelKey: k('workspace:webhook.event.testflightCrash') },
+  { type: 'eas.build_failed', labelKey: k('workspace:webhook.event.easBuildFailed') },
+  { type: 'eas.submission_failed', labelKey: k('workspace:webhook.event.easSubmissionFailed') },
   { type: 'health.crash_regression', labelKey: k('workspace:webhook.event.healthCrashRegression') },
   { type: 'release.rollout_changed', labelKey: k('workspace:webhook.event.releaseRolloutChanged') },
   { type: 'listing.draft_pushed', labelKey: k('workspace:webhook.event.listingDraftPushed') },

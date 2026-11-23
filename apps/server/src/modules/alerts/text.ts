@@ -1,3 +1,4 @@
+import { type Platform, platformLabel } from '@kiln/core';
 import { type Translate, translator } from '../../i18n/catalogs.ts';
 import { type Params, SOURCE_LOCALE } from '../../i18n/runtime.ts';
 import type { AlertData } from './catalog-core.ts';
@@ -127,6 +128,17 @@ const testflightBuild = (d: AlertData): string | undefined => {
   return build && version ? `${version} (${build})` : (build ?? version);
 };
 
+function easSpec(f: Fmt, kind: 'build_failed' | 'submission_failed'): Spec {
+  const base = `eas.${kind}`;
+  const build = testflightBuild(f.d);
+  const platform = text(f.d.platform);
+  const params = { app: f.app, build, platform: platform ? platformLabel(platform as Platform) : undefined };
+  return {
+    title: [`${base}.title`, { app: f.app }],
+    body: build ? [`${base}.body`, params] : [`${base}.body.noBuild`, { app: f.app }],
+  };
+}
+
 function testflightSpec(f: Fmt, kind: 'feedback' | 'crash'): Spec {
   const base = `testflight.${kind}`;
   const count = number(f.d.count);
@@ -237,6 +249,8 @@ const specs: Record<string, (f: Fmt) => Spec> = {
   },
   'testflight.feedback': (f) => testflightSpec(f, 'feedback'),
   'testflight.crash': (f) => testflightSpec(f, 'crash'),
+  'eas.build_failed': (f) => easSpec(f, 'build_failed'),
+  'eas.submission_failed': (f) => easSpec(f, 'submission_failed'),
   'review.new': (f) => {
     const s = store(f.d);
     if (f.d.grouped === true) {

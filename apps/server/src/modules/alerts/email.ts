@@ -113,6 +113,8 @@ const guides: Record<string, (d: AlertData) => GuideSpec> = {
   'review.new': (d) => ({ primary: openApp(d, 'reviews', 'readReviews') }),
   'testflight.feedback': (d) => ({ primary: openTestflight(d) }),
   'testflight.crash': (d) => ({ primary: openTestflight(d) }),
+  'eas.build_failed': (d) => ({ primary: openApp(d, 'builds', 'seeBuilds') }),
+  'eas.submission_failed': (d) => ({ primary: openApp(d, 'builds', 'seeBuilds') }),
   'review.unanswered': (d) => ({
     hint: 'unanswered',
     primary: openApp(d, 'reviews', 'answerReviews'),

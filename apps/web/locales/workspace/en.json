@@ -571,6 +571,8 @@
   "webhook.event.ciRunFinished": "A GitHub Actions workflow run finished (ids and the conclusion only)",
   "webhook.event.ciRunStarted": "A GitHub Actions workflow run started (ids only)",
   "webhook.event.credentialTestFailed": "A credential test failed",
+  "webhook.event.easBuildFailed": "An EAS build was stored as failed (ids, platform, version and a short code only; never Expo’s message)",
+  "webhook.event.easSubmissionFailed": "An EAS store submission was stored as failed (ids, platform, version and a short code only; never Expo’s message)",
   "webhook.event.healthCrashRegression": "A version crashes clearly more than the one before it (ids, version names and two rates only)",
   "webhook.event.listingDraftPushed": "Staged listing changes were written to the store as a draft (ids and counts only; never submitted)",
   "webhook.event.listingSubmitted": "A listing version was submitted for review in the store (ids only; never released)",

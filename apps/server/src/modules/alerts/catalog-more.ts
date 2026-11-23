@@ -18,6 +18,19 @@ const testflightData = (e: Parameters<NonNullable<ReturnType<typeof def>['fromEv
   };
 };
 
+/** The data of an EAS failure alert: ids, platform and version only (never Expo's message). `idKey` is `buildId` or `submissionId`. */
+const easData = (
+  e: Parameters<NonNullable<ReturnType<typeof def>['fromEvent']>>[0],
+  idKey: 'buildId' | 'submissionId',
+) => ({
+  appId: e.subject.appId ?? null,
+  platform: str(e.payload.platform),
+  [idKey]: str(e.payload[idKey]),
+  buildNumber: str(e.payload.buildNumber),
+  version: str(e.payload.version),
+  code: str(e.payload.code),
+});
+
 /** The alert catalog, part 2: reviews, store, builds, analytics, ASO, AI, security and system (see alert-catalog.ts). */
 export const moreDefs = [
   // ----- reviews and ratings ---------------------------------------------------------------------
@@ -141,6 +154,45 @@ export const moreDefs = [
       before: num(e.payload.before),
       after: num(e.payload.after),
     }),
+  }),
+  // ----- Expo (EAS) builds and submissions (docs/api/eas-builds.md) --------------------------------
+  def({
+    id: 'eas.build_failed',
+    group: 'builds',
+    label: 'An EAS build failed',
+    description:
+      'The status read of the linked Expo project stored a build as failed (errored). Raised once per build id, when the failure is first stored; the first read of an app raises none. Expo\u2019s message is never in the alert.',
+    severity: 'warning',
+    scope: 'app',
+    defaultChannels: ['in_app', 'desktop'],
+    allowedChannels: everyone,
+    audience: 'builds.read',
+    source: { kind: 'event', events: ['eas.build_failed'] },
+    dedupe: 'eas.build_failed:{buildId}',
+    dedupeKey: (d) => `eas.build_failed:${d.buildId}`,
+    dedupeWindowMs: 90 * DAY,
+    maxPerHour: 30,
+    params: {},
+    fromEvent: (e) => easData(e, 'buildId'),
+  }),
+  def({
+    id: 'eas.submission_failed',
+    group: 'builds',
+    label: 'An EAS submission failed',
+    description:
+      'The status read of the linked Expo project stored a store submission as failed (errored). Raised once per submission id, when the failure is first stored; the first read of an app raises none. Expo\u2019s message is never in the alert.',
+    severity: 'warning',
+    scope: 'app',
+    defaultChannels: ['in_app', 'desktop'],
+    allowedChannels: everyone,
+    audience: 'builds.read',
+    source: { kind: 'event', events: ['eas.submission_failed'] },
+    dedupe: 'eas.submission_failed:{submissionId}',
+    dedupeKey: (d) => `eas.submission_failed:${d.submissionId}`,
+    dedupeWindowMs: 90 * DAY,
+    maxPerHour: 30,
+    params: {},
+    fromEvent: (e) => easData(e, 'submissionId'),
   }),
   def({
     id: 'review.sync_failed',
