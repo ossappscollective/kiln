@@ -3,7 +3,7 @@
   left panel is AppNav, drawn by the shell). The header is the name of the page and the app, the platform control (only for an app
   on several platforms, and not on the settings page), the version and locale pickers on the pages they apply to (Releases and Store
   listing, AppHeaderRow) and a small Status button (StatusPopover) that holds the store chips, the bundle ids, the last sync and
-  what each source last read. The page's Sync (SyncButton, split: this page's sources, or more from its menu) sits beside it. Under it, while the app has changes waiting, one quiet strip with "Review and publish" (PendingBar).
+  what each source last read. The page's Sync (SyncButton, split: this page's sources, or more from its menu) sits beside it. While the app has changes waiting, a floating button at the bottom right shows how many and opens the pending cart (PendingCart).
   The records of the two stores that are one product are shown as one app (lib/app-groups.ts).
   Props: api, workspaceId, role, id (an id of one of its platform records, from the address).
   The page, its view (`?view=`: Store listing text or graphics, Insights analytics or ASO, Builds builds, workflows or test builds),
@@ -52,7 +52,7 @@
   import Skeleton from '../ui/Skeleton.svelte';
   import AppHeaderRow from './AppHeaderRow.svelte';
   import AppSectionView from './AppSection.svelte';
-  import PendingBar from './PendingBar.svelte';
+  import PendingCart from './PendingCart.svelte';
   import StatusPopover from './StatusPopover.svelte';
   import SyncButton from './SyncButton.svelte';
   import LockedBanner from './LockedBanner.svelte';
@@ -104,7 +104,7 @@
   const elsewhereLine = $derived(lineOf(elsewhere));
   const bar = $derived(pendingBar(pendingLine, section) ?? pendingBar(elsewhereLine, section, elsewhere.map((m) => platformLabel(m.platform)).join(' and ')));
   const barHref = $derived(appAddress(id, 'pending', pendingBar(pendingLine, section) !== null || elsewhere.length === 0 ? address.platform : (elsewhere[0] as AppSummary).platform));
-  /** On the Overview the pending changes are a link in the Next step card; a blocking error and the other pages keep the slim bar. */
+  /** On the Overview the pending changes are a link in the Next step card. The floating cart button (PendingCart) shows what waits on every page. */
   const placed = $derived(pendingPlacement(bar, section));
   const pendingLink = $derived(placed.link !== null ? { text: placed.link, href: barHref } : null);
   const scopeShown = $derived(showsScope(section, members.length));
@@ -346,7 +346,6 @@
       </div>
     </header>
 
-    <PendingBar bar={placed.bar} href={barHref} />
 
     {#if lock.text !== ''}
       <LockedBanner text={lock.text} href={appAddress(id, 'releases', address.platform)} />
@@ -374,6 +373,7 @@
       />
     </div>
   {/if}
+  <PendingCart {api} {workspaceId} groupId={id} {members} platform={address.platform} hidden={section === 'pending'} />
 </section>
 
 <style>

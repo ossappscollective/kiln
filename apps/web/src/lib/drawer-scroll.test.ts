@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 // A side drawer: fixed header, one scrolling body. A flex child scrolls only with min-height: 0, and cards (overflow: hidden)
 // would otherwise shrink and clip instead (the "cut off at the bottom" bug).
-for (const file of ['listing/LocaleDrawer', 'listing/HistoryDrawer', 'ci/RunDrawer']) {
+for (const file of ['listing/LocaleDrawer', 'listing/HistoryDrawer', 'ci/RunDrawer', 'app/PendingCartDrawer']) {
   test(`${file}: the body is the single scroll container`, () => {
     const css = readFileSync(new URL(`../components/${file}.svelte`, import.meta.url), 'utf8').split('<style>')[1] ?? '';
     const rule = (sel: string) => new RegExp(`\\n  ${sel.replace('.', '\\.')} \\{([^}]*)\\}`).exec(css)?.[1] ?? '';

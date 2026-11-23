@@ -1,4 +1,6 @@
 <!--
+  NOT MOUNTED any more (docs/adr/0054-pending-cart.md): the floating pending cart button replaced it. Kept only because files are not
+  deleted here; remove it with `git rm`.
   PendingBar: one slim, quiet (not yellow) line under the header of an app page while the app has changes waiting to be published: "3
   changes waiting. Nothing is published until you review them." and one "Review and publish" button that opens the pending changes of
   the app (the existing review and publish flow; the button only opens it). Drawn only while something is pending, and not on the

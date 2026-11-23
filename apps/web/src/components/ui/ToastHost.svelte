@@ -44,7 +44,8 @@
   .host {
     position: fixed;
     right: var(--space-4);
-    bottom: var(--space-4);
+    /* Above the pending cart button while it shows (it sets --cart-clearance). */
+    bottom: calc(var(--space-4) + var(--cart-clearance, 0px));
     z-index: var(--z-toast);
     display: flex;
     flex-direction: column;

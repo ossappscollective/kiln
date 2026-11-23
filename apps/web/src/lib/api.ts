@@ -190,6 +190,7 @@ import type {
   TriageInput,
 } from './testflight.ts';
 import type { VersionPreview, VersionResult } from './store-version.ts';
+import { announceCartAdded, type CartResponse, type CartResultResponse } from './pending-cart.ts';
 import {
   type CodeSent,
   type LoginMethod,
@@ -553,6 +554,12 @@ function uploadQueryText(q: UploadQuery): string {
   if (q.background !== undefined) out.set('background', q.background);
   return out.toString();
 }
+
+/** Something was staged or a reply draft saved: the cart button says so. Returns the answer unchanged. */
+const addedToCart = <T>(answer: T): T => {
+  announceCartAdded();
+  return answer;
+};
 
 export function createApi(options: ApiOptions = {}) {
   const send =
@@ -1525,7 +1532,7 @@ export function createApi(options: ApiOptions = {}) {
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/text`,
         body,
-      ),
+      ).then(addedToCart),
     stageAssets: (
       workspaceId: string,
       appId: string,
@@ -1542,7 +1549,7 @@ export function createApi(options: ApiOptions = {}) {
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets`,
         body,
-      ),
+      ).then(addedToCart),
     // Two way sync of the graphics (docs/api/assets.md, docs/api/staged-changes.md). Reading a store and the comparison
     // change nothing in it. A pull and "to repository" make a DRAFT change set; uploads, removals and fixes change only
     // the staged set in our own database. Nothing here writes to a store: that is `pushStagedDraft`.
@@ -1730,7 +1737,7 @@ export function createApi(options: ApiOptions = {}) {
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/release-fields`,
         body,
-      ),
+      ).then(addedToCart),
     // The release pipeline (docs/api/release-pipeline.md): reads of our own database.
     releasePipeline: (workspaceId: string, appId: string) =>
       request<AppPipeline>(
@@ -1791,6 +1798,32 @@ export function createApi(options: ApiOptions = {}) {
     // Everything pending, and publishing it in one go (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md). The two
     // pending reads and the config read our own database only. `previewPublish` reads the stores (a plan, no write).
     // `publishPending` is the only call that writes: sent once with the plan's hash and the typed phrase, never retried by this app.
+    // The pending cart (docs/api/pending.md#the-pending-cart): the read is stored state; publish sends only the named items, discard
+    // removes Kiln's draft only. Neither is ever retried by this app.
+    appPendingCart: (workspaceId: string, appId: string) =>
+      request<CartResponse>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/pending/cart`,
+      ),
+    publishPendingCart: (
+      workspaceId: string,
+      appId: string,
+      items: { id: string; version: string }[],
+      grant?: string,
+    ) =>
+      request<CartResultResponse>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/pending/publish`,
+        { items },
+        undefined,
+        grantHeader(grant),
+      ),
+    discardPendingCart: (workspaceId: string, appId: string, ids: string[]) =>
+      request<CartResultResponse>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/pending/discard`,
+        { ids },
+      ),
     appPending: (workspaceId: string, appId: string) =>
       request<{ pending: PendingView }>(
         'GET',
@@ -2073,7 +2106,7 @@ export function createApi(options: ApiOptions = {}) {
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/${encodeURIComponent(reviewId)}/reply-draft`,
         body,
-      ),
+      ).then(addedToCart),
     deleteReplyDraft: (workspaceId: string, appId: string, reviewId: string) =>
       request<void>(
         'DELETE',
