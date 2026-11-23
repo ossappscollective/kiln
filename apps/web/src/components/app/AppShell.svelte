@@ -354,7 +354,7 @@
           <ScopeControl options={resolved.options} scope={resolved.scope} onchange={setPlatformScope} />
         {/if}
         {#if canSync}
-          <SyncButton {api} {workspaceId} {role} members={scoped} {section} {now} busy={anySyncing} refreshKey={syncRuns} onrun={syncTargets} />
+          <SyncButton {api} {workspaceId} {role} members={scoped} {section} {view} {now} busy={anySyncing} refreshKey={syncRuns} onrun={syncTargets} />
         {/if}
         <StatusPopover {api} {workspaceId} {role} {members} {chips} {now} syncing={anySyncing} {syncRuns} settingsHref={appAddress(id, 'settings', address.platform)} />
         {#if section !== 'settings'}

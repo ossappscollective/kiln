@@ -19,6 +19,10 @@ const brief = (p: ReturnType<typeof planPage>) => p.main?.targets.map((t) => `${
 test('a section maps to the page that syncs what it shows', () => {
   assert.equal(syncPageFor('insights'), 'analytics');
   assert.equal(syncPageFor('analytics'), 'analytics');
+  // Ratings and health read the reviews (ratings) and the analytics (crashes): both belong to the page.
+  assert.equal(syncPageFor('insights', 'ratings'), 'health');
+  assert.equal(syncPageFor('insights', 'countries'), 'analytics');
+  assert.deepEqual([...PAGE_KINDS.health], ['reviews', 'analytics']);
   assert.equal(syncPageFor('reviews'), 'reviews');
   assert.equal(syncPageFor('products'), 'products');
   assert.equal(syncPageFor('builds'), 'builds');

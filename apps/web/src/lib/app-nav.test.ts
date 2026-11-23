@@ -321,16 +321,21 @@ test('a page offers a switch only for the views the role may open, and only when
   );
   assert.deepEqual(
     viewsFor('insights', all).map((v) => v.id),
-    ['overview', 'highlights', 'countries', 'keywords', 'terms', 'experiments'],
+    ['overview', 'highlights', 'countries', 'ratings', 'keywords', 'terms', 'experiments'],
   );
   assert.deepEqual(
     viewsFor('insights', all, { androidInScope: false }).map((v) => v.id),
-    ['overview', 'highlights', 'countries', 'keywords', 'experiments'],
+    ['overview', 'highlights', 'countries', 'ratings', 'keywords', 'experiments'],
   );
   // Experiments need the ASO right, like Keywords: a role with analytics only sees Overview, Highlights and Countries.
   assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=experiments'), 'experiments');
   assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=highlights'), 'highlights');
   assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=countries'), 'countries');
+  // Ratings and health (docs/adr/0052-ratings-health.md): needs reviews.read; every older value still resolves as before.
+  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=ratings&section=stability'), 'ratings');
+  assert.deepEqual(viewsFor('insights', (a) => a === 'analytics.read' || a === 'reviews.read').map((v) => v.id), ['overview', 'highlights', 'countries', 'ratings']);
+  assert.equal(canonicalInsightsView('ratings'), 'ratings');
+  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=analytics'), 'overview');
   assert.equal(withView('#/portfolio/a1/insights?platform=ios', 'insights', 'highlights'), '#/portfolio/a1/insights?platform=ios&view=highlights');
   assert.deepEqual(
     viewsFor('insights', (a) => a === 'analytics.read').map((v) => v.id),

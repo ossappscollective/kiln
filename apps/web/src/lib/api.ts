@@ -48,6 +48,7 @@ import type {
   PlayBucketView,
 } from './analytics/analytics.ts';
 import type { ProductSalesView } from './analytics/product-sales.ts';
+import type { HealthView, RatingsView } from './ratings/ratings.ts';
 import type { CountriesView as InsightsCountriesView, InsightsView, ListingChecksView } from './insights/insights.ts';
 import type {
   AsoAddResult,
@@ -2672,6 +2673,11 @@ export function createApi(options: ApiOptions = {}) {
     // checks `listing.read`); dismissing and restoring a card are Kiln's own record and need `aso.write`.
     appInsights: (workspaceId: string, appId: string, includeHidden = false) =>
       request<InsightsView>('GET', `${insightsPath(workspaceId, appId)}${includeHidden ? '?includeHidden=1' : ''}`),
+    // Ratings and health (docs/api/ratings.md): stored data only, `reviews.read`. `days` is counted back from today (7 to 730).
+    appRatings: (workspaceId: string, appId: string, days: number) =>
+      request<RatingsView>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ratings?days=${days}&granularity=day`),
+    appHealth: (workspaceId: string, appId: string, days: number) =>
+      request<HealthView>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/health?days=${days}`),
     appInsightsCount: (workspaceId: string, appId: string) =>
       request<{ count: number }>('GET', `${insightsPath(workspaceId, appId)}/count`),
     appInsightsCountries: (workspaceId: string, appId: string) =>

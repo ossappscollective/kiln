@@ -30,6 +30,7 @@
     role,
     members,
     section,
+    view = '',
     now,
     busy,
     refreshKey = 0,
@@ -40,13 +41,15 @@
     role: Role;
     members: AppSummary[];
     section: AppSection;
+    /** The open view of the page (`ratings` in Insights syncs reviews and analytics). */
+    view?: string | undefined;
     now: number;
     busy: boolean;
     refreshKey?: number | undefined;
     onrun: (targets: SyncTarget[], everything: boolean) => void;
   } = $props();
 
-  const page = $derived(syncPageFor(section));
+  const page = $derived(syncPageFor(section, view));
   let inputs = $state<SourceInput[]>([]);
   let readAt = $state(Date.now());
   /** The other kinds are read only once the menu was opened: most pages never need them. */
