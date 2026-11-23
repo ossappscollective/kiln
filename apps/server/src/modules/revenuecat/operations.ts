@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { type Draft, none, timestamp, W } from '../../operations/shared.ts';
-import { detectQuery, setLinkBody } from './routes.ts';
+import { detectQuery, planQuery, setLinkBody } from './routes.ts';
 
 /**
  * The operations of the RevenueCat link and read (docs/api/revenuecat.md). Reading the link and the joined view needs `apps.read`;
@@ -286,6 +286,72 @@ export const revenueCatOperations: Draft[] = [
               ),
             apps: z.array(choice).nullable(),
             complete: z.boolean(),
+          }),
+        }),
+      },
+    },
+  },
+  {
+    id: 'listIntegrationLinks',
+    method: 'get',
+    path: `${W}/integration-links`,
+    tags: ['revenuecat'],
+    summary: 'Which app records are linked to RevenueCat and to Expo',
+    description:
+      'Database only (no call to RevenueCat or Expo): the ids of the app records that have a RevenueCat link and those that have an Expo link. The web app uses it to tell which records still need to be connected. Needs `apps.read`. A token restricted to some apps cannot call it.',
+    risk: 'read',
+    access: { action: 'apps.read' },
+    responses: {
+      '200': {
+        description: 'The linked app record ids.',
+        schema: z.object({ revenuecat: z.array(z.string()), expo: z.array(z.string()) }),
+      },
+    },
+  },
+  {
+    id: 'planRevenueCatLinks',
+    method: 'get',
+    path: `${W}/revenuecat/plan`,
+    tags: ['revenuecat'],
+    summary: 'Propose the RevenueCat link of every app record of the workspace, from one read',
+    description:
+      'The "Connect your apps" flow: READS RevenueCat once with the given RevenueCat credential (its projects, then the apps of each; audited as `credential.use`, purpose `revenuecat.detect`) and answers one row per app record of a store RevenueCat serves. `proposal` is set only when exactly one RevenueCat app of the key has the record’s bundle id or package name and a store type that fits its platform; two such apps are `ambiguous` and nothing is proposed. `candidates` are every RevenueCat app that fits the store of the record, suggested ones first. Records that are already linked have `linked: true` and are left alone. Saves nothing and changes nothing in RevenueCat: `PUT /apps/{appId}/revenuecat` saves a link. Needs `apps.write`. A token restricted to some apps cannot call it.',
+    risk: 'read',
+    access: { action: 'apps.write' },
+    query: planQuery,
+    responses: {
+      '200': {
+        description: 'One proposal per app record.',
+        schema: z.object({
+          plan: z.object({
+            projects: z.array(z.object({ id: z.string(), name: z.string() })),
+            rows: z.array(
+              z.object({
+                appId: z.string(),
+                name: z.string(),
+                platform: z.string(),
+                identifier: z.string().describe('The store identifier of the record.'),
+                linked: z.boolean(),
+                candidates: z.array(
+                  z.object({
+                    projectId: z.string(),
+                    projectName: z.string(),
+                    revenueCatAppId: z.string(),
+                    revenueCatAppName: z.string(),
+                    type: z.string(),
+                    identifier: z.string().nullable(),
+                    suggested: z.boolean(),
+                  }),
+                ),
+                proposal: z
+                  .object({ projectId: z.string(), revenueCatAppId: z.string() })
+                  .nullable(),
+                ambiguous: z.boolean(),
+              }),
+            ),
+            complete: z
+              .boolean()
+              .describe('False when a list of the key stopped at a cap: a match may be missing.'),
           }),
         }),
       },

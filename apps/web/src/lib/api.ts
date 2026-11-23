@@ -81,6 +81,7 @@ import type {
   UploadQuery,
 } from './assets/sync.ts';
 import type { ExpoDetection, ExpoLinkView, SetExpoLinkBody } from './eas/eas.ts';
+import type { IntegrationLinks, RevenueCatPlan } from './connect/connect.ts';
 import type { EasStatusView } from './eas/eas-status.ts';
 import type { EasWorkflowDispatchBody, EasWorkflowRunRead } from './eas/eas-workflows.ts';
 import type {
@@ -2655,6 +2656,14 @@ export function createApi(options: ApiOptions = {}) {
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/revenuecat`,
         body,
+      ),
+    // "Connect your apps" (docs/api/revenuecat.md): which records are linked (database only) and one proposal per record from one read of RevenueCat.
+    integrationLinks: (workspaceId: string) =>
+      request<IntegrationLinks>('GET', `${workspace(workspaceId)}/integration-links`),
+    planRevenueCat: (workspaceId: string, credentialId: string) =>
+      request<{ plan: RevenueCatPlan }>(
+        'GET',
+        `${workspace(workspaceId)}/revenuecat/plan?credentialId=${encodeURIComponent(credentialId)}`,
       ),
     removeRevenueCatLink: (workspaceId: string, appId: string) =>
       request<void>(

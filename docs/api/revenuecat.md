@@ -17,6 +17,7 @@ RevenueCat apps of any other store are listed as "not mapped" and ignored.
 | `PUT /api/workspaces/:workspaceId/apps/:appId/revenuecat`                                 | `apps.write` | Links the app (or changes the link). Asks RevenueCat first.                                                             |
 | `DELETE /api/workspaces/:workspaceId/apps/:appId/revenuecat`                              | `apps.write` | Removes the link and the stored copy. `204`; `404` when there was none.                                                 |
 | `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat/detect?credentialId=&projectId=` | `apps.write` | READS RevenueCat: the projects the key sees and, for one, its apps. Saves nothing.                                      |
+| `GET /api/workspaces/:workspaceId/revenuecat/plan?credentialId=` | `apps.write` | READS RevenueCat once and proposes the link of every app record ("Connect your apps"). Saves nothing. |
 | `POST /api/workspaces/:workspaceId/apps/:appId/revenuecat/sync`                           | `apps.sync`  | Reads the project configuration and replaces the stored copy (the second step of the products sync, alone).             |
 
 `apps.write` is owners and admins. A token limited to some apps may use these routes for those apps only. Non-members and apps of another
@@ -73,6 +74,22 @@ Query: `credentialId` (required), `projectId` (optional: a V2 key sees one proje
 `{ options: { projects, projectId, apps, complete } }`; `apps` is `null` when several projects were seen and none chosen, else a list of
 `{ id, name, type, mapped, linkable, identifier, matches, suggested, note }`. `suggested` marks the linkable app whose identifier is the
 app's own (the most specific type for the platform wins). `complete: false` means a list stopped at a cap. `Cache-Control: no-store`.
+
+## `GET /api/workspaces/:workspaceId/integration-links`
+
+`apps.read`. Database only. `{ revenuecat: [appId], expo: [appId] }`: the app records that have a RevenueCat link and those that have an Expo
+link, so the web app can tell which records still need to be connected without one read per record.
+
+## `GET /api/workspaces/:workspaceId/revenuecat/plan`
+
+Workspace level; query `credentialId` (required). One read of RevenueCat (the projects, then the apps of each; at most 10 projects) instead of
+one `detect` per app record. Answers `{ plan: { projects, rows, complete } }`; one row per app record of a store RevenueCat serves:
+`{ appId, name, platform, identifier, linked, candidates, proposal, ambiguous }`. `candidates` are the RevenueCat apps (any project) whose
+store type fits the record, `{ projectId, projectName, revenueCatAppId, revenueCatAppName, type, identifier, suggested }`, suggested first.
+`proposal` (`{ projectId, revenueCatAppId }`) is set only when exactly one RevenueCat app has the record's bundle id or package name and a
+type that fits; two such apps are `ambiguous: true` and `proposal` is `null` (never a guess). A linked record has `linked: true` and no
+candidates. Nothing is saved: the web app then calls `PUT .../apps/:appId/revenuecat` for each record the person confirmed. Audit
+`credential.use`, purpose `revenuecat.detect`. Shares the 20 per minute budget of the link routes. `Cache-Control: no-store`.
 
 ## `GET .../revenuecat/products`
 

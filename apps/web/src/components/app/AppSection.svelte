@@ -33,6 +33,7 @@
   import ListingMatrix from '../listing/ListingMatrix.svelte';
   import BuildsPanel from '../portfolio/BuildsPanel.svelte';
   import TestBuilds from '../builds/TestBuilds.svelte';
+  import ConnectCallout from '../connect/ConnectCallout.svelte';
   import PendingChanges from '../publish/PendingChanges.svelte';
   import ProductsTab from '../products/ProductsTab.svelte';
   import ReleaseDetail from '../release/ReleaseDetail.svelte';
@@ -141,12 +142,14 @@
 {/snippet}
 {#snippet builds(app: AppSummary)}
   <div class="stack loose">
+    <ConnectCallout {api} {workspaceId} {role} {app} kind="expo" />
     <BuildsPanel {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
     <EasConfigCard {api} {workspaceId} {role} {app} />
     <EasUpdateCard {api} {workspaceId} {role} {app} />
   </div>
 {/snippet}
 {#snippet testBuilds(app: AppSummary)}
+  <ConnectCallout {api} {workspaceId} {role} {app} kind="expo" />
   <TestBuilds {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
 {/snippet}
 

@@ -7,7 +7,7 @@ import {
 } from '@kiln/connectors';
 import { type ActorType, revenueCatAppTypes, supports } from '@kiln/core';
 import { type Database, nullableString, type Sql } from '@kiln/db';
-import { getApp, type ManagedApp } from '../../services/apps.ts';
+import { getApp, listApps, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
 import {
@@ -237,6 +237,147 @@ export async function detectRevenueCat(
         projectId,
         apps: choicesFor(input.app, listed.apps),
         complete: complete && listed.complete,
+      },
+    };
+  } catch (error) {
+    return revenueCatFailure(error, opened.secret);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// The plan: every app record against what the key sees (the "Connect your apps" flow)
+
+/** At most this many projects are read for a plan (one list of apps each): a key that sees more is cut and says so (`complete` false). */
+export const PLAN_MAX_PROJECTS = 10;
+
+export type PlanCandidate = {
+  projectId: string;
+  projectName: string;
+  revenueCatAppId: string;
+  revenueCatAppName: string;
+  type: string;
+  identifier: string | null;
+  /** This RevenueCat app has the identifier of the record and a store type that fits it (the best one of its project). */
+  suggested: boolean;
+};
+
+export type PlanRow = {
+  appId: string;
+  name: string;
+  platform: ManagedApp['platform'];
+  identifier: string;
+  /** The record already has a link: it is left alone (no candidates, no proposal). */
+  linked: boolean;
+  /** Every RevenueCat app of every project that fits the store of the record, the suggested ones first. */
+  candidates: PlanCandidate[];
+  /** The one match to propose; null when there is none or when it is ambiguous. Never a guess. */
+  proposal: { projectId: string; revenueCatAppId: string } | null;
+  /** Several RevenueCat apps (in one or several projects) match the record: the person chooses. */
+  ambiguous: boolean;
+};
+
+export type RevenueCatPlan = {
+  projects: RevenueCatProject[];
+  rows: PlanRow[];
+  /** False when a list of the key stopped at a cap: a match may be missing. */
+  complete: boolean;
+};
+
+/**
+ * What to propose for ONE app record, from the apps of each project the key sees. A proposal is made only when exactly one RevenueCat app
+ * across all projects has the record's identifier and a store type that fits its platform (`choicesFor` decides both, and picks the most
+ * specific type inside a project); two such apps, in one project or two, are "ambiguous" and nothing is proposed. Pure.
+ */
+export function planRow(
+  app: Pick<ManagedApp, 'id' | 'name' | 'platform' | 'identifier'>,
+  perProject: readonly { project: RevenueCatProject; apps: readonly RevenueCatApp[] }[],
+  linked = false,
+): PlanRow {
+  const base = {
+    appId: app.id,
+    name: app.name,
+    platform: app.platform,
+    identifier: app.identifier,
+    linked,
+  };
+  if (linked) return { ...base, candidates: [], proposal: null, ambiguous: false };
+  const candidates: PlanCandidate[] = [];
+  for (const { project, apps } of perProject) {
+    for (const c of choicesFor(app, apps)) {
+      if (!c.linkable) continue;
+      candidates.push({
+        projectId: project.id,
+        projectName: project.name,
+        revenueCatAppId: c.id,
+        revenueCatAppName: c.name,
+        type: c.type,
+        identifier: c.identifier,
+        suggested: c.suggested,
+      });
+    }
+  }
+  candidates.sort(
+    (a, b) =>
+      Number(b.suggested) - Number(a.suggested) ||
+      a.projectName.localeCompare(b.projectName) ||
+      a.revenueCatAppName.localeCompare(b.revenueCatAppName),
+  );
+  const suggested = candidates.filter((c) => c.suggested);
+  const only = suggested.length === 1 ? suggested[0] : undefined;
+  return {
+    ...base,
+    candidates,
+    proposal: only ? { projectId: only.projectId, revenueCatAppId: only.revenueCatAppId } : null,
+    ambiguous: suggested.length > 1,
+  };
+}
+
+/**
+ * A proposal for every app record of the workspace whose store RevenueCat serves, from ONE read of RevenueCat with the chosen credential
+ * (the projects, then the apps of each project): the same read as `detectRevenueCat` once per record would make, in one go. Saves nothing;
+ * the link of a record is saved with `setRevenueCatLink`. Audited as `credential.use`, purpose `revenuecat.detect`.
+ */
+export async function planRevenueCat(
+  ctx: LinkContext,
+  input: { workspaceId: string; credentialId: string },
+  actor: Actor,
+): Promise<Outcome<{ plan: RevenueCatPlan }>> {
+  const opened = await revenueCatClientFor(
+    ctx.db,
+    ctx.masterKey,
+    input.workspaceId,
+    input.credentialId,
+    ctx.deps,
+    { actor, purpose: REVENUECAT_DETECT_PURPOSE, now: ctx.now() },
+  );
+  if (!opened.ok) return opened;
+  try {
+    const records = (await listApps(ctx.db, input.workspaceId)).filter((a) =>
+      supports(a.platform, 'revenueCat'),
+    );
+    const linkedIds = new Set(
+      (
+        await ctx.db.query('SELECT app_id FROM app_revenuecat_links WHERE workspace_id = ?', [
+          input.workspaceId,
+        ])
+      ).map((r) => String(r.app_id)),
+    );
+    const listed = await listRevenueCatProjects(opened.client);
+    const perProject: { project: RevenueCatProject; apps: RevenueCatApp[] }[] = [];
+    let complete = listed.complete && listed.projects.length <= PLAN_MAX_PROJECTS;
+    // Nothing to match: do not read the apps at all.
+    const needed = records.some((r) => !linkedIds.has(r.id));
+    for (const project of needed ? listed.projects.slice(0, PLAN_MAX_PROJECTS) : []) {
+      const read = await listRevenueCatApps(opened.client, project.id);
+      complete = complete && read.complete;
+      perProject.push({ project, apps: read.apps });
+    }
+    return {
+      ok: true,
+      plan: {
+        projects: listed.projects,
+        rows: records.map((r) => planRow(r, perProject, linkedIds.has(r.id))),
+        complete,
       },
     };
   } catch (error) {

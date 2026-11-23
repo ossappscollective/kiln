@@ -4,6 +4,7 @@
   import { ApiError, type Api } from '../lib/api.ts';
   import { t } from '../lib/i18n/t.ts';
   import type { CredentialSummary, LastTest } from '../lib/types.ts';
+  import ConnectBanner from './connect/ConnectBanner.svelte';
   import CredentialForm from './credentials/CredentialForm.svelte';
   import CredentialTable from './credentials/CredentialTable.svelte';
   import Alert from './ui/Alert.svelte';
@@ -92,6 +93,8 @@
     <Alert tone="info">{t('credentials:page.noAccess')}</Alert>
   {:else}
     <p class="notice" class:shown={notice} bind:this={noticeEl} role="status" tabindex="-1">{notice}</p>
+
+    <ConnectBanner {api} {workspaceId} {role} context="credentials" refreshKey={items} />
 
     {#if adding}
       <CredentialForm {api} {workspaceId} onSaved={saved} onCancel={cancelAdd} />

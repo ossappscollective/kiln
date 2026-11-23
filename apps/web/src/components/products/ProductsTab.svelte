@@ -54,6 +54,7 @@
   import { storeForPlatform } from '../../lib/stores.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ProductsView } from '../../lib/types.ts';
+  import ConnectCallout from '../connect/ConnectCallout.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -218,6 +219,11 @@
 
   <RevenueCatMetricsStrip read={metrics} {now} />
 
+  <!-- Not linked to RevenueCat: say which key was found and what is missing, with one button to link (Connect your apps). -->
+  {#if !showRevenueCat && connectHint(revenueCat, can(role, 'apps.write')) !== ''}
+    <ConnectCallout {api} {workspaceId} {role} {app} kind="revenuecat" />
+  {/if}
+
   {#if syncProblem !== ''}<Alert tone="error" title={t('products:tab.syncFailedTitle')}>{syncProblem}</Alert>{/if}
   {#if revenueCatStep}
     {@const step = stepResult(revenueCatStep)}
@@ -365,8 +371,6 @@
         {#if !revenueCatRead(revenueCat)}
           <p class="muted text-sm" data-testid="revenuecat-unread-hint">{maySync ? t('products:tab.rcUnreadSync') : t('products:tab.rcUnreadAsk')}</p>
         {/if}
-      {:else if connectHint(revenueCat, can(role, 'apps.write')) !== ''}
-        <p class="muted text-sm" data-testid="revenuecat-connect-hint">{connectHint(revenueCat, can(role, 'apps.write'))}</p>
       {/if}
     {/if}
   {/if}

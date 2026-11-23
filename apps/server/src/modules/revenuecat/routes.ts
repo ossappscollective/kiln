@@ -3,6 +3,7 @@ import { type Context, Hono, type Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
+import { listExpoLinks } from '../eas/link.ts';
 import { getApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import type { Failure } from '../../services/repositories.ts';
@@ -10,6 +11,7 @@ import {
   detectRevenueCat,
   getRevenueCatLink,
   type LinkContext,
+  planRevenueCat,
   removeRevenueCatLink,
   setRevenueCatLink,
 } from './link.ts';
@@ -25,6 +27,9 @@ export const setLinkBody = z.strictObject({
   projectId: z.string().trim().min(1).max(255),
   revenueCatAppId: z.string().trim().min(1).max(255),
 });
+
+/** The query of `GET .../revenuecat/plan`: the RevenueCat credential to read with. */
+export const planQuery = z.strictObject({ credentialId: z.string().min(1).max(100) });
 
 /** The query of `GET .../apps/{appId}/revenuecat/detect`. */
 export const detectQuery = z.strictObject({
@@ -124,6 +129,39 @@ export function revenueCatRoutes(
     );
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ options: done.options }) : respond(c, done);
+  });
+
+  // Workspace level: which app records have a RevenueCat or an Expo link. Database only; lets the web app show "Connect your apps" with one
+  // read instead of one per record.
+  app.get('/:workspaceId/integration-links', needs('apps.read'), async (c) => {
+    const rc = await db.query(
+      'SELECT app_id FROM app_revenuecat_links WHERE workspace_id = ? ORDER BY app_id',
+      [ws(c)],
+    );
+    const expo = await listExpoLinks(db, ws(c));
+    return c.json({
+      revenuecat: rc.map((r) => String(r.app_id)),
+      expo: expo.map((l) => l.appId),
+    });
+  });
+
+  // Workspace level: one proposal per app record from one read of RevenueCat (the "Connect your apps" flow). Saves nothing.
+  app.get('/:workspaceId/revenuecat/plan', needs('apps.write'), async (c) => {
+    const query = planQuery.safeParse(c.req.query());
+    if (!query.success) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: query.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+    const wait = ctx.linkLimiter.take(ws(c));
+    if (wait > 0) return respond(c, tooMany(wait, 'RevenueCat checks'));
+    const done = await planRevenueCat(ctx, { workspaceId: ws(c), ...query.data }, actor(c));
+    c.header('Cache-Control', 'no-store');
+    return done.ok ? c.json({ plan: done.plan }) : respond(c, done);
   });
 
   app.put('/:workspaceId/apps/:appId/revenuecat', needs('apps.write'), async (c) => {

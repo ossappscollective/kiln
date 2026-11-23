@@ -31,6 +31,7 @@
   import Board from './dashboard/Board.svelte';
   import ViewToggle from './dashboard/ViewToggle.svelte';
   import AppShell from './app/AppShell.svelte';
+  import ConnectBanner from './connect/ConnectBanner.svelte';
   import AddAppModal from './portfolio/AddAppModal.svelte';
   import AppsOverview from './portfolio/AppsOverview.svelte';
   import OverviewStats from './portfolio/OverviewStats.svelte';
@@ -346,6 +347,10 @@
     </PageHeader>
     {#if canRead && apps !== null && apps.length > 0}
       <div class="stats"><OverviewStats {stats} /></div>
+    {/if}
+
+    {#if canRead && canWrite && apps !== null && apps.length > 0}
+      <div class="stack"><ConnectBanner {api} {workspaceId} {role} {apps} context="portfolio" /></div>
     {/if}
 
     {#if !canRead}

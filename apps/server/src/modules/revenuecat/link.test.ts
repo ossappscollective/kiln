@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { dbTest } from '@kiln/db/testing';
+import { planRow } from './link.ts';
 import {
   apps,
   errorBody,
@@ -353,4 +354,100 @@ dbTest('the link routes are rate limited per workspace', async (db) => {
   let last = 200;
   for (let i = 0; i < 25; i++) last = (await t.detect(appId, q(t.rcCredential))).status;
   assert.equal(last, 429);
+});
+
+const rcApp = (id: string, type: string, identifier: string | null) => ({
+  id,
+  name: id,
+  type,
+  store: type === 'stripe' ? null : (type as 'app_store' | 'mac_app_store' | 'play_store'),
+  identifier,
+});
+const rec = (platform: 'ios' | 'android' | 'macos', identifier = 'com.acme.one') => ({
+  id: `${platform}1`,
+  name: 'One',
+  platform,
+  identifier,
+});
+const p1 = { id: 'p1', name: 'Alpha' };
+const p2 = { id: 'p2', name: 'Beta' };
+
+dbTest('planRow proposes the one app with this identifier and a fitting store type', async () => {
+  const row = planRow(rec('ios', 'com.Acme.One'), [
+    {
+      project: p1,
+      apps: [
+        rcApp('a_play', 'play_store', 'com.acme.one'),
+        rcApp('a_ios', 'app_store', 'com.acme.one'),
+        rcApp('a_other', 'app_store', 'com.acme.two'),
+        rcApp('a_stripe', 'stripe', 'com.acme.one'),
+      ],
+    },
+  ]);
+  assert.deepEqual(row.proposal, { projectId: 'p1', revenueCatAppId: 'a_ios' });
+  assert.equal(row.ambiguous, false);
+  // Only apps that fit the iOS store are offered: not the Play app, not Stripe.
+  assert.deepEqual(row.candidates.map((c) => c.revenueCatAppId), ['a_ios', 'a_other']);
+});
+
+dbTest('planRow never picks when two projects match, or when nothing does', async () => {
+  const twice = planRow(rec('android', 'com.acme.one'), [
+    { project: p1, apps: [rcApp('x', 'play_store', 'com.acme.one')] },
+    { project: p2, apps: [rcApp('y', 'play_store', 'com.acme.one')] },
+  ]);
+  assert.equal(twice.proposal, null);
+  assert.equal(twice.ambiguous, true);
+  assert.equal(twice.candidates.length, 2);
+  // Package names are compared exactly, bundle ids are not.
+  const none = planRow(rec('android', 'com.acme.one'), [
+    { project: p1, apps: [rcApp('x', 'play_store', 'com.Acme.One')] },
+  ]);
+  assert.equal(none.proposal, null);
+  assert.equal(none.ambiguous, false);
+  assert.equal(none.candidates.length, 1, 'still offered to choose by hand');
+});
+
+dbTest('planRow prefers the Mac App Store app of a macOS record; a linked record is left alone', async () => {
+  const row = planRow(rec('macos'), [
+    {
+      project: p1,
+      apps: [rcApp('shared', 'app_store', 'com.acme.one'), rcApp('mac', 'mac_app_store', 'com.acme.one')],
+    },
+  ]);
+  assert.equal(row.proposal?.revenueCatAppId, 'mac');
+  const linked = planRow(rec('ios'), [{ project: p1, apps: [rcApp('a', 'app_store', 'com.acme.one')] }], true);
+  assert.deepEqual([linked.linked, linked.proposal, linked.candidates], [true, null, []]);
+});
+
+dbTest('the plan route reads RevenueCat once and proposes a link per record; it saves nothing', async (db) => {
+  const t = await bootRevenueCat(db);
+  const ios = await t.addApp('ios');
+  const android = await t.addApp('android');
+  const done = await t.linked('ios');
+  t.rc.seedApps(await t.identifierOf(ios));
+  const res = await t.call(t.owner, 'GET', `/revenuecat/plan?credentialId=${t.rcCredential}`);
+  assert.equal(res.status, 200, res.text);
+  const rows = res.body.plan.rows as { appId: string; linked: boolean; proposal: unknown }[];
+  const byId = Object.fromEntries(rows.map((r) => [r.appId, r]));
+  assert.equal(byId[done]?.linked, true);
+  assert.equal(byId[done]?.proposal, null);
+  assert.ok((byId[ios]?.proposal as { projectId: string }).projectId === PROJECT_ID);
+  assert.equal(byId[android]?.proposal, null, 'no RevenueCat app has its package name');
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+  assert.equal((await db.query('SELECT 1 FROM app_revenuecat_links WHERE app_id = ?', [ios])).length, 0);
+  assert.equal((await t.call(t.owner, 'GET', '/revenuecat/plan')).status, 400);
+  assert.equal(
+    (await t.call(t.owner, 'GET', '/revenuecat/plan?credentialId=nope')).body.error,
+    'credential_not_found',
+  );
+  assert.ok(!(await t.everything()).includes(REVENUECAT_KEY));
+});
+
+dbTest('integration-links lists the linked records of both integrations (database only)', async (db) => {
+  const t = await bootRevenueCat(db);
+  const linked = await t.linked('ios');
+  await t.addApp('android');
+  const res = await t.call(t.owner, 'GET', '/integration-links');
+  assert.equal(res.status, 200, res.text);
+  assert.deepEqual(res.body, { revenuecat: [linked], expo: [] });
 });
