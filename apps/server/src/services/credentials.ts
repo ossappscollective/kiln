@@ -116,7 +116,8 @@ export async function createCredential(
     createdAt: now,
     rotatedAt: null,
     lastTest: null,
-    identifiers: credentialIdentifiers(input.kind, input.secret),
+    // Identifiers are only returned by the list (the screen reads it again after a save); a save never echoes anything of the payload.
+    identifiers: [],
   };
 }
 
