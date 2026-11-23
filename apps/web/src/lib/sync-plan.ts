@@ -11,7 +11,7 @@ import { type RunState, type SourceInput, type SyncKind, SYNC_KINDS, sourceState
  */
 
 /** What a page syncs. `listing` is the fallback for the overview, the listing, releases and every page that has no source of its own. */
-export type SyncPage = 'listing' | 'reviews' | 'analytics' | 'health' | 'products' | 'builds';
+export type SyncPage = 'listing' | 'reviews' | 'analytics' | 'health' | 'timeline' | 'products' | 'builds';
 
 export const PAGE_KINDS: Readonly<Record<SyncPage, readonly SyncKind[]>> = {
   listing: ['app'],
@@ -19,12 +19,15 @@ export const PAGE_KINDS: Readonly<Record<SyncPage, readonly SyncKind[]>> = {
   analytics: ['analytics'],
   /** Insights, Ratings and health: ratings come with the reviews read, crashes and ANRs with the analytics read. */
   health: ['reviews', 'analytics'],
+  /** Insights, Timeline and reports: releases and listing history come with the app read, the numbers with the analytics read, the rating of a report with the reviews read. */
+  timeline: ['app', 'reviews', 'analytics'],
   products: ['products'],
   builds: ['eas', 'testflight'],
 };
 
 export function syncPageFor(section: AppSection, view = ''): SyncPage {
   if (section === 'insights' && view === 'ratings') return 'health';
+  if (section === 'insights' && view === 'timeline') return 'timeline';
   switch (section) {
     case 'reviews':
       return 'reviews';
@@ -196,6 +199,7 @@ const LABELS: Record<SyncPage, string> = {
   reviews: k('app:syncButton.label.reviews'),
   analytics: k('app:syncButton.label.analytics'),
   health: k('app:syncButton.label.health'),
+  timeline: k('app:syncButton.label.timeline'),
   products: k('app:syncButton.label.products'),
   builds: k('app:syncButton.label.builds'),
 };

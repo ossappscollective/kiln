@@ -49,6 +49,9 @@ import type {
 } from './analytics/analytics.ts';
 import type { ProductSalesView } from './analytics/product-sales.ts';
 import type { HealthView, RatingsView } from './ratings/ratings.ts';
+import type { ReportApi } from './timeline/report.ts';
+import type { ManualEventKind } from '@kiln/core';
+import type { TimelineApi } from './timeline/timeline.ts';
 import type { CountriesView as InsightsCountriesView, InsightsView, ListingChecksView } from './insights/insights.ts';
 import type {
   AsoAddResult,
@@ -2673,6 +2676,15 @@ export function createApi(options: ApiOptions = {}) {
     // checks `listing.read`); dismissing and restoring a card are Kiln's own record and need `aso.write`.
     appInsights: (workspaceId: string, appId: string, includeHidden = false) =>
       request<InsightsView>('GET', `${insightsPath(workspaceId, appId)}${includeHidden ? '?includeHidden=1' : ''}`),
+    // Timeline and reports (docs/api/timeline.md, docs/api/reports.md): stored data only. `days` is the impact window the server wants (7), the events are what is read.
+    appTimeline: (workspaceId: string, appId: string, from: string, to: string) =>
+      request<TimelineApi>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/timeline?from=${from}&to=${to}&days=7`),
+    createTimelineEvent: (workspaceId: string, appId: string, body: { kind: ManualEventKind; day: string; title: string; note?: string }) =>
+      request<{ event: TimelineApi['events'][number] }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/timeline/events`, body),
+    deleteTimelineEvent: (workspaceId: string, appId: string, eventId: string) =>
+      request<{ ok: true }>('DELETE', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/timeline/events/${encodeURIComponent(eventId)}`),
+    appReport: (workspaceId: string, appId: string, kind: string, day?: string) =>
+      request<ReportApi>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reports?kind=${kind}${day ? `&day=${day}` : ''}`),
     // Ratings and health (docs/api/ratings.md): stored data only, `reviews.read`. `days` is counted back from today (7 to 730).
     appRatings: (workspaceId: string, appId: string, days: number) =>
       request<RatingsView>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ratings?days=${days}&granularity=day`),

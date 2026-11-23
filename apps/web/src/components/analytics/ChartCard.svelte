@@ -22,11 +22,12 @@
   import InfoTip from '../ui/InfoTip.svelte';
   import Section from '../ui/Section.svelte';
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
+  import { type TimelineEntry, markersFor } from '../../lib/timeline/timeline.ts';
   import BarList from './BarList.svelte';
   import Chart from './Chart.svelte';
   import DataTable from './DataTable.svelte';
 
-  let { card, today, showData = false }: { card: ChartCard; today: string; showData?: boolean | undefined } = $props();
+  let { card, today, showData = false, events }: { card: ChartCard; today: string; showData?: boolean | undefined; events?: TimelineEntry[] | undefined } = $props();
 
   const uid = $props.id();
   let hover = $state<number | null>(null);
@@ -52,6 +53,8 @@
   const shown = $derived(choose ? panelsForCurrency(card, currency) : card.panels);
 
   const dates = $derived(cardDates(card));
+  // Event markers (docs/adr/0053-timeline-and-reports.md): only when the page asked for them; one per day, capped.
+  const marks = $derived(events ? markersFor(events, dates) : { markers: [], hidden: 0 });
   const fresh = $derived(cardFreshness(card));
   const info = $derived(cardInfo(card));
   const anyMissing = $derived(card.panels.some((p) => p.series.some((ps) => ps.series.points.some((pt) => pt.value === null))));
@@ -99,9 +102,10 @@
       aria-labelledby={asTabs ? segmentIds(`${uid}-cur`, currency).tab : undefined}
     >
       {#each shown as panel (panel.id)}
-        <Chart {panel} cardTitle={card.title} {dates} {today} bind:hover />
+        <Chart {panel} cardTitle={card.title} {dates} {today} bind:hover markers={marks.markers} />
       {/each}
     </div>
+    {#if marks.markers.length > 0}<p class="caption">{t('timeline:marker.caption')}{#if marks.hidden > 0} {t('timeline:marker.hidden', { count: marks.hidden })}{/if}</p>{/if}
     {#if anyMissing}<p class="caption">{t('analytics:chart.hatchedCaption')}</p>{/if}
     {#if fresh.length > 1}
       {#each fresh.slice(1) as line (line)}<p class="fresh">{line}</p>{/each}

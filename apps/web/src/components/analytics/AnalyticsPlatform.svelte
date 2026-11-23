@@ -27,6 +27,7 @@
   import Button from '../ui/Button.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import type { TimelineEntry } from '../../lib/timeline/timeline.ts';
   import ChartCard from './ChartCard.svelte';
   import EarningsCard from './EarningsCard.svelte';
 
@@ -43,6 +44,7 @@
     heading = false,
     onreload,
     extras,
+    events,
   }: {
     api: Api;
     workspaceId: string;
@@ -57,6 +59,8 @@
     onreload: () => void;
     /** Drawn in the `next` part: the next steps of the app. */
     extras?: Snippet | undefined;
+    /** Events to draw as markers on the charts (the page's "Show events" choice); undefined draws none. */
+    events?: TimelineEntry[] | undefined;
   } = $props();
 
   const today = $derived(dateToDay(now));
@@ -94,14 +98,14 @@
       {/if}
     {:else if part === 'overview'}
       {#if split.headline}
-        <ChartCard card={split.headline} {today} {showData} />
+        <ChartCard card={split.headline} {today} {showData} {events} />
       {:else}
         <p class="quiet">{t('analytics:rail.nothingStored')}</p>
       {/if}
     {:else if part === 'revenue'}
       <div class="stack">
         {#each partCards as card (card.id)}
-          <ChartCard {card} {today} {showData} />
+          <ChartCard {card} {today} {showData} {events} />
         {/each}
         {#if subscriptionsCard}
           <ChartCard card={subscriptionsCard} {today} {showData} />
@@ -118,7 +122,7 @@
     {:else if part === 'acquisition' || part === 'quality'}
       <div class="stack">
         {#each partCards as card (card.id)}
-          <ChartCard {card} {today} {showData} />
+          <ChartCard {card} {today} {showData} {events} />
         {/each}
         {#if part === 'quality' && noRatingHistory(app.platform) && data.loaded}
           <p class="quiet">{t('analytics:platform.noRatingHistory')}</p>

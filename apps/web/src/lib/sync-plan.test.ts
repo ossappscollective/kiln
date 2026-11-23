@@ -21,6 +21,9 @@ test('a section maps to the page that syncs what it shows', () => {
   assert.equal(syncPageFor('analytics'), 'analytics');
   // Ratings and health read the reviews (ratings) and the analytics (crashes): both belong to the page.
   assert.equal(syncPageFor('insights', 'ratings'), 'health');
+  // Timeline and reports: the app read (releases, listing history), reviews and analytics.
+  assert.equal(syncPageFor('insights', 'timeline'), 'timeline');
+  assert.deepEqual([...PAGE_KINDS.timeline], ['app', 'reviews', 'analytics']);
   assert.equal(syncPageFor('insights', 'countries'), 'analytics');
   assert.deepEqual([...PAGE_KINDS.health], ['reviews', 'analytics']);
   assert.equal(syncPageFor('reviews'), 'reviews');

@@ -5,7 +5,9 @@
   tooltip lists every series at that day with its exact number; the same words go to a screen reader through a live region.
   The tooltip never gates a value: the end of each line is labelled, and the "Show data" table has every number.
   Props: panel (ChartPanel), cardTitle, dates (one per position), today (UTC day), hover (bindable index or null, shared by the
-  panels of a card so their crosshairs move together), height = 168 (the plot and the date axis together).
+  panels of a card so their crosshairs move together), height = 168 (the plot and the date axis together), markers? (event markers of the
+  visible days, lib/timeline/timeline.ts `markersFor`: a diamond on a short stem at the axis, one per day, with the count when a day has
+  several; the tooltip and the live region list the events of the day under the cursor, so the markers never carry meaning by shape alone).
   A line of a single series is drawn with the brand gradient (--viz-1, --viz-mid, --viz-end), a blurred copy of it as glow, and a fading
   area under it; with two series each line keeps its own solid color. The geometry is lib/analytics-chart.ts; the words are
   lib/analytics-view.ts. Colors come from the --viz-* tokens (styles/theme.css; see VizScope).
@@ -17,6 +19,7 @@
   import { pointAnchor } from '../../lib/virtual-anchor.ts';
   import { indexAt, labelsCollide, plot, provisionalIndex, xTickIndexes } from '../../lib/analytics/chart.ts';
   import { type ChartPanel, describePanel, tooltipFor } from '../../lib/analytics/view.ts';
+  import { type DayMarker, markerSpeech } from '../../lib/timeline/timeline.ts';
 
   let {
     panel,
@@ -25,7 +28,8 @@
     today,
     hover = $bindable(null),
     height = 168,
-  }: { panel: ChartPanel; cardTitle: string; dates: string[]; today: string; hover?: number | null | undefined; height?: number | undefined } = $props();
+    markers = [],
+  }: { panel: ChartPanel; cardTitle: string; dates: string[]; today: string; hover?: number | null | undefined; height?: number | undefined; markers?: DayMarker[] | undefined } = $props();
 
   const uid = $props.id();
   let width = $state(640);
@@ -71,7 +75,8 @@
   /** The tip hangs on a point beside the crosshair and is drawn in the top layer (lib/floating.ts), so no card can clip it. */
   const tipAnchor = $derived(tip && svg ? pointAnchor(svg, tipLeft + (flip ? -12 : 12), 8) : null);
   const name = $derived(describePanel(panel, cardTitle));
-  const spoken = $derived(tip ? `${tip.heading}. ${tip.rows.map((r) => `${r.label}: ${r.text}`).join('. ')}${tip.provisional ? '. May still change.' : ''}` : '');
+  const marked = $derived(hover === null ? null : (markers.find((m) => m.i === hover) ?? null));
+  const spoken = $derived(tip ? `${tip.heading}. ${tip.rows.map((r) => `${r.label}: ${r.text}`).join('. ')}${tip.provisional ? '. May still change.' : ''}${marked ? `. ${markerSpeech(marked)}` : ''}` : '');
   const isLine = $derived(panel.kind === 'line');
   /** One line gets the gradient, the glow and the area; two lines stay solid so the legend can tell them apart. */
   const fancy = $derived(isLine && panel.series.length === 1);
@@ -198,6 +203,15 @@
         <text class="xtick" x={geo.xCenter(i)} y={height - 6} text-anchor={k === 0 && xTicks.length > 1 ? 'start' : k === xTicks.length - 1 && xTicks.length > 1 ? 'end' : 'middle'}>{formatDay(dates[i] ?? '')}</text>
       {/each}
 
+      {#each markers as m (m.i)}
+        {@const x = geo.xCenter(m.i)}
+        <g class="marker" class:on={hover === m.i} aria-hidden="true">
+          <line x1={x} x2={x} y1={geo.baseline} y2={geo.baseline - 9} />
+          <path d="M{x},{geo.baseline - 15}l4,4l-4,4l-4,-4z" />
+          {#if m.count > 1}<text x={x + 7} y={geo.baseline - 8}>{m.count}</text>{/if}
+        </g>
+      {/each}
+
       {#if hover !== null}
         {#if isLine}
           <line class="cross" x1={geo.xCenter(hover)} x2={geo.xCenter(hover)} y1={geo.box.top} y2={geo.box.top + geo.plotH} />
@@ -256,6 +270,12 @@
             </div>
           {/each}
           {#if tip.provisional}<div class="tip-note">{t('analytics:chart.provisional')}</div>{/if}
+          {#if marked}
+            <ul class="tip-events" aria-label={t('timeline:marker.label')}>
+              {#each marked.lines as line, n (n)}<li>{line}</li>{/each}
+              {#if marked.more > 0}<li class="more">{t('timeline:marker.more', { count: marked.more })}</li>{/if}
+            </ul>
+          {/if}
         </div>
       </div>
     {/if}
@@ -511,6 +531,57 @@
 
   .tip-label {
     color: var(--muted);
+  }
+
+  .marker line {
+    stroke: var(--muted);
+    stroke-width: 1.5;
+  }
+
+  .marker path {
+    fill: var(--surface);
+    stroke: var(--muted);
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+  }
+
+  .marker text {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    fill: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .marker.on line,
+  .marker.on path {
+    stroke: var(--ink);
+  }
+
+  .marker.on path {
+    fill: var(--ink);
+  }
+
+  .tip-events {
+    padding: var(--space-1) 0 0;
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-xs);
+    color: var(--ink);
+    list-style: none;
+    border-top: 1px solid var(--line);
+  }
+
+  .tip-events li::before {
+    margin-right: var(--space-2);
+    color: var(--muted);
+    content: '\25C6';
+  }
+
+  .tip-events li.more {
+    color: var(--muted);
+  }
+
+  .tip-events li.more::before {
+    content: none;
   }
 
   .tip-note {

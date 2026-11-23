@@ -54,6 +54,7 @@
   import InsightsCards from '../insights/InsightsCards.svelte';
   import ListingChecks from '../insights/ListingChecks.svelte';
   import RatingsHealth from '../ratings/RatingsHealth.svelte';
+  import TimelineTab from '../timeline/TimelineTab.svelte';
   import AppDashboard from './AppDashboard.svelte';
   import AppReleases from './AppReleases.svelte';
   import AppWorkflows from './AppWorkflows.svelte';
@@ -300,6 +301,8 @@
     {@render perPlatform(countries)}
   {:else if view === 'ratings'}
     <RatingsHealth {api} {workspaceId} {role} {members} {now} refreshKey={syncRuns} />
+  {:else if view === 'timeline'}
+    <TimelineTab {api} {workspaceId} {role} {members} {now} refreshKey={syncRuns} />
   {:else}
     <AnalyticsSection {api} {workspaceId} {role} {members} {now} />
   {/if}

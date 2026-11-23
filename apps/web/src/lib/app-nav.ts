@@ -120,6 +120,7 @@ export const sectionViews: Readonly<Partial<Record<AppSection, readonly SectionV
     { id: 'highlights', labelKey: k('app:view.highlights') },
     { id: 'countries', labelKey: k('app:view.countries') },
     { id: 'ratings', labelKey: k('app:view.ratings'), requires: 'reviews.read' },
+    { id: 'timeline', labelKey: k('app:view.timeline'), requires: 'analytics.read' },
     { id: 'keywords', labelKey: k('app:view.keywords'), requires: 'aso.read' },
     { id: 'terms', labelKey: k('app:view.searchTerms'), requires: 'aso.read', androidOnly: true },
     { id: 'experiments', labelKey: k('app:view.experiments'), requires: 'aso.read' },
@@ -160,14 +161,15 @@ export function viewsFor(
 
 /**
  * The view of Insights an address names, with every old value mapped (see the table in docs/ux-ia.md): nothing, `analytics` and
- * `overview` are Overview; `ratings` is Ratings and health (docs/adr/0052-ratings-health.md); `terms` is Search terms; `aso` and every ASO sub-view (`keywords`, `rank`, `fit`, ...) are Keywords, which
+ * `overview` are Overview; `ratings` is Ratings and health (docs/adr/0052-ratings-health.md); `timeline` is Timeline and reports (docs/adr/0053-timeline-and-reports.md); `terms` is Search terms; `aso` and every ASO sub-view (`keywords`, `rank`, `fit`, ...) are Keywords, which
  * keeps its own sub-views inside; anything else is Overview.
  */
 export function insightsViewOf(
   asked: string | null | undefined,
-): 'overview' | 'highlights' | 'countries' | 'ratings' | 'keywords' | 'terms' | 'experiments' {
+): 'overview' | 'highlights' | 'countries' | 'ratings' | 'timeline' | 'keywords' | 'terms' | 'experiments' {
   if (asked === 'highlights') return 'highlights';
   if (asked === 'ratings') return 'ratings';
+  if (asked === 'timeline') return 'timeline';
   if (asked === 'countries') return 'countries';
   if (asked === 'terms') return 'terms';
   if (asked === 'experiments') return 'experiments';

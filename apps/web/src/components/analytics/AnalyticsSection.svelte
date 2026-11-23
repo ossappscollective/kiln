@@ -37,6 +37,8 @@
   import Button from '../ui/Button.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
+  import { sectionHost } from '../../lib/section-host.svelte.ts';
+  import { EventLayer } from '../../lib/timeline/layer.svelte.ts';
   import AnalyticsPlatform from './AnalyticsPlatform.svelte';
   import CompareTable from './CompareTable.svelte';
   import StatRow from './StatRow.svelte';
@@ -49,6 +51,14 @@
   let { api, workspaceId, role, members, now }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; now: number } = $props();
 
   let showData = $state(false);
+  // "Show events": the timeline's events as markers on the charts (docs/adr/0053-timeline-and-reports.md), remembered per person in this browser.
+  const layer = new EventLayer(sectionHost()?.scope().userId ?? 'anonymous');
+  $effect(() => {
+    if (!layer.show) return;
+    const key = `${workspaceId}/${members.map((m) => m.id).join(',')}/${range.from}/${range.to}`;
+    untrack(() => void layer.load(api, workspaceId, members, range.from, range.to));
+    void key;
+  });
   /** Bumped when an AI suggestion was accepted (keywords may have been added), so the next steps read again. */
   let coachVersion = $state(0);
 
@@ -130,10 +140,15 @@
       <RangeControl {choice} {range} {now} onchange={setRange} />
       <span class="spacer"></span>
       <SectionsToggle />
+      <button type="button" class="bare toggle" aria-pressed={layer.show} onclick={() => layer.set(!layer.show)} data-testid="toggle-events">
+        {layer.show ? t('timeline:marker.hide') : t('timeline:marker.show')}
+      </button>
       <button type="button" class="bare toggle" aria-pressed={showData} onclick={() => (showData = !showData)}>
         {showData ? t('analytics:section.hideData') : t('analytics:section.showData')}
       </button>
     </div>
+
+    {#if layer.show && layer.failed}<p class="quiet" role="status">{t('timeline:marker.failed')}</p>{/if}
 
     {#if railShown}
       <SectionRail {groups} value={part} hrefFor={(id) => withRailSection(address.hash, id)} label={t('analytics:rail.label')}>
@@ -222,7 +237,7 @@
     {:else}
       <div class="platforms cols-{columns}">
         {#each dataRows as r (r.app.id)}
-          <AnalyticsPlatform {api} {workspaceId} {role} app={r.app} data={r.data} {part} {range} {now} {showData} heading={several} onreload={reloadAll} />
+          <AnalyticsPlatform {api} {workspaceId} {role} app={r.app} data={r.data} {part} {range} {now} {showData} events={layer.show ? layer.for(r.app.id) : undefined} heading={several} onreload={reloadAll} />
         {/each}
       </div>
     {/if}
