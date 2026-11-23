@@ -337,6 +337,16 @@ Assets. Pushing is separate from submitting.
 Per item status: in repo only, in store only, both and identical, differs, invalid (with the exact
 rule, for example "1024 by 500 px"). Invalid items cannot be staged.
 
+### Where staged state shows, and how it stays true
+
+- **One invalidation** (`lib/staged-sync.ts`): every stage, unstage, discard (cart or field) and publish goes through `api.ts`, which announces
+  `kiln:staged-changed`; ONE listener in `AppShell` reads `stagedStore` and `pendingStore` again for those apps and the cart reads its list. Screens
+  read the stores and never keep their own copy, so the listing grid, the locale panel, the Graphics tab, the overview hint and release pages agree.
+- **Listing grid:** a cell with a staged text shows an "Edited" pill (dot and word, tooltip and aria text `Staged: before → after`); a locale row shows
+  "N staged", which opens the cart drawer on that locale's items (`kiln:cart-open`). In the locale panel a staged field shows a "Staged" badge and
+  "Discard" (the cart discard); fields without a staged value show nothing.
+- **Field editor:** "Stage in <field>" closes the modal on success (focus returns to what opened it) and stays open with the reason on failure.
+
 ## 5. Store writes (gated) vs planning data
 
 | Control                                                                               | Kind                      | Gate                                                                                                                                  |
