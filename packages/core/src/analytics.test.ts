@@ -144,12 +144,25 @@ test('a vendor number is digits; a bucket id is pubsite_prod_rev_ and digits, wi
     normalizeBucketId('pubsite_prod_rev_01234567890123456789'),
     'pubsite_prod_rev_01234567890123456789',
   );
+  for (const good of [
+    'pubsite_prod_rev_123',
+    'gs://pubsite_prod_rev_123',
+    'GS://pubsite_prod_rev_123/some/path/',
+    'https://console.cloud.google.com/storage/browser/pubsite_prod_rev_0123456789?project=x',
+    'https://storage.cloud.google.com/pubsite_prod_rev_0123456789/stats/installs/a.csv',
+    'https://storage.googleapis.com/pubsite_prod_rev_123456',
+    'pubsite_prod_123456789',
+  ])
+    assert.ok(normalizeBucketId(`  ${good}  `) !== undefined, good);
+  assert.equal(normalizeBucketId('https://console.cloud.google.com/storage/browser/_details/pubsite_prod_rev_42/x'), 'pubsite_prod_rev_42');
   for (const bad of [
     '',
     'my-bucket',
     'pubsite_prod_rev_',
     'pubsite_prod_rev_12/../x',
-    'https://storage.googleapis.com/pubsite_prod_rev_123456',
+    'https://example.com/pubsite_prod_rev_123456',
+    'https://storage.googleapis.com/my-bucket/pubsite_prod_rev_123456',
+    'gs://my-bucket/pubsite_prod_rev_123456',
   ]) {
     assert.equal(normalizeBucketId(bad), undefined, bad);
   }

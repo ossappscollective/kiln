@@ -758,13 +758,24 @@ export function safeRatio(numerator: number | null, denominator: number | null):
   return Number.isFinite(r) ? r : null;
 }
 
-/** A Google Play Cloud Storage bucket id as Play Console shows it (`pubsite_prod_rev_<digits>`), optionally `gs://` prefixed. */
+/**
+ * A Google Play Cloud Storage bucket id (`pubsite_prod_rev_<digits>`, or the older `pubsite_prod_<digits>`), from what people paste: the
+ * bare id, `gs://<id>[/path]`, or a Cloud Storage URL (`console.cloud.google.com/storage/browser/<id>/...`, `storage.cloud.google.com/<id>/...`,
+ * `storage.googleapis.com/<id>/...`, with or without a query). Returns the bare id, or undefined.
+ */
 export function normalizeBucketId(raw: string): string | undefined {
-  const trimmed = raw
-    .trim()
-    .replace(/^gs:\/\//i, '')
-    .replace(/\/+$/, '');
-  return /^pubsite_prod_rev_[0-9]{6,30}$/.test(trimmed) ? trimmed : undefined;
+  let text = raw.trim();
+  const gs = /^gs:\/\/([^/?#\s]+)(?:[/?#].*)?$/i.exec(text);
+  if (gs !== null) text = gs[1] ?? '';
+  else {
+    const url =
+      /^https?:\/\/(?:console\.cloud\.google\.com\/storage\/browser\/(?:_details\/)?|storage\.cloud\.google\.com\/|storage\.googleapis\.com\/)([^/?#\s]+)(?:[/?#].*)?$/i.exec(
+        text,
+      );
+    if (url !== null) text = url[1] ?? '';
+  }
+  text = text.replace(/\/+$/, '');
+  return /^pubsite_prod_(?:rev_)?[0-9]{1,30}$/.test(text) ? text : undefined;
 }
 
 /** Where the bucket an app reads came from: its own override, its Play developer account (credential), or the workspace setting. */

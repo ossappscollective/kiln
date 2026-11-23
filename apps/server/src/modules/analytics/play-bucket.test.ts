@@ -148,7 +148,8 @@ dbTest(
     for (const bad of [
       'my-bucket',
       'gs://other/path',
-      'pubsite_prod_rev_12',
+      'pubsite_prod_rev_12x',
+      'pubsite_prod_rev_',
       '',
       'x'.repeat(300),
     ]) {

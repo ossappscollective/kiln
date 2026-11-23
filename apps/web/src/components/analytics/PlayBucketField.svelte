@@ -11,10 +11,11 @@
   action; the sentence of the answer stays under it.
 -->
 <script lang="ts">
-  import { type Role, can, normalizeBucketId } from '@kiln/core';
+  import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { type Api } from '../../lib/api.ts';
   import { type PlayBucketTestResult, type PlayBucketView, analyticsErrorText, bucketSourceText } from '../../lib/analytics/analytics.ts';
+  import { bucketFormState } from '../../lib/analytics/bucket-form.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
@@ -44,15 +45,27 @@
   let testing = $state(false);
   let result = $state<PlayBucketTestResult | null>(null);
 
-  const typed = $derived(text.trim());
-  const valid = $derived(typed !== '' && normalizeBucketId(typed) !== undefined);
+  let touched = $state(false);
+
   const inherited = $derived(view?.inherited.bucketId ?? null);
-  const dirty = $derived(view !== null && (useDefault ? view.app !== null : normalizeBucketId(typed) !== view.app));
+  // One pure function decides what is valid, what changed and what the buttons may do (lib/analytics/bucket-form.ts).
+  const form = $derived(bucketFormState({ saved: view === null ? undefined : view.app, useDefault, text, inherited, saving, testing, canManage }));
+  const problemText = $derived(form.problem === 'invalid' ? t('analytics:bucketField.invalid') : form.problem === 'empty' && touched ? t('analytics:bucketField.empty') : '');
+
+  function choose(next: boolean) {
+    useDefault = next;
+    result = null;
+    problem = '';
+    touched = false;
+    // Going back to a custom bucket brings the saved one back instead of an empty field.
+    if (!next && text.trim() === '' && view?.app) text = view.app;
+  }
 
   function fill(next: PlayBucketView) {
     view = next;
     useDefault = next.app === null;
     text = next.app ?? '';
+    touched = false;
   }
 
   $effect(() => {
@@ -76,33 +89,39 @@
 
   async function save() {
     if (saving || !canManage) return;
-    if (!useDefault && !valid) {
-      problem = t('analytics:bucketField.invalid');
-      return;
-    }
+    touched = true;
+    if (form.saveValue === undefined) return;
     saving = true;
     problem = '';
+    let saved = false;
     try {
-      const out = await api.setPlayBucket(workspaceId, app.id, { bucket: useDefault ? null : typed, scope: 'app' });
+      const out = await api.setPlayBucket(workspaceId, app.id, { bucket: form.saveValue, scope: 'app' });
       fill(out.playBucket);
       result = null;
+      saved = true;
       toast.success(useDefault ? t('analytics:bucketField.toastDefault') : t('analytics:bucketField.toastSaved'));
-      onchanged?.();
     } catch (e) {
       problem = analyticsErrorText(e);
     } finally {
       saving = false;
     }
+    if (saved) {
+      // The panel behind reads its status again, and the bucket that was just saved is tested so the answer is on screen.
+      onchanged?.();
+      if (form.canTest) void test();
+    }
   }
 
   async function test() {
     if (testing || !canManage) return;
+    touched = true;
+    if (!form.canTest) return;
     testing = true;
     problem = '';
     result = null;
     try {
       // What is typed is tested before it is saved; the inherited value is tested when "use the default" is on.
-      const out = await api.testPlayBucket(workspaceId, app.id, useDefault ? undefined : typed);
+      const out = await api.testPlayBucket(workspaceId, app.id, form.testValue);
       result = out.result;
     } catch (e) {
       problem = analyticsErrorText(e);
@@ -125,7 +144,7 @@
     <p class="muted">{t('analytics:bucketField.intro', { source: bucketSourceText(view) })}</p>
     {#if canManage}
       <label class="check">
-        <input type="checkbox" bind:checked={useDefault} />
+        <input type="checkbox" checked={useDefault} onchange={(e) => choose(e.currentTarget.checked)} />
         {inherited ? t('analytics:bucketField.useDefault', { bucket: inherited }) : t('analytics:bucketField.useDefaultNone')}
       </label>
       <div class="field">
@@ -137,19 +156,29 @@
           spellcheck="false"
           placeholder="gs://pubsite_prod_rev_…"
           value={useDefault ? (inherited ?? '') : text}
-          oninput={(e) => (text = e.currentTarget.value)}
+          oninput={(e) => {
+            text = e.currentTarget.value;
+            result = null;
+          }}
+          onblur={() => (touched = true)}
           disabled={useDefault}
-          aria-invalid={problem ? 'true' : undefined}
+          aria-invalid={problemText || problem ? 'true' : undefined}
+          aria-describedby="{uid}-hint"
         />
-        <p class="hint">{t('analytics:bucketField.hint')}</p>
+        <p class="hint" id="{uid}-hint">{t('analytics:bucketField.hint')}</p>
+        {#if problemText}
+          <p class="invalid" role="alert">{problemText}</p>
+        {:else if !useDefault && form.normalized !== undefined && form.normalized !== form.typed}
+          <p class="hint" role="status">{t('analytics:bucketField.normalized', { bucket: form.normalized })}</p>
+        {/if}
       </div>
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}
       {#if result}<Alert tone={tone(result)}>{result.message}</Alert>{/if}
       <div class="row">
-        <Button variant="primary" loading={saving} disabled={saving || !dirty || (!useDefault && !valid)} onclick={() => void save()}>{t('common:action.save')}</Button>
+        <Button variant="primary" loading={saving} disabled={!form.canSave} onclick={() => void save()}>{t('common:action.save')}</Button>
         <span class="connection">
           <Badge tone={testState.tone}>{testState.label}</Badge>
-          <Button size="sm" variant="ghost" loading={testing} disabled={testing || (useDefault ? inherited === null : !valid)} onclick={() => void test()}>{t('analytics:bucketField.test')}</Button>
+          <Button size="sm" variant="ghost" loading={testing} disabled={!form.canTest} onclick={() => void test()}>{t('analytics:bucketField.test')}</Button>
         </span>
       </div>
     {:else}
@@ -165,6 +194,11 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+  }
+
+  .invalid {
+    margin: 0;
+    color: var(--bad-ink);
   }
 
   .check {
