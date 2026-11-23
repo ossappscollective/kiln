@@ -331,10 +331,16 @@
   });
   // A locale picked in the page header AFTER the page was shown is an explicit action: it opens that locale. The one already in the
   // address when the page appears only filters (the header context), it opens nothing.
-  let seenLocale = locale;
+  let seenLocale: string | null | undefined;
+  let seenInit = false;
   $effect(() => {
     const next = locale;
     untrack(() => {
+      if (!seenInit) {
+        seenInit = true;
+        seenLocale = next;
+        return;
+      }
       if (next === seenLocale) return;
       seenLocale = next;
       if (next !== null && matrix.rows.some((r) => r.locale === next)) openLocale(next);
