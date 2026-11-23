@@ -9,6 +9,7 @@ import {
 import type { Database, Sql } from '@kiln/db';
 import { decryptSecret, encryptSecret } from '@kiln/vault';
 import { recordAudit } from './audit.ts';
+import { type CredentialIdentifier, credentialIdentifiers } from './credential-identifiers.ts';
 
 export { type CredentialKind, credentialKinds };
 
@@ -20,6 +21,8 @@ export type CredentialSummary = {
   rotatedAt: number | null;
   /** The last "test connection" on this credential, or null when it was never tested. */
   lastTest: { at: number; ok: boolean; message: string } | null;
+  /** Non-secret identifiers read from the payload (issuer, key id, service account...). Never a secret. */
+  identifiers: CredentialIdentifier[];
 };
 
 type Actor = { type: ActorType; id: string };
@@ -30,7 +33,11 @@ type Actor = { type: ActorType; id: string };
  */
 export const credentialAad = (workspaceId: string, id: string) => `credential:${workspaceId}:${id}`;
 
-const toSummary = (r: Record<string, unknown>): CredentialSummary => ({
+const toSummary = (
+  r: Record<string, unknown>,
+  identifiers: CredentialIdentifier[] = [],
+): CredentialSummary => ({
+  identifiers,
   id: String(r.id),
   kind: String(r.kind),
   label: String(r.label),
@@ -46,14 +53,36 @@ const toSummary = (r: Record<string, unknown>): CredentialSummary => ({
         },
 });
 
-export async function listCredentials(sql: Sql, workspaceId: string): Promise<CredentialSummary[]> {
+/**
+ * The saved credentials of a workspace, with their non-secret identifiers. Each payload is decrypted here to read
+ * the allow-listed identifier fields only (`credentialIdentifiers`); a payload that cannot be decrypted or read
+ * simply has none. This is not audited as a use of the secret: nothing secret leaves this function.
+ */
+export async function listCredentials(
+  sql: Sql,
+  workspaceId: string,
+  key?: Buffer,
+): Promise<CredentialSummary[]> {
   const rows = await sql.query(
-    `SELECT id, kind, label, created_at, rotated_at, last_test_at, last_test_ok, last_test_message
+    `SELECT id, kind, label, created_at, rotated_at, last_test_at, last_test_ok, last_test_message, ciphertext
        FROM credentials
       WHERE workspace_id = ? ORDER BY created_at, id`,
     [workspaceId],
   );
-  return rows.map(toSummary);
+  return rows.map((r) => {
+    let identifiers: CredentialIdentifier[] = [];
+    if (key) {
+      try {
+        identifiers = credentialIdentifiers(
+          String(r.kind),
+          decryptSecret(String(r.ciphertext), key, credentialAad(workspaceId, String(r.id))),
+        );
+      } catch {
+        identifiers = [];
+      }
+    }
+    return toSummary(r, identifiers);
+  });
 }
 
 export async function createCredential(
@@ -87,6 +116,7 @@ export async function createCredential(
     createdAt: now,
     rotatedAt: null,
     lastTest: null,
+    identifiers: credentialIdentifiers(input.kind, input.secret),
   };
 }
 

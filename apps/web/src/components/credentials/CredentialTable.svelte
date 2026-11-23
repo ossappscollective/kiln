@@ -9,6 +9,7 @@
   import { storeForCredentialKind } from '../../lib/stores.ts';
   import type { CredentialSummary, LastTest } from '../../lib/types.ts';
   import Icon from '../ui/Icon.svelte';
+  import CredentialIdentifiers from './CredentialIdentifiers.svelte';
   import ReplaceSecret from './ReplaceSecret.svelte';
   import Spinner from './Spinner.svelte';
 
@@ -36,6 +37,8 @@
   let replacing = $state<string | null>(null);
   let confirmingDelete = $state<string | null>(null);
   let deleting = $state(false);
+  /** Credentials whose identifiers are shown (a row under the credential). */
+  let showIds = $state<Record<string, boolean>>({});
 
   type RowTest = { busy: boolean; error: string; details: string[] };
   let rowTests = $state<Record<string, RowTest>>({});
@@ -121,6 +124,14 @@
         <tr>
           <td class="name">
             <strong>{item.label}</strong>
+            <button
+              id="ids-btn-{item.id}"
+              class="link ids-toggle"
+              aria-expanded={showIds[item.id] === true}
+              aria-controls="ids-{item.id}"
+              aria-label={showIds[item.id] ? t('credentials:identifier.hideAria', { label: item.label }) : t('credentials:identifier.showAria', { label: item.label })}
+              onclick={() => (showIds[item.id] = !showIds[item.id])}>{showIds[item.id] ? t('credentials:identifier.hide') : t('credentials:identifier.show')}</button
+            >
             {#if item.lastTest && !item.lastTest.ok && item.lastTest.message}
               <p class="failure">{item.lastTest.message}</p>
             {/if}
@@ -185,6 +196,13 @@
             </td>
           {/if}
         </tr>
+        {#if showIds[item.id]}
+          <tr class="ids-row">
+            <td colspan={columns} id="ids-{item.id}">
+              <CredentialIdentifiers identifiers={item.identifiers ?? []} />
+            </td>
+          </tr>
+        {/if}
         {#if canWrite && replacing === item.id && isCredentialKind(item.kind)}
           <tr>
             <td colspan={columns}>
@@ -322,6 +340,16 @@
     vertical-align: baseline;
   }
 
+
+  .ids-toggle {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.8125rem;
+  }
+
+  .ids-row td {
+    padding-top: 0;
+  }
 
   button.test[aria-disabled='true'] {
     cursor: progress;

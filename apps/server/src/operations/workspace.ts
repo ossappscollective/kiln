@@ -89,6 +89,9 @@ const credentialSchema = z.object({
   createdAt: timestamp,
   rotatedAt: timestamp.nullable(),
   lastTest: z.object({ at: timestamp, ok: z.boolean(), message: z.string() }).nullable(),
+  identifiers: z.array(
+    z.object({ key: z.string(), label: z.string(), value: z.string(), copyable: z.boolean() }),
+  ),
 });
 
 const memberSchema = z.object({
@@ -449,7 +452,7 @@ export const workspaceOperations: Draft[] = [
     method: 'get',
     path: `${W}/credentials`,
     tags: ['credentials'],
-    summary: 'List credentials (metadata only)',
+    summary: 'List credentials (metadata and non-secret identifiers only)',
     risk: 'read',
     access: { action: 'credentials.read' },
     responses: {

@@ -12,7 +12,7 @@
   import { can, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../../lib/api.ts';
-  import { credentialFacts, links, notAvailable } from '../../../lib/app-settings.ts';
+  import { credentialFacts, effectiveAnalyticsValues, links, notAvailable, type EffectiveValue } from '../../../lib/app-settings.ts';
   import { appAddress } from '../../../lib/app-scope.ts';
   import { testErrorMessage } from '../../../lib/credentials.ts';
   import { fullTime, timeAgo } from '../../../lib/format.ts';
@@ -24,6 +24,7 @@
   import CopyButton from '../../ui/CopyButton.svelte';
   import PlatformBadge from '../../ui/PlatformBadge.svelte';
   import AddAppModal from '../../portfolio/AddAppModal.svelte';
+  import CredentialIdentifiers from '../../credentials/CredentialIdentifiers.svelte';
   import SettingsCard from './SettingsCard.svelte';
 
   let { api, workspaceId, role, members, all, now }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; all?: AppSummary[] | undefined; now: number } = $props();
@@ -42,6 +43,29 @@
   let loadProblem = $state('');
   let testing = $state('');
   let results = $state<Record<string, { ok: boolean; message: string } | undefined>>({});
+  /** What each record really uses for analytics (vendor number, Play bucket) and where it comes from. */
+  let effective = $state<Record<string, EffectiveValue[]>>({});
+  const canSeeAnalytics = $derived(can(role, 'analytics.read'));
+
+  $effect(() => {
+    const id = workspaceId;
+    const apps = members.map((m) => m.id);
+    const allowed = canSeeAnalytics && canRead;
+    untrack(() => (effective = {}));
+    if (!allowed) return;
+    let current = true;
+    for (const appId of apps) {
+      api
+        .analyticsStatus(id, appId)
+        .then((status) => {
+          if (current) effective = { ...effective, [appId]: effectiveAnalyticsValues(status) };
+        })
+        .catch(() => {});
+    }
+    return () => {
+      current = false;
+    };
+  });
 
   $effect(() => {
     const id = workspaceId;
@@ -116,6 +140,12 @@
               <Badge tone={cred.tone === 'none' ? 'neutral' : cred.tone}>{cred.status}</Badge>
             </dd>
           </div>
+          {#if canRead && cred.found}
+            <div class="ids">
+              <dt>{t('app:stores.identifiers')}</dt>
+              <dd><CredentialIdentifiers compact identifiers={list?.find((c) => c.id === app.credentialId)?.identifiers ?? []} effective={effective[app.id] ?? []} /></dd>
+            </div>
+          {/if}
           <div>
             <dt>{t('app:stores.lastSync')}</dt>
             <dd>

@@ -46,7 +46,11 @@ export type CredentialSummary = {
   rotatedAt: number | null;
   /** The most recent connection test of the saved secret. Null when it was never tested. */
   lastTest?: LastTest | null;
+  /** Non-secret identifiers of the credential (issuer, key id, service account...). Never a secret. */
+  identifiers?: CredentialIdentifier[];
 };
+
+export type CredentialIdentifier = { key: string; label: string; value: string; copyable: boolean };
 
 export type LastTest = { at: number; ok: boolean; message: string };
 

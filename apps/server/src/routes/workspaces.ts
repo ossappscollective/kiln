@@ -50,7 +50,7 @@ export function workspaceRoutes(services: Services) {
   const actor = (c: Context<AppEnv>) => ({ type: 'user' as const, id: c.get('user').id });
 
   app.get('/:workspaceId/credentials', needs('credentials.read'), async (c) =>
-    c.json({ credentials: await listCredentials(db, ws(c)) }),
+    c.json({ credentials: await listCredentials(db, ws(c), masterKey) }),
   );
 
   app.post('/:workspaceId/credentials', needs('credentials.write'), async (c) => {

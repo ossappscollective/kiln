@@ -10,11 +10,12 @@
   import type { Api } from '../../../lib/api.ts';
   import { links, notAvailable } from '../../../lib/app-settings.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
-  import type { AppSummary, RepositorySummary, SavedListingTarget } from '../../../lib/types.ts';
+  import type { AppSummary, CredentialSummary, RepositorySummary, SavedListingTarget } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';
   import Badge from '../../ui/Badge.svelte';
     import Button from '../../ui/Button.svelte';
   import PlatformBadge from '../../ui/PlatformBadge.svelte';
+  import CredentialIdentifiers from '../../credentials/CredentialIdentifiers.svelte';
   import SettingsCard from './SettingsCard.svelte';
 
   let { api, workspaceId, role, members }: { api: Api; workspaceId: string; role: Role; members: AppSummary[] } = $props();
@@ -24,6 +25,9 @@
   let repositories = $state<RepositorySummary[]>([]);
   let targets = $state<Record<string, SavedListingTarget[] | undefined>>({});
   let problem = $state('');
+  /** The credentials of the workspace, to show the one the repository connects with (members and above). */
+  let credentials = $state<CredentialSummary[]>([]);
+  const canSeeCredentials = $derived(can(role, 'credentials.read'));
 
   const key = $derived(`${workspaceId}/${members.map((m) => m.repositoryId ?? '-').join(',')}`);
 
@@ -35,9 +39,18 @@
       repositories = [];
       targets = {};
       problem = '';
+      credentials = [];
     });
     if (!canRead || repoIds.length === 0) return;
     let current = true;
+    if (canSeeCredentials) {
+      api
+        .credentials(id)
+        .then((r) => {
+          if (current) credentials = r.credentials;
+        })
+        .catch(() => {});
+    }
     api
       .repositories(id)
       .then((r) => {
@@ -59,6 +72,7 @@
     };
   });
 
+  const credentialOf = (repo: RepositorySummary) => (repo.credentialId === null ? null : (credentials.find((c) => c.id === repo.credentialId) ?? null));
   const repoOf = (app: AppSummary) => repositories.filter((r) => r.id === app.repositoryId)[0] ?? null;
   const targetsOf = (app: AppSummary) => (targets[app.repositoryId ?? ''] ?? []).filter((t) => t.appId === null || t.appId === app.id);
 </script>
@@ -100,6 +114,18 @@
               <dt>{t('app:repository.connection')}</dt>
               <dd>{repo.localOnly ? t('app:repository.localOnly') : repo.local ? t('app:repository.githubLocal') : t('app:repository.github')}</dd>
             </div>
+            {#if credentialOf(repo)}
+              {@const cred = credentialOf(repo)}
+              {#if cred}
+                <div>
+                  <dt>{t('app:stores.credential')}</dt>
+                  <dd>
+                    <span>{cred.label}</span>
+                    <CredentialIdentifiers compact identifiers={cred.identifiers ?? []} />
+                  </dd>
+                </div>
+              {/if}
+            {/if}
           </dl>
           <div>
             <p class="label">{t('app:repository.targets')}</p>

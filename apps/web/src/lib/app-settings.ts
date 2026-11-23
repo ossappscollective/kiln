@@ -1,4 +1,5 @@
 import { type CredentialKind, credentialKindInfo, isCredentialKind } from '@kiln/core';
+import type { AnalyticsStatus } from './analytics/analytics.ts';
 import { appAddress, parseViewPath } from './app-scope.ts';
 import { testStatus } from './credentials.ts';
 import { k, t } from './i18n/t.ts';
@@ -302,4 +303,46 @@ export function stagedRolloutHint(earlierProductionRelease: boolean): string {
 /** The one visible line of the Danger zone for a record: what deleting does and what it does not touch. */
 export function deleteLine(store: string): string {
   return t('app:settings.deleteLine', { store });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Effective values: what an app really uses, and where it comes from
+
+/** A value an app uses (not a secret), with where it comes from. */
+export type EffectiveValue = { key: string; label: string; value: string; origin: string };
+
+/**
+ * The Apple vendor number or the Google Play reports bucket an app reads, from the analytics status, with where the value comes
+ * from (this credential, this app, the Play account, the workspace default). Nothing for a value that is not set. Lets a person see
+ * that an app is not silently using another account's value.
+ */
+export function effectiveAnalyticsValues(
+  status: Pick<AnalyticsStatus, 'apple' | 'google'> | null,
+): EffectiveValue[] {
+  if (!status) return [];
+  const out: EffectiveValue[] = [];
+  const apple = status.apple;
+  if (apple?.vendorNumberSet && apple.vendorNumber) {
+    out.push({
+      key: 'vendorNumber',
+      label: t('app:stores.effective.vendorNumber'),
+      value: apple.vendorNumber,
+      origin: apple.vendorNumberSource === 'credential' ? t('app:stores.effective.fromCredential') : t('app:stores.effective.fromWorkspace'),
+    });
+  }
+  const google = status.google;
+  if (google?.bucketIdSet && google.bucketId) {
+    out.push({
+      key: 'bucket',
+      label: t('app:stores.effective.bucket'),
+      value: google.bucketId,
+      origin:
+        google.bucketSource === 'app'
+          ? t('app:stores.effective.fromApp')
+          : google.bucketSource === 'account'
+            ? t('app:stores.effective.fromAccount')
+            : t('app:stores.effective.fromWorkspace'),
+    });
+  }
+  return out;
 }

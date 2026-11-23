@@ -168,6 +168,6 @@ The dashboard groups states into preparing, in review, ready to release and live
   (store API conventions, repo conventions, Expo store config, dual dialect, sidecar, credential
   guides)
 - API notes: [apps](api/apps.md), [listing](api/listing.md), [assets](api/assets.md), [repositories](api/repositories.md), [members](api/members.md),
-  [credential tests](api/credential-tests.md), [tokens](api/tokens.md), [events](api/events.md),
+  [credentials](api/credentials.md), [credential tests](api/credential-tests.md), [tokens](api/tokens.md), [events](api/events.md),
   [webhooks](api/webhooks.md), [OpenAPI](api/openapi.md)
 - Decisions waiting for a person: [open-decisions.md](open-decisions.md)
