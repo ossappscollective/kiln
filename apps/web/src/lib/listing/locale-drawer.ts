@@ -3,7 +3,7 @@ import { formatList, formatNumber } from '../i18n/format.ts';
 import { t } from '../i18n/t.ts';
 import type { DriftField } from '../types.ts';
 import { usage, usageText } from './drift.ts';
-import { type CellStatus, cellStatus } from './matrix.ts';
+import { type CellStatus, cellStatus, isStoreOnly } from './matrix.ts';
 
 /**
  * Pure parts of the locale drawer of Store listing (docs/design/readability.md, "Second pass: forms and dialogs"): what the drawer opens
@@ -17,7 +17,7 @@ export type LeadTone = 'neutral' | 'ok' | 'warn' | 'bad';
 export function fieldWord(status: CellStatus): string {
   switch (status) {
     case 'sync':
-      return t('listing:drawer.word.sync');
+      return isStoreOnly() ? t('listing:matrix.cellShort.fine') : t('listing:drawer.word.sync');
     case 'repo-differs':
       return t('listing:drawer.word.storeAhead');
     case 'store-differs':

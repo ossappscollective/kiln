@@ -35,6 +35,7 @@
   import { shortRef } from '../../lib/listing/drift.ts';
   import {
     LEGEND_ORDER,
+    setStoreOnly,
     MODE_LABELS,
     MODE_ORDER,
     type CellStatus,
@@ -84,6 +85,7 @@
   import PullResultSummary from './PullResultSummary.svelte';
   import StagedTray from './StagedTray.svelte';
   import StatusDot from './StatusDot.svelte';
+  import { provideCompare } from '../../lib/listing/compare-context.ts';
   import { summaryLine } from '../../lib/section-state.ts';
   import FilterChip from '../ui/FilterChip.svelte';
 
@@ -163,6 +165,13 @@
     unit: 'characters' | 'bytes';
   } | null>(null);
 
+  // The repository comparison is a per-app setting (default off). The page compares when any app in scope has it on; the field and drawer
+  // components read it from the context, and the cell words say "No problems" instead of "In sync" when it is off everywhere.
+  const compareOf: Record<string, boolean> = {};
+  let compareState = $state({ repo: true, media: true });
+  provideCompare(() => compareState);
+  const repoOn = $derived(compareState.repo);
+
   /** One counter per app, so a late answer for an earlier load of that app is dropped. */
   const generations: Record<string, number> = {};
 
@@ -176,6 +185,10 @@
         api.appListingLive(workspaceId, app.id).catch(() => null),
       ]);
       if (mine !== generations[app.id]) return;
+      compareOf[app.id] = drift.compare?.repo ?? true;
+      const repo = Object.values(compareOf).some(Boolean);
+      setStoreOnly(!repo);
+      compareState = { repo, media: drift.compare?.media ?? true };
       views[app.id] = { drift, live: live ?? before.live, loading: false, reloading: false, problem: '' };
       announcement = t('listing:matrixView.compared', { platform: platformLabel(app.platform) });
     } catch (e) {
@@ -484,6 +497,10 @@
     {/if}
   {/each}
 
+  {#if hasRows && !repoOn}
+    <p class="muted compare-off">{t('listing:matrixView.compareOff')}</p>
+  {/if}
+
   {#if hasRows}
     <PageLead
       testid="listing-status-line"
@@ -530,7 +547,7 @@
           {#if hasRows}
             <p>{t('listing:matrixView.legendIntro', { stores: formatList(members.map((m) => storeName(m.platform))) })}</p>
             <ul class="legend" aria-label={t('listing:matrixView.legendMarksAria')}>
-              {#each LEGEND_ORDER as status (status)}
+              {#each repoOn ? LEGEND_ORDER : LEGEND_ORDER.filter((s) => s === 'sync' || s === 'over') as status (status)}
                 <li><StatusDot {status} /> <span>{cellInfo(status).short}</span></li>
               {/each}
               {#if both}<li><StatusDot status="na" /> <span>{t('listing:matrixView.notOnStore')}</span></li>{/if}
@@ -842,6 +859,10 @@
 {/if}
 
 <style>
+  .compare-off {
+    margin: 0;
+  }
+
   .alert-text {
     margin: var(--space-1) 0 0;
   }

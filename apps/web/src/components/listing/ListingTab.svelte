@@ -17,6 +17,8 @@
 <script lang="ts">
   import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
+  import { provideCompare } from '../../lib/listing/compare-context.ts';
+  import { setStoreOnly } from '../../lib/listing/matrix.ts';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { t } from '../../lib/i18n/t.ts';
@@ -88,6 +90,9 @@
   const canReadRepo = $derived(can(role, 'repositories.scan') && app.repositoryId !== null);
 
   let drift = $state<ListingDrift | null>(null);
+  // The repository comparison is a per-app setting, default off: then no status filter, no pull bar, no repository column.
+  const compareRepo = $derived(drift?.compare?.repo ?? true);
+  provideCompare(() => ({ repo: compareRepo, media: drift?.compare?.media ?? true }));
   // The warnings and the scheduled read come from the live view. They are extras: a failure to load
   // them never hides the comparison.
   let live = $state<LiveListing | null>(null);
@@ -126,6 +131,7 @@
         api.appListingLive(workspaceId, app.id).catch(() => null),
       ]);
       if (mine !== generation) return;
+      setStoreOnly(!(next.compare?.repo ?? true));
       drift = next;
       if (nextLive !== null) live = nextLive;
       announcement = t('listing:tab.compared', { summary: driftSummaryText(next) });
@@ -361,14 +367,16 @@
       </div>
     {:else}
       <div class="toolbar">
-        <p class="summary" aria-live="polite">{reloading ? t('listing:tab.summaryUpdating', { summary: driftSummaryText(drift) }) : driftSummaryText(drift)}</p>
+        <p class="summary" aria-live="polite">{#if compareRepo}{reloading ? t('listing:tab.summaryUpdating', { summary: driftSummaryText(drift) }) : driftSummaryText(drift)}{:else}{t('listing:matrixView.compareOff')}{/if}</p>
         <div class="filters">
-          <label class="visually-hidden" for="listing-status-{app.id}">{t('listing:tab.show')}</label>
-          <select id="listing-status-{app.id}" bind:value={filter.status}>
-            {#each statusOptions as option (option.value)}
-              <option value={option.value}>{option.label}</option>
-            {/each}
-          </select>
+          {#if compareRepo}
+            <label class="visually-hidden" for="listing-status-{app.id}">{t('listing:tab.show')}</label>
+            <select id="listing-status-{app.id}" bind:value={filter.status}>
+              {#each statusOptions as option (option.value)}
+                <option value={option.value}>{option.label}</option>
+              {/each}
+            </select>
+          {/if}
           <label class="visually-hidden" for="listing-query-{app.id}">{t('listing:tab.search')}</label>
           <input id="listing-query-{app.id}" type="search" placeholder={t('listing:tab.searchPlaceholder')} bind:value={filter.query} />
         </div>
@@ -383,6 +391,7 @@
         />
       {/if}
 
+      {#if compareRepo}
       <div class="pullbar" aria-label={t('listing:pullResult.title')}>
         {#if pullReason !== null}
           <p class="muted pullnote"><Icon name="info" size={14} /> {t('listing:pullBar.unavailable', { reason: pullReason })}</p>
@@ -407,6 +416,7 @@
           </div>
         {/if}
       </div>
+      {/if}
 
       {#if visible.length === 0}
         <div class="card">

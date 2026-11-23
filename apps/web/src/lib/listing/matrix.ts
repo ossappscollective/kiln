@@ -82,13 +82,22 @@ const INFO: Record<CellStatus, CellInfo> = {
   },
 };
 
-export const cellInfo = (status: CellStatus): CellInfo => ({
-  ...INFO[status],
-  label: t(INFO[status].label),
-  short: t(INFO[status].short),
-});
+/**
+ * True while the page shows apps whose repository comparison is off (app listing settings, the default): "in sync" would then claim the
+ * repository was compared, so a cell without a store-side problem says "No problems" instead. Set by the listing page when drift loads.
+ */
+let storeOnly = false;
+export const setStoreOnly = (value: boolean): void => {
+  storeOnly = value;
+};
+export const isStoreOnly = (): boolean => storeOnly;
 
-const cellLabel = (status: CellStatus): string => t(INFO[status].label);
+export const cellInfo = (status: CellStatus): CellInfo =>
+  status === 'sync' && storeOnly
+    ? { ...INFO.sync, label: t('listing:matrix.cell.fine'), short: t('listing:matrix.cellShort.fine') }
+    : { ...INFO[status], label: t(INFO[status].label), short: t(INFO[status].short) };
+
+const cellLabel = (status: CellStatus): string => cellInfo(status).label;
 
 /** The statuses shown in the legend, in the order a person scans them. */
 export const LEGEND_ORDER: readonly CellStatus[] = [
@@ -426,8 +435,9 @@ export function listingStatusLine(rows: readonly MatrixRow[]): ListingStatusLine
   if (counts.differing === 0)
     return {
       tone: 'ok',
-      text:
-        rows.length === 1
+      text: storeOnly
+        ? t('listing:matrix.status.noProblems')
+        : rows.length === 1
           ? t('listing:matrix.status.oneInSync')
           : t('listing:matrix.status.allInSync'),
       attention: 0,

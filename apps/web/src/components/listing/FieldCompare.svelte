@@ -22,6 +22,7 @@
     shortRef,
   } from '../../lib/listing/drift.ts';
   import { blockingLines, fieldLimitNote, fieldWord } from '../../lib/listing/locale-drawer.ts';
+  import { useCompare } from '../../lib/listing/compare-context.ts';
   import { cellInfo, cellStatus } from '../../lib/listing/matrix.ts';
   import type { FieldStage } from '../../lib/staged.ts';
   import type { DriftField, DriftSide } from '../../lib/types.ts';
@@ -40,7 +41,7 @@
     selected = false,
     onselect,
     onpull,
-    stage,
+    stage: stageProp,
     stageBusy = false,
     onstage,
     onunstage,
@@ -63,6 +64,10 @@
   } = $props();
 
   const uid = $props.id();
+  const compare = useCompare();
+  // With the repository comparison off the field is judged on the store's value alone: no repository column, no "stage from repo".
+  const repoOn = $derived(compare().repo);
+  const stage = $derived(repoOn ? stageProp : undefined);
   let showCompare = $state(false);
   const diff = $derived(comparison(field));
   const status = $derived(cellStatus(field));
@@ -70,7 +75,7 @@
   const note = $derived(fieldLimitNote(field));
   const lines = $derived(blockingLines(field));
   const columns = $derived([
-    { key: 'repo', title: t('listing:compare.col.repo'), side: field.repo, hint: t('listing:compare.col.repoHint') },
+    ...(repoOn ? [{ key: 'repo', title: t('listing:compare.col.repo'), side: field.repo, hint: t('listing:compare.col.repoHint') }] : []),
     { key: 'db', title: t('listing:compare.col.db'), side: field.db, hint: t('listing:compare.col.dbHint') },
     { key: 'live', title: storeLabel ?? t('listing:compare.liveStore'), side: field.live, hint: t('listing:compare.col.liveHint') },
   ]);
@@ -106,7 +111,7 @@
   </summary>
 
   <div class="body">
-    <p class="muted explain">{statusExplanation(field.status)}</p>
+    {#if repoOn}<p class="muted explain">{statusExplanation(field.status)}</p>{/if}
     {#each lines as line, i (i)}
       <p class="problem" class:over={status === 'over'}><Icon name="alert-triangle" size={14} /> {line}</p>
     {/each}
