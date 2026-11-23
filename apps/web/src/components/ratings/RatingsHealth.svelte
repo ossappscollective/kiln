@@ -342,14 +342,16 @@
 {#snippet releasesPart()}
   <div class="stack loose" data-testid="part-releases">
     <p class="quiet">{t('ratings:releases.lead')}</p>
+    <p class="quiet" data-testid="releases-legend">{t('ratings:releases.legend')}</p>
     {#each snaps as s (s.appId)}
       {#if s.releases.length > 0}
         <div class="stack">
           {@render platformHead(s)}
           <div class="card flush">
             <div class="table-wrap">
-              <table class="compact">
+              <table class="compact fit">
                 <caption class="visually-hidden">{t('ratings:releases.caption', { platform: platformLabel(s.platform as never) })}</caption>
+                <colgroup><col style="width: 22%" /><col style="width: 16%" /><col style="width: 25%" /><col style="width: 21%" /><col style="width: 16%" /></colgroup>
                 <thead>
                   <tr>
                     <th scope="col">{t('ratings:releases.version')}</th>
@@ -362,22 +364,22 @@
                 <tbody>
                   {#each s.releases as r (r.version)}
                     <tr>
-                      <th scope="row">{r.name ?? r.version}{#if r.name}<span class="hint">{r.version}</span>{/if}</th>
-                      <td>{formatDay(r.day, true)}</td>
-                      <td class="num">
+                      <th scope="row"><span class="ver">{r.name ?? r.version}</span>{#if r.name}<span class="hint">{r.version}</span>{/if}</th>
+                      <td data-label={t('ratings:releases.day')}>{formatDay(r.day, true)}</td>
+                      <td class="num" data-label={t('ratings:releases.crash')}>
                         {#if r.crashChange}
                           {formatRate(r.crashChange.before)} → {formatRate(r.crashChange.after)}
                           <span class="hint {r.crashChange.kind === 'worse' ? 'bad' : 'ok'}">{t(r.crashChange.kind === 'worse' ? k('ratings:releases.worse') : k('ratings:releases.better'))}</span>
                         {:else}<span class="muted">{t('ratings:compare.none')}</span>{/if}
                       </td>
-                      <td class="num">
+                      <td class="num" data-label={t('ratings:releases.rating')}>
                         {#if r.ratingState === 'ok' && r.ratingBefore !== null && r.ratingAfter !== null}
                           {r.ratingBefore.toFixed(2)} → {r.ratingAfter.toFixed(2)}
                         {:else}
-                          <span class="muted">{t(r.ratingState === 'too_early' ? k('ratings:releases.tooEarly') : k('ratings:releases.noHistory'))}</span>
+                          <span class="muted" title={t(r.ratingState === 'too_early' ? k('ratings:releases.tooEarlyTitle') : k('ratings:releases.noHistoryTitle'))}>{t(r.ratingState === 'too_early' ? k('ratings:releases.tooEarly') : k('ratings:releases.noHistory'))}</span>
                         {/if}
                       </td>
-                      <td class="num">{formatNumber(r.reviews)}{#if r.crashReviews > 0}<span class="hint">{t('ratings:releases.crashReviews', { count: r.crashReviews })}</span>{/if}</td>
+                      <td class="num" data-label={t('ratings:releases.reviews')}>{formatNumber(r.reviews)}{#if r.crashReviews > 0}<span class="hint">{t('ratings:releases.crashReviews', { count: r.crashReviews })}</span>{/if}</td>
                     </tr>
                   {/each}
                 </tbody>
@@ -399,7 +401,7 @@
           {@render platformHead(s)}
           <div class="card flush">
             <div class="table-wrap">
-              <table class="compact">
+              <table class="compact fit">
                 <caption class="visually-hidden">{t('ratings:countries.caption', { platform: platformLabel(s.platform as never) })}</caption>
                 <thead>
                   <tr>
@@ -414,10 +416,10 @@
                   {#each list as c (c.territory)}
                     <tr>
                       <th scope="row">{countryText(c.territory)}</th>
-                      <td class="num">{c.average.toFixed(2)}</td>
-                      <td class="num">{c.count === null ? t('ratings:compare.none') : formatNumber(c.count)}{#if c.lowSample}<span class="hint">{t('ratings:count.lowSample')}</span>{/if}</td>
-                      <td class="num">{formatNumber(c.newCount)}</td>
-                      <td>{formatDay(c.day)}</td>
+                      <td class="num" data-label={t('ratings:tile.average')}>{c.average.toFixed(2)}</td>
+                      <td class="num" data-label={t('ratings:tile.count')}>{c.count === null ? t('ratings:compare.none') : formatNumber(c.count)}{#if c.lowSample}<span class="hint">{t('ratings:count.lowSample')}</span>{/if}</td>
+                      <td class="num" data-label={t('ratings:tile.new')}>{formatNumber(c.newCount)}</td>
+                      <td data-label={t('ratings:countries.read')}>{formatDay(c.day)}</td>
                     </tr>
                   {/each}
                 </tbody>
@@ -499,6 +501,10 @@
     font-size: var(--text-sm);
     font-weight: var(--weight-regular);
     color: var(--muted);
+  }
+
+  .ver {
+    overflow-wrap: anywhere;
   }
 
   .hint.bad {

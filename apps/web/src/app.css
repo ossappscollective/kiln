@@ -1026,6 +1026,63 @@ th.num {
   text-align: right;
 }
 
+/* table.fit: fixed layout, columns share the width (set widths with a <colgroup>), values wrap instead of widening the table, so it
+   never scrolls sideways from 640px up. Below 640px each row is a stacked card: give every td a data-label (the column title). */
+table.fit {
+  width: 100%;
+  table-layout: fixed;
+}
+
+table.fit th,
+table.fit td {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 639px) {
+  table.fit,
+  table.fit tbody,
+  table.fit tr,
+  table.fit th,
+  table.fit td {
+    display: block;
+  }
+
+  table.fit thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  table.fit tr {
+    padding: var(--space-2) var(--space-4);
+    border-top: 1px solid var(--line);
+  }
+
+  table.fit tr:first-child {
+    border-top: 0;
+  }
+
+  table.fit tbody th,
+  table.fit tbody td {
+    padding: var(--space-1) 0;
+    text-align: left;
+    border: 0;
+  }
+
+  table.fit tbody td[data-label] {
+    display: grid;
+    grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  table.fit tbody td[data-label]::before {
+    color: var(--muted);
+    content: attr(data-label);
+  }
+}
+
 /* Row actions (Test, Replace secret, Delete): one line, on the middle of the row, whatever else the row holds. Keep the cell a
    table cell (no display: flex on it); space the buttons with a gap on the content. */
 td.actions {
