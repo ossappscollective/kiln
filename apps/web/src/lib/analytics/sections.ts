@@ -5,7 +5,7 @@ import type { ChartCard } from './view.ts';
 
 /**
  * The Insights overview as a section rail (components/ui/SectionRail.svelte, `?section=`), so it is not one long column:
- *   Overview      the headline chart of each platform (the figures and the RevenueCat block are always above the rail)
+ *   Overview      the headline figures (a table across platforms, or a grid for one), the RevenueCat block, then the headline charts
  *   Acquisition   how people find the app: reach, listing, downloads or installs, conversion
  *   Quality       crashes, ANRs and ratings
  *   Revenue       sales, proceeds, subscriptions and the monthly earnings (store figures; RevenueCat's own are in the headline)
@@ -51,7 +51,11 @@ export type InsightsCounts = {
   failedSources: number | null;
 };
 
-export function insightsGroups(counts: InsightsCounts, showNext: boolean): RailGroup[] {
+/** The rail is drawn only when the tab has two or more sections; one section is just the content. */
+export const railWorthDrawing = (groups: readonly RailGroup[]): boolean => groups.reduce((n, g) => n + g.entries.length, 0) >= 2;
+
+/** `withNumbers`: something is stored, so Acquisition, Quality and Revenue exist; without data they would be three empty pages. */
+export function insightsGroups(counts: InsightsCounts, showNext: boolean, withNumbers = true): RailGroup[] {
   const entry = (id: InsightsPart, labelKey: string, count?: number | null, note?: string) => ({ id, label: t(labelKey), count, note });
   return [
     {
@@ -59,9 +63,13 @@ export function insightsGroups(counts: InsightsCounts, showNext: boolean): RailG
       label: t(k('analytics:rail.groupNumbers')),
       entries: [
         entry('overview', k('analytics:rail.overview')),
-        entry('acquisition', k('analytics:rail.acquisition'), counts.acquisition),
-        entry('quality', k('analytics:rail.quality'), counts.quality),
-        entry('revenue', k('analytics:rail.revenue'), counts.revenue),
+        ...(withNumbers
+          ? [
+              entry('acquisition', k('analytics:rail.acquisition'), counts.acquisition),
+              entry('quality', k('analytics:rail.quality'), counts.quality),
+              entry('revenue', k('analytics:rail.revenue'), counts.revenue),
+            ]
+          : []),
       ],
     },
     {

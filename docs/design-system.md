@@ -300,6 +300,10 @@ log agrees.
 
 ## Hierarchy and density
 
+**One hierarchy per page** (docs/ux-ia.md 0e): header (app, scope, Sync) > tabs (pages) > range bar > `SectionRail` (sections) | content. Tiles of figures sit in a
+uniform grid (equal width and height, `StatRow`); a block without data is one compact line, not an empty column; several platforms are compared in one table
+(`CompareTable`) rather than repeated.
+
 Important things are visible first: the screen's data (the locale grid, the review list, the current
 releases) starts on the first screen. Everything else is quiet by default: explanations and legends in
 `InfoTip`, warnings as a `StatusPill`, history under a `Disclosure`, a switched-off or empty feature as

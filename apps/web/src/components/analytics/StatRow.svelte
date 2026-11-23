@@ -3,7 +3,7 @@
   conversion, crash rate, rating, each a StatChip with how it compares with the previous period underneath. A figure with no
   data is not drawn. A change is colored only by whether the direction is good for that measure, and always carries a sign, an
   arrow and words; a comparison that cannot be made says "Not enough data to compare" instead of a number.
-  Props: chips (StatChipModel[]), days (the length of the period, for the sentence).
+  The tiles sit in a uniform grid (equal width and height). Props: chips (StatChipModel[]), days (the length of the period, for the sentence).
 -->
 <script lang="ts">
   import { t } from '../../lib/i18n/t.ts';
@@ -19,12 +19,10 @@
     {#each chips as chip (chip.id)}
       <li class="accent-edge" title={chip.title}>
         <StatChip label={chip.label} value={chip.value} />
-        {#if chip.line}
-          <span class="delta {chip.tone}" aria-label={chip.spoken}>
-            {#if chip.delta.kind === 'change'}<Icon name={chip.delta.direction === 'up' ? 'arrow-up' : 'arrow-down'} size={12} />{/if}
-            <span aria-hidden="true">{chip.line}</span>
-          </span>
-        {/if}
+        <span class="delta {chip.tone}" aria-label={chip.line ? chip.spoken : undefined}>
+          {#if chip.delta.kind === 'change'}<Icon name={chip.delta.direction === 'up' ? 'arrow-up' : 'arrow-down'} size={12} />{/if}
+          <span aria-hidden="true">{chip.line || '\u00a0'}</span>
+        </span>
       </li>
     {/each}
   </ul>
@@ -32,10 +30,11 @@
 {/if}
 
 <style>
+  /* A uniform grid: every tile the same width and (the row stretches them) the same height, so there are no ragged holes. */
   .stats {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3) var(--space-5);
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    gap: var(--space-3);
     padding: 0;
     margin: 0;
     list-style: none;
@@ -47,7 +46,8 @@
     flex-direction: column;
     gap: var(--space-1);
     align-items: flex-start;
-    min-width: 9rem;
+    justify-content: space-between;
+    min-width: 0;
     padding: var(--space-3) var(--space-4);
     background: var(--surface);
     border: 1px solid var(--line);

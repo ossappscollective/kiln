@@ -31,10 +31,14 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   app **Builds** page uses it (`lib/builds-sections.ts`): Builds, Test builds | EAS submissions (count), EAS configuration, EAS updates (only for an app
   linked to Expo / with a repository) | Workflows. `?view=builds|tests|workflows` open the same sections. EAS submissions is its own section
   (`EasSubmissionsPanel`), no longer under Test builds.
-- **Insights overview, redesigned (2026-11-23)**: no longer one long column. From the top: the range and table switch; the **headline** (the RevenueCat figures
-  ONCE for the whole scope, `RevenueBlock` with `appIds`, read from the first linked record; then each platform's row of store figures, side by side from
-  72rem when iOS and Android are both in scope); then a **section rail** (`?section=`): Overview (the headline chart), Acquisition, Quality, Revenue (Apple
-  Proceeds or Google sales, Subscriptions, monthly Earnings), Next steps (ASO, AI) and Data sources. Counts show the cards of a section and the sources that
+- **Insights overview, one hierarchy (2026-11-23)**: no separate figures band above the rail (it read as two pages stacked). From the top: header (app,
+  scope, Sync) > the tabs (Overview, Highlights, ...) > the range bar (range and table switch) > [sticky **section rail** (`?section=`) | content]. The rail is
+  drawn only with two or more sections; Acquisition, Quality and Revenue exist only when something is stored. The **Overview** section starts with the
+  headline, built by the pure `lib/analytics/insights-view.ts` (tested for no data, one platform, both, analytics off, failed and loading): with data on
+  two platforms ONE comparison table (a row per measure, a column per platform, `CompareTable`); with data on one, a uniform grid of tiles (equal width and
+  height, `StatRow`); a platform with no data is ONE compact line (why, and "Open Data sources"), never an empty column; then the RevenueCat figures ONCE
+  for the whole scope (`RevenueBlock` with `appIds`, read from the first linked record), then the headline chart of each platform with data (side by side
+  from 72rem only when two have data). The other sections draw only the platforms that have data. Counts show the cards of a section and the sources that
   could not be read. Every chart card is in exactly one section (`lib/analytics/sections.ts`, tested). **Data sources is ONE panel for the scope**
   (`SourcesPanel` with `items`): one summary (worst state, last read), a heading per platform only when there are several, one import button per platform.
   What is read per platform lives in `PlatformData` (one read, shared by the figures and the sections).
@@ -200,6 +204,20 @@ and one section at a time on the right, kept in the address as `?section=`. Pure
   `ai.use`); Mail needs `settings.write`; Slack and Teams needs `chat.read`. The nav item and `#/chat` stay (same screen; `Chat` takes `embedded` inside Settings).
 - The workspace form keeps one state held by the page and one save bar under the open section, so a change of section keeps what was
   typed. On the other sections a note says changes are waiting, with a link. A save blocked by a value in another section says which.
+
+## 0e. Tabs, rail, scope, sync: the one hierarchy of a page
+
+Every app page reads top to bottom in the same order, so two pages never seem stacked:
+
+1. **Header**: the app, the platform **scope** (iOS | Android | All) and the page's **Sync** (0, "Sync is per page"). Scope and sync live only here.
+2. **Tabs** (`SegmentTabs`, `?view=`): the **pages** of a section (Insights: Overview, Highlights, Countries, Keywords, Search terms, Experiments).
+3. **Range bar** (and table switch): one bar under the tabs, for the pages that have a date range. Nothing above it repeats scope or sync.
+4. **Rail | content** (`ui/SectionRail`, `?section=`): the **sections inside one page** (Insights Overview, Builds, app Settings, workspace Settings). The rail is
+   sticky, drawn only with two or more sections, and the content scrolls beside it; a section that would be empty for the data at hand is not listed.
+
+Rules: tabs are pages and the rail is sections, never both for the same level; a block with no data is one compact line saying why and how to fix it, not an
+empty column; with several platforms prefer one comparison (a row per measure) to repeating long runs, and draw side by side only what both have; tiles sit in a
+uniform grid. Pages with tabs and sections follow the Insights Overview; Builds, app Settings and workspace Settings already use the rail without tabs.
 
 ## 0d. App settings: a rail and one section at a time (built)
 
