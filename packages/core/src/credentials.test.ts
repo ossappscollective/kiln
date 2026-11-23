@@ -136,3 +136,17 @@ test('revenuecat: one secret API key, stored as the plain string, trimmed, no sp
   assert.ok(credentialKindInfo.revenuecat.fields.every((f) => f.secret === true));
   assert.match(credentialKindInfo.revenuecat.description, /read permissions only/);
 });
+
+test('apple_ads: client id, team id, key id and a private key, stored as one JSON string', () => {
+  const pem = '-----BEGIN EC PRIVATE KEY-----\nabc\n-----END EC PRIVATE KEY-----';
+  const values = { clientId: ' SEARCHADS.a ', teamId: 'SEARCHADS.b', keyId: 'k-1', privateKey: pem };
+  const secret = buildSecret('apple_ads', values);
+  assert.deepEqual(JSON.parse(secret), { clientId: 'SEARCHADS.a', teamId: 'SEARCHADS.b', keyId: 'k-1', privateKey: pem });
+  assert.equal(checkSecret('apple_ads', secret), undefined);
+  assert.match(checkSecret('apple_ads', buildSecret('apple_ads', { ...values, keyId: '' })) ?? '', /Key ID/);
+  assert.match(checkSecret('apple_ads', buildSecret('apple_ads', { ...values, teamId: 'a b' })) ?? '', /no spaces/);
+  assert.match(checkSecret('apple_ads', buildSecret('apple_ads', { ...values, privateKey: 'nope' })) ?? '', /private-key\.pem/);
+  assert.match(checkSecret('apple_ads', 'nope') ?? '', /could not be read/);
+  assert.equal(isCredentialKind('apple_ads'), true);
+  assert.match(credentialKindInfo.apple_ads.description, /never creates or changes a campaign/);
+});

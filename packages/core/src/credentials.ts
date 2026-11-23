@@ -18,6 +18,7 @@ export const credentialKinds = [
   'ai_openai_compatible',
   'expo',
   'revenuecat',
+  'apple_ads',
 ] as const;
 export type CredentialKind = (typeof credentialKinds)[number];
 
@@ -160,6 +161,27 @@ export const credentialKindInfo: Record<CredentialKind, CredentialKindInfo> = {
       },
     ],
   },
+  apple_ads: {
+    label: 'Apple Ads API user key',
+    description:
+      'The key of an Apple Ads API user, used to read the campaign, search term and keyword reports of your own Apple Ads campaigns (docs/adr/0058-apple-ads.md). Give the user the API Account Read Only role: the tool never creates or changes a campaign.',
+    fields: [
+      {
+        name: 'clientId',
+        label: 'Client ID',
+        hint: 'Shown by Apple Ads (Account Settings, API) after you save the public key. It starts with SEARCHADS.',
+      },
+      { name: 'teamId', label: 'Team ID', hint: 'Shown next to the client ID. It starts with SEARCHADS.' },
+      { name: 'keyId', label: 'Key ID', hint: 'Shown next to the client ID and the team ID.' },
+      {
+        name: 'privateKey',
+        label: 'Private key (.pem)',
+        multiline: true,
+        accept: '.pem,.txt',
+        hint: 'The private-key.pem made with openssl ecparam -genkey -name prime256v1. Its public half is the one saved in Apple Ads.',
+      },
+    ],
+  },
   revenuecat: {
     label: 'RevenueCat secret API key (V2)',
     description:
@@ -184,6 +206,13 @@ export function buildSecret(kind: CredentialKind, values: Record<string, string>
       return JSON.stringify({
         keyId: clean(values.keyId),
         issuerId: clean(values.issuerId),
+        privateKey: clean(values.privateKey),
+      });
+    case 'apple_ads':
+      return JSON.stringify({
+        clientId: clean(values.clientId),
+        teamId: clean(values.teamId),
+        keyId: clean(values.keyId),
         privateKey: clean(values.privateKey),
       });
     case 'github_app':
@@ -274,6 +303,19 @@ export function checkSecret(kind: CredentialKind, secret: string): string | unde
     if (absent.length) return `The service account JSON is missing ${absent.join(' and ')}.`;
     if (!looksLikePrivateKey(object.private_key))
       return 'The private_key in the JSON is not a private key.';
+    return undefined;
+  }
+  if (kind === 'apple_ads') {
+    const labels = credentialKindInfo.apple_ads.fields;
+    const absent = missing(object, ['clientId', 'teamId', 'keyId', 'privateKey']).map(
+      (n) => labels.find((f) => f.name === n)?.label ?? n,
+    );
+    if (absent.length) return `Fill in: ${absent.join(', ')}.`;
+    for (const n of ['clientId', 'teamId', 'keyId']) {
+      if (/\s/.test((object[n] as string).trim())) return 'An ID has no spaces or line breaks.';
+    }
+    if (!looksLikePrivateKey(object.privateKey))
+      return 'The private key must be the whole private-key.pem file, from -----BEGIN EC PRIVATE KEY----- to -----END EC PRIVATE KEY-----.';
     return undefined;
   }
   const names =

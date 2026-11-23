@@ -1183,6 +1183,89 @@ const revenuecat: CredentialGuide = {
   checkedOn: '2026-11-21',
 };
 
+const appleAds: CredentialGuide = {
+  summary:
+    'Lets the tool read the campaign, search term and keyword reports of your own Apple Ads campaigns, to show them next to your keywords. It only reads: it never creates or changes a campaign, an ad group, a keyword or a budget.',
+  prerequisites: [
+    'An Apple Ads account with at least one App Store campaign. An account administrator must invite the API user.',
+    'OpenSSL, which macOS and most Linux systems have, to make the key pair. The tool never makes or keeps your private key for you.',
+    'A secure place for the private key file, because it is the only copy.',
+  ],
+  steps: [
+    {
+      title: 'Open Apple Ads',
+      body: 'Sign in at ads.apple.com with Sign In, then Advanced, as an account administrator and choose the account to read.',
+      link: {
+        label: 'Apple: Implementing OAuth for the Apple Ads Platform API',
+        url: 'https://developer.apple.com/documentation/apple-ads-platform-api/implementing-oauth-for-the-apple-ads-platform-api',
+      },
+    },
+    {
+      title: 'Invite an API user',
+      body: 'Choose Account Settings, then User Management, then Invite Users, and select the role API Account Read Only. The invited person confirms with the code Apple emails.',
+    },
+    {
+      title: 'Generate a private key',
+      body: 'Run openssl ecparam -genkey -name prime256v1 -noout -out private-key.pem. Then run openssl ec -in private-key.pem -pubout -out public-key.pem to get the public key.',
+    },
+    {
+      title: 'Open the API settings',
+      body: 'Signed in as the API user, choose Account Settings, then API, paste the whole public-key.pem into the Public Key field and save. Apple Ads then shows a client ID, a team ID and a key ID.',
+    },
+    {
+      title: 'Copy the three IDs',
+      body: 'Copy the client ID, the team ID and the key ID from the block above the public key field. Keep private-key.pem: Apple does not store it.',
+    },
+    {
+      title: 'Enter the key here',
+      body: 'Paste the three IDs and the whole private-key.pem into the form, then use Test connection. It signs in and lists the ad accounts the key can read.',
+    },
+    {
+      title: 'Select the ad account for an app',
+      body: 'In the settings of an app, choose this credential and the ad account, then sync. The tool reads the campaigns of that app only.',
+    },
+  ],
+  permissions: [
+    'Read only: the role API Account Read Only, or Limited Access: API Read Only to limit the key to some resources. Apple lists API Account Manager, Admin and the read and write limited role as able to change things.',
+    'Never grant a role that can write. This tool never changes anything in Apple Ads, and a key that cannot write cannot spend money if it leaks.',
+    'The key reaches every ad account of the API user. Keep the private key out of your repository, and replace the public key in Apple Ads to revoke it.',
+  ],
+  troubleshooting: [
+    {
+      problem: 'The test says Apple did not accept the key.',
+      fix: 'Check that the public key of this private key is saved in Apple Ads under Account Settings, API, and that the client ID, team ID and key ID are the ones shown after saving. If you changed the public key, copy the new IDs.',
+    },
+    {
+      problem: 'The test says the user may not read the ad account.',
+      fix: 'The API user has no read role on that account. Ask an account administrator to give it API Account Read Only under User Management.',
+    },
+    {
+      problem: 'The test says the key sees no ad account.',
+      fix: 'The API user has not accepted the invitation, or was not invited to the account that runs your campaigns. Invite it, accept the email, then test again.',
+    },
+    {
+      problem: 'The test or a sync says Apple Ads asked to slow down.',
+      fix: 'Apple limits how many requests a key may send in a short time. Wait a minute and sync again.',
+    },
+    {
+      problem: 'The test says Apple Ads could not be reached.',
+      fix: 'Check that this server can reach appleid.apple.com and api.ads.apple.com over https, and that a proxy, if you use one, allows both.',
+    },
+  ],
+  links: [
+    {
+      label: 'Apple: Implementing OAuth for the Apple Ads Platform API',
+      url: 'https://developer.apple.com/documentation/apple-ads-platform-api/implementing-oauth-for-the-apple-ads-platform-api',
+    },
+    {
+      label: 'Apple: Managing ad accounts and API access',
+      url: 'https://developer.apple.com/documentation/apple-ads-platform-api/access-overview',
+    },
+    { label: 'Apple Ads', url: 'https://ads.apple.com' },
+  ],
+  checkedOn: '2026-11-23',
+};
+
 export const credentialGuides: Record<CredentialKind, CredentialGuide> = {
   app_store_connect: appStoreConnect,
   google_play: googlePlay,
@@ -1197,6 +1280,7 @@ export const credentialGuides: Record<CredentialKind, CredentialGuide> = {
   ai_openai_compatible: aiOpenaiCompatible,
   expo,
   revenuecat,
+  apple_ads: appleAds,
 };
 
 export function guideFor(kind: CredentialKind): CredentialGuide {

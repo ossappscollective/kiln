@@ -35,6 +35,12 @@ const ALLOWED: Partial<Record<CredentialKind, readonly Spec[]>> = {
     { key: 'appId', label: 'App ID', field: 'appId', max: 20 },
     { key: 'installationId', label: 'Installation ID', field: 'installationId', max: 20 },
   ],
+  // Apple Ads: the three ids Apple Ads shows after the public key is saved. The private key is never allowed.
+  apple_ads: [
+    { key: 'clientId', label: 'Client ID', field: 'clientId', max: 80 },
+    { key: 'teamId', label: 'Team ID', field: 'teamId', max: 80 },
+    { key: 'keyId', label: 'Key ID', field: 'keyId', max: 64 },
+  ],
   translate_azure: [{ key: 'region', label: 'Region', field: 'region', max: 40 }],
 };
 

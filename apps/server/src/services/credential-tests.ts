@@ -37,6 +37,8 @@ const verifierNames: Record<CredentialKind, string> = {
   expo: 'verifyExpoCredential',
   // The key is checked by asking RevenueCat which projects it sees and how many apps each has (reads only): packages/connectors/src/revenuecat/verify-revenuecat.ts.
   revenuecat: 'verifyRevenueCatCredential',
+  // Signs in (token) and asks which ad accounts the key may read (`GET /v1/acls`), reads only: packages/connectors/src/apple/ads-verify.ts.
+  apple_ads: 'verifyAppleAdsCredential',
 };
 
 /**

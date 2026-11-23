@@ -27,6 +27,7 @@ const allowedHosts = new Set([
   'expo.dev',
   'www.revenuecat.com',
   'app.revenuecat.com',
+  'ads.apple.com',
 ]);
 
 const verbs = new Set([

@@ -30,6 +30,7 @@ const payloads: Record<string, string> = {
   ai_openai_compatible: JSON.stringify({ apiKey: 'SECRETKEY0123456789' }),
   expo: 'EXPOSECRETTOKEN0123456789',
   revenuecat: 'sk_REVENUECATSECRET0123456789',
+  apple_ads: JSON.stringify({ clientId: 'SEARCHADS.aeb3ef5f-0c5a-4f2a-99c8', teamId: 'SEARCHADS.hgw3ef3p-0w7a-8a2n-77c8', keyId: 'a273d0d3-4d9e-458c-a173-0db8619ca7d7', privateKey: PEM }),
 };
 
 const SECRET_NEEDLES = [
@@ -60,6 +61,7 @@ test('the allow-listed identifiers are returned, nothing else', () => {
   assert.deepEqual(pick('github_app'), [['appId', '12345'], ['installationId', '67890']]);
   assert.deepEqual(pick('github_token'), [['tokenType', 'classic']]);
   assert.deepEqual(pick('translate_azure'), [['region', 'westeurope']]);
+  assert.deepEqual(pick('apple_ads'), [['clientId', 'SEARCHADS.aeb3ef5f-0c5a-4f2a-99c8'], ['teamId', 'SEARCHADS.hgw3ef3p-0w7a-8a2n-77c8'], ['keyId', 'a273d0d3-4d9e-458c-a173-0db8619ca7d7']]);
   for (const kind of ['expo', 'revenuecat', 'ai_openai', 'ai_anthropic', 'translate_deepl']) assert.deepEqual(pick(kind), []);
 });
 
