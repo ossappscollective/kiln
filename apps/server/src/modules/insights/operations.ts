@@ -118,6 +118,7 @@ export const insightsOperations: Draft[] = [
           unavailable: z.enum(['no_listing']).nullable(),
           score: z.number().nullable(),
           issueCount: z.number().int(),
+          counts: z.object({ problems: z.number().int(), warnings: z.number().int(), tips: z.number().int() }),
           locales: z.array(
             z.object({
               locale: z.string(),

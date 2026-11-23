@@ -300,6 +300,19 @@ the last look.
   below. Media is `{ "screenshots": { "en-US": [{ "type": "APP_IPHONE_67", "count": 3, "names": [...] }] },
   "previews": {...} }` (Google Play: `graphics` too, with `ids` in place of `names`). Counts only.
 
+## Listing settings: the repository comparison is opt in
+
+`GET /apps/:id/listing-settings` (`apps.read`) and `PUT /apps/:id/listing-settings` (`apps.write`, a partial update, audited as
+`app.listing_settings_update`) hold two booleans per app, both **false by default** (an app that never changed them, every existing app,
+reads false): `compareRepo` (compare the repository's text with the store's) and `compareMedia` (compare the repository's graphics with the
+store's). They are stored as one JSON value in `workspace_settings` under `app.<appId>.listing` (no migration) and deleted with the app. An
+unknown key or a non boolean is `422 invalid_setting` with `issues`.
+
+With `compareRepo` off, `GET .../listing/drift` answers `compare: { repo: false, media: ... }`: the repository's values are not read into the
+answer, every field has status `identical` and `repo.value` null, nothing is `missing` or `differs`, and a field is still judged by the store
+value alone (`problems.live`: limits, required fields). With `compareMedia` off the `media` section is not compared. Nothing is written to a
+store or a repository either way.
+
 ## `GET /apps/:id/listing/live`
 
 The live store values as recorded by the last sync, per channel, without the comparison.

@@ -155,9 +155,21 @@ test('listing: problems found by the checks become one card, tips do not', () =>
   const fields = { name: 'App', subtitle: 'Does things well enough', keywords: 'a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,aa,bb,cc,dd,ee,ff,gg,hh,ii,jj,kk,ll,mm,nn', promotional_text: 'Hi', description: 'Text. '.repeat(40) };
   const card = buildInsights(base({ listing: { locales: [{ locale: 'en-US', fields: { ...fields, name: 'N'.repeat(40) } }] } })).cards.find((c) => c.id === 'listing');
   assert.equal(card?.severity, 'problem');
+  assert.equal(card?.code, 'listing.issues');
+  assert.equal(card?.params.problems, 1);
+  assert.equal(card?.params.count, 1);
   assert.equal(card?.actions[0]?.target.locale, 'en-US');
   const none = buildInsights(base({ listing: { locales: [{ locale: 'en-US', fields }] } })).cards.find((c) => c.id === 'listing');
   assert.equal(none, undefined);
+});
+
+test('listing: advice alone is a warning card with its own words and never says problem', () => {
+  const fields = { name: 'App', subtitle: 'Does things well enough', keywords: 'one, two, three', promotional_text: 'Hi', description: 'Text. '.repeat(40) };
+  const card = buildInsights(base({ listing: { locales: [{ locale: 'en-US', fields }] } })).cards.find((c) => c.id === 'listing');
+  assert.equal(card?.code, 'listing.review');
+  assert.equal(card?.severity, 'warning');
+  assert.equal(card?.params.problems, 0);
+  assert.ok(Number(card?.params.warnings) >= 1);
 });
 
 test('cards are ordered problem first, then by weight; counts and dismissals', () => {

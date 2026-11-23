@@ -265,6 +265,7 @@ import type {
   SyncResult,
   TestResult,
   User,
+  AppListingSettings,
   WebhookDelivery,
   WebhookEndpoint,
   WorkflowInputs,
@@ -2116,6 +2117,17 @@ export function createApi(options: ApiOptions = {}) {
       request<ReleaseSettingsView>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release-settings`,
+      ),
+    appListingSettings: (workspaceId: string, appId: string) =>
+      request<{ settings: AppListingSettings }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing-settings`,
+      ),
+    updateAppListingSettings: (workspaceId: string, appId: string, changes: Partial<AppListingSettings>) =>
+      request<{ settings: AppListingSettings; changed: string[] }>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing-settings`,
+        changes,
       ),
     updateAppReleaseSettings: (
       workspaceId: string,

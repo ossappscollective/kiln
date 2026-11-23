@@ -70,6 +70,7 @@
   "api.unknownPath": "A choice names a file that is not in this change set. Reload and try again.",
   "app.alreadyAdded": "{{identifier}} is already added for {{platform}}.",
   "app.discoverKinds": "Apps can be found with an App Store Connect API key or a Google Play service account credential.",
+  "app.listingSettingInvalid": "A listing setting is not valid.",
   "app.notInWorkspace": "That app is not in this workspace.",
   "app.notLinkedToRepository": "That app is not linked to this repository.",
   "app.playCannotList": "Google Play cannot list the apps of an account. Enter the package names to check.",

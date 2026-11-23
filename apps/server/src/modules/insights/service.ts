@@ -272,6 +272,8 @@ export type ListingChecksView = {
   unavailable: 'no_listing' | null;
   score: number | null;
   issueCount: number;
+  /** Problems (to fix), warnings (to review) and tips, across every locale: the numbers the card and the locale panel both say. */
+  counts: ReturnType<typeof checkListing>['counts'];
   locales: ReturnType<typeof checkListing>['locales'];
 };
 
@@ -282,9 +284,9 @@ export async function listingChecksFor(
 ): Promise<ListingChecksView> {
   const { input } = await collectInputs(sql, ctx);
   const store = input.store;
-  if (!input.listing) return { appId: ctx.app.id, store, unavailable: 'no_listing', score: null, issueCount: 0, locales: [] };
+  if (!input.listing) return { appId: ctx.app.id, store, unavailable: 'no_listing', score: null, issueCount: 0, counts: { problems: 0, warnings: 0, tips: 0 }, locales: [] };
   const res = checkListing({ store, locales: input.listing.locales, baseLocale: input.listing.baseLocale });
-  return { appId: ctx.app.id, store, unavailable: null, score: res.score, issueCount: res.issueCount, locales: res.locales };
+  return { appId: ctx.app.id, store, unavailable: null, score: res.score, issueCount: res.issueCount, counts: res.counts, locales: res.locales };
 }
 
 export type { CoverageLanguage };

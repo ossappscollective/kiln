@@ -54,6 +54,7 @@ export type ListingChecksView = {
   unavailable: 'no_listing' | null;
   score: number | null;
   issueCount: number;
+  counts: { problems: number; warnings: number; tips: number };
   locales: LocaleChecks[];
 };
 
@@ -210,6 +211,7 @@ const CARD_TEXT: Record<string, Sentence> = {
   'keywords.up': { headline: k('insights:card.keywordsUp.headline'), explain: k('insights:card.keywordsUp.explain') },
   'keywords.down': { headline: k('insights:card.keywordsDown.headline'), explain: k('insights:card.keywordsDown.explain') },
   'listing.issues': { headline: k('insights:card.listingIssues.headline'), explain: k('insights:card.listingIssues.explain') },
+  'listing.review': { headline: k('insights:card.listingReview.headline'), explain: k('insights:card.listingReview.explain') },
 };
 const UNKNOWN_CARD: Sentence = { headline: k('insights:card.unknown.headline'), explain: k('insights:card.unknown.explain') };
 
@@ -280,6 +282,7 @@ const EVIDENCE_LABEL: Record<string, string> = {
   ratingPrevious: k('insights:evidence.ratingPrevious'),
   score: k('insights:evidence.score'),
   issues: k('insights:evidence.issues'),
+  warnings: k('insights:evidence.warnings'),
 };
 
 /** One evidence line: a label and a value, written for the person's language. A key that is not a known name (a keyword and its country) is shown as it is. */
@@ -325,6 +328,8 @@ export function actionHref(id: string, action: { code: string; target: InsightTa
   if (view && view !== 'overview') params.set('view', view);
   // `addLocale` names a language the page does not have yet: there is no locale to open.
   if (target.locale && action.code !== 'addLocale') params.set('locale', target.locale);
+  // Opening the checks of a locale is a deliberate deep link: it also opens that locale's panel (`?panel=`, see lib/app-header.ts).
+  if (target.locale && action.code === 'openChecks' && target.section === 'listing') params.set('panel', target.locale);
   const text = params.toString();
   return text === '' ? path : `${path}?${text}`;
 }

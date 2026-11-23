@@ -6,6 +6,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { type AppEnv, parseBody, queryInt } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
+import { getAppListingSettings, readAppListingSettings, updateAppListingSettings } from '../../services/app-listing-settings.ts';
 import { type AppsContext, getApp, syncApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import type { Failure, RepoContext } from '../../services/repositories.ts';
@@ -50,6 +51,8 @@ const respond = (c: Context<AppEnv>, f: Failure) => {
 const LOCALE = /^[A-Za-z0-9_-]{1,35}$/;
 
 /** A pull body is a list of fields and locales: a few kilobytes at most. */
+const listingSettingsBody = z.object({ compareRepo: z.boolean().optional(), compareMedia: z.boolean().optional() }).strict();
+
 const PULL_BODY_LIMIT = 64 * 1024;
 const MAX_PULL_LOCALES = 100;
 const MAX_PULL_ITEMS = 1000;
@@ -111,7 +114,22 @@ export function listingRoutes(ctx: ListingRoutesContext) {
     if (!app) return notFound(c);
     // Derived data: change sets applied since the last look. A failure here must not hide the rest.
     await recordAppliedChangeSets(db, ws(c), app, ctx.now()).catch(() => 0);
-    return c.json(await getDrift(db, ws(c), app));
+    // The repository is compared only when the app's listing settings say so (default: off, store checks only).
+    const settings = await readAppListingSettings(db, ws(c), app.id);
+    return c.json(await getDrift(db, ws(c), app, { compareRepo: settings.compareRepo, compareMedia: settings.compareMedia }));
+  });
+
+  routes.get('/:workspaceId/apps/:id/listing-settings', needs('apps.read'), async (c) => {
+    const done = await getAppListingSettings(db, { workspaceId: ws(c), appId: param(c, 'id') });
+    c.header('Cache-Control', 'no-store');
+    return done.ok ? c.json({ settings: done.settings }) : respond(c, done);
+  });
+
+  routes.put('/:workspaceId/apps/:id/listing-settings', needs('apps.write'), async (c) => {
+    const body = await parseBody(c, listingSettingsBody);
+    if (!body.ok) return body.response;
+    const done = await updateAppListingSettings(db, { workspaceId: ws(c), appId: param(c, 'id'), changes: body.data, actor: actor(c) }, ctx.now());
+    return done.ok ? c.json({ settings: done.settings, changed: done.changed }) : respond(c, done);
   });
 
   routes.get('/:workspaceId/apps/:id/listing/history', needs('listing.read'), async (c) => {

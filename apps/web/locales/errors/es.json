@@ -70,6 +70,7 @@
   "api.unknownPath": "Una de las opciones nombra un archivo que no está en este conjunto de cambios. Recarga la página e inténtalo de nuevo.",
   "app.alreadyAdded": "{{identifier}} ya está añadido para {{platform}}.",
   "app.discoverKinds": "Las apps se pueden encontrar con una clave de API de App Store Connect o una credencial de cuenta de servicio de Google Play.",
+  "app.listingSettingInvalid": "Un ajuste de la ficha no es válido.",
   "app.notInWorkspace": "Esa app no está en este espacio de trabajo.",
   "app.notLinkedToRepository": "Esa app no está vinculada a este repositorio.",
   "app.playCannotList": "Google Play no puede listar las apps de una cuenta. Introduce los nombres de paquete que comprobar.",

@@ -457,17 +457,20 @@ function listing(ctx: Ctx) {
   const problems = out.locales.flatMap((l) => l.issues.filter((i) => i.severity !== 'tip').map((i) => ({ ...i, locale: l.locale })));
   if (problems.length === 0) return;
   const worst = [...out.locales].sort((a, b) => a.score - b.score)[0] as { locale: string; score: number };
-  const hard = problems.filter((i) => i.severity === 'problem').length;
+  // The headline counts what must be fixed; advice is counted apart. Only a real problem makes the card red.
+  const hard = out.counts.problems;
+  const soft = out.counts.warnings;
   ctx.cards.push({
     id: 'listing',
     fingerprint: problems.map((i) => i.id).sort().join('|'),
     category: 'listing',
     severity: hard > 0 ? 'problem' : 'warning',
-    code: 'listing.issues',
-    params: { count: problems.length, score: out.score, locale: worst.locale },
+    code: hard > 0 ? 'listing.issues' : 'listing.review',
+    params: { count: hard > 0 ? hard : soft, problems: hard, warnings: soft, score: out.score, locale: worst.locale },
     evidence: [
       { key: 'score', value: out.score, format: 'count' },
-      { key: 'issues', value: problems.length, format: 'count' },
+      { key: 'issues', value: hard, format: 'count' },
+      { key: 'warnings', value: soft, format: 'count' },
     ],
     actions: [{ code: 'openChecks', target: { section: 'listing', view: 'text', locale: worst.locale } }],
     weight: hard > 0 ? 75 : 50,

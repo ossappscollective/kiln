@@ -37,6 +37,7 @@ import { deleteListingData, syncListing } from '../modules/listing/live.ts';
 import { recordAppliedChangeSets } from '../modules/listing/repo.ts';
 import { deleteReviewData } from '../modules/reviews/service.ts';
 import { deleteAppIcon } from './app-icon-store.ts';
+import { deleteAppListingSettings } from './app-listing-settings.ts';
 import { deleteAppReleaseSettings } from './app-release-settings.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
@@ -510,6 +511,7 @@ export async function deleteApp(
       input.workspaceId,
     ]);
     await deleteAppReleaseSettings(tx, input.workspaceId, input.id);
+    await deleteAppListingSettings(tx, input.workspaceId, input.id);
     // The release pipeline's own rows: the builds seen, the stall reminder, and the app's share of CI runs.
     await tx.execute('DELETE FROM app_builds WHERE app_id = ? AND workspace_id = ?', [
       input.id,

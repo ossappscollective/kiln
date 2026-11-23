@@ -112,8 +112,12 @@ async function boot(
     });
   const sync = (id: string, cookie = t.owner) => t.call(cookie, 'POST', `/apps/${id}/sync`);
   const live = (id: string, cookie = t.owner) => t.call(cookie, 'GET', `/apps/${id}/listing/live`);
-  const drift = (id: string, cookie = t.owner) =>
-    t.call(cookie, 'GET', `/apps/${id}/listing/drift`);
+  // The repository comparison is opt-in per app (listing settings): the tests below that look at it switch it on first.
+  const plainDrift = (id: string, cookie = t.owner) => t.call(cookie, 'GET', `/apps/${id}/listing/drift`);
+  const drift = async (id: string, cookie = t.owner) => {
+    await t.call(t.owner, 'PUT', `/apps/${id}/listing-settings`, { compareRepo: true, compareMedia: true });
+    return plainDrift(id, cookie);
+  };
   const history = (id: string, query = '', cookie = t.owner) =>
     t.call(cookie, 'GET', `/apps/${id}/listing/history${query}`);
   const refresh = (id: string, cookie = t.owner) =>
@@ -132,6 +136,7 @@ async function boot(
     sync,
     live,
     drift,
+    plainDrift,
     history,
     refresh,
     noLeaks,
@@ -759,7 +764,7 @@ dbTest(
     await t.refresh(id);
     const before = (await t.auditActions()).length;
     await t.live(id);
-    await t.drift(id);
+    await t.plainDrift(id);
     await t.history(id);
     assert.equal(
       (await t.auditActions()).length,
@@ -800,4 +805,38 @@ dbTest('deleting an app deletes its listing history and status', async (db) => {
     (await db.query('SELECT app_id FROM app_listing_status WHERE app_id = ?', [id])).length,
     0,
   );
+});
+
+// ---------------------------------------------------------------------------------------------
+// Listing settings: the repository comparison is opt-in
+
+dbTest('the repository comparison is off by default and judges the store on its own; switched on it shows the differences', async (db) => {
+  const t = await boot(db);
+  const { repositoryId } = await t.connect();
+  const id = await t.addIos({ repositoryId });
+  t.stores.ios.listing = iosListing({ 'en-US': { ...REPO_EN, keywords: 'a'.repeat(101) } });
+  t.repo.files.set('fastlane/metadata/en-US/subtitle.txt', 'Another subtitle\n');
+  await t.sync(id);
+  await t.refresh(id);
+
+  const settings = await t.call(t.owner, 'GET', `/apps/${id}/listing-settings`);
+  assert.deepEqual(settings.body.settings, { compareRepo: false, compareMedia: false });
+
+  const off = await t.plainDrift(id);
+  assert.deepEqual(off.body.compare, { repo: false, media: false });
+  const offFields = fieldsOf(off.body);
+  assert.ok(Object.values(offFields).every((f) => f.status === 'identical' && f.repo.value === null && f.problems.repo.length === 0));
+  assert.equal(offFields['en-US/keywords']?.problems.live[0]?.code, 'too_long', 'the store side is still checked on its own');
+  assert.ok(off.body.sections.every((s: { compare: { status: string } }) => s.compare.status !== 'identical' && s.compare.status !== 'differs'));
+
+  const put = await t.call(t.owner, 'PUT', `/apps/${id}/listing-settings`, { compareRepo: true });
+  assert.equal(put.status, 200);
+  assert.deepEqual(put.body.changed, ['compareRepo']);
+  const on = await t.plainDrift(id);
+  assert.deepEqual(on.body.compare, { repo: true, media: false });
+  assert.notEqual(fieldsOf(on.body)['en-US/subtitle']?.status, 'identical');
+
+  assert.equal((await t.auditActions()).filter((a) => a.action === 'app.listing_settings_update').length, 1);
+  assert.equal((await t.call(t.owner, 'PUT', `/apps/${id}/listing-settings`, { compareRepo: 'yes' })).status, 400);
+  assert.equal((await t.call(t.owner, 'GET', '/apps/nope/listing-settings')).status, 404);
 });

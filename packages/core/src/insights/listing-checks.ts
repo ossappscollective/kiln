@@ -40,6 +40,23 @@ export type CheckIssue = {
 
 export type LocaleChecks = { locale: string; score: number; issues: CheckIssue[] };
 
+/**
+ * The one count every screen says: `problems` are what must be fixed (a limit exceeded, a required field empty); `warnings` are advice
+ * worth reading (wasted keyword space, text left untranslated); `tips` are quiet. Only problems make a page "red". A difference between the
+ * repository and the store is NOT a check: it is never counted here (the repository comparison is opt-in, see the app's listing settings).
+ */
+export type CheckCounts = { problems: number; warnings: number; tips: number };
+
+export function countIssues(issues: readonly CheckIssue[]): CheckCounts {
+  const out: CheckCounts = { problems: 0, warnings: 0, tips: 0 };
+  for (const i of issues) {
+    if (i.severity === 'problem') out.problems += 1;
+    else if (i.severity === 'warning') out.warnings += 1;
+    else out.tips += 1;
+  }
+  return out;
+}
+
 export type CheckLocaleText = {
   locale: string;
   /** Store field id to text; a field the store page lacks is absent. */
@@ -166,6 +183,7 @@ export function checkListing(input: { store: ListingStore; locales: readonly Che
   locales: LocaleChecks[];
   score: number;
   issueCount: number;
+  counts: CheckCounts;
 } {
   const list = input.locales;
   const base = list.find((l) => l.locale === input.baseLocale) ?? list.find((l) => l.locale === 'en-US') ?? list[0] ?? null;
@@ -175,5 +193,5 @@ export function checkListing(input: { store: ListingStore; locales: readonly Che
     return { locale: entry.locale, score: scoreOf(issues), issues };
   });
   const score = locales.length === 0 ? 100 : Math.round(locales.reduce((s, l) => s + l.score, 0) / locales.length);
-  return { locales, score, issueCount: locales.reduce((n, l) => n + l.issues.length, 0) };
+  return { locales, score, issueCount: locales.reduce((n, l) => n + l.issues.length, 0), counts: countIssues(locales.flatMap((l) => l.issues)) };
 }

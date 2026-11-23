@@ -681,11 +681,16 @@ export type DriftField = {
 
 export type DriftLocale = { locale: string; fields: DriftField[] };
 
+/** Per app: compare the repository with the store (texts) and its graphics with the store's. Both default to false. */
+export type AppListingSettings = { compareRepo: boolean; compareMedia: boolean };
+
 export type ListingDrift = {
   appId: string;
   platform: Platform;
   /** Which store copy the live column shows. Null: nothing was read from the store yet. */
   channel: 'live' | 'editable' | null;
+  /** What this answer compared. Absent from a server that predates the setting (read as: compared). */
+  compare?: { repo: boolean; media: boolean };
   store: { readAt: number | null; error: string | null };
   repo: { readAt: number | null; ref: string | null; error: string | null };
   summary: Record<DriftStatus, number>;

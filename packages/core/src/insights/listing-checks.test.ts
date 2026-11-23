@@ -100,5 +100,5 @@ test('Google Play: title, short and full description, no keyword field', () => {
 
 test('score floors at 0 and an empty list scores 100', () => {
   assert.equal(scoreOf(Array.from({ length: 9 }, () => ({ severity: 'problem' }) as never)), 0);
-  assert.deepEqual(checkListing({ store: 'app_store', locales: [] }), { locales: [], score: 100, issueCount: 0 });
+  assert.deepEqual(checkListing({ store: 'app_store', locales: [] }), { locales: [], score: 100, issueCount: 0, counts: { problems: 0, warnings: 0, tips: 0 } });
 });

@@ -784,6 +784,8 @@ export type Drift = {
   platform: Platform;
   /** Which store copy the "live" column is: `live`, or `editable` for an app that has no live version. `null`: nothing read yet. */
   channel: 'live' | 'editable' | null;
+  /** What this answer compared: the repository's texts (`repo`) and graphics (`media`). Both false by default (app listing settings). */
+  compare: { repo: boolean; media: boolean };
   store: { readAt: number | null; error: string | null };
   repo: { readAt: number | null; ref: string | null; error: string | null };
   summary: DriftSummary;
@@ -861,14 +863,22 @@ const later = (a: IndexRow | undefined, b: IndexRow | undefined): IndexRow | und
  * field (`classifyDrift`). The repository's `default` locale (the fallback folder) fills fields a
  * locale does not set.
  */
-export async function getDrift(sql: Sql, workspaceId: string, app: ListingApp): Promise<Drift> {
+export async function getDrift(
+  sql: Sql,
+  workspaceId: string,
+  app: ListingApp,
+  options: { compareRepo?: boolean; compareMedia?: boolean } = {},
+): Promise<Drift> {
+  // Without the comparison (the app's default) the repository is not part of the answer: every field is judged by the store's value alone
+  // (its limits), nothing is "missing" or "differs", and the sections are not compared.
+  const compareRepo = options.compareRepo ?? true;
   const [index, status, sectionRows] = await Promise.all([
     loadIndex(sql, workspaceId, app.id),
     getListingStatus(sql, workspaceId, app.id),
     loadSections(sql, workspaceId, app.id),
   ]);
   const platform = app.platform;
-  const repoLatest = newestPer(index, (r) => r.source === 'repo');
+  const repoLatest = compareRepo ? newestPer(index, (r) => r.source === 'repo') : new Map<string, IndexRow>();
   const changeSetLatest = newestPer(index, (r) => r.source === 'change_set');
   const storeLive = newestPer(index, (r) => r.source === 'store' && r.channel === 'live');
   const storeEditable = newestPer(index, (r) => r.source === 'store' && r.channel === 'editable');
@@ -963,12 +973,14 @@ export async function getDrift(sql: Sql, workspaceId: string, app: ListingApp): 
   const byLocale = new Map<string, DriftField[]>();
   for (const { p, repo, db, live } of sides) {
     const key = fieldKey(p.locale, p.field);
-    const verdict = classifyDrift({
-      repo: repo.value,
-      live: live.value,
-      repoHistory: repoHistory.get(p.repoKey) ?? [],
-      liveHistory: storeHistory.get(key) ?? new Set<string>(),
-    });
+    const verdict = !compareRepo
+      ? { status: 'identical' as const }
+      : classifyDrift({
+          repo: repo.value,
+          live: live.value,
+          repoHistory: repoHistory.get(p.repoKey) ?? [],
+          liveHistory: storeHistory.get(key) ?? new Set<string>(),
+        });
     const spec = fieldSpec(platform, p.field);
     const field: DriftField = {
       locale: p.locale,
@@ -977,7 +989,7 @@ export async function getDrift(sql: Sql, workspaceId: string, app: ListingApp): 
       limit: spec?.maxLength ?? null,
       unit: spec?.unit ?? 'characters',
       status: verdict.status,
-      ...(verdict.missingIn ? { missingIn: verdict.missingIn } : {}),
+      ...('missingIn' in verdict && verdict.missingIn ? { missingIn: verdict.missingIn } : {}),
       repo,
       db,
       live,
@@ -991,20 +1003,25 @@ export async function getDrift(sql: Sql, workspaceId: string, app: ListingApp): 
   const sectionChannel = channel ?? 'live';
   const sections: SectionDrift[] = SECTIONS_OF[platform].map((name) => {
     const store = sectionRows.get(sectionKey('store', sectionChannel, name));
-    const repo = sectionRows.get(sectionKey('repo', 'default', name));
+    // The media section follows `compareMedia`, every other section `compareRepo`.
+    const on = name === 'media' ? (options.compareMedia ?? true) : compareRepo;
+    const repo = on ? sectionRows.get(sectionKey('repo', 'default', name)) : undefined;
     return {
       name,
       store: store?.value ?? null,
       storeObservedAt: store?.observedAt ?? null,
       repo: repo?.value ?? null,
       repoObservedAt: repo?.observedAt ?? null,
-      compare: compareSection(name, store?.value ?? null, repo?.value ?? null, platform),
+      compare: on
+        ? compareSection(name, store?.value ?? null, repo?.value ?? null, platform)
+        : { status: store?.value == null ? ('not-read' as const) : ('not-comparable' as const), details: [] },
     };
   });
   return {
     appId: app.id,
     platform,
     channel,
+    compare: { repo: compareRepo, media: options.compareMedia ?? true },
     store: { readAt: status.listingReadAt, error: status.listingError },
     repo: { readAt: status.repoReadAt, ref: status.repoRef, error: status.repoError },
     summary: summarize(result),

@@ -51,7 +51,45 @@ const pullListingBody = z.object({
     .optional(),
 });
 
+const appListingSettingsSchema = z.object({
+  compareRepo: z
+    .boolean()
+    .describe('Compare the repository (fastlane text) with the store and show the differences. Default false: the store page is checked on its own.'),
+  compareMedia: z
+    .boolean()
+    .describe('Compare the repository graphics with the store graphics. Default false: the store graphics are listed on their own.'),
+});
+
 export const listingOperations: Draft[] = [
+  {
+    id: 'getAppListingSettings',
+    method: 'get',
+    path: `${W}/apps/{id}/listing-settings`,
+    tags: ['listing'],
+    summary: 'The listing settings of an app: whether the repository is compared with the store',
+    description:
+      'Needs `apps.read`. Reads the database only. An app that never changed them (every app before this setting existed) reads `compareRepo: false, compareMedia: false`.',
+    risk: 'read',
+    access: { action: 'apps.read' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: { '200': { description: 'The settings.', schema: z.object({ settings: appListingSettingsSchema }) } },
+  },
+  {
+    id: 'updateAppListingSettings',
+    method: 'put',
+    path: `${W}/apps/{id}/listing-settings`,
+    tags: ['listing'],
+    summary: 'Change the listing settings of an app (a partial update)',
+    description:
+      'Needs `apps.write` (admin and up). Send only what changes. All or nothing (`422 invalid_setting` with `issues`). Changes how Kiln shows the listing and its graphics; nothing is written to a store or a repository. Audited as `app.listing_settings_update` (the app id and the old and new values).',
+    risk: 'write',
+    access: { action: 'apps.write' },
+    appScope: { kind: 'param', name: 'id' },
+    body: z.object({ compareRepo: z.boolean().optional(), compareMedia: z.boolean().optional() }).strict(),
+    responses: {
+      '200': { description: 'The settings after the change, and the keys that changed.', schema: z.object({ settings: appListingSettingsSchema, changed: z.array(z.string()) }) },
+    },
+  },
   {
     id: 'getLiveListing',
     method: 'get',

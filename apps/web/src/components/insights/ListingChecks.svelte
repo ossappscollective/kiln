@@ -72,7 +72,7 @@
   const clean = $derived(locales.filter((l) => l.issues.length === 0));
   const totals = $derived(view ? countBySeverity(view.locales) : { problem: 0, warning: 0, tip: 0 });
   const sectionSummary = $derived(view && view.score !== null ? t('insights:checks.summary', { score: view.score, count: view.issueCount }) : '');
-  const listingHref = (locale: string) => `${appAddress(app.id, 'listing')}?locale=${encodeURIComponent(locale)}`;
+  const listingHref = (locale: string) => `${appAddress(app.id, 'listing')}?locale=${encodeURIComponent(locale)}&panel=${encodeURIComponent(locale)}`;
 </script>
 
 {#if mayRead}

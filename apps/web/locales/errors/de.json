@@ -70,6 +70,7 @@
   "api.unknownPath": "Eine Auswahl nennt eine Datei, die nicht in diesem Änderungssatz enthalten ist. Laden Sie die Seite neu und versuchen Sie es erneut.",
   "app.alreadyAdded": "{{identifier}} ist bereits für {{platform}} hinzugefügt.",
   "app.discoverKinds": "Apps lassen sich mit einem App-Store-Connect-API-Schlüssel oder den Zugangsdaten eines Google-Play-Dienstkontos finden.",
+  "app.listingSettingInvalid": "Eine Einstellung des Eintrags ist nicht gültig.",
   "app.notInWorkspace": "Diese App ist nicht in diesem Arbeitsbereich.",
   "app.notLinkedToRepository": "Diese App ist nicht mit diesem Repository verknüpft.",
   "app.playCannotList": "Google Play kann die Apps eines Kontos nicht auflisten. Geben Sie die zu prüfenden Paketnamen ein.",

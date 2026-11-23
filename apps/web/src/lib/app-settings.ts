@@ -211,6 +211,7 @@ export function lowRatingText(threshold: number): string {
 export const appSettingsPartIds = {
   stores: 'stores',
   repository: 'repository',
+  listing: 'listing',
   integrations: 'integrations',
   defaults: 'defaults',
   playReleases: 'play-releases',
@@ -240,6 +241,7 @@ export function appSettingsGroups(input: AppSettingsInput): RailGroup[] {
       entries: [
         entry(ids.stores, t(k('app:settings.part.stores'))),
         entry(ids.repository, t(k('app:settings.part.repository'))),
+        entry(ids.listing, t(k('app:settings.part.listing'))),
         entry(ids.integrations, t(k('app:settings.part.integrations'))),
       ],
     },
