@@ -5,7 +5,7 @@ import { bootRepoApp } from '../../repo-test-helpers.ts';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import { ASC_SECRET, PLAY_SECRET } from '../reviews/test-helpers.ts';
 import type { FeedReview } from './competitor-reviews.ts';
-import type { AsoSources, LookupInput, PublicApp, SearchInput, SearchOutcome } from './net.ts';
+import type { AsoSources, LookupInput, PublicApp, SearchAppsInput, SearchInput, SearchOutcome } from './net.ts';
 import { type AsoContext, type AsoLimits, DEFAULT_ASO_LIMITS } from './service.ts';
 
 /** Shared by the ASO tests. Everything runs against a fake store: nothing is ever contacted. */
@@ -66,6 +66,17 @@ export class FakeAsoSources implements AsoSources {
     this.reviewReads.push(input);
     if (this.reviewsError) throw this.reviewsError;
     return this.feeds.get(`${input.country}|${input.id}`) ?? [];
+  }
+
+  appSearches: SearchAppsInput[] = [];
+  /** `country|term` (term lower case) -> the apps a name search answers with. */
+  appResults = new Map<string, PublicApp[]>();
+
+  async searchApps(input: SearchAppsInput): Promise<{ apps: PublicApp[]; cached: boolean }> {
+    this.appSearches.push(input);
+    if (this.searchError) throw this.searchError;
+    const apps = this.appResults.get(`${input.country}|${input.term.toLowerCase()}`) ?? [];
+    return { apps: apps.slice(0, input.limit), cached: false };
   }
 
   async lookup(input: LookupInput): Promise<PublicApp | undefined> {

@@ -5,6 +5,7 @@ export * from './aso/aso-coach.ts';
 export * from './aso/aso-listing-terms.ts';
 export * from './aso/aso-rank-downloads.ts';
 export * from './aso/play-search-terms.ts';
+export * from './aso/store-ref.ts';
 export * from './changeset.ts';
 export * from './ci-providers.ts';
 export * from './credential-guides.ts';

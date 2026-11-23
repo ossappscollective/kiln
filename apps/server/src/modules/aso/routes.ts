@@ -37,6 +37,7 @@ import {
   ownReviewStats,
   refreshCompetitorReviews,
 } from './competitor-reviews.ts';
+import { COMPETITOR_QUERY_MAX, COMPETITOR_QUERY_MIN } from './competitor-search.ts';
 import { checkRankDownloadsQuery, rankVsDownloadsFor } from './rank-downloads.ts';
 import { queueAsoRefreshAll } from './schedule.ts';
 import {
@@ -56,6 +57,7 @@ import {
   playDisabledFailure,
   refreshApp,
   removeCompetitor,
+  searchCompetitors,
   updateKeyword,
 } from './service.ts';
 
@@ -363,6 +365,26 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       competitors: await listCompetitors(db, ws(c), app.id),
       limits: { maxCompetitorsPerApp: ctx.limits.maxCompetitorsPerApp },
     });
+  });
+
+  // Search by name for an app to follow (App Store). Reads the public store (cache, rate limit), so `aso.write` like adding one; nothing is stored.
+  routes.get('/:workspaceId/apps/:id/aso/competitors/search', needs('aso.write'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    const q = (c.req.query('q') ?? '').replace(/\s+/g, ' ').trim();
+    const rawCountry = c.req.query('country');
+    const country = rawCountry === undefined || rawCountry === '' ? 'us' : normalizeCountry(rawCountry);
+    const issues: Issue[] = [];
+    if (q.length < COMPETITOR_QUERY_MIN || q.length > COMPETITOR_QUERY_MAX)
+      issues.push({ path: 'q', message: `${COMPETITOR_QUERY_MIN} to ${COMPETITOR_QUERY_MAX} characters.` });
+    if (!country) issues.push({ path: 'country', message: 'Two letters, such as us or de.' });
+    if (issues.length > 0 || !country) return bad(c, issues);
+    const stop = limited(c);
+    if (stop) return stop;
+    const done = await searchCompetitors(ctx, { workspaceId: ws(c), app, q, country });
+    return done.ok
+      ? c.json({ country: done.country, results: done.results, cached: done.cached })
+      : respond(c, done);
   });
 
   routes.post('/:workspaceId/apps/:id/aso/competitors', needs('aso.write'), async (c) => {

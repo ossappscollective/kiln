@@ -479,6 +479,42 @@ export const asoOperations: Draft[] = [
     },
   },
   {
+    id: 'searchAsoCompetitors',
+    method: 'get',
+    path: `${W}/apps/{id}/aso/competitors/search`,
+    tags: ['aso'],
+    summary: 'Search the App Store by name for an app to follow as a competitor',
+    description:
+      'READS THE PUBLIC STORE (Apple\'s public search, through the shared cache, rate limit and cool-down); nothing is stored. `q` is 2 to 100 characters, `country` two letters (default us). At most 10 results with plain, capped text and an https icon; `state` says whether the app is this app itself (`own`) or already followed in that storefront (`followed`). `409 search_app_store_only` for an Android app: Google Play has no official search and Kiln does not scrape it, so paste the package name or the play.google.com address to `addAsoCompetitor`. Rate limited per workspace.',
+    risk: 'read',
+    access: { action: 'aso.write' },
+    appScope: { kind: 'param', name: 'id' },
+    rateLimited: true,
+    query: z.object({ q: z.string().min(2).max(100), country: z.string().optional() }),
+    responses: {
+      '200': {
+        description: 'The storefront searched and the matching apps.',
+        schema: z.object({
+          country: z.string(),
+          cached: z.boolean(),
+          results: z.array(
+            z.object({
+              externalId: z.string().describe('The numeric App Store id.'),
+              name: z.string(),
+              developer: z.string().nullable(),
+              category: z.string().nullable(),
+              iconUrl: z.string().nullable().describe('An https address.'),
+              ratingAverage: z.number().nullable(),
+              ratingCount: z.number().int().nullable(),
+              price: z.string().nullable(),
+              state: z.enum(['available', 'followed', 'own']),
+            }),
+          ),
+        }),
+      },
+    },
+  },
+  {
     id: 'addAsoCompetitor',
     method: 'post',
     path: `${W}/apps/{id}/aso/competitors`,

@@ -86,6 +86,7 @@
   "aso.playOnly": "Los términos de búsqueda son un informe de Google Play. Esta app es una app de iOS o macOS.",
   "aso.refreshFailed": "No se pudo completar la actualización de ASO. Inténtalo de nuevo en un momento.",
   "aso.refreshing": "Esta app se está actualizando ahora mismo.",
+  "aso.searchAppStoreOnly": "La búsqueda por nombre es solo para apps de la App Store. En Google Play, pega el nombre del paquete o la dirección de play.google.com.",
   "aso.storeUnreadable": "No se pudo leer la tienda. Inténtalo de nuevo en un momento.",
   "auth.challengeExpired": "Este inicio de sesión caducó o ya se usó. Inicia sesión de nuevo.",
   "auth.noVerifiedEmail": "No hay ninguna dirección de correo verificada configurada para los códigos.",

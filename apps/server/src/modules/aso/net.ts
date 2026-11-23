@@ -99,6 +99,9 @@ export type PublicApp = {
   ratingCount?: number;
   description?: string;
   iconUrl?: string;
+  /** The seller and the primary category, when the source says (App Store search only). */
+  developer?: string;
+  category?: string;
   /** Null (absent) when the source does not say. */
   screenshotCount?: number;
   /** The addresses of the screenshots, when the source gives them (hashed by the caller, never stored). */
@@ -115,6 +118,7 @@ export type SearchInput = {
   locale: string;
   limit: number;
 };
+export type SearchAppsInput = { platform: AsoPlatform; term: string; country: string; limit: number };
 export type LookupInput = { platform: AsoPlatform; id: string; country: string; locale: string };
 
 export type AsoSources = {
@@ -122,6 +126,11 @@ export type AsoSources = {
   playEnabled: boolean;
   search(input: SearchInput): Promise<SearchOutcome>;
   lookup(input: LookupInput): Promise<PublicApp | undefined>;
+  /**
+   * App Store only: the apps that match a name with what the store's search says about them (the competitor search of the add dialog).
+   * Same cache, rate limit and cool-down as `search`. Optional so a test fake need not have it.
+   */
+  searchApps?(input: SearchAppsInput): Promise<{ apps: PublicApp[]; cached: boolean }>;
   /**
    * The newest reviews of an App Store app from Apple's public customer-reviews feed (one page, at most 50 reviews). Apple only: Google
    * Play has no official reviews API for apps you do not own and Kiln does not scrape it. Optional so a test fake need not have it.
@@ -152,6 +161,8 @@ const fromApple = (a: AppleApp): PublicApp => ({
   ...(a.ratingCount !== undefined ? { ratingCount: a.ratingCount } : {}),
   ...(a.description ? { description: a.description } : {}),
   ...(a.iconUrl ? { iconUrl: a.iconUrl } : {}),
+  ...(a.sellerName ? { developer: a.sellerName } : {}),
+  ...(a.genre ? { category: a.genre } : {}),
   screenshotCount: a.screenshotUrls.length,
   screenshotUrls: a.screenshotUrls,
 });
@@ -179,6 +190,7 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
   const cooldown: Record<'apple' | 'play', number> = { apple: 0, play: 0 };
   const searches = timedCache<SearchOutcome>(options.cacheMs, 500);
   const lookups = timedCache<PublicApp | null>(options.cacheMs, 500);
+  const appSearches = timedCache<PublicApp[]>(options.cacheMs, 200);
   const inflight = new Map<string, Promise<unknown>>();
 
   /** One outbound call: the cool-down and the local limit first, the cool-down set when the store itself says to slow down. */
@@ -276,6 +288,25 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
         return { hits: r.ids.map((id) => ({ id })), total: r.total, cached: false };
       });
       return { ...value, cached };
+    },
+    async searchApps(input) {
+      if (listingStoreOf(input.platform) !== 'app_store')
+        throw new AsoError('apple_search', 'invalid_input', 'Searching by name is for the App Store only.');
+      const limit = Math.min(input.limit, APPLE_SEARCH_MAX_LIMIT);
+      const key = `a|${input.platform}|${input.country}|${input.term.toLowerCase()}|${limit}`;
+      const { value, cached } = await shared(key, appSearches, async () => {
+        const r = await outbound('apple', () =>
+          searchApple({
+            term: input.term,
+            country: input.country,
+            limit,
+            ...(isDesktop(input.platform) ? { macos: true } : {}),
+            fetch: doFetch,
+          }),
+        );
+        return r.apps.map(fromApple);
+      });
+      return { apps: value, cached };
     },
     async appleReviews(input) {
       if (!/^\d{1,15}$/.test(input.id) || !/^[a-z]{2}$/.test(input.country))

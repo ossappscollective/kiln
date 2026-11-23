@@ -37,6 +37,7 @@ import { recordAudit } from '../../services/audit.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
+import { COMPETITOR_SEARCH_LIMIT, type CompetitorSearchResult, mapSearchResults } from './competitor-search.ts';
 import type { AsoSources, PublicApp } from './net.ts';
 
 import { coded } from '../../i18n/problem.ts';
@@ -705,6 +706,46 @@ export function normalizeExternalId(platform: AsoPlatform, raw: string): string 
   const fromUrl = /[?&]id=([A-Za-z][A-Za-z0-9_.]*)/.exec(text);
   const candidate = fromUrl ? (fromUrl[1] as string) : text;
   return isPlayPackageName(candidate) ? candidate : undefined;
+}
+
+/**
+ * Search the App Store by name for an app to follow. Reads the public store through the shared cache, rate limit and cool-down;
+ * writes nothing. Each row says whether it is this app or is already followed in that storefront.
+ */
+export async function searchCompetitors(
+  ctx: AsoContext,
+  input: { workspaceId: string; app: ManagedApp; q: string; country: string },
+): Promise<{ ok: true; country: string; results: CompetitorSearchResult[]; cached: boolean } | Failure> {
+  const { app, workspaceId } = input;
+  if (listingStoreOf(app.platform) !== 'app_store' || !ctx.sources.searchApps)
+    return failure(
+      409,
+      'search_app_store_only',
+      'Search by name is for App Store apps. For Google Play, paste the package name or the play.google.com address.',
+      coded('aso.searchAppStoreOnly'),
+    );
+  let found: { apps: PublicApp[]; cached: boolean };
+  try {
+    found = await ctx.sources.searchApps({
+      platform: app.platform,
+      term: input.q,
+      country: input.country,
+      limit: COMPETITOR_SEARCH_LIMIT,
+    });
+  } catch (error) {
+    return asoFailure(error);
+  }
+  const rows = await ctx.db.query(
+    'SELECT external_id FROM aso_competitors WHERE app_id = ? AND workspace_id = ? AND store = ? AND country = ?',
+    [app.id, workspaceId, platformStore(app.platform), input.country],
+  );
+  const followed = new Set(rows.map((r) => String(r.external_id)));
+  return {
+    ok: true,
+    country: input.country,
+    cached: found.cached,
+    results: mapSearchResults(found.apps, { ownId: storeSideId(app.platform, app) ?? undefined, followed }),
+  };
 }
 
 /** A competitor's public data as the state the diff compares, plus the short fields that are stored. */

@@ -86,6 +86,7 @@
   "aso.playOnly": "Suchbegriffe sind ein Google-Play-Bericht. Diese App ist eine iOS- oder macOS-App.",
   "aso.refreshFailed": "Die ASO-Aktualisierung konnte nicht abgeschlossen werden. Versuchen Sie es gleich noch einmal.",
   "aso.refreshing": "Diese App wird gerade aktualisiert.",
+  "aso.searchAppStoreOnly": "Die Suche nach Namen gibt es nur für App-Store-Apps. Bei Google Play fügen Sie den Paketnamen oder die play.google.com-Adresse ein.",
   "aso.storeUnreadable": "Der Store konnte nicht gelesen werden. Versuchen Sie es gleich noch einmal.",
   "auth.challengeExpired": "Diese Anmeldung ist abgelaufen oder wurde bereits verwendet. Melden Sie sich erneut an.",
   "auth.noVerifiedEmail": "Für Codes ist keine bestätigte E-Mail-Adresse eingerichtet.",
