@@ -140,7 +140,7 @@ test('addresses: add=1 opens the add panel once, and the listing link names the 
   );
   assert.equal(
     coachHref({ to: 'listing', locale: 'de-DE', label: 'x' }, 'a1', 'ios'),
-    '#/portfolio/a1/listing?platform=ios&locale=de-DE',
+    '#/portfolio/a1/listing?platform=ios&locale=de-DE&panel=de-DE',
   );
   assert.equal(coachHref({ to: 'listing', label: 'x' }, 'a1'), '#/portfolio/a1/listing');
   assert.equal(asksToAddKeywords('#/portfolio/a1/aso?platform=ios&add=1'), true);

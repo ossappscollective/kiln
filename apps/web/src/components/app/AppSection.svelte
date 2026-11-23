@@ -19,7 +19,7 @@
   import type { Snippet } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
-  import { withHeaderParams } from '../../lib/app-header.ts';
+  import { panelOf, withHeaderParams, withPanel } from '../../lib/app-header.ts';
   import { type SectionView, withView } from '../../lib/app-nav.ts';
   import type { AppSection } from '../../lib/app-scope.ts';
   import { appAddress } from '../../lib/app-scope.ts';
@@ -252,6 +252,8 @@
         {lockedPlatforms}
         {locale}
         onlocale={(next) => replaceHash(withHeaderParams(location.hash, { locale: next }))}
+        panel={panelOf(address.hash)}
+        onpanel={(next) => replaceHash(withPanel(location.hash, next))}
       />
       {@render perPlatform(listingChecks)}
     </div>

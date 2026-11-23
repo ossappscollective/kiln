@@ -11,7 +11,7 @@ import {
   supports,
   type WasteReason,
 } from '@kiln/core';
-import { withHeaderParams } from '../app-header.ts';
+import { withHeaderParams, withPanel } from '../app-header.ts';
 import { appAddress, type PlatformScope, parseViewPath } from '../app-scope.ts';
 import { formatList } from '../i18n/format.ts';
 import { k, t } from '../i18n/t.ts';
@@ -219,8 +219,7 @@ export function coachHref(
     case 'ideas':
       return asoViewHref(appId, link.to, platform);
     default:
-      return withHeaderParams(appAddress(appId, 'listing', platform), {
-        locale: link.locale ?? null,
-      });
+      // A deliberate deep link: it picks the locale and opens its panel (`panel` is not carried by tab links).
+      return withPanel(withHeaderParams(appAddress(appId, 'listing', platform), { locale: link.locale ?? null }), link.locale ?? null);
   }
 }

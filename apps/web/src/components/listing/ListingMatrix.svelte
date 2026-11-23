@@ -16,6 +16,7 @@
   finished, so this tab reloads), lockedPlatforms? (platforms whose selected version is live or in review: their
   fields are read-only, with no stage control and no staged-changes tray), locale? (the locale of the page header:
   naming one the grid has opens its drawer; stepping to another locale there tells onlocale), onlocale?.
+  `panel` / `onpanel`: the locale whose drawer the address asks to open (`?panel=`), written by a click and removed on close; tab links drop it.
   Every cell whose field can be edited has a pencil ("Edit title, en-US"): it opens the field editor (FieldEditor) on that field and locale, with
   a live counter against the store's limit, the text before and after, "Suggest with AI" and "Stage". The same editor opens from "Edit" on
   each field of the locale drawer. Staging saves the text in our own database; nothing reaches a store from here.
@@ -97,6 +98,8 @@
     lockedPlatforms = [],
     locale = null,
     onlocale,
+    panel = null,
+    onpanel,
   }: {
     api: Api;
     workspaceId: string;
@@ -108,6 +111,8 @@
     lockedPlatforms?: Platform[] | undefined;
     locale?: string | null | undefined;
     onlocale?: ((locale: string) => void) | undefined;
+    panel?: string | null | undefined;
+    onpanel?: ((locale: string | null) => void) | undefined;
   } = $props();
 
   const canSync = $derived(can(role, 'apps.sync'));
@@ -282,12 +287,14 @@
   function openLocale(locale: string) {
     drawerLocale = locale;
     drawerOpen = true;
+    onpanel?.(locale);
   }
 
   function step(delta: -1 | 1) {
     const next = rows[drawerIndex + delta];
     if (next) {
       drawerLocale = next.locale;
+      onpanel?.(next.locale);
       onlocale?.(next.locale);
     }
   }
@@ -300,18 +307,37 @@
     }
   });
 
-  // A locale chosen in the page header opens its drawer once the grid has it. Closing the drawer leaves the choice alone.
-  let openedFor: string | null = null;
+  // The drawer is driven by the address (`?panel=fr-FR`): a click writes it (openLocale), a deliberate deep link brings it, and no other
+  // navigation carries it, so coming back to this page never opens it by itself. Closing the drawer removes it from the address.
   $effect(() => {
-    const wanted = locale;
+    const wanted = panel;
     const known = wanted !== null && matrix.rows.some((r) => r.locale === wanted);
     untrack(() => {
       if (wanted === null) {
-        openedFor = null;
-      } else if (known && openedFor !== wanted) {
-        openedFor = wanted;
-        if (drawerLocale !== wanted || !drawerOpen) openLocale(wanted);
+        if (drawerOpen) drawerOpen = false;
+      } else if (known && (drawerLocale !== wanted || !drawerOpen)) {
+        drawerLocale = wanted;
+        drawerOpen = true;
       }
+    });
+  });
+  let wasOpen = false;
+  $effect(() => {
+    const isOpen = drawerOpen;
+    untrack(() => {
+      if (wasOpen && !isOpen && panel !== null) onpanel?.(null);
+      wasOpen = isOpen;
+    });
+  });
+  // A locale picked in the page header AFTER the page was shown is an explicit action: it opens that locale. The one already in the
+  // address when the page appears only filters (the header context), it opens nothing.
+  let seenLocale = locale;
+  $effect(() => {
+    const next = locale;
+    untrack(() => {
+      if (next === seenLocale) return;
+      seenLocale = next;
+      if (next !== null && matrix.rows.some((r) => r.locale === next)) openLocale(next);
     });
   });
 

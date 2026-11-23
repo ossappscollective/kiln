@@ -50,6 +50,26 @@ export function withHeaderParams(hash: string, patch: Partial<HeaderParams>): st
   return search === '' ? path : `${path}?${search}`;
 }
 
+/**
+ * The locale whose side panel the address asks to open (`?panel=fr-FR`). It is NOT a header choice: only a click that opens the
+ * panel, or a deliberate deep link, writes it, and `carryHeaderParams` never copies it, so moving to another section drops it.
+ */
+export function panelOf(hash: string): string | null {
+  const value = parseViewPath(hash).query.get('panel');
+  return value === null || value.trim() === '' ? null : value.trim();
+}
+
+/** The same address with the panel opened on a locale (null closes it); the rest of the query stays. */
+export function withPanel(hash: string, panel: string | null): string {
+  const at = hash.indexOf('?');
+  const path = at < 0 ? hash : hash.slice(0, at);
+  const params = new URLSearchParams(at < 0 ? '' : hash.slice(at + 1));
+  if (panel === null || panel === '') params.delete('panel');
+  else params.set('panel', panel);
+  const search = params.toString();
+  return search === '' ? path : `${path}?${search}`;
+}
+
 /** Copies the version and locale of the current address onto a link, so a tab link keeps them. */
 export function carryHeaderParams(href: string, hash: string): string {
   const { version, locale } = headerParams(hash);

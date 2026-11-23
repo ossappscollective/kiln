@@ -15,6 +15,8 @@ import {
   resolveVersion,
   versionState,
   withHeaderParams,
+  panelOf,
+  withPanel,
 } from './app-header.ts';
 import { withScope } from './app-scope.ts';
 import type { ReleaseSummary } from './types.ts';
@@ -83,6 +85,19 @@ test('carryHeaderParams puts the current version and locale on a tab link', () =
     carryHeaderParams('#/portfolio/a1/assets?version=9', here),
     '#/portfolio/a1/assets?version=9&locale=fr-FR',
   );
+});
+
+test('the side panel lives in its own param and is dropped when moving to another section', () => {
+  const here = '#/portfolio/a1/listing?platform=ios&locale=fr-FR&panel=fr-FR';
+  assert.equal(panelOf(here), 'fr-FR');
+  assert.equal(panelOf('#/portfolio/a1/listing?locale=fr-FR'), null);
+  assert.equal(panelOf('#/portfolio/a1/listing?panel='), null);
+  assert.equal(withPanel('#/portfolio/a1/listing?platform=ios', 'de-DE'), '#/portfolio/a1/listing?platform=ios&panel=de-DE');
+  assert.equal(withPanel(here, null), '#/portfolio/a1/listing?platform=ios&locale=fr-FR');
+  assert.equal(withPanel('#/portfolio/a1/listing?panel=x', null), '#/portfolio/a1/listing');
+  // A tab link copies version and locale, never the panel: Products and back does not reopen it.
+  assert.equal(carryHeaderParams('#/portfolio/a1/products', here), '#/portfolio/a1/products?locale=fr-FR');
+  assert.equal(panelOf(carryHeaderParams('#/portfolio/a1/listing', here)), null);
 });
 
 test('a version carries a word that says its state, by store', () => {
