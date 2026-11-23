@@ -668,6 +668,14 @@
       display: inline-flex;
     }
 
+    /* In the rail the toggle is as large as a nav icon (2.5rem), directly under the logo. */
+    .sidebar[data-collapsed='true'] .rail-toggle {
+      align-items: center;
+      justify-content: center;
+      width: 2.5rem;
+      height: 2.5rem;
+    }
+
     .sidebar[data-collapsed='true'] {
       padding-inline: var(--space-2);
       overflow-x: hidden;

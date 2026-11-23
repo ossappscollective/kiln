@@ -93,14 +93,19 @@
 <div class="app-nav" class:chord={navSignals.chordPending}>
   <div class="app-card" class:rail={collapsed}>
     {#if collapsed}
-      <button type="button" class="bare rail-app" title={appContext.name} aria-label={t('app:nav.expandToSwitch', { name: appContext.name })} onclick={() => onexpand?.()}>
-        <AppIcon name={appContext.name} url={railItem?.iconUrl ?? null} seed={railItem?.key ?? address.id} size="sm" />
-      </button>
+      {#if onpickapp}
+        <AppSwitcherField compact items={switcher} appId={address.id} fallbackName={appContext.name} {mod} onopen={onopenswitcher} onpick={onpickapp} />
+      {:else}
+        <button type="button" class="bare rail-app" title={appContext.name} aria-label={t('app:nav.expandToSwitch', { name: appContext.name })} onclick={() => onexpand?.()}>
+          <AppIcon name={appContext.name} url={railItem?.iconUrl ?? null} seed={railItem?.key ?? address.id} size="sm" />
+        </button>
+      {/if}
       {#if status.length > 0}
         <ul class="status rail-status" aria-label={t('app:nav.statusLabel')}>
           {#each status as line (line.platform)}
             <li class="tone-{line.tone}" title="{platformLabel(line.platform)} {line.label}{line.version ? ` ${line.version}` : ''}">
               <PlatformBadge platform={line.platform} showLabel={false} />
+              {#if line.version && line.version.length <= 6}<span class="cap" aria-hidden="true">{line.version}</span>{/if}
               <span class="visually-hidden">{platformLabel(line.platform)} {line.label}{#if line.version} {line.version}{/if}</span>
             </li>
           {/each}
@@ -109,7 +114,7 @@
     {:else if onpickapp}
       <AppSwitcherField items={switcher} appId={address.id} fallbackName={appContext.name} {mod} onopen={onopenswitcher} onpick={onpickapp} />
     {:else if appContext.name}<p class="name" title={appContext.name}>{appContext.name}</p>{/if}
-    {#if status.length > 0}
+    {#if !collapsed && status.length > 0}
       <ul class="status" aria-label={t('app:nav.statusLabel')} data-testid="app-status">
         {#each status as line (line.platform)}
           <li class="tone-{line.tone}" data-platform={line.platform}>
@@ -216,13 +221,43 @@
     place-items: center;
   }
 
+  /* One compact icon per platform with the live version as a small caption beneath (only when it fits the 64px rail; the tooltip has it all). */
   .rail-status {
     align-items: center;
+    gap: var(--space-2);
     padding: 0;
   }
 
   .rail-status li {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .cap {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: var(--text-xs);
+    line-height: 1.1;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rail-status .tone-ok .cap {
+    color: var(--ok-ink);
+  }
+
+  .rail-status .tone-bad .cap {
+    color: var(--bad-ink);
+  }
+
+  .rail-status .tone-warn .cap {
+    color: var(--warn-ink);
   }
 
   .name {

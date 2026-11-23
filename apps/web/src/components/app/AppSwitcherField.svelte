@@ -3,7 +3,8 @@
   name; a click or focus opens the same searchable list as the Cmd or Ctrl + K dialog (AppSwitcherList, filterSwitcher,
   moveActive from lib/app-switcher.ts): type to filter by name or bundle id, arrows move, Enter opens the app, Escape closes.
   Props: items (from switcherItems; null while the apps are being read), appId (the open app, any of its records),
-  fallbackName (shown until the list is known), mod, onopen? (called when the list opens, to read the apps), onpick (an item).
+  fallbackName (shown until the list is known), mod, onopen? (called when the list opens, to read the apps), onpick (an item),
+  compact? (the icon rail: only the app icon, no frame, no name, no chevron; the same list opens beside it).
 -->
 <script lang="ts">
   import { t } from '../../lib/i18n/t.ts';
@@ -20,6 +21,7 @@
     mod = 'Ctrl',
     onopen,
     onpick,
+    compact = false,
   }: {
     items: SwitcherItem[] | null;
     appId: string;
@@ -27,6 +29,7 @@
     mod?: string | undefined;
     onopen?: (() => void) | undefined;
     onpick: (item: SwitcherItem) => void;
+    compact?: boolean | undefined;
   } = $props();
 
   const uid = $props.id();
@@ -82,7 +85,7 @@
 </script>
 
 <div class="field">
-  <label class="box" class:open bind:this={box}>
+  <label class="box" class:open class:compact bind:this={box}>
     <AppIcon {name} url={item?.iconUrl ?? null} seed={item?.key ?? appId} size="sm" labelled />
     <span class="visually-hidden">{t('app:switcher.switch')}</span>
     <input
@@ -107,10 +110,10 @@
       onblur={hide}
       {onkeydown}
     />
-    <Icon name="chevron-down" size={14} />
+    {#if !compact}<Icon name="chevron-down" size={14} />{/if}
   </label>
   {#if open}
-    <div class="pop" use:floating={{ anchor: box, align: 'start', matchAnchorWidth: true }}>
+    <div class="pop" use:floating={{ anchor: box, align: 'start', matchAnchorWidth: !compact }}>
       {#if items === null}
         <p class="muted none" role="status">{t('app:switcher.loadingText')}</p>
       {:else if shown.length === 0}
@@ -138,6 +141,33 @@
 
   .box:hover {
     border-color: var(--line-hover);
+  }
+
+  /* The icon rail: one app icon in a nav-sized hit area. The input stays (keyboard, filtering) but is invisible and covers the icon, so a
+     click or Tab-focus opens the list; the focus ring is drawn on the box. */
+  .box.compact {
+    position: relative;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    cursor: pointer;
+    background: none;
+    border-color: transparent;
+  }
+
+  .box.compact:hover,
+  .box.compact.open {
+    background: var(--surface-hover);
+  }
+
+  .box.compact input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    opacity: 0;
   }
 
   .box:has(input:focus-visible) {
