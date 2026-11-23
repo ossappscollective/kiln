@@ -208,10 +208,12 @@
     background: var(--scrim);
   }
 
+  /* Header fixed, .body the one scroll container: min-height 0 lets a flex child shrink below its content so it can scroll. */
   .surface {
     display: flex;
     flex-direction: column;
     height: 100%;
+    min-height: 0;
   }
 
   header {
@@ -219,6 +221,7 @@
     gap: var(--space-3);
     align-items: flex-start;
     justify-content: space-between;
+    flex: none;
     padding: var(--space-5);
     border-bottom: 1px solid var(--line);
   }
@@ -239,8 +242,11 @@
 
   .body {
     flex: 1;
+    min-height: 0;
     padding: var(--space-4) var(--space-5) var(--space-6);
     overflow: auto;
+    overscroll-behavior: contain;
+    scroll-padding: var(--space-5);
   }
 
   .timeline {
