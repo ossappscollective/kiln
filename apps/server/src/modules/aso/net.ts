@@ -106,6 +106,10 @@ export type PublicApp = {
   screenshotCount?: number;
   /** The addresses of the screenshots, when the source gives them (hashed by the caller, never stored). */
   screenshotUrls?: string[];
+  /** App Store only: the same addresses by device, and the release notes (the competitor listing watch). */
+  iphoneScreenshotUrls?: string[];
+  ipadScreenshotUrls?: string[];
+  releaseNotes?: string;
 };
 
 export type SearchHit = { id: string; name?: string };
@@ -165,6 +169,9 @@ const fromApple = (a: AppleApp): PublicApp => ({
   ...(a.genre ? { category: a.genre } : {}),
   screenshotCount: a.screenshotUrls.length,
   screenshotUrls: a.screenshotUrls,
+  iphoneScreenshotUrls: a.iphoneScreenshotUrls,
+  ipadScreenshotUrls: a.ipadScreenshotUrls,
+  ...(a.releaseNotes ? { releaseNotes: a.releaseNotes } : {}),
 });
 
 const fromPlay = (a: PlayApp): PublicApp => ({

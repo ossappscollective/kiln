@@ -490,6 +490,30 @@ export const moreDefs = [
       day: isoDay(e.createdAt),
     }),
   }),
+  def({
+    id: 'competitor.listing_changed',
+    group: 'aso',
+    label: 'A competitor changed its App Store listing',
+    description:
+      'A followed App Store competitor changed its screenshots, icon, name, description, release notes, category, price or version. At most one alert per competitor per day, with what changed. Rating drift never raises it; Google Play pages are not read.',
+    severity: 'info',
+    scope: 'app',
+    defaultChannels: [],
+    allowedChannels: everyone,
+    audience: 'aso.read',
+    source: { kind: 'event', events: ['aso.competitor_listing_changed'] },
+    dedupe: 'competitor.listing_changed:{competitorId}:{day}',
+    dedupeKey: (d) => `competitor.listing_changed:${d.competitorId}:${d.day}`,
+    dedupeWindowMs: DAY,
+    maxPerHour: 20,
+    params: {},
+    fromEvent: (e) => ({
+      appId: e.subject.appId ?? null,
+      competitorId: str(e.payload.competitorId),
+      kinds: Array.isArray(e.payload.kinds) ? e.payload.kinds.filter((k): k is string => typeof k === 'string').join(',') : '',
+      day: isoDay(e.createdAt),
+    }),
+  }),
 
   // ----- AI ----------------------------------------------------------------------------------------
   def({

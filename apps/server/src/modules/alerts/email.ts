@@ -160,6 +160,7 @@ const guides: Record<string, (d: AlertData) => GuideSpec> = {
   }),
   'aso.rank_dropped': (d) => ({ primary: openApp(d, 'aso', 'seeKeywords') }),
   'aso.competitor_changed': (d) => ({ primary: openApp(d, 'aso', 'seeCompetitors') }),
+  'competitor.listing_changed': (d) => ({ primary: openApp(d, 'aso', 'seeCompetitors') }),
   'ai.suggestion_ready': (d) => ({ primary: openApp(d, undefined, 'seeSuggestion') }),
   'security.stepup_failed': () => ({
     hint: 'stepupFailed',

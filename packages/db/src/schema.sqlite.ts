@@ -1214,6 +1214,8 @@ export const asoCompetitors = sqliteTable(
     lastError: text('last_error'),
     /** When the reviews of this competitor were last read (migration 59); null: never. */
     reviewsCheckedAt: integer('reviews_checked_at'),
+    /** JSON: the last compared state of the listing (migration 60, docs/adr/0056-competitor-listing-watch.md). */
+    listingState: text('listing_state'),
   },
   (t) => [
     uniqueIndex('aso_competitors_unique_idx').on(t.appId, t.store, t.externalId, t.country),
@@ -1281,6 +1283,30 @@ export const asoCompetitorReviews = sqliteTable(
   (t) => [
     uniqueIndex('aso_competitor_reviews_unique_idx').on(t.competitorId, t.storeReviewId),
     index('aso_competitor_reviews_competitor_idx').on(t.competitorId, t.reviewedAt),
+  ],
+);
+
+/** The changes found on followed App Store competitors: kinds and the changes with before and after (migration 60, docs/adr/0056-competitor-listing-watch.md). */
+export const asoCompetitorChanges = sqliteTable(
+  'aso_competitor_changes',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    competitorId: text('competitor_id')
+      .notNull()
+      .references(() => asoCompetitors.id, { onDelete: 'cascade' }),
+    appId: text('app_id').notNull(),
+    detectedAt: integer('detected_at').notNull(),
+    /** Comma separated kinds, in a fixed order. */
+    kinds: text('kinds').notNull(),
+    /** JSON: the changes (`ListingChange[]` of @kiln/core). */
+    changes: text('changes').notNull(),
+  },
+  (t) => [
+    index('aso_competitor_changes_competitor_idx').on(t.competitorId, t.detectedAt),
+    index('aso_competitor_changes_app_idx').on(t.workspaceId, t.appId, t.detectedAt),
   ],
 );
 

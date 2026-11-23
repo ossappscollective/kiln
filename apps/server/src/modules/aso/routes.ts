@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto';
 import { APPLE_DOCUMENTED_CALLS_PER_MINUTE, PLAY_UNOFFICIAL_NOTICE } from '@kiln/connectors';
 import {
   type Action,
   can,
+  COMPETITOR_CHANGE_RETENTION_DAYS,
   FIT_ASSUMPTIONS,
   INDEXED_FIELDS,
   normalizeCountry,
@@ -15,7 +17,7 @@ import { type AppEnv, parseBody, queryInt } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
-import type { TestLimiter } from '../../services/credential-tests.ts';
+import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import { checkSearchTermsQuery, searchTermsFor } from '../../services/play-search-terms.ts';
 import type { Failure } from '../../services/repositories.ts';
 import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
@@ -37,12 +39,25 @@ import {
   ownReviewStats,
   refreshCompetitorReviews,
 } from './competitor-reviews.ts';
+import {
+  COMPETITOR_IMAGE_REF,
+  competitorImageSizeOf,
+  competitorThumbnail,
+  resolveSearchImage,
+  resolveStoredImage,
+  SEARCH_IMAGE_REF,
+} from './competitor-images.ts';
 import { COMPETITOR_QUERY_MAX, COMPETITOR_QUERY_MIN } from './competitor-search.ts';
+import { CHANGES_PAGE_MAX, listCompetitorChanges } from './competitor-watch.ts';
+import { IMAGE_TYPES, matchesEtag, safeImageHeaders } from '../listing/asset-routes.ts';
+import { THUMB_CACHE_CONTROL } from '../listing/asset-sync-routes.ts';
+import type { StoreImageNet } from '../listing/store-image-net.ts';
 import { checkRankDownloadsQuery, rankVsDownloadsFor } from './rank-downloads.ts';
 import { queueAsoRefreshAll } from './schedule.ts';
 import {
   type AsoContext,
   addCompetitor,
+  checkCompetitorNow,
   addKeywords,
   asoFailure,
   competitorHistory,
@@ -65,7 +80,13 @@ import { coded } from '../../i18n/problem.ts';
 export type AsoRoutesContext = AsoContext & {
   /** Store lookups and refreshes per workspace per minute (default 10, built in createApp). */
   limiter: TestLimiter;
+  /** Address checks and the exchange of the competitor image proxy (tests and development). */
+  net?: StoreImageNet;
+  /** Thumbnails fetched from Apple's image CDN, per workspace (default 300 a minute). */
+  imageLimiter?: TestLimiter;
 };
+
+const asBody = (bytes: Uint8Array) => bytes as unknown as ConstructorParameters<typeof Response>[0];
 
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
 const ws = (c: Context<AppEnv>) => param(c, 'workspaceId');
@@ -111,6 +132,7 @@ const bad = (c: Context<AppEnv>, issues: Issue[]) =>
 /** ASO: keyword ranks and competitors from public store data (docs/api/aso.md). Mounted under /api/workspaces. */
 export function asoRoutes(ctx: AsoRoutesContext) {
   const { db } = ctx;
+  const imageLimiter = ctx.imageLimiter ?? createTestLimiter({ limit: 300, now: ctx.now });
   const routes = new Hono<AppEnv>();
 
   /** Not a member and no such workspace look the same (404). A member without the right gets 403. */
@@ -443,6 +465,81 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       return c.json({ competitor, ...history });
     },
   );
+
+  // ----- the listing watch of a competitor (docs/adr/0056-competitor-listing-watch.md) ------------------
+  routes.get('/:workspaceId/apps/:id/aso/competitors/:competitorId/changes', needs('aso.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
+    if (!competitor) return notFound(c);
+    const limit = limitQuery(c, 10, CHANGES_PAGE_MAX);
+    const rawBefore = c.req.query('before');
+    const before = rawBefore === undefined || rawBefore === '' ? undefined : Number(rawBefore);
+    if (limit === undefined) return bad(c, [{ path: 'limit', message: `A whole number from 1 to ${CHANGES_PAGE_MAX}.` }]);
+    if (before !== undefined && !(Number.isInteger(before) && before > 0))
+      return bad(c, [{ path: 'before', message: 'A time in milliseconds (the detectedAt of the last change you have).' }]);
+    const page = await listCompetitorChanges(db, {
+      workspaceId: ws(c),
+      competitorId: competitor.id,
+      limit,
+      ...(before !== undefined ? { before } : {}),
+    });
+    return c.json({
+      competitorId: competitor.id,
+      // Honest about where the history starts: Kiln can only compare what it read after the competitor was followed.
+      watching: competitor.store === 'app_store' ? { state: 'watched', since: competitor.addedAt } : { state: 'not_watched', reason: 'play_pages_not_read' },
+      lastCheckedAt: competitor.lastCheckedAt,
+      retentionDays: COMPETITOR_CHANGE_RETENTION_DAYS,
+      ...page,
+    });
+  });
+
+  routes.post('/:workspaceId/apps/:id/aso/competitors/:competitorId/check', needs('aso.write'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
+    if (!competitor) return notFound(c);
+    if (competitor.store !== 'app_store') return respond(c, (await checkCompetitorNow(ctx, { workspaceId: ws(c), app, competitorId: competitor.id })) as Failure);
+    const stop = limited(c);
+    if (stop) return stop;
+    const done = await checkCompetitorNow(ctx, { workspaceId: ws(c), app, competitorId: competitor.id });
+    if (!done) return notFound(c);
+    return done.ok ? c.json({ competitorId: competitor.id, state: done.state, changes: done.changes, checkedAt: done.checkedAt }) : respond(c, done);
+  });
+
+  const imageResponse = async (c: Context<AppEnv>, url: string, etagBase: string) => {
+    const size = competitorImageSizeOf(c.req.query('size'));
+    const etag = `"ci-${etagBase}-${size}"`;
+    if (matchesEtag(c.req.header('If-None-Match'), etag))
+      return new Response(null, { status: 304, headers: { ETag: etag, 'Cache-Control': THUMB_CACHE_CONTROL, 'X-Content-Type-Options': 'nosniff' } });
+    const done = await competitorThumbnail({ ...(ctx.net ? { net: ctx.net } : {}), limiter: imageLimiter }, { workspaceId: ws(c), url, size });
+    if (!done.ok) return respond(c, done);
+    return new Response(asBody(done.bytes), { status: 200, headers: safeImageHeaders(IMAGE_TYPES[done.format], etag, done.bytes.length, THUMB_CACHE_CONTROL) });
+  };
+
+  // A thumbnail of a stored screenshot or icon: the client sends a ref into what Kiln stored, never an address.
+  routes.get('/:workspaceId/apps/:id/aso/competitors/:competitorId/image', needs('aso.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
+    if (!competitor) return notFound(c);
+    const ref = c.req.query('ref') ?? '';
+    if (!COMPETITOR_IMAGE_REF.test(ref)) return bad(c, [{ path: 'ref', message: 'The ref of a stored image: icon, s.p.<n>, s.i.<n> or c.<change>.<b|a>.<icon|p|i>.<n>.' }]);
+    const url = await resolveStoredImage(db, ws(c), competitor.id, ref);
+    if (url === undefined) return notFound(c);
+    return imageResponse(c, url, `${competitor.id}-${ref}-${createHash('sha256').update(url).digest('hex').slice(0, 12)}`);
+  });
+
+  // The icon of a search result (the add dialog): an opaque ref the search handed out.
+  routes.get('/:workspaceId/apps/:id/aso/competitors/search-image', needs('aso.write'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    const ref = c.req.query('ref') ?? '';
+    if (!SEARCH_IMAGE_REF.test(ref)) return bad(c, [{ path: 'ref', message: 'The iconRef of a search result.' }]);
+    const url = resolveSearchImage(ref, ws(c), app.id, ctx.now());
+    if (url === undefined) return notFound(c);
+    return imageResponse(c, url, `s-${ref}`);
+  });
 
   // ----- reviews of the followed competitors: Apple's public feed only ----------------------------------
   routes.get('/:workspaceId/apps/:id/aso/competitor-reviews', needs('aso.read'), async (c) => {

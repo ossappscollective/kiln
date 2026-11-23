@@ -68,8 +68,13 @@ export type AppleApp = {
   /** Public description, cut to 4000 characters. */
   description?: string;
   iconUrl?: string;
-  /** The addresses of the screenshots (iPhone, then iPad). The server keeps only their number and a hash. */
+  /** The addresses of the screenshots (iPhone, then iPad). */
   screenshotUrls: string[];
+  /** The same addresses, by device (the competitor listing watch keeps them: docs/adr/0056-competitor-listing-watch.md). */
+  iphoneScreenshotUrls: string[];
+  ipadScreenshotUrls: string[];
+  /** Release notes of the current version, cut to 4000 characters. */
+  releaseNotes?: string;
   sellerName?: string;
   genre?: string;
 };
@@ -102,17 +107,20 @@ function toApp(entry: Record<string, unknown>): AppleApp | undefined {
         ? 'Free'
         : String(entry.price)
       : undefined);
-  const shots = [
-    ...(Array.isArray(entry.screenshotUrls) ? entry.screenshotUrls : []),
-    ...(Array.isArray(entry.ipadScreenshotUrls) ? entry.ipadScreenshotUrls : []),
-  ]
-    .filter((u): u is string => typeof u === 'string' && u.length <= 500)
-    .slice(0, 40);
+  const urls = (v: unknown): string[] =>
+    (Array.isArray(v) ? v : [])
+      .filter((u): u is string => typeof u === 'string' && u.length <= 500)
+      .slice(0, 20);
+  const iphone = urls(entry.screenshotUrls);
+  const ipad = urls(entry.ipadScreenshotUrls);
+  const shots = [...iphone, ...ipad].slice(0, 40);
   const icon = text(entry.artworkUrl512, 500) ?? text(entry.artworkUrl100, 500);
   const app: AppleApp = {
     trackId: id,
     name: text(entry.trackName, 200) ?? '',
     screenshotUrls: shots,
+    iphoneScreenshotUrls: iphone,
+    ipadScreenshotUrls: ipad,
   };
   const bundleId = text(entry.bundleId, 200);
   const version = text(entry.version, 50);
@@ -132,6 +140,8 @@ function toApp(entry: Record<string, unknown>): AppleApp | undefined {
   if (icon) app.iconUrl = icon;
   if (seller) app.sellerName = seller;
   if (genre) app.genre = genre;
+  const notes = text(entry.releaseNotes, MAX_DESCRIPTION);
+  if (notes) app.releaseNotes = notes;
   return app;
 }
 

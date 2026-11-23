@@ -106,6 +106,8 @@ test('the apps are parsed with what Apple sent, and the optional parts may be mi
   assert.equal(first?.ratingMilli, 4100);
   assert.equal(first?.ratingCount, 2000);
   assert.equal(first?.screenshotUrls.length, 3);
+  assert.equal(first?.iphoneScreenshotUrls.length, 2, 'the iPhone screenshots by device');
+  assert.equal(first?.ipadScreenshotUrls.length, 1, 'and the iPad ones');
   assert.match(first?.iconUrl ?? '', /mzstatic\.com/);
   assert.equal(apps[2]?.name, 'Café & Goals');
   // The bare minimum is an id.

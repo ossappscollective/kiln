@@ -104,6 +104,8 @@ function formatter(t: Translate, d: AlertData): Fmt {
   };
 }
 
+const LISTING_KINDS = ['screenshots', 'icon', 'name', 'description', 'releaseNotes', 'category', 'price', 'version'];
+
 const STATES = [
   'draft',
   'build_chosen',
@@ -435,6 +437,20 @@ const specs: Record<string, (f: Fmt) => Spec> = {
     title: ['aso.competitor_changed.title', { app: f.app }],
     body: ['aso.competitor_changed.body', { id: text(f.d.competitorId) ?? '?' }],
   }),
+  'competitor.listing_changed': (f) => {
+    const what = (text(f.d.kinds) ?? '')
+      .split(',')
+      .filter((k) => LISTING_KINDS.includes(k))
+      .map((k) => f.t(`alerts:competitor.listingChanged.kind.${camel(k)}`))
+      .join(', ');
+    return {
+      title: ['competitor.listingChanged.title', { app: f.app }],
+      body: [
+        what === '' ? 'competitor.listingChanged.body.noKinds' : 'competitor.listingChanged.body',
+        { what },
+      ],
+    };
+  },
   'ai.suggestion_ready': (f) => ({
     title: ['ai.suggestion_ready.title', { app: f.app }],
     body: [

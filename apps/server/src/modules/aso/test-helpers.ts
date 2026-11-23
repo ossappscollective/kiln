@@ -4,6 +4,7 @@ import type { Database } from '@kiln/db';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import { ASC_SECRET, PLAY_SECRET } from '../reviews/test-helpers.ts';
+import type { StoreImageNet } from '../listing/store-image-net.ts';
 import type { FeedReview } from './competitor-reviews.ts';
 import type { AsoSources, LookupInput, PublicApp, SearchAppsInput, SearchInput, SearchOutcome } from './net.ts';
 import { type AsoContext, type AsoLimits, DEFAULT_ASO_LIMITS } from './service.ts';
@@ -121,6 +122,9 @@ export async function bootAso(
     app?: Deps;
     maxRunMs?: number;
     limiterLimit?: number;
+    /** The address checks and the exchange of the competitor image proxy. */
+    net?: StoreImageNet;
+    imageLimit?: number;
   } = {},
 ) {
   const sources = new FakeAsoSources(options.playEnabled ?? false);
@@ -135,6 +139,8 @@ export async function bootAso(
       limits,
       limiter: createTestLimiter({ limit: options.limiterLimit ?? 1000, now: clockState.now }),
       ...(options.maxRunMs !== undefined ? { maxRunMs: options.maxRunMs } : {}),
+      ...(options.net ? { net: options.net } : {}),
+      ...(options.imageLimit !== undefined ? { imageLimiter: createTestLimiter({ limit: options.imageLimit, now: clockState.now }) } : {}),
     },
     ...options.app,
   });

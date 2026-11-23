@@ -167,6 +167,26 @@ export async function kilnEvents(
     perDay.set(day, (perDay.get(day) ?? 0) + 1);
   }
   for (const [day, count] of perDay) out.push(base(`k:drift:${day}`, day, 'listing_drift', { code: 'listingDrift', params: { count } }));
+
+  // A followed App Store competitor changed its public listing (docs/adr/0056-competitor-listing-watch.md): one event per competitor and day.
+  // Rating drift alone is not an event. The kinds are codes; the screens translate them.
+  const rival = await sql.query(
+    `SELECT c.competitor_id, c.detected_at, c.kinds, k.name FROM aso_competitor_changes c JOIN aso_competitors k ON k.id = c.competitor_id
+      WHERE c.workspace_id = ? AND c.app_id = ? ORDER BY c.detected_at DESC LIMIT ${KIND_LIMIT}`,
+    [workspaceId, app.id],
+  );
+  const rivalDays = new Map<string, { name: string; day: string; kinds: Set<string> }>();
+  for (const r of rival) {
+    const day = dateToDay(Number(r.detected_at));
+    const key = `${String(r.competitor_id)}:${day}`;
+    const entry = rivalDays.get(key) ?? { name: clip(r.name, 80), day, kinds: new Set<string>() };
+    for (const kind of String(r.kinds).split(',')) if (kind !== '' && kind !== 'rating' && kind !== 'ratingCount') entry.kinds.add(kind);
+    rivalDays.set(key, entry);
+  }
+  for (const [key, e] of rivalDays) {
+    if (e.kinds.size === 0) continue;
+    out.push(base(`k:rival:${key}`, e.day, 'competitor_change', { code: 'competitorChange', params: { name: e.name, kinds: Array.from(e.kinds).join(',') } }));
+  }
   return out;
 }
 

@@ -27,7 +27,7 @@ export async function seedAlertRules(
   const actor = { type: 'user', id: ownerId } as const;
   for (const def of alertCatalog) {
     if (def.source.kind === 'internal') continue;
-    const noisy = def.id === 'aso.competitor_changed';
+    const noisy = def.id === 'aso.competitor_changed' || def.id === 'competitor.listing_changed';
     const hasEmail = def.defaultChannels.includes('email' as never);
     if (!noisy && !hasEmail) continue;
     const result = await setRule(

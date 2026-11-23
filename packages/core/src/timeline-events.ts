@@ -13,6 +13,7 @@ export const kilnEventKinds = [
   'graphics',
   'experiment_started',
   'experiment_ended',
+  'competitor_change',
 ] as const;
 export const manualEventKinds = ['ad_campaign', 'price_change', 'press', 'other'] as const;
 export const timelineEventKinds = [...kilnEventKinds, ...manualEventKinds] as const;
@@ -54,10 +55,11 @@ const kindRank: Record<TimelineEventKind, number> = {
   listing_drift: 4,
   experiment_started: 5,
   experiment_ended: 6,
-  ad_campaign: 7,
-  price_change: 8,
-  press: 9,
-  other: 10,
+  competitor_change: 7,
+  ad_campaign: 8,
+  price_change: 9,
+  press: 10,
+  other: 11,
 };
 
 /** Is it a change of the store page that could move the download rate (graphics or listing text)? */

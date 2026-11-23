@@ -83,6 +83,7 @@
   "aso.competitorSelf": "Das ist diese App selbst.",
   "aso.noStoreApp": "Der Store hat in diesem Land keine solche App.",
   "aso.noStoreCheck": "Es konnte keine Store-Prüfung durchgeführt werden. Die Gründe stehen im Ergebnis.",
+  "aso.playListingNotWatched": "Kiln liest keine Google-Play-Seiten, daher wird der Eintrag eines Google-Play-Wettbewerbers nicht beobachtet.",
   "aso.playOnly": "Suchbegriffe sind ein Google-Play-Bericht. Diese App ist eine iOS- oder macOS-App.",
   "aso.refreshFailed": "Die ASO-Aktualisierung konnte nicht abgeschlossen werden. Versuchen Sie es gleich noch einmal.",
   "aso.refreshing": "Diese App wird gerade aktualisiert.",

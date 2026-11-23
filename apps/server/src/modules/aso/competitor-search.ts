@@ -18,6 +18,8 @@ export type CompetitorSearchResult = {
   developer: string | null;
   category: string | null;
   iconUrl: string | null;
+  /** An opaque ref for the icon proxy (`GET .../competitors/search-image`); null without an icon on Apple's image host. */
+  iconRef: string | null;
   /** 0 to 5 with two decimals, or null. */
   ratingAverage: number | null;
   ratingCount: number | null;
@@ -65,6 +67,7 @@ export function mapSearchResults(
       developer: clip(app.developer, 120),
       category: clip(app.category, 60),
       iconUrl: safeIconUrl(app.iconUrl),
+      iconRef: null,
       ratingAverage:
         app.ratingMilli !== undefined && app.ratingMilli >= 0 && app.ratingMilli <= 5000
           ? Math.round(app.ratingMilli / 10) / 100

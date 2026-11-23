@@ -165,6 +165,7 @@ export const appEventTypes: readonly string[] = [
   'assets.pulled',
   'aso.rank_changed',
   'aso.competitor_changed',
+  'aso.competitor_listing_changed',
   'plan.deadline_due_soon',
   'plan.deadline_overdue',
 ];

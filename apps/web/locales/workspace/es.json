@@ -561,6 +561,7 @@
   "webhook.event.appReleaseStatusChanged": "Un lanzamiento cambió de estado en la tienda",
   "webhook.event.appSynced": "Se sincronizó una app con su tienda",
   "webhook.event.asoCompetitorChanged": "Un competidor seguido cambió su ficha, su precio o su valoración (solo ID y nombres de campo)",
+  "webhook.event.asoCompetitorListingChanged": "Un competidor de App Store seguido cambió sus capturas, su icono, su nombre, su descripción o sus notas de la versión (solo ID y tipos de cambio)",
   "webhook.event.asoRankChanged": "Una palabra clave seguida se movió mucho en los resultados de búsqueda de la tienda (solo ID y posiciones, nunca el término)",
   "webhook.event.assetsPulled": "Se importaron imágenes de la tienda en un conjunto de cambios para el repositorio (solo ID y cantidades)",
   "webhook.event.authSecondFactorFailed": "Falló un segundo factor al iniciar sesión (código incorrecto tras una contraseña correcta; solo ID y un motivo fijo)",

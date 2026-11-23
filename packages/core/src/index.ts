@@ -1,6 +1,7 @@
 export * from './ai/ai.ts';
 export * from './analytics.ts';
 export * from './aso/aso.ts';
+export * from './aso/competitor-listing.ts';
 export * from './aso/aso-coach.ts';
 export * from './aso/aso-listing-terms.ts';
 export * from './aso/aso-rank-downloads.ts';

@@ -10,6 +10,7 @@ import {
   DEFAULT_EDGE_TOP,
   decideSnapshot,
   defaultLocaleFor,
+  imageKey,
   isBigMove,
   type ListingStore,
   listingStoreOf,
@@ -38,6 +39,8 @@ import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
 import { COMPETITOR_SEARCH_LIMIT, type CompetitorSearchResult, mapSearchResults } from './competitor-search.ts';
+import { registerSearchImage } from './competitor-images.ts';
+import { recordListingChanges, storeInitialListingState, type WatchOutcome } from './competitor-watch.ts';
 import type { AsoSources, PublicApp } from './net.ts';
 
 import { coded } from '../../i18n/problem.ts';
@@ -667,7 +670,7 @@ async function toCompetitor(sql: Sql, r: Row): Promise<AsoCompetitor> {
 }
 
 const COMPETITOR_COLUMNS =
-  'id, app_id, store, external_id, country, name, added_by, added_at, last_checked_at, last_state, last_error';
+  'id, app_id, store, external_id, country, name, added_by, added_at, last_checked_at, last_state, last_error, listing_state';
 
 export async function listCompetitors(
   sql: Sql,
@@ -744,7 +747,10 @@ export async function searchCompetitors(
     ok: true,
     country: input.country,
     cached: found.cached,
-    results: mapSearchResults(found.apps, { ownId: storeSideId(app.platform, app) ?? undefined, followed }),
+    results: mapSearchResults(found.apps, { ownId: storeSideId(app.platform, app) ?? undefined, followed }).map((r) => ({
+      ...r,
+      iconRef: registerSearchImage(workspaceId, app.id, r.iconUrl, ctx.now()),
+    })),
   };
 }
 
@@ -755,7 +761,8 @@ export function competitorStateOf(app: PublicApp): {
 } {
   const description = app.description ?? '';
   const title = app.name || null;
-  const media = [app.iconUrl ?? '', ...(app.screenshotUrls ?? [])].join('\n');
+  // The identity of an image, not its address: a re-encode or another CDN size is no change (docs/adr/0056-competitor-listing-watch.md).
+  const media = [app.iconUrl ?? '', ...(app.screenshotUrls ?? [])].map((u) => (u === '' ? '' : imageKey(u))).join('\n');
   return {
     state: {
       version: app.version ?? null,
@@ -913,6 +920,7 @@ export async function addCompetitor(
         app: found as PublicApp,
         changes: [],
       });
+      await storeInitialListingState(tx, id, store, found as PublicApp);
       await recordAudit(tx, {
         workspaceId,
         actor: input.actor,
@@ -1489,7 +1497,7 @@ async function recordCompetitorCheck(
   app: ManagedApp,
   row: Row,
   found: PublicApp | undefined,
-): Promise<{ changed: boolean }> {
+): Promise<{ changed: boolean; listingChanges: number }> {
   const at = ctx.now();
   const competitorId = String(row.id);
   if (!found) {
@@ -1497,7 +1505,7 @@ async function recordCompetitorCheck(
       "UPDATE aso_competitors SET last_checked_at = ?, last_state = 'not_found', last_error = NULL WHERE id = ?",
       [at, competitorId],
     );
-    return { changed: false };
+    return { changed: false, listingChanges: 0 };
   }
   const { state } = competitorStateOf(found);
   const latest = await latestSnapshotRow(ctx.db, competitorId);
@@ -1507,6 +1515,7 @@ async function recordCompetitorCheck(
     at,
     ctx.limits.heartbeatMs,
   );
+  let watched: WatchOutcome = { changes: [], stored: false };
   await ctx.db.transaction(async (tx) => {
     if (decision.store) {
       await insertSnapshot(tx, {
@@ -1523,6 +1532,16 @@ async function recordCompetitorCheck(
       "UPDATE aso_competitors SET last_checked_at = ?, last_state = 'ok', last_error = NULL, name = ? WHERE id = ?",
       [at, found.name ? found.name.slice(0, 200) : String(row.name), competitorId],
     );
+    watched = await recordListingChanges(tx, {
+      workspaceId,
+      appId: app.id,
+      competitorId,
+      store: String(row.store) as ListingStore,
+      country: String(row.country),
+      previousState: row.listing_state,
+      found,
+      at,
+    });
     if (decision.kind === 'change' && decision.notable) {
       await emitEvent(tx, {
         workspaceId,
@@ -1540,7 +1559,51 @@ async function recordCompetitorCheck(
       });
     }
   });
-  return { changed: decision.kind === 'change' };
+  return { changed: decision.kind === 'change' || watched.stored, listingChanges: watched.changes.length };
+}
+
+/** A competitor is not checked again for this long by "Check now" (the same lookup is also cached by the sources). */
+export const COMPETITOR_CHECK_MIN_INTERVAL_MS = 5 * 60_000;
+
+export type CheckNowOutcome =
+  | { ok: true; state: 'checked' | 'recent' | 'not_found'; changes: number; checkedAt: number }
+  | Failure;
+
+/**
+ * "Check now" of one competitor: the same lookup, the same cache, rate limit and cool-down as the refresh, and the same recording
+ * (`recordCompetitorCheck`), so a change found here is in the list, the timeline and the alerts. A competitor read in the last 5
+ * minutes is not read again (`recent`). An App Store competitor only: Kiln does not read Google Play pages.
+ */
+export async function checkCompetitorNow(
+  ctx: AsoContext,
+  input: { workspaceId: string; app: ManagedApp; competitorId: string },
+): Promise<CheckNowOutcome | undefined> {
+  const [row] = await ctx.db.query(`SELECT ${COMPETITOR_COLUMNS} FROM aso_competitors WHERE id = ? AND app_id = ? AND workspace_id = ?`, [
+    input.competitorId,
+    input.app.id,
+    input.workspaceId,
+  ]);
+  if (!row) return undefined;
+  if (String(row.store) !== 'app_store')
+    return failure(409, 'play_listing_not_watched', 'Kiln does not read Google Play pages, so the listing of a Google Play competitor is not watched.', coded('aso.playListingNotWatched'));
+  const now = ctx.now();
+  const last = nullableNumber(row.last_checked_at);
+  if (last !== null && now - last < COMPETITOR_CHECK_MIN_INTERVAL_MS && row.last_state === 'ok')
+    return { ok: true, state: 'recent', changes: 0, checkedAt: last };
+  try {
+    const found = await ctx.sources.lookup({
+      platform: input.app.platform,
+      id: String(row.external_id),
+      country: String(row.country),
+      locale: defaultLocaleFor(String(row.country)),
+    });
+    const outcome = await recordCompetitorCheck(ctx, input.workspaceId, input.app, row, found);
+    return { ok: true, state: found ? 'checked' : 'not_found', changes: outcome.listingChanges, checkedAt: ctx.now() };
+  } catch (error) {
+    if (!(error instanceof AsoError && error.kind === 'rate_limited'))
+      await ctx.db.execute('UPDATE aso_competitors SET last_state = ?, last_error = ? WHERE id = ?', ['unavailable', asoErrorCode(error), input.competitorId]);
+    return asoFailure(error);
+  }
 }
 
 // ---------------------------------------------------------------------------------------------

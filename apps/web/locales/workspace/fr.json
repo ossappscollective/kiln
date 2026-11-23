@@ -561,6 +561,7 @@
   "webhook.event.appReleaseStatusChanged": "Une publication a changé d’état dans le store",
   "webhook.event.appSynced": "Une application a été synchronisée avec son store",
   "webhook.event.asoCompetitorChanged": "Un concurrent suivi a modifié sa fiche, son prix ou sa note (identifiants et noms de champs uniquement)",
+  "webhook.event.asoCompetitorListingChanged": "Un concurrent App Store suivi a modifié ses captures, son icône, son nom, sa description ou ses notes de version (identifiants et types de changement uniquement)",
   "webhook.event.asoRankChanged": "Un mot-clé suivi a beaucoup bougé dans les résultats de recherche du store (identifiants et positions uniquement, jamais le terme)",
   "webhook.event.assetsPulled": "Des images du store ont été importées dans un lot de modifications pour le dépôt (identifiants et nombres uniquement)",
   "webhook.event.authSecondFactorFailed": "Un second facteur a échoué à la connexion (code incorrect après un mot de passe correct ; identifiants et motif fixe uniquement)",

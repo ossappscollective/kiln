@@ -1,4 +1,5 @@
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
+import type { StoreImageNet } from '../listing/store-image-net.ts';
 import type { ServerModule } from '../module.ts';
 import { type AsoSources, createAsoSources } from './net.ts';
 import { asoRoutes } from './routes.ts';
@@ -13,6 +14,9 @@ export type AsoDeps = {
   sources?: AsoSources;
   limits?: Partial<AsoLimits>;
   limiter?: TestLimiter;
+  /** Address checks and the exchange of the competitor image proxy (tests). */
+  net?: StoreImageNet;
+  imageLimiter?: TestLimiter;
   maxRunMs?: number;
 };
 
@@ -43,6 +47,8 @@ export const asoModule: ServerModule<AsoDeps> = {
         limits: asoLimitsFor(deps),
         ...(deps?.maxRunMs !== undefined ? { maxRunMs: deps.maxRunMs } : {}),
         limiter: deps?.limiter ?? createTestLimiter({ now: services.now }),
+        ...(deps?.net ? { net: deps.net } : {}),
+        ...(deps?.imageLimiter ? { imageLimiter: deps.imageLimiter } : {}),
       }),
     );
   },

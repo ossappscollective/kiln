@@ -44,6 +44,7 @@ export const webhookEventChoices: { type: string; labelKey: string }[] = [
   { type: 'release.started', labelKey: k('workspace:webhook.event.releaseStarted') },
   { type: 'aso.rank_changed', labelKey: k('workspace:webhook.event.asoRankChanged') },
   { type: 'aso.competitor_changed', labelKey: k('workspace:webhook.event.asoCompetitorChanged') },
+  { type: 'aso.competitor_listing_changed', labelKey: k('workspace:webhook.event.asoCompetitorListingChanged') },
   { type: 'ci.run_started', labelKey: k('workspace:webhook.event.ciRunStarted') },
   { type: 'release.stalled', labelKey: k('workspace:webhook.event.releaseStalled') },
   { type: 'review.unanswered', labelKey: k('workspace:webhook.event.reviewUnanswered') },
