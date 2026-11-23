@@ -310,6 +310,32 @@ test('sales: the documented query, gzip decoded; 404 is no report; 403 is sales_
   assert.equal((invalid as AnalyticsError).code, 'vendor_number_invalid');
 });
 
+test('sales: an HTTP 400 about the vendor number is vendor_number_invalid; about the report date it is no report; any other 400 is a refused request', async () => {
+  const { fake, connector } = setup();
+  // The wording of these answers is hand-written (UNVERIFIED against Apple), not a recording.
+  const bad = (date: string, parameter: string) =>
+    fake.on('GET', (url) => url.pathname === '/v1/salesReports' && url.search.includes(date), {
+      status: 400,
+      json: { errors: [{ code: 'PARAMETER_ERROR.INVALID', title: 'A parameter has an invalid value', detail: `Invalid value for ${parameter}`, source: { parameter } }] },
+    });
+  bad('2026-11-10', 'filter[vendorNumber]');
+  bad('2026-11-11', 'filter[reportDate]');
+  bad('2026-11-12', 'filter[version]');
+  const vendor = await captured(() =>
+    connector.fetchSalesReport({ vendorNumber: '85012345', date: '2026-11-10' }),
+  );
+  assert.equal((vendor as AnalyticsError).code, 'vendor_number_invalid');
+  assert.equal(
+    await connector.fetchSalesReport({ vendorNumber: '85012345', date: '2026-11-11' }),
+    null,
+  );
+  const other = await captured(() =>
+    connector.fetchSalesReport({ vendorNumber: '85012345', date: '2026-11-12' }),
+  );
+  assert.equal((other as StoreError).kind, 'unexpected');
+  assert.equal((other as StoreError).status, 400);
+});
+
 test('subscriptions: SUBSCRIPTION and SUBSCRIPTION_EVENT use version 1_3, SUMMARY and DAILY; 404 is no report; 403 is sales_forbidden', async () => {
   const { fake, connector } = setup();
   fake

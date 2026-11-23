@@ -170,12 +170,14 @@ test('mapPlaySalesTable: a missing column is refused; the older Product ID colum
   );
 });
 
-function bucket(files: Record<string, Uint8Array | string>, status?: number) {
+/** `statsOpen`: the status applies to every folder but `stats/` (a service account that may read the statistics only). */
+function bucket(files: Record<string, Uint8Array | string>, status?: number, statsOpen = false) {
   const fake = new ax.RouteFetch();
   fake.on('POST', '/token', { json: fx.googleToken });
   fake.on('GET', new RegExp(`/storage/v1/b/${ax.BUCKET}/o\\?`), (_n, call) => {
-    if (status) return { status, json: { error: { message: 'no' } } };
     const prefix = call.url.searchParams.get('prefix') ?? '';
+    if (status && !(statsOpen && prefix.startsWith('stats/')))
+      return { status, json: { error: { message: 'no' } } };
     return {
       json: {
         items: Object.keys(files)
@@ -235,11 +237,26 @@ test('readMonth: a plain UTF-8 csv works too; a month without a file is reports_
 });
 
 test('readMonth: a refused sales folder is play_sales_forbidden (the financial permission), not a bucket problem', async () => {
-  const { connector } = bucket({}, 403);
+  // The statistics folder can be read, the financial one cannot: the Play Console permission View financial data.
+  const { connector } = bucket({}, 403, true);
   await assert.rejects(
     () => connector.readMonth(MONTH),
     (e: unknown) => e instanceof AnalyticsError && e.code === 'play_sales_forbidden',
   );
+  // Every folder refused: the whole bucket is out of reach (another account's bucket, or no invitation): bucket_forbidden.
+  await assert.rejects(
+    () => bucket({}, 403).connector.readMonth(MONTH),
+    (e: unknown) => e instanceof AnalyticsError && e.code === 'bucket_forbidden',
+  );
+  await assert.rejects(
+    () => bucket({}, 403).connector.checkAccess(),
+    (e: unknown) => e instanceof AnalyticsError && e.code === 'bucket_forbidden',
+  );
+  await assert.rejects(
+    () => bucket({}, 403, true).connector.checkAccess(),
+    (e: unknown) => e instanceof AnalyticsError && e.code === 'play_sales_forbidden',
+  );
+  await bucket({}).connector.checkAccess(); // an empty folder is access that works
   const notFound = bucket({}, 404);
   await assert.rejects(
     () => notFound.connector.readMonth(MONTH),

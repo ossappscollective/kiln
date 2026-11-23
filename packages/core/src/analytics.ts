@@ -481,6 +481,7 @@ export const analyticsErrorCodes = [
   'store_not_found',
   'rate_limited',
   'store_unavailable',
+  'store_rejected', // the store refused the request with an HTTP 4xx that is none of the above: not an outage, a setting to check
   'timeout',
   'credential_unreadable',
   'credential_not_found',
@@ -500,6 +501,9 @@ export const analyticsSetupCodes = [
   'request_stopped', // Apple: stopped for inactivity
   'vendor_number_missing', // Apple Sales and Trends needs the vendor number
   'sales_forbidden',
+  'vendor_number_invalid', // Apple does not accept the vendor number (another team's, or mistyped)
+  'bucket_not_found', // the bucket id does not exist (mistyped or not a Play reports bucket)
+  'package_not_in_bucket', // the bucket is readable but holds nothing of this app: another Play account's bucket
   'play_sales_forbidden', // Google: the service account lacks "View financial data" (Global): no sales, earnings or subscription reports
   'bucket_id_missing', // Google Cloud Storage reports need the bucket id
   'bucket_forbidden',
@@ -556,7 +560,7 @@ export const analyticsErrorMessages: Record<AnalyticsErrorCode, string> = {
   vendor_number_invalid:
     'The vendor number is not valid. It is a number from App Store Connect, Payments and Financial Reports.',
   sales_forbidden:
-    'The App Store Connect API key may not read Sales and Trends reports (it needs the Sales and Reports role or higher).',
+    'Apple refused the API key the Sales and Trends reports (HTTP 403). The key needs the role Sales, Finance, Admin or Account Holder (App Manager and Developer are not enough), and the vendor number must belong to the same team as the key. Check both in App Store Connect, then test access again.',
   play_reporting_not_enabled:
     'The Google Play Developer Reporting API is not enabled in the Google Cloud project of the service account. In Google Cloud console, open that project, find Google Play Developer Reporting API and click Enable. Wait a few minutes, then sync again.',
   play_permission_missing:
@@ -571,18 +575,21 @@ export const analyticsErrorMessages: Record<AnalyticsErrorCode, string> = {
     'No Cloud Storage bucket id is set for this app. Copy it from the Reports page of Play Console.',
   bucket_invalid: 'The bucket id is not valid. It looks like pubsite_prod_rev_<number>.',
   bucket_forbidden:
-    'The service account may not read the Cloud Storage bucket of the Play Console reports.',
-  bucket_not_found: 'Google Cloud Storage has no bucket with this id.',
+    'Google refused the service account the Cloud Storage bucket of the Play Console reports (HTTP 403). Either the bucket belongs to another Play developer account than this app, or the service account was not invited in Play Console with "View app information and download bulk reports (read-only)". Check the bucket id, then the invitation.',
+  bucket_not_found:
+    'Google Cloud Storage has no bucket with this id. Copy it again from Play Console, Download reports, Statistics, Copy Cloud Storage URI: it is pubsite_prod_rev_ followed by your developer account number.',
   reports_not_found: 'The bucket holds no report file for this app and month yet.',
   package_not_in_bucket:
     'This package is not in this bucket. The reports of an app are in the bucket of the Play account that owns it: check the bucket of this app.',
   play_sales_forbidden:
-    'Google refused the service account the Play Console financial reports (estimated sales, earnings, subscription statistics). In Play Console, Users and permissions, give the service account the permission View financial data, set to Global (all apps), then sync again. If the whole bucket is refused, it also needs read access to the bucket.',
+    'Google refused the service account the financial reports (sales, earnings, subscription statistics) while the statistics of the same bucket can be read. In Play Console, Users and permissions, the service account needs "View financial data, orders and cancellation survey responses" set to Global (all apps), not for one app only. A new permission can take 24 to 48 hours to apply.',
   store_auth: 'The credential was refused by the store. Check the key and enter it again.',
   store_forbidden: 'The credential is not allowed to read this from the store.',
   store_not_found: 'The store has no such app for this credential.',
   rate_limited: 'The store asked to slow down. The next sync tries again.',
   store_unavailable: 'The store did not answer or failed. The next sync tries again.',
+  store_rejected:
+    'The store refused the request (this is not an outage). Check the credential, the vendor number and the bucket id of the data sources, then test access.',
   timeout: 'The store did not answer in time.',
   credential_unreadable: 'The credential could not be decrypted. Enter its secret again.',
   credential_not_found: 'The credential of this app no longer exists.',
@@ -795,6 +802,50 @@ export const playBucketTestMessages: Record<PlayBucketTestCode, string> = {
     'The saved Google Play credential could not be used. Check it under Credentials.',
   unreachable: 'Google Cloud Storage could not be reached just now. Try again later.',
 };
+
+// ---------------------------------------------------------------------------------------------
+// Links of the setup guides and "Test access" (docs/api/analytics.md). Pure, shared by the server and the web.
+
+export const appleLinks = {
+  /** Where the vendor number is shown (Payments and Financial Reports, top left). */
+  vendorNumber: 'https://appstoreconnect.apple.com/itc/payments_and_financial_reports',
+  /** Where the role of a person or of an API key is set. */
+  usersAndAccess: 'https://appstoreconnect.apple.com/access/users',
+} as const;
+
+/** The digits of `pubsite_prod_rev_<number>`: the id of the Play developer account (the number in Play Console's address). */
+export function playDeveloperId(bucketId: string | null | undefined): string | null {
+  const m = /^pubsite_prod_rev_([0-9]{6,30})$/.exec((bucketId ?? '').trim());
+  return m?.[1] ?? null;
+}
+
+/** Play Console "Users and permissions" of the developer account, or the Play Console home when the account is not known. */
+export function playConsoleUsersUrl(bucketId: string | null | undefined): string {
+  const id = playDeveloperId(bucketId);
+  return id
+    ? `https://play.google.com/console/u/0/developers/${id}/users-and-permissions`
+    : 'https://play.google.com/console';
+}
+
+/** The permissions page of the Cloud Storage bucket, or null when the bucket is not known. */
+export function playBucketPermissionsUrl(bucketId: string | null | undefined): string | null {
+  const id = (bucketId ?? '').trim();
+  return playDeveloperId(id) ? `https://console.cloud.google.com/storage/browser/${id};tab=permissions` : null;
+}
+
+/** The sources "Test access" can check with one cheap call. */
+export const accessTestSources = [
+  'apple_sales',
+  'apple_subscriptions',
+  'play_reports',
+  'play_sales',
+  'play_earnings',
+  'play_subscriptions',
+] as const;
+export type AccessTestSource = (typeof accessTestSources)[number];
+
+/** The answer of "Test access": `ok`, `no_report_yet` (the call worked, Apple or Google has no file yet), or the code of the failure. */
+export type AccessTestCode = 'ok' | 'no_report_yet' | AnalyticsErrorCode;
 
 /** An Apple vendor number (Payments and Financial Reports): digits only. */
 export function normalizeVendorNumber(raw: string): string | undefined {

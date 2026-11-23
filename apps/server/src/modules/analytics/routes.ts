@@ -1,5 +1,6 @@
 import {
   type Action,
+  accessTestSources,
   analyticsLimits,
   analyticsSources,
   can,
@@ -14,12 +15,14 @@ import { type AppEnv, parseBody } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
 import { getApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
+import { serviceAccountEmail } from '../../services/credentials.ts';
 import {
   applySearchTermsImport,
   previewSearchTermsImport,
 } from '../../services/play-search-terms.ts';
 import type { Failure } from '../../services/repositories.ts';
 import { requireStepUp } from '../../services/step-up.ts';
+import { setAppleVendorNumber, testSourceAccess } from './access.ts';
 import { getPlayBucket, setPlayBucket, testPlayBucket } from './bucket.ts';
 import { applyEnable, previewEnable } from './enable.ts';
 import { applyImport, previewImport } from './import.ts';
@@ -77,6 +80,11 @@ export const playBucketBody = z
     scope: z.enum(['account', 'app']).optional(),
   })
   .strict();
+/** `vendorNumber`: digits as App Store Connect shows them (validated by the service: `vendor_number_invalid`), or null to clear. */
+export const vendorNumberBody = z
+  .object({ vendorNumber: z.string().trim().max(40).nullable() })
+  .strict();
+export const accessTestBody = z.object({ source: z.enum(accessTestSources) }).strict();
 export const playBucketTestBody = z
   .object({ bucket: z.string().trim().max(200).optional() })
   .strict();
@@ -179,10 +187,58 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
   routes.get('/:workspaceId/apps/:id/analytics/status', needs('analytics.read'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
+    const current = await status(db, {
+      workspaceId: ws(c),
+      app,
+      intervalMinutes: ctx.intervalMinutes,
+    });
+    // The address to invite in Play Console is not a secret: it is read from the service account of the app's Play credential.
+    const email = current.google
+      ? await serviceAccountEmail(db, ctx.masterKey, { workspaceId: ws(c), id: app.credentialId })
+      : undefined;
     return c.json(
-      await status(db, { workspaceId: ws(c), app, intervalMinutes: ctx.intervalMinutes }),
+      current.google
+        ? { ...current, google: { ...current.google, serviceAccountEmail: email ?? null } }
+        : current,
     );
   });
+
+  routes.put(
+    '/:workspaceId/apps/:id/analytics/apple-vendor',
+    needs('analytics.manage'),
+    bodyLimit({ maxSize: 1024, onError: tooLarge }),
+    async (c) => {
+      const body = await parseBody(c, vendorNumberBody);
+      if (!body.ok) return body.response;
+      const done = await setAppleVendorNumber(
+        db,
+        ctx.now,
+        { workspaceId: ws(c), appId: param(c, 'id'), vendorNumber: body.data.vendorNumber },
+        actor(c),
+      );
+      if (!done.ok) return respond(c, done);
+      return c.json({ vendorNumber: done.vendorNumber });
+    },
+  );
+
+  routes.post(
+    '/:workspaceId/apps/:id/analytics/access-test',
+    needs('analytics.manage'),
+    bodyLimit({ maxSize: 1024, onError: tooLarge }),
+    async (c) => {
+      const body = await parseBody(c, accessTestBody);
+      if (!body.ok) return body.response;
+      const wait = limited(c);
+      if (wait) return wait;
+      const done = await testSourceAccess(
+        ctx,
+        { workspaceId: ws(c), appId: param(c, 'id'), source: body.data.source },
+        actor(c),
+      );
+      if (!done.ok) return respond(c, done);
+      return c.json({ result: done.result });
+    },
+  );
 
   routes.post(
     '/:workspaceId/apps/:id/analytics/sync',

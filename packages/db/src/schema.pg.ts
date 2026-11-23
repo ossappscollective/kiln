@@ -1631,6 +1631,8 @@ export const analyticsCredentialConfig = pgTable(
       .notNull()
       .references(() => workspaces.id),
     playBucketId: text('play_bucket_id'),
+    /** The Apple vendor number of an App Store Connect credential (migration 58). */
+    appleVendorNumber: text('apple_vendor_number'),
     updatedBy: text('updated_by').notNull(),
     updatedAt: epochMs('updated_at').notNull(),
   },

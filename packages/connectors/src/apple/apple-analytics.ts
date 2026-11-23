@@ -19,7 +19,7 @@ import {
   AppStoreConnectTokenProvider,
   parseAppStoreConnectSecret,
 } from './apple-auth.ts';
-import { appleError } from './appstoreconnect.ts';
+import { appleError, appleErrorDetails } from './appstoreconnect.ts';
 
 /**
  * App Store Connect connector for ANALYTICS: the Analytics Reports API and Sales and Trends. Read only, except
@@ -396,7 +396,18 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
     // No report for the day (nothing sold, or not published yet) is a 404 in the reports Apple documents; UNVERIFIED for this endpoint.
     if (reply.status === 404) return null;
     if (reply.status === 401) this.#tokens.invalidate();
+    // A 403 is the key's role (Sales, Finance, Admin or Account Holder) or a vendor number of ANOTHER team than the key's.
     if (reply.status === 403) throw new AnalyticsError('sales_forbidden', undefined, 403);
+    if (reply.status === 400) {
+      // HTTP 400 is a parameter Apple refused. Which one is read from its error (UNVERIFIED wording): a vendor number it does not
+      // know is a setup problem; a report date it has no report for (too new, too old) is "nothing for that day", not a failure.
+      const said = appleErrorDetails(this.#toStoreReply(reply).json)
+        .map((d) => `${d.parameter ?? ''} ${d.pointer ?? ''} ${d.code ?? ''} ${d.title ?? ''} ${d.detail ?? ''}`)
+        .join(' ')
+        .toLowerCase();
+      if (said.includes('vendor')) throw new AnalyticsError('vendor_number_invalid', undefined, 400);
+      if (said.includes('reportdate') || said.includes('report date')) return null;
+    }
     throw this.#mapError(this.#toStoreReply(reply), `reading ${what}`);
   }
 

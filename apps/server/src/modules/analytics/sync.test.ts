@@ -410,14 +410,14 @@ dbTest(
 );
 
 dbTest(
-  'play reports: a bucket with no file at all is reports_not_found, and a forbidden bucket is a next step',
+  'play reports: a readable bucket with no file yet is ok with nothing, and a forbidden bucket is a next step',
   async (db) => {
     const t = await bootAnalytics(db);
     await t.enable();
     const appId = await t.addApp('android');
     await t.setSettings({ 'analytics.playBucketId': BUCKET });
     const none = await sync(t, appId, { sources: ['play_reports'] });
-    assert.equal(none.body.sync.sources[0].errorCode, 'reports_not_found');
+    assert.deepEqual([none.body.sync.sources[0].status, none.body.sync.sources[0].errorCode], ['ok', undefined]);
     t.reports.error = new AnalyticsError('bucket_forbidden');
     const forbidden = await sync(t, appId, { sources: ['play_reports'] });
     assert.equal(forbidden.body.status.sources[1].setup.code, 'bucket_forbidden');

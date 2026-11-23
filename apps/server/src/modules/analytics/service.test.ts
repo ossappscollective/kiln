@@ -220,7 +220,13 @@ dbTest(
 
     const droid = (await get(t, `/apps/${android}/analytics/status`)).body;
     assert.equal(droid.apple, null);
-    assert.deepEqual(droid.google, { bucketIdSet: false, bucketSource: null });
+    assert.deepEqual(droid.google, {
+      bucketIdSet: false,
+      bucketSource: null,
+      bucketId: null,
+      severalPlayAccounts: false,
+      serviceAccountEmail: 'bot@proj.iam.gserviceaccount.com',
+    });
     assert.deepEqual(
       [droid.sources[0].setup.code, droid.sources[0].setup.nextStep],
       ['first_sync_pending', 'sync_now'],

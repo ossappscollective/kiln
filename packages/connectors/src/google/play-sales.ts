@@ -15,7 +15,8 @@ import {
   type Table,
 } from '../delimited.ts';
 import { isZip, readZipEntries } from '../zip.ts';
-import { type PlayAnalyticsOptions, PlayReportsConnector } from './play-analytics.ts';
+import type { PlayAnalyticsOptions } from './play-analytics.ts';
+import { PlayFinancialStorage } from './play-financial.ts';
 
 /**
  * Google Play "Estimated sales" reports, read only (docs/adr/0038-sales-analytics.md). They live in the SAME Cloud Storage bucket as
@@ -49,6 +50,8 @@ export type PlaySalesResult = {
 };
 
 export interface PlaySalesPort {
+  /** One cheap listing that proves the financial folder may be read (see `PlayFinancialStorage.check`). Optional. */
+  checkAccess?(): Promise<void>;
   /** The sales of the package for one month (`YYYYMM`). `reports_not_found` when the month has no file yet. */
   readMonth(month: string): Promise<PlaySalesResult>;
 }
@@ -210,38 +213,27 @@ export async function readSalesTables(bytes: Uint8Array): Promise<Table[]> {
  * `play_sales_forbidden` (the financial permission), not `bucket_forbidden`: the statistics reports of the same bucket may still work.
  */
 export class PlaySalesConnector implements PlaySalesPort {
-  readonly #storage: PlayReportsConnector;
+  readonly #storage: PlayFinancialStorage;
   readonly #package: string;
 
   constructor(options: PlayAnalyticsOptions) {
-    this.#storage = new PlayReportsConnector(options);
+    this.#storage = new PlayFinancialStorage(options);
     this.#package = options.packageName;
+  }
+
+  checkAccess(): Promise<void> {
+    return this.#storage.check('sales/');
   }
 
   async readMonth(month: string): Promise<PlaySalesResult> {
     if (!/^\d{6}$/.test(month)) throw new AnalyticsError('reports_not_found');
     const prefix = `sales/salesreport_${month}`;
-    const refused = (error: unknown): never => {
-      if (error instanceof AnalyticsError && error.code === 'bucket_forbidden')
-        throw new AnalyticsError('play_sales_forbidden', undefined, error.status);
-      throw error;
-    };
-    let names: string[] = [];
-    try {
-      names = await this.#storage.listObjects(prefix);
-    } catch (error) {
-      refused(error);
-    }
+    const names = await this.#storage.list(prefix);
     const wanted = names
       .filter((n) => n.startsWith(prefix) && /\.(zip|csv|gz)$/i.test(n))
       .sort()[0];
     if (!wanted) throw new AnalyticsError('reports_not_found');
-    let raw: Uint8Array;
-    try {
-      raw = await this.#storage.downloadObject(wanted);
-    } catch (error) {
-      return refused(error);
-    }
+    const raw = await this.#storage.download(wanted);
     const stats: ParseStats = { rowsRead: 0, rowsUsed: 0, rowsUnreadable: 0, rowsFiltered: 0 };
     const merged = new Map<string, AnalyticsPoint>();
     for (const table of await readSalesTables(raw)) {

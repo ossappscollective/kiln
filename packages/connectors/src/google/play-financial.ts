@@ -10,7 +10,7 @@ import { type PlayAnalyticsOptions, PlayReportsConnector } from './play-analytic
  *
  * UNVERIFIED: that Cloud Storage answers 403 for a folder the account may not read while the rest of the bucket is readable (the
  * same assumption as for `sales/`); how it answers when the bucket itself is refused (also 403: told apart only by the statistics
- * sources working).
+ * sources working). The refusal is told apart by listing the statistics folder (`PlayReportsConnector.statsReadable`).
  */
 export class PlayFinancialStorage {
   readonly #storage: PlayReportsConnector;
@@ -21,10 +21,35 @@ export class PlayFinancialStorage {
     this.packageName = options.packageName;
   }
 
-  #refused(error: unknown): never {
-    if (error instanceof AnalyticsError && error.code === 'bucket_forbidden')
-      throw new AnalyticsError('play_sales_forbidden', undefined, error.status);
+  /**
+   * A refusal of a financial folder is `play_sales_forbidden` ONLY when the statistics folder of the same bucket can still be read.
+   * When that is refused too, the whole bucket is out of reach (another account's bucket, or no access at all): `bucket_forbidden`,
+   * whose fix is a different one, so the person is not sent to the financial permission for nothing.
+   */
+  async #refused(error: unknown): Promise<never> {
+    if (error instanceof AnalyticsError && error.code === 'bucket_forbidden') {
+      let wholeBucket = false;
+      try {
+        wholeBucket = !(await this.#storage.statsReadable());
+      } catch {
+        wholeBucket = false;
+      }
+      throw new AnalyticsError(
+        wholeBucket ? 'bucket_forbidden' : 'play_sales_forbidden',
+        undefined,
+        error.status,
+      );
+    }
     throw error;
+  }
+
+  /** One cheap listing of a financial folder (one object at most): resolves when it may be read, else throws the classified error. */
+  async check(prefix: string): Promise<void> {
+    try {
+      await this.#storage.listObjects(prefix, 1);
+    } catch (error) {
+      await this.#refused(error);
+    }
   }
 
   /** The object names under a prefix. A refused folder is `play_sales_forbidden`. */
@@ -32,7 +57,7 @@ export class PlayFinancialStorage {
     try {
       return await this.#storage.listObjects(prefix);
     } catch (error) {
-      return this.#refused(error);
+      return await this.#refused(error);
     }
   }
 
@@ -41,7 +66,7 @@ export class PlayFinancialStorage {
     try {
       return await this.#storage.downloadObject(name);
     } catch (error) {
-      return this.#refused(error);
+      return await this.#refused(error);
     }
   }
 }

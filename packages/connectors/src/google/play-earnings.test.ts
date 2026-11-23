@@ -164,12 +164,14 @@ test('mapPlayEarningsTable: a table without the earnings columns is refused; the
   );
 });
 
-function bucket(files: Record<string, Uint8Array | string>, status?: number) {
+/** `statsOpen`: the status applies to every folder but `stats/` (a service account that may read the statistics only). */
+function bucket(files: Record<string, Uint8Array | string>, status?: number, statsOpen = false) {
   const fake = new ax.RouteFetch();
   fake.on('POST', '/token', { json: fx.googleToken });
   fake.on('GET', new RegExp(`/storage/v1/b/${ax.BUCKET}/o\\?`), (_n, call) => {
-    if (status) return { status, json: { error: { message: 'no' } } };
     const prefix = call.url.searchParams.get('prefix') ?? '';
+    if (status && !(statsOpen && prefix.startsWith('stats/')))
+      return { status, json: { error: { message: 'no' } } };
     return {
       json: {
         items: Object.keys(files)
@@ -237,9 +239,14 @@ test('readMonth: a month without a file is reports_not_found (not available yet)
     (e: unknown) => e instanceof AnalyticsError && e.code === 'reports_not_found',
   );
   await assert.rejects(
-    () => bucket({}, 403).connector.readMonth(MONTH),
+    () => bucket({}, 403, true).connector.readMonth(MONTH),
     (e: unknown) => e instanceof AnalyticsError && e.code === 'play_sales_forbidden',
   );
+  await assert.rejects(
+    () => bucket({}, 403).connector.readMonth(MONTH),
+    (e: unknown) => e instanceof AnalyticsError && e.code === 'bucket_forbidden',
+  );
+  await bucket({}).connector.checkAccess();
   await assert.rejects(
     () => bucket({}, 404).connector.readMonth(MONTH),
     (e: unknown) => e instanceof AnalyticsError && e.code === 'bucket_not_found',

@@ -44,13 +44,19 @@ export const setupMessages: Record<AnalyticsSetupCode, string> = {
   vendor_number_missing:
     'Optional: set the Apple vendor number in the settings (analytics.appleVendorNumber) to add daily units and proceeds, also by product, and subscription counts (active, new, cancelled).',
   sales_forbidden:
-    'The App Store Connect key may not read Sales and Trends (it needs the Sales and Reports role or higher).',
+    'Apple refused the key the Sales and Trends reports (403). The key needs the role Sales, Finance, Admin or Account Holder, and the vendor number must be the one of the same Apple team as the key.',
+  vendor_number_invalid:
+    'Apple does not accept this vendor number. It is the number shown in App Store Connect, Payments and Financial Reports, and it must belong to the same Apple team as the key of this app.',
   play_sales_forbidden:
-    'The service account may not read the Play Console financial reports (estimated sales, monthly earnings, subscription statistics). In Play Console, Users and permissions, give it View financial data set to Global, then sync again.',
+    'Google refused the service account the financial reports (sales, earnings, subscription statistics) while the statistics can be read. In Play Console, Users and permissions, give it View financial data, orders and cancellation survey responses, set to Global (all apps). A new permission can take 24 to 48 hours to apply.',
+  bucket_not_found:
+    'Google Cloud Storage has no bucket with this id. Copy it again from Play Console, Download reports, Statistics, Copy Cloud Storage URI.',
+  package_not_in_bucket:
+    'This bucket can be read but holds no report of this app: it is probably the bucket of another Play developer account. Set the bucket of the account that owns this app.',
   bucket_id_missing:
     'Optional: set the Cloud Storage bucket id of your Play Console reports (analytics.playBucketId) to add installs, ratings, store listing numbers, sales, monthly earnings and subscription counts (sales, earnings and subscription statistics also need the Play Console permission View financial data, set to Global).',
   bucket_forbidden:
-    'The service account may not read the Cloud Storage bucket of the Play Console reports.',
+    'Google refused the service account the Cloud Storage bucket of the Play Console reports (403). Either this bucket belongs to another Play developer account than this app, or the service account was not invited in Play Console with View app information and download bulk reports (read-only).',
   reporting_api_not_enabled:
     'The Google Play Developer Reporting API is not enabled in the Cloud project of the service account.',
   play_permission_missing:
@@ -86,15 +92,22 @@ export function deriveSetup(input: SetupInput): Setup | null {
     case 'analytics_role_required':
       return mk('role_required', 'ask_apple_admin', { alternatives: ['import_apple_report'] });
     case 'sales_forbidden':
-      return mk('sales_forbidden', 'ask_apple_admin', { optional: true });
+      return mk('sales_forbidden', 'ask_apple_admin');
+    case 'vendor_number_invalid':
+      return mk('vendor_number_invalid', 'set_vendor_number');
     case 'play_reporting_not_enabled':
       return mk('reporting_api_not_enabled', 'enable_reporting_api');
     case 'play_permission_missing':
       return mk('play_permission_missing', 'grant_play_permission');
     case 'bucket_forbidden':
-      return mk('bucket_forbidden', 'grant_play_permission', { optional: true });
+      return mk('bucket_forbidden', 'grant_play_permission');
+    case 'bucket_not_found':
+    case 'bucket_invalid':
+      return mk('bucket_not_found', 'set_bucket_id');
+    case 'package_not_in_bucket':
+      return mk('package_not_in_bucket', 'set_bucket_id');
     case 'play_sales_forbidden':
-      return mk('play_sales_forbidden', 'grant_play_financial_permission', { optional: true });
+      return mk('play_sales_forbidden', 'grant_play_financial_permission');
     case 'store_auth':
     case 'credential_unreadable':
     case 'credential_not_found':

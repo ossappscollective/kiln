@@ -44,6 +44,9 @@ dbTest(
     assert.deepEqual((await t.call(t.owner, 'GET', `/apps/${b}/analytics/status`)).body.google, {
       bucketIdSet: true,
       bucketSource: 'workspace',
+      bucketId: BUCKET,
+      severalPlayAccounts: false,
+      serviceAccountEmail: 'bot@proj.iam.gserviceaccount.com',
     });
 
     // 2. An app of another Play account has its own bucket: it wins for that app only (the default is shown as what it would inherit).
@@ -60,6 +63,9 @@ dbTest(
     assert.deepEqual((await t.call(t.owner, 'GET', `/apps/${b}/analytics/status`)).body.google, {
       bucketIdSet: true,
       bucketSource: 'app',
+      bucketId: OWN,
+      severalPlayAccounts: false,
+      serviceAccountEmail: 'bot@proj.iam.gserviceaccount.com',
     });
 
     // 3. "Use workspace default": clearing the override inherits again.
@@ -126,9 +132,10 @@ dbTest(
     const wrong = await sync(a);
     assert.equal(wrong.body.sync.sources[0].errorCode, 'package_not_in_bucket');
     assert.match(wrong.body.status.sources[1].lastError.code, /package_not_in_bucket/);
-    // A package the bucket knows, with no file for these months, is still the plain "no file yet".
+    // A package the bucket knows, with no file for these months, is "nothing yet": a read that worked, not a failure.
     t.reports.packageKnown = true;
-    assert.equal((await sync(a)).body.sync.sources[0].errorCode, 'reports_not_found');
+    const nothing = (await sync(a)).body.sync.sources[0];
+    assert.deepEqual([nothing.status, nothing.errorCode, nothing.points], ['ok', undefined, 0]);
   },
 );
 

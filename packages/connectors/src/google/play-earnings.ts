@@ -51,6 +51,8 @@ export type PlayEarningsResult = {
 };
 
 export interface PlayEarningsPort {
+  /** One cheap listing that proves the financial folder may be read (see `PlayFinancialStorage.check`). Optional. */
+  checkAccess?(): Promise<void>;
   /** The earnings of the package for one month (`YYYYMM`). `reports_not_found` when the month has no file yet. */
   readMonth(month: string): Promise<PlayEarningsResult>;
 }
@@ -182,6 +184,10 @@ export class PlayEarningsConnector implements PlayEarningsPort {
 
   constructor(options: PlayAnalyticsOptions) {
     this.#storage = new PlayFinancialStorage(options);
+  }
+
+  checkAccess(): Promise<void> {
+    return this.#storage.check('earnings/');
   }
 
   async readMonth(month: string): Promise<PlayEarningsResult> {

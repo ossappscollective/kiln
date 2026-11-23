@@ -1,4 +1,5 @@
 import {
+  accessTestSources,
   analyticsDimensions,
   analyticsMetrics,
   analyticsNextSteps,
@@ -11,7 +12,14 @@ import {
 } from '@kiln/core';
 import { z } from 'zod';
 import type { Operation } from '../../operations/openapi.ts';
-import { enableBody, playBucketBody, playBucketTestBody, syncBody } from './routes.ts';
+import {
+  accessTestBody,
+  enableBody,
+  playBucketBody,
+  playBucketTestBody,
+  syncBody,
+  vendorNumberBody,
+} from './routes.ts';
 
 /**
  * The operations of analytics (docs/api/analytics.md), kept in their own file and added to the registry in api-operations.ts. Reading
@@ -189,12 +197,30 @@ const statusSchema = z.object({
         }),
       ),
       vendorNumberSet: z.boolean(),
+      vendorNumberSource: z
+        .enum(['credential', 'workspace'])
+        .nullable()
+        .describe(
+          'Whose vendor number is used: the one of the app’s Apple credential (one Apple team), or the workspace default.',
+        ),
+      vendorNumber: z.string().nullable().describe('The digits App Store Connect shows (not a secret).'),
     })
     .nullable()
     .describe('Null for an Android app.'),
   google: z
     .object({
       bucketIdSet: z.boolean(),
+      bucketId: z
+        .string()
+        .nullable()
+        .describe('`pubsite_prod_rev_<developer account number>` the app reads (a name, not a secret).'),
+      severalPlayAccounts: z
+        .boolean()
+        .describe('The workspace holds more than one Play credential: set the bucket per Play account.'),
+      serviceAccountEmail: z
+        .string()
+        .nullable()
+        .describe('The address to invite in Play Console (the `client_email` of the service account; not a secret).'),
       bucketSource: z
         .enum(['app', 'account', 'workspace'])
         .nullable()
@@ -475,6 +501,55 @@ export const analyticsOperations: Operation[] = [
               .number()
               .int()
               .describe('Android apps of the workspace that use the same Play credential.'),
+          }),
+        }),
+      },
+    },
+  },
+  {
+    id: 'setAppAppleVendorNumber',
+    method: 'put',
+    path: `${W}/apps/{id}/analytics/apple-vendor`,
+    tags: ['analytics'],
+    summary: 'Set or clear the Apple vendor number of the app’s App Store Connect credential',
+    description:
+      'Body `{ vendorNumber }`: digits as App Store Connect shows them under Payments and Financial Reports (`422 vendor_number_invalid` otherwise), `null` clears it. Stored once per credential (one Apple team) and used by every iOS and macOS app of that credential; without one the workspace setting `analytics.appleVendorNumber` applies. Contacts no store. Audited as `analytics.vendor_number_set` with ids only.',
+    risk: 'write',
+    access: { action: 'analytics.manage' },
+    appScope: { kind: 'param', name: 'id' },
+    body: vendorNumberBody,
+    bodyLimit: 1024,
+    responses: {
+      '200': {
+        description: 'The number now stored for the credential.',
+        schema: z.object({ vendorNumber: z.string().nullable() }),
+      },
+    },
+  },
+  {
+    id: 'testAppAnalyticsAccess',
+    method: 'post',
+    path: `${W}/apps/{id}/analytics/access-test`,
+    tags: ['analytics'],
+    summary: 'Test access to one Sales or Play report source with a single cheap call',
+    description:
+      'Body `{ source }` (one of apple_sales, apple_subscriptions, play_reports, play_sales, play_earnings, play_subscriptions). Apple: asks for one daily report of two days ago (Pacific Time). Google: lists one object of the folder in the reports bucket. Nothing is stored. The answer is always `200` with `code`: `ok`, `no_report_yet` (the call worked, no file exists yet: not a failure) or a code of the analytics error vocabulary (`vendor_number_missing`, `sales_forbidden` = the key’s role or another team’s vendor number, `vendor_number_invalid`, `bucket_missing`, `bucket_forbidden` = the whole bucket is refused: another account’s bucket, or the Play Console invitation, `play_sales_forbidden` = the bucket is readable but View financial data (Global) is missing, `bucket_not_found`, `store_rejected`, ...), with a plain `message`. Needs `analytics.manage`. Rate limited per workspace.',
+    risk: 'read',
+    access: { action: 'analytics.manage' },
+    appScope: { kind: 'param', name: 'id' },
+    rateLimited: true,
+    body: accessTestBody,
+    bodyLimit: 1024,
+    responses: {
+      '200': {
+        description: 'The classified result.',
+        schema: z.object({
+          result: z.object({
+            source: z.enum(accessTestSources),
+            ok: z.boolean(),
+            code: z.string(),
+            message: z.string(),
+            serviceAccountEmail: z.string().optional(),
           }),
         }),
       },

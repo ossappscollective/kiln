@@ -55,6 +55,7 @@ import {
   markReportRequest,
   type RunTrigger,
   recordRun,
+  resolveAppleVendor,
   resolvePlayBucket,
   type SyncRun,
   saveInstance,
@@ -220,6 +221,11 @@ export function classifyAnalyticsError(error: unknown): Classified {
       case 'server':
       case 'network':
         return { code: 'store_unavailable', status: 502, transient: true };
+      case 'unexpected':
+        // An HTTP 4xx the store sent that has no meaning of its own: a request it refused, not an outage.
+        if (error.status !== undefined && error.status >= 400 && error.status < 500)
+          return { code: 'store_rejected', status: 422, transient: false };
+        return { code: 'store_unavailable', status: 502, transient: false };
       default:
         return { code: 'store_unavailable', status: 502, transient: false };
     }
@@ -274,6 +280,15 @@ type Outcome =
       errorCode?: AnalyticsErrorCode;
     }
   | { kind: 'skip'; setup: string };
+
+/** The calendar day (YYYY-MM-DD) of a moment in Pacific Time, the time zone of Apple's sales days. */
+const pacificFormat = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Los_Angeles',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+export const pacificDay = (ms: number): string => pacificFormat.format(new Date(ms));
 
 const range = (points: AnalyticsPoint[]): { from: string | null; to: string | null } => {
   let from: string | null = null;
@@ -448,8 +463,9 @@ async function readAppleSales(env: Env, newestDay: string | null): Promise<Outco
   const port = ctx.connectors.apple({ secret: env.secret, fetch: env.fetch });
   const platform = platformOf(app);
   const now = ctx.now();
-  // The report of day D is posted the next day (Pacific Time): the newest day asked for is yesterday, UTC.
-  const last = addDays(dateToDay(now), -1);
+  // Apple's sales days run on Pacific Time and the report of day D is posted the next day: the newest day asked for is yesterday
+  // in Pacific Time (yesterday in UTC is still "today" there for the first hours of the UTC day, and has no report yet).
+  const last = addDays(pacificDay(now), -1);
   const first = newestDay
     ? addDays(newestDay, -analyticsWindows.salesOverlapDays)
     : addDays(dateToDay(now), -analyticsWindows.salesFirstDays);
@@ -529,7 +545,7 @@ async function readAppleSubscriptions(env: Env, newestDay: string | null): Promi
   const port = ctx.connectors.apple({ secret: env.secret, fetch: env.fetch });
   const platform = platformOf(app);
   const now = ctx.now();
-  const last = addDays(dateToDay(now), -1);
+  const last = addDays(pacificDay(now), -1);
   const first = newestDay
     ? addDays(newestDay, -analyticsWindows.salesOverlapDays)
     : addDays(dateToDay(now), -analyticsWindows.salesFirstDays);
@@ -709,7 +725,9 @@ async function readPlayReports(env: Env, firstRead: boolean): Promise<Outcome> {
     // belongs to another account (or the app has no reports at all), which is a different next step from "no file for this month yet".
     if (port.hasPackage && !(await port.hasPackage()))
       throw new AnalyticsError('package_not_in_bucket');
-    throw new AnalyticsError('reports_not_found');
+    // The bucket is readable and holds this package's folder, but no file of the months asked for yet: nothing yet, not a failure
+    // (a new app, or the first file of a month that Google writes a few days late).
+    return { kind: 'done', status: 'ok', points: 0, reports: 0, dayFrom: null, dayTo: null };
   }
   return { kind: 'done', status: 'ok', points, reports, dayFrom: from, dayTo: to };
 }
@@ -1008,10 +1026,9 @@ async function run(
       startedBy,
     );
 
-  const vendorNumber =
-    typeof settings['analytics.appleVendorNumber'] === 'string'
-      ? (settings['analytics.appleVendorNumber'] as string)
-      : '';
+  // The vendor number of the app's Apple team (its credential), else the workspace default.
+  const vendorNumber = (await resolveAppleVendor(ctx.db, { workspaceId, app, settings }))
+    .vendorNumber;
   // The app's own override, else its Play developer account's bucket, else the workspace setting.
   const bucketId = (await resolvePlayBucket(ctx.db, { workspaceId, app, settings })).bucketId;
 

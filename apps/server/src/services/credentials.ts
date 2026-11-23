@@ -310,3 +310,34 @@ export async function recordUnsavedCredentialTest(
     at: now,
   });
 }
+
+/**
+ * The public identity of a Google Play credential: the `client_email` of its service account (the address a person invites in Play
+ * Console). It is not a secret and is never audited as a use of the key, but the key is decrypted here to read it, so ONLY this one
+ * field leaves this function. `undefined` for anything that is not a readable service account JSON.
+ */
+export async function serviceAccountEmail(
+  sql: Sql,
+  key: Buffer,
+  input: { workspaceId: string; id: string },
+): Promise<string | undefined> {
+  const [row] = await sql.query(
+    "SELECT ciphertext FROM credentials WHERE id = ? AND workspace_id = ? AND kind = 'google_play'",
+    [input.id, input.workspaceId],
+  );
+  if (!row) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(
+      decryptSecret(String(row.ciphertext), key, credentialAad(input.workspaceId, input.id)),
+    );
+    const email =
+      parsed !== null && typeof parsed === 'object'
+        ? (parsed as { client_email?: unknown }).client_email
+        : undefined;
+    return typeof email === 'string' && /^[^\s@]{1,200}@[^\s@]{1,200}$/.test(email)
+      ? email
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}

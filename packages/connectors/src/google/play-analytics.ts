@@ -87,6 +87,11 @@ export type PlayReportsResult = {
 export interface PlayReportsPort {
   /** Whether the bucket holds any report file of the package, whatever the month. Optional: a port without it cannot tell. */
   hasPackage?(): Promise<boolean>;
+  /**
+   * One cheap read (a one-object listing of the statistics folder) that proves the service account may read the bucket. Resolves when
+   * it may (an empty folder is fine) and throws the classified `AnalyticsError` when it may not. Optional.
+   */
+  checkAccess?(): Promise<void>;
   /** The reports of one month (`YYYYMM`). */
   readMonth(month: string): Promise<PlayReportsResult>;
 }
@@ -554,8 +559,27 @@ export class PlayReportsConnector implements PlayReportsPort {
    * Object names under a prefix of the account's bucket, for readers of OTHER folders of the same bucket (the sales reports,
    * docs/adr/0038-sales-analytics.md). Same token, limits and error mapping as the statistics reports.
    */
-  listObjects(prefix: string): Promise<string[]> {
-    return this.#list(prefix);
+  listObjects(prefix: string, limit?: number): Promise<string[]> {
+    return this.#list(prefix, limit);
+  }
+
+  /**
+   * Whether the statistics folder of the bucket can be listed. Used to tell a refused BUCKET (Cloud Storage access, or the wrong
+   * account's bucket) from a refused FINANCIAL folder (the Play Console permission View financial data): both are HTTP 403 on the
+   * object, but the statistics folder only needs the "download bulk reports" permission. Only a refusal gives false.
+   */
+  async statsReadable(): Promise<boolean> {
+    try {
+      await this.#list('stats/', 1);
+      return true;
+    } catch (error) {
+      if (error instanceof AnalyticsError && error.code === 'bucket_forbidden') return false;
+      throw error;
+    }
+  }
+
+  async checkAccess(): Promise<void> {
+    await this.#list('stats/installs/', 1);
   }
 
   /** The bytes of one object of the bucket (`reports_not_found` when it is not there). */

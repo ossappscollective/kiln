@@ -7,6 +7,7 @@ import {
   addDays,
   dateToDay,
   normalizeBucketId,
+  normalizeVendorNumber,
   type PlayBucketSource,
   toMicro,
 } from '@kiln/core';
@@ -440,6 +441,52 @@ export async function resolvePlayBucket(
   return { bucketId, source, app, account, workspace, inherited };
 }
 
+const cleanVendor = (value: unknown): string | null =>
+  (typeof value === 'string' ? normalizeVendorNumber(value) : undefined) ?? null;
+
+/**
+ * The Apple vendor number an iOS or macOS app reads Sales and Trends with: the number of its App Store Connect credential (one Apple
+ * team), else the workspace setting `analytics.appleVendorNumber` (the older, workspace-wide default). Sales and Trends answers only for
+ * the vendor number of the key's own team, so apps of two teams must not share one number.
+ */
+export async function resolveAppleVendor(
+  sql: Sql,
+  input: {
+    workspaceId: string;
+    app: Pick<ManagedApp, 'credentialId'>;
+    settings: Record<string, unknown>;
+  },
+): Promise<{ vendorNumber: string; source: 'credential' | 'workspace' | null }> {
+  const [row] = await sql.query(
+    'SELECT apple_vendor_number FROM analytics_credential_config WHERE credential_id = ? AND workspace_id = ?',
+    [input.app.credentialId, input.workspaceId],
+  );
+  const own = row ? cleanVendor(row.apple_vendor_number) : null;
+  if (own) return { vendorNumber: own, source: 'credential' };
+  const workspace = cleanVendor(input.settings['analytics.appleVendorNumber']);
+  return workspace
+    ? { vendorNumber: workspace, source: 'workspace' }
+    : { vendorNumber: '', source: null };
+}
+
+/** Stores (or, with null, clears) the vendor number of an App Store Connect credential. */
+export async function setCredentialVendor(
+  sql: Sql,
+  input: {
+    workspaceId: string;
+    credentialId: string;
+    vendorNumber: string | null;
+    by: string;
+    now: number;
+  },
+): Promise<void> {
+  await sql.execute(
+    `INSERT INTO analytics_credential_config (credential_id, workspace_id, apple_vendor_number, updated_by, updated_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (credential_id) DO UPDATE SET apple_vendor_number = excluded.apple_vendor_number, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+    [input.credentialId, input.workspaceId, input.vendorNumber, input.by, input.now],
+  );
+}
+
 // ---------------------------------------------------------------------------------------------
 // Apple report requests and instances
 
@@ -531,6 +578,7 @@ export async function settledInstances(
     'segment_expired',
     'rate_limited',
     'store_unavailable',
+    'store_rejected',
     'timeout',
     'store_auth',
     'store_forbidden',

@@ -39,6 +39,7 @@ import {
   listReportRequests,
   readDaily,
   recentRuns,
+  resolveAppleVendor,
   resolvePlayBucket,
 } from './store.ts';
 
@@ -573,8 +574,19 @@ export type AnalyticsStatus = {
       lastCheckedAt: number | null;
     }[];
     vendorNumberSet: boolean;
+    /** Whose number it is: this app's Apple credential, the workspace default, or none. */
+    vendorNumberSource: 'credential' | 'workspace' | null;
+    /** Digits only (a number App Store Connect shows, not a secret). */
+    vendorNumber: string | null;
   } | null;
-  google: { bucketIdSet: boolean; bucketSource: PlayBucketSource | null } | null;
+  google: {
+    bucketIdSet: boolean;
+    bucketSource: PlayBucketSource | null;
+    /** `pubsite_prod_rev_<number>` the app reads (a name, not a secret), or null. */
+    bucketId: string | null;
+    /** The workspace holds more than one Play credential: a workspace-wide bucket cannot fit all of them. */
+    severalPlayAccounts: boolean;
+  } | null;
   sources: SourceStatus[];
   runs: {
     source: AnalyticsSource;
@@ -599,6 +611,14 @@ const sourceLabels: Record<AnalyticsSource, string> = {
   play_subscriptions: 'Play Console subscription statistics',
 };
 
+async function hasSeveralPlayCredentials(sql: Sql, workspaceId: string): Promise<boolean> {
+  const [row] = await sql.query(
+    "SELECT COUNT(*) AS n FROM credentials WHERE workspace_id = ? AND kind = 'google_play'",
+    [workspaceId],
+  );
+  return Number(row?.n ?? 0) > 1;
+}
+
 export async function status(
   sql: Sql,
   input: { workspaceId: string; app: ManagedApp; intervalMinutes: number },
@@ -606,7 +626,8 @@ export async function status(
   const { app, workspaceId } = input;
   const settings = (await getSettings(sql, workspaceId)).values;
   const enabled = settings['analytics.enabled'] === true;
-  const vendorNumber = String(settings['analytics.appleVendorNumber'] ?? '');
+  const vendor = await resolveAppleVendor(sql, { workspaceId, app, settings });
+  const vendorNumber = vendor.vendorNumber;
   const config = await getAppConfig(sql, workspaceId, app.id);
   const { bucketId, source: bucketSource } = await resolvePlayBucket(sql, {
     workspaceId,
@@ -676,9 +697,18 @@ export async function status(
             lastCheckedAt: r.lastCheckedAt,
           })),
           vendorNumberSet: vendorNumber !== '',
+          vendorNumberSource: vendor.source,
+          vendorNumber: vendorNumber === '' ? null : vendorNumber,
         }
       : null,
-    google: apple ? null : { bucketIdSet: bucketId !== null, bucketSource },
+    google: apple
+      ? null
+      : {
+          bucketIdSet: bucketId !== null,
+          bucketSource,
+          bucketId,
+          severalPlayAccounts: await hasSeveralPlayCredentials(sql, workspaceId),
+        },
     sources,
     runs: runs.map((r) => ({
       source: r.source,
