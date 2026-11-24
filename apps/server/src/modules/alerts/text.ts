@@ -302,6 +302,12 @@ const specs: Record<string, (f: Fmt) => Spec> = {
   },
   'review.sync_failed': (f) => {
     const failures = number(f.d.failures);
+    // The scheduled read of competitor reviews: Apple's public feed, so no store credential to check.
+    if (f.d.competitor === true)
+      return {
+        title: ['review.sync_failed.competitor.title', { app: f.app }],
+        body: ['review.sync_failed.competitor.body', { app: f.app, code: f.word(f.d.code) }],
+      };
     return {
       title: ['review.sync_failed.title', { app: f.app }],
       body:

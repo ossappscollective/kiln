@@ -1219,6 +1219,7 @@ export const asoCompetitors = sqliteTable(
     /** The competitor's own schedule for reading its reviews (migration 68): off, daily, weekly; null follows the app. */
     reviewSchedule: text('review_schedule'),
     reviewWeekday: integer('review_weekday'),
+    reviewScheduleAt: integer('review_schedule_at'),
     /** The store id of the newest review seen by the last read, how many reads' reviews were new, failures in a row, backoff, coded error, last scheduled attempt. */
     reviewsLastSeenId: text('reviews_last_seen_id'),
     reviewsNewCount: integer('reviews_new_count').notNull().default(0),

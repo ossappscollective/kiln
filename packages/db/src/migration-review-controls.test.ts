@@ -27,7 +27,7 @@ dbTest('migrations 67 and 68: the review policy and the competitor review schedu
   );
   assert.deepEqual((await migrate(db)).filter((id) => id === 67 || id === 68), [67, 68]);
   const cols = (await tableColumns(db, 'aso_competitors')).map((c) => c.name);
-  for (const name of ['review_schedule', 'review_weekday', 'reviews_last_seen_id', 'reviews_new_count', 'reviews_failures', 'reviews_backoff_until', 'reviews_last_error', 'reviews_attempt_at'])
+  for (const name of ['review_schedule', 'review_weekday', 'review_schedule_at', 'reviews_last_seen_id', 'reviews_new_count', 'reviews_failures', 'reviews_backoff_until', 'reviews_last_error', 'reviews_attempt_at'])
     assert.ok(cols.includes(name), name);
   const [row] = await db.query('SELECT name, review_schedule, reviews_new_count, reviews_failures FROM aso_competitors WHERE id = ?', ['c1']);
   assert.equal(row?.name, 'Rival');

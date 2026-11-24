@@ -39,6 +39,7 @@ import {
   ownReviewStats,
   refreshCompetitorReviews,
 } from './competitor-reviews.ts';
+import { reviewScheduleView, setAppReviewSchedule, setCompetitorOverride } from './competitor-review-schedule.ts';
 import {
   COMPETITOR_IMAGE_REF,
   competitorImageSizeOf,
@@ -615,12 +616,69 @@ export function asoRoutes(ctx: AsoRoutesContext) {
           { workspaceId: ws(c), competitor, actorId: c.get('user').id },
         );
         if (!done.ok) return notFound(c);
-        return c.json({ competitorId: competitor.id, state: done.state, fetched: done.fetched, stored: done.stored, checkedAt: done.checkedAt });
+        return c.json({ competitorId: competitor.id, state: done.state, fetched: done.fetched, stored: done.stored, checkedAt: done.checkedAt, newCount: done.newCount });
       } catch (error) {
         return respond(c, asoFailure(error));
       }
     },
   );
+
+  // ----- the schedule of the reads of competitor reviews (docs/adr/0064): Apple only, off by default ------------------
+  const scheduleBody = z
+    .object({
+      mode: z.enum(['off', 'daily', 'weekly']).optional(),
+      weekday: z.number().int().min(0).max(6).nullable().optional(),
+      timezone: z.string().max(64).nullable().optional(),
+      paused: z.boolean().optional(),
+      maxCompetitors: z.number().int().min(1).max(10).optional(),
+      maxReviews: z.number().int().min(1).max(50).optional(),
+    })
+    .strict();
+  const overrideBody = z
+    .object({ mode: z.enum(['off', 'daily', 'weekly']).nullable(), weekday: z.number().int().min(0).max(6).nullable().optional() })
+    .strict();
+
+  const scheduleResponse = async (c: Context<AppEnv>, appId: string) => {
+    c.header('Cache-Control', 'no-store');
+    return c.json({
+      ...(await reviewScheduleView(db, ws(c), appId, ctx.now())),
+      canEdit: can(c.get('role'), 'aso.write'),
+      notice: 'Apple only: Google Play has no official way to read the reviews of an app you do not own, and Kiln does not scrape it.',
+    });
+  };
+
+  routes.get('/:workspaceId/apps/:id/aso/competitor-review-schedule', needs('aso.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    return scheduleResponse(c, app.id);
+  });
+
+  routes.put('/:workspaceId/apps/:id/aso/competitor-review-schedule', needs('aso.write'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    const body = await parseBody(c, scheduleBody);
+    if (!body.ok) return body.response;
+    const done = await setAppReviewSchedule(db, { workspaceId: ws(c), appId: app.id, actorId: c.get('user').id, body: body.data, at: ctx.now() });
+    if (!done.ok) return bad(c, done.issues);
+    return scheduleResponse(c, app.id);
+  });
+
+  routes.put('/:workspaceId/apps/:id/aso/competitors/:competitorId/review-schedule', needs('aso.write'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
+    if (!competitor) return notFound(c);
+    if (competitor.store !== 'app_store')
+      return c.json(
+        { error: 'play_reviews_not_available', message: 'Google Play has no official way to read the reviews of another app, and Kiln does not scrape it.', ...coded('aso.playReviewsNotAvailable') },
+        409,
+      );
+    const body = await parseBody(c, overrideBody);
+    if (!body.ok) return body.response;
+    const done = await setCompetitorOverride(db, { workspaceId: ws(c), appId: app.id, competitorId: competitor.id, actorId: c.get('user').id, body: body.data, at: ctx.now() });
+    if (!done.ok) return bad(c, done.issues);
+    return scheduleResponse(c, app.id);
+  });
 
   // ----- what can be worked out from what is stored (no store is read) --------------------------------
   routes.get('/:workspaceId/apps/:id/aso/fit', needs('aso.read'), async (c) => {

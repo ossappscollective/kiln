@@ -233,7 +233,8 @@ export const moreDefs = [
     audience: 'reviews.read',
     source: { kind: 'event', events: ['review.sync_failed'] },
     dedupe: 'review.sync_failed:{appId}',
-    dedupeKey: (d) => `review.sync_failed:${d.appId}`,
+    // A failing read of competitor reviews (docs/adr/0064) is its own alert of the app, so it does not hide the failing read of the app's own reviews.
+    dedupeKey: (d) => (d.competitor === true ? `review.sync_failed:${d.appId}:competitor` : `review.sync_failed:${d.appId}`),
     dedupeWindowMs: DAY,
     maxPerHour: 10,
     params: {},
@@ -242,6 +243,7 @@ export const moreDefs = [
       code: str(e.payload.code),
       failures: num(e.payload.failures),
       transient: e.payload.transient === true,
+      competitor: e.payload.source === 'competitor',
     }),
   }),
   def({

@@ -171,6 +171,8 @@
   "review.syncFailed.body": "The review read for {{app}} failed ({{code}}). Check the app’s store credential.",
   "review.syncFailed.body.failures_one": "The review read for {{app}} failed ({{code}}, {{count}} failure in a row). Check the app’s store credential.",
   "review.syncFailed.body.failures_other": "The review read for {{app}} failed ({{code}}, {{count}} failures in a row). Check the app’s store credential.",
+  "review.syncFailed.competitor.body": "The scheduled read of competitor reviews for {{app}} failed ({{code}}). Kiln tries again later; Apple’s public reviews feed needs no credential.",
+  "review.syncFailed.competitor.title": "Reading competitor reviews failed for {{app}}",
   "review.syncFailed.title": "Reading reviews failed for {{app}}",
   "review.unanswered.body.some": "Some reviews across your apps have waited more than {{hours}}. Open the reviews inbox.",
   "review.unanswered.body_one": "{{count}} review across your apps has waited more than {{hours}}. Open the reviews inbox.",

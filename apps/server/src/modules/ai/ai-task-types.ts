@@ -3,6 +3,7 @@ import type { AiAppContext, AiProposal, AiProposalKind, AiTaskId } from '@kiln/c
 import type { Database, Sql } from '@kiln/db';
 import type { ManagedApp } from '../../services/apps.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
+import type { ReviewSendPolicy } from './ai-task-data.ts';
 
 /**
  * What an AI task is (docs/adr/0016-ai-foundation.md). A task is DATA plus three pure-ish functions:
@@ -25,6 +26,8 @@ export type TaskContext = {
   app: ManagedApp;
   /** What the person told the assistant about this app (docs/adr/0024-ai-features.md). Empty when nothing was written. */
   context: AiAppContext;
+  /** What may leave the server about reviews of this app (docs/adr/0064). Absent: text only, redacted. */
+  reviewPolicy?: ReviewSendPolicy;
 };
 
 /** What a task's `persist` step knows about the run it belongs to. */

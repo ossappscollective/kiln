@@ -1,10 +1,10 @@
 import { checkReplyText, type JsonSchema, normalizeReplyText } from '@kiln/connectors';
-import { type AiFlag, type AiReplyProposal, aiLimits } from '@kiln/core';
+import { type AiFlag, type AiReplyProposal, aiLimits, shapeReviewForAi } from '@kiln/core';
 import { replyLimitFor } from '../reviews/replies.ts';
 import { getReview, type StoreKey } from '../reviews/service.ts';
 import { hasPersonalData, looksLikePromise } from './ai-app-context.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
-import { redactPersonal } from './ai-task-data.ts';
+import { DEFAULT_SEND_POLICY } from './ai-task-data.ts';
 import { checkScope, cleanGoal, clip, type PreparedRun, type ReadyTask } from './ai-task-types.ts';
 
 import { coded } from '../../i18n/problem.ts';
@@ -143,6 +143,11 @@ export const reviewReplyTask: ReadyTask = {
     }
     const limit = replyLimitFor(review.store);
     const goal = cleanGoal(scope.goal, aiLimits.maxGoalChars);
+    // What may leave the server is the app's own policy (modules/ai/ai-review-policy.ts); the reviewer's name never does.
+    const shaped = shapeReviewForAi(review, ctx.reviewPolicy ?? DEFAULT_SEND_POLICY, {
+      titleChars: TITLE_CHARS,
+      textChars: 20_000,
+    });
     const input = {
       task: 'review_reply_draft',
       store: review.store === 'googleplay' ? 'google_play' : 'app_store',
@@ -153,14 +158,8 @@ export const reviewReplyTask: ReadyTask = {
       tone,
       limit: { characters: limit },
       review: {
-        ...(review.title
-          ? {
-              title: wrapReviewText(
-                clip(redactPersonal(review.title, review.authorName), TITLE_CHARS),
-              ),
-            }
-          : {}),
-        text: wrapReviewText(redactPersonal(review.body, review.authorName)),
+        ...(shaped.title ? { title: wrapReviewText(shaped.title) } : {}),
+        text: wrapReviewText(shaped.text ?? ''),
       },
       ...(goal ? { developerGoal: goal } : {}),
     };

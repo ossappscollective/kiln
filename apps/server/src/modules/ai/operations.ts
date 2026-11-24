@@ -13,6 +13,7 @@ import {
   acceptBody,
   appContextBody,
   listModelsBody,
+  reviewPolicyBody,
   runTaskBody,
   updateConfigBody,
 } from './routes.ts';
@@ -100,6 +101,8 @@ const configSchema = z.object({
       .describe(
         'The most the estimated cost of a month may reach, in whole cents. 0: no cost cap.',
       ),
+    reviewsToAi: z.boolean().describe('The workspace ceiling for your own reviews going to the provider.'),
+    competitorReviewsToAi: z.boolean().describe('The workspace ceiling for competitor reviews going to the provider.'),
   }),
   defaults: z.object({
     monthlyTokenBudget: z.number().int(),
@@ -109,6 +112,8 @@ const configSchema = z.object({
     priceInputCentsPerMTok: z.number().int(),
     priceOutputCentsPerMTok: z.number().int(),
     monthlyCostCapCents: z.number().int(),
+    reviewsToAi: z.boolean(),
+    competitorReviewsToAi: z.boolean(),
   }),
   overridden: z.array(z.string()),
   providers: z.array(
@@ -195,6 +200,17 @@ const taskSchema = z.object({
   disclosure: z
     .object({ sends: z.array(z.string()), neverSends: z.array(z.string()) })
     .describe('What leaves the server, as sentences to show BEFORE the first use.'),
+});
+
+const reviewSwitch = z.enum(['on', 'off']).nullable();
+const reviewKindState = z.object({ choice: reviewSwitch, allowed: z.boolean(), locked: z.boolean(), reason: z.enum(['workspace_off', 'app_off']).nullable() });
+const reviewPolicySchema = z.object({
+  stored: z.object({ ownReviews: reviewSwitch, competitorReviews: reviewSwitch, detail: z.enum(['full', 'text', 'ratings']), redact: z.boolean() }),
+  effective: z.object({ own: reviewKindState, competitor: reviewKindState, detail: z.enum(['full', 'text', 'ratings']), redact: z.boolean() }),
+  ceiling: z.object({ ownReviews: z.boolean(), competitorReviews: z.boolean() }),
+  updatedAt: z.number().int().nullable(),
+  updatedBy: z.string().nullable(),
+  canEdit: z.boolean(),
 });
 
 const appContextSchema = z.object({
@@ -499,6 +515,74 @@ export const aiOperations: Operation[] = [
     body: appContextBody,
     bodyLimit: 16 * 1024,
     responses: { '200': { description: 'The stored context.', schema: appContextSchema } },
+  },
+  {
+    id: 'getAppAiReviewPrivacy',
+    method: 'get',
+    path: `${W}/apps/{id}/ai/review-privacy`,
+    tags: ['ai'],
+    summary: 'What reviews of an app may be sent to the AI provider, and what is in force',
+    description:
+      '`stored` is the choice of the app (`ownReviews` and `competitorReviews`: `on`, `off` or `null` for the workspace; `detail`: `full`, `text` or `ratings`; `redact`). `ceiling` is the workspace setting, which an app cannot exceed. `effective` is what applies now, with `allowed`, `locked` (the workspace turned it off) and `reason` (`workspace_off` or `app_off`). Contacts no provider.',
+    risk: 'read',
+    access: { action: 'ai.use' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: { '200': { description: 'The policy.', schema: reviewPolicySchema } },
+  },
+  {
+    id: 'updateAppAiReviewPrivacy',
+    method: 'put',
+    path: `${W}/apps/{id}/ai/review-privacy`,
+    tags: ['ai'],
+    summary: 'Change what reviews of an app may be sent to the AI provider',
+    description:
+      'A field you leave out keeps its value; `null` for `ownReviews` or `competitorReviews` follows the workspace. Needs `apps.write`. Audited as `ai.review_policy_update` with who and each field from and to. Past summaries are not deleted. Enforced by the server whenever an AI task is built: `409 ai_reviews_disabled` (the reason is `workspace_off` or `app_off`) or `409 ai_reviews_need_text` when only ratings may go and the task needs text.',
+    risk: 'write',
+    access: { action: 'apps.write' },
+    appScope: { kind: 'param', name: 'id' },
+    body: reviewPolicyBody,
+    bodyLimit: 4 * 1024,
+    responses: { '200': { description: 'The policy now in force.', schema: reviewPolicySchema } },
+  },
+  {
+    id: 'previewAppAiReviewPrivacy',
+    method: 'post',
+    path: `${W}/apps/{id}/ai/review-privacy/preview`,
+    tags: ['ai'],
+    summary: 'Show what would be sent for the first three reviews under the policy in force',
+    description:
+      'The newest three reviews as the AI tasks would send them (stars, title, text cut as the summary cuts them, redacted when `redact` is on, no reviewer name). Returned even when sending is off, so a person can check before turning it on (`allowed` says). Needs `reviews.read`. Reads stored reviews only; no provider is contacted and nothing is stored.',
+    risk: 'read',
+    access: { action: 'reviews.read' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: {
+      '200': {
+        description: 'The sample.',
+        schema: z.object({
+          preview: z.object({
+            allowed: z.boolean(),
+            reason: z.enum(['workspace_off', 'app_off']).nullable(),
+            detail: z.enum(['full', 'text', 'ratings']),
+            redact: z.boolean(),
+            reviews: z.array(z.object({ stars: z.number().int(), title: z.string().optional(), text: z.string().optional(), lang: z.string().optional(), version: z.string().optional(), day: z.string().optional() })),
+            sampleOf: z.number().int(),
+          }),
+        }),
+      },
+    },
+  },
+  {
+    id: 'deleteAppAiSummaries',
+    method: 'delete',
+    path: `${W}/apps/{id}/ai/summaries`,
+    tags: ['ai'],
+    summary: 'Delete the AI summaries of an app',
+    description:
+      'Deletes the stored review summaries and what-to-fix reports of the app (the suggestions made from review text). Tags of single reviews and the AI context stay. Needs `apps.write`. Audited as `ai.summaries_delete` with the count. Cannot be undone.',
+    risk: 'destructive',
+    access: { action: 'apps.write' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: { '200': { description: 'How many were deleted.', schema: z.object({ deleted: z.number().int() }) } },
   },
   {
     id: 'listReviewAiTags',

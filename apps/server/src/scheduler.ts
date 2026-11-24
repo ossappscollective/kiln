@@ -8,6 +8,10 @@ import {
   asoUpkeep,
   queueAsoRefreshes,
 } from './modules/aso/schedule.ts';
+import {
+  type CompetitorReviewsQueueSummary,
+  queueCompetitorReviewReads,
+} from './modules/aso/competitor-review-schedule.ts';
 import { ACTIVE_STATUSES, purgeOrphans } from './modules/ci/runs.ts';
 import { DEFAULT_POLL_MAX_MS, enqueueCiPoll } from './modules/ci/service.ts';
 import { type EasStatusQueueSummary, queueEasStatusSyncs } from './modules/eas/status-sync.ts';
@@ -125,6 +129,11 @@ export type SchedulerOptions = {
   asoPlayEnabled?: boolean;
   aso?: { perTick?: number; perWorkspace?: number; spacingMs?: number; maxJitterMs?: number };
   /**
+   * The scheduled reads of competitor reviews (modules/aso/competitor-review-schedule.ts): each app opts in (off by default), so this only
+   * turns the check on. It queues `aso.competitor_reviews` jobs, bounded and spaced, sharing `limiter`. No loop of its own.
+   */
+  competitorReviews?: { perTick?: number; perWorkspace?: number; spacingMs?: number; maxJitterMs?: number };
+  /**
    * Milliseconds between scheduled analytics syncs of one app (KILN_ANALYTICS_INTERVAL_MINUTES, default 360). 0 or absent turns them
    * off. They queue `analytics.sync` jobs (services/analytics-schedule.ts), bounded and spaced by `analytics`, sharing `limiter`. A
    * workspace must also have turned on its setting `analytics.enabled`. The daily facts are never pruned; old run rows are, hourly.
@@ -186,6 +195,8 @@ export type TickSummary = {
   aso?: AsoQueueSummary;
   /** What the ASO upkeep deleted; set only in a tick where it ran. */
   asoUpkeep?: AsoUpkeepSummary;
+  /** What the scheduled reads of competitor reviews queued (docs/adr/0064); absent when they are not wired. */
+  competitorReviews?: CompetitorReviewsQueueSummary;
   /** What the scheduled analytics syncs queued; absent when they are off. */
   analytics?: AnalyticsQueueSummary;
   /** What the scheduled EAS status reads queued; absent when they are off. */
@@ -475,6 +486,19 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
         });
       } catch (error) {
         report('scheduled ASO refreshes failed', error);
+      }
+    }
+    if (options.competitorReviews) {
+      // Optional work: a failure here must not stop syncs or polls.
+      try {
+        summary.competitorReviews = await queueCompetitorReviewReads(db, {
+          now: at,
+          ...options.competitorReviews,
+          ...(options.jitter ? { jitter: options.jitter } : {}),
+          ...(options.limiter ? { limiter: options.limiter } : {}),
+        });
+      } catch (error) {
+        report('scheduled competitor review reads failed', error);
       }
     }
     if (

@@ -125,7 +125,7 @@ const guides: Record<string, (d: AlertData) => GuideSpec> = {
   'review.sync_failed': (d) => ({
     hint: 'sync',
     primary: openApp(d, 'reviews', 'seeWhy'),
-    secondary: [credentials],
+    secondary: d.competitor === true ? [] : [credentials],
   }),
   'store.sync_failed': (d) => ({
     hint: 'sync',

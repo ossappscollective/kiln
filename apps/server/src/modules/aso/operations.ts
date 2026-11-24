@@ -19,6 +19,40 @@ const asoRankChangeSchema = z.object({
   to: z.number().int().nullable(),
 });
 
+const reviewScheduleShape = z.object({
+  mode: z.enum(['off', 'daily', 'weekly']),
+  weekday: z.number().int().nullable(),
+  timezone: z.string().nullable(),
+});
+const reviewScheduleSchema = z.object({
+  schedule: reviewScheduleShape,
+  paused: z.boolean(),
+  maxCompetitors: z.number().int(),
+  maxReviews: z.number().int(),
+  updatedAt: timestamp.nullable(),
+  updatedBy: z.string().nullable(),
+  nextRunAt: timestamp.nullable(),
+  limits: z.object({ maxCompetitors: z.number().int(), maxReviews: z.number().int() }),
+  competitors: z.array(
+    z.object({
+      competitorId: z.string(),
+      name: z.string(),
+      store: z.string(),
+      supported: z.boolean().describe('false: Google Play, which has no official API for the reviews of another app.'),
+      override: z.object({ mode: z.enum(['off', 'daily', 'weekly']), weekday: z.number().int().nullable() }).nullable(),
+      effective: reviewScheduleShape,
+      lastReadAt: timestamp.nullable(),
+      newCount: z.number().int(),
+      failures: z.number().int(),
+      lastError: z.string().nullable().describe('A code of the last failed read, such as timeout, rate_limited or failed.'),
+      backoffUntil: timestamp.nullable(),
+      nextRunAt: timestamp.nullable(),
+    }),
+  ),
+  canEdit: z.boolean(),
+  notice: z.string(),
+});
+
 const asoKeywordSchema = z.object({
   id: z.string(),
   appId: z.string(),
@@ -474,9 +508,51 @@ export const asoOperations: Draft[] = [
           fetched: z.number().int(),
           stored: z.number().int(),
           checkedAt: timestamp,
+          newCount: z.number().int().describe('Reviews of this read that were not stored before.'),
         }),
       },
     },
+  },
+  {
+    id: 'getAsoCompetitorReviewSchedule',
+    method: 'get',
+    path: `${W}/apps/{id}/aso/competitor-review-schedule`,
+    tags: ['aso'],
+    summary: 'The schedule of the reads of competitor reviews, and the state of each competitor',
+    description:
+      'Off by default. `schedule` is `{ mode: off | daily | weekly, weekday (0 = Sunday), timezone (IANA name, null = UTC) }`; `paused`, `maxCompetitors` and `maxReviews` are the cost guards. Each competitor has its `override` (null follows the app), the `effective` schedule, `lastReadAt`, `newCount` (new reviews in the last read), `failures`, `lastError` (a code such as `timeout`), `backoffUntil` and `nextRunAt`. Apple only: a Google Play competitor has `supported: false`. Reads the database only.',
+    risk: 'read',
+    access: { action: 'aso.read' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: { '200': { description: 'The schedule and the state.', schema: reviewScheduleSchema } },
+  },
+  {
+    id: 'updateAsoCompetitorReviewSchedule',
+    method: 'put',
+    path: `${W}/apps/{id}/aso/competitor-review-schedule`,
+    tags: ['aso'],
+    summary: 'Change the schedule of the reads of competitor reviews (including pause and resume)',
+    description:
+      'A field you leave out keeps its value. `weekly` needs a `weekday`. `paused: true` stops the reads without losing the schedule; `false` resumes. A new schedule waits for its next run instead of reading at once. Needs `aso.write`. Audited as `aso.competitor_review_schedule_update` with each field from and to. The reads themselves go through the job queue with the same limits as the other store reads.',
+    risk: 'write',
+    access: { action: 'aso.write' },
+    appScope: { kind: 'param', name: 'id' },
+    body: z.object({ mode: z.enum(['off', 'daily', 'weekly']).optional(), weekday: z.number().int().min(0).max(6).nullable().optional(), timezone: z.string().max(64).nullable().optional(), paused: z.boolean().optional(), maxCompetitors: z.number().int().min(1).max(10).optional(), maxReviews: z.number().int().min(1).max(50).optional() }).strict(),
+    responses: { '200': { description: 'The schedule now.', schema: reviewScheduleSchema } },
+  },
+  {
+    id: 'updateAsoCompetitorReviewOverride',
+    method: 'put',
+    path: `${W}/apps/{id}/aso/competitors/{competitorId}/review-schedule`,
+    tags: ['aso'],
+    summary: 'Give one competitor its own schedule for reading reviews (or follow the app again)',
+    description:
+      '`mode` is `off`, `daily`, `weekly` (with `weekday`) or `null` to follow the app. A Google Play competitor is refused with `409 play_reviews_not_available`. Needs `aso.write`. Audited.',
+    risk: 'write',
+    access: { action: 'aso.write' },
+    appScope: { kind: 'param', name: 'id' },
+    body: z.object({ mode: z.enum(['off', 'daily', 'weekly']).nullable(), weekday: z.number().int().min(0).max(6).nullable().optional() }).strict(),
+    responses: { '200': { description: 'The schedule now.', schema: reviewScheduleSchema } },
   },
   {
     id: 'searchAsoCompetitors',

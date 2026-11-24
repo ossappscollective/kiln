@@ -287,6 +287,8 @@ export type AiReviewSummaryInsight = {
   /** The newest review read (epoch ms), and the ids of every review read (what each theme cites is among them). */
   latestReviewAt?: number | null;
   reviewIdsUsed?: string[];
+  /** What the app let go to the provider (docs/adr/0064). `ratings`: counts only, so there are no themes. Absent: text. */
+  detail?: 'full' | 'text' | 'ratings';
 };
 
 export type AiReviewClassifyInsight = {

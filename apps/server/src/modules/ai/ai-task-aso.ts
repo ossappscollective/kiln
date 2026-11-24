@@ -728,6 +728,7 @@ export const keywordIdeasFromReviewsTask: ReadyTask = {
       limit: 30,
       titleChars: 60,
       textChars: 200,
+      ...(ctx.reviewPolicy ? { policy: ctx.reviewPolicy } : {}),
     });
     const tracked = (
       await listKeywords(ctx.db, ctx.workspaceId, ctx.app.id, { country, locale: texts.locale })

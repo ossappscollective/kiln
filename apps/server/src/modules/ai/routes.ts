@@ -15,6 +15,7 @@ import { memberRole } from '../../services/accounts.ts';
 import { getApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { getAppContext, setAppContext } from './ai-app-context.ts';
+import { deleteAppSummaries, getAppReviewPolicy, previewReviewPayload, setAppReviewPolicy } from './ai-review-policy.ts';
 import { type AiFailure, updateAiConfig } from './ai-config.ts';
 import { listAiModels } from './ai-models.ts';
 import { getReviewTags } from './ai-review-classes.ts';
@@ -98,6 +99,16 @@ export const appContextBody = z
   })
   .strict();
 
+/** What reviews of an app may go to the AI provider (docs/adr/0064). A field left out keeps its value; null follows the workspace. */
+export const reviewPolicyBody = z
+  .object({
+    ownReviews: z.enum(['on', 'off']).nullable().optional(),
+    competitorReviews: z.enum(['on', 'off']).nullable().optional(),
+    detail: z.enum(['full', 'text', 'ratings']).optional(),
+    redact: z.boolean().optional(),
+  })
+  .strict();
+
 export const updateConfigBody = z
   .object({
     enabled: z.boolean().nullable().optional(),
@@ -129,6 +140,8 @@ export const updateConfigBody = z
     priceInputCentsPerMTok: z.number().int().min(0).max(1_000_000).nullable().optional(),
     priceOutputCentsPerMTok: z.number().int().min(0).max(1_000_000).nullable().optional(),
     monthlyCostCapCents: z.number().int().min(0).max(100_000_000).nullable().optional(),
+    reviewsToAi: z.boolean().nullable().optional(),
+    competitorReviewsToAi: z.boolean().nullable().optional(),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, 'Send at least one setting.');
@@ -324,6 +337,54 @@ export function aiRoutes(ctx: AiRoutesContext) {
     if (!done.ok) return respond(c, done);
     c.header('Cache-Control', 'no-store');
     return c.json({ ...done.stored, canEdit: true });
+  });
+
+  // ----- what reviews of an app may be sent to the provider (docs/adr/0064) ------------------------------
+  const policyView = async (c: Context<AppEnv>, appId: string) => {
+    const policy = await getAppReviewPolicy(db, ws(c), appId);
+    return {
+      stored: policy.stored,
+      effective: policy.effective,
+      ceiling: policy.ceiling,
+      updatedAt: policy.updatedAt,
+      updatedBy: policy.updatedBy,
+      canEdit: can(c.get('role'), 'apps.write'),
+    };
+  };
+
+  routes.get('/:workspaceId/apps/:id/ai/review-privacy', needs('ai.use'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return c.json({ error: 'not_found' }, 404);
+    c.header('Cache-Control', 'no-store');
+    return c.json(await policyView(c, app.id));
+  });
+
+  routes.put('/:workspaceId/apps/:id/ai/review-privacy', needs('apps.write'), small, async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return c.json({ error: 'not_found' }, 404);
+    const body = await parseBody(c, reviewPolicyBody);
+    if (!body.ok) return body.response;
+    const done = await setAppReviewPolicy(db, { workspaceId: ws(c), appId: app.id, actor: actor(c), body: body.data, at: ctx.now() });
+    if (!done.ok) return respond(c, done);
+    c.header('Cache-Control', 'no-store');
+    return c.json(await policyView(c, app.id));
+  });
+
+  /** What would be sent for the first three reviews under the policy in force. Reads stored reviews only: no provider, nothing stored. */
+  routes.post('/:workspaceId/apps/:id/ai/review-privacy/preview', needs('reviews.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return c.json({ error: 'not_found' }, 404);
+    const policy = await getAppReviewPolicy(db, ws(c), app.id);
+    c.header('Cache-Control', 'no-store');
+    return c.json({ preview: await previewReviewPayload(db, ws(c), app.id, policy) });
+  });
+
+  routes.delete('/:workspaceId/apps/:id/ai/summaries', needs('apps.write'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return c.json({ error: 'not_found' }, 404);
+    const deleted = await deleteAppSummaries(db, { workspaceId: ws(c), appId: app.id, actor: actor(c), at: ctx.now() });
+    c.header('Cache-Control', 'no-store');
+    return c.json({ deleted });
   });
 
   /** The tags the assistant gave reviews (advisory labels). Reading them needs only `reviews.read`: no provider is contacted. */

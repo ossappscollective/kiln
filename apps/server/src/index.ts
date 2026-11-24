@@ -20,6 +20,10 @@ import {
   DEFAULT_ANALYTICS_TIMEOUT_MS,
   defaultAnalyticsConnectors,
 } from './modules/analytics/sync.ts';
+import {
+  COMPETITOR_REVIEWS_QUEUE,
+  createCompetitorReviewsHandler,
+} from './modules/aso/competitor-review-schedule.ts';
 import { createAsoSources } from './modules/aso/net.ts';
 import { asoIntervalMs } from './modules/aso/schedule.ts';
 import {
@@ -303,6 +307,8 @@ const worker = createWorker({
       sources: asoSources,
       limits: asoLimits,
     }),
+    // Scheduled reads of the public reviews of followed App Store competitors (off per app until a schedule is set; docs/adr/0064).
+    [COMPETITOR_REVIEWS_QUEUE]: createCompetitorReviewsHandler({ db: database, now: Date.now, sources: asoSources }),
     // Scheduled and background analytics syncs (read-only toward the stores; docs/api/analytics.md).
     [ANALYTICS_SYNC_QUEUE]: createAnalyticsSyncHandler({
       db: database,
@@ -345,8 +351,8 @@ const worker = createWorker({
   },
   // Several jobs at once, quick and useful ones first (release state, listing, reviews), heavy feeds after and never in every slot.
   concurrency: config.jobConcurrency,
-  priority: { [APP_SYNC_QUEUE]: 0, [LISTING_READ_QUEUE]: 0, [REVIEW_SYNC_QUEUE]: 1, [EAS_STATUS_QUEUE]: 2, [ANALYTICS_SYNC_QUEUE]: 3, [ASO_REFRESH_QUEUE]: 3, [ADS_SYNC_QUEUE]: 4 },
-  heavy: [ANALYTICS_SYNC_QUEUE, ASO_REFRESH_QUEUE, ADS_SYNC_QUEUE],
+  priority: { [APP_SYNC_QUEUE]: 0, [LISTING_READ_QUEUE]: 0, [REVIEW_SYNC_QUEUE]: 1, [EAS_STATUS_QUEUE]: 2, [ANALYTICS_SYNC_QUEUE]: 3, [ASO_REFRESH_QUEUE]: 3, [COMPETITOR_REVIEWS_QUEUE]: 3, [ADS_SYNC_QUEUE]: 4 },
+  heavy: [ANALYTICS_SYNC_QUEUE, ASO_REFRESH_QUEUE, COMPETITOR_REVIEWS_QUEUE, ADS_SYNC_QUEUE],
 });
 if (config.worker === 'inline') worker.start();
 
@@ -365,6 +371,7 @@ const scheduler = createScheduler({
   asoIntervalMs: asoLimits.intervalMs,
   asoPlayEnabled: config.asoPlayUnofficialEnabled,
   asoRetentionDays: config.asoRetentionDays,
+  competitorReviews: {},
   limiter: syncLimiter,
   // State alerts, digests and alert upkeep (services/alert-runner.ts).
   alerts: {

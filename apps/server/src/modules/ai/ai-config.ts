@@ -189,6 +189,9 @@ export type AiConfigValues = {
   priceOutputCentsPerMTok: number;
   /** The most the estimated cost of a UTC month may reach, in whole cents. 0: no cost cap. Needs a price to mean anything. */
   monthlyCostCapCents: number;
+  /** The ceiling for what reviews may be sent to the provider: your own, and followed competitors'. An app can only narrow it (docs/adr/0064). */
+  reviewsToAi: boolean;
+  competitorReviewsToAi: boolean;
 };
 export type AiConfigKey = keyof AiConfigValues;
 
@@ -299,6 +302,16 @@ export const aiSettingDefinitions: { [K in AiConfigKey]: Definition<AiConfigValu
     doc: 'The most the ESTIMATED cost of a UTC month may reach, in whole cents (2000 is 20.00). A run that would pass it is refused before anything is sent. Needs a price above to mean anything. 0 (default) means no cost cap; the token budget still applies.',
     default: 0,
     parse: integerIn(0, 100_000_000),
+  },
+  reviewsToAi: {
+    doc: 'The ceiling for your own reviews: when off, no app of this workspace sends review text or ratings to the AI provider, whatever its own setting says. Default on (each app can still turn it off).',
+    default: true,
+    parse: (raw) => (typeof raw === 'boolean' ? ok(raw) : bad('Use true or false.')),
+  },
+  competitorReviewsToAi: {
+    doc: 'The ceiling for the reviews of followed competitors: when off (the default), no app can send them to the AI provider. No task sends them yet; the switch is checked by the one place that builds AI payloads.',
+    default: false,
+    parse: (raw) => (typeof raw === 'boolean' ? ok(raw) : bad('Use true or false.')),
   },
 };
 

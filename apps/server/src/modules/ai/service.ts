@@ -27,6 +27,7 @@ import { normalizeListingValue } from '../listing/drift.ts';
 import { type StagedContext, stageText } from '../publish/staged-changes.ts';
 import { getReviewView, type ReviewReplyContext, saveReplyDraft } from '../reviews/replies.ts';
 import { applyContextRules, getAppContext, withAppContext } from './ai-app-context.ts';
+import { gateReviewTask, getAppReviewPolicy } from './ai-review-policy.ts';
 import {
   type AiActor,
   type AiConfigValues,
@@ -118,6 +119,8 @@ export type AiConfigView = {
     priceInputCentsPerMTok: number;
     priceOutputCentsPerMTok: number;
     monthlyCostCapCents: number;
+    reviewsToAi: boolean;
+    competitorReviewsToAi: boolean;
   };
   defaults: {
     monthlyTokenBudget: number;
@@ -127,6 +130,8 @@ export type AiConfigView = {
     priceInputCentsPerMTok: number;
     priceOutputCentsPerMTok: number;
     monthlyCostCapCents: number;
+    reviewsToAi: boolean;
+    competitorReviewsToAi: boolean;
   };
   overridden: string[];
   providers: {
@@ -214,6 +219,8 @@ export async function getAiConfigView(
       priceInputCentsPerMTok: values.priceInputCentsPerMTok,
       priceOutputCentsPerMTok: values.priceOutputCentsPerMTok,
       monthlyCostCapCents: values.monthlyCostCapCents,
+      reviewsToAi: values.reviewsToAi,
+      competitorReviewsToAi: values.competitorReviewsToAi,
     },
     defaults: {
       monthlyTokenBudget: defaults.monthlyTokenBudget,
@@ -223,6 +230,8 @@ export async function getAiConfigView(
       priceInputCentsPerMTok: defaults.priceInputCentsPerMTok,
       priceOutputCentsPerMTok: defaults.priceOutputCentsPerMTok,
       monthlyCostCapCents: defaults.monthlyCostCapCents,
+      reviewsToAi: defaults.reviewsToAi,
+      competitorReviewsToAi: defaults.competitorReviewsToAi,
     },
     overridden,
     providers,
@@ -352,9 +361,21 @@ async function buildRun(ctx: AiServices, input: RunInput): Promise<Built | AiFai
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return aiFail(404, 'not_found', 'There is no such app.', coded('notFound.app'));
   const context = (await getAppContext(ctx.db, input.workspaceId, app.id)).context;
+  // The one gate for what reviews may leave the server (docs/adr/0064): the workspace ceiling and the app's own choice, before any
+  // review is read for a prompt. The client never decides this, and a stored summary is not returned either while it is off.
+  const reviewPolicy = await getAppReviewPolicy(ctx.db, input.workspaceId, app.id);
+  const gate = gateReviewTask(reviewPolicy.effective, task.id);
+  if (gate) return gate;
 
   const prepared = await task.prepare(
-    { db: ctx.db, now: ctx.now, workspaceId: input.workspaceId, app, context },
+    {
+      db: ctx.db,
+      now: ctx.now,
+      workspaceId: input.workspaceId,
+      app,
+      context,
+      reviewPolicy: { detail: reviewPolicy.effective.detail, redact: reviewPolicy.effective.redact },
+    },
     input.scope,
   );
   if ('ok' in prepared) return prepared;

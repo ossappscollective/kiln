@@ -1,3 +1,4 @@
+import { type ReviewAiDetail, redactReviewText, shapeReviewForAi } from '@kiln/core';
 import type { Sql } from '@kiln/db';
 import type { Review } from '../reviews/service.ts';
 import { listReviews, type ReviewFilter } from '../reviews/service.ts';
@@ -17,20 +18,12 @@ const DAY_MS = 86_400_000;
 export const MAX_PERIOD_DAYS = 180;
 export const DEFAULT_PERIOD_DAYS = 30;
 
-const EMAIL = /[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>()]+/g;
-const LINK = /\bhttps?:\/\/\S+|\bwww\.\S+/gi;
-const PHONE = /(?:\+|\b)\d[\d\s().-]{6,}\d/g;
+/** What may leave the server about a review: set per app (modules/ai/ai-review-policy.ts); this is the safe default. */
+export type ReviewSendPolicy = { detail: ReviewAiDetail; redact: boolean };
+export const DEFAULT_SEND_POLICY: ReviewSendPolicy = { detail: 'text', redact: true };
 
-/** Email addresses, links, phone-like numbers and the reviewer's own name, replaced by a marker. A heuristic: it cannot find every name. */
-export function redactPersonal(text: string, authorName: string | null): string {
-  let out = text.replace(EMAIL, '[email]').replace(LINK, '[link]').replace(PHONE, '[number]');
-  const name = (authorName ?? '').trim();
-  if (Array.from(name).length >= 3) {
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    out = out.replace(new RegExp(escaped, 'gi'), '[name]');
-  }
-  return out;
-}
+/** Emails, links, phone-like numbers, @handles and the reviewer's own name, replaced by a marker. A heuristic: it cannot find every name. */
+export const redactPersonal = redactReviewText;
 
 export type AiReview = {
   /** The id of the review in this tool (what an evidence list is checked against). */
@@ -63,23 +56,29 @@ export const periodDays = (scope: unknown): number => {
   return Number.isInteger(n) && n >= 1 ? Math.min(n, MAX_PERIOD_DAYS) : DEFAULT_PERIOD_DAYS;
 };
 
+/** One review as the model may see it: the shaping (what is kept, what is redacted) is the one function of `@kiln/core`. */
 export const toAiReview = (
   r: Review,
   ref: string,
   titleChars: number,
   textChars: number,
-): AiReview => ({
-  id: r.id,
-  ref,
-  rating: r.rating,
-  title: clip(redactPersonal(r.title ?? '', r.authorName), titleChars),
-  text: clip(redactPersonal(r.body, r.authorName), textChars),
-  language: r.language,
-  version: r.appVersion,
-  day: new Date(r.createdAt).toISOString().slice(0, 10),
-  createdAt: r.createdAt,
-  hasReply: r.developerResponse !== null,
-});
+  policy: ReviewSendPolicy = DEFAULT_SEND_POLICY,
+): AiReview => {
+  const shaped = shapeReviewForAi(r, policy, { titleChars, textChars });
+  return {
+    id: r.id,
+    ref,
+    rating: r.rating,
+    title: clip(shaped.title ?? '', titleChars),
+    text: clip(shaped.text ?? '', textChars),
+    // Kept for the server's own counting (versions, language fallbacks); whether they are SENT is decided where the input is built.
+    language: r.language,
+    version: r.appVersion,
+    day: new Date(r.createdAt).toISOString().slice(0, 10),
+    createdAt: r.createdAt,
+    hasReply: r.developerResponse !== null,
+  };
+};
 
 /**
  * The newest reviews of an app in a period that have some text, up to `limit`, with their aliases. `ratings` narrows by stars.
@@ -101,6 +100,8 @@ export async function loadReviewsForAi(
     language?: string;
     /** How many of `limit` are the most recent LOW-rated reviews (1 and 2 stars) instead of the newest of all: a sample that shows the complaints too. */
     lowest?: number;
+    /** What may leave the server (default: text only, redacted). */
+    policy?: ReviewSendPolicy;
   },
 ): Promise<LoadedReviews> {
   const to = input.now;
@@ -132,7 +133,7 @@ export async function loadReviewsForAi(
         if (input.skipIds?.has(r.id) || taken.has(r.id)) continue;
         if ((r.title ?? '').trim() === '' && r.body.trim() === '') continue;
         taken.add(r.id);
-        reviews.push(toAiReview(r, `r${reviews.length + 1}`, input.titleChars, input.textChars));
+        reviews.push(toAiReview(r, `r${reviews.length + 1}`, input.titleChars, input.textChars, input.policy));
         added += 1;
       }
       if (out.nextCursor === null) break;

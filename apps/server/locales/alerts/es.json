@@ -187,6 +187,8 @@
   "review.syncFailed.body.failures_many": "Falló la lectura de reseñas de {{app}} ({{code}}, {{count}} de fallos seguidos). Comprueba la credencial de la tienda de la app.",
   "review.syncFailed.body.failures_one": "Falló la lectura de reseñas de {{app}} ({{code}}, {{count}} fallo seguido). Comprueba la credencial de la tienda de la app.",
   "review.syncFailed.body.failures_other": "Falló la lectura de reseñas de {{app}} ({{code}}, {{count}} fallos seguidos). Comprueba la credencial de la tienda de la app.",
+  "review.syncFailed.competitor.body": "La lectura programada de las reseñas de los competidores de {{app}} falló ({{code}}). Kiln lo intentará de nuevo más tarde; el feed público de reseñas de Apple no necesita credencial.",
+  "review.syncFailed.competitor.title": "Falló la lectura de las reseñas de los competidores de {{app}}",
   "review.syncFailed.title": "Falló la lectura de reseñas de {{app}}",
   "review.unanswered.body.some": "Hay reseñas de tus apps que llevan esperando más de {{hours}}. Abre la bandeja de reseñas.",
   "review.unanswered.body_many": "{{count}} de reseñas de tus apps llevan esperando más de {{hours}}. Abre la bandeja de reseñas.",

@@ -14,6 +14,10 @@ import {
   DEFAULT_ANALYTICS_TIMEOUT_MS,
 } from '../modules/analytics/sync.ts';
 import {
+  COMPETITOR_REVIEWS_QUEUE,
+  createCompetitorReviewsHandler,
+} from '../modules/aso/competitor-review-schedule.ts';
+import {
   ASO_REFRESH_QUEUE,
   createAsoRefreshHandler,
   DEFAULT_ASO_LIMITS,
@@ -246,6 +250,7 @@ export async function createDemoRuntime(
             sources: seams.aso,
             limits: DEFAULT_ASO_LIMITS,
           }),
+          [COMPETITOR_REVIEWS_QUEUE]: createCompetitorReviewsHandler({ db, now, sources: seams.aso }),
           [ANALYTICS_SYNC_QUEUE]: createAnalyticsSyncHandler({
             db,
             masterKey: config.masterKey,

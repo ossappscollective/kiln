@@ -25,11 +25,13 @@ import { getReviewTags, reviewTextHash, saveReviewTags } from './ai-review-class
 import {
   type AiReview,
   checkRefs,
+  DEFAULT_SEND_POLICY,
   type LoadedReviews,
   loadReviewsForAi,
   periodDays,
   periodRatingStats,
   refMap,
+  type ReviewSendPolicy,
   round1,
   toAiReview,
 } from './ai-task-data.ts';
@@ -79,6 +81,7 @@ Do this:
 2. For each theme give: label (2 to 5 words), kind (issue, praise, request or other), summary (one sentence), refs (the ref of EVERY review in the theme, only refs from the data).
 3. Give overview: two sentences about the overall mood and the biggest problem.
 4. Give changes: when the data has "previous" (the themes of the last summary), one sentence on what is new, gone or bigger now; otherwise an empty string.
+If "mode" is "ratings_only" there are no reviews and no text: answer with an empty themes list and an empty changes, and write the overview from the star counts and the mean stars only.
 Do not invent facts, reviews or numbers. Answer only with the JSON object.`;
 
 const SUMMARY_SCHEMA: JsonSchema = {
@@ -117,6 +120,7 @@ type SummaryFacts = {
   outputLanguage: string | null;
   stats: Awaited<ReturnType<typeof periodRatingStats>>;
   previousAt: number | null;
+  detail: ReviewSendPolicy['detail'];
 };
 
 const KIND_ALIASES: Record<string, AiThemeKind> = {
@@ -187,18 +191,25 @@ export const reviewSummaryTask: ReadyTask = {
     // The route checks the shape of the code; anything else here is ignored (all languages).
     const locale = /^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})?$/.test(rawLocale) ? rawLocale : null;
     const outputLanguage = typeof scope.outputLanguage === 'string' && scope.outputLanguage in OUTPUT_LANGUAGES ? scope.outputLanguage : 'en';
-    const loaded = await loadReviewsForAi(ctx.db, {
-      workspaceId: ctx.workspaceId,
-      appId: ctx.app.id,
-      now: ctx.now(),
-      days,
-      limit,
-      titleChars: 80,
-      textChars: 280,
-      lowest: limit >= 8 ? Math.floor(limit / 4) : 0,
-      ...(locale ? { language: locale } : {}),
-    });
-    if (loaded.reviews.length === 0) {
+    const policy = ctx.reviewPolicy ?? DEFAULT_SEND_POLICY;
+    const ratingsOnly = policy.detail === 'ratings';
+    // Ratings only: no review is read for the prompt at all; the summary is made from the counts (docs/adr/0064).
+    const now = ctx.now();
+    const loaded: LoadedReviews = ratingsOnly
+      ? { window: { days, from: now - days * 86_400_000, to: now }, inPeriod: 0, reviews: [], sampled: { newest: 0, lowest: 0 } }
+      : await loadReviewsForAi(ctx.db, {
+          workspaceId: ctx.workspaceId,
+          appId: ctx.app.id,
+          now,
+          days,
+          limit,
+          titleChars: 80,
+          textChars: 280,
+          lowest: limit >= 8 ? Math.floor(limit / 4) : 0,
+          policy,
+          ...(locale ? { language: locale } : {}),
+        });
+    if (!ratingsOnly && loaded.reviews.length === 0) {
       return aiFail(
         422,
         'no_reviews',
@@ -213,6 +224,15 @@ export const reviewSummaryTask: ReadyTask = {
       to: loaded.window.to,
       ...(locale ? { language: locale } : {}),
     });
+    if (ratingsOnly) {
+      loaded.inPeriod = stats.stars.reduce((n, c) => n + c, 0);
+      if (loaded.inPeriod === 0) {
+        return aiFail(422, 'no_reviews', 'There are no reviews in this period. Sync the reviews, or choose more days.', {
+          field: 'days',
+          ...coded('ai.noReviewsInPeriod'),
+        });
+      }
+    }
     // The themes (labels and shares only, no review text) of the last summary of the same period and language.
     let previous: { day: string; themes: { label: string; kind: string; sharePercent: number }[] } | undefined;
     let previousAt: number | null = null;
@@ -240,31 +260,39 @@ export const reviewSummaryTask: ReadyTask = {
       periodDays: days,
       reviewsInPeriod: loaded.inPeriod,
       ...(previous ? { previous } : {}),
+      ...(ratingsOnly
+        ? {
+            mode: 'ratings_only',
+            starCounts: { '1': stats.stars[0], '2': stats.stars[1], '3': stats.stars[2], '4': stats.stars[3], '5': stats.stars[4] },
+            meanStars: { firstHalf: stats.earlier.average, secondHalf: stats.recent.average },
+          }
+        : {}),
       reviews: loaded.reviews.map((r) => ({
         ref: r.ref,
         stars: r.rating,
         ...(r.title ? { title: r.title } : {}),
         text: r.text,
-        ...(r.language ? { lang: r.language } : {}),
+        ...(policy.detail === 'full' && r.language ? { lang: r.language } : {}),
       })),
     };
-    const facts: SummaryFacts = { loaded, locale, outputLanguage, stats, previousAt };
+    const facts: SummaryFacts = { loaded, locale, outputLanguage, stats, previousAt, detail: policy.detail };
     // `key` is what makes two runs "the same data": the options and the reviews sent (not the last summary), hashed. Never text.
     const key = createHash('sha256')
-      .update(JSON.stringify([days, limit, locale, outputLanguage, loaded.reviews.map((r) => [r.id, r.rating, r.title, r.text])]), 'utf8')
+      .update(JSON.stringify([days, limit, locale, outputLanguage, policy.detail, policy.redact, loaded.reviews.map((r) => [r.id, r.rating, r.title, r.text])]), 'utf8')
       .digest('hex');
     return { input, scope: { days, limit, locale, outputLanguage, key }, facts };
   },
 
   propose(output, run): AiReviewSummaryInsight {
-    const { loaded, locale, outputLanguage, stats, previousAt } = run.facts as SummaryFacts;
+    const { loaded, locale, outputLanguage, stats, previousAt, detail } = run.facts as SummaryFacts;
     const answer = output as { overview?: unknown; themes?: unknown; changes?: unknown };
     const byRef = refMap(loaded.reviews);
     const notes: string[] = [];
     const themes: AiReviewTheme[] = [];
     let dropped = 0;
     let emptyThemes = 0;
-    const list = Array.isArray(answer.themes) ? answer.themes : [];
+    // Counts only: there is nothing a theme could cite, so any the model wrote is ignored.
+    const list = detail === 'ratings' ? [] : Array.isArray(answer.themes) ? answer.themes : [];
     for (const raw of list) {
       const t = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
       const checked = checkRefs(t.refs, byRef);
@@ -295,7 +323,7 @@ export const reviewSummaryTask: ReadyTask = {
       notes.push(
         `${emptyThemes} ${emptyThemes === 1 ? 'theme' : 'themes'} without a valid review to show for it ${emptyThemes === 1 ? 'was' : 'were'} left out.`,
       );
-    if (loaded.inPeriod > loaded.reviews.length)
+    if (detail !== 'ratings' && loaded.inPeriod > loaded.reviews.length)
       notes.push(
         `Analysed ${loaded.reviews.length} of the ${loaded.inPeriod} reviews of the period (the newest ones with text).`,
       );
@@ -328,10 +356,11 @@ export const reviewSummaryTask: ReadyTask = {
         recentCount: stats.recent.count,
       },
       sampled: loaded.sampled ?? { newest: loaded.reviews.length, lowest: 0 },
-      changes: previousAt === null ? '' : paragraphOf(answer.changes, 300),
+      changes: previousAt === null || detail === 'ratings' ? '' : paragraphOf(answer.changes, 300),
       previousAt,
       latestReviewAt: loaded.reviews.reduce<number | null>((m, r) => (m === null || r.createdAt > m ? r.createdAt : m), null),
       reviewIdsUsed: loaded.reviews.map((r) => r.id),
+      detail,
     };
   },
 };
@@ -491,7 +520,7 @@ export const reviewClassifyTask: ReadyTask = {
             ...coded('notFound.review'),
           });
         if ((review.title ?? '').trim() === '' && review.body.trim() === '') continue;
-        pool.push(toAiReview(review, `r${pool.length + 1}`, 80, 240));
+        pool.push(toAiReview(review, `r${pool.length + 1}`, 80, 240, ctx.reviewPolicy));
       }
     } else {
       const loaded = await loadReviewsForAi(ctx.db, {
@@ -502,6 +531,7 @@ export const reviewClassifyTask: ReadyTask = {
         limit: CLASSIFY_POOL,
         titleChars: 80,
         textChars: 240,
+        ...(ctx.reviewPolicy ? { policy: ctx.reviewPolicy } : {}),
       });
       pool = loaded.reviews;
     }
@@ -718,6 +748,7 @@ export const fixNextTask: ReadyTask = {
     if (bad) return bad;
     const days = periodDays(scope.days);
     const limit = clamp(scope.limit, 5, 80, 40);
+    const fullDetail = (ctx.reviewPolicy ?? DEFAULT_SEND_POLICY).detail === 'full';
     const loaded = await loadReviewsForAi(ctx.db, {
       workspaceId: ctx.workspaceId,
       appId: ctx.app.id,
@@ -727,6 +758,7 @@ export const fixNextTask: ReadyTask = {
       titleChars: 80,
       textChars: 280,
       ratings: [1, 2, 3],
+      ...(ctx.reviewPolicy ? { policy: ctx.reviewPolicy } : {}),
     });
     if (loaded.reviews.length === 0) {
       return aiFail(
@@ -763,7 +795,7 @@ export const fixNextTask: ReadyTask = {
         stars: r.rating,
         ...(r.title ? { title: r.title } : {}),
         text: r.text,
-        ...(r.version ? { version: r.version } : {}),
+        ...(fullDetail && r.version ? { version: r.version } : {}),
       })),
     };
     const limitChars =

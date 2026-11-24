@@ -187,6 +187,8 @@
   "review.syncFailed.body.failures_many": "La lecture des avis de {{app}} a échoué ({{code}}, {{count}} d’échecs de suite). Vérifiez l’identifiant d’accès au store de l’application.",
   "review.syncFailed.body.failures_one": "La lecture des avis de {{app}} a échoué ({{code}}, {{count}} échec de suite). Vérifiez l’identifiant d’accès au store de l’application.",
   "review.syncFailed.body.failures_other": "La lecture des avis de {{app}} a échoué ({{code}}, {{count}} échecs de suite). Vérifiez l’identifiant d’accès au store de l’application.",
+  "review.syncFailed.competitor.body": "La lecture planifiée des avis des concurrents de {{app}} a échoué ({{code}}). Kiln réessaiera plus tard ; le flux public d’avis d’Apple n’exige aucun identifiant.",
+  "review.syncFailed.competitor.title": "La lecture des avis des concurrents a échoué pour {{app}}",
   "review.syncFailed.title": "La lecture des avis a échoué pour {{app}}",
   "review.unanswered.body.some": "Des avis sur vos applications attendent depuis plus de {{hours}}. Ouvrez la boîte des avis.",
   "review.unanswered.body_many": "{{count}} d’avis sur vos applications attendent depuis plus de {{hours}}. Ouvrez la boîte des avis.",

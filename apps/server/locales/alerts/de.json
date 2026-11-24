@@ -171,6 +171,8 @@
   "review.syncFailed.body": "Das Lesen der Rezensionen für {{app}} ist fehlgeschlagen ({{code}}). Prüfen Sie die Store-Zugangsdaten der App.",
   "review.syncFailed.body.failures_one": "Das Lesen der Rezensionen für {{app}} ist fehlgeschlagen ({{code}}, {{count}} Fehler in Folge). Prüfen Sie die Store-Zugangsdaten der App.",
   "review.syncFailed.body.failures_other": "Das Lesen der Rezensionen für {{app}} ist fehlgeschlagen ({{code}}, {{count}} Fehler in Folge). Prüfen Sie die Store-Zugangsdaten der App.",
+  "review.syncFailed.competitor.body": "Das geplante Lesen der Rezensionen der Wettbewerber von {{app}} ist fehlgeschlagen ({{code}}). Kiln versucht es später erneut; Apples öffentlicher Rezensions-Feed braucht keine Zugangsdaten.",
+  "review.syncFailed.competitor.title": "Das Lesen der Rezensionen der Wettbewerber ist für {{app}} fehlgeschlagen",
   "review.syncFailed.title": "Das Lesen der Rezensionen für {{app}} ist fehlgeschlagen",
   "review.unanswered.body.some": "Einige Rezensionen zu Ihren Apps warten seit mehr als {{hours}}. Öffnen Sie den Rezensionseingang.",
   "review.unanswered.body_one": "{{count}} Rezension zu Ihren Apps wartet seit mehr als {{hours}}. Öffnen Sie den Rezensionseingang.",

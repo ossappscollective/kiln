@@ -228,6 +228,10 @@ export async function deleteAiData(sql: Sql, workspaceId: string, appId: string)
     workspaceId,
     appId,
   ]);
+  await sql.execute('DELETE FROM ai_app_review_policy WHERE workspace_id = ? AND app_id = ?', [
+    workspaceId,
+    appId,
+  ]);
   await sql.execute('DELETE FROM review_classifications WHERE workspace_id = ? AND app_id = ?', [
     workspaceId,
     appId,

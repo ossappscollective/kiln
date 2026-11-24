@@ -64,29 +64,51 @@ export function parseAppleReviewFeed(json: unknown): FeedReview[] {
 export type StoredCompetitorForReviews = { id: string; appId: string; store: string; externalId: string; country: string };
 
 export type RefreshOutcome =
-  | { ok: true; state: 'read' | 'recent'; fetched: number; stored: number; checkedAt: number }
+  | { ok: true; state: 'read' | 'recent' | 'unchanged'; fetched: number; stored: number; checkedAt: number; newCount: number }
   | { ok: false; reason: 'play_not_available' };
+
+export type RefreshOptions = {
+  /** A scheduled read: when the newest review is the one seen last time nothing is written, and only `maxReviews` of the feed are kept. */
+  scheduled?: boolean;
+  /** The newest reviews of the feed that are looked at and stored (the volume guard of a scheduled read). */
+  maxReviews?: number;
+};
 
 export type ReviewReader = (input: { id: string; country: string }) => Promise<FeedReview[]>;
 
 /** Reads the feed of one Apple competitor (unless it was read in the last 15 minutes), stores what is new or edited, and prunes. */
 export async function refreshCompetitorReviews(
   ctx: { db: Database; now: () => number; read: ReviewReader },
-  input: { workspaceId: string; competitor: StoredCompetitorForReviews; actorId: string },
+  input: { workspaceId: string; competitor: StoredCompetitorForReviews; actorId: string; options?: RefreshOptions },
 ): Promise<RefreshOutcome> {
   const { competitor } = input;
+  const options = input.options ?? {};
   if (competitor.store !== 'app_store') return { ok: false, reason: 'play_not_available' };
   const now = ctx.now();
-  const [row] = await ctx.db.query('SELECT reviews_checked_at AS at FROM aso_competitors WHERE id = ?', [competitor.id]);
+  const [row] = await ctx.db.query('SELECT reviews_checked_at AS at, reviews_last_seen_id AS seen FROM aso_competitors WHERE id = ?', [competitor.id]);
   const last = row?.at === null || row?.at === undefined ? null : Number(row.at);
   if (last !== null && now - last < COMPETITOR_REVIEWS_MIN_INTERVAL_MS)
-    return { ok: true, state: 'recent', fetched: 0, stored: 0, checkedAt: last };
-  const feed = await ctx.read({ id: competitor.externalId, country: competitor.country });
+    return { ok: true, state: 'recent', fetched: 0, stored: 0, checkedAt: last, newCount: 0 };
+  const read = await ctx.read({ id: competitor.externalId, country: competitor.country });
+  // Newest first, then the volume guard: a scheduled read looks at the newest N only.
+  const sorted = read.slice().sort((a, b) => b.at - a.at);
+  const feed = options.maxReviews === undefined ? sorted : sorted.slice(0, Math.max(1, options.maxReviews));
   const cutoff = now - COMPETITOR_REVIEW_RETENTION_DAYS * DAY_MS;
+  const newestId = feed[0]?.id ?? null;
+  // The cursor: the newest review of the last read. A scheduled read that finds the same one has nothing new; it writes nothing but the time.
+  if (options.scheduled && newestId !== null && row?.seen === newestId) {
+    await ctx.db.execute('UPDATE aso_competitors SET reviews_checked_at = ?, reviews_new_count = 0 WHERE id = ?', [now, competitor.id]);
+    return { ok: true, state: 'unchanged', fetched: feed.length, stored: 0, checkedAt: now, newCount: 0 };
+  }
   let stored = 0;
+  let newCount = 0;
   await ctx.db.transaction(async (tx) => {
+    const known = new Set(
+      (await tx.query('SELECT store_review_id AS id FROM aso_competitor_reviews WHERE competitor_id = ?', [competitor.id])).map((r) => String(r.id)),
+    );
     for (const r of feed) {
       if (r.at < cutoff) continue;
+      if (!known.has(r.id)) newCount += 1;
       await tx.execute(
         `INSERT INTO aso_competitor_reviews (id, workspace_id, competitor_id, app_id, country, store_review_id, rating, title, body, app_version, reviewed_at, fetched_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -101,18 +123,21 @@ export async function refreshCompetitorReviews(
          SELECT id FROM aso_competitor_reviews WHERE competitor_id = ? ORDER BY reviewed_at DESC, id DESC LIMIT ${COMPETITOR_REVIEWS_MAX})`,
       [competitor.id, competitor.id],
     );
-    await tx.execute('UPDATE aso_competitors SET reviews_checked_at = ? WHERE id = ?', [now, competitor.id]);
+    await tx.execute(
+      'UPDATE aso_competitors SET reviews_checked_at = ?, reviews_last_seen_id = COALESCE(?, reviews_last_seen_id), reviews_new_count = ? WHERE id = ?',
+      [now, newestId, newCount, competitor.id],
+    );
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
-      actor: { type: 'user', id: input.actorId },
+      actor: options.scheduled ? { type: 'system', id: input.actorId } : { type: 'user', id: input.actorId },
       action: 'aso.competitor_reviews_read',
       target: { type: 'aso_competitor', id: competitor.id },
       // Ids and counts. Never review text.
-      detail: { competitorId: competitor.id, appId: competitor.appId, country: competitor.country, fetched: feed.length, stored },
+      detail: { competitorId: competitor.id, appId: competitor.appId, country: competitor.country, fetched: feed.length, stored, newCount, ...(options.scheduled ? { scheduled: true } : {}) },
       at: now,
     });
   });
-  return { ok: true, state: 'read', fetched: feed.length, stored, checkedAt: now };
+  return { ok: true, state: 'read', fetched: feed.length, stored, checkedAt: now, newCount };
 }
 
 export type CompetitorReviewStats = {
