@@ -1,0 +1,244 @@
+{
+  "version": 1,
+  "scale": 2,
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "shots": [
+    {
+      "name": "01-all-apps",
+      "title": "All apps",
+      "theme": "dark",
+      "file": "01-all-apps-dark.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The portfolio page listing every demo app with its platforms, version and status chips."
+    },
+    {
+      "name": "01-all-apps",
+      "title": "All apps",
+      "theme": "light",
+      "file": "01-all-apps-light.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The portfolio page listing every demo app with its platforms, version and status chips."
+    },
+    {
+      "name": "02-app-overview",
+      "title": "App overview",
+      "theme": "dark",
+      "file": "02-app-overview-dark.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The overview of Demo Notes with the app colour tint, the next step card and the left navigation."
+    },
+    {
+      "name": "02-app-overview",
+      "title": "App overview",
+      "theme": "light",
+      "file": "02-app-overview-light.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The overview of Demo Notes with the app colour tint, the next step card and the left navigation."
+    },
+    {
+      "name": "03-release-prepare",
+      "title": "Prepare release",
+      "theme": "dark",
+      "file": "03-release-prepare-dark.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The Prepare release stepper (Build, Notes, Assets, Review, Confirm) open on the Notes step."
+    },
+    {
+      "name": "03-release-prepare",
+      "title": "Prepare release",
+      "theme": "light",
+      "file": "03-release-prepare-light.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The Prepare release stepper (Build, Notes, Assets, Review, Confirm) open on the Notes step."
+    },
+    {
+      "name": "04-store-listing",
+      "title": "Store listing",
+      "theme": "dark",
+      "file": "04-store-listing-dark.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The store listing text tab with a table of locales and which fields are filled or have staged changes."
+    },
+    {
+      "name": "04-store-listing",
+      "title": "Store listing",
+      "theme": "light",
+      "file": "04-store-listing-light.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The store listing text tab with a table of locales and which fields are filled or have staged changes."
+    },
+    {
+      "name": "05-graphics",
+      "title": "Graphics",
+      "theme": "dark",
+      "file": "05-graphics-dark.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The store listing graphics tab with screenshots and icons for each device size."
+    },
+    {
+      "name": "05-graphics",
+      "title": "Graphics",
+      "theme": "light",
+      "file": "05-graphics-light.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The store listing graphics tab with screenshots and icons for each device size."
+    },
+    {
+      "name": "06-pending-changes",
+      "title": "Pending changes",
+      "theme": "dark",
+      "file": "06-pending-changes-dark.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The pending changes page of Demo Notes with one row expanded to show a before and after diff."
+    },
+    {
+      "name": "06-pending-changes",
+      "title": "Pending changes",
+      "theme": "light",
+      "file": "06-pending-changes-light.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The pending changes page of Demo Notes with one row expanded to show a before and after diff."
+    },
+    {
+      "name": "07-pending-cart",
+      "title": "Pending cart",
+      "theme": "dark",
+      "file": "07-pending-cart-dark.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The pending changes drawer opened from the top bar, with a text row expanded to show its diff."
+    },
+    {
+      "name": "07-pending-cart",
+      "title": "Pending cart",
+      "theme": "light",
+      "file": "07-pending-cart-light.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The pending changes drawer opened from the top bar, with a text row expanded to show its diff."
+    },
+    {
+      "name": "08-reviews-inbox",
+      "title": "Reviews inbox",
+      "theme": "dark",
+      "file": "08-reviews-inbox-dark.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The reviews inbox filtered to Demo Notes, with the app filter chip, status chips and the review list."
+    },
+    {
+      "name": "08-reviews-inbox",
+      "title": "Reviews inbox",
+      "theme": "light",
+      "file": "08-reviews-inbox-light.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The reviews inbox filtered to Demo Notes, with the app filter chip, status chips and the review list."
+    },
+    {
+      "name": "09-insights",
+      "title": "Insights",
+      "theme": "dark",
+      "file": "09-insights-dark.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The Insights overview of Demo Notes with downloads, ratings and rank charts."
+    },
+    {
+      "name": "09-insights",
+      "title": "Insights",
+      "theme": "light",
+      "file": "09-insights-light.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The Insights overview of Demo Notes with downloads, ratings and rank charts."
+    },
+    {
+      "name": "10-aso",
+      "title": "ASO keywords",
+      "theme": "dark",
+      "file": "10-aso-dark.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The Keywords view of Insights with tracked search terms, their ranks and rank history."
+    },
+    {
+      "name": "10-aso",
+      "title": "ASO keywords",
+      "theme": "light",
+      "file": "10-aso-light.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The Keywords view of Insights with tracked search terms, their ranks and rank history."
+    },
+    {
+      "name": "11-builds-eas",
+      "title": "Test builds",
+      "theme": "dark",
+      "file": "11-builds-eas-dark.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The test builds view of Demo Notes with builds from CI and ways to install them on a device."
+    },
+    {
+      "name": "11-builds-eas",
+      "title": "Test builds",
+      "theme": "light",
+      "file": "11-builds-eas-light.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The test builds view of Demo Notes with builds from CI and ways to install them on a device."
+    },
+    {
+      "name": "12-settings-appearance",
+      "title": "App appearance",
+      "theme": "dark",
+      "file": "12-settings-appearance-dark.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The Appearance section of the app settings with the app tint and a live preview."
+    },
+    {
+      "name": "12-settings-appearance",
+      "title": "App appearance",
+      "theme": "light",
+      "file": "12-settings-appearance-light.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The Appearance section of the app settings with the app tint and a live preview."
+    },
+    {
+      "name": "13-app-switcher",
+      "title": "App switcher",
+      "theme": "dark",
+      "file": "13-app-switcher-dark.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The Go to an app dialog opened with Cmd+K, a searchable list of apps."
+    },
+    {
+      "name": "13-app-switcher",
+      "title": "App switcher",
+      "theme": "light",
+      "file": "13-app-switcher-light.png",
+      "width": 2880,
+      "height": 1800,
+      "alt": "The Go to an app dialog opened with Cmd+K, a searchable list of apps."
+    }
+  ]
+}
