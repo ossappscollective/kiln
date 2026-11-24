@@ -314,6 +314,8 @@ export type AssetDiffView = {
   readAt: number;
   commit: string | null;
   version: StoreImagesView['version'];
+  /** `no_repository`: the app has no linked repository, so there is nothing local to compare (every store image is `only_store`). */
+  repoStatus: 'ok' | 'no_repository';
   sets: AssetDiffSet[];
   totals: AssetCompareTotals;
   unplaced: number;

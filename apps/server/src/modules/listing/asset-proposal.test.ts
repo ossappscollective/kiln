@@ -6,7 +6,7 @@ import type { Exchange } from '../../services/safe-fetch.ts';
 import { iosListing, playListing } from './test-helpers.ts';
 import { bootStaged, IPHONE_65, png, type StagedBoot } from '../publish/test-helpers.ts';
 import { clearStoreImageCaches } from './store-images.ts';
-import { isCommitSha } from './asset-repo.ts';
+import { clearAssetIndexes, isCommitSha } from './asset-repo.ts';
 import { resetProposalSummaryCache } from './asset-proposal-summary.ts';
 
 /**
@@ -87,11 +87,11 @@ function versioned(t: StagedBoot, trees: Record<string, Files>) {
 
 async function boot(
   db: Parameters<typeof bootStaged>[0],
-  options: { trees?: Record<string, Files>; store?: Record<string, string>; releases?: 'previous' | 'none' | 'locked' } = {},
+  options: { trees?: Record<string, Files>; store?: Record<string, string>; releases?: 'previous' | 'none' | 'locked'; deadlineMs?: number } = {},
 ) {
   clearStoreImageCaches();
   const net = cdn();
-  const t = await bootStaged(db, { extra: { assetSync: { net: { resolve: async () => [{ address: '93.184.216.34', family: 4 as const }], exchange: net.exchange } } } });
+  const t = await bootStaged(db, { extra: { assetSync: { ...(options.deadlineMs ? { compareDeadlineMs: options.deadlineMs } : {}), net: { resolve: async () => [{ address: '93.184.216.34', family: 4 as const }], exchange: net.exchange } } } });
   versioned(t, options.trees ?? { [B0]: metadata(), [B1]: metadata(), [HEAD]: metadata() });
   const app = await t.addApp('ios');
   t.readStores.ios.listing = iosListing({
@@ -416,4 +416,59 @@ dbTest('summary: an app without a repository is unavailable and nothing is read;
   assert.equal((await t.call(outsider, 'GET', `/apps/${app}/release/asset-proposal/summary`)).status, 404);
   const viewer = await t.addMember('viewer');
   assert.equal((await t.call(viewer, 'GET', `/apps/${app}/release/asset-proposal/summary`)).status, 200);
+});
+
+const never = <T>() => new Promise<T>(() => undefined);
+
+dbTest('staging returns promptly with one result per item (a success is not slowed by the bounds)', async (db) => {
+  const b = await boot(db, { trees: CHANGED });
+  const started = Date.now();
+  const done = await b.stage({ itemIds: ['text:en-US:promotional_text', 'graphics:en-US:screenshot:iphone_6_5'] });
+  assert.equal(done.status, 200, done.text);
+  assert.ok(Date.now() - started < 10_000);
+  assert.deepEqual(done.body.results, [
+    { id: 'text:en-US:promotional_text', status: 'staged' },
+    { id: 'graphics:en-US:screenshot:iphone_6_5', status: 'staged' },
+  ]);
+  assert.ok(done.body.proposal, 'what is left comes with the answer');
+});
+
+dbTest('a repository that hangs while the proposal is recomputed for staging: 504 stage_timeout, nothing is left locked, staging works again', async (db) => {
+  const b = await boot(db, { trees: CHANGED, deadlineMs: 1500 });
+  assert.equal((await b.get()).status, 200, 'the proposal is read (and cached) first');
+  // Staging recomputes the proposal; with the index of the commits forgotten that is a repository read, and the repository does not answer.
+  clearAssetIndexes();
+  const real = { files: b.t.repo.listFiles, entries: b.t.repo.listBlobEntries, commit: b.t.repo.resolveCommit };
+  b.t.repo.listFiles = () => never();
+  b.t.repo.listBlobEntries = () => never();
+  b.t.repo.resolveCommit = () => never();
+  const started = Date.now();
+  const slow = await b.stage({ itemIds: ['graphics:en-US:screenshot:iphone_6_5'] });
+  assert.equal(slow.status, 504, slow.text);
+  assert.equal(slow.body.error, 'stage_timeout');
+  assert.equal(slow.body.code, 'assetProposal.stageTimeout');
+  assert.ok(Date.now() - started < 8000, 'the request did not stay open');
+  Object.assign(b.t.repo, { listFiles: real.files, listBlobEntries: real.entries, resolveCommit: real.commit });
+  const again = await b.stage({ itemIds: ['text:en-US:promotional_text'] });
+  assert.equal(again.status, 200, again.text);
+  assert.equal(again.body.results[0].status, 'staged');
+});
+
+dbTest('a proposal read that hangs: 504 compare_timeout (the card shows Try again)', async (db) => {
+  const b = await boot(db, { trees: CHANGED, deadlineMs: 150 });
+  b.t.repo.resolveCommit = () => never();
+  b.t.repo.listFiles = () => never();
+  b.t.repo.listBlobEntries = () => never();
+  const res = await b.get();
+  assert.equal(res.status, 504, res.text);
+  assert.equal(res.body.error, 'compare_timeout');
+});
+
+dbTest('a locked App Store app answers 409 metadata_locked at once, never after a wait', async (db) => {
+  const b = await boot(db, { trees: CHANGED, releases: 'locked' });
+  const started = Date.now();
+  const res = await b.stage({ itemIds: ['text:en-US:promotional_text'] });
+  assert.equal(res.status, 409);
+  assert.equal(res.body.error, 'metadata_locked');
+  assert.ok(Date.now() - started < 5000);
 });

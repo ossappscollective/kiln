@@ -20,6 +20,7 @@ import type { Failure } from '../../services/repositories.ts';
 import type { AssetView } from './asset-index.ts';
 import type { AssetHandle, AssetsContext } from './asset-repo.ts';
 import { openAssets } from './asset-repo.ts';
+import { CHECKSUM_BUDGET_MS } from './compare-deadline.ts';
 import { getStoreImages, type StoreImagesContext, storeSideOf } from './store-images.ts';
 
 /**
@@ -103,6 +104,8 @@ export async function buildAssetDiff(
     gate?: () => Failure | undefined;
     /** Compare the repository at this commit (a full sha) instead of the branch tip (the release asset proposal). */
     commit?: string;
+    /** How long the checksum reads may take before the rest is compared by size only (default `CHECKSUM_BUDGET_MS`). */
+    checksumBudgetMs?: number;
   },
 ): Promise<DiffOutcome> {
   const { app } = input;
@@ -147,6 +150,7 @@ export async function buildAssetDiff(
 
   // Reading repository files for their checksums: only where the store has one to compare with, within a budget.
   let budget = ASSET_SYNC_LIMITS.maxPullBytes;
+  const stopAt = Date.now() + (input.checksumBudgetMs ?? CHECKSUM_BUDGET_MS);
   let reads = 0;
   let skipped = 0;
   const sets: AssetDiffSet[] = [];
@@ -159,7 +163,7 @@ export async function buildAssetDiff(
       const sf = storeFiles[i] as StoreImageFile;
       const rf = files[i] as RepoSideFile;
       if (sf.checksum === null || rf.bytes === null) continue;
-      if (reads >= 60 || rf.bytes > budget) {
+      if (reads >= 60 || rf.bytes > budget || Date.now() > stopAt) {
         skipped++;
         continue;
       }
@@ -198,6 +202,7 @@ export async function buildAssetDiff(
     readAt: store.view.readAt,
     commit: view.commit,
     version: store.view.version,
+    repoStatus: view.status === 'ok' ? 'ok' : 'no_repository',
     sets,
     totals,
     unplaced: store.view.unplaced + repo.unplaced,

@@ -35,6 +35,7 @@ import {
 } from '../publish/store-draft.ts';
 import { buildAssetDiff } from './asset-diff.ts';
 import { mountAssetProposalRoutes } from './asset-proposal-routes.ts';
+import { withinDeadline } from './compare-deadline.ts';
 import { storeSeed } from './staged-store-seed.ts';
 import { pullStoreImages } from './asset-pull.ts';
 import { IMAGE_TYPES, matchesEtag, safeImageHeaders } from './asset-routes.ts';
@@ -67,6 +68,8 @@ export type AssetSyncRoutesContext = {
   fetchLimiter?: TestLimiter;
   /** Uploads, inspections and fixes, per workspace (default 60 a minute). */
   uploadLimiter?: TestLimiter;
+  /** The time limit of a comparison with the store (`GET assets/diff`, the release asset proposal): default 25 seconds, tests make it short. */
+  compareDeadlineMs?: number;
 };
 
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
@@ -265,13 +268,17 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
   routes.get('/:workspaceId/apps/:id/assets/diff', needs('listing.read'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
-    const done = await buildAssetDiff(sync, {
-      workspaceId: ws(c),
-      app,
-      actor: actor(c),
-      fresh: c.req.query('fresh') === '1',
-      gate: gate(c),
-    });
+    // The step of Prepare release compares on a click, whatever the `compareMedia` setting says: this route never reads that setting.
+    const done = await withinDeadline(
+      buildAssetDiff(sync, {
+        workspaceId: ws(c),
+        app,
+        actor: actor(c),
+        fresh: c.req.query('fresh') === '1',
+        gate: gate(c),
+      }),
+      ctx.compareDeadlineMs,
+    );
     if (!done.ok) return respond(c, done);
     c.header('Cache-Control', 'no-store');
     return c.json({ diff: done.diff, cachedStore: done.cachedStore });
@@ -566,7 +573,7 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
   );
 
   // The release asset proposal (docs/adr/0063-release-asset-proposal.md): the repository's changes since the previous release, staged on request.
-  mountAssetProposalRoutes(routes, { ctx: { sync, staged }, needs, gate, respond });
+  mountAssetProposalRoutes(routes, { ctx: { sync, staged }, needs, gate, respond, deadlineMs: ctx.compareDeadlineMs });
 
   return routes;
 }

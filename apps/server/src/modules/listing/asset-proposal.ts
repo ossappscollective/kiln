@@ -51,6 +51,7 @@ import {
 import { type AssetSyncContext, buildAssetDiff } from './asset-diff.ts';
 import type { AssetView } from './asset-index.ts';
 import { isCommitSha, openAssets } from './asset-repo.ts';
+import { STAGE_BUDGET_MS } from './compare-deadline.ts';
 import {
   fieldKey,
   flattenListing,
@@ -636,7 +637,7 @@ const hasIssues = (view: AssetProposalView, id: string): boolean => view.changes
 
 export async function stageProposal(
   ctx: ProposalContext,
-  input: { workspaceId: string; appId: string; query: ProposalQuery; itemIds: string[]; acceptIssues: boolean; actor: Actor; gate?: () => Failure | undefined },
+  input: { workspaceId: string; appId: string; query: ProposalQuery; itemIds: string[]; acceptIssues: boolean; actor: Actor; gate?: () => Failure | undefined; budgetMs?: number },
 ): Promise<{ ok: true; results: StageResult[] } | Failure> {
   const { workspaceId } = input;
   const db = ctx.staged.db;
@@ -654,7 +655,13 @@ export async function stageProposal(
     return failure(409, 'has_issues', 'Some of the selected items have errors. Confirm them to stage anyway.', { itemIds: bad, ...coded('assetProposal.hasIssues') });
   const results: StageResult[] = [];
   const staged = view.alreadyStaged;
+  const stopAt = Date.now() + (input.budgetMs ?? STAGE_BUDGET_MS);
   for (const id of ids) {
+    // Past the budget the rest is answered at once: the person sees which items were not staged and presses the button again for them.
+    if (Date.now() > stopAt) {
+      results.push({ id, status: 'failed', code: 'stage_timeout' });
+      continue;
+    }
     const item = view.changes.find((c) => c.id === id);
     if (!item) {
       const already = staged.find((s) => s.id === id);

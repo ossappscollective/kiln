@@ -11,6 +11,7 @@ import {
   stageProposal,
 } from './asset-proposal.ts';
 import { getProposalSummary } from './asset-proposal-summary.ts';
+import { AFTER_STAGE_DEADLINE_MS, STAGE_BUDGET_MS, STAGE_DEADLINE_MS, withinDeadline, withinStageDeadline } from './compare-deadline.ts';
 
 /**
  * The routes of the release asset proposal (docs/api/release-asset-proposal.md). Mounted by `assetSyncRoutes`, which owns the contexts and the
@@ -21,6 +22,8 @@ export type ProposalRoutesDeps = {
   needs: (action: 'listing.read' | 'changesets.write') => (c: Context<AppEnv>, next: Next) => Promise<unknown>;
   gate: (c: Context<AppEnv>) => () => Failure | undefined;
   respond: (c: Context<AppEnv>, f: Failure) => Response;
+  /** The time limit of the proposal and stage reads (default `COMPARE_DEADLINE_MS`; tests make it short). */
+  deadlineMs?: number | undefined;
 };
 
 const label = z.string().max(40).refine(isReleaseLabel, 'A version or track name.');
@@ -46,7 +49,7 @@ const queryOf = (v: { version?: string | null | undefined; track?: string | null
 });
 
 export function mountAssetProposalRoutes(routes: Hono<AppEnv>, deps: ProposalRoutesDeps): void {
-  const { ctx, needs, gate, respond } = deps;
+  const { ctx, needs, gate, respond, deadlineMs } = deps;
   const ws = (c: Context<AppEnv>) => c.req.param('workspaceId') ?? '';
   const appId = (c: Context<AppEnv>) => c.req.param('id') ?? '';
   const actor = (c: Context<AppEnv>) => ({ type: 'user' as const, id: c.get('user').id });
@@ -60,7 +63,7 @@ export function mountAssetProposalRoutes(routes: Hono<AppEnv>, deps: ProposalRou
     });
     if (!parsed.success)
       return c.json({ error: 'invalid_request', issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) }, 400);
-    const done = await getAssetProposal(ctx, { workspaceId: ws(c), appId: appId(c), query: queryOf(parsed.data), actor: actor(c), gate: gate(c) });
+    const done = await withinDeadline(getAssetProposal(ctx, { workspaceId: ws(c), appId: appId(c), query: queryOf(parsed.data), actor: actor(c), gate: gate(c) }), deadlineMs);
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ proposal: done.view }) : respond(c, done);
   });
@@ -75,18 +78,29 @@ export function mountAssetProposalRoutes(routes: Hono<AppEnv>, deps: ProposalRou
   routes.post(`${base}/stage`, needs('changesets.write'), async (c) => {
     const body = await parseBody(c, stageBody);
     if (!body.ok) return body.response;
-    const done = await stageProposal(ctx, {
-      workspaceId: ws(c),
-      appId: appId(c),
-      query: queryOf(body.data),
-      itemIds: body.data.itemIds,
-      acceptIssues: body.data.acceptIssues === true,
-      actor: actor(c),
-      gate: gate(c),
-    });
+    // Bounded as a whole (a hanging repository or store must not keep the button busy for ever): the item loop stops at its budget and
+    // answers the items it did not reach `failed` / `stage_timeout`; the request stops at the deadline with `504 stage_timeout`.
+    const stageMs = deadlineMs === undefined ? STAGE_DEADLINE_MS : deadlineMs * 2;
+    const done = await withinStageDeadline(
+      stageProposal(ctx, {
+        workspaceId: ws(c),
+        appId: appId(c),
+        query: queryOf(body.data),
+        itemIds: body.data.itemIds,
+        acceptIssues: body.data.acceptIssues === true,
+        actor: actor(c),
+        gate: gate(c),
+        budgetMs: deadlineMs === undefined ? STAGE_BUDGET_MS : Math.floor(stageMs * 0.75),
+      }),
+      stageMs,
+    );
     if (!done.ok) return respond(c, done);
-    // The proposal as it stands now (what is left, and what is in the cart), so the card needs no second request.
-    const after = await getAssetProposal(ctx, { workspaceId: ws(c), appId: appId(c), query: queryOf(body.data), actor: actor(c), gate: gate(c) });
+    // The proposal as it stands now (what is left, and what is in the cart), so the card needs no second request. Left out when it is slow:
+    // the staged items are saved either way and the card reads again.
+    const after = await withinDeadline(
+      getAssetProposal(ctx, { workspaceId: ws(c), appId: appId(c), query: queryOf(body.data), actor: actor(c), gate: gate(c) }),
+      deadlineMs === undefined ? AFTER_STAGE_DEADLINE_MS : deadlineMs,
+    );
     c.header('Cache-Control', 'no-store');
     return c.json({ results: done.results, ...(after.ok ? { proposal: after.view } : {}) });
   });
