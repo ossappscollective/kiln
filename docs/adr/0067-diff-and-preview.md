@@ -40,3 +40,6 @@ Where they are wired:
 - A release field has no "before" (no store value is stored for it); a graphics set has none when no store read is remembered (the in memory view of the Graphics tab); both are said in words.
 - The staged-text compare in other places (listing editor, staged view) is out of scope.
 - Unverified without a browser: diff colours in both themes, swipe/fade/difference rendering, the 640px stacking, focus order inside the dialogs.
+- The per-app Pending changes page (`PendingChanges`) has the same row preview (chevron per row, collapsed by default; "Show all previews" / "Hide all previews" per platform group). Staged rows go through their
+  cart items with the shared `CartRowPreview`; the other kinds (pushed draft, draft release, in review, approved, rollout step) read `GET /apps/{id}/pending/detail` and show what they contain and what happens next,
+  never a text or a hash. An unknown kind says "No preview for this kind of item". A graphics row shows its first thumbnails inline; graphics labels name the language. Not viewed in a browser.

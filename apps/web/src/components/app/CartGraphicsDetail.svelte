@@ -1,12 +1,13 @@
 <!--
   CartGraphicsDetail: what a staged set of graphics is in the pending cart: thumbnails of the files this server holds for it (the
   uploads), and "before -> after" in images (the images the last store read held for the set, when there was one, then the staged
-  count). Props: files (after), before (number or null), thumbs (addresses of up to four uploaded files).
+  count). Props: files (after), before (number or null), thumbs (addresses of up to four uploaded files), line? (false: only the thumbnails,
+  for a row whose own text already says the count).
 -->
 <script lang="ts">
   import { t } from '../../lib/i18n/t.ts';
 
-  let { files, before = null, thumbs = [] }: { files: number; before?: number | null | undefined; thumbs?: string[] | undefined } = $props();
+  let { files, before = null, thumbs = [], line = true }: { files: number; before?: number | null | undefined; thumbs?: string[] | undefined; line?: boolean | undefined } = $props();
 </script>
 
 <div class="graphics">
@@ -15,9 +16,11 @@
       {#each thumbs as src (src)}<li><img {src} alt="" loading="lazy" width="28" height="48" /></li>{/each}
     </ul>
   {/if}
-  <p class="line">
-    {#if before !== null}{t('app:cart.graphicsDiff', { before, after: files })}{:else}{t('app:cart.files', { count: files })}{/if}
-  </p>
+  {#if line}
+    <p class="line">
+      {#if before !== null}{t('app:cart.graphicsDiff', { before, after: files })}{:else}{t('app:cart.files', { count: files })}{/if}
+    </p>
+  {/if}
 </div>
 
 <style>

@@ -5,6 +5,7 @@
   each with its state, its problems (an error blocks the step it waits for and is shown in red), what happens next, a link to change
   it and, for staged items, a discard (our own database only: the same calls as the staged tray). At the top, "Review and publish all"
   opens the plan dialog; it is disabled with the reason (role, the server's switch and how to turn it on, nothing waiting); with errors it stays enabled and lists what blocks, each with "Show it" (the server plans per step, so a blocked item cannot be left out and nothing is published). The page title comes from the app header, so no heading is drawn here.
+  Every row has an expand chevron (collapsed by default, `PendingItemPreview`: the cart's shared preview for staged items, facts for the others) and each platform group "Show all previews" / "Hide all previews"; a graphics row shows its first thumbnails inline.
   Reads stored state only: no store is contacted until the person opens the plan.
   Props: api, workspaceId, role, members (the app records in scope), 
   compact? (the stepper: no hint line), list? (false: only the line and the button, no items; the stepper's last step), headless?
@@ -16,6 +17,7 @@
   import { type Role, can } from '@kiln/core';
   import { tick, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { type Expanded, PREVIEW_KEYS, expansionOf, noneExpanded, pruneExpanded, toggleAll, toggleExpanded } from '../../lib/cart-preview.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { formatList } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
@@ -39,6 +41,8 @@
     totalsLine,
     warningsOf,
   } from '../../lib/pending.ts';
+  import { type CartRow, toRows } from '../../lib/pending-cart.ts';
+  import { itemKey, needsCart, thumbsOf } from '../../lib/pending-preview.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { canStage, stagingError } from '../../lib/staged.ts';
@@ -46,6 +50,7 @@
   import { canSubmit } from '../../lib/store-submit.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
+  import CartGraphicsDetail from '../app/CartGraphicsDetail.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -57,6 +62,7 @@
   import StatusPill from '../ui/StatusPill.svelte';
   import T from '../ui/T.svelte';
   import PublishDialog from '../publish/PublishDialog.svelte';
+  import PendingItemPreview from './PendingItemPreview.svelte';
 
   let {
     api,
@@ -93,6 +99,9 @@
   let announcement = $state('');
   let now = $state(Date.now());
   let seq = 0;
+  /** The rows whose preview is open (collapsed by default), and the app's cart rows the staged items are previewed through (read lazily, stored state only). */
+  let expanded = $state<Expanded>(noneExpanded);
+  let carts = $state<Record<string, CartRow[] | 'failed'>>({});
 
   const ids = $derived(members.map((m) => m.id));
   const views = $derived(members.map((m): PendingView | null => pendingStore.view(m.id)));
@@ -139,6 +148,34 @@
             ? t('publish:pending.pill.unknown')
             : '',
   );
+
+  const cartRowsOf = (appId: string): CartRow[] | null => {
+    const c = carts[appId];
+    return Array.isArray(c) ? c : null;
+  };
+  async function loadCart(appId: string) {
+    try {
+      carts[appId] = toRows(appId, (await api.appPendingCart(workspaceId, appId)).cart.items);
+    } catch {
+      carts[appId] = 'failed';
+    }
+  }
+  /** The cart rows give the thumbnails of a collapsed graphics row and the ids and versions of every staged preview: read again whenever the view is. */
+  let cartsFor = '';
+  $effect(() => {
+    const wanted = list ? groups.filter((g) => g.platform.items.some(needsCart)).map((g) => g.appId) : [];
+    const key = `${workspaceId}|${views.map((v) => v?.generatedAt ?? 0).join(',')}|${wanted.join(',')}`;
+    if (key === cartsFor) return;
+    cartsFor = key;
+    untrack(() => {
+      for (const id of wanted) void loadCart(id);
+    });
+  });
+  const everyRow = $derived(groups.flatMap((g) => g.platform.items.map((i) => ({ key: itemKey(g.appId, i) }))));
+  $effect(() => {
+    const kept = pruneExpanded(untrack(() => expanded), everyRow);
+    if (kept !== untrack(() => expanded)) expanded = kept;
+  });
 
   async function load() {
     const mine = ++seq;
@@ -334,11 +371,20 @@
     {#each groups as g (g.appId + g.platform.platform)}
       {@const app = members.find((m) => m.id === g.appId)}
       {@const count = stagedCount(g.platform.items)}
+      {@const rows = g.platform.items.map((i) => ({ key: itemKey(g.appId, i) }))}
+      {@const allOpen = expansionOf(expanded, rows) === 'all'}
       <section class="group card" aria-label={t('publish:pending.groupAria', { platform: platformLabel(g.platform.platform) })}>
         <div class="group-head">
           {#if members.length > 1 || groups.length > 1}<PlatformBadge platform={g.platform.platform} tinted />{/if}
           <span class="muted">{totalsLine(g.platform.totals)}</span>
           <span class="spacer"></span>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={allOpen ? 'chevron-up' : 'chevron-down'}
+            aria-label={allOpen ? t('publish:pending.preview.hideAllFor', { platform: platformLabel(g.platform.platform) }) : t('publish:pending.preview.showAllFor', { platform: platformLabel(g.platform.platform) })}
+            onclick={() => (expanded = toggleAll(expanded, rows))}
+          >{allOpen ? t('publish:pending.preview.hideAll') : t('publish:pending.preview.showAll')}</Button>
           {#if mayEdit && count > 0 && app}
             {#if confirming === `clear/${g.appId}`}
               <span class="confirm" role="group" aria-label={t('publish:pending.clearAria')}>
@@ -361,13 +407,28 @@
                 {@const warnings = warningsOf(item)}
                 {@const edit = editHref(item, g.appId, null)}
                 {@const key = `${g.appId}/${item.id}`}
+                {@const open = expanded.has(key)}
+                {@const thumbs = thumbsOf(item, cartRowsOf(g.appId))}
                 <li class="item" id={itemAnchor(g.appId, item.id)} tabindex="-1" data-testid="pending-item">
                   <div class="main">
                     <p class="name">
+                      <button
+                        type="button"
+                        class="ghost icon sm"
+                        aria-expanded={open}
+                        aria-controls="{uid}-{key}-p"
+                        aria-label={t(PREVIEW_KEYS[open ? 'collapse' : 'expand'], { title: item.label })}
+                        onclick={() => (expanded = toggleExpanded(expanded, key))}
+                      >
+                        <Icon name={open ? 'chevron-up' : 'chevron-down'} />
+                      </button>
                       <strong>{item.label}</strong>
                       <Badge tone={badge.tone} icon={item.state === 'invalid' ? 'alert-triangle' : undefined}>{badge.label}</Badge>
                       {#if item.since !== null}<span class="muted when">{t('publish:pending.since', { when: timeAgo(item.since, now) })}</span>{/if}
                     </p>
+                    {#if item.kind === 'asset_set' && thumbs.thumbs.length > 0}
+                      <CartGraphicsDetail files={item.counts.files ?? 0} before={thumbs.before} thumbs={thumbs.thumbs} line={false} />
+                    {/if}
                     {#each errors as p (p.code + p.message + (p.item ?? ''))}
                       <p class="problem bad"><Icon name="x-circle" size={14} /> {p.message}</p>
                     {/each}
@@ -391,6 +452,18 @@
                         {/if}
                       {/if}
                     </div>
+                  {/if}
+                  {#if open}
+                    <PendingItemPreview
+                      {api}
+                      {workspaceId}
+                      appId={g.appId}
+                      {item}
+                      cartRows={cartRowsOf(g.appId)}
+                      cartFailed={carts[g.appId] === 'failed'}
+                      id="{uid}-{key}-p"
+                      onretry={() => void loadCart(g.appId)}
+                    />
                   {/if}
                 </li>
               {/each}

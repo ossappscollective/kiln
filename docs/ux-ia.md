@@ -398,6 +398,10 @@ rule, for example "1024 by 500 px"). Invalid items cannot be staged.
 - **Listing grid:** a cell with a staged text shows an "Edited" pill (dot and word, tooltip and aria text `Staged: before → after`); a locale row shows
   "N staged", which opens the cart drawer on that locale's items (`kiln:cart-open`). In the locale panel a staged field shows a "Staged" badge and
   "Discard" (the cart discard); fields without a staged value show nothing.
+- **Per-app Pending changes page** (`PendingChanges`, 2026-11-24, [ADR 0067](adr/0067-diff-and-preview.md)): every row has an expand chevron (a button with `aria-expanded` and `aria-controls`, collapsed by default) and each platform
+  group has "Show all previews" / "Hide all previews" next to "Discard all staged". A staged row previews through its cart items with the same shared component as the cart drawer (text diff, before and after images
+  with the viewer); a pushed draft, draft release, version in review or approved and due rollout step show what they contain and what happens next (`GET /apps/{id}/pending/detail`, stored state only); an unknown kind says
+  "No preview for this kind of item". Graphics rows name the language (`Feature graphic (en-US): 1 file`) and show their first thumbnails inline when collapsed. Not viewed in a browser.
 - **Field editor:** "Stage in <field>" closes the modal on success (focus returns to what opened it) and stays open with the reason on failure.
 
 ## 5. Store writes (gated) vs planning data

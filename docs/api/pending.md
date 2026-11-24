@@ -68,6 +68,7 @@ there is no ETag (no summary in this API has one).
   releases of the last sync: in `production`, or in any track when this app pushed something; `nextStep` is `release`, which needs the
   track and the share typed; releasing it removes it), `in_review` (a version in review: informational), `approved` (an approved
   version waiting for release), `rollout_step` (a due step of a release plan).
+- `label` of an `asset_set` names the language: `Feature graphic (en-US): 1 file`, so two sets of two languages are told apart (the platform is the group the item sits in; a release field already carries its locale).
 - `state`: `staged`, `invalid` (an error blocks the push), `pushed`, `in_review`, `approved`, `due`.
 - `nextStep`: `push_draft`, `submit`, `release`, `rollout`, or `null` (informational). `totals.actionable` counts the items with a
   next step; `totals.blocking` the items with an `error` problem. `refs` hold ids (at most 200, `truncated` says more exist).
@@ -175,6 +176,22 @@ Bounds: a text is cut at 8000 characters (`truncated: true`), at most 30 images 
 `404 not_found` when the app is not in this workspace, or the id is not in THIS app's cart (unknown, discarded, published, or another app's or workspace's); `400 invalid_request` for a missing `id`.
 Nothing is written and nothing is audited. The workspace Pending page lists the changes of an app by reading `GET /apps/{id}/pending/cart` (lazily, when its row is expanded) and the detail per row;
 `GET /pending/cart-summary` stays counts only.
+
+### `GET /apps/{id}/pending/detail?kind=<kind>&id=<id>`
+
+What one item of the [Pending view](#pending-view-read-only) that is NOT a staged change contains, for the row preview of the per-app Pending changes page
+([ADR 0067](../adr/0067-diff-and-preview.md)). `kind` is `pushed_draft`, `draft_release`, `in_review`, `approved` or `rollout_step`; `id` is the item's `id` in the view
+(`pushed_draft`, `draft_release:<track>:<codes>`, `release:<id>`, `rollout:<id>`). Same right as the view (`listing.read`), stored state only (no store is contacted),
+`Cache-Control: no-store`. `{ detail: { kind, id, pushedDraft?, draftRelease?, release?, rolloutStep? } }`:
+
+- `pushedDraft`: `{ versionString, pushedAt, texts: [{ locale, field }], sets: [{ locale, key, kind, device, files }], release: { track, codes } | null, truncated }`: what the push wrote, never a
+  text, a file or a hash; at most 200 texts and 200 sets (`truncated`).
+- `draftRelease`: `{ track, codes, since }`. `release`: `{ version, track | null, status: in_review | approved, since }` as of the last sync. `rolloutStep`: `{ planVersion, percent, plannedAt }`.
+- `404 not_found` when the item is not in THIS app's view now (a staged kind, a wrong kind for the id, another app's or workspace's item, a token limited to other apps); `400 invalid_request` for
+  an unknown `kind` or a missing `id`. Nothing is written or audited.
+
+The staged kinds are read as cart items: `listing_text` has one cart item per `refs[].id` (`listing:<ref id>`), `asset_set` is `graphics:<id>` and `release_field` is `release:<id>`, each through
+`GET /apps/{id}/pending/cart/detail`. The web page reads the app's cart (`GET /apps/{id}/pending/cart`) for those ids, versions and thumbnails.
 
 ### `POST /apps/{id}/pending/publish`
 

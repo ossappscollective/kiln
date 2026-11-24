@@ -210,6 +210,7 @@ import type {
 } from './testflight.ts';
 import type { VersionPreview, VersionResult } from './store-version.ts';
 import { announceCartAdded, type CartDetail, type CartResponse, type CartResultResponse } from './pending-cart.ts';
+import type { PendingItemDetail } from './pending-preview.ts';
 import { announceStagedChanged, type StagedChangeReason } from './staged-sync.ts';
 import type { ProposalSummary } from './asset-proposal-hint.ts';
 import type { CartSummary } from './cart-summary.ts';
@@ -1930,6 +1931,12 @@ export function createApi(options: ApiOptions = {}) {
       request<{ detail: CartDetail }>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/pending/cart/detail?id=${encodeURIComponent(id)}`,
+      ),
+    /** What one pending item that is not a staged change contains (pushed draft, draft release, version in review or approved, due rollout step). Stored state only. */
+    appPendingItemDetail: (workspaceId: string, appId: string, kind: string, id: string) =>
+      request<{ detail: PendingItemDetail }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/pending/detail?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id)}`,
       ),
     publishPendingCart: (
       workspaceId: string,
