@@ -106,6 +106,9 @@ export type AiConfig = {
     priceOutputCentsPerMTok?: number;
     /** A monthly cost cap in whole cents (0: none). Unlike the soft warning it refuses a run. */
     monthlyCostCapCents?: number;
+    /** The workspace ceiling for reviews going to the provider (docs/adr/0065): your own, and followed competitors'. */
+    reviewsToAi?: boolean;
+    competitorReviewsToAi?: boolean;
   };
   defaults: {
     monthlyTokenBudget: number;
@@ -224,6 +227,8 @@ export type AiSettingsChanges = {
   priceInputCentsPerMTok?: number | null;
   priceOutputCentsPerMTok?: number | null;
   monthlyCostCapCents?: number | null;
+  reviewsToAi?: boolean | null;
+  competitorReviewsToAi?: boolean | null;
 };
 
 /** A model a provider offers (POST /ai/models). */
@@ -1012,6 +1017,10 @@ export function aiErrorMessage(error: unknown, fallbackText?: string): string {
         ? t('ai:error.timeout')
         : t('ai:error.unreachable');
     }
+    case 'ai_reviews_disabled':
+      return body.reason === 'workspace_off' ? t('ai:error.reviewsDisabledWorkspace') : t('ai:error.reviewsDisabledApp');
+    case 'ai_reviews_need_text':
+      return t('ai:error.reviewsNeedText');
     case 'forbidden':
       return t('ai:error.forbidden');
     case 'not_found':
@@ -1179,6 +1188,9 @@ export type AiForm = {
   priceOut: string;
   /** Dollars per month, as text. Empty or 0: no cost cap. */
   costCap: string;
+  /** The workspace ceiling for reviews going to the provider (docs/adr/0065). */
+  reviewsToAi: boolean;
+  competitorReviewsToAi: boolean;
 };
 
 export type AiFormErrors = Partial<
@@ -1204,6 +1216,8 @@ export function formFromConfig(config: Pick<AiConfig, 'settings'>): AiForm {
     priceIn: centsInput(s.priceInputCentsPerMTok ?? 0),
     priceOut: centsInput(s.priceOutputCentsPerMTok ?? 0),
     costCap: centsInput(s.monthlyCostCapCents ?? 0),
+    reviewsToAi: s.reviewsToAi ?? true,
+    competitorReviewsToAi: s.competitorReviewsToAi ?? false,
   };
 }
 
@@ -1269,6 +1283,8 @@ export function aiChanges(config: Pick<AiConfig, 'settings'>, form: AiForm): AiS
     changes.priceOutputCentsPerMTok = priceOut;
   const cap = centsFromText(form.costCap);
   if (cap !== null && cap !== (s.monthlyCostCapCents ?? 0)) changes.monthlyCostCapCents = cap;
+  if (form.reviewsToAi !== (s.reviewsToAi ?? true)) changes.reviewsToAi = form.reviewsToAi;
+  if (form.competitorReviewsToAi !== (s.competitorReviewsToAi ?? false)) changes.competitorReviewsToAi = form.competitorReviewsToAi;
   return changes;
 }
 

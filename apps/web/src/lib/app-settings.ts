@@ -221,6 +221,7 @@ export const appSettingsPartIds = {
   playBucket: 'play-bucket',
   notifications: 'notifications',
   ai: 'ai',
+  aiPrivacy: 'ai-privacy',
   danger: 'danger',
 } as const;
 
@@ -262,7 +263,7 @@ export function appSettingsGroups(input: AppSettingsInput): RailGroup[] {
       entries: [
         ...(input.android ? [entry(ids.playBucket, t(k('app:settings.part.playBucket')))] : []),
         entry(ids.notifications, t(k('app:settings.part.notifications'))),
-        ...(input.ai ? [entry(ids.ai, t(k('app:settings.part.ai')))] : []),
+        ...(input.ai ? [entry(ids.ai, t(k('app:settings.part.ai'))), entry(ids.aiPrivacy, t(k('app:settings.part.aiPrivacy')))] : []),
       ],
     },
     {

@@ -53,9 +53,7 @@ AI settings card, where the prices live.
 ## Next
 
 - Themes of competitor reviews through the same AI button (a task `competitor_review_summary`, same redaction, never mixing with your own).
-- A periodic read in the ASO refresh (the scheduler), with the same per-competitor interval.
-- A per-app switch "reviews may be sent to AI" in the AI context of the app (today the gates are the workspace AI switch, the role and the
-  button; the AI context only guides tone).
+- ~~A periodic read in the ASO refresh~~ and ~~a per-app switch "reviews may be sent to AI"~~: done in [ADR 0065](0065-ai-review-privacy-and-competitor-schedule.md).
 - The cost estimate on the card itself; a comparison chart of our own rating and the competitors over time.
 
 ## Not verified

@@ -285,6 +285,20 @@
         </div>
 
         <fieldset class="field">
+          <legend>{t('settings:ai.reviewsLegend')}</legend>
+          <p class="hint">{t('settings:ai.reviewsHint')}</p>
+          <label class="check">
+            <input type="checkbox" bind:checked={form.reviewsToAi} />
+            {t('settings:ai.reviewsOwn')}
+          </label>
+          <label class="check">
+            <input type="checkbox" bind:checked={form.competitorReviewsToAi} />
+            {t('settings:ai.reviewsCompetitor')}
+          </label>
+          <p class="hint">{t('settings:ai.reviewsCompetitorHint')}</p>
+        </fieldset>
+
+        <fieldset class="field">
           <legend>{t('settings:ai.providerLegend')}</legend>
           {#each data.providers as p (p.id)}
             <label class="option">

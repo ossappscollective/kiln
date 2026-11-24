@@ -20,6 +20,7 @@
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import AiContextSection from './settings/AiContextSection.svelte';
+  import AiReviewPrivacySection from './settings/AiReviewPrivacySection.svelte';
   import AnalyticsSection from './settings/AnalyticsSection.svelte';
   import DefaultsSection from './settings/DefaultsSection.svelte';
   import AdsSettingsSection from '../ads/AdsSettingsSection.svelte';
@@ -102,6 +103,8 @@
       <NotificationsSection {api} {workspaceId} {role} />
     {:else if current === ids.ai}
       <AiContextSection {api} {workspaceId} {role} {members} />
+    {:else if current === ids.aiPrivacy}
+      <AiReviewPrivacySection {api} {workspaceId} {role} {members} />
     {:else}
     <section class="danger" aria-labelledby="app-settings-danger-title">
       <h3 id="app-settings-danger-title">{t('app:settings.dangerZone')}</h3>

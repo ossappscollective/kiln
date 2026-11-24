@@ -26,6 +26,7 @@
   import Section from '../ui/Section.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import CompetitorCard from './CompetitorCard.svelte';
+  import CompetitorReviewSchedule from './CompetitorReviewSchedule.svelte';
 
   let {
     api,
@@ -193,6 +194,7 @@
         {/each}
       </div>
       <p class="muted count">{t('aso:group.followed', { count: competitors.length, limit })}</p>
+      <CompetitorReviewSchedule {api} {workspaceId} {app} {canWrite} {now} {version} />
     {/if}
 
     {#if picked.length > 0}

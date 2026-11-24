@@ -288,7 +288,7 @@ The settings of an app (`#/apps/:id/settings`) used to be one long column of col
 | ----------- | ------------------------------------------------------------------------- |
 | Connections | Stores (credentials), Repository, Expo and RevenueCat                     |
 | Releases    | Release defaults, Google Play releases (Android records only)             |
-| Data        | Reports bucket (Android only), Notifications, AI assistant (when it is on) |
+| Data        | Reports bucket (Android only), Notifications, AI assistant (when it is on), Privacy and AI (when it is on) |
 | Removal     | Danger zone (roles that may delete)                                       |
 
 - The address opens the first section (Stores); an old element id (`?section=app-settings-repository`, also in `?view=`) opens the same section; a section the
@@ -455,3 +455,14 @@ new flags; whether Google Play "changes not sent for review" works for the conne
   when an app is opened (again only after five minutes; Highlights keeps it exact); no timer. The entry always opens on Overview; the badge counts the open cards, which are on the Highlights tab. The store page
   checks sit under the locale grid of Store listing, Text (score, findings per language, a suggested keyword field with a copy button; nothing is staged
   or sent). Countries: bars by main language ("On your store page" or a link to the listing) and a table with the main language of each country.
+
+## Privacy and AI, and scheduled competitor reads (2026-11-24, [ADR 0065](adr/0065-ai-review-privacy-and-competitor-schedule.md))
+
+- App settings, Data group, **Privacy and AI** (`?section=ai-privacy`, after "AI assistant"): own and competitor reviews as inherit / allow / do not allow (inherit shows the
+  workspace value; a kind the workspace turned off is shown locked with the reason), what is sent (text without names, full, ratings only), the redaction checkbox, a save bar,
+  **Preview payload** (a `<pre>` of the first 3 reviews) and **Delete AI summaries for this app** (a confirm Modal). Roles without `apps.write` read it. Workspace ceiling: Settings, AI, "Reviews and AI".
+- Reviews page, AI row: when the app or workspace turned it off the buttons are replaced by a notice with the reason and a link to the setting (`data-testid="ai-reviews-off"`);
+  stored summaries stay visible with a note. In ratings-only mode the fix-next and tag buttons are hidden and a line says the summary is statistical.
+- ASO, Competitors: a **Scheduled reads of reviews** panel after the followed count: Off / Daily / Weekly (weekday), time zone (UTC or yours), competitors per run, newest reviews per read, Pause and
+  Resume, the next run, an Apple-only note (Google Play has no official API), and one line per competitor ("Reads every Monday, last read 2 days ago, 3 new reviews", next run, failure reason) with an
+  override select. Rights `aso.write` to change, `aso.read` to see. Not viewed in a browser.

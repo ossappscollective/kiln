@@ -56,7 +56,7 @@ Do not put secrets or customer data in it: it goes to the provider with every su
 
 All three read the reviews stored here (nothing is fetched from a store). Before they are sent, each review is **minimised**: email addresses,
 links, phone-like numbers and the author's name are replaced by `[email]`, `[link]`, `[number]`, `[name]`; the author, the device, the
-territory and the store ids are not sent at all. A review is cut to 2,000 characters. The ids a model sees are short aliases (`r1`, `r2`, ...).
+territory and the store ids are not sent at all. A review is cut to 2,000 characters. **Per app you choose what may leave** (app settings, "Privacy and AI", [ADR 0065](adr/0065-ai-review-privacy-and-competitor-schedule.md)): your own reviews and followed competitors' reviews each on, off or following the workspace (the workspace setting is the ceiling and an app cannot widen it), and the form: text without names (default: stars, title and text; no name, language, app version or date), full (adds language, version and day, never a name) or ratings and counts only (no text; the summary is statistical and the tasks that need text are refused). Emails, links, phone-like numbers and @handles are replaced before sending unless you turn that off (names are always removed). Everything is enforced on the server (`409 ai_reviews_disabled` / `ai_reviews_need_text`); "Preview payload" shows the first 3 reviews as they would be sent; turning a switch off keeps old summaries (labelled), and "Delete AI summaries for this app" removes them. No AI task sends competitor reviews today. The ids a model sees are short aliases (`r1`, `r2`, ...).
 
 - **Summarise** (`review_summary`, version 2: see `docs/api/review-summary.md`). Follows the page: the app, the language filter and a period of 7, 28 or 90 days. Reads at most 40 reviews (at most 80): the newest and a quarter of low-rated ones (1 and 2 stars). Written in the language of the screen; the reviews keep theirs. A theme has an approximate share (counted by the server over the reviews read), the mood and the half-by-half trend are counted over every review of the period, and a line says what changed since the last summary of the same period and language (the model gets only the labels and shares of that summary). The same reviews reuse the stored summary (7 days; nothing is sent), a line says how old it is and how many reviews came after, and *Summarise again* makes a new one. Needs `reviews.read` on top of `ai.use`. Older text of this bullet: the newest reviews with text in the period (40 by default, at most 80). The answer: an overview and a list
   of themes (problem, praise, request) each with the reviews that show it. **The server counts**: how many distinct reviews each theme cites,
@@ -111,6 +111,8 @@ safe fallback), numbers may come as text, a list of ids may mix numbers and stri
 and nothing is saved. Use a model made for structured output. A thinking model that spends its tokens before answering will often fail.
 
 ## Not verified
+
+The per-app review privacy and the scheduled competitor reads (ADR 0065) were tested against fakes only: no real provider, Apple feed or scheduler clock, and nothing was seen in a browser.
 
 No real model was contacted for these features. They were built and tested against the fake provider, which returns what a well-behaved and a badly
 behaved model could. Before relying on them, try each task once with the provider and model you will use, with a handful of real reviews, and read what

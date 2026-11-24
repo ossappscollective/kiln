@@ -332,6 +332,20 @@ Accept errors: `403 forbidden` (with `action`), `404 not_found`, `409 suggestion
 mechanism passed on (for example `409 reply_disabled`, `422 field_not_pushable`, `422 too_many_items`, `422 keyword_limit`); then the suggestion is `proposed` again.
 Suggestions are kept 90 days and deleted with their app.
 
+## Review privacy (per app)
+
+What reviews of an app may be sent to the provider ([ADR 0065](../adr/0065-ai-review-privacy-and-competitor-schedule.md)). The workspace settings
+`reviewsToAi` (default `true`) and `competitorReviewsToAi` (default `false`) in `PUT /ai/config` (`ai.manage`) are the ceiling; an app can only narrow them.
+
+- `GET /workspaces/{ws}/apps/{id}/ai/review-privacy` (`ai.use`): `{ stored: { ownReviews, competitorReviews: "on"|"off"|null, detail: "text"|"full"|"ratings", redact }, effective: { own, competitor: { choice, allowed, locked, reason: "workspace_off"|"app_off"|null }, detail, redact }, ceiling, updatedAt, updatedBy, canEdit }`. `null` follows the workspace.
+- `PUT` the same path (`apps.write`): any of the four fields; answer as GET. Audit `ai.review_policy_update` with each change as from-to.
+- `POST .../ai/review-privacy/preview` (`reviews.read`): `{ allowed, reason, detail, redact, reviews[], sampleOf }`, the newest 3 reviews exactly as they would be sent. Calls no provider, sends nothing.
+- `DELETE /workspaces/{ws}/apps/{id}/ai/summaries` (`apps.write`, destructive): deletes the stored review summaries and what-to-fix reports of the app; answer `{ deleted }`. Audit `ai.summaries_delete`. The policy row, tags and AI context stay.
+
+Refusals, before anything is read or sent: `409 ai_reviews_disabled` (`reason`: `workspace_off` or `app_off`; the web codes `ai.reviewsDisabledApp`, `ai.reviewsDisabledWorkspace`) for
+`review_summary`, `fix_next`, `review_classify`, `review_reply_draft`, `keyword_ideas_reviews`; and `409 ai_reviews_need_text` when `detail` is `ratings` and the task needs text. An app of
+another workspace answers `404`.
+
 ## MCP and agent hook
 
 Documentation only; nothing is built. An MCP server or an in-app assistant should drive **these routes**, not a provider, so the switches, budget, flags, audit and

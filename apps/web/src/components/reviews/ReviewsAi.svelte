@@ -15,6 +15,7 @@
   import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { suggestAvailability } from '../../lib/ai/ai.ts';
+  import { privacySettingHref, type ReviewPrivacyView, reviewAiGate, workspaceAiSettingHref } from '../../lib/ai/review-privacy.ts';
   import { aiStore } from '../../lib/ai/store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -38,6 +39,19 @@
   $effect(() => {
     if (can(role, 'ai.use')) void aiStore.loadConfig(api, workspaceId);
   });
+
+  // What reviews of this app may go to the provider (the app's setting under the workspace ceiling). The server enforces it on every run; this
+  // only explains it. While it cannot be read the buttons stay: a refused run says why.
+  let privacy = $state<ReviewPrivacyView | null>(null);
+  $effect(() => {
+    const appId = app.id;
+    const ws = workspaceId;
+    if (!on || !can(role, 'ai.use')) return;
+    untrack(() => {
+      void api.appAiReviewPrivacy(ws, appId).then((view) => (privacy = view)).catch(() => undefined);
+    });
+  });
+  const gate = $derived(reviewAiGate(privacy));
 
   // Tags that were made earlier show on the reviews that are on screen (a read of our own database; no provider).
   $effect(() => {
@@ -111,11 +125,23 @@
 
 {#if visible}
   <section class="ai" aria-label={t('reviews:ai.region')}>
+    {#if gate.state === 'off'}
+      <div class="off" role="status" data-testid="ai-reviews-off">
+        <p>
+          <strong>{t('reviews:ai.offTitle')}</strong>
+          {gate.text}
+          <a href={gate.reason === 'workspace_off' ? workspaceAiSettingHref : privacySettingHref(app.id)}>{gate.reason === 'workspace_off' ? t('reviews:ai.openWorkspaceSetting') : t('reviews:ai.openSetting')}</a>
+        </p>
+        {#if (aiStore.all(app.id) ?? []).some((s) => REPORTS.includes(s.task))}<p class="muted small" data-testid="ai-reviews-kept">{t('reviews:ai.keptNote')}</p>{/if}
+      </div>
+    {:else}
     <div class="row wrap bar">
       <span class="muted small">{t('reviews:ai.badge')}</span>
       <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="review_summary" label={latest ? t('reviews:ai.regenerate') : t('reviews:ai.summarise')} hiddenLabel={t('reviews:ai.summariseHidden', { n: days })} onrun={() => summarise(latest !== null)} preview={{ appId: app.id, days, limit: SUMMARY_LIMIT, outputLanguage: uiLanguage(), ...(language ? { locale: language } : {}) }} />
-      <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="fix_next" label={t('reviews:ai.fixNext')} onrun={fixNext} preview={{ appId: app.id, days }} />
-      <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="review_classify" label={t('reviews:ai.tag')} onrun={tag} preview={{ appId: app.id, days }} />
+      {#if gate.state !== 'ratings'}
+        <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="fix_next" label={t('reviews:ai.fixNext')} onrun={fixNext} preview={{ appId: app.id, days }} />
+        <SuggestButton {api} {workspaceId} {role} kind="insight" taskId="review_classify" label={t('reviews:ai.tag')} onrun={tag} preview={{ appId: app.id, days }} />
+      {/if}
       <label class="period">
         <span class="visually-hidden">{t('reviews:ai.periodLabel')}</span>
         <select id="{uid}-days" bind:value={days} aria-label={t('reviews:ai.period')}>
@@ -125,9 +151,14 @@
         </select>
       </label>
     </div>
-    <p class="muted small" data-testid="summary-notice">{t('reviews:ai.summaryNotice', { reviews: SUMMARY_LIMIT, chars: SUMMARY_CHARS })}</p>
+    {#if gate.state === 'ratings'}
+      <p class="muted small" data-testid="ratings-only">{gate.text}</p>
+    {:else}
+      <p class="muted small" data-testid="summary-notice">{t('reviews:ai.summaryNotice', { reviews: SUMMARY_LIMIT, chars: SUMMARY_CHARS })}</p>
+    {/if}
     {#if latest && newer && newer.count > 0}
       <p class="muted small stale" data-testid="summary-stale">{newer.more ? t('reviews:ai.staleMany', { count: newer.count }) : t('reviews:ai.stale', { count: newer.count })}</p>
+    {/if}
     {/if}
     <AiSuggestions {api} {workspaceId} {role} {app} platform={app.platform} tasks={REPORTS} />
   </section>
@@ -147,6 +178,17 @@
 
   .small {
     font-size: var(--text-xs);
+  }
+
+  .off {
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+  }
+
+  .off p {
+    margin: 0;
   }
 
   .period select {

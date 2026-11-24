@@ -142,6 +142,7 @@ test('the rail lists only the sections that exist, in groups with no empty group
     'Reports bucket',
     'Notifications',
     'AI assistant',
+    'Privacy and AI',
     'Danger zone',
   ]);
   const ids = appSettingsSections({ android: true, ai: true, canDelete: true }).map((s) => s.id);

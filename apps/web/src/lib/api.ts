@@ -75,6 +75,8 @@ import type {
   AsoSummary,
 } from './aso/aso.ts';
 import type { CompetitorChangesPage, CompetitorCheckResult } from './aso/competitor-changes.ts';
+import type { ReviewScheduleView } from './aso/competitor-review-schedule.ts';
+import type { ReviewPayloadPreview, ReviewPrivacyView } from './ai/review-privacy.ts';
 import type { RankVsDownloadsResponse } from './aso/rank-downloads.ts';
 import type {
   SearchTermsImportResult,
@@ -2318,6 +2320,17 @@ export function createApi(options: ApiOptions = {}) {
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/context`,
         context,
       ),
+    /** What reviews of this app may be sent to the AI provider, the workspace ceiling and what is in force (docs/adr/0065). */
+    appAiReviewPrivacy: (workspaceId: string, appId: string) =>
+      request<ReviewPrivacyView>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/review-privacy`),
+    updateAppAiReviewPrivacy: (workspaceId: string, appId: string, changes: Record<string, unknown>) =>
+      request<ReviewPrivacyView>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/review-privacy`, changes),
+    /** The first three reviews as they would be sent under the policy in force. Contacts no provider. */
+    previewAppAiReviewPrivacy: (workspaceId: string, appId: string) =>
+      request<{ preview: ReviewPayloadPreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/review-privacy/preview`),
+    /** Deletes the stored review summaries and what-to-fix reports of the app. */
+    deleteAppAiSummaries: (workspaceId: string, appId: string) =>
+      request<{ deleted: number }>('DELETE', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/summaries`),
     /** The tags the assistant gave reviews earlier (advisory). Reads our own database: no provider is contacted. */
     reviewAiTags: (workspaceId: string, appId: string, reviewIds: string[]) =>
       request<{ tags: AiReviewTagView[] }>(
@@ -2398,6 +2411,13 @@ export function createApi(options: ApiOptions = {}) {
         'POST',
         `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}/reviews/refresh`,
       ),
+    /** The schedule of the reads of competitor reviews and the state of each competitor (Apple only; docs/adr/0065). */
+    asoCompetitorReviewSchedule: (workspaceId: string, appId: string) =>
+      request<ReviewScheduleView>('GET', `${asoPath(workspaceId, appId)}/competitor-review-schedule`),
+    updateAsoCompetitorReviewSchedule: (workspaceId: string, appId: string, changes: Record<string, unknown>) =>
+      request<ReviewScheduleView>('PUT', `${asoPath(workspaceId, appId)}/competitor-review-schedule`, changes),
+    updateAsoCompetitorReviewOverride: (workspaceId: string, appId: string, competitorId: string, body: { mode: 'off' | 'daily' | 'weekly' | null; weekday?: number | null }) =>
+      request<ReviewScheduleView>('PUT', `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}/review-schedule`, body),
     asoCompetitors: (workspaceId: string, appId: string) =>
       request<{ competitors: AsoCompetitor[]; limits: { maxCompetitorsPerApp: number } }>(
         'GET',
