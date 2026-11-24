@@ -17,7 +17,7 @@ import { type Platform } from '../platform.ts';
 export type FixId = 'keywords_tidy' | 'keywords_drop_in_title' | 'keywords_fit' | 'text_tidy' | 'shorten_ai' | 'edit_field';
 
 /** `stage`: `after` is complete and can be staged as it is. `ai_shorten`: `after` is null; a proposal from the AI, accepted by a person. `edit_field`: open the editor. */
-export type FixKind = 'stage' | 'ai_shorten' | 'edit_field';
+export type ListingFixKind = 'stage' | 'ai_shorten' | 'edit_field';
 
 /** `safe` changes nothing a reader sees; `review` drops terms or collapses text: read the before and after. */
 export type FixRisk = 'safe' | 'review';
@@ -26,7 +26,7 @@ export type Fix = {
   id: FixId;
   /** The i18n key of the button label; the interface translates it. */
   labelKey: string;
-  kind: FixKind;
+  kind: ListingFixKind;
   locale: string;
   field: string;
   before: string;
