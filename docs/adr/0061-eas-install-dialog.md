@@ -28,7 +28,7 @@ for Android, a download button), and Expo Orbit installs builds from a desktop m
    `lib/eas/eas-install.ts`) and must be checked against a real Orbit before it is trusted.
 6. **No CSP or desktop change.** A link to a custom scheme is not governed by the CSP directives this app sets. The Tauri shell has no opener
    plugin and no navigation allowlist (`capabilities/default.json` is `core:default`), so there was nothing to extend; whether the system hands
-   `expo-orbit://` to Orbit from inside the desktop webview is UNVERIFIED.
+   `expo-orbit://` to Orbit from inside the desktop webview was CONFIRMED by the maintainer on 2026-11-24: `expo-orbit://download?url=<encoded file address>` opens Orbit and installs the build (tested with a real Orbit).
 
 ## Consequences
 
