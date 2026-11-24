@@ -52,6 +52,15 @@ const pendingItemSchema = z.object({
 });
 
 
+const cartImageSchema = z.object({
+  position: z.number().int(),
+  name: z.string().nullable(),
+  width: z.number().int().nullable(),
+  height: z.number().int().nullable(),
+  bytes: z.number().int().nullable(),
+  url: z.string().describe('A same origin address of one of Kiln\u2019s own image routes; never a store address.'),
+});
+
 const cartItemSchema = z.object({
   id: z.string().describe('`<kind>:<id>`; the id to send back to publish or discard.'),
   kind: z.enum(['listing', 'graphics', 'release', 'price', 'review_reply']),
@@ -364,6 +373,64 @@ export const pendingOperations: Draft[] = [
               price: z.boolean(),
             }),
             generatedAt: timestamp,
+          }),
+        }),
+      },
+    },
+  },
+  {
+    id: 'getAppPendingCartDetail',
+    method: 'get',
+    path: `${W}/apps/{id}/pending/cart/detail`,
+    tags: ['pending'],
+    summary: 'One cart item with its full before and after (text, images or reply) for a preview',
+    description:
+      'Read-only, stored state only (no store or repository is read), same right as `getAppPendingCart` (`listing.read`). `id` is the id of an item of that cart (`listing:\u2026`, `graphics:\u2026`, `release:\u2026`, `review_reply:\u2026`; a `price:\u2026` item carries no extra: its before and after per territory are in the cart). A listing text carries the staged text and the text last known in the store (`before`, null when none is stored), a release field its staged value (`before` is null: the store is not read), a graphics set the images the last remembered store read held (`before`, null when there was no read) and the staged files, as same origin image addresses of Kiln\u2019s own routes, a reply the draft and the review it answers. A text over 8000 characters is cut (`truncated`); at most 30 images per side. The item must be in this app\u2019s cart (404 otherwise, also for another workspace\u2019s id). `version` is the item\u2019s version in the cart.',
+    risk: 'read',
+    access: { action: 'listing.read' },
+    appScope: { kind: 'param', name: 'id' },
+    query: z.object({ id: z.string().min(3).max(220).describe('The id of a cart item, `<kind>:<id>`.') }),
+    responses: {
+      '200': {
+        description: 'The detail of the item.',
+        schema: z.object({
+          detail: z.object({
+            id: z.string(),
+            kind: z.enum(['listing', 'graphics', 'release', 'price', 'review_reply']),
+            version: z.string(),
+            text: z
+              .object({
+                field: z.string(),
+                locale: z.string().nullable(),
+                before: z.string().nullable(),
+                after: z.string(),
+                limit: z.number().int().nullable(),
+                unit: z.enum(['characters', 'bytes']),
+                truncated: z.boolean(),
+              })
+              .optional(),
+            graphics: z
+              .object({
+                before: z.array(cartImageSchema).nullable(),
+                beforeReadAt: timestamp.nullable(),
+                after: z.array(cartImageSchema),
+                truncated: z.boolean(),
+              })
+              .optional(),
+            reply: z
+              .object({
+                text: z.string(),
+                truncated: z.boolean(),
+                review: z.object({
+                  rating: z.number().int(),
+                  title: z.string().nullable(),
+                  body: z.string(),
+                  language: z.string().nullable(),
+                  territory: z.string().nullable(),
+                  truncated: z.boolean(),
+                }),
+              })
+              .optional(),
           }),
         }),
       },

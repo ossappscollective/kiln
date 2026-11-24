@@ -14,7 +14,7 @@ import {
   type ReviewReplyConnectorFactory,
   type ReviewReplyContext,
 } from '../reviews/replies.ts';
-import { type CartContext, type CartRights, cartSummary, discardCart, getCart, publishCart } from './cart.ts';
+import { type CartContext, type CartRights, cartItemDetail, cartSummary, discardCart, getCart, publishCart } from './cart.ts';
 import {
   type DraftConnectorFactory,
   type DraftContext,
@@ -151,6 +151,17 @@ export function cartRoutes(ctx: CartRoutesContext) {
     return done.ok
       ? c.json({ cart: { items: done.items, can: rights, generatedAt: done.generatedAt } })
       : respond(c, done);
+  });
+
+  // The full before and after of ONE item (the row preview of the cart drawer and of the Pending page): `?id=<kind>:<id>`, same right as the cart.
+  routes.get('/:workspaceId/apps/:id/pending/cart/detail', needs('listing.read'), async (c) => {
+    const id = itemId.safeParse(c.req.query('id') ?? '');
+    if (!id.success) {
+      return c.json({ error: 'invalid_request', issues: [{ path: 'id', message: 'The id of a cart item: <kind>:<id>.' }] }, 400);
+    }
+    const done = await cartItemDetail(cart, { workspaceId: ws(c), appId: param(c, 'id'), id: id.data, rights: rightsOf(c) });
+    c.header('Cache-Control', 'no-store');
+    return done.ok ? c.json({ detail: done.detail }) : respond(c, done);
   });
 
   routes.post('/:workspaceId/apps/:id/pending/publish', needs('listing.read'), async (c) => {

@@ -249,6 +249,8 @@
 
 <PendingCartDrawer
   bind:open
+  {api}
+  {workspaceId}
   {rows}
   {groupId}
   {platform}

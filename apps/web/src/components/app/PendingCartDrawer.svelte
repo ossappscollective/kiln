@@ -15,6 +15,8 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { t } from '../../lib/i18n/t.ts';
+  import type { Api } from '../../lib/api.ts';
+  import { type Expanded, expansionOf, PREVIEW_KEYS, noneExpanded, pruneExpanded, toggleAll, toggleExpanded } from '../../lib/cart-preview.ts';
   import { issueText, money, samePhrase, verificationText } from '../../lib/prices.ts';
   import type { PriceDryRunItem } from '../../lib/types.ts';
   import { appAddress, type PlatformScope } from '../../lib/app-scope.ts';
@@ -45,6 +47,7 @@
     toggle,
   } from '../../lib/pending-cart.ts';
   import CartGraphicsDetail from './CartGraphicsDetail.svelte';
+  import CartRowPreview from './CartRowPreview.svelte';
   import CartPriceDetail from './CartPriceDetail.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -54,6 +57,8 @@
 
   let {
     open = $bindable(false),
+    api,
+    workspaceId,
     rows,
     groupId,
     platform,
@@ -73,6 +78,9 @@
     now,
   }: {
     open?: boolean | undefined;
+    /** For the row previews (the detail of an item is read when its row is first expanded). */
+    api: Api;
+    workspaceId: string;
     rows: readonly CartRow[];
     groupId: string;
     platform: PlatformScope | null;
@@ -99,6 +107,8 @@
   let opener: HTMLElement | null = null;
   let selection = $state<Selection>(noSelection);
   let confirming = $state<'publish' | 'discard' | null>(null);
+  /** Rows whose preview is open: collapsed by default, kept for the time the drawer is open. */
+  let expanded = $state<Expanded>(noneExpanded);
   let confirmBox = $state<HTMLElement>();
   let reportBox = $state<HTMLElement>();
   /** What was typed for the price phrase, by record (a publish is one request per record, each with its own phrase). */
@@ -108,6 +118,7 @@
   const focused = $derived(focusLocale === null ? new Set<string>() : new Set(rowsForLocale(rows, focusLocale).map((r) => r.key)));
   const counts = $derived<CartCounts>(countsOf(rows, selection));
   const all = $derived(allState(rows, selection));
+  const expansion = $derived(expansionOf(expanded, rows));
   const canDiscardSome = $derived(rows.some((r) => selection.has(r.key) && r.canDiscard));
   const hasStaged = $derived(rows.some((r) => r.bundle !== null));
   const sums = $derived(report ? tally(report.outcomes) : { ok: 0, failed: 0, skipped: 0 });
@@ -124,6 +135,7 @@
   $effect(() => {
     selection = prune(rows, selection);
     if (selection.size === 0) confirming = null;
+    expanded = pruneExpanded(expanded, rows);
   });
 
   $effect(() => {
@@ -154,6 +166,7 @@
   function handleClose() {
     open = false;
     confirming = null;
+    expanded = noneExpanded;
     opener?.focus();
     opener = null;
   }
@@ -286,6 +299,11 @@
             <span>{t('app:cart.selectAll')}</span>
             <span class="muted count" aria-live="polite">{t('app:cart.selectedCount', { selected: counts.selected, total: counts.selectable })}</span>
           </label>
+          <div class="expand-all">
+            <Button size="sm" variant="ghost" icon={expansion === 'all' ? 'chevron-up' : 'chevron-down'} onclick={() => (expanded = toggleAll(expanded, rows))}>
+              {expansion === 'all' ? t('app:cart.preview.collapseAll') : t('app:cart.preview.expandAll')}
+            </Button>
+          </div>
           {#if hasStaged}<p class="muted note">{t('app:cart.bundleNote')}</p>{/if}
 
           {#each groups as group (group.kind)}
@@ -307,6 +325,16 @@
                     </label>
                     <div class="main">
                       <div class="line">
+                        <button
+                          type="button"
+                          class="ghost icon sm chevron"
+                          aria-expanded={expanded.has(row.key)}
+                          aria-controls="{uid}-{row.key}-p"
+                          aria-label={t(PREVIEW_KEYS[expanded.has(row.key) ? 'collapse' : 'expand'], { title: row.title || t(GROUP_KEYS[row.kind]) })}
+                          onclick={() => (expanded = toggleExpanded(expanded, row.key))}
+                        >
+                          <Icon name={expanded.has(row.key) ? 'chevron-up' : 'chevron-down'} />
+                        </button>
                         <strong class="title">{row.title || t(GROUP_KEYS[row.kind])}</strong>
                         <Badge>{row.platform === 'ios' ? 'iOS' : row.platform === 'android' ? 'Android' : row.platform}</Badge>
                         {#if row.locale}<Badge>{row.locale}</Badge>{/if}
@@ -337,6 +365,9 @@
                           <p class="reason">{reasonText(row.reason.code)}</p>
                         {/if}
                       </div>
+                      {#if expanded.has(row.key)}
+                        <CartRowPreview {api} {workspaceId} {row} id="{uid}-{row.key}-p" />
+                      {/if}
                       <p class="meta muted">
                         {#if row.author?.name}{row.author.name} · {/if}{timeAgo(row.createdAt, now)} ·
                         <a href={placeOf(row, groupId, platform)} onclick={() => (open = false)} aria-label={t('app:cart.openRow', { title: row.title || t(GROUP_KEYS[row.kind]) })}>{t('app:cart.open')}</a>
@@ -542,6 +573,12 @@
 
   .cart-row.blocked .title {
     color: var(--muted);
+  }
+
+  .expand-all {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--space-2);
   }
 
   .pick {

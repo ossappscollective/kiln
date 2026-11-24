@@ -209,7 +209,7 @@ import type {
   TriageInput,
 } from './testflight.ts';
 import type { VersionPreview, VersionResult } from './store-version.ts';
-import { announceCartAdded, type CartResponse, type CartResultResponse } from './pending-cart.ts';
+import { announceCartAdded, type CartDetail, type CartResponse, type CartResultResponse } from './pending-cart.ts';
 import { announceStagedChanged, type StagedChangeReason } from './staged-sync.ts';
 import type { ProposalSummary } from './asset-proposal-hint.ts';
 import type { CartSummary } from './cart-summary.ts';
@@ -1924,6 +1924,12 @@ export function createApi(options: ApiOptions = {}) {
       request<CartResponse>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/pending/cart`,
+      ),
+    /** The full before and after of one cart item, for the row preview (docs/api/pending.md, ADR 0067). Stored state only. */
+    appPendingCartDetail: (workspaceId: string, appId: string, id: string) =>
+      request<{ detail: CartDetail }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/pending/cart/detail?id=${encodeURIComponent(id)}`,
       ),
     publishPendingCart: (
       workspaceId: string,

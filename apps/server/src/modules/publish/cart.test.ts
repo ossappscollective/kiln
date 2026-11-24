@@ -290,3 +290,72 @@ dbTest('the cart summary follows the role: a viewer without listing.read is refu
   assert.equal(v.status, 200, 'a viewer reads the cart too (listing.read)');
   assert.equal(v.body.totals.count, 3);
 });
+
+const detailPath = (app: string, id: string) => `/apps/${app}/pending/cart/detail?id=${encodeURIComponent(id)}`;
+type Detail = { id: string; kind: string; version: string; text?: { after: string; before: string | null; limit: number | null; truncated: boolean }; graphics?: { before: unknown[] | null; after: { url: string; position: number }[] }; reply?: { text: string; review: { rating: number; body: string } } };
+const detail = async (t: Boot, app: string, id: string, cookie = t.owner) => {
+  const res = await t.call(cookie, 'GET', detailPath(app, id));
+  return { status: res.status, detail: res.body.detail as Detail | undefined, headers: res.headers };
+};
+
+dbTest('the detail of an item carries the full text, the image refs and the reply with its review, at the listed version', async (db) => {
+  const t = await boot(db);
+  const { app } = await filled(t);
+  const c = await read(t, app);
+  const [listing, graphics, reply] = c.items;
+  const l = await detail(t, app, listing!.id);
+  assert.equal(l.status, 200);
+  assert.equal(l.detail?.version, listing!.version);
+  assert.equal(l.detail?.text?.after, TEXT);
+  assert.equal(l.detail?.text?.truncated, false);
+  assert.equal(typeof l.detail?.text?.limit, 'number');
+  const g = await detail(t, app, graphics!.id);
+  assert.equal(g.status, 200);
+  assert.equal(g.detail?.graphics?.before, null, 'no store read is remembered');
+  assert.ok((g.detail?.graphics?.after.length ?? 0) > 0);
+  for (const f of g.detail?.graphics?.after ?? []) assert.ok(f.url.startsWith(`/api/workspaces/${t.workspaceId}/apps/${app}/`), 'same origin routes only');
+  const r = await detail(t, app, reply!.id);
+  assert.equal(r.detail?.reply?.text, REPLY);
+  assert.equal(r.detail?.reply?.review.rating, 1);
+  assert.match(r.detail?.reply?.review.body ?? '', /^Body 1/);
+  // Reading changes nothing and writes no audit entry.
+  assert.deepEqual(await t.audit('pending.%'), []);
+});
+
+dbTest('the detail is scoped: unknown id, a discarded item, another app and another workspace are 404; a bad id is 400', async (db) => {
+  const t = await boot(db);
+  const { app } = await filled(t);
+  const other = await t.addApp('ios');
+  const c = await read(t, app);
+  const id = c.items[0]!.id;
+  assert.equal((await detail(t, app, 'listing:nope')).status, 404);
+  assert.equal((await detail(t, other, id)).status, 404, 'the id is of another app\'s cart');
+  assert.equal((await t.call(t.owner, 'GET', `/apps/${app}/pending/cart/detail`)).status, 400);
+  await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('other', 'Other', 0)");
+  const outsider = await t.addMember('owner', 'other');
+  assert.equal((await t.call(outsider, 'GET', detailPath(app, id), undefined, 'other')).status, 404);
+  assert.equal((await t.call(outsider, 'GET', detailPath(app, id))).status, 404, 'a stranger to the workspace');
+  const res = await t.call(t.owner, 'POST', `/apps/${app}/pending/discard`, { ids: [id] });
+  assert.equal(res.status, 200, res.text);
+  assert.equal((await detail(t, app, id)).status, 404);
+});
+
+dbTest('the detail needs the right of the cart only: a viewer reads it, a member without push too (rights unchanged)', async (db) => {
+  const t = await boot(db);
+  const { app } = await filled(t);
+  const id = (await read(t, app)).items[0]!.id;
+  const viewer = await t.addMember('viewer');
+  assert.equal((await detail(t, app, id, viewer)).status, 200);
+  const member = await t.addMember('member');
+  assert.equal((await detail(t, app, id, member)).detail?.text?.after, TEXT);
+});
+
+dbTest('the detail cuts a review over the cap and says so (the size of a detail is bounded)', async (db) => {
+  const t = await boot(db);
+  const { app, review } = await filled(t);
+  await db.execute('UPDATE app_reviews SET body = ? WHERE id = ?', ['x'.repeat(20000), review]);
+  const reply = (await read(t, app)).items.find((i) => i.kind === 'review_reply')!;
+  const d = await detail(t, app, reply.id);
+  assert.equal(d.detail?.reply?.review.body.length, 8000);
+  assert.equal((d.detail?.reply?.review as { truncated?: boolean }).truncated, true);
+});

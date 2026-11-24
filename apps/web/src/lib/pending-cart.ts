@@ -43,6 +43,23 @@ export type CartItem = {
   review?: { rating: number; excerpt: string; language: string | null; territory: string | null; status: string };
 };
 
+/** An image of a detail: a same origin address of the server's own image routes. */
+export type CartImageRef = { position: number; name: string | null; width: number | null; height: number | null; bytes: number | null; url: string };
+
+/** `GET /apps/{id}/pending/cart/detail?id=`: the full before and after of one item (ADR 0067). */
+export type CartDetail = {
+  id: string;
+  kind: CartKind;
+  version: string;
+  text?: { field: string; locale: string | null; before: string | null; after: string; limit: number | null; unit: 'characters' | 'bytes'; truncated: boolean };
+  graphics?: { before: CartImageRef[] | null; beforeReadAt: number | null; after: CartImageRef[]; truncated: boolean };
+  reply?: {
+    text: string;
+    truncated: boolean;
+    review: { rating: number; title: string | null; body: string; language: string | null; territory: string | null; truncated: boolean };
+  };
+};
+
 export type CartRights = { push: boolean; reply: boolean; price: boolean; discardStaged: boolean; discardReply: boolean };
 export type CartResponse = { cart: { items: CartItem[]; can: CartRights; generatedAt: number } };
 

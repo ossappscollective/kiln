@@ -380,6 +380,141 @@ export async function getCart(
 }
 
 // ---------------------------------------------------------------------------------------------
+// The preview of one item (docs/adr/0067-diff-and-preview.md): the full before and after the list only excerpts
+
+/** Longest text of one side that a detail carries (the longest listing text is 4000 characters); the rest is cut and flagged. */
+export const DETAIL_TEXT_MAX = 8000;
+/** Most images per side in a graphics detail. */
+export const DETAIL_IMAGES_MAX = 30;
+
+export type CartImageRef = {
+  position: number;
+  name: string | null;
+  width: number | null;
+  height: number | null;
+  bytes: number | null;
+  /** A same origin address of Kiln's own image routes (staged blob, repository file, store thumbnail proxy); never a store address. */
+  url: string;
+};
+
+export type CartDetail = {
+  id: string;
+  kind: CartKind;
+  /** The item's `version`: a client keeps a detail only while it is the version of the listed item. */
+  version: string;
+  /** Listing text and release field: the text now in the store (null: not known here) and the staged text. */
+  text?: { field: string; locale: string | null; before: string | null; after: string; limit: number | null; unit: 'characters' | 'bytes'; truncated: boolean };
+  /** Graphics: the images of the set the last store read held (null: there was no read) and the staged files, in order. */
+  graphics?: { before: CartImageRef[] | null; beforeReadAt: number | null; after: CartImageRef[]; truncated: boolean };
+  /** Review reply: the draft and the review it answers. */
+  reply?: {
+    text: string;
+    truncated: boolean;
+    review: { rating: number; title: string | null; body: string; language: string | null; territory: string | null; truncated: boolean };
+  };
+};
+
+const cut = (value: string): { text: string; truncated: boolean } =>
+  value.length > DETAIL_TEXT_MAX ? { text: value.slice(0, DETAIL_TEXT_MAX), truncated: true } : { text: value, truncated: false };
+const baseName = (path: string): string | null => path.split('/').pop() || null;
+
+/**
+ * One item of the cart with its full before and after text, or its before and after images. Reads stored state only, with the right
+ * of the cart itself (`listing.read`); an id that is not in this app's cart (or not in this workspace) is `404 not_found`.
+ */
+export async function cartItemDetail(
+  ctx: Pick<CartContext, 'db' | 'now' | 'draft' | 'reply' | 'price'>,
+  input: { workspaceId: string; appId: string; id: string; rights: CartRights },
+): Promise<{ ok: true; detail: CartDetail } | Failure> {
+  const { db } = ctx;
+  const { workspaceId } = input;
+  const app = await getApp(db, workspaceId, input.appId);
+  if (!app) return failure(404, 'not_found');
+  const { items, raw } = await loadCart(ctx, { workspaceId, app, rights: input.rights });
+  const item = items.find((i) => i.id === input.id);
+  const ref = raw.get(input.id);
+  if (!item || !ref) return failure(404, 'not_found');
+  const detail: CartDetail = { id: item.id, kind: item.kind, version: item.version };
+  const base = `/api/workspaces/${encodeURIComponent(workspaceId)}/apps/${encodeURIComponent(app.id)}`;
+  if (item.kind === 'listing' || item.kind === 'release' || item.kind === 'graphics') {
+    const view = await buildStagedView({ db, now: ctx.now }, workspaceId, app);
+    if (item.kind === 'listing') {
+      const t = view.text.find((x) => x.id === ref.rawId);
+      if (!t) return failure(404, 'not_found');
+      const after = cut(t.value);
+      const before = t.before === null ? null : cut(t.before);
+      detail.text = {
+        field: t.field,
+        locale: t.locale,
+        before: before?.text ?? null,
+        after: after.text,
+        limit: t.limit,
+        unit: t.unit,
+        truncated: after.truncated || (before?.truncated ?? false),
+      };
+    } else if (item.kind === 'release') {
+      const r = (view.release ?? []).find((x) => x.id === ref.rawId);
+      if (!r) return failure(404, 'not_found');
+      const after = cut(r.value);
+      detail.text = { field: r.field, locale: r.locale === '' ? null : r.locale, before: null, after: after.text, limit: r.maxLength, unit: 'characters', truncated: after.truncated };
+    } else {
+      const a = view.assets.find((x) => x.id === ref.rawId);
+      if (!a) return failure(404, 'not_found');
+      const files = a.files.slice(0, DETAIL_IMAGES_MAX).map((f) => ({
+        position: f.position,
+        name: baseName(f.path),
+        width: f.width,
+        height: f.height,
+        bytes: f.bytes,
+        url: f.upload
+          ? `${base}/staged/assets/blob?oid=${encodeURIComponent(f.oid)}`
+          : `${base}/assets/file?path=${encodeURIComponent(f.path)}${f.commit ? `&commit=${encodeURIComponent(f.commit)}` : ''}`,
+      }));
+      const last = lastStoreImages(workspaceId, app.id);
+      const before = last
+        ? last.sets
+            .filter((s) => s.locale === a.locale && s.kind === a.slot.kind && s.device === a.slot.device)
+            .flatMap((s) => s.files)
+            .sort((x, y) => x.position - y.position)
+            .slice(0, DETAIL_IMAGES_MAX)
+            .map((f) => ({
+              position: f.position,
+              name: f.name,
+              width: f.width,
+              height: f.height,
+              bytes: f.bytes,
+              url: `${base}/assets/store/thumb?ref=${encodeURIComponent(f.ref)}&size=640`,
+            }))
+        : null;
+      detail.graphics = { before, beforeReadAt: last?.readAt ?? null, after: files, truncated: a.files.length > DETAIL_IMAGES_MAX };
+    }
+  } else if (item.kind === 'review_reply') {
+    const [d] = await db.query(
+      `SELECT d.text, r.rating, r.title, r.body, r.language, r.territory
+         FROM review_reply_drafts d JOIN app_reviews r ON r.id = d.review_id
+        WHERE d.workspace_id = ? AND d.app_id = ? AND d.review_id = ?`,
+      [workspaceId, app.id, ref.rawId],
+    );
+    if (!d) return failure(404, 'not_found');
+    const text = cut(String(d.text));
+    const body = cut(String(d.body ?? ''));
+    detail.reply = {
+      text: text.text,
+      truncated: text.truncated,
+      review: {
+        rating: Number(d.rating),
+        title: d.title === null ? null : String(d.title),
+        body: body.text,
+        language: d.language === null ? null : String(d.language),
+        territory: d.territory === null ? null : String(d.territory),
+        truncated: body.truncated,
+      },
+    };
+  }
+  return { ok: true, detail };
+}
+
+// ---------------------------------------------------------------------------------------------
 // The workspace-wide count (the nav badge): how many items every app's cart holds, no payload per item
 
 export type CartSummaryApp = {

@@ -158,6 +158,24 @@ territory, status }`. Ordered by kind (listing, graphics, release, review_reply)
 Texts and excerpts are shown to people who can already read them in the staged view and the review inbox; they are never audited or put in events.
 Not in the cart: pushed drafts waiting for submit, versions in review, approved versions, rollout steps (see [Pending view](#pending-view-read-only)).
 
+### `GET /apps/{id}/pending/cart/detail?id=<kind>:<id>`
+
+The full before and after of ONE cart item, for the row preview of the cart drawer and of the workspace Pending page ([ADR 0067](../adr/0067-diff-and-preview.md)).
+Same right as the cart (`listing.read`), stored state only (no store or repository is read), `Cache-Control: no-store`. `{ detail: { id, kind, version, text?, graphics?, reply? } }`:
+
+- `text` (kinds `listing`, `release`): `{ field, locale, before, after, limit, unit, truncated }`. `before` is the text last known in the store (`null`: none stored; always `null`
+  for a release field, the store is not read), `after` the staged text, `limit` and `unit` the store limit (`characters` or `bytes`).
+- `graphics`: `{ before, beforeReadAt, after, truncated }`. `before` is the images of the set in the last store read this server remembers (`null`: there was none), `after` the staged
+  files in order. Each image is `{ position, name, width, height, bytes, url }`; `url` is always a same origin address of Kiln's own routes (`.../staged/assets/blob?oid=` for an upload,
+  `.../assets/file?path=&commit=` for a repository file, `.../assets/store/thumb?ref=&size=640` for a store image), never a store address.
+- `reply`: `{ text, truncated, review: { rating, title, body, language, territory, truncated } }`, the draft and the review it answers.
+- A `price` item carries no extra: its before and after per territory are in the cart item (`price`).
+
+Bounds: a text is cut at 8000 characters (`truncated: true`), at most 30 images per side. `version` is the item's `version` in the cart; the web keeps a detail only for that version.
+`404 not_found` when the app is not in this workspace, or the id is not in THIS app's cart (unknown, discarded, published, or another app's or workspace's); `400 invalid_request` for a missing `id`.
+Nothing is written and nothing is audited. The workspace Pending page lists the changes of an app by reading `GET /apps/{id}/pending/cart` (lazily, when its row is expanded) and the detail per row;
+`GET /pending/cart-summary` stays counts only.
+
 ### `POST /apps/{id}/pending/publish`
 
 Body `{ "items": [ { "id": "listing:…", "version": "…" } ] }` (1 to 200; id and version as listed). Staged items (`listing`, `graphics`,
