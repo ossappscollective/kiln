@@ -8,6 +8,7 @@ The project is at Phase 0. Read [docs/phase-0.md](docs/phase-0.md) and
 - Add a test with every change to `core`, `vault`, `db` or `connectors`.
 - Run `pnpm lint`, `pnpm typecheck` and `pnpm test` before opening a pull request.
 - Contributions are licensed under Apache-2.0.
+- Maintainers: how to cut a release is in [docs/releasing.md](docs/releasing.md).
 
 ## Testing against Postgres
 
