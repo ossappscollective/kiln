@@ -1,13 +1,15 @@
 import type { Platform } from '@kiln/core';
 import { appAddress, type AppSection, type PlatformScope } from './app-scope.ts';
 import { k, t } from './i18n/t.ts';
+import { confirmationPhrase, type PriceResultDetail } from './prices.ts';
+import type { StagedPriceChange } from './types.ts';
 
 /**
  * The pending cart, pure (docs/adr/0054-pending-cart.md): the wire types of `GET /apps/{id}/pending/cart`, grouping, selection
  * (a bundle moves together), counts for the confirm, the requests of a publish, and merging per item results. No DOM and no fetch.
  */
 
-export const CART_KINDS = ['listing', 'graphics', 'release', 'review_reply'] as const;
+export const CART_KINDS = ['listing', 'graphics', 'release', 'price', 'review_reply'] as const;
 export type CartKind = (typeof CART_KINDS)[number];
 
 export type CartReason = { code: string; action?: string; envName?: string };
@@ -24,7 +26,7 @@ export type CartItem = {
   locale: string | null;
   createdAt: number;
   author: { id: string; name: string | null } | null;
-  risk: 'store_draft' | 'public_reply';
+  risk: 'store_draft' | 'public_reply' | 'financial';
   needsApproval: boolean;
   publishable: boolean;
   reason: CartReason | null;
@@ -36,15 +38,17 @@ export type CartItem = {
   thumbs?: string[];
   problems: { code: string; severity: 'error' | 'warning'; message: string }[];
   ref: { locale?: string; field?: string; slot?: string; reviewId?: string };
+  /** A price change (kind `price`): per territory before and after in minor units; risk `financial`, always needs the typed phrase. */
+  price?: StagedPriceChange;
   review?: { rating: number; excerpt: string; language: string | null; territory: string | null; status: string };
 };
 
-export type CartRights = { push: boolean; reply: boolean; discardStaged: boolean; discardReply: boolean };
+export type CartRights = { push: boolean; reply: boolean; price: boolean; discardStaged: boolean; discardReply: boolean };
 export type CartResponse = { cart: { items: CartItem[]; can: CartRights; generatedAt: number } };
 
-export type CartOutcome = { status: 'ok' | 'failed' | 'skipped'; reason: string | null };
+export type CartOutcome = { status: 'ok' | 'failed' | 'skipped'; reason: string | null; /** A price item: what the store showed after the write. */ price?: PriceResultDetail };
 export type CartResultResponse = {
-  result: { results: { id: string; status: CartOutcome['status']; reason: string | null; httpStatus?: number }[]; remaining: number };
+  result: { results: { id: string; status: CartOutcome['status']; reason: string | null; httpStatus?: number; price?: PriceResultDetail }[]; remaining: number };
 };
 
 /** An item as the page holds it: with the record (app id) it belongs to, because one app can have an iOS and an Android record. */
@@ -106,13 +110,15 @@ export type CartCounts = {
   /** Selected staged changes (written as a draft) and replies (public at once). */
   drafts: number;
   replies: number;
+  /** Selected price changes (a financial write: the typed phrase is needed). */
+  prices: number;
   /** True when the step-up policy asks for another confirmation. */
   needsApproval: boolean;
 };
 
 export function countsOf(rows: readonly CartRow[], selection: Selection): CartCounts {
   const chosen = selectedRows(rows, selection);
-  const byKind: Record<CartKind, number> = { listing: 0, graphics: 0, release: 0, review_reply: 0 };
+  const byKind: Record<CartKind, number> = { listing: 0, graphics: 0, release: 0, price: 0, review_reply: 0 };
   for (const r of chosen) byKind[r.kind] += 1;
   return {
     total: rows.length,
@@ -124,6 +130,7 @@ export function countsOf(rows: readonly CartRow[], selection: Selection): CartCo
     replyStores: [...new Set(chosen.filter((r) => r.risk === 'public_reply').map((r) => r.store))],
     drafts: chosen.filter((r) => r.risk === 'store_draft').length,
     replies: chosen.filter((r) => r.risk === 'public_reply').length,
+    prices: chosen.filter((r) => r.kind === 'price').length,
     needsApproval: chosen.some((r) => r.needsApproval),
   };
 }
@@ -148,6 +155,21 @@ export function publishRequests(rows: readonly CartRow[], selection: Selection):
   return out;
 }
 
+/**
+ * The phrase to type for the price items selected, ONE PER RECORD: a publish is one request per record and the server checks the phrase of the
+ * price items of that request (their number and the largest change among them). Empty when no price item is selected.
+ */
+export function pricePhrases(rows: readonly CartRow[], selection: Selection): { appId: string; count: number; phrase: string }[] {
+  const byApp = new Map<string, StagedPriceChange[]>();
+  for (const r of selectedRows(rows, selection)) {
+    if (r.kind !== 'price' || !r.price) continue;
+    const list = byApp.get(r.appId) ?? [];
+    list.push(r.price);
+    byApp.set(r.appId, list);
+  }
+  return [...byApp].map(([appId, items]) => ({ appId, count: items.length, phrase: confirmationPhrase(items) }));
+}
+
 export function discardRequests(rows: readonly CartRow[], selection: Selection): Map<string, string[]> {
   const out = new Map<string, string[]>();
   for (const r of selectedRows(rows, selection).filter((x) => x.canDiscard)) {
@@ -163,7 +185,7 @@ export type Outcomes = Readonly<Record<string, CartOutcome>>;
 
 export function mergeResults(previous: Outcomes, appId: string, results: CartResultResponse['result']['results']): Outcomes {
   const next: Record<string, CartOutcome> = { ...previous };
-  for (const r of results) next[rowKey(appId, r.id)] = { status: r.status, reason: r.reason };
+  for (const r of results) next[rowKey(appId, r.id)] = { status: r.status, reason: r.reason, ...(r.price ? { price: r.price } : {}) };
   return next;
 }
 
@@ -192,7 +214,7 @@ export const outcomeRows = (snapshot: readonly CartRow[], outcomes: Outcomes): {
 
 // ----- places and signals ------------------------------------------------------------------------
 
-const SECTION: Record<CartKind, AppSection> = { listing: 'listing', graphics: 'assets', release: 'releases', review_reply: 'reviews' };
+const SECTION: Record<CartKind, AppSection> = { listing: 'listing', graphics: 'assets', release: 'releases', price: 'products', review_reply: 'reviews' };
 
 /** Where the item was made: the page of the app that holds it. */
 export const placeOf = (row: CartRow, groupId: string, platform: PlatformScope | null): string =>
@@ -223,6 +245,7 @@ export const rowsForLocale = (rows: readonly CartRow[], locale: string): CartRow
 const REASON_KEYS = {
   no_right: k('app:cart.reason.noRight'),
   switch_off: k('app:cart.reason.switchOff'),
+  workspace_off: k('app:cart.reason.workspaceOff'),
   invalid: k('app:cart.reason.invalid'),
   bundle_blocked: k('app:cart.reason.bundleBlocked'),
   metadata_locked: k('app:cart.reason.metadataLocked'),
@@ -255,6 +278,24 @@ const RESULT_KEYS = {
   metadata_locked: k('app:cart.reason.metadataLocked'),
   in_progress: k('app:cart.reason.inProgress'),
   outcome_unknown: k('app:cart.reason.outcomeUnknown'),
+  workspace_off: k('app:cart.reason.workspaceOff'),
+  confirmation_mismatch: k('app:cart.result.confirmationMismatch'),
+  price_writes_disabled: k('app:cart.reason.switchOff'),
+  write_in_progress: k('app:cart.reason.inProgress'),
+  partial: k('app:cart.result.pricePartial'),
+  stale_price: k('app:cart.result.priceStale'),
+  currency_mismatch: k('app:cart.result.priceCurrency'),
+  price_point_invalid: k('app:cart.result.pricePoint'),
+  acknowledgement_required: k('app:cart.result.priceAck'),
+  invalid_price: k('app:cart.result.priceInvalid'),
+  store_rejected: k('app:cart.result.priceRejected'),
+  rejected: k('app:cart.result.priceRejected'),
+  price_change_not_allowed: k('app:cart.result.priceNotAllowed'),
+  existing_subscriber_rule: k('app:cart.result.priceSubscribers'),
+  unsupported_territory: k('app:cart.result.priceTerritory'),
+  product_not_found: k('app:cart.result.priceProduct'),
+  rate_limited: k('app:cart.result.rateLimited'),
+  forbidden: k('app:cart.reason.noRight'),
   other: k('app:cart.result.other'),
 } as const;
 type ResultCode = keyof typeof RESULT_KEYS;
@@ -270,6 +311,7 @@ export const GROUP_KEYS: Record<CartKind, string> = {
   listing: k('app:cart.group.listing'),
   graphics: k('app:cart.group.graphics'),
   release: k('app:cart.group.release'),
+  price: k('app:cart.group.price'),
   review_reply: k('app:cart.group.reviewReply'),
 };
 export const STORE_KEYS: Record<CartItem['store'], string> = {
@@ -279,6 +321,7 @@ export const STORE_KEYS: Record<CartItem['store'], string> = {
 export const RISK_KEYS: Record<CartItem['risk'], string> = {
   store_draft: k('app:cart.risk.storeDraft'),
   public_reply: k('app:cart.risk.publicReply'),
+  financial: k('app:cart.risk.financial'),
 };
 export const STATUS_KEYS: Record<CartOutcome['status'] | 'running', string> = {
   ok: k('app:cart.status.ok'),

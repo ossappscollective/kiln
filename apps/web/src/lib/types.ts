@@ -1530,6 +1530,77 @@ export type ProductsView = {
   /** Null before the first sync. */
   sync: ProductSyncStatus | null;
   write: { enabled: boolean; envName: string };
+  /** Price changes (docs/adr/0062-price-writes.md): both switches, the guard rails and what is staged for the app. */
+  priceWrite: PriceWriteView;
+};
+
+export type PriceSubscriberRule = 'preserve' | 'apply' | 'opt_in' | 'opt_out' | 'not_applicable';
+export type PriceAck = 'large_change' | 'large_absolute' | 'existing_subscribers';
+
+/** One staged price change as the server shows it: amounts are minor units as text; currencies are never added together. */
+export type StagedPriceChange = {
+  id: string;
+  productId: string;
+  planId: string | null;
+  store: string;
+  kind: ProductKind;
+  effectiveDate: string | null;
+  existingSubscribers: PriceSubscriberRule;
+  acknowledgements: PriceAck[];
+  lines: {
+    territory: string;
+    currency: string;
+    before: string;
+    after: string;
+    percentBp: number | null;
+    direction: 'increase' | 'decrease' | 'same';
+    pricePointId: string | null;
+  }[];
+  currencies: string[];
+  largestBp: number;
+  createdAt: number;
+  createdBy: string;
+  version: string;
+};
+
+export type PriceWriteView = {
+  /** Both the server switch and the workspace setting are on. */
+  enabled: boolean;
+  envName: string;
+  workspaceEnabled: boolean;
+  reason: 'server_switch' | 'workspace_setting' | null;
+  limits: { relativeChangePercent: number; absoluteChangeMajor: number; maxTerritories: number };
+  staged: StagedPriceChange[];
+};
+
+export type PricePointOption = { id: string; territory: string; currency: string; amount: string };
+export type PriceIssueView = {
+  code: string;
+  territory?: string;
+  detail?: { acks?: PriceAck[]; nearest?: PricePointOption[]; expected?: string; actual?: string };
+};
+export type ConvertedPrice = { territory: string; currency: string; amount: string; current: string | null };
+
+export type PriceStageRequest = {
+  planId: string | null;
+  lines: { territory: string; newAmount: string; pricePointId?: string }[];
+  effectiveDate: string | null;
+  existingSubscribers: PriceSubscriberRule;
+  acknowledgements: PriceAck[];
+  seenSyncedAt: number;
+};
+
+export type PriceDryRunItem = {
+  id: string;
+  productId: string;
+  summary: { currencies: string[]; largestBp: number; increases: number; decreases: number };
+  issues: PriceIssueView[];
+  preview: {
+    mode: 'store' | 'local';
+    lines: { territory: string; changeType?: string; note?: string }[];
+    requests: { method: string; path: string; summary: string }[];
+  } | null;
+  error: { code: string; message: string } | null;
 };
 
 export type ProductDetailView = {

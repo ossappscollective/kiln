@@ -442,6 +442,7 @@
   "token.action.eventsRead": "Ereignisse lesen",
   "token.action.listingRead": "Store-Einträge lesen",
   "token.action.membersRead": "Mitglieder lesen",
+  "token.action.monetizationPrice": "Preise von In-App-Produkten ändern",
   "token.action.monetizationWrite": "In-App-Produkte ändern",
   "token.action.plansRead": "Pläne lesen",
   "token.action.plansWrite": "Pläne ändern",

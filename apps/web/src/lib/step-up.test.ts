@@ -249,7 +249,7 @@ test('support detection and the factor to offer first', () => {
 
 test('the policy list: default, toggling keeps the order', () => {
   assert.equal(DEFAULT_COVERED.indexOf('store.push_draft'), -1);
-  assert.equal(STEP_UP_ACTIONS.length, 9);
+  assert.equal(STEP_UP_ACTIONS.length, 10);
   assert.deepEqual(toggleAction(['rollout'], 'store.release', true), ['store.release', 'rollout']);
   assert.deepEqual(toggleAction(['store.release', 'rollout'], 'rollout', false), ['store.release']);
   assert.match(

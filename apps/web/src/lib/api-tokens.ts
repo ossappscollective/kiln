@@ -90,6 +90,7 @@ const actionKeys: Record<string, string> = {
   'alerts.write': k('workspace:token.action.alertsWrite'),
   'alerts.manage': k('workspace:token.action.alertsManage'),
   'monetization.write': k('workspace:token.action.monetizationWrite'),
+  'monetization.price': k('workspace:token.action.monetizationPrice'),
 };
 
 /** "apps.read" as "Read apps": a label for the action picker. An action this version does not know is shown as its code. */

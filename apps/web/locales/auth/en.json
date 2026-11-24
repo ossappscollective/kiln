@@ -95,6 +95,7 @@
   "stepUp.action.flags": "Turn a feature on",
   "stepUp.action.internalSharing": "Google Play internal app sharing",
   "stepUp.action.manage": "Change how you confirm",
+  "stepUp.action.price": "Send price changes to a store",
   "stepUp.action.pushDraft": "Write a store draft",
   "stepUp.action.rollout": "Change a live rollout",
   "stepUp.action.storePublish": "Publish to the stores",

@@ -28,7 +28,8 @@
   import { onStagedChanged } from '../../lib/staged-sync.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
-  import type { AppSummary } from '../../lib/types.ts';
+  import { classifyPriceFailure } from '../../lib/prices.ts';
+  import type { AppSummary, PriceDryRunItem } from '../../lib/types.ts';
   import Icon from '../ui/Icon.svelte';
   import PendingCartDrawer from './PendingCartDrawer.svelte';
 
@@ -58,6 +59,9 @@
   let running = $state<ReadonlySet<string>>(new Set());
   let report = $state<{ rows: CartRow[]; outcomes: Outcomes; kind: 'publish' | 'discard' } | null>(null);
   let announce = $state('');
+  /** The last dry run of the price items: what the store says about them. Read only; nothing was sent. */
+  let dryRun = $state<{ items: { key: string; title: string; item: PriceDryRunItem }[]; writesEnabled: boolean; failed: string } | null>(null);
+  let dryBusy = $state(false);
   let now = $state(Date.now());
   let generation = 0;
   let loadedOnce = false;
@@ -149,16 +153,43 @@
 
   const codeOf = (e: unknown) => (e instanceof ApiError ? (e.code || 'other') : 'network');
 
-  async function publish(selection: Selection) {
+  /** The dry run of the selected price items: reads the live prices of each (the store's own check where there is one) and sends nothing. */
+  async function dryRunPrices(selection: Selection) {
+    const chosen = selectedRows(rows, selection).filter((r) => r.kind === 'price');
+    if (chosen.length === 0) return;
+    dryBusy = true;
+    dryRun = null;
+    const items: { key: string; title: string; item: PriceDryRunItem }[] = [];
+    let failed = '';
+    let writesEnabled = true;
+    for (const appId of new Set(chosen.map((r) => r.appId))) {
+      const mine = chosen.filter((r) => r.appId === appId);
+      try {
+        const done = await api.dryRunStagedPrices(workspaceId, appId, mine.map((r) => r.id));
+        writesEnabled = writesEnabled && done.dryRun.writesEnabled;
+        for (const item of done.dryRun.items) {
+          const row = mine.find((r) => r.id === `price:${item.id}`);
+          items.push({ key: row?.key ?? `${appId}|price:${item.id}`, title: row?.title ?? item.productId, item });
+        }
+      } catch (e) {
+        failed = classifyPriceFailure(e).message;
+      }
+    }
+    dryRun = { items, writesEnabled, failed };
+    dryBusy = false;
+  }
+
+  async function publish(selection: Selection, confirmations: Readonly<Record<string, string>> = {}) {
     const snapshot = selectedRows(rows, selection);
     busy = true;
     running = new Set(snapshot.map((r) => r.key));
     report = null;
+    dryRun = null;
     let outcomes: Outcomes = {};
     for (const [appId, items] of publishRequests(rows, selection)) {
       try {
         // A store draft write is a step-up action when the workspace asks for it: the call is made once more with the grant.
-        const done = await confirmed((grant) => api.publishPendingCart(workspaceId, appId, items, grant));
+        const done = await confirmed((grant) => api.publishPendingCart(workspaceId, appId, items, grant, confirmations[appId]));
         outcomes = mergeResults(outcomes, appId, done.result.results);
       } catch (e) {
         outcomes = failAll(outcomes, appId, items.map((i) => i.id), codeOf(e));
@@ -225,7 +256,10 @@
   {report}
   {focusLocale}
   {now}
+  {dryRun}
+  {dryBusy}
   onpublish={publish}
+  ondryrun={dryRunPrices}
   ondiscard={discard}
   onrefresh={refresh}
   ondismiss={() => (report = null)}

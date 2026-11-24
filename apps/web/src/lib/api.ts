@@ -264,6 +264,11 @@ import type {
   PlanChanges,
   PlanDetail,
   PlanSummary,
+  ConvertedPrice,
+  PriceDryRunItem,
+  PricePointOption,
+  PriceStageRequest,
+  StagedPriceChange,
   ProductDetailView,
   ProductLocalizationPreview,
   ProductLocalizationResult,
@@ -576,11 +581,6 @@ function uploadQueryText(q: UploadQuery): string {
   return out.toString();
 }
 
-/** Something was staged or a reply draft saved: the cart button says so. Returns the answer unchanged. */
-const addedToCart =
-  (appId: string) =>
-  <T>(answer: T): T => {
-    announceCartAdded();
 /** Which release the asset proposal is for: the version (App Store), the track (Google Play) and the chosen build number. */
 export type ReleaseAssetRef = { version?: string | null; track?: string | null; build?: string | null };
 const releaseAssetQuery = (r: ReleaseAssetRef): string => {
@@ -591,6 +591,11 @@ const releaseAssetQuery = (r: ReleaseAssetRef): string => {
   return parts.length > 0 ? `?${parts.join('&')}` : '';
 };
 
+/** Something was staged or a reply draft saved: the cart button says so. Returns the answer unchanged. */
+const addedToCart =
+  (appId: string) =>
+  <T>(answer: T): T => {
+    announceCartAdded();
     announceStagedChanged(appId, 'stage');
     return answer;
   };
@@ -1591,11 +1596,6 @@ export function createApi(options: ApiOptions = {}) {
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/fixes/stage`,
         body,
       ).then(addedToCart(appId)),
-    stageAssets: (
-      workspaceId: string,
-      appId: string,
-      body: {
-        locale: string;
     /** The store assets that changed in the repository since the previous release (docs/api/release-asset-proposal.md). Reads; stages nothing. */
     releaseAssetProposal: (workspaceId: string, appId: string, release: ReleaseAssetRef) =>
       request<{ proposal: AssetProposalView }>(
@@ -1618,6 +1618,11 @@ export function createApi(options: ApiOptions = {}) {
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/asset-proposal/dismiss`,
         body,
       ),
+    stageAssets: (
+      workspaceId: string,
+      appId: string,
+      body: {
+        locale: string;
         kind: string;
         device?: string | null;
         from?: 'repo';
@@ -1900,11 +1905,13 @@ export function createApi(options: ApiOptions = {}) {
       appId: string,
       items: { id: string; version: string }[],
       grant?: string,
+      /** The phrase typed for price items (`CHANGE 3 PRICES MAX 42%`); left out when nothing priced is sent. */
+      confirmation?: string,
     ) =>
       request<CartResultResponse>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/pending/publish`,
-        { items },
+        confirmation === undefined ? { items } : { items, confirmation },
         undefined,
         grantHeader(grant),
       ).then(stagedChanged(appId, 'publish')),
@@ -2755,6 +2762,31 @@ export function createApi(options: ApiOptions = {}) {
       request<ProductDetailView>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products/${encodeURIComponent(productId)}`,
+      ),
+    // Price changes (docs/adr/0062-price-writes.md). Price points, the conversion and the dry run READ the store; staging writes only Kiln's own table.
+    // Sending is the pending cart's publish, with the typed phrase in `confirmation`.
+    productPricePoints: (workspaceId: string, appId: string, productId: string, territory: string) =>
+      request<{ pricePoints: PricePointOption[]; currency: string | null; applicable: boolean }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products/${encodeURIComponent(productId)}/price-points?territory=${encodeURIComponent(territory)}`,
+      ),
+    convertProductPrices: (workspaceId: string, appId: string, productId: string, body: { planId: string | null; baseTerritory: string; amount: string }) =>
+      request<{ prices: ConvertedPrice[]; regionsVersion: string | null }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products/${encodeURIComponent(productId)}/price-convert`,
+        body,
+      ),
+    stageProductPrice: (workspaceId: string, appId: string, productId: string, body: PriceStageRequest) =>
+      request<{ staged: StagedPriceChange }>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products/${encodeURIComponent(productId)}/prices/staged`,
+        body,
+      ),
+    dryRunStagedPrices: (workspaceId: string, appId: string, ids?: string[]) =>
+      request<{ dryRun: { items: PriceDryRunItem[]; writesEnabled: boolean } }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/prices/dry-run`,
+        ids ? { ids } : {},
       ),
     syncAppProducts: (workspaceId: string, appId: string) =>
       request<ProductSyncResult>(

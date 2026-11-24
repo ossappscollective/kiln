@@ -95,6 +95,7 @@
   "stepUp.action.flags": "Activar una función",
   "stepUp.action.internalSharing": "Uso compartido interno de apps de Google Play",
   "stepUp.action.manage": "Cambiar cómo confirmas",
+  "stepUp.action.price": "Enviar cambios de precio a una tienda",
   "stepUp.action.pushDraft": "Escribir un borrador en la tienda",
   "stepUp.action.rollout": "Cambiar un despliegue en curso",
   "stepUp.action.storePublish": "Publicar en las tiendas",

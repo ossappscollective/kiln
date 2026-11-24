@@ -442,6 +442,7 @@
   "token.action.eventsRead": "Lire les événements",
   "token.action.listingRead": "Lire les fiches",
   "token.action.membersRead": "Lire les membres",
+  "token.action.monetizationPrice": "Modifier les prix des produits intégrés",
   "token.action.monetizationWrite": "Modifier les produits intégrés",
   "token.action.plansRead": "Lire les plans",
   "token.action.plansWrite": "Modifier les plans",

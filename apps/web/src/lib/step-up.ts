@@ -15,7 +15,8 @@ export type StepUpAction =
   | 'analytics.enable_apple'
   | 'credential.delete'
   | 'flags'
-  | 'store.push_draft';
+  | 'store.push_draft'
+  | 'store.price';
 
 /** The classes a policy can cover, in the server's order. A server test pins this list to the server's. */
 export const STEP_UP_ACTIONS: readonly StepUpAction[] = [
@@ -28,6 +29,7 @@ export const STEP_UP_ACTIONS: readonly StepUpAction[] = [
   'credential.delete',
   'flags',
   'store.push_draft',
+  'store.price',
 ];
 
 /** Covered when the policy is switched on and nothing else was chosen: everything but the draft push. */
@@ -45,6 +47,7 @@ const ACTION_LABELS: Record<string, string> = {
   'credential.delete': k('auth:stepUp.action.credentialDelete'),
   flags: k('auth:stepUp.action.flags'),
   'store.push_draft': k('auth:stepUp.action.pushDraft'),
+  'store.price': k('auth:stepUp.action.price'),
   'step_up.manage': k('auth:stepUp.action.manage'),
 };
 

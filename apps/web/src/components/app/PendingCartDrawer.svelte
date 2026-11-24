@@ -4,13 +4,19 @@
   all, "Publish N selected" and "Discard selected" each behind an inline confirm that says how many and to which stores, and after a
   run one result per item. A row that cannot be sent is listed with its reason and cannot be selected. Nothing is published here that
   was not named: the confirm is the review.
+  Price changes (docs/adr/0062-price-writes.md) are financial: the confirm names them, warns that stores take time to show a new price, and
+  asks for a phrase typed by hand (`CHANGE 2 PRICES MAX 20%`, one per record); nothing is sent until it matches. A dry run reads the store and
+  sends nothing. After a run each price says "confirmed by the store" or what the store shows instead.
   Props: open (bindable), rows, groupId, platform (the scope of the page, for the links), loading, error, busy, running (row keys being
-  sent), outcomes and report (the last run), onpublish / ondiscard (get the selection), onrefresh, ondismiss.
+  sent), outcomes and report (the last run), dryRun and dryBusy (the last dry run of the prices), onpublish (gets the selection and the typed
+  phrases by record) / ondiscard (get the selection), ondryrun, onrefresh, ondismiss.
   A native <dialog> shown as a side panel (focus trap, Escape and the focus return come from the browser), like the other drawers.
 -->
 <script lang="ts">
   import { tick } from 'svelte';
   import { t } from '../../lib/i18n/t.ts';
+  import { issueText, money, samePhrase, verificationText } from '../../lib/prices.ts';
+  import type { PriceDryRunItem } from '../../lib/types.ts';
   import { appAddress, type PlatformScope } from '../../lib/app-scope.ts';
   import { timeAgo } from '../../lib/format.ts';
   import {
@@ -25,6 +31,7 @@
     type Outcomes,
     outcomeRows,
     placeOf,
+    pricePhrases,
     prune,
     rowsForLocale,
     reasonText,
@@ -38,6 +45,7 @@
     toggle,
   } from '../../lib/pending-cart.ts';
   import CartGraphicsDetail from './CartGraphicsDetail.svelte';
+  import CartPriceDetail from './CartPriceDetail.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -55,8 +63,11 @@
     running,
     report,
     focusLocale = null,
+    dryRun = null,
+    dryBusy = false,
     onpublish,
     ondiscard,
+    ondryrun,
     onrefresh,
     ondismiss,
     now,
@@ -72,8 +83,12 @@
     report: { rows: CartRow[]; outcomes: Outcomes; kind: 'publish' | 'discard' } | null;
     /** Open scrolled to the items of this locale (from the "2 staged" chip of the listing grid), which are marked. */
     focusLocale?: string | null | undefined;
-    onpublish: (selection: Selection) => void;
+    /** The last dry run of price items (read only: nothing was sent). */
+    dryRun?: { items: { key: string; title: string; item: PriceDryRunItem }[]; writesEnabled: boolean; failed: string } | null | undefined;
+    dryBusy?: boolean | undefined;
+    onpublish: (selection: Selection, confirmations: Readonly<Record<string, string>>) => void;
     ondiscard: (selection: Selection) => void;
+    ondryrun: (selection: Selection) => void;
     onrefresh: () => void;
     ondismiss: () => void;
     now: number;
@@ -86,6 +101,8 @@
   let confirming = $state<'publish' | 'discard' | null>(null);
   let confirmBox = $state<HTMLElement>();
   let reportBox = $state<HTMLElement>();
+  /** What was typed for the price phrase, by record (a publish is one request per record, each with its own phrase). */
+  let typed = $state<Record<string, string>>({});
 
   const groups = $derived(groupRows(rows));
   const focused = $derived(focusLocale === null ? new Set<string>() : new Set(rowsForLocale(rows, focusLocale).map((r) => r.key)));
@@ -95,6 +112,12 @@
   const hasStaged = $derived(rows.some((r) => r.bundle !== null));
   const sums = $derived(report ? tally(report.outcomes) : { ok: 0, failed: 0, skipped: 0 });
   const listed = $derived(report ? outcomeRows(report.rows, report.outcomes) : []);
+  const phrases = $derived(pricePhrases(rows, selection));
+  const phraseOk = $derived(phrases.every((p) => samePhrase(typed[p.appId] ?? '', p.phrase)));
+  const platformName = (appId: string) => {
+    const p = rows.find((r) => r.appId === appId)?.platform;
+    return p === 'ios' ? 'iOS' : p === 'android' ? 'Android' : String(p ?? '');
+  };
   const storeText = (list: readonly CartRow['store'][]) => list.map((s) => t(STORE_KEYS[s])).join(', ');
 
   // The list changes under a selection (a refresh, a run): keep what is still there.
@@ -146,6 +169,7 @@
 
   async function ask(kind: 'publish' | 'discard') {
     confirming = kind;
+    typed = {};
     await tick();
     confirmBox?.querySelector('button')?.focus();
   }
@@ -153,9 +177,10 @@
   function go() {
     const kind = confirming;
     confirming = null;
-    if (kind === 'publish') onpublish(selection);
+    if (kind === 'publish') onpublish(selection, phrases.length > 0 ? typed : {});
     else if (kind === 'discard') ondiscard(selection);
     selection = noSelection;
+    typed = {};
   }
 
   const outcomeTone = (o: CartOutcome) => (o.status === 'ok' ? 'ok' : o.status === 'failed' ? 'bad' : 'warn');
@@ -197,6 +222,40 @@
                   <Badge tone={outcomeTone(outcome)}>{t(STATUS_KEYS[outcome.status])}</Badge>
                   <span class="r-title">{row.title}</span>
                   {#if outcome.status !== 'ok'}<span class="muted">{resultText(outcome.reason)}</span>{/if}
+                  {#if outcome.price}
+                    <span class="verify" class:good={outcome.price.verification === 'confirmed'}>{verificationText(outcome.price)}</span>
+                    {#each outcome.price.lines.filter((l) => l.outcome === 'failed' || l.outcome === 'unknown') as l (l.territory)}
+                      <span class="muted line-fail">{t('app:cart.price.lineFailed', { territory: l.territory, amount: money(l.after, l.currency), outcome: l.outcome === 'unknown' ? t('app:cart.price.lineUnknown') : t('app:cart.price.lineRefused') })}</span>
+                    {/each}
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+
+        {#if dryRun}
+          <div class="dry" role="status" data-testid="cart-dry-run">
+            <strong>{t('app:cart.dryRun.title')}</strong>
+            <p class="muted">{t('app:cart.dryRun.note')}</p>
+            {#if dryRun.failed}<Alert tone="error">{dryRun.failed}</Alert>{/if}
+            {#if !dryRun.writesEnabled}<Alert tone="warn">{t('app:cart.dryRun.switchOff')}</Alert>{/if}
+            <ul>
+              {#each dryRun.items as d (d.key)}
+                <li>
+                  <span class="r-title">{d.title}</span>
+                  {#if d.item.error}
+                    <Badge tone="bad">{t('app:cart.dryRun.error')}</Badge> <span>{d.item.error.message}</span>
+                  {:else if d.item.issues.length > 0}
+                    <Badge tone="bad">{t('app:cart.dryRun.refused')}</Badge>
+                    <ul class="issues">{#each d.item.issues as issue}<li>{issueText(issue, d.item.summary.currencies[0])}</li>{/each}</ul>
+                  {:else if d.item.preview}
+                    <Badge tone="ok">{t('app:cart.dryRun.wouldSend')}</Badge>
+                    <span class="muted">{d.item.preview.mode === 'store' ? t('app:cart.dryRun.storeChecked') : t('app:cart.dryRun.noStoreCheck')}</span>
+                    {#if d.item.preview.mode === 'local'}
+                      <ul class="issues">{#each d.item.preview.requests as r}<li><span class="mono">{r.method} {r.path}</span> {r.summary}</li>{/each}</ul>
+                    {/if}
+                  {/if}
                 </li>
               {/each}
             </ul>
@@ -251,14 +310,16 @@
                         <strong class="title">{row.title || t(GROUP_KEYS[row.kind])}</strong>
                         <Badge>{row.platform === 'ios' ? 'iOS' : row.platform === 'android' ? 'Android' : row.platform}</Badge>
                         {#if row.locale}<Badge>{row.locale}</Badge>{/if}
-                        <Badge tone={row.risk === 'public_reply' ? 'warn' : 'neutral'}>{t(RISK_KEYS[row.risk])}</Badge>
+                        <Badge tone={row.risk === 'public_reply' || row.risk === 'financial' ? 'warn' : 'neutral'}>{t(RISK_KEYS[row.risk])}</Badge>
                         {#if state}<Badge tone="info" icon="refresh">{t(STATUS_KEYS.running)}</Badge>{/if}
                       </div>
                       <div id="{uid}-{row.key}-d" class="detail">
                         {#if row.review}
                           <p class="quote muted">{t('app:cart.reviewLine', { stars: stars(row.review.rating), excerpt: row.review.excerpt })}</p>
                         {/if}
-                        {#if row.kind === 'graphics'}
+                        {#if row.kind === 'price' && row.price}
+                          <CartPriceDetail price={row.price} />
+                        {:else if row.kind === 'graphics'}
                           <CartGraphicsDetail files={row.counts.files ?? 0} before={row.counts.before ?? null} thumbs={row.thumbs ?? []} />
                         {:else if row.summary !== null}
                           <p class="diff">
@@ -297,9 +358,30 @@
               <strong>{t('app:cart.confirm.publishTitle', { count: counts.selected })}</strong>
               {#if counts.drafts > 0}<p>{t('app:cart.confirm.drafts', { count: counts.drafts, stores: storeText(counts.draftStores) })}</p>{/if}
               {#if counts.replies > 0}<p>{t('app:cart.confirm.replies', { count: counts.replies, stores: storeText(counts.replyStores) })}</p>{/if}
+              {#if counts.prices > 0}
+                <div class="financial">
+                  <p><strong>{t('app:cart.confirm.prices', { count: counts.prices })}</strong></p>
+                  <p>{t('app:cart.confirm.pricesDelay')}</p>
+                  {#each phrases as ph (ph.appId)}
+                    <label class="phrase">
+                      <span>{phrases.length > 1 ? t('app:cart.confirm.typeFor', { platform: platformName(ph.appId) }) : t('app:cart.confirm.type')} <code class="mono">{ph.phrase}</code></span>
+                      <input
+                        type="text"
+                        autocomplete="off"
+                        autocapitalize="characters"
+                        spellcheck="false"
+                        value={typed[ph.appId] ?? ''}
+                        oninput={(e) => (typed = { ...typed, [ph.appId]: e.currentTarget.value })}
+                        aria-invalid={(typed[ph.appId] ?? '') !== '' && !samePhrase(typed[ph.appId] ?? '', ph.phrase)}
+                        data-testid="price-phrase"
+                      />
+                    </label>
+                  {/each}
+                </div>
+              {/if}
               {#if counts.needsApproval}<p class="muted">{t('app:cart.confirm.approval')}</p>{/if}
               <div class="row">
-                <Button variant="primary" onclick={go}>{t('app:cart.confirm.go')}</Button>
+                <Button variant="primary" disabled={!phraseOk} onclick={go}>{t('app:cart.confirm.go')}</Button>
                 <Button onclick={() => (confirming = null)}>{t('common:action.cancel')}</Button>
               </div>
             </div>
@@ -317,6 +399,9 @@
               <Button variant="primary" loading={busy} disabled={busy || counts.selected === 0} onclick={() => ask('publish')}>
                 {t('app:cart.publish', { count: counts.selected })}
               </Button>
+              {#if counts.prices > 0}
+                <Button loading={dryBusy} disabled={busy || dryBusy} onclick={() => ondryrun(selection)}>{t('app:cart.dryRun.button')}</Button>
+              {/if}
               <Button variant="danger" disabled={busy || !canDiscardSome} onclick={() => ask('discard')}>{t('app:cart.discard')}</Button>
             </div>
           {/if}
@@ -500,6 +585,48 @@
     font-size: var(--text-sm);
   }
 
+  .financial {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-line);
+    border-radius: var(--radius-md);
+    color: var(--warn-ink);
+  }
+  .financial p {
+    margin: 0;
+  }
+  .phrase {
+    display: grid;
+    gap: var(--space-1);
+  }
+  .phrase input {
+    width: 100%;
+  }
+  .dry {
+    display: grid;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+    padding: var(--space-3);
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+  }
+  .dry p {
+    margin: 0;
+  }
+  .dry ul,
+  .issues {
+    margin: 0;
+    padding-left: var(--space-4);
+  }
+  .verify.good {
+    color: var(--ok-ink);
+  }
+  .line-fail {
+    display: block;
+  }
   .report {
     padding: var(--space-3) var(--space-4);
     margin-bottom: var(--space-4);

@@ -442,6 +442,7 @@
   "token.action.eventsRead": "Read events",
   "token.action.listingRead": "Read listing",
   "token.action.membersRead": "Read members",
+  "token.action.monetizationPrice": "Change prices of in-app products",
   "token.action.monetizationWrite": "Change in-app products",
   "token.action.plansRead": "Read plans",
   "token.action.plansWrite": "Change plans",

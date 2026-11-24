@@ -41,6 +41,7 @@
   import T from '../ui/T.svelte';
   import RevenueCatDetail from '../revenuecat/RevenueCatDetail.svelte';
   import LocalizationEditor from './LocalizationEditor.svelte';
+  import PriceEditor from './PriceEditor.svelte';
 
   let {
     api,
@@ -182,6 +183,10 @@
         <h4>{t('products:detail.pricesTitle')}</h4>
         <InfoTip label={t('products:detail.aboutPrices')} text={t(READ_ONLY_NOTE)} />
       </div>
+      {#if data}
+        <PriceEditor {api} {workspaceId} {role} {app} store={data.app.store} {product} onstaged={saved} />
+      {/if}
+      {#if revenueCat}<p class="muted text-sm" data-testid="revenuecat-prices-note">{t('products:price.revenueCatNote')}</p>{/if}
       {#if product.prices.length === 0}
         <p class="muted text-sm">{t('products:detail.noPrice')}</p>
       {:else}

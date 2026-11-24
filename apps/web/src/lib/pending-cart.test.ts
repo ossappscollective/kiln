@@ -10,6 +10,9 @@ import {
   type CartItem,
   type CartRow,
   countsOf,
+  pricePhrases,
+  reasonText,
+  resultText,
   discardRequests,
   failAll,
   groupRows,
@@ -97,7 +100,7 @@ test('counts say how many, which stores and what each kind does', () => {
   const c = countsOf(rows, sel);
   assert.deepEqual([c.selected, c.drafts, c.replies, c.total, c.selectable], [4, 3, 1, 5, 5]);
   assert.deepEqual(c.stores, ['googleplay', 'appstoreconnect']);
-  assert.deepEqual(c.byKind, { listing: 2, graphics: 1, release: 0, review_reply: 1 });
+  assert.deepEqual(c.byKind, { listing: 2, graphics: 1, release: 0, price: 0, review_reply: 1 });
   assert.equal(c.needsApproval, false);
   assert.equal(countsOf(toRows('a', [item('x', { needsApproval: true })]), new Set([rowKey('a', 'x')])).needsApproval, true);
 });
@@ -176,4 +179,63 @@ test('the locale chip opens the cart on that locale: the event carries it and th
   assert.deepEqual(seen, [{ locale: 'de-DE' }, { locale: null }]);
   const mixed = toRows('a', [item('listing:1', { locale: 'de-DE' }), item('graphics:1', { kind: 'graphics', locale: 'de-DE' }), item('listing:2', { locale: 'fr-FR' }), reply('review_reply:1', { locale: 'de-DE' })]);
   assert.deepEqual(rowsForLocale(mixed, 'de-DE').map((r) => r.id), ['listing:1', 'graphics:1']);
+});
+
+const staged = (id: string, largestBp: number, over: Partial<CartItem> = {}) =>
+  item(id, {
+    kind: 'price',
+    risk: 'financial',
+    bundle: null,
+    needsApproval: true,
+    price: {
+      id,
+      productId: 'p',
+      planId: null,
+      store: 'appstoreconnect',
+      kind: 'subscription',
+      effectiveDate: null,
+      existingSubscribers: 'preserve',
+      acknowledgements: [],
+      lines: [],
+      currencies: ['USD'],
+      largestBp,
+      createdAt: 1,
+      createdBy: 'u',
+      version: 'v',
+    },
+    ...over,
+  });
+
+test('price items: counted on their own, independent (no bundle), one typed phrase per record naming their number and the largest change', () => {
+  const priced: CartRow[] = [
+    ...toRows('a', [staged('price:1', 2004), staged('price:2', 4100), item('listing:1')]),
+    ...toRows('b', [staged('price:3', 1000)]),
+  ];
+  const all = selectAll(priced);
+  const c = countsOf(priced, all);
+  assert.equal(c.prices, 3);
+  assert.equal(c.byKind.price, 3);
+  assert.equal(c.needsApproval, true);
+  assert.deepEqual(pricePhrases(priced, all), [
+    { appId: 'a', count: 2, phrase: 'CHANGE 2 PRICES MAX 41%' },
+    { appId: 'b', count: 1, phrase: 'CHANGE 1 PRICE MAX 10%' },
+  ]);
+  // A subset moves alone: the phrase follows what is selected.
+  const one = toggle(priced, noSelection, rowKey('a', 'price:1'));
+  assert.deepEqual(pricePhrases(priced, one), [{ appId: 'a', count: 1, phrase: 'CHANGE 1 PRICE MAX 21%' }]);
+  assert.deepEqual(pricePhrases(priced, noSelection), []);
+  assert.deepEqual(groupRows(priced).map((g) => g.kind), ['listing', 'price']);
+});
+
+test('a price row that cannot be sent is listed with its reason and cannot be selected', () => {
+  const blocked = toRows('a', [staged('price:1', 100, { publishable: false, reason: { code: 'workspace_off' } })]);
+  assert.equal(selectAll(blocked).size, 0);
+  assert.equal(reasonText('workspace_off'), 'Price changes are switched off for this workspace.');
+  assert.equal(resultText('confirmation_mismatch'), 'The typed phrase was not the right one. Nothing was sent.');
+});
+
+test('a price result keeps what the store showed after the write', () => {
+  const detail = { productId: 'p', lines: [], verification: 'confirmed' as const, mismatches: [] };
+  const out = mergeResults({}, 'a', [{ id: 'price:1', status: 'ok', reason: null, price: detail }]);
+  assert.equal(out[rowKey('a', 'price:1')]?.price?.verification, 'confirmed');
 });
