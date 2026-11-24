@@ -156,6 +156,51 @@ const stagedChangesSchema = z.object({
   limits: stagedLimitsSchema,
 });
 
+const listingFixSchema = z.object({
+  id: z.enum(['keywords_tidy', 'keywords_drop_in_title', 'keywords_fit', 'text_tidy', 'shorten_ai', 'edit_field']),
+  labelKey: z.string().describe('The i18n key of the button label.'),
+  kind: z.enum(['stage', 'ai_shorten', 'edit_field']).describe('`stage`: `after` can be staged as it is. `ai_shorten`: only a person accepting an AI proposal. `edit_field`: open the editor.'),
+  locale: z.string(),
+  field: z.string(),
+  before: z.string(),
+  after: z.string().nullable(),
+  removed: z.array(z.string()).describe('Whole keyword terms the fix drops, in the order it dropped them.'),
+  risk: z.enum(['safe', 'review']),
+  resolves: z.array(z.string()).describe('Listing check codes the fix settles (checked again after applying).'),
+  limit: z.number().nullable(),
+  unit: z.enum(['characters', 'bytes']),
+  stageable: z.boolean().describe('False for the App Store name and subtitle (a draft push cannot write them).'),
+});
+
+const listingFixesSchema = z.object({
+  appId: z.string(),
+  store: z.enum(['app_store', 'google_play']),
+  afterPending: z
+    .object({
+      score: z.number(),
+      issueCount: z.number(),
+      counts: z.object({ problems: z.number(), warnings: z.number(), tips: z.number() }),
+      resolved: z.array(z.string()),
+    })
+    .nullable()
+    .describe('The checks of the values after the staged texts. Null when nothing is staged.'),
+  locales: z.array(
+    z.object({
+      locale: z.string(),
+      fixes: z.array(listingFixSchema),
+      cannot: z.array(z.object({ locale: z.string(), field: z.string(), code: z.string() })),
+      staged: z.array(z.object({ field: z.string(), id: z.string() })),
+    }),
+  ),
+});
+
+const stageListingFixBody = z.object({
+  locale: z.string().min(2).max(35),
+  field: z.string().min(1).max(60),
+  fixId: z.string().min(1).max(40).describe('`keywords_tidy`, `keywords_drop_in_title`, `keywords_fit` or `text_tidy`.'),
+  beforeHash: z.string().optional().describe('The hash of the text the person reviewed; a different current text is `409 stale_fix`.'),
+});
+
 const stagedTextBody = z.object({
   locale: z.string().min(2).max(35).describe('A store locale code such as `en-US`.'),
   field: z
@@ -633,6 +678,35 @@ export const stagedChangesOperations: Draft[] = [
         description: 'The staged changes.',
         schema: z.object({ staged: stagedChangesSchema }),
       },
+    },
+  },
+  {
+    id: 'getListingFixes',
+    method: 'get',
+    path: `${W}/apps/{id}/listing/fixes`,
+    tags: ['listing'],
+    summary: 'The one-click fixes for the listing checks, computed from the stored values',
+    description:
+      'Per locale: the fixes (keyword hygiene, dropping whole terms to fit the byte limit, white space that makes a text over its limit, hand-offs to AI and the editor), what cannot be fixed automatically, and the staged texts the fixes were computed from. `afterPending` re-runs the checks on the staged values. Reads the database only. Needs `listing.read`.',
+    risk: 'read',
+    access: { action: 'listing.read' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: { '200': { description: 'The fixes.', schema: listingFixesSchema } },
+  },
+  {
+    id: 'stageListingFix',
+    method: 'post',
+    path: `${W}/apps/{id}/listing/fixes/stage`,
+    tags: ['listing'],
+    summary: 'Stage one fix (nothing is written to a store)',
+    description:
+      'The server computes the fix again from the stored values and stages the one named by locale, field and fixId as a typed text, like `PUT .../staged/text`: the same limits, rights and gates; nothing reaches a store without the review of the pending changes. `409 fix_not_available` when it no longer applies, `409 stale_fix` when `beforeHash` is not the hash of the current text, `422 field_not_pushable` for the App Store name and subtitle. Needs `changesets.write`. Audited as `listing.fix_staged` with ids and hashes, never the text.',
+    risk: 'write',
+    access: { action: 'changesets.write' },
+    appScope: { kind: 'param', name: 'id' },
+    body: stageListingFixBody,
+    responses: {
+      '200': { description: 'The staged changes after the change, and the fix that was staged.', schema: z.object({ staged: stagedChangesSchema, fix: listingFixSchema }) },
     },
   },
   {

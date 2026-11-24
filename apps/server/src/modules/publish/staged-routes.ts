@@ -16,6 +16,7 @@ import {
   stageText,
   unstage,
 } from './staged-changes.ts';
+import { getListingFixes, stageListingFix } from './listing-fixes.ts';
 import { stageReleaseField } from './staged-release.ts';
 import {
   applyDraftPush,
@@ -93,6 +94,14 @@ const releaseFieldBody = z
     ]),
   })
   .strict();
+const fixStageBody = z
+  .object({
+    locale: z.string().min(2).max(35),
+    field: z.string().min(1).max(60),
+    fixId: z.string().min(1).max(40),
+    beforeHash: z.string().regex(/^[0-9a-f]{64}$|^absent$/).optional(),
+  })
+  .strict();
 const hash64 = /^[0-9a-f]{64}$/;
 const previewBody = z.object({}).strict().optional();
 const pushBody = z
@@ -161,6 +170,20 @@ export function stagedRoutes(ctx: StagedRoutesContext) {
       actor: actor(c),
     });
     return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
+  });
+
+  // One-click fixes of the listing checks (docs/api/listing.md): computed by the server, staged like a typed text.
+  routes.get('/:workspaceId/apps/:id/listing/fixes', needs('listing.read'), async (c) => {
+    const done = await getListingFixes(staged, { workspaceId: ws(c), appId: param(c, 'id') });
+    c.header('Cache-Control', 'no-store');
+    return done.ok ? c.json(done.view) : respond(c, done);
+  });
+
+  routes.post('/:workspaceId/apps/:id/listing/fixes/stage', needs('changesets.write'), async (c) => {
+    const body = await parseBody(c, fixStageBody);
+    if (!body.ok) return body.response;
+    const done = await stageListingFix(staged, { workspaceId: ws(c), appId: param(c, 'id'), ...body.data, actor: actor(c) });
+    return done.ok ? c.json({ staged: done.staged, fix: done.fix }) : respond(c, done);
   });
 
   // The release fields of a draft release (docs/api/releases-write.md): staged like a text, written by the same push.

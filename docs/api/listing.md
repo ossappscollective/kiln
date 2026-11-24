@@ -37,6 +37,8 @@ gets `401`. Times are epoch milliseconds.
 | Action                                                                                                                  | viewer | member | admin / owner |
 | ----------------------------------------------------------------------------------------------------------------------- | ------ | ------ | ------------- |
 | `listing.read`: `GET .../listing/live`, `.../listing/drift`, `.../listing/history`                                      | yes    | yes    | yes           |
+| `listing.read`: `GET .../listing/fixes` (computed one-click fixes)                                                      | yes    | yes    | yes           |
+| `changesets.write`: `POST .../listing/fixes/stage` (stages one fix)                                                     | no     | yes    | yes           |
 | `repositories.scan`: `POST .../listing/repo-refresh`                                                                    | no     | yes    | yes           |
 | `listing.read` and `changesets.write`: `POST .../listing/pull` (a draft; approving it still needs `changesets.approve`) | no     | yes    | yes           |
 | `apps.sync` as well, only with `refresh: true` in that pull                                                             | no     | yes    | yes           |
@@ -614,6 +616,43 @@ reads the listing) or refreshed from the store. It runs where the background wor
   convention of [open decision 10](../open-decisions.md) (background syncs), not a person.
 - **Request volume.** One read of a large listing is 100 to 200 requests (see "Caps"). With many apps,
   choose an interval of hours, not minutes.
+
+## One-click fixes of the listing checks
+
+Design: [ADR 0059](../adr/0059-listing-fixes-via-cart.md). The checks (`GET .../insights/listing-checks`) only say what is wrong. These routes offer the
+fixes that are mechanical and safe and STAGE them in the pending changes (the cart, [staged changes](staged-changes.md)): nothing is published without the
+review of the cart. The server is the only author of a fix. The pure functions are `proposeFixes` / `analyzeFixes` in `packages/core/src/listing/fixes.ts`.
+
+### `GET /apps/:id/listing/fixes` (`listing.read`)
+
+`{ appId, store, afterPending, locales[] }`. Per locale `{ locale, fixes[], cannot[], staged[] }`. The fixes are computed from the text **staged** for a
+field when there is one, else the store's last read (live, or editable when there is no live version); `staged[]` is `{ field, id }` (the staged item, to
+discard it). A fix is `{ id, labelKey, kind, locale, field, before, after, removed[], risk, resolves[], limit, unit, stageable }`:
+
+| `id`                     | `kind`       | What it does                                                                                                                                  | `risk`   |
+| ------------------------ | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `keywords_tidy`          | `stage`      | Apple keywords: trim, collapse spaces, drop empty terms and trailing commas, drop a repeated term (the first stays), comma and no space.       | `safe`   |
+| `keywords_drop_in_title` | `stage`      | The same, and drops the terms the name or subtitle already index (`removed[]` lists them).                                                    | `review` |
+| `keywords_fit`           | `stage`      | Over the byte limit: hygiene, then whole terms the name or subtitle index (last first), then whole trailing terms, until it fits. Never cuts a word, never empties the field. | `review` |
+| `text_tidy`              | `stage`      | A text over its limit only because of stray white space (runs of spaces, line ends, three line breaks): collapsed, only when that makes it fit. | `review` |
+| `shorten_ai`             | `ai_shorten` | `after` is null: the interface offers the existing AI suggestion (only when AI is on); a person accepts it. Never staged by this route.       | `review` |
+| `edit_field`             | `edit_field` | `after` is null: open the editor with the counter (an over-long text, or a required field left empty: no invented text).                       | `safe`   |
+
+Prose (name, subtitle, titles, descriptions) is never truncated. Every `after` is checked again with `checkListing`: a fix that would leave the finding
+(or empty the field) is not offered and the finding is listed in `cannot[]` (`{ locale, field, code }`: "cannot be fixed automatically"). Byte limits count
+UTF-8 bytes. Repeated terms follow the check (`keywords_duplicate`): case and accents folded, English plurals folded. `stageable` is false for the App Store
+name and subtitle (a draft push cannot write them): the fix still says what to change, and the interface says it cannot be staged. `afterPending` is
+`null` when nothing is staged, else `{ score, issueCount, counts, resolved[] }`: the checks run on the staged values, and the ids of the findings of the
+live values that they settle (the interface shows "Fix staged" on those and the counts "after pending changes").
+
+### `POST /apps/:id/listing/fixes/stage` (`changesets.write`)
+
+Body `{ locale, field, fixId, beforeHash? }`, nothing else (a `value` is `400`). The server computes the fixes again from the stored values and stages the
+one that matches, as a typed text (`source: local`) through the same path as `PUT .../staged/text` (same limits, normalisation, item cap and rights), then
+audits `listing.fix_staged` (`fixId`, counts and hashes, never the text). Returns `{ staged, fix }`. Errors: `409 fix_not_available` (the text changed, it is
+already fixed, the fix is `ai_shorten` or `edit_field`, or unknown), `409 stale_fix` (`beforeHash`, the SHA-256 of the `before` the person reviewed, is not the
+hash of the current text), `422 field_not_pushable`. Nothing is sent to a store. The locked-version rule (a live or in-review version) is enforced by the
+interface only, like every other staging control.
 
 ## Errors
 
