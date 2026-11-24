@@ -28,6 +28,7 @@ eye when you first run `pnpm --filter @kiln/web dev`, in both themes.
 | Theme choice (Auto, Light, Dark), remembered in `localStorage`                                            | `apps/web/src/lib/theme.ts`        |
 | Components                                                                                                | `apps/web/src/components/ui/`      |
 | Toast store                                                                                               | `apps/web/src/lib/toast.svelte.ts` |
+| App tint: derivation, palette, cache, store (pure maths with tests) and its stylesheet                    | `apps/web/src/lib/tint/`, `apps/web/src/styles/tint.css` |
 
 `app.css` imports `theme.css`; `main.ts` loads `app.css` and then `accents.css`. `lib/contrast.test.ts` fails if the
 solid hex values of `theme.css` and `tokens.ts` differ, if the two dark blocks differ, if a text or graphic pair
@@ -115,6 +116,32 @@ ignored). Write components against the variables below and they work in both. Ne
 
 Text on a tint uses the matching `-ink` variable. The solid (`--ok`, `--bad`, `--warn`, `--info`) is for dots, icons
 and borders only, never for body text. Every text pair is at least 4.5:1 (ink on surfaces 7:1) in both themes.
+
+## App tint
+
+An app's pages and its reviews in the inbox can wear the main colours of the app icon ([ADR 0068](adr/0068-app-tint.md)). It is a re-mapping of the accent
+tokens inside one subtree, never a second palette, and it is opt-out (a personal switch in the account menu, and Auto / Off / Custom colour per app in
+app Settings, Appearance).
+
+- **Mechanism.** One wrapper attribute `data-app-tint` (inline style `--tint-l-*` and `--tint-d-*`, from `lib/tint/tokens.ts`) on the app page, the app card and the
+  "This app" nav group; `data-app-tint-glow` on the shell column re-maps only `--ambient`. `styles/tint.css` selects the light or dark set like `theme.css` does
+  (data-theme, else prefers-color-scheme) into `--app-accent`, `--app-accent-ink`, `--app-accent-hover`, `--app-accent-solid`, `--app-on-accent`, `--app-tint-subtle`,
+  `--app-tint-strong`, `--app-glow`, and inside the subtree re-maps: `--accent` and `--chip-ink` to the accent ink, `--accent-hover`, `--accent-ink` to on-accent,
+  `--accent-bg`, `--accent-soft` and `--chip-bg` to the subtle tint, `--primary-from/-to/-gradient`, `--title-end/-gradient`, `--nav-active-bg`, `--nav-bar-glow`,
+  `--brand-gradient-vertical`, `--btn-glow`. Components may read `--app-*` with a fallback (`var(--app-accent, transparent)`), which is empty outside a tinted subtree.
+- **The contrast rule.** Every derived colour is searched in OKLCH (hue kept, chroma capped at 0.17 and clamped to sRGB) until it meets WCAG against the real surfaces of its
+  theme: accent (borders, indicators, the active bar) 3:1; accent ink (text and icons) 4.5:1 on every surface and on both tints; on-accent on the solid 4.5:1; ink, muted
+  and faint text 4.5:1 on the subtle and strong tints and under the glow. When a pair cannot be met there is no tint and the default accent stays. A colour with no chroma
+  (a black and white icon, a grey pick) gets no tint. `prefers-contrast: more` and `forced-colors` turn the tint off in CSS. `lib/tint/tint.test.ts` loops hues 0 to 355 by 5,
+  several chromas and lightnesses, both themes, and parses the surfaces from `theme.css`.
+- **Scope: tinted.** The app header (icon ring, page title gradient, primary button, chips, links), the app card and "This app" group (active bar, wash, badges), the page
+  glow, tabs, rails and chips inside app routes, and the rows of the reviews inbox (start edge, icon ring, app name).
+- **Scope: never tinted.** The top bar, breadcrumbs, search, account menu, notifications, the workspace nav group, the portfolio and all-apps pages, workspace Settings,
+  toasts, every dialog and drawer (they get the default tokens back: `[data-app-tint] :is(dialog, [data-tint-reset])` restores the `--*-default` snapshots; the pending cart drawer
+  stays neutral), and the semantic colours (`--ok-*`, `--bad-*`, `--warn-*`, `--info-*`, `--danger-solid-*`), `--focus`, surfaces, ink and borders. `lib/tint/tint-css.test.ts`
+  fails on a selector outside `[data-app-tint`, on a colour literal, on a re-mapped status or surface token, and on a re-mapped token a dialog would not get back.
+- **Do.** Read the accent tokens as usual; they are tinted for you inside an app. **Don't** write a hex into the tint files, re-map a status colour, or add a tint selector outside
+  `tint.css`.
 
 ## Type, space, shape, motion, layers
 

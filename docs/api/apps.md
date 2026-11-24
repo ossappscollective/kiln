@@ -106,6 +106,19 @@ Order of `releases` in responses: by `track`, then `version`. Sort again client-
 
 `200 { "apps": [App, ...] }`, oldest first. Needs `apps.read`.
 
+### `GET /apps/appearance`
+
+`200 { "apps": { "<appId>": { "tint": "off" } | { "tint": "custom", "color": "#3b82f6" } } }`. Needs `apps.read`. How the web app tints its
+interface for each app ([ADR 0068](../adr/0068-app-tint.md)): only apps with an override are listed, every other app is `auto` (the colours of its icon).
+A token limited to some apps sees only those. Stored in `workspace_settings` under `app.<appId>.appearance` (no migration).
+
+### `PUT /apps/{id}/appearance`
+
+Needs `apps.write`. Body `{ "tint": "auto" }` (the default; removes the override), `{ "tint": "off" }` or `{ "tint": "custom", "color": "#rrggbb" }`
+(stored in lower case). `200 { "appearance": {...}, "changed": boolean }`. Anything else is `422 invalid_setting` (`issues`); an app of another workspace,
+or one a limited token may not see, is `404`. It only changes how this web app is drawn; nothing is written to a store. The server does not check
+contrast: the web app derives accessible colours from whatever is stored and falls back to the default accent.
+
 ### `POST /apps`
 
 Needs `apps.write`. Request:
@@ -393,7 +406,7 @@ shown; `app` is present for failures after the app was found). The 404 and 409 b
 ## Audit events
 
 `app.create` (platform, identifier, credentialId; `source: "import"` when added by import),
-`app.delete`, `app.sync` (`ok`, counts or `code`, `trigger` `request` or `job`), and
+`app.delete`, `app.appearance_update` (`appId`, `from`, `to`), `app.sync` (`ok`, counts or `code`, `trigger` `request` or `job`), and
 `credential.use` with purpose `app.sync` or `app.discover`. Never a
 secret, a token or a store response body.
 

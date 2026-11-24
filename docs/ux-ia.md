@@ -156,7 +156,7 @@ Same principles as phase 1: quiet by default, the important thing first, one pri
 - **Reviews** (per app and the inbox): one slim line of numbers (average, stars, stored count, trend word, a tiny weekly sparkline,
   "About the numbers" with the distribution, versions and the basis of each figure), then one toolbar row: search, the status chips
   New / Triaged / Replied / Ignored with counts (the inbox counts only New), and a Filters popover (rating, low ratings only, sort,
-  developer response, language, country, version, written; the inbox adds store, assignee, apps; the translation toggle lives
+  developer response, language, country, version, written; the inbox adds store and assignee, and has its own Apps combobox in the toolbar; the translation toggle lives
   there). The list and the detail view start right under the toolbar. Triage behaviour (`reviews.ts`, `review-split.ts`) is unchanged.
   The inbox is the **combined reviews feed** for "follow the reviews of iOS and Android in one place": every app and both stores,
   newest first, with the app name and a store badge on each review, "Load more" paging and an "Open app" link to the app's own Reviews
@@ -478,3 +478,18 @@ new flags; whether Google Play "changes not sent for review" works for the conne
 
 - Every read and the staging of the step is bounded (server 25 s / 45 s, client 30 s / 60 s); a failure is a translated message with "Try again", "Compare again" is the same retry and is disabled only while a request is in flight.
 - The screenshot comparison is a compact table per language and device (repository, store, status, link to Graphics), or "No repository linked" / "Nothing to compare". It does not need the `compareMedia` setting. The proposal card's rows are `AssetProposalRow`. Not viewed in a browser.
+
+## App tint and the reviews inbox app filter (2026-11-24, [ADR 0068](adr/0068-app-tint.md))
+
+- **App tint.** An app's pages (header, the app card and "This app" group of the left panel, page glow, primary controls, chips) take the accent of the app icon, derived so
+  text always keeps WCAG contrast in both themes (see [design-system](design-system.md) "App tint"). Never on the top bar, breadcrumbs, workspace group, portfolio, workspace
+  Settings, dialogs or drawers. Opt-out: account menu, "Tint the interface with the app's colours" (default on), and per app Settings, Display group, **Appearance**
+  (`?section=appearance`): Auto (icon colours), Off for this app, Custom colour with a live preview and the derived tokens with their contrast. Admins (`apps.write`) change the
+  per app choice; everyone can switch the tint off for themselves.
+- **Reviews inbox, rows.** Each row wears its app's tint (start edge, icon ring, app name in the accent ink) so the app is clear at a glance; with the personal switch off rows are
+  neutral and keep the app icon chip.
+- **Reviews inbox, app filter.** The toolbar has an **Apps** combobox (next to search, no longer a checklist inside Filters): type to search by app name or bundle id, arrows and
+  Enter to choose or remove, Escape closes, chosen apps are removable chips with their icon, each option shows the stored and new review counts, **All apps** resets. It lives in
+  the address (`#/reviews?apps=id1,id2`, combinable with rating, store, status, response, search and the rest), is sent to the server as `appIds` (already validated per workspace
+  and per visible app; see [api/reviews](api/reviews.md)), works with "Show more" paging, and an id of the address that is not a visible app is dropped. A line under the toolbar
+  says what is filtered ("Reviews of Alpha and Beta, with 2 more filters.", with an All apps link); with no match the empty state names the apps and offers All apps and Clear filters.
