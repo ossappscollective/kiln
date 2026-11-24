@@ -210,7 +210,10 @@ const app = createApp({
   aso: { sources: asoSources, limits: asoLimits },
   analytics: { intervalMinutes: config.analyticsIntervalMinutes },
   rollout: { enabled: config.storeRolloutEnabled },
-  eas: { updateRollout: { enabled: config.easUpdateRolloutEnabled } },
+  eas: {
+    updateRollout: { enabled: config.easUpdateRolloutEnabled },
+    buildsDownloadEnabled: config.buildsDownloadEnabled,
+  },
   monetization: { write: { enabled: config.storeProductWriteEnabled } },
   storeDraft: { enabled: config.storeDraftWriteEnabled },
   storeSubmit: { enabled: config.storeSubmitEnabled },

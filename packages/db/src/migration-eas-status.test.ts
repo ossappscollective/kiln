@@ -44,6 +44,7 @@ dbTest(
       'app_id',
       'app_identifier',
       'app_version',
+      'artifact_url',
       'build_id',
       'build_profile',
       'channel',

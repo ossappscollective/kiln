@@ -24,10 +24,10 @@ import { coded } from '../../i18n/problem.ts';
  * views (`getEasStatus`) read the database only, so listing never calls Expo.
  *
  * The snapshot holds the newest page of each list for the platform of the app record (an iOS record shows iOS builds, an Android record
- * Android builds): an app with an iOS and an Android record linked to one project reads each platform once. The ADDRESS of a build file is
- * never stored or returned: `hasArtifact` says that Expo holds one, and `expoUrl` is the page of the build at expo.dev, which is where
- * Expo shows the install link (and applies its own access rules). That keeps the builds download switch (`KILN_BUILDS_DOWNLOAD_ENABLED`)
- * the only way a build file leaves through this server.
+ * Android builds): an app with an iOS and an Android record linked to one project reads each platform once. The ADDRESS of a build file
+ * (`artifact_url`, ADR 0061) is stored but returned only when the caller passes `artifactUrls` (the routes: download switch
+ * `KILN_BUILDS_DOWNLOAD_ENABLED` on and the right `builds.download`); it is never proxied, logged or audited. `hasArtifact` and `expoUrl`
+ * (the page of the build at expo.dev, which shows the install link and applies Expo's own access rules) are always returned.
  */
 
 type Actor = { type: ActorType; id: string };
@@ -98,8 +98,10 @@ export type EasBuildView = {
   gitCommitHash: string | null;
   gitCommitMessage: string | null;
   error: { code: string | null; message: string | null } | null;
-  /** Expo holds a build file. The address is not returned: open `expoUrl`. */
+  /** Expo holds a build file. */
   hasArtifact: boolean;
+  /** Expo's address of it; null unless the caller may have it (download switch on and `builds.download`). Never proxied or logged. */
+  artifactUrl: string | null;
   /** When Expo deletes the build file. */
   artifactExpiresAt: number | null;
   createdAt: number | null;
@@ -179,7 +181,11 @@ const errorOf = (code: unknown, message: unknown) => {
 const expoPlatformKey = (value: unknown): ExpoPlatformKey | null =>
   value === 'ios' || value === 'android' ? value : null;
 
-function buildView(row: Record<string, unknown>, link: ExpoLinkView | null): EasBuildView | null {
+function buildView(
+  row: Record<string, unknown>,
+  link: ExpoLinkView | null,
+  artifactUrls: boolean,
+): EasBuildView | null {
   const key = expoPlatformKey(row.platform);
   if (key === null) return null;
   const platform = platformOfExpo[key];
@@ -207,6 +213,7 @@ function buildView(row: Record<string, unknown>, link: ExpoLinkView | null): Eas
     gitCommitMessage: nullableString(row.git_commit_message),
     error: errorOf(row.error_code, row.error_message),
     hasArtifact: Number(row.has_artifact) === 1,
+    artifactUrl: artifactUrls ? nullableString(row.artifact_url) : null,
     artifactExpiresAt: nullableNumber(row.expires_at),
     createdAt: nullableNumber(row.created_at),
     updatedAt: nullableNumber(row.updated_at),
@@ -267,6 +274,8 @@ export async function getEasStatus(
   sql: Sql,
   workspaceId: string,
   app: Pick<ManagedApp, 'id' | 'platform'>,
+  /** Include the address of each build file (the route decides: download switch on and the right `builds.download`). Default: no. */
+  artifactUrls = false,
 ): Promise<EasStatusView> {
   const link = await getExpoLink(sql, workspaceId, app.id);
   const supported = easPlatformOf(app.platform) !== null;
@@ -293,7 +302,7 @@ export async function getEasStatus(
     'SELECT * FROM eas_status_sync WHERE app_id = ? AND workspace_id = ?',
     [app.id, workspaceId],
   );
-  const builds = buildRows.flatMap((r) => buildView(r, link) ?? []);
+  const builds = buildRows.flatMap((r) => buildView(r, link, artifactUrls) ?? []);
   const byId = new Map(builds.map((b) => [b.id, b]));
   const submissions = submissionRows.flatMap((r) => submissionView(r, link, byId) ?? []);
   return {
@@ -406,8 +415,8 @@ const insertBuild = (
     `INSERT INTO eas_builds
        (app_id, build_id, workspace_id, platform, status, raw_status, build_profile, channel, app_version, app_build_version, sdk_version,
         runtime_version, distribution, simulator, app_identifier, git_commit_hash, git_commit_message, error_code, error_message,
-        has_artifact, created_at, updated_at, completed_at, expires_at, fetched_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        has_artifact, artifact_url, created_at, updated_at, completed_at, expires_at, fetched_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       appId,
       b.id,
@@ -429,6 +438,7 @@ const insertBuild = (
       b.error?.code ?? null,
       b.error?.message ?? null,
       b.hasArtifact ? 1 : 0,
+      b.artifactUrl,
       b.createdAt,
       b.updatedAt,
       b.completedAt,
@@ -500,7 +510,7 @@ export async function refreshEasStatus(
   ctx: EasStatusContext,
   input: { workspaceId: string; appId: string },
   actor: Actor,
-  options: { trigger: EasRefreshTrigger } = { trigger: 'manual' },
+  options: { trigger: EasRefreshTrigger; artifactUrls?: boolean } = { trigger: 'manual' },
 ): Promise<Outcome<{ status: EasStatusView }>> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
@@ -634,5 +644,5 @@ export async function refreshEasStatus(
       });
     }
   });
-  return { ok: true, status: await getEasStatus(ctx.db, input.workspaceId, app) };
+  return { ok: true, status: await getEasStatus(ctx.db, input.workspaceId, app, options.artifactUrls === true) };
 }

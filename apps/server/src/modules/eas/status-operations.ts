@@ -46,7 +46,13 @@ const build = z.object({
   ),
   hasArtifact: z
     .boolean()
-    .describe('Expo holds a build file. Its address is never returned: open `expoUrl`.'),
+    .describe('Expo holds a build file. Its address is `artifactUrl` where the caller may have it.'),
+  artifactUrl: z
+    .string()
+    .nullable()
+    .describe(
+      "The https address of the build file at Expo, for a direct link (never proxied). Null unless the builds download switch is on and the caller has `builds.download`, and while Expo gave none. Which Expo field holds it per platform is unverified (`artifacts.buildUrl`, else `applicationArchiveUrl`).",
+    ),
   artifactExpiresAt: timestamp.nullable().describe('When Expo deletes the build file.'),
   createdAt: timestamp.nullable(),
   updatedAt: timestamp.nullable(),

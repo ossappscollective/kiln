@@ -2466,6 +2466,8 @@ export const easBuilds = pgTable(
     errorMessage: text('error_message'),
     /** 0 or 1: Expo holds a build file. */
     hasArtifact: integer('has_artifact').notNull().default(0),
+    /** Expo's address of the build file (null when none or not read yet). Never logged or audited. */
+    artifactUrl: text('artifact_url'),
     createdAt: epochMs('created_at'),
     updatedAt: epochMs('updated_at'),
     completedAt: epochMs('completed_at'),

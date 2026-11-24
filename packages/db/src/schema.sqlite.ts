@@ -2454,6 +2454,8 @@ export const easBuilds = sqliteTable(
     errorMessage: text('error_message'),
     /** 0 or 1: Expo holds a build file. */
     hasArtifact: integer('has_artifact').notNull().default(0),
+    /** Expo's address of the build file (null when none or not read yet). Never logged or audited. */
+    artifactUrl: text('artifact_url'),
     createdAt: integer('created_at'),
     updatedAt: integer('updated_at'),
     completedAt: integer('completed_at'),

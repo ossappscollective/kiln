@@ -39,10 +39,14 @@ export function easStatusRoutes(
     return next();
   };
 
+  // The address of a build file is returned only with the download switch on and the right to download (ADR 0061).
+  const artifactUrls = (c: Context<AppEnv>) =>
+    deps?.buildsDownloadEnabled === true && can(c.get('role'), 'builds.download');
+
   app.get('/:workspaceId/apps/:appId/eas/status', needs('builds.read'), async (c) => {
     const found = await getApp(db, ws(c), param(c, 'appId'));
     if (!found) return c.json({ error: 'not_found' }, 404);
-    return c.json({ status: await getEasStatus(db, ws(c), found) });
+    return c.json({ status: await getEasStatus(db, ws(c), found, artifactUrls(c)) });
   });
 
   app.post('/:workspaceId/apps/:appId/eas/status/refresh', needs('apps.sync'), async (c) => {
@@ -65,7 +69,7 @@ export function easStatusRoutes(
       { db, masterKey, now, deps },
       { workspaceId: ws(c), appId: param(c, 'appId') },
       actor(c),
-      { trigger: 'manual' },
+      { trigger: 'manual', artifactUrls: artifactUrls(c) },
     );
     return done.ok ? c.json({ status: done.status }) : respond(c, done);
   });

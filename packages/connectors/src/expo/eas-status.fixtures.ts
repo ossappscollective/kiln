@@ -1,7 +1,7 @@
 /**
  * Response bodies shaped like Expo's GraphQL answers for builds and submissions, trimmed to the fields the status queries select (see the
  * comment above EAS_BUILDS_QUERY in queries.ts for where each field was checked). Written from eas-cli's query documents and the enums of
- * its generated client, not recorded from a live account. The artifact addresses are fake and must never appear in anything the server returns.
+ * its generated client, not recorded from a live account. The artifact address is fake; the server keeps it (ADR 0061) but never logs or audits it.
  */
 
 export const ARTIFACT_URL =

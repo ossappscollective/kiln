@@ -33,6 +33,7 @@
     testflightNote,
     testflightView,
   } from '../../lib/builds.ts';
+  import { type InstallBlock, installPlan } from '../../lib/eas/eas-install.ts';
   import { type EasStatusView } from '../../lib/eas/eas-status.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -50,6 +51,7 @@
   import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import DownloadDialog from './DownloadDialog.svelte';
+  import EasInstallDialog from './EasInstallDialog.svelte';
   import InstallGuide from './InstallGuide.svelte';
   import InternalShareDialog from './InternalShareDialog.svelte';
   import PhoneLinkDialog from './PhoneLinkDialog.svelte';
@@ -67,12 +69,24 @@
   let downloadRow = $state<BuildRow | null>(null);
   let phoneRow = $state<BuildRow | null>(null);
   let shareRow = $state<BuildRow | null>(null);
+  let easInstallRow = $state<BuildRow | null>(null);
   // Google Play internal app sharing: the button exists only when the server switch is on and this role may share. A failed read hides it.
   let sharing = $state<InternalSharingConfig | null>(null);
 
   // EAS builds and submissions of the Expo project this app is linked to (docs/adr/0036-eas-build-submit-status.md): the stored status loads
   // with the list (the server does not call Expo for it); "Read again" asks Expo again for people who may sync. Null when the app has no link.
   let eas = $state<EasStatusView | null>(null);
+
+  const blockedText = (block: InstallBlock): string =>
+    block === 'running'
+      ? t('builds:install.blocked.running')
+      : block === 'failed'
+        ? t('builds:install.blocked.failed')
+        : block === 'expired'
+          ? t('builds:install.blocked.expired')
+          : block === 'store'
+            ? t('builds:install.blocked.store')
+            : t('builds:install.blocked.noLink');
 
   const focus = $derived(parseViewPath(address.hash).query.get('build'));
   let generation = 0;
@@ -292,17 +306,27 @@
                 {#if guide.link}
                   <Button size="sm" icon="external-link" href={guide.link.href} target="_blank">{guide.link.label}</Button>
                 {/if}
-                <Button
-                  size="sm"
-                  icon="smartphone"
-                  aria-expanded={installKey === row.key}
-                  aria-controls="install-{row.key}"
-                  onclick={() => (installKey = installKey === row.key ? null : row.key)}
-                >
-                  {t('builds:tests.install')}
-                </Button>
+                {#if row.eas}
+                  {@const plan = installPlan(row.eas, now)}
+                  {#if plan.block === null}
+                    <Button size="sm" icon="smartphone" aria-haspopup="dialog" onclick={() => (easInstallRow = row)}>{t('builds:tests.install')}</Button>
+                  {:else}
+                    <Button size="sm" icon="smartphone" disabled>{t('builds:tests.install')}</Button>
+                    <InfoTip label={t('builds:install.whyBlocked')} icon="lock" text={blockedText(plan.block)} align="end" />
+                  {/if}
+                {:else}
+                  <Button
+                    size="sm"
+                    icon="smartphone"
+                    aria-expanded={installKey === row.key}
+                    aria-controls="install-{row.key}"
+                    onclick={() => (installKey = installKey === row.key ? null : row.key)}
+                  >
+                    {t('builds:tests.install')}
+                  </Button>
+                {/if}
               </div>
-              {#if installKey === row.key}
+              {#if installKey === row.key && !row.eas}
                 <div id="install-{row.key}" class="install"><InstallGuide {guide} /></div>
               {/if}
             </li>
@@ -320,6 +344,9 @@
 {/if}
 {#if shareRow && data}
   <InternalShareDialog {api} {workspaceId} appId={app.id} row={shareRow} onclose={() => (shareRow = null)} />
+{/if}
+{#if easInstallRow?.eas}
+  <EasInstallDialog build={easInstallRow.eas} title={easInstallRow.title} {now} onclose={() => (easInstallRow = null)} />
 {/if}
 {#if phoneRow && data}
   <PhoneLinkDialog {api} {workspaceId} appId={app.id} row={phoneRow} onclose={() => (phoneRow = null)} />

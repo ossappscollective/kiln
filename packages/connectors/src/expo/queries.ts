@@ -616,6 +616,17 @@ export const EAS_BUILDS_QUERY = `query KilnEasBuilds($appId: String!, $offset: I
   }
 }`;
 
+/** An https address of at most 2000 characters, or null. */
+function artifactUrlOf(value: unknown): string | null {
+  const url = text(value);
+  if (url === undefined || url.length > 2000) return null;
+  try {
+    return new URL(url).protocol === 'https:' ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 function easBuildOf(value: unknown): ExpoBuildSummary | null {
   if (!isRecord(value)) return null;
   const id = text(value.id);
@@ -647,6 +658,9 @@ function easBuildOf(value: unknown): ExpoBuildSummary | null {
     error: easErrorOf(value.error),
     hasArtifact:
       text(artifacts.buildUrl) !== undefined || text(artifacts.applicationArchiveUrl) !== undefined,
+    // buildUrl is the app file of the build (eas-cli prints it as the install link of an internal Android build); applicationArchiveUrl is
+    // the fallback. UNVERIFIED against a live account which of the two holds the file for each platform. Only https addresses are kept.
+    artifactUrl: artifactUrlOf(artifacts.buildUrl) ?? artifactUrlOf(artifacts.applicationArchiveUrl),
     createdAt: easTime(value.createdAt),
     updatedAt: easTime(value.updatedAt),
     completedAt: easTime(value.completedAt),

@@ -65,15 +65,14 @@ test('builds: the query asks for one platform of the project and maps every fiel
       gitCommitMessage: 'Fix the trail map',
       error: null,
       hasArtifact: true,
+      artifactUrl: ARTIFACT_URL,
       createdAt: Date.parse('2026-11-18T10:00:00.000Z'),
       updatedAt: Date.parse('2026-11-18T10:20:00.000Z'),
       completedAt: Date.parse('2026-11-18T10:20:00.000Z'),
       expiresAt: Date.parse('2026-12-18T10:20:00.000Z'),
     },
   ]);
-  // The address of the build file is read only to say that one exists; it is nowhere in the result.
-  assert.equal(JSON.stringify(page).includes('secret-signed-path'), false);
-  assert.equal(JSON.stringify(page).includes(ARTIFACT_URL), false);
+  // The address of the build file is kept as `artifactUrl` (https only, ADR 0061).
 });
 
 test('builds: internal distribution, a simulator build, an Android build, statuses and errors', async () => {

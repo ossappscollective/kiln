@@ -37,6 +37,8 @@ export type EasBuildView = {
   gitCommitMessage: string | null;
   error: EasErrorDetail | null;
   hasArtifact: boolean;
+  /** Expo's address of the build file; null unless the server may hand it out (download switch on, role may download). */
+  artifactUrl: string | null;
   artifactExpiresAt: number | null;
   createdAt: number | null;
   updatedAt: number | null;

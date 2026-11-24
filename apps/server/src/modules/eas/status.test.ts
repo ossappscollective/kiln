@@ -26,7 +26,7 @@ import {
   easStatusIntervalMs,
   queueEasStatusSyncs,
 } from './status-sync.ts';
-import { easBackoffMs, EAS_BACKOFF_MAX_MS } from './status.ts';
+import { easBackoffMs, EAS_BACKOFF_MAX_MS, getEasStatus } from './status.ts';
 
 const MINUTE = 60_000;
 
@@ -90,7 +90,10 @@ const noSecrets = async (t: EasBoot) => {
     'jobs',
   ]) {
     const rows = await t.db.query(`SELECT * FROM ${table}`);
-    parts.push(JSON.stringify(rows.map(({ ciphertext: _c, ...rest }) => rest)));
+    // The address of a build file is stored in eas_builds.artifact_url on purpose (ADR 0061); everywhere else it must not appear.
+    parts.push(
+      JSON.stringify(rows.map(({ ciphertext: _c, artifact_url: _a, ...rest }) => rest)),
+    );
   }
   const all = parts.join('\n');
   assert.ok(!all.includes(EXPO_TOKEN), 'the Expo token leaked');
@@ -175,6 +178,7 @@ dbTest(
         gitCommitMessage: 'Fix the trail map',
         error: null,
         hasArtifact: true,
+        artifactUrl: null,
         expoUrl:
           'https://expo.dev/accounts/acme/projects/trail-notes/builds/b0000000-0000-4000-8000-000000000001',
         createdAt: undefined,
@@ -232,6 +236,20 @@ dbTest(
     await noSecrets(t);
   },
 );
+
+dbTest('the address of a build file is stored, but returned only when the caller may have it (ADR 0061)', async (db) => {
+  const { t, appId, link } = await boot(db);
+  assert.equal((await link()).status, 200);
+  assert.equal((await t.call(t.owner, 'POST', `/apps/${appId}/eas/status/refresh`)).status, 200);
+  const [row] = await t.db.query('SELECT artifact_url FROM eas_builds WHERE app_id = ?', [appId]);
+  assert.equal(row?.artifact_url, ARTIFACT_URL, 'stored');
+  const listed = await t.call(t.owner, 'GET', `/apps/${appId}/eas/status`);
+  assert.equal(listed.body.status.builds[0].artifactUrl, null, 'the download switch is off');
+  assert.ok(!JSON.stringify(listed.body).includes('secret-signed-path'));
+  const app = { id: appId, platform: 'ios' as const };
+  const on = await getEasStatus(t.db, t.workspaceId, app, true);
+  assert.equal(on.builds[0]?.artifactUrl, ARTIFACT_URL);
+});
 
 dbTest(
   'an Android record reads Android, shows version codes, tracks, internal distribution and errors',

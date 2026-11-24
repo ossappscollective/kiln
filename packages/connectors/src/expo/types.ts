@@ -208,8 +208,10 @@ export type ExpoBuildSummary = {
   /** The first line of the commit message, at most 200 characters. */
   gitCommitMessage: string | null;
   error: ExpoErrorDetail | null;
-  /** Expo holds a build file for it (`artifacts.buildUrl` or `applicationArchiveUrl` is set). The address itself is not kept. */
+  /** Expo holds a build file for it (`artifacts.buildUrl` or `applicationArchiveUrl` is set). The address is `artifactUrl`. */
   hasArtifact: boolean;
+  /** The https address of the build file (`artifacts.buildUrl`, else `applicationArchiveUrl`); null when none. Never logged. */
+  artifactUrl: string | null;
   /** Epoch ms. */
   createdAt: number | null;
   updatedAt: number | null;

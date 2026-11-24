@@ -19,6 +19,8 @@ export type EasDeps = {
    * (KILN_EAS_UPDATE_ROLLOUT_ENABLED).
    */
   updateRollout?: { enabled?: boolean | undefined } | undefined;
+  /** KILN_BUILDS_DOWNLOAD_ENABLED: with it on, members with `builds.download` also get the address of an EAS build file (ADR 0061). */
+  buildsDownloadEnabled?: boolean | undefined;
 };
 
 export const easModule: ServerModule<EasDeps> = {
