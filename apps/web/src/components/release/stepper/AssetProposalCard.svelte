@@ -12,7 +12,7 @@
   import { untrack } from 'svelte';
   import { type AssetProposalView, type ProposalIssue, type Role } from '@kiln/core';
   import { ApiError, type Api } from '../../../lib/api.ts';
-  import { assetFileUrl } from '../../../lib/assets/assets.ts';
+  import { DECIDE_TIMEOUT_MS, settle, STAGE_TIMEOUT_MS } from '../../../lib/bounded-read.ts';
   import {
     cardMode,
     defaultSelection,
@@ -28,8 +28,9 @@
   } from '../../../lib/asset-proposal.ts';
   import { k, t } from '../../../lib/i18n/t.ts';
   import { announceCartOpen } from '../../../lib/pending-cart.ts';
+  import { announceStagedChanged } from '../../../lib/staged-sync.ts';
   import { canStage, stagingError } from '../../../lib/staged.ts';
-  import CartGraphicsDetail from '../../app/CartGraphicsDetail.svelte';
+  import AssetProposalRow from './AssetProposalRow.svelte';
   import Alert from '../../ui/Alert.svelte';
   import Badge from '../../ui/Badge.svelte';
   import Button from '../../ui/Button.svelte';
@@ -72,12 +73,15 @@
     loading = true;
     problem = '';
     try {
-      const out = await api.releaseAssetProposal(workspaceId, app.id, release);
+      const got = await settle((signal) => api.releaseAssetProposal(workspaceId, app.id, release, signal), { timeoutMessage: t('release-stepper:ap.timeout') });
+      if (!got.ok) throw got.error;
+      const out = got.value;
       if (mine !== seq) return;
       view = out.proposal;
       selected = defaultSelection(out.proposal.changes);
     } catch (e) {
       if (mine === seq) problem = e instanceof ApiError ? stagingError(e) : t('release-stepper:ap.loadFailed');
+      if (mine === seq) view = null;
     } finally {
       if (mine === seq) loading = false;
     }
@@ -97,7 +101,20 @@
     confirming = false;
     problem = '';
     try {
-      const out = await api.stageReleaseAssetProposal(workspaceId, app.id, { ...release, itemIds: picked, ...(acceptIssues ? { acceptIssues: true } : {}) });
+      const got = await settle((signal) => api.stageReleaseAssetProposal(workspaceId, app.id, { ...release, itemIds: picked, ...(acceptIssues ? { acceptIssues: true } : {}) }, signal), {
+        ms: STAGE_TIMEOUT_MS,
+        timeoutMessage: t('release-stepper:ap.stageTimeout'),
+      });
+      if (!got.ok) {
+        problem = stagingError(got.error);
+        // The server may have staged some of the items before the limit: read the card again so what is in the cart shows as staged.
+        if (got.timedOut) {
+          announceStagedChanged(app.id, 'stage');
+          void load();
+        }
+        return;
+      }
+      const out = got.value;
       note = resultLine(out.results);
       if (out.proposal) {
         view = out.proposal;
@@ -117,8 +134,15 @@
     busy = true;
     problem = '';
     try {
-      const out = await api.decideReleaseAssetProposal(workspaceId, app.id, { version: release.version, track: release.track, mode });
-      if (view) view = { ...view, state: out.state };
+      const got = await settle((signal) => api.decideReleaseAssetProposal(workspaceId, app.id, { version: release.version, track: release.track, mode }, signal), {
+        ms: DECIDE_TIMEOUT_MS,
+        timeoutMessage: t('release-stepper:ap.decideTimeout'),
+      });
+      if (!got.ok) {
+        problem = stagingError(got.error);
+        return;
+      }
+      if (view) view = { ...view, state: got.value.state };
     } catch (e) {
       problem = stagingError(e);
     } finally {
@@ -127,7 +151,6 @@
   }
 
   const toggle = (id: string) => (selected = selected.indexOf(id) === -1 ? [...selected, id] : selected.filter((x) => x !== id));
-  const clip = (text: string | null, max = 240): string => (text === null || text === '' ? t('release-stepper:ap.item.empty') : text.length > max ? `${text.slice(0, max)}…` : text);
   const where = (issue: ProposalIssue): string => {
     const item = view?.changes.filter((c) => c.id === issue.itemId)[0];
     return item ? t('release-stepper:ap.issues.where', { item: itemTitle(item), locale: localeName(item.locale) }) : '';
@@ -214,34 +237,14 @@
         {#if mode === 'locked'}<Alert tone="warn">{t('release-stepper:ap.locked')}</Alert>{/if}
         <ul class="rows">
           {#each view.changes as item (item.id)}
-            <li class="row" class:bad={item.hasErrors}>
-              <input
-                type="checkbox"
-                checked={selected.indexOf(item.id) !== -1}
-                disabled={!writable || busy}
-                aria-label={t('release-stepper:ap.item.selectAria', { item: itemTitle(item), locale: localeName(item.locale) })}
-                onchange={() => toggle(item.id)}
-              />
-              <div class="body">
-                <p class="head">
-                  <strong>{itemTitle(item)}</strong>
-                  <span class="muted">{localeName(item.locale)}</span>
-                  {#if item.hasErrors}<Badge tone="bad" icon="x-circle">{t('release-stepper:ap.item.hasIssues')}</Badge>{/if}
-                </p>
-                {#if item.kind === 'text'}
-                  <div class="diff">
-                    <p class="side"><span class="label">{t('release-stepper:ap.item.store')}</span><span class="val">{clip(item.before)}</span></p>
-                    <p class="side"><span class="label">{t('release-stepper:ap.item.repo')}</span><span class="val">{clip(item.after)}</span></p>
-                  </div>
-                {:else}
-                  <CartGraphicsDetail
-                    files={item.after.count}
-                    before={item.before}
-                    thumbs={item.after.files.slice(0, 4).map((f) => assetFileUrl(workspaceId, app.id, f.path, item.after.commit))}
-                  />
-                {/if}
-              </div>
-            </li>
+            <AssetProposalRow
+              {item}
+              {workspaceId}
+              appId={app.id}
+              selected={selected.indexOf(item.id) !== -1}
+              disabled={!writable || busy}
+              ontoggle={() => toggle(item.id)}
+            />
           {/each}
         </ul>
       </div>
@@ -316,8 +319,7 @@
   }
   .line,
   .counts,
-  .actions,
-  .head {
+  .actions {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
@@ -359,47 +361,6 @@
   }
   .where {
     opacity: 0.85;
-  }
-  .row {
-    display: flex;
-    gap: var(--space-3);
-    align-items: flex-start;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-md);
-  }
-  .row.bad {
-    border-color: var(--bad-line);
-  }
-  .row input {
-    margin-top: var(--space-1);
-  }
-  .body {
-    display: grid;
-    gap: var(--space-1);
-    min-width: 0;
-    flex: 1;
-  }
-  .diff {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-    gap: var(--space-2);
-  }
-  .side {
-    display: grid;
-    gap: var(--space-1);
-    padding: var(--space-2);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
-    min-width: 0;
-  }
-  .label {
-    font-size: var(--text-sm);
-    color: var(--muted);
-  }
-  .val {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
   }
   .staged li {
     display: flex;

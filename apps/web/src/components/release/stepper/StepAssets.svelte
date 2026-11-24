@@ -1,14 +1,20 @@
 <!--
   StepAssets: the third step of "Prepare release": are the screenshots up to date for this version? One sentence from the
-  existing comparison of the repository against the store, the number of graphic sets staged, and a link to the Assets tab
-  where screenshots are staged. This step is optional: nothing here changes anything, except what the person stages from the first card,
+  existing comparison of the repository against the store (compact table: per language and device, the screenshots in the repository,
+  in the store, one status, a link to the Graphics tab), the number of graphic sets staged, and a link to the Assets tab
+  where screenshots are staged. The comparison is explicit (the step is the click), so it does NOT need the app setting `compareMedia`.
+  The read is bounded (30 s, lib/bounded-read.ts; the server stops at 25 s): it ends as a table, an explicit empty state, or an error with
+  "Try again"; "Compare again" is the same retry and is only disabled while a request is really in flight. This step is optional: nothing here changes anything, except what the person stages from the first card,
   "Store assets changed in the repository" (AssetProposalCard, docs/adr/0063-release-asset-proposal.md).
   Props: api, workspaceId, role, app, view (the staged changes), scope (the platform scope for the link), release ({ version, track, build }).
 -->
 <script lang="ts">
   import { type AssetDiffView, type Role, type StagedChangesView } from '@kiln/core';
+  import { untrack } from 'svelte';
   import type { Api } from '../../../lib/api.ts';
   import { appAddress, type PlatformScope } from '../../../lib/app-scope.ts';
+  import { compareState, statusLabel } from '../../../lib/asset-compare.ts';
+  import { settle } from '../../../lib/bounded-read.ts';
   import { stagingError } from '../../../lib/staged.ts';
   import { t } from '../../../lib/i18n/t.ts';
   import { readCache } from '../../../lib/read-cache.ts';
@@ -48,7 +54,17 @@
     loading = true;
     problem = '';
     try {
-      const out = await readCache.read({ workspaceId, group: 'repo', key: `assetdiff/${app.id}`, force, load: () => api.appAssetDiff(workspaceId, app.id) });
+      const out = await readCache.read({
+        workspaceId,
+        group: 'repo',
+        key: `assetdiff/${app.id}`,
+        force,
+        load: async () => {
+          const got = await settle((signal) => api.appAssetDiff(workspaceId, app.id, force, signal), { timeoutMessage: t('release-stepper:sa.timeout') });
+          if (!got.ok) throw got.error;
+          return got.value;
+        },
+      });
       if (mine === seq) diff = out.diff;
     } catch (e) {
       if (mine === seq) problem = stagingError(e);
@@ -62,10 +78,11 @@
     const key = `${workspaceId}/${app.id}`;
     if (key !== shownFor) {
       shownFor = key;
-      void read();
+      untrack(() => void read());
     }
   });
 
+  const cmp = $derived(diff ? compareState(diff) : null);
   const line = $derived(assetsLine(diff ? diff.totals : null));
   const sets = $derived(view ? view.assets.length : 0);
   const files = $derived(view ? view.assets.reduce((n, s) => n + s.files.length, 0) : 0);
@@ -81,6 +98,10 @@
       {problem}
       <div class="retry"><Button size="sm" icon="refresh" onclick={() => read(true)}>{t('common:action.tryAgain')}</Button></div>
     </Alert>
+  {:else if cmp && cmp.kind === 'no_repository'}
+    <Alert tone="info" title={t('release-stepper:sa.noRepo.title')}>{t('release-stepper:sa.noRepo.body')}</Alert>
+  {:else if cmp && cmp.kind === 'nothing'}
+    <Alert tone="info" title={t('release-stepper:sa.nothing.title')}>{t('release-stepper:sa.nothing.body')}</Alert>
   {:else}
     <p class="status">
       <Badge tone={line.tone === 'warn' ? 'warn' : line.tone === 'ok' ? 'ok' : 'neutral'} icon={line.tone === 'ok' ? 'check' : undefined}>{line.tone === 'warn' ? t('release-stepper:sa.mayNeedUpdate') : line.tone === 'ok' ? t('release-stepper:sa.upToDate') : t('release-stepper:sa.notKnown')}</Badge>
@@ -89,6 +110,39 @@
     {#if diff && diff.version && line.tone === 'warn'}
       <p class="muted small">{diff.version.versionString ? t('release-stepper:sa.comparedVersion', { version: diff.version.versionString }) : t('release-stepper:sa.comparedStore')}</p>
     {/if}
+  {/if}
+
+  {#if cmp && cmp.kind === 'table' && !problem}
+    <table class="compare" data-testid="asset-compare">
+      <caption class="visually-hidden">{t('release-stepper:sa.table.caption')}</caption>
+      <thead>
+        <tr>
+          <th scope="col">{t('release-stepper:sa.table.set')}</th>
+          <th scope="col" class="num">{t('release-stepper:sa.table.repo')}</th>
+          <th scope="col" class="num">{t('release-stepper:sa.table.store')}</th>
+          <th scope="col">{t('release-stepper:sa.table.status')}</th>
+          <th scope="col"><span class="visually-hidden">{t('release-stepper:sa.table.open')}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each cmp.rows as row (row.key)}
+          <tr>
+            <th scope="row">{row.language}<span class="muted small"> · {row.what}</span></th>
+            <td class="num">{row.repoCount}</td>
+            <td class="num">{row.storeCount}</td>
+            <td>
+              <Badge tone={row.status === 'same' ? 'ok' : row.status === 'probably' ? 'neutral' : 'warn'}>{statusLabel(row.status)}</Badge>
+              {#if row.detail}<span class="muted small"> {row.detail}</span>{/if}
+            </td>
+            <td><a href={appAddress(app.id, 'assets', scope)}>{t('release-stepper:sa.table.open')}</a></td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+    {#if cmp.hidden > 0}<p class="muted small">{t('release-stepper:sa.table.more', { n: cmp.hidden })}</p>{/if}
+  {/if}
+  {#if diff && cmp && cmp.kind !== 'no_repository' && !problem}
+    <p class="muted small">{t('release-stepper:sa.explain')}</p>
   {/if}
 
   {#if sets > 0}
@@ -123,6 +177,29 @@
     flex-wrap: wrap;
     gap: var(--space-2) var(--space-3);
     align-items: center;
+  }
+
+  .compare {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+
+  .compare th,
+  .compare td {
+    padding: var(--space-1) var(--space-2);
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-weight: normal;
+  }
+
+  .compare thead th {
+    color: var(--text-muted);
+  }
+
+  .compare .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
   }
 
   .retry {

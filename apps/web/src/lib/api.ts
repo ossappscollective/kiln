@@ -1601,10 +1601,14 @@ export function createApi(options: ApiOptions = {}) {
         body,
       ).then(addedToCart(appId)),
     /** The store assets that changed in the repository since the previous release (docs/api/release-asset-proposal.md). Reads; stages nothing. */
-    releaseAssetProposal: (workspaceId: string, appId: string, release: ReleaseAssetRef) =>
+    releaseAssetProposal: (workspaceId: string, appId: string, release: ReleaseAssetRef, signal?: AbortSignal) =>
       request<{ proposal: AssetProposalView }>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/asset-proposal${releaseAssetQuery(release)}`,
+        undefined,
+        undefined,
+        undefined,
+        signal,
       ),
     /** The count only, cached on the server (the Releases list): "3 store asset changes proposed". Never the proposal itself. */
     releaseAssetProposalSummary: (workspaceId: string, appId: string) =>
@@ -1616,17 +1620,24 @@ export function createApi(options: ApiOptions = {}) {
       workspaceId: string,
       appId: string,
       body: ReleaseAssetRef & { itemIds: string[]; acceptIssues?: boolean },
+      signal?: AbortSignal,
     ) =>
       request<{ results: { id: string; status: string; code?: string }[]; proposal?: AssetProposalView }>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/asset-proposal/stage`,
         body,
+        undefined,
+        undefined,
+        signal,
       ).then(addedToCart(appId)),
-    decideReleaseAssetProposal: (workspaceId: string, appId: string, body: { version?: string | null; track?: string | null; mode: 'skip' | 'later' | 'reopen' }) =>
+    decideReleaseAssetProposal: (workspaceId: string, appId: string, body: { version?: string | null; track?: string | null; mode: 'skip' | 'later' | 'reopen' }, signal?: AbortSignal) =>
       request<{ state: ProposalState }>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/asset-proposal/dismiss`,
         body,
+        undefined,
+        undefined,
+        signal,
       ),
     stageAssets: (
       workspaceId: string,
@@ -1653,10 +1664,14 @@ export function createApi(options: ApiOptions = {}) {
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/store${fresh ? '?fresh=1' : ''}`,
       ),
-    appAssetDiff: (workspaceId: string, appId: string, fresh = false) =>
+    appAssetDiff: (workspaceId: string, appId: string, fresh = false, signal?: AbortSignal) =>
       request<{ diff: AssetDiffView; cachedStore: boolean }>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/diff${fresh ? '?fresh=1' : ''}`,
+        undefined,
+        undefined,
+        undefined,
+        signal,
       ),
     pullStoreImages: (workspaceId: string, appId: string, selection: PullSelection) =>
       request<{ pull: PullReport }>(

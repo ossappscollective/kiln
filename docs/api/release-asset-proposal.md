@@ -41,4 +41,6 @@ No change, text or path is in it. It is for the line "3 store asset changes prop
 
 Texts are staged as typed (`local`) text with the repository's value, graphics as the repository's set at the target commit (`PUT .../staged/assets` with `commit`).
 
+Time limits (ADR 0066): `GET` stops after 25 s with `504 compare_timeout`; `POST .../stage` after 45 s with `504 stage_timeout` (some items may be staged: read the proposal again); items not reached within 35 s are `failed` with `code: stage_timeout`; `proposal` is left out when it takes more than 15 s. All are coded (`assets.compareTimeout`, `assetProposal.stageTimeout`) and retryable.
+
 Reads of the repository are audited like every repository read (`credential.use`, purposes `repository.listing`, `repository.assets`) and limited like the Assets tab.

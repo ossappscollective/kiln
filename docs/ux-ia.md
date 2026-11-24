@@ -466,3 +466,8 @@ new flags; whether Google Play "changes not sent for review" works for the conne
 - ASO, Competitors: a **Scheduled reads of reviews** panel after the followed count: Off / Daily / Weekly (weekday), time zone (UTC or yours), competitors per run, newest reviews per read, Pause and
   Resume, the next run, an Apple-only note (Google Play has no official API), and one line per competitor ("Reads every Monday, last read 2 days ago, 3 new reviews", next run, failure reason) with an
   override select. Rights `aso.write` to change, `aso.read` to see. Not viewed in a browser.
+
+## Prepare release, Assets step: reads that always end (2026-11-24, [ADR 0066](adr/0066-assets-step-bounded-reads.md))
+
+- Every read and the staging of the step is bounded (server 25 s / 45 s, client 30 s / 60 s); a failure is a translated message with "Try again", "Compare again" is the same retry and is disabled only while a request is in flight.
+- The screenshot comparison is a compact table per language and device (repository, store, status, link to Graphics), or "No repository linked" / "Nothing to compare". It does not need the `compareMedia` setting. The proposal card's rows are `AssetProposalRow`. Not viewed in a browser.
