@@ -26,6 +26,7 @@ export * from './listing/listing-sections.ts';
 export * from './listing/staged-changes.ts';
 export * from './listing/store-asset-specs.ts';
 export * from './members.ts';
+export * from './pricing/price-change.ts';
 export * from './platform.ts';
 export * from './release/build-patterns.ts';
 export * from './release/lifecycle.ts';

@@ -61,6 +61,9 @@ export const actions = [
   // In-app purchases and subscriptions (docs/adr/0034-in-app-products.md): reading them needs `apps.read`, syncing `apps.sync`;
   // editing a localized display name or description in the store needs this (owner and admin, explicit-only for tokens).
   'monetization.write',
+  // Changing the PRICE of an in-app purchase or subscription (docs/adr/0062-price-writes.md): stage and send. Separate from `monetization.write`
+  // so a text editor is never a price editor; owner and admin, explicit-only for tokens.
+  'monetization.price',
 ] as const;
 export type Action = (typeof actions)[number];
 
@@ -176,6 +179,7 @@ export const tokenExplicitOnlyActions: readonly Action[] = [
   'builds.share',
   'alerts.manage',
   'monetization.write',
+  'monetization.price',
 ];
 
 export function isTokenRole(value: unknown): value is TokenRole {

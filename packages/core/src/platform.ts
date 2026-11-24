@@ -127,6 +127,8 @@ export const CAPABILITIES = [
   'bundleIdentifier',
   /** The store sells in-app purchases and subscriptions that can be read (and their display texts edited) through its API. */
   'inAppPurchases',
+  /** The store's API can change the price of an in-app purchase or subscription (docs/adr/0062-price-writes.md). Off by default at run time (`KILN_PRICE_WRITES_ENABLED`). */
+  'priceWrite',
   /** RevenueCat has an app type for the store, so the app's products can be read from a RevenueCat project (see `revenueCatAppTypes`). */
   'revenueCat',
   /**
@@ -167,6 +169,7 @@ const APPLE_CAPABILITIES: PlatformCapabilities = {
   ratingHistory: false,
   sideloadInstall: false,
   inAppPurchases: true,
+  priceWrite: true,
   revenueCat: true,
   storeExperimentsApi: true,
   testflightFeedbackApi: true,
@@ -196,6 +199,7 @@ const GOOGLE_CAPABILITIES: PlatformCapabilities = {
   ratingHistory: true,
   sideloadInstall: true,
   inAppPurchases: true,
+  priceWrite: true,
   revenueCat: true,
   storeExperimentsApi: false,
   testflightFeedbackApi: false,
