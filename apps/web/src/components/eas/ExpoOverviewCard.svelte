@@ -3,7 +3,8 @@
   submission with their state, version and build number, and when. From the STORED snapshot only (`GET .../eas/status`, database only, docs/api/eas-builds.md):
   it never calls Expo. Every row links to the Builds page. A record that is not linked to Expo says so with a link to Builds, where the link is made
   ("Connect your apps"); a linked record without builds says that none is stored yet. macOS and other platforms have no row. Hidden for a role that may
-  not read builds. (A current OTA update is not drawn: it is only read live from Expo, and the Overview makes no live call.)
+  not read builds. Under the builds, "Current update per channel" (the OTA update each channel serves, with its rollout, from the same stored read; honest
+  empty state and "Updated X ago"; links to Expo and to Builds, EAS updates). Still no live call to Expo.
   Props: api, workspaceId, role, members (the app records in scope), now, refreshKey (changes when a sync finished).
 -->
 <script lang="ts">
@@ -11,7 +12,7 @@
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { appAddress } from '../../lib/app-scope.ts';
-  import { expoCardVisible, expoRows, expoSupported } from '../../lib/eas/eas-overview.ts';
+  import { expoCardVisible, type ExpoOverviewRow, expoRows, expoSupported } from '../../lib/eas/eas-overview.ts';
   import { easBuildDetail, easBuildState, easBuildTitle, type EasStatusView, easSubmissionBuild, easSubmissionState } from '../../lib/eas/eas-status.ts';
   import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
@@ -34,6 +35,11 @@
   const mine = $derived(members.filter((m) => expoSupported(m.platform)));
   const allowed = $derived(can(role, 'builds.read'));
   const rows = $derived(expoRows(mine, views));
+
+  const otaDetail = (u: { branch: string | null; runtimeVersion: string | null }): string =>
+    [u.branch !== null ? t('eas:overview.ota.branch', { branch: u.branch }) : '', u.runtimeVersion !== null ? t('eas:overview.ota.runtime', { version: u.runtimeVersion }) : '']
+      .filter((p) => p !== '')
+      .join(' · ');
 
   $effect(() => {
     void workspaceId;
@@ -75,6 +81,7 @@
           <p class="muted text-sm" data-testid="expo-overview-empty">
             {t('eas:overview.noBuilds')} <a href={builds}>{t('eas:overview.openBuilds')}</a>
           </p>
+          {@render ota(row, builds)}
         {:else}
           <dl class="facts">
             <div>
@@ -110,11 +117,52 @@
               {/if}
             </div>
           </dl>
+          {@render ota(row, builds)}
         {/if}
       </div>
     {/each}
   </section>
 {/if}
+
+{#snippet ota(row: ExpoOverviewRow, builds: string)}
+  {#if row.ota}
+    <div class="ota" data-testid="expo-overview-ota-{row.platform}">
+      <h4 class="ota-title">{t('eas:overview.ota.title')}</h4>
+      {#if row.ota.state === 'ready'}
+        <ul class="channels">
+          {#each row.ota.channels as c (c.channel)}
+            <li data-testid="expo-overview-ota-channel">
+              <span class="strong">{c.channel}</span>
+              {#if c.update.rolloutPercentage !== null}
+                <Badge tone="warn" dot>{t('eas:overview.ota.rollout', { percentage: c.update.rolloutPercentage })}</Badge>
+              {/if}
+              {#if c.update.createdAt !== null}
+                <time class="muted text-sm" datetime={new Date(c.update.createdAt).toISOString()} title={formatDateTime(c.update.createdAt)}>{formatRelativeTime(c.update.createdAt, { now })}</time>
+              {/if}
+              {#if c.update.expoUrl !== null}<a class="text-sm" href={c.update.expoUrl} target="_blank" rel="noopener noreferrer">{t('eas:overview.ota.openExpo')}</a>{/if}
+              {#if otaDetail(c.update) !== ''}<span class="muted text-sm block">{otaDetail(c.update)}</span>{/if}
+              {#if c.update.message !== null}<span class="muted text-sm block">{c.update.message}</span>{/if}
+            </li>
+          {/each}
+        </ul>
+      {:else if row.ota.readAt === null}
+        <p class="muted text-sm" data-testid="expo-overview-ota-never">{t('eas:overview.ota.never')}</p>
+      {:else}
+        <p class="muted text-sm" data-testid="expo-overview-ota-empty">{t('eas:overview.ota.empty')}</p>
+      {/if}
+      <p class="muted text-sm">
+        {#if row.ota.readAt !== null}
+          <span data-testid="expo-overview-ota-updated">
+            {#if row.ota.failed}{t('eas:overview.ota.updatedFailed', { when: formatRelativeTime(row.ota.readAt, { now }) })}{:else}{t('eas:overview.ota.updated', { when: formatRelativeTime(row.ota.readAt, { now }) })}{/if}
+          </span>
+        {:else if row.ota.failed}
+          <span>{t('eas:overview.ota.failedNever')}</span>
+        {/if}
+        <a href={builds}>{t('eas:overview.ota.openBuilds')}</a>
+      </p>
+    </div>
+  {/if}
+{/snippet}
 
 <style>
   .expo {
@@ -168,5 +216,29 @@
 
   p {
     margin: 0;
+  }
+
+  .ota {
+    flex-basis: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--line);
+  }
+
+  .ota-title {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  .channels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-6);
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 </style>

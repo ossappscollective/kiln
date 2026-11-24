@@ -71,6 +71,36 @@ export type EasStatusSync = {
   submissionsTruncated: boolean;
 };
 
+/** The stored OTA (EAS Update) state of an app record (`updates` of `GET .../eas/status`, docs/api/eas-builds.md). */
+export type EasUpdateView = {
+  id: string;
+  group: string;
+  platform: string;
+  channel: string;
+  branch: string | null;
+  runtimeVersion: string | null;
+  /** The publisher's text, first line. Shown on screen only. */
+  message: string | null;
+  createdAt: number | null;
+  /** 1 to 99 while a per-update rollout is going, else null. */
+  rolloutPercentage: number | null;
+  rolloutSince: number | null;
+  expoUrl: string | null;
+};
+
+export type EasChannelUpdates = {
+  channel: string;
+  current: EasUpdateView | null;
+  rollouts: EasUpdateView[];
+};
+
+export type EasUpdatesView = {
+  readAt: number | null;
+  /** A short code when the last read of the updates failed. */
+  lastError: string | null;
+  channels: EasChannelUpdates[];
+};
+
 export type EasStatusView = {
   project: {
     fullName: string;
@@ -83,6 +113,7 @@ export type EasStatusView = {
   submissions: EasSubmissionView[];
   active: boolean;
   sync: EasStatusSync;
+  updates: EasUpdatesView;
 };
 
 // ---------------------------------------------------------------------------------------------

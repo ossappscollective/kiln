@@ -68,6 +68,7 @@ thresholds. Channels are the workspace defaults. The webhook is only on where li
 | `testflight.feedback`| A beta tester sent TestFlight feedback| info| app       | `testflight.feedback`| inbox                          | 30d           |                                                                                      |
 | `eas.build_failed`   | An EAS (Expo) build was stored as failed | warning  | app       | `eas.build_failed`     | inbox, desktop                 | 90d           | once per build id; none on the first read of a project |
 | `eas.submission_failed` | An EAS store submission was stored as failed | warning | app   | `eas.submission_failed`| inbox, desktop                 | 90d           | once per submission id; none on the first read of a project |
+| `eas.update_rollout_stuck` | An EAS Update rollout stayed below 100% for too long | warning | app   | `eas.update_rollout_stuck`| inbox, desktop                 | 90d           | Unchanged for: 48 hours (1 to 720); once per update group |
 | `rating.dropped`         | The average rating dropped                  | warning  | app       | state, every 5 minutes                                  | inbox, email                   | 7d            | Drop that counts: 20 hundredths of a star (5 to 200); compared with 7 days (1 to 60) |
 | `store.sync_failed`      | A store sync failed                         | warning  | app       | state, every 5 minutes                                  | inbox, email                   | 24h           |                                                                                      |
 | `credential.invalid`     | A credential does not work                  | critical | workspace | `credential.test_failed`, and state                     | inbox, email, desktop, webhook | 24h           |                                                                                      |
@@ -110,7 +111,13 @@ are raised by the stored status read of an Expo-linked app ([eas-builds](api/eas
 an `errored` status that the snapshot before did not hold (new, or it was still running). The first read of a project (or after a change of
 project) raises none, and a failure older than a week when first stored is history. The data is ids, platform, version, build number and Expo's
 short error code; never Expo's message. The alert opens the Builds page. A manual or scheduled read raising the same failure twice is not possible:
-the event is raised once and the alert key (`eas.build_failed:{buildId}`) holds 90 days. The OTA stuck-rollout alert is not built.
+the event is raised once and the alert key (`eas.build_failed:{buildId}`) holds 90 days. 
+
+`eas.update_rollout_stuck` (warning, group Builds, inbox and desktop by default) is raised by the same read ([ADR 0060](adr/0060-eas-update-state.md)) when a
+per-update rollout at Expo has stayed at one percentage below 100 for longer than the limit (rule parameter `hours`, default 48, a workspace setting; no per
+app value). The clock starts when Kiln first reads that percentage, so the alert comes at least the limit after Kiln first saw the rollout; a changed
+percentage starts it again. Once per update group (`eas.update_rollout_stuck:{appId}:{group}`, 90 days). The data is ids, platform, channel, percentage and
+hours; never the update message. The alert opens the Builds page (EAS updates).
 
 ### TestFlight feedback and crashes
 

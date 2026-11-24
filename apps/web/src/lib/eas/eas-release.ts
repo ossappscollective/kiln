@@ -1,5 +1,5 @@
 import type { ReleaseSummary } from '../types.ts';
-import type { EasBuildView, EasStatusView, EasSubmissionView } from './eas-status.ts';
+import type { EasBuildView, EasStatusView, EasSubmissionView, EasUpdateView } from './eas-status.ts';
 
 /**
  * The EAS build and store submission of a release (docs/ux-ia.md, docs/api/eas-builds.md): which stored EAS build is the one of a store
@@ -16,6 +16,8 @@ export type ReleaseEasMatch = {
   build: EasBuildView;
   submission: EasSubmissionView | null;
   steps: ReleaseEasStep[];
+  /** The OTA update that shipped with this runtime version on the build's channel, only when that is certain; else null. */
+  ota: EasUpdateView | null;
 };
 
 type ReleaseLike = Pick<ReleaseSummary, 'platform' | 'version' | 'build' | 'versionCodes' | 'status'>;
@@ -109,6 +111,20 @@ export function releaseSteps(
 }
 
 /**
+ * The stored OTA update of the matched build: the current update of the channel baked into the build, when it is for the platform of the build
+ * and has exactly the runtime version of the build. A build without a channel or a runtime version, a channel with no stored current update, or
+ * an update of another runtime version (it reaches no binary of this release) give null: nothing is shown rather than a guess.
+ */
+export function matchOta(build: EasBuildView, status: EasStatusView): EasUpdateView | null {
+  if (!build.channel || build.channel.trim() === '' || !build.runtimeVersion || build.runtimeVersion.trim() === '') return null;
+  const channel = (status.updates?.channels ?? []).filter((c) => same(c.channel, build.channel));
+  if (channel.length !== 1) return null;
+  const update = channel[0]?.current ?? null;
+  if (update === null || update.platform !== build.platform || !same(update.runtimeVersion, build.runtimeVersion)) return null;
+  return update;
+}
+
+/**
  * The match of a release in a stored snapshot, or null: no snapshot, an app that is not linked to Expo, an unsupported platform, or no
  * single confident build.
  */
@@ -118,5 +134,5 @@ export function matchRelease(release: ReleaseLike, status: EasStatusView | null 
   const build = matchBuild(release, status.builds);
   if (build === null) return null;
   const submission = matchSubmission(build, status.submissions);
-  return { build, submission, steps: releaseSteps(release, build, submission) };
+  return { build, submission, steps: releaseSteps(release, build, submission), ota: matchOta(build, status) };
 }

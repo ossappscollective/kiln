@@ -31,6 +31,12 @@ some apps may use both for those apps only.
 - `sync`: `readAt` (last successful read, `null` before the first), `lastAttemptAt`, `lastError` (a short code such as `expo_auth`, never
   Expo's text), `consecutiveFailures`, `buildsTruncated` and `submissionsTruncated` (the newest page of 30 was full: older ones exist at Expo
   and are not shown).
+- `updates`: the stored OTA (EAS Update) state of the platform of this record ([ADR 0060](../adr/0060-eas-update-state.md)): `{ readAt, lastError,
+  channels[] }`. `readAt` is the last successful read of the updates (`null` before the first), `lastError` a short code when that read failed (the
+  builds may have been read fine; the old updates stay). Per channel: `current` (the newest update of the branches the channel serves: `id`, `group`,
+  `platform`, `channel`, `branch`, `runtimeVersion`, `message` (first line, 200 characters), `createdAt`, `rolloutPercentage` (1 to 99 while a per-update
+  rollout is going, else `null`), `rolloutSince` (when this server first read that percentage), `expoUrl`) and `rollouts[]` (other updates of the channel
+  that are mid-rollout). Database only, like the rest of `GET /status`.
 
 An app record shows the builds and submissions of **its own platform**: an iOS and an Android record linked to one project each read their
 side. **The address of a build file is never stored or returned.** `hasArtifact` says that Expo holds one; `expoUrl` is the page of the build
@@ -43,7 +49,9 @@ The snapshot is refreshed by the scheduler (`KILN_EAS_STATUS_INTERVAL_MINUTES`, 
 has a build or a submission that has not ended is read again after three minutes) and by `POST /status/refresh`. Only linked app records with
 a usable Expo credential are ever read, one job per credential at a time, spaced and bounded like the other scheduled reads. After a failed
 read the scheduler waits (10 minutes, doubled for every failure in a row, at most 6 hours); a manual read never waits. A failed read keeps the
-old snapshot and records the failure in `sync`. Removing the link, or linking another project, deletes the snapshot.
+old snapshot and records the failure in `sync`. The same read also asks Expo for the update channels (one more request, `KilnUpdateChannels`) and
+stores the current update of each channel and any mid-rollout update in `eas_updates`; if only that request fails, the builds are stored, the old
+updates stay and `updates.lastError` says why. Removing the link, or linking another project, deletes the snapshot.
 
 Refresh errors: `409 not_linked`; `422` `platform_unsupported`, `credential_not_found`, `credential_kind`, `credential_unreadable`,
 `expo_auth`, `expo_forbidden`, `expo_not_found`; `429 rate_limited` (our budget, or Expo's, with `Retry-After`); `502 expo_unavailable`;
@@ -56,6 +64,12 @@ A read that stores a build or a submission as `errored` which the snapshot befor
 the same names turn into inbox, email, Slack or Teams alerts ([alerts](../alerts.md)). None on the first read of a project; none for a failure
 older than a week. Nothing here calls Expo beyond the read that was due anyway.
 
+`eas.update_rollout_stuck` is raised by the same read when a per-update rollout has stayed at one percentage below 100 for longer than the limit (the
+alert rule parameter `hours`, default 48, 1 to 720; a workspace setting like the other thresholds, there is no per app value): once per update (alert
+key `eas.update_rollout_stuck:{appId}:{group}`, 90 days), with `appId`, `updateId`, `group`, `platform`, `channel`, `percentage` and `hours`, never the
+update message. The clock is "first read at this percentage" (a changed percentage starts again), so the alert comes at least the limit after Kiln first
+saw the rollout.
+
 ## Audit
 
 Every read of Expo is a `credential.use` with purpose `eas.status` (scheduled reads as the system). A manual refresh is also audited as
@@ -65,12 +79,15 @@ Every read of Expo is a `credential.use` with purpose `eas.status` (scheduled re
 
 Besides "Builds to test": the app **Overview** has an Expo card (`ExpoOverviewCard`): per iOS or Android record, the latest build and the latest
 submission with state, version, build number and time, linking to Builds, from `GET /status` only (no call to Expo); a record that is not linked says
-so and links to Builds, a linked one without builds says none is stored yet, a macOS record has no row. A current OTA update is not shown there
-(it is only read live). The **release detail** (`ReleaseEasSteps`, one per store release) shows the matching build and its submission as steps:
+so and links to Builds, a linked one without builds says none is stored yet, a macOS record has no row. Under the builds, "Current update per channel" shows the stored current update of each channel (rollout badge, branch, runtime
+version, first line of the message, relative time, a link to the update at Expo and one to Builds, EAS updates) with "Updated X ago" (or that the last read
+failed, showing what was stored), and honest empty states (never read; none for this platform). The **release detail** (`ReleaseEasSteps`, one per store release) shows the matching build and its submission as steps:
 build finished, submitted, in store review. The build is matched by platform and version and then build number (App Store: the release's build;
 Google Play: one of its version codes; without a number only when the version has exactly one build number among finished or running builds);
 internal and simulator builds never match; the submission is the one of that build id; nothing is shown when no single build matches
-(`lib/eas/eas-release.ts`).
+(`lib/eas/eas-release.ts`). For the matched build a quiet extra line "OTA update published" (channel, time, link to Expo) shows when the stored current
+update of the build's channel is for the same platform and has exactly the build's runtime version (`matchOta`); a build without a channel or runtime
+version, a channel with no stored update or an update of another runtime version shows nothing.
 
 
 "Builds to test" lists EAS builds next to CI artifacts and store builds (source filter "EAS builds"), with profile, channel, runtime,

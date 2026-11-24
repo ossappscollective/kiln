@@ -49,7 +49,7 @@ change shows the state and says so.
 - **Changing the branch of a channel, or starting or ending a branch-based rollout** (`eas channel:edit`, `channel:rollout`). The channel
   mutation was not found in eas-cli's sources, and the meaning of the mapping's condition is unverified (see below).
 - **Lowering or reverting a per-update rollout.** Whether Expo accepts a lower value for `setRolloutPercentage` is unverified.
-- An MCP read tool for the state, and a scheduled read that raises an alert on a mismatch.
+- An MCP read tool for the state, and a scheduled read that raises an alert on a mismatch. (Storing the state and the stuck-rollout alert: [ADR 0060](0060-eas-update-state.md).)
 
 ## Checked against Expo's sources (2026-11-20)
 

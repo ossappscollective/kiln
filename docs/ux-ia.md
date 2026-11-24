@@ -89,6 +89,10 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   configuration and one small link to Insights. The app Overview has an Expo (EAS) card per platform (latest build and submission, stored data only,
   empty states for "not linked" and "no builds yet"); the release detail shows the matching EAS build and submission as steps under each store
   release. Failed EAS builds and submissions raise alerts ([alerts](alerts.md)).
+- **OTA state (2026-11-24)**: the Expo card of the Overview also shows "Current update per channel" from the stored read (rollout badge, runtime version, time,
+  link to Expo and to Builds, EAS updates; "Updated X ago"; empty states for never read and none for this platform). The release detail adds a quiet
+  line "OTA update published" under the EAS steps only when the stored update of the build's channel has the build's exact runtime version. A rollout that
+  stays unchanged below 100% raises `eas.update_rollout_stuck` ([ADR 0060](adr/0060-eas-update-state.md)).
 - **Next step card** (`NextStep`, Overview and Releases): one primary button chosen by state, in this order: a release whose step
   failed (rejected), a release that waits for you (finish, attach a build, release it), a release in store review (quiet "Start release"
   beside it), then with nothing on its way "Start release" (or "Prepare release" without a linked repository). The five release steps,

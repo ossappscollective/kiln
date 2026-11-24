@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { expoCardVisible, expoRow, expoRows, latestBuild, latestSubmission } from './eas-overview.ts';
+import { expoCardVisible, expoRow, expoRows, latestBuild, latestSubmission, otaSummary } from './eas-overview.ts';
 import type { EasBuildView, EasStatusView, EasSubmissionView } from './eas-status.ts';
 
 const build = (id: string, platform: 'ios' | 'android', createdAt: number | null): EasBuildView =>
@@ -54,4 +54,23 @@ test('the card is hidden without rows or when no row could be read', () => {
   assert.equal(expoCardVisible([]), false);
   assert.equal(expoCardVisible(expoRows([{ id: 'i', platform: 'ios' }], { i: null })), false);
   assert.equal(expoCardVisible(expoRows([{ id: 'i', platform: 'ios' }], { i: view({ project: null }) })), true);
+});
+
+test('the current update per channel comes from the stored read: sorted by name, empty and failed states are honest', () => {
+  const up = (channel: string, current: boolean) => ({ channel, current: current ? { id: channel, channel, platform: 'ios', rolloutPercentage: null } : null, rollouts: [] });
+  const ready = otaSummary(view({ updates: { readAt: 9, lastError: null, channels: [up('staging', true), up('production', true), up('empty', false)] } } as never));
+  assert.equal(ready.state, 'ready');
+  assert.deepEqual(ready.channels.map((c) => c.channel), ['production', 'staging']);
+  assert.equal(ready.readAt, 9);
+  assert.equal(ready.failed, false);
+  const never = otaSummary(view({ updates: { readAt: null, lastError: null, channels: [] } } as never));
+  assert.deepEqual([never.state, never.readAt, never.failed], ['none', null, false]);
+  const failed = otaSummary(view({ updates: { readAt: 4, lastError: 'expo_auth', channels: [up('production', true)] } } as never));
+  assert.deepEqual([failed.state, failed.failed], ['ready', true]);
+  assert.equal(otaSummary(view({})).state, 'none', 'a status without updates reads as none');
+  // The row carries it, also when there are no builds yet.
+  const row = expoRow({ id: 'a1', platform: 'ios' }, view({ updates: { readAt: 9, lastError: null, channels: [up('production', true)] } } as never));
+  assert.equal(row.state, 'no_builds');
+  assert.equal(row.ota?.channels.length, 1);
+  assert.equal(expoRow({ id: 'a1', platform: 'ios' }, view({ project: null })).ota, null);
 });

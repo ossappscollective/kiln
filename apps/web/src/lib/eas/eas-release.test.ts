@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { matchBuild, matchRelease, matchSubmission, releaseSteps } from './eas-release.ts';
-import type { EasBuildView, EasStatusView, EasSubmissionView } from './eas-status.ts';
+import { matchBuild, matchOta, matchRelease, matchSubmission, releaseSteps } from './eas-release.ts';
+import type { EasBuildView, EasStatusView, EasSubmissionView, EasUpdateView } from './eas-status.ts';
 
 let n = 0;
 const build = (over: Partial<EasBuildView>): EasBuildView =>
@@ -85,4 +85,25 @@ test('matchRelease: nothing for an app that is not linked, an unsupported platfo
   const m = matchRelease(release(), snapshot([b], [sub({ buildId: 'b1' })]));
   assert.equal(m?.build.id, 'b1');
   assert.equal(m?.steps.length, 3);
+});
+
+const update = (over: Partial<EasUpdateView> = {}): EasUpdateView =>
+  ({ id: 'u1', group: 'g1', platform: 'ios', channel: 'production', branch: 'main', runtimeVersion: '1.4.0', message: 'Fix', createdAt: 500, rolloutPercentage: null, rolloutSince: null, expoUrl: 'https://expo.dev/x', ...over }) as EasUpdateView;
+const withUpdates = (s: EasStatusView, current: EasUpdateView | null, channel = 'production'): EasStatusView =>
+  ({ ...s, updates: { readAt: 5, lastError: null, channels: [{ channel, current, rollouts: [] }] } }) as EasStatusView;
+
+test('OTA: only the current update of the build channel with exactly the build runtime version shows; anything else shows nothing', () => {
+  const b = build({ id: 'a', channel: 'production', runtimeVersion: '1.4.0' });
+  const base = snapshot([b]);
+  assert.equal(matchOta(b, withUpdates(base, update()))?.id, 'u1');
+  assert.equal(matchRelease(release(), withUpdates(base, update()))?.ota?.group, 'g1');
+  // Another runtime version, platform or channel; a build without a channel or runtime; nothing stored; a status from before updates were stored.
+  assert.equal(matchOta(b, withUpdates(base, update({ runtimeVersion: '1.5.0' }))), null);
+  assert.equal(matchOta(b, withUpdates(base, update({ platform: 'android' }))), null);
+  assert.equal(matchOta(b, withUpdates(base, update(), 'staging')), null);
+  assert.equal(matchOta(build({ channel: null, runtimeVersion: '1.4.0' }), withUpdates(base, update())), null);
+  assert.equal(matchOta(build({ channel: 'production', runtimeVersion: null }), withUpdates(base, update())), null);
+  assert.equal(matchOta(b, withUpdates(base, null)), null);
+  assert.equal(matchOta(b, base), null);
+  assert.equal(matchRelease(release(), base)?.ota, null);
 });
