@@ -358,6 +358,18 @@ dbTest('the store graphics that match the repository are not proposed', async (d
   assert.equal(p.skipped.sameAsStore, 1, 'the one set of screenshots');
 });
 
+dbTest('a graphics item carries the refs of the store images for the image comparison, never a store address', async (db) => {
+  const b = await boot(db, { trees: CHANGED });
+  b.t.stores.ios.imageRecords = [apple(1, { bytes: 10, width: IPHONE_65[0], height: IPHONE_65[1] })];
+  clearStoreImageCaches();
+  const p = (await b.get()).body.proposal;
+  const g = p.changes.find((c: { kind: string }) => c.kind === 'graphics');
+  assert.equal(g.beforeFiles.length, g.before);
+  assert.equal(g.beforeFiles[0].position, 1);
+  assert.match(g.beforeFiles[0].ref, /^[0-9a-f]+$/, 'an opaque ref');
+  assert.equal(JSON.stringify(g.beforeFiles).includes('http'), false);
+});
+
 // ---- The count-only summary for the Releases list ----
 
 dbTest('summary: the count of changed texts and graphics, cached (the repository is not read again), refreshed when the cart changes', async (db) => {

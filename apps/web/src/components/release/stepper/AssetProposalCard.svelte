@@ -10,7 +10,7 @@
 -->
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { type AssetProposalView, type ProposalIssue, type Role } from '@kiln/core';
+  import { type AssetProposalView, type ProposalIssue, type ProposalItem, type Role } from '@kiln/core';
   import { ApiError, type Api } from '../../../lib/api.ts';
   import { DECIDE_TIMEOUT_MS, settle, STAGE_TIMEOUT_MS } from '../../../lib/bounded-read.ts';
   import {
@@ -30,7 +30,10 @@
   import { announceCartOpen } from '../../../lib/pending-cart.ts';
   import { announceStagedChanged } from '../../../lib/staged-sync.ts';
   import { canStage, stagingError } from '../../../lib/staged.ts';
+  import { imagePairs, pairIndexOf, textDiffItems, textIndexOf } from '../../../lib/asset-proposal-diff.ts';
   import AssetProposalRow from './AssetProposalRow.svelte';
+  import DiffModal from '../../ui/DiffModal.svelte';
+  import ImageDiffModal from '../../ui/ImageDiffModal.svelte';
   import Alert from '../../ui/Alert.svelte';
   import Badge from '../../ui/Badge.svelte';
   import Button from '../../ui/Button.svelte';
@@ -60,6 +63,22 @@
   let confirming = $state(false);
   let note = $state<{ staged: number; left: number; failed: number } | null>(null);
   let seq = 0;
+  // The comparisons (docs/adr/0067-diff-and-preview.md): store against repository, texts and images, previous and next across the list.
+  let textOpen = $state(false);
+  let textAt = $state(0);
+  let imagesOpen = $state(false);
+  let imagesAt = $state(0);
+  const textItems = $derived(view ? textDiffItems(view.changes, view.platform) : []);
+  const pairs = $derived(view ? imagePairs(view.changes, workspaceId, app.id) : []);
+  function compare(item: ProposalItem) {
+    if (item.kind === 'text') {
+      textAt = textIndexOf(textItems, item.id);
+      textOpen = true;
+    } else {
+      imagesAt = pairIndexOf(pairs, item.id);
+      imagesOpen = true;
+    }
+  }
 
   const key = $derived(`${workspaceId}/${app.id}/${release.version ?? ''}/${release.track ?? ''}/${release.build ?? ''}`);
   const mode = $derived(cardMode(view));
@@ -244,6 +263,7 @@
               selected={selected.indexOf(item.id) !== -1}
               disabled={!writable || busy}
               ontoggle={() => toggle(item.id)}
+              ondiff={compare}
             />
           {/each}
         </ul>
@@ -295,6 +315,8 @@
       <Button variant="primary" loading={busy} onclick={() => stage(true)}>{t('release-stepper:ap.confirm.yes')}</Button>
     {/snippet}
   </Modal>
+  <DiffModal bind:open={textOpen} bind:index={textAt} items={textItems} beforeLabel={t('common:diff.store')} afterLabel={t('common:diff.repository')} />
+  <ImageDiffModal bind:open={imagesOpen} bind:index={imagesAt} {pairs} beforeLabel={t('common:diff.store')} afterLabel={t('common:diff.repository')} />
 {/if}
 
 <style>

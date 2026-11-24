@@ -24,7 +24,8 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   All apps and Inbox; needs `listing.read`) with the count of every app's pending cart as a `nav-count` badge (accent, `99+` above 99; a small badge on the
   collapsed rail; none while unknown or zero). Its accessible name says "12 pending changes across 4 apps" (items of the carts across products). The page
   (`#/pending`, `WorkspacePending`) lists one row per app with its count and kinds and an "Open cart" button that goes to the app and opens that app's cart
-  drawer; there is no publish or discard here and nothing across apps. The count (`GET /pending/cart-summary`) is read on first paint, on window focus
+  drawer; there is no publish or discard here and nothing across apps. Each row has an expand chevron that lists the individual changes of that app (read lazily from the per-app cart; the summary stays counts only), each expandable to the same
+  preview as in the cart drawer (text diff, before and after images, price table, reply with its review) with Expand all / Collapse all, so changes can be reviewed across apps without opening each cart ([ADR 0067](adr/0067-diff-and-preview.md)). The count (`GET /pending/cart-summary`) is read on first paint, on window focus
   (at most every 30 s) and once after `kiln:staged-changed` (debounced; publish, discard, stage, reply drafts): no polling.
 - **Asset proposal on the Releases list (2026-11-24)**: under the Prepare release card, a quiet line "3 store asset changes proposed" with "Review" (opens
   the Assets step, where the card lives), per record with a repository, only when something is proposed and it was not skipped for the release. A cached
@@ -107,7 +108,9 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   and the count; icon and count only below 600px; hidden with none, on the pending page and outside an app; its name and tooltip say "this app" to
   tell it from the workspace-wide Pending entry of the navigation, ADR 0064). Opening it shows the right drawer (header and footer fixed, the body scrolls): items grouped by kind (Store listing,
   Graphics, Release details, Review replies), a checkbox per row, platform and language chips, the new text with what the store has now ("before → after"),
-  who and when, and **Open** to the page where it was made. Select all; **Publish N selected** and **Discard selected** each ask first and say how many
+  who and when, and **Open** to the page where it was made. Every row has an expand chevron (`aria-expanded`, collapsed by default, kept while the drawer is open; **Expand all / Collapse all** above the list) that shows the
+  preview of the change, read lazily ([ADR 0067](adr/0067-diff-and-preview.md)): a text diff (store text against the staged text, inline or side by side, characters before → after with the store limit), before and after
+  images (a click opens the image viewer: side by side, swipe, fade, difference), the release field's staged value, the price table, or the reply draft with the review it answers. Select all; **Publish N selected** and **Discard selected** each ask first and say how many
   and to which stores. After a run every item shows Done, Failed or Skipped with a reason; partial success is normal and what failed stays in the cart.
   When a page stages something the button pulses once (not with reduced motion), a toast says "Added to pending changes" and the count is announced
   politely. What publish does: staged changes are written to the store as a **draft** (nothing is submitted; they are sent together, so they are
@@ -136,7 +139,7 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   lists the texts and graphics that changed in the repository since the previous release and still differ from the store and the cart. The findings of the
   listing checks and the graphics rules come first (errors, warnings, tips collapsed), then the items with a checkbox (items without errors checked, items
   with errors unchecked, marked "Has issues", staged only after a confirmation), then "Stage selected", "Skip for this release" and "Remind me later" (saved
-  per release). Nothing is staged without the click; afterwards "Open pending changes" opens the cart. Hidden when there is no repository or nothing changed.
+  per release). Each text has a **Diff** button (store text against repository text, previous and next across the list) and each graphics set opens the image viewer (store images against repository images). Nothing is staged without the click; afterwards "Open pending changes" opens the cart. Hidden when there is no repository or nothing changed.
   Not on the Releases list or the Timeline.
   In the Confirm step and in the release dialog "Check this release" shows local checks and "Check with Google Play" (errors only: the result says
   "Google found no errors. The Play Console may still show warnings", never "no warnings").

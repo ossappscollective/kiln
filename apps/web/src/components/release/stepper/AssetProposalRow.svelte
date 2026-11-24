@@ -3,7 +3,9 @@
   a checkbox, the name and language of the item, and what changed: for a text the store value beside the repository value, for a graphics set the
   files of the repository (CartGraphicsDetail). Presentation only: the card owns the selection and the staging. The `extra` snippet is the place
   for more detail under the item (a fuller comparison of the files, a diff view) without changing the card.
-  Props: item (ProposalItem), workspaceId, appId, selected, disabled, ontoggle, extra (optional snippet).
+  A text has a Diff button and a graphics set can be opened (its thumbnails are a button) to compare the store with the repository (`ondiff`: the card
+  owns the dialogs, so previous and next run across the list; docs/adr/0067-diff-and-preview.md).
+  Props: item (ProposalItem), workspaceId, appId, selected, disabled, ontoggle, ondiff (optional), extra (optional snippet).
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
@@ -13,6 +15,7 @@
   import { t } from '../../../lib/i18n/t.ts';
   import CartGraphicsDetail from '../../app/CartGraphicsDetail.svelte';
   import Badge from '../../ui/Badge.svelte';
+  import Button from '../../ui/Button.svelte';
 
   let {
     item,
@@ -21,6 +24,7 @@
     selected,
     disabled,
     ontoggle,
+    ondiff,
     extra,
   }: {
     item: ProposalItem;
@@ -29,6 +33,7 @@
     selected: boolean;
     disabled: boolean;
     ontoggle: () => void;
+    ondiff?: ((item: ProposalItem) => void) | undefined;
     extra?: Snippet<[ProposalItem]>;
   } = $props();
 
@@ -48,12 +53,23 @@
       <strong>{itemTitle(item)}</strong>
       <span class="muted">{localeName(item.locale)}</span>
       {#if item.hasErrors}<Badge tone="bad" icon="x-circle">{t('release-stepper:ap.item.hasIssues')}</Badge>{/if}
+      {#if item.kind === 'text' && ondiff}
+        <Button size="sm" variant="ghost" icon="columns" iconOnly label={t('release-stepper:ap.diff.aria', { item: itemTitle(item), locale: localeName(item.locale) })} onclick={() => ondiff(item)} />
+      {/if}
     </p>
     {#if item.kind === 'text'}
       <div class="diff">
         <p class="side"><span class="label">{t('release-stepper:ap.item.store')}</span><span class="val">{clip(item.before)}</span></p>
         <p class="side"><span class="label">{t('release-stepper:ap.item.repo')}</span><span class="val">{clip(item.after)}</span></p>
       </div>
+    {:else if ondiff}
+      <button type="button" class="open" aria-label={t('release-stepper:ap.diff.openImages', { item: itemTitle(item), locale: localeName(item.locale) })} onclick={() => ondiff(item)}>
+        <CartGraphicsDetail
+          files={item.after.count}
+          before={item.before}
+          thumbs={item.after.files.slice(0, 4).map((f) => assetFileUrl(workspaceId, appId, f.path, item.after.commit))}
+        />
+      </button>
     {:else}
       <CartGraphicsDetail
         files={item.after.count}
@@ -91,6 +107,24 @@
     gap: var(--space-1);
     min-width: 0;
     flex: 1;
+  }
+  .open {
+    padding: var(--space-1);
+    font: inherit;
+    color: inherit;
+    text-align: start;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+  }
+  .open:hover {
+    background: var(--surface-hover);
+    border-color: var(--line-hover);
+  }
+  .open:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
   .diff {
     display: grid;

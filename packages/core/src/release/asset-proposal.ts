@@ -32,6 +32,9 @@ export type ProposalIssue = {
 
 export type ProposalFile = { path: string; oid: string | null; width: number | null; height: number | null; bytes: number | null; format: string | null };
 
+/** An image the store holds for a set: `ref` is the opaque id of the store thumbnail proxy (`GET .../assets/store/thumb?ref=`), never a store address. */
+export type ProposalStoreFile = { ref: string; position: number; name: string | null; width: number | null; height: number | null; bytes: number | null };
+
 export type ProposalText = {
   id: string;
   kind: 'text';
@@ -55,6 +58,8 @@ export type ProposalGraphics = {
   deviceLabel: string;
   /** Files the store holds in this set now; null when the store was not read. */
   before: number | null;
+  /** The images the store holds for the set now (for the image comparison); absent when the store was not read. */
+  beforeFiles?: ProposalStoreFile[];
   after: { count: number; commit: string; files: ProposalFile[] };
   hasErrors: boolean;
 };

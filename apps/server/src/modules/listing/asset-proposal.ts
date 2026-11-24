@@ -457,6 +457,15 @@ export function planGraphics(input: {
       device: g.slot.device,
       deviceLabel: g.files[0]?.deviceLabel ?? '',
       before: diff ? diff.rows.filter((r) => r.store !== null).length : input.storeSets === null ? null : 0,
+      ...(diff
+        ? {
+            beforeFiles: diff.rows.flatMap((r) =>
+              r.store === null
+                ? []
+                : [{ ref: r.store.ref, position: r.store.position, name: r.store.name, width: r.store.width, height: r.store.height, bytes: r.store.bytes }],
+            ),
+          }
+        : {}),
       after: { count: g.files.length, commit: input.commit, files: g.files.map(fileOf) },
       hasErrors: issues.some((i) => i.severity === 'error'),
     });

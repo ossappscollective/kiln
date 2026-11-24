@@ -44,6 +44,19 @@ const itemSchema = z.union([
     device: z.string().nullable(),
     deviceLabel: z.string(),
     before: z.number().nullable(),
+    beforeFiles: z
+      .array(
+        z.object({
+          ref: z.string().describe('The opaque id of a store image: `GET .../assets/store/thumb?ref=` (never a store address).'),
+          position: z.number().int(),
+          name: z.string().nullable(),
+          width: z.number().int().nullable(),
+          height: z.number().int().nullable(),
+          bytes: z.number().int().nullable(),
+        }),
+      )
+      .optional()
+      .describe('The images the store holds for the set now, for the image comparison; absent when the store was not read.'),
     after: z.object({ count: z.number(), commit: z.string(), files: z.array(fileSchema) }),
     hasErrors: z.boolean(),
   }),
