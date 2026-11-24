@@ -10,6 +10,7 @@ import { storeFor } from '../reviews/sync.ts';
 import { lastStoreImages } from '../listing/store-images.ts';
 import { loadPendingFacts } from './pending.ts';
 import { buildStagedView, type StagedContext, unstage } from './staged-changes.ts';
+import { metadataLock } from './metadata-lock.ts';
 import { applyDraftPush, DRAFT_ENV, type DraftContext, previewDraftPush } from './store-draft.ts';
 
 /**
@@ -32,7 +33,7 @@ export const CART_KINDS = ['listing', 'graphics', 'release', 'review_reply'] as 
 export type CartKind = (typeof CART_KINDS)[number];
 
 export type CartReason = {
-  code: 'no_right' | 'switch_off' | 'invalid' | 'bundle_blocked' | 'in_progress' | 'outcome_unknown';
+  code: 'no_right' | 'switch_off' | 'metadata_locked' | 'invalid' | 'bundle_blocked' | 'in_progress' | 'outcome_unknown';
   /** The right the caller lacks. */
   action?: string;
   /** The switch that is off. */
@@ -225,17 +226,21 @@ export async function loadCart(
     }
     // The push refuses while anything staged has an error, and it needs its switch and right: say why, per item.
     const invalid = staged.some((i) => i.problems.some((p) => p.severity === 'error'));
+    // The push refuses a locked app (a live version): every staged item says so, whatever else is true of it.
+    const locked = (await metadataLock(db, workspaceId, app)).locked;
     for (const i of staged) {
       const own = i.problems.some((p) => p.severity === 'error');
       const reason: CartReason | null = !ctx.draft.draftEnabled
         ? { code: 'switch_off', envName: DRAFT_ENV }
         : !rights.push
           ? { code: 'no_right', action: 'store.push_draft' }
-          : own
-            ? { code: 'invalid' }
-            : invalid
-              ? { code: 'bundle_blocked' }
-              : null;
+          : locked
+            ? { code: 'metadata_locked' }
+            : own
+              ? { code: 'invalid' }
+              : invalid
+                ? { code: 'bundle_blocked' }
+                : null;
       i.reason = reason;
       i.publishable = reason === null;
     }

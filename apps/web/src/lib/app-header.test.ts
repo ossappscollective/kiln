@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Platform, ReleaseState } from '@kiln/core';
+import { computeMetadataLock, type Platform, type ReleaseState } from '@kiln/core';
 import {
   buildVersionOptions,
   carryHeaderParams,
@@ -282,4 +282,25 @@ test('the header shows on the versioned pages only', () => {
   for (const s of ['dashboard', 'settings', 'reviews', 'workflows', 'builds'])
     assert.equal(pickersFor(s), null);
   assert.deepEqual([...lockableSections], ['listing', 'assets']);
+});
+
+test('the web lock and the server lock (core computeMetadataLock) agree for the same releases', () => {
+  const cases: [Platform, [string, ReleaseState | null][]][] = [
+    ['ios', [['2.3.0', 'live']]],
+    ['ios', [['2.3.0', 'live'], ['2.4.0', 'draft']]],
+    ['ios', [['2.3.0', 'live'], ['2.4.0', 'in_review']]],
+    ['ios', [['2.3.0', 'live'], ['2.4.0', 'rejected']]],
+    ['ios', [['2.3.0', 'rolling_out']]],
+    ['macos', [['1.0', 'approved']]],
+    ['ios', [['1.0', null]]],
+    ['android', [['2.3.0', 'live']]],
+    ['android', [['2.3.0', 'rolling_out']]],
+  ];
+  for (const [platform, versions] of cases) {
+    const releases = versions.map(([version, status]) => rel(platform, version, status));
+    const newest = versions.map(([version]) => version).sort((a, b) => (a < b ? 1 : -1))[0] ?? null;
+    const web = lockInfo(releases, newest, [platform]).locked.length > 0;
+    const server = computeMetadataLock(platform, versions.map(([version, status]) => ({ version, status }))).locked;
+    assert.equal(server, web, `${platform} ${JSON.stringify(versions)}`);
+  }
 });

@@ -54,6 +54,7 @@ import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
+import { metadataLockedFailure } from './metadata-lock.ts';
 import { type AssetsContext, openAssets } from '../listing/asset-repo.ts';
 import { normalizeListingValue } from '../listing/drift.ts';
 import { storeFor } from '../reviews/sync.ts';
@@ -1207,6 +1208,8 @@ export async function previewDraftPush(
   if (!ctx.draftEnabled) return disabled();
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
+  const locked = await metadataLockedFailure(ctx.db, input.workspaceId, app);
+  if (locked) return locked;
   const prepared = await prepare(ctx, { workspaceId: input.workspaceId, app, actor: input.actor });
   if (!prepared.ok) return prepared;
   const connected = await connect(ctx, input.workspaceId, app, input.actor);
@@ -1467,6 +1470,8 @@ export async function applyDraftPush(
   const { db } = ctx;
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
+  const locked = await metadataLockedFailure(db, input.workspaceId, app);
+  if (locked) return locked;
   const appView = {
     id: app.id,
     name: app.name,

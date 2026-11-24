@@ -1,3 +1,4 @@
+import { metadataLockedFailure } from './metadata-lock.ts';
 import {
   analyzeFixes,
   checkListing,
@@ -114,6 +115,8 @@ export type StageFixInput = {
 export async function stageListingFix(ctx: StagedContext, input: StageFixInput) {
   const base = await readBase(ctx, input.workspaceId, input.appId);
   if (!base) return failure(404, 'not_found');
+  const locked = await metadataLockedFailure(ctx.db, input.workspaceId, base.app);
+  if (locked) return locked;
   const entry = base.locales.find((l) => l.locale === input.locale);
   const gone = failure(409, 'fix_not_available', 'This fix no longer applies: the text changed or it is already fixed. Reload and look again.', {
     ...coded('listing.fixNotAvailable'),

@@ -12,6 +12,7 @@ import { recordAudit } from '../../services/audit.ts';
 import { type ChangeSetView, createFileChangeSet } from '../../services/change-sets.ts';
 import { type FixFailure, fixImage } from '../../services/image-fix.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
+import { metadataLockedFailure } from './metadata-lock.ts';
 import { repoSetsOf } from '../listing/asset-diff.ts';
 import { openAssets } from '../listing/asset-repo.ts';
 import { layoutFor, planSet, type Wanted } from '../listing/asset-repo-plan.ts';
@@ -101,6 +102,8 @@ export async function stageUpload(
 ): Promise<{ ok: true; staged: StagedChangesView; position: number } | Failure> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
+  const locked = await metadataLockedFailure(ctx.db, input.workspaceId, app);
+  if (locked) return locked;
   const slot = slotOf(app, input.locale, input.kind, input.device);
   if (!slot.ok) return slot;
   const base = await loadEffectiveSet(ctx, {
@@ -182,6 +185,8 @@ export async function removeFromSet(
 ): Promise<{ ok: true; staged: StagedChangesView } | Failure> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
+  const locked = await metadataLockedFailure(ctx.db, input.workspaceId, app);
+  if (locked) return locked;
   const slot = slotOf(app, input.locale, input.kind, input.device);
   if (!slot.ok) return slot;
   const base = await loadEffectiveSet(ctx, {
@@ -229,6 +234,8 @@ export async function moveInSet(
 ): Promise<{ ok: true; staged: StagedChangesView } | Failure> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
+  const locked = await metadataLockedFailure(ctx.db, input.workspaceId, app);
+  if (locked) return locked;
   const slot = slotOf(app, input.locale, input.kind, input.device);
   if (!slot.ok) return slot;
   const base = await loadEffectiveSet(ctx, {
@@ -280,6 +287,8 @@ export async function fixFile(
 ): Promise<{ ok: true; staged: StagedChangesView; summary: string } | Failure> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
+  const locked = await metadataLockedFailure(ctx.db, input.workspaceId, app);
+  if (locked) return locked;
   const slot = slotOf(app, input.locale, input.kind, input.device);
   if (!slot.ok) return slot;
   const base = await loadEffectiveSet(ctx, {

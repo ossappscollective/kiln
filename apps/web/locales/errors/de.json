@@ -443,6 +443,7 @@
   "staged.fileLargerPush": "{{name}} ist größer, als ein Push hochlädt.",
   "staged.fileTooBig": "{{name}} ist größer als die {{mb}} MB, die dieser Server hochlädt.",
   "staged.itemsHaveErrors": "Einige vorgemerkte Einträge haben Fehler. Korrigieren oder entfernen Sie sie zuerst.",
+  "staged.metadataLocked": "Version {{version}} ist live oder in der App-Prüfung, ihr Eintrag lässt sich nicht mehr ändern. Bereiten Sie zuerst eine neue Version vor und stellen Sie die Änderung dann bereit.",
   "staged.noAssets": "Der Asset-Index des Repositorys listet keine Datei für diese Sprache und diesen Platz auf.",
   "staged.noCommit": "Das Lesen des Repositorys hat keinen Commit genannt, daher können die Dateien nicht festgelegt werden.",
   "staged.noFileAtPosition": "An dieser Position gibt es keine Datei zum Ersetzen.",

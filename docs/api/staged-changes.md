@@ -86,6 +86,19 @@ order (each a path of that set; no `..`). Errors: `slot_not_pushable` / `asset_n
 
 Clears everything staged for the app. Returns `{ staged }`.
 
+### Locked versions (`409 metadata_locked`)
+
+One server rule, `metadataLock(app)` (`apps/server/src/modules/publish/metadata-lock.ts`, pure part `computeMetadataLock` in `@kiln/core`),
+from STORED state (`app_releases` as of the last sync): an Apple app (iOS, macOS) is locked when one of its versions is live, rolling out,
+halted, in review or approved and none is editable (draft, build chosen, ready, rejected). Result `{ locked, reason, liveVersion }`; `reason`
+is that version's state. An app that was never synced, or whose versions have no known state, is open. Google Play never locks: a listing
+edit there is a draft that is always editable (there is no live version whose metadata freezes), so Play passes whatever its releases say.
+Locked: `PUT .../staged/text`, `PUT .../staged/assets`, the upload, move, remove and fix routes of a set, and
+`POST .../listing/fixes/stage` answer `409 { error: "metadata_locked", code: "staged.metadataLocked", params: { version } }` (tell the person to
+prepare a new version first). Unstaging and clearing still work. `POST .../staged/push/preview` and `POST .../staged/push` re-check and answer the same, and
+the cart (`GET /apps/{id}/pending/cart`) gives every staged item the reason `metadata_locked` (publish skips them with that reason). The web
+`lockedPlatforms` (per selected version) uses the same list of locking states from core, and a test checks that both agree.
+
 ## Pushing a draft
 
 ### `POST /apps/{id}/staged/push/preview`

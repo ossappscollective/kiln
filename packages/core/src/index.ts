@@ -29,6 +29,7 @@ export * from './members.ts';
 export * from './platform.ts';
 export * from './release/build-patterns.ts';
 export * from './release/lifecycle.ts';
+export * from './release/metadata-lock.ts';
 export * from './release/play-release-checks.ts';
 export * from './release/play-rollout-offer.ts';
 export * from './release/release-fields.ts';

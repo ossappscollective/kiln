@@ -447,6 +447,7 @@
   "staged.fileLargerPush": "{{name}} dépasse ce qu’un envoi peut transférer.",
   "staged.fileTooBig": "{{name}} dépasse les {{mb}} Mo que ce serveur envoie.",
   "staged.itemsHaveErrors": "Certains éléments en attente comportent des erreurs. Corrigez-les ou retirez-les d’abord.",
+  "staged.metadataLocked": "La version {{version}} est en ligne ou en revue : sa fiche ne peut plus être modifiée. Préparez d’abord une nouvelle version, puis préparez la modification.",
   "staged.noAssets": "L’index des ressources du dépôt ne liste aucun fichier pour cette langue et cet emplacement.",
   "staged.noCommit": "La lecture du dépôt n’a indiqué aucun commit, les fichiers ne peuvent donc pas être épinglés.",
   "staged.noFileAtPosition": "Il n’y a aucun fichier à cette position à remplacer.",

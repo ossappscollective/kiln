@@ -42,6 +42,7 @@ import { type Database, nullableNumber, nullableString, oneOf, type Row, type Sq
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
+import { metadataLockedFailure } from './metadata-lock.ts';
 import { type AssetsContext, isCommitSha, openAssets } from '../listing/asset-repo.ts';
 import {
   ABSENT_HASH,
@@ -573,6 +574,8 @@ export async function stageText(
   const { db } = ctx;
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
+  const locked = await metadataLockedFailure(db, input.workspaceId, app);
+  if (locked) return locked;
   if (!isStageableLocale(input.locale))
     return invalid('invalid_locale', 'locale must be a store locale code such as en-US.', {
       field: 'locale',
@@ -732,6 +735,8 @@ export async function stageAssets(
   const { db } = ctx;
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
+  const locked = await metadataLockedFailure(db, input.workspaceId, app);
+  if (locked) return locked;
   if (input.from !== 'repo') {
     return invalid(
       'source_not_supported',

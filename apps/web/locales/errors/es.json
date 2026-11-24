@@ -447,6 +447,7 @@
   "staged.fileLargerPush": "{{name}} supera lo que sube un envío.",
   "staged.fileTooBig": "{{name}} supera los {{mb}} MB que sube este servidor.",
   "staged.itemsHaveErrors": "Algunos elementos preparados tienen errores. Corrígelos o quítalos primero.",
+  "staged.metadataLocked": "La versión {{version}} está publicada o en revisión, así que su ficha ya no se puede cambiar. Prepara primero una versión nueva y luego prepara el cambio.",
   "staged.noAssets": "El índice de recursos del repositorio no lista ningún archivo para este idioma y este espacio.",
   "staged.noCommit": "La lectura del repositorio no indicó ningún commit, así que los archivos no se pueden fijar.",
   "staged.noFileAtPosition": "No hay ningún archivo en esa posición que reemplazar.",

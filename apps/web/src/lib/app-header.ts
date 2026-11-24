@@ -1,5 +1,6 @@
 import {
   byFamily,
+  LOCKED_RELEASE_STATES,
   type Platform,
   platformLabel,
   type ReleaseState,
@@ -227,15 +228,14 @@ export const optionText = (option: Pick<VersionOption, 'version' | 'state' | 'de
 // ---------------------------------------------------------------------------------------------
 // Locked versions
 
-/** States in which Apple lets the metadata of the version change no more. Play listings are not tied to a release and never lock. */
-const RELEASED: ReleaseState[] = ['live', 'rolling_out', 'propagating', 'halted'];
-/** Apple also freezes the version while it waits for review or for the release button. Play keeps the listing open. */
-const APPLE_FROZEN: ReleaseState[] = ['in_review', 'approved'];
-
+/**
+ * Apple freezes a version once it is released, waiting for review or approved (the same list the server enforces, `@kiln/core`
+ * metadata-lock). Play listings are not tied to a release and never lock.
+ */
 export const isLockedState = (status: ReleaseState | null, platform: Platform): boolean =>
   status !== null &&
   !supports(platform, 'transactionalEdits') &&
-  (RELEASED.includes(status) || APPLE_FROZEN.includes(status));
+  (LOCKED_RELEASE_STATES as readonly string[]).includes(status);
 
 type LockWords = { is: string; version: string };
 const LOCK_LIVE: LockWords = { is: k('app:lock.is.live'), version: k('app:lock.version.live') };

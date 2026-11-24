@@ -443,6 +443,7 @@
   "staged.fileLargerPush": "{{name}} is larger than a push uploads.",
   "staged.fileTooBig": "{{name}} is larger than the {{mb}} MB this server uploads.",
   "staged.itemsHaveErrors": "Some staged items have errors. Fix or remove them first.",
+  "staged.metadataLocked": "Version {{version}} is live or in App Review, so its listing can no longer be changed. Prepare a new version first, then stage the change.",
   "staged.noAssets": "The asset index of the repository lists no file for this locale and slot.",
   "staged.noCommit": "The repository read did not name a commit, so the files cannot be pinned.",
   "staged.noFileAtPosition": "There is no file at that position to replace.",

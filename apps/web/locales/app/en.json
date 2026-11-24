@@ -183,6 +183,7 @@
   "cart.reason.bundleBlocked": "Another staged change has an error, and they are sent together.",
   "cart.reason.inProgress": "A send is already running.",
   "cart.reason.invalid": "This change has an error and cannot be sent yet.",
+  "cart.reason.metadataLocked": "This version is live or in review, so its listing is locked. Prepare a new version first.",
   "cart.reason.noRight": "You do not have the right to send this.",
   "cart.reason.other": "It cannot be sent right now.",
   "cart.reason.outcomeUnknown": "The last send did not answer. Check the store first.",

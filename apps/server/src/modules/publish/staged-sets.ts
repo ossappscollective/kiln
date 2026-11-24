@@ -22,6 +22,7 @@ import {
 import type { ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
+import { metadataLockedFailure } from './metadata-lock.ts';
 import { type AssetHandle, isCommitSha, openAssets } from '../listing/asset-repo.ts';
 import {
   type BlobMediaType,
@@ -378,6 +379,8 @@ export async function replaceAssetSet(
   },
 ): Promise<{ ok: true; staged: StagedChangesView } | Failure> {
   const { app, entries } = input;
+  const locked = await metadataLockedFailure(ctx.db, input.workspaceId, app);
+  if (locked) return locked;
   if (entries.length === 0) {
     return invalid(
       'empty_set',

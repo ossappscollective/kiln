@@ -183,6 +183,7 @@
   "cart.reason.bundleBlocked": "Eine andere vorbereitete Änderung hat einen Fehler, und sie werden gemeinsam gesendet.",
   "cart.reason.inProgress": "Ein Versand läuft bereits.",
   "cart.reason.invalid": "Diese Änderung hat einen Fehler und kann noch nicht gesendet werden.",
+  "cart.reason.metadataLocked": "Diese Version ist live oder in Prüfung, ihr Eintrag ist daher gesperrt. Bereiten Sie zuerst eine neue Version vor.",
   "cart.reason.noRight": "Sie haben nicht das Recht, dies zu senden.",
   "cart.reason.other": "Kann gerade nicht gesendet werden.",
   "cart.reason.outcomeUnknown": "Der letzte Versand hat nicht geantwortet. Prüfen Sie zuerst den Store.",

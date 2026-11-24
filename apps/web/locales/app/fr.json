@@ -183,6 +183,7 @@
   "cart.reason.bundleBlocked": "Une autre modification préparée contient une erreur, et elles partent ensemble.",
   "cart.reason.inProgress": "Un envoi est déjà en cours.",
   "cart.reason.invalid": "Cette modification contient une erreur et ne peut pas encore être envoyée.",
+  "cart.reason.metadataLocked": "Cette version est en ligne ou en revue : sa fiche est verrouillée. Préparez d’abord une nouvelle version.",
   "cart.reason.noRight": "Vous n’avez pas le droit d’envoyer ceci.",
   "cart.reason.other": "Impossible de l’envoyer pour le moment.",
   "cart.reason.outcomeUnknown": "Le dernier envoi n’a pas répondu. Vérifiez d’abord le store.",

@@ -123,7 +123,7 @@ the action in its list (explicit-only actions stay explicit). A non-member gets 
 `id` (`<kind>:<id>`), `kind` (`listing`, `graphics`, `release`, `review_reply`), `title`, `summary` (short excerpt of the new text; null
 for graphics), `before`, `platform`, `store`, `locale`, `createdAt`, `author { id, name }`, `risk` (`store_draft`: written as a draft,
 nothing is submitted; `public_reply`: public at once), `needsApproval` (the step-up policy covers `store.push_draft`), `publishable`,
-`reason { code, action?, envName? }` (`no_right`, `switch_off`, `invalid`, `bundle_blocked`, `in_progress`, `outcome_unknown`),
+`reason { code, action?, envName? }` (`no_right`, `switch_off`, `metadata_locked` (the app's live version locks its listing, see staged-changes.md), `invalid`, `bundle_blocked`, `in_progress`, `outcome_unknown`),
 `canDiscard`, `bundle`, `version`, `counts` (graphics: `files` after, `uploads`, `before` when a store read of the set is remembered), `thumbs` (graphics: addresses, relative to the server, of up to four uploaded files: `GET /staged/assets/blob?oid=`), `problems`, `ref` (where it was made) and, for replies, `review { rating, excerpt, language,
 territory, status }`. Ordered by kind (listing, graphics, release, review_reply), then age. Stored state only; `Cache-Control: no-store`.
 Texts and excerpts are shown to people who can already read them in the staged view and the review inbox; they are never audited or put in events.
