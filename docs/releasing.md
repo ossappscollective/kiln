@@ -140,8 +140,9 @@ volumes: { mrm-data: {}, pg-data: {} }
 
 - [ ] Settings, Actions, General: Actions enabled; workflow permissions can stay "Read repository
       contents" (the workflow asks for more per job).
-- [ ] Choose the real bundle identifier in `apps/desktop/src-tauri/tauri.conf.json` (it is the
-      placeholder `dev.example.kiln`; `check-version.mjs` warns). Changing it later moves the app's data folder.
+- [x] The bundle identifier in `apps/desktop/src-tauri/tauri.conf.json` is `com.akylas.kiln`
+      (`check-version.mjs` warns only for a `dev.example.` placeholder). Do not change it after the first
+      public release: macOS and Windows key the app's data folder on it.
 - [ ] Run a build-only dry run on `main` and install the artifacts on each OS you can reach.
 - [ ] Optional: add the signing secrets above.
 - [ ] After the first tagged run: open the new `kiln` package under the organisation's Packages,
