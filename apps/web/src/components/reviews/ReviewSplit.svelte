@@ -21,6 +21,7 @@
 -->
 <script lang="ts">
   import { t } from '../../lib/i18n/t.ts';
+  import { tint } from '../../lib/tint/store.svelte.ts';
   import type { Role } from '@kiln/core';
   import { onMount, tick, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
@@ -311,7 +312,8 @@
         {@const current = review.id === selectedId}
         {@const reply = rowReplyText(review)}
         {@const byline = rowByline(review)}
-        <li class="item" class:current>
+        {@const rowTint = showApp && review.app ? tint.style(review.app.id) : ''}
+        <li class="item" class:current data-app-tint={rowTint ? '' : undefined} style={rowTint || undefined}>
           <button
             type="button"
             class="row"
@@ -482,7 +484,16 @@
   .item {
     min-width: 0;
     border-bottom: 1px solid var(--line);
-    border-left: 3px solid transparent;
+    /* In the inbox a row wears its app's colour at the start edge (--app-accent exists only on a tinted row). */
+    border-left: 3px solid var(--app-accent, transparent);
+  }
+
+  .appline :global(.app-icon) {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--app-accent, transparent);
+  }
+
+  .appline .by {
+    color: var(--app-accent-ink, inherit);
   }
 
   .item.current {

@@ -39,6 +39,9 @@ export function saveTintPref(on: boolean, storage: Writer | undefined = defaultS
 /** The per-app choice, as the server stores it. */
 export type AppAppearance = { tint: 'auto' | 'off' | 'custom'; color?: string };
 
+/** Where the colour picker starts when a person chooses Custom for the first time. */
+export const DEFAULT_CUSTOM_COLOR = '#3b82f6';
+
 export const AUTO_APPEARANCE: AppAppearance = { tint: 'auto' };
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;

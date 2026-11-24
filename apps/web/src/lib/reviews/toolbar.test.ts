@@ -61,7 +61,7 @@ test('the Filters button counts what the popover holds, not the chips or the sea
   assert.equal(filtersButtonText(3), 'Filters (3)');
 });
 
-test('the inbox also counts store, assignee, apps and the written window', () => {
+test('the inbox also counts store, assignee and the written window (the apps have their own filter)', () => {
   const f = defaultInboxFilters();
   assert.equal(inboxPopoverFilterCount(f), 0);
   assert.equal(
@@ -73,7 +73,7 @@ test('the inbox also counts store, assignee, apps and the written window', () =>
       within: '7',
       ratings: [1],
     }),
-    5,
+    4,
   );
 });
 

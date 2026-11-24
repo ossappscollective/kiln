@@ -13,7 +13,7 @@
   import { t } from '../../../lib/i18n/t.ts';
   import { toast } from '../../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../../lib/types.ts';
-  import { isColor, type AppAppearance } from '../../../lib/tint/prefs.ts';
+  import { DEFAULT_CUSTOM_COLOR, isColor, type AppAppearance } from '../../../lib/tint/prefs.ts';
   import { tint } from '../../../lib/tint/store.svelte.ts';
   import { tokenRows } from '../../../lib/tint/summary.ts';
   import { deriveTint } from '../../../lib/tint/tokens.ts';
@@ -31,7 +31,7 @@
   let picked = $state('');
   let saving = $state(false);
   let problem = $state('');
-  const color = $derived(isColor(picked) ? picked : saved.tint === 'custom' && saved.color ? saved.color : '#3b82f6');
+  const color = $derived(isColor(picked) ? picked : saved.tint === 'custom' && saved.color ? saved.color : DEFAULT_CUSTOM_COLOR);
   const mode = $derived(saved.tint);
 
   const palette = $derived(tint.paletteOf(first));

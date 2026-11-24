@@ -75,14 +75,13 @@ export function popoverFilterCount(f: ReviewFilters, sinceChoice = 'all'): numbe
   );
 }
 
-/** The same for the inbox of every app: it also has the store, the assignee, the apps and "written" choices. */
+/** The same for the inbox of every app: it also has the store, the assignee and "written" choices. The apps have their own filter in the toolbar (AppFilter), not a count here. */
 export function inboxPopoverFilterCount(f: InboxFilters): number {
   return (
     popoverFilterCount(f, 'all') +
     (f.within !== '' ? 1 : 0) +
     (f.platform !== '' ? 1 : 0) +
-    (f.assignee !== '' ? 1 : 0) +
-    (f.appIds.length > 0 ? 1 : 0)
+    (f.assignee !== '' ? 1 : 0)
   );
 }
 

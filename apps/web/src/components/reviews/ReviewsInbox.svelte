@@ -26,7 +26,8 @@
   import { timeAgo } from '../../lib/format.ts';
   import { unansweredCount } from '../../lib/nav-badges.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
-  import { appLabel } from '../../lib/portfolio.ts';
+  import { tint } from '../../lib/tint/store.svelte.ts';
+  import { appOptions, filterSummaryText, pruneAppIds, selectedOptions } from '../../lib/reviews/app-filter.ts';
   import { replyOffText, type ReplyConfig } from '../../lib/reviews/reply.ts';
   import {
     appendInboxPage,
@@ -66,6 +67,7 @@
   import type { AppSummary, Member } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import AppIcon from '../ui/AppIcon.svelte';
+  import AppFilter from './AppFilter.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Icon from '../ui/Icon.svelte';
@@ -112,6 +114,19 @@
       return acc;
     }, {}),
   );
+  const options = $derived(appOptions(apps, summary?.apps));
+  const summaryLine = $derived(filterSummaryText(filters, options));
+  const chosenNames = $derived(selectedOptions(options, filters.appIds).map((o) => o.name).join(t('reviews:appFilter.and')));
+  // The palette of every app on screen (from the cache at once, else read from its icon), for the tint of the rows.
+  $effect(() => {
+    const seen: Record<string, true> = {};
+    for (const r of reviews) {
+      if (seen[r.app.id]) continue;
+      seen[r.app.id] = true;
+      const icon = iconUrls[r.app.id];
+      if (icon) untrack(() => tint.track(r.app.id, icon));
+    }
+  });
   const busiest = $derived(summary ? busiestApps(summary.apps, 6) : []);
   const oldestNote = $derived(summary ? unansweredNote(summary, now) : null);
   const noApps = $derived(!loading && summary !== null && summary.apps.length === 0);
@@ -188,6 +203,9 @@
       .then((r) => {
         apps = r.apps;
         navSignals.setApps(workspaceId, r.apps);
+        // An app of the address that this person cannot see (another workspace, a deleted app) is dropped, with no chip and no request for it.
+        const visible = pruneAppIds(filters.appIds, appOptions(r.apps, null), true);
+        if (visible.length !== filters.appIds.length) change({ appIds: visible });
       })
       .catch(() => {});
     void api.members(workspaceId).then((r) => (members = r.members)).catch(() => {});
@@ -385,6 +403,7 @@
         <Icon name="search" size={14} />
         <input id="{uid}-q" bind:this={searchEl} type="search" aria-label={t('reviews:inbox.searchLabel')} maxlength="100" placeholder={t('reviews:inbox.searchPlaceholder')} bind:value={searchText} autocomplete="off" />
       </label>
+      <AppFilter {options} selected={filters.appIds} onchange={(ids) => change({ appIds: ids })} />
       <ul class="chips" aria-label={t('reviews:card.status')}>
         {#each chips as c (c.status)}
           <li>
@@ -453,17 +472,6 @@
             <label for="{uid}-language">{t('reviews:inbox.language')}</label>
             <input id="{uid}-language" type="text" maxlength="12" value={filters.language} onchange={(e) => change({ language: e.currentTarget.value })} placeholder={t('reviews:inbox.languageExample')} autocomplete="off" />
           </div>
-          {#if apps.length > 0}
-            <fieldset class="app-list">
-              <legend>{t('reviews:inbox.apps')}</legend>
-              {#each apps as app (app.id)}
-                <label class="check">
-                  <input type="checkbox" checked={filters.appIds.includes(app.id)} onchange={() => change({ appIds: toggleIn(filters.appIds, app.id) })} />
-                  {appLabel(app)}
-                </label>
-              {/each}
-            </fieldset>
-          {/if}
         </div>
         <p class="hint keys">
           <span>{t('reviews:inbox.keyboard')}</span>
@@ -475,6 +483,13 @@
       {#if active}<Button variant="ghost" size="sm" onclick={clear}>{t('reviews:inbox.clear')}</Button>{/if}
     </form>
 
+    {#if summaryLine}
+      <p class="filter-summary muted" data-testid="filter-summary">
+        {summaryLine}
+        {#if filters.appIds.length > 0}<button type="button" class="bare link" onclick={() => change({ appIds: [] })}>{t('reviews:appFilter.all')}</button>{/if}
+      </p>
+    {/if}
+
     <div class="list" aria-busy={loading}>
       {#if problem}
         <Alert tone="error" title={t('reviews:inbox.loadFailed')}>{problem}</Alert>
@@ -483,8 +498,11 @@
         <div role="status" aria-label={t('reviews:inbox.loading')}><Skeleton height="140px" /></div>
       {:else if reviews.length === 0}
         <div class="card">
-          <EmptyState icon="filter" title={t('reviews:inbox.noMatch')} description={t('reviews:inbox.noMatchHint')}>
-            {#snippet actions()}<Button onclick={clear}>{t('reviews:inbox.clear')}</Button>{/snippet}
+          <EmptyState icon="filter" title={t('reviews:inbox.noMatch')} description={filters.appIds.length > 0 ? t('reviews:appFilter.emptyApps', { apps: chosenNames }) : t('reviews:inbox.noMatchHint')}>
+            {#snippet actions()}
+              {#if filters.appIds.length > 0}<Button onclick={() => change({ appIds: [] })}>{t('reviews:appFilter.all')}</Button>{/if}
+              <Button onclick={clear}>{t('reviews:inbox.clear')}</Button>
+            {/snippet}
           </EmptyState>
         </div>
       {:else}
@@ -514,7 +532,7 @@
           <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
           <ul class="cards" onfocusin={onFocusIn}>
             {#each reviews as review (review.id)}
-              <li>
+              <li data-app-tint={tint.style(review.app.id) ? '' : undefined} style={tint.style(review.app.id) || undefined}>
                 <p class="from">
                   <AppIcon name={review.app.name} url={iconUrls[review.app.id] ?? null} platform={review.app.platform} size="xs" labelled={true} />
                   <span class="app-name">{review.app.name}</span>
@@ -522,6 +540,7 @@
                   <a class="link sm" href={appReviewsHref(review.app.id)} title={t('reviews:split.openAppTitle')}>{t('reviews:split.openApp')}</a>
                   <span class="muted small">{timeAgo(review.createdAt, now)}</span>
                 </p>
+                <div class="neutral" data-tint-reset>
                 <ReviewCard
                   bind:this={cards[review.id]}
                   {api}
@@ -537,6 +556,7 @@
                   {now}
                   onchange={updated}
                 />
+                </div>
               </li>
             {/each}
           </ul>
@@ -670,8 +690,7 @@
     gap: var(--space-3);
   }
 
-  .ratings,
-  .app-list {
+  .ratings {
     display: flex;
     flex-wrap: wrap;
     grid-column: 1 / -1;
@@ -681,8 +700,7 @@
     border: 0;
   }
 
-  .ratings legend,
-  .app-list legend {
+  .ratings legend {
     font-size: var(--text-sm);
     color: var(--muted);
   }
@@ -695,6 +713,26 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+    /* The app's colour at the start edge (a shadow: nothing moves). --app-accent exists only on a tinted row; otherwise it is transparent. */
+    box-shadow: inset 3px 0 0 var(--app-accent, transparent);
+    padding-inline-start: var(--space-3);
+  }
+
+  /* The review itself keeps the default accent: only the row's edge, the icon ring and the app name wear the app's colours. */
+  .neutral {
+    display: contents;
+  }
+
+  .from :global(.app-icon) {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--app-accent, transparent);
+  }
+
+  .from .app-name {
+    color: var(--app-accent-ink, inherit);
+  }
+
+  .filter-summary {
+    margin: 0;
   }
 
   .from {
