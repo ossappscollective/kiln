@@ -55,7 +55,7 @@ test('the email catalogs have the same keys in every language and every key the 
   const en = read('apps/server/locales/email/en.json');
   for (const lang of ['fr', 'es', 'de']) {
     const other = read(`apps/server/locales/email/${lang}.json`);
-    const base = (k: string) => k.replace(/_(one|other)$/, '');
+    const base = (k: string) => k.replace(/_(one|many|other)$/, '');
     assert.deepEqual(
       [...new Set(Object.keys(other).map(base))].sort(),
       [...new Set(Object.keys(en).map(base))].sort(),
@@ -67,7 +67,7 @@ test('the email catalogs have the same keys in every language and every key the 
           .map((m) => m[1])
           .sort()
           .join(',');
-      const source = en[key] ?? en[key.replace(/_(one|other)$/, '_other')];
+      const source = en[key] ?? en[key.replace(/_(one|many|other)$/, '_other')];
       assert.equal(place(value), place(source as string), `${lang}:${key}`);
     }
   }
@@ -158,7 +158,7 @@ test('the four errors catalogs carry the same keys and placeholders for the code
     ['en', 'fr', 'es', 'de'].map((l) => [l, read(`apps/web/locales/errors/${l}.json`)]),
   ) as Record<string, Record<string, string>>;
   const en = catalogs.en as Record<string, string>;
-  const base = (k: string) => k.replace(/_(one|other)$/, '');
+  const base = (k: string) => k.replace(/_(one|many|other)$/, '');
   const problems: string[] = [];
   for (const code of usedCodes()) {
     for (const lang of ['fr', 'es', 'de']) {

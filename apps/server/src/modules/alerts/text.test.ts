@@ -89,7 +89,7 @@ test('an unknown type has no entry; an unknown language answers in English', () 
 });
 
 test('the alerts and digest catalogs have the same keys and placeholders in every language', () => {
-  const base = (k: string) => k.replace(/_(one|other)$/, '');
+  const base = (k: string) => k.replace(/_(one|many|other)$/, '');
   const places = (s: string) => [...s.matchAll(/\{\{\s*(\w+)\s*\}\}/g)].map((m) => m[1]).sort().join(',');
   for (const ns of ['alerts', 'digest']) {
     const en = catalog(ns, 'en');
