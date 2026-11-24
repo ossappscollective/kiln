@@ -46,11 +46,13 @@
     >
       <AppIcon name={item.name} url={item.iconUrl} seed={item.key} size="sm" labelled />
       <span class="names">
-        <strong class="name">{item.name}</strong>
-        <code class="ids">{item.identifiers.join(' · ')}</code>
-        {#if item.pending}<span class="chiprow"><PendingChip line={item.pending} /></span>{/if}
+        <span class="head">
+          <strong class="name" title={item.name}>{item.name}</strong>
+          {#if item.pending}<span class="chip"><PendingChip line={item.pending} /></span>{/if}
+        </span>
+        <code class="ids" title={item.identifiers.join(' · ')}>{item.identifiers.join(' · ')}</code>
       </span>
-      <span class="plats">{#each item.platforms as p (p)}<PlatformBadge platform={p} />{/each}</span>
+      <span class="plats">{#each item.platforms as p (p)}<PlatformBadge platform={p} showLabel={false} />{/each}</span>
       {#if item.number !== null}<kbd class="num" title="{mod} + {item.number}">{item.number}</kbd>{/if}
     </li>
   {/each}
@@ -65,8 +67,16 @@
     list-style: none;
   }
 
+  /*
+    A stable row at any width: icon | text (the one column that gives way) | platform tiles | number. The text column is
+    `minmax(0, 1fr)`, so the name and the bundle ids are cut with an ellipsis instead of being squeezed to one letter per line,
+    and the tiles and the number never shrink or wrap.
+  */
   .list li {
-    display: flex;
+    display: grid;
+    grid-auto-columns: auto;
+    grid-auto-flow: column;
+    grid-template-columns: auto minmax(0, 1fr);
     gap: var(--space-3);
     align-items: center;
     min-height: var(--control-lg);
@@ -81,39 +91,54 @@
 
   .names {
     display: flex;
-    flex: 1;
     flex-direction: column;
     min-width: 0;
   }
 
-  /* The name and the bundle ids wrap: nothing in a row is cut off. */
-  .name,
-  .ids {
-    overflow-wrap: anywhere;
+  /* The name takes what the pending chip leaves; the bundle ids sit below in muted mono. Both stay on one line. */
+  .head {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    min-width: 0;
+  }
+
+  .name {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chip {
+    flex: none;
   }
 
   .ids {
+    display: block;
+    min-width: 0;
     padding: 0;
+    overflow: hidden;
+    font-family: var(--font-mono);
     font-size: var(--text-xs);
     color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
     background: none;
     border: 0;
   }
 
-  .chiprow {
-    display: flex;
-    margin-top: var(--space-1);
-  }
-
   .plats {
     display: inline-flex;
-    flex: none;
     gap: var(--space-1);
+    white-space: nowrap;
   }
 
   .num {
-    flex: none;
     min-width: 20px;
+    padding-inline: var(--space-1);
+    font-size: var(--text-xs);
     text-align: center;
     color: var(--muted);
   }

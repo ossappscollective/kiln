@@ -199,6 +199,8 @@
     width: min(26rem, calc(100vw - 1rem));
     max-height: 22rem;
     padding: var(--space-1);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
