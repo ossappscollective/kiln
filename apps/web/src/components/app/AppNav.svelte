@@ -24,7 +24,7 @@
   import { carryHeaderParams } from '../../lib/app-header.ts';
   import { type RailItem, navEntryOf, visibleNav, workspaceRail } from '../../lib/app-nav.ts';
   import { type AppAddress, type AppSection, appAddress } from '../../lib/app-scope.ts';
-  import { badgeText } from '../../lib/nav-badges.ts';
+  import { type BadgeTone, badgeClass, badgeText, navBadgeTone } from '../../lib/nav-badges.ts';
   import { pendingAcrossText } from '../../lib/cart-summary.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { chordHint } from '../../lib/shortcuts.ts';
@@ -74,15 +74,15 @@
     tintStyle?: string | undefined;
   } = $props();
 
-  const badgeFor = (id: string): { count: number | null; labelKey: string; tone: 'warn' | 'accent' } | null =>
+  const badgeFor = (id: string): { count: number | null; labelKey: string; tone: BadgeTone } | null =>
     id === 'reviews'
-      ? { count: counts.reviews, labelKey: k('shell:badge.unanswered'), tone: 'warn' }
+      ? { count: counts.reviews, labelKey: k('shell:badge.unanswered'), tone: navBadgeTone(id) }
       : id === 'releases'
-        ? { count: counts.releases, labelKey: k('app:nav.badgeUnfinished'), tone: 'warn' }
+        ? { count: counts.releases, labelKey: k('app:nav.badgeUnfinished'), tone: navBadgeTone(id) }
         : id === 'insights'
-          ? { count: counts.insights ?? null, labelKey: k('app:nav.badgeInsights'), tone: 'accent' }
+          ? { count: counts.insights ?? null, labelKey: k('app:nav.badgeInsights'), tone: navBadgeTone(id) }
         : id === 'listing'
-          ? { count: counts.pending ?? null, labelKey: k('app:nav.badgePending'), tone: counts.pendingBlocking ? 'warn' : 'accent' }
+          ? { count: counts.pending ?? null, labelKey: k('app:nav.badgePending'), tone: navBadgeTone(id, { pendingBlocking: counts.pendingBlocking }) }
           : null;
 
   /** The link of an entry. Insights always opens on Overview; the badge counts the open cards, which are one tab away (Highlights). */
@@ -102,7 +102,7 @@
         <AppSwitcherField compact items={switcher} appId={address.id} fallbackName={appContext.name} {mod} onopen={onopenswitcher} onpick={onpickapp} />
       {:else}
         <button type="button" class="bare rail-app" title={appContext.name} aria-label={t('app:nav.expandToSwitch', { name: appContext.name })} onclick={() => onexpand?.()}>
-          <AppIcon name={appContext.name} url={railItem?.iconUrl ?? null} seed={railItem?.key ?? address.id} size="sm" />
+          <AppIcon name={appContext.name} url={railItem?.iconUrl ?? null} seed={railItem?.key ?? address.id} size="sm" neutral />
         </button>
       {/if}
       {#if status.length > 0}
@@ -133,7 +133,7 @@
       </ul>
     {/if}
   </div>
-  <nav aria-label={t('app:nav.thisApp')} data-app-tint={tintStyle ? '' : undefined} style={tintStyle || undefined}>
+  <nav class="this-app" aria-label={t('app:nav.thisApp')} data-app-tint={tintStyle ? '' : undefined} style={tintStyle || undefined}>
     <p class="group-label" aria-hidden="true">{t('app:nav.thisApp')}</p>
     <ul>
       {#each entries as s (s.id)}
@@ -145,7 +145,7 @@
             <span>{t(s.labelKey)}</span>
             {#if hint}<kbd class="nav-hint" aria-hidden="true">{hint}</kbd>{/if}
             {#if badge && badgeText(badge.count)}
-              <span class="badge {badge.tone} nav-count">{badgeText(badge.count)}<span class="visually-hidden"> {t(badge.labelKey, { count: badge.count ?? 0 })}</span></span>
+              <span class="badge {badgeClass(badge.tone)} nav-count" data-tone={badge.tone}>{badgeText(badge.count)}<span class="visually-hidden"> {t(badge.labelKey, { count: badge.count ?? 0 })}</span></span>
             {/if}
           </a>
         </li>
@@ -410,5 +410,24 @@
 
   nav a[aria-current='page'] :global(.icon) {
     color: var(--accent);
+  }
+
+  /*
+    The "This app" group is the app's: every entry (and the rail icons) carries the tint, the workspace group below stays neutral
+    (ADR 0068). Icons read --app-accent-ink (a tested 3:1 non-text pair on every surface, 4.5:1 in fact); labels keep the muted or ink
+    colour, which is tested on the tint layers; hover is the subtle tint; the current entry keeps its stronger bar and wash (the
+    re-mapped --nav-active-bg). A thin start rule in the tint binds the group (an inset shadow, so no layout moves, and nothing
+    without a tint: both tokens fall back). --app-* exist only inside a tinted subtree, so an app without a tint looks as before.
+  */
+  nav.this-app ul {
+    box-shadow: inset 2px 0 0 var(--app-tint-strong, transparent);
+  }
+
+  nav.this-app a :global(.icon) {
+    color: var(--app-accent-ink, inherit);
+  }
+
+  nav.this-app a:not([aria-current='page']):hover {
+    background: var(--app-tint-subtle, var(--surface-hover));
   }
 </style>

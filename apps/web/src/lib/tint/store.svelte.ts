@@ -8,6 +8,7 @@ import { type CacheEntry, readEntry, writeEntry } from './cache.ts';
 import { paletteFromUrl } from './extract.ts';
 import { type AppAppearance, readTintPref, resolveTint, saveTintPref } from './prefs.ts';
 import type { Palette } from './palette.ts';
+import { createLimiter } from './switcher.ts';
 import { type AppTint, tintStyle } from './tokens.ts';
 
 class TintStore {
@@ -85,14 +86,14 @@ class TintStore {
   }
 
   /** Makes sure the palette of this icon is known: the cache when it names this URL, else a read of the icon. */
-  track(appId: string, iconUrl: string | null | undefined): void {
-    if (!iconUrl) return;
+  track(appId: string, iconUrl: string | null | undefined): Promise<void> {
+    if (!iconUrl) return Promise.resolve();
     const known = this._entry(appId);
-    if (known && known.url === iconUrl) return;
+    if (known && known.url === iconUrl) return Promise.resolve();
     const key = `${appId}|${iconUrl}`;
-    if (this._pending.has(key)) return;
+    if (this._pending.has(key)) return Promise.resolve();
     this._pending.add(key);
-    void paletteFromUrl(iconUrl).then((palette) => {
+    return paletteFromUrl(iconUrl).then((palette) => {
       this._pending.delete(key);
       if (!palette) return;
       const entry = { url: iconUrl, palette };
@@ -100,6 +101,16 @@ class TintStore {
       writeEntry(appId, entry);
       this._bump();
     });
+  }
+
+  private _warmer = createLimiter(2);
+
+  /** `track` for a list of rows (the app switcher): two reads at a time, each icon once, so opening a long list never floods the page. */
+  warm(appId: string, iconUrl: string | null | undefined): void {
+    if (!iconUrl || !this.enabled) return;
+    const known = this._entry(appId);
+    if (known && known.url === iconUrl) return;
+    this._warmer(`${appId}|${iconUrl}`, () => this.track(appId, iconUrl));
   }
 }
 

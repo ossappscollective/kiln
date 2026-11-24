@@ -86,7 +86,7 @@
 
 <div class="field">
   <label class="box" class:open class:compact bind:this={box}>
-    <AppIcon {name} url={item?.iconUrl ?? null} seed={item?.key ?? appId} size="sm" labelled />
+    <AppIcon {name} url={item?.iconUrl ?? null} seed={item?.key ?? appId} size="sm" labelled neutral />
     <span class="visually-hidden">{t('app:switcher.switch')}</span>
     <input
       bind:this={input}
@@ -113,7 +113,7 @@
     {#if !compact}<Icon name="chevron-down" size={14} />{/if}
   </label>
   {#if open}
-    <div class="pop" use:floating={{ anchor: box, align: 'start', matchAnchorWidth: !compact }}>
+    <div class="pop" data-tint-reset use:floating={{ anchor: box, align: 'start', matchAnchorWidth: !compact }}>
       {#if items === null}
         <p class="muted none" role="status">{t('app:switcher.loadingText')}</p>
       {:else if shown.length === 0}

@@ -843,6 +843,7 @@
   "strip.rolloutDue": "Étape de déploiement due",
   "strip.title": "Bientôt dues et en retard",
   "switcher.apps": "Applications",
+  "switcher.current": "Application ouverte",
   "switcher.hint": "Entrée ouvre l’application. {{mod}} + 1 à 9 ouvre l’une des neuf premières, depuis n’importe où.",
   "switcher.loading": "Chargement des applications",
   "switcher.loadingText": "Chargement des applications…",

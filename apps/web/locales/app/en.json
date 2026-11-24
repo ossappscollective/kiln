@@ -791,6 +791,7 @@
   "strip.rolloutDue": "Rollout step due",
   "strip.title": "Due soon and overdue",
   "switcher.apps": "Apps",
+  "switcher.current": "Current app",
   "switcher.hint": "Enter opens the app. {{mod}} + 1 to 9 opens one of the first nine from anywhere.",
   "switcher.loading": "Loading the apps",
   "switcher.loadingText": "Loading the apps…",

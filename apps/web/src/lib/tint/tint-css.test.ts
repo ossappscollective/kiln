@@ -74,9 +74,16 @@ test('forced colours and more contrast turn the tint off, and dialogs get the de
 });
 
 test('the light, dark and system-dark sets define the same tokens', () => {
-  const sets = all.filter((r) => r.body.includes('--app-accent:'));
+  const sets = all.filter((r) => /--app-accent:\s*var\(--tint-/.test(r.body));
   assert.equal(sets.length, 3);
   const names = (b: string) => (b.match(/--app-[a-z-]+(?=\s*:)/g) ?? []).sort().join();
   assert.equal(new Set(sets.map((s) => names(s.body))).size, 1);
   assert.equal(sets[1]?.body.replace(/\s+/g, ''), sets[2]?.body.replace(/\s+/g, ''), 'dark by choice and dark by system are identical');
+});
+
+test('a global surface also resets the --app-* tokens, so a switcher row without a palette is neutral', () => {
+  const resets = all.filter((r) => r.selector === '[data-app-tint] :is(dialog, [data-tint-reset])');
+  const body = resets.map((r) => r.body).join(';');
+  for (const p of ['accent', 'accent-ink', 'accent-hover', 'accent-solid', 'on-accent', 'tint-subtle', 'tint-strong', 'glow'])
+    assert.match(body, new RegExp(`--app-${p}:\\s*initial`), p);
 });

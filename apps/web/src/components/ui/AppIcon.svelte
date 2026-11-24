@@ -6,7 +6,8 @@
   glyph of the fallback tile), seed? (what the tile color follows; the name when not given),
   size = 'md' ('xs' 20, 'sm' 24, 'md' 32, 'lg' 48, 'xl' 64, or a pixel number),
   labelled = true (the name is written beside the icon, so the icon is decorative; false gives the
-  image the name as its alt text), class?.
+  image the name as its alt text), neutral? (app pickers: the fallback tile is the plain sunken surface with a 1px neutral border, no
+  coloured tile; the icon keeps its own rounded-square shape), class?.
   Never a broken image: with no URL, a 404 (no icon is known yet) or any load error the tile shows
   the initials of the app (the platform glyph at the smallest size, and as a corner mark from 'lg').
   The image loads lazily and decodes off the main thread. No new dependency, no icon is stored here.
@@ -23,6 +24,7 @@
     seed,
     size = 'md',
     labelled = true,
+    neutral = false,
     class: className = '',
   }: {
     name: string;
@@ -31,6 +33,7 @@
     seed?: string | undefined;
     size?: AppIconSize | number | undefined;
     labelled?: boolean | undefined;
+    neutral?: boolean | undefined;
     class?: string | undefined;
   } = $props();
 
@@ -49,6 +52,7 @@
 
 <span
   class="app-icon t{tint} {className}"
+  class:neutral
   class:has-image={loaded}
   style:--app-icon-size="{px}px"
   role={labelled ? undefined : 'img'}
@@ -111,6 +115,9 @@
     background-image: linear-gradient(var(--tile, var(--accent-bg)), var(--tile, var(--accent-bg)));
     color: var(--ink);
     border-color: color-mix(in srgb, var(--ink) 24%, transparent);
+  }
+  .app-icon.neutral {
+    --tile: var(--surface-sunken);
   }
   .t0 {
     --tile: var(--accent-bg);

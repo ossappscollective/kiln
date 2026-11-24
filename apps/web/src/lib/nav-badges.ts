@@ -74,3 +74,19 @@ export function badgeLabel(
   if (text === null) return null;
   return `${text} ${count === 1 ? one : many}`;
 }
+
+/**
+ * The tone of a count badge in the "This app" group (docs/adr/0068-app-tint.md, design-system "App tint"):
+ *  - `count`: a plain number (unanswered reviews, releases left unfinished, open insight cards, pending changes). It wears the app's tint
+ *    (class `accent`, which reads --chip-bg and --chip-ink, re-mapped inside the group).
+ *  - `warning` / `danger`: the number signals a problem (a pending change blocked by an error). Semantic colour, never tinted.
+ * Today only the pending badge of Store listing can be a problem; a new badge says so here and in nothing else.
+ */
+export type BadgeTone = 'count' | 'warning' | 'danger';
+
+export function navBadgeTone(entry: string, state: { pendingBlocking?: boolean | undefined } = {}): BadgeTone {
+  return entry === 'listing' && state.pendingBlocking ? 'warning' : 'count';
+}
+
+/** The CSS class of a tone (app.css .badge.accent | .warn | .bad). */
+export const badgeClass = (tone: BadgeTone): 'accent' | 'warn' | 'bad' => (tone === 'count' ? 'accent' : tone === 'warning' ? 'warn' : 'bad');

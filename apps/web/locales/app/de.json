@@ -791,6 +791,7 @@
   "strip.rolloutDue": "Einführungsschritt fällig",
   "strip.title": "Bald fällig und überfällig",
   "switcher.apps": "Apps",
+  "switcher.current": "Geöffnete App",
   "switcher.hint": "Mit der Eingabetaste öffnen Sie die App. {{mod}} + 1 bis 9 öffnet von überall eine der ersten neun.",
   "switcher.loading": "Apps werden geladen",
   "switcher.loadingText": "Apps werden geladen …",

@@ -31,6 +31,10 @@
   --nav-bar-glow-default: var(--nav-bar-glow);
   --brand-gradient-vertical-default: var(--brand-gradient-vertical);
   --btn-glow-default: var(--btn-glow);
+  --viz-1-default: var(--viz-1);
+  --viz-2-default: var(--viz-2);
+  --viz-mid-default: var(--viz-mid);
+  --viz-end-default: var(--viz-end);
 }
 
 @media not ((prefers-contrast: more) or (forced-colors: active)) {
@@ -45,6 +49,16 @@
     --app-tint-subtle: var(--tint-l-tint-subtle);
     --app-tint-strong: var(--tint-l-tint-strong);
     --app-glow: var(--tint-l-glow);
+    /* The chart series (chart-palette.ts), when the tint has them; else unset and the default --viz-* stay. */
+    --app-viz-1: var(--tint-l-viz-1);
+    --app-viz-2: var(--tint-l-viz-2);
+    --app-viz-3: var(--tint-l-viz-3);
+    --app-viz-4: var(--tint-l-viz-4);
+    --app-viz-5: var(--tint-l-viz-5);
+    --app-viz-6: var(--tint-l-viz-6);
+    --app-viz-7: var(--tint-l-viz-7);
+    --app-viz-8: var(--tint-l-viz-8);
+    --app-viz-mid: var(--tint-l-viz-mid);
   }
 
   /* ... dark, chosen by the person. */
@@ -58,6 +72,15 @@
     --app-tint-subtle: var(--tint-d-tint-subtle);
     --app-tint-strong: var(--tint-d-tint-strong);
     --app-glow: var(--tint-d-glow);
+    --app-viz-1: var(--tint-d-viz-1);
+    --app-viz-2: var(--tint-d-viz-2);
+    --app-viz-3: var(--tint-d-viz-3);
+    --app-viz-4: var(--tint-d-viz-4);
+    --app-viz-5: var(--tint-d-viz-5);
+    --app-viz-6: var(--tint-d-viz-6);
+    --app-viz-7: var(--tint-d-viz-7);
+    --app-viz-8: var(--tint-d-viz-8);
+    --app-viz-mid: var(--tint-d-viz-mid);
   }
 
   /* ... dark, from the system setting (kept identical to the block above). */
@@ -72,6 +95,15 @@
       --app-tint-subtle: var(--tint-d-tint-subtle);
       --app-tint-strong: var(--tint-d-tint-strong);
       --app-glow: var(--tint-d-glow);
+      --app-viz-1: var(--tint-d-viz-1);
+      --app-viz-2: var(--tint-d-viz-2);
+      --app-viz-3: var(--tint-d-viz-3);
+      --app-viz-4: var(--tint-d-viz-4);
+      --app-viz-5: var(--tint-d-viz-5);
+      --app-viz-6: var(--tint-d-viz-6);
+      --app-viz-7: var(--tint-d-viz-7);
+      --app-viz-8: var(--tint-d-viz-8);
+      --app-viz-mid: var(--tint-d-viz-mid);
     }
   }
 
@@ -94,6 +126,13 @@
     --nav-bar-glow: 0 0 10px var(--app-glow);
     --brand-gradient-vertical: linear-gradient(180deg, var(--app-accent), var(--app-accent));
     --btn-glow: 0 6px 20px var(--app-glow);
+    /* The chart series that every chart reads (chart-palette.ts). When the tint has no chart tokens the reference is invalid and the
+       default series stays. Grid, axis, hatch and wash (--viz-grid, --viz-axis, --viz-hatch, --viz-wash) are never re-mapped, and
+       charts that need more than two series read --app-viz-3 .. --app-viz-8. */
+    --viz-1: var(--app-viz-1, var(--viz-1-default));
+    --viz-2: var(--app-viz-2, var(--viz-2-default));
+    --viz-mid: var(--app-viz-mid, var(--viz-mid-default));
+    --viz-end: var(--app-viz-2, var(--viz-end-default));
   }
 
   /* 3. The page glow of an app page: only the ambient light behind the content (one layer, so its peak is the single opacity that was checked), on the one element that paints it. */
@@ -120,5 +159,22 @@
     --nav-bar-glow: var(--nav-bar-glow-default);
     --brand-gradient-vertical: var(--brand-gradient-vertical-default);
     --btn-glow: var(--btn-glow-default);
+    --viz-1: var(--viz-1-default);
+    --viz-2: var(--viz-2-default);
+    --viz-mid: var(--viz-mid-default);
+    --viz-end: var(--viz-end-default);
+  }
+
+  /* The app tokens too, so a global surface (a popup of the app switcher, the cart drawer) cannot show the open app's colours through
+     `var(--app-accent, fallback)`: the fallback applies again. A tinted element INSIDE it (a switcher row) sets its own. */
+  [data-app-tint] :is(dialog, [data-tint-reset]) {
+    --app-accent: initial;
+    --app-accent-ink: initial;
+    --app-accent-hover: initial;
+    --app-accent-solid: initial;
+    --app-on-accent: initial;
+    --app-tint-subtle: initial;
+    --app-tint-strong: initial;
+    --app-glow: initial;
   }
 }

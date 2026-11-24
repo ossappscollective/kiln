@@ -3,11 +3,16 @@
   upload icon, "Pending" and the count; below 600px the icon and the count only. State comes from `cartButton` (PendingCart writes it),
   so it shows only inside an app and only while changes wait. Not the workspace-wide "Pending" page in the navigation (ADR 0064):
   its name and tooltip say "this app".
+  The one tinted control of the top bar (ADR 0068): the `data-app-tint` marker sits on the button itself, never on the bar, so the
+  accent tokens it already reads (gradient, label colour) take the open app's tint and nothing else in the bar does. `tintStyle` is
+  the app's inline style (tint.style); empty (no palette, opt-out, an app without a tint) leaves the default accent.
 -->
 <script lang="ts">
   import { cartButton } from '../../lib/cart-button.svelte.ts';
   import { t } from '../../lib/i18n/t.ts';
   import Icon from '../ui/Icon.svelte';
+
+  let { tintStyle = '' }: { tintStyle?: string | undefined } = $props();
 </script>
 
 {#if cartButton.visible}
@@ -20,6 +25,8 @@
     aria-label={t('app:cart.openAria', { count: cartButton.count })}
     title={t('app:cart.buttonTitle')}
     data-testid="pending-cart-button"
+    data-app-tint={tintStyle ? '' : undefined}
+    style={tintStyle || undefined}
     onclick={() => cartButton.press?.()}
   >
     <Icon name="upload" size={16} />
@@ -98,7 +105,7 @@
     place-items: center;
     font-size: var(--text-xs);
     font-variant-numeric: tabular-nums;
-    color: var(--ink);
+    color: var(--app-accent-ink, var(--ink));
     background: var(--surface);
     border-radius: var(--radius-full);
   }

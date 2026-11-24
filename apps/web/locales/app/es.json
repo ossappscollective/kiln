@@ -843,6 +843,7 @@
   "strip.rolloutDue": "Paso de despliegue pendiente",
   "strip.title": "Próximos a vencer y vencidos",
   "switcher.apps": "Apps",
+  "switcher.current": "Aplicación abierta",
   "switcher.hint": "Intro abre la app. {{mod}} + 1 a 9 abre una de las nueve primeras desde cualquier lugar.",
   "switcher.loading": "Cargando las apps",
   "switcher.loadingText": "Cargando las apps…",
