@@ -1,0 +1,35 @@
+/* The coded product illustration in the hero. It is drawn in HTML, CSS and SVG: an illustration, not a screenshot. */
+.mock { margin: 0; container-type: inline-size; }
+.mock-window { position: relative; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); overflow: hidden; }
+.mock-window::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--brand-gradient-horizontal); }
+.mock-bar { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); background: var(--surface-hover); }
+.mock-bar .dots { display: flex; gap: 6px; }
+.mock-bar .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); }
+.mock-title { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--muted); }
+.mock-badge { margin-inline-start: auto; font-size: var(--text-xs); font-weight: var(--weight-semibold); padding: 2px var(--space-2); border-radius: var(--radius-full); background: var(--chip-bg); color: var(--chip-ink); }
+.mock-body { display: grid; gap: var(--space-3); padding: var(--space-4); background: var(--ground); grid-template-columns: minmax(0, 1fr); }
+@container (min-width: 34rem) { .mock-body { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); } .mock-stepper { grid-column: 1 / -1; } }
+.mock-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-4); box-shadow: var(--shadow-xs); }
+.mock-card h2, .mock-card h3 { font: var(--weight-semibold) var(--text-sm)/1.2 var(--font-sans); color: var(--muted); margin: 0 0 var(--space-3); display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.mock-count { background: var(--accent-bg); color: var(--chip-ink); border-radius: var(--radius-full); padding: 1px var(--space-2); font-size: var(--text-xs); }
+.mock-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none; margin: 0; padding: 0; counter-reset: ms; }
+.mock-steps li { position: relative; display: grid; justify-items: center; gap: var(--space-2); text-align: center; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--muted); }
+.mock-steps li::before { content: ""; width: 1.5rem; height: 1.5rem; border-radius: 50%; border: 2px solid var(--line-strong); background: var(--surface); z-index: 1; }
+.mock-steps li::after { content: ""; position: absolute; top: 0.72rem; inset-inline-start: calc(50% + 0.9rem); width: calc(100% - 1.8rem); height: 2px; background: var(--line-strong); }
+.mock-steps li:last-child::after { display: none; }
+.mock-steps li.done { color: var(--ink); }
+.mock-steps li.done::before { border-color: transparent; background: var(--ok) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l3 3 5-6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 80% no-repeat; }
+.mock-steps li.done::after { background: var(--ok); }
+.mock-steps li.now { color: var(--ink); font-weight: var(--weight-semibold); }
+.mock-steps li.now::before { border-color: var(--accent); background: var(--accent-bg); box-shadow: var(--halo); }
+.mock-list { list-style: none; margin: 0 0 var(--space-3); padding: 0; display: grid; gap: var(--space-2); }
+.mock-list li { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-hover); }
+.mock-list b { font-weight: var(--weight-medium); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip { font-size: var(--text-xs); font-weight: var(--weight-semibold); padding: 1px var(--space-2); border-radius: var(--radius-full); border: 1px solid; white-space: nowrap; }
+.chip.ios { background: var(--platform-ios-bg); color: var(--platform-ios-ink); border-color: var(--platform-ios-line); }
+.chip.android { background: var(--platform-android-bg); color: var(--platform-android-ink); border-color: var(--platform-android-line); }
+.chip.macos { background: var(--platform-macos-bg); color: var(--platform-macos-ink); border-color: var(--platform-macos-line); }
+.mock-btn { display: block; text-align: center; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--primary-gradient); color: var(--accent-ink); font-size: var(--text-sm); font-weight: var(--weight-semibold); box-shadow: var(--btn-glow); }
+.mock-chart svg { display: block; width: 100%; height: auto; }
+.mock-chart .legend { display: flex; justify-content: space-between; margin: var(--space-2) 0 0; font-size: var(--text-xs); color: var(--faint); }
+.mock-caption { margin-top: var(--space-3); font-size: var(--text-sm); color: var(--faint); text-align: center; }

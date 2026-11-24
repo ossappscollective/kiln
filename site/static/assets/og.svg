@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-labelledby="t d">
+  <title id="t">Kiln: ship iOS, macOS and Android releases from one open-source place</title>
+  <desc id="d">The Kiln mark, an arch with a flame, on an indigo background.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#171b3d"/><stop offset="1" stop-color="#0b0d22"/></linearGradient>
+    <radialGradient id="glow1" cx="85%" cy="0%" r="60%"><stop offset="0" stop-color="#7f99ff" stop-opacity=".35"/><stop offset="1" stop-color="#7f99ff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="glow2" cx="95%" cy="100%" r="45%"><stop offset="0" stop-color="#ffb04a" stop-opacity=".18"/><stop offset="1" stop-color="#ffb04a" stop-opacity="0"/></radialGradient>
+    <linearGradient id="arch" gradientUnits="userSpaceOnUse" x1="0" y1="22" x2="0" y2="100"><stop offset="0" stop-color="#7f99ff"/><stop offset=".6" stop-color="#a98bff"/><stop offset="1" stop-color="#ffb04a"/></linearGradient>
+    <linearGradient id="fire" gradientUnits="userSpaceOnUse" x1="0" y1="40" x2="0" y2="96"><stop offset="0" stop-color="#c9a8ff"/><stop offset=".55" stop-color="#ff9f6e"/><stop offset="1" stop-color="#ffb04a"/></linearGradient>
+    <linearGradient id="word" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#eceeff"/><stop offset="1" stop-color="#a98bff"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow1)"/>
+  <rect width="1200" height="630" fill="url(#glow2)"/>
+  <g transform="translate(60 90) scale(3.8)">
+    <path d="M28 98V58a32 32 0 0 1 64 0v40" fill="none" stroke="url(#arch)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M60 42c2 11 14 17 14 32 0 11-6 20-14 20s-14-9-14-20c0-8 4-13 8-18 1 6 3 9 6 10-1-8-2-16 0-24z" fill="url(#fire)"/>
+  </g>
+  <g font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <text x="520" y="250" font-size="120" font-weight="700" fill="url(#word)" letter-spacing="-2">Kiln</text>
+    <text x="520" y="330" font-size="36" font-weight="600" fill="#eceeff">Ship iOS, macOS and Android</text>
+    <text x="520" y="380" font-size="36" font-weight="600" fill="#eceeff">releases from one open-source place.</text>
+    <text x="520" y="450" font-size="28" fill="#a3a9d6">Store listings, ASO and insights. Self-hosted.</text>
+    <g font-size="24" font-weight="600" fill="#b9c6ff">
+      <rect x="520" y="498" width="170" height="44" rx="22" fill="#232a54"/><text x="545" y="528">Apache-2.0</text>
+      <rect x="706" y="498" width="170" height="44" rx="22" fill="#232a54"/><text x="731" y="528">Self-hosted</text>
+      <rect x="892" y="498" width="170" height="44" rx="22" fill="#232a54"/><text x="917" y="528">No telemetry</text>
+    </g>
+  </g>
+</svg>

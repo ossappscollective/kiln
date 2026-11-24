@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" fill="none">
+  <title>Kiln</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#171b3d"/><stop offset="1" stop-color="#0b0d22"/></linearGradient>
+    <linearGradient id="arch" gradientUnits="userSpaceOnUse" x1="0" y1="22" x2="0" y2="100"><stop offset="0" stop-color="#7f99ff"/><stop offset=".6" stop-color="#a98bff"/><stop offset="1" stop-color="#ffb04a"/></linearGradient>
+    <linearGradient id="fire" gradientUnits="userSpaceOnUse" x1="0" y1="40" x2="0" y2="96"><stop offset="0" stop-color="#c9a8ff"/><stop offset=".55" stop-color="#ff9f6e"/><stop offset="1" stop-color="#ffb04a"/></linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="30" fill="url(#bg)"/>
+  <path d="M28 98V58a32 32 0 0 1 64 0v40" stroke="url(#arch)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60 42c2 11 14 17 14 32 0 11-6 20-14 20s-14-9-14-20c0-8 4-13 8-18 1 6 3 9 6 10-1-8-2-16 0-24z" fill="url(#fire)"/>
+</svg>
