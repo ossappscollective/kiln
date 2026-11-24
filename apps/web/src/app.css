@@ -1026,6 +1026,27 @@ th.num {
   text-align: right;
 }
 
+/* Navigation and labelled lists never show list markers (the browser's default circles/discs), whatever scoped rule a component forgot.
+   Prose lists (unlabelled, outside nav) keep theirs. */
+nav ul,
+nav ol,
+ul[aria-label],
+ol[aria-label] {
+  list-style: none;
+}
+
+nav li,
+ul[aria-label] > li,
+ol[aria-label] > li {
+  list-style: none;
+}
+
+nav li::marker,
+ul[aria-label] > li::marker,
+ol[aria-label] > li::marker {
+  content: none;
+}
+
 /* table.fit: fixed layout, columns share the width (set widths with a <colgroup>), values wrap instead of widening the table, so it
    never scrolls sideways from 640px up. Below 640px each row is a stacked card: give every td a data-label (the column title). */
 table.fit {
