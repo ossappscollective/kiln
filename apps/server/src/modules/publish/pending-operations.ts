@@ -437,6 +437,46 @@ export const pendingOperations: Draft[] = [
     },
   },
   {
+    id: 'getAppPendingItemDetail',
+    method: 'get',
+    path: `${W}/apps/{id}/pending/detail`,
+    tags: ['pending'],
+    summary: 'What one pending item that is not a staged change contains (pushed draft, release, rollout)',
+    description:
+      'Read-only, stored state only (no store is contacted), same right as `getAppPending` (`listing.read`). `kind` and `id` are the `kind` and `id` of an item of `getAppPending`; the staged kinds (`listing_text`, `asset_set`, `release_field`) are cart items, read with `getAppPendingCartDetail` (`listing:<ref id>`, `graphics:<id>`, `release:<id>`). A pushed draft lists what the push wrote (locale and field of each text, locale, slot and file count of each set, the draft release of Google Play): never a text, a file or a hash. A draft release carries track and version codes, a version in review or approved its version, track and status as of the last sync, a due rollout step the plan version, percent and planned time. At most 200 texts and 200 sets (`truncated`). `404` when the item is not in this app\u2019s pending view now (also for another workspace\u2019s app), `400` for a missing or unknown `kind` or a missing `id`.',
+    risk: 'read',
+    access: { action: 'listing.read' },
+    appScope: { kind: 'param', name: 'id' },
+    query: z.object({
+      kind: z.enum(['pushed_draft', 'draft_release', 'in_review', 'approved', 'rollout_step']),
+      id: z.string().min(1).max(220).describe('The id of the item in the pending view.'),
+    }),
+    responses: {
+      '200': {
+        description: 'The detail of the item.',
+        schema: z.object({
+          detail: z.object({
+            kind: z.enum(['pushed_draft', 'draft_release', 'in_review', 'approved', 'rollout_step']),
+            id: z.string(),
+            pushedDraft: z
+              .object({
+                versionString: z.string().nullable(),
+                pushedAt: timestamp,
+                texts: z.array(z.object({ locale: z.string(), field: z.string() })),
+                sets: z.array(z.object({ locale: z.string(), key: z.string(), kind: z.string(), device: z.string().nullable(), files: z.number().int() })),
+                release: z.object({ track: z.string(), codes: z.array(z.string()) }).nullable(),
+                truncated: z.boolean(),
+              })
+              .optional(),
+            draftRelease: z.object({ track: z.string(), codes: z.array(z.string()), since: timestamp.nullable() }).optional(),
+            release: z.object({ version: z.string(), track: z.string().nullable(), status: z.enum(['in_review', 'approved']), since: timestamp.nullable() }).optional(),
+            rolloutStep: z.object({ planVersion: z.string(), percent: z.number(), plannedAt: timestamp }).optional(),
+          }),
+        }),
+      },
+    },
+  },
+  {
     id: 'publishAppPendingCart',
     method: 'post',
     path: `${W}/apps/{id}/pending/publish`,

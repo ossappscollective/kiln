@@ -235,6 +235,62 @@ dbTest(
 );
 
 dbTest(
+  'pending: the labels of staged graphics name the language, and the detail of the other items says what they contain (stored state, scoped, rights)',
+  async (db) => {
+    const t = await boot(db);
+    const app = await stageIos(t);
+    const staged = (await t.call(t.owner, 'GET', `/apps/${app}/pending`)).body.pending.platforms[0].items as any[];
+    const set = staged.find((i) => i.kind === 'asset_set');
+    assert.match(set.label, /^.+ \(en-US\): \d+ files?$/, 'the language is in the label, so two sets of two languages differ');
+    const detail = (id: string, kind: string, cookie = t.owner, a = app) =>
+      t.call(cookie, 'GET', `/apps/${a}/pending/detail?kind=${kind}&id=${encodeURIComponent(id)}`);
+    assert.equal((await detail(set.id, 'asset_set')).status, 400, 'staged kinds are cart items');
+    assert.equal((await detail('listing_text', 'pushed_draft')).status, 404, 'nothing was pushed yet');
+    assert.equal((await t.previewAndPush(app)).push.status, 200);
+    const pushed = await detail('pushed_draft', 'pushed_draft');
+    assert.equal(pushed.status, 200, pushed.text);
+    assert.equal(pushed.headers.get('cache-control'), 'no-store');
+    const d = pushed.body.detail.pushedDraft;
+    assert.deepEqual(d.texts, [{ locale: 'en-US', field: 'description' }]);
+    assert.equal(d.sets.length, 1);
+    assert.equal(d.sets[0].locale, 'en-US');
+    assert.ok(d.sets[0].files >= 1);
+    assert.doesNotMatch(JSON.stringify(pushed.body), /freshly written|"hash"|sha256|md5/, 'never a text, a file or a hash');
+    const insert = (id: string, version: string, status: string, track = '') =>
+      db.execute(
+        "INSERT INTO app_releases (id, app_id, workspace_id, platform, version, track, status, raw_state, status_since, synced_at) VALUES (?, ?, ?, 'ios', ?, ?, ?, 'RAW', 5, 5)",
+        [id, app, t.workspaceId, version, track, status],
+      );
+    await insert('r-1', '2.1', 'approved');
+    await insert('r-2', '2.2', 'in_review');
+    const approved = (await detail('release:r-1', 'approved')).body.detail.release;
+    assert.deepEqual(approved, { version: '2.1', track: null, status: 'approved', since: 5 });
+    assert.equal((await detail('release:r-2', 'in_review')).body.detail.release.status, 'in_review');
+    await db.execute("INSERT INTO release_plans (id, workspace_id, app_id, version, created_by, created_at, updated_at) VALUES ('plan-1', ?, ?, '2.1', 'u', 1, 1)", [t.workspaceId, app]);
+    await db.execute("INSERT INTO plan_rollout_steps (id, workspace_id, plan_id, position, percent, planned_at, status) VALUES ('step-1', ?, 'plan-1', 0, 25, 7, 'planned')", [t.workspaceId]);
+    const step = await detail('rollout:step-1', 'rollout_step');
+    assert.deepEqual(step.body.detail.rolloutStep, { planVersion: '2.1', percent: 25, plannedAt: 7 });
+    assert.equal((await detail('rollout:step-1', 'in_review')).status, 404, 'the kind must match the item');
+    assert.equal((await detail('release:r-2', 'approved')).status, 404, 'the kind must match the item');
+    assert.equal((await detail('release:nope', 'approved')).status, 404);
+    assert.equal((await detail('pushed_draft', 'bogus')).status, 400);
+    assert.equal((await t.call(t.owner, 'GET', `/apps/${app}/pending/detail?kind=approved`)).status, 400, 'no id');
+    // Scope: another app, another workspace, a viewer (listing.read is enough), a token limited to other apps.
+    const other = await stageIos(t, 'Other');
+    assert.equal((await detail('pushed_draft', 'pushed_draft', t.owner, other)).status, 404, 'the other app pushed nothing');
+    assert.equal((await detail('release:r-1', 'approved', t.owner, other)).status, 404, 'a release of another app');
+    await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('other', 'Other', 0)");
+    const outsider = await t.addMember('owner', 'other');
+    assert.equal((await t.call(outsider, 'GET', `/apps/${app}/pending/detail?kind=pushed_draft&id=pushed_draft`)).status, 404);
+    const viewer = await t.addMember('viewer');
+    assert.equal((await detail('pushed_draft', 'pushed_draft', viewer)).status, 200);
+    const token = await t.mint({ actions: ['listing.read', 'apps.read'], appIds: [other] });
+    assert.equal((await t.bearer(token, 'GET', `/apps/${app}/pending/detail?kind=pushed_draft&id=pushed_draft`)).status, 404);
+    assert.deepEqual(await t.audit('pending.%'), [], 'reading writes no audit entry');
+  },
+);
+
+dbTest(
   'pending: an app-scoped token sees only its apps in the summary and 404 for another app',
   async (db) => {
     const t = await boot(db);
@@ -285,6 +341,8 @@ dbTest(
       /Draft release in production with 1 version code 241, not released yet/,
     );
     assert.deepEqual(view.totals.nextSteps, ['release']);
+    const play = await t.call(t.owner, 'GET', `/apps/${app}/pending/detail?kind=draft_release&id=${encodeURIComponent('draft_release:production:241')}`);
+    assert.deepEqual([play.status, play.body.detail.draftRelease.track, play.body.detail.draftRelease.codes], [200, 'production', ['241']]);
     const summary = await line();
     assert.deepEqual(
       [summary.count, summary.waiting, summary.blocking, summary.kinds, summary.nextSteps],

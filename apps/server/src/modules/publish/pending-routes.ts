@@ -8,7 +8,7 @@ import { memberRole } from '../../services/accounts.ts';
 import type { Failure } from '../../services/repositories.ts';
 import { requireStepUp, stepUpCovers } from '../../services/step-up.ts';
 import type { AssetsContext } from '../listing/asset-repo.ts';
-import { getPending, PUBLISH_STEPS, pendingSummary } from './pending.ts';
+import { getPending, PENDING_DETAIL_KINDS, type PendingDetailKind, PUBLISH_STEPS, pendingItemDetail, pendingSummary } from './pending.ts';
 import {
   type DraftConnectorFactory,
   type DraftContext,
@@ -219,6 +219,18 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
     });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ pending: done.pending }) : respond(c, done);
+  });
+
+  // What a row that is not a staged change contains (a pushed draft, a draft release, a version in review or approved, a due rollout step): `?kind=&id=`, same right as the view.
+  routes.get('/:workspaceId/apps/:id/pending/detail', needs('listing.read'), async (c) => {
+    const kind = c.req.query('kind') ?? '';
+    const id = c.req.query('id') ?? '';
+    if (!(PENDING_DETAIL_KINDS as readonly string[]).includes(kind) || id.length < 1 || id.length > 220) {
+      return c.json({ error: 'invalid_request', issues: [{ path: 'kind', message: `kind is one of ${PENDING_DETAIL_KINDS.join(', ')}; id is the id of that item of the pending view.` }] }, 400);
+    }
+    const done = await pendingItemDetail(db, { workspaceId: ws(c), appId: param(c, 'id'), kind: kind as PendingDetailKind, id, now: ctx.now() });
+    c.header('Cache-Control', 'no-store');
+    return done.ok ? c.json({ detail: done.detail }) : respond(c, done);
   });
 
   routes.get('/:workspaceId/pending/summary', needs('listing.read'), async (c) => {
