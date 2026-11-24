@@ -142,6 +142,7 @@ export class PlayProductsHttp {
     url: string,
     json: unknown,
     what: string,
+    method: 'PATCH' | 'POST' = 'PATCH',
   ): Promise<
     { ok: true; json: unknown } | { ok: false; unknown: true; message: string; status?: number }
   > {
@@ -150,7 +151,7 @@ export class PlayProductsHttp {
       this.#writeHttp.known.add(token);
       let reply: StoreReply;
       try {
-        reply = await this.#writeHttp.send('PATCH', url, {
+        reply = await this.#writeHttp.send(method, url, {
           headers: { authorization: `Bearer ${token}` },
           json,
         });

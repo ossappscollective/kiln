@@ -147,7 +147,7 @@ export class AppleProductsHttp {
    * `StoreError` and nothing happened.
    */
   async write(
-    method: 'PATCH',
+    method: 'PATCH' | 'POST',
     path: string,
     what: string,
     json: unknown,

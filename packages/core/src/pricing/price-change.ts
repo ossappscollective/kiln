@@ -41,7 +41,7 @@ export type PriceChange = {
   store: StoreId;
   productId: string;
   kind: PriceProductKind;
-  /** Google Play: the base plan of a subscription (null for a one-time product). Apple: null. */
+  /** Google Play: the base plan of a subscription or the purchase option of a one-time product. Apple subscription: the plan type (`MONTHLY`, `UPFRONT`) of the price, or null. */
   planId: string | null;
   /** Apple: the territory the equalized prices come from; kept for display and for the connector. */
   baseTerritory: string | null;
@@ -299,8 +299,10 @@ export function validatePriceChange(change: PriceChange, ctx: PriceContext): Pri
   if (change.lines.length > limits.maxTerritories) add('too_many_territories', undefined, { expected: String(limits.maxTerritories), actual: String(change.lines.length) });
 
   // Plan (Google Play subscriptions) and the date.
-  if (!apple && change.kind === 'subscription' && !change.planId) add('plan_missing');
-  if ((apple || change.kind !== 'subscription') && change.planId) add('plan_not_allowed');
+  // Google Play: the base plan of a subscription or the purchase option of a one-time product, always. Apple: the plan type (`MONTHLY`,
+  // `UPFRONT`) of a subscription price, or none; an in-app purchase has none.
+  if (!apple && !change.planId) add('plan_missing');
+  if (apple && change.planId && (change.kind !== 'subscription' || !/^(MONTHLY|UPFRONT)$/.test(change.planId))) add('plan_not_allowed');
   if (change.effectiveDate !== null) {
     if (!isCalendarDate(change.effectiveDate)) add('effective_date_invalid');
     else if (!storeSchedulesPrices(change.store)) add('effective_date_unsupported');
