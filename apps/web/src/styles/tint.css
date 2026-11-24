@@ -1,0 +1,124 @@
+/*
+ * The app tint (docs/adr/0068-app-tint.md, docs/design-system.md "App tint"). Loaded after accents.css (main.ts).
+ *
+ * ONE wrapper attribute, `data-app-tint`, on the elements that are about one app (the app page container, the app card and the
+ * "This app" group of the sidebar). Its inline style carries `--tint-l-*` and `--tint-d-*` (lib/tint/tokens.ts: a light and a dark
+ * set, each checked against the real theme surfaces); this file picks the set of the current theme (the same mechanism as
+ * theme.css: data-theme wins, else prefers-color-scheme) and re-maps the accent tokens to it INSIDE that subtree only.
+ * Every selector below therefore contains `[data-app-tint`, except the one `:root` rule that snapshots the default tokens
+ * (lib/tint/tint-css.test.ts fails on anything else). No colour is written here: every value is a token or a mix of tokens.
+ *
+ * Never tinted: the status colours (--ok-*, --bad-*, --warn-*, --info-*, --danger-solid-*), the focus ring (--focus, --ring),
+ * surfaces, ink and borders. Under prefers-contrast: more and forced-colors nothing is re-mapped, so the default accent stays.
+ */
+
+/* The default tokens as they are on the root, copied once. A custom property that refers to another is resolved where it is declared,
+   so `--accent-default` keeps the root's accent inside a tinted subtree: a dialog or a global drawer puts it back (below). */
+:root {
+  --accent-default: var(--accent);
+  --accent-hover-default: var(--accent-hover);
+  --accent-ink-default: var(--accent-ink);
+  --accent-bg-default: var(--accent-bg);
+  --accent-soft-default: var(--accent-soft);
+  --chip-bg-default: var(--chip-bg);
+  --chip-ink-default: var(--chip-ink);
+  --primary-from-default: var(--primary-from);
+  --primary-to-default: var(--primary-to);
+  --primary-gradient-default: var(--primary-gradient);
+  --title-end-default: var(--title-end);
+  --title-gradient-default: var(--title-gradient);
+  --nav-active-bg-default: var(--nav-active-bg);
+  --nav-bar-glow-default: var(--nav-bar-glow);
+  --brand-gradient-vertical-default: var(--brand-gradient-vertical);
+  --btn-glow-default: var(--btn-glow);
+}
+
+@media not ((prefers-contrast: more) or (forced-colors: active)) {
+  /* 1. The set of the current theme: light. */
+  [data-app-tint],
+  [data-app-tint-glow] {
+    --app-accent: var(--tint-l-accent);
+    --app-accent-ink: var(--tint-l-accent-ink);
+    --app-accent-hover: var(--tint-l-accent-hover);
+    --app-accent-solid: var(--tint-l-accent-solid);
+    --app-on-accent: var(--tint-l-on-accent);
+    --app-tint-subtle: var(--tint-l-tint-subtle);
+    --app-tint-strong: var(--tint-l-tint-strong);
+    --app-glow: var(--tint-l-glow);
+  }
+
+  /* ... dark, chosen by the person. */
+  :root[data-theme="dark"] [data-app-tint],
+  :root[data-theme="dark"] [data-app-tint-glow] {
+    --app-accent: var(--tint-d-accent);
+    --app-accent-ink: var(--tint-d-accent-ink);
+    --app-accent-hover: var(--tint-d-accent-hover);
+    --app-accent-solid: var(--tint-d-accent-solid);
+    --app-on-accent: var(--tint-d-on-accent);
+    --app-tint-subtle: var(--tint-d-tint-subtle);
+    --app-tint-strong: var(--tint-d-tint-strong);
+    --app-glow: var(--tint-d-glow);
+  }
+
+  /* ... dark, from the system setting (kept identical to the block above). */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) [data-app-tint],
+    :root:not([data-theme="light"]) [data-app-tint-glow] {
+      --app-accent: var(--tint-d-accent);
+      --app-accent-ink: var(--tint-d-accent-ink);
+      --app-accent-hover: var(--tint-d-accent-hover);
+      --app-accent-solid: var(--tint-d-accent-solid);
+      --app-on-accent: var(--tint-d-on-accent);
+      --app-tint-subtle: var(--tint-d-tint-subtle);
+      --app-tint-strong: var(--tint-d-tint-strong);
+      --app-glow: var(--tint-d-glow);
+    }
+  }
+
+  /* 2. The accent tokens the UI already reads, re-mapped inside the subtree. The text pairs are the ones derived in tokens.ts:
+        --accent (links, selection text) is the accent ink, --accent-ink (text on a solid accent) is on-accent. */
+  [data-app-tint] {
+    --accent: var(--app-accent-ink);
+    --accent-hover: var(--app-accent-hover);
+    --accent-ink: var(--app-on-accent);
+    --accent-bg: var(--app-tint-subtle);
+    --accent-soft: var(--app-tint-subtle);
+    --chip-bg: var(--app-tint-subtle);
+    --chip-ink: var(--app-accent-ink);
+    --primary-from: var(--app-accent-solid);
+    --primary-to: var(--app-accent-solid);
+    --primary-gradient: linear-gradient(135deg, var(--app-accent-solid), var(--app-accent-solid));
+    --title-end: var(--app-accent-ink);
+    --title-gradient: linear-gradient(100deg, var(--ink) 25%, var(--app-accent-ink));
+    --nav-active-bg: linear-gradient(90deg, var(--app-tint-strong), transparent);
+    --nav-bar-glow: 0 0 10px var(--app-glow);
+    --brand-gradient-vertical: linear-gradient(180deg, var(--app-accent), var(--app-accent));
+    --btn-glow: 0 6px 20px var(--app-glow);
+  }
+
+  /* 3. The page glow of an app page: only the ambient light behind the content (one layer, so its peak is the single opacity that was checked), on the one element that paints it. */
+  [data-app-tint-glow] {
+    --ambient: radial-gradient(ellipse 620px 320px at calc(100% - 140px) 0, var(--app-glow), transparent 70%);
+  }
+
+  /* 4. Put the defaults back where a global surface sits inside a tinted subtree: every dialog (showModal draws in the top layer
+        but still inherits from its DOM parent) and anything marked `data-tint-reset` (the pending cart drawer, popovers). */
+  [data-app-tint] :is(dialog, [data-tint-reset]) {
+    --accent: var(--accent-default);
+    --accent-hover: var(--accent-hover-default);
+    --accent-ink: var(--accent-ink-default);
+    --accent-bg: var(--accent-bg-default);
+    --accent-soft: var(--accent-soft-default);
+    --chip-bg: var(--chip-bg-default);
+    --chip-ink: var(--chip-ink-default);
+    --primary-from: var(--primary-from-default);
+    --primary-to: var(--primary-to-default);
+    --primary-gradient: var(--primary-gradient-default);
+    --title-end: var(--title-end-default);
+    --title-gradient: var(--title-gradient-default);
+    --nav-active-bg: var(--nav-active-bg-default);
+    --nav-bar-glow: var(--nav-bar-glow-default);
+    --brand-gradient-vertical: var(--brand-gradient-vertical-default);
+    --btn-glow: var(--btn-glow-default);
+  }
+}
