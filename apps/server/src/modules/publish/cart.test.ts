@@ -115,7 +115,7 @@ dbTest('an item the caller cannot publish is listed with its reason and is skipp
   assert.equal(t.replyStores.ios.replies.length, 0);
   const viewer = await t.addMember('viewer');
   const v = await read(t, app, viewer);
-  assert.deepEqual(v.can, { push: false, reply: false, discardStaged: false, discardReply: false });
+  assert.deepEqual(v.can, { push: false, reply: false, price: false, discardStaged: false, discardReply: false });
   assert.ok(v.items.every((i) => !i.canDiscard));
 });
 

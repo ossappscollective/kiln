@@ -709,6 +709,7 @@ dbTest(
     const props = put?.requestBody?.content['application/json']?.schema.properties ?? {};
     assert.deepEqual(Object.keys(props).sort(), [
       'aso.rankMoveThreshold',
+      'prices.writeEnabled',
       'reviews.lowRatingThreshold',
       'translation.dailyCharBudget',
       'translation.enabled',

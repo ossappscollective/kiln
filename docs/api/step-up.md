@@ -21,10 +21,11 @@ gets 404.
 | `internal_sharing`       | `POST /apps/{id}/builds/artifacts/{artifactId}/internal-share` (upload a build to Google Play internal app sharing, [internal-sharing](internal-sharing.md)) |
 | `analytics.enable_apple` | `POST /apps/{id}/analytics/apple/enable`                                                                                                                     |
 | `credential.delete`      | `DELETE /credentials/{id}`                                                                                                                                   |
-| `flags`                  | `PUT /settings` when it turns `analytics.enabled` or `translation.enabled` **on** (turning off is free)                                                      |
+| `flags`                  | `PUT /settings` when it turns `analytics.enabled`, `translation.enabled` or `prices.writeEnabled` **on** (turning off is free)                                                      |
 | `store.push_draft`       | `POST /apps/{id}/staged/push` (not in the default list: a draft never reaches users)                                                                         |
+| `store.price`            | `POST /apps/{id}/pending/publish` when a named item is a price (`price:…`), asked before anything is read; in the default list ([price writes](../price-writes.md)) |
 
-`actions` defaults to every class but `store.push_draft`. `unattended` is the list of classes API tokens may do
+`actions` defaults to every class but `store.push_draft` (`store.price` IS in the default list: a price changes what customers pay). `unattended` is the list of classes API tokens may do
 without a person (default empty, see [tokens](#api-tokens-and-ci)). Changing an active policy needs a fresh
 confirmation (class `step_up.manage`). Audited as `step_up.policy_changed`.
 

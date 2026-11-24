@@ -375,6 +375,17 @@ step-up covers `store.push_draft`, and nothing but the texts of one locale is ev
 document which key role or permission allows it. See [adr/0034-in-app-products](adr/0034-in-app-products.md) and
 [api/products](api/products.md).
 
+### Changing the prices of in-app products (a store write, off by default)
+
+`KILN_PRICE_WRITES_ENABLED` (default `false`; only `true` and `false`; blank means off) is the server switch for sending price changes of in-app
+purchases and subscriptions to App Store Connect or Google Play. It is one of two switches: the workspace setting `prices.writeEnabled` must also be
+on, and the person needs `monetization.price` (owners and admins; an API token only when its actions name it), step-up `store.price` (covered by
+default), and must type the confirmation phrase. While either switch is off, staging a price and sending one answer `409 price_writes_disabled`;
+reading products, price points and the dry run still work. Guard rails: `KILN_PRICE_MAX_RELATIVE_CHANGE_PERCENT` (default `50`: a change above this
+share, up or down, needs an acknowledgement), `KILN_PRICE_MAX_ABSOLUTE_CHANGE` (default `100` major units per price, with higher built-in defaults for
+currencies with small units; above it needs an acknowledgement) and `KILN_PRICE_MAX_TERRITORIES` (default `50`, the most territories in one change).
+Not run against a real store; see [adr/0062-price-writes](adr/0062-price-writes.md), [price-writes](price-writes.md) and [api/products](api/products.md).
+
 ### Changing a store rollout (a store write, off by default)
 
 `KILN_STORE_ROLLOUT_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill

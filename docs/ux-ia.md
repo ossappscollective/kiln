@@ -80,6 +80,16 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   on app settings), the version and locale pickers only on Releases and Store listing, and a **Status** button (`StatusPopover`) that
   holds the Repository and Store live chips, each store record with its full bundle id (wraps, never truncated), the last sync and the
   one **Sync now** action (since 2026-11-23 the Status popover has no button: see "One Sync" below).
+- **Price changes** (ADR 0062; `PriceEditor` on the product page, `CartPriceDetail` and the price confirm in the cart): "Edit price" opens a table per
+  plan (territory, current price, new price typed as money in the territory's own currency, the change in percent in words and never by colour
+  alone). Apple shows the nearest price points when an amount is not one; Google Play offers "Convert from one base price". A date field exists only
+  for Apple. Existing subscribers are a radio group with `preserve` first and marked default, each choice with its consequence in plain words; each guard
+  rail that applies is its own required checkbox. Saving only stages ("Added to pending changes"). Unavailable states keep the prices visible and say
+  why next to a disabled button: a role below admin, the server switch (`KILN_PRICE_WRITES_ENABLED`), the workspace setting (owners and admins get a
+  button to turn it on or off). RevenueCat prices carry a read only note. In the cart a price row shows before and after per territory (counts per
+  currency, never a total), the date and the subscriber choice; the confirm names the count, warns that stores take time to show a price, and asks
+  for the typed phrase (one field per record); "Check prices with the store (dry run)" shows per item what would be sent. After a send each row says
+  "Confirmed by the store" or "Store shows X for T, not Y". Dark tokens only (`--warn-*`, `--bad-ink`, `--ok-ink`); all strings in four languages.
 - **Pending cart** (`PendingCart`, `PendingCartDrawer`; replaces the pending bar, ADR 0054): a floating button at the bottom right of every app page
   showing how many changes wait ("Pending" and the count; hidden with none and on the pending page; above the mobile safe area and above a sticky
   save bar; toasts stand above it). Opening it shows the right drawer (header and footer fixed, the body scrolls): items grouped by kind (Store listing,

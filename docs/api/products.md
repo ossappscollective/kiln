@@ -1,7 +1,7 @@
-# In-app purchases and subscriptions (read, plus one gated text write)
+# In-app purchases and subscriptions (read, one gated text write, staged price changes)
 
 Lists the in-app products and subscriptions of an app as the store has them, and lets an owner or admin change the **display name and
-description of one locale** of one product. Design and the arguments: [ADR 0034](../adr/0034-in-app-products.md).
+description of one locale** of one product, and stages **price changes** that are sent from the pending cart. Design and the arguments: [ADR 0034](../adr/0034-in-app-products.md).
 
 Capability `inAppPurchases` (every platform has it now; a platform without it gets `supported: false` on the list and `422
 products_not_supported` on a sync). Apple records (iOS and macOS) use App Store Connect, Android records use Google Play.
@@ -23,8 +23,8 @@ proceeds). Only roles with `analytics.read` get the column, and it is hidden unt
 
 ## What is not here
 
-No price or availability edit, no creating or deleting a product, no new locale. Price changes are the planned next step with their own
-switch, step-up and revenue preview (ADR 0034).
+No availability edit, no creating or deleting a product, no new locale. Prices are changed in [Price changes](#price-changes) (staged, then sent
+from the pending cart); RevenueCat stays read only.
 
 ## `GET /apps/{appId}/products`
 
@@ -107,6 +107,50 @@ with ids and hashes only. The texts are never in the audit log.
 Name 1 to 200 characters on a single line; description at most 2000; no control characters; CRLF becomes LF. Failing any is `422
 invalid_text`. The stores' own limits may be tighter and are not verified: their refusal comes back as `422 invalid_product`.
 
+## Price changes
+
+Design, gates and the threat analysis: [ADR 0062](../adr/0062-price-writes.md); operator summary: [price writes](../price-writes.md). A price change is
+**staged** here (Kiln's own table, nothing is sent to a store) and **sent** from the pending cart (`POST /apps/{appId}/pending/publish`, see
+[pending](pending.md#price-items-price-kind-risk-financial)). Capability `priceWrite` (Apple and Google Play).
+`GET /apps/{appId}/products` carries `priceWrite`: `enabled` (both switches on), `envName` (`KILN_PRICE_WRITES_ENABLED`), `workspaceEnabled`,
+`reason` (`server_switch`, `workspace_setting` or null), `limits` (`relativeChangePercent`, `absoluteChangeMajor`, `maxTerritories`) and `staged`
+(the staged changes of the app).
+
+| Route | Needs | Does |
+| --- | --- | --- |
+| `GET /apps/{appId}/products/{productId}/price-points?territory=USA` | `monetization.price` | Apple: the price points of one territory, lowest first (a store READ). Google Play: `applicable: false`. |
+| `POST /apps/{appId}/products/{productId}/price-convert` | `monetization.price` | Google Play: `{ planId, baseTerritory, amount }` returns the regional prices Google derives from one base price, in each region's own currency (a store READ; stages nothing). `422 not_applicable` for Apple. |
+| `PUT /apps/{appId}/products/{productId}/prices/staged` | `monetization.price` | Stages (replaces) the change of one product and plan. Returns `{ staged }`. |
+| `POST /apps/{appId}/prices/dry-run` | `monetization.price` | `{ ids? }` (cart ids `price:…`; all when omitted). Reads the LIVE prices, runs every rule again, shows what a send would do. Writes nothing, no claim, no phrase, no step-up; works while the switches are off (`writesEnabled` says whether a send would be allowed). |
+
+`PUT …/prices/staged` body (strict; unknown fields, including a currency or a current price, are refused):
+
+```json
+{ "planId": null,
+  "lines": [ { "territory": "USA", "newAmount": "599", "pricePointId": "…" } ],
+  "effectiveDate": null,
+  "existingSubscribers": "preserve",
+  "acknowledgements": [],
+  "seenSyncedAt": 1767225600000 }
+```
+
+`newAmount` is minor units, digits only (599 is 5.99; no rounding anywhere). `planId`: Google Play, the base plan or purchase option (required);
+Apple subscription, the plan type (`MONTHLY`, `UPFRONT`) or null; Apple in-app purchase, null. `pricePointId`: Apple only, required, and the amount
+must be that price point's (an amount that is not a price point is `422 invalid_price` with the nearest points in `issues[].detail.nearest`).
+`effectiveDate`: `YYYY-MM-DD`, Apple only, not in the past; null is as soon as the store allows. `existingSubscribers`: `preserve` (default and the
+safe choice), `apply` (Apple), `opt_in` or `opt_out` (Google Play), `not_applicable` (not a subscription). `acknowledgements` must contain every
+one the numbers need: `large_change` (a line changed by more than the relative limit, default 50% either way), `large_absolute` (more than the
+absolute limit in major units of the line's currency, default 100, higher built-in defaults for JPY and the like) and `existing_subscribers`
+(anything but `preserve`). `seenSyncedAt` is the product's `syncedAt` as the screen showed it.
+
+The SERVER is the author: the current price and currency of each line come from the stored snapshot, and every rule runs again (positive whole
+minor units, the currency of the territory, a territory the plan has a price in, at most `maxTerritories`, no price above 100000 major units, a
+line that actually changes the price). Failures: `409 price_writes_disabled` (carries `envName`; either switch), `409 stale_snapshot`, `404
+product_not_found`, `422 invalid_price` with `issues` (`{ code, territory?, detail? }`: `amount_not_price_point`, `currency_mismatch`,
+`ack_required`, `unknown_territory`, `no_change`, `effective_date_past`, `effective_date_unsupported`, `subscriber_rule_invalid`,
+`too_many_territories`, `stale_price` and the others of the core `PriceIssueCode`), `422 not_applicable`, `403 forbidden`. Audit `price.staged`
+(the before and after amounts, the actor), `price.discarded`, `price.dry_run`. No webhook event.
+
 ## Errors
 
 | Status | `error`                                                                                 | When                                                                      |
@@ -117,6 +161,8 @@ invalid_text`. The stores' own limits may be tighter and are not verified: their
 | 404    | `product_not_found`                                                                     | The product is not in the snapshot, or the store does not have it.        |
 | 404    | `locale_not_found`                                                                      | The store lists no such locale for the product (a locale is never added). |
 | 409    | `store_product_write_disabled`                                                          | The switch is off. Carries `envName`.                                     |
+| 409    | `price_writes_disabled`, `stale_snapshot`                                               | Price changes: a switch is off; the product was synced again.             |
+| 422    | `invalid_price`, `confirmation_mismatch`, `not_applicable`                              | Price changes: a rule is broken (`issues`); the typed phrase; Apple/Play. |
 | 409    | `state_changed`                                                                         | The store shows other texts than the previewed ones.                      |
 | 409    | `write_in_progress`                                                                     | Another text change of this app is running.                               |
 | 409    | `outcome_unknown`                                                                       | The write may or may not have reached the store.                          |
@@ -136,6 +182,9 @@ permission covers editing in-app product texts; give the key or account the righ
 apply on a product you can afford to change.
 
 ## UNVERIFIED: check with a real account
+
+For price changes see the list in [ADR 0062](../adr/0062-price-writes.md#unverified-check-with-a-real-account); nothing was run against a real store.
+Texts:
 
 Apple: whether `include` still returns subscription localizations (their own endpoints are deprecated since API 4.4.1); whether the
 localization ids from `include` are the ids the v2 `PATCH /v2/inAppPurchaseLocalizations/{id}` takes; the format of `customerPrice`; what

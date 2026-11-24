@@ -111,7 +111,7 @@ the push of staged changes and the reply send, and each keeps its switch, right,
 | Route                                | Needs                                            | Does                                                          |
 | ------------------------------------ | ------------------------------------------------ | ------------------------------------------------------------- |
 | `GET /apps/{id}/pending/cart`        | `listing.read`                                   | The items, with `publishable` and a `reason` per item.        |
-| `POST /apps/{id}/pending/publish`    | per item: `store.push_draft` or `reviews.reply`  | Sends the named items. `200` with a result per item.          |
+| `POST /apps/{id}/pending/publish`    | per item: `store.push_draft`, `reviews.reply` or `monetization.price` | Sends the named items. `200` with a result per item. |
 | `POST /apps/{id}/pending/discard`    | per item: `changesets.write` or `reviews.triage` | Removes Kiln's draft of the named items. No store is called.  |
 
 An item without the caller's right is listed (`publishable: false`, `reason.code: no_right`) and skipped by publish. A token also needs
@@ -282,6 +282,35 @@ another hash is `409 plan_changed` (both carry the new `plan`). Then the steps r
 - The answer is `200` even when a step failed: look at `completed`, `stoppedAt` and `steps`. The batch stops at the first step that
   is not applied and never retries; for `outcome: "unknown"` look at the store, then preview again.
 - `pending` is the stored pending state after the batch (no store read).
+
+### Price items (`price:…`, kind `price`, risk `financial`)
+
+A staged price change of one product ([ADR 0062](../adr/0062-price-writes.md), [products](products.md#price-changes)). It is **not** part of the draft
+push and has no bundle: each item is sent on its own, a subset is allowed, and one failure never blocks another. The item carries `price`:
+`productId`, `planId`, `effectiveDate`, `existingSubscribers`, `acknowledgements`, `currencies`, `largestBp` and `lines[]` (`territory`, `currency`,
+`before`, `after` in minor units as text, `percentBp`, `direction`). `needsApproval` is always `true`. Not publishable (`publishable: false`) with
+`reason.code` `switch_off` (server switch, `envName` `KILN_PRICE_WRITES_ENABLED`), `workspace_off`, `no_right`, `in_progress`, `outcome_unknown` or
+`invalid` (the synced price moved since it was staged).
+
+Publishing one needs, in this order: both switches, `monetization.price`, step-up `store.price` (`403 step_up_required`, before anything is read) and
+the body field `confirmation`: the phrase `CHANGE <n> PRICE(S) MAX <p>%` for exactly the price items of the request that can be sent (their number,
+and the largest change rounded up to a whole percent). A wrong or missing phrase is `422 confirmation_mismatch` and **nothing of any kind is
+sent**. Each item is then claimed (one price write in flight per app), validated again against a LIVE read of the store (`stale_price`,
+`currency_mismatch`), written once (never retried) and read back. Its result carries `price`:
+
+```json
+{ "id": "price:…", "status": "ok", "reason": null,
+  "price": { "productId": "…", "verification": "confirmed", "mismatches": [],
+             "lines": [ { "territory": "USA", "currency": "USD", "before": "499", "after": "599", "outcome": "applied" } ] } }
+```
+
+`verification`: `confirmed` (the read back shows the asked prices: "confirmed by the store"), `store_shows` (it shows other prices: `mismatches` has
+`expected` and `actual` per territory), `unverified` (it could not be read) or `not_sent`. Line `outcome`: `applied`, `already_applied`, `failed`,
+`unknown`, `not_sent`. `reason`: `partial`, `outcome_unknown`, `write_in_progress`, `stale_price`, `currency_mismatch`, `price_point_invalid`,
+`acknowledgement_required`, `invalid_price`, or the store's translated code (`price_change_not_allowed`, `existing_subscriber_rule`,
+`unsupported_territory`, `rate_limited`, `forbidden`, `rejected`, `product_not_found`). The draft is removed only when confirmed. Discarding a price
+item removes only Kiln's draft (it needs `changesets.write`, like the other staged items; audit `price.discarded`); no store is called. Audit per item: `price.changed` or `price.change_failed`, with the
+before and after amounts and the actor.
 
 ### What the typed phrase covers
 
