@@ -25,3 +25,6 @@ apps/server/.mrm-demo/
 
 # project website build output (site/build.mjs)
 site/dist/
+
+# screenshot tool (scripts/screenshots) is its own package, outside the pnpm workspace
+scripts/screenshots/node_modules

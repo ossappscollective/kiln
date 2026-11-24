@@ -1,0 +1,14 @@
+{
+  "name": "kiln-screenshots",
+  "private": true,
+  "type": "module",
+  "description": "Generates README and website screenshots from `pnpm demo` with Playwright. Not part of the pnpm workspace.",
+  "scripts": {
+    "install-browser": "playwright install chromium",
+    "capture": "node capture.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

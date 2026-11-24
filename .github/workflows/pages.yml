@@ -8,6 +8,7 @@ on:
     paths:
       - 'site/**'
       - 'docs/**'
+      - 'docs/assets/screenshots/**'
       - 'SECURITY.md'
       - 'CONTRIBUTING.md'
       - 'docker-compose.yml'
