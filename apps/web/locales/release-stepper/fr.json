@@ -42,7 +42,7 @@
   "ap.laterLine_other": "{{count}} modifications de la fiche attendent votre décision.",
   "ap.lead": "Textes et visuels modifiés dans le dépôt depuis la version précédente et qui diffèrent encore de la boutique. Les préparer les ajoute seulement à vos modifications en attente : rien n’est envoyé à une boutique.",
   "ap.loadFailed": "Impossible de chercher dans le dépôt les éléments de la fiche modifiés",
-  "ap.locked": "La fiche est verrouillée : une version est en ligne ou en revue. Préparez d’abord une nouvelle version, puis ces modifications pourront être préparées.",
+  "ap.locked": "La fiche est verrouillée : une version est en ligne ou en cours d’examen. Préparez d’abord une nouvelle version, puis ces modifications pourront être préparées.",
   "ap.notListed": "Non listés : {{unchanged}} inchangés depuis la dernière version, {{same}} identiques à la boutique, {{other}} impossibles à préparer (par exemple le nom et le sous-titre App Store).",
   "ap.openCart": "Ouvrir les modifications en attente",
   "ap.refs": "Comparé : la version précédente ({{base}}) et cette version ({{target}}).",

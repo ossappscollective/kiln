@@ -491,7 +491,7 @@
   "range.to": "Hasta",
   "revenue.openProducts": "Productos y sincronización",
   "revenue.title": "Ingresos",
-  "revenue.waiting": "Las cifras de RevenueCat aún no se han leído. Abra Productos y elija «Sincronizar productos» para leerlas.",
+  "revenue.waiting": "Las cifras de RevenueCat aún no se han leído. Abre Productos y elige «Sincronizar productos» para leerlas.",
   "sales.columnTitle": "Ventas (28 días)",
   "sales.hintAppleForbidden": "Las ventas por producto están desactivadas: es posible que la clave de App Store Connect no pueda leer Sales and Trends (necesita el rol Sales and Reports).",
   "sales.hintAppleOff": "Las ventas por producto están desactivadas. Activa las analíticas e indica el número de proveedor de Apple en Ajustes, Analíticas.",

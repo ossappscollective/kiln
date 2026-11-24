@@ -260,7 +260,7 @@
   "fix.keywordsDropInTitle": "Retirer les termes déjà dans le nom ou le sous-titre",
   "fix.keywordsFit": "Retirer des termes pour respecter la limite",
   "fix.keywordsTidy": "Nettoyer le champ de mots-clés",
-  "fix.locked": "Cette version est en ligne ou en revue : son texte est en lecture seule ici.",
+  "fix.locked": "Cette version est en ligne ou en cours d’examen : son texte est en lecture seule ici.",
   "fix.noMeaning": "Seuls les espaces, les termes vides et les doublons changent. Rien que l'utilisateur lise.",
   "fix.noRight": "Votre rôle ne permet pas de préparer des modifications.",
   "fix.notPublished": "Rien n'est envoyé à une boutique d'ici.",

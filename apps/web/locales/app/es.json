@@ -268,7 +268,7 @@
   "cart.result.priceStale": "El precio en la tienda cambió desde su revisión. No se cambió nada. Sincronice y revise de nuevo.",
   "cart.result.priceSubscribers": "La tienda no acepta esa opción para los suscriptores actuales.",
   "cart.result.priceTerritory": "La tienda no admite un precio en uno de estos territorios.",
-  "cart.result.rateLimited": "La tienda pidió una pausa. No se envió nada más. Revise de nuevo en un momento.",
+  "cart.result.rateLimited": "La tienda pidió una pausa. No se envió nada más. Revisa de nuevo en un momento.",
   "cart.result.stagedInvalid": "Un cambio preparado tiene un error.",
   "cart.result.stateChanged": "La tienda cambió desde la comprobación. Revisa de nuevo.",
   "cart.result.stepUpRequired": "La confirmación no se completó.",

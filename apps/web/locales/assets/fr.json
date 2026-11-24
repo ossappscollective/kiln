@@ -268,7 +268,7 @@
   "store.images_many": "{{count}} d’images",
   "store.images_one": "{{count}} image",
   "store.images_other": "{{count}} images",
-  "store.lockedReason": "La version dans le store est en ligne ou en revue : sa fiche et ses visuels sont verrouillés. Créez une nouvelle version pour les modifier.",
+  "store.lockedReason": "La version dans le store est en ligne ou en cours d’examen : sa fiche et ses visuels sont verrouillés. Créez une nouvelle version pour les modifier.",
   "store.moveEarlier": "Avancer l’image {{position}}",
   "store.moveLater": "Reculer l’image {{position}}",
   "store.noPreview": "Pas d’aperçu",
