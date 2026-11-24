@@ -53,6 +53,7 @@ import type { HealthView, RatingsView } from './ratings/ratings.ts';
 import type { ReportApi } from './timeline/report.ts';
 import type { ManualEventKind } from '@kiln/core';
 import type { TimelineApi } from './timeline/timeline.ts';
+import type { ListingFixesView } from './listing/fixes.ts';
 import type { CountriesView as InsightsCountriesView, InsightsView, ListingChecksView } from './insights/insights.ts';
 import type {
   AsoAddResult,
@@ -1566,6 +1567,18 @@ export function createApi(options: ApiOptions = {}) {
       request<{ staged: StagedChangesView }>(
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/text`,
+        body,
+      ).then(addedToCart(appId)),
+    listingFixes: (workspaceId: string, appId: string) =>
+      request<ListingFixesView>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/fixes`),
+    stageListingFix: (
+      workspaceId: string,
+      appId: string,
+      body: { locale: string; field: string; fixId: string; beforeHash?: string },
+    ) =>
+      request<{ staged: StagedChangesView }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/fixes/stage`,
         body,
       ).then(addedToCart(appId)),
     stageAssets: (

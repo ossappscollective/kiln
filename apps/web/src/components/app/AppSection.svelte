@@ -173,7 +173,7 @@
   <CountriesView {api} {workspaceId} {role} {app} refreshKey={syncRuns} openId={openId} platform={address.platform} />
 {/snippet}
 {#snippet listingChecks(app: AppSummary)}
-  <ListingChecks {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
+  <ListingChecks {api} {workspaceId} {role} {app} refreshKey={syncRuns} locked={lockedPlatforms.indexOf(app.platform) >= 0} />
 {/snippet}
 {#snippet builds(app: AppSummary)}
   <div class="stack loose">

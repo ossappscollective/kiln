@@ -40,6 +40,7 @@
   import AsoBudget from '../aso/AsoBudget.svelte';
   import ImproveField from '../ai/ImproveField.svelte';
   import FieldCompare from './FieldCompare.svelte';
+  import FixBar from './FixBar.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
   import PageLead from '../ui/PageLead.svelte';
 
@@ -123,6 +124,8 @@
   }
 
   const appOf = (platform: Platform): AppSummary | undefined => members.find((m) => m.platform === platform);
+  /** Changes when the staged texts of the apps change, so the fixes of the locale are read again. */
+  const fixRefresh = $derived(members.map((m) => (stagedStore.view(m.id)?.text ?? []).map((x) => `${x.id}:${x.value.length}`).join(',')).join('|'));
   const keyOf = (platform: Platform, field: DriftField) => `${platform}\u0000${pullKey(field)}`;
 
   function select(platform: Platform, field: DriftField, on: boolean) {
@@ -219,6 +222,15 @@
               {/if}
             {/snippet}
           </PageLead>
+        {/if}
+
+        {#if api && workspaceId}
+          {#each row.platforms as fixPlatform (fixPlatform)}
+            {@const fixApp = appOf(fixPlatform)}
+            {#if fixApp}
+              <FixBar {api} {workspaceId} {role} app={fixApp} locale={row.locale} locked={locked.indexOf(fixPlatform) >= 0} refreshKey={fixRefresh} />
+            {/if}
+          {/each}
         {/if}
 
         {#each row.platforms as platform (platform)}

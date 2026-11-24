@@ -3,12 +3,18 @@
   A score for the page and for each language, the findings with a severity (problem, warning, tip), why each matters, and where the check
   can rewrite the text safely (the keyword field without its wasted space) the suggested text with a copy button. Nothing is sent to a
   store: to use a suggestion, paste it into the field editor and stage it. Weakest languages first; languages with no finding are one line.
-  Props: api, workspaceId, role, app, refreshKey (changes when a sync finished). Drawn only for a role that may read the listing.
+  Mechanical problems have a "Fix" button (and "Fix all that can be fixed (N)" per language and for the app): it opens a review and STAGES the fix in the
+  pending changes; nothing is published without the cart's review. After a fix is staged the finding says "Fix staged" and the counts say "after pending
+  changes" (the server runs the checks on the staged texts). Props: api, workspaceId, role, app, refreshKey (changes when a sync finished), locked? (the version is
+  live or in review: fixes are off). Drawn only for a role that may read the listing.
 -->
 <script lang="ts">
-  import { can, type Role } from '@kiln/core';
+  import { can, type Fix, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { type Api, ApiError } from '../../lib/api.ts';
+  import { fixAllOf, type ListingFixesView } from '../../lib/listing/fixes.ts';
+  import FixAll from '../listing/FixAll.svelte';
+  import FixButtons from '../listing/FixButtons.svelte';
   import { appAddress } from '../../lib/app-scope.ts';
   import {
     CHECK_ICON,
@@ -35,10 +41,11 @@
   import Section from '../ui/Section.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
 
-  let { api, workspaceId, role, app, refreshKey }: { api: Api; workspaceId: string; role: Role; app: AppSummary; refreshKey: number } = $props();
+  let { api, workspaceId, role, app, refreshKey, locked = false }: { api: Api; workspaceId: string; role: Role; app: AppSummary; refreshKey: number; locked?: boolean | undefined } = $props();
 
   const mayRead = $derived(can(role, 'listing.read'));
   let view = $state<ListingChecksView | null>(null);
+  let fixes = $state<ListingFixesView | null>(null);
   let loading = $state(true);
   let problem = $state('');
   let generation = 0;
@@ -51,6 +58,9 @@
       const read = await api.appListingChecks(workspaceId, app.id);
       if (mine !== generation) return;
       view = read;
+      // The fixes are an extra: the checks stay readable when they cannot be computed.
+      fixes = await api.listingFixes(workspaceId, app.id).catch(() => null);
+      if (mine !== generation) return;
     } catch (e) {
       if (mine !== generation) return;
       view = null;
@@ -67,6 +77,9 @@
     if (mayRead) untrack(() => void load());
   });
 
+  const fixesOf = (locale: string) => fixes?.locales.find((l) => l.locale === locale);
+  const resolved = $derived(new Set(fixes?.afterPending?.resolved ?? []));
+  const allFixes = $derived((fixes?.locales ?? []).reduce<Fix[]>((all, l) => all.concat(fixAllOf(l)), []));
   const locales = $derived(view ? localesByScore(view.locales) : []);
   const withIssues = $derived(locales.filter((l) => l.issues.length > 0));
   const clean = $derived(locales.filter((l) => l.issues.length === 0));
@@ -90,7 +103,13 @@
           <span class="muted">
             {#if view.issueCount === 0}{t('insights:checks.allGood')}{:else}{t('insights:checks.counts', { problems: totals.problem, warnings: totals.warning, tips: totals.tip })}{/if}
           </span>
+          <FixAll {api} {workspaceId} {role} appId={app.id} fixes={allFixes} {locked} onchanged={load} />
         </div>
+        {#if fixes?.afterPending}
+          <p class="muted pending" data-testid="after-pending">
+            {t('listing:fix.afterPending', { problems: fixes.afterPending.counts.problems, warnings: fixes.afterPending.counts.warnings, tips: fixes.afterPending.counts.tips, score: fixes.afterPending.score })}
+          </p>
+        {/if}
 
         {#each withIssues as loc, i (loc.locale)}
           <Disclosure variant="boxed" open={i === 0} stateKey="listing-checks-{app.id}-{loc.locale}">
@@ -99,6 +118,7 @@
               <Badge tone={SCORE_TONE[scoreBand(loc.score)]}><span class="num">{t('insights:checks.score', { score: loc.score })}</span></Badge>
               <span class="muted">{t('insights:checks.findings', { count: loc.issues.length })}</span>
             {/snippet}
+            <div class="row"><FixAll {api} {workspaceId} {role} appId={app.id} fixes={fixAllOf(fixesOf(loc.locale))} {locked} onchanged={load} /></div>
             <ul class="issues">
               {#each sortIssues(loc.issues) as issue (issue.id)}
                 {@const text = issueText(issue)}
@@ -108,6 +128,7 @@
                     <strong>{text.title}</strong>
                   </div>
                   <p class="muted">{text.explain}</p>
+                  <FixButtons {api} {workspaceId} {role} {app} locale={fixesOf(loc.locale)} {issue} resolved={resolved.has(issue.id)} {locked} onchanged={load} />
                   {#if issue.fix}
                     <div class="fix">
                       <p class="fix-label">{t('insights:checks.suggested', { field: fieldName(issue.fix.field) })}</p>
@@ -139,6 +160,11 @@
     flex-wrap: wrap;
     gap: var(--space-3);
     align-items: center;
+  }
+
+  .pending {
+    margin: 0;
+    font-size: var(--text-sm);
   }
 
   .loc {
