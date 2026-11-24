@@ -79,8 +79,10 @@ test('shots are well formed and routes resolve for every demo app', () => {
   assert.equal(SHOTS.length, 13);
   assert.equal(
     SHOTS[2].path({ app: () => 'ID' }),
-    '#/portfolio/ID/releases?platform=ios&step=notes',
+    '#/portfolio/ID/releases?platform=ios&step=assets',
   );
+  assert.match(SHOTS[2].alt, /open on the Assets step\./);
+  assert.doesNotMatch(SHOTS[2].alt, /Notes step/);
 });
 
 test('buildManifest is sorted, flat and carries alt text', () => {

@@ -258,8 +258,8 @@ export const SHOTS = [
   {
     name: '03-release-prepare',
     title: 'Prepare release',
-    alt: 'The Prepare release stepper (Build, Notes, Assets, Review, Confirm) open on the Notes step.',
-    path: (ctx) => appRoute(ctx.app(NOTES, 'ios'), 'releases', { platform: 'ios', step: 'notes' }),
+    alt: 'The Prepare release stepper (Build, Notes, Assets, Review, Confirm) open on the Assets step.',
+    path: (ctx) => appRoute(ctx.app(NOTES, 'ios'), 'releases', { platform: 'ios', step: 'assets' }),
     ready: '[data-testid="release-stepper"] [data-testid="stepper-footer"]',
   },
   {
