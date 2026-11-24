@@ -22,6 +22,8 @@
     "i18n:check": "node scripts/i18n.mjs check",
     "i18n:fix": "node scripts/i18n.mjs fix",
     "i18n:scan": "node scripts/i18n.mjs scan",
+    "site:build": "node site/build.mjs",
+    "site:test": "node --test \"site/test/*.test.mjs\"",
     "email:preview": "node --disable-warning=ExperimentalWarning scripts/email-preview.mjs"
   },
   "devDependencies": {

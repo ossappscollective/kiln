@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/*.svelte", "!**/src-tauri/gen", "!docs/design/mockups"]
+    "includes": ["**", "!**/*.svelte", "!**/src-tauri/gen", "!docs/design/mockups", "!site/dist"]
   },
   "formatter": {
     "indentStyle": "space",
@@ -34,6 +34,10 @@
     }
   },
   "overrides": [
+    {
+      "includes": ["site/**"],
+      "formatter": { "enabled": false }
+    },
     {
       "includes": ["**/*.test.ts", "**/*-test-helpers.ts", "**/testing.ts"],
       "linter": {

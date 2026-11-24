@@ -22,3 +22,6 @@ stabilise-report.md
 .env.bak-*
 apps/server/.mrm-data/
 apps/server/.mrm-demo/
+
+# project website build output (site/build.mjs)
+site/dist/

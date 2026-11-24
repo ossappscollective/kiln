@@ -1,0 +1,58 @@
+# Project website (GitHub Pages). How it is built and how to enable Pages: docs/website.md.
+# One-time setup: Settings > Pages > Source: GitHub Actions.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'docs/**'
+      - 'SECURITY.md'
+      - 'CONTRIBUTING.md'
+      - 'docker-compose.yml'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+# Least privilege by default; only the deploy job may write to Pages.
+permissions:
+  contents: read
+
+# One deployment at a time, and never cancel one that is running.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - id: pages
+        uses: actions/configure-pages@v5
+      - name: Test the site generator and the built pages
+        run: node --test "site/test/*.test.mjs"
+      - name: Build the site
+        env:
+          # The public address of the site (project page, or the custom domain when one is set).
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+        run: node site/build.mjs
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
