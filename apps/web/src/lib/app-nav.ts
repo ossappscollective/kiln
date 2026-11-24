@@ -72,6 +72,7 @@ export type WorkspaceRail = { main: RailItem[]; more: RailItem[] };
 const RAIL_MAIN: readonly { id: string; labelKey: string }[] = [
   { id: 'portfolio', labelKey: k('app:rail.allApps') },
   { id: 'reviews', labelKey: k('app:rail.inbox') },
+  { id: 'pending', labelKey: k('app:rail.pending') },
   { id: 'settings', labelKey: k('app:rail.settings') },
 ];
 

@@ -225,3 +225,68 @@ dbTest('a non-member gets 404 and bodies are validated', async (db) => {
   assert.equal((await t.call(t.owner, 'POST', `/apps/${app}/pending/publish`, { items: [] })).status, 400);
   assert.equal((await t.call(t.owner, 'POST', `/apps/${app}/pending/discard`, { ids: 'x' })).status, 400);
 });
+
+const summaryPath = '/pending/cart-summary';
+const summary = async (t: Boot, cookie = t.owner, ws?: string) =>
+  (await t.call(cookie, 'GET', summaryPath, undefined, ws)) as {
+    status: number;
+    body: { apps: { appId: string; count: number; kinds: Record<string, number> }[]; totals: { apps: number; count: number } };
+  };
+
+dbTest('the cart summary counts every app\'s cart with the numbers of the carts themselves, and lists only apps that hold something', async (db) => {
+  const t = await boot(db);
+  const empty = await summary(t);
+  assert.equal(empty.status, 200);
+  assert.deepEqual(empty.body.totals, { apps: 0, count: 0 });
+  const { app } = await filled(t);
+  const second = await t.addApp('ios');
+  await t.addApp('ios');
+  assert.equal((await t.stageText(second, { locale: 'en-US', field: 'description', from: 'local', value: TEXT })).status, 200);
+  const s = await summary(t);
+  assert.equal(s.status, 200);
+  assert.equal(s.body.totals.apps, 2);
+  assert.equal(s.body.apps.length, 2);
+  for (const line of s.body.apps) assert.equal(line.count, (await read(t, line.appId)).items.length, 'equals the length of the app\'s own cart');
+  assert.equal(s.body.totals.count, s.body.apps.reduce((n, l) => n + l.count, 0));
+  const first = s.body.apps.find((l) => l.appId === app);
+  assert.deepEqual(first?.kinds, { listing: 1, graphics: 1, review_reply: 1 });
+  // No item payload, no audit entry, nothing written.
+  assert.ok(!JSON.stringify(s.body).includes(TEXT));
+  assert.deepEqual(await t.audit('pending.%'), []);
+  // A discard shrinks it.
+  const c = await read(t, app);
+  const res = await t.call(t.owner, 'POST', `/apps/${app}/pending/discard`, { ids: c.items.map((i) => i.id) });
+  assert.equal(res.status, 200, res.text);
+  assert.deepEqual((await summary(t)).body.apps.map((l) => l.appId), [second]);
+});
+
+dbTest('the cart summary is scoped: another workspace sees nothing and a stranger is a 404; a token limited to an app sees only that app', async (db) => {
+  const t = await boot(db);
+  const { app } = await filled(t);
+  const second = await t.addApp('ios');
+  assert.equal((await t.stageText(second, { locale: 'en-US', field: 'description', from: 'local', value: TEXT })).status, 200);
+  await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('other', 'Other', 0)");
+  const outsider = await t.addMember('owner', 'other');
+  assert.equal((await summary(t, outsider)).status, 404);
+  const theirs = await summary(t, outsider, 'other');
+  assert.equal(theirs.status, 200);
+  assert.deepEqual(theirs.body.totals, { apps: 0, count: 0 });
+  const minted = await t.call(t.owner, 'POST', '/tokens', { name: 'T', role: 'admin', appIds: [second] });
+  assert.equal(minted.status, 201, minted.text);
+  const res = await t.app.request(`/api/workspaces/${t.workspaceId}${summaryPath}`, { headers: { authorization: `Bearer ${minted.body.token as string}` } });
+  const limited = (await res.json()) as { apps: { appId: string }[]; totals: { count: number } };
+  assert.equal(res.status, 200);
+  assert.deepEqual(limited.apps.map((l) => l.appId), [second]);
+  assert.ok(!limited.apps.some((l) => l.appId === app));
+});
+
+dbTest('the cart summary follows the role: a viewer without listing.read is refused, a member sees the counts', async (db) => {
+  const t = await boot(db);
+  await filled(t);
+  const member = await t.addMember('member');
+  assert.equal((await summary(t, member)).body.totals.apps, 1);
+  const viewer = await t.addMember('viewer');
+  const v = await summary(t, viewer);
+  assert.equal(v.status, 200, 'a viewer reads the cart too (listing.read)');
+  assert.equal(v.body.totals.count, 3);
+});

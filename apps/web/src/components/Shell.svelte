@@ -21,6 +21,9 @@
   import { roleLabel } from '../lib/role-label.ts';
   import { pipelineStore } from '../lib/pipeline-store.svelte.ts';
   import { navSignals } from '../lib/nav-signals.svelte.ts';
+  import { pendingAcrossText, pendingRows, pendingTotals } from '../lib/cart-summary.ts';
+  import { cartSummaryStore } from '../lib/cart-summary.svelte.ts';
+  import { onStagedChanged } from '../lib/staged-sync.ts';
   import { loadCollapsed, railApplies, saveCollapsed } from '../lib/sidebar-state.ts';
   import { CHORD_TIMEOUT_MS, type ChordState, chordHint, idleChord, isTypingTarget, stepShortcut } from '../lib/shortcuts.ts';
   import { initials } from '../lib/format.ts';
@@ -90,6 +93,27 @@
   const canApps = $derived(workspace ? can(workspace.role, 'apps.read') : false);
   const attention = $derived(canApps ? navSignals.attentionOf(workspaceId) : null);
   const unanswered = $derived(workspace && can(workspace.role, 'reviews.read') ? navSignals.unansweredOf(workspaceId) : null);
+  /** Pending changes across every app of the workspace (the "Pending" entry): counts only, read from GET /pending/cart-summary (ADR 0064). */
+  const canPending = $derived(workspace ? can(workspace.role, 'listing.read') : false);
+  const pendingSummary = $derived(canPending ? cartSummaryStore.summaryOf(workspaceId) : null);
+  const pendingNav = $derived(canPending ? pendingTotals(pendingRows(pendingSummary, navSignals.appsOf(workspaceId)), pendingSummary) : null);
+  // Read on first paint and when the window comes back, again soon after any stage, discard or publish (one read for a burst); no timer.
+  $effect(() => {
+    if (!canPending) return;
+    const space = workspaceId;
+    untrack(() => void cartSummaryStore.ensure(api, space));
+    const off = onStagedChanged(() => cartSummaryStore.request(api, space));
+    const back = () => {
+      if (document.visibilityState === 'visible') void cartSummaryStore.ensure(api, space);
+    };
+    window.addEventListener('focus', back);
+    document.addEventListener('visibilitychange', back);
+    return () => {
+      off();
+      window.removeEventListener('focus', back);
+      document.removeEventListener('visibilitychange', back);
+    };
+  });
   /** The badges of the open app's sidebar: unanswered reviews, and a release left unfinished. Nothing is read for this. */
   const appCounts = $derived.by(() => {
     if (!appAddr || !canApps) return { reviews: null, releases: null, pending: null, pendingBlocking: false, insights: null };
@@ -378,13 +402,13 @@
 
 {#snippet item(v: (typeof views)[number])}
   {@const hint = chordHint('workspace', v.id)}
-  {@const count = v.id === 'portfolio' ? attention : v.id === 'reviews' ? unanswered : null}
+  {@const count = v.id === 'portfolio' ? attention : v.id === 'reviews' ? unanswered : v.id === 'pending' ? (pendingNav?.changes ?? null) : null}
   <li>
     <a href="#/{v.id}" aria-current={current?.id === v.id ? 'page' : undefined} title={rail ? t(v.labelKey) : undefined}>
       <Icon name={isIconName(v.icon) ? v.icon : 'box'} size={18} />
       <span>{t(v.labelKey)}</span>
       {#if badgeText(count)}
-        <span class="badge nav-count {v.id === 'portfolio' ? 'warn' : 'accent'}">{badgeText(count)}<span class="visually-hidden"> {#if v.id === 'portfolio'}{t('shell:badge.attention', { count })}{:else}{t('shell:badge.unanswered', { count })}{/if}</span></span>
+        <span class="badge nav-count {v.id === 'portfolio' ? 'warn' : 'accent'}">{badgeText(count)}<span class="visually-hidden"> {#if v.id === 'portfolio'}{t('shell:badge.attention', { count })}{:else if v.id === 'pending' && pendingNav}{pendingAcrossText(pendingNav)}{:else}{t('shell:badge.unanswered', { count })}{/if}</span></span>
       {/if}
       {#if hint}<kbd class="nav-hint" aria-hidden="true">{hint}</kbd>{/if}
     </a>
@@ -432,7 +456,7 @@
 
     <div bind:this={navEl} id="sidebar-nav" class="nav-wrap" class:chord={navSignals.chordPending}>
       {#if appAddr && workspace}
-        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} {unanswered} workspaceItems={railItems} counts={appCounts} status={appStatus} switcher={switcherList} mod={modKey} collapsed={rail} onexpand={toggleRail} onopenswitcher={() => void navSignals.ensureApps(api, workspaceId)} onpickapp={pickApp} />
+        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} {unanswered} pending={pendingNav} workspaceItems={railItems} counts={appCounts} status={appStatus} switcher={switcherList} mod={modKey} collapsed={rail} onexpand={toggleRail} onopenswitcher={() => void navSignals.ensureApps(api, workspaceId)} onpickapp={pickApp} />
       {:else}
         <nav aria-label={t('shell:nav.sections')}>
           <ul>

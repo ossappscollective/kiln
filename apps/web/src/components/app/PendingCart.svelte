@@ -15,6 +15,7 @@
     CART_ADDED_EVENT,
     CART_OPEN_EVENT,
     type CartRow,
+    takeQueuedCartOpen,
     discardRequests,
     failAll,
     mergeResults,
@@ -93,7 +94,19 @@
     void ids.join(',');
     loadedOnce = false;
     rows = [];
-    untrack(() => void refresh());
+    // Another app: nothing of the previous one (open drawer, report, dry run, error, running rows) is carried over.
+    open = false;
+    error = '';
+    report = null;
+    dryRun = null;
+    running = new Set();
+    focusLocale = null;
+    announce = '';
+    untrack(() => {
+      // Only once the records are known: before that the effect would use the request up and the reset above would close the drawer again.
+      if (ids.length > 0 && takeQueuedCartOpen(groupId)) open = true;
+      void refresh();
+    });
   });
 
   // A polite announcement of the count, but not the first load.

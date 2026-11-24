@@ -25,6 +25,7 @@
   import { type RailItem, navEntryOf, visibleNav, workspaceRail } from '../../lib/app-nav.ts';
   import { type AppAddress, type AppSection, appAddress } from '../../lib/app-scope.ts';
   import { badgeText } from '../../lib/nav-badges.ts';
+  import { pendingAcrossText } from '../../lib/cart-summary.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { chordHint } from '../../lib/shortcuts.ts';
   import { itemOfId, type SwitcherItem } from '../../lib/app-switcher.ts';
@@ -40,6 +41,7 @@
     allowed,
     attention = null,
     unanswered = null,
+    pending = null,
     workspaceItems = [],
     counts = { reviews: null, releases: null },
     status = [],
@@ -54,6 +56,8 @@
     allowed: (action: Action) => boolean;
     attention?: number | null | undefined;
     unanswered?: number | null | undefined;
+    /** Pending changes across the workspace: the changes and the apps that hold them (null when not known or not allowed). */
+    pending?: { changes: number; apps: number } | null | undefined;
     workspaceItems?: RailItem[] | undefined;
     /** The apps for the switcher field (null while being read); with `onpickapp` the app name is a switcher. */
     switcher?: SwitcherItem[] | null | undefined;
@@ -152,7 +156,7 @@
       {#if rail.main.length > 0}
         <ul>
           {#each rail.main as v (v.id)}
-            {@const count = v.id === 'portfolio' ? attention : v.id === 'reviews' ? unanswered : null}
+            {@const count = v.id === 'portfolio' ? attention : v.id === 'reviews' ? unanswered : v.id === 'pending' ? (pending?.changes ?? null) : null}
             {@const hint = chordHint('workspace', v.id)}
             <li>
               <a href="#/{v.id}" title={collapsed ? v.label : undefined}>
@@ -160,7 +164,7 @@
                 <span>{v.label}</span>
                 {#if hint}<kbd class="nav-hint" aria-hidden="true">{hint}</kbd>{/if}
                 {#if badgeText(count)}
-                  <span class="badge nav-count {v.id === 'portfolio' ? 'warn' : 'accent'}">{badgeText(count)}<span class="visually-hidden"> {v.id === 'portfolio' ? t('shell:badge.attention', { count: count ?? 0 }) : t('shell:badge.unanswered', { count: count ?? 0 })}</span></span>
+                  <span class="badge nav-count {v.id === 'portfolio' ? 'warn' : 'accent'}">{badgeText(count)}<span class="visually-hidden"> {v.id === 'portfolio' ? t('shell:badge.attention', { count: count ?? 0 }) : v.id === 'pending' && pending ? pendingAcrossText(pending) : t('shell:badge.unanswered', { count: count ?? 0 })}</span></span>
                 {/if}
               </a>
             </li>

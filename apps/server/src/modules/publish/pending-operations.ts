@@ -413,6 +413,36 @@ export const pendingOperations: Draft[] = [
     },
   },
   {
+    id: 'getPendingCartSummary',
+    method: 'get',
+    path: `${W}/pending/cart-summary`,
+    tags: ['pending'],
+    summary: 'How many items the pending carts hold, per app and in total (no item payload)',
+    description:
+      'The count behind the navigation badge: every app that has something in its pending cart (staged listing texts, graphics, release fields, prices and reply drafts) with the number of items, built by the same function as `getAppPendingCart`, so an app\u2019s `count` equals the length of its cart. Stored state only; no store or repository is read. Apps without anything are not listed. A token limited to some apps sees only those apps. At most 200 apps are read per request.',
+    risk: 'read',
+    access: { action: 'listing.read' },
+    appScope: { kind: 'list' },
+    responses: {
+      '200': {
+        description: 'One line per app with a non-empty cart, and the totals.',
+        schema: z.object({
+          apps: z.array(
+            z.object({
+              appId: z.string(),
+              id: z.string(),
+              app: stagedAppSchema,
+              count: z.number().int().describe('Items in the app\u2019s cart.'),
+              kinds: z.record(z.string(), z.number().int()).describe('Items per kind (`listing`, `graphics`, `release`, `price`, `review_reply`).'),
+            }),
+          ),
+          totals: z.object({ apps: z.number().int(), count: z.number().int() }),
+          generatedAt: timestamp,
+        }),
+      },
+    },
+  },
+  {
     id: 'getStorePublishConfig',
     method: 'get',
     path: `${W}/store-publish/config`,

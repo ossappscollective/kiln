@@ -573,6 +573,7 @@
   "pending.word.nothingToDo": "Nada que hacer",
   "rail.allApps": "Todas las apps",
   "rail.inbox": "Bandeja de entrada",
+  "rail.pending": "Pendientes",
   "rail.settings": "Ajustes",
   "releaseSettings.description": "Punto de partida de un lanzamiento en Google Play; sigues escribiendo y confirmando el porcentaje de cada lanzamiento.",
   "releaseSettings.forbidden": "Tu rol no permite cambiar los ajustes de esta app.",
@@ -846,5 +847,13 @@
   "workflows.notLinked": "Esta app no está vinculada a ningún repositorio, así que no hay flujos de trabajo que ejecutar.",
   "workflows.notLinkedPlatform": "El registro de {{platform}} de esta app no está vinculado a ningún repositorio, así que no hay flujos de trabajo que ejecutar.",
   "workflows.readFailed": "No se pudo leer el repositorio",
-  "workflows.thesePlatforms": "estas plataformas"
+  "workflows.thesePlatforms": "estas plataformas",
+  "workspacePending.empty": "No hay nada pendiente. Los cambios que prepares en una app esperan aquí hasta que los publiques o los descartes.",
+  "workspacePending.lead": "Los cambios preparados en Kiln y aún no enviados a una tienda, por app. Abre el carrito de una app para revisarlos, publicarlos o descartarlos. Desde aquí no se publica nada.",
+  "workspacePending.listLabel": "Apps con cambios pendientes",
+  "workspacePending.loadFailed": "No se pudieron leer los cambios pendientes.",
+  "workspacePending.loading": "Leyendo los cambios pendientes",
+  "workspacePending.open": "Abrir el carrito",
+  "workspacePending.openLabel": "Abrir el carrito de {{name}}",
+  "workspacePending.title": "Cambios pendientes"
 }

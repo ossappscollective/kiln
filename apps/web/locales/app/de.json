@@ -528,6 +528,7 @@
   "pending.word.nothingToDo": "Nichts zu tun",
   "rail.allApps": "Alle Apps",
   "rail.inbox": "Posteingang",
+  "rail.pending": "Ausstehend",
   "rail.settings": "Einstellungen",
   "releaseSettings.description": "Wovon ein Release in Google Play ausgeht; den Anteil jedes Releases geben Sie weiterhin selbst ein und bestätigen ihn.",
   "releaseSettings.forbidden": "Ihre Rolle darf die Einstellungen dieser App nicht ändern.",
@@ -796,5 +797,13 @@
   "workflows.notLinked": "Diese App ist mit keinem Repository verknüpft, daher gibt es keine Workflows zum Ausführen.",
   "workflows.notLinkedPlatform": "Der Eintrag „{{platform}}“ dieser App ist mit keinem Repository verknüpft, daher gibt es keine Workflows zum Ausführen.",
   "workflows.readFailed": "Das Repository konnte nicht gelesen werden",
-  "workflows.thesePlatforms": "diese Plattformen"
+  "workflows.thesePlatforms": "diese Plattformen",
+  "workspacePending.empty": "Nichts ist ausstehend. Änderungen, die Sie in einer App vorbereiten, warten hier, bis Sie sie veröffentlichen oder verwerfen.",
+  "workspacePending.lead": "In Kiln vorbereitete und noch nicht an einen Store gesendete Änderungen, pro App. Öffnen Sie den Warenkorb einer App, um sie zu prüfen, zu veröffentlichen oder zu verwerfen. Von hier aus wird nichts veröffentlicht.",
+  "workspacePending.listLabel": "Apps mit ausstehenden Änderungen",
+  "workspacePending.loadFailed": "Die ausstehenden Änderungen konnten nicht gelesen werden.",
+  "workspacePending.loading": "Ausstehende Änderungen werden gelesen",
+  "workspacePending.open": "Warenkorb öffnen",
+  "workspacePending.openLabel": "Warenkorb von {{name}} öffnen",
+  "workspacePending.title": "Ausstehende Änderungen"
 }

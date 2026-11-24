@@ -9,6 +9,7 @@ import Members from '../components/Members.svelte';
 import Portfolio from '../components/Portfolio.svelte';
 import Repositories from '../components/Repositories.svelte';
 import ReviewsInbox from '../components/reviews/ReviewsInbox.svelte';
+import WorkspacePending from '../components/pending/WorkspacePending.svelte';
 import Settings from '../components/Settings.svelte';
 import Tokens from '../components/Tokens.svelte';
 import Webhooks from '../components/Webhooks.svelte';
@@ -51,6 +52,13 @@ export const views: ViewDef[] = [
     labelKey: k('shell:nav.reviews'),
     component: ReviewsInbox,
     requires: 'reviews.read',
+  },
+  {
+    id: 'pending',
+    icon: 'upload',
+    labelKey: k('shell:nav.pending'),
+    component: WorkspacePending,
+    requires: 'listing.read',
   },
   {
     id: 'aso',

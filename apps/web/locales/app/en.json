@@ -528,6 +528,7 @@
   "pending.word.nothingToDo": "Nothing to do",
   "rail.allApps": "All apps",
   "rail.inbox": "Inbox",
+  "rail.pending": "Pending",
   "rail.settings": "Settings",
   "releaseSettings.description": "What a release to Google Play starts from; you still type and confirm the share of every release.",
   "releaseSettings.forbidden": "Your role does not allow changing the settings of this app.",
@@ -796,5 +797,13 @@
   "workflows.notLinked": "This app is not linked to a repository, so there are no workflows to run.",
   "workflows.notLinkedPlatform": "The {{platform}} record of this app is not linked to a repository, so there are no workflows to run.",
   "workflows.readFailed": "The repository could not be read",
-  "workflows.thesePlatforms": "these platforms"
+  "workflows.thesePlatforms": "these platforms",
+  "workspacePending.empty": "Nothing is pending. Changes you stage in an app wait here until you publish or discard them.",
+  "workspacePending.lead": "Changes prepared in Kiln and not sent to a store yet, per app. Open an app’s cart to review, publish or discard them. Nothing is published from here.",
+  "workspacePending.listLabel": "Apps with pending changes",
+  "workspacePending.loadFailed": "The pending changes could not be read.",
+  "workspacePending.loading": "Reading the pending changes",
+  "workspacePending.open": "Open cart",
+  "workspacePending.openLabel": "Open the cart of {{name}}",
+  "workspacePending.title": "Pending changes"
 }

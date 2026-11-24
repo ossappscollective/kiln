@@ -209,6 +209,7 @@ import type {
 import type { VersionPreview, VersionResult } from './store-version.ts';
 import { announceCartAdded, type CartResponse, type CartResultResponse } from './pending-cart.ts';
 import { announceStagedChanged, type StagedChangeReason } from './staged-sync.ts';
+import type { CartSummary } from './cart-summary.ts';
 import {
   type CodeSent,
   type LoginMethod,
@@ -1926,6 +1927,9 @@ export function createApi(options: ApiOptions = {}) {
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/pending`,
       ),
+    /** The count behind the "Pending" badge: apps with something in their cart and how many items, no payload (ADR 0064). */
+    pendingCartSummary: (workspaceId: string) =>
+      request<CartSummary>('GET', `${workspace(workspaceId)}/pending/cart-summary`),
     pendingSummary: (workspaceId: string) =>
       request<PendingSummary>('GET', `${workspace(workspaceId)}/pending/summary`),
     storePublishConfig: (workspaceId: string) =>

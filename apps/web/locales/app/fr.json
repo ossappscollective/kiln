@@ -573,6 +573,7 @@
   "pending.word.nothingToDo": "Rien à faire",
   "rail.allApps": "Toutes les applications",
   "rail.inbox": "Boîte de réception",
+  "rail.pending": "En attente",
   "rail.settings": "Paramètres",
   "releaseSettings.description": "Point de départ d’une publication sur Google Play ; vous saisissez et confirmez toujours la part de chaque publication.",
   "releaseSettings.forbidden": "Votre rôle ne permet pas de modifier les paramètres de cette application.",
@@ -846,5 +847,13 @@
   "workflows.notLinked": "Cette application n’est associée à aucun dépôt : il n’y a donc aucun workflow à lancer.",
   "workflows.notLinkedPlatform": "L’entrée {{platform}} de cette application n’est associée à aucun dépôt : il n’y a donc aucun workflow à lancer.",
   "workflows.readFailed": "Le dépôt n’a pas pu être lu",
-  "workflows.thesePlatforms": "ces plateformes"
+  "workflows.thesePlatforms": "ces plateformes",
+  "workspacePending.empty": "Rien n’est en attente. Les modifications que vous préparez dans une app attendent ici jusqu’à ce que vous les publiiez ou les abandonniez.",
+  "workspacePending.lead": "Les modifications préparées dans Kiln et pas encore envoyées à un store, par app. Ouvrez le panier d’une app pour les vérifier, les publier ou les abandonner. Rien n’est publié depuis cette page.",
+  "workspacePending.listLabel": "Apps avec des modifications en attente",
+  "workspacePending.loadFailed": "Impossible de lire les modifications en attente.",
+  "workspacePending.loading": "Lecture des modifications en attente",
+  "workspacePending.open": "Ouvrir le panier",
+  "workspacePending.openLabel": "Ouvrir le panier de {{name}}",
+  "workspacePending.title": "Modifications en attente"
 }

@@ -14,7 +14,7 @@ import {
   type ReviewReplyConnectorFactory,
   type ReviewReplyContext,
 } from '../reviews/replies.ts';
-import { type CartContext, type CartRights, discardCart, getCart, publishCart } from './cart.ts';
+import { type CartContext, type CartRights, cartSummary, discardCart, getCart, publishCart } from './cart.ts';
 import {
   type DraftConnectorFactory,
   type DraftContext,
@@ -131,6 +131,18 @@ export function cartRoutes(ctx: CartRoutesContext) {
       price: allowed('monetization.price'),
     };
   };
+
+  // Registered before the per app routes; a path of its own (`/pending/cart-summary`), no per item payload.
+  routes.get('/:workspaceId/pending/cart-summary', needs('listing.read'), async (c) => {
+    const tokenApps = c.get('token')?.appIds ?? undefined;
+    const summary = await cartSummary(cart, {
+      workspaceId: ws(c),
+      ...(tokenApps ? { appIds: tokenApps as string[] } : {}),
+      rights: rightsOf(c),
+    });
+    c.header('Cache-Control', 'no-store');
+    return c.json(summary);
+  });
 
   routes.get('/:workspaceId/apps/:id/pending/cart', needs('listing.read'), async (c) => {
     const rights = rightsOf(c);

@@ -237,6 +237,20 @@ export function announceCartOpen(
   target?.dispatchEvent(new CustomEvent(CART_OPEN_EVENT, { detail: { locale } }));
 }
 
+let queuedOpen: string | null = null;
+
+/** The cart of this app opens as soon as its screen is there (the pending overview links into an app: the drawer does not exist yet to hear an event). */
+export function queueCartOpen(groupId: string): void {
+  queuedOpen = groupId;
+}
+
+/** True once for the app a link queued; any other app (or a second call) is false, so a later visit does not open the drawer again. */
+export function takeQueuedCartOpen(groupId: string): boolean {
+  const mine = queuedOpen === groupId;
+  queuedOpen = null;
+  return mine;
+}
+
 /** The cart rows made for one locale (listing texts and graphics), in list order. */
 export const rowsForLocale = (rows: readonly CartRow[], locale: string): CartRow[] =>
   rows.filter((r) => (r.kind === 'listing' || r.kind === 'graphics') && r.locale === locale);

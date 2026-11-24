@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Platform, StoreId } from '@kiln/core';
 import type { Database } from '@kiln/db';
-import { getApp, type ManagedApp } from '../../services/apps.ts';
+import { getApp, listApps, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { getPolicy } from '../../services/step-up.ts';
@@ -377,6 +377,73 @@ export async function getCart(
   if (!app) return failure(404, 'not_found');
   const { items } = await loadCart(ctx, { workspaceId: input.workspaceId, app, rights: input.rights });
   return { ok: true, items, generatedAt: ctx.now() };
+}
+
+// ---------------------------------------------------------------------------------------------
+// The workspace-wide count (the nav badge): how many items every app's cart holds, no payload per item
+
+export type CartSummaryApp = {
+  /** Both `appId` and `id`, so a token limited to some apps is filtered by the usual rule. */
+  appId: string;
+  id: string;
+  app: { id: string; name: string; platform: Platform; store: StoreId };
+  /** Items in this app's cart (exactly the length of its `GET /apps/{id}/pending/cart`). */
+  count: number;
+  kinds: Partial<Record<CartKind, number>>;
+};
+export type CartSummary = {
+  /** Only apps with something in the cart. */
+  apps: CartSummaryApp[];
+  totals: { apps: number; count: number };
+  generatedAt: number;
+};
+
+/** Apps read per request at most (the cost is one cart per app that has anything; the rest of the apps cost no cart at all). */
+export const CART_SUMMARY_MAX_APPS = 200;
+
+/**
+ * `GET /pending/cart-summary`: the count of every cart of the workspace, from stored state. Three small queries find the apps that
+ * hold anything (a staged change, a staged price, a reply draft); only those have their cart built, by the very function behind the
+ * app's own cart, so the numbers cannot drift. `appIds` limits the apps (a token limited to some apps).
+ */
+export async function cartSummary(
+  ctx: Pick<CartContext, 'db' | 'now' | 'draft' | 'reply' | 'price'>,
+  input: { workspaceId: string; appIds?: readonly string[] | undefined; rights: CartRights },
+): Promise<CartSummary> {
+  const { db } = ctx;
+  const { workspaceId } = input;
+  const holding = new Set<string>();
+  for (const sql of [
+    'SELECT DISTINCT app_id FROM staged_changes WHERE workspace_id = ? AND (pushed_hash IS NULL OR pushed_hash <> value_hash)',
+    'SELECT DISTINCT app_id FROM staged_price_changes WHERE workspace_id = ?',
+    "SELECT DISTINCT app_id FROM review_reply_drafts WHERE workspace_id = ? AND status IN ('draft', 'failed', 'sending', 'unknown')",
+  ]) {
+    for (const r of await db.query(sql, [workspaceId])) holding.add(String(r.app_id));
+  }
+  const wanted = input.appIds === undefined ? undefined : new Set(input.appIds);
+  const candidates = (await listApps(db, workspaceId))
+    .filter((a) => holding.has(a.id) && (wanted === undefined || wanted.has(a.id)))
+    .slice(0, CART_SUMMARY_MAX_APPS);
+  const lines: CartSummaryApp[] = [];
+  for (const app of candidates) {
+    const { items } = await loadCart(ctx, { workspaceId, app, rights: input.rights });
+    if (items.length === 0) continue;
+    const kinds: Partial<Record<CartKind, number>> = {};
+    for (const i of items) kinds[i.kind] = (kinds[i.kind] ?? 0) + 1;
+    lines.push({
+      appId: app.id,
+      id: app.id,
+      app: { id: app.id, name: app.name, platform: app.platform, store: storeFor(app.platform) },
+      count: items.length,
+      kinds,
+    });
+  }
+  lines.sort((a, b) => b.count - a.count || a.app.name.localeCompare(b.app.name) || a.appId.localeCompare(b.appId));
+  return {
+    apps: lines,
+    totals: { apps: lines.length, count: lines.reduce((n, l) => n + l.count, 0) },
+    generatedAt: ctx.now(),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
