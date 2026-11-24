@@ -19,6 +19,7 @@ export * from './insights/language-coverage.ts';
 export * from './insights/listing-checks.ts';
 export * from './insights/review-themes.ts';
 export * from './listing/asset-sync.ts';
+export * from './listing/fixes.ts';
 export * from './listing/image-header.ts';
 export * from './listing/listing.ts';
 export * from './listing/listing-sections.ts';
