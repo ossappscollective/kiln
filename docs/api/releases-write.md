@@ -446,3 +446,5 @@ halted"), `edits.tracks.get` / `update`, `edits.bundles.list`, `edits.apks.list`
   release at once or leaves it in review (the API shows no review state); whether tracks other than `production` accept
   `userFraction`; the version code and bundle fields of `edits.apks.list`; the limits of release notes (500 characters a language)
   and the release name (50).
+
+See also [release asset proposal](release-asset-proposal.md): the store texts and graphics that changed in the repository since the previous release, proposed for staging while the release is prepared.

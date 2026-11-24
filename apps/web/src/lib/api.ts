@@ -51,7 +51,7 @@ import type {
 import type { ProductSalesView } from './analytics/product-sales.ts';
 import type { HealthView, RatingsView } from './ratings/ratings.ts';
 import type { ReportApi } from './timeline/report.ts';
-import type { ManualEventKind } from '@kiln/core';
+import type { AssetProposalView, ManualEventKind, ProposalState } from '@kiln/core';
 import type { TimelineApi } from './timeline/timeline.ts';
 import type { ListingFixesView } from './listing/fixes.ts';
 import type { CountriesView as InsightsCountriesView, InsightsView, ListingChecksView } from './insights/insights.ts';
@@ -581,6 +581,16 @@ const addedToCart =
   (appId: string) =>
   <T>(answer: T): T => {
     announceCartAdded();
+/** Which release the asset proposal is for: the version (App Store), the track (Google Play) and the chosen build number. */
+export type ReleaseAssetRef = { version?: string | null; track?: string | null; build?: string | null };
+const releaseAssetQuery = (r: ReleaseAssetRef): string => {
+  const parts: string[] = [];
+  if (r.version) parts.push(`version=${encodeURIComponent(r.version)}`);
+  if (r.track) parts.push(`track=${encodeURIComponent(r.track)}`);
+  if (r.build) parts.push(`build=${encodeURIComponent(r.build)}`);
+  return parts.length > 0 ? `?${parts.join('&')}` : '';
+};
+
     announceStagedChanged(appId, 'stage');
     return answer;
   };
@@ -1586,6 +1596,28 @@ export function createApi(options: ApiOptions = {}) {
       appId: string,
       body: {
         locale: string;
+    /** The store assets that changed in the repository since the previous release (docs/api/release-asset-proposal.md). Reads; stages nothing. */
+    releaseAssetProposal: (workspaceId: string, appId: string, release: ReleaseAssetRef) =>
+      request<{ proposal: AssetProposalView }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/asset-proposal${releaseAssetQuery(release)}`,
+      ),
+    stageReleaseAssetProposal: (
+      workspaceId: string,
+      appId: string,
+      body: ReleaseAssetRef & { itemIds: string[]; acceptIssues?: boolean },
+    ) =>
+      request<{ results: { id: string; status: string; code?: string }[]; proposal?: AssetProposalView }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/asset-proposal/stage`,
+        body,
+      ).then(addedToCart(appId)),
+    decideReleaseAssetProposal: (workspaceId: string, appId: string, body: { version?: string | null; track?: string | null; mode: 'skip' | 'later' | 'reopen' }) =>
+      request<{ state: ProposalState }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/asset-proposal/dismiss`,
+        body,
+      ),
         kind: string;
         device?: string | null;
         from?: 'repo';

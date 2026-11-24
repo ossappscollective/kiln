@@ -155,6 +155,13 @@
   const stagedCodes = $derived(stagedField(view, 'version_codes'));
   const stagedShare = $derived(stagedField(view, 'user_fraction'));
   const releaseVersion = $derived(editable && editable.store === 'appstoreconnect' ? editable.version.versionString : null);
+  /** The build number chosen for this release (App Store): its commit is the source of the release for the asset proposal. */
+  const releaseBuildNumber = $derived.by((): string | null => {
+    if (supports(app.platform, 'releaseTracks')) return null;
+    const staged = stagedField(view, 'build');
+    if (staged !== null) return buildList.filter((b) => b.id === staged.value)[0]?.buildNumber ?? null;
+    return editable && editable.store === 'appstoreconnect' ? (editable.build?.buildNumber ?? null) : null;
+  });
 
   async function loadEditable(force = false) {
     const mine = seq;
@@ -421,7 +428,7 @@
         {:else if current === 'notes'}
           <StepNotes {api} {workspaceId} {role} {app} {view} {editable} {candidates} {chosenBuildId} track={releaseTrack} {locales} {promote} {promoteNotes} bind:drafts bind:extra />
         {:else if current === 'assets'}
-          <StepAssets {api} {workspaceId} {app} {view} {scope} />
+          <StepAssets {api} {workspaceId} {role} {app} {view} {scope} release={{ version: releaseVersion, track: supports(app.platform, 'releaseTracks') ? releaseTrack || null : null, build: releaseBuildNumber }} />
         {:else if current === 'review'}
           <StepReview {api} {workspaceId} {role} {app} />
         {:else if current === 'confirm'}

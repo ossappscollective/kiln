@@ -109,6 +109,12 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   **Promote** ([ADR 0025](adr/0025-play-release-checks.md)): on an Android app a release that serves users from a track that is not production
   gets "Promote to production" in its Releases row (platform cell), in the row's details and as one quiet line in the Next step card. It
   opens Prepare release on the Build step with the source track, the target and the version codes selected (`&from=internal&to=production&codes=241`).
+  **Store assets changed in the repository** ([ADR 0063](adr/0063-release-asset-proposal.md)): the Assets step of Prepare release opens with a card that
+  lists the texts and graphics that changed in the repository since the previous release and still differ from the store and the cart. The findings of the
+  listing checks and the graphics rules come first (errors, warnings, tips collapsed), then the items with a checkbox (items without errors checked, items
+  with errors unchecked, marked "Has issues", staged only after a confirmation), then "Stage selected", "Skip for this release" and "Remind me later" (saved
+  per release). Nothing is staged without the click; afterwards "Open pending changes" opens the cart. Hidden when there is no repository or nothing changed.
+  Not on the Releases list or the Timeline.
   In the Confirm step and in the release dialog "Check this release" shows local checks and "Check with Google Play" (errors only: the result says
   "Google found no errors. The Play Console may still show warnings", never "no warnings").
 - **Demo bar**: when `GET /demo/status` answers `demo: true` (only the `pnpm demo` server has that route), a slim, permanent bar says

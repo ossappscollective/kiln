@@ -1,11 +1,12 @@
 <!--
   StepAssets: the third step of "Prepare release": are the screenshots up to date for this version? One sentence from the
   existing comparison of the repository against the store, the number of graphic sets staged, and a link to the Assets tab
-  where screenshots are staged. This step is optional: nothing here changes anything.
-  Props: api, workspaceId, app, view (the staged changes), scope (the platform scope for the link).
+  where screenshots are staged. This step is optional: nothing here changes anything, except what the person stages from the first card,
+  "Store assets changed in the repository" (AssetProposalCard, docs/adr/0063-release-asset-proposal.md).
+  Props: api, workspaceId, role, app, view (the staged changes), scope (the platform scope for the link), release ({ version, track, build }).
 -->
 <script lang="ts">
-  import { type AssetDiffView, type StagedChangesView } from '@kiln/core';
+  import { type AssetDiffView, type Role, type StagedChangesView } from '@kiln/core';
   import type { Api } from '../../../lib/api.ts';
   import { appAddress, type PlatformScope } from '../../../lib/app-scope.ts';
   import { stagingError } from '../../../lib/staged.ts';
@@ -14,6 +15,7 @@
   import { assetsLine, stagedSetsLine } from '../../../lib/release-assets.ts';
   import type { AppSummary } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';
+  import AssetProposalCard from './AssetProposalCard.svelte';
   import Badge from '../../ui/Badge.svelte';
   import Button from '../../ui/Button.svelte';
   import Skeleton from '../../ui/Skeleton.svelte';
@@ -21,15 +23,19 @@
   let {
     api,
     workspaceId,
+    role,
     app,
     view,
     scope,
+    release,
   }: {
     api: Api;
     workspaceId: string;
+    role: Role;
     app: AppSummary;
     view: StagedChangesView | null;
     scope: PlatformScope | null;
+    release: { version: string | null; track: string | null; build: string | null };
   } = $props();
 
   let diff = $state<AssetDiffView | null>(null);
@@ -66,6 +72,8 @@
 </script>
 
 <div class="stack">
+  <AssetProposalCard {api} {workspaceId} {role} {app} {release} />
+
   {#if loading && diff === null}
     <div role="status" aria-label={t('release-stepper:sa.comparing')}><Skeleton width="60%" height="16px" /></div>
   {:else if problem}
