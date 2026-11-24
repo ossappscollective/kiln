@@ -3,19 +3,20 @@
   monospace, each with a copy button, so a person can check which account a credential belongs to. The server sends only an
   allow-list of fields (apps/server/src/services/credential-identifiers.ts): a secret is never here.
   Props: identifiers, effective? (values an app really uses, each with where it comes from: this credential, this app, the workspace
-  default), compact? (no heading).
+  default), compact? (no heading), aligned? (join the label column of the parent grid through a subgrid).
 -->
 <script lang="ts">
   import { k, t } from '../../lib/i18n/t.ts';
   import type { EffectiveValue } from '../../lib/app-settings.ts';
   import type { CredentialIdentifier } from '../../lib/types.ts';
-  import CopyButton from '../ui/CopyButton.svelte';
+  import CopyValue from '../ui/CopyValue.svelte';
 
   let {
     identifiers,
     effective = [],
     compact = false,
-  }: { identifiers: CredentialIdentifier[]; effective?: EffectiveValue[] | undefined; compact?: boolean | undefined } = $props();
+    aligned = false,
+  }: { identifiers: CredentialIdentifier[]; effective?: EffectiveValue[] | undefined; compact?: boolean | undefined; aligned?: boolean | undefined } = $props();
 
   const LABELS = {
     issuerId: k('credentials:identifier.issuerId'),
@@ -49,7 +50,7 @@
   }
 </script>
 
-<div class="ids">
+<div class="ids" class:aligned>
   {#if !compact}<p class="heading">{t('credentials:identifier.title')}</p>{/if}
   {#if identifiers.length === 0 && effective.length === 0}
     <p class="muted none">{t('credentials:identifier.none')}</p>
@@ -59,8 +60,7 @@
         <div>
           <dt>{labelOf(i)}</dt>
           <dd>
-            <code>{valueOf(i)}</code>
-            {#if i.copyable}<CopyButton value={i.value} iconOnly label={t('credentials:identifier.copy', { label: labelOf(i) })} />{/if}
+            <CopyValue value={i.value} shown={valueOf(i)} copyable={i.copyable} copyLabel={t('credentials:identifier.copy', { label: labelOf(i) })} />
           </dd>
         </div>
       {/each}
@@ -68,9 +68,7 @@
         <div>
           <dt>{e.label}</dt>
           <dd>
-            <code>{e.value}</code>
-            <CopyButton value={e.value} iconOnly label={t('credentials:identifier.copy', { label: e.label })} />
-            <span class="origin muted">{e.origin}</span>
+            <CopyValue value={e.value} note={e.origin} copyLabel={t('credentials:identifier.copy', { label: e.label })} />
           </dd>
         </div>
       {/each}
@@ -97,8 +95,8 @@
 
   dl {
     display: grid;
-    grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
-    gap: var(--space-1) var(--space-3);
+    grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr);
+    gap: var(--space-2) var(--space-4);
     margin: 0;
     font-size: 0.875rem;
   }
@@ -112,28 +110,34 @@
   }
 
   dd {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-1) var(--space-2);
     min-width: 0;
     margin: 0;
   }
 
-  code {
-    font-family: var(--font-mono, ui-monospace, monospace);
-    overflow-wrap: anywhere;
-    word-break: break-all;
-    min-width: 0;
+  /* In the app Stores card the rows share the label column of the card (a subgrid), so every label and value lines up. */
+  .aligned {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
   }
 
-  .origin {
-    font-size: 0.8125rem;
+  .aligned dl {
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
   }
 
-  @media (max-width: 639px) {
+  .aligned .none {
+    grid-column: 1 / -1;
+  }
+
+  @media (max-width: 519px) {
     dl {
       grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-1) var(--space-4);
+    }
+
+    dl > div + div > dt {
+      margin-top: var(--space-2);
     }
   }
 </style>

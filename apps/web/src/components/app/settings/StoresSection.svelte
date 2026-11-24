@@ -21,7 +21,7 @@
   import Alert from '../../ui/Alert.svelte';
   import Badge from '../../ui/Badge.svelte';
   import Button from '../../ui/Button.svelte';
-  import CopyButton from '../../ui/CopyButton.svelte';
+  import CopyValue from '../../ui/CopyValue.svelte';
   import PlatformBadge from '../../ui/PlatformBadge.svelte';
   import AddAppModal from '../../portfolio/AddAppModal.svelte';
   import CredentialIdentifiers from '../../credentials/CredentialIdentifiers.svelte';
@@ -113,66 +113,88 @@
 >
   {#if loadProblem}<Alert tone="warn">{loadProblem}</Alert>{/if}
   <div class="stack">
+  <div class="records">
     {#each members as app (app.id)}
       {@const cred = credentialFacts(app.credentialId, canRead ? list : null, now)}
       {@const sync = syncInfo(app, now)}
-      <div class="record">
-        <div class="row between">
+      <section class="record">
+        <header class="head">
           <PlatformBadge platform={app.platform} tinted />
-          <span class="muted">{storeName(app.platform)}</span>
-        </div>
-        <dl class="facts">
-          <div>
-            <dt>{identifierLabel(app.platform)}</dt>
-            <dd class="row"><code>{app.identifier}</code><CopyButton value={app.identifier} iconOnly label={t('app:stores.copyIdentifier')} /></dd>
-          </div>
-          {#if app.storeAppId}
-            <div>
-              <dt>{t('app:stores.storeId')}</dt>
-              <dd><code>{app.storeAppId}</code></dd>
-            </div>
-          {/if}
-          <div>
-            <dt>{t('app:stores.credential')}</dt>
-            <dd class="row wrap">
-              <span>{cred.label}</span>
-              {#if cred.kind}<span class="muted">({cred.kind})</span>{/if}
-              <Badge tone={cred.tone === 'none' ? 'neutral' : cred.tone}>{cred.status}</Badge>
-            </dd>
-          </div>
-          {#if canRead && cred.found}
-            <div class="ids">
-              <dt>{t('app:stores.identifiers')}</dt>
-              <dd><CredentialIdentifiers compact identifiers={list?.find((c) => c.id === app.credentialId)?.identifiers ?? []} effective={effective[app.id] ?? []} /></dd>
-            </div>
-          {/if}
-          <div>
-            <dt>{t('app:stores.lastSync')}</dt>
-            <dd>
-              {#if app.lastSyncedAt !== null}
-                <time datetime={new Date(app.lastSyncedAt).toISOString()} title={fullTime(app.lastSyncedAt)}>{timeAgo(app.lastSyncedAt, now)}</time>
-              {:else}
-                {t('app:stores.never')}
+          <span class="muted store">{storeName(app.platform)}</span>
+        </header>
+        <div class="body">
+          <div class="facts">
+            <dl class="group">
+              <div>
+                <dt>{identifierLabel(app.platform)}</dt>
+                <dd><CopyValue value={app.identifier} copyLabel={t('app:stores.copyIdentifier')} /></dd>
+              </div>
+              {#if app.storeAppId}
+                <div>
+                  <dt>{t('app:stores.storeId')}</dt>
+                  <dd><CopyValue value={app.storeAppId} copyable={false} copyLabel={t('app:stores.copyIdentifier')} /></dd>
+                </div>
               {/if}
-              {#if sync.attempt}<span class="muted"> · {sync.attempt}</span>{/if}
-            </dd>
+              <div>
+                <dt>{t('app:stores.lastSync')}</dt>
+                <dd>
+                  {#if app.lastSyncedAt !== null}
+                    <time datetime={new Date(app.lastSyncedAt).toISOString()} title={fullTime(app.lastSyncedAt)}>{timeAgo(app.lastSyncedAt, now)}</time>
+                  {:else}
+                    {t('app:stores.never')}
+                  {/if}
+                  {#if sync.attempt}<span class="muted"> · {sync.attempt}</span>{/if}
+                </dd>
+              </div>
+            </dl>
+            <section class="group">
+              <h4 class="group-title">{t('app:stores.credential')}</h4>
+              <dl class="group">
+                <div>
+                  <dt>{t('credentials:table.name')}</dt>
+                  <dd>{cred.label}</dd>
+                </div>
+                {#if cred.kind}
+                  <div>
+                    <dt>{t('credentials:table.type')}</dt>
+                    <dd>{cred.kind}</dd>
+                  </div>
+                {/if}
+                <div>
+                  <dt>{t('credentials:table.status')}</dt>
+                  <dd><Badge tone={cred.tone === 'none' ? 'neutral' : cred.tone}>{cred.status}</Badge></dd>
+                </div>
+                {#if (canTest && cred.found) || canRead}
+                  <div>
+                    <dt class="visually-hidden">{t('app:stores.credential')}</dt>
+                    <dd class="actions">
+                      {#if canTest && cred.found}
+                        <Button size="sm" loading={testing === app.id} disabled={testing !== ''} onclick={() => test(app)}>{t('app:stores.test', { platform: platformLabel(app.platform) })}</Button>
+                      {/if}
+                      {#if canRead}<Button size="sm" variant="ghost" href={links.credentials}>{t('app:stores.manage')}</Button>{/if}
+                    </dd>
+                  </div>
+                {/if}
+              </dl>
+            </section>
+            {#if canRead && cred.found}
+              <section class="group">
+                <h4 class="group-title">{t('app:stores.identifiers')}</h4>
+                <CredentialIdentifiers compact aligned identifiers={list?.find((c) => c.id === app.credentialId)?.identifiers ?? []} effective={effective[app.id] ?? []} />
+              </section>
+            {/if}
           </div>
-        </dl>
-        {#if app.lastSyncError}<Alert tone="warn" title={t('app:attention.syncFailed')}>{app.lastSyncError}</Alert>{/if}
-        {#if canRead && !cred.found && list !== null}<Alert tone="error">{cred.detail}</Alert>{/if}
-        <div class="row wrap">
-          {#if canTest && cred.found}
-            <Button size="sm" loading={testing === app.id} disabled={testing !== ''} onclick={() => test(app)}>{t('app:stores.test', { platform: platformLabel(app.platform) })}</Button>
+          {#if app.lastSyncError}<Alert tone="warn" title={t('app:attention.syncFailed')}>{app.lastSyncError}</Alert>{/if}
+          {#if canRead && !cred.found && list !== null}<Alert tone="error">{cred.detail}</Alert>{/if}
+          {#if results[app.id]}
+            {@const r = results[app.id]}
+            {#if r}<Alert tone={r.ok ? 'ok' : 'error'}>{r.message}</Alert>{/if}
           {/if}
-          {#if canRead}<Button size="sm" variant="ghost" href={links.credentials}>{t('app:stores.manage')}</Button>{/if}
+          {#if !canRead}<p class="muted note">{cred.detail}</p>{/if}
         </div>
-        {#if results[app.id]}
-          {@const r = results[app.id]}
-          {#if r}<Alert tone={r.ok ? 'ok' : 'error'}>{r.message}</Alert>{/if}
-        {/if}
-        {#if !canRead}<p class="muted note">{cred.detail}</p>{/if}
-      </div>
+      </section>
     {/each}
+  </div>
   </div>
   {#if offerMac && iosRecord}
     <div class="row wrap">
@@ -195,40 +217,130 @@
 {/if}
 
 <style>
+  /* Two records side by side only when the card has 1100px or more; otherwise stacked. */
+  .stack {
+    container-type: inline-size;
+  }
+
+  .records {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+
+  @container (min-width: 1100px) {
+    .records {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   .record {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 0.9375rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    container-type: inline-size;
+  }
+
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-sunken);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .body {
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    font-size: 0.9375rem;
+    padding: var(--space-4);
   }
 
-  .record + .record {
-    padding-top: var(--space-5);
-    border-top: 1px solid var(--line);
-  }
-
+  /* One label column for the whole card: the groups below are subgrids of it, so every label and value lines up. */
   .facts {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--space-3) var(--space-6);
+    grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr);
+    gap: var(--space-4) var(--space-4);
+    align-items: start;
+    min-width: 0;
+  }
+
+  .group {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    gap: var(--space-2) var(--space-4);
+    min-width: 0;
     margin: 0;
   }
 
-  .facts dt {
-    margin-bottom: var(--space-1);
+  dl.group > div {
+    display: contents;
+  }
+
+  .group-title {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--line);
     font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
     color: var(--muted);
   }
 
-  .facts dd {
+  section.group {
+    row-gap: var(--space-2);
+  }
+
+  dt {
+    font-size: var(--text-sm);
+    color: var(--muted);
+    align-self: center;
+  }
+
+  dd {
     min-width: 0;
     margin: 0;
     overflow-wrap: anywhere;
   }
 
+  .actions {
+    display: flex;
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
   .note {
     margin: 0;
     font-size: 0.9375rem;
+  }
+
+  /* Under 520px of card width the labels sit above their values. */
+  @container (max-width: 519px) {
+    .facts,
+    .group {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .facts {
+      gap: var(--space-3);
+    }
+
+    dl.group > div {
+      display: block;
+    }
+
+    dl.group > div + div {
+      margin-top: var(--space-2);
+    }
+
+    .head {
+      padding-inline: var(--space-3);
+    }
   }
 </style>
