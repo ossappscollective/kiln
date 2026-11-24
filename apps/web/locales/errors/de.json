@@ -105,6 +105,8 @@
   "aso.refreshing": "Diese App wird gerade aktualisiert.",
   "aso.searchAppStoreOnly": "Die Suche nach Namen gibt es nur für App-Store-Apps. Bei Google Play fügen Sie den Paketnamen oder die play.google.com-Adresse ein.",
   "aso.storeUnreadable": "Der Store konnte nicht gelesen werden. Versuchen Sie es gleich noch einmal.",
+  "assetProposal.hasIssues": "Einige der ausgewählten Einträge haben Fehler. Bestätigen Sie, um sie trotzdem bereitzustellen.",
+  "assetProposal.unavailable": "Für diese Version gibt es nichts bereitzustellen: Die App hat kein Repository, oder das Repository enthält keinen Store-Eintrag dafür.",
   "auth.challengeExpired": "Diese Anmeldung ist abgelaufen oder wurde bereits verwendet. Melden Sie sich erneut an.",
   "auth.noVerifiedEmail": "Für Codes ist keine bestätigte E-Mail-Adresse eingerichtet.",
   "auth.secondFactorFailed": "Dieser Code hat nicht funktioniert. Versuchen Sie es erneut oder melden Sie sich neu an.",

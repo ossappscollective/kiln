@@ -101,6 +101,8 @@ export async function buildAssetDiff(
     actor: Actor;
     fresh?: boolean;
     gate?: () => Failure | undefined;
+    /** Compare the repository at this commit (a full sha) instead of the branch tip (the release asset proposal). */
+    commit?: string;
   },
 ): Promise<DiffOutcome> {
   const { app } = input;
@@ -114,7 +116,7 @@ export async function buildAssetDiff(
   if (!store.ok) return store;
   const opened = await openAssets(
     ctx.assets,
-    { workspaceId: input.workspaceId, app },
+    { workspaceId: input.workspaceId, app, ...(input.commit ? { commit: input.commit } : {}) },
     input.actor,
     { ...(input.gate ? { onCompute: input.gate } : {}) },
   );

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { assetProposalOperations } from './asset-proposal-operations.ts';
 import { changeSetSchema, type Draft, listingQuery, object, W } from '../../operations/shared.ts';
 
 const pullListingBody = z.object({
@@ -61,6 +62,7 @@ const appListingSettingsSchema = z.object({
 });
 
 export const listingOperations: Draft[] = [
+  ...assetProposalOperations,
   {
     id: 'getAppListingSettings',
     method: 'get',

@@ -105,6 +105,8 @@
   "aso.refreshing": "Cette application est en cours d’actualisation.",
   "aso.searchAppStoreOnly": "La recherche par nom est réservée aux apps de l’App Store. Pour Google Play, collez le nom du paquet ou l’adresse play.google.com.",
   "aso.storeUnreadable": "Le store n’a pas pu être lu. Réessayez dans un instant.",
+  "assetProposal.hasIssues": "Certains éléments sélectionnés présentent des erreurs. Confirmez pour les préparer quand même.",
+  "assetProposal.unavailable": "Il n’y a rien à préparer pour cette version : l’application n’a pas de dépôt, ou le dépôt ne contient aucune fiche pour elle.",
   "auth.challengeExpired": "Cette connexion a expiré ou a déjà été utilisée. Connectez-vous à nouveau.",
   "auth.noVerifiedEmail": "Aucune adresse e-mail vérifiée n’est configurée pour les codes.",
   "auth.secondFactorFailed": "Ce code n’a pas fonctionné. Réessayez, ou connectez-vous à nouveau.",

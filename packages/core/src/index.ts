@@ -28,6 +28,7 @@ export * from './listing/store-asset-specs.ts';
 export * from './members.ts';
 export * from './pricing/price-change.ts';
 export * from './platform.ts';
+export * from './release/asset-proposal.ts';
 export * from './release/build-patterns.ts';
 export * from './release/lifecycle.ts';
 export * from './release/metadata-lock.ts';
