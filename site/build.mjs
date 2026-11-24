@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Builds the Kiln website into site/dist: node site/build.mjs [--out <dir>]
 // No dependencies. Reads site/pages, site/static, site/content and the repository's Markdown docs.
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { docsGroups, site } from './lib/config.mjs';
@@ -54,6 +54,17 @@ function write(outDir, rel, content) {
   const file = path.join(outDir, rel);
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, content);
+}
+
+/** Copy a folder by reading and writing files (fs.cpSync also copies permissions, which some file systems refuse). */
+function copyTree(from, to) {
+  mkdirSync(to, { recursive: true });
+  for (const entry of readdirSync(from, { withFileTypes: true })) {
+    const src = path.join(from, entry.name);
+    const dest = path.join(to, entry.name);
+    if (entry.isDirectory()) copyTree(src, dest);
+    else writeFileSync(dest, readFileSync(src));
+  }
 }
 
 /** Load and render every docs page of the manifest. Pages whose source is missing and marked optional are skipped. */
@@ -114,7 +125,7 @@ export function build({ outDir = path.join(here, 'dist'), repo = repoRoot } = {}
     // some file systems refuse deletes: files are overwritten below
   }
   mkdirSync(outDir, { recursive: true });
-  cpSync(path.join(here, 'static'), outDir, { recursive: true });
+  copyTree(path.join(here, 'static'), outDir);
   write(outDir, '.nojekyll', '');
 
   const { pages, groups } = loadDocs({ repo });
