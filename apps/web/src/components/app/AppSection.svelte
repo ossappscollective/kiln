@@ -191,8 +191,10 @@
   <EasUpdateCard {api} {workspaceId} {role} {app} defaultOpen />
 {/snippet}
 {#snippet testBuilds(app: AppSummary)}
-  <ConnectCallout {api} {workspaceId} {role} {app} kind="expo" />
-  <TestBuilds {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
+  <div class="stack">
+    <ConnectCallout {api} {workspaceId} {role} {app} kind="expo" />
+    <TestBuilds {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
+  </div>
 {/snippet}
 
 {#snippet perPlatform(render: Snippet<[AppSummary]>)}

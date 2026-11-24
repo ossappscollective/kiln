@@ -430,7 +430,7 @@
   <li>
     <a href="#/{v.id}" aria-current={current?.id === v.id ? 'page' : undefined} title={rail ? t(v.labelKey) : undefined}>
       <Icon name={isIconName(v.icon) ? v.icon : 'box'} size={18} />
-      <span>{t(v.labelKey)}</span>
+      <span>{t(v.navLabelKey ?? v.labelKey)}</span>
       {#if badgeText(count)}
         <span class="badge nav-count {v.id === 'portfolio' ? 'warn' : 'accent'}">{badgeText(count)}<span class="visually-hidden"> {#if v.id === 'portfolio'}{t('shell:badge.attention', { count })}{:else if v.id === 'pending' && pendingNav}{pendingAcrossText(pendingNav)}{:else}{t('shell:badge.unanswered', { count })}{/if}</span></span>
       {/if}
@@ -925,10 +925,21 @@
   /* Counts and shortcut hints beside a navigation entry (also those drawn by AppNav). Quiet by default:
      a hint shows on hover, on keyboard focus, and while the first key of a `g` chord is waiting. */
   .sidebar :global(.nav-count) {
+    flex-shrink: 0;
+    padding-inline: var(--space-1);
     margin-left: auto;
   }
 
+  /* A label stays on one line and gives way (ellipsis) before the count or the hint do. */
+  .sidebar :global(nav a > span:not(.nav-count):not(.visually-hidden)) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .sidebar :global(.nav-hint) {
+    flex-shrink: 0;
     padding: 0 var(--space-1);
     margin-left: auto;
     font-size: var(--text-xs);

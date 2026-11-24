@@ -1,5 +1,5 @@
 <!--
-  AppSwitcherList: the rows of the app switcher (icon, name, bundle ids, pending chip, platforms, number). One list
+  AppSwitcherList: the rows of the app switcher (icon, name; bundle ids and pending chip on the meta line; platforms, number). One list
   for the Cmd or Ctrl + K dialog (AppSwitcher) and the switcher field of the left panel (AppSwitcherField); the
   parent owns the search text and the highlighted row, and the keys (lib/app-switcher.ts moveActive).
   Props: items (already filtered), current (the highlighted row), selectedKey? (the open app, marked), id (the listbox
@@ -76,9 +76,11 @@
         <span class="head">
           <strong class="name" title={item.name}>{item.name}</strong>
           {#if item.key === selectedKey}<span class="here" title={t('app:switcher.current')}><Icon name="check" size={14} /><span class="visually-hidden">{t('app:switcher.current')}</span></span>{/if}
+        </span>
+        <span class="meta">
+          <code class="ids" title={item.identifiers.join(' · ')}>{item.identifiers.join(' · ')}</code>
           {#if item.pending}<span class="chip"><PendingChip line={item.pending} /></span>{/if}
         </span>
-        <code class="ids" title={item.identifiers.join(' · ')}>{item.identifiers.join(' · ')}</code>
       </span>
       <span class="plats">{#each item.platforms as p (p)}<PlatformBadge platform={p} showLabel={false} />{/each}</span>
       {#if item.number !== null}<kbd class="num" title="{mod} + {item.number}">{item.number}</kbd>{/if}
@@ -123,7 +125,8 @@
     min-width: 0;
   }
 
-  /* The name takes what the pending chip leaves; the bundle ids sit below in muted mono. Both stay on one line. */
+  /* The name has the first line to itself (cut with an ellipsis only when it is longer than the column); below it the bundle
+     ids and the pending chip share the meta line, where the ids give way first. */
   .head {
     display: flex;
     gap: var(--space-2);
@@ -139,12 +142,20 @@
     white-space: nowrap;
   }
 
+  .meta {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    min-width: 0;
+  }
+
   .chip {
     flex: none;
   }
 
   .ids {
     display: block;
+    flex: 0 1 auto;
     min-width: 0;
     padding: 0;
     overflow: hidden;

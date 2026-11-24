@@ -25,6 +25,8 @@ export type ViewDef = {
   id: string;
   /** The message key of the name in the navigation (translate with `t()` where it is drawn: this list is built once). */
   labelKey: string;
+  /** A shorter name for the navigation only (same as the app-level group); the page title and breadcrumb use `labelKey`. */
+  navLabelKey?: string;
   /** A name from components/ui/icons.ts, shown beside the label in the navigation. */
   icon?: string;
   component: Component<ViewProps>;
@@ -50,6 +52,7 @@ export const views: ViewDef[] = [
     id: 'reviews',
     icon: 'message',
     labelKey: k('shell:nav.reviews'),
+    navLabelKey: k('app:rail.inbox'),
     component: ReviewsInbox,
     requires: 'reviews.read',
   },
@@ -57,6 +60,7 @@ export const views: ViewDef[] = [
     id: 'pending',
     icon: 'upload',
     labelKey: k('shell:nav.pending'),
+    navLabelKey: k('app:rail.pending'),
     component: WorkspacePending,
     requires: 'listing.read',
   },
