@@ -102,9 +102,10 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   currency, never a total), the date and the subscriber choice; the confirm names the count, warns that stores take time to show a price, and asks
   for the typed phrase (one field per record); "Check prices with the store (dry run)" shows per item what would be sent. After a send each row says
   "Confirmed by the store" or "Store shows X for T, not Y". Dark tokens only (`--warn-*`, `--bad-ink`, `--ok-ink`); all strings in four languages.
-- **Pending cart** (`PendingCart`, `PendingCartDrawer`; replaces the pending bar, ADR 0054): a floating button at the bottom right of every app page
-  showing how many changes wait ("Pending" and the count; hidden with none and on the pending page; above the mobile safe area and above a sticky
-  save bar; toasts stand above it). Opening it shows the right drawer (header and footer fixed, the body scrolls): items grouped by kind (Store listing,
+- **Pending cart** (`PendingCart`, `PendingCartDrawer`; replaces the pending bar, ADR 0054): a compact button in the top bar of every app page, next to the account menu
+  (`PendingCartButton`; it never floats over page content, so it cannot cover a primary button), showing how many changes wait (upload icon, "Pending"
+  and the count; icon and count only below 600px; hidden with none, on the pending page and outside an app; its name and tooltip say "this app" to
+  tell it from the workspace-wide Pending entry of the navigation, ADR 0064). Opening it shows the right drawer (header and footer fixed, the body scrolls): items grouped by kind (Store listing,
   Graphics, Release details, Review replies), a checkbox per row, platform and language chips, the new text with what the store has now ("before → after"),
   who and when, and **Open** to the page where it was made. Select all; **Publish N selected** and **Discard selected** each ask first and say how many
   and to which stores. After a run every item shows Done, Failed or Skipped with a reason; partial success is normal and what failed stays in the cart.

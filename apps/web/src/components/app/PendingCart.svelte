@@ -1,8 +1,9 @@
 <!--
-  PendingCart: the floating "pending changes" button of an app (docs/adr/0054-pending-cart.md) and the work behind it. Bottom right,
-  above the mobile safe area and above a sticky save bar, showing how many changes wait; hidden with none (and on the pending page,
-  which is the review). It opens the right drawer (PendingCartDrawer). When a page stages something (`announceCartAdded`), the
-  button pulses once (not with reduced motion) and a toast says "Added to pending changes". The count is announced politely.
+  PendingCart: the pending changes of an app (docs/adr/0054-pending-cart.md) and the work behind them. The button is in the top bar
+  (PendingCartButton, next to the account menu): this component only feeds it (`cartButton`: count, pulse, open state) and clears it
+  when the app is left. Hidden with none (and on the pending page, which is the review). It opens the right drawer (PendingCartDrawer).
+  When a page stages something (`announceCartAdded`), the button pulses once (not with reduced motion) and a toast says "Added to pending changes".
+  The count is announced politely.
   Nothing is sent without the drawer's confirm; publish and discard go through the server's per item routes, one request per record.
   Props: api, workspaceId, groupId (the app in the address), members (its records), platform (the page scope), hidden.
 -->
@@ -10,6 +11,7 @@
   import { onMount, untrack } from 'svelte';
   import { type Api, ApiError } from '../../lib/api.ts';
   import type { PlatformScope } from '../../lib/app-scope.ts';
+  import { cartButton, resetCartButton } from '../../lib/cart-button.svelte.ts';
   import { t } from '../../lib/i18n/t.ts';
   import {
     CART_ADDED_EVENT,
@@ -31,7 +33,6 @@
   import { toast } from '../../lib/toast.svelte.ts';
   import { classifyPriceFailure } from '../../lib/prices.ts';
   import type { AppSummary, PriceDryRunItem } from '../../lib/types.ts';
-  import Icon from '../ui/Icon.svelte';
   import PendingCartDrawer from './PendingCartDrawer.svelte';
 
   let {
@@ -54,7 +55,6 @@
   let loading = $state(false);
   let error = $state('');
   let open = $state(false);
-  let pulse = $state(false);
   let focusLocale = $state<string | null>(null);
   let busy = $state(false);
   let running = $state<ReadonlySet<string>>(new Set());
@@ -118,18 +118,28 @@
     });
   });
 
-  // The button says where the toast is not: while it shows, the toasts stand above it.
+  // The top bar button reads these; leaving the app (or the page that hides it) takes it away.
   $effect(() => {
-    document.documentElement.style.setProperty('--cart-clearance', visible ? '4.5rem' : '0px');
-    return () => document.documentElement.style.removeProperty('--cart-clearance');
+    cartButton.visible = visible;
+    cartButton.count = count;
+  });
+  $effect(() => {
+    cartButton.expanded = open;
+  });
+  $effect(() => {
+    cartButton.press = () => {
+      focusLocale = null;
+      open = true;
+    };
+    return resetCartButton;
   });
 
   onMount(() => {
     const onAdded = () => {
       void refresh().then(() => {
-        pulse = false;
-        requestAnimationFrame(() => (pulse = true));
-        setTimeout(() => (pulse = false), 900);
+        cartButton.pulse = false;
+        requestAnimationFrame(() => (cartButton.pulse = true));
+        setTimeout(() => (cartButton.pulse = false), 900);
         const at = Date.now();
         if (at - lastToast > 2500 && !open) {
           lastToast = at;
@@ -237,26 +247,6 @@
 
 <div class="live visually-hidden" role="status" aria-live="polite">{announce}</div>
 
-{#if visible}
-  <button
-    type="button"
-    class="cart-fab"
-    class:pulse
-    aria-haspopup="dialog"
-    aria-expanded={open}
-    aria-label={t('app:cart.openAria', { count })}
-    data-testid="pending-cart-button"
-    onclick={() => {
-      focusLocale = null;
-      open = true;
-    }}
-  >
-    <Icon name="upload" size={18} />
-    <span class="label">{t('app:cart.fabLabel')}</span>
-    <span class="count" aria-hidden="true">{count}</span>
-  </button>
-{/if}
-
 <PendingCartDrawer
   bind:open
   {rows}
@@ -277,116 +267,3 @@
   onrefresh={refresh}
   ondismiss={() => (report = null)}
 />
-
-<style>
-  /*
-    Every rule is written as `button.cart-fab...`: the global `button:hover:not(:disabled)` (app.css) has the specificity of
-    (0,2,1) and a plain scoped `.cart-fab` rule loses to it, which painted the hovered button with --surface-hover (white) under
-    the white label: only the count chip stayed visible. Same trap as FilterChip. Colours of the label and the icon are
-    --accent-ink on the gradient in EVERY state (a tested pair), and no state may use a surface background.
-  */
-  button.cart-fab {
-    position: fixed;
-    right: var(--space-4);
-    bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
-    z-index: var(--z-overlay);
-    display: inline-flex;
-    gap: var(--space-2);
-    align-items: center;
-    min-height: var(--control-lg);
-    padding: 0 var(--space-4);
-    font: inherit;
-    font-weight: 600;
-    color: var(--accent-ink);
-    cursor: pointer;
-    background: linear-gradient(135deg, var(--primary-from), var(--primary-to));
-    border: 0;
-    border-radius: var(--radius-full);
-    box-shadow: var(--shadow-lg);
-    transition:
-      transform var(--duration-fast) var(--ease),
-      filter var(--duration-fast) var(--ease),
-      box-shadow var(--duration-fast) var(--ease);
-  }
-
-  /* A sticky save bar sits at the bottom of the page: stay above it instead of covering its buttons. */
-  :global(body:has(.savebar)) button.cart-fab {
-    bottom: calc(var(--space-4) + 4.5rem + env(safe-area-inset-bottom, 0px));
-  }
-
-  /* Hover: the same gradient a little brighter and lifted; colour, icon and label do not change. */
-  button.cart-fab:hover:not(:disabled) {
-    color: var(--accent-ink);
-    background: linear-gradient(135deg, var(--primary-from), var(--primary-to));
-    filter: brightness(1.08);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-lg);
-  }
-
-  button.cart-fab:focus-visible {
-    outline: var(--ring);
-    outline-offset: 3px;
-    box-shadow: var(--shadow-lg), var(--halo);
-  }
-
-  /* Pressed (and open: the drawer it controls is showing): pushed back down, a touch darker. */
-  button.cart-fab:active:not(:disabled),
-  button.cart-fab[aria-expanded='true'] {
-    color: var(--accent-ink);
-    background: linear-gradient(135deg, var(--primary-from), var(--primary-to));
-    filter: brightness(0.94);
-    transform: translateY(0);
-    box-shadow: var(--shadow-md);
-  }
-
-  button.cart-fab:disabled {
-    color: var(--accent-ink);
-    cursor: not-allowed;
-    filter: saturate(0.5);
-    opacity: 0.6;
-    box-shadow: var(--shadow-sm);
-  }
-
-  .count {
-    display: inline-grid;
-    min-width: 1.5rem;
-    height: 1.5rem;
-    padding: 0 var(--space-1);
-    place-items: center;
-    font-size: var(--text-sm);
-    font-variant-numeric: tabular-nums;
-    color: var(--ink);
-    background: var(--surface);
-    border-radius: var(--radius-full);
-  }
-
-  button.cart-fab.pulse {
-    animation: cart-pulse 700ms var(--ease);
-  }
-
-  @keyframes cart-pulse {
-    40% {
-      transform: scale(1.12);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    button.cart-fab {
-      transition: none;
-    }
-
-    button.cart-fab:hover:not(:disabled) {
-      transform: none;
-    }
-
-    button.cart-fab.pulse {
-      animation: none;
-    }
-  }
-
-  @media (max-width: 480px) {
-    .label {
-      display: none;
-    }
-  }
-</style>

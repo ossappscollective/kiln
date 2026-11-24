@@ -34,6 +34,7 @@
   import { views } from '../lib/views.ts';
   import AppNav from './app/AppNav.svelte';
   import AlertBell from './alerts/AlertBell.svelte';
+  import PendingCartButton from './app/PendingCartButton.svelte';
   import AppSwitcher from './app/AppSwitcher.svelte';
   import Button from './ui/Button.svelte';
   import EmptyState from './ui/EmptyState.svelte';
@@ -549,6 +550,8 @@
       {#if workspace && can(workspace.role, 'alerts.read')}
         <AlertBell {api} {workspaceId} />
       {/if}
+
+      <PendingCartButton />
 
       <div class="user" bind:this={userEl} onfocusout={onUserFocusOut}>
         <button

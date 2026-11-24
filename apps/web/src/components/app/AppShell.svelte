@@ -3,7 +3,7 @@
   left panel is AppNav, drawn by the shell). The header is the name of the page and the app, the platform control (only for an app
   on several platforms, and not on the settings page), the version and locale pickers on the pages they apply to (Releases and Store
   listing, AppHeaderRow) and a small Status button (StatusPopover) that holds the store chips, the bundle ids, the last sync and
-  what each source last read. The page's Sync (SyncButton, split: this page's sources, or more from its menu) sits beside it. While the app has changes waiting, a floating button at the bottom right shows how many and opens the pending cart (PendingCart).
+  what each source last read. The page's Sync (SyncButton, split: this page's sources, or more from its menu) sits beside it. While the app has changes waiting, a button in the top bar (next to the account menu) shows how many and opens the pending cart (PendingCart, PendingCartButton).
   The records of the two stores that are one product are shown as one app (lib/app-groups.ts).
   Props: api, workspaceId, role, id (an id of one of its platform records, from the address).
   The page, its view (`?view=`: Store listing text or graphics, Insights analytics or ASO, Builds builds, workflows or test builds),
@@ -107,7 +107,7 @@
   const elsewhereLine = $derived(lineOf(elsewhere));
   const bar = $derived(pendingBar(pendingLine, section) ?? pendingBar(elsewhereLine, section, elsewhere.map((m) => platformLabel(m.platform)).join(' and ')));
   const barHref = $derived(appAddress(id, 'pending', pendingBar(pendingLine, section) !== null || elsewhere.length === 0 ? address.platform : (elsewhere[0] as AppSummary).platform));
-  /** On the Overview the pending changes are a link in the Next step card. The floating cart button (PendingCart) shows what waits on every page. */
+  /** On the Overview the pending changes are a link in the Next step card. The top bar cart button (PendingCartButton) shows what waits on every page. */
   const placed = $derived(pendingPlacement(bar, section));
   const pendingLink = $derived(placed.link !== null ? { text: placed.link, href: barHref } : null);
   const scopeShown = $derived(showsScope(section, members.length));

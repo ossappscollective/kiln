@@ -32,7 +32,7 @@ only linked to the publish page and knew nothing about replies.
    (`changed_since_review`), a gone one is skipped (`not_pending`), so repeating a request is safe.
 6. **One failure never blocks the others.** The answer is 200 with `ok | failed | skipped` and a reason code per item.
    `POST .../pending/discard` removes Kiln's draft only (`unstage`, `deleteReplyDraft`; no store is contacted), per kind rights.
-7. **Web.** A floating button (bottom right) with the count opens the shared right drawer: groups per kind, a checkbox per row
+7. **Web.** A compact button in the top bar (next to the account menu; it was a floating button at the bottom right until it covered primary buttons such as the wizard's Next) with the count opens the shared right drawer: groups per kind, a checkbox per row
    (bundle rows move together), select all/none, "Publish N selected" with a confirm that states the count and the stores, "Discard
    selected", per item progress and reasons afterwards. It replaces `PendingBar`; pure logic is in `lib/pending-cart.ts`. A page that
    stages something calls `announceCartAdded()`: the button pulses once (not with reduced motion) and a toast says so.
