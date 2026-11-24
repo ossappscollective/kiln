@@ -482,10 +482,14 @@ new flags; whether Google Play "changes not sent for review" works for the conne
 ## App tint and the reviews inbox app filter (2026-11-24, [ADR 0068](adr/0068-app-tint.md))
 
 - **App tint.** An app's pages (header, the app card and "This app" group of the left panel, page glow, primary controls, chips) take the accent of the app icon, derived so
-  text always keeps WCAG contrast in both themes (see [design-system](design-system.md) "App tint"). Never on the top bar, breadcrumbs, workspace group, portfolio, workspace
+  text always keeps WCAG contrast in both themes (see [design-system](design-system.md) "App tint"). Never on the top bar (except its Pending button), breadcrumbs, workspace group, portfolio, workspace
   Settings, dialogs or drawers. Opt-out: account menu, "Tint the interface with the app's colours" (default on), and per app Settings, Display group, **Appearance**
   (`?section=appearance`): Auto (icon colours), Off for this app, Custom colour with a live preview and the derived tokens with their contrast. Admins (`apps.write`) change the
   per app choice; everyone can switch the tint off for themselves.
+- **Tint, where else.** The "This app" entries (icons, hover, start rule) and their count badges (plain counts tinted, a blocked pending change stays warning) wear the app tint; the
+  workspace group does not. The **Pending** button of the top bar is tinted (the one exception; the bar is not). In the app switcher each row wears its own app's colours and the open app
+  has a check. Charts of the app's pages (Insights, ratings, timeline, sparklines) draw in the app's colours, with the grid, axes and semantic series unchanged.
+- **Store listing, Locales table.** A locale's "N staged" chip sits in the locale cell, beside the name (below it when narrow), and the Stores column keeps its width: the chip never covers the store icons.
 - **Reviews inbox, rows.** Each row wears its app's tint (start edge, icon ring, app name in the accent ink) so the app is clear at a glance; with the personal switch off rows are
   neutral and keep the app icon chip.
 - **Reviews inbox, app filter.** The toolbar has an **Apps** combobox (next to search, no longer a checklist inside Filters): type to search by app name or bundle id, arrows and

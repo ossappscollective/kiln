@@ -142,6 +142,25 @@ app Settings, Appearance).
   fails on a selector outside `[data-app-tint`, on a colour literal, on a re-mapped status or surface token, and on a re-mapped token a dialog would not get back.
 - **Do.** Read the accent tokens as usual; they are tinted for you inside an app. **Don't** write a hex into the tint files, re-map a status colour, or add a tint selector outside
   `tint.css`.
+- **Switcher rows.** The app switcher lists (left panel field and Cmd or Ctrl + K) sit inside the open app's scope, so each row is its own scope: `data-app-tint` plus the style
+  of the row's own app (`lib/tint/switcher.ts` `rowTintStyle`, from the palette cache). Its pending chip and highlight follow that app, and the open app has a start edge in its tint; the app icon itself is plain (`AppIcon neutral`: its own rounded square, a 1px neutral border, no ring, circle or coloured fallback tile); an app whose palette is not
+  known yet is neutral. The popup container is `data-tint-reset`, and the reset also clears the `--app-*` tokens (`initial`), so `var(--app-accent, transparent)` falls back
+  there instead of showing the open app's colour. The open app is marked by a check and an underline, never by being the one tinted name. Palettes of rows on screen are read
+  lazily (`tint.warm`, two at a time, each icon once; only colour changes, nothing moves).
+- **The pending button (deliberate exception).** The top bar stays neutral. `PendingCartButton` belongs to the app, so it carries `data-app-tint` itself (not the bar): its
+  gradient (`--primary-from/to` = accent solid), label (`--accent-ink` = on-accent) and count badge (`--app-accent-ink` on the surface) take the tint. No tint, opt-out or
+  forced colours: the default accent.
+- **"This app" menu.** Every entry of the group (and the rail icons) is tinted: icon `--app-accent-ink`, hover `--app-tint-subtle`, labels keep the muted or ink colour (tested on
+  the tint layers), the current entry keeps its bar and wash, and a thin start rule (`--app-tint-strong`, an inset shadow, no layout change) binds the group. The workspace
+  group stays neutral. No tint: unchanged.
+- **Count badges.** `navBadgeTone` (`lib/nav-badges.ts`): tone `count` (Releases, Store listing, Reviews, Insights, Builds: plain numbers) is tinted (`.badge.accent`, which reads the
+  re-mapped chip tokens); tone `warning` or `danger` is a problem (today a pending change blocked by an error) and keeps its semantic colour. A new badge is `count` unless its number
+  means a failure.
+- **Charts.** Inside an app every chart reads `--viz-1`, `--viz-2`, `--viz-mid`, `--viz-end` (and `--app-viz-3 .. 8` for more series), which `tint.css` maps to the tint's chart
+  tokens, computed by ONE helper, `lib/tint/chart-palette.ts` (`chartPalette(n, scheme, base)`, N = 1..8): series 1 is the app accent; series 2 the icon's secondary colour when its hue is
+  distinct; the rest tonal steps and hue shifts picked by farthest point in OKLab (`MIN_DISTANCE` 0.07), each at 3:1 on every theme surface. Monochrome, opt-out, or an unusable colour
+  keep the default palette unchanged. Grid, axis, hatch and wash stay neutral; semantic series (success, danger, deltas, rating stars, store brand colours) never use these tokens;
+  existing cues (legend names, dashes in forced colours, dots) stay. Charts outside an app (workspace dashboards, portfolio) are outside the scope and unchanged.
 
 ## Type, space, shape, motion, layers
 
