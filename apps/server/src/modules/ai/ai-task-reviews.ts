@@ -193,7 +193,7 @@ export const reviewSummaryTask: ReadyTask = {
     const outputLanguage = typeof scope.outputLanguage === 'string' && scope.outputLanguage in OUTPUT_LANGUAGES ? scope.outputLanguage : 'en';
     const policy = ctx.reviewPolicy ?? DEFAULT_SEND_POLICY;
     const ratingsOnly = policy.detail === 'ratings';
-    // Ratings only: no review is read for the prompt at all; the summary is made from the counts (docs/adr/0064).
+    // Ratings only: no review is read for the prompt at all; the summary is made from the counts (docs/adr/0065).
     const now = ctx.now();
     const loaded: LoadedReviews = ratingsOnly
       ? { window: { days, from: now - days * 86_400_000, to: now }, inPeriod: 0, reviews: [], sampled: { newest: 0, lowest: 0 } }

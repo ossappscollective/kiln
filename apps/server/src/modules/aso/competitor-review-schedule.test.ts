@@ -13,7 +13,7 @@ import {
 import { type AsoBoot, bootAso, publicApp } from './test-helpers.ts';
 
 /**
- * Scheduled reads of competitor reviews (docs/adr/0064): due and not due, skip when nothing is new, the guards, jitter, backoff and the
+ * Scheduled reads of competitor reviews (docs/adr/0065): due and not due, skip when nothing is new, the guards, jitter, backoff and the
  * failure alert event, pause, Play refused, rights and the workspace boundary. The clock and Apple's feed are fakes: nothing leaves the process.
  */
 

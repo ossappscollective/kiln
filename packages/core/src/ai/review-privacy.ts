@@ -1,4 +1,4 @@
-// What reviews may be sent to an AI provider, per app (docs/adr/0064-ai-review-privacy-and-competitor-schedule.md). Pure; ES2017 (the web imports it).
+// What reviews may be sent to an AI provider, per app (docs/adr/0065-ai-review-privacy-and-competitor-schedule.md). Pure; ES2017 (the web imports it).
 // The server applies it at the one place that builds an AI payload; the web only shows the result. Written for Kiln.
 
 export const reviewAiDetails = ['full', 'text', 'ratings'] as const;

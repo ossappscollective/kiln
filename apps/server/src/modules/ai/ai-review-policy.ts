@@ -16,7 +16,7 @@ import { listReviews } from '../reviews/service.ts';
 import { type AiActor, type AiFailure, aiFail, readAiConfig } from './ai-config.ts';
 
 /**
- * What reviews of an app may be sent to the AI provider (docs/adr/0064-ai-review-privacy-and-competitor-schedule.md).
+ * What reviews of an app may be sent to the AI provider (docs/adr/0065-ai-review-privacy-and-competitor-schedule.md).
  *
  * The workspace setting is the CEILING (`ai.reviewsToAi`, `ai.competitorReviewsToAi`): an app can only narrow it. The app's own row
  * (`ai_app_review_policy`, migration 67) holds the choice (on, off or follow the workspace), what is sent (full, text, ratings) and

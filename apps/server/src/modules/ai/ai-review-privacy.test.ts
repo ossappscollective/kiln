@@ -4,7 +4,7 @@ import { seedWorkspace } from '../../testkit.ts';
 import { type AiBoot, bootAi } from './test-helpers.ts';
 
 /**
- * The per-app choice of what reviews may go to the AI provider (docs/adr/0064): the workspace ceiling, the app's choice, what is sent,
+ * The per-app choice of what reviews may go to the AI provider (docs/adr/0065): the workspace ceiling, the app's choice, what is sent,
  * redaction, the refusal of the endpoint, the audit trail, the preview, deleting summaries and the workspace boundary. The model is a fake.
  */
 

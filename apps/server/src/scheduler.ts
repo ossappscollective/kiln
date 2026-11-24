@@ -195,7 +195,7 @@ export type TickSummary = {
   aso?: AsoQueueSummary;
   /** What the ASO upkeep deleted; set only in a tick where it ran. */
   asoUpkeep?: AsoUpkeepSummary;
-  /** What the scheduled reads of competitor reviews queued (docs/adr/0064); absent when they are not wired. */
+  /** What the scheduled reads of competitor reviews queued (docs/adr/0065); absent when they are not wired. */
   competitorReviews?: CompetitorReviewsQueueSummary;
   /** What the scheduled analytics syncs queued; absent when they are off. */
   analytics?: AnalyticsQueueSummary;

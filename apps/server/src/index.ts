@@ -307,7 +307,7 @@ const worker = createWorker({
       sources: asoSources,
       limits: asoLimits,
     }),
-    // Scheduled reads of the public reviews of followed App Store competitors (off per app until a schedule is set; docs/adr/0064).
+    // Scheduled reads of the public reviews of followed App Store competitors (off per app until a schedule is set; docs/adr/0065).
     [COMPETITOR_REVIEWS_QUEUE]: createCompetitorReviewsHandler({ db: database, now: Date.now, sources: asoSources }),
     // Scheduled and background analytics syncs (read-only toward the stores; docs/api/analytics.md).
     [ANALYTICS_SYNC_QUEUE]: createAnalyticsSyncHandler({

@@ -1,4 +1,4 @@
-// When the public reviews of a followed App Store competitor are read on a schedule (docs/adr/0064-ai-review-privacy-and-competitor-schedule.md).
+// When the public reviews of a followed App Store competitor are read on a schedule (docs/adr/0065-ai-review-privacy-and-competitor-schedule.md).
 // Pure and clockless (callers pass `at`); ES2017 (the web imports it). Written for Kiln.
 
 export const reviewScheduleModes = ['off', 'daily', 'weekly'] as const;

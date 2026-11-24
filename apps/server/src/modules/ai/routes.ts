@@ -99,7 +99,7 @@ export const appContextBody = z
   })
   .strict();
 
-/** What reviews of an app may go to the AI provider (docs/adr/0064). A field left out keeps its value; null follows the workspace. */
+/** What reviews of an app may go to the AI provider (docs/adr/0065). A field left out keeps its value; null follows the workspace. */
 export const reviewPolicyBody = z
   .object({
     ownReviews: z.enum(['on', 'off']).nullable().optional(),
@@ -339,7 +339,7 @@ export function aiRoutes(ctx: AiRoutesContext) {
     return c.json({ ...done.stored, canEdit: true });
   });
 
-  // ----- what reviews of an app may be sent to the provider (docs/adr/0064) ------------------------------
+  // ----- what reviews of an app may be sent to the provider (docs/adr/0065) ------------------------------
   const policyView = async (c: Context<AppEnv>, appId: string) => {
     const policy = await getAppReviewPolicy(db, ws(c), appId);
     return {

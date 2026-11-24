@@ -19,7 +19,7 @@ import type { AsoSources } from './net.ts';
 import { asoErrorCode } from './service.ts';
 
 /**
- * Scheduled reads of the public reviews of followed App Store competitors (docs/adr/0064-ai-review-privacy-and-competitor-schedule.md).
+ * Scheduled reads of the public reviews of followed App Store competitors (docs/adr/0065-ai-review-privacy-and-competitor-schedule.md).
  *
  * No new loop: the scheduler tick calls `queueCompetitorReviewReads`, which only queues one `aso.competitor_reviews` job per app that has
  * something due; the worker runs it through the same `refreshCompetitorReviews` as the Read button, with the same SSRF-safe fetch, the Apple

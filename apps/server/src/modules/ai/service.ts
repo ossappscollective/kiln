@@ -361,7 +361,7 @@ async function buildRun(ctx: AiServices, input: RunInput): Promise<Built | AiFai
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return aiFail(404, 'not_found', 'There is no such app.', coded('notFound.app'));
   const context = (await getAppContext(ctx.db, input.workspaceId, app.id)).context;
-  // The one gate for what reviews may leave the server (docs/adr/0064): the workspace ceiling and the app's own choice, before any
+  // The one gate for what reviews may leave the server (docs/adr/0065): the workspace ceiling and the app's own choice, before any
   // review is read for a prompt. The client never decides this, and a stored summary is not returned either while it is off.
   const reviewPolicy = await getAppReviewPolicy(ctx.db, input.workspaceId, app.id);
   const gate = gateReviewTask(reviewPolicy.effective, task.id);

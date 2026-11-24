@@ -189,7 +189,7 @@ export type AiConfigValues = {
   priceOutputCentsPerMTok: number;
   /** The most the estimated cost of a UTC month may reach, in whole cents. 0: no cost cap. Needs a price to mean anything. */
   monthlyCostCapCents: number;
-  /** The ceiling for what reviews may be sent to the provider: your own, and followed competitors'. An app can only narrow it (docs/adr/0064). */
+  /** The ceiling for what reviews may be sent to the provider: your own, and followed competitors'. An app can only narrow it (docs/adr/0065). */
   reviewsToAi: boolean;
   competitorReviewsToAi: boolean;
 };

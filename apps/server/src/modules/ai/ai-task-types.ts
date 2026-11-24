@@ -26,7 +26,7 @@ export type TaskContext = {
   app: ManagedApp;
   /** What the person told the assistant about this app (docs/adr/0024-ai-features.md). Empty when nothing was written. */
   context: AiAppContext;
-  /** What may leave the server about reviews of this app (docs/adr/0064). Absent: text only, redacted. */
+  /** What may leave the server about reviews of this app (docs/adr/0065). Absent: text only, redacted. */
   reviewPolicy?: ReviewSendPolicy;
 };
 

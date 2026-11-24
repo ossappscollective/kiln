@@ -623,7 +623,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     },
   );
 
-  // ----- the schedule of the reads of competitor reviews (docs/adr/0064): Apple only, off by default ------------------
+  // ----- the schedule of the reads of competitor reviews (docs/adr/0065): Apple only, off by default ------------------
   const scheduleBody = z
     .object({
       mode: z.enum(['off', 'daily', 'weekly']).optional(),

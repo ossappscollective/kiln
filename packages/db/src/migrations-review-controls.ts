@@ -3,7 +3,7 @@ import type { Migration } from './migrations.ts';
 
 /**
  * Migration 67: the per-app choice of what reviews may be sent to an AI provider, and 68: the schedule of the reads of competitor reviews
- * (docs/adr/0064-ai-review-privacy-and-competitor-schedule.md). Never edit a migration that has shipped; add a new one.
+ * (docs/adr/0065-ai-review-privacy-and-competitor-schedule.md). Never edit a migration that has shipped; add a new one.
  */
 
 const epoch = (dialect: Dialect) => (dialect === 'postgres' ? 'BIGINT' : 'INTEGER');
