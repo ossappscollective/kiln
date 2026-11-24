@@ -1,0 +1,86 @@
+name: Build the Kiln image
+description: >-
+  Builds the repository Dockerfile for linux/amd64 and linux/arm64 (QEMU). Release mode pushes
+  to GHCR with version tags, OCI labels, an SBOM and provenance. Build-only mode pushes nothing
+  and exports an OCI tar (kiln-image-oci.tar) in the workspace. The caller checks the code out
+  first (a local action cannot check itself out) and sets the job permissions.
+
+inputs:
+  release:
+    description: '"true" to push, anything else to export a tar only.'
+    required: true
+  version:
+    description: Version without the leading v, for example 1.2.3 or 1.2.3-rc.1.
+    required: true
+  major-minor:
+    description: X.Y of the version (tagged only for stable releases).
+    required: true
+  prerelease:
+    description: '"true" for a pre-release: no X.Y tag and no latest tag.'
+    required: true
+  sha:
+    description: Full commit SHA that was built.
+    required: true
+  short-sha:
+    description: Short commit SHA for the sha-<short> tag.
+    required: true
+  image:
+    description: Image name, lower case.
+    default: ghcr.io/ossappscollective/kiln
+  token:
+    description: Token for ghcr.io (release mode only).
+    default: ''
+
+outputs:
+  digest:
+    description: Digest of the pushed image index (release mode only).
+    value: ${{ steps.build.outputs.digest }}
+
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-qemu-action@v3 # major tag; Dependabot proposes updates
+      with:
+        platforms: arm64
+    - uses: docker/setup-buildx-action@v3
+    - name: Log in to GHCR
+      if: inputs.release == 'true'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ inputs.token }}
+    - name: Tags and labels
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ inputs.image }}
+        flavor: latest=false
+        tags: |
+          type=raw,value=${{ inputs.version }}
+          type=raw,value=${{ inputs.major-minor }},enable=${{ inputs.prerelease != 'true' }}
+          type=raw,value=latest,enable=${{ inputs.prerelease != 'true' }}
+          type=raw,value=sha-${{ inputs.short-sha }}
+        labels: |
+          org.opencontainers.image.title=Kiln
+          org.opencontainers.image.description=Self-hostable manager for iOS and Android app releases, store listings and ASO.
+          org.opencontainers.image.licenses=Apache-2.0
+          org.opencontainers.image.source=https://github.com/ossappscollective/kiln
+          org.opencontainers.image.url=https://github.com/ossappscollective/kiln
+          org.opencontainers.image.documentation=https://github.com/ossappscollective/kiln/blob/main/docs/deployment.md
+          org.opencontainers.image.version=${{ inputs.version }}
+          org.opencontainers.image.revision=${{ inputs.sha }}
+    - name: Build
+      id: build
+      uses: docker/build-push-action@v6
+      with:
+        # An explicit path: the default is the Git URL of the repository, which would ignore the
+        # checked-out files (including a version set for a test build).
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: ${{ inputs.release == 'true' }}
+        outputs: ${{ inputs.release != 'true' && 'type=oci,dest=kiln-image-oci.tar' || '' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        provenance: ${{ inputs.release == 'true' && 'mode=max' || 'false' }}
+        sbom: ${{ inputs.release == 'true' }}

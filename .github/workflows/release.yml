@@ -1,0 +1,523 @@
+# Release workflow. How to use it: docs/releasing.md.
+#
+#   push of a tag vX.Y.Z[-pre]   full release: desktop installers for every platform, a multi-arch
+#                                Docker image pushed to GHCR, a DRAFT GitHub Release (publish it
+#                                by hand after review).
+#   Run workflow (manual)        build-only by default: builds everything and uploads Actions
+#                                artifacts (7 days). No GitHub Release, no Docker push, no tags.
+#
+# Actions are pinned to major version tags (not commit SHAs); Dependabot keeps them current.
+name: Release
+
+run-name: Release ${{ github.ref_name }} (${{ inputs.mode || 'release' }})
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'build-only: build and upload Actions artifacts, publish nothing. release: draft GitHub Release + Docker push (needs a v* tag).'
+        type: choice
+        options: [build-only, release]
+        default: build-only
+      ref:
+        description: 'Branch, tag or commit to build. Empty: the ref chosen under "Use workflow from". Release mode needs a vX.Y.Z tag.'
+        type: string
+        required: false
+      version:
+        description: 'Build-only test builds: pretend the version is this (for example 1.2.3-rc.1) without committing it. Ignored in release mode.'
+        type: string
+        required: false
+      docker:
+        description: Build the Docker image (pushed only in release mode)
+        type: boolean
+        default: true
+      platforms:
+        description: 'Desktop platforms, comma separated: macos-arm64, macos-x64, windows-x64, windows-arm64, linux-x64, linux-arm64. Empty or "all": every platform except windows-arm64. "none": no desktop builds.'
+        type: string
+        default: all
+
+permissions:
+  contents: read
+
+# One run per ref. Never cancel a release in progress; a newer manual build-only run replaces an
+# older one on the same ref.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'build-only' }}
+
+env:
+  IMAGE: ghcr.io/ossappscollective/kiln
+
+jobs:
+  # ---------------------------------------------------------------------------------------------
+  # What to do, and whether the version is right. Fails fast, before any expensive job.
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      mode: ${{ steps.plan.outputs.mode }}
+      desktop: ${{ steps.plan.outputs.desktop }}
+      docker: ${{ steps.plan.outputs.docker }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      version_override: ${{ steps.plan.outputs.version_override }}
+      version: ${{ steps.version.outputs.version }}
+      major_minor: ${{ steps.version.outputs.major_minor }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      tag: ${{ steps.version.outputs.tag }}
+      sha: ${{ steps.sha.outputs.sha }}
+      short_sha: ${{ steps.sha.outputs.short_sha }}
+    steps:
+      # The workflow's own commit first, for the planning script. The code to build is checked
+      # out below, from the ref the plan validated.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Plan
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REF_TYPE: ${{ github.ref_type }}
+          INPUT_MODE: ${{ inputs.mode }}
+          INPUT_REF: ${{ inputs.ref }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_DOCKER: ${{ inputs.docker }}
+          INPUT_PLATFORMS: ${{ inputs.platforms }}
+        run: node scripts/release/plan.mjs
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.plan.outputs.checkout_ref }}
+          persist-credentials: false
+      - name: Check the version
+        id: version
+        env:
+          RELEASE: ${{ steps.plan.outputs.release }}
+          CHECKOUT_REF: ${{ steps.plan.outputs.checkout_ref }}
+          VERSION_OVERRIDE: ${{ steps.plan.outputs.version_override }}
+        run: |
+          set -euo pipefail
+          if [ -n "$VERSION_OVERRIDE" ]; then
+            node scripts/check-version.mjs --set "$VERSION_OVERRIDE"
+          fi
+          if [ "$RELEASE" = true ]; then
+            # Fails unless the ref is a vX.Y.Z tag and every version file equals it.
+            node scripts/check-version.mjs --ref "$CHECKOUT_REF" --github-output
+          else
+            node scripts/check-version.mjs --github-output
+          fi
+      - name: Commit
+        id: sha
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${sha:0:7}" >> "$GITHUB_OUTPUT"
+      - name: Refuse to touch a published release
+        if: steps.plan.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          published="$(gh api --paginate "repos/${GH_REPO}/releases" --jq '.[] | select(.tag_name == env.TAG and (.draft | not)) | .id')"
+          if [ -n "$published" ]; then
+            echo "::error::A published release for ${TAG} already exists. Use a new version."
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------------------------
+  desktop:
+    name: Desktop ${{ matrix.key }}
+    needs: plan
+    if: needs.plan.outputs.desktop == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Never set to anything that makes the Tauri CLI wait for input.
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+      - name: Set the test version
+        if: needs.plan.outputs.version_override != ''
+        env:
+          VERSION_OVERRIDE: ${{ needs.plan.outputs.version_override }}
+        run: node scripts/check-version.mjs --set "$VERSION_OVERRIDE"
+      - uses: pnpm/action-setup@v4 # version comes from "packageManager" in package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc # an official Node build: the sidecar ships this binary
+          cache: pnpm
+      - name: Linux packages (Tauri)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential curl wget file patchelf \
+            libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+          key: ${{ matrix.key }}
+      - run: pnpm install --frozen-lockfile
+      - name: Build the web UI
+        run: pnpm build
+      - name: Stage the server sidecar and smoke-test it
+        # Official Node of this runner's architecture is the target's Node, so no --node is needed.
+        env:
+          TARGET: ${{ matrix.target }}
+        run: node apps/desktop/scripts/prepare-sidecar.mjs --smoke --target "$TARGET"
+      - name: Import the Windows code-signing certificate (only when the secrets exist)
+        id: wincert
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE -or -not $env:WINDOWS_CERTIFICATE_PASSWORD) {
+            "thumbprint=" >> $env:GITHUB_OUTPUT
+            Write-Host "No Windows certificate: the installer will be unsigned."
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP 'kiln-cert.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx
+          "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
+      - name: Build the desktop app
+        id: build
+        env:
+          TARGET: ${{ matrix.target }}
+          BUNDLES: ${{ matrix.bundles }}
+          PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+          APPIMAGE_EXTRACT_AND_RUN: '1' # no FUSE on runners
+          KILN_WINDOWS_THUMBPRINT: ${{ steps.wincert.outputs.thumbprint }}
+          # Present only in this step. Unset again by signing-env.sh unless a complete set exists.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          . scripts/release/signing-env.sh
+          bundles="$BUNDLES"
+          if [ "$PRERELEASE" = true ]; then
+            # MSI (WiX) accepts only numeric pre-release identifiers, so a pre-release gets the NSIS installer only.
+            bundles="$(printf '%s' "$bundles" | sed -E 's/(^|,)msi//; s/^,//')"
+          fi
+          args=(build --target "$TARGET" --bundles "$bundles")
+          if [ -n "${KILN_WINDOWS_THUMBPRINT:-}" ]; then
+            args+=(--config "{\"bundle\":{\"windows\":{\"certificateThumbprint\":\"${KILN_WINDOWS_THUMBPRINT}\",\"digestAlgorithm\":\"sha256\",\"timestampUrl\":\"http://timestamp.digicert.com\"}}}")
+          fi
+          pnpm --filter @kiln/desktop exec tauri "${args[@]}"
+          {
+            echo "bundles=${bundles}"
+            echo "signing=${KILN_SIGNING_STATE}"
+          } >> "$GITHUB_OUTPUT"
+      - name: Name the installers
+        env:
+          COPYFILE_DISABLE: '1' # no AppleDouble files in the .app.tar.gz
+          TARGET: ${{ matrix.target }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          OS: ${{ matrix.os }}
+          ARCH: ${{ matrix.arch }}
+          KEY: ${{ matrix.key }}
+          BUNDLES: ${{ steps.build.outputs.bundles }}
+          SIGNING: ${{ steps.build.outputs.signing }}
+        run: |
+          set -euo pipefail
+          node scripts/release/collect.mjs \
+            --bundle-dir "apps/desktop/src-tauri/target/${TARGET}/release/bundle" \
+            --version "$VERSION" --os "$OS" --arch "$ARCH" --bundles "$BUNDLES" --out dist
+          mkdir -p meta
+          printf '{"key":"%s","os":"%s","arch":"%s","signing":"%s"}\n' "$KEY" "$OS" "$ARCH" "$SIGNING" > "meta/${KEY}.json"
+          {
+            echo "### Desktop ${KEY}"
+            echo "Signing: **${SIGNING}**"
+            if [ "$SIGNING" = unsigned ] && [ "$OS" != linux ]; then
+              echo "The build is unsigned (no signing secrets): it works, but ${OS} asks for confirmation on first launch."
+            fi
+            echo '```'
+            ls -l dist
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.key }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meta-${{ matrix.key }}
+          path: meta/*.json
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------------------------
+  # Native build and start of the image on each architecture. Gates the Docker push.
+  docker-smoke:
+    name: Docker smoke ${{ matrix.arch }}
+    needs: plan
+    if: needs.plan.outputs.docker == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+      - name: Set the test version
+        if: needs.plan.outputs.version_override != ''
+        env:
+          VERSION_OVERRIDE: ${{ needs.plan.outputs.version_override }}
+        run: node scripts/check-version.mjs --set "$VERSION_OVERRIDE"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          push: false
+          tags: kiln:smoke
+      - name: Start it and check /api/health, migrations, user and web UI
+        env:
+          EXPECTED_VERSION: ${{ needs.plan.outputs.version }}
+        run: scripts/release/docker-smoke.sh kiln:smoke "$EXPECTED_VERSION"
+
+  # Build-only: the same multi-arch build, exported as an OCI tar. Nothing is pushed.
+  docker-oci:
+    name: Docker image (OCI tar)
+    needs: [plan, docker-smoke]
+    if: needs.plan.outputs.docker == 'true' && needs.plan.outputs.release != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+      - name: Set the test version
+        if: needs.plan.outputs.version_override != ''
+        env:
+          VERSION_OVERRIDE: ${{ needs.plan.outputs.version_override }}
+        run: node scripts/check-version.mjs --set "$VERSION_OVERRIDE"
+      - uses: ./.github/actions/docker-build
+        with:
+          release: 'false'
+          version: ${{ needs.plan.outputs.version }}
+          major-minor: ${{ needs.plan.outputs.major_minor }}
+          prerelease: ${{ needs.plan.outputs.prerelease }}
+          sha: ${{ needs.plan.outputs.sha }}
+          short-sha: ${{ needs.plan.outputs.short_sha }}
+          image: ${{ env.IMAGE }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-oci
+          path: kiln-image-oci.tar
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  # Release mode: push to GHCR. Waits for every installer, so a failed desktop build never
+  # leaves a moved `latest` tag behind.
+  docker-publish:
+    name: Docker image (push to GHCR)
+    needs: [plan, docker-smoke, desktop]
+    if: >-
+      ${{ !cancelled() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+      && needs.plan.outputs.release == 'true' && needs.plan.outputs.docker == 'true'
+      && needs.docker-smoke.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io/ossappscollective/kiln
+      id-token: write # attestation signing
+      attestations: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/docker-build
+        id: build
+        with:
+          release: 'true'
+          version: ${{ needs.plan.outputs.version }}
+          major-minor: ${{ needs.plan.outputs.major_minor }}
+          prerelease: ${{ needs.plan.outputs.prerelease }}
+          sha: ${{ needs.plan.outputs.sha }}
+          short-sha: ${{ needs.plan.outputs.short_sha }}
+          image: ${{ env.IMAGE }}
+          token: ${{ github.token }}
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  # ---------------------------------------------------------------------------------------------
+  release:
+    name: Draft GitHub Release
+    needs: [plan, desktop, docker-smoke, docker-publish]
+    if: >-
+      ${{ !cancelled() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+      && needs.plan.outputs.release == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # create the release and upload its files
+      id-token: write # attestation signing
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@v4
+        if: needs.plan.outputs.desktop == 'true'
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: dist
+      - uses: actions/download-artifact@v4
+        if: needs.plan.outputs.desktop == 'true'
+        with:
+          pattern: meta-*
+          merge-multiple: true
+          path: meta
+      - name: Checksums
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(dist/kiln_*)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::No installers to release."
+            exit 1
+          fi
+          mkdir -p meta
+          (cd dist && sha256sum kiln_* > SHA256SUMS && cat SHA256SUMS)
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*
+      - name: Release notes
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+          REPO: ${{ github.repository }}
+          DIGEST: ${{ needs.docker-publish.outputs.digest }}
+        run: |
+          set -euo pipefail
+          args=(--version "$VERSION" --tag "$TAG" --repo "$REPO" --dist dist --meta meta)
+          if [ "$PRERELEASE" = true ]; then args+=(--prerelease); fi
+          if [ -n "$DIGEST" ]; then args+=(--image "$IMAGE" --docker-digest "$DIGEST"); fi
+          node scripts/release/notes.mjs "${args[@]}" > notes.md
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          # A re-run replaces its own earlier draft; a published release is never touched.
+          existing="$(gh api --paginate "repos/${GH_REPO}/releases" --jq '.[] | select(.tag_name == env.TAG) | "\(.id) \(.draft)"')"
+          while read -r id draft; do
+            [ -n "$id" ] || continue
+            if [ "$draft" != true ]; then
+              echo "::error::Release ${TAG} is already published."
+              exit 1
+            fi
+            gh api -X DELETE "repos/${GH_REPO}/releases/${id}"
+          done <<< "$existing"
+          args=(--draft --verify-tag --title "Kiln ${VERSION}" --notes-file notes.md --generate-notes)
+          if [ "$PRERELEASE" = true ]; then args+=(--prerelease); fi
+          gh release create "$TAG" "${args[@]}" dist/*
+          echo "### Draft release ${TAG}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Review it under Releases, then publish it by hand." >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------------------------
+  summary:
+    name: Summary
+    needs: [plan, desktop, docker-smoke, docker-oci, docker-publish, release]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha || github.sha }}
+          persist-credentials: false
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@v4
+        continue-on-error: true # nothing to download when no desktop build ran
+        with:
+          pattern: '{desktop,meta}-*'
+          path: artifacts
+      - name: Write the summary
+        env:
+          MODE: ${{ needs.plan.outputs.mode }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          RESULTS: ${{ toJSON(needs) }}
+          DOCKER_DIGEST: ${{ needs.docker-publish.outputs.digest }}
+          ARTIFACTS_DIR: artifacts
+        run: |
+          set -euo pipefail
+          # needs -> { job: result }
+          RESULTS="$(node -e 'const n = JSON.parse(process.env.RESULTS); console.log(JSON.stringify(Object.fromEntries(Object.entries(n).map(([k, v]) => [k, v.result]))))')"
+          export RESULTS
+          node scripts/release/summary.mjs >> "$GITHUB_STEP_SUMMARY"
