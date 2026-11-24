@@ -38,7 +38,7 @@ export const reviewControlMigrations: Migration[] = [
       const t = epoch(dialect);
       // competitor_review_schedules: one row per app (mode off, daily or weekly; weekday 0 to 6; timezone an IANA name or NULL for UTC;
       // paused 0 or 1; max_competitors and max_reviews are the cost guards). The columns of aso_competitors: review_schedule is the
-      // competitor's own override (NULL follows the app) with review_weekday and review_schedule_at (when it was set); the rest is the state of the scheduled reads (the newest
+      // competitor's own override (NULL follows the app) with review_weekday (review_schedule_at, when it was set, is added by migration 69); the rest is the state of the scheduled reads (the newest
       // review seen, how many were new, failures in a row, the backoff, the last coded error, the last scheduled attempt).
       return [
         `CREATE TABLE IF NOT EXISTS competitor_review_schedules (
@@ -56,7 +56,6 @@ export const reviewControlMigrations: Migration[] = [
         'CREATE INDEX IF NOT EXISTS competitor_review_schedules_workspace_idx ON competitor_review_schedules (workspace_id)',
         'ALTER TABLE aso_competitors ADD COLUMN review_schedule TEXT',
         'ALTER TABLE aso_competitors ADD COLUMN review_weekday INTEGER',
-        `ALTER TABLE aso_competitors ADD COLUMN review_schedule_at ${t}`,
         'ALTER TABLE aso_competitors ADD COLUMN reviews_last_seen_id TEXT',
         'ALTER TABLE aso_competitors ADD COLUMN reviews_new_count INTEGER NOT NULL DEFAULT 0',
         'ALTER TABLE aso_competitors ADD COLUMN reviews_failures INTEGER NOT NULL DEFAULT 0',
@@ -64,6 +63,16 @@ export const reviewControlMigrations: Migration[] = [
         'ALTER TABLE aso_competitors ADD COLUMN reviews_last_error TEXT',
         `ALTER TABLE aso_competitors ADD COLUMN reviews_attempt_at ${t}`,
       ];
+    },
+  },
+  {
+    id: 69,
+    name: 'Competitor review schedule: when the competitor override was set',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // Migration 68 first shipped without this column and was edited afterwards, which left databases that had already applied it
+      // without review_schedule_at. A shipped migration is never edited: this one adds the column for every database.
+      return [`ALTER TABLE aso_competitors ADD COLUMN review_schedule_at ${t}`];
     },
   },
 ];

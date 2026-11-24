@@ -18,14 +18,14 @@ async function upTo66(db: Database) {
   }
 }
 
-dbTest('migrations 67 and 68: the review policy and the competitor review schedule; a followed competitor keeps its row', async (db) => {
+dbTest('migrations 67 to 69: the review policy and the competitor review schedule; a followed competitor keeps its row', async (db) => {
   assert.equal(migrations.at(-1)?.id, migrations.length, 'ids run 1..n without a gap');
   await upTo66(db);
   await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('w1', 'W', 1)");
   await db.execute(
     "INSERT INTO aso_competitors (id, workspace_id, app_id, store, external_id, country, name, added_by, added_at) VALUES ('c1', 'w1', 'a1', 'app_store', '123', 'us', 'Rival', 'u', 1)",
   );
-  assert.deepEqual((await migrate(db)).filter((id) => id === 67 || id === 68), [67, 68]);
+  assert.deepEqual((await migrate(db)).filter((id) => id >= 67), [67, 68, 69]);
   const cols = (await tableColumns(db, 'aso_competitors')).map((c) => c.name);
   for (const name of ['review_schedule', 'review_weekday', 'review_schedule_at', 'reviews_last_seen_id', 'reviews_new_count', 'reviews_failures', 'reviews_backoff_until', 'reviews_last_error', 'reviews_attempt_at'])
     assert.ok(cols.includes(name), name);
@@ -49,4 +49,16 @@ dbTest('migrations 67 and 68: the review policy and the competitor review schedu
   assert.equal(Number(sched?.max_competitors), 5);
   assert.equal(Number(sched?.max_reviews), 20);
   assert.deepEqual(await migrate(db), []);
+});
+
+dbTest('migration 69 repairs a database that applied the first shape of migration 68 (no review_schedule_at)', async (db) => {
+  await migrate(db);
+  // The state such a database is in: 68 recorded, 69 not yet, and the column missing.
+  await db.execute('ALTER TABLE aso_competitors DROP COLUMN review_schedule_at');
+  await db.execute('DELETE FROM schema_migrations WHERE id = 69');
+  const before = (await tableColumns(db, 'aso_competitors')).map((c) => c.name);
+  assert.ok(!before.includes('review_schedule_at'));
+  assert.deepEqual((await migrate(db)).filter((id) => id >= 67), [69]);
+  const after = (await tableColumns(db, 'aso_competitors')).map((c) => c.name);
+  assert.ok(after.includes('review_schedule_at'));
 });
