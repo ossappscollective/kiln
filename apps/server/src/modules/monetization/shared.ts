@@ -19,6 +19,7 @@ import type { TestLimiter } from '../../services/credential-tests.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import type { RevenueCatStep } from '../revenuecat/index.ts';
+import type { PriceContext } from './price-shared.ts';
 
 import { coded, messageCoding } from '../../i18n/problem.ts';
 /**
@@ -73,6 +74,8 @@ export const defaultProductWriteConnectorFactory: ProductWriteConnectorFactory =
   });
 
 export type MonetizationContext = {
+  /** Price changes (docs/adr/0062-price-writes.md). */
+  price: PriceContext;
   db: Database;
   masterKey: Buffer;
   now: () => number;

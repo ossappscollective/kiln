@@ -133,6 +133,33 @@ const revenueCatStepSchema = z
   ])
   .nullable();
 
+export const stagedPriceSchema = z.object({
+  id: z.string(),
+  productId: z.string(),
+  planId: z.string().nullable(),
+  store: z.string(),
+  kind: productKind,
+  effectiveDate: z.string().nullable().describe('`YYYY-MM-DD`, or null for as soon as the store allows.'),
+  existingSubscribers: z.enum(['preserve', 'apply', 'opt_in', 'opt_out', 'not_applicable']),
+  acknowledgements: z.array(z.enum(['large_change', 'large_absolute', 'existing_subscribers'])),
+  lines: z.array(
+    z.object({
+      territory: z.string(),
+      currency: z.string(),
+      before: z.string().describe('Minor units, as text.'),
+      after: z.string().describe('Minor units, as text.'),
+      percentBp: z.number().int().nullable().describe('Change in basis points of the current price (2004 is +20.04%).'),
+      direction: z.enum(['increase', 'decrease', 'same']),
+      pricePointId: z.string().nullable(),
+    }),
+  ),
+  currencies: z.array(z.string()).describe('Amounts of different currencies are never added.'),
+  largestBp: z.number().int(),
+  createdAt: timestamp,
+  createdBy: z.string(),
+  version: z.string(),
+});
+
 const productsViewSchema = z.object({
   app: appViewSchema,
   supported: z.boolean().describe('False for a platform whose store has no in-app purchases here.'),
@@ -142,7 +169,20 @@ const productsViewSchema = z.object({
     enabled: z.boolean().describe('KILN_STORE_PRODUCT_WRITE_ENABLED.'),
     envName: z.string(),
   }),
+  priceWrite: z
+    .object({
+      enabled: z.boolean().describe('Both switches are on: the server (`KILN_PRICE_WRITES_ENABLED`) and the workspace setting `prices.writeEnabled`.'),
+      envName: z.string(),
+      workspaceEnabled: z.boolean(),
+      reason: z.enum(['server_switch', 'workspace_setting']).nullable().describe('Which switch is off (the server first), null when both are on.'),
+      limits: z.object({ relativeChangePercent: z.number(), absoluteChangeMajor: z.number(), maxTerritories: z.number().int() }),
+      staged: z.array(stagedPriceSchema).describe('Price changes staged for this app and not yet sent (they are also in the cart).'),
+    })
+    .describe('Price changes (ADR 0062). Prices are changed only by staging here and sending from the cart.'),
 });
+
+const pricePointSchema = z.object({ id: z.string(), territory: z.string(), currency: z.string(), amount: z.string().describe('Minor units, as text.') });
+const priceIssueSchema = z.object({ code: z.string(), territory: z.string().optional(), detail: z.record(z.string(), z.unknown()).optional() });
 
 const textsSchema = z.object({ name: z.string(), description: z.string() });
 const changesSchema = z.object({ name: z.boolean(), description: z.boolean() });
@@ -290,6 +330,100 @@ export const monetizationOperations: Draft[] = [
       '200': {
         description: 'A preview (`apply: false`) or the result of the change (`apply: true`).',
         schema: z.object({ preview: previewSchema.optional(), result: resultSchema.optional() }),
+      },
+    },
+  },
+  {
+    id: 'listProductPricePoints',
+    method: 'get',
+    path: `${W}/apps/{appId}/products/{productId}/price-points`,
+    tags: ['products'],
+    summary: 'Apple price points of one territory (a store READ)',
+    description:
+      'Apple sells only at its price points: this lists those of one territory (`?territory=USA`), lowest first, read from App Store Connect. Google Play has none: `applicable` is false and the list empty. Changes nothing. Needs `monetization.price` (owner and admin; a token only when its actions name it).',
+    risk: 'read',
+    access: { action: 'monetization.price' },
+    appScope: { kind: 'param', name: 'appId' },
+    responses: {
+      '200': {
+        description: 'The price points.',
+        schema: z.object({ pricePoints: z.array(pricePointSchema), currency: z.string().nullable(), applicable: z.boolean() }),
+      },
+    },
+  },
+  {
+    id: 'convertProductPrices',
+    method: 'post',
+    path: `${W}/apps/{appId}/products/{productId}/price-convert`,
+    tags: ['products'],
+    summary: 'Google Play: derive regional prices from one base price (a store READ)',
+    description:
+      'Calls Google Play `pricing:convertRegionPrices` with the base territory\u2019s new amount (minor units, tax exclusive as Google defines it) and returns the converted price of each region the plan already has, in the currency it already has. Changes nothing and stages nothing: the person reviews the numbers and stages them. `422 not_applicable` for the App Store. Needs `monetization.price`.',
+    risk: 'read',
+    access: { action: 'monetization.price' },
+    appScope: { kind: 'param', name: 'appId' },
+    body: z.object({ planId: z.string().nullable(), baseTerritory: z.string().length(2), amount: z.string().regex(/^\d{1,15}$/) }),
+    responses: {
+      '200': {
+        description: 'Converted prices.',
+        schema: z.object({
+          prices: z.array(z.object({ territory: z.string(), currency: z.string(), amount: z.string(), current: z.string().nullable() })),
+          regionsVersion: z.string().nullable(),
+        }),
+      },
+    },
+  },
+  {
+    id: 'stageProductPrice',
+    method: 'put',
+    path: `${W}/apps/{appId}/products/{productId}/prices/staged`,
+    tags: ['products'],
+    summary: 'Stage a price change of a product (Kiln only; nothing is sent to a store)',
+    description:
+      'Stages (replaces) the price change of one product and plan; it then appears in the pending cart as a `price` item with risk `financial`. Writes Kiln\u2019s own table and the audit log only. The SERVER decides: the current price and currency come from the stored snapshot, never from the request, and every rule is checked again (positive whole minor units, currency of the territory, Apple amounts must be an Apple price point (the nearest points are returned, never rounded silently), Play Money precision, a change over the relative or absolute limit needs its acknowledgement, a date not in the past and only where the store can schedule, at most the configured number of territories). `409 price_writes_disabled` while `KILN_PRICE_WRITES_ENABLED` or the workspace setting `prices.writeEnabled` is off; `409 stale_snapshot` when `seenSyncedAt` is not the product\u2019s `syncedAt`; `422` with an `issues` list otherwise. Existing subscribers default to `preserve`. Needs `monetization.price` (explicit-only for tokens). Audited as `price.staged` with the before and after amounts.',
+    risk: 'write',
+    access: { action: 'monetization.price' },
+    appScope: { kind: 'param', name: 'appId' },
+    body: z.object({
+      planId: z.string().nullable().describe('Google Play: the base plan or purchase option. Apple subscription: the plan type of the price row (`MONTHLY`, `UPFRONT`) or null. Apple in-app purchase: null.'),
+      lines: z.array(z.object({ territory: z.string(), newAmount: z.string().regex(/^\d{1,15}$/).describe('Minor units, digits only.'), pricePointId: z.string().optional().describe('Apple only: the price point that carries the amount.') })).min(1).max(250),
+      effectiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().describe('Apple only; null means as soon as the store allows.'),
+      existingSubscribers: z.enum(['preserve', 'apply', 'opt_in', 'opt_out', 'not_applicable']).describe('`preserve` is the default and the safe choice.'),
+      acknowledgements: z.array(z.enum(['large_change', 'large_absolute', 'existing_subscribers'])),
+      seenSyncedAt: z.number().int().min(0).describe('The `syncedAt` of the product as the screen showed it.'),
+    }),
+    responses: { '200': { description: 'The staged change.', schema: z.object({ staged: stagedPriceSchema }) } },
+  },
+  {
+    id: 'dryRunStagedPrices',
+    method: 'post',
+    path: `${W}/apps/{appId}/prices/dry-run`,
+    tags: ['products'],
+    summary: 'Dry run of the staged price changes (a store READ; nothing is sent)',
+    description:
+      'Reads the LIVE prices of each staged change (and Apple\u2019s price points), runs every rule again against them, and shows what a send would do: Apple subscriptions go through `subscriptionPriceChangePreviews` (the store\u2019s own validation, which saves nothing); for the other stores `preview.requests` lists exactly what would be sent. Writes nothing, takes no claim, needs no typed phrase or step-up. Works while the switches are off (`writesEnabled` says whether a send would be allowed). Needs `monetization.price`. Audited as `price.dry_run`.',
+    risk: 'read',
+    access: { action: 'monetization.price' },
+    appScope: { kind: 'param', name: 'appId' },
+    body: z.object({ ids: z.array(z.string()).max(200).optional().describe('Cart item ids (`price:\u2026`); all staged changes when omitted.') }),
+    responses: {
+      '200': {
+        description: 'Per item: issues against the live prices and the preview.',
+        schema: z.object({
+          dryRun: z.object({
+            items: z.array(
+              z.object({
+                id: z.string(),
+                productId: z.string(),
+                summary: z.object({ lines: z.array(z.record(z.string(), z.unknown())), currencies: z.array(z.string()), largestBp: z.number().int(), largestSignedBp: z.number().int(), increases: z.number().int(), decreases: z.number().int() }),
+                issues: z.array(priceIssueSchema),
+                preview: z.object({ mode: z.enum(['store', 'local']), lines: z.array(z.object({ territory: z.string(), changeType: z.string().optional(), note: z.string().optional() })), requests: z.array(z.object({ method: z.string(), path: z.string(), summary: z.string() })) }).nullable(),
+                error: z.object({ code: z.string(), message: z.string() }).nullable(),
+              }),
+            ),
+            writesEnabled: z.boolean(),
+          }),
+        }),
       },
     },
   },

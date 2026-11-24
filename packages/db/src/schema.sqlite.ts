@@ -2336,6 +2336,49 @@ export const storeProductClaims = sqliteTable(
 );
 
 /**
+ * Prepared and not yet sent price changes of in-app products (migration 66, docs/adr/0062-price-writes.md). Its own table so the push of staged
+ * changes can never reach a price. `payloadJson` is the validated change in MINOR units; `syncedAt` is the snapshot the person saw.
+ */
+export const stagedPriceChanges = sqliteTable(
+  'staged_price_changes',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    productId: text('product_id').notNull(),
+    planId: text('plan_id').notNull().default(''),
+    store: text('store').notNull(),
+    payloadJson: text('payload_json').notNull(),
+    valueHash: text('value_hash').notNull(),
+    syncedAt: integer('synced_at').notNull(),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('staged_price_changes_slot_idx').on(t.appId, t.productId, t.planId),
+    index('staged_price_changes_workspace_idx').on(t.workspaceId, t.appId),
+  ],
+);
+
+/** One price write in flight per app (migration 66). `unknown`: the outcome of the last write is not known. */
+export const storePriceClaims = sqliteTable(
+  'store_price_claims',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    status: text('status').notNull().default('writing'),
+    claimedBy: text('claimed_by').notNull(),
+    claimAt: integer('claim_at').notNull(),
+  },
+  (t) => [index('store_price_claims_workspace_idx').on(t.workspaceId)],
+);
+
+/**
  * Apple's Product Page Optimization experiments and custom product pages as the last sync read them (migration 53,
  * docs/adr/0048-store-experiments.md): one row per experiment (`kind` experiment) or page (`kind` custom_page). `detailJson` holds the
  * treatments, versions and locales. No foreign key to apps: deleteApp removes the rows.

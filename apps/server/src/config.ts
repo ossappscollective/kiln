@@ -270,6 +270,17 @@ const schema = z.object({
   // in-app purchase or subscription in the store. Prices, availability and the products themselves are never written. Reading and syncing the
   // products does not depend on it. Off by default: the localization route answers 409 store_product_write_disabled until this is 'true'.
   KILN_STORE_PRODUCT_WRITE_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  // Kill switch for PRICE changes of in-app purchases and subscriptions (docs/adr/0062-price-writes.md). A financial write, the strictest of the app:
+  // OFF by default. While off, no price can be staged or sent and no store is called for one; reading prices is never affected. Turning it on is not
+  // enough on its own: the workspace setting `prices.writeEnabled`, the right `monetization.price`, step-up where the policy covers `store.price`, and a
+  // typed phrase in the cart are all still needed.
+  KILN_PRICE_WRITES_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  // Guard rails of a price change. A line that moves a price by more than the percentage, or by more than the amount (in MAJOR units of its
+  // currency; high-denomination currencies such as JPY have larger built-in defaults), needs an explicit acknowledgement. At most this many
+  // territories in one change.
+  KILN_PRICE_MAX_RELATIVE_CHANGE_PERCENT: blankIsUnset(z.coerce.number().int().min(1).max(1000).default(50)),
+  KILN_PRICE_MAX_ABSOLUTE_CHANGE: blankIsUnset(z.coerce.number().int().min(1).max(1_000_000).default(100)),
+  KILN_PRICE_MAX_TERRITORIES: blankIsUnset(z.coerce.number().int().min(1).max(250).default(50)),
   // Kill switch for writing staged listing text and graphics into a store as a DRAFT (docs/adr/0009-staged-store-drafts.md):
   // the App Store version localizations and screenshots of the editable version, and a Google Play edit
   // committed with changesNotSentForReview. It never submits, sends for review or publishes. Off by
@@ -674,6 +685,10 @@ export type Config = {
   easUpdateRolloutEnabled: boolean;
   /** Changing the display name and description of an in-app product in the stores is allowed (KILN_STORE_PRODUCT_WRITE_ENABLED). Default false. */
   storeProductWriteEnabled: boolean;
+  /** Changing the PRICE of an in-app product in the stores is allowed (KILN_PRICE_WRITES_ENABLED). Default false. */
+  priceWritesEnabled: boolean;
+  /** Guard rails of a price change (KILN_PRICE_MAX_*). */
+  priceLimits: { relativeChangePercent: number; absoluteChangeMajor: number; maxTerritories: number };
   /** Writing staged listing text and graphics into a store as a draft is allowed (KILN_STORE_DRAFT_WRITE_ENABLED). Default false. */
   storeDraftWriteEnabled: boolean;
   /** Submitting the store's draft for review is allowed (KILN_STORE_SUBMIT_ENABLED). Default false. */
@@ -776,6 +791,12 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     storeRolloutEnabled: data.KILN_STORE_ROLLOUT_ENABLED === 'true',
     easUpdateRolloutEnabled: data.KILN_EAS_UPDATE_ROLLOUT_ENABLED === 'true',
     storeProductWriteEnabled: data.KILN_STORE_PRODUCT_WRITE_ENABLED === 'true',
+    priceWritesEnabled: data.KILN_PRICE_WRITES_ENABLED === 'true',
+    priceLimits: {
+      relativeChangePercent: data.KILN_PRICE_MAX_RELATIVE_CHANGE_PERCENT,
+      absoluteChangeMajor: data.KILN_PRICE_MAX_ABSOLUTE_CHANGE,
+      maxTerritories: data.KILN_PRICE_MAX_TERRITORIES,
+    },
     storeDraftWriteEnabled: data.KILN_STORE_DRAFT_WRITE_ENABLED === 'true',
     storeSubmitEnabled: data.KILN_STORE_SUBMIT_ENABLED === 'true',
     storeReleaseEnabled: data.KILN_STORE_RELEASE_ENABLED === 'true',

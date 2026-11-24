@@ -1,5 +1,6 @@
 import type { ServerModule } from '../module.ts';
 import { type RevenueCatDeps, revenueCatStep } from '../revenuecat/index.ts';
+import { buildPriceContext, type PriceDeps } from './price-shared.ts';
 import { monetizationRoutes } from './routes.ts';
 import {
   DEFAULT_PRODUCT_CLAIM_TTL_MS,
@@ -42,6 +43,8 @@ export type MonetizationDeps = {
         claimTtlMs?: number | undefined;
       }
     | undefined;
+  /** Price changes (docs/adr/0062-price-writes.md): the stage, price point, convert and dry run routes. The same object the cart gets. */
+  price?: PriceDeps | undefined;
   /** The seams of the RevenueCat read that follows the store read of a sync (the same as `AppDeps.revenuecat`). */
   revenueCat?: RevenueCatDeps | undefined;
 };
@@ -53,6 +56,7 @@ export const monetizationModule: ServerModule<MonetizationDeps> = {
     app.route(
       '/api/workspaces',
       monetizationRoutes({
+        price: buildPriceContext({ db, masterKey, now }, deps?.price),
         db,
         masterKey,
         now,

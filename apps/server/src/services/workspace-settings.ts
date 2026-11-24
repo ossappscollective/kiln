@@ -127,6 +127,13 @@ export const settingDefinitions = {
     writeAction: 'aso.manage',
     parse: integerIn(1, 100),
   } satisfies Definition<number>,
+  'prices.writeEnabled': {
+    doc: 'Allows PRICE changes of in-app purchases and subscriptions to be staged and sent to the stores from this workspace (docs/adr/0062-price-writes.md). Off by default, and not enough on its own: the server switch KILN_PRICE_WRITES_ENABLED, the right monetization.price, step-up where covered and a typed phrase are all still needed. Turning it on is a hard action when step-up is on.',
+    default: false,
+    writeAction: 'settings.write',
+    parse: (raw: unknown): Parsed<boolean> =>
+      typeof raw === 'boolean' ? ok(raw) : bad('Use true or false.'),
+  } satisfies Definition<boolean>,
   'translation.enabled': {
     doc: 'Turns review translation on. While off, nothing is sent to a translation provider.',
     default: false,

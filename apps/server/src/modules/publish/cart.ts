@@ -8,6 +8,9 @@ import { getPolicy } from '../../services/step-up.ts';
 import { deleteReplyDraft, REPLY_ENV, type ReviewReplyContext, sendReviewReply } from '../reviews/replies.ts';
 import { storeFor } from '../reviews/sync.ts';
 import { lastStoreImages } from '../listing/store-images.ts';
+import { listStagedPrices, unstagePrice, viewOf, type StagedPriceView } from '../monetization/price-stage.ts';
+import { confirmationFailure, phraseMatches, sendPrices, type PriceItemResult } from '../monetization/price-publish.ts';
+import { PRICE_ENV, priceSwitch, type PriceContext, type StagedPrice } from '../monetization/price-shared.ts';
 import { loadPendingFacts } from './pending.ts';
 import { buildStagedView, type StagedContext, unstage } from './staged-changes.ts';
 import { metadataLock } from './metadata-lock.ts';
@@ -29,11 +32,11 @@ import { applyDraftPush, DRAFT_ENV, type DraftContext, previewDraftPush } from '
  *   in the list (the staged view and the review inbox show it too) and never in an audit entry or an event.
  */
 
-export const CART_KINDS = ['listing', 'graphics', 'release', 'review_reply'] as const;
+export const CART_KINDS = ['listing', 'graphics', 'release', 'price', 'review_reply'] as const;
 export type CartKind = (typeof CART_KINDS)[number];
 
 export type CartReason = {
-  code: 'no_right' | 'switch_off' | 'metadata_locked' | 'invalid' | 'bundle_blocked' | 'in_progress' | 'outcome_unknown';
+  code: 'no_right' | 'switch_off' | 'workspace_off' | 'metadata_locked' | 'invalid' | 'bundle_blocked' | 'in_progress' | 'outcome_unknown';
   /** The right the caller lacks. */
   action?: string;
   /** The switch that is off. */
@@ -56,8 +59,8 @@ export type CartItem = {
   createdAt: number;
   author: { id: string; name: string | null } | null;
   /** `store_draft`: written as a draft, nothing is submitted. `public_reply`: public as soon as it is sent. */
-  risk: 'store_draft' | 'public_reply';
-  /** The workspace's step-up policy asks this person to confirm the send again. */
+  risk: 'store_draft' | 'public_reply' | 'financial';
+  /** The workspace's step-up policy asks this person to confirm the send again. Always true for a price (it also needs the typed phrase). */
   needsApproval: boolean;
   publishable: boolean;
   reason: CartReason | null;
@@ -73,6 +76,8 @@ export type CartItem = {
   problems: { code: string; severity: 'error' | 'warning'; message: string }[];
   /** Where it was made (the web turns it into a link). */
   ref: { locale?: string; field?: string; slot?: string; reviewId?: string };
+  /** Price items: before and after per territory (minor units), percent change, date, what happens to existing subscribers. */
+  price?: StagedPriceView;
   /** Reply items: the review it answers. */
   review?: { rating: number; excerpt: string; language: string | null; territory: string | null; status: string };
 };
@@ -82,6 +87,8 @@ export type CartRights = {
   reply: boolean;
   discardStaged: boolean;
   discardReply: boolean;
+  /** `monetization.price`: may send prices (staging needs it too). */
+  price: boolean;
 };
 
 export type CartContext = {
@@ -90,6 +97,7 @@ export type CartContext = {
   draft: DraftContext;
   staged: StagedContext;
   reply: ReviewReplyContext;
+  price: PriceContext;
 };
 
 type Actor = { type: 'user' | 'token' | 'system'; id: string };
@@ -123,7 +131,7 @@ async function authorsOf(db: Database, ids: readonly string[]): Promise<Map<stri
 
 /** The cart of an app, from stored state only: no store and no repository is read. */
 export async function loadCart(
-  ctx: Pick<CartContext, 'db' | 'now' | 'draft' | 'reply'>,
+  ctx: Pick<CartContext, 'db' | 'now' | 'draft' | 'reply' | 'price'>,
   input: { workspaceId: string; app: ManagedApp; rights: CartRights },
 ): Promise<LoadedCart> {
   const { db } = ctx;
@@ -247,6 +255,59 @@ export async function loadCart(
     items.push(...staged);
   }
 
+  // ----- price changes (a financial write: its own table, never part of the draft push; each product is independent) -----
+  const stagedPrices = await listStagedPrices(db, workspaceId, app.id);
+  if (stagedPrices.length > 0) {
+    const sw = await priceSwitch(ctx.price, workspaceId);
+    const snapshot = await db.query('SELECT product_id, plan_id, territory, currency, amount FROM store_product_prices WHERE app_id = ? AND workspace_id = ?', [app.id, workspaceId]);
+    const [claim] = await db.query('SELECT status FROM store_price_claims WHERE app_id = ?', [app.id]);
+    for (const p of stagedPrices) {
+      authorIds.push(p.createdBy);
+      raw.set(`price:${p.id}`, { kind: 'price', rawId: p.id });
+      const view = viewOf(p);
+      const current = snapshot
+        .filter((r) => String(r.product_id) === p.change.productId && String(r.plan_id) === (p.change.planId ?? ''))
+        .map((r) => ({ territory: String(r.territory), currency: String(r.currency), amount: String(r.amount) }));
+      // The synced price moved since this was staged: the cart says so, and a send would refuse it anyway.
+      const moved = p.change.lines.some((l) => current.find((c) => c.territory === l.territory)?.amount !== l.currentAmount);
+      const reason: CartReason | null = !ctx.price.enabled
+        ? { code: 'switch_off', envName: PRICE_ENV }
+        : !sw.workspaceEnabled
+          ? { code: 'workspace_off' }
+          : !rights.price
+            ? { code: 'no_right', action: 'monetization.price' }
+            : claim
+              ? { code: String(claim.status) === 'unknown' ? 'outcome_unknown' : 'in_progress' }
+              : moved
+                ? { code: 'invalid' }
+                : null;
+      items.push({
+        id: `price:${p.id}`,
+        kind: 'price',
+        title: p.change.planId ? `${p.change.productId} · ${p.change.planId}` : p.change.productId,
+        summary: null,
+        before: null,
+        platform,
+        store,
+        locale: null,
+        createdAt: p.createdAt,
+        author: { id: p.createdBy, name: null },
+        risk: 'financial',
+        needsApproval: true,
+        publishable: reason === null,
+        reason,
+        canDiscard: rights.discardStaged,
+        bundle: null,
+        version: p.valueHash,
+        counts: { territories: p.change.lines.length },
+        thumbs: [],
+        problems: moved ? [{ code: 'stale_price', severity: 'error', message: 'The synced price changed since this was staged. Discard it and stage it again.' }] : [],
+        ref: { field: p.change.productId },
+        price: view,
+      });
+    }
+  }
+
   // ----- reply drafts (status draft or failed can be sent; the others only say why not) -----
   const drafts = await db.query(
     `SELECT d.review_id, d.status, d.text, d.text_hash, d.created_by, d.created_at, d.updated_at,
@@ -309,7 +370,7 @@ export async function loadCart(
 }
 
 export async function getCart(
-  ctx: Pick<CartContext, 'db' | 'now' | 'draft' | 'reply'>,
+  ctx: Pick<CartContext, 'db' | 'now' | 'draft' | 'reply' | 'price'>,
   input: { workspaceId: string; appId: string; rights: CartRights },
 ): Promise<{ ok: true; items: CartItem[]; generatedAt: number } | Failure> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
@@ -327,6 +388,8 @@ export type CartResult = {
   /** Why it failed or was skipped: a cart code (`not_pending`, `changed_since_review`, `bundle_incomplete`, a reason code of the item) or the code the store step answered. */
   reason: string | null;
   httpStatus?: number;
+  /** Price items: what the store did per territory and whether a re-read confirms it. */
+  price?: PriceItemResult['detail'];
 };
 
 export type CartRequestItem = { id: string; version: string };
@@ -335,7 +398,7 @@ const failed = (id: string, f: Failure): CartResult => ({ id, status: 'failed', 
 
 export async function publishCart(
   ctx: CartContext,
-  input: { workspaceId: string; appId: string; items: CartRequestItem[]; rights: CartRights; actor: Actor },
+  input: { workspaceId: string; appId: string; items: CartRequestItem[]; rights: CartRights; actor: Actor; confirmation?: string | undefined },
 ): Promise<{ ok: true; results: CartResult[]; remaining: number } | Failure> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
@@ -345,6 +408,22 @@ export async function publishCart(
   for (const i of input.items) if (!asked.has(i.id)) asked.set(i.id, i.version);
   const results = new Map<string, CartResult>();
   const bundles = new Map<string, { status: CartResult['status']; reason: string | null; httpStatus?: number }>();
+
+  // Prices: the typed phrase is checked for exactly the price items that would be sent, BEFORE anything is sent (a mismatch sends nothing at all,
+  // not even a reply). Each product is independent, so any subset may be named; a product's territories always go together.
+  const sendable = [...asked]
+    .map(([id, version]) => ({ id, version, item: byId.get(id) }))
+    .filter((x) => x.item?.kind === 'price' && x.item.version === x.version && x.item.publishable);
+  const priceRows: StagedPrice[] = [];
+  if (sendable.length > 0) {
+    const all = await listStagedPrices(ctx.db, input.workspaceId, app.id);
+    for (const s of sendable) {
+      const row = all.find((r) => `price:${r.id}` === s.id);
+      if (row) priceRows.push(row);
+    }
+    if (priceRows.length > 0 && !phraseMatches(input.confirmation, priceRows)) return confirmationFailure();
+  }
+  const priceResults = priceRows.length > 0 ? await sendPrices(ctx.price, { workspaceId: input.workspaceId, app, rows: priceRows, actor: input.actor }) : new Map<string, PriceItemResult>();
 
   for (const [id, version] of asked) {
     const item = byId.get(id);
@@ -358,6 +437,14 @@ export async function publishCart(
     }
     if (!item.publishable) {
       results.set(id, { id, status: 'skipped', reason: item.reason?.code ?? 'not_publishable' });
+      continue;
+    }
+    if (item.kind === 'price') {
+      const rowId = item.id.slice('price:'.length);
+      const sent = priceResults.get(rowId);
+      results.set(id, sent
+        ? { id, status: sent.status, reason: sent.reason, ...(sent.httpStatus !== undefined ? { httpStatus: sent.httpStatus } : {}), price: sent.detail }
+        : { id, status: 'skipped', reason: 'not_pending' });
       continue;
     }
     if (item.kind === 'review_reply') {
@@ -445,7 +532,9 @@ export async function discardCart(
       continue;
     }
     const done =
-      item.kind === 'review_reply'
+      item.kind === 'price'
+        ? await unstagePrice(ctx.price, { workspaceId: input.workspaceId, appId: app.id, id: raw.rawId, actor: input.actor })
+        : item.kind === 'review_reply'
         ? await deleteReplyDraft(ctx.reply, {
             workspaceId: input.workspaceId,
             appId: app.id,

@@ -25,6 +25,7 @@ import { ratingsModule } from './modules/ratings/index.ts';
 import { type TestflightDeps, testflightModule } from './modules/testflight/index.ts';
 import { insightsModule } from './modules/insights/index.ts';
 import { type MonetizationDeps, monetizationModule } from './modules/monetization/index.ts';
+import type { PriceDeps } from './modules/monetization/price-shared.ts';
 import { type RevenueCatDeps, revenuecatModule } from './modules/revenuecat/index.ts';
 import { type AdsDeps, adsModule } from './modules/ads/index.ts';
 import type { ModuleShared } from './modules/module.ts';
@@ -226,6 +227,8 @@ export type AppDeps = {
   eas?: EasDeps | undefined;
   /** In-app purchases and subscriptions (docs/adr/0034-in-app-products.md): see `MonetizationDeps` in modules/monetization. */
   monetization?: MonetizationDeps | undefined;
+  /** Price changes of in-app products (docs/adr/0062-price-writes.md): OFF unless `enabled` (KILN_PRICE_WRITES_ENABLED). Shared by the products routes and the cart. */
+  prices?: PriceDeps | undefined;
   /** Store experiments and custom product pages (docs/adr/0048-store-experiments.md): see `ExperimentsDeps` in modules/experiments. */
   experiments?: ExperimentsDeps | undefined;
   /** TestFlight feedback and crashes (docs/adr/0049-testflight-feedback.md): see `TestflightDeps` in modules/testflight. */
@@ -500,7 +503,7 @@ export function createApp(deps: AppDeps) {
   monetizationModule.mount(
     app,
     services,
-    { ...deps.monetization, revenueCat: deps.revenuecat },
+    { ...deps.monetization, revenueCat: deps.revenuecat, price: deps.prices },
     shared,
   );
   experimentsModule.mount(app, services, deps.experiments, shared);
@@ -521,6 +524,7 @@ export function createApp(deps: AppDeps) {
       version: deps.storeVersion,
       publish: deps.storePublish,
       reply: deps.reviews?.reply,
+      price: deps.prices,
     },
     shared,
   );

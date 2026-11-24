@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { stagedPriceSchema } from '../monetization/operations.ts';
 import {
   type Draft,
   platform,
@@ -53,7 +54,7 @@ const pendingItemSchema = z.object({
 
 const cartItemSchema = z.object({
   id: z.string().describe('`<kind>:<id>`; the id to send back to publish or discard.'),
-  kind: z.enum(['listing', 'graphics', 'release', 'review_reply']),
+  kind: z.enum(['listing', 'graphics', 'release', 'price', 'review_reply']),
   title: z.string(),
   summary: z.string().nullable().describe('Short excerpt of the new text (a listing text or a reply). Null for graphics.'),
   before: z.string().nullable().describe('Short excerpt of what the store has now, when known.'),
@@ -62,12 +63,12 @@ const cartItemSchema = z.object({
   locale: z.string().nullable(),
   createdAt: timestamp,
   author: z.object({ id: z.string(), name: z.string().nullable() }).nullable(),
-  risk: z.enum(['store_draft', 'public_reply']),
+  risk: z.enum(['store_draft', 'public_reply', 'financial']).describe('`financial`: a price change, charged to customers; the strictest gates.'),
   needsApproval: z.boolean().describe('The workspace step-up policy asks the person to confirm the send again.'),
   publishable: z.boolean(),
   reason: z
     .object({
-      code: z.enum(['no_right', 'switch_off', 'invalid', 'bundle_blocked', 'in_progress', 'outcome_unknown']),
+      code: z.enum(['no_right', 'switch_off', 'workspace_off', 'invalid', 'bundle_blocked', 'in_progress', 'outcome_unknown']),
       action: z.string().optional(),
       envName: z.string().optional(),
     })
@@ -87,6 +88,7 @@ const cartItemSchema = z.object({
     slot: z.string().optional(),
     reviewId: z.string().optional(),
   }),
+  price: stagedPriceSchema.optional().describe('Price items: before and after per territory (minor units), percent change in basis points, date, what happens to existing subscribers.'),
   review: z
     .object({
       rating: z.number().int(),
@@ -106,6 +108,7 @@ const cartResultSchema = z.object({
       status: z.enum(['ok', 'failed', 'skipped']),
       reason: z.string().nullable(),
       httpStatus: z.number().int().optional(),
+      price: z.record(z.string(), z.unknown()).optional().describe('Price items: per territory what the store did (`applied`, `already_applied`, `failed`, `unknown`, `not_sent`) with before and after amounts, `verification` (`confirmed`: the re-read shows the asked prices; `store_shows`: it shows others, with `mismatches`; `unverified`), and the existing-subscriber migration outcome.'),
     }),
   ),
   remaining: z.number().int().describe('Items still in the cart after this call.'),
@@ -358,6 +361,7 @@ export const pendingOperations: Draft[] = [
               reply: z.boolean(),
               discardStaged: z.boolean(),
               discardReply: z.boolean(),
+              price: z.boolean(),
             }),
             generatedAt: timestamp,
           }),
@@ -372,7 +376,7 @@ export const pendingOperations: Draft[] = [
     tags: ['pending'],
     summary: 'PUBLISH the chosen items of the pending cart (staged changes as a store draft, replies publicly)',
     description:
-      'A STORE WRITE. Takes an explicit list of `{ id, version }` from `getAppPendingCart` and sends only those. Delegates to the push of the staged changes (`KILN_STORE_DRAFT_WRITE_ENABLED`, `store.push_draft`, step-up; a store DRAFT, nothing is submitted) and to the reply send (`KILN_REVIEW_REPLY_ENABLED`, `reviews.reply`; public at once), with their own gates, claims, re-reads and audit. Staged changes are written by one push, so they form a bundle: a request that names only part of it is skipped (`bundle_incomplete`). An item that changed since it was listed is skipped (`changed_since_review`); one that is gone is skipped (`not_pending`), so repeating a request is safe. One failure never stops the others: the answer is `200` with a result per item (`ok`, `failed`, `skipped` and a reason code). Audited as `pending.cart_published` (ids and outcome codes, never a text).',
+      'A STORE WRITE. Takes an explicit list of `{ id, version }` from `getAppPendingCart` and sends only those. PRICE items (`price:\u2026`, risk `financial`) are the strictest: a request that names one needs `KILN_PRICE_WRITES_ENABLED` and the workspace setting `prices.writeEnabled` (else the item is skipped with reason `switch_off` / `workspace_off`), the right `monetization.price`, step-up (`store.price`, `403 step_up_required` before anything is read) and `confirmation`, the typed phrase `CHANGE <n> PRICES MAX <p>%` naming the number of price items sent and the largest change (`422 confirmation_mismatch` sends NOTHING, not even a reply). Each product is independent (any subset may be named; its territories go together); the live prices are re-read and every rule re-run right before the write (`stale_price`, `currency_mismatch`, `price_point_invalid`, `acknowledgement_required` leave the item staged), and after the write the store is read back: `price.verification` says `confirmed` or `store_shows`. Existing subscribers are untouched unless the staged choice says otherwise. Delegates to the push of the staged changes (`KILN_STORE_DRAFT_WRITE_ENABLED`, `store.push_draft`, step-up; a store DRAFT, nothing is submitted) and to the reply send (`KILN_REVIEW_REPLY_ENABLED`, `reviews.reply`; public at once), with their own gates, claims, re-reads and audit. Staged changes are written by one push, so they form a bundle: a request that names only part of it is skipped (`bundle_incomplete`). An item that changed since it was listed is skipped (`changed_since_review`); one that is gone is skipped (`not_pending`), so repeating a request is safe. One failure never stops the others: the answer is `200` with a result per item (`ok`, `failed`, `skipped` and a reason code). Audited as `pending.cart_published` (ids and outcome codes, never a text).',
     risk: 'destructive',
     access: { action: 'listing.read' },
     appScope: { kind: 'param', name: 'id' },

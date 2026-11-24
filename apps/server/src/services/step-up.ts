@@ -37,6 +37,8 @@ export const stepUpActions = [
   'credential.delete',
   'flags',
   'store.push_draft',
+  // Sending PRICE changes of in-app products (docs/adr/0062-price-writes.md): covered by default, unlike a draft push.
+  'store.price',
 ] as const;
 export type StepUpAction = (typeof stepUpActions)[number];
 export const isStepUpAction = (value: unknown): value is StepUpAction =>

@@ -4,6 +4,8 @@ import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { storeFor } from '../reviews/sync.ts';
+import { priceSwitch } from './price-shared.ts';
+import { listStagedPrices, type StagedPriceView, viewOf } from './price-stage.ts';
 import {
   type Actor,
   type Connection,
@@ -43,7 +45,28 @@ export type ProductsView = {
   /** Null before the first sync. */
   sync: ProductSyncStatus | null;
   write: { enabled: boolean; envName: string };
+  /** Price changes (docs/adr/0062-price-writes.md): both switches, the guard rails the screen explains, and what is staged for this app. */
+  priceWrite: {
+    enabled: boolean;
+    envName: string;
+    workspaceEnabled: boolean;
+    reason: 'server_switch' | 'workspace_setting' | null;
+    limits: { relativeChangePercent: number; absoluteChangeMajor: number; maxTerritories: number };
+    staged: StagedPriceView[];
+  };
 };
+
+async function priceWriteView(price: MonetizationContext['price'], workspaceId: string, appId: string): Promise<ProductsView['priceWrite']> {
+  const sw = await priceSwitch(price, workspaceId);
+  return {
+    enabled: sw.enabled,
+    envName: sw.envName,
+    workspaceEnabled: sw.workspaceEnabled,
+    reason: sw.reason,
+    limits: { relativeChangePercent: price.limits.relativeBp / 100, absoluteChangeMajor: price.limits.absoluteMajor, maxTerritories: price.limits.maxTerritories },
+    staged: (await listStagedPrices(price.db, workspaceId, appId)).map(viewOf),
+  };
+}
 
 const appView = (app: ManagedApp) => ({
   id: app.id,
@@ -67,6 +90,7 @@ export async function listProducts(
       products: supported ? await listStoredProducts(ctx.db, input.workspaceId, app.id) : [],
       sync: supported ? await readSyncStatus(ctx.db, input.workspaceId, app.id) : null,
       write: { enabled: ctx.writeEnabled, envName: 'KILN_STORE_PRODUCT_WRITE_ENABLED' },
+      priceWrite: await priceWriteView(ctx.price, input.workspaceId, app.id),
     },
   };
 }

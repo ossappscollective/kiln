@@ -818,7 +818,9 @@ test('the classes of hard actions are the documented ones', () => {
       'credential.delete',
       'flags',
       'store.push_draft',
+      'store.price',
     ],
   );
   assert.equal(defaultCoveredActions.includes('store.push_draft'), false);
+  assert.equal(defaultCoveredActions.includes('store.price'), true, 'sending prices is covered by default');
 });

@@ -278,6 +278,7 @@ const settingsBody = z.object({
       'A keyword that moves this many places or more between two checks raises `aso.rank_changed`. Default 5. Entering or leaving the results raises it only within the top 10.',
     ),
   'translation.enabled': z.boolean().nullable().optional().describe('Default false.'),
+  'prices.writeEnabled': z.boolean().nullable().optional().describe('Default false. Allows price changes of in-app products to be staged and sent; the server switch and the other gates are still needed.'),
   'translation.provider': z
     .enum(translationProviders)
     .nullable()

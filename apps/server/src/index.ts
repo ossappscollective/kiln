@@ -215,6 +215,7 @@ const app = createApp({
     buildsDownloadEnabled: config.buildsDownloadEnabled,
   },
   monetization: { write: { enabled: config.storeProductWriteEnabled } },
+  prices: { enabled: config.priceWritesEnabled, limits: config.priceLimits },
   storeDraft: { enabled: config.storeDraftWriteEnabled },
   storeSubmit: { enabled: config.storeSubmitEnabled },
   storeRelease: { enabled: config.storeReleaseEnabled },
@@ -430,6 +431,11 @@ if (config.worker === 'inline') {
   if (config.reviewReplyEnabled) {
     console.log(
       'Replying to customer reviews is ON (KILN_REVIEW_REPLY_ENABLED): owners and admins can publish replies in the stores',
+    );
+  }
+  if (config.priceWritesEnabled) {
+    console.log(
+      'Changing PRICES of in-app products is ON (KILN_PRICE_WRITES_ENABLED): owners and admins can stage price changes and send them to the stores from the cart, behind the workspace setting, step-up and a typed confirmation',
     );
   }
   if (config.storeProductWriteEnabled) {

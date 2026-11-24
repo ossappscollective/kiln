@@ -8,6 +8,7 @@ import { memberRole } from '../../services/accounts.ts';
 import type { Failure } from '../../services/repositories.ts';
 import { requireStepUp } from '../../services/step-up.ts';
 import type { AssetsContext } from '../listing/asset-repo.ts';
+import { PRICE_STEP_UP, type PriceContext } from '../monetization/price-shared.ts';
 import {
   defaultReplyConnectorFactory,
   type ReviewReplyConnectorFactory,
@@ -37,6 +38,8 @@ export type CartRoutesContext = {
     timeoutMs?: number;
     claimTtlMs?: number;
   };
+  /** Price changes (docs/adr/0062-price-writes.md): the switch, limits and connector of the price writes. */
+  price: PriceContext;
   /** The same seams as the reply send of the reviews. */
   reply?: {
     enabled?: boolean;
@@ -62,6 +65,8 @@ export const cartPublishBody = z
       .array(z.object({ id: itemId, version: z.string().min(1).max(64) }).strict())
       .min(1)
       .max(200),
+    /** The phrase a person types to send prices (`CHANGE 3 PRICES MAX 42%`). Needed only when the request names a price. */
+    confirmation: z.string().max(80).optional(),
   })
   .strict();
 export const cartDiscardBody = z
@@ -69,6 +74,7 @@ export const cartDiscardBody = z
   .strict();
 
 const STAGED_PREFIXES = ['listing:', 'graphics:', 'release:'];
+const PRICE_PREFIX = 'price:';
 
 export function cartRoutes(ctx: CartRoutesContext) {
   const { db } = ctx;
@@ -99,6 +105,7 @@ export function cartRoutes(ctx: CartRoutesContext) {
     draft,
     reply,
     staged: { db, now: ctx.now, assets: { repo: ctx.repo } },
+    price: ctx.price,
   };
 
   const needs = (action: Action) => async (c: Context<AppEnv>, next: Next) => {
@@ -121,6 +128,7 @@ export function cartRoutes(ctx: CartRoutesContext) {
       reply: allowed('reviews.reply'),
       discardStaged: allowed('changesets.write'),
       discardReply: allowed('reviews.triage'),
+      price: allowed('monetization.price'),
     };
   };
 
@@ -143,12 +151,18 @@ export function cartRoutes(ctx: CartRoutesContext) {
       });
       if (refusal) return refusal;
     }
+    // Sending a price is the strictest step-up action: asked before anything is read, only when the request names a price.
+    if (body.data.items.some((i) => i.id.startsWith(PRICE_PREFIX))) {
+      const refusal = await requireStepUp({ db, now: ctx.now }, c, PRICE_STEP_UP, { id: param(c, 'id') });
+      if (refusal) return refusal;
+    }
     const done = await publishCart(cart, {
       workspaceId: ws(c),
       appId: param(c, 'id'),
       items: body.data.items,
       rights: rightsOf(c),
       actor: actor(c),
+      confirmation: body.data.confirmation,
     });
     c.header('Cache-Control', 'no-store');
     return done.ok

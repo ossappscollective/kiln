@@ -23,6 +23,7 @@ dbTest('settings: defaults, who may read and write, 404 for outsiders', async (d
   assert.deepEqual(read.body.values, {
     'reviews.lowRatingThreshold': 2,
     'aso.rankMoveThreshold': 5,
+    'prices.writeEnabled': false,
     'translation.enabled': false,
     'translation.provider': 'google',
     'translation.targetLanguage': 'en',
@@ -42,7 +43,7 @@ dbTest('settings: defaults, who may read and write, 404 for outsiders', async (d
   assert.deepEqual(read.body.defaults, read.body.values);
   assert.deepEqual(read.body.overridden, []);
   assert.deepEqual(read.body.writable, []);
-  assert.equal((await t.call(admin, 'GET', '/settings')).body.writable.length, 17);
+  assert.equal((await t.call(admin, 'GET', '/settings')).body.writable.length, 18);
   assert.equal(read.body.translation.credentialConfigured, false);
   assert.equal(
     read.body.translation.credential,

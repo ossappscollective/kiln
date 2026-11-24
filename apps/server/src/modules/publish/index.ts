@@ -3,6 +3,7 @@ import { type CartRoutesContext, cartRoutes } from './cart-routes.ts';
 import { type PendingRoutesContext, pendingRoutes } from './pending-routes.ts';
 import { type ReleaseRoutesContext, storeReleaseRoutes } from './release-routes.ts';
 import { type RolloutRoutesContext, rolloutRoutes } from './rollout-routes.ts';
+import { buildPriceContext, type PriceDeps } from '../monetization/price-shared.ts';
 import { type StagedRoutesContext, stagedRoutes } from './staged-routes.ts';
 import { type SubmitRoutesContext, storeSubmitRoutes } from './submit-routes.ts';
 import { storeVersionRoutes, type VersionRoutesContext } from './version-routes.ts';
@@ -47,13 +48,15 @@ export type PublishDeps = {
    * (KILN_STORE_PUBLISH_BATCH_ENABLED). It turns no step on: the steps keep the switches and seams above. `claimTtlMs` is for tests.
    */
   publish?: PendingRoutesContext['publish'] | undefined;
+  /** Price changes of in-app products (docs/adr/0062-price-writes.md), staged into the cart and sent from it: OFF unless `enabled`. */
+  price?: PriceDeps | undefined;
 };
 
 export const publishModule: ServerModule<PublishDeps> = {
   id: 'publish',
   mount(app, services, deps, shared) {
     const { db, masterKey, now } = services;
-    const { rollout, draft, submit, release, version, publish, reply } = deps ?? {};
+    const { rollout, draft, submit, release, version, publish, reply, price } = deps ?? {};
     app.route(
       '/api/workspaces',
       rolloutRoutes({ db, masterKey, now, ...(rollout ? { rollout } : {}) }),
@@ -128,6 +131,7 @@ export const publishModule: ServerModule<PublishDeps> = {
         repo: shared.repo,
         ...(draft ? { draft } : {}),
         ...(reply ? { reply } : {}),
+        price: buildPriceContext({ db, masterKey, now }, price),
       }),
     );
   },
